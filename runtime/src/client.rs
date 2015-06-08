@@ -2,6 +2,8 @@ use websocket::{client,Client,stream,Message,Sender,Receiver};
 use hyper::Url;
 use std::thread;
 use rustc_serialize::json::*;
+use cbor::ToCbor;
+use cbor;
 
 use value::Value;
 use server::Event;
@@ -64,10 +66,14 @@ pub fn open_websocket(url_string: &str) -> Result<client::sender::Sender<stream:
 
 pub fn send_event(event: &Event,sender: &mut client::sender::Sender<stream::WebSocketStream>) {
 
-	sender.send_message(Message::Text(event.to_json().to_string())).unwrap();
+	let mut e = cbor::Encoder::from_memory();
+	let json = event.to_json();
+	let cbor = json.to_cbor();
+	e.encode(vec![cbor]).unwrap();
+	sender.send_message(Message::Binary(e.into_bytes())).unwrap();
 }
 
-pub fn create_table(table_name: &&str, table_fields: &Vec<&str>) -> Event {
+pub fn create_table(table_name: &&str, table_fields: &Vec<&str>,old_event: Option<Event>) -> Event {
 
 	let table_string = Value::String(table_name.to_string());
 
@@ -115,11 +121,20 @@ pub fn create_table(table_name: &&str, table_fields: &Vec<&str>) -> Event {
 											}
 				);
 
-	Event{changes: vec![display_name,view,field] }
+	match old_event {
+		Some(mut event) => {
+			event.changes.push(display_name);
+			event.changes.push(view);
+			event.changes.push(field);
+			event
+		},
+		None => Event{changes: vec![display_name,view,field] },
+	}
+
 }
 
 // TODO make sure table exists before trying to insert a fact into it
-pub fn insert_fact(table_name: &&str, table_fields: &Vec<&str>, row_data: &Vec<Value>) -> Event {
+pub fn insert_fact(table_name: &&str, table_fields: &Vec<&str>, row_data: &Vec<Value>, old_event: Option<Event>) -> Event {
 
 	assert_eq!(table_fields.len(),row_data.len());
 
@@ -128,11 +143,18 @@ pub fn insert_fact(table_name: &&str, table_fields: &Vec<&str>, row_data: &Vec<V
 										 .map(|field_name| table_name.to_string() + ": " + field_name)
 										 .collect();
 
-	Event{changes: vec![(table_name.to_string(),Change{
-														fields: concat_field_names,
-												    	insert: vec![row_data.clone()],
-												      	remove: vec![],
-												      }
-						)]
-		 }
+	let change = Change{
+						fields: concat_field_names,
+						insert: vec![row_data.clone()],
+						remove: vec![],
+					   };
+
+	match old_event {
+		Some(mut event) => {
+			event.changes.push((table_name.to_string(),change));
+			event
+		},
+		None => Event{changes: vec![(table_name.to_string(),change)]},
+	}
+
 }

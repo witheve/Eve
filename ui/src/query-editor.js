@@ -323,7 +323,7 @@ var queryEditor = (function(window, microReact, api) {
         diffs = diff.addAggregateBlock(queryId, info.kind);
         var primitive = ixer.index("primitive")[info.kind];
         if(primitive) {
-          var viewId = diffs[1][2][code.ix("view", "view")];
+          var viewId = diffs[1][2][code.ix("view", "view")]; //@FIXME: Hacky.
           dispatch("addPrimitiveSource", {viewId: viewId, primitiveId: info.kind}); // @FIXME: Hacky, I know, but I need to send half to the server.
         }
         break;
@@ -388,7 +388,7 @@ var queryEditor = (function(window, microReact, api) {
         break;
       case "addViewSource":
         diffs = diff.addViewSource(info.viewId, info.sourceId, info.kind);
-        var sourceId = diffs[0][2][code.ix("source", "source")];
+        var sourceId = diffs[0][2][code.ix("source", "source")]; //@FIXME: Hacky.
         diffs = diffs.concat(diff.autoJoin(info.viewId, sourceId, info.sourceId));
         var view = ixer.index("view")[info.viewId];
         var kind = view[code.ix("view", "kind")];
@@ -411,14 +411,27 @@ var queryEditor = (function(window, microReact, api) {
 
         // @TODO: redesign this to pass in opts directly.
         var opts = code.getConstraint(info.constraintId);
-        if(info.type === "left") {
-          opts.leftField = info.value.field[code.ix("field", "field")];
-          opts.leftSource = info.value.source[code.ix("source", "source")];
-        } else if(info.type === "right") {
-          opts.rightField = info.value.field[code.ix("field", "field")];
-          opts.rightSource = info.value.source[code.ix("source", "source")];
-        } else if(info.type === "operation") {
-          opts.operation = info.value;
+        if(!info.isConstant) {
+          if(info.type === "left") {
+            opts.leftField = info.value.field[code.ix("field", "field")];
+            opts.leftSource = info.value.source[code.ix("source", "source")];
+          } else if(info.type === "right") {
+            opts.rightField = info.value.field[code.ix("field", "field")];
+            opts.rightSource = info.value.source[code.ix("source", "source")];
+          } else if(info.type === "operation") {
+            opts.operation = info.value;
+          }
+        } else {
+          var constantFieldId = uuid();
+          if(info.type === "left") {
+            opts.leftField = constantFieldId;
+            opts.leftSource = "constant";
+          } else if(info.type === "right") {
+            opts.rightField = constantFieldId;
+            opts.rightSource = "constant";
+          }
+          diffs.push(["constant", "inserted", [constantFieldId, info.value]]);
+          console.log("adding constant", diffs, opts);
         }
 
         var complete = code.isConstraintComplete(opts);
@@ -434,7 +447,7 @@ var queryEditor = (function(window, microReact, api) {
           return [constraintId, opts];
         });
 
-        diffs = diff.updateViewConstraint(info.constraintId, opts);
+        diffs = diffs.concat(diff.updateViewConstraint(info.constraintId, opts));
         if(complete) {
           diffs = constraintOpts.reduce(function(memo, constraintPair) {
             if(!constraintPair) { return memo; }
@@ -454,8 +467,7 @@ var queryEditor = (function(window, microReact, api) {
           diffs.push(["constraint", "inserted", [info.constraintId, viewId]]);
 
         } else {
-          sendToServer = false;
-          console.log("incomplete", diffs);
+          sendToServer = false; // @FIXME: Here be monsters. Constant fields can get lost if added to otherwise incomplete constraints.
         }
 
         break;
@@ -478,7 +490,7 @@ var queryEditor = (function(window, microReact, api) {
         break;
       case "updateAggregateSort":
         diffs = diff.updateAggregateSort(info.viewId, info.field, info.direction);
-        var neue = diffs[0][2];
+        var neue = diffs[0][2]; //@FIXME: Hacky.
         sendToServer = neue[code.ix("aggregate sorting", "inner field")]
         && neue[code.ix("aggregate sorting", "direction")];
         break;
@@ -2541,9 +2553,33 @@ var queryEditor = (function(window, microReact, api) {
         else { return a.id.localeCompare(b.id); }
       });
 
+      var sorting = ixer.index("aggregate sorting")[viewId] || [];
+      var sortingFieldIx = code.ix("aggregate sorting", "inner field");
+      var sortingDirectionIx = code.ix("aggregate sorting", "direction");
+
+      var sortingField = sorting[sortingFieldIx];
+      var sortingIx;
+      if(sortingField) {
+        var innerSource = ixer.index("source")[viewId] || {};
+        innerSource = innerSource.inner;
+        if(innerSource) {
+          var innerSourceViewId = innerSource[code.ix("source", "source view")];
+          sortingIx = code.ixById(innerSourceViewId, sortingField);
+        }
+      }
+      var sortingDirection = sorting[sortingDirectionIx];
+
       rows.sort(function(a, b) {
         var aIx = order[viewId + JSON.stringify(a)];
         var bIx = order[viewId + JSON.stringify(b)];
+        if(!aIx && !bIx && sortingIx !== undefined) {
+          if(a[sortingIx] === b[sortingIx]) { return 0; }
+          if(sortingDirection === "ascending") {
+            return (a[sortingIx] < b[sortingIx]) ? -1 : 1;
+          } else {
+            return (a[sortingIx] < b[sortingIx]) ? 1 : -1;
+          }
+        }
         return aIx - bIx;
       });
 
@@ -2661,6 +2697,9 @@ var queryEditor = (function(window, microReact, api) {
           var source = viewSources[sourceId];
           return suggestionBarItem({field: field, source: source}, code.name(calculatedId) || "Untitled");
         }));
+      }
+      if(info && info.token && info.token.constantHandler) {
+        items.push(suggestionBarItem("new constant", "new constant"));
       }
     } else if(info.type === "constraint op") {
       items = ["=", "<", "<=", ">", ">=", "!="].map(function(op) {
@@ -2856,6 +2895,10 @@ var queryEditor = (function(window, microReact, api) {
 
   // Calculations
   function getFieldName(viewId, sourceId, fieldId) {
+    if(sourceId === "constant") {
+      return ixer.index("constant to value")[fieldId];
+    }
+
     var calculatedId = ixer.index("field to calculated field")[fieldId];
     if(calculatedId) {
       return code.name(calculatedId);
@@ -2987,7 +3030,7 @@ var queryEditor = (function(window, microReact, api) {
     if(side === "operation") {
       type = "operation";
     }
-    return queryToken(type, side, constraintId, text, {viewId: viewId, handler: updateViewConstraint});
+    return queryToken(type, side, constraintId, text, {viewId: viewId, handler: updateViewConstraint, constantHandler: updateViewConstraintConstant});
   }
   function queryToken(type, key, expression, text, opts) {
     opts = opts || {};
@@ -3001,20 +3044,55 @@ var queryEditor = (function(window, microReact, api) {
 
     //check if we are editing this token
     var info = localState.queryEditorInfo;
-    var token = info ? info.token || {} : {};
-    if(token.expression === expression && token.key === key) {
+    var tokenInfo = info ? info.token || {} : {};
+    var isActive = tokenInfo.expression === expression && tokenInfo.key === key;
+    if(isActive) {
       klass += " active";
     }
     var token = {c: klass, key: key, expression: expression, text: text, click: handler};
+    if(isActive && tokenInfo.isConstant) {
+      token = input(info.constantValue || "", key, updateConstantTokenValue, saveConstantToken);
+      token.expression = expression;
+      token.isConstant = true;
+      token.postRender = focusOnce;
+    }
     for(var prop in opts) {
       token[prop] = opts[prop];
     }
     if(opts.drop && ! token.dragover) {
       token.dragover = preventDefault;
     }
+    if(type === "field" && opts.constantHandler) {
+      token.handler = maybeToggleConstant(opts.handler);
+    }
     return token;
   }
 
+  function maybeToggleConstant(handler) {
+    return function(evt, elem) {
+      var info = localState.queryEditorInfo;
+      var token = info.token || {};
+      info.token = token;
+
+      if(elem.key === "new constant") {
+        evt.stopPropagation();
+        token.isConstant = true;
+        render();
+      } else if(handler) {
+        return handler(evt, elem);
+      }
+    };
+  }
+
+  function updateConstantTokenValue(evt, elem) {
+    localState.queryEditorInfo.token.constantValue = coerceInput(evt.target.value || evt.target.textContent);
+  }
+  function saveConstantToken(evt, elem) {
+    var handler = localState.queryEditorInfo.token.constantHandler;
+    if(!handler) { return console.error("No handler specified for", evt, elem); }
+    var value = coerceInput(evt.target.value || evt.target.textContent);
+    handler(evt, elem, value);
+  }
 
   function constraintOpSuggestions(e, elem) {
     e.stopPropagation();
@@ -3048,6 +3126,13 @@ var queryEditor = (function(window, microReact, api) {
     var info = localState.queryEditorInfo;
     var token = info.token;
     dispatch("updateViewConstraint", {constraintId: token.expression, type: token.key, value: elem.key});
+    evt.stopPropagation();
+  }
+
+  function updateViewConstraintConstant(evt, elem, value) {
+    var info = localState.queryEditorInfo;
+    var token = info.token;
+    dispatch("updateViewConstraint", {constraintId: token.expression, type: token.key, value: value, isConstant: true});
     evt.stopPropagation();
   }
 

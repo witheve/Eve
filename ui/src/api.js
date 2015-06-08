@@ -283,11 +283,20 @@ var api = (function(Indexing) {
 
       return fieldIds;
     },
+    ixById: function(viewId, fieldId) {
+      var fieldIds = code.sortedViewFields(viewId) || [];
+      for(var ix = 0; ix < fieldIds.length; ix++) {
+        var curFieldId = fieldIds[ix];
+        if(curFieldId === fieldId) {
+          return ix;
+        }
+      }
+    },
     ix: function(viewId, fieldName) {
       var field = code.nameToField(viewId, fieldName);
       if(!field) { throw new Error("Field " + fieldName + " of view " + code.name(viewId) + " not found."); }
       var namedFieldId = field[1];
-      var fieldIds = code.sortedViewFields(viewId);
+      var fieldIds = code.sortedViewFields(viewId) || [];
 
       for(var ix = 0; ix < fieldIds.length; ix++) {
         var fieldId = fieldIds[ix];

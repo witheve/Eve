@@ -5,6 +5,7 @@ pub enum Primitive {
     Add,
     Subtract,
     Count,
+    Contains,
     Sum,
     Mean,
     StandardDeviation,
@@ -40,8 +41,10 @@ impl Primitive {
         use value::Value::*;
         let values = arguments.iter().map(|ix| inputs[*ix]).collect::<Vec<_>>();
         match (*self, &values[..]) {
+            // NOTE be aware that arguments will be in alphabetical order by field id
             (Add, [&Float(a), &Float(b)]) => vec![vec![Float(a+b)]],
             (Subtract, [&Float(a), &Float(b)]) => vec![vec![Float(a-b)]],
+            (Contains, [&String(ref inner), &String(ref outer)]) => vec![vec![Bool(outer.contains(inner))]],
             (Count, _) => panic!("Cannot use {:?} in a join", self),
             (Sum, _) => panic!("Cannot use {:?} in a join", self),
             (Mean, _) => panic!("Cannot use {:?} in a join", self),
@@ -55,8 +58,10 @@ impl Primitive {
         use primitive::Primitive::*;
         use value::Value::*;
         match (*self, arguments) {
+            // NOTE be aware that arguments will be in alphabetical order by field id
             (Add, _) => panic!("Cannot use {:?} in an aggregate", self),
             (Subtract, _) => panic!("Cannot use {:?} in an aggregate", self),
+            (Contains, _) => panic!("Cannot use {:?} in an aggregate", self),
             (Count, [_]) => {
                 vec![vec![Float(inner.len() as f64)]]
             }
@@ -106,6 +111,7 @@ impl Primitive {
         match string {
             "add" => Primitive::Add,
             "subtract" => Primitive::Subtract,
+            "contains" => Primitive::Contains,
             "count" => Primitive::Count,
             "sum" => Primitive::Sum,
             "mean" => Primitive::Mean,
@@ -120,6 +126,7 @@ pub fn primitives() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>, 
     vec![
         ("add", vec!["in A", "in B"], vec![], vec!["out"]),
         ("subtract", vec!["in A", "in B"], vec![], vec!["out"]),
+        ("contains", vec!["inner", "outer"], vec![], vec!["out"]),
         ("count", vec![], vec!["in"], vec!["out"]),
         ("sum", vec![], vec!["in"], vec!["out"]),
         ("mean", vec![], vec!["in"], vec!["out"]),
