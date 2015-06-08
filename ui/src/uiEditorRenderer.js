@@ -9,10 +9,10 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
   var ixer = api.ixer;
   var code = api.code;
 
-  var ids = {"active page": "bc850d72-854a-49e4-8d7b-5bafa9d1e6d1"};
+  var ids = {"active page": "2819e8f4-eebd-4df5-867a-9cdfa7a9ee64"};
   var session = "me";
 
-  ixer.addIndex("active page", ids["active page"], Indexing.create.lookup([2, 0]));
+  ixer.addIndex("active page", ids["active page"], Indexing.create.lookup([3, 4]));
 
   /*-------------------------------------------------------
   - Renderer
