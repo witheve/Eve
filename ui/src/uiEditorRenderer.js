@@ -53,6 +53,25 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
 
   var bindingIndex = ixer.index("groupToBinding");
 
+  function rowToKeyFunction(viewId) {
+    var fields = code.sortedViewFields(viewId);
+    var keys = [];
+    fields.forEach(function(fieldId, ix) {
+      if(code.hasTag(fieldId, "key")) {
+        keys.push(ix);
+      }
+    });
+    if(keys.length) {
+      return function(row) {
+        return keys.map(function(ix) {
+          return row[ix];
+        }).join(",");
+      };
+    } else {
+      return JSON.stringify;
+    }
+  }
+
   function renderLayer(layer) {
     var layerId = layer[1];
     var layerIx = layer[3];
@@ -62,8 +81,10 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
     var offset = elements && binding ? elementsToBoundingBox(elements) : {top: 0, left: 0, width: "100%", height: "100%"};
     var boundRows;
     var layerChildren = [];
+    var rowToKey = function() {};
     if(binding) {
       boundRows = ixer.facts(binding);
+      var rowToKey = rowToKeyFunction(binding);
     } else {
       boundRows = [[]];
     }
@@ -76,7 +97,7 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
       }
       if(elements) {
         elements.forEach(function(element) {
-          items.push(renderElement(element, offset, row));
+          items.push(renderElement(element, offset, row, rowToKey(row)));
         });
       }
       if(binding) {
@@ -119,7 +140,7 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
   var stylesIndex = ixer.index("uiElementToStyles");
   var attrBindingsIndex = ixer.index("elementAttrBindings");
 
-  function renderElement(element, offset, row) {
+  function renderElement(element, offset, row, key) {
     var elementId = element[1];
     var type = element[4];
     var left = element[5];
@@ -129,7 +150,7 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
     var zIndex = element[9];
     var elem = {c: "absolute", left: left - offset.left, top: top - offset.top,
                 width: right - left, height: bottom - top, elementId: elementId,
-                zIndex: zIndex, row: row};
+                zIndex: zIndex, key: key};
 
     if(type === "input") {
       elem.t = "input";
@@ -185,7 +206,7 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
   var eventId = 0;
 
   function handleMouseEvent(e, elem) {
-    var boundId = elem.row.length ? JSON.stringify(elem.row) : "";
+    var boundId = elem.key;
     var diffs = [["client event", "inserted", [session, ++eventId, e.type, elem.elementId, boundId]],
                  ["mouse position", "inserted", [session, eventId, e.clientX, e.clientY]]]
     if(e.type === "click") {
