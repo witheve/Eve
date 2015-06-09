@@ -54,7 +54,7 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
   var bindingIndex = ixer.index("groupToBinding");
 
   function rowToKeyFunction(viewId) {
-    var fields = code.sortedViewFields(viewId);
+    var fields = code.sortedViewFields(viewId) || [];
     var keys = [];
     fields.forEach(function(fieldId, ix) {
       if(code.hasTag(fieldId, "key")) {
@@ -63,9 +63,13 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
     });
     if(keys.length) {
       return function(row) {
-        return keys.map(function(ix) {
-          return row[ix];
-        }).join(",");
+        if(keys.length > 1) {
+          return keys.map(function(ix) {
+            return row[ix];
+          }).join(",");
+        } else {
+          return row[keys[0]];
+        }
       };
     } else {
       return JSON.stringify;
@@ -81,7 +85,7 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
     var offset = elements && binding ? elementsToBoundingBox(elements) : {top: 0, left: 0, width: "100%", height: "100%"};
     var boundRows;
     var layerChildren = [];
-    var rowToKey = function() {};
+    var rowToKey = function() { return ""; };
     if(binding) {
       boundRows = ixer.facts(binding);
       var rowToKey = rowToKeyFunction(binding);
@@ -205,14 +209,19 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
 
   var eventId = 0;
 
+  function setEventId(value) {
+    eventId = value;
+  }
+
   function handleMouseEvent(e, elem) {
     var boundId = elem.key;
+    console.log(boundId, typeof boundId);
     var diffs = [["client event", "inserted", [session, ++eventId, e.type, elem.elementId, boundId]],
                  ["mouse position", "inserted", [session, eventId, e.clientX, e.clientY]]]
     if(e.type === "click") {
       diffs.push(["click", "inserted", [eventId, elem.elementId, boundId]]);
     }
-    window.client.sendToServer(diffs);
+    window.client.sendToServer(diffs); // @GLOBAL to avoid circular dep.
   }
 
   function handleInputEvent(e, elem) {
@@ -223,6 +232,7 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
 
   return {
     render: render,
-    root: renderer.content
+    root: renderer.content,
+    setEventId: setEventId
   };
 })(window.document, api, microReact);

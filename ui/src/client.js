@@ -8,6 +8,13 @@ var client = (function eveClient(window, api, dispatcher, uiEditorRenderer) {
     return (new Date()).getTime();
   }
 
+  function nukeTable(viewId) { // from orbit
+    var fields = api.ixer.index("view to fields")[viewId].map(function(field) {
+      return field[api.code.ix("field", "field")];
+    });
+    sendToServer({changes: [[viewId, fields, [], api.ixer.facts(viewId)]]}, true);
+  }
+
   function formatTime(time) {
     time = time || new Date();
     return pad("", time.getHours(), "0", 2) + ":" + pad("", time.getMinutes(), "0", 2) + ":" + pad("", time.getSeconds(), "0", 2);
@@ -121,7 +128,6 @@ var client = (function eveClient(window, api, dispatcher, uiEditorRenderer) {
           return diff[0] === "initialized";
         });
         if(initialized) {
-
           initialize(true);
         } else {
           initialize();
@@ -165,6 +171,12 @@ var client = (function eveClient(window, api, dispatcher, uiEditorRenderer) {
         ixer.handleMapDiffs(compilerChanges);
       }
       ixer.handleMapDiffs(changes);
+      if(initializing) {
+        var eventId = (ixer.facts("client event") || []).length;
+        console.log(eventId);
+        uiEditorRenderer.setEventId(eventId);
+      }
+
       var time = now() - start;
       if(time > 5) {
         console.log("slow handleDiffs (> 5ms):", time);
@@ -348,6 +360,6 @@ var client = (function eveClient(window, api, dispatcher, uiEditorRenderer) {
 
   connectToServer();
 
-  return {sendToServer: sendToServer};
+  return {sendToServer: sendToServer, nukeTable: nukeTable};
 
 })(window, api, dispatcher, uiEditorRenderer);
