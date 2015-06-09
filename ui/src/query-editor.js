@@ -1023,7 +1023,7 @@ var queryEditor = (function(window, microReact, api) {
     row[key.ix] = coerceInput(e.currentTarget.textContent);
     if(row.length !== key.numFields) { return; }
     var isValid = row.every(function(cell) {
-      return cell !== undefined;
+      return cell !== undefined && cell !== null;
     });
     if(!isValid) { return; }
     localState.adderRows.splice(key.rowNum, 1);
@@ -1208,7 +1208,7 @@ var queryEditor = (function(window, microReact, api) {
     if(isOpen) {
       var binding = ixer.index("groupToBinding")[layerId];
       if(binding) {
-        var fieldItems = code.sortedViewFields(binding).map(function(field) {
+        var fieldItems = (code.sortedViewFields(binding) || []).map(function(field) {
           return {c: "layer-element group-binding", children: [
           {c: "layer-row", draggable:true, dragstart: layerDrag, type: "binding", itemId: field, children:[
             {c: "icon ion-ios-arrow-thin-right"},
@@ -2603,7 +2603,7 @@ var queryEditor = (function(window, microReact, api) {
         controls = querySuggestionBar(queryId, viewId);
       }
 
-      items.push({c: "block " + viewKind, editorIx: ix, viewId: viewId, handler: blockSuggestionHandler, click: setQueryEditorActive,
+      items.push({c: "block " + viewKind, editorIx: ix, viewId: viewId, handler: blockSuggestionHandler, click: setQueryEditorActive, dragover: preventDefault, drop: stopPropagation,
                   dragData: {value: viewId, type: "view"}, itemId: viewId, draggable: true, dragstart: dragItem, children: [
         {c: "block-title", children: [
           {t: "h3", text: code.name(viewId)}
