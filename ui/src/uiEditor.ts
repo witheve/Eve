@@ -1,9 +1,9 @@
 /// <reference path="tableEditor.ts" />
+/// <reference path="query-editor.ts" />
 module uiEditor {
   declare var api;
   declare var jQuery;
   declare var uuid;
-  declare var queryEditor;
   declare var uiEditorRenderer;
   var ixer = api.ixer;
   var code = api.code;
@@ -24,19 +24,6 @@ module uiEditor {
   // UI workspace
   //---------------------------------------------------------
   
-  function genericWorkspace(klass, itemId, content) {
-    var title = tableEditor.input(code.name(itemId), itemId, tableEditor.rename, tableEditor.rename);
-    title.c += " title";
-    return {
-      id: "workspace",
-      c: "workspace-container " + klass,
-      children: [
-        title,
-        { c: "content", children: [content] }
-      ]
-    };
-  }
-
   export function uiWorkspace(componentId) {
     var elements = ixer.index("uiComponentToElements")[componentId] || [];
     var layers = ixer.index("uiComponentToLayers")[componentId] || [];
@@ -72,7 +59,7 @@ module uiEditor {
     if (localState.uiPreview) {
       canvas = canvasPreview();
     }
-    return genericWorkspace("query",
+    return queryEditor.genericWorkspace("query",
       componentId,
       {
         c: "ui-editor",

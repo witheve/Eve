@@ -1,6 +1,6 @@
+/// <reference path="query-editor.ts" />
 module tableEditor {
   declare var api;
-  declare var queryEditor;
   var ixer = api.ixer;
   var code = api.code;
   var localState = api.localState;
@@ -32,19 +32,6 @@ module tableEditor {
     return input;
   }
 
-  function genericWorkspace(klass, itemId, content) {
-    var title = input(code.name(itemId), itemId, rename, rename);
-    title.c += " title";
-    return {
-      id: "workspace",
-      c: "workspace-container " + klass,
-      children: [
-        title,
-        { c: "content", children: [content] }
-      ]
-    };
-  }
-
   export function tableWorkspace(tableId) {
     var order = ixer.index("display order");
     var fields = (ixer.index("view to fields")[tableId] || []).map(function(field) {
@@ -59,11 +46,11 @@ module tableEditor {
 
     var rows = ixer.facts(tableId);
     rows.sort(function(a, b) {
-      var aIx = order[tableId + JSON.stringify(a)];
-      var bIx = order[tableId + JSON.stringify(b)];
+      var aIx = order[tableId + JSON.stringify(a)] || 0;
+      var bIx = order[tableId + JSON.stringify(b)] || 0;
       return aIx - bIx;
     });
-    return genericWorkspace("",
+    return queryEditor.genericWorkspace("",
       tableId,
       {
         c: "table-editor",

@@ -913,7 +913,7 @@ module queryEditor {
     selectEditorItem(e, elem);
   }
 
-  function genericWorkspace(klass, itemId, content) {
+  export function genericWorkspace(klass, itemId, content) {
     var title = tableEditor.input(code.name(itemId), itemId, tableEditor.rename, tableEditor.rename);
     title.c += " title";
     return {id: "workspace",
