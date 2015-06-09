@@ -54,11 +54,7 @@ module queryEditor {
   // utils
   //---------------------------------------------------------
 
-  var KEYS = {UP: 38,
-              DOWN: 40,
-              ENTER: 13,
-              Z: 90};
-
+  
   function coerceInput(input) {
     if(input.match(/^-?[\d]+$/gim)) {
       return parseInt(input);
@@ -121,7 +117,7 @@ module queryEditor {
   // Dispatch
   //---------------------------------------------------------
 
-  export function dispatch(evt, info) {
+  export function dispatch(evt: string, info: any) {
     //         console.info("[dispatch]", evt, info);
     var storeEvent = true;
     var sendToServer = true;

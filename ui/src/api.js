@@ -6,6 +6,11 @@ if(!window.DEBUG) {
 
 
 var api = (function(Indexing) {
+  var KEYS = {UP: 38,
+              DOWN: 40,
+              ENTER: 13,
+              Z: 90};
+
   function clone(item) {
     if (!item) { return item; }
     var result;
@@ -914,6 +919,7 @@ var api = (function(Indexing) {
           displaySort: displaySort,
           injectViews: injectViews,
           invert: invert,
+          KEYS: KEYS,
           alphabet: alphabet};
 })(Indexing);
 

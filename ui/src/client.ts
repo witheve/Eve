@@ -317,6 +317,7 @@ module client {
 
     var changes = [];
     for (var table in final) {
+      if(!final[table]) continue;
       var fields = ixer.index("view to fields")[table] || [];
       var fieldIds = fields.map(function(field) {
         return field[1];

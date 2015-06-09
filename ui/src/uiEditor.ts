@@ -18,7 +18,6 @@ module uiEditor {
       elem.__focused = true;
     }
   }
-
   
   //---------------------------------------------------------
   // UI workspace
