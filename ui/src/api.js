@@ -435,7 +435,8 @@ var api = (function(Indexing) {
       var diffs = [["block", "inserted", [queryId, blockId, viewId]],
                    ["view", "inserted", [viewId, "union"]],
                    ["display name", "inserted", [viewId, getUniqueName(queryViews, alphabet)]],
-                   ["tag", "inserted", [viewId, "local"]]];
+                   ["tag", "inserted", [viewId, "local"]],
+                   ["tag", "inserted", [viewId, "remote"]]];
       return diffs;
     },
 
@@ -689,6 +690,7 @@ var api = (function(Indexing) {
       return diffs;
     },
     removeViewSource(viewId, sourceId) {
+      // @FIXME: Currently removes ALL constraints, not just constraints relying on the removed source.
       var source = ixer.index("source")[viewId][sourceId];
       var diffs = [["source", "removed", source]];
       var constraints = ixer.index("view to constraints")[viewId] || [];
