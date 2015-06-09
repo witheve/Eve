@@ -1,18 +1,24 @@
-var client = (function eveClient(window, api, dispatcher, uiEditorRenderer) {
+/// <reference path="uiEditorRenderer.ts" />
+module client {
+  declare var api;
+  declare var dispatcher;
+  declare var DEBUG;
+  declare var CBOR;
+
   var ixer = api.ixer;
 
   function now() {
-    if(window.performance) {
+    if (window.performance) {
       return window.performance.now();
     }
     return (new Date()).getTime();
   }
 
-  function nukeTable(viewId) { // from orbit
+  export function nukeTable(viewId) { // from orbit
     var fields = api.ixer.index("view to fields")[viewId].map(function(field) {
       return field[api.code.ix("field", "field")];
     });
-    sendToServer({changes: [[viewId, fields, [], api.ixer.facts(viewId)]]}, true);
+    sendToServer({ changes: [[viewId, fields, [], api.ixer.facts(viewId)]] }, true);
   }
 
   function formatTime(time) {
@@ -28,24 +34,25 @@ var client = (function eveClient(window, api, dispatcher, uiEditorRenderer) {
 
     var padding = "";
     var delta = length - left.length - right.length;
-    if(delta > 0) {
+    if (delta > 0) {
       padding = new Array(delta + 1).join(pad);
     }
     return left + padding + right;
   }
 
   function writeDataToConsole(data, verbosity) {
+    var console: any = window.console;
     verbosity = +verbosity;
     data.changes.forEach(function(change) {
-      if(change[2].length || change[3].length) {
-        if(verbosity == 1) {
+      if (change[2].length || change[3].length) {
+        if (verbosity == 1) {
           console.log(" ", change[0], "+" + change[2].length + "/-" + change[3].length);
         }
-        if(verbosity == 2) {
+        if (verbosity == 2) {
           console.log(" ", change[0], "+" + change[2].length + "/-" + change[3].length,
-                      {fields: change[1], inserts: change[2], removes: change[3]});
+            { fields: change[1], inserts: change[2], removes: change[3] });
         }
-        if(verbosity == 3) {
+        if (verbosity == 3) {
           console.log(" ", change[0], "+" + change[2].length + "/-" + change[3].length);
           console.groupCollapsed("   inserts", change[1]);
           console.table(change[2]);
@@ -81,15 +88,15 @@ var client = (function eveClient(window, api, dispatcher, uiEditorRenderer) {
         hasMalformedDiffs = hasMalformedDiffs || (diff.length !== change[1].length);
         hasBadValues = hasBadValues || diff.some(isUndefined);
       });
-      if(hasMalformedDiffs) {
+      if (hasMalformedDiffs) {
         malformedDiffs.push(change[0]);
       }
-      if(hasBadValues) {
+      if (hasBadValues) {
         badValues.push(change[0]);
       }
     });
 
-    return {adds: totalAdds, removes: totalRemoves, malformedDiffs: malformedDiffs, badValues: badValues};
+    return { adds: totalAdds, removes: totalRemoves, malformedDiffs: malformedDiffs, badValues: badValues };
   }
 
   function initialize(noFacts) {
@@ -97,40 +104,40 @@ var client = (function eveClient(window, api, dispatcher, uiEditorRenderer) {
     sendToServer(ixer.dumpMapDiffs(), true);
   }
 
-  var server = {connected: false, queue: [], initialized: false, lastSent: []};
+  var server = { connected: false, queue: [], initialized: false, lastSent: [], ws: null, dead: false };
   function connectToServer() {
     var queue = server.queue;
     var ws = new WebSocket('ws://localhost:2794', []);
     server.ws = ws;
 
-    ws.onerror = function (error) {
+    ws.onerror = function(error) {
       console.log('WebSocket Error ' + error);
       server.dead = true;
-      if(!server.initialized) {
+      if (!server.initialized) {
         console.warn("Starting in local only mode, the server is dead.");
-        initialize();
+        initialize(false);
         dispatcher.render();
       }
     };
 
-    ws.onmessage = function (e) {
+    ws.onmessage = function(e) {
       var start = now();
       var data = JSON.parse(e.data);
       var time = now() - start;
-      if(time > 5) {
+      if (time > 5) {
         console.log("slow parse (> 5ms):", time);
       }
 
       var initializing = false;
 
-      if(!server.initialized) {
+      if (!server.initialized) {
         var initialized = data.changes.some(function(diff) {
           return diff[0] === "initialized";
         });
-        if(initialized) {
+        if (initialized) {
           initialize(true);
         } else {
-          initialize();
+          initialize(false);
         }
         server.initialized = true;
         initializing = true;
@@ -138,10 +145,10 @@ var client = (function eveClient(window, api, dispatcher, uiEditorRenderer) {
 
       var changes = [];
       var compilerChanges = [];
-      for(var changeIx = 0; changeIx < data.changes.length; changeIx++) {
+      for (var changeIx = 0; changeIx < data.changes.length; changeIx++) {
         var id = data.changes[changeIx][0];
-        if(initializing || api.code.hasTag(id, "remote")) {
-          if(api.builtins.compiler[id]) {
+        if (initializing || api.code.hasTag(id, "remote")) {
+          if (api.builtins.compiler[id]) {
             compilerChanges.push(data.changes[changeIx]);
           } else {
             changes.push(data.changes[changeIx]);
@@ -149,89 +156,52 @@ var client = (function eveClient(window, api, dispatcher, uiEditorRenderer) {
         }
       }
 
-      if(window.DEBUG.RECEIVE) {
+      if (DEBUG.RECEIVE) {
         var stats = getDataStats(data);
-        if(stats.adds || stats.removes) {
+        if (stats.adds || stats.removes) {
           var header = "[client:received][+" + stats.adds + "/-" + stats.removes + "]";
-          console.groupCollapsed(pad(header, formatTime()));
-          if(stats.malformedDiffs.length) {
+          console.groupCollapsed(pad(header, formatTime(null), undefined, undefined));
+          if (stats.malformedDiffs.length) {
             console.warn("The following views have malformed diffs:", stats.malformedDiffs);
           }
-          if(stats.badValues.length) {
+          if (stats.badValues.length) {
             console.warn("The following views have bad values:", stats.badValues);
           }
-          writeDataToConsole(data, window.DEBUG.RECEIVE);
+          writeDataToConsole(data, DEBUG.RECEIVE);
           console.groupEnd();
         }
       }
       var start = now();
       // @FIXME: We need to isolate and process compiler views first, to ensure that the necessary data for ordering
       // other views is available and not stale.
-      if(compilerChanges.length) {
+      if (compilerChanges.length) {
         ixer.handleMapDiffs(compilerChanges);
       }
       ixer.handleMapDiffs(changes);
-      if(initializing) {
+      if (initializing) {
         var eventId = (ixer.facts("client event") || []).length;
         console.log(eventId);
         uiEditorRenderer.setEventId(eventId);
       }
 
       var time = now() - start;
-      if(time > 5) {
+      if (time > 5) {
         console.log("slow handleDiffs (> 5ms):", time);
       }
-
+      
       if(server.initialized && data.changes.length) {
-        var uiDiffs = {};
-        var mapDiffs = {};
-        for(var ix = 0, len = data.changes.length; ix < len; ix++) {
-          var diff = data.changes[ix];
-          if(diff[0] === "uiRenderedElement") {
-            uiDiffs.element = diff;
-          } else if(diff[0] === "uiRenderedAttr") {
-            uiDiffs.attr = diff;
-          } else if(diff[0] === "uiMap") {
-            mapDiffs.element = diff;
-          } else if(diff[0] === "uiMapAttr") {
-            mapDiffs.attr = diff;
-          } else if(diff[0] === "uiMapMarker") {
-            mapDiffs.marker = diff;
-          } else if(diff[0] === "uiComponentElement") {
-            // @FIXME: Hacky. This needs to be called after each size change in dev and production for map controls.
-            diff[1].forEach(function(cur) {
-              if(cur[4] === "map") {
-                var map = ixer.index("uiElementToMap")[cur[1]];
-                var mapEl = uiMapEl[map[1]];
-                if(mapEl) {
-                  google.maps.event.trigger(mapEl, "resize");
-                }
-              }
-            });
-          } else if(diff[0] === "view") {
-            ixer.handleDiffs(api.diff.computePrimitives());
-          }
-        }
-
-        if(uiDiffs.element || uiDiffs.attr) {
-          uiRenderer.renderDiffs(uiDiffs.element, uiDiffs.attr);
-        }
-        if(mapDiffs.element || mapDiffs.attr || mapDiffs.marker) {
-          uiRenderer.renderMapDiffs(mapDiffs.element, mapDiffs.attr, mapDiffs.marker);
-        }
-
         dispatcher.render();
       }
-
+      
       // Get the user ID from a cookie
       var name = "userid" + "=";
       var cookie = document.cookie.split(';');
       var userid = "";
       if (cookie[0].indexOf(name) == 0)
-        userid=cookie[0].substring(name.length,cookie[0].length);
+        userid = cookie[0].substring(name.length, cookie[0].length);
 
       // Check if the user ID is found. If not, redirect the user to log in.
-      if(userid == "") {
+      if (userid == "") {
         // TODO Handle a user who isn't logged in.
         console.log("Session has not been authenticated.");
       } else {
@@ -249,99 +219,99 @@ var client = (function eveClient(window, api, dispatcher, uiEditorRenderer) {
 
     ws.onopen = function() {
       server.connected = true;
-      for(var i = 0, len = queue.length; i < len; i++) {
-        sendToServer(queue[i]);
+      for (var i = 0, len = queue.length; i < len; i++) {
+        sendToServer(queue[i], false);
       }
     }
   }
 
-  function sendToServer(message, formatted) {
-    if(!server.connected) {
+  export function sendToServer(message, formatted) {
+    if (!server.connected) {
       console.log("not connected");
       server.queue.push(message);
     } else {
       // console.log("sending", message);
-      if(!formatted) {
+      if (!formatted) {
         message = toMapDiffs(message);
       }
-      var payload = {changes: []};
-      var specialPayload = {changes: []};
+      var payload = { changes: [] };
+      var specialPayload = { changes: [] };
 
-      for(var ix = 0; ix < message.changes.length; ix++) {
+      for (var ix = 0; ix < message.changes.length; ix++) {
         var table = message.changes[ix][0];
-        if(api.builtins.compiler[table]) {
+        if (api.builtins.compiler[table]) {
           specialPayload.changes.push(message.changes[ix]);
         } else {
           payload.changes.push(message.changes[ix]);
         }
       }
 
-      if(window.DEBUG.SEND) {
+      if (DEBUG.SEND) {
         var stats = getDataStats(payload);
         var specialStats = getDataStats(specialPayload);
-        if(stats.adds || stats.removes || specialStats.adds || specialStats.removes) {
+        if (stats.adds || stats.removes || specialStats.adds || specialStats.removes) {
           var header = "[client:sent][+" + (stats.adds + specialStats.adds) + "/-" + (stats.removes + specialStats.removes) + "]";
-          console.groupCollapsed(pad(header, formatTime()));
+          console.groupCollapsed(pad(header, formatTime(undefined), undefined, undefined));
 
-          if(specialStats.adds || specialStats.removes) {
+          if (specialStats.adds || specialStats.removes) {
             var header = "[special][+" + specialStats.adds + "/-" + specialStats.removes + "]";
             console.group(header);
-            if(specialStats.malformedDiffs.length) {
+            if (specialStats.malformedDiffs.length) {
               console.warn("The following views have malformed diffs:", specialStats.malformedDiffs);
             }
-            if(stats.badValues.length) {
+            if (stats.badValues.length) {
               console.warn("The following views have bad values:", stats.badValues);
             }
-            writeDataToConsole(specialPayload, window.DEBUG.SEND);
+            writeDataToConsole(specialPayload, DEBUG.SEND);
             console.groupEnd();
           }
-          if(stats.adds || stats.removes) {
+          if (stats.adds || stats.removes) {
             var header = "[normal][+" + stats.adds + "/-" + stats.removes + "]";
             console.group(header);
-            if(stats.malformedDiffs.length) {
+            if (stats.malformedDiffs.length) {
               console.warn("The following views have malformed diffs:", stats.malformedDiffs);
             }
-            if(stats.badValues.length) {
+            if (stats.badValues.length) {
               console.warn("The following views have bad values:", stats.badValues);
             }
-            writeDataToConsole(payload, window.DEBUG.SEND);
+            writeDataToConsole(payload, DEBUG.SEND);
             console.groupEnd();
           }
           console.groupEnd();
         }
       }
 
-      if(specialPayload.changes.length) {
+      if (specialPayload.changes.length) {
         server.ws.send(CBOR.encode(specialPayload));
       }
-      if(payload.changes.length) {
+      if (payload.changes.length) {
         server.ws.send(CBOR.encode(payload));
       }
     }
   }
 
   function toMapDiffs(diffs) {
-    var final = {};
-    for(var i = 0, len = diffs.length; i < len; i++) {
+    var final = { field: null };
+    for (var i = 0, len = diffs.length; i < len; i++) {
       var cur = diffs[i];
       var table = cur[0];
       var action = cur[1];
       var fact = cur[2];
-      if(!final[table]) {
-        final[table] = {inserted: [], removed: []};
+      if (!final[table]) {
+        final[table] = { inserted: [], removed: [] };
       }
       final[table][action].push(fact);
     }
 
     var neueFields = {};
 
-    for(var fieldIx = 0; final.field && fieldIx < final.field.inserted.length; fieldIx++) {
+    for (var fieldIx = 0; final.field && fieldIx < final.field.inserted.length; fieldIx++) {
       // @FIXME: These must be inserted in order to work.
       // @FIXME: Does not account for removed fields, only appended fields.
       var field = final.field.inserted[fieldIx];
       var fieldViewId = field[0];
       var fieldId = field[1];
-      if(!neueFields[fieldViewId]) { neueFields[fieldViewId] = (ixer.index("view to fields")[fieldViewId] || []).slice(); }
+      if (!neueFields[fieldViewId]) { neueFields[fieldViewId] = (ixer.index("view to fields")[fieldViewId] || []).slice(); }
       neueFields[fieldViewId].push(fieldId);
     }
 
@@ -355,11 +325,8 @@ var client = (function eveClient(window, api, dispatcher, uiEditorRenderer) {
 
       changes.push([table, fieldIds, final[table].inserted, final[table].removed]);
     }
-    return {changes: changes};
+    return { changes: changes };
   }
 
   connectToServer();
-
-  return {sendToServer: sendToServer, nukeTable: nukeTable};
-
-})(window, api, dispatcher, uiEditorRenderer);
+}

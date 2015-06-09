@@ -1,14 +1,14 @@
 /// <reference path="uiEditor.ts" />
 /// <reference path="tableEditor.ts" />
+/// <reference path="microReact.ts" />
+/// <reference path="uiEditorRenderer.ts" />
+/// <reference path="Indexer.ts" />
+/// <reference path="client.ts" />
 module queryEditor {
   declare var uuid;
   declare var api;
   declare var queryEditor;
-  declare var microReact;
-  declare var uiEditorRenderer;
-  declare var Indexing;
   declare var DEBUG;
-  declare var client;
   var document = window.document;
   var ixer = api.ixer;
   var code = api.code;
@@ -787,10 +787,10 @@ module queryEditor {
       if(sendToServer) {
         if(DEBUG.DELAY) {
           setTimeout(function() {
-            client.sendToServer(diffs);
+            client.sendToServer(diffs, false);
           }, DEBUG.DELAY);
         } else {
-          client.sendToServer(diffs);
+          client.sendToServer(diffs, false);
         }
       }
       render();

@@ -1,7 +1,8 @@
-var Indexing = (function() {
-  exports = {};
-
-  function arraysIdentical(a, b) {
+module Indexing {
+	declare var DEBUG;
+  declare var api;
+  
+  export function arraysIdentical(a, b) {
     var i = a.length;
     if (!b || i != b.length) return false;
     while (i--) {
@@ -18,8 +19,6 @@ var Indexing = (function() {
     }
     return true;
   }
-
-  exports.arraysIdentical = arraysIdentical;
 
   function indexOfArray(haystack, needle) {
     var result = -1;
@@ -54,22 +53,25 @@ var Indexing = (function() {
     return {adds: dedupedAdds, removes: dedupedRemoves};
   }
 
-  function Indexer() {
-    this.tables = {};
-    this.indexes = {};
-    this.tableToIndex = {};
-    this.needsRebuild = {};
-  }
-
-  Indexer.prototype = {
-    totalFacts: function() {
+  export class Indexer {
+    tables: {};
+    indexes: {};
+    tableToIndex: {};
+    needsRebuild: {[table: string]: boolean};
+    constructor() {
+      this.tables = {};
+      this.indexes = {};
+      this.tableToIndex = {};
+      this.needsRebuild = {};
+    }
+    totalFacts() {
       var total = 0;
       for(var table in this.tables) {
         total += this.tables[table].length;
       }
       return total;
-    },
-    clear: function() {
+    }
+    clear() {
       var final = {};
       for(var table in this.tables) {
         if(this.tables[table]) {
@@ -80,22 +82,16 @@ var Indexing = (function() {
         this.indexes[index].index = {};
       }
       return {changes: final};
-    },
-    clearTable: function(table) {
+    }
+    clearTable(table: string) {
       if(this.tables[table]) {
         this.handleDiff(table, [], this.tables[table].slice());
       }
-    },
-    load: function(pickle) {
-      var diffs = {};
-      for(var table in pickle) {
-        this.handleDiff(table, pickle[table]);
-      }
-    },
-    markForRebuild: function(table) {
+    }
+    markForRebuild(table: string) {
       this.needsRebuild[table] = true;
-    },
-    handleDiff: function(table, adds, removes) {
+    }
+    handleDiff(table: string, adds: any[], removes: any[]) {
       var safeAdds = adds || [];
       var safeRemoves = removes || [];
       var dedupedAdds = safeAdds;
@@ -123,11 +119,11 @@ var Indexing = (function() {
       if(shouldRebuild) {
         this.needsRebuild[table] = false;
       }
-    },
-    indexOnly: function(table) {
+    }
+    indexOnly(table: string) {
       this.tables[table] = false;
-    },
-    dumpMapDiffs: function() {
+    }
+    dumpMapDiffs() {
       var final = [];
       for(var table in this.tables) {
         var fields = this.index("view to fields")[table] || []; // @FIXME: Shouldn't hardcode knowledge of an external index.
@@ -137,8 +133,8 @@ var Indexing = (function() {
         final.push([table, fields, this.tables[table], []]);
       }
       return {changes: final};
-    },
-    handleMapDiffs: function(diffs) {
+    }
+    handleMapDiffs(diffs) {
       for(var diffIx = 0, diffLen = diffs.length; diffIx < diffLen; diffIx++) {
         var diff = diffs[diffIx];
         var table = diff[0];
@@ -146,7 +142,7 @@ var Indexing = (function() {
         var inserted = diff[2];
         var removed = diff[3];
 
-        var fieldIds = window.api.code.sortedViewFields(table); // @GLOBAL Due to circular ref. w/ synchronous dependency loading.
+        var fieldIds = api.code.sortedViewFields(table); // @GLOBAL Due to circular ref. w/ synchronous dependency loading.
         if(!fieldIds) {
           fieldIds = fields;
         }
@@ -187,8 +183,8 @@ var Indexing = (function() {
           this.handleDiff(table, inserted, removed);
         }
       }
-    },
-    handleDiffs: function(diffs) {
+    }
+    handleDiffs(diffs: any) {
       var diffTables = {};
       var adds = {};
       var removes = {};
@@ -209,8 +205,8 @@ var Indexing = (function() {
       for(var table in diffTables) {
         this.handleDiff(table, adds[table], removes[table]);
       }
-    },
-    addIndex: function(name, table, indexer) {
+    }
+    addIndex(name: string, table: string, indexer) {
       var index = {index: {}, indexer: indexer.func, table: table, requiresRebuild: indexer.requiresRebuild};
       this.indexes[name] = index;
       if(!this.tableToIndex[table]) {
@@ -220,28 +216,26 @@ var Indexing = (function() {
       if(this.tables[table]) {
         index.index = index.indexer(index.index, this.tables[table], []);
       }
-    },
-    index: function(name) {
+    }
+    index(name: string) {
       if(this.indexes[name]) {
         var indexObj = this.indexes[name];
-        if(window.DEBUG && DEBUG.INDEXER && !this.tables[indexObj.table]) {
+        if(DEBUG && DEBUG.INDEXER && !this.tables[indexObj.table]) {
            console.warn("Indexed table '" + indexObj.table + "' does not yet exist for index '" + name + "'.");
         }
         return this.indexes[name].index;
       }
       return null;
-    },
-    facts: function(name) {
+    }
+    facts(name: string) {
       return this.tables[name] || [];
-    },
-    first: function(name) {
+    }
+    first(name: string) {
       return this.facts(name)[0];
     }
-  };
-
-  exports.Indexer = Indexer;
-
-  var create = {
+  }
+  
+  export var create = {
     lookup: function(keyIxes) {
       var valueIx = keyIxes.pop();
       return {requiresRebuild: false,
@@ -407,8 +401,4 @@ var Indexing = (function() {
              };
     },
   };
-
-  exports.create = create;
-
-  return exports;
-})();
+}
