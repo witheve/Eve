@@ -126,11 +126,8 @@ module Indexing {
     dumpMapDiffs() {
       var final = [];
       for(var table in this.tables) {
-        var fields = this.index("view to fields")[table] || []; // @FIXME: Shouldn't hardcode knowledge of an external index.
-        fields = fields.map(function(field) {
-          return field[1];
-        });
-        final.push([table, fields, this.tables[table], []]);
+        var fieldIds = api.code.sortedViewFields(table) || []; // @FIXME: Shouldn't hardcode knowledge of an external index.
+        final.push([table, fieldIds, this.tables[table], []]);
       }
       return {changes: final};
     }

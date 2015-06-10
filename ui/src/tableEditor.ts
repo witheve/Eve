@@ -84,28 +84,27 @@ module tableEditor {
     }
     var trs = [];
     rows.forEach(function(cur, rowIx) {
-      var priority = ixer.index("display order")[id + JSON.stringify(cur)];
       var tds = [];
       for (var tdIx = 0, len = fields.length; tdIx < len; tdIx++) {
         tds[tdIx] = { c: "field" };
-
+        
         // @NOTE: We can hoist this if perf is an issue.
         if (isEditable) {
-          tds[tdIx].children = [input(cur[tdIx], { priority: priority, row: cur, ix: tdIx, view: id }, updateRow, submitRow)];
+          tds[tdIx].children = [input(cur[tdIx], { priority: rowIx, numFields: len, row: cur, fieldIx: tdIx, view: id }, updateRow, submitRow)];
         } else {
           tds[tdIx].text = cur[tdIx];
         }
       }
-      trs.push({ c: "row", children: tds });
+      trs.push({c: "row", children: tds });
     })
     if (isEditable) {
       var adderRows = localState.adderRows;
       adderRows.forEach(function(cur, rowNum) {
         var tds = [];
         for (var i = 0, len = fields.length; i < len; i++) {
-          tds[i] = { c: "field", children: [input(cur[i], { row: cur, numFields: len, rowNum: rowNum, ix: i, view: id }, updateAdder, maybeSubmitAdder)] };
+          tds[i] = {c: "field", children: [input(cur[i], { row: cur, numFields: len, priority: rowNum, fieldIx: i, view: id }, updateAdder, maybeSubmitAdder)] };
         }
-        trs.push({ c: "row", children: tds });
+        trs.push({c: "row", children: tds });
       });
     }
     //   trs.push({id: "spacer2", c: "spacer", height: Math.max(totalRows - start - numRows, 0) * itemHeight});
@@ -127,20 +126,31 @@ module tableEditor {
 
   function updateAdder(e, elem) {
     var key = elem.key;
-    var row = localState.adderRows[key.rowNum];
-    row[key.ix] = coerceInput(e.currentTarget.textContent);
+    var row = localState.adderRows[key.priority];
+    row[key.fieldIx] = coerceInput(e.currentTarget.textContent);
+  }
+  
+  function checkRow(row, numFields): boolean {
+    if (row.length !== numFields) { return false; }
+    //check to see if the row is complete. If not, we're done here.
+    for(var cell of row) {
+      if(cell === undefined || cell === null) {
+        return false;
+      }
+    }
+    return true;
   }
 
   function maybeSubmitAdder(e, elem, type) {
     var key = elem.key;
-    var row = localState.adderRows[key.rowNum];
-    row[key.ix] = coerceInput(e.currentTarget.textContent);
-    if (row.length !== key.numFields) { return; }
-    var isValid = row.every(function(cell) {
-      return cell !== undefined && cell !== null;
+    var row = localState.adderRows[key.priority];
+    row[key.fieldIx] = coerceInput(e.currentTarget.textContent);
+    if(!checkRow(row, key.numFields)) return;
+    var hasAtLeastOneValue = row.some((cur) => {
+      return cur !== "";
     });
-    if (!isValid) { return; }
-    localState.adderRows.splice(key.rowNum, 1);
+    if(!hasAtLeastOneValue) return;
+    localState.adderRows.splice(key.priority, 1);
     if (localState.adderRows.length <= 1) {
       localState.adderRows.push([]);
     }
@@ -149,13 +159,14 @@ module tableEditor {
 
   function updateRow(e, elem) {
     var neue = elem.key.row.slice();
-    neue[elem.key.ix] = coerceInput(e.currentTarget.textContent);
+    neue[elem.key.fieldIx] = coerceInput(e.currentTarget.textContent);
     dispatch("updateRow", { table: elem.key.view, priority: localState.initialKey.priority, old: elem.key.row.slice(), neue: neue, submit: false })
   }
 
   function submitRow(e, elem, type) {
     var neue = elem.key.row.slice();
-    neue[elem.key.ix] = coerceInput(e.currentTarget.textContent);
+    neue[elem.key.fieldIx] = coerceInput(e.currentTarget.textContent);
+    if(!checkRow(neue, elem.key.numFields)) return;
     dispatch("updateRow", { table: elem.key.view, priority: localState.initialKey.priority, old: localState.initialKey.row.slice(), neue: neue, submit: true })
   }
 

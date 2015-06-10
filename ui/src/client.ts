@@ -15,10 +15,18 @@ module client {
   }
 
   export function nukeTable(viewId) { // from orbit
-    var fields = api.ixer.index("view to fields")[viewId].map(function(field) {
-      return field[api.code.ix("field", "field")];
-    });
-    sendToServer({ changes: [[viewId, fields, [], api.ixer.facts(viewId)]] }, true);
+    var fieldIds = api.code.sortedViewFields(viewId);
+    var toRemove = api.ixer.facts(viewId);
+    var displayOrderIndex = api.ixer.index("display order");
+    var displayOrders = toRemove.map(function(fact) {
+      var key = viewId + JSON.stringify(fact);
+      var order = displayOrderIndex[key];
+      if(order) {
+        return [key, order];
+      }
+    }).filter((r) => r);
+    sendToServer({ changes: [[viewId, fieldIds, [], toRemove],
+                             ["display order", api.ixer.sortedViewFields("display order"), [], displayOrders]]}, true);
   }
 
   function formatTime(time) {
@@ -318,10 +326,7 @@ module client {
     var changes = [];
     for (var table in final) {
       if(!final[table]) continue;
-      var fields = ixer.index("view to fields")[table] || [];
-      var fieldIds = fields.map(function(field) {
-        return field[1];
-      });
+      var fieldIds = api.code.sortedViewFields(table) || [];
       fieldIds = fieldIds.concat(neueFields[table] || []);
 
       changes.push([table, fieldIds, final[table].inserted, final[table].removed]);

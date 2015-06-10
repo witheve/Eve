@@ -16,6 +16,7 @@ module queryEditor {
   var localState = api.localState;
   var clone = api.clone;
   var alphabet = api.alphabet;
+  var KEYS = api.KEYS;
 
   if(window["queryEditor"]) {
     try {
