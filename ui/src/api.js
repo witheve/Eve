@@ -54,7 +54,20 @@ var api = (function(Indexing) {
     return char.toLowerCase();
   });
   var alphabetLowerToIx = invert(alphabetLower);
-
+  
+  function reverseDiff(diff) {
+    var neue = [];
+    for(var diffIx = 0, diffLen = diff.length; diffIx < diffLen; diffIx++) {
+      var copy = diff[diffIx].slice();
+      neue[diffIx] = copy;
+      if(copy[1] === "inserted") {
+        copy[1] = "removed";
+      } else {
+        copy[1] = "inserted";
+      }
+    }
+    return neue;
+  }
 
   //---------------------------------------------------------
   // Data

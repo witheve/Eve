@@ -1,5 +1,6 @@
 /// <reference path="tableEditor.ts" />
 /// <reference path="query-editor.ts" />
+/// <reference path="eveEditor.ts" />
 module uiEditor {
   declare var api;
   declare var jQuery;
@@ -7,16 +8,395 @@ module uiEditor {
   declare var uiEditorRenderer;
   var ixer = api.ixer;
   var code = api.code;
+  var diff = api.diff;
   var localState = api.localState;
   var KEYS = api.KEYS;
-  var dispatch = queryEditor.dispatch;
-  var renderer = queryEditor.renderer;
-  
+
   function focusOnce(node, elem) {
-    if(!elem.__focused) {
+    if (!elem.__focused) {
       setTimeout(function() { node.focus(); }, 5);
       elem.__focused = true;
     }
+  }
+
+
+  export function dispatch(event: string, info: any, rentrant?: boolean) {
+    //         console.info("[dispatch]", evt, info);
+    var storeEvent = true;
+    var sendToServer = true;
+    var txId = ++localState.txId;
+    var redispatched = false;
+    var diffs = [];
+    switch (event) {
+      case "updateUiLayer":
+        var subLayers = code.layerToChildLayers(info.neue);
+        var neueLocked = info.neue[4];
+        var neueHidden = info.neue[5];
+        subLayers.forEach(function(sub) {
+          if (sub[4] !== neueLocked || sub[5] !== neueHidden) {
+            var neue = sub.slice();
+            neue[4] = neueLocked;
+            neue[5] = neueHidden;
+            diffs.push(["uiComponentLayer", "inserted", neue],
+              ["uiComponentLayer", "removed", sub])
+          }
+        });
+        diffs.push(["uiComponentLayer", "inserted", info.neue],
+          ["uiComponentLayer", "removed", info.old])
+        break;
+
+      case "deleteLayer":
+        var subLayers = code.layerToChildLayers(info.layer);
+        var elementsLookup = ixer.index("uiLayerToElements");
+        subLayers.push(info.layer);
+        subLayers.forEach(function(sub) {
+          diffs.push(["uiComponentLayer", "removed", sub]);
+          var elements = elementsLookup[sub[1]];
+          if (elements) {
+            elements.forEach(function(element) {
+              diffs.push(["uiComponentElement", "removed", element]);
+            });
+          }
+        });
+        break;
+
+      case "changeParentLayer":
+        var layer = ixer.index("uiComponentLayer")[info.layerId];
+        if (layer[6] !== info.parentLayerId) {
+          var neue = layer.slice();
+          neue[0] = txId;
+          neue[6] = info.parentLayerId;
+          diffs.push(["uiComponentLayer", "inserted", neue],
+            ["uiComponentLayer", "removed", layer])
+        }
+        break;
+      case "changeElementLayer":
+        var elem = ixer.index("uiComponentElement")[info.elementId];
+        if (elem[3] !== info.parentLayerId) {
+          var neue = elem.slice();
+          neue[0] = txId;
+          neue[3] = info.parentLayerId;
+          diffs.push(["uiComponentElement", "inserted", neue],
+            ["uiComponentElement", "removed", elem])
+        }
+        break;
+      case "changeElementPosition":
+        var elem = ixer.index("uiComponentElement")[info.elementId];
+        var target = ixer.index("uiComponentElement")[info.targetId];
+        var neue = elem.slice();
+        var changed = false;
+        neue[0] = txId;
+        if (elem[3] !== target[3]) {
+          changed = true;
+          neue[3] = target[3];
+        }
+        if (elem[9] !== target[9]) {
+          changed = true;
+          //move all the others
+          neue[9] = target[9];
+          var others = ixer.index("uiLayerToElements")[target[3]] || [];
+          for (var othersIx = 0, othersLen = others.length; othersIx < othersLen; othersIx++) {
+            var other = others[othersIx];
+            if (other[9] >= neue[9] && neue[1] !== other[1]) {
+              var neueOther = other.slice();
+              neueOther[9] = other[9] + 1;
+              diffs.push(["uiComponentElement", "inserted", neueOther],
+                ["uiComponentElement", "removed", other]);
+            }
+          }
+        }
+        if (changed) {
+          diffs.push(["uiComponentElement", "inserted", neue],
+            ["uiComponentElement", "removed", elem]);
+        }
+        break;
+      case "addUiComponentElement":
+        var elemId = uuid();
+        var neue: any = [txId, elemId, info.componentId, info.layerId, info.control, info.left, info.top, info.right, info.bottom, info.zIndex];
+        var appStyleId = uuid();
+        var typStyleId = uuid();
+        var contentStyleId = uuid();
+        diffs.push(["uiComponentElement", "inserted", neue]);
+        diffs.push(["uiStyle", "inserted", [txId, appStyleId, "appearance", elemId, false]],
+          ["uiStyle", "inserted", [txId, typStyleId, "typography", elemId, false]],
+          ["uiStyle", "inserted", [txId, contentStyleId, "content", elemId, false]]);
+
+        // @TODO: Instead of hardcoding, have a map of special element diff handlers.
+        if (info.control === "map") {
+          var mapId = uuid();
+          diffs.push(["uiMap", "inserted", [txId, mapId, elemId, 0, 0, 4]],
+            ["uiMapAttr", "inserted", [txId, mapId, "lat", 0]],
+            ["uiMapAttr", "inserted", [txId, mapId, "lng", 0]],
+            ["uiMapAttr", "inserted", [txId, mapId, "zoom", 0]]);
+        }
+        localState.uiSelection = [elemId];
+        break;
+      case "resizeSelection":
+        storeEvent = false;
+        sendToServer = false;
+        var sel = localState.uiSelection;
+        var elementIndex = ixer.index("uiComponentElement");
+        var ratioX = info.widthRatio;
+        var ratioY = info.heightRatio;
+        var oldBounds = info.oldBounds;
+        var neueBounds = info.neueBounds;
+        sel.forEach(function(cur) {
+          var elem = elementIndex[cur];
+          var neue = elem.slice();
+          neue[0] = txId;
+          //We first find out the relative position of the item in the selection
+          //then adjust by the given ratio and finall add the position of the selection
+          //back in to get the new absolute coordinates
+          neue[5] = Math.floor(((neue[5] - oldBounds.left) * ratioX) + neueBounds.left); //left
+          neue[7] = Math.floor(((neue[7] - oldBounds.right) * ratioX) + neueBounds.right); //right
+          neue[6] = Math.floor(((neue[6] - oldBounds.top) * ratioY) + neueBounds.top); //top
+          neue[8] = Math.floor(((neue[8] - oldBounds.bottom) * ratioY) + neueBounds.bottom); //bottom
+          diffs.push(["uiComponentElement", "inserted", neue], ["uiComponentElement", "removed", elem]);
+        });
+        break;
+      case "moveSelection":
+        storeEvent = false;
+        sendToServer = false;
+        var sel = localState.uiSelection;
+        var elementIndex = ixer.index("uiComponentElement");
+        var elem = elementIndex[info.elemId];
+        var diffX: number = info.x !== undefined ? info.x - elem[5] : 0;
+        var diffY: number = info.y !== undefined ? info.y - elem[6] : 0;
+        if (diffX || diffY) {
+          sel.forEach(function(cur) {
+            var elem = elementIndex[cur];
+            var neue = elem.slice();
+            neue[0] = txId;
+            neue[3] = info.layer || neue[3];
+            neue[5] += diffX; //left
+            neue[7] += diffX; //right
+            neue[6] += diffY; //top
+            neue[8] += diffY; //bottom
+            diffs.push(["uiComponentElement", "inserted", neue],
+              ["uiComponentElement", "removed", elem]);
+          });
+        }
+        break;
+      case "bindGroup":
+        var prev = ixer.index("groupToBinding")[info.groupId];
+        if (prev) {
+          diffs.push(["uiGroupBinding", "removed", [info.groupId, prev]]);
+        }
+        diffs.push(["uiGroupBinding", "inserted", [info.groupId, info.itemId]]);
+        break;
+      case "bindAttr":
+        var elemId = info.elementId;
+        var attr = info.attr;
+        var field = info.field;
+        var prev = (ixer.index("elementAttrToBinding")[elemId] || {})[attr];
+        if (prev) {
+          diffs.push(["uiAttrBinding", "removed", [elemId, attr, prev]]);
+        }
+        diffs.push(["uiAttrBinding", "inserted", [elemId, attr, field]]);
+        break;
+      case "stopChangingSelection":
+        var sel = localState.uiSelection;
+        var elementIndex = ixer.index("uiComponentElement");
+        var elem = elementIndex[info.elemId];
+        var oldElements = info.oldElements;
+        sel.forEach(function(cur, ix) {
+          var elem = elementIndex[cur];
+          var old = oldElements[ix];
+          if (!Indexing.arraysIdentical(elem, old)) {
+            diffs.push(["uiComponentElement", "inserted", elem],
+              ["uiComponentElement", "removed", old]);
+          }
+        });
+        break;
+      case "offsetSelection":
+        storeEvent = false;
+        sendToServer = false;
+        var sel = localState.uiSelection;
+        var elementIndex = ixer.index("uiComponentElement");
+        var diffX: number = info.diffX;
+        var diffY: number = info.diffY;
+        if (diffX || diffY) {
+          sel.forEach(function(cur) {
+            var elem = elementIndex[cur];
+            var neue = elem.slice();
+            neue[0] = txId;
+            neue[3] = info.layer || neue[3];
+            neue[5] += diffX; //left
+            neue[7] += diffX; //right
+            neue[6] += diffY; //top
+            neue[8] += diffY; //bottom
+            diffs.push(["uiComponentElement", "inserted", neue],
+              ["uiComponentElement", "removed", elem]);
+          });
+        }
+        break;
+      case "deleteSelection":
+        var sel = localState.uiSelection;
+        var elementIndex = ixer.index("uiComponentElement");
+        sel.forEach(function(cur) {
+          var elem = elementIndex[cur];
+          diffs.push(["uiComponentElement", "removed", elem]);
+        });
+        localState.uiSelection = null;
+        break;
+      case "setAttributeForSelection":
+        storeEvent = info.storeEvent;
+        sendToServer = info.storeEvent;
+        var style = uiEditor.getUiPropertyType(info.property);
+        if (!style) { throw new Error("Unknown attribute type for property: " + info.property + " known types:" + uiEditor.uiProperties); }
+
+        var sel = localState.uiSelection;
+        sel.forEach(function(cur) {
+          var id = cur;
+          var styleId = ixer.index("uiElementToStyle")[id][style][1];
+          var oldProps = ixer.index("uiStyleToAttr")[styleId];
+          if (oldProps && oldProps[info.property]) {
+            diffs.push(["uiComponentAttribute", "removed", oldProps[info.property]]);
+          }
+          diffs.push(["uiComponentAttribute", "inserted", [txId, styleId, info.property, info.value]]);
+        });
+        break;
+      case "stopSetAttributeForSelection":
+        var style = uiEditor.getUiPropertyType(info.property);
+        if (!style) { throw new Error("Unknown attribute type for property: " + info.property + " known types:" + uiEditor.uiProperties); }
+
+        var sel = localState.uiSelection;
+        var oldAttrs = info.oldAttrs;
+        sel.forEach(function(cur, ix) {
+          var id = cur;
+          var styleId = ixer.index("uiElementToStyle")[id][style][1];
+          var oldProps = ixer.index("uiStyleToAttr")[styleId];
+          if (oldProps && oldProps[info.property]) {
+            diffs.push(["uiComponentAttribute", "inserted", oldProps[info.property]]);
+          }
+          if (oldAttrs[ix]) {
+            diffs.push(["uiComponentAttribute", "removed", oldAttrs[ix]]);
+          }
+        });
+        break;
+      case "setSelectionStyle":
+        var styleId = info.id;
+        var type = info.type;
+        var sel = localState.uiSelection;
+        sel.forEach(function(id) {
+          var prevStyle = ixer.index("uiElementToStyle")[id][type];
+          diffs.push(["uiStyle", "inserted", [txId, styleId, type, id, info.shared]],
+            ["uiStyle", "removed", prevStyle]);
+        });
+        if (info.copyCurrent && sel && sel.length) {
+          console.log("copying current");
+          //duplicate the attrs to this newly created style
+          var id = sel[0];
+          var prevStyle = ixer.index("uiElementToStyle")[id][type];
+          diffs.push.apply(diffs, diff.duplicateStyle(prevStyle, id, txId, styleId));
+        }
+        break;
+      case "duplicateSelection":
+        var sel = localState.uiSelection;
+        var elementIndex = ixer.index("uiComponentElement");
+        sel.forEach(function(cur) {
+          var elem = elementIndex[cur];
+          var neueId = uuid();
+          diffs.push.apply(diffs, diff.duplicateElement(elem, neueId, localState.txId++));
+        });
+        break;
+      case "toggleOpenLayer":
+        localState.openLayers[info.layerId] = !localState.openLayers[info.layerId];
+        break;
+      case "selectAllFromLayer":
+        var layer = ixer.index("uiComponentLayer")[info.layerId];
+        if (layer[4] || layer[5]) return;
+        var elements = ixer.index("uiLayerToElements")[info.layerId] || [];
+        var sel = info.shiftKey ? localState.uiSelection : [];
+        elements.forEach(function(cur) {
+          sel.push(cur[1]);
+        });
+        if (sel.length) {
+          localState.uiSelection = sel;
+        } else {
+          localState.uiSelection = false;
+        }
+        break;
+      case "startBoxSelection":
+        localState.boxSelectStart = [info.x, info.y];
+        localState.boxSelectStop = [info.x, info.y];
+        break;
+      case "adjustBoxSelection":
+        localState.boxSelectStop[0] = info.x;
+        localState.boxSelectStop[1] = info.y;
+        break;
+      case "stopBoxSelection":
+        var sel = info.shiftKey ? localState.uiSelection : [];
+        var rect = boxSelectRect();
+        var componentId = info.componentId;
+        var elems = ixer.index("uiComponentToElements")[componentId];
+        var layerLookup = ixer.index("uiComponentLayer");
+        if (elems) {
+          elems.forEach(function(cur) {
+            // @TODO: this allows you to select from layers that are either hidden or locked
+            var elemId = cur[1];
+            var layer = layerLookup[cur[3]];
+            if (layer[4] || layer[5]) return;
+            if (elementIntersects(cur, rect)) {
+              sel.push(elemId);
+            }
+          });
+        }
+        localState.boxSelectStart = null;
+        localState.boxSelectStop = null;
+        if (sel.length) {
+          localState.uiSelection = sel;
+        } else {
+          localState.uiSelection = false;
+        }
+        break;
+      case "clearSelection":
+        localState.uiSelection = null;
+        break; 
+      case "startAdjustAttr":
+        var attrs = []
+        var style = getUiPropertyType(info.attr);
+        if (!style) { throw new Error("Unknown attribute type for property:" + info.attr + " known types: " + uiProperties); }
+        var sel = localState.uiSelection;
+        sel.forEach(function(cur) {
+          var id = cur;
+          var styleId = ixer.index("uiElementToStyle")[id][style][1];
+          var oldProps = ixer.index("uiStyleToAttr")[styleId];
+          if (oldProps && oldProps[info.attr]) {
+            attrs.push(oldProps[info.attr]);
+          }
+        });
+        localState.initialAttrs.push(attrs);
+        break;
+      case "setModifyingText":
+        localState.modifyingUiText = info.control[1];
+        dispatch("startAdjustAttr", info, true);
+        break;
+      case "submitContent":
+        localState.modifyingUiText = false;
+        dispatch("stopSetAttributeForSelection", { oldAttrs: localState.initialAttrs.shift(), property: info.attr });
+        break;
+      case "addToSelection":
+        if (!info.shiftKey || !localState.uiSelection) {
+          localState.uiSelection = [];
+        }
+        var layer = ixer.index("uiComponentLayer")[info.elem.control[3]];
+        if (layer[4] || layer[5]) return;
+        localState.uiSelection.push(info.elem.control[1]);
+        localState.uiActiveLayer = info.elem.control[3];
+        break;
+      case "toggleUiPreview":
+        localState.uiPreview = !localState.uiPreview;
+        break;
+      default:
+        redispatched = true;
+        eveEditor.dispatch(event, info);
+        break;
+    }
+    if (!redispatched && !rentrant) {
+      eveEditor.executeDispatch(diffs, storeEvent, sendToServer);
+    }
+
   }
   
   //---------------------------------------------------------
@@ -58,7 +438,7 @@ module uiEditor {
     if (localState.uiPreview) {
       canvas = canvasPreview();
     }
-    return queryEditor.genericWorkspace("query",
+    return eveEditor.genericWorkspace("query",
       componentId,
       {
         c: "ui-editor",
@@ -249,8 +629,7 @@ module uiEditor {
   }
 
   function toggleOpenLayer(e, elem) {
-    localState.openLayers[elem.layerId] = !localState.openLayers[elem.layerId];
-    queryEditor.render();
+    dispatch("toggleOpenLayer", elem);
   }
 
   function layerDrag(e, elem) {
@@ -286,20 +665,7 @@ module uiEditor {
   }
 
   function selectAllFromLayer(e, elem) {
-    e.stopPropagation();
-    var layer = ixer.index("uiComponentLayer")[elem.layerId];
-    if (layer[4] || layer[5]) return;
-    var elements = ixer.index("uiLayerToElements")[elem.layerId] || [];
-    var sel = e.shiftKey ? localState.uiSelection : [];
-    elements.forEach(function(cur) {
-      sel.push(cur[1]);
-    });
-    if (sel.length) {
-      localState.uiSelection = sel;
-    } else {
-      localState.uiSelection = false;
-    }
-    queryEditor.render();
+    dispatch("selectAllFromLayer", { layerId: elem.layerId, shiftKey: e.shiftKey });
   }
 
   function toggleHidden(e, elem) {
@@ -341,9 +707,7 @@ module uiEditor {
       if (!e.shiftKey) { clearSelection(e, elem); }
       x -= Math.floor(canvasRect.left);
       y -= Math.floor(canvasRect.top);
-      localState.boxSelectStart = [x, y];
-      localState.boxSelectStop = [x, y];
-      queryEditor.render();
+      dispatch("startBoxSelection", { x: x, y: y });
     }, 0);
   }
 
@@ -354,9 +718,7 @@ module uiEditor {
     var canvasRect = e.currentTarget.getBoundingClientRect();
     x -= Math.floor(canvasRect.left);
     y -= Math.floor(canvasRect.top);
-    localState.boxSelectStop[0] = x;
-    localState.boxSelectStop[1] = y;
-    queryEditor.render();
+    dispatch("adjustBoxSelection", {x: x, y: y});
   }
 
   function elementIntersects(elem, rect) {
@@ -372,30 +734,7 @@ module uiEditor {
 
   function stopBoxSelection(e, elem) {
     if (!localState.boxSelectStart) return;
-    var sel = e.shiftKey ? localState.uiSelection : [];
-    var rect = boxSelectRect();
-    var componentId = elem.componentId;
-    var elems = ixer.index("uiComponentToElements")[componentId];
-    var layerLookup = ixer.index("uiComponentLayer");
-    if (elems) {
-      elems.forEach(function(cur) {
-        // @TODO: this allows you to select from layers that are either hidden or locked
-        var elemId = cur[1];
-        var layer = layerLookup[cur[3]];
-        if (layer[4] || layer[5]) return;
-        if (elementIntersects(cur, rect)) {
-          sel.push(elemId);
-        }
-      });
-    }
-    localState.boxSelectStart = null;
-    localState.boxSelectStop = null;
-    if (sel.length) {
-      localState.uiSelection = sel;
-    } else {
-      localState.uiSelection = false;
-    }
-    queryEditor.render();
+    dispatch("stopBoxSelection", {shiftKey: e.shiftKey, componentId: elem.componentId});
   }
 
   function canvasRatio(context) {
@@ -563,8 +902,7 @@ module uiEditor {
   }
 
   function clearSelection(e, elem) {
-    localState.uiSelection = null;
-    queryEditor.render();
+    dispatch("clearSelection", null);
   }
 
   function control(cur, attrs, selected, layer) {
@@ -641,9 +979,7 @@ module uiEditor {
   }
 
   function setModifyingText(e, elem) {
-    localState.modifyingUiText = elem.control[1];
-    startAdjustAttr(e, elem);
-    queryEditor.render();
+    dispatch("startAdjustAttr", elem);
   }
 
   function updateContent(e, elem) {
@@ -655,23 +991,13 @@ module uiEditor {
   }
 
   function submitContent(e, elem) {
-    localState.modifyingUiText = false;
-    dispatch("stopSetAttributeForSelection", { oldAttrs: localState.initialAttrs.shift(), property: elem.attr });
-    console.log("submit content!");
-    queryEditor.render();
+    dispatch("submitContent", elem);
   }
 
   function addToSelection(e, elem) {
     e.stopPropagation();
     if (elem.selected) return;
-    if (!e.shiftKey || !localState.uiSelection) {
-      localState.uiSelection = [];
-    }
-    var layer = ixer.index("uiComponentLayer")[elem.control[3]];
-    if (layer[4] || layer[5]) return;
-    localState.uiSelection.push(elem.control[1]);
-    localState.uiActiveLayer = elem.control[3];
-    queryEditor.render();
+    dispatch("addToSelection", {elem: elem, shiftKey: e.shiftKey});
   }
 
 
@@ -850,8 +1176,7 @@ module uiEditor {
   }
 
   function toggleUiPreview(e, elem) {
-    localState.uiPreview = !localState.uiPreview;
-    queryEditor.render();
+    dispatch("toggleUiPreview", null);
   }
 
   function addElement(e, elem) {
@@ -916,13 +1241,13 @@ module uiEditor {
   adjustableShade.className = "adjustable-shade";
   adjustableShade.addEventListener("mousemove", function(e) {
     if (adjusterInfo) {
-      adjusterInfo.handler(e, renderer.tree[adjusterInfo.elem.id]);
+      adjusterInfo.handler(e, eveEditor.renderer.tree[adjusterInfo.elem.id]);
     }
   })
 
   adjustableShade.addEventListener("mouseup", function(e) {
     if (adjusterInfo.elem.finalizer) {
-      adjusterInfo.elem.finalizer(e, renderer.tree[adjusterInfo.elem.id]);
+      adjusterInfo.elem.finalizer(e, eveEditor.renderer.tree[adjusterInfo.elem.id]);
     }
     adjusterInfo = false;
     document.body.removeChild(adjustableShade);
@@ -1060,7 +1385,6 @@ module uiEditor {
         } else {
           dispatch("setSelectionStyle", { type: "appearance", id: value, shared: true });
         }
-        queryEditor.render();
       }
     } else {
       visualStyle = tableEditor.input("", localState.addingAppearanceStyle, tableEditor.rename, doneAddingStyle);
@@ -1214,7 +1538,6 @@ module uiEditor {
         } else {
           dispatch("setSelectionStyle", { type: "typography", id: value, shared: true });
         }
-        queryEditor.render();
       }
     } else {
       typographyStyle = tableEditor.input("", localState.addingTypographyStyle, tableEditor.rename, doneAddingStyle);
@@ -1319,7 +1642,7 @@ module uiEditor {
       opacity: false,
       onCommit: function($elm) {
         var div = $elm.get(0);
-        var eveElem = renderer.tree[div._id] || renderer.prevTree[div._id];
+        var eveElem = eveEditor.renderer.tree[div._id] || eveEditor.renderer.prevTree[div._id];
         if (eveElem && eveElem.commit) {
           eveElem.commit({ currentTarget: div }, eveElem);
         }
@@ -1327,7 +1650,7 @@ module uiEditor {
       renderCallback: function($elm, toggled) {
         if (toggled === false) return;
         var div = $elm.get(0);
-        var eveElem = renderer.tree[div._id];
+        var eveElem = eveEditor.renderer.tree[div._id];
         if (eveElem && eveElem.change) {
           div.type = "color";
           div.value = this.color.colors.HEX;
@@ -1374,19 +1697,7 @@ module uiEditor {
   }
 
   function startAdjustAttr(e, elem) {
-    var attrs = []
-    var style = getUiPropertyType(elem.attr);
-    if (!style) { throw new Error("Unknown attribute type for property:" + elem.attr + " known types: " + uiProperties); }
-    var sel = localState.uiSelection;
-    sel.forEach(function(cur) {
-      var id = cur;
-      var styleId = ixer.index("uiElementToStyle")[id][style][1];
-      var oldProps = ixer.index("uiStyleToAttr")[styleId];
-      if (oldProps && oldProps[elem.attr]) {
-        attrs.push(oldProps[elem.attr]);
-      }
-    });
-    localState.initialAttrs.push(attrs);
+    dispatch("startAdjustAttr", elem);
   }
 
   function stopAdjustAttr(e, elem) {

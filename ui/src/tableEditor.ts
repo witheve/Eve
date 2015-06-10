@@ -1,11 +1,106 @@
 /// <reference path="query-editor.ts" />
 module tableEditor {
   declare var api;
+  declare var uuid;
+  declare var DEBUG;
   var ixer = api.ixer;
   var code = api.code;
+  var diff = api.diff;
   var localState = api.localState;
   var KEYS = api.KEYS;
-  var dispatch = queryEditor.dispatch;
+  
+  //---------------------------------------------------------
+  // Table workspace
+  //---------------------------------------------------------
+  
+  function dispatch(event: string, info: any) {
+     //         console.info("[dispatch]", evt, info);
+    var storeEvent = true;
+    var sendToServer = true;
+    var txId = ++localState.txId;
+  	var redispatched = false;
+    var diffs = [];
+    switch(event) {
+      case "rename":
+        var id = info.id;
+        sendToServer = !!info.sendToServer;
+        if(info.value === undefined || info.value === info.initial[1]) { return; }
+        diffs.push(["display name", "inserted", [id, info.value]],
+                   ["display name", "removed", info.initial])
+        break;
+
+      case "addField":
+        var fieldId = uuid();
+        var ix = ixer.index("view to fields")[info.table].length;
+        diffs.push(["field", "inserted", [info.table, fieldId, "output"]], // @NOTE: Can this be any other kind?
+                   ["display name", "inserted", [fieldId, api.alphabet[ix]]],
+                   ["display order", "inserted", [fieldId, -ix]]);
+        var oldFacts = (ixer.facts(info.table) || []).slice();
+        var neueFacts = oldFacts.map(function(fact) {
+          var neue = fact.slice();
+          neue.push("");
+          var oldKey = info.table + JSON.stringify(fact);
+          var neueKey = info.table + JSON.stringify(neue);
+          var priority = ixer.index("display order")[oldKey];
+          diffs.push(["display order", "removed", [oldKey, priority]],
+                     ["display order", "inserted", [neueKey, priority]]);
+
+          return neue;
+        });
+        ixer.clearTable(info.table); // @HACKY way to clear the existing indexes.
+        setTimeout(function() {
+          dispatch("replaceFacts", {table: info.table, neue: neueFacts});
+        }, 1000);
+        break;
+      case "replaceFacts":
+        var diffs = [];
+        diffs = diffs.concat((info.old || []).map(function(fact) {
+          return [info.table, "removed", fact];
+        }));
+        diffs = diffs.concat((info.neue || []).map(function(fact) {
+          return [info.table, "inserted", fact];
+        }));
+        break;
+      case "addRow":
+        var ix = ixer.facts(info.table).length || 0;
+        diffs.push([info.table, "inserted", info.neue],
+                   ["display order", "inserted", [info.table + JSON.stringify(info.neue), ix]]);
+        break;
+      case "updateRow":
+        sendToServer = info.submit;
+        var oldString = info.table + JSON.stringify(info.old);
+        var ix = info.priority;
+        if(ix === undefined) {
+          console.error("No ix specified for", oldString);
+          ix = 0;
+        }
+        var neueString = info.table + JSON.stringify(info.neue);
+        if(oldString === neueString) return;
+        diffs.push([info.table, "inserted", info.neue],
+                   ["display order", "inserted", [neueString, ix]]);
+        if(info.old) {
+          diffs.push([info.table, "removed", info.old],
+          ["display order", "removed", [oldString, ix]]);
+        }
+        break;
+      case "toggleKey":
+        var isKey = code.hasTag(info.fieldId, "key");
+        if(isKey) {
+          diffs.push(["tag", "removed", [info.fieldId, "key"]]);
+        } else {
+          diffs.push(["tag", "inserted", [info.fieldId, "key"]]);
+        }
+        break;
+      default:
+        redispatched = true;
+        eveEditor.dispatch(event, info);
+        break;
+    }
+    if(!redispatched) {
+      eveEditor.executeDispatch(diffs, storeEvent, sendToServer);  
+    }
+  }
+  
   //---------------------------------------------------------
   // Table workspace
   //---------------------------------------------------------
@@ -50,7 +145,7 @@ module tableEditor {
       var bIx = order[tableId + JSON.stringify(b)] || 0;
       return aIx - bIx;
     });
-    return queryEditor.genericWorkspace("",
+    return eveEditor.genericWorkspace("",
       tableId,
       {
         c: "table-editor",
