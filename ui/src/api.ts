@@ -1,16 +1,23 @@
-if(!window.DEBUG) {
-  window.DEBUG = {RECEIVE: 3,
-                  SEND: 3,
-                  INDEXER: 0};
-}
+module api {
+  // @NOTE: We should really be using CommonJS modules with this instead of tsc's wonky module system.
+  declare var window;
+  declare var Indexing;
+  declare var uuid;
+  
+  export var arraysIdentical:(a:any[], b:any[])=>boolean = Indexing.arraysIdentical;
+  
+  if(!window.DEBUG) {
+    window.DEBUG = {RECEIVE: 3,
+                    SEND: 3,
+                    INDEXER: 0};
+  }
 
 
-var api = (function(Indexing) {
-  function clone(item) {
+  export function clone(item:any): any {
     if (!item) { return item; }
     var result;
 
-    if(item.constructor === Array) {
+    if(item instanceof Array) {
       result = [];
       item.forEach(function(child, index, array) {
         result[index] = clone( child );
@@ -27,14 +34,14 @@ var api = (function(Indexing) {
     return result;
   }
 
-  function displaySort(idA, idB) {
+  export function displaySort(idA:string, idB:string): number {
     var orderA = ixer.index("display order")[idA];
     var orderB = ixer.index("display order")[idB];
     if(orderB - orderA) { return orderB - orderA; }
     else { return idA.localeCompare(idB); }
   }
 
-  function invert(obj) {
+  export function invert(obj:Object): Object {
     var res = {};
     for(var key in obj) {
       if(!obj.hasOwnProperty(key)) { continue; }
@@ -43,9 +50,9 @@ var api = (function(Indexing) {
     return res;
   }
 
-  var alphabet = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+  export var alphabet = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
                   "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"];
-  var alphabetLower = alphabet.map(function(char) {
+  export var alphabetLower = alphabet.map(function(char) {
     return char.toLowerCase();
   });
   var alphabetLowerToIx = invert(alphabetLower);
@@ -55,8 +62,8 @@ var api = (function(Indexing) {
   // Data
   //---------------------------------------------------------
 
-  var ixer = new Indexing.Indexer();
-  var tables = {
+  export var ixer = new Indexing.Indexer();
+  export var builtins = {
     compiler: {
       tag: {name: "tag", fields: ["view", "tag"]},
       view: {name: "view", fields: ["view", "kind"]},
@@ -147,8 +154,8 @@ var api = (function(Indexing) {
     }
   };
 
-  function initIndexer(noFacts) {
-    injectViews(tables, ixer, noFacts);
+  export function initIndexer(noFacts) {
+    injectViews(builtins, ixer, noFacts);
     //ixer.handleDiffs(diff.addViewBlock(code.activeItemId()));
   }
 
@@ -233,7 +240,7 @@ var api = (function(Indexing) {
   // Data interaction code
   //---------------------------------------------------------
 
-  var code = {
+  export var code = {
     name: function(id) {
       return ixer.index("display name")[id];
     },
@@ -374,7 +381,7 @@ var api = (function(Indexing) {
     }
   };
 
-  var diff = {
+  export var diff = {
     addView: function addView(viewId, view, noFacts) {
       var diffs = [["display name", "inserted", [viewId, view.name]],
                    ["view", "inserted", [viewId, view.kind || "table"]]];
@@ -551,7 +558,7 @@ var api = (function(Indexing) {
         return ["primitive", "inserted", [viewId, type]];
       });
     },
-    addViewSource: function addViewSource(viewId, sourceViewId, kind) {
+    addViewSource: function addViewSource(viewId, sourceViewId?, kind?:string) {
       var sourceId = kind || uuid();
       var queryId = ixer.index("view to query")[viewId];
 
@@ -722,7 +729,7 @@ var api = (function(Indexing) {
       }
       var oldConstraintLeft = ixer.index("constraint left")[constraintId];
       if(oldConstraintLeft && (opts.leftSource || opts.leftField) &&
-        (opts.leftSource !== oldConstraintLeft[sideSource] || opts.leftField !== oldConstraintLeft[sideField])) {
+         (opts.leftSource !== oldConstraintLeft[sideSource] || opts.leftField !== oldConstraintLeft[sideField])) {
         diffs.push(["constraint left", "removed", oldConstraintLeft]);
       }
       var oldConstraintRight = ixer.index("constraint right")[constraintId];
@@ -806,7 +813,7 @@ var api = (function(Indexing) {
       console.log(diffs);
       return diffs;
     },
-    duplicateStyle: function(toDuplicate, elementId, txId, useStyleId) {
+    duplicateStyle: function(toDuplicate, elementId, txId, useStyleId?) {
       var diffs = [];
       var style = toDuplicate.slice();
       var oldId = toDuplicate[1];
@@ -860,10 +867,10 @@ var api = (function(Indexing) {
     };
 
     for(var tableGroup in tableGroups) {
-      var tables = tableGroups[tableGroup];
+      var builtins = tableGroups[tableGroup];
       var shouldHide = groupsToHide[tableGroup];
-      for(var tableId in tables) {
-        add(tableId, tables[tableId], tableGroup, shouldHide);
+      for(var tableId in builtins) {
+        add(tableId, builtins[tableId], tableGroup, shouldHide);
       }
     }
 
@@ -893,7 +900,7 @@ var api = (function(Indexing) {
     return names[getUniqueNameIx(existing, names)];
   }
 
-  var localState = {txId: 0,
+  export var localState = {txId: 0,
                     uiActiveLayer: null,
                     openLayers: {},
                     initialAttrs: [],
@@ -903,17 +910,5 @@ var api = (function(Indexing) {
                     uiGridSize: 10};
 
 
-  return {localState: localState,
-          ixer: ixer,
-          initIndexer: initIndexer,
-          code: code,
-          diff: diff,
-          clone: clone,
-          builtins: tables,
-          arraysIdentical: Indexing.arraysIdentical,
-          displaySort: displaySort,
-          injectViews: injectViews,
-          invert: invert,
-          alphabet: alphabet};
-})(Indexing);
 
+}
