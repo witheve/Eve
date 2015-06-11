@@ -231,17 +231,14 @@ module Indexing {
       return this.facts(name)[0];
     }
     select(table: string, opts: any): any[] {
+      var self = this;
       var facts = [];
-      var keys = Object.keys(opts);
-      keys.sort();
-      keys = keys.map(function(key) {
-        return `${table}: ${key}`;
-      });
       var fields = api.code.sortedViewFields(table) || [];
       var nameLen = table.length + 2;
-      var adjustedFieldNames = fields.map(function(cur) {
-        return cur.substring(nameLen);
-      });
+      var fieldNames = fields.map((cur) => self.index("display name")[cur]);
+      var keys = Object.keys(opts);
+      keys = keys.map((key) => fields[fieldNames.indexOf(key)]);
+      keys.sort();
       if(keys.length > 0) {
         var indexName = `${table}|${keys.join("|") }`;
         var index = this.index(indexName);
@@ -254,7 +251,7 @@ module Indexing {
           index = this.index(indexName);
         }
         for(var keyIx of keyIxes) {
-          index = index[opts[adjustedFieldNames[keyIx]]];
+          index = index[opts[fieldNames[keyIx]]];
         }
         facts = index;
       } else {
@@ -264,7 +261,7 @@ module Indexing {
       return facts.map(function(fact) {
         var cur = {};
         for(var i = 0, fieldsLen = fields.length; i < fieldsLen; i++) {
-          cur[adjustedFieldNames[i]] = fact[i];
+          cur[fieldNames[i]] = fact[i];
         }
         return cur;
       });
