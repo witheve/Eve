@@ -230,6 +230,48 @@ module Indexing {
     first(name: string) {
       return this.facts(name)[0];
     }
+    select(table: string, opts: any): any[] {
+      var facts = [];
+      var keys = Object.keys(opts);
+      keys.sort();
+      keys = keys.map(function(key) {
+        return `${table}: ${key}`;
+      });
+      var fields = api.code.sortedViewFields(table) || [];
+      var nameLen = table.length + 2;
+      var adjustedFieldNames = fields.map(function(cur) {
+        return cur.substring(nameLen);
+      });
+      if(keys.length > 0) {
+        var indexName = `${table}|${keys.join("|") }`;
+        var index = this.index(indexName);
+        var keyIxes = [];
+        for(var curKey of keys) {
+          keyIxes.push(fields.indexOf(curKey));
+        }
+        if (!index) {
+          this.addIndex(indexName, table, create.collector(keyIxes));
+          index = this.index(indexName);
+        }
+        for(var keyIx of keyIxes) {
+          index = index[opts[adjustedFieldNames[keyIx]]];
+        }
+        facts = index;
+      } else {
+        facts = this.facts(table);
+      }
+      
+      return facts.map(function(fact) {
+        var cur = {};
+        for(var i = 0, fieldsLen = fields.length; i < fieldsLen; i++) {
+          cur[adjustedFieldNames[i]] = fact[i];
+        }
+        return cur;
+      });
+    }
+    selectOne(table: string, opts: any): any {
+      return this.select(table, opts)[0];
+    }
   }
   
   export var create = {
