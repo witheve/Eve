@@ -979,7 +979,7 @@ module uiEditor {
   }
 
   function setModifyingText(e, elem) {
-    dispatch("startAdjustAttr", elem);
+    dispatch("setModifyingText", elem);
   }
 
   function updateContent(e, elem) {

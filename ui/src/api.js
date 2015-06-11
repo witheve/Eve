@@ -145,7 +145,7 @@ var api = (function(Indexing) {
     },
 
     foursquare: {
-      "click": {name: "click", fields: ["event number", "button", "binding"]},
+      "click": {name: "click", fields: ["event number", "button", "binding"], tags: ["remote"]},
       "place": {name: "place", fields: ["place", "name", "priceRange"]},
       "place to address": {name: "place to address", fields: ["place", "street", "city", "state", "zip"]},
       "place to hours": {name: "place to hours", fields: ["place", "day", "start", "end"]},
@@ -406,6 +406,11 @@ var api = (function(Indexing) {
       if(!noFacts && view.facts) {
         for(var ix = 0; ix < view.facts.length; ix++) {
           diffs.push([viewId, "inserted", view.facts[ix]]);
+        }
+      }
+      if(view.tags) {
+        for(var tagIx = 0, tagLen = view.tags.length; tagIx < tagLen; tagIx++) {
+          diffs.push(["tag", "inserted", [viewId, view.tags[tagIx]]]);
         }
       }
 

@@ -190,6 +190,8 @@ module client {
         var eventId = (ixer.facts("client event") || []).length;
         console.log(eventId);
         uiEditorRenderer.setEventId(eventId);
+        var prims = api.diff.computePrimitives();
+        ixer.handleDiffs(prims);
       }
 
       var time = now() - start;
