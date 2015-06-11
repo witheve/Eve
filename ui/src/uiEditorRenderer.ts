@@ -4,7 +4,7 @@
 - translate ui editor facts into views that generate
 - uiRenderedFactors
 -------------------------------------------------------*/
-/// <reference path="Indexer.ts" />
+/// <reference path="indexer.ts" />
 /// <reference path="client.ts" />
 /// <reference path="microReact.ts" />
 module uiEditorRenderer {

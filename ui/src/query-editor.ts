@@ -2,7 +2,7 @@
 /// <reference path="tableEditor.ts" />
 /// <reference path="microReact.ts" />
 /// <reference path="uiEditorRenderer.ts" />
-/// <reference path="Indexer.ts" />
+/// <reference path="indexer.ts" />
 /// <reference path="client.ts" />
 /// <reference path="eveEditor.ts" />
 module queryEditor {
