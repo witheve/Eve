@@ -128,7 +128,8 @@ pub fn create_table(table_name: &&str, table_fields: &Vec<&str>,old_event: Optio
 			event.changes.push(field);
 			event
 		},
-		None => Event{changes: vec![display_name,view,field] },
+		// TODO add session
+		None => Event{changes: vec![display_name,view,field], session: "".to_string() },
 	}
 
 }
@@ -154,7 +155,8 @@ pub fn insert_fact(table_name: &&str, table_fields: &Vec<&str>, row_data: &Vec<V
 			event.changes.push((table_name.to_string(),change));
 			event
 		},
-		None => Event{changes: vec![(table_name.to_string(),change)]},
+		// TODO add session
+		None => Event{changes: vec![(table_name.to_string(),change)], session: "".to_string()},
 	}
 
 }
