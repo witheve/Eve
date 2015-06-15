@@ -24,6 +24,10 @@ module api {
                     INDEXER: 0};
   }
 
+  export var KEYS = {UP: 38,
+                     DOWN: 40,
+                     ENTER: 13,
+                     Z: 90};
 
   export function clone<T>(item:T): T;
   export function clone(item:Object): Object;
@@ -71,7 +75,20 @@ module api {
     return char.toLowerCase();
   });
   var alphabetLowerToIx = invert(alphabetLower);
-
+  
+  export function reverseDiff(diff) {
+    var neue = [];
+    for(var diffIx = 0, diffLen = diff.length; diffIx < diffLen; diffIx++) {
+      var copy = diff[diffIx].slice();
+      neue[diffIx] = copy;
+      if(copy[1] === "inserted") {
+        copy[1] = "removed";
+      } else {
+        copy[1] = "inserted";
+      }
+    }
+    return neue;
+  }
 
   //---------------------------------------------------------
   // Data
@@ -149,7 +166,7 @@ module api {
     },
 
     foursquare: {
-      "click": {name: "click", fields: ["event number", "button", "binding"]},
+      "click": {name: "click", fields: ["event number", "button", "binding"], tags: ["remote"]},
       "place": {name: "place", fields: ["place", "name", "priceRange"]},
       "place to address": {name: "place to address", fields: ["place", "street", "city", "state", "zip"]},
       "place to hours": {name: "place to hours", fields: ["place", "day", "start", "end"]},
@@ -285,7 +302,7 @@ module api {
         }
       }
     },
-    sortedViewFields: function(viewId:Id): Fact {
+    sortedViewFields: function(viewId:Id): Id[] {
       var fields = (ixer.index("view to fields")[viewId] || []).slice();
       var fieldsLength = fields.length;
       for(var ix = 0; ix < fieldsLength; ix++) {
@@ -420,6 +437,11 @@ module api {
       if(!noFacts && view.facts) {
         for(var ix = 0; ix < view.facts.length; ix++) {
           diffs.push([viewId, "inserted", view.facts[ix]]);
+        }
+      }
+      if(view.tags) {
+        for(var tagIx = 0, tagLen = view.tags.length; tagIx < tagLen; tagIx++) {
+          diffs.push(["tag", "inserted", [viewId, view.tags[tagIx]]]);
         }
       }
 
@@ -934,339 +956,4 @@ module api {
                            showMenu: true,
                            uiGridSize: 10};
                              
-  // @NEW
-  
-  class NotFoundError implements Error {
-    public name: string = "Not Found"
-    public message:string
-    constructor(kind:string, ...ids:Id[]) {
-      this.message = kind + " " + ids.join(" :: ") + " does not exist in the indexer.";
-    }
-  }
-  
-  enum ViewKind {
-    TABLE = <any>"table",
-    JOIN = <any>"join",
-    UNION = <any>"union",
-    AGGREGATE = <any>"aggregate",
-    PRIMITIVE = <any>"primitive"
-  }
-  
-  enum FieldKind {
-    OUTPUT = <any>"output",
-    SCALAR = <any>"scalar input",
-    VECTOR = <any>"vector input"
-  }
-  
-  enum DiffKind {
-    INSERTED = <any>"inserted",
-    REMOVED = <any>"removed"
-  }
-  
-  class Write {
-    public add = add
-    public remove = remove
-    
-    constructor(public diffs:Diff[] = [], public ids:any = {}) {
-      this.add = Object.create(add, {_write: {value: this}});
-      this.remove = Object.create(remove, {_write: {value: this}});
-    }
-    
-    addDiffs(diffs:Diff[]) {
-      for(var ix = 0; ix < diffs.length; ix++) {
-        this.addDiff(diffs[ix]);
-      }
-    }
-    addDiff(diff:Diff) {
-      var fact = diff[2];
-      for(var ix = 0; ix < fact.length; ix++) {
-        if(fact[ix] === undefined || fact[ix] === null) { throw new Error("Attempted to add diff containing malformed fact: " + JSON.stringify(diff)); }
-      }
-      this.diffs.push(diff);
-    }
-    addIds(neueIds:{[key:string]: Id}) {
-      for(var key in neueIds) {
-        if(neueIds.hasOwnProperty(key)) {
-          this.ids[key] = neueIds[key];
-        }
-      }
-    }
-    addId(key:string, id:Id) {
-      this.ids[key] = id;
-    }
-    
-    toString() {
-      return "Write{diffs: " + JSON.stringify(this.diffs) + ", ids: " + JSON.stringify(this.ids) + "}"; 
-    }
-  }
-  
-  interface Diff extends Array<any> {
-    0: string,
-    1: DiffKind,
-    2: Fact
-  }
-  
-  function getWrite(self:any): Write {
-    
-    if(self._write) {
-     return self._write; //@NOTE: We can clone each step instead, but then we need to be careful to keep the reference at the head internally.
-    } else {
-      return new Write();
-    }
-  }
-
-  export var add = {
-    _write: undefined,
-    view: function addView(kind:ViewKind, name:string = "Untitled View", tags:string[] = []): Write {
-        var write = getWrite(this);
-        var viewId = uuid();
- 
-        write.addId("view", viewId);
-        write.addDiffs([["view", DiffKind.INSERTED, [viewId, kind]],
-                        ["display name", DiffKind.INSERTED, [viewId, name]]]);
-                        
-        tags.forEach(function(tag) {
-          write.addDiff(["tag", DiffKind.INSERTED, [viewId, tag]]);
-        });
-        
-        return write;
-    },
-    block: function addBlock(kind:ViewKind, queryId:number, viewId?:Id): Write {
-      var write = getWrite(this);
-      var queryViewIds = code.queryViews(queryId);
-      var usedNames = queryViewIds.map(code.name);
-      var name = getUniqueName(usedNames, alphabet);
-      var priority = code.minPriority(queryViewIds);
-      if(!viewId) {
-        write.add.view(kind, name, ["local"]);
-        console.log(JSON.stringify(write.ids));
-        viewId = write.ids.view;
-      }
-      var blockId = uuid();
-      write.addId("block", blockId);
-      write.addDiffs([["block", DiffKind.INSERTED, [queryId, blockId, viewId]],
-                      // @NOTE: If we use view display orders elsewhere we can change this to use the block id instead.
-                      ["display order", DiffKind.INSERTED, [viewId, priority]]]);
-                      
-      return write;
-    },
-    source: function addSource(viewId:Id, sourceViewId:Id, sourceId?:Id): Write {
-      var write = getWrite(this);
-      viewId = viewId || write.ids.view;
-      if(viewId === undefined) { throw new Error("Must specify a valid viewId for source, or chain after a view creating write."); }
-      if(sourceId) {
-        try {
-          write.remove.source(viewId, sourceId);  
-        } catch(err) {
-          if(!(err instanceof NotFoundError)) { throw err; }
-        }
-      } else {
-        sourceId = uuid();
-      }
-      write.addId("source", sourceId);
-      write.addDiff(["source", DiffKind.INSERTED, [viewId, sourceId, sourceViewId]]);
-      return write;
-    },
-    field: function addField(viewId:Id, kind:FieldKind = FieldKind.OUTPUT, name?:string): Write {
-      var write = getWrite(this);
-      viewId = viewId || write.ids.view;
-      if(viewId === undefined) { throw new Error("Must specify a valid viewId for source, or chain after a view creating write."); }
-      var fieldId = uuid();
-      var fieldIdIx = code.ix("field", "field");
-      var viewFieldIds = (ixer.index("view to fields")[viewId] || []).map(function(field) {
-        return field[fieldIdIx];
-      });
-      if(!name) {
-        var usedNames = viewFieldIds.map(code.name);
-        name = getUniqueName(usedNames, alphabetLower);
-      }
-      var priority = code.minPriority(viewFieldIds);
-      write.addId("field", fieldId);
-      write.addDiffs([["field", DiffKind.INSERTED, [viewId, fieldId, kind]],
-                      ["display name", DiffKind.INSERTED, [fieldId, name]],
-                      ["display order", DiffKind.INSERTED, [fieldId, priority]]]);
-      return write;
-    },
-    select: function addSelect(viewId:Id, sourceViewId:Id, sourceFieldId:Id, fieldId?:Id): Write {
-      var write = getWrite(this);
-      if(fieldId) {
-        var fieldViewId = ixer.index("field to view")[fieldId];
-        if(fieldViewId !== viewId) { throw new NotFoundError("field", fieldId); }
-      } else {
-        write.add.field(viewId, FieldKind.OUTPUT, code.name(sourceFieldId));
-        fieldId = write.ids.field;
-      }
-      write.addDiff(["select", DiffKind.INSERTED, [viewId, fieldId, sourceViewId, sourceFieldId]]);
-      return write;
-    },
-    constraint: function addConstraint(opts:Constraint, constraintId?:Id): Write {
-      var write = getWrite(this);
-      if(constraintId) {
-        write.remove.constraint(constraintId);
-      } else {
-        constraintId = uuid();
-      }
-      
-      if(!code.isConstraintComplete(opts)) { throw new Error("Attempted to write incomplete constraint: " + JSON.stringify(opts)); }
-      write.addId("constraint", constraintId);
-      write.addDiffs([["constraint", DiffKind.INSERTED, [constraintId, opts.view]],
-                      ["constraint left", DiffKind.INSERTED, [constraintId, opts.leftSource, opts.leftField]],
-                      ["constraint right", DiffKind.INSERTED, [constraintId, opts.rightSource, opts.rightField]],
-                      ["constraint operation", DiffKind.INSERTED, [constraintId, opts.operation]]]);
-      return write;
-    }
-  };
-  export var remove = {
-    _write: undefined,
-    tags: function removeTags(id:Id): Write {
-      var write = getWrite(this);
-      var tags = ixer.index("id to tags")[id] || [];
-      tags.forEach(function(tag) {
-        write.addDiff(["tag", DiffKind.REMOVED, tag]);
-      });
-      return write;
-    },
-    view: function removeView(viewId:Id): Write {
-      var write = getWrite(this);
-      var view = ixer.index("view")[viewId];
-      if(!view) { throw new NotFoundError("view", viewId); }
-      write.addDiffs([["view", DiffKind.REMOVED, view],
-          ["display name", DiffKind.REMOVED, [viewId, code.name(viewId)]],
-          ["display order", DiffKind.REMOVED, [viewId, ixer.index("display order")[viewId] || 0]]]);
-      write.remove.tags(viewId);
-      
-      // Remove sources
-      var sourceIdIx = code.ix("source", "source");
-      var sources = ixer.index("view to sources")[viewId] || [];
-      sources.forEach(function(source) { 
-        write.remove.source(viewId, source[sourceIdIx]);
-      });
-       
-      // Remove fields
-      var fieldIdIx = code.ix("field", "field");
-      var fields = ixer.index("view to fields")[viewId] || [];
-      fields.forEach(function(field) {
-        write.remove.field(field[fieldIdIx]);
-      });
-      
-      return write;
-    },
-    block: function removeBlock(blockId:Id, nukeView:boolean = false): Write {
-      var write = getWrite(this);
-      var block = ixer.index("block")[blockId];
-      if(!block) { throw new NotFoundError("block", blockId); }
-      write.addDiffs([["block", DiffKind.REMOVED, block],
-                      ["display name", DiffKind.REMOVED, [blockId, code.name(blockId)]],
-                      ["display order", DiffKind.REMOVED, [blockId, ixer.index("display order")[blockId] || 0]]]);
-      write.remove.tags(blockId);
-                      
-      if(nukeView) {
-        var blockViewIdIx = code.ix("block", "view");
-        write.remove.view(block[blockViewIdIx]);
-      }
-      return write;
-    },
-    source: function removeSource(viewId:Id, sourceId:Id): Write {
-      var write = getWrite(this);
-      var viewSources = ixer.index("source")[viewId] || {};
-      var source = viewSources[sourceId];
-      if(!source) { throw new NotFoundError("source", viewId, sourceId); }
-      write.addDiff(["source", DiffKind.REMOVED, source]);
-      
-      // Remove constraints
-      code.getViewSourceConstraints(viewId, sourceId).forEach(function(constraintId) {
-        write.remove.constraint(constraintId);
-      });
-      
-      // Remove selects
-      var viewSelects = ixer.index("view and source to selects")[viewId] || {};
-      var selects = viewSelects[sourceId] || [];
-      selects.forEach(function(select) {
-        write.addDiff(["select", DiffKind.REMOVED, select]);
-      });
-
-      return write;
-    },
-    field: function removeField(fieldId:Id): Write {
-      var write = getWrite(this);
-      var field = ixer.index("field")[fieldId];
-      if(!field) { throw new NotFoundError("field", fieldId); }
-      write.addDiffs([["field", DiffKind.REMOVED, field],
-                      ["display name", DiffKind.REMOVED, [fieldId, code.name(fieldId)]],
-                      ["display order", DiffKind.REMOVED, [fieldId, ixer.index("display order")[fieldId] || 0]]]);
-      write.remove.tags(fieldId);
-      return write;
-    },
-    constraint: function removeConstraint(constraintId: Id): Write {
-      var write = getWrite(this);
-      var constraint = ixer.index("constraint")[constraintId];
-      if(!constraint) { throw new NotFoundError("constraint", constraintId); }
-      write.addDiff(["constraint", DiffKind.REMOVED, constraint]);
-      var left = ixer.index("constraint left")[constraintId];
-      if(left) {
-        write.addDiff(["constraint left", DiffKind.REMOVED, left]);
-      }
-      var right = ixer.index("constraint right")[constraintId];
-      if(right) {
-        write.addDiff(["constraint right", DiffKind.REMOVED, right]);
-      }
-      var operation = ixer.index("constraint operation")[constraintId];
-      if(operation) {
-        write.addDiff(["constraint operation", DiffKind.REMOVED, operation]);
-      }
-      return write;
-    }
-  };
 }
-
-
-
-/*module foo {
-var foo  {type: "view",
- kind: ViewKind.UNION,
- sources: [
-   {type: "source",
-    sourceView: "constraint"}
-  ],
-  tags: ["local"]
-  name: "foo"
-}
-
-  enum WriteKind {
-    VIEW
-  }
-  
-  interface source {
-    sourceView: Id
-  } 
-  
-  interface ViewWrite {
-    type: WriteKind,
-    sources?: source[],
-    tags?: string[],
-    name: string
-  }
-  
-  var foo:ViewWrite = {
-    type: WriteKind.VIEW,
-    name: "7",
-    sources: [{sourceView: "constraint"}]
-  };
-  
-  [
-    {type: "view", kind: union, aoidfjsoiajdsf},
-    {type: "source", asodfijaoijds foaijds foiadjsf} 
-  ]
-  
-  function add(type, write, dependents) {
-    fuckchris(write.type) {
-      
-    }
-  }
-
-  type Id = string;
-  type Field = Id;
-  type Constant = string;
-  
-  interface constraintLeft {constraint:Id, source:Id, value:Field|Constant}
-}*/

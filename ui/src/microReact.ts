@@ -1,4 +1,4 @@
-(function(window) {
+module microReact {
 
   function now() {
     if(window.performance) {
@@ -7,33 +7,39 @@
     return (new Date()).getTime();
   }
 
-
-  function Renderer() {
-    this.content = document.createElement("div");
-    this.content.className = "__root";
-    this.elementCache = {"__root": this.content};
-    this.prevTree = {};
-    this.tree = {};
-    this.postRenders = [];
-    this.lastDiff = {};
-    var self = this;
-    this.handleEvent = function handleEvent(e) {
-      var id = (e.currentTarget || e.target)._id;
-      var elem = self.tree[id];
-      if(!elem) return;
-      var handler = elem[e.type];
-      if(handler) { handler(e, elem); }
-    };
-  }
-
-  Renderer.prototype = {
-    reset: function() {
+  export class Renderer {
+    content: HTMLElement;
+    elementCache: {};
+    prevTree: {};
+    tree: {};
+    postRenders: string[];
+    lastDiff: {adds: string[], updates: {}};
+    queued: boolean;
+    handleEvent: (any);
+    constructor() {
+      this.content = document.createElement("div");
+      this.content.className = "__root";
+      this.elementCache = { "__root": this.content };
+      this.prevTree = {};
+      this.tree = {};
+      this.postRenders = [];
+      this.lastDiff = {adds: [], updates: {}};
+      var self = this;
+      this.handleEvent = function handleEvent(e: any) {
+        var id = (e.currentTarget || e.target)._id;
+        var elem = self.tree[id];
+        if (!elem) return;
+        var handler = elem[e.type];
+        if (handler) { handler(e, elem); }
+      };
+    }
+    reset() {
       this.prevTree = this.tree;
       this.tree = {};
       this.postRenders = [];
-    },
+    }
 
-    domify: function domify() {
+    domify() {
       var fakePrev = {}; //create an empty object once instead of every instance of the loop
       var elements = this.tree;
       var prevElements = this.prevTree;
@@ -48,7 +54,7 @@
       for(var i = 0, len = adds.length; i < len; i++) {
         var id = adds[i];
         var cur = elements[id];
-        var div = document.createElement(cur.t || "div");
+        var div: any = document.createElement(cur.t || "div");
         div._id = id;
         elementCache[id] = div;
       }
@@ -154,9 +160,9 @@
           }
         }
       }
-    },
+    }
 
-    diff: function diff() {
+    diff() {
       var a = this.prevTree;
       var b = this.tree;
       var as = Object.keys(a);
@@ -219,12 +225,13 @@
       }
       this.lastDiff = {adds: adds, updates: updated};
       return this.lastDiff;
-    },
+    }
 
-    prepare: function prepare(root) {
+    prepare(root) {
       var elemLen = 1;
       var tree = this.tree;
       var elements = [root];
+      var elem: any;
       for(var elemIx = 0; elemIx < elemLen; elemIx++) {
         elem = elements[elemIx];
         if(elem.parent === undefined) elem.parent = "__root";
@@ -246,22 +253,22 @@
         }
       }
       return tree;
-    },
+    }
 
-    postDomify: function postRender() {
+    postDomify() {
       var postRenders = this.postRenders;
       var diff = this.lastDiff.updates;
       var elementCache = this.elementCache;
       for(var i = 0, len = postRenders.length; i < len; i++) {
-        var elem = postRenders[i];
+        var elem: any = postRenders[i];
         var id = elem.id;
         if(diff[id] === "updated" || diff[id] === "added") {
           elem.postRender(elementCache[elem.id], elem);
         }
       }
-    },
+    }
 
-    render: function(elem) {
+    render(elem) {
       var start = now();
       this.reset();
       var post = this.prepare(elem);
@@ -280,44 +287,5 @@
                                                             postDomify: postDomify - domify});
       }
     }
-
-  };
-
-
-
-
-
-  function test() {
-    console.time("build");
-    var root = {children: [], id: "testRoot"};
-    for(var i = 0; i < 100; i++) {
-      var me = {id: "blah" + i};
-      var children = [];
-      for(var x = 0; x < 100; x++) {
-        children[x] = {text: "foo" + x};
-      }
-      me.children = children;
-      root.children[i] = me;
-    }
-    console.log(root);
-    var tree = {};
-    prepare(tree, root);
-    console.timeEnd("build");
-    console.time("diff scratch");
-    var d = diff({}, tree);
-    console.timeEnd("diff scratch");
-    console.time("draw scratch");
-    render(tree, d);
-    console.timeEnd("draw scratch");
-    console.time("diff equal");
-    var d2 = diff(tree, tree);
-    console.timeEnd("diff equal");
-    console.time("draw equal");
-    render(tree, d2);
-    console.timeEnd("draw equal");
-    return [d,d2];
   }
-
-  window.microReact = {Renderer: Renderer};
-
-})(window);
+}

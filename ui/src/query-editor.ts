@@ -1,14 +1,15 @@
 /// <reference path="uiEditor.ts" />
 /// <reference path="tableEditor.ts" />
+/// <reference path="microReact.ts" />
+/// <reference path="uiEditorRenderer.ts" />
+/// <reference path="indexer.ts" />
+/// <reference path="client.ts" />
+/// <reference path="eveEditor.ts" />
 module queryEditor {
   declare var uuid;
   declare var api;
   declare var queryEditor;
-  declare var microReact;
-  declare var uiEditorRenderer;
-  declare var Indexing;
   declare var DEBUG;
-  declare var client;
   var document = window.document;
   var ixer = api.ixer;
   var code = api.code;
@@ -16,30 +17,13 @@ module queryEditor {
   var localState = api.localState;
   var clone = api.clone;
   var alphabet = api.alphabet;
+  var KEYS = api.KEYS;
 
   if(window["queryEditor"]) {
     try {
       document.body.removeChild(window["queryEditor"].container);
     } catch (err) {
       // meh
-    }
-  }
-
-  window.addEventListener("resize", render);
-  document.body.addEventListener("drop", preventDefault);
-
-
-  export var renderer = new microReact.Renderer();
-  document.body.appendChild(renderer.content);
-  renderer.queued = false;
-  export function render() {
-   if(renderer.queued === false) {
-      renderer.queued = true;
-      requestAnimationFrame(function() {
-        renderer.queued = false;
-        renderer.render(root());
-        uiEditorRenderer.render();
-      });
     }
   }
   
@@ -54,11 +38,7 @@ module queryEditor {
   // utils
   //---------------------------------------------------------
 
-  var KEYS = {UP: 38,
-              DOWN: 40,
-              ENTER: 13,
-              Z: 90};
-
+  
   function coerceInput(input) {
     if(input.match(/^-?[\d]+$/gim)) {
       return parseInt(input);
@@ -71,21 +51,6 @@ module queryEditor {
     }
     return input;
   }
-
-
-  function reverseDiff(diff) {
-    var neue = [];
-    for(var diffIx = 0, diffLen = diff.length; diffIx < diffLen; diffIx++) {
-      var copy = diff[diffIx].slice();
-      neue[diffIx] = copy;
-      if(copy[1] === "inserted") {
-        copy[1] = "removed";
-      } else {
-        copy[1] = "inserted";
-      }
-    }
-    return neue;
-  }
   
   function stopPropagation(e) {
     e.stopPropagation();
@@ -94,224 +59,19 @@ module queryEditor {
     e.preventDefault();
   }
 
-  //---------------------------------------------------------
-  // Local state
-  //---------------------------------------------------------
-  export var eventStack = {root: true, children: [], localState: clone(localState), parent: null, diffs: null};
-
-  function scaryUndoEvent(): any[] {
-    if(!eventStack.parent || !eventStack.diffs) return [];
-
-    var old = eventStack;
-    eventStack = old.parent;
-    localState = clone(eventStack.localState);
-    api.localState = localState;
-    return reverseDiff(old.diffs);
-  }
-
-  function scaryRedoEvent(): any[] {
-    if(!eventStack.children.length) return [];
-
-    eventStack = eventStack.children[eventStack.children.length - 1];
-    localState = clone(eventStack.localState);
-    return eventStack.diffs;
-  }
 
   //---------------------------------------------------------
   // Dispatch
   //---------------------------------------------------------
 
-  export function dispatch(evt, info) {
+  export function dispatch(evt: string, info: any) {
     //         console.info("[dispatch]", evt, info);
     var storeEvent = true;
     var sendToServer = true;
     var txId = ++localState.txId;
-
+  	var redispatched = false;
     var diffs = [];
     switch(evt) {
-      case "addTable":
-        var id = uuid();
-        var fieldId = uuid();
-        diffs.push(["editor item", "inserted", [id, "table"]],
-                   ["view", "inserted", [id, "table"]],
-                   ["field", "inserted", [id, fieldId, "output"]],
-                   ["display order", "inserted", [fieldId, 0]],
-                   ["display name", "inserted", [id, "Untitled Table"]],
-                   ["display name", "inserted", [fieldId, "A"]]);
-        localState.activeItem = id;
-        localState.adderRows = [[], []];
-        break;
-      case "addQuery":
-        var id = uuid();
-        diffs.push(["editor item", "inserted", [id, "query"]],
-                   ["display name", "inserted", [id, "Untitled Query"]]);
-        localState.activeItem = id;
-        break;
-      case "addUi":
-        var id = uuid();
-        var layerId = uuid();
-        diffs.push(["editor item", "inserted", [id, "ui"]],
-                   ["display name", "inserted", [id, "Untitled Page"]],
-                   ["uiComponentLayer", "inserted", [txId, layerId, id, 0, false, false, id]],
-                   ["display name", "inserted", [layerId, "Page"]]);
-        localState.activeItem = id;
-        localState.uiActiveLayer = layerId;
-        localState.openLayers[layerId] = true;
-        break;
-      case "addUiLayer":
-        var layerId = uuid();
-        var groupNum = ixer.index("uiComponentToLayers")[info.componentId].length;
-        var groupIx = (ixer.index("parentLayerToLayers")[info.parentLayer] || []).length;
-        diffs.push(["uiComponentLayer", "inserted", [txId, layerId, info.componentId, groupIx, false, false, info.parentLayer]],
-                   ["display name", "inserted", [layerId, "Group " + groupNum]]);
-        localState.uiActiveLayer = layerId;
-        localState.openLayers[layerId] = true;
-        break;
-
-      case "updateUiLayer":
-        var subLayers = code.layerToChildLayers(info.neue);
-        var neueLocked = info.neue[4];
-        var neueHidden = info.neue[5];
-        subLayers.forEach(function(sub) {
-          if(sub[4] !== neueLocked || sub[5] !== neueHidden) {
-            var neue = sub.slice();
-            neue[4] = neueLocked;
-            neue[5] = neueHidden;
-            diffs.push(["uiComponentLayer", "inserted", neue],
-                       ["uiComponentLayer", "removed", sub])
-          }
-        });
-        diffs.push(["uiComponentLayer", "inserted", info.neue],
-                   ["uiComponentLayer", "removed", info.old])
-        break;
-
-      case "deleteLayer":
-        var subLayers = code.layerToChildLayers(info.layer);
-        var elementsLookup = ixer.index("uiLayerToElements");
-        subLayers.push(info.layer);
-        subLayers.forEach(function(sub) {
-          diffs.push(["uiComponentLayer", "removed", sub]);
-          var elements = elementsLookup[sub[1]];
-          if(elements) {
-            elements.forEach(function(element) {
-              diffs.push(["uiComponentElement", "removed", element]);
-            });
-          }
-        });
-        break;
-
-      case "changeParentLayer":
-        var layer = ixer.index("uiComponentLayer")[info.layerId];
-        if(layer[6] !== info.parentLayerId) {
-          var neue = layer.slice();
-          neue[0] = txId;
-          neue[6] = info.parentLayerId;
-          diffs.push(["uiComponentLayer", "inserted", neue],
-                     ["uiComponentLayer", "removed", layer])
-        }
-        break;
-      case "changeElementLayer":
-        var elem = ixer.index("uiComponentElement")[info.elementId];
-        if(elem[3] !== info.parentLayerId) {
-          var neue = elem.slice();
-          neue[0] = txId;
-          neue[3] = info.parentLayerId;
-          diffs.push(["uiComponentElement", "inserted", neue],
-                     ["uiComponentElement", "removed", elem])
-        }
-        break;
-      case "changeElementPosition":
-        var elem = ixer.index("uiComponentElement")[info.elementId];
-        var target = ixer.index("uiComponentElement")[info.targetId];
-        var neue = elem.slice();
-        var changed = false;
-        neue[0] = txId;
-        if(elem[3] !== target[3]) {
-          changed = true;
-          neue[3] = target[3];
-        }
-        if(elem[9] !== target[9]) {
-          changed = true;
-          //move all the others
-          neue[9] = target[9];
-          var others = ixer.index("uiLayerToElements")[target[3]] || [];
-          for(var othersIx = 0, othersLen = others.length; othersIx < othersLen; othersIx++) {
-            var other = others[othersIx];
-            if(other[9] >= neue[9] && neue[1] !== other[1]) {
-              var neueOther = other.slice();
-              neueOther[9] = other[9] + 1;
-              diffs.push(["uiComponentElement", "inserted", neueOther],
-                         ["uiComponentElement", "removed", other]);
-            }
-          }
-        }
-        if(changed) {
-          diffs.push(["uiComponentElement", "inserted", neue],
-                     ["uiComponentElement", "removed", elem]);
-        }
-        break;
-      case "rename":
-        var id = info.id;
-        sendToServer = !!info.sendToServer;
-        if(info.value === undefined || info.value === info.initial[1]) { return; }
-        diffs.push(["display name", "inserted", [id, info.value]],
-                   ["display name", "removed", info.initial])
-        break;
-
-      case "addField":
-        var fieldId = uuid();
-        var ix = ixer.index("view to fields")[info.table].length;
-        diffs.push(["field", "inserted", [info.table, fieldId, "output"]], // @NOTE: Can this be any other kind?
-                   ["display name", "inserted", [fieldId, alphabet[ix]]],
-                   ["display order", "inserted", [fieldId, -ix]]);
-        var oldFacts = (ixer.facts(info.table) || []).slice();
-        var neueFacts = oldFacts.map(function(fact) {
-          var neue = fact.slice();
-          neue.push("");
-          var oldKey = info.table + JSON.stringify(fact);
-          var neueKey = info.table + JSON.stringify(neue);
-          var priority = ixer.index("display order")[oldKey];
-          diffs.push(["display order", "removed", [oldKey, priority]],
-                     ["display order", "inserted", [neueKey, priority]]);
-
-          return neue;
-        });
-        ixer.clearTable(info.table); // @HACKY way to clear the existing indexes.
-        setTimeout(function() {
-          dispatch("replaceFacts", {table: info.table, neue: neueFacts});
-        }, 1000);
-        break;
-      case "replaceFacts":
-        var diffs = [];
-        diffs = diffs.concat((info.old || []).map(function(fact) {
-          return [info.table, "removed", fact];
-        }));
-        diffs = diffs.concat((info.neue || []).map(function(fact) {
-          return [info.table, "inserted", fact];
-        }));
-        break;
-      case "addRow":
-        var ix = ixer.facts(info.table).length || 0;
-        diffs.push([info.table, "inserted", info.neue],
-                   ["display order", "inserted", [info.table + JSON.stringify(info.neue), ix]]);
-        break;
-      case "updateRow":
-        sendToServer = info.submit;
-        var oldString = info.table + JSON.stringify(info.old);
-        var ix = info.priority;
-        if(ix === undefined) {
-          console.error("No ix specified for", oldString);
-          ix = 0;
-        }
-        var neueString = info.table + JSON.stringify(info.neue);
-        if(oldString === neueString) return;
-        diffs.push([info.table, "inserted", info.neue],
-                   ["display order", "inserted", [neueString, ix]]);
-        if(info.old) {
-          diffs.push([info.table, "removed", info.old],
-          ["display order", "removed", [oldString, ix]]);
-        }
-        break;
       case "exportView":
         // @TODO: Should we make this capable of exporting multiple views?
 //         var query = ixer.index("view to query")[info.viewId];
@@ -564,377 +324,69 @@ module queryEditor {
 
         sendToServer = false;
         break;
-      case "addUiComponentElement":
-        var elemId = uuid();
-        var neue: any = [txId, elemId, info.componentId, info.layerId, info.control, info.left, info.top, info.right, info.bottom, info.zIndex];
-        var appStyleId = uuid();
-        var typStyleId = uuid();
-        var contentStyleId = uuid();
-        diffs.push(["uiComponentElement", "inserted", neue]);
-        diffs.push(["uiStyle", "inserted", [txId, appStyleId, "appearance", elemId, false]],
-                   ["uiStyle", "inserted", [txId, typStyleId, "typography", elemId, false]],
-                   ["uiStyle", "inserted", [txId, contentStyleId, "content", elemId, false]]);
-
-        // @TODO: Instead of hardcoding, have a map of special element diff handlers.
-        if(info.control === "map") {
-          var mapId = uuid();
-          diffs.push(["uiMap", "inserted", [txId, mapId, elemId, 0, 0, 4]],
-                     ["uiMapAttr", "inserted", [txId, mapId, "lat", 0]],
-                     ["uiMapAttr", "inserted", [txId, mapId, "lng", 0]],
-                     ["uiMapAttr", "inserted", [txId, mapId, "zoom", 0]]);
-        }
-        localState.uiSelection = [elemId];
+      case "setQueryEditorActive":
+        localState.queryEditorActive = info.viewId;
+        localState.queryEditorInfo = {
+          viewId: info.viewId,
+          handler: info.handler,
+        };
         break;
-      case "resizeSelection":
-        storeEvent = false;
-        sendToServer = false;
-        var sel = localState.uiSelection;
-        var elementIndex = ixer.index("uiComponentElement");
-        var ratioX = info.widthRatio;
-        var ratioY = info.heightRatio;
-        var oldBounds = info.oldBounds;
-        var neueBounds = info.neueBounds;
-        sel.forEach(function(cur) {
-          var elem = elementIndex[cur];
-          var neue = elem.slice();
-          neue[0] = txId;
-          //We first find out the relative position of the item in the selection
-          //then adjust by the given ratio and finall add the position of the selection
-          //back in to get the new absolute coordinates
-          neue[5] = Math.floor(((neue[5] - oldBounds.left) * ratioX) + neueBounds.left); //left
-          neue[7] = Math.floor(((neue[7] - oldBounds.right) * ratioX) + neueBounds.right); //right
-          neue[6] = Math.floor(((neue[6] - oldBounds.top) * ratioY) + neueBounds.top); //top
-          neue[8] = Math.floor(((neue[8] - oldBounds.bottom) * ratioY) + neueBounds.bottom); //bottom
-          diffs.push(["uiComponentElement", "inserted", neue], ["uiComponentElement", "removed", elem]);
-        });
+      case "constraintOpSuggestions":
+        localState.queryEditorActive = info.viewId;
+        localState.queryEditorInfo = {
+          type: "constraint op",
+          sourceId: info.sourceId,
+          viewId: info.viewId,
+          fieldId: info.fieldId,
+          token: info,
+          handler: info.handler
+        };
         break;
-      case "moveSelection":
-        storeEvent = false;
-        sendToServer = false;
-        var sel = localState.uiSelection;
-        var elementIndex = ixer.index("uiComponentElement");
-        var elem = elementIndex[info.elemId];
-        var diffX: number = info.x !== undefined ? info.x - elem[5] : 0;
-        var diffY: number = info.y !== undefined ? info.y - elem[6] : 0;
-        if(diffX || diffY) {
-          sel.forEach(function(cur) {
-            var elem = elementIndex[cur];
-            var neue = elem.slice();
-            neue[0] = txId;
-            neue[3] = info.layer || neue[3];
-            neue[5] += diffX; //left
-            neue[7] += diffX; //right
-            neue[6] += diffY; //top
-            neue[8] += diffY; //bottom
-            diffs.push(["uiComponentElement", "inserted", neue],
-                       ["uiComponentElement", "removed", elem]);
-          });
-        }
+      case "fieldSuggestions":
+        localState.queryEditorActive = info.viewId;
+        localState.queryEditorInfo = {
+          type: "field",
+          sourceId: info.sourceId,
+          viewId: info.viewId,
+          fieldId: info.fieldId,
+          token: info,
+          handler: info.handler
+        };
         break;
-      case "bindGroup":
-        var prev = ixer.index("groupToBinding")[info.groupId];
-        if(prev) {
-          diffs.push(["uiGroupBinding", "removed", [info.groupId, prev]]);
-        }
-        diffs.push(["uiGroupBinding", "inserted", [info.groupId, info.itemId]]);
+      case "editToken":
+        var state = tokenState[info.parentId];
+        if (!state) { state = tokenState[info.parentId] = {}; }
+        state[info.key] = 1
         break;
-      case "bindAttr":
-        var elemId = info.elementId;
-        var attr = info.attr;
-        var field = info.field;
-        var prev = (ixer.index("elementAttrToBinding")[elemId] || {})[attr];
-        if(prev) {
-          diffs.push(["uiAttrBinding", "removed", [elemId, attr, prev]]);
-        }
-        diffs.push(["uiAttrBinding", "inserted", [elemId, attr, field]]);
+      case "stopEditToken":
+        var state = tokenState[info.parentId];
+        state[info.key] = 0;
         break;
-      case "stopChangingSelection":
-        var sel = localState.uiSelection;
-        var elementIndex = ixer.index("uiComponentElement");
-        var elem = elementIndex[info.elemId];
-        var oldElements = info.oldElements;
-        sel.forEach(function(cur, ix) {
-          var elem = elementIndex[cur];
-          var old = oldElements[ix];
-          if(!Indexing.arraysIdentical(elem, old)) {
-            diffs.push(["uiComponentElement", "inserted", elem],
-                       ["uiComponentElement", "removed", old]);
-          }
-        });
-        break;
-      case "offsetSelection":
-        storeEvent = false;
-        sendToServer = false;
-        var sel = localState.uiSelection;
-        var elementIndex = ixer.index("uiComponentElement");
-        var diffX: number = info.diffX;
-        var diffY: number = info.diffY;
-        if(diffX || diffY) {
-          sel.forEach(function(cur) {
-            var elem = elementIndex[cur];
-            var neue = elem.slice();
-            neue[0] = txId;
-            neue[3] = info.layer || neue[3];
-            neue[5] += diffX; //left
-            neue[7] += diffX; //right
-            neue[6] += diffY; //top
-            neue[8] += diffY; //bottom
-            diffs.push(["uiComponentElement", "inserted", neue],
-                       ["uiComponentElement", "removed", elem]);
-          });
-        }
-        break;
-      case "deleteSelection":
-        var sel = localState.uiSelection;
-        var elementIndex = ixer.index("uiComponentElement");
-        sel.forEach(function(cur) {
-          var elem = elementIndex[cur];
-          diffs.push(["uiComponentElement", "removed", elem]);
-        });
-        localState.uiSelection = null;
-        break;
-      case "setAttributeForSelection":
-        storeEvent = info.storeEvent;
-        sendToServer = info.storeEvent;
-        var style = uiEditor.getUiPropertyType(info.property);
-        if(!style) { throw new Error("Unknown attribute type for property: " + info.property + " known types:" + uiEditor.uiProperties); }
-
-        var sel = localState.uiSelection;
-        sel.forEach(function(cur) {
-          var id = cur;
-          var styleId = ixer.index("uiElementToStyle")[id][style][1];
-          var oldProps = ixer.index("uiStyleToAttr")[styleId];
-          if(oldProps && oldProps[info.property]) {
-            diffs.push(["uiComponentAttribute", "removed", oldProps[info.property]]);
-          }
-          diffs.push(["uiComponentAttribute", "inserted", [txId, styleId, info.property, info.value]]);
-        });
-        break;
-      case "stopSetAttributeForSelection":
-        var style = uiEditor.getUiPropertyType(info.property);
-        if(!style) { throw new Error("Unknown attribute type for property: " + info.property + " known types:" + uiEditor.uiProperties); }
-
-        var sel = localState.uiSelection;
-        var oldAttrs = info.oldAttrs;
-        sel.forEach(function(cur, ix) {
-          var id = cur;
-          var styleId = ixer.index("uiElementToStyle")[id][style][1];
-          var oldProps = ixer.index("uiStyleToAttr")[styleId];
-          if(oldProps && oldProps[info.property]) {
-            diffs.push(["uiComponentAttribute", "inserted", oldProps[info.property]]);
-          }
-          if(oldAttrs[ix]) {
-            diffs.push(["uiComponentAttribute", "removed", oldAttrs[ix]]);
-          }
-        });
-        break;
-      case "setSelectionStyle":
-        var styleId = info.id;
-        var type = info.type;
-        var sel = localState.uiSelection;
-        sel.forEach(function(id) {
-          var prevStyle = ixer.index("uiElementToStyle")[id][type];
-          diffs.push(["uiStyle", "inserted", [txId, styleId, type, id, info.shared]],
-                     ["uiStyle", "removed", prevStyle]);
-        });
-        if(info.copyCurrent && sel && sel.length) {
-          console.log("copying current");
-          //duplicate the attrs to this newly created style
-          var id = sel[0];
-          var prevStyle = ixer.index("uiElementToStyle")[id][type];
-          diffs.push.apply(diffs, diff.duplicateStyle(prevStyle, id, txId, styleId));
-        }
-        break;
-      case "duplicateSelection":
-        var sel = localState.uiSelection;
-        var elementIndex = ixer.index("uiComponentElement");
-        sel.forEach(function(cur) {
-          var elem = elementIndex[cur];
-          var neueId = uuid();
-          diffs.push.apply(diffs, diff.duplicateElement(elem, neueId, localState.txId++));
-        });
-        break;
-      case "toggleKey":
-        var isKey = code.hasTag(info.fieldId, "key");
-        if(isKey) {
-          diffs.push(["tag", "removed", [info.fieldId, "key"]]);
-        } else {
-          diffs.push(["tag", "inserted", [info.fieldId, "key"]]);
-        }
-        break;
-      case "undo":
-        storeEvent = false;
-        diffs = scaryUndoEvent();
-        break;
-      case "redo":
-        storeEvent = false;
-        diffs = scaryRedoEvent();
+      case "toggleConstant":
+        var edInfo = localState.queryEditorInfo;
+        var token = edInfo.token || {};
+        edInfo.token = token;
+        token.isConstant = true;
         break;
       default:
-        console.error("Unhandled dispatch:", evt, info);
+        redispatched = true;
+        eveEditor.dispatch(evt, info);
         break;
     }
-
-
-    if(diffs && diffs.length) {
-      if(storeEvent) {
-        var eventItem = {event: event, diffs: diffs, children: [], parent: eventStack, localState: clone(localState), root: false};
-        eventStack.children.push(eventItem);
-        eventStack = eventItem;
-      }
-
-      ixer.handleDiffs(diffs);
-      if(sendToServer) {
-        if(DEBUG.DELAY) {
-          setTimeout(function() {
-            client.sendToServer(diffs);
-          }, DEBUG.DELAY);
-        } else {
-          client.sendToServer(diffs);
-        }
-      }
-      render();
-    } else {
-      //       console.warn("No diffs to index, skipping.");
+    
+    if(!redispatched) {
+      eveEditor.executeDispatch(diffs, storeEvent, sendToServer);  
     }
+    
+    
   }
 
-  //---------------------------------------------------------
-  // Root
-  //---------------------------------------------------------
-
-  function root() {
-    var itemId = code.activeItemId();
-    var type = ixer.index("editor item to type")[itemId];
-
-    var workspace;
-    if(type === "query") {
-      workspace = queryWorkspace(itemId);
-    } else if(type === "ui") {
-      workspace = uiEditor.uiWorkspace(itemId);
-    } else if(type === "table") {
-      workspace = tableEditor.tableWorkspace(itemId);
-    }
-    var arrowDir = localState.showMenu ? "left" : "right";
-    return {id: "root", c: "root", children: [
-      editorItemList(itemId),
-      {c: "items-toggle ion-ios-arrow-" + arrowDir, click: toggleMenu},
-      workspace,
-    ]};
-  }
-
-  function editorItemList(itemId) {
-    var views = ixer.facts("editor item");
-    // @TODO: filter me based on tags local and compiler.
-    var items = ixer.facts("editor item").map(function(cur) {
-      var id = cur[0];
-      if(!localState.showHidden && code.hasTag(id, "hidden")) {
-        return;
-      }
-      var type = cur[1];
-      var klass = "editor-item " + type;
-      var icon = "ion-grid";
-      if(type === "query") {
-        icon = "ion-cube";
-      } else if(type === "ui") {
-        icon = "ion-image";
-      }
-      if(itemId === id) {
-        klass += " selected";
-      }
-
-      var dragId = id;
-      var draggable = true;
-      if(type === "query") {
-        dragId = ixer.index("query to export")[id];
-        if(!dragId) {
-          draggable = false;
-        }
-      }
-
-      var name = code.name(id) || "";
-      return {c: klass, name: name, click: selectEditorItem, dblclick: closeSelectEditorItem, dragData: {value: dragId, type: "view"}, itemId: id, draggable: draggable, dragstart: dragItem, children: [
-        {c: "icon " + icon},
-        {text: name},
-      ]};
-    })
-    items.sort(function(a, b) {
-      return a.name.localeCompare(b.name);
-    });
-    var width = 0;
-    if(localState.showMenu) {
-      width = 200;
-    }
-    return {c: "editor-item-list", width:width, children: [
-      {c: "adder", children: [
-        {c: "button table", click: addItem, event: "addTable", children: [
-          {c: "ion-grid"},
-          {c: "ion-plus"},
-        ]},
-        {c: "button query", click: addItem, event: "addQuery", children: [
-          {c: "ion-cube"},
-          {c: "ion-plus"},
-        ]},
-        {c: "button ui", click: addItem, event: "addUi", children: [
-          {c: "ion-image"},
-          {c: "ion-plus"},
-        ]},
-      ]},
-      {c: "items", children: items},
-      {c: "show-hidden", click: toggleHiddenEditorItems, children: [
-        {text: "show hidden"}
-      ]}
-    ]};
-  }
-
-  function toggleHiddenEditorItems(e, elem) {
-    localState.showHidden = !localState.showHidden;
-    render();
-  }
-
-  function addItem(e, elem) {
-    dispatch(elem.event, {});
-  }
-
-  function selectEditorItem(e, elem) {
-    localState.activeItem = elem.itemId;
-    var type = ixer.index("editor item to type")[elem.itemId];
-    if(type === "table") {
-      localState.adderRows = [[], []];
-    } else if(type === "ui") {
-      var layer = ixer.index("parentLayerToLayers")[elem.itemId][0];
-      localState.uiActiveLayer = layer[1];
-    }
-    render();
-  }
-
-  function closeSelectEditorItem(e, elem) {
-    localState.showMenu = false;
-    selectEditorItem(e, elem);
-  }
-
-  function genericWorkspace(klass, itemId, content) {
-    var title = tableEditor.input(code.name(itemId), itemId, tableEditor.rename, tableEditor.rename);
-    title.c += " title";
-    return {id: "workspace",
-            c: "workspace-container " + klass,
-            children: [
-              title,
-              {c: "content", children: [content]}
-            ]};
-  }
-
-  function toggleMenu() {
-    localState.showMenu = !localState.showMenu;
-    render();
-  }
-  
    //---------------------------------------------------------
   // Query workspace
   //---------------------------------------------------------
 
-  function queryWorkspace(queryId) {
-    return genericWorkspace("query", queryId,
+  export function queryWorkspace(queryId) {
+    return eveEditor.genericWorkspace("query", queryId,
                             {c: "query-editor",
                              children: [
                                editor(queryId)
@@ -944,15 +396,6 @@ module queryEditor {
   //---------------------------------------------------------
   // Tree + Toolbar
   //---------------------------------------------------------
-
-  function treeItem(name, value, type, opts) {
-    opts = opts || {};
-    return {c: "tree-item " + opts.c, dragData: {value: value, type: type}, draggable: true, dragstart: dragItem, children: [
-      (opts.icon ? {c: "opts.icon"} : undefined),
-      (name ? {text: name} : undefined),
-      opts.content
-    ]};
-  }
 
   function fieldItem(name, fieldId, opts) {
     opts = opts || {};
@@ -1192,12 +635,7 @@ module queryEditor {
   }
 
   function setQueryEditorActive(e, elem) {
-    localState.queryEditorActive = elem.viewId;
-    localState.queryEditorInfo = {
-      viewId: elem.viewId,
-      handler: elem.handler,
-    };
-    render();
+    dispatch("setQueryEditorActive", elem);
   }
 
   function newJoinBlock(e, elem) {
@@ -1527,14 +965,9 @@ module queryEditor {
 
   function maybeToggleConstant(handler) {
     return function(evt, elem) {
-      var info = localState.queryEditorInfo;
-      var token = info.token || {};
-      info.token = token;
-
       if(elem.key === "new constant") {
         evt.stopPropagation();
-        token.isConstant = true;
-        render();
+        dispatch("toggleConstant", null);
       } else if(handler) {
         return handler(evt, elem);
       }
@@ -1553,16 +986,7 @@ module queryEditor {
 
   function constraintOpSuggestions(e, elem) {
     e.stopPropagation();
-    localState.queryEditorActive = elem.viewId;
-    localState.queryEditorInfo = {
-      type: "constraint op",
-      sourceId: elem.sourceId,
-      viewId: elem.viewId,
-      fieldId: elem.fieldId,
-      token: elem,
-      handler: elem.handler
-    };
-    render();
+    dispatch("constraintOpSuggestions", elem);
   }
 
   function viewConstraintsDrop(evt, elem) {
@@ -1667,16 +1091,11 @@ module queryEditor {
   };
 
   function editToken(evt, elem) {
-    var state = tokenState[elem.parentId];
-    if(!state) { state = tokenState[elem.parentId] = {}; }
-    state[elem.key] = 1;
-    render();
+    dispatch("editToken", elem);
   }
 
   function stopEditToken(evt, elem) {
-    var state = tokenState[elem.parentId];
-    state[elem.key] = 0;
-    render();
+    dispatch("stopEditToken", elem);
   }
 
   var tokenEditor = {
@@ -1777,16 +1196,7 @@ module queryEditor {
 
   function fieldSuggestions(e, elem) {
     e.stopPropagation();
-    localState.queryEditorActive = elem.viewId;
-    localState.queryEditorInfo = {
-      type: "field",
-      sourceId: elem.sourceId,
-      viewId: elem.viewId,
-      fieldId: elem.fieldId,
-      token: elem,
-      handler: elem.handler
-    };
-    render();
+    dispatch("fieldSuggestions", elem);
   }
 
   function setMappingField(e, elem) {
@@ -1974,31 +1384,5 @@ module queryEditor {
     return {t: "li", c: "selector-item field " + opts.c, key: opts.key, text: opts.name, value: opts.value, click: onChange};
   }
 
-  //---------------------------------------------------------
-  // Global key handling
-  //---------------------------------------------------------
-
-  document.addEventListener("keydown", function(e) {
-    //Don't capture keys if they are
-    var target: any = e.target;
-    if(e.defaultPrevented
-       || target.nodeName === "INPUT"
-       || target.getAttribute("contentEditable")) {
-      return;
-    }
-
-    //undo + redo
-    if((e.metaKey || e.ctrlKey) && e.shiftKey && e.keyCode === KEYS.Z) {
-      dispatch("redo", null);
-    } else if((e.metaKey || e.ctrlKey) && e.keyCode === KEYS.Z) {
-      dispatch("undo", null);
-    }
-
-  });
-
-  //---------------------------------------------------------
-  // Go
-  //---------------------------------------------------------
-  if(window["queryEditor"]) { render(); }
-  window["dispatcher"] = queryEditor;
+  
 }

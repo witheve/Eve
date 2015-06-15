@@ -4,7 +4,12 @@
 - translate ui editor facts into views that generate
 - uiRenderedFactors
 -------------------------------------------------------*/
-var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
+/// <reference path="indexer.ts" />
+/// <reference path="client.ts" />
+/// <reference path="microReact.ts" />
+module uiEditorRenderer {
+  declare var api;
+  declare var dispatcher;
 
   var ixer = api.ixer;
   var code = api.code;
@@ -22,7 +27,7 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
   renderer.content.classList.add("rendered-program");
 
   renderer.queued = false;
-  function render() {
+  export function render() {
     if(renderer.queued === false) {
       renderer.queued = true;
       requestAnimationFrame(function() {
@@ -53,7 +58,7 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
 
   var bindingIndex = ixer.index("groupToBinding");
 
-  function rowToKeyFunction(viewId) {
+  function rowToKeyFunction(viewId): (any) {
     var fields = code.sortedViewFields(viewId) || [];
     var keys = [];
     fields.forEach(function(fieldId, ix) {
@@ -62,7 +67,7 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
       }
     });
     if(keys.length) {
-      return function(row) {
+      return function(row: any) {
         if(keys.length > 1) {
           return keys.map(function(ix) {
             return row[ix];
@@ -85,10 +90,10 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
     var offset = elements && binding ? elementsToBoundingBox(elements) : {top: 0, left: 0, width: "100%", height: "100%"};
     var boundRows;
     var layerChildren = [];
-    var rowToKey = function() { return ""; };
+    var rowToKey = function(x: any) { return ""; };
     if(binding) {
       boundRows = ixer.facts(binding);
-      var rowToKey = rowToKeyFunction(binding);
+      rowToKey = rowToKeyFunction(binding);
     } else {
       boundRows = [[]];
     }
@@ -152,9 +157,9 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
     var right = element[7];
     var bottom = element[8];
     var zIndex = element[9];
-    var elem = {c: "absolute", left: left - offset.left, top: top - offset.top,
-                width: right - left, height: bottom - top, elementId: elementId,
-                zIndex: zIndex, key: key};
+    var elem: any = {c: "absolute", left: left - offset.left, top: top - offset.top,
+                     width: right - left, height: bottom - top, elementId: elementId,
+                     zIndex: zIndex, key: key};
 
     if(type === "input") {
       elem.t = "input";
@@ -169,7 +174,7 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
     }
 
     if(attrs.length) {
-      for(var i = 0, len = attrs.length; i < len; i++) {
+      for(var i = 0, attrslen = attrs.length; i < attrslen; i++) {
         var curAttr = attrs[i];
         var name = curAttr[2];
         elem[name] = curAttr[3];
@@ -209,7 +214,7 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
 
   var eventId = 0;
 
-  function setEventId(value) {
+  export function setEventId(value) {
     eventId = value;
   }
 
@@ -221,7 +226,7 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
     if(e.type === "click") {
       diffs.push(["click", "inserted", [eventId, elem.elementId, boundId]]);
     }
-    window.client.sendToServer(diffs); // @GLOBAL to avoid circular dep.
+    client.sendToServer(diffs, false); // @GLOBAL to avoid circular dep.
   }
 
   function handleInputEvent(e, elem) {
@@ -230,9 +235,5 @@ var uiEditorRenderer = (function uiRenderer(document, api, microReact) {
   function handleKeyEvent(e, elem) {
   }
 
-  return {
-    render: render,
-    root: renderer.content,
-    setEventId: setEventId
-  };
-})(window.document, api, microReact);
+  export var root = renderer.content;
+}
