@@ -820,40 +820,51 @@ module queryEditor {
 
   var primitiveEditor = {
     default: function(viewId, sourceId, sourceViewId) {
-      var out = ixer.index("view and source to calculated field")[viewId][sourceId];
-      var outField = ixer.index("calculated field")[out][code.ix("calculated field", "field")];
-      var constraintIds = code.getViewSourceConstraints(viewId, sourceId);
-      var constraintArgs = constraintIds.map(function(constraintId, ix) {
-        var constraint = code.getConstraint(constraintId);
-        var name = constraint.rightField ? getFieldName(viewId, constraint.rightSource, constraint.rightField) : "<field " + alphabet[ix] + ">";
-        return viewConstraintToken("right", constraint.id, viewId, name);
+      var calculatedFields = ixer.select("calculated field", {view: viewId, source: sourceId});
+      if(!calculatedFields || !calculatedFields.length) { throw new Error("Primitive " + sourceViewId + " on view " + viewId + " must create at least one calculated (output) field to be valid."); }
+      var constraints = api.retrieve("constraint", {view: viewId}).filter(function(constraint) {
+        return constraint["left source"] === sourceId;
+      });
+      var constraintArgs = constraints.map(function(constraint, ix) {
+        var name = constraint["right field"] ? getFieldName(viewId, constraint["right source"], constraint["right field"]) : "<field " + alphabet[ix] + ">";
+        return viewConstraintToken("right", constraint.constraint, viewId, name);
       });
 
-      var content = [
-        fieldItem(code.name(out), out, {c: "pill field"}),
+      var content = calculatedFields.map(function(calculatedField) {
+        var id = calculatedField["calculated field"];
+        return fieldItem(code.name(id), id, {c: "pill field"})
+      }).concat(
         {text: "⇒"},
         {text: code.name(sourceViewId) + "("},
-      ].concat(constraintArgs);
-      content.push({text: ")"});
-
+        constraintArgs,
+        {text: ")"});
+      console.log("content", content);
       return {c: "spaced-row primitive-constraint", children: content};
     },
     infix: function(viewId, sourceId, sourceViewId, operator) {
-      var out = ixer.index("view and source to calculated field")[viewId][sourceId];
-      var outField = ixer.index("calculated field")[out][code.ix("calculated field", "field")];
-      var constraintIds = code.getViewSourceConstraints(viewId, sourceId);
-      var a = code.getConstraint(constraintIds[0]);
-      var b = code.getConstraint(constraintIds[1]);
-      var aName = a.rightField ? getFieldName(viewId, a.rightSource, a.rightField) : "<field A>";
-      var bName = b.rightField ? getFieldName(viewId, b.rightSource, b.rightField) : "<field B>";
-
-      return {c: "spaced-row primitive-constraint", children: [
-        fieldItem(code.name(out), out, {c: "pill field"}),
+      var calculatedFields = ixer.select("calculated field", {view: viewId, source: sourceId});
+      if(!calculatedFields || !calculatedFields.length) { throw new Error("Primitive " + sourceViewId + " on view " + viewId + " must create at least one calculated (output) field to be valid."); }
+      
+      var constraints = api.retrieve("constraint", {view: viewId}).filter(function(constraint) {
+        return constraint["left source"] === sourceId;
+      });
+      var constraintArgs = constraints.map(function(constraint, ix) {
+        var name = constraint["right field"] ? getFieldName(viewId, constraint["right source"], constraint["right field"]) : "<field " + alphabet[ix] + ">";
+        return viewConstraintToken("right", constraint.constraint, viewId, name);
+      });
+      if(constraintArgs.length !== 2) { throw new Error("Invalid arity for infix primitive " + constraintArgs.length); }
+      
+      var content = calculatedFields.map(function(calculatedField) {
+        var id = calculatedField["calculated field"];
+        return fieldItem(code.name(id), id, {c: "pill field"})
+      }).concat(
         {text: "⇒"},
-        viewConstraintToken("right", a.id, viewId, aName),
+        constraintArgs[0],
         {text: operator},
-        viewConstraintToken("right", b.id, viewId, bName)
-      ]}
+        constraintArgs[1]
+      );        
+
+      return {c: "spaced-row primitive-constraint", children: content}
     },
 
     add: function(viewId, sourceId, sourceViewId) {
