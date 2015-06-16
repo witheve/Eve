@@ -4,6 +4,7 @@ use value::{Value};
 pub enum Primitive {
     Add,
     Subtract,
+    Split,
     Count,
     Contains,
     Sum,
@@ -45,6 +46,9 @@ impl Primitive {
             (Add, [&Float(a), &Float(b)]) => vec![vec![Float(a+b)]],
             (Subtract, [&Float(a), &Float(b)]) => vec![vec![Float(a-b)]],
             (Contains, [&String(ref inner), &String(ref outer)]) => vec![vec![Bool(outer.contains(inner))]],
+            (Split, [&String(ref split), &String(ref string)]) => {
+                string.split(split).enumerate().map(|(ix, segment)| vec![Float(ix as f64), String(segment.to_owned())]).collect()
+            },
             (Count, _) => panic!("Cannot use {:?} in a join", self),
             (Sum, _) => panic!("Cannot use {:?} in a join", self),
             (Mean, _) => panic!("Cannot use {:?} in a join", self),
@@ -62,9 +66,10 @@ impl Primitive {
             (Add, _) => panic!("Cannot use {:?} in an aggregate", self),
             (Subtract, _) => panic!("Cannot use {:?} in an aggregate", self),
             (Contains, _) => panic!("Cannot use {:?} in an aggregate", self),
+            (Split, _) => panic!("Cannot use {:?} in an aggregate", self),
             (Count, [_]) => {
                 vec![vec![Float(inner.len() as f64)]]
-            }
+            },
             (Sum, [in_ix]) => {
                 let in_values = resolve_as_vector(in_ix, constants, outer, inner);
                 let sum = in_values.iter().fold(0f64, |sum, value|
@@ -102,7 +107,7 @@ impl Primitive {
             (Empty, [in_ix]) => {
                 let in_values = resolve_as_vector(in_ix, constants, outer, inner);
                 vec![vec![Bool(in_values.len() == 0)]]
-            }
+            },
             _ => panic!("Wrong number of arguments while calling: {:?} {:?}", self, arguments),
         }
     }
@@ -112,6 +117,7 @@ impl Primitive {
             "add" => Primitive::Add,
             "subtract" => Primitive::Subtract,
             "contains" => Primitive::Contains,
+            "split" => Primitive::Split,
             "count" => Primitive::Count,
             "sum" => Primitive::Sum,
             "mean" => Primitive::Mean,
@@ -127,6 +133,7 @@ pub fn primitives() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>, 
         ("add", vec!["in A", "in B"], vec![], vec!["out"]),
         ("subtract", vec!["in A", "in B"], vec![], vec!["out"]),
         ("contains", vec!["inner", "outer"], vec![], vec!["out"]),
+        ("split", vec!["split", "string"], vec![], vec!["ix", "segment"]),
         ("count", vec![], vec!["in"], vec!["out"]),
         ("sum", vec![], vec!["in"], vec!["out"]),
         ("mean", vec![], vec!["in"], vec!["out"]),
