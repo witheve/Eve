@@ -16,7 +16,7 @@ module uiEditorRenderer {
 
   var ids = {"active page": "3ff64c83-179b-4c6f-bfb6-715af2a27492"};
   
-  var session = "me";
+  export var session = "me";
     
   export function setSessionId(id) {
     session = id;
@@ -259,6 +259,8 @@ module uiEditorRenderer {
   }
 
   function handleKeyEvent(e, elem) {
+    //@TODO: design capture API.
+    //@TODO: should the keydown table be synchronous?
   }
 
   export var root = renderer.content;

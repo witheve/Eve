@@ -150,6 +150,7 @@ module api {
       "client event": {name: "client event", fields: ["session", "eventId", "type", "element", "row"]},
       "mouse position": {name: "mouse position", fields: ["session", "eventId", "x", "y"]},
       "text input": {name: "text input", fields: ["session", "eventId", "element", "binding", "value"], tags: ["remote"]},
+      "location": {name: "location", fields: ["session", "latitude", "longitude", "accuracy", "timestamp"], tags: ["remote"]},
       "eveusers": {name: "eveusers", fields: ["id", "username"]},
       "sessions": {name: "sessions", fields: ["id", "user id", "status"]},
       "url segments": {name: "url segments", fields: ["session", "segment #", "segment"]},
