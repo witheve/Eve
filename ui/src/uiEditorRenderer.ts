@@ -234,6 +234,10 @@ module uiEditorRenderer {
   export function setEventId(value) {
     eventId = value;
   }
+  
+  export function nextEventId() {
+    return ++eventId;
+  }
 
 
   function handleMouseEvent(e, elem) {
