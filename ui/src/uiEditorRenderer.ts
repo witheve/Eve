@@ -14,10 +14,15 @@ module uiEditorRenderer {
   var ixer = api.ixer;
   var code = api.code;
 
-  var ids = {"active page": "2819e8f4-eebd-4df5-867a-9cdfa7a9ee64"};
+  var ids = {"active page": "3ff64c83-179b-4c6f-bfb6-715af2a27492"};
+  
   var session = "me";
+    
+  export function setSessionId(id) {
+    session = id;
+  }
 
-  ixer.addIndex("active page", ids["active page"], Indexing.create.lookup([3, 4]));
+  ixer.addIndex("active page", ids["active page"], Indexing.create.lookup([1, 2]));
 
   /*-------------------------------------------------------
   - Renderer
@@ -63,7 +68,7 @@ module uiEditorRenderer {
     var keys = [];
     fields.forEach(function(fieldId, ix) {
       if(code.hasTag(fieldId, "key")) {
-        keys.push(ix);
+        keys.push(code.name(fieldId));
       }
     });
     if(keys.length) {
@@ -80,6 +85,20 @@ module uiEditorRenderer {
       return JSON.stringify;
     }
   }
+  
+  function getBoundRows(binding) {
+    var sessionIx;
+    code.sortedViewFields(binding).forEach((field, ix) => {
+      if(code.name(field) === "session") {
+        sessionIx = ix; 
+      } 
+    });
+    if(sessionIx) {
+      return ixer.select(binding, {session: session});
+    } else {
+      return ixer.select(binding, {});  
+    }
+  }
 
   function renderLayer(layer) {
     var layerId = layer[1];
@@ -92,7 +111,7 @@ module uiEditorRenderer {
     var layerChildren = [];
     var rowToKey = function(x: any) { return ""; };
     if(binding) {
-      boundRows = ixer.facts(binding);
+      boundRows = getBoundRows(binding);
       rowToKey = rowToKeyFunction(binding);
     } else {
       boundRows = [[]];
@@ -207,9 +226,7 @@ module uiEditorRenderer {
 
   function bindingToValue(binding, row) {
     var fieldId = binding[2];
-    var viewId = fieldToViewIndex[fieldId];
-    var fieldIx = code.sortedViewFields(viewId).indexOf(fieldId);
-    return row[fieldIx];
+    return row[code.name(fieldId)];
   }
 
   var eventId = 0;
@@ -217,6 +234,7 @@ module uiEditorRenderer {
   export function setEventId(value) {
     eventId = value;
   }
+
 
   function handleMouseEvent(e, elem) {
     var boundId = elem.key;

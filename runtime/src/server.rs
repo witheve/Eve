@@ -59,6 +59,7 @@ impl<T: FromJson> FromJson for Vec<T> {
 #[derive(Debug)]
 pub struct Event {
     pub changes: Changes,
+    pub session: String,
 }
 
 impl ToJson for Event {
@@ -73,7 +74,7 @@ impl ToJson for Event {
                         view_changes.remove.to_json(),
                         ])
                 }).collect())
-            )].into_iter().collect())
+            ),("session".to_string(),Json::String(self.session.clone()))].into_iter().collect())
     }
 }
 
@@ -89,7 +90,8 @@ impl FromJson for Event {
                 let insert = FromJson::from_json(&change[2]);
                 let remove = FromJson::from_json(&change[3]);
                 (view_id, Change{fields:fields, insert: insert, remove: remove})
-            }).collect()
+            }).collect(),
+            session: "".to_string(),
         }
     }
 }
@@ -183,21 +185,27 @@ pub fn run() {
             ServerEvent::Sync((mut sender,user_id)) => {
 
                 // If we have a user ID, create a new session
+                let session_id = format!("{}", sender.get_mut().peer_addr().unwrap());
                 match user_id {
                     Some(user_id) => {
-                        let session_id = format!("{}", sender.get_mut().peer_addr().unwrap());
-                        let add_session = client::insert_fact(&"sessions",&vec!["id","user id","status"],&vec![Value::String(session_id),
+                        let add_session = client::insert_fact(&"sessions",&vec!["id","user id","status"],&vec![Value::String(session_id.clone()),
                                                                                                                Value::String(user_id),
                                                                                                                Value::Float(1f64)
                                                                                                               ],None);
                         flow = send_changes(add_session,flow,&mut senders);
                     },
-                    None => (),
+                    None => {
+                        let add_session = client::insert_fact(&"sessions",&vec!["id","user id","status"],&vec![Value::String(session_id.clone()),
+                                                                                                               Value::String("".to_string()),
+                                                                                                               Value::Float(1f64)
+                                                                                                              ],None);
+                        flow = send_changes(add_session,flow,&mut senders);
+                    },
                 };
 
                 time!("syncing", {
                     let changes = flow.as_changes();
-                    let text = format!("{}", Event{changes: changes}.to_json());
+                    let text = format!("{}", Event{changes: changes, session: session_id}.to_json());
                     match sender.send_message(Message::Text(text)) {
                         Ok(_) => (),
                         Err(error) => println!("Send error: {}", error),
@@ -222,7 +230,7 @@ pub fn run() {
 
             ServerEvent::Terminate(m) => {
                 let terminate_ip = m.unwrap().reason;
-                println!("Closing connection from {}....",terminate_ip);
+                println!("Closing connection from {}...",terminate_ip);
                 // Find the index of the connection's sender
                 let ip_ix = senders.iter_mut().position(|mut sender| {
                                                           let ip = format!("{}",sender.get_mut().peer_addr().unwrap());
@@ -256,7 +264,7 @@ pub fn run() {
                                                         insert: vec![closed_session.clone()],
                                                         remove: vec![session.clone()],
                                                     };
-                                let make_session_inactive = Event{changes: vec![("sessions".to_string(),change)]};
+                                let make_session_inactive = Event{changes: vec![("sessions".to_string(),change)], session: "".to_string()};
                                 flow = send_changes(make_session_inactive,flow,&mut senders);
 
                             },
@@ -275,8 +283,12 @@ fn send_changes(event: Event, mut flow: Flow, mut senders: &mut Vec<sender::Send
     let old_flow = flow.clone();
     flow = flow.quiesce(event.changes);
     let changes = flow.changes_from(old_flow);
-    let output_text = format!("{}", Event{changes: changes}.to_json());
+    let changes_json = changes_to_json(changes.clone());
     for sender in senders.iter_mut() {
+    	let session_id = format!("{}", sender.get_mut().peer_addr().unwrap());
+		// TODO this is a hack to avoid having to json an event for every sender
+		let output_text = format!("{{\"changes\":{},\"session\":\"{}\"}}",changes_json,session_id.clone());
+		//println!("{:?}",output_text);
         match sender.send_message(Message::Text(output_text.clone())) {
             Ok(_) => (),
             Err(error) => println!("Send error: {}", error),
@@ -295,4 +307,16 @@ pub fn get_user_id(cookies: Option<&Cookie>) -> Option<String> {
         },
         None => None,
     }
+}
+
+
+fn changes_to_json(changes: Changes) -> Json {
+    Json::Array(changes.iter().map(|&(ref view_id, ref view_changes)| {
+        Json::Array(vec![
+            view_id.to_json(),
+            view_changes.fields.to_json(),
+            view_changes.insert.to_json(),
+            view_changes.remove.to_json(),
+            ])
+    }).collect())
 }

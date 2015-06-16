@@ -194,6 +194,7 @@ module client {
         var eventId = (ixer.facts("client event") || []).length;
         console.log(eventId);
         uiEditorRenderer.setEventId(eventId);
+        uiEditorRenderer.setSessionId(data.session);
         var prims = api.diff.computePrimitives();
         ixer.handleDiffs(prims);
       }
