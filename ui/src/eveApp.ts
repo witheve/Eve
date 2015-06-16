@@ -8,8 +8,10 @@ module dispatcher {
   var ixer = api.ixer;
   document.body.appendChild(renderer.root);
   
+  
+  
   //---------------------------------------------------------
-  // Location
+  // Geo Location
   //---------------------------------------------------------  
   function handlePosition(pos) {
     console.log("handle position: ", pos);
