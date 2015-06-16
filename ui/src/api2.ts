@@ -8,28 +8,6 @@ module api2 {
   type Id = string;
   type Fact = string[];
   
-  class NotFoundError implements Error {
-    public name: string = "Not Found"
-    public message:string
-    constructor(kind:string, ...ids:Id[]) {
-      this.message = kind + " " + ids.join(" :: ") + " does not exist in the indexer.";
-    }
-  }
-  
-  enum ViewKind {
-    TABLE = <any>"table",
-    JOIN = <any>"join",
-    UNION = <any>"union",
-    AGGREGATE = <any>"aggregate",
-    PRIMITIVE = <any>"primitive"
-  }
-  
-  enum FieldKind {
-    OUTPUT = <any>"output",
-    SCALAR = <any>"scalar input",
-    VECTOR = <any>"vector input"
-  }
-  
   type Diff = any[];
   interface Context {[key:string]: Id}
   interface Write<T> {type: string, content: T, context: Context, mode?: string, originalKeys?: string[]}
