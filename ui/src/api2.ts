@@ -31,37 +31,8 @@ module api2 {
   }
   
   type Diff = any[];
-  
-  interface FactMap {}
-  interface Dependents {}
-  interface PKDependents extends Dependents {name?: string, priority?: number, tags?: string[]}
-  interface FullPKDependents extends Dependents {name?: {id:Id, name:string}, priority?: {id:Id, priority:number}, tags?: {id:Id, tag:string}[]}
-  interface AggregateDependents {groupings?: AggregateGrouping[], sortings?: AggregateSorting[], from?: AggregateLimitFrom, to?: AggregateLimitTo}
-  interface ViewDependents extends PKDependents, AggregateDependents {sources?: Source[], block?: Block}
-  interface SourceDependents extends Dependents {constraints?: Constraint[]}
-  interface FieldDependents extends PKDependents {selects?: Select[]}
-  
-  interface Block extends FactMap {query: number, block?: Id, view?: Id, dependents?:PKDependents}
-  interface View extends FactMap {view?: Id, kind: ViewKind, dependents?:ViewDependents}
-  interface Source extends FactMap {view: Id, source?: Id, "source view": Id, dependents?:SourceDependents}
-  interface Field extends FactMap {view: Id, field?: Id, kind: FieldKind, dependents?:FieldDependents}
-  interface Select extends FactMap {view: Id, "view field"?: Id, source: Id, "source field": Id}
-  interface Constraint {view?: Id, leftSource?: Id, leftField?: Id, rightSource?: Id, rightField?: Id, operation?: Id} // @TODO: rename leftSource -> left source, etc.
-  interface AggregateGrouping {aggregate?: Id, "inner field": Id, "outer field": Id}
-  interface AggregateSorting {aggregate?: Id, "inner field": Id, priority: number, direction: string}
-  interface AggregateLimitFrom {aggregate?: Id, "from source": Id, "from field": Id}
-  interface AggregateLimitTo {aggregate?: Id, "to source": Id, "to field": Id}
-  
   interface Context {[key:string]: Id}
-  interface Write<T> {type: string, params: T, context: Context}
-  
-  var primaryKeys = {
-    block: "block",
-    view: "view",
-    source: ["view", "source"],
-    field: "field",
-    constraint: "constraint"
-  };
+  interface Write<T> {type: string, content: T, context: Context, mode?: string, originalKeys?: string[]}
   
   interface Schema {
     key?: string|string[]
@@ -103,74 +74,9 @@ module api2 {
                            singular: true}
   };
   
-  
   /***************************************************************************\
-   * Helper Functions
-  \***************************************************************************/
-  function mapToFact(viewId:Id, props:FactMap) {
-    var fieldIds = code.sortedViewFields(viewId); // @FIXME: We need to cache these horribly badly.
-    var length = fieldIds.length;
-    var fact = new Array(length);
-    for(var ix = 0; ix < length; ix++) {
-      var name = code.name(fieldIds[ix]);
-      var val = props[name];
-      if(val === undefined || val === null) {
-        throw new Error("Malformed value in " + viewId + " for field " + name + " of fact " + JSON.stringify(props));
-      }
-      fact[ix] = val;
-    }
-    return fact;
-  }
-  
-  function factToMap(viewId:Id, fact:Fact) {
-    var fieldIds = code.sortedViewFields(viewId); // @FIXME: We need to cache these horribly badly.
-    var length = fieldIds.length;
-    var map = {};
-    for(var ix = 0; ix < length; ix++) {
-      var name = code.name(fieldIds[ix]);
-      map[name] = fact[ix];
-    }
-    return map;
-  }
-  
-  // @FIXME: CLEAR ALL OTHER DEPENDENTS ON UPDATE OF ROOT.
-  export function toDiffs(type:string, params, mode = "inserted"):Diff[] {
-    var diffs = [];
-    if(params instanceof Array) {      
-      for(var item of params) {
-        diffs = diffs.concat(toDiffs(type, item, mode));
-      }
-      return diffs;
-    }
-    
-    // Process root fact.
-    diffs.push([type, mode, mapToFact(type, params)]);
-
-    // Process dependents.
-    var dependents = params.dependents || {};
-    for(var key in dependents) {
-      if(!dependents.hasOwnProperty(key)) { continue; }
-      if(dependents[key] instanceof Array) {
-        for(var dep of dependents[key]) {
-          diffs = diffs.concat(toDiffs(key, dep, mode));
-        }
-      } else {
-        diffs = diffs.concat(toDiffs(key, dependents[key], mode));
-      }
-    }
-    
-    // Handle custom dependents.
-    switch(type) {
-      case "constraint":
-        diffs.push(["constraint left", mode, mapToFact("constraint left", params)],
-                   ["constraint right", mode, mapToFact("constraint right", params)],
-                   ["constraint operation", mode, mapToFact("constraint operation", params)]);
-      break;
-    }
-    
-    return diffs;
-  }
-  
+   * Read/Write primitives.
+  \***************************************************************************/ 
   function fillForeignKeys(type, query, context) {
     var schema = schemas[type];
     if(!schema) { throw new Error("Attempted to process unknown type " + type + " with query " + JSON.stringify(query)); }
@@ -188,14 +94,6 @@ module api2 {
     }
     return query;
   }
-  
-  
-  /***************************************************************************\
-   * Read/Write API
-  \***************************************************************************/
-  export function insert(type:string, params, context?:Context) {
-    return process(type, params, context).params;
-  } 
   
   export function process(type:string, params, context?:Context): Write<any> {
     var schema = schemas[type];
@@ -245,7 +143,7 @@ module api2 {
       } 
     }
     
-    return {type: type, params: params, context: context};
+    return {type: type, content: params, context: context};
   }
   
   export function retrieve(type:string, query:{[key:string]:string}, context?) {
@@ -294,8 +192,93 @@ module api2 {
     return facts;
   }
   
+  /***************************************************************************\
+   * Read/Write API
+  \***************************************************************************/
+   export function mapToFact(viewId:Id, props) {
+    var fieldIds = code.sortedViewFields(viewId); // @FIXME: We need to cache these horribly badly.
+    var length = fieldIds.length;
+    var fact = new Array(length);
+    for(var ix = 0; ix < length; ix++) {
+      var name = code.name(fieldIds[ix]);
+      var val = props[name];
+      if(val === undefined || val === null) {
+        throw new Error("Malformed value in " + viewId + " for field " + name + " of fact " + JSON.stringify(props));
+      }
+      fact[ix] = val;
+    }
+    return fact;
+  }
+  
+  export function factToMap(viewId:Id, fact:Fact) {
+    var fieldIds = code.sortedViewFields(viewId); // @FIXME: We need to cache these horribly badly.
+    var length = fieldIds.length;
+    var map = {};
+    for(var ix = 0; ix < length; ix++) {
+      var name = code.name(fieldIds[ix]);
+      map[name] = fact[ix];
+    }
+    return map;
+  } 
+  
+  export function insert(type:string, params, context?:Context):Write<any> {
+    if(arguments.length < 2) { throw new Error("Must specify type and parameters for insert."); }
+    var write = process(type, params, context);
+    write.mode = "inserted";
+    return write;
+  }
+  
+  export function change(type:string, params, context?:Context):Write<any> {
+    if(arguments.length < 2) { throw new Error("Must specify type and query for change."); }
+    var read = retrieve(type, params, context);
+    return {type: type, content: read, context: context, mode: "changed", originalKeys: clone(params)};
+  }
+  
+  export function remove(type:string, params, context?:Context):Write<any> {
+    if(arguments.length < 2) { throw new Error("Must specify type and query for remove."); }
+    var read = retrieve(type, params, context);
+    return {type: type, content: read, context: context, mode: "removed"};
+  }
+  
+  export function toDiffs(write:Write<any>):Diff[] {
+    var type = write.type;
+    var params = write.content;
+    var mode = write.mode;
+    var diffs = [];
+    
+    if(mode === "changed") {
+      // Remove the existing root and all of its dependents, then swap mode to inserted to replace them.
+      if(!write.originalKeys) { throw new Error("Change specified for " + type + ", but no write.originalKeys specified."); }
+      diffs = diffs.concat(toDiffs(remove(type, write.originalKeys)));
+      mode = "inserted";
+    }
+    
+    if(params instanceof Array) {      
+      for(var item of params) {
+        diffs = diffs.concat(toDiffs({type: type, content: item, context: write.context, mode: mode}));
+      }
+      return diffs;
+    }
 
+    // Process root fact.
+    diffs.push([type, mode, mapToFact(type, params)]);
 
-
-
+    // Process dependents.
+    var dependents = params.dependents || {};
+    for(var key in dependents) {
+      if(!dependents.hasOwnProperty(key)) { continue; }
+      diffs = diffs.concat(toDiffs({type: key, content: dependents[key], context: write.context, mode: mode}));
+    }
+    
+    // Handle custom dependents.
+    switch(type) {
+      case "constraint":
+        diffs.push(["constraint left", mode, mapToFact("constraint left", params)],
+                   ["constraint right", mode, mapToFact("constraint right", params)],
+                   ["constraint operation", mode, mapToFact("constraint operation", params)]);
+        break;
+    }
+    
+    return diffs;
+  }
 }
