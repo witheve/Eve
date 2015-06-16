@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Eve</title>
+		<link rel="stylesheet" type="text/css" href="css/login.css">
+		<script src="https://code.jquery.com/jquery-1.11.2.min.js" type="text/javascript"></script>
+		<script src="https://js.authrocket.com/v1/authrocket.js" type="text/javascript"></script>
+		<script type="text/javascript">
+			AuthRocket.setInstanceUrl('https://evetest.e1.loginrocket.com/v1/');
+			$(function(){
+			  $('#signup-form').submit(function(event){
+			    AuthRocket.signup({
+			      username: $('#signup_username').val(),
+			      email: $('#signup_email').val(),
+			      password: $('#signup_password').val(),
+			      password_confirmation: $('#signup_password_confirmation').val()
+			    }, arSignupHandler);
+			    return false;
+			  });
+			  function arSignupHandler(response){
+			    if (response.error) {
+			    	$("#signup-errors").text(response.error);
+			    } else {
+			    	window.location = response.url;
+			    }
+			  };
+			});
+		</script>
+	</head>
+	<body>
+		<div id="content">
+			<div id="logo">
+			<img src="images/logo.png" />
+			</div>
+			<div id="signup-errors"></div>
+			<form id="signup-form">
+				Username: <br/>
+				<input id="signup_username" name="signup[username]" class="textbox" type="text" id="message"><br/>
+				E-Mail: <br/>
+				<input id="signup_email" name="signup[email]" class="textbox" type="text" id="message"><br/>
+				Password: <br/>
+				<input id="signup_password" name="signup[password]" class="textbox" type="password" id="message">
+				Confirm Password: <br/>
+				<input id="signup_password_confirmation" name="signup[password_confirmation]" class="textbox" type="password" id="message">
+				<br/>
+				<input class="button" type="submit" value="Sign Up">
+			</form>
+		</div>
+	</body>
+</html>

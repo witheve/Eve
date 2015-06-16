@@ -97,7 +97,7 @@ fn login(req: Request, mut res: Response<Fresh>) {
 					println!("Authenticating User");
 					let pairs = query_pairs.clone().unwrap();
 					match &pairs[..] {
-						[(ref token_type, ref token)] if token_type.clone() == "token".to_string() => {
+						[(ref token_type, ref token), ..] if token_type.clone() == "token".to_string() => {
 
 							// We have a login token, now to authenticate
 							let mut client = hyper::client::Client::new();
@@ -160,7 +160,7 @@ fn login(req: Request, mut res: Response<Fresh>) {
 										}
 										// Otherwise, throw an error... maybe redirect to a special page.
 										Err(e) => {
-											println!("ERROR: Had trouble connecting to the Eve runtime: {}",e);
+											println!("ERROR: Had trouble connecting to the Eve runtime: {}. Is the server running?",e);
 											*res.status_mut() = hyper::status::StatusCode::NotFound;
 											panic!("Oh no!");
 											//serve_file("404.html",res);
