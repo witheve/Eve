@@ -194,7 +194,13 @@ pub fn run() {
                                                                                                               ],None);
                         flow = send_changes(add_session,flow,&mut senders);
                     },
-                    None => (),
+                    None => {
+                        let add_session = client::insert_fact(&"sessions",&vec!["id","user id","status"],&vec![Value::String(session_id.clone()),
+                                                                                                               Value::String("".to_string()),
+                                                                                                               Value::Float(1f64)
+                                                                                                              ],None);
+                        flow = send_changes(add_session,flow,&mut senders);
+                    },
                 };
 
                 time!("syncing", {
