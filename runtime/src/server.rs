@@ -288,7 +288,6 @@ fn send_changes(event: Event, mut flow: Flow, mut senders: &mut Vec<sender::Send
     	let session_id = format!("{}", sender.get_mut().peer_addr().unwrap());
 		// TODO this is a hack to avoid having to json an event for every sender
 		let output_text = format!("{{\"changes\":{},\"session\":\"{}\"}}",changes_json,session_id.clone());
-		//println!("{:?}",output_text);
         match sender.send_message(Message::Text(output_text.clone())) {
             Ok(_) => (),
             Err(error) => println!("Send error: {}", error),
