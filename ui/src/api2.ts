@@ -193,6 +193,10 @@ module api2 {
   /***************************************************************************\
    * Read/Write API
   \***************************************************************************/
+  export function insert(type:string, params, context?:Context) {
+    return process(type, params, context).params;
+  } 
+  
   export function process(type:string, params, context?:Context): Write<any> {
     var schema = schemas[type];
     if(!schema) { throw new Error("Attempted to process unknown type " + type + " with params " + JSON.stringify(params)); }
