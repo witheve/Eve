@@ -54,7 +54,12 @@ module microReact {
       for(var i = 0, len = adds.length; i < len; i++) {
         var id = adds[i];
         var cur = elements[id];
-        var div: any = document.createElement(cur.t || "div");
+        var div: any;
+        if (cur.svg) {
+          div = document.createElementNS("http://www.w3.org/2000/svg", cur.t || "rect");
+        } else {
+          div = document.createElement(cur.t || "div");
+        }
         div._id = id;
         elementCache[id] = div;
       }
@@ -67,11 +72,15 @@ module microReact {
         var div;
         if(type === "replaced") {
           var me = elementCache[id];
-          if(me.parentNode) me.parentNode.removeChild(me);
-          div = document.createElement(cur.t || "div");
+          if (me.parentNode) me.parentNode.removeChild(me);
+          if (cur.svg) {
+            div = document.createElementNS("http://www.w3.org/2000/svg", cur.t || "rect");
+          } else {
+            div = document.createElement(cur.t || "div");
+          }
           div._id = id;
           elementCache[id] = div;
-        } else if(type === "removed") {
+        } else if (type === "removed") {
           //NOTE: Batching the removes such that you only remove the parent
           //didn't actually make this faster surprisingly. Given that this
           //strategy is much simpler and there's no noticable perf difference
@@ -103,6 +112,14 @@ module microReact {
         if(cur.width !== prev.width)  style.width = cur.width === undefined ? "auto" : cur.width;
         if(cur.zIndex !== prev.zIndex) style.zIndex = cur.zIndex;
 
+        if(cur.svg) {
+          if(cur.fill !== prev.fill) div.setAttributeNS(null, "fill", cur.fill);
+          if(cur.stroke !== prev.stroke) div.setAttributeNS(null, "stroke", cur.stroke);
+          if(cur.strokeWidth !== prev.strokeWidth) div.setAttributeNS(null, "stroke-width", cur.strokeWidth);
+          if(cur.d !== prev.d) div.setAttributeNS(null, "d", cur.d);
+          if(cur.c !== prev.c) div.setAttributeNS(null, "class", cur.c);  
+        }
+        
         if(cur.backgroundColor !== prev.backgroundColor) style.backgroundColor = cur.backgroundColor || "transparent";
         if(cur.backgroundImage !== prev.backgroundImage) {
           style.backgroundImage = "url('" + cur.backgroundImage + "')";
