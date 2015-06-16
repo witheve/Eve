@@ -66,44 +66,141 @@ module api2 {
   interface Schema {
     key?: string|string[]
     dependents?: Id[]
-    foreign?: {[field:string]: string},
-    special?: (type:string, params, context: Context) => Write<any>
+    foreign?: {[field:string]: string}
+    singular?: boolean
   }
   
-  var pkDependents = ["name", "order", "tag"];
+  var pkDependents = ["display name", "display order", "tag"];
   var schemas:{[id:string]: Schema} = {
-    "display name": {foreign: {id: "$last"}},
-    "display order": {foreign: {id: "$last"}},
-    tag: {foreign: {view: "$last"}},
+    "display name": {foreign: {$last: "id"},
+                     singular: true},
+    "display order": {foreign: {$last: "id"},
+                      singular: true},
+    tag: {foreign: {$last: "view"}},
     
     block: {key: "block",
             foreign: {view: "view"},
+            singular: true,
             dependents: pkDependents},
     view: {key: "view",
            dependents: pkDependents.concat(
              ["block", "field", "aggregate grouping", "aggregate sorting", "aggregate limit from", "aggregate limit to"])},
     source: {key: ["view", "source"],
+             primaryIx: 1,
              foreign: {view: "view"},
              dependents: ["constraint"]},
     field: {key: "field",
             foreign: {view: "view"},
             dependents: pkDependents.concat(["select"])},
-    select: {key: undefined,
-             foreign: {view: "view", field: "field"}},
-    constraint: {key: "constraint", foreign: {view: "view"}}
+    select: {foreign: {view: "view", field: "view field"}},
+    constraint: {key: "constraint", foreign: {view: "view"}},
+    
+    "aggregate grouping": {foreign: {view: "aggregate", /*field: "inner field"*/}},
+    "aggregate sorting": {foreign: {view: "aggregate", /*field: "inner field"*/}},
+    "aggregate limit from": {foreign: {view: "aggregate"},
+                             singular: true},
+    "aggregate limit to": {foreign: {view: "aggregate"},
+                           singular: true}
+  };
+  
+  
+  /***************************************************************************\
+   * Helper Functions
+  \***************************************************************************/
+  function mapToFact(viewId:Id, props:FactMap) {
+    var fieldIds = code.sortedViewFields(viewId); // @FIXME: We need to cache these horribly badly.
+    var length = fieldIds.length;
+    var fact = new Array(length);
+    for(var ix = 0; ix < length; ix++) {
+      var name = code.name(fieldIds[ix]);
+      var val = props[name];
+      if(val === undefined || val === null) {
+        throw new Error("Malformed value in " + viewId + " for field " + name + " of fact " + JSON.stringify(props));
+      }
+      fact[ix] = val;
+    }
+    return fact;
   }
   
-  export function process(type:string, params, context?:Context): Write<any> {
-    console.log("[process]", type, params, context);
+  function factToMap(viewId:Id, fact:Fact) {
+    var fieldIds = code.sortedViewFields(viewId); // @FIXME: We need to cache these horribly badly.
+    var length = fieldIds.length;
+    var map = {};
+    for(var ix = 0; ix < length; ix++) {
+      var name = code.name(fieldIds[ix]);
+      map[name] = fact[ix];
+    }
+    return map;
+  }
+  
+  // @FIXME: CLEAR ALL OTHER DEPENDENTS ON UPDATE OF ROOT.
+  export function toDiffs(type:string, params, mode = "inserted"):Diff[] {
+    var diffs = [];
+    if(params instanceof Array) {      
+      for(var item of params) {
+        diffs = diffs.concat(toDiffs(type, item, mode));
+      }
+      return diffs;
+    }
+    
+    // Process root fact.
+    diffs.push([type, mode, mapToFact(type, params)]);
+
+    // Process dependents.
+    var dependents = params.dependents || {};
+    for(var key in dependents) {
+      if(!dependents.hasOwnProperty(key)) { continue; }
+      if(dependents[key] instanceof Array) {
+        for(var dep of dependents[key]) {
+          diffs = diffs.concat(toDiffs(key, dep, mode));
+        }
+      } else {
+        diffs = diffs.concat(toDiffs(key, dependents[key], mode));
+      }
+    }
+    
+    // Handle custom dependents.
+    switch(type) {
+      case "constraint":
+        diffs.push(["constraint left", mode, mapToFact("constraint left", params)],
+                   ["constraint right", mode, mapToFact("constraint right", params)],
+                   ["constraint operation", mode, mapToFact("constraint operation", params)]);
+      break;
+    }
+    
+    return diffs;
+  }
+  
+  function fillForeignKeys(type, query, context) {
     var schema = schemas[type];
-    if(!schema) { throw new Error("Attempted to process unknown type " + type + " with params " + params); }
-    if(!params) { throw new Error("Invalid params specified for type " + type + " with params " + params); }
+    if(!schema) { throw new Error("Attempted to process unknown type " + type + " with query " + JSON.stringify(query)); }
+    var foreignKeys = schema.foreign;
+    if(!foreignKeys) { return query; }
+    
+    for(var contextKey in foreignKeys) {
+      var foreignKey = foreignKeys[contextKey];
+      if(!foreignKeys.hasOwnProperty(contextKey)) { continue; }
+      if(query[foreignKey] !== undefined) { continue; }
+      if(context[contextKey] === undefined) {
+        throw new Error("Unspecified field " + foreignKey + " for type " + type + " with no compatible parent to link to in context " + JSON.stringify(context));
+      }
+      query[foreignKey] = context[contextKey];
+    }
+    return query;
+  }
+  
+  
+  /***************************************************************************\
+   * Read/Write API
+  \***************************************************************************/
+  export function process(type:string, params, context?:Context): Write<any> {
+    var schema = schemas[type];
+    if(!schema) { throw new Error("Attempted to process unknown type " + type + " with params " + JSON.stringify(params)); }
+    if(!params) { throw new Error("Invalid params specified for type " + type + " with params " + JSON.stringify(params)); }
     if(!context) { context = {}; } // @NOTE: Should we clone this? If so, should we clone params as well?
     
     // Fill primary keys if missing.
-    var keys:string[] = [];
-    if(schema.key instanceof Array) { keys = <string[]>schema.key; }
-    else if(schema.key) { keys = [<string>schema.key]; }
+    var keys:string[] = (schema.key instanceof Array) ? <string[]>schema.key : (schema.key) ? [<string>schema.key] : [];
     for(var key of keys) {
       if(params[key] === undefined) {
         params[key] = uuid();
@@ -115,16 +212,8 @@ module api2 {
     }
     
     // Link foreign keys from context if missing.
-    var links:string[] = [];
     if(schema.foreign) {
-      for(var fKey in schema.foreign) {
-        if(!schema.foreign.hasOwnProperty(fKey)) { continue; }
-        if(params[fKey] !== undefined) { continue; }
-        var contextKey = schema.foreign[fKey];
-        console.log(fKey, contextKey, context[contextKey]);
-        if(!context[contextKey]) { throw new Error("Unspecified field " + fKey + " for type " + type + " with no compatible parent to link to."); }
-        params[fKey] = context[contextKey];
-      }
+      var params = fillForeignKeys(type, params, context);
     }
     
     // Ensure remaining fields exist and contain something.
@@ -155,106 +244,54 @@ module api2 {
     return {type: type, params: params, context: context};
   }
   
-  export function retrieve(type:string, ...ids:Id[]):Write<any> {
-    console.log("[retrieve]", type, ids);
+  export function retrieve(type:string, query:{[key:string]:string}, context?) {
+    context = context || {};
     var schema = schemas[type];
-    if(!schema) { throw new Error("Attempted to retrieve unknown type " + type + " with params " + params); }
-    var keys = [];
-    if(schema.key instanceof Array) { keys = <string[]>schema.key; }
-    else if(schema.key) { keys.push(schema.key); }
-    
-    if(!ids || !ids.length || ids.length !== keys.length) {
-      throw new Error("Must provide primary keys for type " + type + " (" + keys.join(", ") + ")");
-    }
-    
-    var fact = ixer.index(type);
-    for(var key of keys) {
-      if(fact) {
-        fact = fact[key];
+    if(!schema) { throw new Error("Attempted to retrieve unknown type " + type + " with params " + JSON.stringify(query)); }
+    var keys:string[] = (schema.key instanceof Array) ? <string[]>schema.key : (schema.key) ? [<string>schema.key] : [];    
+        
+    var facts = ixer.select(type, query);
+    if(!facts.length) { return; }
+    for(var fact of facts) {
+      if(!fact) { continue; }
+      var factContext = clone(context);
+      for(var key of keys) {
+        factContext[key] = fact[key];
       }
-    }
-    if(!fact) { throw new NotFoundError(type, ids.join(", ")); }
-    var params:any = factToMap(type, fact);
-    params.dependents = {};
-    if(schema.dependents) {
-      for(var dependent of schema.dependents) {
-        var depSchema = schemas[dependent];
-        // @FIXME: Update references to ensure order is source -> field not field -> source.
-        var foreignField = depSchema.foreign[type];
-        var q = {};
-        q[foreignField] = params[schema.key]; // @TODO: Ensure key is singular here.
-        var results = query("dependent", q); // @TODO: Determine whether relationship is 1:1 or 1:many for query or queryOne.
-        if(results) {
-          params.dependents[dependent] = results;
+      if(keys.length === 1) {
+        factContext["$last"] = fact[keys[0]];
+      }
+      
+      var dependents = {};
+      var hasDependents = false;
+      if(schema.dependents) {
+        for(var dependent of schema.dependents) {
+          var depSchema = schemas[dependent];
+          
+          //debugger;
+          var q = <{[key:string]:string}>fillForeignKeys(dependent, {}, factContext);
+          
+          var results = retrieve(dependent, q, clone(factContext));
+          if(results && results.length) {
+            if(depSchema.singular) {
+              dependents[dependent] = results[0];
+            } else {
+              dependents[dependent] = results;
+            }
+            hasDependents = true;
+          }
         }
       }
-    }
-    var write:Write<any> = {type: type, params: params, context: {}};
-    return write;
-  }
-  
-
-
-
-  function mapToFact(viewId:Id, props:FactMap) {
-    var fieldIds = code.sortedViewFields(viewId); // @FIXME: We need to cache these horribly badly.
-    var length = fieldIds.length;
-    var fact = new Array(length);
-    for(var ix = 0; ix < length; ix++) {
-      var name = code.name(fieldIds[ix]);
-      var val = props[name];
-      if(val === undefined || val === null) { throw new Error("Malformed value in " + viewId + " fact " + JSON.stringify(props)); }
-      fact[ix] = val;
-    }
-    return fact;
-  }
-  
-  function factToMap(viewId:Id, fact:Fact) {
-    var fieldIds = code.sortedViewFields(viewId); // @FIXME: We need to cache these horribly badly.
-    var length = fieldIds.length;
-    var map = {};
-    for(var ix = 0; ix < length; ix++) {
-      var name = code.name(fieldIds[ix]);
-      map[name] = fact[ix];
-    }
-    return map;
-  }
-  
-  // @FIXME: CLEAR ALL OTHER DEPENDENTS ON UPDATE OF ROOT.
-  function addToDiffs(type:string, params, mode = "inserted"):Diff[] {
-    var dependents = params.dependents || {};
-    var facts = [];
-    
-    // Process root fact.
-    facts.push([type, mode, mapToFact(type, params)]);
-
-    // Process dependents.
-    for(var key of dependents) {
-      if(!dependents.hasOwnProperty(key)) { continue; }
-      if(dependents[key] instanceof Array) {
-        for(var dep of dependents[key]) {
-          facts = facts.concat(addToDiffs(key, dep, mode));
-        }
-      } else {
-        facts = facts.concat(addToDiffs(key, dependents[key], mode));
+      if(hasDependents) {
+        fact.dependents = dependents;
       }
-    }
-    
-    // Handle custom dependents.
-    switch(type) {
-      case "constraint":
-        facts.push(["constraint left", mode, mapToFact("constraint left", params)],
-                   ["constraint right", mode, mapToFact("constraint right", params)],
-                   ["constraint operation", mode, mapToFact("constraint operation", params)]);
-      break;
     }
     
     return facts;
   }
   
-  function remove(type:string, ...ids:Id[]) {
-    switch(type) {
-      
-    }
-  }
+
+
+
+
 }
