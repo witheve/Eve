@@ -288,21 +288,23 @@ fn calculate_constraint_schedule(flow: &Flow) {
     let field_table = flow.get_output("field");
     for constraint in constraint_table.iter() {
         let left = constraint_left_table.find_one("constraint", &constraint["constraint"]);
-        let left_schedule = source_schedule_table.find_one("source", &left["left source"]);
-        let left_ix = left_schedule["ix"].as_usize();
-        let left_field = field_table.find_one("field", &left["left field"]);
+        let left_ix = source_schedule_table.find_maybe("source", &left["left source"])
+            .map_or(-1, |left_schedule| left_schedule["ix"].as_i64());
+        let left_is_output = (left["left source"].as_str() == "constant")
+            || (field_table.find_one("field", &left["left field"])["kind"].as_str() == "output");
 
         let right = constraint_right_table.find_one("constraint", &constraint["constraint"]);
-        let right_schedule = source_schedule_table.find_one("source", &right["right source"]);
-        let right_ix = right_schedule["ix"].as_usize();
-        let right_field = field_table.find_one("field", &right["right field"]);
+        let right_ix = source_schedule_table.find_maybe("source", &right["right source"])
+            .map_or(-1, |right_schedule| right_schedule["ix"].as_i64());
+        println!("{:?}", right);
+        let right_is_output = (right["right source"].as_str() == "constant")
+            || (field_table.find_one("field", &right["right field"])["kind"].as_str() == "output");
 
-        match (left_field["kind"].as_str(), right_field["kind"].as_str()) {
-            ("output", "output") => {
-                let ix = ::std::cmp::max(left_ix, right_ix);
-                items.push(vec![constraint["constraint"].clone(), Value::Float(ix as f64)]);
-            }
-            _ => () // non-output fields can't be constrained directly - handled by arguments to primitives instead
+        // non-output fields can't be constrained directly - handled by arguments to primitives instead
+        if left_is_output && right_is_output {
+            let ix = ::std::cmp::max(left_ix, right_ix);
+            assert!(ix != -1); // ie not comparing two constants
+            items.push(vec![constraint["constraint"].clone(), Value::Float(ix as f64)]);
         }
     }
     overwrite_compiler_view(flow, "constraint schedule", items);
