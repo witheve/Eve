@@ -197,6 +197,9 @@ module client {
         uiEditorRenderer.setSessionId(data.session);
         var prims = api.diff.computePrimitives();
         ixer.handleDiffs(prims);
+        for(var initFunc of afterInitFuncs) {
+          initFunc();
+        }
       }
 
       var time = now() - start;
@@ -339,6 +342,11 @@ module client {
       changes.push([table, fieldIds, final[table].inserted, final[table].removed]);
     }
     return { changes: changes };
+  }
+  
+  var afterInitFuncs: Function[] = [];
+  export function afterInit(func) {
+    afterInitFuncs.push(func);
   }
 
   connectToServer();
