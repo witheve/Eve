@@ -1172,11 +1172,20 @@ module api {
     return {type: type, content: read, context: context, mode: "removed"};
   }
   
-  export function toDiffs(write:Write<any>):Diff[] {
+  export function toDiffs(writes:Write<any>|Write<any>[]):Diff[] {
+    var diffs = [];
+    if(writes instanceof Array) {
+      for(var write of writes) {
+        diffs = diffs.concat(toDiffs(write));
+      }
+      return diffs;
+    } else {
+      var write:Write<any> = <Write<any>>writes; 
+    }
+    
     var type = write.type;
     var params = write.content;
     var mode = write.mode;
-    var diffs = [];
     
     if(mode === "changed") {
       // Remove the existing root and all of its dependents, then swap mode to inserted to replace them.
