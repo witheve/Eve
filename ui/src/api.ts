@@ -149,6 +149,7 @@ module api {
     runtime: {
       "client event": {name: "client event", fields: ["session", "eventId", "type", "element", "row"]},
       "mouse position": {name: "mouse position", fields: ["session", "eventId", "x", "y"]},
+      "text input": {name: "text input", fields: ["session", "eventId", "element", "binding", "value"], tags: ["remote"]},
       "eveusers": {name: "eveusers", fields: ["id", "username"]},
       "sessions": {name: "sessions", fields: ["id", "user id", "status"]},
       "url segments": {name: "url segments", fields: ["session", "segment #", "segment"]},
@@ -902,7 +903,7 @@ module api {
     "test": true
   };
 
-  function injectViews(tableGroups, ixer, noFacts) {
+  export function injectViews(tableGroups, ixer, noFacts) {
     var diffs = [];
     var add = function(viewId, view, group, shouldHide) {
       diffs = diffs.concat(diff.addView(viewId, view, noFacts));

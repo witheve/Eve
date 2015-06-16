@@ -238,7 +238,6 @@ module uiEditorRenderer {
 
   function handleMouseEvent(e, elem) {
     var boundId = elem.key;
-    console.log(boundId, typeof boundId);
     var diffs = [["client event", "inserted", [session, ++eventId, e.type, elem.elementId, boundId]],
                  ["mouse position", "inserted", [session, eventId, e.clientX, e.clientY]]]
     if(e.type === "click") {
@@ -248,6 +247,15 @@ module uiEditorRenderer {
   }
 
   function handleInputEvent(e, elem) {
+    var boundId = elem.key;
+    var value = e.currentTarget.value;
+    var diffs = [["client event", "inserted", [session, ++eventId, e.type, elem.elementId, boundId]],
+                 ["text input", "inserted", [session, ++eventId, elem.elementId, boundId, value]]];
+    var prevInputs = ixer.select("text input", {session: session, element: elem.elementId});
+    for(var prev of prevInputs) {
+      diffs.push(["text input", "removed", [prev.session, prev.eventId, prev.element, prev.binding, prev.value]]);
+    }
+    client.sendToServer(diffs, false);
   }
 
   function handleKeyEvent(e, elem) {
