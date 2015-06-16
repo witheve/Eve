@@ -71,7 +71,9 @@ module api2 {
     "aggregate limit from": {foreign: {view: "aggregate"},
                              singular: true},
     "aggregate limit to": {foreign: {view: "aggregate"},
-                           singular: true}
+                           singular: true},
+                           
+     "text input": {},
   };
   
   /***************************************************************************\

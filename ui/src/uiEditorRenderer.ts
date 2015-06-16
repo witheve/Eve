@@ -16,7 +16,7 @@ module uiEditorRenderer {
 
   var ids = {"active page": "3ff64c83-179b-4c6f-bfb6-715af2a27492"};
   
-  var session = "me";
+  export var session = "me";
     
   export function setSessionId(id) {
     session = id;
@@ -238,7 +238,6 @@ module uiEditorRenderer {
 
   function handleMouseEvent(e, elem) {
     var boundId = elem.key;
-    console.log(boundId, typeof boundId);
     var diffs = [["client event", "inserted", [session, ++eventId, e.type, elem.elementId, boundId]],
                  ["mouse position", "inserted", [session, eventId, e.clientX, e.clientY]]]
     if(e.type === "click") {
@@ -248,9 +247,20 @@ module uiEditorRenderer {
   }
 
   function handleInputEvent(e, elem) {
+    var boundId = elem.key;
+    var value = e.currentTarget.value;
+    var diffs = [["client event", "inserted", [session, ++eventId, e.type, elem.elementId, boundId]],
+                 ["text input", "inserted", [session, ++eventId, elem.elementId, boundId, value]]];
+    var prevInputs = ixer.select("text input", {session: session, element: elem.elementId});
+    for(var prev of prevInputs) {
+      diffs.push(["text input", "removed", [prev.session, prev.eventId, prev.element, prev.binding, prev.value]]);
+    }
+    client.sendToServer(diffs, false);
   }
 
   function handleKeyEvent(e, elem) {
+    //@TODO: design capture API.
+    //@TODO: should the keydown table be synchronous?
   }
 
   export var root = renderer.content;

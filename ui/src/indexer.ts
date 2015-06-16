@@ -255,6 +255,7 @@ module Indexing {
           index = this.index(indexName);
         }
         for(var keyIx of keyIxes) {
+          if(index === undefined) break;
           index = index[opts[fieldNames[keyIx]]];
         }
         facts = index;
