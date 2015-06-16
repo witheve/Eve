@@ -237,7 +237,11 @@ module Indexing {
       var nameLen = table.length + 2;
       var fieldNames = fields.map((cur) => self.index("display name")[cur]);
       var keys = Object.keys(opts);
-      keys = keys.map((key) => fields[fieldNames.indexOf(key)]);
+      keys = keys.map(function (key) {
+        var result = fields[fieldNames.indexOf(key)];
+        if(result === undefined) { throw new Error("Field " + keys + " is not a valid field of table " + table); }
+        return result;
+      });
       keys.sort();
       if(keys.length > 0) {
         var indexName = `${table}|${keys.join("|") }`;
@@ -257,7 +261,7 @@ module Indexing {
       } else {
         facts = this.facts(table);
       }
-      
+      if(!facts) { return []; }
       return facts.map(function(fact) {
         var cur = {};
         for(var i = 0, fieldsLen = fields.length; i < fieldsLen; i++) {
