@@ -52,6 +52,14 @@ module api {
     }
     return result;
   }
+  
+  export function extend(dest, src) {
+    for(var key in src) {
+      if(!src.hasOwnProperty(key)) { continue; }
+      dest[key] = src[key];
+    }
+    return dest;
+  }
 
   export function displaySort(idA:string, idB:string): number {
     var orderA = ixer.index("display order")[idA];
@@ -1085,7 +1093,7 @@ module api {
     if(!schema) { throw new Error("Attempted to retrieve unknown type " + type + " with params " + JSON.stringify(query)); }
     var keys:string[] = (schema.key instanceof Array) ? <string[]>schema.key : (schema.key) ? [<string>schema.key] : [];    
         
-    var facts = ixer.select(type, query);
+    var facts = ixer.select(type, query); // @FIXME: Cannot query on compound constraint views yet.
     if(!facts.length) { return; }
     for(var fact of facts) {
       if(!fact) { continue; }
@@ -1095,6 +1103,15 @@ module api {
       }
       if(keys.length === 1) {
         factContext["$last"] = fact[keys[0]];
+      }
+      
+      switch(type) {
+        case "constraint":
+          var subQuery = {constraint: fact.constraint};
+          extend(fact, ixer.selectOne("constraint left", subQuery));
+          extend(fact, ixer.selectOne("constraint right", subQuery));
+          extend(fact, ixer.selectOne("constraint operation", subQuery));
+          break;
       }
       
       var dependents = {};
