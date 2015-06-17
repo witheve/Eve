@@ -1,3 +1,4 @@
+#![feature(convert)]
 use std::thread;
 use std::sync::mpsc;
 use websocket::{Server, Message, Sender, Receiver};
@@ -174,34 +175,39 @@ pub fn run() {
     let mut events = OpenOptions::new().write(true).append(true).open("./events").unwrap();
     let mut senders: Vec<sender::Sender<_>> = Vec::new();
 
-    // Create sessions table
-    let mut sessions_table = client::create_table(&"sessions",&vec!["id","user id","status"],None);
-    sessions_table = client::insert_fact(&"tag",&vec!["view","tag"],&vec![Value::String("sessions".to_string()),Value::String("remote".to_string())],Some(sessions_table));
-    flow = flow.quiesce(sessions_table.changes);
+    // Create sessions related tables
+    let mut sessions_tables = client::create_table(&"sessions",&vec!["id","status"],None);
+    sessions_tables = client::insert_fact(&"tag",&vec!["view","tag"],&vec![Value::String("sessions".to_string()),Value::String("remote".to_string())],Some(sessions_tables));
+    sessions_tables = client::create_table(&"session id to user id",&vec!["session id","user id"],Some(sessions_tables));
+    sessions_tables = client::insert_fact(&"tag",&vec!["view","tag"],&vec![Value::String("session id to user id".to_string()),Value::String("remote".to_string())],Some(sessions_tables));
+    flow = flow.quiesce(sessions_tables.changes);
 
     for server_event in serve() {
         match server_event {
 
             ServerEvent::Sync((mut sender,user_id)) => {
 
-                // If we have a user ID, create a new session
+				let session_id = format!("{}", sender.get_mut().peer_addr().unwrap());
+
+                // Add a session to the session table
                 let session_id = format!("{}", sender.get_mut().peer_addr().unwrap());
-                match user_id {
+				let mut add_session = client::insert_fact(&"sessions",&vec!["id","status"],&vec![Value::String(session_id.clone()),
+				                                                                       		     Value::Float(1f64)
+				                                                                      	        ],None);
+
+				// If we have a user ID, add a mapping from the session ID to the user ID
+                add_session = match user_id {
                     Some(user_id) => {
-                        let add_session = client::insert_fact(&"sessions",&vec!["id","user id","status"],&vec![Value::String(session_id.clone()),
-                                                                                                               Value::String(user_id),
-                                                                                                               Value::Float(1f64)
-                                                                                                              ],None);
-                        flow = send_changes(add_session,flow,&mut senders);
+
+                        client::insert_fact(&"session id to user id",&vec!["session id","user id"],&vec![Value::String(session_id.clone()),
+                                                                                                 Value::String(user_id),
+                                                                                                ],Some(add_session))
+						//add_session
                     },
-                    None => {
-                        let add_session = client::insert_fact(&"sessions",&vec!["id","user id","status"],&vec![Value::String(session_id.clone()),
-                                                                                                               Value::String("".to_string()),
-                                                                                                               Value::Float(1f64)
-                                                                                                              ],None);
-                        flow = send_changes(add_session,flow,&mut senders);
-                    },
+                    None => add_session,
                 };
+
+                flow = send_changes(add_session,flow,&mut senders);
 
                 time!("syncing", {
                     let changes = flow.as_changes();
@@ -229,6 +235,7 @@ pub fn run() {
             }
 
             ServerEvent::Terminate(m) => {
+
                 let terminate_ip = m.unwrap().reason;
                 println!("Closing connection from {}...",terminate_ip);
                 // Find the index of the connection's sender
@@ -244,9 +251,7 @@ pub fn run() {
                         let _ = senders[ix].send_message(Message::Close(None));
 
                         match senders[ix].get_mut().shutdown(Shutdown::Both) {
-                            Ok(_) => {
-                                println!("Connection from {} has closed successfully.",terminate_ip);
-                            },
+                            Ok(_) => println!("Connection from {} has closed successfully.",terminate_ip),
                             Err(e) => println!("Connection from {} failed to shut down properly: {}",terminate_ip,e),
                         }
                         senders.remove(ix);
@@ -254,22 +259,30 @@ pub fn run() {
                         // Update the session table
                         let sessions = flow.get_output("sessions").clone();
                         let ip_string = Value::String(terminate_ip.clone());
-                        match sessions.index.iter().find(|session| session[0] == ip_string) {
+
+                        match sessions.find_maybe("id",&ip_string) {
                             Some(session) => {
-                                let mut closed_session = session.clone();
-                                // TODO Shouldn't use a hardcoded index to access the field
-                                closed_session[1] = Value::Float(0f64); // Set status to 0
+                            	let closed_session = session.clone();
+                                let mut close_sesion_values = &mut closed_session.values.to_vec();
+                                let status_ix = match closed_session.names.iter().position(|name| name == "status") {
+                                	Some(ix) => ix,
+                                	None => panic!("No field named \"status\""),
+                                };
+                                close_sesion_values[status_ix] = Value::Float(0f64);
+
                                 let change = Change {
                                                         fields: sessions.fields.clone(),
-                                                        insert: vec![closed_session.clone()],
-                                                        remove: vec![session.clone()],
+                                                        insert: vec![close_sesion_values.clone()],
+                                                        remove: vec![session.values.to_vec().clone()],
                                                     };
+
                                 let make_session_inactive = Event{changes: vec![("sessions".to_string(),change)], session: "".to_string()};
                                 flow = send_changes(make_session_inactive,flow,&mut senders);
 
                             },
                             None => println!("No session found"),
                         }
+
                     },
                     None => panic!("IP address {} is not connected",terminate_ip),
                 }

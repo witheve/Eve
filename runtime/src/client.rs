@@ -7,7 +7,7 @@ use cbor;
 
 use value::Value;
 use server::Event;
-use relation::{Change,Relation};
+use relation::Change;
 
 pub fn open_websocket(url_string: &str) -> Result<client::sender::Sender<stream::WebSocketStream>,String> {
 

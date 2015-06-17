@@ -164,7 +164,8 @@ module api {
       "location": {name: "location", fields: ["session", "latitude", "longitude", "accuracy", "timestamp"], tags: ["remote"]},
       "session url": {name: "session url", fields: ["session", "eventId", "href", "origin", "path", "hash"], tags: ["remote"]},
       "eveusers": {name: "eveusers", fields: ["id", "username"], tags: ["remote"]},
-      "sessions": {name: "sessions", fields: ["id", "user id", "status"], tags: ["remote"]},
+      "sessions": {name: "sessions", fields: ["id", "status"], tags: ["remote"]},
+      "session id to user id": {name: "session id to user id", fields: ["session id", "user id"], tags: ["remote"]},
       "captured key": {name: "captured key", fields: ["session", "eventId", "element", "key", "binding"], tags: ["remote"]}
     },
 
@@ -199,7 +200,7 @@ module api {
       numbers: {name: "numbers", fields: ["x"], facts: [[0], [1], [2], [3]]},
     }
   };
-  
+
   export var primitiveDefaults = {
     add: {"add: in A": "default zero", "add: in B": "default zero"},
     contains: {"contains: inner": "default space", "contains: outer": "default empty"},
