@@ -216,7 +216,7 @@ module queryEditor {
         if(calculatedFields.length) {
           for(var calculatedField of calculatedFields) {
             var calculatedFieldId = calculatedField["calculated field"];
-            diffs.push(["calculated field", "inserted", calculatedField]);
+            diffs.push(["calculated field", "inserted", api.mapToFact("calculated field", calculatedField)]);
             diffs.push(["display name", "inserted", [calculatedFieldId, code.name(calculatedFieldId)]]);
           }
         }
