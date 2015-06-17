@@ -180,7 +180,7 @@ module queryEditor {
         diffs = diff.removeViewSource(info.viewId, info.sourceId);
         break;
       case "addViewConstraint":
-        diffs = diff.addViewConstraint(info.viewId, {operation: "=", leftSource: info.leftSource, leftField: info.leftField});
+        diffs = diff.addViewConstraint(info.viewId, {operation: "=", leftSource: info.leftSource, leftField: info.leftField, rightSource: info.rightSource || info.leftSource, rightField: info.rightField || info.leftField});
         sendToServer = false;
         break;
       case "updateViewConstraint":
@@ -211,42 +211,18 @@ module queryEditor {
           console.log("adding constant", diffs, opts);
         }
 
-        var complete = code.isConstraintComplete(opts);
-        var constraints = ixer.index("source to constraints")[opts.leftSource] || [];
-        var constraintOpts = constraints.map(function(constraint) {
-          var constraintId = constraint[0];
-          if(constraintId === info.constraintId) { return; }
-          var opts = code.getConstraint(constraintId);
-
-          if(!code.isConstraintComplete(opts)) {
-            complete = false;
-          }
-          return [constraintId, opts];
-        });
-
         diffs = diffs.concat(diff.updateViewConstraint(info.constraintId, opts));
-        if(complete) {
-          diffs = constraintOpts.reduce(function(memo, constraintPair) {
-            if(!constraintPair) { return memo; }
-            return memo.concat(diff.updateViewConstraint(constraintPair[0], constraintPair[1]));
-          }, diffs);
-          diffs.push(["source", "inserted", ixer.index("source")[viewId][opts.leftSource]]);
-
-          var calculatedFieldId = ixer.index("view and source to calculated field")[viewId] || {};
-          calculatedFieldId = calculatedFieldId[opts.leftSource];
-          if(calculatedFieldId) {
-            diffs.push(["calculated field", "inserted", ixer.index("calculated field")[calculatedFieldId]]);
+        var calculatedFields = ixer.select("calculated field", {view: viewId, source: opts.leftSource});
+        if(calculatedFields.length) {
+          for(var calculatedField of calculatedFields) {
+            var calculatedFieldId = calculatedField["calculated field"];
+            diffs.push(["calculated field", "inserted", calculatedField]);
             diffs.push(["display name", "inserted", [calculatedFieldId, code.name(calculatedFieldId)]]);
           }
-
-          //@FIXME: Chris added this because the server was never being sent the actual constraint entry
-          //I suspect this is supposed to work some other way?
-          diffs.push(["constraint", "inserted", [info.constraintId, viewId]]);
-
-        } else {
-          sendToServer = false; // @FIXME: Here be monsters. Constant fields can get lost if added to otherwise incomplete constraints.
         }
 
+        var complete = code.isConstraintComplete(opts);
+        if(!complete) { throw new Error("Constraint got into an incomplete state info " + JSON.stringify(info) + " constraint " + JSON.stringify(opts)); }
         break;
       case "removeViewConstraint":
         var constraint = code.getConstraint(info.constraintId);
@@ -321,8 +297,6 @@ module queryEditor {
         break;
       case "addPrimitiveSource":
         diffs = diff.addPrimitiveSource(info.viewId, info.primitiveId);
-
-        sendToServer = false;
         break;
       case "setQueryEditorActive":
         localState.queryEditorActive = info.viewId;
@@ -553,7 +527,11 @@ module queryEditor {
   function blockSuggestionHandler(e, elem) {
     var info = localState.queryEditorInfo;
     if(elem.key === "add filter") {
-      dispatch("addViewConstraint", {viewId: info.viewId});
+      var source = ixer.selectOne("source", {view: info.viewId});
+      if(!source) { return console.error("Cannot add a constraint to a view with no sources."); }
+      var field = ixer.selectOne("field", {view: source["source view"]});
+      if(!field) { return console.error("Cannot add a constraint to a view source with no fields."); }
+      dispatch("addViewConstraint", {viewId: info.viewId, leftSource: source.source, leftField: field.field});
     }
   }
 
