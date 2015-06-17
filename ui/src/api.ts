@@ -169,11 +169,8 @@ module api {
     },
 
     example: {
-
       "department heads": {name: "department heads", fields: ["department", "head"]},
       "employees": {name: "employees", fields: ["department", "name", "salary"]},
-
-
       "book": {name: "book", fields: ["isbn", "title", "author", "price", "cost"]},
       "book sales": {name: "book sales", fields: ["order", "sales"]},
       "PDGF assay": {name: "PDGF assay", fields: ["PDGF concentration", "Seed density", "Well #", "Absorbance"]},
@@ -267,13 +264,10 @@ module api {
   ixer.addIndex("primitive", "primitive", Indexing.create.lookup([0, false]));
   ixer.addIndex("primitive kind to views", "primitive", Indexing.create.collector([1]));
   ixer.addIndex("query to export", "query export", Indexing.create.lookup([0, 1]));
-
   ixer.addIndex("editor item to type", "editor item", Indexing.create.lookup([0, 1]));
-
   ixer.addIndex("eveusers id to username", "eveusers", Indexing.create.lookup([0, 1]));
 
   // ui
-
   ixer.addIndex("uiComponentElement", "uiComponentElement", Indexing.create.lookup([1, false]));
   ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector([2]));
   ixer.addIndex("uiComponentLayer", "uiComponentLayer", Indexing.create.lookup([1, false]));
