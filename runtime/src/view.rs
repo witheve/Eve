@@ -190,8 +190,8 @@ impl View {
                     old_output.fields.clone(),
                     old_output.names.clone()
                     );
-                let mut tuples = Vec::with_capacity(join.sources.len());
-                join_step(join, 0, inputs, &mut tuples, &mut output.index);
+                let mut state = join.constants.iter().collect();
+                join_step(join, 0, inputs, &mut state, &mut output.index);
                 Some(output)
             }
             View::Aggregate(ref aggregate) => {

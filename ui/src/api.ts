@@ -3,10 +3,10 @@ module api {
   declare var window;
   declare var Indexing;
   declare var uuid;
-  
+
   type Id = string;
   type Fact = any[];
-  
+
   interface Constraint {
     view?: Id,
     leftSource?: Id,
@@ -17,7 +17,7 @@ module api {
   }
 
   export var arraysIdentical:(a:any[], b:any[])=>boolean = Indexing.arraysIdentical;
-  
+
   if(!window.DEBUG) {
     window.DEBUG = {RECEIVE: 3,
                     SEND: 3,
@@ -52,7 +52,7 @@ module api {
     }
     return result;
   }
-  
+
   export function extend(dest, src) {
     for(var key in src) {
       if(!src.hasOwnProperty(key)) { continue; }
@@ -83,7 +83,7 @@ module api {
     return char.toLowerCase();
   });
   var alphabetLowerToIx = invert(alphabetLower);
-  
+
   export function reverseDiff(diff) {
     var neue = [];
     for(var diffIx = 0, diffLen = diff.length; diffIx < diffLen; diffIx++) {
@@ -984,20 +984,20 @@ module api {
                            activeItem: null,
                            showMenu: true,
                            uiGridSize: 10};
-                           
-                           
-                           
+
+
+
   type Diff = any[];
   interface Context {[key:string]: Id}
   interface Write<T> {type: string, content: T, context: Context, mode?: string, originalKeys?: string[]}
-  
+
   interface Schema {
     key?: string|string[]
     dependents?: Id[]
     foreign?: {[field:string]: string}
     singular?: boolean
   }
-  
+
   var pkDependents = ["display name", "display order", "tag"];
   var schemas:{[id:string]: Schema} = {
     "display name": {foreign: {$last: "id"},
@@ -1005,7 +1005,7 @@ module api {
     "display order": {foreign: {$last: "id"},
                       singular: true},
     tag: {foreign: {$last: "view"}},
-    
+
     block: {key: "block",
             foreign: {view: "view"},
             singular: true,
@@ -1022,26 +1022,31 @@ module api {
             dependents: pkDependents.concat(["select"])},
     select: {foreign: {view: "view", field: "view field"}},
     constraint: {key: "constraint", foreign: {view: "view"}},
-    
+
     "aggregate grouping": {foreign: {view: "aggregate", /*field: "inner field"*/}},
     "aggregate sorting": {foreign: {view: "aggregate", /*field: "inner field"*/}},
     "aggregate limit from": {foreign: {view: "aggregate"},
                              singular: true},
     "aggregate limit to": {foreign: {view: "aggregate"},
                            singular: true},
-                           
+
      "text input": {},
+     "mouse position": {},
+     "click": {},
+     "client event": {},
+     "location": {},
+     "session url": {},
   };
-  
+
   /***************************************************************************\
    * Read/Write primitives.
-  \***************************************************************************/ 
+  \***************************************************************************/
   function fillForeignKeys(type, query, context) {
     var schema = schemas[type];
     if(!schema) { throw new Error("Attempted to process unknown type " + type + " with query " + JSON.stringify(query)); }
     var foreignKeys = schema.foreign;
     if(!foreignKeys) { return query; }
-    
+
     for(var contextKey in foreignKeys) {
       var foreignKey = foreignKeys[contextKey];
       if(!foreignKeys.hasOwnProperty(contextKey)) { continue; }
@@ -1053,13 +1058,13 @@ module api {
     }
     return query;
   }
-  
+
   export function process(type:string, params, context?:Context): Write<any> {
     var schema = schemas[type];
     if(!schema) { throw new Error("Attempted to process unknown type " + type + " with params " + JSON.stringify(params)); }
     if(!params) { throw new Error("Invalid params specified for type " + type + " with params " + JSON.stringify(params)); }
     if(!context) { context = {}; } // @NOTE: Should we clone this? If so, should we clone params as well?
-    
+
     // Fill primary keys if missing.
     var keys:string[] = (schema.key instanceof Array) ? <string[]>schema.key : (schema.key) ? [<string>schema.key] : [];
     for(var key of keys) {
@@ -1071,12 +1076,12 @@ module api {
     if(keys.length === 1) {
       context["$last"] = params[keys[0]];
     }
-    
+
     // Link foreign keys from context if missing.
     if(schema.foreign) {
       var params = fillForeignKeys(type, params, context);
     }
-    
+
     // Ensure remaining fields exist and contain something.
     var fieldIdIx = code.ix("field", "field");
     var fields = ixer.index("view to fields")[type] || [];
@@ -1086,7 +1091,7 @@ module api {
         throw new Error("Missing value for field " + fieldName + " on type " + type);
       }
     }
-    
+
     // Process dependents recursively.
     if(params.dependents) {
       var dependents = params.dependents;
@@ -1095,22 +1100,22 @@ module api {
         if(dependents[dep] instanceof Array) {
           for(var depItem of dependents[dep]) {
             process(dep, depItem, context);
-          }  
+          }
         } else {
           process(dep, dependents[dep], context);
         }
-      } 
+      }
     }
-    
+
     return {type: type, content: params, context: context};
   }
-  
+
   export function retrieve(type:string, query:{[key:string]:string}, context?) {
     context = context || {};
     var schema = schemas[type];
     if(!schema) { throw new Error("Attempted to retrieve unknown type " + type + " with params " + JSON.stringify(query)); }
-    var keys:string[] = (schema.key instanceof Array) ? <string[]>schema.key : (schema.key) ? [<string>schema.key] : [];    
-        
+    var keys:string[] = (schema.key instanceof Array) ? <string[]>schema.key : (schema.key) ? [<string>schema.key] : [];
+
     var facts = ixer.select(type, query); // @FIXME: Cannot query on compound constraint views yet.
     if(!facts.length) { return; }
     for(var fact of facts) {
@@ -1122,7 +1127,7 @@ module api {
       if(keys.length === 1) {
         factContext["$last"] = fact[keys[0]];
       }
-      
+
       switch(type) {
         case "constraint":
           var subQuery = {constraint: fact.constraint};
@@ -1131,16 +1136,16 @@ module api {
           extend(fact, ixer.selectOne("constraint operation", subQuery));
           break;
       }
-      
+
       var dependents = {};
       var hasDependents = false;
       if(schema.dependents) {
         for(var dependent of schema.dependents) {
           var depSchema = schemas[dependent];
-          
+
           //debugger;
           var q = <{[key:string]:string}>fillForeignKeys(dependent, {}, factContext);
-          
+
           var results = retrieve(dependent, q, clone(factContext));
           if(results && results.length) {
             if(depSchema.singular) {
@@ -1156,10 +1161,10 @@ module api {
         fact.dependents = dependents;
       }
     }
-    
+
     return facts;
   }
-  
+
   /***************************************************************************\
    * Read/Write API
   \***************************************************************************/
@@ -1177,7 +1182,7 @@ module api {
     }
     return fact;
   }
-  
+
   export function factToMap(viewId:Id, fact:Fact) {
     var fieldIds = code.sortedViewFields(viewId); // @FIXME: We need to cache these horribly badly.
     var length = fieldIds.length;
@@ -1187,50 +1192,58 @@ module api {
       map[name] = fact[ix];
     }
     return map;
-  } 
-  
+  }
+
   export function insert(type:string, params, context?:Context):Write<any> {
     if(arguments.length < 2) { throw new Error("Must specify type and parameters for insert."); }
     var write = process(type, params, context);
     write.mode = "inserted";
     return write;
   }
-  
+
   export function change(type:string, params, context?:Context):Write<any> {
     if(arguments.length < 2) { throw new Error("Must specify type and query for change."); }
     var read = retrieve(type, params, context);
     return {type: type, content: read, context: context, mode: "changed", originalKeys: clone(params)};
   }
-  
+
   export function remove(type:string, params, context?:Context):Write<any> {
     if(arguments.length < 2) { throw new Error("Must specify type and query for remove."); }
     var read = retrieve(type, params, context);
     return {type: type, content: read, context: context, mode: "removed"};
   }
-  
+
   export function toDiffs(writes:Write<any>|Write<any>[]):Diff[] {
     var diffs = [];
     if(writes instanceof Array) {
       for(var write of writes) {
-        diffs = diffs.concat(toDiffs(write));
+        var result = toDiffs(write);
+        if(result !== undefined) {
+          diffs = diffs.concat(result);
+        }
       }
       return diffs;
     } else {
-      var write:Write<any> = <Write<any>>writes; 
+      var write:Write<any> = <Write<any>>writes;
     }
-    
+
     var type = write.type;
     var params = write.content;
     var mode = write.mode;
-    
+
+    if(!params) {
+      //if we have no content, then there's nothing for us to do.
+      return;
+    }
+
     if(mode === "changed") {
       // Remove the existing root and all of its dependents, then swap mode to inserted to replace them.
       if(!write.originalKeys) { throw new Error("Change specified for " + type + ", but no write.originalKeys specified."); }
       diffs = diffs.concat(toDiffs(remove(type, write.originalKeys)));
       mode = "inserted";
     }
-    
-    if(params instanceof Array) {      
+
+    if(params instanceof Array) {
       for(var item of params) {
         diffs = diffs.concat(toDiffs({type: type, content: item, context: write.context, mode: mode}));
       }
@@ -1246,7 +1259,7 @@ module api {
       if(!dependents.hasOwnProperty(key)) { continue; }
       diffs = diffs.concat(toDiffs({type: key, content: dependents[key], context: write.context, mode: mode}));
     }
-    
+
     // Handle custom dependents.
     switch(type) {
       case "constraint":
@@ -1255,7 +1268,7 @@ module api {
                    ["constraint operation", mode, mapToFact("constraint operation", params)]);
         break;
     }
-    
+
     return diffs;
   }
 }

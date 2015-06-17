@@ -257,10 +257,12 @@ fn calculate_source_schedule(flow: &Flow) {
         //      instead we require that all bindings are upstream
         // TODO need to handle "constant" source specially
         let sources_and_upstreams = source_table.find_all("view", &view["view"]).iter().map(|source| {
-            let upstream = source_dependency_table.find_all("downstream source", &source["source"])
-                .iter().map(|dependency| dependency["upstream source"].clone())
+            let upstreams = source_dependency_table.find_all("downstream source", &source["source"])
+                .iter()
+                .map(|dependency| dependency["upstream source"].clone())
+                .filter(|upstream| upstream.as_str() != "constant")
                 .collect();
-            (source["source"].clone(), upstream)
+            (source["source"].clone(), upstreams)
         }).collect();
         let mut sources_and_upstreams = topological_sort(sources_and_upstreams);
 
