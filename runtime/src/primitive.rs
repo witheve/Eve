@@ -5,6 +5,7 @@ pub enum Primitive {
     Add,
     Subtract,
     Split,
+    Concat,
     Count,
     Contains,
     Sum,
@@ -49,6 +50,7 @@ impl Primitive {
             (Split, [&String(ref split), &String(ref string)]) => {
                 string.split(split).enumerate().map(|(ix, segment)| vec![Float(ix as f64), String(segment.to_owned())]).collect()
             },
+            (Concat, [&String(ref a), &String(ref b)]) => vec![vec![String(a.to_owned() + b)]],
             (Count, _) => panic!("Cannot use {:?} in a join", self),
             (Sum, _) => panic!("Cannot use {:?} in a join", self),
             (Mean, _) => panic!("Cannot use {:?} in a join", self),
@@ -67,6 +69,7 @@ impl Primitive {
             (Subtract, _) => panic!("Cannot use {:?} in an aggregate", self),
             (Contains, _) => panic!("Cannot use {:?} in an aggregate", self),
             (Split, _) => panic!("Cannot use {:?} in an aggregate", self),
+            (Concat, _) => panic!("Cannot use {:?} in an aggregate", self),
             (Count, [_]) => {
                 vec![vec![Float(inner.len() as f64)]]
             },
@@ -118,6 +121,7 @@ impl Primitive {
             "subtract" => Primitive::Subtract,
             "contains" => Primitive::Contains,
             "split" => Primitive::Split,
+            "concat" => Primitive::Concat,
             "count" => Primitive::Count,
             "sum" => Primitive::Sum,
             "mean" => Primitive::Mean,
@@ -134,6 +138,7 @@ pub fn primitives() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>, 
         ("subtract", vec!["in A", "in B"], vec![], vec!["out"]),
         ("contains", vec!["inner", "outer"], vec![], vec!["out"]),
         ("split", vec!["split", "string"], vec![], vec!["ix", "segment"]),
+        ("concat", vec!["a", "b"], vec![], vec!["out"]),
         ("count", vec![], vec!["in"], vec!["out"]),
         ("sum", vec![], vec!["in"], vec!["out"]),
         ("mean", vec![], vec!["in"], vec!["out"]),
