@@ -109,7 +109,9 @@ module api {
       view: {name: "view", fields: ["view", "kind"]},
       field: {name: "field", fields: ["view", "field", "kind"]},
       source: {name: "source", fields: ["view", "source", "source view"]},
-      constant: {name: "constant", fields: ["constant", "value"]},
+      constant: {name: "constant", fields: ["constant", "value"], facts: [["default empty", ""],
+                                                                          ["default zero", 0],
+                                                                          ["default space", " "]]},
       select: {name: "select", fields: ["view", "view field", "source", "source field"]},
 
       "constraint": {name: "constraint", fields: ["constraint", "view"]},
@@ -196,6 +198,18 @@ module api {
       numbers: {name: "numbers", fields: ["x"], facts: [[0], [1], [2], [3]]},
     }
   };
+  
+  export var primitiveDefaults = {
+    add: {"add: in A": "default zero", "add: in B": "default zero"},
+    contains: {"contains: inner": "default space", "contains: outer": "default empty"},
+    count: {"count: in": "default zero"},
+    empty: {"empty: in": "default zero"},
+    mean: {"mean: in": "default zero"},
+    split: {"split: split": "default space", "split: string": "default empty"},
+    "standard deviation": {"standard deviation: in": "default zero"},
+    subtract: {"subtract: in A": "default zero", "subtract: in B": "default zero"},
+    sum: {"sum: in": "default zero"}
+  }
 
   export function initIndexer(noFacts) {
     injectViews(builtins, ixer, noFacts);
@@ -654,7 +668,11 @@ module api {
         var id = field[code.ix("field", "field")];
         var kind = field[code.ix("field", "kind")];
         if(kind === "vector input" || kind === "scalar input") {
-          diffs = diffs.concat(diff.addViewConstraint(viewId, {operation: "=", leftSource: sourceId, leftField: id}));
+          diffs = diffs.concat(diff.addViewConstraint(viewId, {operation: "=",
+                                                               leftSource: sourceId,
+                                                               leftField: id,
+                                                               rightSource: "constant",
+                                                               rightField: primitiveDefaults[primitiveId][id]}));
         }
       });
       return diffs;
