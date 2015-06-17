@@ -1,4 +1,3 @@
-#![feature(convert)]
 use std::thread;
 use std::sync::mpsc;
 use websocket::{Server, Message, Sender, Receiver};
@@ -187,8 +186,6 @@ pub fn run() {
 
             ServerEvent::Sync((mut sender,user_id)) => {
 
-				let session_id = format!("{}", sender.get_mut().peer_addr().unwrap());
-
                 // Add a session to the session table
                 let session_id = format!("{}", sender.get_mut().peer_addr().unwrap());
 				let mut add_session = client::insert_fact(&"sessions",&vec!["id","status"],&vec![Value::String(session_id.clone()),
@@ -202,11 +199,9 @@ pub fn run() {
                         client::insert_fact(&"session id to user id",&vec!["session id","user id"],&vec![Value::String(session_id.clone()),
                                                                                                  Value::String(user_id),
                                                                                                 ],Some(add_session))
-						//add_session
                     },
                     None => add_session,
                 };
-
                 flow = send_changes(add_session,flow,&mut senders);
 
                 time!("syncing", {
