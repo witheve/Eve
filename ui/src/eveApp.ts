@@ -4,7 +4,7 @@
 /// <reference path="uiEditorRenderer.ts" />
 /// <reference path="api.ts" />
 /// <reference path="client.ts" />
-module dispatcher {
+module eveApp {
   var renderer = uiEditorRenderer;
   var ixer = api.ixer;
   document.body.appendChild(renderer.root);
@@ -58,4 +58,5 @@ module dispatcher {
 
   export var render = renderer.render;
   export var isApp = true;
+  window["dispatcher"] = eveApp;
 }

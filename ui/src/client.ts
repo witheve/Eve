@@ -349,5 +349,8 @@ module client {
     afterInitFuncs.push(func);
   }
 
-  connectToServer();
+  document.addEventListener("DOMContentLoaded", function() {
+    connectToServer();
+  });
+
 }
