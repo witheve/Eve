@@ -26,6 +26,7 @@ use websocket::{Message, Sender};
 use std::path::Path;
 use std::fs::PathExt;
 use conduit_mime_types::Types;
+use std::str::FromStr;
 
 use eve::client::*;
 use eve::server;
@@ -92,10 +93,7 @@ fn file_exists(path: &str) -> bool {
 
 fn serve_local_or_file(mut res: Response<Fresh>, path: &Vec<String>, default_file: &str) {
 	let mime_types = Types::new().unwrap();
-	let local_path = path[1..].iter().fold("../ui".to_owned(), |mut end, cur| {
-		end = end + "/" + cur;
-		end
-	});
+	let local_path = path[1..].iter().fold("../ui".to_owned(), |end, cur| end + "/" + cur);
 	let file;
 	let file_path: &str;
 	if file_exists(&local_path) {
@@ -112,7 +110,7 @@ fn serve_local_or_file(mut res: Response<Fresh>, path: &Vec<String>, default_fil
 		file = str.as_bytes().to_owned();
 		file_path = default_file;
 	}
-	let mime: Mime = mime_types.mime_for_path(Path::new(&file_path)).parse().unwrap();
+	let mime: Mime = Mime::from_str(mime_types.mime_for_path(Path::new(&file_path))).unwrap();
 	res.headers_mut().set(ContentType(mime));
 	let mut res = res.start().unwrap();
 	res.write_all(&file).unwrap();
