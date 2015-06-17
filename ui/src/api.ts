@@ -1169,6 +1169,7 @@ module api {
    * Read/Write API
   \***************************************************************************/
    export function mapToFact(viewId:Id, props) {
+    if(arguments.length < 2) { throw new Error("Must specify viewId and map to convert to fact."); }
     var fieldIds = code.sortedViewFields(viewId); // @FIXME: We need to cache these horribly badly.
     var length = fieldIds.length;
     var fact = new Array(length);
@@ -1184,6 +1185,7 @@ module api {
   }
 
   export function factToMap(viewId:Id, fact:Fact) {
+    if(arguments.length < 2) { throw new Error("Must specify viewId and fact to convert to map."); }
     var fieldIds = code.sortedViewFields(viewId); // @FIXME: We need to cache these horribly badly.
     var length = fieldIds.length;
     var map = {};
