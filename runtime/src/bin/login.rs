@@ -184,7 +184,7 @@ fn login(req: Request, mut res: Response<Fresh>) {
 									println!("Login Successful. Redirecting to user area.");
 
 									// Connect to the Eve runtime and add the user to the eveusers table
-									let ws_result = open_websocket("ws://192.168.137.38:2794");
+									let ws_result = open_websocket("ws://0.0.0.0:2794");
 									match ws_result {
 										// If things went okay, redirect to the Eve UI
 										Ok(mut sender) => {
