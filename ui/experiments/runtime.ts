@@ -348,7 +348,7 @@ function bench(size) {
   var ks = [];
   var t = new MergeTree();
   for (var i = 0; i < size; i++) {
-    ks.push(i * 2);
+    ks.push(i * 2 + "asdf");
   }
   t = t.addBulk(ks, ks);
   var end = performance.now();
@@ -361,7 +361,8 @@ function benchObject(size) {
   var t = {};
   var results = [];
   for (var i = 0; i < size; i++) {
-    t[i] = i;
+    var foo = [i, i + 1, i + "no wai"];
+    t[JSON.stringify(foo)] = foo;
   }
   var end = performance.now();
   console.log("object", end - start);

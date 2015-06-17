@@ -166,6 +166,7 @@ module microReact {
         if(cur.blur !== prev.blur) div.onblur = cur.blur !== undefined ? this.handleEvent : undefined;
         if(cur.input !== prev.input) div.oninput = cur.input !== undefined ? this.handleEvent : undefined;
         if(cur.change !== prev.change) div.onchange = cur.change !== undefined ? this.handleEvent : undefined;
+        if(cur.keyup !== prev.keyup) div.onkeyup = cur.keyup !== undefined ? this.handleEvent : undefined;
         if(cur.keydown !== prev.keydown) div.onkeydown = cur.keydown !== undefined ? this.handleEvent : undefined;
 
         if(type === "added" || type === "replaced" || type === "moved") {

@@ -154,17 +154,18 @@ module api {
       "uiStyle": {name: "uiStyle", fields: ["tx", "id", "type", "element", "shared"]},
       "uiGroupBinding": {name: "uiGroupBinding", fields: ["group", "view"]},
       "uiAttrBinding": {name: "uiAttrBinding", fields: ["elementId", "attr", "field"]},
+      "uiKeyCapture": {name: "uiKeyCapture", fields: ["elementId", "key"]},
     },
 
     runtime: {
-      "client event": {name: "client event", fields: ["session", "eventId", "type", "element", "row"]},
-      "mouse position": {name: "mouse position", fields: ["session", "eventId", "x", "y"]},
+      "client event": {name: "client event", fields: ["session", "eventId", "type", "element", "row"], tags: ["remote"]},
+      "mouse position": {name: "mouse position", fields: ["session", "eventId", "x", "y"], tags: ["remote"]},
       "text input": {name: "text input", fields: ["session", "eventId", "element", "binding", "value"], tags: ["remote"]},
       "location": {name: "location", fields: ["session", "latitude", "longitude", "accuracy", "timestamp"], tags: ["remote"]},
       "session url": {name: "session url", fields: ["session", "eventId", "href", "origin", "path", "hash"], tags: ["remote"]},
-      "eveusers": {name: "eveusers", fields: ["id", "username"]},
-      "sessions": {name: "sessions", fields: ["id", "user id", "status"]},
-      "url segments": {name: "url segments", fields: ["session", "segment #", "segment"]},
+      "eveusers": {name: "eveusers", fields: ["id", "username"], tags: ["remote"]},
+      "sessions": {name: "sessions", fields: ["id", "user id", "status"], tags: ["remote"]},
+      "captured key": {name: "captured key", fields: ["session", "eventId", "element", "key", "binding"], tags: ["remote"]}
     },
 
     example: {
@@ -1036,6 +1037,7 @@ module api {
      "client event": {},
      "location": {},
      "session url": {},
+     "captured key": {},
   };
 
   /***************************************************************************\

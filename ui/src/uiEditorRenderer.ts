@@ -214,7 +214,8 @@ module uiEditorRenderer {
       elem.dblclick = handleMouseEvent;
     } else if(type === "input") {
       elem.input = handleInputEvent;
-      elem.keydown = handleKeyEvent;
+      elem.keydown = handleKeyDownEvent;
+      elem.keyup = handleKeyUpEvent;
     } else {
       elem.c += " non-interactive";
     }
@@ -266,9 +267,41 @@ module uiEditorRenderer {
     client.sendToServer(api.toDiffs(diffs), false);
   }
 
-  function handleKeyEvent(e, elem) {
-    //@TODO: design capture API.
-    //@TODO: should the keydown table be synchronous?
+  var keyLookup = {
+    13: "enter",
+    38: "up",
+    40: "down"
+  }
+  var currentlyCaptured = {};
+  function handleKeyDownEvent(e, elem) {
+    var boundId = elem.key;
+    var key = keyLookup[e.keyCode];
+    var captured = ixer.selectOne("uiKeyCapture", {elementId: elem.elementId, key: key});
+    if(captured && !currentlyCaptured[key]) {
+      e.preventDefault();
+      var eventId = nextEventId();
+      var diffs = [
+        api.insert("client event", {session: session, eventId: eventId, element: elem.elementId, row: boundId, type: e.type}),
+        api.insert("captured key", {session: session, element: elem.elementId, eventId: nextEventId(), key: key, binding: boundId})
+      ];
+      currentlyCaptured[key] = true;
+      client.sendToServer(api.toDiffs(diffs), false);
+    }
+  }
+  function handleKeyUpEvent(e, elem) {
+    var boundId = elem.key;
+    var key = keyLookup[e.keyCode];
+    var captured = ixer.selectOne("uiKeyCapture", {elementId: elem.elementId, key: key});
+    if(captured) {
+      e.preventDefault();
+      var eventId = nextEventId();
+      var diffs = [
+        api.insert("client event", {session: session, eventId: eventId, element: elem.elementId, row: boundId, type: e.type}),
+        api.remove("captured key", {session: session, element: elem.elementId, key: key, binding: boundId})
+      ];
+      currentlyCaptured[key] = false;
+      client.sendToServer(api.toDiffs(diffs), false);
+    }
   }
 
   export var root = renderer.content;
