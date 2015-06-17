@@ -242,24 +242,28 @@ module uiEditorRenderer {
 
   function handleMouseEvent(e, elem) {
     var boundId = elem.key;
-    var diffs = [["client event", "inserted", [session, ++eventId, e.type, elem.elementId, boundId]],
-                 ["mouse position", "inserted", [session, eventId, e.clientX, e.clientY]]]
+    var eventId = nextEventId();
+    var diffs = [
+      api.insert("client event", {session: session, eventId: eventId, element: elem.elementId, row: boundId, type: e.type}),
+      api.insert("mouse position", {session: session, eventId: eventId, x: e.clientX, y: e.clientY}),
+      api.remove("mouse position", {session: session})
+    ];
     if(e.type === "click") {
-      diffs.push(["click", "inserted", [eventId, elem.elementId, boundId]]);
+      diffs.push(api.insert("click", {"event number": eventId, button: elem.elementId, binding: boundId}));
     }
-    client.sendToServer(diffs, false); // @GLOBAL to avoid circular dep.
+    client.sendToServer(api.toDiffs(diffs), false); // @GLOBAL to avoid circular dep
   }
 
   function handleInputEvent(e, elem) {
     var boundId = elem.key;
     var value = e.currentTarget.value;
-    var diffs = [["client event", "inserted", [session, ++eventId, e.type, elem.elementId, boundId]],
-                 ["text input", "inserted", [session, ++eventId, elem.elementId, boundId, value]]];
-    var prevInputs = ixer.select("text input", {session: session, element: elem.elementId});
-    for(var prev of prevInputs) {
-      diffs.push(["text input", "removed", [prev.session, prev.eventId, prev.element, prev.binding, prev.value]]);
-    }
-    client.sendToServer(diffs, false);
+    var eventId = nextEventId();
+    var diffs = [
+      api.insert("client event", {session: session, eventId: eventId, element: elem.elementId, row: boundId, type: e.type}),
+      api.insert("text input", {session: session, eventId: eventId, element: elem.elementId, binding: boundId, value: value}),
+      api.remove("text input", {session: session, element: elem.elementId})
+    ];
+    client.sendToServer(api.toDiffs(diffs), false);
   }
 
   function handleKeyEvent(e, elem) {

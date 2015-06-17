@@ -1013,6 +1013,9 @@ module api {
                            singular: true},
 
      "text input": {},
+     "mouse position": {},
+     "click": {},
+     "client event": {},
      "location": {},
      "session url": {},
   };

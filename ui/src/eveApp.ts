@@ -34,14 +34,17 @@ module dispatcher {
   //---------------------------------------------------------
     
   function handlePosition(pos) {
-    console.log("handle position: ", pos);
     var coords = pos.coords;
-    var diffs = [["location", "inserted", [renderer.session, coords.latitude, coords.longitude, coords.accuracy, pos.timestamp]]];
-    var prevLocations = ixer.select("location", {session: renderer.session});
-    for(var prev of prevLocations) {
-      diffs.push(["location", "removed", [prev.session, prev.latitude, prev.longitude, prev.accuracy, prev.timestamp]]);
-    }
-    client.sendToServer(diffs, false);
+    var diffs = [];
+    diffs.push(api.insert("location", {
+      session: renderer.session,
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      accuracy: coords.accuracy,
+      timestamp: pos.timestamp
+    }));
+    diffs.push(api.remove("location", {session: renderer.session}));
+    client.sendToServer(api.toDiffs(diffs), false);
   }
   
   //---------------------------------------------------------
