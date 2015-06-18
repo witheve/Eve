@@ -153,7 +153,7 @@ fn login(req: Request, mut res: Response<Fresh>) {
 					println!("Authenticating User");
 					let pairs = query_pairs.clone().unwrap();
 					match &pairs[..] {
-						[(ref token_type, ref token), ..] if token_type.clone() == "token".to_string() => {
+						[(_ , ref page), (ref token_type, ref token), ..] if token_type.clone() == "token".to_string() => {
 
 							// We have a login token, now to authenticate
 							let mut client = hyper::client::Client::new();
@@ -193,7 +193,7 @@ fn login(req: Request, mut res: Response<Fresh>) {
 
 											// Form the response headers
 											let mut headers = Headers::new();
-											let location = Location("/editor.html".to_string());
+											let location = Location("/".to_string() + page);
 											let user_cookie = Cookie::new("userid".to_string(),session_data.user.id.clone());
 											let cookies = SetCookie(vec![user_cookie]);
 											headers.set(location);
