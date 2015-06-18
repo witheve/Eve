@@ -19,8 +19,8 @@ module api {
   export var arraysIdentical:(a:any[], b:any[])=>boolean = Indexing.arraysIdentical;
 
   if(!window.DEBUG) {
-    window.DEBUG = {RECEIVE: 3,
-                    SEND: 3,
+    window.DEBUG = {RECEIVE: 0,
+                    SEND: 0,
                     INDEXER: 0};
   }
 
