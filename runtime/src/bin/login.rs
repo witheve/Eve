@@ -1,4 +1,5 @@
 #![feature(slice_patterns)]
+#![feature(path_ext)]
 extern crate eve;
 extern crate hyper;
 extern crate cookie;
@@ -6,8 +7,11 @@ extern crate mime;
 extern crate url;
 extern crate websocket;
 extern crate rustc_serialize;
+extern crate conduit_mime_types;
 
 use std::io::Read;
+use std::io::Write;
+use std::fs::File;
 use std::error::Error;
 use hyper::net::Fresh;
 use hyper::server::{Server, Request, Response};
@@ -19,6 +23,10 @@ use mime::Mime;
 use url::SchemeData::Relative;
 use rustc_serialize::json;
 use websocket::{Message, Sender};
+use std::path::Path;
+use std::fs::PathExt;
+use conduit_mime_types::Types;
+use std::str::FromStr;
 
 use eve::client::*;
 use eve::server;
@@ -71,6 +79,44 @@ fn main() {
 	Server::http(login).listen("0.0.0.0:8080").unwrap();
 }
 
+fn read_file_bytes(filename: &str) -> Vec<u8> {
+    let mut file = File::open(&filename).unwrap();
+    let mut contents: Vec<u8> = Vec::new();
+	file.read_to_end(&mut contents).unwrap();
+	contents
+}
+
+fn file_exists(path: &str) -> bool {
+	let path_obj = Path::new(path);
+	path_obj.is_file() && path_obj.exists()
+}
+
+fn serve_local_or_file(mut res: Response<Fresh>, path: &Vec<String>, default_file: &str) {
+	let mime_types = Types::new().unwrap();
+	let local_path = path[1..].iter().fold("../ui".to_owned(), |end, cur| end + "/" + cur);
+	let file;
+	let file_path: &str;
+	if file_exists(&local_path) {
+		file = read_file_bytes(&local_path);
+		file_path = &local_path;
+	} else {
+		let content = read_file_bytes(default_file);
+		//@HACK, @TODO: absolutize the html file so that it looks in the right place
+		//this allows us to use file:/// locally, while still doing the right thing
+		//when we're hooked up to the server
+		let mut str = String::from_utf8(content).unwrap();
+		str = str.replace("href=\"", "href=\"/app/");
+		str = str.replace("src=\"", "src=\"/app/");
+		file = str.as_bytes().to_owned();
+		file_path = default_file;
+	}
+	let mime: Mime = Mime::from_str(mime_types.mime_for_path(Path::new(&file_path))).unwrap();
+	res.headers_mut().set(ContentType(mime));
+	let mut res = res.start().unwrap();
+	res.write_all(&file).unwrap();
+	res.end().unwrap();
+}
+
 fn login(req: Request, mut res: Response<Fresh>) {
 
 	match (&req.method.clone(), &req.uri.clone()) {
@@ -87,12 +133,22 @@ fn login(req: Request, mut res: Response<Fresh>) {
 				&Relative(ref rsd) => rsd.path[0].clone(),
 				_ => panic!("Expected relative path"),
 			};
+			let path_info = match scheme_data {
+				&Relative(ref rsd) => rsd,
+				_ => panic!("Expected relative path"),
+			};
 
 			// Parse the query string
 			let query_pairs = &url.query_pairs();
 
 			// Handle login
 			match &*requested_file {
+				"app.html" | "app" => {
+					serve_local_or_file(res, &path_info.path, "../ui/app.html");
+				},
+				"editor.html" | "editor" => {
+					serve_local_or_file(res, &path_info.path, "../ui/editor.html");
+				},
 				"login.html" => {
 					println!("Authenticating User");
 					let pairs = query_pairs.clone().unwrap();
@@ -128,7 +184,7 @@ fn login(req: Request, mut res: Response<Fresh>) {
 									println!("Login Successful. Redirecting to user area.");
 
 									// Connect to the Eve runtime and add the user to the eveusers table
-									let ws_result = open_websocket("ws://192.168.137.38:2794");
+									let ws_result = open_websocket("ws://0.0.0.0:2794");
 									match ws_result {
 										// If things went okay, redirect to the Eve UI
 										Ok(mut sender) => {
@@ -137,7 +193,7 @@ fn login(req: Request, mut res: Response<Fresh>) {
 
 											// Form the response headers
 											let mut headers = Headers::new();
-											let location = Location("http://192.168.137.38:1234/editor.html".to_string());
+											let location = Location("/editor.html".to_string());
 											let user_cookie = Cookie::new("userid".to_string(),session_data.user.id.clone());
 											let cookies = SetCookie(vec![user_cookie]);
 											headers.set(location);

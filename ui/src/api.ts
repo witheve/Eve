@@ -3,10 +3,10 @@ module api {
   declare var window;
   declare var Indexing;
   declare var uuid;
-  
+
   type Id = string;
   type Fact = any[];
-  
+
   interface Constraint {
     view?: Id,
     leftSource?: Id,
@@ -17,10 +17,10 @@ module api {
   }
 
   export var arraysIdentical:(a:any[], b:any[])=>boolean = Indexing.arraysIdentical;
-  
+
   if(!window.DEBUG) {
-    window.DEBUG = {RECEIVE: 3,
-                    SEND: 3,
+    window.DEBUG = {RECEIVE: 0,
+                    SEND: 0,
                     INDEXER: 0};
   }
 
@@ -52,7 +52,7 @@ module api {
     }
     return result;
   }
-  
+
   export function extend(dest, src) {
     for(var key in src) {
       if(!src.hasOwnProperty(key)) { continue; }
@@ -83,7 +83,7 @@ module api {
     return char.toLowerCase();
   });
   var alphabetLowerToIx = invert(alphabetLower);
-  
+
   export function reverseDiff(diff) {
     var neue = [];
     for(var diffIx = 0, diffLen = diff.length; diffIx < diffLen; diffIx++) {
@@ -109,7 +109,10 @@ module api {
       view: {name: "view", fields: ["view", "kind"]},
       field: {name: "field", fields: ["view", "field", "kind"]},
       source: {name: "source", fields: ["view", "source", "source view"]},
-      constant: {name: "constant", fields: ["constant", "value"]},
+      constant: {name: "constant", fields: ["constant", "value"], facts: [["default empty", ""],
+                                                                          ["default zero", 0],
+                                                                          ["default space", " "],
+                                                                          ["default zero string", "0"]]},
       select: {name: "select", fields: ["view", "view field", "source", "source field"]},
 
       "constraint": {name: "constraint", fields: ["constraint", "view"]},
@@ -152,25 +155,24 @@ module api {
       "uiStyle": {name: "uiStyle", fields: ["tx", "id", "type", "element", "shared"]},
       "uiGroupBinding": {name: "uiGroupBinding", fields: ["group", "view"]},
       "uiAttrBinding": {name: "uiAttrBinding", fields: ["elementId", "attr", "field"]},
+      "uiKeyCapture": {name: "uiKeyCapture", fields: ["elementId", "key"]},
     },
 
     runtime: {
-      "client event": {name: "client event", fields: ["session", "eventId", "type", "element", "row"]},
-      "mouse position": {name: "mouse position", fields: ["session", "eventId", "x", "y"]},
+      "client event": {name: "client event", fields: ["session", "eventId", "type", "element", "row"], tags: ["remote"]},
+      "mouse position": {name: "mouse position", fields: ["session", "eventId", "x", "y"], tags: ["remote"]},
       "text input": {name: "text input", fields: ["session", "eventId", "element", "binding", "value"], tags: ["remote"]},
       "location": {name: "location", fields: ["session", "latitude", "longitude", "accuracy", "timestamp"], tags: ["remote"]},
       "session url": {name: "session url", fields: ["session", "eventId", "href", "origin", "path", "hash"], tags: ["remote"]},
-      "eveusers": {name: "eveusers", fields: ["id", "username"]},
-      "sessions": {name: "sessions", fields: ["id", "user id", "status"]},
-      "url segments": {name: "url segments", fields: ["session", "segment #", "segment"]},
+      "eveusers": {name: "eveusers", fields: ["id", "username"], tags: ["remote"]},
+      "sessions": {name: "sessions", fields: ["id", "status"], tags: ["remote"]},
+      "session id to user id": {name: "session id to user id", fields: ["session id", "user id"], tags: ["remote"]},
+      "captured key": {name: "captured key", fields: ["session", "eventId", "element", "key", "binding"], tags: ["remote"]}
     },
 
     example: {
-
       "department heads": {name: "department heads", fields: ["department", "head"]},
       "employees": {name: "employees", fields: ["department", "name", "salary"]},
-
-
       "book": {name: "book", fields: ["isbn", "title", "author", "price", "cost"]},
       "book sales": {name: "book sales", fields: ["order", "sales"]},
       "PDGF assay": {name: "PDGF assay", fields: ["PDGF concentration", "Seed density", "Well #", "Absorbance"]},
@@ -196,6 +198,19 @@ module api {
       numbers: {name: "numbers", fields: ["x"], facts: [[0], [1], [2], [3]]},
     }
   };
+
+  export var primitiveDefaults = {
+    add: {"add: in A": "default zero", "add: in B": "default zero"},
+    contains: {"contains: inner": "default space", "contains: outer": "default empty"},
+    count: {"count: in": "default zero"},
+    empty: {"empty: in": "default zero"},
+    mean: {"mean: in": "default zero"},
+    split: {"split: split": "default space", "split: string": "default empty"},
+    "parse float": {"parse float: a": "default zero string"},
+    "standard deviation": {"standard deviation: in": "default zero"},
+    subtract: {"subtract: in A": "default zero", "subtract: in B": "default zero"},
+    sum: {"sum: in": "default zero"}
+  }
 
   export function initIndexer(noFacts) {
     injectViews(builtins, ixer, noFacts);
@@ -252,13 +267,10 @@ module api {
   ixer.addIndex("primitive", "primitive", Indexing.create.lookup([0, false]));
   ixer.addIndex("primitive kind to views", "primitive", Indexing.create.collector([1]));
   ixer.addIndex("query to export", "query export", Indexing.create.lookup([0, 1]));
-
   ixer.addIndex("editor item to type", "editor item", Indexing.create.lookup([0, 1]));
-
   ixer.addIndex("eveusers id to username", "eveusers", Indexing.create.lookup([0, 1]));
 
   // ui
-
   ixer.addIndex("uiComponentElement", "uiComponentElement", Indexing.create.lookup([1, false]));
   ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector([2]));
   ixer.addIndex("uiComponentLayer", "uiComponentLayer", Indexing.create.lookup([1, false]));
@@ -654,7 +666,11 @@ module api {
         var id = field[code.ix("field", "field")];
         var kind = field[code.ix("field", "kind")];
         if(kind === "vector input" || kind === "scalar input") {
-          diffs = diffs.concat(diff.addViewConstraint(viewId, {operation: "=", leftSource: sourceId, leftField: id}));
+          diffs = diffs.concat(diff.addViewConstraint(viewId, {operation: "=",
+                                                               leftSource: sourceId,
+                                                               leftField: id,
+                                                               rightSource: "constant",
+                                                               rightField: primitiveDefaults[primitiveId][id]}));
         }
       });
       return diffs;
@@ -966,20 +982,20 @@ module api {
                            activeItem: null,
                            showMenu: true,
                            uiGridSize: 10};
-                           
-                           
-                           
+
+
+
   type Diff = any[];
   interface Context {[key:string]: Id}
   interface Write<T> {type: string, content: T, context: Context, mode?: string, originalKeys?: string[]}
-  
+
   interface Schema {
     key?: string|string[]
     dependents?: Id[]
     foreign?: {[field:string]: string}
     singular?: boolean
   }
-  
+
   var pkDependents = ["display name", "display order", "tag"];
   var schemas:{[id:string]: Schema} = {
     "display name": {foreign: {$last: "id"},
@@ -987,7 +1003,7 @@ module api {
     "display order": {foreign: {$last: "id"},
                       singular: true},
     tag: {foreign: {$last: "view"}},
-    
+
     block: {key: "block",
             foreign: {view: "view"},
             singular: true,
@@ -1004,26 +1020,32 @@ module api {
             dependents: pkDependents.concat(["select"])},
     select: {foreign: {view: "view", field: "view field"}},
     constraint: {key: "constraint", foreign: {view: "view"}},
-    
+
     "aggregate grouping": {foreign: {view: "aggregate", /*field: "inner field"*/}},
     "aggregate sorting": {foreign: {view: "aggregate", /*field: "inner field"*/}},
     "aggregate limit from": {foreign: {view: "aggregate"},
                              singular: true},
     "aggregate limit to": {foreign: {view: "aggregate"},
                            singular: true},
-                           
+
      "text input": {},
+     "mouse position": {},
+     "click": {},
+     "client event": {},
+     "location": {},
+     "session url": {},
+     "captured key": {},
   };
-  
+
   /***************************************************************************\
    * Read/Write primitives.
-  \***************************************************************************/ 
+  \***************************************************************************/
   function fillForeignKeys(type, query, context) {
     var schema = schemas[type];
     if(!schema) { throw new Error("Attempted to process unknown type " + type + " with query " + JSON.stringify(query)); }
     var foreignKeys = schema.foreign;
     if(!foreignKeys) { return query; }
-    
+
     for(var contextKey in foreignKeys) {
       var foreignKey = foreignKeys[contextKey];
       if(!foreignKeys.hasOwnProperty(contextKey)) { continue; }
@@ -1035,13 +1057,13 @@ module api {
     }
     return query;
   }
-  
+
   export function process(type:string, params, context?:Context): Write<any> {
     var schema = schemas[type];
     if(!schema) { throw new Error("Attempted to process unknown type " + type + " with params " + JSON.stringify(params)); }
     if(!params) { throw new Error("Invalid params specified for type " + type + " with params " + JSON.stringify(params)); }
     if(!context) { context = {}; } // @NOTE: Should we clone this? If so, should we clone params as well?
-    
+
     // Fill primary keys if missing.
     var keys:string[] = (schema.key instanceof Array) ? <string[]>schema.key : (schema.key) ? [<string>schema.key] : [];
     for(var key of keys) {
@@ -1053,12 +1075,12 @@ module api {
     if(keys.length === 1) {
       context["$last"] = params[keys[0]];
     }
-    
+
     // Link foreign keys from context if missing.
     if(schema.foreign) {
       var params = fillForeignKeys(type, params, context);
     }
-    
+
     // Ensure remaining fields exist and contain something.
     var fieldIdIx = code.ix("field", "field");
     var fields = ixer.index("view to fields")[type] || [];
@@ -1068,7 +1090,7 @@ module api {
         throw new Error("Missing value for field " + fieldName + " on type " + type);
       }
     }
-    
+
     // Process dependents recursively.
     if(params.dependents) {
       var dependents = params.dependents;
@@ -1077,22 +1099,22 @@ module api {
         if(dependents[dep] instanceof Array) {
           for(var depItem of dependents[dep]) {
             process(dep, depItem, context);
-          }  
+          }
         } else {
           process(dep, dependents[dep], context);
         }
-      } 
+      }
     }
-    
+
     return {type: type, content: params, context: context};
   }
-  
+
   export function retrieve(type:string, query:{[key:string]:string}, context?) {
     context = context || {};
     var schema = schemas[type];
     if(!schema) { throw new Error("Attempted to retrieve unknown type " + type + " with params " + JSON.stringify(query)); }
-    var keys:string[] = (schema.key instanceof Array) ? <string[]>schema.key : (schema.key) ? [<string>schema.key] : [];    
-        
+    var keys:string[] = (schema.key instanceof Array) ? <string[]>schema.key : (schema.key) ? [<string>schema.key] : [];
+
     var facts = ixer.select(type, query); // @FIXME: Cannot query on compound constraint views yet.
     if(!facts.length) { return; }
     for(var fact of facts) {
@@ -1104,7 +1126,7 @@ module api {
       if(keys.length === 1) {
         factContext["$last"] = fact[keys[0]];
       }
-      
+
       switch(type) {
         case "constraint":
           var subQuery = {constraint: fact.constraint};
@@ -1113,16 +1135,16 @@ module api {
           extend(fact, ixer.selectOne("constraint operation", subQuery));
           break;
       }
-      
+
       var dependents = {};
       var hasDependents = false;
       if(schema.dependents) {
         for(var dependent of schema.dependents) {
           var depSchema = schemas[dependent];
-          
+
           //debugger;
           var q = <{[key:string]:string}>fillForeignKeys(dependent, {}, factContext);
-          
+
           var results = retrieve(dependent, q, clone(factContext));
           if(results && results.length) {
             if(depSchema.singular) {
@@ -1138,14 +1160,15 @@ module api {
         fact.dependents = dependents;
       }
     }
-    
+
     return facts;
   }
-  
+
   /***************************************************************************\
    * Read/Write API
   \***************************************************************************/
    export function mapToFact(viewId:Id, props) {
+    if(arguments.length < 2) { throw new Error("Must specify viewId and map to convert to fact."); }
     var fieldIds = code.sortedViewFields(viewId); // @FIXME: We need to cache these horribly badly.
     var length = fieldIds.length;
     var fact = new Array(length);
@@ -1159,8 +1182,9 @@ module api {
     }
     return fact;
   }
-  
+
   export function factToMap(viewId:Id, fact:Fact) {
+    if(arguments.length < 2) { throw new Error("Must specify viewId and fact to convert to map."); }
     var fieldIds = code.sortedViewFields(viewId); // @FIXME: We need to cache these horribly badly.
     var length = fieldIds.length;
     var map = {};
@@ -1169,50 +1193,58 @@ module api {
       map[name] = fact[ix];
     }
     return map;
-  } 
-  
+  }
+
   export function insert(type:string, params, context?:Context):Write<any> {
     if(arguments.length < 2) { throw new Error("Must specify type and parameters for insert."); }
     var write = process(type, params, context);
     write.mode = "inserted";
     return write;
   }
-  
+
   export function change(type:string, params, context?:Context):Write<any> {
     if(arguments.length < 2) { throw new Error("Must specify type and query for change."); }
     var read = retrieve(type, params, context);
     return {type: type, content: read, context: context, mode: "changed", originalKeys: clone(params)};
   }
-  
+
   export function remove(type:string, params, context?:Context):Write<any> {
     if(arguments.length < 2) { throw new Error("Must specify type and query for remove."); }
     var read = retrieve(type, params, context);
     return {type: type, content: read, context: context, mode: "removed"};
   }
-  
+
   export function toDiffs(writes:Write<any>|Write<any>[]):Diff[] {
     var diffs = [];
     if(writes instanceof Array) {
       for(var write of writes) {
-        diffs = diffs.concat(toDiffs(write));
+        var result = toDiffs(write);
+        if(result !== undefined) {
+          diffs = diffs.concat(result);
+        }
       }
       return diffs;
     } else {
-      var write:Write<any> = <Write<any>>writes; 
+      var write:Write<any> = <Write<any>>writes;
     }
-    
+
     var type = write.type;
     var params = write.content;
     var mode = write.mode;
-    
+
+    if(!params) {
+      //if we have no content, then there's nothing for us to do.
+      return;
+    }
+
     if(mode === "changed") {
       // Remove the existing root and all of its dependents, then swap mode to inserted to replace them.
       if(!write.originalKeys) { throw new Error("Change specified for " + type + ", but no write.originalKeys specified."); }
       diffs = diffs.concat(toDiffs(remove(type, write.originalKeys)));
       mode = "inserted";
     }
-    
-    if(params instanceof Array) {      
+
+    if(params instanceof Array) {
       for(var item of params) {
         diffs = diffs.concat(toDiffs({type: type, content: item, context: write.context, mode: mode}));
       }
@@ -1228,7 +1260,7 @@ module api {
       if(!dependents.hasOwnProperty(key)) { continue; }
       diffs = diffs.concat(toDiffs({type: key, content: dependents[key], context: write.context, mode: mode}));
     }
-    
+
     // Handle custom dependents.
     switch(type) {
       case "constraint":
@@ -1237,7 +1269,7 @@ module api {
                    ["constraint operation", mode, mapToFact("constraint operation", params)]);
         break;
     }
-    
+
     return diffs;
   }
 }

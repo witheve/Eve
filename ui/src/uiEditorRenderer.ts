@@ -14,7 +14,7 @@ module uiEditorRenderer {
   var ixer = api.ixer;
   var code = api.code;
 
-  var ids = {"active page": "3ff64c83-179b-4c6f-bfb6-715af2a27492"};
+  var ids = {"active page": "6b54229a-f5bc-476d-935e-4bb37d2b3ad0"};
   
   export var session = "me";
     
@@ -93,7 +93,7 @@ module uiEditorRenderer {
         sessionIx = ix; 
       } 
     });
-    if(sessionIx) {
+    if(sessionIx !== undefined) {
       return ixer.select(binding, {session: session});
     } else {
       return ixer.select(binding, {});  
@@ -214,7 +214,8 @@ module uiEditorRenderer {
       elem.dblclick = handleMouseEvent;
     } else if(type === "input") {
       elem.input = handleInputEvent;
-      elem.keydown = handleKeyEvent;
+      elem.keydown = handleKeyDownEvent;
+      elem.keyup = handleKeyUpEvent;
     } else {
       elem.c += " non-interactive";
     }
@@ -242,29 +243,65 @@ module uiEditorRenderer {
 
   function handleMouseEvent(e, elem) {
     var boundId = elem.key;
-    var diffs = [["client event", "inserted", [session, ++eventId, e.type, elem.elementId, boundId]],
-                 ["mouse position", "inserted", [session, eventId, e.clientX, e.clientY]]]
+    var eventId = nextEventId();
+    var diffs = [
+      api.insert("client event", {session: session, eventId: eventId, element: elem.elementId, row: boundId, type: e.type}),
+      api.insert("mouse position", {session: session, eventId: eventId, x: e.clientX, y: e.clientY}),
+      api.remove("mouse position", {session: session})
+    ];
     if(e.type === "click") {
-      diffs.push(["click", "inserted", [eventId, elem.elementId, boundId]]);
+      diffs.push(api.insert("click", {"event number": eventId, button: elem.elementId, binding: boundId}));
     }
-    client.sendToServer(diffs, false); // @GLOBAL to avoid circular dep.
+    client.sendToServer(api.toDiffs(diffs), false); // @GLOBAL to avoid circular dep
   }
 
   function handleInputEvent(e, elem) {
     var boundId = elem.key;
     var value = e.currentTarget.value;
-    var diffs = [["client event", "inserted", [session, ++eventId, e.type, elem.elementId, boundId]],
-                 ["text input", "inserted", [session, ++eventId, elem.elementId, boundId, value]]];
-    var prevInputs = ixer.select("text input", {session: session, element: elem.elementId});
-    for(var prev of prevInputs) {
-      diffs.push(["text input", "removed", [prev.session, prev.eventId, prev.element, prev.binding, prev.value]]);
-    }
-    client.sendToServer(diffs, false);
+    var eventId = nextEventId();
+    var diffs = [
+      api.insert("client event", {session: session, eventId: eventId, element: elem.elementId, row: boundId, type: e.type}),
+      api.insert("text input", {session: session, eventId: eventId, element: elem.elementId, binding: boundId, value: value}),
+      api.remove("text input", {session: session, element: elem.elementId})
+    ];
+    client.sendToServer(api.toDiffs(diffs), false);
   }
 
-  function handleKeyEvent(e, elem) {
-    //@TODO: design capture API.
-    //@TODO: should the keydown table be synchronous?
+  var keyLookup = {
+    13: "enter",
+    38: "up",
+    40: "down"
+  }
+  var currentlyCaptured = {};
+  function handleKeyDownEvent(e, elem) {
+    var boundId = elem.key;
+    var key = keyLookup[e.keyCode];
+    var captured = ixer.selectOne("uiKeyCapture", {elementId: elem.elementId, key: key});
+    if(captured && !currentlyCaptured[key]) {
+      e.preventDefault();
+      var eventId = nextEventId();
+      var diffs = [
+        api.insert("client event", {session: session, eventId: eventId, element: elem.elementId, row: boundId, type: e.type}),
+        api.insert("captured key", {session: session, element: elem.elementId, eventId: nextEventId(), key: key, binding: boundId})
+      ];
+      currentlyCaptured[key] = true;
+      client.sendToServer(api.toDiffs(diffs), false);
+    }
+  }
+  function handleKeyUpEvent(e, elem) {
+    var boundId = elem.key;
+    var key = keyLookup[e.keyCode];
+    var captured = ixer.selectOne("uiKeyCapture", {elementId: elem.elementId, key: key});
+    if(captured) {
+      e.preventDefault();
+      var eventId = nextEventId();
+      var diffs = [
+        api.insert("client event", {session: session, eventId: eventId, element: elem.elementId, row: boundId, type: e.type}),
+        api.remove("captured key", {session: session, element: elem.elementId, key: key, binding: boundId})
+      ];
+      currentlyCaptured[key] = false;
+      client.sendToServer(api.toDiffs(diffs), false);
+    }
   }
 
   export var root = renderer.content;
