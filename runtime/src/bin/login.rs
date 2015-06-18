@@ -17,7 +17,7 @@ use hyper::net::Fresh;
 use hyper::server::{Server, Request, Response};
 use hyper::uri::RequestUri;
 use hyper::Url;
-use hyper::header::{Headers,ContentType,SetCookie};
+use hyper::header::{Headers,ContentType,Location,SetCookie};
 use cookie::Cookie;
 use mime::Mime;
 use url::SchemeData::Relative;
@@ -188,11 +188,15 @@ fn login(req: Request, mut res: Response<Fresh>) {
 									match ws_result {
 										// If things went okay, redirect to the Eve UI
 										Ok(mut sender) => {
+											// Form the response
+											*res.status_mut() = hyper::status::StatusCode::PermanentRedirect;
 
 											// Form the response headers
 											let mut headers = Headers::new();
+											let location = Location("http://192.168.137.38:1234/editor.html".to_string());
 											let user_cookie = Cookie::new("userid".to_string(),session_data.user.id.clone());
 											let cookies = SetCookie(vec![user_cookie]);
+											headers.set(location);
 											headers.set(cookies);
 											*res.headers_mut() = headers;
 
@@ -209,10 +213,6 @@ fn login(req: Request, mut res: Response<Fresh>) {
 											send_event(&create_eveusers_table,&mut sender);
 											send_event(&insert_user,&mut sender);
 											let _ = sender.send_message(Message::Close(None));
-
-											// Serve the editor
-											// TODO Should serve a requested file
-											serve_local_or_file(res, &path_info.path, "../ui/editor.html");
 										}
 										// Otherwise, throw an error... maybe redirect to a special page.
 										Err(e) => {
