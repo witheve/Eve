@@ -26,7 +26,7 @@ module client {
       }
     }).filter((r) => r);
     sendToServer({ changes: [[viewId, fieldIds, [], toRemove],
-                             ["display order", api.ixer.sortedViewFields("display order"), [], displayOrders]]}, true);
+                             ["display order", api.code.sortedViewFields("display order"), [], displayOrders]]}, true);
   }
 
   function formatTime(time) {
