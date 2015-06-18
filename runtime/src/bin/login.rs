@@ -143,10 +143,10 @@ fn login(req: Request, mut res: Response<Fresh>) {
 
 			// Handle login
 			match &*requested_file {
-				"app" => {
+				"app.html" | "app" => {
 					serve_local_or_file(res, &path_info.path, "../ui/app.html");
 				},
-				"editor" => {
+				"editor.html" | "editor" => {
 					serve_local_or_file(res, &path_info.path, "../ui/editor.html");
 				},
 				"login.html" => {
@@ -193,7 +193,7 @@ fn login(req: Request, mut res: Response<Fresh>) {
 
 											// Form the response headers
 											let mut headers = Headers::new();
-											let location = Location("http://192.168.137.38:1234/editor.html".to_string());
+											let location = Location("/editor.html".to_string());
 											let user_cookie = Cookie::new("userid".to_string(),session_data.user.id.clone());
 											let cookies = SetCookie(vec![user_cookie]);
 											headers.set(location);
