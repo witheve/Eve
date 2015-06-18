@@ -111,7 +111,8 @@ module api {
       source: {name: "source", fields: ["view", "source", "source view"]},
       constant: {name: "constant", fields: ["constant", "value"], facts: [["default empty", ""],
                                                                           ["default zero", 0],
-                                                                          ["default space", " "]]},
+                                                                          ["default space", " "],
+                                                                          ["default zero string", "0"]]},
       select: {name: "select", fields: ["view", "view field", "source", "source field"]},
 
       "constraint": {name: "constraint", fields: ["constraint", "view"]},
@@ -205,6 +206,7 @@ module api {
     empty: {"empty: in": "default zero"},
     mean: {"mean: in": "default zero"},
     split: {"split: split": "default space", "split: string": "default empty"},
+    "parse float": {"parse float: a": "default zero string"},
     "standard deviation": {"standard deviation: in": "default zero"},
     subtract: {"subtract: in A": "default zero", "subtract: in B": "default zero"},
     sum: {"sum: in": "default zero"}
