@@ -6,27 +6,7 @@
 		<link rel="stylesheet" type="text/css" href="css/login.css">
 		<script src="https://code.jquery.com/jquery-1.11.2.min.js" type="text/javascript"></script>
 		<script src="https://js.authrocket.com/v1/authrocket.js" type="text/javascript"></script>
-		<script type="text/javascript">
-			AuthRocket.setInstanceUrl('https://evetest.e1.loginrocket.com/v1/');
-			$(function(){
-			  $('#signup-form').submit(function(event){
-			    AuthRocket.signup({
-			      username: $('#signup_username').val(),
-			      email: $('#signup_email').val(),
-			      password: $('#signup_password').val(),
-			      password_confirmation: $('#signup_password_confirmation').val()
-			    }, arSignupHandler);
-			    return false;
-			  });
-			  function arSignupHandler(response){
-			    if (response.error) {
-			    	$("#signup-errors").text(response.error);
-			    } else {
-			    	window.location = response.url;
-			    }
-			  };
-			});
-		</script>
+		<script src="eve/src/authenticate.js" type="text/javascript"></script>
 	</head>
 	<body>
 		<div id="content">
