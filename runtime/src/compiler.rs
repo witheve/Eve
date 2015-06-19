@@ -1,5 +1,5 @@
 use std::collections::BitSet;
-use std::cell::RefCell;
+use std::cell::{RefCell, Ref};
 use std::fmt::Debug;
 
 use value::{Value, Tuple};
@@ -9,8 +9,8 @@ use flow::{Node, Flow};
 use primitive;
 use primitive::Primitive;
 
-pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
-    // the schema is arranged as (table name, unique key fields, other fields)
+pub fn schema() -> Vec<(&'static str, Vec<&'static str>)> {
+    // the schema is arranged as (table name, fields)
     // any field whose type is not described is a UUID
 
     vec![
@@ -21,7 +21,7 @@ pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
     // "union" - take the union of multiple views
     // "aggregate" - group one view by the contents of another and run reducing functions on the groups
     // "primitive" - a built-in function, represented as a view with one or more non-Data fields
-    ("view", vec!["view"], vec!["kind"]),
+    ("view", vec!["view", "kind"]),
 
     // views have fields
     // some fields have constraints on how they can be queried
@@ -29,39 +29,39 @@ pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
     // "output" - a normal field
     // "scalar input" - a field that must be constrained to a single scalar value
     // "vector input" - a field that must be constrained to a single vector value (in an aggregate)
-    ("field", vec!["field"], vec!["view", "kind"]),
+    ("field", vec!["field", "view", "kind"]),
 
     // source ids have two purposes
     // a) uniquely generated ids to disambiguate multiple uses of the same view
     // (eg when joining a view with itself)
     // b) fixed ids to identify views which are used for some specific purpose
     // (these are "insert" and "remove" in tables and "inner" and "outer" in aggregates)
-    ("source", vec!["view", "source"], vec!["source view"]),
+    ("source", vec!["view", "source", "source view"]),
 
     // every view also has an implicit "constant" source
     // anywhere source-field is expected, you can instead use "constant"-id
     // `value` may be any valid eve value
-    ("constant", vec!["constant"], vec!["value"]),
+    ("constant", vec!["constant", "value"]),
 
     // constraints filter the results of joins and aggregates
     // the left and right fields are compared using the operation
     // `operation` is one of "=", "/=", "<", "<=", ">", ">="
-    ("constraint", vec!["constraint"], vec!["view"]),
-    ("constraint left", vec!["constraint"], vec!["left source", "left field"]),
-    ("constraint right", vec!["constraint"], vec!["right source", "right field"]),
-    ("constraint operation", vec!["constraint"], vec!["operation"]),
+    ("constraint", vec!["constraint", "view"]),
+    ("constraint left", vec!["constraint", "left source", "left field"]),
+    ("constraint right", vec!["constraint", "right source", "right field"]),
+    ("constraint operation", vec!["constraint", "operation"]),
 
     // aggregates group an "inner" source by the rows of an "outer" source
     // the grouping is determined by binding inner fields to outer fields (TODO or constants)
-    ("aggregate grouping", vec!["aggregate", "inner field"], vec!["outer field"]),
+    ("aggregate grouping", vec!["aggregate", "inner field", "outer field"]),
     // before aggregation the groups are sorted
     // `priority` is an f64. higher priority fields are compared first. ties are broken by field id
     // `direction` is one of "ascending" or "descending"
     // fields which have no entry default to 0, "ascending"
-    ("aggregate sorting", vec!["aggregate", "inner field"], vec!["priority", "direction"]),
+    ("aggregate sorting", vec!["aggregate", "inner field", "priority", "direction"]),
     // groups may optionally be limited by an inner field or constant
-    ("aggregate limit from", vec!["aggregate"], vec!["from source", "from field"]),
-    ("aggregate limit to", vec!["aggregate"], vec!["to source", "to field"]),
+    ("aggregate limit from", vec!["aggregate", "from source", "from field"]),
+    ("aggregate limit to", vec!["aggregate", "to source", "to field"]),
     // the groups may be reduced by constraining against reducer sources
     // constants and grouped inner fields may both be used as ScalarInput arguments
     // ungrouped inner fields which are not bound to outer fields may be used as VectorInput arguments
@@ -70,68 +70,130 @@ pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
     // each table or join field must be bound exactly once
     // each aggregate field must be bound exactly once and can only bind constants, inner fields or reducer outputs
     // each union field must be bound exactly once per source
-    // (the unique key is different for union than for other kinds, so I don't give a key at all)
-    ("select", vec![], vec!["view", "view field", "source", "source field"]),
+    ("select", vec!["view", "view field", "source", "source field"]),
 
     // things can have human readable names
     // `name` is a string
-    ("display name", vec!["id"], vec!["name"]),
+    ("display name", vec!["id", "name"]),
     // things can be displayed in ordered lists
     // `priority` is an f64. higher priority things are displayed first. ties are broken by id
-    ("display order", vec!["id"], vec!["priority"]),
+    ("display order", vec!["id", "priority"]),
 
     // tags are used to organise views
-    ("tag", vec!["view"], vec!["tag"]),
+    ("tag", vec!["view", "tag"]),
 
     // the compiler reflects its decisions into some builtin views:
 
     // a view dependency exists whenever the contents of one view depend directly on another
-    // `ix` is an integer identifying the edge
-    ("view dependency", vec!["upstream view", "ix"], vec!["source", "downstream view"]),
+    // `ix` is an integer identifying the position in the downstream views input list
+    ("view dependency", vec!["upstream view", "source", "downstream view", "ix"]),
+    ("view dependency (clone)", vec!["upstream view", "source", "downstream view", "ix"]),
 
     // the view schedule determines what order views will be executed in
     // `ix` is an integer. views with lower ixes are executed first.
-    ("view schedule", vec!["view"], vec!["ix"]),
+    ("view schedule", vec!["view", "ix"]),
 
     // a source dependency exists whenever one source must be calculated before another
     // eg arguments to a primitive view
-    ("source dependency", vec!["upstream source", "upstream field", "downstream source", "downstream field"], vec![]),
+    ("source dependency", vec!["upstream source", "upstream field", "downstream source", "downstream field"]),
 
     // the source schedule determines in what order sources will be explored inside joins/aggregates
     // `ix` is an integer. views with lower ixes are explored first.
-    ("source schedule", vec!["view", "source"], vec!["ix"]),
+    ("source schedule", vec!["view", "source", "ix"]),
 
     // the constraint schedule determines when constraints will be checked
     // `ix` is an integer. the constraint will be checked after the corresponding source is explored
-    ("constraint schedule", vec!["constraint"], vec!["ix"]),
+    ("constraint schedule", vec!["constraint", "ix"]),
 
     // index layout determines the order in which fields are stored in the view index
     // `ix` is an integer, the index of the field
-    ("index layout", vec!["view", "field"], vec!["ix"]),
+    ("index layout", vec!["view", "field", "ix"]),
 
     // sources and fields actually used by each view
-    ("view reference", vec!["view", "source", "field"], vec![]),
+    ("view reference", vec!["view", "source", "field"]),
 
     // view layout determines the order in which source/field pairs are stored while computing the view
     // `ix` is an integer, the index of the field
-    ("view layout", vec!["view", "source", "field"], vec!["ix"]),
+    ("view layout", vec!["view", "source", "field", "ix"]),
     ]
+}
+
+fn overwrite_compiler_view_2<'a, F>(flow: &'a Flow, view: &str, insert_items: F) -> Ref<'a, Relation>
+    where F: Fn(&mut Vec<Vec<Value>>) {
+    let (_, names) = schema().into_iter().find(|&(ref v, _)| *v == view).unwrap();
+    let fields = names.iter().map(|name| format!("{}: {}", view, name)).collect();
+    let names = names.iter().map(|name| format!("{}", name)).collect();
+    let mut items = Vec::new();
+    insert_items(&mut items);
+    let index = items.into_iter().collect();
+    *flow.get_output_mut(view) = Relation{view: view.to_owned(), fields: fields, names: names, index: index};
+    flow.get_output(view)
+}
+
+macro_rules! find_pattern {
+    ( (= $name:expr) ) => {{ $name }};
+    ( _ ) => {{ &Null }};
+    ( $name:ident ) => {{ &Null }};
+}
+
+macro_rules! find_binding {
+    ( (= $name:expr) ) => { _ };
+    ( _ ) => { _ };
+    ( $name:ident ) => { ref $name };
+}
+
+macro_rules! find {
+    ($table:expr, [ $($pattern:tt),* ], $body:expr) => {{
+        for row in $table.find(vec![$( find_pattern!( $pattern ) ),*]).into_iter() {
+            match row {
+                [$( find_binding!($pattern) ),*] => $body,
+                _ => panic!(),
+            }
+        }
+    }};
+}
+
+fn plan(flow: &Flow) {
+    use value::Value::*;
+
+    let view_table = flow.get_output("view");
+    let field_table = flow.get_output("field");
+    let source_table = flow.get_output("source");
+    let constant_table = flow.get_output("constant");
+    let constraint_table = flow.get_output("constraint");
+    let constraint_left_table = flow.get_output("constraint left");
+    let constraint_right_table = flow.get_output("constraint right");
+    let constraint_operation_table = flow.get_output("constraint operation");
+    let aggregate_grouping_table = flow.get_output("aggregate grouping");
+    let aggregate_sorting_table = flow.get_output("aggregate sorting");
+    let aggregate_limit_from_table = flow.get_output("aggregate limit from");
+    let aggregate_limit_to_table = flow.get_output("aggregate limit to");
+    let select_table = flow.get_output("select");
+
+    let view_dependency_table = overwrite_compiler_view_2(flow, "view dependency (clone)", |items| {
+        find!(view_table, [view, _], {
+            let mut ix = 0;
+            find!(source_table, [(= view), source, source_view], {
+                find!(view_table, [(= source_view), (= &string!("primitive"))], { // TODO not primitive :(
+                    items.push(vec![source_view.clone(), Float(ix as f64), source.clone(), view.clone()]);
+                    ix += 1;
+                })
+            })
+        });
+    });
 }
 
 // TODO really need to define physical ordering of fields in each view
 //      and stop relying on implicit ordering
 //      and stop using fields at runtime
 
-fn overwrite_compiler_view(flow: &Flow, view: &str, items: Vec<Vec<Value>>) {
-    let (_, unique_fields, other_fields) = schema().into_iter().find(|&(ref v, _, _)| *v == view).unwrap();
-    let fields = unique_fields.iter().chain(other_fields.iter())
-        .map(|field| format!("{}: {}", view, field))
-        .collect();
-    let names = unique_fields.iter().chain(other_fields.iter())
-        .map(|field| format!("{}", field))
-        .collect();
+fn overwrite_compiler_view<'a>(flow: &'a Flow, view: &str, items: Vec<Vec<Value>>) -> Ref<'a, Relation> {
+    let (_, names) = schema().into_iter().find(|&(ref v, _)| *v == view).unwrap();
+    let fields = names.iter().map(|name| format!("{}: {}", view, name)).collect();
+    let names = names.iter().map(|name| format!("{}", name)).collect();
     let index = items.into_iter().collect();
     *flow.get_output_mut(view) = Relation{view: view.to_owned(), fields: fields, names: names, index: index};
+    flow.get_output(view)
 }
 
 fn topological_sort<K: Eq + Debug>(mut input: Vec<(K, Vec<K>)>) -> Vec<(K, Vec<K>)> {
@@ -179,9 +241,9 @@ fn calculate_view_dependency(flow: &Flow) {
             if source_view["kind"].as_str() != "primitive" {
                 items.push(vec![
                     source["source view"].clone(),
-                    Value::Float(ix),
                     source["source"].clone(),
                     view["view"].clone(),
+                    Value::Float(ix),
                     ]);
                 ix += 1.0;
             }
@@ -313,10 +375,7 @@ fn calculate_constraint_schedule(flow: &Flow) {
 
 fn calculate_index_layout(flow: &Flow) {
     let mut items = Vec::new();
-    let schema = schema().into_iter().map(|(view, mut unique_fields, mut other_fields)| {
-        unique_fields.append(&mut other_fields);
-        (view, unique_fields)
-    }).collect::<Vec<_>>();
+    let schema = schema();
     let view_table = flow.get_output("view");
     let field_table = flow.get_output("field");
     for view in view_table.iter() {
@@ -825,6 +884,7 @@ fn reuse_state(old_flow: Flow, new_flow: &mut Flow) {
 }
 
 pub fn recompile(old_flow: Flow) -> Flow {
+    plan(&old_flow);
     calculate_view_dependency(&old_flow);
     calculate_view_schedule(&old_flow);
     calculate_source_dependency(&old_flow);
@@ -840,45 +900,44 @@ pub fn recompile(old_flow: Flow) -> Flow {
 
 pub fn bootstrap(mut flow: Flow) -> Flow {
     let schema = schema();
-    for &(id, ref unique_fields, ref other_fields) in schema.iter() {
+    for &(view, ref names) in schema.iter() {
         flow.nodes.push(Node{
-            id: format!("{}", id),
+            id: format!("{}", view),
                 view: View::Union(Union{selects: Vec::new()}), // dummy node, replaced by recompile
                 upstream: Vec::new(),
                 downstream: Vec::new(),
             });
-        let names = unique_fields.iter().chain(other_fields.iter())
-            .map(|&field| field.to_owned()).collect::<Vec<_>>();
-        let fields = names.iter().map(|name| format!("{}: {}", id, name)).collect();
-        flow.outputs.push(RefCell::new(Relation::new(id.to_owned(), fields, names)));
+        let fields = names.iter().map(|name| format!("{}: {}", view, name)).collect();
+        let names = names.iter().map(|name| format!("{}", name)).collect();
+        flow.outputs.push(RefCell::new(Relation::new(format!("{}", view), fields, names)));
     }
     let mut view_values = Vec::new();
     let mut tag_values = Vec::new();
     let mut field_values = Vec::new();
     let mut display_name_values = Vec::new();
-    for (id, unique_fields, other_fields) in schema.into_iter() {
+    for (id, names) in schema.into_iter() {
         view_values.push(vec![string!("{}", id), string!("table")]);
         display_name_values.push(vec![string!("{}", id), string!("{}", id)]);
         tag_values.push(vec![string!("{}", id), string!("compiler")]);
-        for field in unique_fields.into_iter().chain(other_fields.into_iter()) {
-            field_values.push(vec![string!("{}: {}", id, field), string!("{}", id), string!("output")]);
-            display_name_values.push(vec![string!("{}: {}", id, field), string!("{}", field)]);
+        for name in names.into_iter() {
+            field_values.push(vec![string!("{}: {}", id, name), string!("{}", id), string!("output")]);
+            display_name_values.push(vec![string!("{}: {}", id, name), string!("{}", name)]);
         }
     }
-    for (name, scalar_inputs, vector_inputs, outputs) in primitive::primitives().into_iter() {
-        view_values.push(vec![string!("{}", name), string!("primitive")]);
-        display_name_values.push(vec![string!("{}", name), string!("{}", name)]);
-        for field in scalar_inputs.into_iter() {
-            field_values.push(vec![string!("{}: {}", name, field), string!("{}", name), string!("scalar input")]);
-            display_name_values.push(vec![string!("{}: {}", name, field), string!("{}", field)]);
+    for (primitive, scalar_inputs, vector_inputs, outputs) in primitive::primitives().into_iter() {
+        view_values.push(vec![string!("{}", primitive), string!("primitive")]);
+        display_name_values.push(vec![string!("{}", primitive), string!("{}", primitive)]);
+        for name in scalar_inputs.into_iter() {
+            field_values.push(vec![string!("{}: {}", primitive, name), string!("{}", primitive), string!("scalar input")]);
+            display_name_values.push(vec![string!("{}: {}", primitive, name), string!("{}", name)]);
         }
-        for field in vector_inputs.into_iter() {
-            field_values.push(vec![string!("{}: {}", name, field), string!("{}", name), string!("vector input")]);
-            display_name_values.push(vec![string!("{}: {}", name, field), string!("{}", field)]);
+        for name in vector_inputs.into_iter() {
+            field_values.push(vec![string!("{}: {}", primitive, name), string!("{}", primitive), string!("vector input")]);
+            display_name_values.push(vec![string!("{}: {}", primitive, name), string!("{}", name)]);
         }
-        for field in outputs.into_iter() {
-            field_values.push(vec![string!("{}: {}", name, field), string!("{}", name), string!("output")]);
-            display_name_values.push(vec![string!("{}: {}", name, field), string!("{}", field)]);
+        for name in outputs.into_iter() {
+            field_values.push(vec![string!("{}: {}", primitive, name), string!("{}", primitive), string!("output")]);
+            display_name_values.push(vec![string!("{}: {}", primitive, name), string!("{}", name)]);
         }
     }
     overwrite_compiler_view(&flow, "view", view_values);

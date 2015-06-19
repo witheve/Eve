@@ -19,8 +19,8 @@ module api {
   export var arraysIdentical:(a:any[], b:any[])=>boolean = Indexing.arraysIdentical;
 
   if(!window.DEBUG) {
-    window.DEBUG = {RECEIVE: 3,
-                    SEND: 3,
+    window.DEBUG = {RECEIVE: 0,
+                    SEND: 0,
                     INDEXER: 0};
   }
 
@@ -111,7 +111,8 @@ module api {
       source: {name: "source", fields: ["view", "source", "source view"]},
       constant: {name: "constant", fields: ["constant", "value"], facts: [["default empty", ""],
                                                                           ["default zero", 0],
-                                                                          ["default space", " "]]},
+                                                                          ["default space", " "],
+                                                                          ["default zero string", "0"]]},
       select: {name: "select", fields: ["view", "view field", "source", "source field"]},
 
       "constraint": {name: "constraint", fields: ["constraint", "view"]},
@@ -165,7 +166,8 @@ module api {
       "location": {name: "location", fields: ["session", "latitude", "longitude", "accuracy", "timestamp"], tags: ["remote"]},
       "session url": {name: "session url", fields: ["session", "eventId", "href", "origin", "path", "hash"], tags: ["remote"]},
       "eveusers": {name: "eveusers", fields: ["id", "username"], tags: ["remote"]},
-      "sessions": {name: "sessions", fields: ["id", "user id", "status"], tags: ["remote"]},
+      "sessions": {name: "sessions", fields: ["id", "status"], tags: ["remote"]},
+      "session id to user id": {name: "session id to user id", fields: ["session id", "user id"], tags: ["remote"]},
       "captured key": {name: "captured key", fields: ["session", "eventId", "element", "key", "binding"], tags: ["remote"]}
     },
 
@@ -197,7 +199,7 @@ module api {
       numbers: {name: "numbers", fields: ["x"], facts: [[0], [1], [2], [3]]},
     }
   };
-  
+
   export var primitiveDefaults = {
     add: {"add: in A": "default zero", "add: in B": "default zero"},
     contains: {"contains: inner": "default space", "contains: outer": "default empty"},
@@ -206,6 +208,7 @@ module api {
     mean: {"mean: in": "default zero"},
     split: {"split: split": "default space", "split: string": "default empty"},
     concat: {"concat: a": "default empty", "concat: b": "default empty"},
+    "parse float": {"parse float: a": "default zero string"},
     "standard deviation": {"standard deviation: in": "default zero"},
     subtract: {"subtract: in A": "default zero", "subtract: in B": "default zero"},
     sum: {"sum: in": "default zero"}
