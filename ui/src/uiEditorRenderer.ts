@@ -183,6 +183,8 @@ module uiEditorRenderer {
     if(type === "input") {
       elem.t = "input";
       elem.type = "text";
+    } else if(type === "link") {
+      elem.t = "a";
     }
 
     var attrs = [];
@@ -216,6 +218,7 @@ module uiEditorRenderer {
       elem.input = handleInputEvent;
       elem.keydown = handleKeyDownEvent;
       elem.keyup = handleKeyUpEvent;
+    } else if(type === "link") {
     } else {
       elem.c += " non-interactive";
     }

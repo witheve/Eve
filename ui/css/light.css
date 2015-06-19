@@ -233,8 +233,8 @@ div:hover > .hover-reveal { opacity: 1; }
 .query-workspace .export-view-btn:hover { color: #666; }
 .query-workspace .export-view-btn:active { color: #444; }
 
-.query-editor .spaced-row { flex-direction: row; }
-.query-editor .spaced-row > * { margin: 0 0.2em; }
+.spaced-row { flex-direction: row; }
+.spaced-row > * { margin: 0 0.2em; }
 
 .query-workspace > .block {flex: none; border-radius:3px; overflow:hidden; background:#fff; flex-direction:row; margin-bottom:15px; box-shadow: 0 0 20px #111; }
 .block.unused > .controls + .controls { border-top: 1px solid #999; }
