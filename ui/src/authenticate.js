@@ -26,7 +26,7 @@ $(function(){
     if (response.error) {
     	$("#login-errors").text(response.error);
     } else {
-    	window.location = response.url;
+    	window.location = "http://192.168.137.38:8000/login.html?page=" + document.getElementById('login_submit').getAttribute('target')  + "&token=" + response.token;
     }
   };
 });
@@ -45,7 +45,7 @@ $(function(){
     if (response.error) {
     	$("#signup-errors").text(response.error);
     } else {
-    	window.location = response.url;
+    	window.location = "http://192.168.137.38:8000/login.html?page=" + document.getElementById('signup_submit').getAttribute('target')  + "&token=" + response.token;
     }
   };
 });
