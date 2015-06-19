@@ -118,24 +118,44 @@ pub fn schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ]
 }
 
-// TODO really need to define physical ordering of fields in each view
-//      and stop relying on implicit ordering
-//      and stop using fields at runtime
-
-fn overwrite_compiler_view<'a>(flow: &'a Flow, view: &str, items: Vec<Vec<Value>>) -> Ref<'a, Relation> {
-    let (_, unique_fields, other_fields) = schema().into_iter().find(|&(ref v, _, _)| *v == view).unwrap();
-    let fields = unique_fields.iter().chain(other_fields.iter())
-        .map(|field| format!("{}: {}", view, field))
-        .collect();
-    let names = unique_fields.iter().chain(other_fields.iter())
-        .map(|field| format!("{}", field))
-        .collect();
+fn overwrite_compiler_view_2<'a, F>(flow: &'a Flow, view: &str, insert_items: F) -> Ref<'a, Relation>
+    where F: Fn(&mut Vec<Vec<Value>>) {
+    let (_, names) = schema().into_iter().find(|&(ref v, _)| *v == view).unwrap();
+    let fields = names.iter().map(|name| format!("{}: {}", view, name)).collect();
+    let names = names.iter().map(|name| format!("{}", name)).collect();
+    let mut items = Vec::new();
+    insert_items(&mut items);
     let index = items.into_iter().collect();
     *flow.get_output_mut(view) = Relation{view: view.to_owned(), fields: fields, names: names, index: index};
     flow.get_output(view)
 }
 
+macro_rules! find_pattern {
+    ( (= $name:expr) ) => {{ $name }};
+    ( _ ) => {{ &Null }};
+    ( $name:ident ) => {{ &Null }};
+}
+
+macro_rules! find_binding {
+    ( (= $name:expr) ) => { _ };
+    ( _ ) => { _ };
+    ( $name:ident ) => { ref $name };
+}
+
+macro_rules! find {
+    ($table:expr, [ $($pattern:tt),* ], $body:expr) => {{
+        for row in $table.find(vec![$( find_pattern!( $pattern ) ),*]).into_iter() {
+            match row {
+                [$( find_binding!($pattern) ),*] => $body,
+                _ => panic!(),
+            }
+        }
+    }};
+}
+
 fn plan(flow: &Flow) {
+    use value::Value::*;
+
     let view_table = flow.get_output("view");
     let field_table = flow.get_output("field");
     let source_table = flow.get_output("source");
@@ -149,6 +169,31 @@ fn plan(flow: &Flow) {
     let aggregate_limit_from_table = flow.get_output("aggregate limit from");
     let aggregate_limit_to_table = flow.get_output("aggregate limit to");
     let select_table = flow.get_output("select");
+
+    let view_dependency_table = overwrite_compiler_view_2(flow, "view dependency (clone)", |items| {
+        find!(view_table, [view, _], {
+            let mut ix = 0;
+            find!(source_table, [(= view), source, source_view], {
+                find!(view_table, [(= source_view), (= &string!("primitive"))], { // TODO not primitive :(
+                    items.push(vec![source_view.clone(), Float(ix as f64), source.clone(), view.clone()]);
+                    ix += 1;
+                })
+            })
+        });
+    });
+}
+
+// TODO really need to define physical ordering of fields in each view
+//      and stop relying on implicit ordering
+//      and stop using fields at runtime
+
+fn overwrite_compiler_view<'a>(flow: &'a Flow, view: &str, items: Vec<Vec<Value>>) -> Ref<'a, Relation> {
+    let (_, names) = schema().into_iter().find(|&(ref v, _)| *v == view).unwrap();
+    let fields = names.iter().map(|name| format!("{}: {}", view, name)).collect();
+    let names = names.iter().map(|name| format!("{}", name)).collect();
+    let index = items.into_iter().collect();
+    *flow.get_output_mut(view) = Relation{view: view.to_owned(), fields: fields, names: names, index: index};
+    flow.get_output(view)
 }
 
 fn topological_sort<K: Eq + Debug>(mut input: Vec<(K, Vec<K>)>) -> Vec<(K, Vec<K>)> {
