@@ -1,6 +1,7 @@
 /// <reference path="tableEditor.ts" />
 /// <reference path="query-editor.ts" />
 /// <reference path="eveEditor.ts" />
+/// <reference path="api.ts" />
 module uiEditor {
   declare var api;
   declare var jQuery;
@@ -242,8 +243,8 @@ module uiEditor {
       case "setAttributeForSelection":
         storeEvent = info.storeEvent;
         sendToServer = info.storeEvent;
-        var style = uiEditor.getUiPropertyType(info.property);
-        if (!style) { throw new Error("Unknown attribute type for property: " + info.property + " known types:" + uiEditor.uiProperties); }
+        var style = getUiPropertyType(info.property);
+        if (!style) { throw new Error("Unknown attribute type for property: " + info.property + " known types:" + Object.keys(uiProperties)); }
 
         var sel = localState.uiSelection;
         sel.forEach(function(cur) {
@@ -257,8 +258,8 @@ module uiEditor {
         });
         break;
       case "stopSetAttributeForSelection":
-        var style = uiEditor.getUiPropertyType(info.property);
-        if (!style) { throw new Error("Unknown attribute type for property: " + info.property + " known types:" + uiEditor.uiProperties); }
+        var style = getUiPropertyType(info.property);
+        if (!style) { throw new Error("Unknown attribute type for property: " + info.property + " known types:" + Object.keys(uiProperties)); }
 
         var sel = localState.uiSelection;
         var oldAttrs = info.oldAttrs;
@@ -1147,6 +1148,7 @@ module uiEditor {
     { text: "box", icon: "ion-stop" },
     { text: "spacer", icon: "ion-arrow-expand" },
     { text: "button", icon: "ion-share" },
+    { text: "link", icon: "ion-link" },
     { text: "input", icon: "ion-compose" },
     //                        {text: "map", icon: "ion-ios-location"}
   ];
@@ -1215,7 +1217,8 @@ module uiEditor {
       // @TODO: Only show appropriate inspectors for each type based on trait instead of hardcoding.
       inspectors.push(layoutInspector(selectionInfo, binding),
         appearanceInspector(selectionInfo, binding),
-        textInspector(selectionInfo, binding));
+        textInspector(selectionInfo, binding),
+        linkInspector(selectionInfo, binding));
 
       //       var showMapInspector = selectionInfo.elements.every(function(cur) {
       //         return cur[4] === "map";
@@ -1603,10 +1606,30 @@ module uiEditor {
       ]
     };
   }
+  
+    
+  uiProperties.link = ["href"];
+  function linkInspector(selectionInfo, binding) {
+    var attrs = selectionInfo.attributes;
+    var componentId = selectionInfo.componentId;
+    
+    var urlInput = inspectorInput(attrs.href || "", [componentId, "href"], setAttribute, binding); // @TODO: FINISH ME.
+    urlInput.storeEvent = true;
+    return {c: "option-group link-attributes", children: [
+      {c: "row spaced-row", children: [
+        {c: "label", text: "url"},
+        urlInput
+      ]}
+    ]};
+  }
+
 
   // Inputs
   function inspectorInput(value, key, onChange, binding) {
-    var field: any = tableEditor.input(value, key, onChange, preventDefault);
+    var field: any = tableEditor.input(value, key, onChange, function(evt, elem) {
+      onChange(evt, elem, true);
+      evt.preventDefault();
+    });
     if (value === null) {
       field.placeholder = "---";
     } else if (typeof value === "number" && !isNaN(value)) {
@@ -1713,12 +1736,12 @@ module uiEditor {
   }
 
   // Generic attribute handler
-  function setAttribute(e, elem) {
+  function setAttribute(e, elem, storeEvent) {
+    storeEvent = storeEvent || elem.storeEvent;
     var componentId = elem.key[0];
     var property = elem.key[1];
     var target = e.currentTarget;
     var value = target.value;
-    var storeEvent = false;
     if (target.type === "color") {
       value = target.value;
     } else if (target.type === "checkbox") {
@@ -1751,6 +1774,9 @@ module uiEditor {
       return "layout";
     }
     if (uiProperties.content.indexOf(prop) !== -1) {
+      return "content";
+    }
+    if (uiProperties.link.indexOf(prop) !== -1) {
       return "content";
     }
     return undefined;

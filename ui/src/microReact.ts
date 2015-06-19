@@ -105,6 +105,7 @@ module microReact {
         if(cur.t === "input" && cur.checked !== prev.checked) div.checked = cur.checked;
         if(cur.text !== prev.text) div.textContent = cur.text === undefined ? "" : cur.text;
         if(cur.tabindex !== prev.tabindex) div.setAttribute("tabindex", cur.tabindex);
+        if(cur.href !== prev.href) div.setAttribute("href", cur.href);
 
         if(cur.left !== prev.left)  style.left = cur.left === undefined ? "auto" : cur.left;
         if(cur.top !== prev.top) style.top = cur.top === undefined ? "auto" : cur.top;
@@ -205,6 +206,7 @@ module microReact {
         }
         if(curA.c === curB.c
            && curA.tabindex === curB.tabindex
+           && curA.href === curB.href
            && curA.placeholder === curB.placeholder
            && curA.selected === curB.selected
            && curA.value === curB.value

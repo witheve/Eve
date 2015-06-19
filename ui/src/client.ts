@@ -1,9 +1,10 @@
 /// <reference path="uiEditorRenderer.ts" />
+/// <reference path="api.ts" />
 module client {
-  declare var api;
   declare var dispatcher;
   declare var DEBUG;
   declare var CBOR;
+  declare var uuid;
 
   var ixer = api.ixer;
 
@@ -107,8 +108,86 @@ module client {
     return { adds: totalAdds, removes: totalRemoves, malformedDiffs: malformedDiffs, badValues: badValues };
   }
 
+  function createBlockFieldView() {
+    var queryId = uuid();
+    var blockField = api.insert("view", {
+      view: "block field",
+      kind: "join",
+      dependents: {
+        "display name": {name: "A"},
+        tag: [{tag: "remote"}],
+        block: {query: queryId},
+        "editor item": {item: queryId, type: "query", dependents: {"display name": {name: "block field"}}},
+        "query export": {query: queryId},
+        source: [
+          {"source view": "field"},
+          {"source view": "source"},
+          {"source view": "concat"},
+          {"source view": "concat"}
+        ]
+      }
+    });
+    var blockFieldSources = blockField.content.dependents.source;
+    var inserts = [
+      blockField,
+      api.insert("constraint",
+        {"left field": "source: source view", "right source": blockFieldSources[0].source, "right field": "field: view", operation: "="},
+        {view: blockField.content.view, source: blockFieldSources[1].source}),
+      api.insert("constraint", [
+        {"right field": "source: view", "right source": blockFieldSources[1].source, "left field": "concat: a", operation: "="},
+        {"right field": "source: source", "right source": blockFieldSources[1].source, "left field": "concat: b", operation: "="}         
+      ], {view: blockField.content.view, source: blockFieldSources[2].source}),
+      api.insert("constraint", [
+        {"right field": "concat: out", "right source": blockFieldSources[2].source, "left field": "concat: a", operation: "="},
+        {"right field": "field: field", "right source": blockFieldSources[0].source, "left field": "concat: b", operation: "="}         
+      ], {view: blockField.content.view, source: blockFieldSources[3].source}),
+
+      api.insert("field", [
+        {field: "block field: block field", kind: "output", dependents: {
+          "display name": {name: "block field"},
+          "display order": {priority: 0},
+          select: {source: blockFieldSources[3].source, "source field": "concat: out"}
+        }},
+        {field: "block field: view", kind: "output", dependents: {
+          "display name": {name: "view"},
+          "display order": {priority: -1},
+          select: {source: blockFieldSources[1].source, "source field": "source: view"}
+        }},
+        {field: "block field: source", kind: "output", dependents: {
+          "display name": {name: "source"},
+          "display order": {priority: -2},
+          select: {source: blockFieldSources[1].source, "source field": "source: source"}
+        }},
+        {field: "block field: source view", kind: "output", dependents: {
+          "display name": {name: "source view"},
+          "display order": {priority: -3},
+          select: {source: blockFieldSources[1].source, "source field": "source: source view"}
+        }},
+        {field: "block field: field", kind: "output", dependents: {
+          "display name": {name: "field"},
+          "display order": {priority: -4},
+          select: {source: blockFieldSources[0].source, "source field": "field: field"}
+        }},
+      ], {view: blockField.content.view})
+    ];
+    var diffs = api.toDiffs(inserts);
+    var calculatedFieldId = uuid();
+    var calculatedField2Id = uuid();
+    diffs.push(["calculated field", "inserted", [calculatedFieldId, "block field", blockFieldSources[2].source, "concat", "concat: out"]],
+               ["display name", "inserted", [calculatedFieldId, "a"]],
+               ["calculated field", "inserted", [calculatedField2Id, "block field", blockFieldSources[3].source, "concat", "concat: out"]],
+               ["display name", "inserted", [calculatedField2Id, "b"]]);
+               
+    return diffs;
+  }
+
   function initialize(noFacts) {
     api.initIndexer(noFacts);
+    if(!noFacts) {
+      var diffs = createBlockFieldView();
+      console.log(JSON.stringify(diffs, null, 2));
+      ixer.handleDiffs(diffs);
+    } 
     sendToServer(ixer.dumpMapDiffs(), true);
   }
 
@@ -195,8 +274,9 @@ module client {
         console.log(eventId);
         uiEditorRenderer.setEventId(eventId);
         uiEditorRenderer.setSessionId(data.session);
-        var prims = api.diff.computePrimitives();
-        ixer.handleDiffs(prims);
+        var neueDiffs = api.diff.computePrimitives();
+
+        ixer.handleDiffs(neueDiffs);
         for(var initFunc of afterInitFuncs) {
           initFunc();
         }
@@ -309,6 +389,19 @@ module client {
   }
 
   function toMapDiffs(diffs) {
+    // Deduplicate diffs prior to sending with last write wins.
+    var deduped = [];
+    outer: for(var ix = diffs.length - 1; ix >= 0; ix--) {
+      var diff = diffs[ix];
+      for(var needleIx = deduped.length - 1; needleIx >= 0; needleIx--) {
+        if(api.arraysIdentical(diff[2], deduped[needleIx][2]) && diff[0] === deduped[needleIx][0]) {
+          continue outer;
+        }
+      }
+      deduped.push(diff);
+    }
+    diffs = deduped;
+    
     var final = { field: null };
     for (var i = 0, len = diffs.length; i < len; i++) {
       var cur = diffs[i];
