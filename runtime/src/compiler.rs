@@ -360,7 +360,6 @@ fn calculate_constraint_schedule(flow: &Flow) {
         let right = constraint_right_table.find_one("constraint", &constraint["constraint"]);
         let right_ix = source_schedule_table.find_maybe("source", &right["right source"])
             .map_or(-1, |right_schedule| right_schedule["ix"].as_i64());
-        println!("{:?}", right);
         let right_is_output = (right["right source"].as_str() == "constant")
             || (field_table.find_one("field", &right["right field"])["kind"].as_str() == "output");
 
