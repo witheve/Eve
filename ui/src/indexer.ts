@@ -138,7 +138,7 @@ module Indexing {
         var fields = diff[1]; // @FIXME: Reorder fields as necessary to support concurrent editing of view structure.
         var inserted = diff[2];
         var removed = diff[3];
-        if ((inserted.length == 0) && (removed.length == 0)) { return; }
+        if ((inserted.length == 0) && (removed.length == 0)) { continue; }
         var fieldIds = api.code.sortedViewFields(table); // @GLOBAL Due to circular ref. w/ synchronous dependency loading.
         if(!fieldIds) {
           fieldIds = fields;
