@@ -142,10 +142,11 @@ module api {
       "editor item": {name: "editor item", fields: ["item", "type"], facts: []},
       block: {name: "block", fields: ["query", "block", "view"]},
       "block aggregate": {name: "block aggregate", fields: ["view", "kind"]},
-      "block field": {name: "block field", fields: ["block field", "view", "source", "source view", "field"]},
+      //"block field": {name: "block field", fields: ["block field", "view", "source", "source view", "field"]},
       "calculated field": {name: "calculated field", fields: ["calculated field", "view", "source", "source view", "field"]},
       "empty view": {name: "empty view", fields: [], facts: [[]]},
       "query export": {name: "query export", fields: ["query", "view"]},
+      "source order": {name: "source order", fields: ["view", "source", "priority"]},
 
       //ui
       "uiComponentElement": {name: "uiComponentElement", fields: ["tx", "id", "component", "layer", "control", "left", "top", "right", "bottom", "zindex"], facts: []},
@@ -204,6 +205,7 @@ module api {
     empty: {"empty: in": "default zero"},
     mean: {"mean: in": "default zero"},
     split: {"split: split": "default space", "split: string": "default empty"},
+    concat: {"concat: a": "default empty", "concat: b": "default empty"},
     "standard deviation": {"standard deviation: in": "default zero"},
     subtract: {"subtract: in A": "default zero", "subtract: in B": "default zero"},
     sum: {"sum: in": "default zero"}
@@ -514,7 +516,7 @@ module api {
       return diffs;
     },
 
-    addViewSelection: function addViewSelection(viewId, sourceId, sourceFieldId, fieldId, isCalculated) {
+    addViewSelection: function addViewSelection(viewId, sourceId, sourceFieldId, fieldId, isCalculated?) {
       var neue;
       var diffs = [];
       if(!fieldId) {
@@ -544,7 +546,7 @@ module api {
           diffs.push(["field", "inserted", [viewId, fieldId, "output"]],
                      ["display order", "inserted", [fieldId, -fields.length]],
                      ["display name", "inserted", [fieldId, name || ""]],
-                     ["block field", "inserted", [blockFieldId, viewId, "selection", viewId, fieldId]],
+                     // ["block field", "inserted", [blockFieldId, viewId, "selection", viewId, fieldId]],
                      ["select", "inserted", neue]);
 
           ixer.clearTable(viewId); // Hack to ensure we delete stale context.
@@ -574,14 +576,14 @@ module api {
         oldFacts = oldFacts[sourceId] || [];
         for(var ix = 0; ix < oldFacts.length; ix++) {
           var oldFact = oldFacts[ix];
-          diffs.push(["block field", "removed", oldFact]);
+          //diffs.push(["block field", "removed", oldFact]);
         };
         var fieldIdIx = code.ix("field", "field")
         var fields = ixer.index("view to fields")[sourceViewId] || [];
         for(var ix = 0; ix < fields.length; ix++) {
           var blockId = uuid();
           var fieldId = fields[ix][fieldIdIx];
-          diffs.push(["block field", "inserted", [blockId, viewId, sourceId, sourceViewId, fieldId]]);
+          //diffs.push(["block field", "inserted", [blockId, viewId, sourceId, sourceViewId, fieldId]]);
         }
       } else {
         var calculatedIdIx = code.ix("calculated field", "calculated field");
@@ -948,7 +950,7 @@ module api {
     ixer.handleDiffs(diffs);
   }
 
-  function getUniqueNameIx(existing: string[], names: string[]): number {
+  export function getUniqueNameIx(existing: string[], names: string[]): number {
     var toIx = invert(names);
     var ix = 0;
     existing = existing || [];
@@ -967,7 +969,7 @@ module api {
     return ix;
   }
 
-  function getUniqueName(existing: string[], names: string[]): string {
+  export function getUniqueName(existing: string[], names: string[]): string {
     return names[getUniqueNameIx(existing, names)];
   }
 
@@ -978,13 +980,16 @@ module api {
                            initialElements: [],
                            activeItem: null,
                            showMenu: true,
-                           uiGridSize: 10};
+                           uiGridSize: 10,
+                           initialValue: undefined,
+                           queryEditorActive: undefined,
+                           queryEditorInfo: undefined};
 
 
 
-  type Diff = any[];
+  export type Diff = any[];
   interface Context {[key:string]: Id}
-  interface Write<T> {type: string, content: T, context: Context, mode?: string, originalKeys?: string[]}
+  interface Write<T> {type: string, content: T|T[], context: Context|Context[], mode?: string, originalKeys?: string[]}
 
   interface Schema {
     key?: string|string[]
@@ -1007,16 +1012,16 @@ module api {
             dependents: pkDependents},
     view: {key: "view",
            dependents: pkDependents.concat(
-             ["block", "field", "aggregate grouping", "aggregate sorting", "aggregate limit from", "aggregate limit to"])},
+             ["block", "field", "aggregate grouping", "aggregate sorting", "aggregate limit from", "aggregate limit to", "editor item", "query export"])},
     source: {key: ["view", "source"],
-             primaryIx: 1,
              foreign: {view: "view"},
-             dependents: ["constraint"]},
+             dependents: ["constraint", "source order"]},
+    "source order": {foreign: {view: "view", source: "source"}},
     field: {key: "field",
             foreign: {view: "view"},
             dependents: pkDependents.concat(["select"])},
     select: {foreign: {view: "view", field: "view field"}},
-    constraint: {key: "constraint", foreign: {view: "view"}},
+    constraint: {key: "constraint", foreign: {view: "view", source: "left source"}},
 
     "aggregate grouping": {foreign: {view: "aggregate", /*field: "inner field"*/}},
     "aggregate sorting": {foreign: {view: "aggregate", /*field: "inner field"*/}},
@@ -1025,6 +1030,8 @@ module api {
     "aggregate limit to": {foreign: {view: "aggregate"},
                            singular: true},
 
+     "query export": {foreign: {view: "view"},
+                      singular: true},
      "text input": {},
      "mouse position": {},
      "click": {},
@@ -1032,6 +1039,7 @@ module api {
      "location": {},
      "session url": {},
      "captured key": {},
+     "editor item": {key: "item", dependents: pkDependents}
   };
 
   /***************************************************************************\
@@ -1056,11 +1064,27 @@ module api {
   }
 
   export function process(type:string, params, context?:Context): Write<any> {
+    console.log("[process]", type, params, clone(context));
+    if(params instanceof Array) {
+      var write = {type: type, content: [], context: []};
+      for(var item of params) {
+        var result = process(type, item, clone(context));
+        write.content.push(result.content);
+        write.context.push(result.context);
+      }
+      return write;
+    }
+    
     var schema = schemas[type];
     if(!schema) { throw new Error("Attempted to process unknown type " + type + " with params " + JSON.stringify(params)); }
     if(!params) { throw new Error("Invalid params specified for type " + type + " with params " + JSON.stringify(params)); }
     if(!context) { context = {}; } // @NOTE: Should we clone this? If so, should we clone params as well?
 
+    // Link foreign keys from context if missing.
+    if(schema.foreign) {
+      var params = fillForeignKeys(type, params, context);
+    }
+    
     // Fill primary keys if missing.
     var keys:string[] = (schema.key instanceof Array) ? <string[]>schema.key : (schema.key) ? [<string>schema.key] : [];
     for(var key of keys) {
@@ -1071,11 +1095,6 @@ module api {
     }
     if(keys.length === 1) {
       context["$last"] = params[keys[0]];
-    }
-
-    // Link foreign keys from context if missing.
-    if(schema.foreign) {
-      var params = fillForeignKeys(type, params, context);
     }
 
     // Ensure remaining fields exist and contain something.
