@@ -5,11 +5,12 @@
 /// <reference path="indexer.ts" />
 /// <reference path="client.ts" />
 /// <reference path="eveEditor.ts" />
+/// <reference path="api.ts" />
 module queryEditor {
   declare var uuid;
-  declare var api;
   declare var queryEditor;
   declare var DEBUG;
+
   var document = window.document;
   var ixer = api.ixer;
   var code = api.code;
@@ -70,30 +71,36 @@ module queryEditor {
     var sendToServer = true;
     var txId = ++localState.txId;
   	var redispatched = false;
-    var diffs = [];
+    var diffs:api.Diff = [];
     switch(evt) {
       case "exportView":
-        // @TODO: Should we make this capable of exporting multiple views?
-//         var query = ixer.index("view to query")[info.viewId];
-//         var queryBlocks = ixer.index("query to blocks")[query] || [];
-//         var blockViewIx = code.ix("block", "view");
-//         queryBlocks.forEach(function(block) {
-//           var viewId = block[blockViewIx];
-//           if(!code.hasTag(viewId, "local")) {
-//             diffs.push(["tag", "inserted", [viewId, "local"]]);
-//           }
-//         });
-//        diffs.push(["tag", "removed", [info.viewId, "local"]]);
-        var prevExport = ixer.index("query to export")[info.queryId];
-        if(prevExport) {
-          diffs.push(["query export", "removed", [info.queryId, prevExport]]);
-        }
-        diffs.push(["query export", "inserted", [info.queryId, info.viewId]]);
+        var changes = [api.remove("query export", {query: info.queryId}),
+                       api.insert("query export", {query: info.queryId, view: info.viewId})];
+        diffs = api.toDiffs(changes);
         break;
       case "addViewBlock":
         var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
-        var viewId = uuid();
+        var name = api.getUniqueName(code.queryViews(queryId), api.alphabet);
+
         diffs = diff.addViewBlock(queryId, info.sourceId, info.kind, viewId);
+        console.log("old diffs", diffs);
+        
+        diffs = api.toDiffs(api.insert("view", {
+          view: info.viewId,
+          kind: info.kind,
+          dependents: {
+            block: {query: queryId},
+            "display name": {name: name},
+            tag: [{tag: "local"}, {tag: "remote"}],
+            source: (info.sourceId ? {
+              "source view": info.sourceId,
+              dependents: {
+                "source order": {priority: 0}}
+              }
+            : undefined)
+          }
+        }));
+        console.log("new diffs", diffs);                                                             
         break;
       case "addAggregateBlock":
         var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
@@ -150,7 +157,7 @@ module queryEditor {
           }));
           var blockFields = ixer.index("view and source to block fields")[info.viewId]["selection"] || [];
           diffs = diffs.concat(blockFields.map(function(blockField) {
-            return ["block field", "inserted", blockField];
+            // return ["block field", "inserted", blockField];
           }));
           var fields = ixer.index("view to fields")[info.viewId] || [];
           diffs = diffs.concat(fields.map(function(field) {
@@ -724,34 +731,43 @@ module queryEditor {
     return sourceItems;
   }
 
-  function sourceTitle(type, viewId, sourceId) {
-    var sourceName;
-
+  function getSourceName(viewId, sourceId) {
+    var source = ixer.selectOne("source", {view: viewId, source: sourceId});
+    if(!source) { throw new Error("Source " + sourceId + " not found on view " + viewId + "."); }
+    var sourceName = code.name(source["source view"]);
+    
+    var sources = ixer.select("source", {view: viewId});
+    var ix = 0;
+    for(var cur of sources) {
+      if(cur.source === source.source) { break; }
+      if(cur["source view"] === source["source view"]) { ix++; }
+    }
+    if(ix) {
+      sourceName += " (" + (ix + 1) + ")";
+    }
+    
     if(sourceId == "inner" || sourceId === "outer" || sourceId === "insert" || sourceId === "remove") {
-      sourceName = code.name(viewId + "-" + sourceId) + " (" + sourceId + ")";
-    } else {
-      sourceName = code.name(sourceId);
+      sourceName += " [" + sourceId + "]";
     }
 
-    return {c: type + "-source-title source-title", children: [
-      {t: "h4", text: sourceName || "Untitled"}
-    ]};
+    return sourceName;
   }
 
   function sourceWithFields(type, viewId, sourceId, drop) {
-    var fields = ixer.index("view and source to block fields")[viewId] || {};
-    fields = fields[sourceId] || [];
+    var fields = ixer.select("block field", {view: viewId, source: sourceId}) || [];
     var fieldItems = [];
     fields.forEach(function(field) {
-      var id = field[code.ix("block field", "block field")];
-      var fieldId = field[code.ix("block field", "field")];
+      var id = field["block field"];
+      var fieldId = field["field"];
       fieldItems.push(fieldItem(code.name(fieldId) || "Untitled", id, {c: "pill field"}));
       fieldItems.push({t: "pre", text: ", "});
     });
     fieldItems.pop();
     fieldItems.push({text: ")"});
 
-    var title = sourceTitle(type, viewId, sourceId);
+    var title = {c: type + "-source-title source-title", children: [
+      {t: "h4", text: getSourceName(viewId, sourceId) || "Untitled"}
+    ]};
 
     var children = [
       title,
@@ -776,7 +792,7 @@ module queryEditor {
     if(calculatedId) {
       return code.name(calculatedId);
     } else {
-      var sourceName = code.name(sourceId);
+      var sourceName = getSourceName(viewId, sourceId);
       var fieldName = code.name(fieldId);
       if(sourceName && fieldName) {
         return sourceName + "." + fieldName;
@@ -1147,7 +1163,9 @@ module queryEditor {
       var sourceId = sourceIds[sourceIx];
       var source = sources[sourceId];
       var rowItems = [];
-      rowItems.push({t: "td", c: "source-name", children: [sourceTitle("union", viewId, sourceId)]});
+      rowItems.push({t: "td", c: "source-name", children: [
+        {c: "union-source-title source-title", children: [
+          {t: "h4", text: getSourceName(viewId, sourceId) || "Untitled"}]}]});
 
       if(fields.length) {
         var selectFields = selectSources[sourceId] || [];
