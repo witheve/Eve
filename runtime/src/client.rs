@@ -83,19 +83,18 @@ pub fn create_table(table_name: &&str, table_fields: &Vec<&str>,old_event: Optio
 										 .collect::<Vec<_>>();
 
 	// Concats a vector of display names of the form: (display name: id, display name: name)
-	let display_name_fields = concat_field_names.iter()
+	let mut display_name_fields = concat_field_names.iter()
 												.zip(table_fields.iter())
 												.map(|(concat_name,field_name)| vec![concat_name.clone(),Value::String(field_name.to_string())])
 												.collect::<Vec<_>>();
 
 	// Creates the display name insert
-	let display_name_inserts = vec![vec![table_string.clone(),table_string.clone()]];
-	display_name_inserts.iter().chain(display_name_fields.iter()).collect::<Vec<_>>();
-
+	let mut display_name_inserts = vec![vec![table_string.clone(),table_string.clone()]];
+	display_name_inserts.append(&mut display_name_fields);
 
 	let display_name = ("display name".to_string(),Change {
 												fields: vec!["display name: id".to_string(),"display name: name".to_string()],
-												insert: display_name_inserts,
+												insert: display_name_inserts.clone(),
 												remove: vec![],
 											}
 						);
@@ -123,9 +122,9 @@ pub fn create_table(table_name: &&str, table_fields: &Vec<&str>,old_event: Optio
 
 	match old_event {
 		Some(mut event) => {
-			event.changes.push(display_name);
-			event.changes.push(view);
 			event.changes.push(field);
+			event.changes.push(view);
+			event.changes.push(display_name);
 			event
 		},
 		// TODO add session

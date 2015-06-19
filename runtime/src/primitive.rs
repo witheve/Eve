@@ -1,10 +1,13 @@
 use value::{Value};
+use std::str::FromStr;
 
 #[derive(Clone, Debug, Copy)]
 pub enum Primitive {
     Add,
     Subtract,
     Split,
+    Concat,
+    ParseFloat,
     Count,
     Contains,
     Sum,
@@ -49,6 +52,8 @@ impl Primitive {
             (Split, [&String(ref split), &String(ref string)]) => {
                 string.split(split).enumerate().map(|(ix, segment)| vec![Float(ix as f64), String(segment.to_owned())]).collect()
             },
+            (Concat, [&String(ref a), &String(ref b)]) => vec![vec![String(a.to_owned() + b)]],
+            (ParseFloat, [&String(ref a)]) => vec![vec![Float(f64::from_str(&a).unwrap())]],
             (Count, _) => panic!("Cannot use {:?} in a join", self),
             (Sum, _) => panic!("Cannot use {:?} in a join", self),
             (Mean, _) => panic!("Cannot use {:?} in a join", self),
@@ -67,6 +72,8 @@ impl Primitive {
             (Subtract, _) => panic!("Cannot use {:?} in an aggregate", self),
             (Contains, _) => panic!("Cannot use {:?} in an aggregate", self),
             (Split, _) => panic!("Cannot use {:?} in an aggregate", self),
+            (Concat, _) => panic!("Cannot use {:?} in an aggregate", self),
+            (ParseFloat, _) => panic!("Cannot use {:?} in an aggregate", self),
             (Count, [_]) => {
                 vec![vec![Float(inner.len() as f64)]]
             },
@@ -118,6 +125,8 @@ impl Primitive {
             "subtract" => Primitive::Subtract,
             "contains" => Primitive::Contains,
             "split" => Primitive::Split,
+            "concat" => Primitive::Concat,
+            "parse float" => Primitive::ParseFloat,
             "count" => Primitive::Count,
             "sum" => Primitive::Sum,
             "mean" => Primitive::Mean,
@@ -134,6 +143,8 @@ pub fn primitives() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>, 
         ("subtract", vec!["in A", "in B"], vec![], vec!["out"]),
         ("contains", vec!["inner", "outer"], vec![], vec!["out"]),
         ("split", vec!["split", "string"], vec![], vec!["ix", "segment"]),
+        ("concat", vec!["a", "b"], vec![], vec!["out"]),
+        ("parse float", vec!["a"], vec![], vec!["out"]),
         ("count", vec![], vec!["in"], vec!["out"]),
         ("sum", vec![], vec!["in"], vec!["out"]),
         ("mean", vec![], vec!["in"], vec!["out"]),

@@ -15,6 +15,7 @@ cookie = "*"
 url = "*"
 mime = "*"
 cbor = "*"
+conduit-mime-types = "*"
 
 [profile.release]
 debug = true

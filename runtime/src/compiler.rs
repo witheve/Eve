@@ -1,5 +1,5 @@
 use std::collections::BitSet;
-use std::cell::RefCell;
+use std::cell::{RefCell, Ref};
 use std::fmt::Debug;
 
 use value::{Value, Tuple};
@@ -122,7 +122,7 @@ pub fn schema() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>)> {
 //      and stop relying on implicit ordering
 //      and stop using fields at runtime
 
-fn overwrite_compiler_view(flow: &Flow, view: &str, items: Vec<Vec<Value>>) {
+fn overwrite_compiler_view<'a>(flow: &'a Flow, view: &str, items: Vec<Vec<Value>>) -> Ref<'a, Relation> {
     let (_, unique_fields, other_fields) = schema().into_iter().find(|&(ref v, _, _)| *v == view).unwrap();
     let fields = unique_fields.iter().chain(other_fields.iter())
         .map(|field| format!("{}: {}", view, field))
@@ -132,6 +132,23 @@ fn overwrite_compiler_view(flow: &Flow, view: &str, items: Vec<Vec<Value>>) {
         .collect();
     let index = items.into_iter().collect();
     *flow.get_output_mut(view) = Relation{view: view.to_owned(), fields: fields, names: names, index: index};
+    flow.get_output(view)
+}
+
+fn plan(flow: &Flow) {
+    let view_table = flow.get_output("view");
+    let field_table = flow.get_output("field");
+    let source_table = flow.get_output("source");
+    let constant_table = flow.get_output("constant");
+    let constraint_table = flow.get_output("constraint");
+    let constraint_left_table = flow.get_output("constraint left");
+    let constraint_right_table = flow.get_output("constraint right");
+    let constraint_operation_table = flow.get_output("constraint operation");
+    let aggregate_grouping_table = flow.get_output("aggregate grouping");
+    let aggregate_sorting_table = flow.get_output("aggregate sorting");
+    let aggregate_limit_from_table = flow.get_output("aggregate limit from");
+    let aggregate_limit_to_table = flow.get_output("aggregate limit to");
+    let select_table = flow.get_output("select");
 }
 
 fn topological_sort<K: Eq + Debug>(mut input: Vec<(K, Vec<K>)>) -> Vec<(K, Vec<K>)> {

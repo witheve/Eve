@@ -14,7 +14,7 @@ module uiEditorRenderer {
   var ixer = api.ixer;
   var code = api.code;
 
-  var ids = {"active page": "3ff64c83-179b-4c6f-bfb6-715af2a27492"};
+  var ids = {"active page": "6b54229a-f5bc-476d-935e-4bb37d2b3ad0"};
   
   export var session = "me";
     
@@ -93,7 +93,7 @@ module uiEditorRenderer {
         sessionIx = ix; 
       } 
     });
-    if(sessionIx) {
+    if(sessionIx !== undefined) {
       return ixer.select(binding, {session: session});
     } else {
       return ixer.select(binding, {});  

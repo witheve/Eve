@@ -119,6 +119,17 @@ impl Relation {
         Change{fields: self.fields.clone(), insert: insert, remove: remove}
     }
 
+    pub fn find<'a>(&self, pattern: Vec<&Value>) -> Vec<&[Value]> {
+        assert_eq!(self.fields.len(), pattern.len());
+        self.index.iter().filter(|values|
+            pattern.iter().zip(values.iter()).all(|(pattern_value, value)|
+                (**pattern_value == Value::Null) || (*pattern_value == value)
+            )
+        ).map(|values|
+            &values[..] // for easy pattern matching later
+        ).collect()
+    }
+
     pub fn find_maybe(&self, name: &str, value: &Value) -> Option<Tuple> {
         let ix = self.names.iter().position(|my_name| &my_name[..] == name).unwrap();
         self.index.iter().find(|values| values[ix] == *value).map(|values|
