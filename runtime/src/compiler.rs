@@ -157,6 +157,7 @@ fn runtime_schema() -> Vec<(&'static str, Vec<&'static str>)> {
 
     vec![
     // TODO what are this?
+    ("click", ["event number", "button", "binding"]),
     ("client event", vec!["session", "eventId", "type", "element", "row"]),
     ("mouse position", vec!["session", "eventId", "x", "y"]),
     ("text input", vec!["session", "eventId", "element", "binding", "value"]),
