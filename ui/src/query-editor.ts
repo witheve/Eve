@@ -89,9 +89,9 @@ module queryEditor {
           view: info.viewId,
           kind: info.kind,
           dependents: {
-            block: {query: queryId},
             "display name": {name: name},
             tag: [{tag: "local"}, {tag: "remote"}],
+            block: {query: queryId},
             source: (info.sourceId ? {
               "source view": info.sourceId,
               dependents: {
@@ -99,17 +99,27 @@ module queryEditor {
               }
             : undefined)
           }
-        }));
-        console.log("new diffs", diffs);                                                             
+        }));                                                             
         break;
       case "addAggregateBlock":
         var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
-        diffs = diff.addAggregateBlock(queryId, info.kind);
-        var primitive = ixer.index("primitive")[info.kind];
-        if(primitive) {
-          var viewId = diffs[1][2][code.ix("view", "view")]; //@FIXME: Hacky.
-          dispatch("addPrimitiveSource", {viewId: viewId, primitiveId: info.kind}); // @FIXME: Hacky, I know, but I need to send half to the server.
-        }
+        var name = api.getUniqueName(code.queryViews(queryId), api.alphabet);
+        
+        diffs = api.toDiffs(api.insert("view", {
+          view: info.viewId,
+          kind: "aggregate",
+          dependents: {
+            "display name": {name: name},
+            tag: [{tag: "local"}, {tag: "remote"}],
+            block: {query: queryId},
+            "block aggregate": {kind: info.kind},
+            source: [
+              {source: "inner", "source view": "empty view"},
+              {source: "outer", "source view": "empty view"},
+              api.diff2.primitiveSource(info.kind)
+            ]
+          }
+        }));
         break;
       case "addUnionBlock":
         var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
