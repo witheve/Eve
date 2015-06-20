@@ -9,12 +9,15 @@ use flow::{Node, Flow};
 use primitive;
 use primitive::Primitive;
 
-pub fn schema() -> Vec<(&'static str, Vec<&'static str>)> {
-    // the schema is arranged as (table name, fields)
-    // any field whose type is not described is a UUID
+
+// schemas are arranged as (table name, fields)
+// any field whose type is not described is a UUID
+
+pub fn code_schema() -> Vec<(&'static str, Vec<&'static str>)> {
+    // eve code is stored in relations
 
     vec![
-    // all state lives in a view of some kind
+    // all data lives in a view of some kind
     // `kind` is one of:
     // "table" - a view which can depend on the past
     // "join" - take the product of multiple views and filter the results
@@ -29,7 +32,7 @@ pub fn schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // "output" - a normal field
     // "scalar input" - a field that must be constrained to a single scalar value
     // "vector input" - a field that must be constrained to a single vector value (in an aggregate)
-    ("field", vec!["field", "view", "kind"]),
+    ("field", vec!["view", "field", "kind"]),
 
     // source ids have two purposes
     // a) uniquely generated ids to disambiguate multiple uses of the same view
@@ -72,18 +75,15 @@ pub fn schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // each union field must be bound exactly once per source
     ("select", vec!["view", "view field", "source", "source field"]),
 
-    // things can have human readable names
-    // `name` is a string
-    ("display name", vec!["id", "name"]),
-    // things can be displayed in ordered lists
-    // `priority` is an f64. higher priority things are displayed first. ties are broken by id
-    ("display order", vec!["id", "priority"]),
-
     // tags are used to organise views
     ("tag", vec!["view", "tag"]),
+    ]
+}
 
-    // the compiler reflects its decisions into some builtin views:
+fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
+    // the compiler reflects its decisions into some builtin views
 
+    vec![
     // a view dependency exists whenever the contents of one view depend directly on another
     // `ix` is an integer identifying the position in the downstream views input list
     ("view dependency", vec!["upstream view", "source", "downstream view", "ix"]),
@@ -118,17 +118,30 @@ pub fn schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ]
 }
 
-fn overwrite_compiler_view_2<'a, F>(flow: &'a Flow, view: &str, insert_items: F) -> Ref<'a, Relation>
-    where F: Fn(&mut Vec<Vec<Value>>) {
-    let (_, names) = schema().into_iter().find(|&(ref v, _)| *v == view).unwrap();
-    let fields = names.iter().map(|name| format!("{}: {}", view, name)).collect();
-    let names = names.iter().map(|name| format!("{}", name)).collect();
-    let mut items = Vec::new();
-    insert_items(&mut items);
-    let index = items.into_iter().collect();
-    *flow.get_output_mut(view) = Relation{view: view.to_owned(), fields: fields, names: names, index: index};
-    flow.get_output(view)
+fn editor_schema() -> Vec<(&'static str, Vec<&'static str>)> {
+    // the editor uses some tables to control the display of code and data
+
+    vec![
+    // things can have human readable names
+    // `name` is a string
+    ("display name", vec!["id", "name"]),
+
+    // things can be displayed in ordered lists
+    // `priority` is an f64. higher priority things are displayed first. ties are broken by id
+    ("display order", vec!["id", "priority"]),
+
+    // things which can be displayed in the sidebar
+    // `type` is one of "table", "query", "ui"
+    ("editor item", vec!["item", "type"]),
+    ]
 }
+
+fn schema() -> Vec<(&'static str, Vec<&'static str>)> {
+    code_schema().into_iter()
+    .chain(compiler_schema().into_iter())
+    .chain(editor_schema().into_iter())
+    .collect()
+    }
 
 macro_rules! find_pattern {
     ( (= $name:expr) ) => {{ $name }};
@@ -170,16 +183,23 @@ fn plan(flow: &Flow) {
     let aggregate_limit_to_table = flow.get_output("aggregate limit to");
     let select_table = flow.get_output("select");
 
-    let view_dependency_table = overwrite_compiler_view_2(flow, "view dependency (clone)", |items| {
-        find!(view_table, [view, _], {
-            let mut ix = 0;
-            find!(source_table, [(= view), source, source_view], {
-                find!(view_table, [(= source_view), (= &string!("primitive"))], { // TODO not primitive :(
-                    items.push(vec![source_view.clone(), Float(ix as f64), source.clone(), view.clone()]);
+    let mut view_dependency_table = flow.overwrite_output("view dependency (clone)");
+
+    find!(view_table, [view, _], {
+        let mut ix = 0;
+        find!(source_table, [(= view), source, source_view], {
+            find!(view_table, [(= source_view), source_kind], {
+                if source_kind.as_str() != "primitive" {
+                    view_dependency_table.index.insert(vec![
+                        source_view.clone(),
+                        Float(ix as f64),
+                        source.clone(),
+                        view.clone()
+                        ]);
                     ix += 1;
-                })
+                }
             })
-        });
+        })
     });
 }
 
@@ -188,7 +208,7 @@ fn plan(flow: &Flow) {
 //      and stop using fields at runtime
 
 fn overwrite_compiler_view<'a>(flow: &'a Flow, view: &str, items: Vec<Vec<Value>>) -> Ref<'a, Relation> {
-    let (_, names) = schema().into_iter().find(|&(ref v, _)| *v == view).unwrap();
+    let (_, names) = compiler_schema().into_iter().find(|&(ref v, _)| *v == view).unwrap();
     let fields = names.iter().map(|name| format!("{}: {}", view, name)).collect();
     let names = names.iter().map(|name| format!("{}", name)).collect();
     let index = items.into_iter().collect();
@@ -898,12 +918,13 @@ pub fn recompile(old_flow: Flow) -> Flow {
     new_flow
 }
 
+// TODO separate remote for internals
 pub fn bootstrap(mut flow: Flow) -> Flow {
     let schema = schema();
     for &(view, ref names) in schema.iter() {
         flow.nodes.push(Node{
             id: format!("{}", view),
-                view: View::Union(Union{selects: Vec::new()}), // dummy node, replaced by recompile
+                view: View::Table(Table{insert: None, remove: None}), // dummy node, replaced by recompile
                 upstream: Vec::new(),
                 downstream: Vec::new(),
             });
@@ -911,38 +932,61 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
         let names = names.iter().map(|name| format!("{}", name)).collect();
         flow.outputs.push(RefCell::new(Relation::new(format!("{}", view), fields, names)));
     }
-    let mut view_values = Vec::new();
-    let mut tag_values = Vec::new();
-    let mut field_values = Vec::new();
-    let mut display_name_values = Vec::new();
-    for (id, names) in schema.into_iter() {
-        view_values.push(vec![string!("{}", id), string!("table")]);
-        display_name_values.push(vec![string!("{}", id), string!("{}", id)]);
-        tag_values.push(vec![string!("{}", id), string!("compiler")]);
-        for name in names.into_iter() {
-            field_values.push(vec![string!("{}: {}", id, name), string!("{}", id), string!("output")]);
-            display_name_values.push(vec![string!("{}: {}", id, name), string!("{}", name)]);
+    {
+        let mut view_table = flow.overwrite_output("view");
+        let mut field_table = flow.overwrite_output("field");
+        let mut tag_table = flow.overwrite_output("tag");
+        let mut display_name_table = flow.overwrite_output("display name");
+        let mut display_order_table = flow.overwrite_output("display order");
+        let mut editor_item_table = flow.overwrite_output("editor item");
+
+        for (view, _) in code_schema().into_iter() {
+            tag_table.index.insert(vec![string!("{}", view), string!("code")]);
+            tag_table.index.insert(vec![string!("{}", view), string!("hidden")]);
+            tag_table.index.insert(vec![string!("{}", view), string!("remote")]);
+        }
+
+        for (view, _) in compiler_schema().into_iter() {
+            tag_table.index.insert(vec![string!("{}", view), string!("compiler")]);
+            tag_table.index.insert(vec![string!("{}", view), string!("hidden")]);
+            tag_table.index.insert(vec![string!("{}", view), string!("remote")]);
+        }
+
+        for (view, _) in editor_schema().into_iter() {
+            tag_table.index.insert(vec![string!("{}", view), string!("editor")]);
+            tag_table.index.insert(vec![string!("{}", view), string!("hidden")]);
+        }
+
+        for (view, names) in schema.into_iter() {
+            view_table.index.insert(vec![string!("{}", view), string!("table")]);
+            display_name_table.index.insert(vec![string!("{}", view), string!("{}", view)]);
+            editor_item_table.index.insert(vec![string!("{}", view), string!("table")]);
+
+            let mut ix = 0;
+            for name in names.into_iter() {
+                field_table.index.insert(vec![string!("{}", view), string!("{}: {}", view, name), string!("output")]);
+                display_name_table.index.insert(vec![string!("{}: {}", view, name), string!("{}", name)]);
+                display_order_table.index.insert(vec![string!("{}: {}", view, name), Value::Float(ix as f64)]);
+                ix -= 1;
+            }
+        }
+
+        for (primitive, scalar_inputs, vector_inputs, outputs) in primitive::primitives().into_iter() {
+            view_table.index.insert(vec![string!("{}", primitive), string!("primitive")]);
+            display_name_table.index.insert(vec![string!("{}", primitive), string!("{}", primitive)]);
+            for name in scalar_inputs.into_iter() {
+                field_table.index.insert(vec![string!("{}", primitive), string!("{}: {}", primitive, name), string!("scalar input")]);
+                display_name_table.index.insert(vec![string!("{}: {}", primitive, name), string!("{}", name)]);
+            }
+            for name in vector_inputs.into_iter() {
+                field_table.index.insert(vec![string!("{}", primitive), string!("{}: {}", primitive, name), string!("vector input")]);
+                display_name_table.index.insert(vec![string!("{}: {}", primitive, name), string!("{}", name)]);
+            }
+            for name in outputs.into_iter() {
+                field_table.index.insert(vec![string!("{}", primitive), string!("{}: {}", primitive, name), string!("output")]);
+                display_name_table.index.insert(vec![string!("{}: {}", primitive, name), string!("{}", name)]);
+            }
         }
     }
-    for (primitive, scalar_inputs, vector_inputs, outputs) in primitive::primitives().into_iter() {
-        view_values.push(vec![string!("{}", primitive), string!("primitive")]);
-        display_name_values.push(vec![string!("{}", primitive), string!("{}", primitive)]);
-        for name in scalar_inputs.into_iter() {
-            field_values.push(vec![string!("{}: {}", primitive, name), string!("{}", primitive), string!("scalar input")]);
-            display_name_values.push(vec![string!("{}: {}", primitive, name), string!("{}", name)]);
-        }
-        for name in vector_inputs.into_iter() {
-            field_values.push(vec![string!("{}: {}", primitive, name), string!("{}", primitive), string!("vector input")]);
-            display_name_values.push(vec![string!("{}: {}", primitive, name), string!("{}", name)]);
-        }
-        for name in outputs.into_iter() {
-            field_values.push(vec![string!("{}: {}", primitive, name), string!("{}", primitive), string!("output")]);
-            display_name_values.push(vec![string!("{}: {}", primitive, name), string!("{}", name)]);
-        }
-    }
-    overwrite_compiler_view(&flow, "view", view_values);
-    overwrite_compiler_view(&flow, "tag", tag_values);
-    overwrite_compiler_view(&flow, "field", field_values);
-    overwrite_compiler_view(&flow, "display name", display_name_values);
     recompile(flow) // bootstrap away our dummy nodes
 }

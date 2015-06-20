@@ -1,4 +1,4 @@
-use std::collections::BitSet;
+use std::collections::{BitSet, BTreeSet};
 use std::cell::{RefCell, Ref, RefMut};
 
 use value::{Id};
@@ -43,6 +43,12 @@ impl Flow {
 
     pub fn get_output_mut(&self, id: &str) -> RefMut<Relation> {
         self.outputs[self.get_ix(id).unwrap()].borrow_mut()
+    }
+
+    pub fn overwrite_output(&self, id: &str) -> RefMut<Relation> {
+        let mut output = self.get_output_mut(id);
+        output.index = BTreeSet::new();
+        output
     }
 
     pub fn change(&mut self, changes: Changes) {
