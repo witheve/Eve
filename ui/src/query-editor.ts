@@ -81,9 +81,6 @@ module queryEditor {
       case "addViewBlock":
         var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
         var name = api.getUniqueName(code.queryViews(queryId), api.alphabet);
-
-        diffs = diff.addViewBlock(queryId, info.sourceId, info.kind, viewId);
-        console.log("old diffs", diffs);
         
         diffs = api.toDiffs(api.insert("view", {
           view: info.viewId,
@@ -121,12 +118,8 @@ module queryEditor {
           }
         }));
         break;
-      case "addUnionBlock":
-        var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
-        diffs = diff.addUnionBlock(queryId);
-        break;
       case "removeViewBlock":
-        diffs = diff.removeViewBlock(info.viewId);
+        diffs = api.toDiffs({view: info.viewId});
         break;
       case "addViewSelection":
         diffs = diff.addViewSelection(info.viewId, info.sourceId, info.sourceFieldId, info.fieldId, info.isCalculated);
@@ -642,7 +635,7 @@ module queryEditor {
   }
 
   function newUnionBlock(e, elem) {
-      dispatch("addUnionBlock", {queryId: elem.queryId});
+      dispatch("addViewBlock", {queryId: elem.queryId, kind: "union"});
   }
 
   function editorDrop(evt, elem) {
