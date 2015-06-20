@@ -122,7 +122,29 @@ module queryEditor {
         diffs = api.toDiffs(api.remove("view", {view: info.viewId}));
         break;
       case "addViewSelection":
-        diffs = diff.addViewSelection(info.viewId, info.sourceId, info.sourceFieldId, info.fieldId, info.isCalculated);
+        var name = code.name(info.sourceFieldId);
+        if(info.isCalculated) {
+          var calculated = ixer.selectOne("calculated field", {view: info.viewId, source: info.sourceId, field: info.sourceFieldId});
+          if(calculated) {
+            name = code.name(calculated["calculated field"]);
+          }
+        }
+        
+        var fields = ixer.select("field", {view: info.viewId}) || [];
+ 
+        diffs = api.toDiffs([
+          (info.fieldId) ? api.remove("field", {view: info.viewId, field: info.fieldId}) : undefined,
+          api.insert("field", {
+            view: info.viewId,
+            field: info.fieldId,
+            kind: "output",
+            dependents: {
+              "display name": {name: name},
+              "display order": {priority: -fields.length},
+              select: {view: info.viewId, "view field": info.fieldId, source: info.sourceId, "source field": info.sourceFieldId}
+            }
+          })
+        ]);
         break;
       case "addUnionSelection":
         diffs = diff.addViewSelection(info.viewId, info.sourceId, info.sourceFieldId, info.fieldId);
