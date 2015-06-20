@@ -423,6 +423,11 @@ module queryEditor {
     var blocks = ixer.index("query to blocks")[queryId] || [];
     var items = [];
     var order = ixer.index("display order");
+    blocks.sort(function(a, b) {
+      var viewA = code.name(a[code.ix("block", "view")]);
+      var viewB = code.name(b[code.ix("block", "view")]);
+      return viewA.localeCompare(viewB);
+    });
     for(var ix = 0; ix < blocks.length; ix++) {
       var viewId = blocks[ix][code.ix("block", "view")];
       var viewKind = ixer.index("view to kind")[viewId];
