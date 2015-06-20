@@ -9,12 +9,11 @@ use flow::{Node, Flow};
 use primitive;
 use primitive::Primitive;
 
-
 // schemas are arranged as (table name, fields)
 // any field whose type is not described is a UUID
 
 pub fn code_schema() -> Vec<(&'static str, Vec<&'static str>)> {
-    // eve code is stored in relations
+    // eve code is stored in tables
 
     vec![
     // all data lives in a view of some kind
@@ -81,7 +80,7 @@ pub fn code_schema() -> Vec<(&'static str, Vec<&'static str>)> {
 }
 
 fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
-    // the compiler reflects its decisions into some builtin views
+    // the compiler reflects its decisions into some builtin tables
 
     vec![
     // a view dependency exists whenever the contents of one view depend directly on another
@@ -133,6 +132,40 @@ fn editor_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // things which can be displayed in the sidebar
     // `type` is one of "table", "query", "ui"
     ("editor item", vec!["item", "type"]),
+
+    // TODO what are this?
+    ("block", vec!["query", "block", "view"]),
+    ("block aggregate", vec!["view", "kind"]),
+    ("calculated field", vec!["calculated field", "view", "source", "source view", "field"]),
+    ("empty view", vec![]),
+    ("query export", vec!["query", "view"]),
+    ("source order", vec!["view", "source", "priority"]),
+
+    // TODO what are this?
+    ("uiComponentElement", vec!["tx", "id", "component", "layer", "control", "left", "top", "right", "bottom", "zindex"]),
+    ("uiComponentLayer", vec!["tx", "id", "component", "layer", "locked", "hidden", "parentLayer"]),
+    ("uiComponentAttribute", vec!["tx", "id", "property", "value"]),
+    ("uiStyle", vec!["tx", "id", "type", "element", "shared"]),
+    ("uiGroupBinding", vec!["group", "view"]),
+    ("uiAttrBinding", vec!["elementId", "attr", "field"]),
+    ("uiKeyCapture", vec!["elementId", "key"]),
+    ]
+}
+
+fn runtime_schema() -> Vec<(&'static str, Vec<&'static str>)> {
+    // the runtime stores client state (ui events, session data etc) in tables
+
+    vec![
+    // TODO what are this?
+    ("client event", vec!["session", "eventId", "type", "element", "row"]),
+    ("mouse position", vec!["session", "eventId", "x", "y"]),
+    ("text input", vec!["session", "eventId", "element", "binding", "value"]),
+    ("location", vec!["session", "latitude", "longitude", "accuracy", "timestamp"]),
+    ("session url", vec!["session", "eventId", "href", "origin", "path", "hash"]),
+    ("eveusers", vec!["id", "username"]),
+    ("sessions", vec!["id", "status"]),
+    ("session id to user id", vec!["session id", "user id"]),
+    ("captured key", vec!["session", "eventId", "element", "key", "binding"]),
     ]
 }
 
@@ -140,6 +173,7 @@ fn schema() -> Vec<(&'static str, Vec<&'static str>)> {
     code_schema().into_iter()
     .chain(compiler_schema().into_iter())
     .chain(editor_schema().into_iter())
+    .chain(runtime_schema().into_iter())
     .collect()
     }
 
@@ -955,6 +989,12 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
         for (view, _) in editor_schema().into_iter() {
             tag_table.index.insert(vec![string!("{}", view), string!("editor")]);
             tag_table.index.insert(vec![string!("{}", view), string!("hidden")]);
+        }
+
+        for (view, _) in runtime_schema().into_iter() {
+            tag_table.index.insert(vec![string!("{}", view), string!("runtime")]);
+            tag_table.index.insert(vec![string!("{}", view), string!("hidden")]);
+            tag_table.index.insert(vec![string!("{}", view), string!("remote")]);
         }
 
         for (view, names) in schema.into_iter() {
