@@ -119,7 +119,7 @@ module queryEditor {
         }));
         break;
       case "removeViewBlock":
-        diffs = api.toDiffs({view: info.viewId});
+        diffs = api.toDiffs(api.remove("view", {view: info.viewId}));
         break;
       case "addViewSelection":
         diffs = diff.addViewSelection(info.viewId, info.sourceId, info.sourceFieldId, info.fieldId, info.isCalculated);
