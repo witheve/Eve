@@ -134,7 +134,7 @@ module api {
       "source schedule": {name: "source schedule", fields: ["view", "source", "ix"]},
       "constraint schedule": {name: "constraint schedule", fields: ["constraint", "ix"]},
       "index layout": {name: "index layout", fields: ["view", "field", "ix"]},
-      "view constant": {name: "view constant", fields: ["view", "constant"]},
+      //"view constant": {name: "view constant", fields: ["view", "constant"]},
       "view layout": {name: "view layout", fields: ["view", "source", "field", "ix"]},
     },
     editor: {
