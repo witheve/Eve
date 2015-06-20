@@ -1247,6 +1247,7 @@ module api {
     var diffs = [];
     if(writes instanceof Array) {
       for(var write of writes) {
+        if(!write) { continue; }
         var result = toDiffs(write);
         if(result !== undefined) {
           diffs = diffs.concat(result);
