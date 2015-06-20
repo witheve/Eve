@@ -19,8 +19,8 @@ module api {
   export var arraysIdentical:(a:any[], b:any[])=>boolean = Indexing.arraysIdentical;
 
   if(!window.DEBUG) {
-    window.DEBUG = {RECEIVE: 0,
-                    SEND: 0,
+    window.DEBUG = {RECEIVE: 3,
+                    SEND: 3,
                     INDEXER: 0};
   }
 
@@ -1042,7 +1042,7 @@ module api {
      "location": {},
      "session url": {},
      "captured key": {},
-     "editor item": {key: "item", dependents: pkDependents},
+     "editor item": {key: "item", foreign: {view: "item"}, dependents: pkDependents},
      "block aggregate": {foreign: {view: "view"}}
   };
 
@@ -1068,6 +1068,7 @@ module api {
   }
 
   export function process(type:string, params, context?:Context): Write<any> {
+    if(!params) { return; }
     if(params instanceof Array) {
       var write = {type: type, content: [], context: []};
       for(var item of params) {
@@ -1128,7 +1129,8 @@ module api {
             process(dep, depItem, context);
           }
         } else {
-          process(dep, dependents[dep], context);
+          var result = process(dep, dependents[dep], context);
+          if(!result) { delete dependents[dep]; }
         }
       }
     }
