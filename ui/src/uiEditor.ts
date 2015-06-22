@@ -29,6 +29,15 @@ module uiEditor {
     var redispatched = false;
     var diffs = [];
     switch (event) {
+      case "addUiLayer":
+        var layerId = uuid();
+        var groupNum = ixer.index("uiComponentToLayers")[info.componentId].length;
+        var groupIx = (ixer.index("parentLayerToLayers")[info.parentLayer] || []).length;
+        diffs.push(["uiComponentLayer", "inserted", [txId, layerId, info.componentId, groupIx, false, false, info.parentLayer]],
+                   ["display name", "inserted", [layerId, "Group " + groupNum]]);
+        localState.uiActiveLayer = layerId;
+        localState.openLayers[layerId] = true;
+        break;
       case "updateUiLayer":
         var subLayers = code.layerToChildLayers(info.neue);
         var neueLocked = info.neue[4];

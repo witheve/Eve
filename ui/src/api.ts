@@ -19,8 +19,8 @@ module api {
   export var arraysIdentical:(a:any[], b:any[])=>boolean = Indexing.arraysIdentical;
 
   if(!window.DEBUG) {
-    window.DEBUG = {RECEIVE: 0,
-                    SEND: 0,
+    window.DEBUG = {RECEIVE: 3,
+                    SEND: 3,
                     INDEXER: 0};
   }
 
@@ -134,7 +134,7 @@ module api {
       "source schedule": {name: "source schedule", fields: ["view", "source", "ix"]},
       "constraint schedule": {name: "constraint schedule", fields: ["constraint", "ix"]},
       "index layout": {name: "index layout", fields: ["view", "field", "ix"]},
-      "view constant": {name: "view constant", fields: ["view", "constant"]},
+      //"view constant": {name: "view constant", fields: ["view", "constant"]},
       "view layout": {name: "view layout", fields: ["view", "source", "field", "ix"]},
     },
     editor: {
@@ -209,7 +209,7 @@ module api {
     split: {"split: split": "default space", "split: string": "default empty"},
     concat: {"concat: a": "default empty", "concat: b": "default empty"},
     "parse float": {"parse float: a": "default zero string"},
-    "standard deviation": {"standard deviation: in": "default zero"},
+    "stddev": {"stddev: in": "default zero"},
     subtract: {"subtract: in A": "default zero", "subtract: in B": "default zero"},
     sum: {"sum: in": "default zero"}
   }
@@ -1015,7 +1015,7 @@ module api {
             dependents: pkDependents},
     view: {key: "view",
            dependents: pkDependents.concat(
-             ["block", "field", "aggregate grouping", "aggregate sorting", "aggregate limit from", "aggregate limit to", "editor item", "query export"])},
+             ["block", "field", "aggregate grouping", "aggregate sorting", "aggregate limit from", "aggregate limit to", "editor item", "query export", "block aggregate"])},
     source: {key: ["view", "source"],
              foreign: {view: "view"},
              dependents: ["constraint", "source order"]},
@@ -1042,7 +1042,8 @@ module api {
      "location": {},
      "session url": {},
      "captured key": {},
-     "editor item": {key: "item", dependents: pkDependents}
+     "editor item": {key: "item", foreign: {view: "item"}, dependents: pkDependents},
+     "block aggregate": {foreign: {view: "view"}}
   };
 
   /***************************************************************************\
@@ -1067,7 +1068,7 @@ module api {
   }
 
   export function process(type:string, params, context?:Context): Write<any> {
-    console.log("[process]", type, params, clone(context));
+    if(!params) { return; }
     if(params instanceof Array) {
       var write = {type: type, content: [], context: []};
       for(var item of params) {
@@ -1109,6 +1110,14 @@ module api {
         throw new Error("Missing value for field " + fieldName + " on type " + type);
       }
     }
+    
+    switch(type) {
+      case "constraint":
+        if(!params["left source"] || !params["left field"] || !params["right source"] || !params["right field"] || !params["operation"]) {
+          throw new Error("Missing value for compound field on type constraint " + JSON.stringify(params));
+        }
+        break;
+    }
 
     // Process dependents recursively.
     if(params.dependents) {
@@ -1120,7 +1129,8 @@ module api {
             process(dep, depItem, context);
           }
         } else {
-          process(dep, dependents[dep], context);
+          var result = process(dep, dependents[dep], context);
+          if(!result) { delete dependents[dep]; }
         }
       }
     }
@@ -1287,8 +1297,51 @@ module api {
                    ["constraint right", mode, mapToFact("constraint right", params)],
                    ["constraint operation", mode, mapToFact("constraint operation", params)]);
         break;
+      case "source":
+        var isPrimitive = ixer.selectOne("primitive", {view: params["source view"]})
+        if(isPrimitive) {
+          var calculatedFieldNames = (ixer.select("calculated field", {view: params["view"]}) || []).map(function(field) {
+            return code.name(field["calculated field"]);
+          });
+          var nameIx = getUniqueNameIx(calculatedFieldNames, alphabetLower);
+          
+          (ixer.select("field", {view: params["source view"]}) || []).forEach(function(field) {
+            if(field.kind === "output") {
+              var name = alphabetLower[nameIx++];
+              var calculatedId = params["view"] + params["source"] + field["field"];
+              diffs.push(["calculated field", mode, mapToFact("calculated field", {
+                "calculated field": calculatedId,
+                view: params["view"],
+                source: params["source"],
+                "source view": params["source view"],
+                field: field["field"]
+              })],
+              ["display name", mode, mapToFact("display name", {id: calculatedId, name: name})]);
+            }
+          });
+        }
+        
+        break;
     }
 
     return diffs;
   }
+  
+  export var diff2 = {
+    primitiveSource: function(primitiveId) {
+      if(!primitiveDefaults[primitiveId]) { throw new Error("Must specify defaults for primitive " + primitiveId); }
+      return {
+        "source view": primitiveId,
+        dependents : {
+          constraint: (ixer.select("field", {view: primitiveId}) || []).map(function(field) {
+            if(field.kind === "output") { return; }
+            return {"left field": field.field,
+                    "right source": "constant",
+                    "right field": primitiveDefaults[primitiveId][field.field],
+                    operation: "="};
+          }).filter(Boolean)
+        }
+      };
+    }
+  };
 }

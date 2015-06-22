@@ -174,12 +174,6 @@ pub fn run() {
     let mut events = OpenOptions::new().write(true).append(true).open("./events").unwrap();
     let mut senders: Vec<sender::Sender<_>> = Vec::new();
 
-    // Create sessions related tables
-    let mut sessions_tables = client::create_table(&"sessions",&vec!["id","status"],None);
-    sessions_tables = client::insert_fact(&"tag",&vec!["view","tag"],&vec![Value::String("sessions".to_string()),Value::String("remote".to_string())],Some(sessions_tables));
-    sessions_tables = client::create_table(&"session id to user id",&vec!["session id","user id"],Some(sessions_tables));
-    sessions_tables = client::insert_fact(&"tag",&vec!["view","tag"],&vec![Value::String("session id to user id".to_string()),Value::String("remote".to_string())],Some(sessions_tables));
-    flow = flow.quiesce(sessions_tables.changes);
 
     for server_event in serve() {
         match server_event {

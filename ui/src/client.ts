@@ -185,7 +185,6 @@ module client {
     api.initIndexer(noFacts);
     if(!noFacts) {
       var diffs = createBlockFieldView();
-      console.log(JSON.stringify(diffs, null, 2));
       ixer.handleDiffs(diffs);
     } 
     sendToServer(ixer.dumpMapDiffs(), true);

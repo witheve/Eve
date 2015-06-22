@@ -131,6 +131,23 @@ module Indexing {
       }
       return {changes: final};
     }
+    compactDiffs() {
+      var compiler = [];
+      var compilerTables = Object.keys(api.builtins.compiler);
+      for(var table of compilerTables) {
+        var fieldIds = api.code.sortedViewFields(table) || []; // @FIXME: Shouldn't hardcode knowledge of an external index.
+        compiler.push([table, fieldIds, this.tables[table] || [], []]);
+      }
+      var facts = [];
+      for(var factTable in this.tables) {
+        if(api.builtins.compiler[factTable]) continue;
+        var kind = api.ixer.index("view")[factTable][1];
+        if(kind !== "table") continue;
+        var fieldIds = api.code.sortedViewFields(factTable) || []; // @FIXME: Shouldn't hardcode knowledge of an external index.
+        facts.push([factTable, fieldIds, this.tables[factTable] || [], []]);
+      }
+      return JSON.stringify({changes: compiler}) + "\n" + JSON.stringify({changes: facts});
+    }
     handleMapDiffs(diffs) {
       for(var diffIx = 0, diffLen = diffs.length; diffIx < diffLen; diffIx++) {
         var diff = diffs[diffIx];
