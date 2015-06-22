@@ -203,14 +203,12 @@ fn login(req: Request, mut res: Response<Fresh>) {
 											// Create eveusers table and insert the new user
 											let table_name = "eveusers";
 											let table_fields = vec!["id","username"];
+
 											let row_data = vec![
 																Value::String(session_data.user.id.clone()),
 																Value::String(session_data.user.username.clone())
 														   	   ];
-											let mut create_eveusers_table = create_table(&table_name,&table_fields,None);
-											create_eveusers_table = insert_fact(&"tag",&vec!["view","tag"],&vec![Value::String("eveusers".to_string()),Value::String("remote".to_string())],Some(create_eveusers_table));
 											let insert_user = insert_fact(&table_name,&table_fields,&row_data,None);
-											send_event(&create_eveusers_table,&mut sender);
 											send_event(&insert_user,&mut sender);
 											let _ = sender.send_message(Message::Close(None));
 										}
