@@ -1,5 +1,6 @@
 #![feature(collections)]
 #![feature(slice_patterns)]
+#![feature(alloc)]
 extern crate rustc_serialize;
 extern crate cbor;
 extern crate websocket;
