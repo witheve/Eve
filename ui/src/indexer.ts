@@ -253,7 +253,9 @@ module Indexing {
       var fields = api.code.sortedViewFields(table) || [];
       var nameLen = table.length + 2;
       var fieldNames = fields.map((cur) => self.index("display name")[cur]);
-      var keys = Object.keys(opts);
+      var keys = Object.keys(opts).filter(function(key) {
+        return opts[key] !== undefined;
+      });
       keys = keys.map(function (key) {
         var result = fields[fieldNames.indexOf(key)];
         if(result === undefined) { throw new Error("Field " + keys + " is not a valid field of table " + table); }

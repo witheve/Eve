@@ -387,7 +387,7 @@ module client {
     }
   }
 
-  function toMapDiffs(diffs) {
+  export function toMapDiffs(diffs) {
     // Deduplicate diffs prior to sending with last write wins.
     var deduped = [];
     outer: for(var ix = diffs.length - 1; ix >= 0; ix--) {
