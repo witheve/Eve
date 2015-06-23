@@ -81,13 +81,16 @@ module uiEditor {
         }
         break;
       case "changeElementLayer":
-        var elem = ixer.index("uiComponentElement")[info.elementId];
-        if (elem[3] !== info.parentLayerId) {
-          var neue = elem.slice();
-          neue[0] = txId;
-          neue[3] = info.parentLayerId;
-          diffs.push(["uiComponentElement", "inserted", neue],
-            ["uiComponentElement", "removed", elem])
+        var sel = localState.uiSelection || [];
+        for(var elemId of sel) {
+          var elem = ixer.index("uiComponentElement")[elemId];
+          if (elem[3] !== info.parentLayerId) {
+            var neue = elem.slice();
+            neue[0] = txId;
+            neue[3] = info.parentLayerId;
+            diffs.push(["uiComponentElement", "inserted", neue],
+              ["uiComponentElement", "removed", elem])
+          }
         }
         break;
       case "changeElementPosition":
