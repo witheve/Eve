@@ -646,16 +646,13 @@ module api {
       var count = code.countSource(queryId, sourceViewId);
       var name = code.name(sourceViewId) + (count ? " (" + (count + 1) + ")" : "");
       var neue = [viewId, sourceId, sourceViewId];
-      var diffs = [["source", "inserted", neue],
-                   ["display name", "inserted", [displayId, name]],
-                   ["display order", "inserted", [displayId, 0]]];
+      var diffs = [["source", "inserted", neue]];
 
       var old = ixer.index("source")[viewId] || {};
       old = old[sourceId];
       if(old && !Indexing.arraysIdentical(old, neue)) {
         var oldName = ixer.index("display name")[displayId];
-        diffs.push(["source", "removed", old],
-                   ["display name", "removed", [displayId, oldName]]);
+        diffs.push(["source", "removed", old]);
       }
 
       diffs = diffs.concat(diff.cacheViewSourceFields(viewId, sourceId, sourceViewId));
