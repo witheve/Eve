@@ -107,6 +107,7 @@ fn serve_local_or_file(mut res: Response<Fresh>, path: &Vec<String>, default_fil
 		let mut str = String::from_utf8(content).unwrap();
 		str = str.replace("href=\"", "href=\"/app/");
 		str = str.replace("src=\"", "src=\"/app/");
+		str = str.replace("/app/http", "http");
 		file = str.as_bytes().to_owned();
 		file_path = default_file;
 	}
