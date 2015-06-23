@@ -992,7 +992,7 @@ module api {
 
   export type Diff = any[];
   interface Context {[key:string]: Id}
-  interface Write<T> {type: string, content: T|T[], context: Context|Context[], mode?: string, originalKeys?: string[]}
+  interface Write<T> {type: string, content: T|T[], context?: Context|Context[], mode?: string, originalKeys?: string[]}
 
   interface Schema {
     key?: string|string[]
