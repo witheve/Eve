@@ -1015,7 +1015,7 @@ module api {
             dependents: pkDependents},
     view: {key: "view",
            dependents: pkDependents.concat(
-             ["block", "field", "aggregate grouping", "aggregate sorting", "aggregate limit from", "aggregate limit to", "editor item", "query export", "block aggregate"])},
+             ["block", "field", "source", "aggregate grouping", "aggregate sorting", "aggregate limit from", "aggregate limit to", "editor item", "query export", "block aggregate"])},
     source: {key: ["view", "source"],
              foreign: {view: "view"},
              dependents: ["constraint", "source order"]},
@@ -1143,8 +1143,16 @@ module api {
     var schema = schemas[type];
     if(!schema) { throw new Error("Attempted to retrieve unknown type " + type + " with params " + JSON.stringify(query)); }
     var keys:string[] = (schema.key instanceof Array) ? <string[]>schema.key : (schema.key) ? [<string>schema.key] : [];
+    var facts;
+    switch(type) {
+      case "constraint":
+        facts = retrieveConstraints(query);
+        break;
+      default:
+        facts = ixer.select(type, query);
+        break;
+    }
 
-    var facts = ixer.select(type, query); // @FIXME: Cannot query on compound constraint views yet.
     if(!facts.length) { return; }
     for(var fact of facts) {
       if(!fact) { continue; }
@@ -1154,15 +1162,6 @@ module api {
       }
       if(keys.length === 1) {
         factContext["$last"] = fact[keys[0]];
-      }
-
-      switch(type) {
-        case "constraint":
-          var subQuery = {constraint: fact.constraint};
-          extend(fact, ixer.selectOne("constraint left", subQuery));
-          extend(fact, ixer.selectOne("constraint right", subQuery));
-          extend(fact, ixer.selectOne("constraint operation", subQuery));
-          break;
       }
 
       var dependents = {};
@@ -1190,6 +1189,72 @@ module api {
       }
     }
 
+    return facts;
+  }
+  
+  function retrieveConstraints(query:{[key:string]:string}) {
+    var facts = [];
+    var constraintIds = [];
+    var noQuery = true;
+    if(query["view"] || query["constraint"]) {
+      constraintIds = ixer.select("constraint", {view: query["view"], constraint: query["constraint"]}).map(function(constraint) {
+        return constraint.constraint;
+      });
+      noQuery = false;
+    } else {
+      constraintIds.push(undefined);
+    }
+    if((query["left source"] || query["left field"]) && constraintIds.length) {
+      var result = [];
+      for(var constraintId of constraintIds) {
+        ixer.select("constraint left",
+          {constraint: constraintId, "left source": query["left source"], "left field": query["left field"]}).forEach(function(constraint) {
+            result.push(constraint.constraint);
+          });
+      }
+      noQuery = false;
+      constraintIds = result;
+    }
+    if((query["right source"] || query["right field"]) && constraintIds.length) {
+      var result = [];
+      for(var constraintId of constraintIds) {
+        ixer.select("constraint right",
+          {constraint: constraintId, "right source": query["right source"], "right field": query["right field"]}).forEach(function(constraint) {
+            result.push(constraint.constraint);
+          });
+      }
+      noQuery = false;
+      constraintIds = result;
+    }
+    if(query["operation"] && constraintIds.length) {
+      var result = [];
+      for(var constraintId of constraintIds) {
+        ixer.select("constraint operation",
+          {constraint: constraintId, operation: query["operation"]}).forEach(function(constraint) {
+            result.push(constraint.constraint);
+          });
+      }
+      noQuery = false;
+      constraintIds = result;
+    }
+    if(noQuery) {
+      var result = [];
+      ixer.select("constraint", {}).forEach(function(constraint) {
+        result.push(constraint.constraint);
+      });
+      constraintIds = result;
+    }
+
+    for(var constraintId of constraintIds) {
+      if(constraintId === undefined) { return; }
+      var subQuery = {constraint: constraintId};
+      var fact = extend({}, ixer.selectOne("constraint", subQuery));
+      extend(fact, ixer.selectOne("constraint left", subQuery));
+      extend(fact, ixer.selectOne("constraint right", subQuery));
+      extend(fact, ixer.selectOne("constraint operation", subQuery));
+      facts.push(fact);
+    }
+    
     return facts;
   }
 
