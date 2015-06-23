@@ -81,14 +81,13 @@ pub fn code_schema() -> Vec<(&'static str, Vec<&'static str>)> {
 
 fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // the compiler reflects its decisions into some builtin tables
-    // views marked "pre:" are intermediate calculations
+    // views marked "(pre)" are intermediate calculations
 
     vec![
     // a view dependency exists whenever the contents of one view depend directly on another
     // `ix` is an integer identifying the position in the downstream views input list
-    ("view dependency", vec!["upstream view", "source", "downstream view", "ix"]),
-    ("pre: view dependency", vec!["downstream view", "source", "upstream view"]),
-    ("fake: view dependency", vec!["downstream view", "source", "upstream view", "ix"]),
+    ("view dependency", vec!["downstream view", "source", "upstream view", "ix"]),
+    ("view dependency (pre)", vec!["downstream view", "source", "upstream view"]),
 
     // the view schedule determines what order views will be executed in
     // `ix` is an integer. views with lower ixes are executed first.
@@ -252,19 +251,22 @@ fn plan(flow: &Flow) {
     let aggregate_limit_to_table = flow.get_output("aggregate limit to");
     let select_table = flow.get_output("select");
 
-    let mut pre_view_dependency_table = flow.overwrite_output("pre: view dependency");
+    let mut view_dependency_pre_table = flow.overwrite_output("view dependency (pre)");
     find!(view_table, [view, _], {
+        println!("view: {:?}", &view);
         find!(source_table, [(= view), source, source_view], {
+            println!("source: {:?}", &source);
             find!(view_table, [(= source_view), source_kind], {
+                println!("source kind: {:?}", &source_kind);
                 if source_kind.as_str() != "primitive" {
-                    insert!(pre_view_dependency_table, [view, source, source_view]);
+                    insert!(view_dependency_pre_table, [view, source, source_view]);
                 }
             })
         })
     });
 
-    let mut fake_view_dependency_table = flow.overwrite_output("view dependency");
-    ordinal_by(&*pre_view_dependency_table, &mut *fake_view_dependency_table, &["downstream view"]);
+    let mut view_dependency_table = flow.overwrite_output("view dependency");
+    ordinal_by(&*view_dependency_pre_table, &mut *view_dependency_table, &["downstream view"]);
 }
 
 // TODO really need to define physical ordering of fields in each view
@@ -312,28 +314,6 @@ fn move_to_start<T, F>(vec: &mut Vec<T>, f: F) where F: FnMut(&T) -> bool {
         }
         None => ()
     }
-}
-
-// TODO we don't really need source in here
-fn calculate_view_dependency(flow: &Flow) {
-    let mut items = Vec::new();
-    let view_table = flow.get_output("view");
-    for view in view_table.iter() {
-        let mut ix = 0.0;
-        for source in flow.get_output("source").find_all("view", &view["view"]) {
-            let source_view = view_table.find_one("view", &source["source view"]);
-            if source_view["kind"].as_str() != "primitive" {
-                items.push(vec![
-                    source["source view"].clone(),
-                    source["source"].clone(),
-                    view["view"].clone(),
-                    Value::Float(ix),
-                    ]);
-                ix += 1.0;
-            }
-        }
-    }
-    overwrite_compiler_view(flow, "view dependency", items);
 }
 
 fn calculate_view_schedule(flow: &Flow) {
@@ -969,7 +949,6 @@ fn reuse_state(old_flow: Flow, new_flow: &mut Flow) {
 
 pub fn recompile(old_flow: Flow) -> Flow {
     plan(&old_flow);
-    calculate_view_dependency(&old_flow);
     calculate_view_schedule(&old_flow);
     calculate_source_dependency(&old_flow);
     calculate_source_schedule(&old_flow);
