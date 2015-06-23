@@ -92,10 +92,11 @@ fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // the view schedule determines what order views will be executed in
     // `ix` is an integer. views with lower ixes are executed first.
     ("view schedule", vec!["view", "ix"]),
+    ("view schedule (pre)", vec!["view"]),
 
     // a source dependency exists whenever one source must be calculated before another
     // eg arguments to a primitive view
-    ("source dependency", vec!["upstream source", "upstream field", "downstream source", "downstream field"]),
+    ("source dependency", vec!["downstream source", "downstream field", "upstream source", "upstream field"]),
 
     // the source schedule determines in what order sources will be explored inside joins/aggregates
     // `ix` is an integer. views with lower ixes are explored first.
@@ -264,6 +265,45 @@ fn plan(flow: &Flow) {
 
     let mut view_dependency_table = flow.overwrite_output("view dependency");
     ordinal_by(&*view_dependency_pre_table, &mut *view_dependency_table, &["downstream view"]);
+
+    // TODO actually schedule sensibly
+    // TODO warn about cycles through aggregates
+    let mut view_schedule_pre_table = flow.overwrite_output("view schedule (pre)");
+    find!(view_table, [view, kind], {
+        if kind.as_str() != "primitive" {
+            insert!(view_schedule_pre_table, [view]);
+        }
+    });
+
+    let mut view_schedule_table = flow.overwrite_output("view schedule");
+    ordinal_by(&*view_schedule_pre_table, &mut *view_schedule_table, &[]);
+
+    let mut source_dependency_table = flow.overwrite_output("source dependency");
+    find!(constraint_operation_table, [constraint, operation], {
+        if operation.as_str() == "=" {
+            find!(constraint_left_table, [(= constraint), left_source, left_field], {
+                find!(constraint_right_table, [(= constraint), right_source, right_field], {
+                    println!("{:?}", (constraint, left_source, left_field, operation, right_source, right_field));
+                    if left_source != right_source {
+                        find!(field_table, [_, (= left_field), left_kind], {
+                            if left_kind.as_str() != "output" {
+                                insert!(source_dependency_table,
+                                    [left_source, left_field, right_source, right_field]
+                                    );
+                            }
+                        });
+                        find!(field_table, [_, (= right_field), right_kind], {
+                            if right_kind.as_str() != "output" {
+                                insert!(source_dependency_table,
+                                    [right_source, right_field, left_source, left_field]
+                                    );
+                            }
+                        });
+                    }
+                });
+            });
+        }
+    });
 }
 
 // TODO really need to define physical ordering of fields in each view
@@ -311,62 +351,6 @@ fn move_to_start<T, F>(vec: &mut Vec<T>, f: F) where F: FnMut(&T) -> bool {
         }
         None => ()
     }
-}
-
-fn calculate_view_schedule(flow: &Flow) {
-    // TODO actually schedule sensibly
-    // TODO warn about cycles through aggregates
-    let mut items = Vec::new();
-    let mut ix = 0.0;
-    for view in flow.get_output("view").iter() {
-        if view["kind"].as_str() != "primitive" {
-            items.push(vec![view["view"].clone(), Value::Float(ix)]);
-            ix += 1.0;
-        }
-    }
-    overwrite_compiler_view(flow, "view schedule", items);
-}
-
-fn calculate_source_dependency(flow: &Flow) {
-    let mut items = Vec::new();
-    let source_table = flow.get_output("source");
-    let field_table = flow.get_output("field");
-    let constraint_left_table = flow.get_output("constraint left");
-    let constraint_right_table = flow.get_output("constraint right");
-    let constraint_operation_table = flow.get_output("constraint operation");
-    let view_table = flow.get_output("view");
-    for source in source_table.iter() {
-        let source_view = view_table.find_one("view", &source["source view"]);
-        if source_view["kind"].as_str() == "primitive" {
-            for left in constraint_left_table.find_all("left source", &source["source"]) {
-                let operation = constraint_operation_table.find_one("constraint", &left["constraint"]);
-                let right = constraint_right_table.find_one("constraint", &left["constraint"]);
-                let field = field_table.find_one("field", &left["left field"]);
-                if operation["operation"].as_str() == "="
-                && right["right source"] != left["left source"]
-                && field["kind"].as_str() != "output" {
-                    items.push(vec![
-                        right["right source"].clone(), right["right field"].clone(),
-                        left["left source"].clone(), left["left field"].clone()
-                        ]);
-                }
-            }
-            for right in constraint_right_table.find_all("right source", &source["source"]) {
-                let operation = constraint_operation_table.find_one("constraint", &right["constraint"]);
-                let left = constraint_left_table.find_one("constraint", &right["constraint"]);
-                let field = field_table.find_one("field", &right["right field"]);
-                if operation["operation"].as_str() == "="
-                && left["left source"] != right["right source"]
-                && field["kind"].as_str() != "output" {
-                    items.push(vec![
-                        left["left source"].clone(), left["left field"].clone(),
-                        right["right source"].clone(), right["right field"].clone()
-                        ]);
-                }
-            }
-        }
-    }
-    overwrite_compiler_view(flow, "source dependency", items);
 }
 
 fn calculate_source_schedule(flow: &Flow) {
@@ -946,8 +930,6 @@ fn reuse_state(old_flow: Flow, new_flow: &mut Flow) {
 
 pub fn recompile(old_flow: Flow) -> Flow {
     plan(&old_flow);
-    calculate_view_schedule(&old_flow);
-    calculate_source_dependency(&old_flow);
     calculate_source_schedule(&old_flow);
     calculate_constraint_schedule(&old_flow);
     calculate_index_layout(&old_flow);
