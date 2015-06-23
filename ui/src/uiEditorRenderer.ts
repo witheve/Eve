@@ -7,8 +7,9 @@
 /// <reference path="indexer.ts" />
 /// <reference path="client.ts" />
 /// <reference path="microReact.ts" />
+/// <reference path="api.ts" />
 module uiEditorRenderer {
-  declare var api;
+  declare var google;
   declare var dispatcher;
 
   var ixer = api.ixer;
@@ -22,6 +23,23 @@ module uiEditorRenderer {
     session = id;
   }
 
+  var mapCache = {
+    map: {},
+    container: {},
+    marker: {}
+  };
+  
+  export function refreshMaps() {
+    for(var mapId in mapCache.map) {
+      var map = mapCache.map[mapId];
+      google.maps.event.trigger(map, "resize");
+      var lat = (ixer.selectOne("uiMapAttr", {map: map.map, property: "lat"}) || {value: 0}).value;
+      var lng = (ixer.selectOne("uiMapAttr", {map: map.map, property: "lng"}) || {value: 0}).value;
+      map.setCenter({lat: lat, lng: lng});
+    }
+  }
+
+  // @FIXME: This should be a builtin.
   ixer.addIndex("active page", ids["active page"], Indexing.create.lookup([1, 2]));
 
   /*-------------------------------------------------------
@@ -50,7 +68,7 @@ module uiEditorRenderer {
       var componentId = ixer.index("active page")[session];
     } else {
       //we're in the editor, so we render based on what the active item is
-      var componentId = code.activeItemId();
+      var componentId = <any>code.activeItemId();
     }
     var layers = parentLayerIndex[componentId];
     if(!layers) return {};
@@ -185,6 +203,48 @@ module uiEditorRenderer {
       elem.type = "text";
     } else if(type === "link") {
       elem.t = "a";
+    } else if(type === "map") {
+      elem.postRender = function(node, elem) {
+        var map = ixer.selectOne("uiMap", {element: elementId});
+        var mapAttrs = ixer.select("uiMapAttr", {map: map.map}) || [];
+        var mapContainer = mapCache.container[map.map];
+        var mapInstance = mapCache.map[map.map];
+        if(!mapContainer) {
+          mapContainer = document.createElement("div");
+          document.body.appendChild(mapContainer);
+          mapContainer.className = "full-size-wrapper";
+          mapCache.container[map.map] = mapContainer;
+        }
+        mapContainer.style.width = node.style.width || document.body.offsetWidth;
+        mapContainer.style.height = node.style.height || document.body.offsetHeight;
+        if(!mapInstance) {
+          mapInstance = new google.maps.Map(mapContainer);
+          mapCache.map[map.map] = mapInstance;          
+        }
+        var lat = (ixer.selectOne("uiMapAttr", {map: map.map, property: "lat"}) || {value: 0}).value;
+        var lng = (ixer.selectOne("uiMapAttr", {map: map.map, property: "lng"}) || {value: 0}).value;
+        var zoom = (ixer.selectOne("uiMapAttr", {map: map.map, property: "zoom"}) || {value: 8}).value;
+        var oldPos = mapInstance.getCenter();
+        if(!oldPos || oldPos.lat !== lat || oldPos.lng !== lng) {
+          mapInstance.panTo({lat: lat, lng: lng});
+        }
+        if(mapInstance.getZoom() !== zoom) {
+          mapInstance.setZoom(zoom);
+        }
+        
+        var mapAttrs = ixer.select("uiMapAttr", {map: map.map}) || [];
+        var opts = {};
+        for(var mapAttr of mapAttrs) {
+          if(mapAttr.property === "lat" || mapAttr.property === "lng" || mapAttr.property === "zoom") { continue; }
+          opts[mapAttr.property] = mapAttr.value;
+        }
+        mapInstance.setOptions(opts);
+        
+        if(!node.rendered) {
+          node.appendChild(mapContainer);
+        }
+        node.rendered = true;  
+      }
     }
 
     var attrs = [];
