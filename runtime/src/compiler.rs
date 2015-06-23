@@ -81,12 +81,13 @@ pub fn code_schema() -> Vec<(&'static str, Vec<&'static str>)> {
 
 fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // the compiler reflects its decisions into some builtin tables
+    // views marked "pre:" are intermediate calculations
 
     vec![
     // a view dependency exists whenever the contents of one view depend directly on another
     // `ix` is an integer identifying the position in the downstream views input list
     ("view dependency", vec!["upstream view", "source", "downstream view", "ix"]),
-    ("view dependency (clone)", vec!["upstream view", "source", "downstream view", "ix"]),
+    ("pre: view dependency", vec!["upstream view", "source", "downstream view"]),
 
     // the view schedule determines what order views will be executed in
     // `ix` is an integer. views with lower ixes are executed first.
@@ -203,6 +204,12 @@ macro_rules! find {
     }};
 }
 
+macro_rules! insert {
+    ($table:expr, [ $($value:expr),* ]) => {{
+        $table.index.insert(vec![$( { let value: Value = $value.to_owned(); value } ),*])
+    }}
+}
+
 fn plan(flow: &Flow) {
     use value::Value::*;
 
@@ -220,20 +227,13 @@ fn plan(flow: &Flow) {
     let aggregate_limit_to_table = flow.get_output("aggregate limit to");
     let select_table = flow.get_output("select");
 
-    let mut view_dependency_table = flow.overwrite_output("view dependency (clone)");
+    let mut pre_view_dependency_table = flow.overwrite_output("pre: view dependency");
 
     find!(view_table, [view, _], {
-        let mut ix = 0;
         find!(source_table, [(= view), source, source_view], {
             find!(view_table, [(= source_view), source_kind], {
                 if source_kind.as_str() != "primitive" {
-                    view_dependency_table.index.insert(vec![
-                        source_view.clone(),
-                        Float(ix as f64),
-                        source.clone(),
-                        view.clone()
-                        ]);
-                    ix += 1;
+                    insert!(pre_view_dependency_table, [source_view, source, view]);
                 }
             })
         })
@@ -1030,6 +1030,16 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
                 display_name_table.index.insert(vec![string!("{}: {}", primitive, name), string!("{}", name)]);
             }
         }
+    }
+    {
+        let mut constant_table = flow.overwrite_output("constant");
+        constant_table.index.insert(vec![string!("default empty"), string!("")]);
+        constant_table.index.insert(vec![string!("default zero"), Value::Float(0.0)]);
+        constant_table.index.insert(vec![string!("default space"), string!(" ")]);
+        constant_table.index.insert(vec![string!("default zero string"), string!("0")]);
+
+        let mut empty_view_table = flow.overwrite_output("empty view");
+        empty_view_table.index.insert(vec![]);
     }
     recompile(flow) // bootstrap away our dummy nodes
 }
