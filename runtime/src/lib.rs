@@ -1,5 +1,6 @@
 #![feature(collections)]
 #![feature(slice_patterns)]
+#![feature(alloc)]
 extern crate rustc_serialize;
 extern crate cbor;
 extern crate websocket;
@@ -24,7 +25,7 @@ macro_rules! string {
 }
 
 pub mod value;
-// pub mod map;
+pub mod map;
 pub mod relation;
 pub mod view;
 pub mod flow;
