@@ -283,7 +283,6 @@ fn plan(flow: &Flow) {
         if operation.as_str() == "=" {
             find!(constraint_left_table, [(= constraint), left_source, left_field], {
                 find!(constraint_right_table, [(= constraint), right_source, right_field], {
-                    println!("{:?}", (constraint, left_source, left_field, operation, right_source, right_field));
                     if left_source != right_source {
                         find!(field_table, [_, (= left_field), left_kind], {
                             if left_kind.as_str() != "output" {
