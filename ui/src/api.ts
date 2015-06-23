@@ -157,7 +157,7 @@ module api {
       "uiGroupBinding": {name: "uiGroupBinding", fields: ["group", "view"]},
       "uiAttrBinding": {name: "uiAttrBinding", fields: ["elementId", "attr", "field"]},
       "uiKeyCapture": {name: "uiKeyCapture", fields: ["elementId", "key"]},
-      
+
       uiMap: {name: "uiMap", fields: ["tx", "map", "element"]},
       uiMapAttr: {name: "uiMapAttr", fields: ["tx", "map", "property", "value"]}
     },
@@ -1052,7 +1052,7 @@ module api {
   /***************************************************************************\
    * Read/Write primitives.
   \***************************************************************************/
-  function fillForeignKeys(type, query, context) {
+  function fillForeignKeys(type, query, context, silentThrow?) {
     var schema = schemas[type];
     if(!schema) { throw new Error("Attempted to process unknown type " + type + " with query " + JSON.stringify(query)); }
     var foreignKeys = schema.foreign;
@@ -1062,7 +1062,7 @@ module api {
       var foreignKey = foreignKeys[contextKey];
       if(!foreignKeys.hasOwnProperty(contextKey)) { continue; }
       if(query[foreignKey] !== undefined) { continue; }
-      if(context[contextKey] === undefined) {
+      if(context[contextKey] === undefined && !silentThrow) {
         throw new Error("Unspecified field " + foreignKey + " for type " + type + " with no compatible parent to link to in context " + JSON.stringify(context));
       }
       query[foreignKey] = context[contextKey];
@@ -1081,7 +1081,7 @@ module api {
       }
       return write;
     }
-    
+
     var schema = schemas[type];
     if(!schema) { throw new Error("Attempted to process unknown type " + type + " with params " + JSON.stringify(params)); }
     if(!params) { throw new Error("Invalid params specified for type " + type + " with params " + JSON.stringify(params)); }
@@ -1091,7 +1091,7 @@ module api {
     if(schema.foreign) {
       var params = fillForeignKeys(type, params, context);
     }
-    
+
     // Fill primary keys if missing.
     var keys:string[] = (schema.key instanceof Array) ? <string[]>schema.key : (schema.key) ? [<string>schema.key] : [];
     for(var key of keys) {
@@ -1113,7 +1113,7 @@ module api {
         throw new Error("Missing value for field " + fieldName + " on type " + type);
       }
     }
-    
+
     switch(type) {
       case "constraint":
         if(!params["left source"] || !params["left field"] || !params["right source"] || !params["right field"] || !params["operation"]) {
@@ -1174,7 +1174,7 @@ module api {
           var depSchema = schemas[dependent];
 
           //debugger;
-          var q = <{[key:string]:string}>fillForeignKeys(dependent, {}, factContext);
+          var q = <{[key:string]:string}>fillForeignKeys(dependent, {}, factContext, true);
 
           var results = retrieve(dependent, q, clone(factContext));
           if(results && results.length) {
@@ -1194,7 +1194,7 @@ module api {
 
     return facts;
   }
-  
+
   function retrieveConstraints(query:{[key:string]:string}) {
     var facts = [];
     var constraintIds = [];
@@ -1257,7 +1257,7 @@ module api {
       extend(fact, ixer.selectOne("constraint operation", subQuery));
       facts.push(fact);
     }
-    
+
     return facts;
   }
 
@@ -1373,7 +1373,7 @@ module api {
             return code.name(field["calculated field"]);
           });
           var nameIx = getUniqueNameIx(calculatedFieldNames, alphabetLower);
-          
+
           (ixer.select("field", {view: params["source view"]}) || []).forEach(function(field) {
             if(field.kind === "output") {
               var name = alphabetLower[nameIx++];
@@ -1389,13 +1389,13 @@ module api {
             }
           });
         }
-        
+
         break;
     }
 
     return diffs;
   }
-  
+
   export var diff2 = {
     primitiveSource: function(primitiveId) {
       if(!primitiveDefaults[primitiveId]) { throw new Error("Must specify defaults for primitive " + primitiveId); }
