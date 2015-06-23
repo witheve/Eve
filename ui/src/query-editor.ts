@@ -637,9 +637,12 @@ module queryEditor {
   }
 
   function editorDrop(evt, elem) {
+    evt.stopPropagation();
     var type = evt.dataTransfer.getData("type");
     var value = evt.dataTransfer.getData("value");
     if(type === "view") {
+      var isPrimitive = ixer.selectOne("primitive", {view: value});
+      if(isPrimitive) { return; }
       return dispatch("addViewBlock", {queryId: elem.queryId, sourceId: value, kind: "join"});
     }
   }
