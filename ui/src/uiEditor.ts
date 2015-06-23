@@ -134,10 +134,11 @@ module uiEditor {
         // @TODO: Instead of hardcoding, have a map of special element diff handlers.
         if (info.control === "map") {
           var mapId = uuid();
-          diffs.push(["uiMap", "inserted", [txId, mapId, elemId, 0, 0, 4]],
-            ["uiMapAttr", "inserted", [txId, mapId, "lat", 0]],
-            ["uiMapAttr", "inserted", [txId, mapId, "lng", 0]],
-            ["uiMapAttr", "inserted", [txId, mapId, "zoom", 0]]);
+          diffs.push(["uiMap", "inserted", [txId, mapId, elemId]],
+            ["uiMapAttr", "inserted", [txId, mapId, "lat", 37.774]],
+            ["uiMapAttr", "inserted", [txId, mapId, "lng", -122.431]],
+            ["uiMapAttr", "inserted", [txId, mapId, "zoom", 12]],
+            ["uiMapAttr", "inserted", [txId, mapId, "disableDefaultUI", true]]);
         }
         localState.uiSelection = [elemId];
         break;
@@ -472,6 +473,7 @@ module uiEditor {
     var previewRoot = uiEditorRenderer.root;
     if (previewRoot.parentNode !== div) {
       div.appendChild(previewRoot);
+      uiEditorRenderer.refreshMaps();
     }
   }
 
@@ -1158,6 +1160,7 @@ module uiEditor {
     { text: "spacer", icon: "ion-arrow-expand" },
     { text: "button", icon: "ion-share" },
     { text: "link", icon: "ion-link" },
+    { text: "map", icon: "ion-map" },
     { text: "input", icon: "ion-compose" },
     //                        {text: "map", icon: "ion-ios-location"}
   ];

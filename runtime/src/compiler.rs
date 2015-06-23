@@ -149,6 +149,8 @@ fn editor_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("uiGroupBinding", vec!["group", "view"]),
     ("uiAttrBinding", vec!["elementId", "attr", "field"]),
     ("uiKeyCapture", vec!["elementId", "key"]),
+    ("uiMap", vec!["tx", "map", "element"]),
+    ("uiMapAttr", vec!["tx", "map", "property", "value"])
     ]
 }
 

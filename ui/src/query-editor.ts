@@ -122,77 +122,48 @@ module queryEditor {
         diffs = api.toDiffs(api.remove("view", {view: info.viewId}));
         break;
       case "addViewSelection":
-        var name = code.name(info.sourceFieldId);
-        if(info.isCalculated) {
+        var neueField;
+        if(!info.fieldId || !ixer.selectOne("field", {view: info.viewId, field: info.fieldId})) {
+          var name = code.name(info.sourceFieldId);
           var calculated = ixer.selectOne("calculated field", {view: info.viewId, source: info.sourceId, field: info.sourceFieldId});
           if(calculated) {
             name = code.name(calculated["calculated field"]);
           }
+
+          var fields = ixer.select("field", {view: info.viewId}) || [];
+          neueField = api.insert("field", {view: info.viewId, field: info.fieldId, kind: "output", dependents: {
+            "display name": {name: name},
+            "display order": {priority: -fields.length}
+          }});
+          info.fieldId = neueField.content.field;
+          console.log("neue", info.fieldId);
         }
-        
-        var fields = ixer.select("field", {view: info.viewId}) || [];
- 
+      
         diffs = api.toDiffs([
-          (info.fieldId) ? api.remove("field", {view: info.viewId, field: info.fieldId}) : undefined,
-          api.insert("field", {
-            view: info.viewId,
-            field: info.fieldId,
-            kind: "output",
-            dependents: {
-              "display name": {name: name},
-              "display order": {priority: -fields.length},
-              select: {view: info.viewId, "view field": info.fieldId, source: info.sourceId, "source field": info.sourceFieldId}
-            }
-          })
+          neueField,
+          api.remove("select", {view: info.viewId, "view field": info.fieldId, source: (info.isUnion ? info.sourceId : undefined)}),
+          api.insert("select", {view: info.viewId, "view field": info.fieldId, source: info.sourceId, "source field": info.sourceFieldId})
         ]);
-        break;
-      case "addUnionSelection":
-        diffs = diff.addViewSelection(info.viewId, info.sourceId, info.sourceFieldId, info.fieldId);
 
-        // do not send to server unless selects.length = fields.length * sources.length
-        var sourceIdIx = code.ix("source", "source");
-        var numSources = (ixer.index("view to sources")[info.viewId] || []).reduce(function(memo, source) {
-          if(source[sourceIdIx] !== info.sourceId) { return memo + 1; }
-          return memo;
-        }, 1);
-        var fieldIdIx = code.ix("field", "field");
-        var numFields = (ixer.index("view to fields")[info.viewId] || []).reduce(function(memo, field) {
-          if(field[fieldIdIx] !== info.fieldId) { return memo + 1; }
-          return memo;
-        }, 1);
-        var selectSourceIx = code.ix("select", "source");
-        var selectFieldIx = code.ix("select", "view field");
-        var selects = (ixer.index("view to selects")[info.viewId] || []);
-        var numSelects = selects.reduce(function(memo, select) {
-          if(select[selectSourceIx] !== info.sourceId
-             || select[selectFieldIx] !== info.fieldId) { return memo + 1; }
-          return memo;
-        }, 1);
-
-        // @FIXME: This went from okay to bad fast.
-        if(numSelects !== numFields * numSources) {
-          sendToServer = false;
-        } else {
-          diffs = diffs.concat(selects.map(function(select) {
-            return ["select", "inserted", select];
-          }));
-          var sources = ixer.index("view to sources")[info.viewId] || [];
-          diffs = diffs.concat(sources.map(function(source) {
-            return ["source", "inserted", source];
-          }));
-          var blockFields = ixer.index("view and source to block fields")[info.viewId]["selection"] || [];
-          diffs = diffs.concat(blockFields.map(function(blockField) {
-            // return ["block field", "inserted", blockField];
-          }));
-          var fields = ixer.index("view to fields")[info.viewId] || [];
-          diffs = diffs.concat(fields.map(function(field) {
-            return ["field", "inserted", field];
-          }));
-          var fieldIdIx = code.ix("field", "field");
-          diffs = diffs.concat(fields.map(function(field) {
-            var id = field[fieldIdIx];
-            return ["display name", "inserted", [id, code.name(id)]];
-          }));
+        if(info.isUnion) {
+          var sources = ixer.select("source", {view: info.viewId}) || [];
+          var numSources = sources.reduce(function(memo, source) {
+            return (source.source !== info.sourceId) ? memo + 1 : memo;
+          }, 1);
+          var fields = ixer.select("field", {view: info.viewId}) || [];
+          var numFields = fields.reduce(function(memo, field) {
+            return (field.field !== info.fieldId) ? memo + 1 : memo;
+          }, 1);
+          var selects = ixer.select("select", {view: info.viewId}) || [];
+          var numSelects = selects.reduce(function(memo, select) {
+            return (select.source !== info.sourceId || select["view field"] !== info.fieldId) ? memo + 1 : memo;
+          }, 1);
+          
+          if(numSelects !== numFields * numSources) {
+            sendToServer = false;
+          } else {
+            diffs = diffs.concat(api.toDiffs({type: "view", content: api.retrieve("view", {view: info.viewId}), mode: "inserted"}));
+          }
         }
         break;
       case "addViewSource":
@@ -1181,49 +1152,36 @@ module queryEditor {
    * Union Block
    */
   function unionBlock(viewId, ix) {
-    var fields = ixer.index("view and source to block fields")[viewId] || {};
-    fields = fields.selection || [];
-    var selectSources = ixer.index("view and source and field to select")[viewId] || {};
-    var sources = ixer.index("source")[viewId] || {};
-    var sourceIds = Object.keys(sources);
+    var fields = ixer.select("field", {view: viewId}) || [];
+    var sources = ixer.select("source", {view: viewId}) || []; 
 
     var sourceItems = [];
-    var fieldMappingItems = [];
-    for(var sourceIx = 0; sourceIx < sourceIds.length; sourceIx++) {
-      var sourceId = sourceIds[sourceIx];
-      var source = sources[sourceId];
-      var rowItems = [];
-      rowItems.push({t: "td", c: "source-name", children: [
-        {c: "union-source-title source-title", children: [
-          {t: "h4", text: getSourceName(viewId, sourceId) || "Untitled"}]}]});
-
-      if(fields.length) {
-        var selectFields = selectSources[sourceId] || [];
-
-        var mappingPairs = [];
-        for(var fieldIx = 0; fieldIx < fields.length; fieldIx++) {
-          var field = fields[fieldIx];
-          var fieldId = field[code.ix("block field", "field")];
-          var selectField = selectFields[fieldId] || [];
-          var mappedFieldId = selectField[code.ix("select", "source field")];
-          rowItems.push({t: "td", c: "mapped-field", viewId: viewId, sourceId: sourceId, fieldId: fieldId, click: fieldSuggestions, handler: setMappingField,
-                         text: (mappedFieldId ? code.name(mappedFieldId) || "Untitled" : "---")});
-        }
+    for(var source of sources) {
+      var rowItems:any[] = [
+        {t: "td", c: "source-name", children: [
+          {t: "h4", c: "union-source-title source-title", text: getSourceName(viewId, source.source) || "Untitled"}
+        ]}
+      ];
+      
+      for(var field of fields) {
+        var select = ixer.selectOne("select", {view: viewId, "view field": field.field, source: source.source});
+          rowItems.push({t: "td", c: "mapped-field", text: (select) ? code.name(select["source field"]) : "---",
+                         viewId: viewId, sourceId: source.source, fieldId: field.field,
+                         click: fieldSuggestions, handler: setMappingField});
       }
-      rowItems.push({t: "td", c: "mapped-field", viewId: viewId, sourceId: sourceId, click: fieldSuggestions, handler: setMappingField, text: "---"});
       sourceItems.push({t: "tr", children: rowItems});
     }
 
-    var headers = [{t: "th", c: "spacer"}];
-    fields.forEach(function(cur) {
-      headers.push({t: "th", c: "mapping-header", text: code.name(cur[code.ix("block field", "field")])});
-    });
-    headers.push({t: "th", c: "mapping-header", text: "---"});
-
+    var headerItems:any = [{td: "th", c: "spacer"}];    
+    for(var field of fields) {
+      headerItems.push({t: "th", c: "mapping-header", text: code.name(field.field)});  
+    }
+    headerItems.push({t: "th", c: "mapping-header", text: "---"});
+    
     return {c: "block union-block", viewId: viewId, dragover: preventDefault, drop: viewBlockDrop, children: [
               {t: "table", children: [
                 {t: "thead", children: [
-                  {t: "tr", children: headers}
+                  {t: "tr", children: headerItems}
                 ]},
                 {t: "tbody", children: sourceItems}
               ]}
@@ -1238,7 +1196,7 @@ module queryEditor {
 
   function setMappingField(e, elem) {
     var info = localState.queryEditorInfo;
-    dispatch("addUnionSelection", {viewId: info.viewId, sourceFieldId: elem.key, sourceId: info.sourceId, fieldId: info.fieldId});
+    dispatch("addViewSelection", {viewId: info.viewId, sourceFieldId: elem.key, sourceId: info.sourceId, fieldId: info.fieldId, isUnion: true});
     e.stopPropagation();
   }
 
@@ -1251,7 +1209,7 @@ module queryEditor {
     var viewId = blockField[code.ix("block field", "view")];
     var sourceId = blockField[code.ix("block field", "source")];
     if(viewId !== elem.viewId) { return; }
-    dispatch("addUnionSelection", {viewId: viewId, sourceFieldId: fieldId, sourceId: sourceId, fieldId: elem.fieldId});
+    dispatch("addViewSelection", {viewId: viewId, sourceFieldId: fieldId, sourceId: sourceId, fieldId: elem.fieldId, isUnion: true});
     evt.stopPropagation();
   }
 

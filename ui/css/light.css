@@ -9,6 +9,7 @@ div:hover > .hover-reveal { opacity: 1; }
 
 .row { flex-direction:row; flex: 1; }
 .flex-column { flex-direction: column !important; }
+.full-size-wrapper { position: absolute !important; top: 0; left: 0; right: 0; bottom: 0; }
 
 /*---------------------------------------------------------
 - root

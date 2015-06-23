@@ -2,20 +2,28 @@
 
 extern crate test;
 extern crate eve;
+extern crate rand;
 
 use test::Bencher;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::io::prelude::*;
 use std::fs::File;
+use rand::Rng;
 
 use eve::map::*;
 
+fn nums() -> Vec<i64> {
+    let mut rng = rand::thread_rng();
+    (0..100_000).map(|_| rng.gen()).collect()
+}
+
 #[bench]
 fn bench_insert_int_map(b: &mut Bencher) {
+    let nums = nums();
     b.iter(|| {
         let mut map = Map::new();
-        for i in (0i64..1000000) {
-            map.insert(i * 25214903917, 1);
+        for num in nums.iter() {
+            map.insert(*num, 1);
         }
         map
     });
@@ -23,25 +31,49 @@ fn bench_insert_int_map(b: &mut Bencher) {
 
 #[bench]
 fn bench_insert_int_btree(b: &mut Bencher) {
+    let nums = nums();
     b.iter(|| {
         let mut map = BTreeMap::new();
-        for i in (0i64..1000000) {
-            map.insert(i * 25214903917, 1);
+        for num in nums.iter() {
+            map.insert(*num, 1);
         }
         map
     });
 }
 
 #[bench]
+fn bench_insert_int_hash(b: &mut Bencher) {
+    let nums = nums();
+    b.iter(|| {
+        let mut map = HashMap::new();
+        for num in nums.iter() {
+            map.insert(*num, 1);
+        }
+        map
+    });
+}
+
+#[bench]
+fn bench_insert_int_sorted(b: &mut Bencher) {
+    let nums = nums();
+    b.iter(|| {
+        let mut map = nums.clone();
+        map.sort();
+        map
+    });
+}
+
+#[bench]
 fn bench_query_int_map(b: &mut Bencher) {
+    let nums = nums();
     let mut map = Map::new();
-    for i in (0i64..1000000) {
-        map.insert(i * 25214903917, 1);
+    for num in nums.iter() {
+        map.insert(*num, 1);
     }
     b.iter(|| {
         let mut results = vec![];
-        for i in (0i64..1000) {
-            results.push(None != map.query(&(i * 1000 * 25214903917)));
+        for num in nums.iter() {
+            results.push(map.query(&nums[(*num as usize) % nums.len()]).is_some());
         }
         results
     });
@@ -49,14 +81,46 @@ fn bench_query_int_map(b: &mut Bencher) {
 
 #[bench]
 fn bench_query_int_btree(b: &mut Bencher) {
+    let nums = nums();
     let mut map = BTreeMap::new();
-    for i in (0i64..1000000) {
-        map.insert(i * 25214903917, 1);
+    for num in nums.iter() {
+        map.insert(*num, 1);
     }
     b.iter(|| {
         let mut results = vec![];
-        for i in (0i64..1000) {
-            results.push(map.contains_key(&(i * 1000 * 25214903917)));
+        for num in nums.iter() {
+            results.push(map.contains_key(&nums[(*num as usize) % nums.len()]));
+        }
+        results
+    });
+}
+
+#[bench]
+fn bench_query_int_hash(b: &mut Bencher) {
+    let nums = nums();
+    let mut map = HashMap::new();
+    for num in nums.iter() {
+        map.insert(*num, 1);
+    }
+    b.iter(|| {
+        let mut results = vec![];
+        for num in nums.iter() {
+            results.push(map.contains_key(&nums[(*num as usize) % nums.len()]));
+        }
+        results
+    });
+}
+
+#[bench]
+fn bench_query_int_sorted(b: &mut Bencher) {
+    let nums = nums();
+    let mut map = nums.clone();
+    map.sort();
+    b.iter(|| {
+        let mut results = vec![];
+        for num in nums.iter() {
+            let key = &nums[(*num as usize) % nums.len()];
+            results.push(map.binary_search(key).is_ok());
         }
         results
     });
@@ -65,7 +129,14 @@ fn bench_query_int_btree(b: &mut Bencher) {
 fn words() -> Vec<String> {
     let mut contents = String::new();
     File::open("/usr/share/dict/words").unwrap().read_to_string(&mut contents).unwrap();
-    contents.lines().map(|word| word.to_owned()).collect()
+    let mut words = contents.lines().map(|word| word.to_owned()).collect::<Vec<_>>();
+    // pick some deterministic but non-useful order
+    words.sort_by(|a,b| {
+        let ra = a.chars().rev().collect::<String>();
+        let rb = b.chars().rev().collect::<String>();
+        ra.cmp(&rb)
+    });
+    words
 }
 
 #[bench]
@@ -93,16 +164,39 @@ fn bench_insert_string_btree(b: &mut Bencher) {
 }
 
 #[bench]
+fn bench_insert_string_hash(b: &mut Bencher) {
+    let words = words();
+    b.iter(|| {
+        let mut map = HashMap::new();
+        for word in words.iter() {
+            map.insert(word.clone(), 1);
+        }
+        map
+    });
+}
+
+#[bench]
+fn bench_insert_string_sorted(b: &mut Bencher) {
+    let words = words();
+    b.iter(|| {
+        let mut map = words.clone();
+        map.sort();
+        map
+    });
+}
+
+#[bench]
 fn bench_query_string_map(b: &mut Bencher) {
     let words = words();
+    let nums = nums();
     let mut map = Map::new();
     for word in words.iter() {
         map.insert(word.clone(), 1);
     }
     b.iter(|| {
         let mut results = vec![];
-        for i in (0..words.len()) {
-            let word = &words[(i * 25214903917) % words.len()];
+        for num in nums.iter() {
+            let word = &words[(*num as usize) % words.len()];
             results.push(None != map.query(word));
         }
         results
@@ -112,14 +206,15 @@ fn bench_query_string_map(b: &mut Bencher) {
 #[bench]
 fn bench_query_string_btree(b: &mut Bencher) {
     let words = words();
+    let nums = nums();
     let mut map = BTreeMap::new();
     for word in words.iter() {
         map.insert(word.clone(), 1);
     }
     b.iter(|| {
         let mut results = vec![];
-        for i in (0..words.len()) {
-            let word = &words[(i * 25214903917) % words.len()];
+        for num in nums.iter() {
+            let word = &words[(*num as usize) % words.len()];
             results.push(map.contains_key(word));
         }
         results
@@ -127,14 +222,49 @@ fn bench_query_string_btree(b: &mut Bencher) {
 }
 
 #[bench]
+fn bench_query_string_hash(b: &mut Bencher) {
+    let words = words();
+    let nums = nums();
+    let mut map = HashMap::new();
+    for word in words.iter() {
+        map.insert(word.clone(), 1);
+    }
+    b.iter(|| {
+        let mut results = vec![];
+        for num in nums.iter() {
+            let word = &words[(*num as usize) % words.len()];
+            results.push(map.contains_key(word));
+        }
+        results
+    });
+}
+
+#[bench]
+fn bench_query_string_sorted(b: &mut Bencher) {
+    let words = words();
+    let nums = nums();
+    let mut map = words.clone();
+    map.sort();
+    b.iter(|| {
+        let mut results = vec![];
+        for num in nums.iter() {
+            let key = &words[(*num as usize) % words.len()];
+            results.push(map.binary_search(key).is_ok());
+        }
+        results
+    });
+}
+
+// TODO bench_clone_* are not very useful at such small sizes
+
+#[bench]
 fn bench_clone_int_map(b: &mut Bencher) {
+    let nums = nums();
     b.iter(|| {
         let mut map = Map::new();
         let mut maps = Vec::new();
-        for i in (0i64..100) {
-            for j in (0i64..100) {
-                map.insert(((i*100) + j) * 25214903917, 1);
-            }
+        for num in nums[..1000].iter() {
+            map.insert(*num, 1);
             maps.push(map.clone());
         }
         maps
@@ -143,12 +273,42 @@ fn bench_clone_int_map(b: &mut Bencher) {
 
 #[bench]
 fn bench_clone_int_btree(b: &mut Bencher) {
+    let nums = nums();
     b.iter(|| {
         let mut map = BTreeMap::new();
         let mut maps = Vec::new();
-        for i in (0i64..100) {
-            for j in (0i64..100) {
-                map.insert(((i*100) + j) * 25214903917, 1);
+        for num in nums[..1000].iter() {
+            map.insert(*num, 1);
+            maps.push(map.clone());
+        }
+        maps
+    });
+}
+
+#[bench]
+fn bench_clone_int_hash(b: &mut Bencher) {
+    let nums = nums();
+    b.iter(|| {
+        let mut map = BTreeMap::new();
+        let mut maps = Vec::new();
+        for num in nums[..1000].iter() {
+            map.insert(*num, 1);
+            maps.push(map.clone());
+        }
+        maps
+    });
+}
+
+#[bench]
+fn bench_clone_int_sorted(b: &mut Bencher) {
+    let nums = nums();
+    b.iter(|| {
+        let mut map = Vec::new();
+        let mut maps = Vec::new();
+        for num in nums[..1000].iter() {
+            match map.binary_search(num) {
+                Ok(ix) => map[ix] = *num,
+                Err(ix) => map.insert(ix, *num),
             }
             maps.push(map.clone());
         }
@@ -156,22 +316,19 @@ fn bench_clone_int_btree(b: &mut Bencher) {
     });
 }
 
+
 #[allow(dead_code)]
 fn main() {
+    let words = words();
+    let nums = nums();
     let mut map = Map::new();
-    for i in (0..10) {
-        map.insert(i, 1);
-        println!("{:?}", map);
+    for word in words.iter() {
+        map.insert(word.clone(), 1);
     }
-    for i in (10..20).rev() {
-        map.insert(i, 1);
-        println!("{:?}", map);
-    }
-    for i in (0..10) {
-        map.insert(i, -i);
-        println!("{:?}", map);
-    }
-    for i in (0..20) {
-        println!("q: {:?}", map.query(&i));
+    for _ in (0..50) {
+        for num in nums.iter() {
+            let word = &words[(*num as usize) % words.len()];
+            test::black_box(map.query(word));
+        }
     }
 }

@@ -157,6 +157,9 @@ module api {
       "uiGroupBinding": {name: "uiGroupBinding", fields: ["group", "view"]},
       "uiAttrBinding": {name: "uiAttrBinding", fields: ["elementId", "attr", "field"]},
       "uiKeyCapture": {name: "uiKeyCapture", fields: ["elementId", "key"]},
+      
+      uiMap: {name: "uiMap", fields: ["tx", "map", "element"]},
+      uiMapAttr: {name: "uiMapAttr", fields: ["tx", "map", "property", "value"]}
     },
 
     runtime: {
@@ -992,7 +995,7 @@ module api {
 
   export type Diff = any[];
   interface Context {[key:string]: Id}
-  interface Write<T> {type: string, content: T|T[], context: Context|Context[], mode?: string, originalKeys?: string[]}
+  interface Write<T> {type: string, content: T|T[], context?: Context|Context[], mode?: string, originalKeys?: string[]}
 
   interface Schema {
     key?: string|string[]
