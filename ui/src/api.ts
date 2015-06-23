@@ -157,6 +157,9 @@ module api {
       "uiGroupBinding": {name: "uiGroupBinding", fields: ["group", "view"]},
       "uiAttrBinding": {name: "uiAttrBinding", fields: ["elementId", "attr", "field"]},
       "uiKeyCapture": {name: "uiKeyCapture", fields: ["elementId", "key"]},
+      
+      uiMap: {name: "uiMap", fields: ["tx", "map", "element"]},
+      uiMapAttr: {name: "uiMapAttr", fields: ["tx", "map", "property", "value"]}
     },
 
     runtime: {
