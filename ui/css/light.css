@@ -307,6 +307,7 @@ div:hover > .hover-reveal { opacity: 1; }
 ---------------------------------------------------------*/
 .rendered-program { position:relative; overflow:auto; flex:1; }
 .rendered-program > div { flex: 1; }
+.rendered-program * {background-size: contain; background-repeat:no-repeat; font-family: "Helvetica Neue";}
 .rendered-program .absolute { position:absolute; overflow:hidden; cursor:default; text-align:left; background-size:100%; }
 .rendered-program .layer {flex: 1; position:absolute; }
 .rendered-program .repeat-container { position:relative; }
