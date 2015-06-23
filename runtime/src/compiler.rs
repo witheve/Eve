@@ -87,7 +87,8 @@ fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // a view dependency exists whenever the contents of one view depend directly on another
     // `ix` is an integer identifying the position in the downstream views input list
     ("view dependency", vec!["upstream view", "source", "downstream view", "ix"]),
-    ("pre: view dependency", vec!["upstream view", "source", "downstream view"]),
+    ("pre: view dependency", vec!["downstream view", "source", "upstream view"]),
+    ("fake: view dependency", vec!["downstream view", "source", "upstream view", "ix"]),
 
     // the view schedule determines what order views will be executed in
     // `ix` is an integer. views with lower ixes are executed first.
@@ -210,6 +211,30 @@ macro_rules! insert {
     }}
 }
 
+fn ordinal_by(input_table: &Relation, output_table: &mut Relation, grouped_fields: &[&str]) {
+    for (ix, grouped_field) in grouped_fields.iter().enumerate() {
+        assert_eq!(&input_table.names[ix][..], *grouped_field);
+    }
+    let grouped_len = grouped_fields.len();
+    match input_table.index.iter().next() {
+        Some(row) => {
+            let mut group = &row[..grouped_len];
+            let mut ix = 0;
+            for row in input_table.index.iter() {
+                if &row[..grouped_len] != group {
+                    group = &row[..grouped_len];
+                    ix = 0;
+                }
+                let mut row = row.clone();
+                row.push(Value::Float(ix as f64));
+                output_table.index.insert(row);
+                ix += 1;
+            }
+        }
+        None => ()
+    }
+}
+
 fn plan(flow: &Flow) {
     use value::Value::*;
 
@@ -228,16 +253,18 @@ fn plan(flow: &Flow) {
     let select_table = flow.get_output("select");
 
     let mut pre_view_dependency_table = flow.overwrite_output("pre: view dependency");
-
     find!(view_table, [view, _], {
         find!(source_table, [(= view), source, source_view], {
             find!(view_table, [(= source_view), source_kind], {
                 if source_kind.as_str() != "primitive" {
-                    insert!(pre_view_dependency_table, [source_view, source, view]);
+                    insert!(pre_view_dependency_table, [view, source, source_view]);
                 }
             })
         })
     });
+
+    let mut fake_view_dependency_table = flow.overwrite_output("view dependency");
+    ordinal_by(&*pre_view_dependency_table, &mut *fake_view_dependency_table, &["downstream view"]);
 }
 
 // TODO really need to define physical ordering of fields in each view
