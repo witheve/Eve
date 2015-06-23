@@ -664,6 +664,7 @@ module api {
     },
     addPrimitiveSource: function addPrimitiveSource(viewId, primitiveId) {
       var diffs = diff.addViewSource(viewId, primitiveId);
+      if(primitiveId === "sort+limit") { return; }
       var sourceId = diffs[0][2][code.ix("source", "source")];
 
       var fields = ixer.index("view to fields")[primitiveId] || [];
@@ -1324,6 +1325,7 @@ module api {
       return diffs;
     } else {
       var write:Write<any> = <Write<any>>writes;
+      if(write.content === undefined) { return diffs; }
     }
 
     var type = write.type;
@@ -1398,6 +1400,7 @@ module api {
 
   export var diff2 = {
     primitiveSource: function(primitiveId) {
+      if(primitiveId === "sort+limit") { return; }
       if(!primitiveDefaults[primitiveId]) { throw new Error("Must specify defaults for primitive " + primitiveId); }
       return {
         "source view": primitiveId,
