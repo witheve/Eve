@@ -5,7 +5,7 @@ extern crate eve;
 extern crate rand;
 
 use test::Bencher;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::io::prelude::*;
 use std::fs::File;
 use rand::Rng;
@@ -42,13 +42,22 @@ fn bench_insert_int_btree(b: &mut Bencher) {
 }
 
 #[bench]
+fn bench_insert_int_hash(b: &mut Bencher) {
+    let nums = nums();
+    b.iter(|| {
+        let mut map = HashMap::new();
+        for num in nums.iter() {
+            map.insert(*num, 1);
+        }
+        map
+    });
+}
+
+#[bench]
 fn bench_insert_int_sorted(b: &mut Bencher) {
     let nums = nums();
     b.iter(|| {
-        let mut map = Vec::new();
-        for num in nums.iter() {
-            map.push((*num, 1));
-        }
+        let mut map = nums.clone();
         map.sort();
         map
     });
@@ -87,18 +96,31 @@ fn bench_query_int_btree(b: &mut Bencher) {
 }
 
 #[bench]
+fn bench_query_int_hash(b: &mut Bencher) {
+    let nums = nums();
+    let mut map = HashMap::new();
+    for num in nums.iter() {
+        map.insert(*num, 1);
+    }
+    b.iter(|| {
+        let mut results = vec![];
+        for num in nums.iter() {
+            results.push(map.contains_key(&nums[(*num as usize) % nums.len()]));
+        }
+        results
+    });
+}
+
+#[bench]
 fn bench_query_int_sorted(b: &mut Bencher) {
     let nums = nums();
-    let mut map = Vec::new();
-    for num in nums.iter() {
-        map.push((*num, 1));
-    }
+    let mut map = nums.clone();
     map.sort();
     b.iter(|| {
         let mut results = vec![];
         for num in nums.iter() {
             let key = &nums[(*num as usize) % nums.len()];
-            results.push(map.binary_search_by(|&(ref k,_)| k.cmp(key)).is_ok());
+            results.push(map.binary_search(key).is_ok());
         }
         results
     });
@@ -142,13 +164,22 @@ fn bench_insert_string_btree(b: &mut Bencher) {
 }
 
 #[bench]
+fn bench_insert_string_hash(b: &mut Bencher) {
+    let words = words();
+    b.iter(|| {
+        let mut map = HashMap::new();
+        for word in words.iter() {
+            map.insert(word.clone(), 1);
+        }
+        map
+    });
+}
+
+#[bench]
 fn bench_insert_string_sorted(b: &mut Bencher) {
     let words = words();
     b.iter(|| {
-        let mut map = Vec::new();
-        for word in words.iter() {
-            map.push((word.clone(), 1));
-        }
+        let mut map = words.clone();
         map.sort();
         map
     });
@@ -191,18 +222,34 @@ fn bench_query_string_btree(b: &mut Bencher) {
 }
 
 #[bench]
-fn bench_query_string_sorted(b: &mut Bencher) {
+fn bench_query_string_hash(b: &mut Bencher) {
     let words = words();
     let nums = nums();
-    let mut map = Vec::new();
+    let mut map = HashMap::new();
     for word in words.iter() {
-        map.push((word.clone(), 1));
+        map.insert(word.clone(), 1);
     }
     b.iter(|| {
         let mut results = vec![];
         for num in nums.iter() {
+            let word = &words[(*num as usize) % words.len()];
+            results.push(map.contains_key(word));
+        }
+        results
+    });
+}
+
+#[bench]
+fn bench_query_string_sorted(b: &mut Bencher) {
+    let words = words();
+    let nums = nums();
+    let mut map = words.clone();
+    map.sort();
+    b.iter(|| {
+        let mut results = vec![];
+        for num in nums.iter() {
             let key = &words[(*num as usize) % words.len()];
-            results.push(map.binary_search_by(|&(ref k,_)| k.cmp(key)).is_ok());
+            results.push(map.binary_search(key).is_ok());
         }
         results
     });
@@ -226,6 +273,20 @@ fn bench_clone_int_map(b: &mut Bencher) {
 
 #[bench]
 fn bench_clone_int_btree(b: &mut Bencher) {
+    let nums = nums();
+    b.iter(|| {
+        let mut map = BTreeMap::new();
+        let mut maps = Vec::new();
+        for num in nums[..1000].iter() {
+            map.insert(*num, 1);
+            maps.push(map.clone());
+        }
+        maps
+    });
+}
+
+#[bench]
+fn bench_clone_int_hash(b: &mut Bencher) {
     let nums = nums();
     b.iter(|| {
         let mut map = BTreeMap::new();
