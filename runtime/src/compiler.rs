@@ -1031,5 +1031,15 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
             }
         }
     }
+    {
+        let mut constant_table = flow.overwrite_output("constant");
+        constant_table.index.insert(vec![string!("default empty"), string!("")]);
+        constant_table.index.insert(vec![string!("default zero"), Value::Float(0.0)]);
+        constant_table.index.insert(vec![string!("default space"), string!(" ")]);
+        constant_table.index.insert(vec![string!("default zero string"), string!("0")]);
+
+        let mut empty_view_table = flow.overwrite_output("empty view");
+        empty_view_table.index.insert(vec![]);
+    }
     recompile(flow) // bootstrap away our dummy nodes
 }
