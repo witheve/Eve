@@ -253,11 +253,8 @@ fn plan(flow: &Flow) {
 
     let mut view_dependency_pre_table = flow.overwrite_output("view dependency (pre)");
     find!(view_table, [view, _], {
-        println!("view: {:?}", &view);
         find!(source_table, [(= view), source, source_view], {
-            println!("source: {:?}", &source);
             find!(view_table, [(= source_view), source_kind], {
-                println!("source kind: {:?}", &source_kind);
                 if source_kind.as_str() != "primitive" {
                     insert!(view_dependency_pre_table, [view, source, source_view]);
                 }
