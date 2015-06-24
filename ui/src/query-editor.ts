@@ -211,7 +211,7 @@ module queryEditor {
           }
           diffs.push(["constant", "inserted", [constantFieldId, info.value]]);
         }
-        diffs = api.toDiffs(change);
+        diffs = diffs.concat(api.toDiffs(change));
         
         var calculatedFields = ixer.select("calculated field", {view: viewId, source: constraint["left source"]});
         if(calculatedFields.length) {
