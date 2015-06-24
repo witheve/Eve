@@ -836,7 +836,6 @@ module queryEditor {
         {text: code.name(sourceViewId) + "("},
         constraintArgs,
         {text: ")"});
-      console.log("content", content);
       return {c: "spaced-row primitive-constraint", children: content};
     },
     infix: function(viewId, sourceId, sourceViewId, operator) {
