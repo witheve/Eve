@@ -1162,10 +1162,12 @@ module queryEditor {
       
       for(var field of fields) {
         var select = ixer.selectOne("select", {view: viewId, "view field": field.field, source: source.source});
-          rowItems.push({t: "td", c: "mapped-field", text: (select) ? code.name(select["source field"]) : "---",
-                         viewId: viewId, sourceId: source.source, fieldId: field.field,
-                         click: fieldSuggestions, handler: setMappingField});
+        rowItems.push({t: "td", c: "mapped-field", text: (select) ? code.name(select["source field"]) : "---",
+                       viewId: viewId, sourceId: source.source, fieldId: field.field,
+                       click: fieldSuggestions, handler: setMappingField});
       }
+      rowItems.push({t: "td", c: "mapped-field", text: "---", viewId: viewId, sourceId: source.source,
+                     click: fieldSuggestions, handler: setMappingField});
       sourceItems.push({t: "tr", children: rowItems});
     }
 
