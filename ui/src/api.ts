@@ -24,10 +24,13 @@ module api {
                     INDEXER: 0};
   }
 
-  export var KEYS = {UP: 38,
-                     DOWN: 40,
-                     ENTER: 13,
-                     Z: 90};
+  export var KEYS = {
+    BACKSPACE: 8,
+    UP: 38,
+    DOWN: 40,
+    ENTER: 13,
+    Z: 90
+  };
 
   export function clone<T>(item:T): T;
   export function clone(item:Object): Object;
@@ -646,16 +649,13 @@ module api {
       var count = code.countSource(queryId, sourceViewId);
       var name = code.name(sourceViewId) + (count ? " (" + (count + 1) + ")" : "");
       var neue = [viewId, sourceId, sourceViewId];
-      var diffs = [["source", "inserted", neue],
-                   ["display name", "inserted", [displayId, name]],
-                   ["display order", "inserted", [displayId, 0]]];
+      var diffs = [["source", "inserted", neue]];
 
       var old = ixer.index("source")[viewId] || {};
       old = old[sourceId];
       if(old && !Indexing.arraysIdentical(old, neue)) {
         var oldName = ixer.index("display name")[displayId];
-        diffs.push(["source", "removed", old],
-                   ["display name", "removed", [displayId, oldName]]);
+        diffs.push(["source", "removed", old]);
       }
 
       diffs = diffs.concat(diff.cacheViewSourceFields(viewId, sourceId, sourceViewId));
@@ -664,6 +664,7 @@ module api {
     },
     addPrimitiveSource: function addPrimitiveSource(viewId, primitiveId) {
       var diffs = diff.addViewSource(viewId, primitiveId);
+      if(primitiveId === "sort+limit") { return; }
       var sourceId = diffs[0][2][code.ix("source", "source")];
 
       var fields = ixer.index("view to fields")[primitiveId] || [];
@@ -979,17 +980,19 @@ module api {
     return names[getUniqueNameIx(existing, names)];
   }
 
-  export var localState = {txId: 0,
-                           uiActiveLayer: null,
-                           openLayers: {},
-                           initialAttrs: [],
-                           initialElements: [],
-                           activeItem: null,
-                           showMenu: true,
-                           uiGridSize: 10,
-                           initialValue: undefined,
-                           queryEditorActive: undefined,
-                           queryEditorInfo: undefined};
+  export var localState: any = {
+    txId: 0,
+    uiActiveLayer: null,
+    openLayers: {},
+    initialAttrs: [],
+    initialElements: [],
+    activeItem: null,
+    showMenu: true,
+    uiGridSize: 10,
+    initialValue: undefined,
+    queryEditorActive: undefined,
+    queryEditorInfo: undefined
+};
 
 
 
@@ -1324,6 +1327,7 @@ module api {
       return diffs;
     } else {
       var write:Write<any> = <Write<any>>writes;
+      if(write.content === undefined) { return diffs; }
     }
 
     var type = write.type;
@@ -1398,6 +1402,7 @@ module api {
 
   export var diff2 = {
     primitiveSource: function(primitiveId) {
+      if(primitiveId === "sort+limit") { return; }
       if(!primitiveDefaults[primitiveId]) { throw new Error("Must specify defaults for primitive " + primitiveId); }
       return {
         "source view": primitiveId,
