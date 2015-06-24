@@ -1,7 +1,7 @@
 module Indexing {
 	declare var DEBUG;
   declare var api;
-  
+
   export function arraysIdentical(a, b) {
     var i = a.length;
     if (!b || i != b.length) return false;
@@ -133,20 +133,21 @@ module Indexing {
     }
     compactDiffs() {
       var compiler = [];
-      var compilerTables = Object.keys(api.builtins.compiler);
-      for(var table of compilerTables) {
+      var codeTags = api.retrieve("tag", { "tag": "code" });
+      for(var tag of codeTags) {
+        var table = tag["id"];
         var fieldIds = api.code.sortedViewFields(table) || []; // @FIXME: Shouldn't hardcode knowledge of an external index.
         compiler.push([table, fieldIds, this.tables[table] || [], []]);
       }
       var facts = [];
       for(var factTable in this.tables) {
-        if(api.builtins.compiler[factTable]) continue;
+        if (api.code.hasTag(factTable, "code")) continue;
         var kind = api.ixer.index("view")[factTable][1];
         if(kind !== "table") continue;
         var fieldIds = api.code.sortedViewFields(factTable) || []; // @FIXME: Shouldn't hardcode knowledge of an external index.
         facts.push([factTable, fieldIds, this.tables[factTable] || [], []]);
       }
-      return JSON.stringify({changes: compiler}) + "\n" + JSON.stringify({changes: facts});
+      return JSON.stringify({changes: compiler}) + "\n" + JSON.stringify({changes: facts}) + "\n";
     }
     handleMapDiffs(diffs) {
       for(var diffIx = 0, diffLen = diffs.length; diffIx < diffLen; diffIx++) {
@@ -155,44 +156,6 @@ module Indexing {
         var fields = diff[1]; // @FIXME: Reorder fields as necessary to support concurrent editing of view structure.
         var inserted = diff[2];
         var removed = diff[3];
-        if ((inserted.length == 0) && (removed.length == 0)) { continue; }
-        var fieldIds = api.code.sortedViewFields(table); // @GLOBAL Due to circular ref. w/ synchronous dependency loading.
-        if(!fieldIds) {
-          fieldIds = fields;
-        }
-        var mapping = {};
-        var changed = false;
-        var fieldLength = fields.length;
-        for(var ix = 0; ix < fieldLength; ix++) {
-          mapping[ix] = fieldIds.indexOf(fields[ix]);
-          if(mapping[ix] === -1) {
-            throw new Error("Invalid mapping for field: '" + fields[ix] + "' to fields: " + JSON.stringify(fieldIds));
-          }
-          if(mapping[ix] !== ix) { changed = true; }
-        }
-
-        if(changed) {
-          var neueInserted = [];
-          for(var insertedIx = 0, insertedLength = inserted.length; insertedIx < insertedLength; insertedIx++) {
-            var neue = [];
-            for(var ix = 0; ix < fieldLength; ix++) {
-              neue[mapping[ix]] = inserted[insertedIx][ix];
-            }
-            neueInserted.push(neue);
-          }
-          inserted = neueInserted;
-
-          var neueRemoved = [];
-          for(var removedIx = 0, removedLength = removed.length; removedIx < removedLength; removedIx++) {
-            var neue = [];
-            for(var ix = 0; ix < fieldLength; ix++) {
-              neue[mapping[ix]] = removed[removedIx][ix];
-            }
-            neueRemoved.push(neue);
-          }
-          removed = neueRemoved;
-        }
-
         if(inserted.length || removed.length) {
           this.handleDiff(table, inserted, removed);
         }
@@ -294,7 +257,7 @@ module Indexing {
       return this.select(table, opts)[0];
     }
   }
-  
+
   export var create = {
     lookup: function(keyIxes) {
       var valueIx = keyIxes.pop();

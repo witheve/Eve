@@ -106,105 +106,6 @@ module api {
   //---------------------------------------------------------
 
   export var ixer = new Indexing.Indexer();
-  export var builtins = {
-    compiler: {
-      tag: {name: "tag", fields: ["view", "tag"]},
-      view: {name: "view", fields: ["view", "kind"]},
-      field: {name: "field", fields: ["view", "field", "kind"]},
-      source: {name: "source", fields: ["view", "source", "source view"]},
-      constant: {name: "constant", fields: ["constant", "value"], facts: [["default empty", ""],
-                                                                          ["default zero", 0],
-                                                                          ["default space", " "],
-                                                                          ["default zero string", "0"]]},
-      select: {name: "select", fields: ["view", "view field", "source", "source field"]},
-
-      "constraint": {name: "constraint", fields: ["constraint", "view"]},
-      "constraint left": {name: "constraint left", fields: ["constraint", "left source", "left field"]},
-      "constraint right": {name: "constraint right", fields: ["constraint", "right source", "right field"]},
-      "constraint operation": {name: "constraint operation", fields: ["constraint", "operation"]},
-
-      "aggregate grouping": {name: "aggregate grouping", fields: ["aggregate", "inner field", "outer field"]},
-      "aggregate sorting": {name: "aggregate sorting", fields: ["aggregate", "inner field", "priority", "direction"]},
-      "aggregate limit from": {name: "aggregate limit from", fields: ["aggregate", "from source", "from field"]},
-      "aggregate limit to": {name: "aggregate limit to", fields: ["aggregate", "to source", "to field"]},
-
-      "display order": {name: "display order", fields: ["id", "priority"]},
-      "display name": {name: "display name", fields: ["id", "name"]},
-
-      "view dependency": {name: "view dependency", fields: ["upstream view", "ix", "source", "downstream view"]},
-      "view schedule": {name: "view schedule", fields: ["view", "ix"]},
-      "source dependency": {name: "source dependency", fields: ["upstream source", "upstream field", "downstream source", "downstream field"]},
-      "source schedule": {name: "source schedule", fields: ["view", "source", "ix"]},
-      "constraint schedule": {name: "constraint schedule", fields: ["constraint", "ix"]},
-      "index layout": {name: "index layout", fields: ["view", "field", "ix"]},
-      //"view constant": {name: "view constant", fields: ["view", "constant"]},
-      "view layout": {name: "view layout", fields: ["view", "source", "field", "ix"]},
-    },
-    editor: {
-      initialized: {name: "initialized", fields: ["initialized"], facts: [[true]]},
-      primitive: {name: "primitive", fields: ["view", "kind"]},
-      "editor item": {name: "editor item", fields: ["item", "type"], facts: []},
-      block: {name: "block", fields: ["query", "block", "view"]},
-      "block aggregate": {name: "block aggregate", fields: ["view", "kind"]},
-      //"block field": {name: "block field", fields: ["block field", "view", "source", "source view", "field"]},
-      "calculated field": {name: "calculated field", fields: ["calculated field", "view", "source", "source view", "field"]},
-      "empty view": {name: "empty view", fields: [], facts: [[]]},
-      "query export": {name: "query export", fields: ["query", "view"]},
-      "source order": {name: "source order", fields: ["view", "source", "priority"]},
-
-      //ui
-      "uiComponentElement": {name: "uiComponentElement", fields: ["tx", "id", "component", "layer", "control", "left", "top", "right", "bottom", "zindex"], facts: []},
-      "uiComponentLayer": {name: "uiComponentLayer", fields: ["tx", "id", "component", "layer", "locked", "hidden", "parentLayer"], facts: []},
-      "uiComponentAttribute": {name: "uiComponentAttribute", fields: ["tx", "id", "property", "value"]},
-      "uiStyle": {name: "uiStyle", fields: ["tx", "id", "type", "element", "shared"]},
-      "uiGroupBinding": {name: "uiGroupBinding", fields: ["group", "view"]},
-      "uiAttrBinding": {name: "uiAttrBinding", fields: ["elementId", "attr", "field"]},
-      "uiKeyCapture": {name: "uiKeyCapture", fields: ["elementId", "key"]},
-
-      uiMap: {name: "uiMap", fields: ["tx", "map", "element"]},
-      uiMapAttr: {name: "uiMapAttr", fields: ["tx", "map", "property", "value"]}
-    },
-
-    runtime: {
-      "client event": {name: "client event", fields: ["session", "eventId", "type", "element", "row"], tags: ["remote"]},
-      "mouse position": {name: "mouse position", fields: ["session", "eventId", "x", "y"], tags: ["remote"]},
-      "text input": {name: "text input", fields: ["session", "eventId", "element", "binding", "value"], tags: ["remote"]},
-      "location": {name: "location", fields: ["session", "latitude", "longitude", "accuracy", "timestamp"], tags: ["remote"]},
-      "session url": {name: "session url", fields: ["session", "eventId", "href", "origin", "path", "hash"], tags: ["remote"]},
-      "eveusers": {name: "eveusers", fields: ["id", "username"], tags: ["remote"]},
-      "sessions": {name: "sessions", fields: ["id", "status"], tags: ["remote"]},
-      "session id to user id": {name: "session id to user id", fields: ["session id", "user id"], tags: ["remote"]},
-      "captured key": {name: "captured key", fields: ["session", "eventId", "element", "key", "binding"], tags: ["remote"]}
-    },
-
-    example: {
-      "department heads": {name: "department heads", fields: ["department", "head"]},
-      "employees": {name: "employees", fields: ["department", "name", "salary"]},
-      "book": {name: "book", fields: ["isbn", "title", "author", "price", "cost"]},
-      "book sales": {name: "book sales", fields: ["order", "sales"]},
-      "PDGF assay": {name: "PDGF assay", fields: ["PDGF concentration", "Seed density", "Well #", "Absorbance"]},
-    },
-
-    foursquare: {
-      "click": {name: "click", fields: ["event number", "button", "binding"], tags: ["remote"]},
-      "place": {name: "place", fields: ["place", "name", "priceRange"]},
-      "place to address": {name: "place to address", fields: ["place", "street", "city", "state", "zip"]},
-      "place to hours": {name: "place to hours", fields: ["place", "day", "start", "end"]},
-      "place to rating": {name: "place to rating", fields: ["place", "rating", "reviewCount"]},
-      "place to image": {name: "place to image", fields: ["image", "place"]},
-      "image": {name: "image", fields: ["image", "user", "url", "description", "tick"]},
-      "taste": {name: "taste", fields: ["taste", "name"]},
-      "place to taste": {name: "place to taste", fields: ["tick","place", "taste", "rank"]},
-      "review": {name: "review", fields: ["tick", "place", "user", "text", "rating", "approved"]},
-      "user": {name: "user", fields: ["id", "token", "name"]},
-      "user checkin": {name: "user checkin", fields: ["tick", "user", "place"]}
-    },
-
-    test: {
-      edge: {name: "edge", fields: ["to", "from"], facts: [["a", "b"], ["b", "c"], ["c", "d"]]},
-      numbers: {name: "numbers", fields: ["x"], facts: [[0], [1], [2], [3]]},
-    }
-  };
 
   export var primitiveDefaults = {
     add: {"add: in A": "default zero", "add: in B": "default zero"},
@@ -218,11 +119,6 @@ module api {
     "stddev": {"stddev: in": "default zero"},
     subtract: {"subtract: in A": "default zero", "subtract: in B": "default zero"},
     sum: {"sum: in": "default zero"}
-  }
-
-  export function initIndexer(noFacts) {
-    injectViews(builtins, ixer, noFacts);
-    //ixer.handleDiffs(diff.addViewBlock(code.activeItemId()));
   }
 
   // This index needs to be hardcoded for code.ix to work.
@@ -934,28 +830,6 @@ module api {
     "editor": true,
     "test": true
   };
-
-  export function injectViews(tableGroups, ixer, noFacts) {
-    var diffs = [];
-    var add = function(viewId, view, group, shouldHide) {
-      diffs = diffs.concat(diff.addView(viewId, view, noFacts));
-      diffs.push(["editor item", "inserted", [viewId, "table"]],
-                 ["tag", "inserted", [viewId, group]]);
-      if(shouldHide) {
-        diffs.push(["tag", "inserted", [viewId, "hidden"]]);
-      }
-    };
-
-    for(var tableGroup in tableGroups) {
-      var builtins = tableGroups[tableGroup];
-      var shouldHide = groupsToHide[tableGroup];
-      for(var tableId in builtins) {
-        add(tableId, builtins[tableId], tableGroup, shouldHide);
-      }
-    }
-
-    ixer.handleDiffs(diffs);
-  }
 
   export function getUniqueNameIx(existing: string[], names: string[]): number {
     var toIx = invert(names);
