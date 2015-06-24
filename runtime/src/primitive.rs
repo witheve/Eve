@@ -48,7 +48,11 @@ impl Primitive {
             // NOTE be aware that arguments will be in alphabetical order by field id
             (Add, [&Float(a), &Float(b)]) => vec![vec![Float(a+b)]],
             (Subtract, [&Float(a), &Float(b)]) => vec![vec![Float(a-b)]],
-            (Contains, [&String(ref inner), &String(ref outer)]) => vec![vec![Bool(outer.contains(inner))]],
+            (Contains, [&String(ref inner), &String(ref outer)]) => {
+              let inner_lower = &inner.to_lowercase();
+              let outer_lower = &outer.to_lowercase();
+              vec![vec![Bool(outer_lower.contains(inner_lower))]]
+            },
             (Split, [&String(ref split), &String(ref string)]) => {
                 string.split(split).enumerate().map(|(ix, segment)| vec![Float(ix as f64), String(segment.to_owned())]).collect()
             },

@@ -278,7 +278,12 @@ module uiEditorRenderer {
       elem.input = handleInputEvent;
       elem.keydown = handleKeyDownEvent;
       elem.keyup = handleKeyUpEvent;
+      if(elem.text !== undefined) {
+        elem.value = elem.text;
+        elem.text = undefined;  
+      } 
     } else if(type === "link") {
+    } else if(type === "map") {
     } else {
       elem.c += " non-interactive";
     }
