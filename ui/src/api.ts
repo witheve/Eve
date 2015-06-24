@@ -24,10 +24,13 @@ module api {
                     INDEXER: 0};
   }
 
-  export var KEYS = {UP: 38,
-                     DOWN: 40,
-                     ENTER: 13,
-                     Z: 90};
+  export var KEYS = {
+    BACKSPACE: 8,
+    UP: 38,
+    DOWN: 40,
+    ENTER: 13,
+    Z: 90
+  };
 
   export function clone<T>(item:T): T;
   export function clone(item:Object): Object;
@@ -977,17 +980,19 @@ module api {
     return names[getUniqueNameIx(existing, names)];
   }
 
-  export var localState = {txId: 0,
-                           uiActiveLayer: null,
-                           openLayers: {},
-                           initialAttrs: [],
-                           initialElements: [],
-                           activeItem: null,
-                           showMenu: true,
-                           uiGridSize: 10,
-                           initialValue: undefined,
-                           queryEditorActive: undefined,
-                           queryEditorInfo: undefined};
+  export var localState: any = {
+    txId: 0,
+    uiActiveLayer: null,
+    openLayers: {},
+    initialAttrs: [],
+    initialElements: [],
+    activeItem: null,
+    showMenu: true,
+    uiGridSize: 10,
+    initialValue: undefined,
+    queryEditorActive: undefined,
+    queryEditorInfo: undefined
+};
 
 
 
