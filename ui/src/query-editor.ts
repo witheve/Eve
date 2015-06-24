@@ -187,35 +187,33 @@ module queryEditor {
         sendToServer = false;
         break;
       case "updateViewConstraint":
-        var viewId = ixer.index("constraint to view")[info.constraintId];
-
         // @TODO: redesign this to pass in opts directly.
-        var opts = code.getConstraint(info.constraintId);
+        var change = api.change("constraint", {constraint: info.constraintId});
+        var constraint:any = change.content[0];
         if(!info.isConstant) {
           if(info.type === "left") {
-            opts.leftField = info.value.field[code.ix("field", "field")];
-            opts.leftSource = info.value.source[code.ix("source", "source")];
+            constraint["left field"] = info.value.field[code.ix("field", "field")] || constraint["left field"];
+            constraint["left source"] = info.value.source[code.ix("source", "source")] || constraint["left source"];
           } else if(info.type === "right") {
-            opts.rightField = info.value.field[code.ix("field", "field")];
-            opts.rightSource = info.value.source[code.ix("source", "source")];
+            constraint["right field"] = info.value.field[code.ix("field", "field")] || constraint["right field"];
+            constraint["right source"] = info.value.source[code.ix("source", "source")] || constraint["right source"];
           } else if(info.type === "operation") {
-            opts.operation = info.value;
+            constraint.operation = info.value || constraint.operation;
           }
         } else {
           var constantFieldId = uuid();
           if(info.type === "left") {
-            opts.leftField = constantFieldId;
-            opts.leftSource = "constant";
+            constraint["left field"] = constantFieldId;
+            constraint["left source"] = "constant";
           } else if(info.type === "right") {
-            opts.rightField = constantFieldId;
-            opts.rightSource = "constant";
+            constraint["right field"] = constantFieldId;
+            constraint["right source"] = "constant";            
           }
           diffs.push(["constant", "inserted", [constantFieldId, info.value]]);
-          console.log("adding constant", diffs, opts);
         }
-
-        diffs = diffs.concat(diff.updateViewConstraint(info.constraintId, opts));
-        var calculatedFields = ixer.select("calculated field", {view: viewId, source: opts.leftSource});
+        diffs = diffs.concat(api.toDiffs(change));
+        
+        var calculatedFields = ixer.select("calculated field", {view: viewId, source: constraint["left source"]});
         if(calculatedFields.length) {
           for(var calculatedField of calculatedFields) {
             var calculatedFieldId = calculatedField["calculated field"];
@@ -223,12 +221,9 @@ module queryEditor {
             diffs.push(["display name", "inserted", [calculatedFieldId, code.name(calculatedFieldId)]]);
           }
         }
-
-        var complete = code.isConstraintComplete(opts);
-        if(!complete) { throw new Error("Constraint got into an incomplete state info " + JSON.stringify(info) + " constraint " + JSON.stringify(opts)); }
         break;
       case "removeViewConstraint":
-        var constraint = code.getConstraint(info.constraintId);
+        var constraint:any = code.getConstraint(info.constraintId);
         var calculatedId = ixer.index("view and source to calculated field")[constraint.view] || {};
         calculatedId = calculatedId[constraint.leftSource];
         if(calculatedId) {
@@ -1167,10 +1162,12 @@ module queryEditor {
       
       for(var field of fields) {
         var select = ixer.selectOne("select", {view: viewId, "view field": field.field, source: source.source});
-          rowItems.push({t: "td", c: "mapped-field", text: (select) ? code.name(select["source field"]) : "---",
-                         viewId: viewId, sourceId: source.source, fieldId: field.field,
-                         click: fieldSuggestions, handler: setMappingField});
+        rowItems.push({t: "td", c: "mapped-field", text: (select) ? code.name(select["source field"]) : "---",
+                       viewId: viewId, sourceId: source.source, fieldId: field.field,
+                       click: fieldSuggestions, handler: setMappingField});
       }
+      rowItems.push({t: "td", c: "mapped-field", text: "---", viewId: viewId, sourceId: source.source,
+                     click: fieldSuggestions, handler: setMappingField});
       sourceItems.push({t: "tr", children: rowItems});
     }
 
