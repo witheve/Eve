@@ -10,6 +10,7 @@ use rustc_serialize::json::Json;
 
 use eve::server::*;
 use eve::value::*;
+use eve::flow::Flow;
 
 #[test]
 fn test_examples() {
@@ -20,7 +21,9 @@ fn test_examples() {
         let input_filename = input_entry.unwrap().path().to_str().unwrap().to_owned();
         let output_filename = output_entry.unwrap().path().to_str().unwrap().to_owned();
         println!("Testing {:?} against {:?}", input_filename, output_filename);
-        let flow = load(&input_filename[..]);
+        let mut flow = Flow::new();
+        flow = load(flow, "./bootstrap");
+        flow = load(flow, &input_filename[..]);
         let mut output_string = String::new();
         let mut output_file = OpenOptions::new().open(output_filename).unwrap();
         output_file.read_to_string(&mut output_string).unwrap();

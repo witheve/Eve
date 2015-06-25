@@ -9,13 +9,15 @@ authors = ["Jamie Brandon <jamie@scattered-thoughts.net>",
 rand = "*"
 time = "*"
 rustc-serialize = "*"
-websocket = "*"
 hyper = "*"
 cookie = "*"
 url = "*"
 mime = "*"
 cbor = "*"
 conduit-mime-types = "*"
+
+[dependencies.websocket]
+git = "https://github.com/jamii/rust-websocket.git"
 
 [profile.release]
 debug = true

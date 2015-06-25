@@ -76,7 +76,7 @@ struct Credential {
 }
 
 fn main() {
-	Server::http(login).listen("0.0.0.0:8080").unwrap();
+	Server::http("0.0.0.0:8080").unwrap().handle(login).unwrap();
 }
 
 fn read_file_bytes(filename: &str) -> Vec<u8> {
@@ -157,7 +157,7 @@ fn login(req: Request, mut res: Response<Fresh>) {
 						[(_ , ref page), (ref token_type, ref token), ..] if token_type.clone() == "token".to_string() => {
 
 							// We have a login token, now to authenticate
-							let mut client = hyper::client::Client::new();
+							let client = hyper::client::Client::new();
 							let api_call = "https://api-e1.authrocket.com/v1/sessions/".to_string() + token;
 							let req = client.request(hyper::method::Method::Get,&*api_call);
 
