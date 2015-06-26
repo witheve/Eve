@@ -200,8 +200,6 @@ impl Flow {
             self.change(changes);
         });
         loop {
-            // TODO if compiler::needs_recompile...
-
             if self.needs_recompile {
                 time!("compiling", {
                     self = compiler::recompile(self);
