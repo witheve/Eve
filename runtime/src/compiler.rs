@@ -906,6 +906,7 @@ fn create_flow(flow: &Flow) -> Flow {
         nodes: nodes,
         dirty: dirty,
         outputs: outputs,
+        needs_recompile: false,
     }
 }
 
