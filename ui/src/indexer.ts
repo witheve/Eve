@@ -243,17 +243,17 @@ module Indexing {
       var compiler:PayloadChange[] = [];
       var codeTags = this.select("tag", { "tag": "code" }) || [];
       for(var tag of codeTags) {
-        var table = tag["id"];
+        var table = tag["view"];
         var pack = generatePackerFn(table, this.getFields(table));
         compiler.push([table, pack.fields, (this.tables[table] || []).map(pack), []]);
       }
       var facts:PayloadChange[] = [];
-      for(var factTable in this.tables) {
-        if (api.code.hasTag(factTable, "code")) continue;
-        var kind = this.index("view")[factTable][1];
+      for(var table in this.tables) {
+        if (api.code.hasTag(table, "code")) { continue; }
+        var kind = (this.selectOne("view", {view: table}) || {})["kind"];
         if(kind !== "table") continue;
         var pack = generatePackerFn(table, this.getFields(table));
-        facts.push([factTable, pack.fields, (this.tables[factTable] || []).map(pack), []]);
+        facts.push([table, pack.fields, (this.tables[table] || []).map(pack), []]);
       }
       return JSON.stringify({changes: compiler}) + "\n" + JSON.stringify({changes: facts}) + "\n";
     }
