@@ -21,6 +21,7 @@ pub struct Flow {
     pub nodes: Vec<Node>,
     pub outputs: Vec<RefCell<Relation>>,
     pub dirty: BitSet,
+    pub needs_recompile: bool,
 }
 
 impl Flow {
@@ -29,6 +30,7 @@ impl Flow {
             nodes: Vec::new(),
             outputs: Vec::new(),
             dirty: BitSet::new(),
+            needs_recompile: true,
         };
         compiler::bootstrap(flow)
     }
@@ -52,12 +54,16 @@ impl Flow {
     }
 
     pub fn change(&mut self, changes: Changes) {
+        let code_schema = compiler::code_schema();
         for (id, changes) in changes.into_iter() {
             match self.get_ix(&*id) {
                 Some(ix) => match self.nodes[ix].view {
                     View::Table(_) => {
                         // TODO should we be checking diffs after the fact?
                         self.outputs[ix].borrow_mut().change(changes);
+                        if code_schema.iter().find(|&&(ref code_id, _)| **code_id == id).is_some() {
+                            self.needs_recompile = true;
+                        }
                         for ix in self.nodes[ix].downstream.iter() {
                             self.dirty.insert(*ix);
                         }
@@ -115,6 +121,7 @@ impl Flow {
 
     pub fn recalculate(&mut self) {
         let Flow{ref nodes, ref mut outputs, ref mut dirty, ..} = *self;
+        let code_schema = compiler::code_schema();
         while let Some(ix) = dirty.iter().next() {
             dirty.remove(&ix);
             let node = &nodes[ix];
@@ -128,6 +135,9 @@ impl Flow {
                 Some(new_output) => {
                     let change = new_output.change_from(&*outputs[ix].borrow());
                     if (change.insert.len() != 0) || (change.remove.len() != 0) {
+                        if code_schema.iter().find(|&&(ref code_id, _)| **code_id == node.id).is_some() {
+                            self.needs_recompile = true;
+                        }
                         for ix in node.downstream.iter() {
                             dirty.insert(*ix);
                         }
@@ -139,37 +149,50 @@ impl Flow {
     }
 
     pub fn tick(&mut self) -> bool {
-        let mut changed = false;
+        let code_schema = compiler::code_schema();
+        let mut flow_changed = false;
         for (ix, node) in self.nodes.iter().enumerate() {
             match node.view {
                 View::Table(Table{ref insert, ref remove}) => {
-                    let upstream = node.upstream.iter().map(|ix| self.outputs[*ix].borrow()).collect::<Vec<_>>();
-                    let inputs = upstream.iter().map(|borrowed| &**borrowed).collect::<Vec<_>>();
-                    let mut inserts = match *insert {
-                        Some(ref select) => select.select(&inputs[..]),
-                        None => vec![],
-                    };
-                    let mut removes = match *remove {
-                        Some(ref select) => select.select(&inputs[..]),
-                        None => vec![],
-                    };
-                    inserts.sort();
-                    removes.sort();
-                    inserts.retain(|insert| removes.binary_search(&insert).is_err());
-                    removes.retain(|remove| inserts.binary_search(&remove).is_err());
-                    let mut output = self.outputs[ix].borrow_mut();
-                    let mut index = &mut output.index;
-                    for insert in inserts {
-                        changed = changed || index.insert(insert);
+                    let mut view_changed = false;
+                    {
+                        let upstream = node.upstream.iter().map(|ix| self.outputs[*ix].borrow()).collect::<Vec<_>>();
+                        let inputs = upstream.iter().map(|borrowed| &**borrowed).collect::<Vec<_>>();
+                        let mut inserts = match *insert {
+                            Some(ref select) => select.select(&inputs[..]),
+                            None => vec![],
+                        };
+                        let mut removes = match *remove {
+                            Some(ref select) => select.select(&inputs[..]),
+                            None => vec![],
+                        };
+                        inserts.sort();
+                        removes.sort();
+                        inserts.retain(|insert| removes.binary_search(&insert).is_err());
+                        removes.retain(|remove| inserts.binary_search(&remove).is_err());
+                        let mut output = self.outputs[ix].borrow_mut();
+                        let mut index = &mut output.index;
+                        for insert in inserts {
+                            view_changed = view_changed || index.insert(insert);
+                        }
+                        for remove in removes {
+                            view_changed = view_changed || !index.remove(&remove);
+                        }
                     }
-                    for remove in removes {
-                        changed = changed || !index.remove(&remove);
+                    if view_changed {
+                        if code_schema.iter().find(|&&(ref code_id, _)| **code_id == node.id).is_some() {
+                            self.needs_recompile = true;
+                        }
+                        for ix in node.downstream.iter() {
+                            self.dirty.insert(*ix);
+                        }
                     }
+                    flow_changed = flow_changed || view_changed;
                 }
                 _ => () // only tables tick
             }
         }
-        changed
+        flow_changed
     }
 
     pub fn quiesce(mut self, changes: Changes) -> Self {
@@ -177,11 +200,11 @@ impl Flow {
             self.change(changes);
         });
         loop {
-            // TODO if compiler::needs_recompile...
-
-            time!("compiling", {
-                self = compiler::recompile(self);
-            });
+            if self.needs_recompile {
+                time!("compiling", {
+                    self = compiler::recompile(self);
+                });
+            }
             time!("calculating", {
                 self.recalculate();
             });
