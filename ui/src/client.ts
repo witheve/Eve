@@ -7,6 +7,7 @@ module client {
   declare var uuid;
 
   var ixer = api.ixer;
+  var zip = api.zip;
 
   function now() {
     if (window.performance) {
@@ -29,6 +30,8 @@ module client {
     sendToServer({ changes: [[viewId, fieldIds, [], toRemove],
                              ["display order", api.code.sortedViewFields("display order"), [], displayOrders]]}, true);
   }
+
+
 
   function formatTime(time) {
     time = time || new Date();
@@ -139,10 +142,10 @@ module client {
       }
 
       var changes = [];
-      for (var changeIx = 0; changeIx < data.changes.length; changeIx++) {
-        var id = data.changes[changeIx][0];
-        if (initializing || api.code.hasTag(id, "remote")) {
-          changes.push(data.changes[changeIx]);
+      for(var change of data.changes) {
+        var [view, fields, inserts, removes] = change;
+        if (initializing || api.code.hasTag(view, "remote")) {
+          changes.push(change);
         }
       }
 
@@ -168,7 +171,6 @@ module client {
 
       if (initializing) {
         var eventId = (ixer.facts("client event") || []).length;
-        console.log(eventId);
         uiEditorRenderer.setEventId(eventId);
         uiEditorRenderer.setSessionId(data.session);
         var neueDiffs = api.diff.computePrimitives();

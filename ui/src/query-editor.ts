@@ -90,11 +90,8 @@ module queryEditor {
             tag: [{tag: "local"}, {tag: "remote"}],
             block: {query: queryId},
             source: (info.sourceId ? {
-              "source view": info.sourceId,
-              dependents: {
-                "source order": {priority: 0}}
-              }
-            : undefined)
+              "source view": info.sourceId
+            } : undefined)
           }
         }));                                                             
         break;
@@ -113,7 +110,6 @@ module queryEditor {
             source: [
               {source: "inner", "source view": "empty view"},
               {source: "outer", "source view": "empty view"},
-              api.diff2.primitiveSource(info.kind)
             ]
           }
         }));
@@ -178,6 +174,9 @@ module queryEditor {
             sendToServer = false;
           }
         }
+        
+        
+        
         break;
       case "removeViewSource":
         diffs = diff.removeViewSource(info.viewId, info.sourceId);
