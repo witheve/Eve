@@ -163,7 +163,7 @@ module api {
   ixer.addIndex("uiLayerToElements", "uiComponentElement", Indexing.create.collector(["uiComponentElement: layer"]));
   ixer.addIndex("uiStyles", "uiStyle", Indexing.create.collector(["uiStyle: id"]));
   ixer.addIndex("uiStyle", "uiStyle", Indexing.create.lookup(["uiStyle: id", false]));
-  ixer.addIndex("uiElementToStyle", "uiStyle", Indexing.create.lookup(["uiStyle: element", "uiStyle: stype", false]));
+  ixer.addIndex("uiElementToStyle", "uiStyle", Indexing.create.lookup(["uiStyle: element", "uiStyle: id", false]));
   ixer.addIndex("uiElementToStyles", "uiStyle", Indexing.create.collector(["uiStyle: element"]));
   ixer.addIndex("stylesBySharedAndType", "uiStyle", Indexing.create.collector(["uiStyle: shared", "uiStyle: type", "uiStyle: id"]));
   ixer.addIndex("uiStyleToAttr", "uiComponentAttribute", Indexing.create.lookup(["uiComponentAttribute: id", "uiComponentAttribute: property", false]));
