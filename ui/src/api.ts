@@ -88,6 +88,9 @@ module api {
   export var ixer = new Indexing.Indexer();
 
   export var primitiveDefaults = {
+    "<": {"<: in A": "default zero", "<: in B": "default zero"},
+    "<=": {"<=: in A": "default zero", "<=: in B": "default zero"},
+    "!=": {"!=: in A": "default zero", "!=: in B": "default zero"},
     add: {"add: in A": "default zero", "add: in B": "default zero"},
     contains: {"contains: inner": "default space", "contains: outer": "default empty"},
     count: {"count: in": "default zero"},
