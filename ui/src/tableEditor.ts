@@ -42,6 +42,7 @@ module tableEditor {
           var oldKey = info.table + JSON.stringify(fact);
           var neueKey = info.table + JSON.stringify(neue);
           var priority = ixer.index("display order")[oldKey];
+          if(priority === undefined) { throw new Error("Row " + oldKey + " has no priority."); }
           diffs.push(["display order", "removed", [oldKey, priority]],
                      ["display order", "inserted", [neueKey, priority]]);
 
