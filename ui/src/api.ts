@@ -844,7 +844,8 @@ module api {
     uiGridSize: 10,
     initialValue: undefined,
     queryEditorActive: undefined,
-    queryEditorInfo: undefined
+    queryEditorInfo: undefined,
+    sort: {}
 };
 
 

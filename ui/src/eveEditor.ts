@@ -1,12 +1,13 @@
 /// <reference path="microReact.ts" />
+/// <reference path="api.ts" />
 /// <reference path="uiEditorRenderer.ts" />
 /// <reference path="uiEditor.ts" />
 /// <reference path="query-editor.ts" />
 /// <reference path="tableEditor.ts" />
 /// <reference path="itemList.ts" />
+
 module eveEditor {
   declare var uuid;
-  declare var api;
   declare var DEBUG;
   var ixer = api.ixer;
   var code = api.code;
@@ -31,8 +32,13 @@ module eveEditor {
     }
   }
   
+  function preventDefault(e) {
+    e.preventDefault();
+  }
+
+  
   window.addEventListener("resize", render);
-  document.body.addEventListener("drop", api.preventDefault);
+  document.body.addEventListener("drop", preventDefault);
   
   //---------------------------------------------------------
   // Local state
@@ -70,16 +76,27 @@ module eveEditor {
     var diffs = [];
     switch(event) {
       case "addTable":
-        var id = uuid();
-        var fieldId = uuid();
-        diffs.push(["editor item", "inserted", [id, "table"]],
-                   ["view", "inserted", [id, "table"]],
-                   ["field", "inserted", [id, fieldId, "output"]],
-                   ["display order", "inserted", [fieldId, 0]],
-                   ["display name", "inserted", [id, "Untitled Table"]],
-                   ["display name", "inserted", [fieldId, "A"]]);
-        localState.activeItem = id;
-        localState.adderRows = [[], []];
+        var change = api.insert("view", {
+          kind: "table",
+          dependents: {
+            "editor item": {type: "table"},
+            "display name": {name: "Untitled Table"},
+            field: [
+              {kind: "output", dependents: {
+                "display name": {name: "id"},
+                "display order": {priority: 0},
+                tag: {tag: "auto increment"}
+              }},
+              {kind: "output", dependents: {
+                "display name": {name: "A"},
+                "display order": {priority: -1} 
+              }}
+            ]
+          }
+        });
+        diffs = api.toDiffs(change);
+        localState.activeItem = change.content.view;
+        localState.adderRows = [[1], [2]];
         break;
       case "addQuery":
         var id = uuid();
@@ -153,7 +170,7 @@ module eveEditor {
   //---------------------------------------------------------
   
   function root() {
-    var itemId = code.activeItemId();
+    var itemId = <string>code.activeItemId() || "";
     var type = ixer.index("editor item to type")[itemId];
 
     var workspace;
