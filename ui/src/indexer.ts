@@ -2,7 +2,13 @@ module Indexing {
 	declare var DEBUG;
   declare var api;
 
-  export function arraysIdentical(a, b) {
+  type Id = string;
+  type ArrayFact = any[];
+  interface MapFact {[field:string]: any};
+  type PayloadChange = [Id, Id[], ArrayFact[], ArrayFact[]];
+  interface Payload { changes: PayloadChange[] };
+
+  export function arraysIdentical(a:any[], b:any[]):boolean {
     var i = a.length;
     if (!b || i != b.length) return false;
     while (i--) {
@@ -19,12 +25,104 @@ module Indexing {
     }
     return true;
   }
+  
+  export function objectsIdentical(a:any, b:any):boolean {
+    if(typeof a !== typeof b) { return false; }
+    if(typeof a !== "object") { return a === b; }
+    var aKeys = Object.keys(a);
+    if(!arraysIdentical(aKeys, Object.keys(b))) { return false; }
+    
+    for(var key of aKeys) {
+      if(typeof a[key] !== typeof b[key]) { return false; }
+      if(typeof a[key] !== "object" && a[key] !== b[key]) { return false; }
+      else if(!objectsIdentical(a[key], b[key])) { return false; }
+    }
+    
+    return true;
+  }
+  
+  export function clone<T>(item:T): T;
+  export function clone(item:Object): Object;
+  export function clone(item:any[]): any[];
+  export function clone(item:any): any {
+    if (!item) { return item; }
+    var result;
 
-  function indexOfArray(haystack, needle) {
+    if(item instanceof Array) {
+      result = [];
+      item.forEach(function(child, index, array) {
+        result[index] = clone( child );
+      });
+    } else if(typeof item == "object") {
+      result = {};
+      for (var i in item) {
+        result[i] = clone( item[i] );
+      }
+    } else {
+      //it's a primitive
+      result = item;
+    }
+    return result;
+  }
+  
+  export function zip(rows, keys) {
+    var keysLength = keys.length;
+    var zipped = [];
+    for (var row of rows) {
+      var zippedRow = {};
+      for(var keyIx = 0; keyIx < keysLength; keyIx++) {
+        zippedRow[keys[keyIx]] = row[keyIx];
+      }
+      zipped.push(zippedRow);
+    }
+    return zipped;
+  }
+  
+  export function unzip(zipped, keys?) {
+    if(!zipped || !zipped.length) { return {keys: [], rows: []}; }
+    if(!keys) {
+      keys = Object.keys(zipped[0]);
+    }
+    var rows = [];
+    for(var zippedRow of zipped) {
+      var row = [];
+      for(var key of keys) {
+        row.push(zippedRow[key]);
+      }
+      rows.push(row);
+    }
+    return {keys: keys, rows: rows};
+  }
+  
+  type Extractor = (fact:ArrayFact) => MapFact;
+  function generateExtractorFn(view:Id, keys:Id[]):Extractor {
+    return <Extractor> new Function("fact", `return { ${keys.map(function(key, ix) {
+      return `"${key}": fact["${ix}"]`;
+    }).join(", ")} };`);
+  }
+  
+  type Packer = {(fact:MapFact): ArrayFact; fields: Id[]};
+  function generatePackerFn(view:Id, keys:Id[]):Packer {
+    var packer = <Packer> new Function("fact", `return [${keys.map(function(key) {
+      return `fact["${key}"] || ""`;
+    }).join(", ")}];`);
+    packer.fields = keys;
+    return packer;
+  }
+  
+  type EqualityChecker = (a:MapFact, b:MapFact) => Boolean;
+  function generateEqualityFn(view:Id, keys:Id[]):EqualityChecker {
+    return <EqualityChecker> new Function("a", "b",  `return ${keys.map(function(key, ix) {
+      return `a["${key}"] === b["${key}"]`;
+    }).join(" && ")};`);
+  }
+
+  function indexOfFact(equals:EqualityChecker, haystack:MapFact[], needle:MapFact):number {
     var result = -1;
+    if(!equals) { return result; }
     for(var haystackIx = 0, haystackLen = haystack.length; haystackIx < haystackLen; haystackIx++) {
       var cur = haystack[haystackIx];
-      if(arraysIdentical(cur, needle)) {
+      if(equals(cur, needle)) {
         result = haystackIx;
         break;
       }
@@ -32,12 +130,12 @@ module Indexing {
     return result;
   }
 
-  function applyTableDiff(table, adds, removes) {
-    var dedupedAdds = [];
-    var dedupedRemoves = [];
+  function applyTableDiff(equals:EqualityChecker, table:MapFact[], adds:MapFact[], removes:MapFact[]) {
+    var dedupedAdds:MapFact[] = [];
+    var dedupedRemoves:MapFact[] = [];
     for(var remIx = 0, remLen = removes.length; remIx < remLen; remIx++) {
       var rem = removes[remIx];
-      var foundIx = indexOfArray(table, rem);
+      var foundIx = indexOfFact(equals, table, rem);
       if(foundIx !== -1) {
         table.splice(foundIx, 1);
         dedupedRemoves.push(rem);
@@ -45,7 +143,7 @@ module Indexing {
     }
     for(var addIx = 0, addLen = adds.length; addIx < addLen; addIx++) {
       var add = adds[addIx];
-      var foundIx = indexOfArray(table, add);
+      var foundIx = indexOfFact(equals, table, add);
       if(foundIx !== -1) continue;
       table.push(add);
       dedupedAdds.push(add);
@@ -53,26 +151,30 @@ module Indexing {
     return {adds: dedupedAdds, removes: dedupedRemoves};
   }
 
+/*  var factExtractorFns:{[key:string]: Extractor} = {};
+  var factPackerFns:{[key:string]: Packer} = {};
+  var factEqualityFns:{[key:string]: EqualityChecker} = {};
+*/
   export class Indexer {
-    tables: {};
+    tables:{[key:string]: MapFact[]};
     indexes: {};
     tableToIndex: {};
-    needsRebuild: {[table: string]: boolean};
+    needsRebuild: {[table:string]: boolean};
     constructor() {
       this.tables = {};
       this.indexes = {};
       this.tableToIndex = {};
       this.needsRebuild = {};
     }
-    totalFacts() {
+    totalFacts():Number {
       var total = 0;
       for(var table in this.tables) {
         total += this.tables[table].length;
       }
       return total;
     }
-    clear() {
-      var final = {};
+    clear():Payload {
+      var final = [];
       for(var table in this.tables) {
         if(this.tables[table]) {
           this.handleDiff(table, [], this.tables[table].slice());
@@ -83,93 +185,91 @@ module Indexing {
       }
       return {changes: final};
     }
-    clearTable(table: string) {
+    clearTable(table: Id) {
       if(this.tables[table]) {
-        this.handleDiff(table, [], this.tables[table].slice());
+        this.handleDiff(table, this.getFields(table), [], this.tables[table].slice());
       }
     }
-    markForRebuild(table: string) {
+    markForRebuild(table: Id) {
       this.needsRebuild[table] = true;
     }
-    handleDiff(table: string, adds: any[], removes: any[]) {
-      var safeAdds = adds || [];
-      var safeRemoves = removes || [];
-      var dedupedAdds = safeAdds;
-      var dedupedRemoves = safeRemoves;
+    getFields(table: Id):Id[] {
+      var fields = this.index("view to fields", true)[table];
+      var orders = this.index("display order", true) || {};
+      if(!fields) { return []; }
+      var fieldIds = fields.map((field) => field["field: field"]);
+      fieldIds.sort(function(a, b) {
+        var delta = orders[b] - orders[a];
+        if(delta) { return delta; }
+        else { return b.localeCompare(a); }
+      });
+      return fieldIds;
+    }
+    handleDiff(table: Id, fields:Id[], adds: MapFact[] = [], removes: MapFact[] = []) {
+      var dedupedAdds = adds;
+      var dedupedRemoves = removes;
       //update table
       if(this.tables[table] === undefined) {
         this.tables[table] = [];
       }
-      if(this.tables[table] !== false) {
-        var deduped = applyTableDiff(this.tables[table], safeAdds, safeRemoves);
-        dedupedAdds = deduped.adds;
-        dedupedRemoves = deduped.removes;
-      }
+      var equals = generateEqualityFn(table, fields);
+      var deduped = applyTableDiff(equals, this.tables[table], adds, removes);
+      dedupedAdds = deduped.adds;
+      dedupedRemoves = deduped.removes;
+
       //update indexes
       var shouldRebuild = this.needsRebuild[table];
       var indexes = this.tableToIndex[table] || [];
-      for(var ix = 0, len = indexes.length; ix < len; ix++) {
-        var cur = indexes[ix];
+      for(var cur of indexes) {
         if(shouldRebuild && cur.requiresRebuild) {
-          cur.index = cur.indexer({}, this.tables[table], []);
+          cur.index = cur.indexer({}, this.tables[table], [], equals);
         } else {
-          cur.index = cur.indexer(cur.index, dedupedAdds, dedupedRemoves);
+          cur.index = cur.indexer(cur.index, dedupedAdds, dedupedRemoves, equals);
         }
       }
       if(shouldRebuild) {
         this.needsRebuild[table] = false;
       }
     }
-    indexOnly(table: string) {
-      this.tables[table] = false;
-    }
-    dumpMapDiffs() {
-      var final = [];
+    dumpMapDiffs():Payload {
+      var final:PayloadChange[] = [];
       for(var table in this.tables) {
-        var fieldIds = api.code.sortedViewFields(table) || []; // @FIXME: Shouldn't hardcode knowledge of an external index.
-        final.push([table, fieldIds, this.tables[table], []]);
+        var pack = generatePackerFn(table, this.getFields(table));
+        final.push([table, pack.fields, (this.tables[table] || []).map(pack), []]);
       }
       return {changes: final};
     }
     compactDiffs() {
-      var compiler = [];
-      var codeTags = api.retrieve("tag", { "tag": "code" });
+      var compiler:PayloadChange[] = [];
+      var codeTags = this.select("tag", { "tag": "code" }) || [];
       for(var tag of codeTags) {
-        var table = tag["id"];
-        var fieldIds = api.code.sortedViewFields(table) || []; // @FIXME: Shouldn't hardcode knowledge of an external index.
-        compiler.push([table, fieldIds, this.tables[table] || [], []]);
+        var table = tag["view"];
+        var pack = generatePackerFn(table, this.getFields(table));
+        compiler.push([table, pack.fields, (this.tables[table] || []).map(pack), []]);
       }
-      var facts = [];
-      for(var factTable in this.tables) {
-        if (api.code.hasTag(factTable, "code")) continue;
-        var kind = api.ixer.index("view")[factTable][1];
+      var facts:PayloadChange[] = [];
+      for(var table in this.tables) {
+        if (api.code.hasTag(table, "code")) { continue; }
+        var kind = (this.selectOne("view", {view: table}) || {})["kind"];
         if(kind !== "table") continue;
-        var fieldIds = api.code.sortedViewFields(factTable) || []; // @FIXME: Shouldn't hardcode knowledge of an external index.
-        facts.push([factTable, fieldIds, this.tables[factTable] || [], []]);
+        var pack = generatePackerFn(table, this.getFields(table));
+        facts.push([table, pack.fields, (this.tables[table] || []).map(pack), []]);
       }
       return JSON.stringify({changes: compiler}) + "\n" + JSON.stringify({changes: facts}) + "\n";
     }
     handleMapDiffs(diffs) {
-      for(var diffIx = 0, diffLen = diffs.length; diffIx < diffLen; diffIx++) {
-        var diff = diffs[diffIx];
-        var table = diff[0];
-        var fields = diff[1]; // @FIXME: Reorder fields as necessary to support concurrent editing of view structure.
-        var inserted = diff[2];
-        var removed = diff[3];
+      for(var [table, fields, inserted, removed] of diffs) { 
         if(inserted.length || removed.length) {
-          this.handleDiff(table, inserted, removed);
+          var extract = generateExtractorFn(table, fields);
+          this.handleDiff(table, fields, (inserted || []).map(extract), (removed || []).map(extract));
         }
       }
     }
     handleDiffs(diffs: any) {
       var diffTables = {};
-      var adds = {};
-      var removes = {};
-      for(var diffIx = 0, diffLen = diffs.length; diffIx < diffLen; diffIx++) {
-        var cur = diffs[diffIx];
-        var table = cur[0];
-        var action = cur[1];
-        var fact = cur[2];
+      var adds:{[key:string]: ArrayFact[]} = {};
+      var removes:{[key:string]: ArrayFact[]} = {};
+      for(var [table, action, fact] of diffs) {
         diffTables[table] = true;
         if(action === "inserted") {
           if(!adds[table]) { adds[table] = []; }
@@ -180,150 +280,188 @@ module Indexing {
         }
       }
       for(var table in diffTables) {
-        this.handleDiff(table, adds[table], removes[table]);
+        var fields = this.getFields(table);
+        var extract = generateExtractorFn(table, fields);
+        this.handleDiff(table, fields, (adds[table] || []).map(extract), (removes[table] || []).map(extract));
       }
     }
     addIndex(name: string, table: string, indexer) {
-      var index = {index: {}, indexer: indexer.func, table: table, requiresRebuild: indexer.requiresRebuild};
+      var index = {index: {}, indexer: indexer.func, table: table, keys: indexer.keys, requiresRebuild: indexer.requiresRebuild};
       this.indexes[name] = index;
       if(!this.tableToIndex[table]) {
         this.tableToIndex[table] = [];
       }
       this.tableToIndex[table].push(index);
       if(this.tables[table]) {
-        index.index = index.indexer(index.index, this.tables[table], []);
+        var pack = generatePackerFn(table, this.getFields(table));
+        index.index = index.indexer(index.index, this.tables[table], [], pack);
       }
     }
-    index(name: string) {
+    index(name: string, unpacked:boolean = false) {
       if(this.indexes[name]) {
         var indexObj = this.indexes[name];
-        if(DEBUG && DEBUG.INDEXER && !this.tables[indexObj.table]) {
-           console.warn("Indexed table '" + indexObj.table + "' does not yet exist for index '" + name + "'.");
+        var table = indexObj.table;
+        if(DEBUG && DEBUG.INDEXER && !this.tables[table]) {
+           console.warn("Indexed table '" + table + "' does not yet exist for index '" + name + "'.");
         }
-        return this.indexes[name].index;
+        var index  = this.indexes[name].index;
+        if(!index) return {};
+        if(unpacked) return index;
+        
+        var pack = generatePackerFn(table, this.getFields(table));
+        var depth = indexObj.keys.length - 1;
+                
+        function reducer(memo, key, cur, curDepth) {
+          if(cur[key] instanceof Array) {
+            memo[key] = cur[key].map(pack);
+          } else if(typeof cur[key] === "object") {
+            if(curDepth === depth) {
+              memo[key] = pack(cur[key]);
+            } else {
+              memo[key] = reduce(cur[key], curDepth + 1);
+            }
+          } else {
+            memo[key] = cur[key];
+          }
+        }
+        function reduce(cur, depth = 0) {
+          var memo = {};
+          var keys = Object.keys(cur);
+          for(var key of keys) {
+            reducer(memo, key, cur, depth);
+          }
+          return memo;
+        }
+
+        return reduce(index);
       }
       return null;
     }
-    facts(name: string) {
-      return this.tables[name] || [];
+    facts(table: Id, unpacked:boolean = false):ArrayFact[]|MapFact[] {
+      var index = this.tables[table] || [];
+      if(unpacked || !index.length) { return index; }
+      var pack = generatePackerFn(table, this.getFields(table));
+      return (this.tables[table] || []).map(pack);
     }
-    first(name: string) {
-      return this.facts(name)[0];
+    first(table: Id, unpacked:boolean = false):ArrayFact|MapFact {
+      return this.facts(table, unpacked)[0];
     }
-    select(table: string, opts: any): any[] {
-      var self = this;
-      var facts = [];
-      var fields = api.code.sortedViewFields(table) || [];
+    select(table: Id, opts: MapFact): MapFact[] { // @TODO: Fixme: sources not showing up.
+      var facts:MapFact[] = [];
+      var first = this.first(table);
+      if(!first) { return []; }
+      var fieldIds = (this.index("view to fields")[table] || []).map((fact) => fact[1]);
       var nameLen = table.length + 2;
-      var fieldNames = fields.map((cur) => self.index("display name")[cur]);
-      var keys = Object.keys(opts).filter(function(key) {
-        return opts[key] !== undefined;
-      });
+      var names = this.index("display name", true);
+      var fieldNames = fieldIds.map((cur) => names[cur]);
+      var keys = Object.keys(opts).filter((key) => opts[key] !== undefined);
       keys = keys.map(function (key) {
-        var result = fields[fieldNames.indexOf(key)];
+        var result = fieldIds[fieldNames.indexOf(key)];
         if(result === undefined) { throw new Error("Field " + keys + " is not a valid field of table " + table); }
         return result;
       });
       keys.sort();
       if(keys.length > 0) {
         var indexName = `${table}|${keys.join("|") }`;
-        var index = this.index(indexName);
-        var keyIxes = [];
-        for(var curKey of keys) {
-          keyIxes.push(fields.indexOf(curKey));
-        }
+        var index = this.index(indexName, true);
+
         if (!index) {
-          this.addIndex(indexName, table, create.collector(keyIxes));
-          index = this.index(indexName);
+          this.addIndex(indexName, table, create.collector(keys));
+          index = this.index(indexName, true);
         }
-        for(var keyIx of keyIxes) {
+        for(var key of keys) {
           if(index === undefined) break;
-          index = index[opts[fieldNames[keyIx]]];
+          index = index[opts[names[key]]];
         }
-        facts = index;
+        if(index) {
+          facts = index;
+        }
       } else {
-        facts = this.facts(table);
+        facts = <MapFact[]>this.facts(table, true);
       }
       if(!facts) { return []; }
-      return facts.map(function(fact) {
-        var cur = {};
-        for(var i = 0, fieldsLen = fields.length; i < fieldsLen; i++) {
-          cur[fieldNames[i]] = fact[i];
+      
+       var self = this;
+      return facts.map(function(fact:MapFact) {
+        var neue:MapFact = {};
+        var keys = Object.keys(fact);
+        for(var key of keys) {
+          var name = (names[key] || key);
+          neue[name] = fact[key];
         }
-        return cur;
+        return neue;
       });
     }
-    selectOne(table: string, opts: any): any {
+    selectOne(table: Id, opts: MapFact): MapFact {
       return this.select(table, opts)[0];
     }
   }
 
   export var create = {
-    lookup: function(keyIxes) {
-      var valueIx = keyIxes.pop();
+    lookup: function(keys) {
+      var valueKey = keys.pop();
+      var tailKey = keys[keys.length - 1];
       return {requiresRebuild: false,
+              keys: keys,
               func: function(cur, adds, removes) {
                 var cursor;
-                outer: for(var remIx = 0, remLen = removes.length; remIx < remLen; remIx++) {
-                  var rem = removes[remIx];
+                outer: for(var rem of removes) {
                   cursor = cur;
-                  for(var ix = 0, keyLen = keyIxes.length - 1; ix < keyLen; ix++) {
-                    cursor = cursor[rem[keyIxes[ix]]];
-                    if(!cursor) continue outer;
+                  for(var key of keys) {
+                    cursor = cursor[rem[key]];
+                    if(!cursor) { continue outer; }
                   }
-                  delete cursor[rem[keyIxes[keyIxes.length - 1]]];
+                  delete cursor[rem[tailKey]];
                 }
-                for(var addIx = 0, addLen = adds.length; addIx < addLen; addIx++) {
-                  var add = adds[addIx];
+                for(var add of adds) {
                   cursor = cur;
-                  for(var ix = 0, keyLen = keyIxes.length - 1; ix < keyLen; ix++) {
-                    var next = cursor[add[keyIxes[ix]]];
+                  for(var keyIx = 0, keysLength = keys.length; keyIx < keysLength - 1; keyIx++) {
+                    var key = keys[keyIx];
+                    var next = cursor[add[key]];
                     if(!next) {
-                      next = cursor[add[keyIxes[ix]]] = {};
+                      next = cursor[add[key]] = {};
                     }
                     cursor = next;
                   }
-                  if(valueIx !== false) {
-                    cursor[add[keyIxes[keyIxes.length - 1]]] = add[valueIx];
+                  if(valueKey !== false) {
+                    cursor[add[tailKey]] = add[valueKey];
                   } else {
-                    cursor[add[keyIxes[keyIxes.length - 1]]] = add;
+                    cursor[add[tailKey]] = add; // @FIXME: Need to pack false lookups, but don't have table name.
                   }
                 }
                 return cur;
               }
              };
     },
-    collector: function(keyIxes) {
+    collector: function(keys) {
+      var tailKey = keys[keys.length - 1];
       return {requiresRebuild: false,
-              func: function(cur, adds, removes) {
+              keys: keys,
+              func: function(cur, adds, removes, equals:EqualityChecker) {
                 var cursor;
-                outer: for(var remIx = 0, remLen = removes.length; remIx < remLen; remIx++) {
-                  var rem = removes[remIx];
+                outer: for(var rem of removes) {
                   cursor = cur;
-                  for(var ix = 0, keyLen = keyIxes.length - 1; ix < keyLen; ix++) {
-                    cursor = cursor[rem[keyIxes[ix]]];
-                    if(!cursor) continue outer;
+                  for(var key of keys) {
+                    cursor = cursor[rem[key]];
+                    if(!cursor) { continue outer; }
                   }
-
-                  cursor[rem[keyIxes[keyIxes.length - 1]]] = cursor[rem[keyIxes[keyIxes.length - 1]]].filter(function(potential) {
-                    return !arraysIdentical(rem, potential);
-                  });
+                  cursor[rem[tailKey]] = cursor[rem[tailKey]].filter((potential) => !equals(rem, potential));
                 }
-                for(var addIx = 0, addLen = adds.length; addIx < addLen; addIx++) {
-                  var add = adds[addIx];
+                for(var add of adds) {
                   cursor = cur;
-                  for(var ix = 0, keyLen = keyIxes.length - 1; ix < keyLen; ix++) {
-                    var next = cursor[add[keyIxes[ix]]];
+                  for(var keyIx = 0, keysLength = keys.length; keyIx < keysLength - 1; keyIx++) {
+                    var key = keys[keyIx];
+                    var next = cursor[add[key]];
                     if(!next) {
-                      next = cursor[add[keyIxes[ix]]] = {};
+                      next = cursor[add[key]] = {};
                     }
                     cursor = next;
                   }
-                  next = cursor[add[keyIxes[keyIxes.length - 1]]];
+                  next = cursor[add[tailKey]];
                   if(!next) {
-                    next = cursor[add[keyIxes[keyIxes.length - 1]]] = [];
+                    next = cursor[add[tailKey]] = [];
                   }
-                  next.push(add);
+                  next.push(add); // @FIXME: Need to pack these facts, but don't have table name.
                 }
                 return cur;
               }

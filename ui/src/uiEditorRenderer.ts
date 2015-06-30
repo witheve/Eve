@@ -60,8 +60,6 @@ module uiEditorRenderer {
     }
   }
 
-  var parentLayerIndex = ixer.index("parentLayerToLayers");
-
   function rendererRoot() {
     if(dispatcher.isApp) {
       //in an app we check the active page
@@ -70,6 +68,7 @@ module uiEditorRenderer {
       //we're in the editor, so we render based on what the active item is
       var componentId = <any>code.activeItemId();
     }
+    var parentLayerIndex = ixer.index("parentLayerToLayers");
     var layers = parentLayerIndex[componentId];
     if(!layers) return {};
 
@@ -78,8 +77,6 @@ module uiEditorRenderer {
     });
     return {id: "root", children: layerItems};
   }
-
-  var bindingIndex = ixer.index("groupToBinding");
 
   function rowToKeyFunction(viewId): (any) {
     var fields = code.sortedViewFields(viewId) || [];
@@ -122,7 +119,9 @@ module uiEditorRenderer {
     var layerId = layer[1];
     var layerIx = layer[3];
     var elements = ixer.index("uiLayerToElements")[layerId];
+    var parentLayerIndex = ixer.index("parentLayerToLayers");
     var subLayers = parentLayerIndex[layerId];
+    var bindingIndex = ixer.index("groupToBinding");
     var binding = bindingIndex[layerId];
     var offset = elements && binding ? elementsToBoundingBox(elements) : {top: 0, left: 0, width: "100%", height: "100%"};
     var boundRows;
@@ -181,10 +180,6 @@ module uiEditorRenderer {
     return {top: finalTop, left: finalLeft, right: finalRight, bottom: finalBottom,
             width: finalRight - finalLeft, height: finalBottom - finalTop};
   }
-
-  var attrsIndex = ixer.index("uiStyleToAttrs");
-  var stylesIndex = ixer.index("uiElementToStyles");
-  var attrBindingsIndex = ixer.index("elementAttrBindings");
 
   function renderElement(element, offset, row, key) {
     var elementId = element[1];
@@ -246,6 +241,11 @@ module uiEditorRenderer {
         node.rendered = true;  
       }
     }
+    
+    var attrsIndex = ixer.index("uiStyleToAttrs");
+    var stylesIndex = ixer.index("uiElementToStyles");
+    var attrBindingsIndex = ixer.index("elementAttrBindings");
+
 
     var attrs = [];
     var styles = stylesIndex[elementId] || [];
@@ -290,8 +290,6 @@ module uiEditorRenderer {
 
     return elem;
   }
-
-  var fieldToViewIndex = ixer.index("field to view");
 
   function bindingToValue(binding, row) {
     var fieldId = binding[2];

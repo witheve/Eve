@@ -17,6 +17,8 @@ module api {
   }
 
   export var arraysIdentical:(a:any[], b:any[])=>boolean = Indexing.arraysIdentical;
+  export var zip:(keys:string[], rows:any[][])=>any[] = Indexing.zip;
+  export var clone:<T>(item:T)=>T = Indexing.clone;
 
   if(!window.DEBUG) {
     window.DEBUG = {RECEIVE: 0,
@@ -32,29 +34,7 @@ module api {
     Z: 90
   };
 
-  export function clone<T>(item:T): T;
-  export function clone(item:Object): Object;
-  export function clone(item:any[]): any[];
-  export function clone(item:any): any {
-    if (!item) { return item; }
-    var result;
 
-    if(item instanceof Array) {
-      result = [];
-      item.forEach(function(child, index, array) {
-        result[index] = clone( child );
-      });
-    } else if(typeof item == "object") {
-      result = {};
-      for (var i in item) {
-        result[i] = clone( item[i] );
-      }
-    } else {
-      //it's a primitive
-      result = item;
-    }
-    return result;
-  }
 
   export function extend(dest, src) {
     for(var key in src) {
@@ -122,78 +102,77 @@ module api {
   }
 
   // This index needs to be hardcoded for code.ix to work.
-  ixer.addIndex("view to fields", "field", Indexing.create.collector([0]));
+  ixer.addIndex("view to fields", "field", Indexing.create.collector(["field: view"]));
 
-  ixer.addIndex("constant", "constant", Indexing.create.lookup([0, false]));
-  ixer.addIndex("constant to value", "constant", Indexing.create.lookup([0, 1]));
-  ixer.addIndex("display name", "display name", Indexing.create.lookup([0, 1]));
-  ixer.addIndex("display order", "display order", Indexing.create.lookup([0, 1]));
-  ixer.addIndex("field", "field", Indexing.create.lookup([1, false]));
-  ixer.addIndex("field to view", "field", Indexing.create.lookup([1, 0]));
-  ixer.addIndex("view", "view", Indexing.create.lookup([0, false]));
-  ixer.addIndex("view to kind", "view", Indexing.create.lookup([0, 1]));
-  ixer.addIndex("view kind to views", "view", Indexing.create.collector([1]));
-  ixer.addIndex("source", "source", Indexing.create.lookup([0, 1, false]));
-  ixer.addIndex("view and source view to source", "source", Indexing.create.lookup([0, 2, false]));
-  ixer.addIndex("view to sources", "source", Indexing.create.collector([0]));
-  ixer.addIndex("source view to sources", "source", Indexing.create.collector([2]));
-  ixer.addIndex("view to constraints", "constraint", Indexing.create.collector([1]));
-  ixer.addIndex("constraint", "constraint", Indexing.create.lookup([0, false]));
-  ixer.addIndex("constraint to view", "constraint", Indexing.create.lookup([0, 1]));
-  ixer.addIndex("constraint left", "constraint left", Indexing.create.lookup([0, false]));
-  ixer.addIndex("source to constraints", "constraint left", Indexing.create.collector([1]));
-  ixer.addIndex("constraint to source", "constraint left", Indexing.create.lookup([0, 1]));
-  ixer.addIndex("constraint right", "constraint right", Indexing.create.lookup([0, false]));
-  ixer.addIndex("constraint operation", "constraint operation", Indexing.create.lookup([0, false]));
-  ixer.addIndex("view to selects", "select", Indexing.create.collector([0]));
-  ixer.addIndex("view and source field to select", "select", Indexing.create.lookup([0, 3, false]));
-  ixer.addIndex("view and source to selects", "select", Indexing.create.collector([0, 2])); // @NOTE: Consolidate all these select indexes.
-  ixer.addIndex("view and source and field to select", "select", Indexing.create.lookup([0, 2, 1, false]));
-  ixer.addIndex("aggregate sorting", "aggregate sorting", Indexing.create.lookup([0, false]));
-  ixer.addIndex("aggregate limit from", "aggregate limit from", Indexing.create.lookup([0, false]));
-  ixer.addIndex("aggregate limit to", "aggregate limit to", Indexing.create.lookup([0, false]));
-  ixer.addIndex("aggregate grouping", "aggregate grouping", Indexing.create.lookup([0, false]));
-  ixer.addIndex("id to tags", "tag", Indexing.create.collector([0]));
+  ixer.addIndex("constant", "constant", Indexing.create.lookup(["constant: constant", false]));
+  ixer.addIndex("constant to value", "constant", Indexing.create.lookup(["constant: constant", "constant: value"]));
+  ixer.addIndex("display name", "display name", Indexing.create.lookup(["display name: id", "display name: name"]));
+  ixer.addIndex("display order", "display order", Indexing.create.lookup(["display order: id", "display order: priority"]));
+  ixer.addIndex("field", "field", Indexing.create.lookup(["field: field", false]));
+  ixer.addIndex("field to view", "field", Indexing.create.lookup(["field: field", "field: view"]));
+  ixer.addIndex("view", "view", Indexing.create.lookup(["view: view", false]));
+  ixer.addIndex("view to kind", "view", Indexing.create.lookup(["view: view", "view: kind"]));
+  ixer.addIndex("view kind to views", "view", Indexing.create.collector(["view: kind"]));
+  ixer.addIndex("source", "source", Indexing.create.lookup(["source: view", "source: source", false]));
+  ixer.addIndex("view and source view to source", "source", Indexing.create.lookup(["source: view", "source: source view", false]));
+  ixer.addIndex("view to sources", "source", Indexing.create.collector(["source: view"]));
+  ixer.addIndex("source view to sources", "source", Indexing.create.collector(["source: source view"]));
+  ixer.addIndex("view to constraints", "constraint", Indexing.create.collector(["constraint: view"]));
+  ixer.addIndex("constraint", "constraint", Indexing.create.lookup(["constraint: constraint", false]));
+  ixer.addIndex("constraint to view", "constraint", Indexing.create.lookup(["constraint: constraint", "constraint: view"]));
+  ixer.addIndex("constraint left", "constraint left", Indexing.create.lookup(["constraint left: constraint", false]));
+  ixer.addIndex("source to constraints", "constraint left", Indexing.create.collector(["constraint left: left source"]));
+  ixer.addIndex("constraint to source", "constraint left", Indexing.create.lookup(["constraint left: constraint", "constraint left: left source"]));
+  ixer.addIndex("constraint right", "constraint right", Indexing.create.lookup(["constraint right: constraint", false]));
+  ixer.addIndex("constraint operation", "constraint operation", Indexing.create.lookup(["constraint operation: constraint", false]));
+  ixer.addIndex("view to selects", "select", Indexing.create.collector(["select: view"]));
+  ixer.addIndex("view and source field to select", "select", Indexing.create.lookup(["select: view", "select: source field", false]));
+  ixer.addIndex("view and source to selects", "select", Indexing.create.collector(["select: view", "select: source"])); // @NOTE: Consolidate all these select indexes.
+  ixer.addIndex("view and source and field to select", "select", Indexing.create.lookup(["select: view", "select: source", "select: view field", false]));
+  ixer.addIndex("aggregate sorting", "aggregate sorting", Indexing.create.lookup(["aggregate sorting: aggregate", false]));
+  ixer.addIndex("aggregate limit from", "aggregate limit from", Indexing.create.lookup(["aggregate limit from: aggregate", false]));
+  ixer.addIndex("aggregate limit to", "aggregate limit to", Indexing.create.lookup(["aggregate limit to: aggregate", false]));
+  ixer.addIndex("aggregate grouping", "aggregate grouping", Indexing.create.lookup(["aggregate grouping: aggregate", false]));
+  ixer.addIndex("id to tags", "tag", Indexing.create.collector(["tag: view"]));
 
   // editor
-  ixer.addIndex("block", "block", Indexing.create.lookup([1, false]));
-  ixer.addIndex("block to query", "block", Indexing.create.lookup([1, 0]));
-  ixer.addIndex("view to query", "block", Indexing.create.lookup([2, 0]));
-  ixer.addIndex("view to block", "block", Indexing.create.lookup([2, 1]));
-  ixer.addIndex("query to blocks", "block", Indexing.create.collector([0]));
-  ixer.addIndex("block field", "block field", Indexing.create.lookup([0, false]));
-  ixer.addIndex("view and source to block fields", "block field", Indexing.create.collector([1, 2]));
-  ixer.addIndex("calculated field", "calculated field", Indexing.create.lookup([0, false]));
-  ixer.addIndex("view to calculated fields", "calculated field", Indexing.create.collector([1]));
-  ixer.addIndex("field to calculated field", "calculated field", Indexing.create.lookup([4, 0]));
-  ixer.addIndex("view and source to calculated field", "calculated field", Indexing.create.lookup([1, 2, 0]));
-  ixer.addIndex("block aggregate", "block aggregate", Indexing.create.lookup([0, false]));
-  ixer.addIndex("primitive", "primitive", Indexing.create.lookup([0, false]));
-  ixer.addIndex("primitive kind to views", "primitive", Indexing.create.collector([1]));
-  ixer.addIndex("query to export", "query export", Indexing.create.lookup([0, 1]));
-  ixer.addIndex("editor item to type", "editor item", Indexing.create.lookup([0, 1]));
-  ixer.addIndex("eveusers id to username", "eveusers", Indexing.create.lookup([0, 1]));
+  ixer.addIndex("block", "block", Indexing.create.lookup(["block: block", false]));
+  ixer.addIndex("block to query", "block", Indexing.create.lookup(["block: block", "block: query"]));
+  ixer.addIndex("view to query", "block", Indexing.create.lookup(["block: view", "block: query"]));
+  ixer.addIndex("view to block", "block", Indexing.create.lookup(["block: view", "block: block"]));
+  ixer.addIndex("query to blocks", "block", Indexing.create.collector(["block: query"]));
+  ixer.addIndex("block field", "block field", Indexing.create.lookup(["block field: block field", false]));
+  ixer.addIndex("view and source to block fields", "block field", Indexing.create.collector(["block field: view", "block field: source"]));
+  ixer.addIndex("calculated field", "calculated field", Indexing.create.lookup(["calculated field: calculated field", false]));
+  ixer.addIndex("view to calculated fields", "calculated field", Indexing.create.collector(["calculated field: view"]));
+  ixer.addIndex("field to calculated field", "calculated field", Indexing.create.lookup(["calculated field: field", "calculated field: calculated field"]));
+  ixer.addIndex("view and source to calculated field", "calculated field", Indexing.create.lookup(["calculated field: view", "calculated field: source", "calculated field: calculated field"]));
+  ixer.addIndex("block aggregate", "block aggregate", Indexing.create.lookup(["block aggregate: view", false]));
+  ixer.addIndex("primitive", "primitive", Indexing.create.lookup(["primitive: view", false]));
+  ixer.addIndex("primitive kind to views", "primitive", Indexing.create.collector(["primitive: kind"]));
+  ixer.addIndex("query to export", "query export", Indexing.create.lookup(["query export: query", "query export: view"]));
+  ixer.addIndex("editor item to type", "editor item", Indexing.create.lookup(["editor item: item", "editor item: type"]));
+  ixer.addIndex("eveusers id to username", "eveusers", Indexing.create.lookup(["eveusers: id", "eveusers: username"]));
 
   // ui
-  ixer.addIndex("uiComponentElement", "uiComponentElement", Indexing.create.lookup([1, false]));
-  ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector([2]));
-  ixer.addIndex("uiComponentLayer", "uiComponentLayer", Indexing.create.lookup([1, false]));
-  ixer.addIndex("parentLayerToLayers", "uiComponentLayer", Indexing.create.collector([6]));
-  ixer.addIndex("uiComponentToLayers", "uiComponentLayer", Indexing.create.collector([2]));
-  ixer.addIndex("uiLayerToElements", "uiComponentElement", Indexing.create.collector([3]));
-  ixer.addIndex("uiStyles", "uiStyle", Indexing.create.collector([1]));
-  ixer.addIndex("uiStyle", "uiStyle", Indexing.create.lookup([1, false]));
-  ixer.addIndex("uiElementToStyle", "uiStyle", Indexing.create.lookup([3, 2, false]));
-  ixer.addIndex("uiElementToStyles", "uiStyle", Indexing.create.collector([3]));
-  ixer.addIndex("stylesBySharedAndType", "uiStyle", Indexing.create.collector([4, 2, 1]));
-  ixer.addIndex("uiStyleToAttr", "uiComponentAttribute", Indexing.create.lookup([1, 2, false]));
-  ixer.addIndex("uiStyleToAttrs", "uiComponentAttribute", Indexing.create.collector([1]));
-  ixer.addIndex("groupToBinding", "uiGroupBinding", Indexing.create.lookup([0, 1]));
-  ixer.addIndex("elementAttrToBinding", "uiAttrBinding", Indexing.create.lookup([0, 1, 2]));
-  ixer.addIndex("elementAttrBindings", "uiAttrBinding", Indexing.create.collector([0]));
+  ixer.addIndex("uiComponentElement", "uiComponentElement", Indexing.create.lookup(["uiComponentElement: id", false]));
+  ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector(["uiComponentElement: component"]));
+  ixer.addIndex("uiComponentLayer", "uiComponentLayer", Indexing.create.lookup(["uiComponentLayer: id", false]));
+  ixer.addIndex("parentLayerToLayers", "uiComponentLayer", Indexing.create.collector(["uiComponentLayer: parentLayer"]));
+  ixer.addIndex("uiComponentToLayers", "uiComponentLayer", Indexing.create.collector(["uiComponentLayer: component"]));
+  ixer.addIndex("uiLayerToElements", "uiComponentElement", Indexing.create.collector(["uiComponentElement: layer"]));
+  ixer.addIndex("uiStyles", "uiStyle", Indexing.create.collector(["uiStyle: id"]));
+  ixer.addIndex("uiStyle", "uiStyle", Indexing.create.lookup(["uiStyle: id", false]));
+  ixer.addIndex("uiElementToStyle", "uiStyle", Indexing.create.lookup(["uiStyle: element", "uiStyle: stype", false]));
+  ixer.addIndex("uiElementToStyles", "uiStyle", Indexing.create.collector(["uiStyle: element"]));
+  ixer.addIndex("stylesBySharedAndType", "uiStyle", Indexing.create.collector(["uiStyle: shared", "uiStyle: type", "uiStyle: id"]));
+  ixer.addIndex("uiStyleToAttr", "uiComponentAttribute", Indexing.create.lookup(["uiComponentAttribute: id", "uiComponentAttribute: property", false]));
+  ixer.addIndex("uiStyleToAttrs", "uiComponentAttribute", Indexing.create.collector(["uiComponentAttribute: id"]));
+  ixer.addIndex("groupToBinding", "uiGroupBinding", Indexing.create.lookup(["uiGroupBinding: group", "uiGroupBinding: view"]));
+  ixer.addIndex("elementAttrToBinding", "uiAttrBinding", Indexing.create.lookup(["uiAttrBinding: elementId", "uiAttrBinding: attr", "uiAttrBinding: field"]));
+  ixer.addIndex("elementAttrBindings", "uiAttrBinding", Indexing.create.collector(["uiAttrBinding: elementId"]));
 
-  ixer.addIndex("uiElementToMap", "uiMap", Indexing.create.latestLookup({keys: [2, false]}));
-  ixer.addIndex("uiMapAttr", "uiMapAttr", Indexing.create.lookup([0, 1, 2]));
+  ixer.addIndex("uiElementToMap", "uiMap", Indexing.create.latestLookup({keys: ["uiMap: element", false]}));
 
 
   //---------------------------------------------------------
@@ -865,7 +844,8 @@ module api {
     uiGridSize: 10,
     initialValue: undefined,
     queryEditorActive: undefined,
-    queryEditorInfo: undefined
+    queryEditorInfo: undefined,
+    sort: {}
 };
 
 
@@ -996,6 +976,10 @@ module api {
         if(!params["left source"] || !params["left field"] || !params["right source"] || !params["right field"] || !params["operation"]) {
           throw new Error("Missing value for compound field on type constraint " + JSON.stringify(params));
         }
+        break;
+      case "source":
+        if(!params.dependents) { params.dependents = {}; }
+        if(!params.dependents["source order"]) {  }
         break;
     }
 

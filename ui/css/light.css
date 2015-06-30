@@ -92,9 +92,9 @@ div:hover > .hover-reveal { opacity: 1; }
 .table .row { flex: none; }
 .table .header { flex-direction:row; width: 200px; padding: 5px; flex:none; background: rgba(243,243,243,1); border-bottom:1px solid rgba(0,0,0,0.1); margin-bottom:-1px; }
 .table .header .input { flex: 1; }
-.table .header .key { color: #ccc; display:none; }
-.table .header:hover .key { display:flex; }
-.table .header .key.isKey { display:flex; color: #999; }
+.table .header .icon { color: #ccc; display:none; padding: 0 5px; }
+.table .header:hover .icon { display:flex; }
+.table .header .icon.active { display:flex; color: #999; }
 .table .field { width: 200px; padding: 5px; flex:none; white-space: nowrap; overflow:hidden; }
 
 .table-editor {  flex:1; border-radius:3px; box-shadow:0 0 20px #111; background: #fff; color: #555; }
