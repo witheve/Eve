@@ -328,6 +328,7 @@ module Indexing {
           var memo = {};
           var keys = Object.keys(cur);
           for(var key of keys) {
+            if(key === "undefined") { throw new Error("Index: " + name + " contains invalid key(s) at depth " + depth); }
             reducer(memo, key, cur, depth);
           }
           return memo;
@@ -401,13 +402,14 @@ module Indexing {
     lookup: function(keys) {
       var valueKey = keys.pop();
       var tailKey = keys[keys.length - 1];
+      var keysLength = keys.length;
       return {requiresRebuild: false,
               keys: keys,
               func: function(cur, adds, removes) {
                 var cursor;
                 outer: for(var rem of removes) {
                   cursor = cur;
-                  for(var key of keys) {
+                  for(let keyIx = 0; keyIx < keysLength - 1; keyIx++) {
                     cursor = cursor[rem[key]];
                     if(!cursor) { continue outer; }
                   }
@@ -415,7 +417,7 @@ module Indexing {
                 }
                 for(var add of adds) {
                   cursor = cur;
-                  for(var keyIx = 0, keysLength = keys.length; keyIx < keysLength - 1; keyIx++) {
+                  for(let keyIx = 0; keyIx < keysLength - 1; keyIx++) {
                     var key = keys[keyIx];
                     var next = cursor[add[key]];
                     if(!next) {
@@ -435,13 +437,15 @@ module Indexing {
     },
     collector: function(keys) {
       var tailKey = keys[keys.length - 1];
+      var keysLength = keys.length;
       return {requiresRebuild: false,
               keys: keys,
               func: function(cur, adds, removes, equals:EqualityChecker) {
                 var cursor;
                 outer: for(var rem of removes) {
                   cursor = cur;
-                  for(var key of keys) {
+                  for(let keyIx = 0; keyIx < keysLength - 1; keyIx++) {
+                    var key = keys[keyIx];
                     cursor = cursor[rem[key]];
                     if(!cursor) { continue outer; }
                   }
@@ -449,7 +453,7 @@ module Indexing {
                 }
                 for(var add of adds) {
                   cursor = cur;
-                  for(var keyIx = 0, keysLength = keys.length; keyIx < keysLength - 1; keyIx++) {
+                  for(let keyIx = 0; keyIx < keysLength - 1; keyIx++) {
                     var key = keys[keyIx];
                     var next = cursor[add[key]];
                     if(!next) {
@@ -461,7 +465,7 @@ module Indexing {
                   if(!next) {
                     next = cursor[add[tailKey]] = [];
                   }
-                  next.push(add); // @FIXME: Need to pack these facts, but don't have table name.
+                  next.push(add);
                 }
                 return cur;
               }
