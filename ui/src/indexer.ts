@@ -104,7 +104,7 @@ module Indexing {
   type Packer = {(fact:MapFact): ArrayFact; fields: Id[]};
   function generatePackerFn(view:Id, keys:Id[]):Packer {
     var packer = <Packer> new Function("fact", `return [${keys.map(function(key) {
-      return `fact["${key}"]`;
+      return `fact["${key}"] || ""`;
     }).join(", ")}];`);
     packer.fields = keys;
     return packer;
@@ -187,7 +187,7 @@ module Indexing {
     }
     clearTable(table: Id) {
       if(this.tables[table]) {
-        this.handleDiff(table, [], this.tables[table].slice());
+        this.handleDiff(table, this.getFields(table), [], this.tables[table].slice());
       }
     }
     markForRebuild(table: Id) {
