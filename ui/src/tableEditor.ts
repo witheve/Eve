@@ -1,3 +1,4 @@
+/// <reference path="api.ts" />
 /// <reference path="query-editor.ts" />
 module tableEditor {
   declare var api;
@@ -92,6 +93,9 @@ module tableEditor {
           diffs.push(["tag", "inserted", [info.fieldId, "key"]]);
         }
         break;
+      case "setTableSort":
+        localState.sort[info.table] = {field: info.field, dir: info.dir};
+        break;
       default:
         redispatched = true;
         eveEditor.dispatch(event, info);
@@ -164,21 +168,56 @@ module tableEditor {
   }
 
   export function virtualizedTable(id, fields, rows, isEditable) {
+    var sort = localState.sort[id] || {};
+    if(!sort.field && fields.length) {
+      sort.field = fields[0].id;
+      sort.dir = 1;
+    }
+    var sortIx = 0;
+    for(let fieldIx = 0, fieldsLength = fields.length; fieldIx < fieldsLength; fieldIx++) {
+      if(fields[fieldIx].id === sort.field) {
+        sortIx = fieldIx;
+        break;
+      }
+    }
+    
     var ths = fields.map(function(cur) {
       var oninput, onsubmit;
       if (cur.id) {
         oninput = onsubmit = rename;
       }
-      var isKey = code.hasTag(cur.id, "key") ? "isKey" : "";
+      var isKey = code.hasTag(cur.id, "key") ? " active" : "";
+      var sortClass = "icon " + ((sort.dir === 1 || sort.field !== cur.id) ? "ion-android-arrow-dropdown" : "ion-android-arrow-dropup");
+      if(sort.field === cur.id) {
+        sortClass += " active";
+      }
       return {
-        c: "header", children: [input(cur.name, cur.id, oninput, onsubmit),
-          { c: "ion-key key" + isKey, click: toggleKey, fieldId: cur.id }]
+        c: "header", children: [
+          input(cur.name, cur.id, oninput, onsubmit),
+          { c: "ion-key icon" + isKey, click: toggleKey, fieldId: cur.id },
+          { c: sortClass, click: setTableSort, tableId: id, fieldId: cur.id}
+        ]
       };
     });
     if (isEditable) {
       ths.push({ c: "header add-column ion-plus", click: addField, table: id });
     }
     var trs = [];
+    if(sort.field) {
+      rows.sort(function sortAscending(a, b) {
+        a = a[sortIx];
+        b = b[sortIx];
+        if(sort.dir === -1) { [a, b] = [b, a]; }
+        var typeA = typeof a;
+        var typeB = typeof b;
+        if(typeA === typeB && typeA === "number") { return a - b; }
+        if(typeA === "number") { return -1; }
+        if(typeB === "number") { return 1; }
+        if(typeA === "undefined") { return -1; }
+        if(typeB === "undefined") { return -1; }
+        return a.localeCompare(b);
+      });
+    }
     rows.forEach(function(cur, rowIx) {
       var tds = [];
       for (var tdIx = 0, len = fields.length; tdIx < len; tdIx++) {
@@ -210,6 +249,16 @@ module tableEditor {
         { c: "rows", children: trs }
       ]
     };
+  }
+
+  
+  function setTableSort(evt, elem) {
+    var sort = localState.sort[elem.tableId];
+    var dir = 1;
+    if(sort && sort.field === elem.fieldId) {
+      dir = -sort.dir;
+    }
+    dispatch("setTableSort", {table: elem.tableId, field: elem.fieldId, dir: dir});
   }
 
   function toggleKey(e, elem) {
@@ -248,7 +297,13 @@ module tableEditor {
     if(!hasAtLeastOneValue) return;
     localState.adderRows.splice(key.priority, 1);
     if (localState.adderRows.length <= 1) {
-      localState.adderRows.push([]);
+      var fieldIds = api.ixer.getFields(key.view);
+      if(api.code.hasTag(fieldIds[0], "auto increment")) {
+        var id = (api.ixer.select(key.view, {}) || []).length + 2 + localState.adderRows.length;
+        localState.adderRows.push([id]);
+      } else {
+        localState.adderRows.push([]);
+      }
     }
     dispatch("addRow", { table: key.view, neue: row });
   }
