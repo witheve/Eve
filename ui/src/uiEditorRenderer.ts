@@ -15,8 +15,14 @@ module uiEditorRenderer {
   var ixer = api.ixer;
   var code = api.code;
 
-  var ids = {"active page": "6b54229a-f5bc-476d-935e-4bb37d2b3ad0"};
-  
+  var ids = {
+    "active page": "6b54229a-f5bc-476d-935e-4bb37d2b3ad0",
+    session: "2603d682-1db4-45d7-b597-9a501d2769ed",
+    page: "63241b6f-d779-4973-b8f2-7f30512a300b"
+  };
+  // @FIXME: This should be a builtin.
+  ixer.addIndex("active page", ids["active page"], Indexing.create.lookup([ids.session, ids.page]));
+
   export var session = "me";
     
   export function setSessionId(id) {
@@ -39,9 +45,7 @@ module uiEditorRenderer {
     }
   }
 
-  // @FIXME: This should be a builtin.
-  ixer.addIndex("active page", ids["active page"], Indexing.create.lookup([1, 2]));
-
+  
   /*-------------------------------------------------------
   - Renderer
   -------------------------------------------------------*/
