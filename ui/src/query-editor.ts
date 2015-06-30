@@ -582,7 +582,7 @@ module queryEditor {
         items.push(suggestionBarItem("new constant", "new constant"));
       }
     } else if(info.type === "constraint op") {
-      items = ["=", "<", "<=", ">", ">=", "!="].map(function(op) {
+      items = ["="].map(function(op) {
         return suggestionBarItem(op, op);
       });
     } else {
