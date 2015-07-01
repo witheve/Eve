@@ -955,6 +955,7 @@ module api {
     }
 
     ixer.handleDiffs(diffs);
+    return diffs;
   }
 
   export function getUniqueNameIx(existing: string[], names: string[]): number {
@@ -1048,6 +1049,7 @@ module api {
      "location": {},
      "session url": {},
      "captured key": {},
+     "editor node position": {key: "node"},
      "editor item": {key: "item", foreign: {view: "item"}, dependents: pkDependents},
      "block aggregate": {foreign: {view: "view"}}
   };

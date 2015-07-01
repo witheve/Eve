@@ -316,3 +316,5 @@ div:hover > .hover-reveal { opacity: 1; }
 
 
 .primitive-cursor { display:none; }
+
+body > .full-size-wrapper { z-index: -1; }
