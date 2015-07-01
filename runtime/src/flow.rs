@@ -55,22 +55,39 @@ impl Flow {
 
     pub fn change(&mut self, changes: Changes) {
         let code_schema = compiler::code_schema();
-        for (id, changes) in changes.into_iter() {
+        for (id, change) in changes.into_iter() {
             match self.get_ix(&*id) {
-                Some(ix) => match self.nodes[ix].view {
-                    View::Table(_) => {
-                        // TODO should we be checking diffs after the fact?
-                        self.outputs[ix].borrow_mut().change(changes);
-                        if code_schema.iter().find(|&&(ref code_id, _)| **code_id == id).is_some() {
-                            self.needs_recompile = true;
-                        }
-                        for ix in self.nodes[ix].downstream.iter() {
-                            self.dirty.insert(*ix);
-                        }
+                Some(ix) => {
+                    match self.nodes[ix].view {
+                        View::Table(_) => (),
+                        _ => println!("Warning: changing a non-table view with id: {:?}", id),
                     }
-                    _ => panic!("Tried to insert into a non-table view with id: {:?}", id),
-                },
-                None => panic!("Tried to insert into a non-existent view with id: {:?}", id),
+                    // TODO should we be checking diffs after the fact?
+                    self.outputs[ix].borrow_mut().change(change);
+                    if code_schema.iter().find(|&&(ref code_id, _)| **code_id == id).is_some() {
+                        self.needs_recompile = true;
+                    }
+                    for ix in self.nodes[ix].downstream.iter() {
+                        self.dirty.insert(*ix);
+                    }
+                }
+                None => {
+                    println!("Warning: creating a dummy view because you tried to change a non-existing view with id: {:?}", id);
+                    self.nodes.push(Node{
+                        id: id.to_owned(),
+                        view: View::Table(Table{
+                            insert:None,
+                            remove:None,
+                        }),
+                        upstream: Vec::new(),
+                        downstream: Vec::new(),
+                    });
+                    let fields = change.fields.clone();
+                    // compiler tables will never be missing, so it's safe to just put dummy names in here
+                    let names = change.fields.iter().map(|_| "".to_owned()).collect();
+                    self.outputs.push(RefCell::new(Relation::new(id.to_owned(), fields, names)));
+                    self.outputs[self.outputs.len()-1].borrow_mut().change(change);
+                }
             }
         }
     }
