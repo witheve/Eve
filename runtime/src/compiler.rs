@@ -134,6 +134,9 @@ fn editor_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // things which can be displayed in the sidebar
     // `type` is one of "table", "query", "ui"
     ("editor item", vec!["item", "type"]),
+    
+    // positions for nodes in the graphical editor
+    ("editor node position", vec!["node", "x", "y"]),
 
     // TODO what are this?
     ("primitive", vec!["view", "kind"]),
