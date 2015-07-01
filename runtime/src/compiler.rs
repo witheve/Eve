@@ -135,6 +135,9 @@ fn editor_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // `type` is one of "table", "query", "ui"
     ("editor item", vec!["item", "type"]),
 
+    // positions for nodes in the graphical editor
+    ("editor node position", vec!["node", "x", "y"]),
+
     // TODO what are this?
     ("block", vec!["query", "block", "view"]),
     ("block aggregate", vec!["view", "kind"]),
