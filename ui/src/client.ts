@@ -7,6 +7,7 @@ module client {
   declare var uuid;
 
   var ixer = api.ixer;
+  var zip = api.zip;
 
   function now() {
     if (window.performance) {
@@ -29,6 +30,8 @@ module client {
     sendToServer({ changes: [[viewId, fieldIds, [], toRemove],
                              ["display order", api.code.sortedViewFields("display order"), [], displayOrders]]}, true);
   }
+
+
 
   function formatTime(time) {
     time = time || new Date();
@@ -108,88 +111,6 @@ module client {
     return { adds: totalAdds, removes: totalRemoves, malformedDiffs: malformedDiffs, badValues: badValues };
   }
 
-  function createBlockFieldView() {
-    var queryId = uuid();
-    var blockField = api.insert("view", {
-      view: "block field",
-      kind: "join",
-      dependents: {
-        "display name": {name: "A"},
-        tag: [{tag: "remote"}],
-        block: {query: queryId},
-        "editor item": {item: queryId, type: "query", dependents: {"display name": {name: "block field"}}},
-        "query export": {query: queryId},
-        source: [
-          {"source view": "field"},
-          {"source view": "source"},
-          {"source view": "concat"},
-          {"source view": "concat"}
-        ]
-      }
-    });
-    var blockFieldSources = blockField.content.dependents.source;
-    var inserts = [
-      blockField,
-      api.insert("constraint",
-        {"left field": "source: source view", "right source": blockFieldSources[0].source, "right field": "field: view", operation: "="},
-        {view: blockField.content.view, source: blockFieldSources[1].source}),
-      api.insert("constraint", [
-        {"right field": "source: view", "right source": blockFieldSources[1].source, "left field": "concat: a", operation: "="},
-        {"right field": "source: source", "right source": blockFieldSources[1].source, "left field": "concat: b", operation: "="}         
-      ], {view: blockField.content.view, source: blockFieldSources[2].source}),
-      api.insert("constraint", [
-        {"right field": "concat: out", "right source": blockFieldSources[2].source, "left field": "concat: a", operation: "="},
-        {"right field": "field: field", "right source": blockFieldSources[0].source, "left field": "concat: b", operation: "="}         
-      ], {view: blockField.content.view, source: blockFieldSources[3].source}),
-
-      api.insert("field", [
-        {field: "block field: block field", kind: "output", dependents: {
-          "display name": {name: "block field"},
-          "display order": {priority: 0},
-          select: {source: blockFieldSources[3].source, "source field": "concat: out"}
-        }},
-        {field: "block field: view", kind: "output", dependents: {
-          "display name": {name: "view"},
-          "display order": {priority: -1},
-          select: {source: blockFieldSources[1].source, "source field": "source: view"}
-        }},
-        {field: "block field: source", kind: "output", dependents: {
-          "display name": {name: "source"},
-          "display order": {priority: -2},
-          select: {source: blockFieldSources[1].source, "source field": "source: source"}
-        }},
-        {field: "block field: source view", kind: "output", dependents: {
-          "display name": {name: "source view"},
-          "display order": {priority: -3},
-          select: {source: blockFieldSources[1].source, "source field": "source: source view"}
-        }},
-        {field: "block field: field", kind: "output", dependents: {
-          "display name": {name: "field"},
-          "display order": {priority: -4},
-          select: {source: blockFieldSources[0].source, "source field": "field: field"}
-        }},
-      ], {view: blockField.content.view})
-    ];
-    var diffs = api.toDiffs(inserts);
-    var calculatedFieldId = uuid();
-    var calculatedField2Id = uuid();
-    diffs.push(["calculated field", "inserted", [calculatedFieldId, "block field", blockFieldSources[2].source, "concat", "concat: out"]],
-               ["display name", "inserted", [calculatedFieldId, "a"]],
-               ["calculated field", "inserted", [calculatedField2Id, "block field", blockFieldSources[3].source, "concat", "concat: out"]],
-               ["display name", "inserted", [calculatedField2Id, "b"]]);
-               
-    return diffs;
-  }
-
-  function initialize(noFacts) {
-    api.initIndexer(noFacts);
-    if(!noFacts) {
-      var diffs = createBlockFieldView();
-      ixer.handleDiffs(diffs);
-    } 
-    sendToServer(ixer.dumpMapDiffs(), true);
-  }
-
   var server = { connected: false, queue: [], initialized: false, lastSent: [], ws: null, dead: false };
   function connectToServer() {
     var queue = server.queue;
@@ -201,13 +122,8 @@ module client {
     server.ws = ws;
 
     ws.onerror = function(error) {
-      console.log('WebSocket Error ' + error);
       server.dead = true;
-      if (!server.initialized) {
-        console.warn("Starting in local only mode, the server is dead.");
-        initialize(false);
-        dispatcher.render();
-      }
+      throw(error);
     };
 
     ws.onmessage = function(e) {
@@ -221,28 +137,15 @@ module client {
       var initializing = false;
 
       if (!server.initialized) {
-        var initialized = data.changes.some(function(diff) {
-          return diff[0] === "initialized";
-        });
-        if (initialized) {
-          initialize(true);
-        } else {
-          initialize(false);
-        }
         server.initialized = true;
         initializing = true;
       }
 
       var changes = [];
-      var compilerChanges = [];
-      for (var changeIx = 0; changeIx < data.changes.length; changeIx++) {
-        var id = data.changes[changeIx][0];
-        if (initializing || api.code.hasTag(id, "remote")) {
-          if (api.builtins.compiler[id]) {
-            compilerChanges.push(data.changes[changeIx]);
-          } else {
-            changes.push(data.changes[changeIx]);
-          }
+      for(var change of data.changes) {
+        var [view, fields, inserts, removes] = change;
+        if (initializing || api.code.hasTag(view, "remote")) {
+          changes.push(change);
         }
       }
 
@@ -261,16 +164,13 @@ module client {
           console.groupEnd();
         }
       }
+
       var start = now();
-      // @FIXME: We need to isolate and process compiler views first, to ensure that the necessary data for ordering
-      // other views is available and not stale.
-      if (compilerChanges.length) {
-        ixer.handleMapDiffs(compilerChanges);
-      }
+
       ixer.handleMapDiffs(changes);
+
       if (initializing) {
         var eventId = (ixer.facts("client event") || []).length;
-        console.log(eventId);
         uiEditorRenderer.setEventId(eventId);
         uiEditorRenderer.setSessionId(data.session);
         var neueDiffs = api.diff.computePrimitives();
@@ -285,11 +185,9 @@ module client {
       if (time > 5) {
         console.log("slow handleDiffs (> 5ms):", time);
       }
-      
-      if(server.initialized && data.changes.length) {
-        dispatcher.render();
-      }
-      
+
+      dispatcher.render();
+
       // Get the user ID from a cookie
       var name = "userid" + "=";
       var cookie = document.cookie.split(';');
@@ -322,7 +220,7 @@ module client {
     }
   }
 
-  export function sendToServer(message, formatted) {
+  export function sendToServer(message, formatted?) {
     if (!server.connected) {
       console.log("not connected");
       server.queue.push(message);
@@ -336,7 +234,7 @@ module client {
 
       for (var ix = 0; ix < message.changes.length; ix++) {
         var table = message.changes[ix][0];
-        if (api.builtins.compiler[table]) {
+        if (api.code.hasTag(table, "code")) {
           specialPayload.changes.push(message.changes[ix]);
         } else {
           payload.changes.push(message.changes[ix]);
@@ -400,7 +298,7 @@ module client {
       deduped.push(diff);
     }
     diffs = deduped;
-    
+
     var final = { field: null };
     for (var i = 0, len = diffs.length; i < len; i++) {
       var cur = diffs[i];
@@ -435,7 +333,7 @@ module client {
     }
     return { changes: changes };
   }
-  
+
   var afterInitFuncs: Function[] = [];
   export function afterInit(func) {
     afterInitFuncs.push(func);

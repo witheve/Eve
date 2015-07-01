@@ -134,11 +134,12 @@ fn editor_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // things which can be displayed in the sidebar
     // `type` is one of "table", "query", "ui"
     ("editor item", vec!["item", "type"]),
-
+    
     // positions for nodes in the graphical editor
     ("editor node position", vec!["node", "x", "y"]),
 
     // TODO what are this?
+    ("primitive", vec!["view", "kind"]),
     ("block", vec!["query", "block", "view"]),
     ("block aggregate", vec!["view", "kind"]),
     ("calculated field", vec!["calculated field", "view", "source", "source view", "field"]),
@@ -198,8 +199,11 @@ macro_rules! find_binding {
 }
 
 macro_rules! find {
+    ($table:expr, [ $($pattern:tt),* ]) => {{
+        $table.find(vec![$( find_pattern!( $pattern ) ),*])
+    }};
     ($table:expr, [ $($pattern:tt),* ], $body:expr) => {{
-        for row in $table.find(vec![$( find_pattern!( $pattern ) ),*]).into_iter() {
+        for row in find!($table, [ $($pattern),* ]).into_iter() {
             match row {
                 [$( find_binding!($pattern) ),*] => $body,
                 _ => panic!(),
@@ -214,27 +218,39 @@ macro_rules! insert {
     }}
 }
 
-fn ordinal_by(input_table: &Relation, output_table: &mut Relation, grouped_fields: &[&str]) {
-    for (ix, grouped_field) in grouped_fields.iter().enumerate() {
-        assert_eq!(&input_table.names[ix][..], *grouped_field);
+fn group_by(input_table: &Relation, key_fields: &[&str]) -> Vec<Vec<Vec<Value>>> {
+    for (ix, key_field) in key_fields.iter().enumerate() {
+        assert_eq!(&input_table.names[ix][..], *key_field);
     }
-    let grouped_len = grouped_fields.len();
+    let key_len = key_fields.len();
+    let mut groups = Vec::new();
     match input_table.index.iter().next() {
         Some(row) => {
-            let mut group = &row[..grouped_len];
-            let mut ix = 0;
+            let mut key = &row[..key_len];
+            let mut group = Vec::new();
             for row in input_table.index.iter() {
-                if &row[..grouped_len] != group {
-                    group = &row[..grouped_len];
-                    ix = 0;
+                if &row[..key_len] != key {
+                    key = &row[..key_len];
+                    groups.push(group);
+                    group = Vec::new();
                 }
-                let mut row = row.clone();
-                row.push(Value::Float(ix as f64));
-                output_table.index.insert(row);
-                ix += 1;
+                group.push(row.clone());
             }
+            groups.push(group);
         }
         None => ()
+    }
+    groups
+}
+
+fn ordinal_by(input_table: &Relation, output_table: &mut Relation, key_fields: &[&str]) {
+    for group in group_by(input_table, key_fields).into_iter() {
+        let mut ix = 0;
+        for mut row in group.into_iter() {
+            row.push(Value::Float(ix as f64));
+            output_table.index.insert(row);
+            ix += 1;
+        }
     }
 }
 
@@ -908,6 +924,7 @@ fn create_flow(flow: &Flow) -> Flow {
         nodes: nodes,
         dirty: dirty,
         outputs: outputs,
+        needs_recompile: false,
     }
 }
 

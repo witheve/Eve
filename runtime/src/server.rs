@@ -152,8 +152,7 @@ pub fn serve() -> mpsc::Receiver<ServerEvent> {
     event_receiver
 }
 
-pub fn load(filename: &str) -> Flow {
-    let mut flow = Flow::new();
+pub fn load(mut flow: Flow, filename: &str) -> Flow {
     let mut events = OpenOptions::new().create(true).open(filename).unwrap();
     let mut old_events = String::new();
     events.read_to_string(&mut old_events).unwrap();
@@ -166,9 +165,10 @@ pub fn load(filename: &str) -> Flow {
 }
 
 pub fn run() {
-    let mut flow;
+    let mut flow = Flow::new();
     time!("reading saved state", {
-        flow = load("./events");
+        flow = load(flow, "./bootstrap");
+        flow = load(flow, "./events");
     });
 
     let mut events = OpenOptions::new().write(true).append(true).open("./events").unwrap();

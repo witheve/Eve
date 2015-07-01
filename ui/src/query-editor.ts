@@ -90,11 +90,8 @@ module queryEditor {
             tag: [{tag: "local"}, {tag: "remote"}],
             block: {query: queryId},
             source: (info.sourceId ? {
-              "source view": info.sourceId,
-              dependents: {
-                "source order": {priority: 0}}
-              }
-            : undefined)
+              "source view": info.sourceId
+            } : undefined)
           }
         }));                                                             
         break;
@@ -113,7 +110,6 @@ module queryEditor {
             source: [
               {source: "inner", "source view": "empty view"},
               {source: "outer", "source view": "empty view"},
-              api.diff2.primitiveSource(info.kind)
             ]
           }
         }));
@@ -178,6 +174,9 @@ module queryEditor {
             sendToServer = false;
           }
         }
+        
+        
+        
         break;
       case "removeViewSource":
         diffs = diff.removeViewSource(info.viewId, info.sourceId);
@@ -207,7 +206,7 @@ module queryEditor {
             constraint["left source"] = "constant";
           } else if(info.type === "right") {
             constraint["right field"] = constantFieldId;
-            constraint["right source"] = "constant";            
+            constraint["right source"] = "constant";
           }
           diffs.push(["constant", "inserted", [constantFieldId, info.value]]);
         }
@@ -347,7 +346,7 @@ module queryEditor {
     }
     
     if(!redispatched) {
-      eveEditor.executeDispatch(diffs, storeEvent, sendToServer);  
+      eveEditor.executeDispatch(diffs, storeEvent, sendToServer);
     }
     
     
@@ -583,7 +582,7 @@ module queryEditor {
         items.push(suggestionBarItem("new constant", "new constant"));
       }
     } else if(info.type === "constraint op") {
-      items = ["=", "<", "<=", ">", ">=", "!="].map(function(op) {
+      items = ["="].map(function(op) {
         return suggestionBarItem(op, op);
       });
     } else {
@@ -814,7 +813,6 @@ module queryEditor {
   var primitiveEditor = {
     default: function(viewId, sourceId, sourceViewId) {
       var calculatedFields = ixer.select("calculated field", {view: viewId, source: sourceId});
-      if(!calculatedFields || !calculatedFields.length) { throw new Error("Primitive " + sourceViewId + " on view " + viewId + " must create at least one calculated (output) field to be valid."); }
       var constraints = api.retrieve("constraint", {view: viewId}).filter(function(constraint) {
         return constraint["left source"] === sourceId;
       });
@@ -835,8 +833,7 @@ module queryEditor {
     },
     infix: function(viewId, sourceId, sourceViewId, operator) {
       var calculatedFields = ixer.select("calculated field", {view: viewId, source: sourceId});
-      if(!calculatedFields || !calculatedFields.length) { throw new Error("Primitive " + sourceViewId + " on view " + viewId + " must create at least one calculated (output) field to be valid."); }
-      
+
       var constraints = api.retrieve("constraint", {view: viewId}).filter(function(constraint) {
         return constraint["left source"] === sourceId;
       });
@@ -864,7 +861,16 @@ module queryEditor {
     },
     subtract: function(viewId, sourceId, sourceViewId) {
       return primitiveEditor.infix(viewId, sourceId, sourceViewId, "-");
-    }
+    },
+    "<": function(viewId, sourceId, sourceViewId) {
+      return primitiveEditor.infix(viewId, sourceId, sourceViewId, "<");
+    },
+    "<=": function(viewId, sourceId, sourceViewId) {
+      return primitiveEditor.infix(viewId, sourceId, sourceViewId, "<=");
+    },
+    "!=": function(viewId, sourceId, sourceViewId) {
+      return primitiveEditor.infix(viewId, sourceId, sourceViewId, "!=");
+    },
   };
 
   function viewPrimitives(viewId, drop) {

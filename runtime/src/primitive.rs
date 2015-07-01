@@ -3,6 +3,9 @@ use std::str::FromStr;
 
 #[derive(Clone, Debug, Copy)]
 pub enum Primitive {
+    LT,
+    LTE,
+    NEQ,
     Add,
     Subtract,
     Split,
@@ -46,6 +49,9 @@ impl Primitive {
         let values = arguments.iter().map(|ix| inputs[*ix]).collect::<Vec<_>>();
         match (*self, &values[..]) {
             // NOTE be aware that arguments will be in alphabetical order by field id
+            (LT, [ref a, ref b]) => if a < b {vec![vec![]]} else {vec![]},
+            (LTE, [ref a, ref b]) => if a <= b {vec![vec![]]} else {vec![]},
+            (NEQ, [ref a, ref b]) => if a != b {vec![vec![]]} else {vec![]},
             (Add, [&Float(a), &Float(b)]) => vec![vec![Float(a+b)]],
             (Subtract, [&Float(a), &Float(b)]) => vec![vec![Float(a-b)]],
             (Contains, [&String(ref inner), &String(ref outer)]) => {
@@ -72,6 +78,9 @@ impl Primitive {
         use value::Value::*;
         match (*self, arguments) {
             // NOTE be aware that arguments will be in alphabetical order by field id
+            (LT, _) => panic!("Cannot use {:?} in an aggregate", self),
+            (LTE, _) => panic!("Cannot use {:?} in an aggregate", self),
+            (NEQ, _) => panic!("Cannot use {:?} in an aggregate", self),
             (Add, _) => panic!("Cannot use {:?} in an aggregate", self),
             (Subtract, _) => panic!("Cannot use {:?} in an aggregate", self),
             (Contains, _) => panic!("Cannot use {:?} in an aggregate", self),
@@ -125,6 +134,9 @@ impl Primitive {
 
     pub fn from_str(string: &str) -> Self {
         match string {
+            "<" => Primitive::LT,
+            "<=" => Primitive::LTE,
+            "!=" => Primitive::NEQ,
             "add" => Primitive::Add,
             "subtract" => Primitive::Subtract,
             "contains" => Primitive::Contains,
@@ -143,6 +155,9 @@ impl Primitive {
 
 pub fn primitives() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>, Vec<&'static str>)> {
     vec![
+        ("<", vec!["in A", "in B"], vec![], vec![]),
+        ("<=", vec!["in A", "in B"], vec![], vec![]),
+        ("!=", vec!["in A", "in B"], vec![], vec![]),
         ("add", vec!["in A", "in B"], vec![], vec!["out"]),
         ("subtract", vec!["in A", "in B"], vec![], vec!["out"]),
         ("contains", vec!["inner", "outer"], vec![], vec!["out"]),

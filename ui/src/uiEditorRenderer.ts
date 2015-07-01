@@ -15,8 +15,14 @@ module uiEditorRenderer {
   var ixer = api.ixer;
   var code = api.code;
 
-  var ids = {"active page": "6b54229a-f5bc-476d-935e-4bb37d2b3ad0"};
-  
+  var ids = {
+    "active page": "6b54229a-f5bc-476d-935e-4bb37d2b3ad0",
+    session: "2603d682-1db4-45d7-b597-9a501d2769ed",
+    page: "63241b6f-d779-4973-b8f2-7f30512a300b"
+  };
+  // @FIXME: This should be a builtin.
+  ixer.addIndex("active page", ids["active page"], Indexing.create.lookup([ids.session, ids.page]));
+
   export var session = "me";
     
   export function setSessionId(id) {
@@ -39,9 +45,7 @@ module uiEditorRenderer {
     }
   }
 
-  // @FIXME: This should be a builtin.
-  ixer.addIndex("active page", ids["active page"], Indexing.create.lookup([1, 2]));
-
+  
   /*-------------------------------------------------------
   - Renderer
   -------------------------------------------------------*/
@@ -60,8 +64,6 @@ module uiEditorRenderer {
     }
   }
 
-  var parentLayerIndex = ixer.index("parentLayerToLayers");
-
   function rendererRoot() {
     if(dispatcher.isApp) {
       //in an app we check the active page
@@ -70,6 +72,7 @@ module uiEditorRenderer {
       //we're in the editor, so we render based on what the active item is
       var componentId = <any>code.activeItemId();
     }
+    var parentLayerIndex = ixer.index("parentLayerToLayers");
     var layers = parentLayerIndex[componentId];
     if(!layers) return {};
 
@@ -78,8 +81,6 @@ module uiEditorRenderer {
     });
     return {id: "root", children: layerItems};
   }
-
-  var bindingIndex = ixer.index("groupToBinding");
 
   function rowToKeyFunction(viewId): (any) {
     var fields = code.sortedViewFields(viewId) || [];
@@ -122,7 +123,9 @@ module uiEditorRenderer {
     var layerId = layer[1];
     var layerIx = layer[3];
     var elements = ixer.index("uiLayerToElements")[layerId];
+    var parentLayerIndex = ixer.index("parentLayerToLayers");
     var subLayers = parentLayerIndex[layerId];
+    var bindingIndex = ixer.index("groupToBinding");
     var binding = bindingIndex[layerId];
     var offset = elements && binding ? elementsToBoundingBox(elements) : {top: 0, left: 0, width: "100%", height: "100%"};
     var boundRows;
@@ -181,10 +184,6 @@ module uiEditorRenderer {
     return {top: finalTop, left: finalLeft, right: finalRight, bottom: finalBottom,
             width: finalRight - finalLeft, height: finalBottom - finalTop};
   }
-
-  var attrsIndex = ixer.index("uiStyleToAttrs");
-  var stylesIndex = ixer.index("uiElementToStyles");
-  var attrBindingsIndex = ixer.index("elementAttrBindings");
 
   function renderElement(element, offset, row, key) {
     var elementId = element[1];
@@ -246,6 +245,11 @@ module uiEditorRenderer {
         node.rendered = true;  
       }
     }
+    
+    var attrsIndex = ixer.index("uiStyleToAttrs");
+    var stylesIndex = ixer.index("uiElementToStyles");
+    var attrBindingsIndex = ixer.index("elementAttrBindings");
+
 
     var attrs = [];
     var styles = stylesIndex[elementId] || [];
@@ -290,8 +294,6 @@ module uiEditorRenderer {
 
     return elem;
   }
-
-  var fieldToViewIndex = ixer.index("field to view");
 
   function bindingToValue(binding, row) {
     var fieldId = binding[2];
