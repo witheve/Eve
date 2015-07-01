@@ -249,7 +249,7 @@ module Indexing {
       }
       var facts:PayloadChange[] = [];
       for(var table in this.tables) {
-        if (api.code.hasTag(table, "code")) { continue; }
+        if (api.code.hasTag(table, "code")) { continue; } // @FIXME: Indexer should not depend on api.
         var kind = (this.selectOne("view", {view: table}) || {})["kind"];
         if(kind !== "table") continue;
         var pack = generatePackerFn(table, this.getFields(table));
@@ -347,7 +347,7 @@ module Indexing {
     first(table: Id, unpacked:boolean = false):ArrayFact|MapFact {
       return this.facts(table, unpacked)[0];
     }
-    select(table: Id, opts: MapFact): MapFact[] { // @TODO: Fixme: sources not showing up.
+    select(table: Id, opts): MapFact[] { // @TODO: Fixme: sources not showing up.
       var facts:MapFact[] = [];
       var first = this.first(table);
       if(!first) { return []; }
@@ -393,7 +393,7 @@ module Indexing {
         return neue;
       });
     }
-    selectOne(table: Id, opts: MapFact): MapFact {
+    selectOne(table: Id, opts): MapFact {
       return this.select(table, opts)[0];
     }
   }
