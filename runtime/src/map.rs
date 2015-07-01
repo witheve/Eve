@@ -69,4 +69,45 @@ impl<K: Ord + Default + Clone, V: Eq + Default + Clone> Map<K,V> {
         }
         return None
     }
+
+    pub fn iter(&self) -> Iter<K, V> {
+        Iter{
+            chunks: self.chunks.iter().map(|chunk| &chunk[..]).collect(),
+            positions: self.chunks.iter().map(|_| 0).collect(),
+        }
+    }
+}
+
+pub struct Iter<'a, K, V> where K: 'a, V: 'a {
+    chunks: Vec<&'a [(K,V)]>,
+    positions: Vec<usize>,
+}
+
+// TODO this is very slow - probably makes more sense to have some kind of chain where each branch remembers the next elem
+impl<'a, K, V> Iterator for Iter<'a, K,V> where K: Ord {
+    type Item = &'a (K,V);
+
+    fn next(&mut self) -> Option<&'a (K,V)> {
+        if self.chunks.len() > 0 {
+            let mut next = &self.chunks[0][self.positions[0]];
+            for i in (1..self.chunks.len()) {
+                let maybe_next = &self.chunks[i][self.positions[i]];
+                if maybe_next.0 <= next.0 {
+                    next = maybe_next
+                }
+            }
+            for i in (0..self.chunks.len()).rev() {
+                if self.chunks[i][self.positions[i]].0 == next.0 {
+                    self.positions[i] += 1;
+                    if self.positions[i] >= self.chunks[i].len() {
+                        self.chunks.remove(i);
+                        self.positions.remove(i);
+                    }
+                }
+            }
+            return Some(next);
+        } else {
+            return None;
+        }
+    }
 }
