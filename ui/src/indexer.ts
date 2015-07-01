@@ -351,7 +351,7 @@ module Indexing {
       var facts:MapFact[] = [];
       var first = this.first(table);
       if(!first) { return []; }
-      var fieldIds = (this.index("view to fields")[table] || []).map((fact) => fact[1]);
+      var fieldIds = (this.index("view to fields", true)[table] || []).map((fact) => fact["field: field"]);
       var nameLen = table.length + 2;
       var names = this.index("display name", true);
       var fieldNames = fieldIds.map((cur) => names[cur]);
