@@ -4,11 +4,11 @@ module Indexing {
 
   type Id = string;
   type ArrayFact = any[];
-  interface MapFact {[field:string]: any};
+  type MapFact = any; 
   type PayloadChange = [Id, Id[], ArrayFact[], ArrayFact[]];
   interface Payload { changes: PayloadChange[] };
 
-  export function arraysIdentical(a:any[], b:any[]):boolean {
+  export function arraysIdentical(a:any[], b:any[]):boolean { 
     var i = a.length;
     if (!b || i != b.length) return false;
     while (i--) {

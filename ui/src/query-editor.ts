@@ -169,7 +169,7 @@ module queryEditor {
         var view = ixer.index("view")[info.viewId];
         var kind = view[code.ix("view", "kind")];
         if(kind === "union") {
-          var selects = (ixer.index("view to selects")[info.viewId] || []);
+          let selects = (ixer.index("view to selects")[info.viewId] || []);
           if(selects.length) {
             sendToServer = false;
           }
@@ -282,7 +282,7 @@ module queryEditor {
         if(old && !api.arraysIdentical(old, neue)) {
           diffs.push(["aggregate grouping", "removed", old]);
         } else if(!old) {
-          var sources = ixer.index("source")[viewId];
+          let sources = ixer.index("source")[viewId];
           var innerSource = sources.inner;
           if(sources.outer) {
             diffs.push(["source", "removed", sources.outer]);
