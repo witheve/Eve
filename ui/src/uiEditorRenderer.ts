@@ -164,10 +164,10 @@ module uiEditorRenderer {
     var finalBottom = -Infinity;
     var finalRight = -Infinity;
     elements.forEach(function(element) {
-      var left = element["uiComponentElement: left"];
-      var top = element["uiComponentElement: top"];
-      var right = element["uiComponentElement: right"];
-      var bottom = element["uiComponentElement: bottom"];
+      var left = element["left"];
+      var top = element["top"];
+      var right = element["right"];
+      var bottom = element["bottom"];
       if(left < finalLeft) {
         finalLeft = left;
       }
@@ -186,13 +186,13 @@ module uiEditorRenderer {
   }
 
   function renderElement(element, offset, row, key) {
-    var elementId = element["uiComponentElement: id"];
-    var type = element["uiComponentElement: control"];
-    var left = element["uiComponentElement: left"];
-    var top = element["uiComponentElement: top"];
-    var right = element["uiComponentElement: right"];
-    var bottom = element["uiComponentElement: bottom"];
-    var zIndex = element["uiComponentElement: zindex"];
+    var elementId = element["id"];
+    var type = element["control"];
+    var left = element["left"];
+    var top = element["top"];
+    var right = element["right"];
+    var bottom = element["bottom"];
+    var zIndex = element["zindex"];
     var elem: any = {c: "absolute", left: left - offset.left, top: top - offset.top,
                      width: right - left, height: bottom - top, elementId: elementId,
                      zIndex: zIndex, key: key};
