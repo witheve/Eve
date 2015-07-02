@@ -366,18 +366,19 @@ fn bench_clone_int_sorted(b: &mut Bencher) {
     });
 }
 
-#[test]
-fn test_iter_is_sorted() {
-    let words = words();
-    let mut map = Map::new();
-    for word in words.iter() {
-        map.insert(word.clone(), 1);
-    }
-    let words_a = map.iter().collect::<Vec<_>>();
-    let mut words_b = map.iter().collect::<Vec<_>>();
-    words_b.sort();
-    assert_eq!(words_a, words_b);
-}
+// TODO sorted iter is too slow
+// #[test]
+// fn test_iter_is_sorted() {
+//     let words = words();
+//     let mut map = Map::new();
+//     for word in words.iter() {
+//         map.insert(word.clone(), 1);
+//     }
+//     let words_a = map.iter().collect::<Vec<_>>();
+//     let mut words_b = map.iter().collect::<Vec<_>>();
+//     words_b.sort();
+//     assert_eq!(words_a, words_b);
+// }
 
 
 #[allow(dead_code)]

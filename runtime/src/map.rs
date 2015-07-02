@@ -71,43 +71,33 @@ impl<K: Ord + Default + Clone, V: Eq + Default + Clone> Map<K,V> {
     }
 
     pub fn iter(&self) -> Iter<K, V> {
-        Iter{
-            chunks: self.chunks.iter().map(|chunk| &chunk[..]).collect(),
-            positions: self.chunks.iter().map(|_| 0).collect(),
-        }
+        let mut chunk_iter = self.chunks.iter();
+        let item_iter = chunk_iter.next().map_or([].iter(), |chunk| chunk.iter());
+        Iter{chunk_iter: chunk_iter, item_iter: item_iter}
     }
 }
 
 pub struct Iter<'a, K, V> where K: 'a, V: 'a {
-    chunks: Vec<&'a [(K,V)]>,
-    positions: Vec<usize>,
+    chunk_iter: ::std::slice::Iter<'a, Rc<Vec<(K,V)>>>,
+    item_iter: ::std::slice::Iter<'a, (K,V)>,
 }
 
-// TODO this is very slow - probably makes more sense to have some kind of chain where each branch remembers the next elem
+// TODO this is not ordered
 impl<'a, K, V> Iterator for Iter<'a, K,V> where K: Ord {
     type Item = &'a (K,V);
 
     fn next(&mut self) -> Option<&'a (K,V)> {
-        if self.chunks.len() > 0 {
-            let mut next = &self.chunks[0][self.positions[0]];
-            for i in (1..self.chunks.len()) {
-                let maybe_next = &self.chunks[i][self.positions[i]];
-                if maybe_next.0 <= next.0 {
-                    next = maybe_next
-                }
-            }
-            for i in (0..self.chunks.len()).rev() {
-                if self.chunks[i][self.positions[i]].0 == next.0 {
-                    self.positions[i] += 1;
-                    if self.positions[i] >= self.chunks[i].len() {
-                        self.chunks.remove(i);
-                        self.positions.remove(i);
+        match self.item_iter.next() {
+            Some(item) => Some(item),
+            None => {
+                match self.chunk_iter.next() {
+                    Some(chunk) => {
+                        self.item_iter = chunk.iter();
+                        self.item_iter.next()
                     }
+                    None => None
                 }
             }
-            return Some(next);
-        } else {
-            return None;
         }
     }
 }
