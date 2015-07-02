@@ -20,15 +20,8 @@ module client {
     var fieldIds = api.code.sortedViewFields(viewId);
     var toRemove = api.ixer.facts(viewId);
     var displayOrderIndex = api.ixer.index("display order");
-    var displayOrders = toRemove.map(function(fact) {
-      var key = viewId + JSON.stringify(fact);
-      var order = displayOrderIndex[key];
-      if(order) {
-        return [key, order];
-      }
-    }).filter((r) => r);
     sendToServer({ changes: [[viewId, fieldIds, [], toRemove],
-                             ["display order", api.code.sortedViewFields("display order"), [], displayOrders]]}, true);
+                             ["display order", api.ixer.getFields("display order"), []]]}, true);
   }
 
 
@@ -150,7 +143,7 @@ module client {
       }
 
       if (DEBUG.RECEIVE) {
-        var stats = getDataStats(data);
+        var stats = getDataStats({changes: changes});
         if (stats.adds || stats.removes) {
           var header = "[client:received][+" + stats.adds + "/-" + stats.removes + "]";
           console.groupCollapsed(pad(header, formatTime(null), undefined, undefined));

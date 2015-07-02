@@ -4,11 +4,11 @@ module Indexing {
 
   type Id = string;
   type ArrayFact = any[];
-  interface MapFact {[field:string]: any};
+  type MapFact = any; 
   type PayloadChange = [Id, Id[], ArrayFact[], ArrayFact[]];
   interface Payload { changes: PayloadChange[] };
 
-  export function arraysIdentical(a:any[], b:any[]):boolean {
+  export function arraysIdentical(a:any[], b:any[]):boolean { 
     var i = a.length;
     if (!b || i != b.length) return false;
     while (i--) {
@@ -102,9 +102,9 @@ module Indexing {
   }
   
   type Packer = {(fact:MapFact): ArrayFact; fields: Id[]};
-  function generatePackerFn(view:Id, keys:Id[]):Packer {
+  function generatePackerFn(view:Id, keys:Id[]):Packer {    
     var packer = <Packer> new Function("fact", `return [${keys.map(function(key) {
-      return `fact["${key}"] || ""`;
+      return `fact["${key}"]`;
     }).join(", ")}];`);
     packer.fields = keys;
     return packer;
@@ -249,7 +249,7 @@ module Indexing {
       }
       var facts:PayloadChange[] = [];
       for(var table in this.tables) {
-        if (api.code.hasTag(table, "code")) { continue; }
+        if (api.code.hasTag(table, "code")) { continue; } // @FIXME: Indexer should not depend on api.
         var kind = (this.selectOne("view", {view: table}) || {})["kind"];
         if(kind !== "table") continue;
         var pack = generatePackerFn(table, this.getFields(table));
@@ -310,26 +310,24 @@ module Indexing {
         
         var pack = generatePackerFn(table, this.getFields(table));
         var depth = indexObj.keys.length - 1;
-                
-        function reducer(memo, key, cur, curDepth) {
-          if(cur[key] instanceof Array) {
-            memo[key] = cur[key].map(pack);
-          } else if(typeof cur[key] === "object") {
-            if(curDepth === depth) {
-              memo[key] = pack(cur[key]);
-            } else {
-              memo[key] = reduce(cur[key], curDepth + 1);
-            }
-          } else {
-            memo[key] = cur[key];
-          }
-        }
-        function reduce(cur, depth = 0) {
+
+        function reduce(cur, curDepth = 0) {
           var memo = {};
           var keys = Object.keys(cur);
           for(var key of keys) {
             if(key === "undefined") { throw new Error("Index: " + name + " contains invalid key(s) at depth " + depth); }
-            reducer(memo, key, cur, depth);
+            
+            if(cur[key] instanceof Array) {
+              memo[key] = cur[key].map(pack);
+            } else if(typeof cur[key] === "object") {
+              if(curDepth === depth) {
+                memo[key] = pack(cur[key]);
+              } else {
+                memo[key] = reduce(cur[key], curDepth + 1);
+              }
+            } else {
+              memo[key] = cur[key];
+            }
           }
           return memo;
         }
@@ -347,11 +345,11 @@ module Indexing {
     first(table: Id, unpacked:boolean = false):ArrayFact|MapFact {
       return this.facts(table, unpacked)[0];
     }
-    select(table: Id, opts: MapFact): MapFact[] { // @TODO: Fixme: sources not showing up.
+    select(table: Id, opts): MapFact[] { // @TODO: Fixme: sources not showing up.
       var facts:MapFact[] = [];
       var first = this.first(table);
       if(!first) { return []; }
-      var fieldIds = (this.index("view to fields")[table] || []).map((fact) => fact[1]);
+      var fieldIds = (this.index("view to fields", true)[table] || []).map((fact) => fact["field: field"]);
       var nameLen = table.length + 2;
       var names = this.index("display name", true);
       var fieldNames = fieldIds.map((cur) => names[cur]);
@@ -393,7 +391,7 @@ module Indexing {
         return neue;
       });
     }
-    selectOne(table: Id, opts: MapFact): MapFact {
+    selectOne(table: Id, opts): MapFact {
       return this.select(table, opts)[0];
     }
   }

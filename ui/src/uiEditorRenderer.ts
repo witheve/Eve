@@ -83,7 +83,7 @@ module uiEditorRenderer {
   }
 
   function rowToKeyFunction(viewId): (any) {
-    var fields = code.sortedViewFields(viewId) || [];
+    var fields = api.ixer.getFields(viewId) || [];
     var keys = [];
     fields.forEach(function(fieldId, ix) {
       if(code.hasTag(fieldId, "key")) {
@@ -107,7 +107,7 @@ module uiEditorRenderer {
   
   function getBoundRows(binding) {
     var sessionIx;
-    code.sortedViewFields(binding).forEach((field, ix) => {
+    api.ixer.getFields(binding).forEach((field, ix) => {
       if(code.name(field) === "session") {
         sessionIx = ix; 
       } 
@@ -122,7 +122,7 @@ module uiEditorRenderer {
   function renderLayer(layer) {
     var layerId = layer[1];
     var layerIx = layer[3];
-    var elements = ixer.index("uiLayerToElements")[layerId];
+    var elements = ixer.select("uiComponentElement", {layer: layerId});
     var parentLayerIndex = ixer.index("parentLayerToLayers");
     var subLayers = parentLayerIndex[layerId];
     var bindingIndex = ixer.index("groupToBinding");
@@ -164,10 +164,10 @@ module uiEditorRenderer {
     var finalBottom = -Infinity;
     var finalRight = -Infinity;
     elements.forEach(function(element) {
-      var left = element[5];
-      var top = element[6];
-      var right = element[7];
-      var bottom = element[8];
+      var left = element["uiComponentElement: left"];
+      var top = element["uiComponentElement: top"];
+      var right = element["uiComponentElement: right"];
+      var bottom = element["uiComponentElement: bottom"];
       if(left < finalLeft) {
         finalLeft = left;
       }
@@ -186,13 +186,13 @@ module uiEditorRenderer {
   }
 
   function renderElement(element, offset, row, key) {
-    var elementId = element[1];
-    var type = element[4];
-    var left = element[5];
-    var top = element[6];
-    var right = element[7];
-    var bottom = element[8];
-    var zIndex = element[9];
+    var elementId = element["uiComponentElement: id"];
+    var type = element["uiComponentElement: control"];
+    var left = element["uiComponentElement: left"];
+    var top = element["uiComponentElement: top"];
+    var right = element["uiComponentElement: right"];
+    var bottom = element["uiComponentElement: bottom"];
+    var zIndex = element["uiComponentElement: zindex"];
     var elem: any = {c: "absolute", left: left - offset.left, top: top - offset.top,
                      width: right - left, height: bottom - top, elementId: elementId,
                      zIndex: zIndex, key: key};
@@ -246,30 +246,30 @@ module uiEditorRenderer {
       }
     }
     
-    var attrsIndex = ixer.index("uiStyleToAttrs");
-    var stylesIndex = ixer.index("uiElementToStyles");
-    var attrBindingsIndex = ixer.index("elementAttrBindings");
+    var attrsIndex = ixer.index("uiStyleToAttrs", true);
+    var stylesIndex = ixer.index("uiElementToStyles", true);
+    var attrBindingsIndex = ixer.index("elementAttrBindings", true);
 
 
     var attrs = [];
     var styles = stylesIndex[elementId] || [];
     for(var ix = 0, len = styles.length; ix < len; ix++) {
       var style = styles[ix];
-      attrs.push.apply(attrs, attrsIndex[style[1]]);
+      attrs.push.apply(attrs, attrsIndex[style["uiStyle: id"]]);
     }
 
     if(attrs.length) {
       for(var i = 0, attrslen = attrs.length; i < attrslen; i++) {
         var curAttr = attrs[i];
-        var name = curAttr[2];
-        elem[name] = curAttr[3];
+        var name = curAttr["uiComponentAttribute: property"];
+        elem[name] = curAttr["uiComponentAttribute: value"];
       }
     }
 
     var bindings = attrBindingsIndex[elementId];
     if(bindings) {
       bindings.forEach(function(binding) {
-        var attr = binding[1];
+        var attr = binding["uiAttrBinding: attr"];
         var value = bindingToValue(binding, row);
         elem[attr] = value;
       })
@@ -296,7 +296,7 @@ module uiEditorRenderer {
   }
 
   function bindingToValue(binding, row) {
-    var fieldId = binding[2];
+    var fieldId = binding["uiAttrBinding: field"];
     return row[code.name(fieldId)];
   }
 

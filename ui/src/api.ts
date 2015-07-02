@@ -1,7 +1,7 @@
+/// <reference path="indexer.ts" />
 module api {
   // @NOTE: We should really be using CommonJS modules with this instead of tsc's wonky module system.
   declare var window;
-  declare var Indexing;
   declare var uuid;
 
   type Id = string;
@@ -166,7 +166,7 @@ module api {
   ixer.addIndex("uiLayerToElements", "uiComponentElement", Indexing.create.collector(["uiComponentElement: layer"]));
   ixer.addIndex("uiStyles", "uiStyle", Indexing.create.collector(["uiStyle: id"]));
   ixer.addIndex("uiStyle", "uiStyle", Indexing.create.lookup(["uiStyle: id", false]));
-  ixer.addIndex("uiElementToStyle", "uiStyle", Indexing.create.lookup(["uiStyle: element", "uiStyle: id", false]));
+  ixer.addIndex("uiElementToStyle", "uiStyle", Indexing.create.lookup(["uiStyle: element", "uiStyle: type", false]));
   ixer.addIndex("uiElementToStyles", "uiStyle", Indexing.create.collector(["uiStyle: element"]));
   ixer.addIndex("stylesBySharedAndType", "uiStyle", Indexing.create.collector(["uiStyle: shared", "uiStyle: type", "uiStyle: id"]));
   ixer.addIndex("uiStyleToAttr", "uiComponentAttribute", Indexing.create.lookup(["uiComponentAttribute: id", "uiComponentAttribute: property", false]));
@@ -184,13 +184,12 @@ module api {
 
   export var code = {
     name: function(id:Id): string {
-      return ixer.index("display name")[id] || "";
+      return ixer.index("display name", true)[id] || "";
     },
     hasTag: function(id:Id, tag:string): boolean {
-      var tags = ixer.index("id to tags")[id] || [];
-      var valueIx = code.ix("tag", "tag");
+      var tags = ixer.index("id to tags", true)[id] || [];
       return tags.some(function(cur) {
-        return cur[valueIx] === tag;
+        return cur["tag: tag"] === tag;
       });
     },
     activeItemId: function(): Id|void {
@@ -244,7 +243,7 @@ module api {
       var field = code.nameToField(viewId, fieldName);
       if(!field) { throw new Error("Field " + fieldName + " of view " + code.name(viewId) + " not found."); }
       var namedFieldId = field[1];
-      var fieldIds = code.sortedViewFields(viewId) || [];
+      var fieldIds = ixer.getFields(viewId);
 
       for(var ix = 0; ix < fieldIds.length; ix++) {
         var fieldId = fieldIds[ix];
@@ -905,6 +904,7 @@ module api {
      "location": {},
      "session url": {},
      "captured key": {},
+     "editor node position": {key: "node"},
      "editor item": {key: "item", foreign: {view: "item"}, dependents: pkDependents},
      "block aggregate": {foreign: {view: "view"}}
   };
@@ -1065,7 +1065,7 @@ module api {
     var noQuery = true;
     if(query["view"] || query["constraint"]) {
       constraintIds = ixer.select("constraint", {view: query["view"], constraint: query["constraint"]}).map(function(constraint) {
-        return constraint.constraint;
+        return constraint["constraint"];
       });
       noQuery = false;
     } else {
@@ -1076,7 +1076,7 @@ module api {
       for(var constraintId of constraintIds) {
         ixer.select("constraint left",
           {constraint: constraintId, "left source": query["left source"], "left field": query["left field"]}).forEach(function(constraint) {
-            result.push(constraint.constraint);
+            result.push(constraint["constraint"]);
           });
       }
       noQuery = false;
@@ -1087,7 +1087,7 @@ module api {
       for(var constraintId of constraintIds) {
         ixer.select("constraint right",
           {constraint: constraintId, "right source": query["right source"], "right field": query["right field"]}).forEach(function(constraint) {
-            result.push(constraint.constraint);
+            result.push(constraint["constraint"]);
           });
       }
       noQuery = false;
@@ -1098,7 +1098,7 @@ module api {
       for(var constraintId of constraintIds) {
         ixer.select("constraint operation",
           {constraint: constraintId, operation: query["operation"]}).forEach(function(constraint) {
-            result.push(constraint.constraint);
+            result.push(constraint["constraint"]);
           });
       }
       noQuery = false;
@@ -1107,7 +1107,7 @@ module api {
     if(noQuery) {
       var result = [];
       ixer.select("constraint", {}).forEach(function(constraint) {
-        result.push(constraint.constraint);
+        result.push(constraint["constraint"]);
       });
       constraintIds = result;
     }
@@ -1240,7 +1240,7 @@ module api {
           var nameIx = getUniqueNameIx(calculatedFieldNames, alphabetLower);
 
           (ixer.select("field", {view: params["source view"]}) || []).forEach(function(field) {
-            if(field.kind === "output") {
+            if(field["kind"] === "output") {
               var name = alphabetLower[nameIx++];
               var calculatedId = params["view"] + params["source"] + field["field"];
               diffs.push(["calculated field", mode, mapToFact("calculated field", {
@@ -1269,10 +1269,10 @@ module api {
         "source view": primitiveId,
         dependents : {
           constraint: (ixer.select("field", {view: primitiveId}) || []).map(function(field) {
-            if(field.kind === "output") { return; }
-            return {"left field": field.field,
+            if(field["kind"] === "output") { return; }
+            return {"left field": field["field"],
                     "right source": "constant",
-                    "right field": primitiveDefaults[primitiveId][field.field],
+                    "right field": primitiveDefaults[primitiveId][field["field"]],
                     operation: "="};
           }).filter(Boolean)
         }

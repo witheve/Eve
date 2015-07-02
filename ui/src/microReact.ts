@@ -119,6 +119,17 @@ module microReact {
           if(cur.strokeWidth !== prev.strokeWidth) div.setAttributeNS(null, "stroke-width", cur.strokeWidth);
           if(cur.d !== prev.d) div.setAttributeNS(null, "d", cur.d);
           if(cur.c !== prev.c) div.setAttributeNS(null, "class", cur.c);  
+          if(cur.x !== prev.x)  div.setAttributeNS(null, "x", cur.x);
+          if(cur.y !== prev.y) div.setAttributeNS(null, "y", cur.y);
+          if(cur.height !== prev.height) div.setAttributeNS(null, "height", cur.height);
+          if(cur.width !== prev.width)  div.setAttributeNS(null, "width", cur.width);
+          if(cur.xlinkhref !== prev.xlinkhref)  div.setAttributeNS('http://www.w3.org/1999/xlink', "href", cur.xlinkhref);
+          if(cur.startOffset !== prev.startOffset) div.setAttributeNS(null, "startOffset", cur.startOffset);
+          if(cur.id !== prev.id) div.setAttributeNS(null, "id", cur.id);
+          if(cur.viewBox !== prev.viewBox) div.setAttributeNS(null, "viewBox", cur.viewBox);
+          if(cur.transform !== prev.transform) div.setAttributeNS(null, "transform", cur.transform);
+          if(cur.draggable !== prev.draggable) div.setAttributeNS(null, "draggable", cur.draggable);
+          if(cur.textAnchor !== prev.textAnchor) div.setAttributeNS(null, "text-anchor", cur.textAnchor);
         }
         
         if(cur.backgroundColor !== prev.backgroundColor) style.backgroundColor = cur.backgroundColor || "transparent";
@@ -229,7 +240,15 @@ module microReact {
            && curA.fontFamily === curB.fontFamily
            && curA.fontSize === curB.fontSize
            && curA.textAlign === curB.textAlign
-           && curA.verticalAlign === curB.verticalAlign) {
+           && curA.verticalAlign === curB.verticalAlign
+           && (curB.svg === undefined || (
+               curA.x === curB.x
+               && curA.y === curB.y
+               && curA.d === curB.d
+               && curA.fill === curB.fill
+               && curA.stroke === curB.stroke
+               && curA.strokeWidth === curB.strokeWidth
+               ))) {
           continue;
         }
         updated[id] = "updated";
