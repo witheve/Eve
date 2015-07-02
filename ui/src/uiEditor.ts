@@ -585,12 +585,12 @@ module uiEditor {
           subItems.push(layerListItem(cur, depth + 1));
         });
       }
-      var elements = ixer.index("uiLayerToElements")[layerId] || [];
+      var elements = ixer.index("uiLayerToElements", true)[layerId] || [];
       elements.sort(function(a, b) {
-        return a[9] - b[9];
+        return a["uiComponentElement: zindex"] - b["uiComponentElement: zindex"];
       });
       elements.forEach(function(cur) {
-        var elemId = cur[1];
+        var elemId = cur["uiComponentElement: id"];
         var selectedClass = "";
         if (localState.uiSelection && localState.uiSelection.indexOf(elemId) > -1) {
           selectedClass = " selected";
@@ -600,7 +600,7 @@ module uiEditor {
             {
               c: "layer-row", itemId: elemId, draggable: true, dragstart: layerDrag, type: "element", children: [
                 { c: "icon ion-ios-crop" + (selectedClass ? "-strong" : "") },
-                { text: cur[4] }
+                { text: cur["uiComponentElement: control"] }
               ]
             }
           ]
