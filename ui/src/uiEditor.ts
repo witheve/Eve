@@ -383,7 +383,7 @@ module uiEditor {
         localState.initialAttrs.push(attrs);
         break;
       case "setModifyingText":
-        localState.modifyingUiText = info.control[1];
+        localState.modifyingUiText = info.elementId;
         dispatch("startAdjustAttr", info, true);
         break;
       case "submitContent":
@@ -992,7 +992,7 @@ module uiEditor {
   }
 
   function setModifyingText(e, elem) {
-    dispatch("setModifyingText", elem);
+    dispatch("setModifyingText", {elementId: elem.control["uiComponentElement: id"], attr: elem.attr});
   }
 
   function updateContent(e, elem) {
