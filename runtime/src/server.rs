@@ -281,10 +281,13 @@ pub fn run() {
 }
 
 fn send_changes(event: Event, mut flow: Flow, mut senders: &mut Vec<sender::Sender<WebSocketStream>>) -> Flow {
-
-    let old_flow = flow.clone();
+    let old_flow = time!("cloning", {
+        flow.clone()
+    });
     flow = flow.quiesce(event.changes);
-    let changes = flow.changes_from(old_flow);
+    let changes = time!("diffing", {
+        flow.changes_from(old_flow)
+    });
     let changes_json = changes_to_json(changes.clone());
     for sender in senders.iter_mut() {
     	let session_id = format!("{}", sender.get_mut().peer_addr().unwrap());

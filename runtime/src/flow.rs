@@ -225,7 +225,9 @@ impl Flow {
             time!("calculating", {
                 self.recalculate();
             });
-            let changed = self.tick();
+            let changed = time!("ticking", {
+                self.tick()
+            });
             if !changed {
                 break
             }
