@@ -134,7 +134,7 @@ fn editor_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // things which can be displayed in the sidebar
     // `type` is one of "table", "query", "ui"
     ("editor item", vec!["item", "type"]),
-    
+
     // positions for nodes in the graphical editor
     ("editor node position", vec!["node", "x", "y"]),
 
@@ -160,8 +160,8 @@ fn editor_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ]
 }
 
-fn runtime_schema() -> Vec<(&'static str, Vec<&'static str>)> {
-    // the runtime stores client state (ui events, session data etc) in tables
+fn client_schema() -> Vec<(&'static str, Vec<&'static str>)> {
+    // clients store their local state (ui events, session data etc)
 
     vec![
     // TODO what are this?
@@ -182,7 +182,7 @@ fn schema() -> Vec<(&'static str, Vec<&'static str>)> {
     code_schema().into_iter()
     .chain(compiler_schema().into_iter())
     .chain(editor_schema().into_iter())
-    .chain(runtime_schema().into_iter())
+    .chain(client_schema().into_iter())
     .collect()
     }
 
@@ -982,14 +982,17 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
         let mut editor_item_table = flow.overwrite_output("editor item");
 
         for (view, _) in code_schema().into_iter() {
-            tag_table.index.insert(vec![string!("{}", view), string!("code")]);
+            tag_table.index.insert(vec![string!("{}", view), string!("editor")]);
             tag_table.index.insert(vec![string!("{}", view), string!("hidden")]);
+            // TODO "code" and "remote" don't seem to be used anymore
+            tag_table.index.insert(vec![string!("{}", view), string!("code")]);
             tag_table.index.insert(vec![string!("{}", view), string!("remote")]);
         }
 
         for (view, _) in compiler_schema().into_iter() {
-            tag_table.index.insert(vec![string!("{}", view), string!("compiler")]);
             tag_table.index.insert(vec![string!("{}", view), string!("hidden")]);
+            // TODO "compiler" and "remote" =don't seem to be used anymore
+            tag_table.index.insert(vec![string!("{}", view), string!("compiler")]);
             tag_table.index.insert(vec![string!("{}", view), string!("remote")]);
         }
 
@@ -998,8 +1001,8 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
             tag_table.index.insert(vec![string!("{}", view), string!("hidden")]);
         }
 
-        for (view, _) in runtime_schema().into_iter() {
-            tag_table.index.insert(vec![string!("{}", view), string!("runtime")]);
+        for (view, _) in client_schema().into_iter() {
+            tag_table.index.insert(vec![string!("{}", view), string!("client")]);
             tag_table.index.insert(vec![string!("{}", view), string!("hidden")]);
         }
 
