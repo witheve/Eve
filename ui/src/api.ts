@@ -887,6 +887,7 @@ module api {
             dependents: pkDependents.concat(["select"])},
     select: {foreign: {view: "view", field: "view field"}},
     constraint: {key: "constraint", foreign: {view: "view", source: "left source"}},
+    constant: {key: "constant"},
 
     "aggregate grouping": {foreign: {view: "aggregate", /*field: "inner field"*/}},
     "aggregate sorting": {foreign: {view: "aggregate", /*field: "inner field"*/}},
@@ -1164,10 +1165,43 @@ module api {
     return write;
   }
 
-  export function change(type:string, params, context?:Context):Write<any> {
-    if(arguments.length < 2) { throw new Error("Must specify type and query for change."); }
+  function writeInto(dest, src) {
+    if(dest.constructor === Array) {
+      return dest.map(function(item) {
+        return writeInto(item, src);
+      })
+    }
+    for(var key in src) {
+      if(src[key] === undefined) { continue; }
+      // If the source attribute is an array, append its contents to the dest key.
+      if(src[key].constructor === Array) {
+        if(dest[key].constructor !== Array) { dest[key] = [dest[key]]; }
+        dest[key] = dest[key].concat(src[key]);
+      }
+      // If it's an object, recurse.
+      // @NOTE: This will fail if the destination is dissimilarly shaped (e.g. contains a primitive here).
+      else if(typeof src[key] === "object") {
+        dest[key] = writeInto(dest[key] || {}, src[key]);
+      }
+      // If it's a primitive value, overwrite the current value.
+      else {
+        dest[key] = src[key];
+      }
+    }
+    return dest;
+  }
+
+  export function change(type:string, params, changes, upsert:boolean = false, context?:Context):Write<any> {
+    if(arguments.length < 3) { throw new Error("Must specify type and query and changes for change."); }
     var read = retrieve(type, params, context);
-    return {type: type, content: read, context: context, mode: "changed", originalKeys: clone(params)};
+    var write = read.map(function(item) {
+      return writeInto(item, changes);
+    });
+    if(!write.length && upsert) {
+      var insertParams = writeInto(writeInto({}, params), changes);
+      return insert(type, insertParams);
+    }
+    return {type: type, content: write, context: context, mode: "changed", originalKeys: clone(params)};
   }
 
   export function remove(type:string, params, context?:Context):Write<any> {
