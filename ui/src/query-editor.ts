@@ -163,27 +163,38 @@ module queryEditor {
         }
         break;
       case "addViewSource":
-        diffs = diff.addViewSource(info.viewId, info.sourceId, info.kind);
-        var sourceId = diffs[0][2][code.ix("source", "source")]; //@FIXME: Hacky.
-        diffs = diffs.concat(diff.autoJoin(info.viewId, sourceId, info.sourceId));
-        var view = ixer.index("view")[info.viewId];
-        var kind = view[code.ix("view", "kind")];
-        if(kind === "union") {
-          let selects = (ixer.index("view to selects")[info.viewId] || []);
+        var neueSource = api.insert("source", {
+          "source view": info.sourceId,
+          source: info.kind
+        }, {view: info.viewId});
+        var autoJoinConstraints = api.diff2.autojoin(info.viewId, neueSource.content["source"], info.sourceId);
+        
+        var viewKind = (api.ixer.selectOne("view", {view: info.viewId}) || {})["view: kind"];
+        if(viewKind === "union") {
+          let selects = ixer.select("select", {view: info.viewId});
           if(selects.length) {
             sendToServer = false;
           }
         }
+        diffs = api.toDiffs([neueSource].concat(autoJoinConstraints));
         break;
       case "removeViewSource":
-        diffs = diff.removeViewSource(info.viewId, info.sourceId);
+        diffs = api.toDiffs(api.remove("source", {view: info.viewId, source: info.sourceId}));
         break;
       case "addViewConstraint":
-        diffs = diff.addViewConstraint(info.viewId, {operation: "=", leftSource: info.leftSource, leftField: info.leftField, rightSource: info.rightSource || info.leftSource, rightField: info.rightField || info.leftField});
-        sendToServer = false;
-        break;
+      var rightSource = info.rightSource || info.leftSource;
+      var rightField = info.rightField || info.leftField;
+      diffs = api.toDiffs(api.insert("constraint", {
+        view: info.viewId,
+        operation: "=",
+        "left source": info.leftSource,
+        "left field": info.leftField,
+        "right source": rightSource,
+        "right field": rightField
+      }));
+      sendToServer = info.leftSource && info.leftField && info.rightSource && info.rightField;
+      break;
       case "updateViewConstraint":
-      console.log("update", info);
         // @TODO: redesign this to pass in opts directly.
         var change = api.change("constraint", {constraint: info.constraintId});
         var constraint:any = change.content[0];
@@ -208,9 +219,7 @@ module queryEditor {
           }
           diffs.push(["constant", "inserted", [constantFieldId, info.value]]);
         }
-        console.log(change);
         diffs = diffs.concat(api.toDiffs(change));
-        console.log(diffs);
         
         var calculatedFields = ixer.selectPretty("calculated field", {view: viewId, source: constraint["left source"]});
         if(calculatedFields.length) {
@@ -222,23 +231,17 @@ module queryEditor {
         }
         break;
       case "removeViewConstraint":
-        var constraint:any = code.getConstraint(info.constraintId);
-        var calculatedId = ixer.index("view and source to calculated field")[constraint.view] || {};
-        calculatedId = calculatedId[constraint.leftSource];
-        if(calculatedId) {
-          var constraintIdIx = code.ix("constraint", "constraint");
-          var constraints = ixer.index("source to constraints")[constraint.leftSource] || [];
-          constraints.forEach(function(constraint) {
-            diffs = diffs.concat(diff.removeViewConstraint(constraint[constraintIdIx]));
-          });
-          diffs.push(["calculated field", "removed", ixer.index("calculated field")[calculatedId]],
-                     ["source", "removed", ixer.index("source")[constraint.view][constraint.leftSource]]);
+        // Test if the constraint is binding a primitive input. If so, destroy the whole source.
+        var constraint = api.retrieve("constraint", {constraint: info.constraintId})[0];
+        var source = api.ixer.selectOne("source", {view: constraint.view, source: constraint["left source"]});
+        var primitive = api.ixer.selectOne("primitive", {view: source["source: source view"]});
+        if(primitive) {
+          diffs = api.toDiffs(api.remove("source", {view: constraint.view, source: constraint["left source"]}));
         } else {
-          diffs = diff.removeViewConstraint(info.constraintId);
+          diffs = api.toDiffs(api.remove("constraint", {constraint: info.constraintId}));
         }
-
         break;
-      case "updateAggregateSort":
+      case "updateAggregateSort":  //@FIXME: Resume conversion of dispatch here.
         diffs = diff.updateAggregateSort(info.viewId, info.field, info.direction);
         var neue = diffs[0][2]; //@FIXME: Hacky.
         sendToServer = neue[code.ix("aggregate sorting", "inner field")]
