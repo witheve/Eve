@@ -1,4 +1,4 @@
-/// <reference path="indexer.ts" />
+0/// <reference path="indexer.ts" />
 module api {
   // @NOTE: We should really be using CommonJS modules with this instead of tsc's wonky module system.
   declare var window;
@@ -880,7 +880,7 @@ module api {
              ["block", "field", "source", "aggregate grouping", "aggregate sorting", "aggregate limit from", "aggregate limit to", "editor item", "query export", "block aggregate"])},
     source: {key: ["view", "source"],
              foreign: {view: "view"},
-             dependents: ["constraint", "source order"]},
+             dependents: ["constraint", "source order", "calculated field"]},
     "source order": {foreign: {view: "view", source: "source"}},
     field: {key: "field",
             foreign: {view: "view"},
@@ -897,6 +897,7 @@ module api {
 
      "query export": {foreign: {view: "view"},
                       singular: true},
+     "calculated field": {key: "block field", foreign: {view: "view", source: "source"}},
      "text input": {},
      "mouse position": {},
      "click": {},
@@ -1277,6 +1278,46 @@ module api {
           }).filter(Boolean)
         }
       };
+    },
+    autojoin: function(viewId, sourceId, sourceViewId) {
+      var sources = ixer.select("source", {view: viewId});
+      if(!sources) { return []; }
+
+      var fields = ixer.select("field", {view: sourceViewId});
+      if(!fields) { return []; }
+      var names = fields.map(function(field) {
+        var fieldId = field["field: field"];
+        return code.name(fieldId);
+      });
+
+      var constraints = [];
+      sources.forEach(function(source) {
+        var curSourceId = source["source: source"];
+        var curSourceViewId = source["source: source view"];
+        if(curSourceViewId === sourceViewId) {
+          // It never makes sense to join every field in a source.
+          return;
+        }
+        var curFields = ixer.select("field", {view: curSourceViewId});
+        if(!curFields) { return; }
+        curFields.forEach(function(cur) {
+          var curId = cur["field: field"];
+          var curName = code.name(curId);
+          var fieldIx = names.indexOf(curName);
+          if(fieldIx !== -1) {
+            var field = fields[fieldIx];
+            var fieldId = field["field: field"];
+            constraints.push(api.insert("constraint", {
+              "left source": sourceId,
+               "left field": fieldId,
+               operation: "=",
+               "right source": curSourceId,
+               "right field": curId
+            }, {view: viewId}));
+          }
+        });
+      });
+      return constraints;
     }
   };
 }
