@@ -110,6 +110,13 @@ module Indexing {
     return packer;
   }
   
+  type Mapper = (fact:MapFact) => MapFact;
+  function generateMapperFn(view:Id, keys:Id[], mapping):Extractor {
+    return <Mapper> new Function("fact", `return { ${keys.map(function(key) {
+      return `"${mapping[key]}": fact["${key}"]`;
+    }).join(", ")} };`);
+  }
+  
   type EqualityChecker = (a:MapFact, b:MapFact) => Boolean;
   function generateEqualityFn(view:Id, keys:Id[]):EqualityChecker {
     return <EqualityChecker> new Function("a", "b",  `return ${keys.map(function(key, ix) {
@@ -193,11 +200,12 @@ module Indexing {
     markForRebuild(table: Id) {
       this.needsRebuild[table] = true;
     }
-    getFields(table: Id):Id[] {
+    getFields(table: Id, unsorted?:boolean):Id[] {
       var fields = this.index("view to fields", true)[table];
       var orders = this.index("display order", true) || {};
       if(!fields) { return []; }
       var fieldIds = fields.map((field) => field["field: field"]);
+      if(unsorted) { return fieldIds; }
       fieldIds.sort(function(a, b) {
         var delta = orders[b] - orders[a];
         if(delta) { return delta; }
@@ -243,14 +251,14 @@ module Indexing {
       var compiler:PayloadChange[] = [];
       var codeTags = this.select("tag", { "tag": "code" }) || [];
       for(var tag of codeTags) {
-        var table = tag["view"];
+        var table = tag["tag: view"];
         var pack = generatePackerFn(table, this.getFields(table));
         compiler.push([table, pack.fields, (this.tables[table] || []).map(pack), []]);
       }
       var facts:PayloadChange[] = [];
       for(var table in this.tables) {
         if (api.code.hasTag(table, "code")) { continue; } // @FIXME: Indexer should not depend on api.
-        var kind = (this.selectOne("view", {view: table}) || {})["kind"];
+        var kind = (this.selectOne("view", {view: table}) || {})["view: kind"];
         if(kind !== "table") continue;
         var pack = generatePackerFn(table, this.getFields(table));
         facts.push([table, pack.fields, (this.tables[table] || []).map(pack), []]);
@@ -345,7 +353,7 @@ module Indexing {
     first(table: Id, unpacked:boolean = false):ArrayFact|MapFact {
       return this.facts(table, unpacked)[0];
     }
-    select(table: Id, opts): MapFact[] { // @TODO: Fixme: sources not showing up.
+    select(table: Id, opts): MapFact[] {
       var facts:MapFact[] = [];
       var first = this.first(table);
       if(!first) { return []; }
@@ -379,20 +387,23 @@ module Indexing {
         facts = <MapFact[]>this.facts(table, true);
       }
       if(!facts) { return []; }
-      
-       var self = this;
-      return facts.map(function(fact:MapFact) {
-        var neue:MapFact = {};
-        var keys = Object.keys(fact);
-        for(var key of keys) {
-          var name = (names[key] || key);
-          neue[name] = fact[key];
-        }
-        return neue;
-      });
+      return facts;      
+    }
+    selectPretty(table:Id, opts): MapFact[] {
+      var names = this.index("display name", true);
+      var facts = this.select(table, opts);
+      var mapToNames = generateMapperFn(table, this.getFields(table, true), names);
+      return facts.map(mapToNames);
     }
     selectOne(table: Id, opts): MapFact {
       return this.select(table, opts)[0];
+    }
+    selectOnePretty(table:Id, opts): MapFact {
+      var fact = this.select(table, opts)[0];
+      if(!fact) { return fact; }
+      var names = this.index("display name", true);
+      var mapToNames = generateMapperFn(table, this.getFields(table, true), names);
+      return mapToNames(fact);
     }
   }
 

@@ -299,7 +299,7 @@ module tableEditor {
     if (localState.adderRows.length <= 1) {
       var fieldIds = api.ixer.getFields(key.view);
       if(api.code.hasTag(fieldIds[0], "auto increment")) {
-        var id = (api.ixer.select(key.view, {}) || []).length + 2 + localState.adderRows.length;
+        var id = (api.ixer.facts(key.view, true) || []).length + 2 + localState.adderRows.length;
         localState.adderRows.push([id]);
       } else {
         localState.adderRows.push([]);

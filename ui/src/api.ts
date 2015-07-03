@@ -669,7 +669,7 @@ module api {
       var diffs = [["constraint", "inserted", [constraintId, viewId]]];
       // @FIXME: Stage incomplete constraint bits instead of committing them.
       if(opts.leftSource) { diffs.push(["constraint left", "inserted", [constraintId, opts.leftSource, opts.leftField || ""]]); }
-      if(opts.rightSource) { diffs.push(["constraint right", "inserted", [constraintId, opts.rightSource, opts.rightField || ""]]); }
+      if(opts.rightSource) { diffs.push(["constraint right", "inserted", [constraintId, opts.rightSource, opts.rightField || opts.leftField || ""]]); }
       if(opts.operation) { diffs.push(["constraint operation", "inserted", [constraintId, opts.operation]]); }
       return diffs;
     },
@@ -1016,7 +1016,7 @@ module api {
         facts = retrieveConstraints(query);
         break;
       default:
-        facts = ixer.select(type, query);
+        facts = ixer.selectPretty(type, query);
         break;
     }
 
@@ -1064,7 +1064,7 @@ module api {
     var constraintIds = [];
     var noQuery = true;
     if(query["view"] || query["constraint"]) {
-      constraintIds = ixer.select("constraint", {view: query["view"], constraint: query["constraint"]}).map(function(constraint) {
+      constraintIds = ixer.selectPretty("constraint", {view: query["view"], constraint: query["constraint"]}).map(function(constraint) {
         return constraint["constraint"];
       });
       noQuery = false;
@@ -1074,7 +1074,7 @@ module api {
     if((query["left source"] || query["left field"]) && constraintIds.length) {
       var result = [];
       for(var constraintId of constraintIds) {
-        ixer.select("constraint left",
+        ixer.selectPretty("constraint left",
           {constraint: constraintId, "left source": query["left source"], "left field": query["left field"]}).forEach(function(constraint) {
             result.push(constraint["constraint"]);
           });
@@ -1085,7 +1085,7 @@ module api {
     if((query["right source"] || query["right field"]) && constraintIds.length) {
       var result = [];
       for(var constraintId of constraintIds) {
-        ixer.select("constraint right",
+        ixer.selectPretty("constraint right",
           {constraint: constraintId, "right source": query["right source"], "right field": query["right field"]}).forEach(function(constraint) {
             result.push(constraint["constraint"]);
           });
@@ -1096,7 +1096,7 @@ module api {
     if(query["operation"] && constraintIds.length) {
       var result = [];
       for(var constraintId of constraintIds) {
-        ixer.select("constraint operation",
+        ixer.selectPretty("constraint operation",
           {constraint: constraintId, operation: query["operation"]}).forEach(function(constraint) {
             result.push(constraint["constraint"]);
           });
@@ -1106,7 +1106,7 @@ module api {
     }
     if(noQuery) {
       var result = [];
-      ixer.select("constraint", {}).forEach(function(constraint) {
+      ixer.selectPretty("constraint", {}).forEach(function(constraint) {
         result.push(constraint["constraint"]);
       });
       constraintIds = result;
@@ -1115,10 +1115,10 @@ module api {
     for(var constraintId of constraintIds) {
       if(constraintId === undefined) { return; }
       var subQuery = {constraint: constraintId};
-      var fact = extend({}, ixer.selectOne("constraint", subQuery));
-      extend(fact, ixer.selectOne("constraint left", subQuery));
-      extend(fact, ixer.selectOne("constraint right", subQuery));
-      extend(fact, ixer.selectOne("constraint operation", subQuery));
+      var fact = extend({}, ixer.selectOnePretty("constraint", subQuery));
+      extend(fact, ixer.selectOnePretty("constraint left", subQuery));
+      extend(fact, ixer.selectOnePretty("constraint right", subQuery));
+      extend(fact, ixer.selectOnePretty("constraint operation", subQuery));
       facts.push(fact);
     }
 
@@ -1234,21 +1234,21 @@ module api {
       case "source":
         var isPrimitive = ixer.selectOne("primitive", {view: params["source view"]})
         if(isPrimitive) {
-          var calculatedFieldNames = (ixer.select("calculated field", {view: params["view"]}) || []).map(function(field) {
+          var calculatedFieldNames = (ixer.selectPretty("calculated field", {view: params["view"]}) || []).map(function(field) {
             return code.name(field["calculated field"]);
           });
           var nameIx = getUniqueNameIx(calculatedFieldNames, alphabetLower);
 
           (ixer.select("field", {view: params["source view"]}) || []).forEach(function(field) {
-            if(field["kind"] === "output") {
+            if(field["field: kind"] === "output") {
               var name = alphabetLower[nameIx++];
-              var calculatedId = params["view"] + params["source"] + field["field"];
+              var calculatedId = params["view"] + params["source"] + field["field: field"];
               diffs.push(["calculated field", mode, mapToFact("calculated field", {
                 "calculated field": calculatedId,
                 view: params["view"],
                 source: params["source"],
                 "source view": params["source view"],
-                field: field["field"]
+                field: field["field: field"]
               })],
               ["display name", mode, mapToFact("display name", {id: calculatedId, name: name})]);
             }
@@ -1269,10 +1269,10 @@ module api {
         "source view": primitiveId,
         dependents : {
           constraint: (ixer.select("field", {view: primitiveId}) || []).map(function(field) {
-            if(field["kind"] === "output") { return; }
-            return {"left field": field["field"],
+            if(field["field: kind"] === "output") { return; }
+            return {"left field": field["field: field"],
                     "right source": "constant",
-                    "right field": primitiveDefaults[primitiveId][field["field"]],
+                    "right field": primitiveDefaults[primitiveId][field["field: field"]],
                     operation: "="};
           }).filter(Boolean)
         }
