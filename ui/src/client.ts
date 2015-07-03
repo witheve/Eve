@@ -153,7 +153,7 @@ module client {
           if (stats.badValues.length) {
             console.warn("The following views have bad values:", stats.badValues);
           }
-          writeDataToConsole(data, DEBUG.RECEIVE);
+          writeDataToConsole({ changes: changes }, DEBUG.RECEIVE);
           console.groupEnd();
         }
       }

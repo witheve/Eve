@@ -383,7 +383,7 @@ module uiEditor {
         localState.initialAttrs.push(attrs);
         break;
       case "setModifyingText":
-        localState.modifyingUiText = info.control[1];
+        localState.modifyingUiText = info.elementId;
         dispatch("startAdjustAttr", info, true);
         break;
       case "submitContent":
@@ -394,10 +394,10 @@ module uiEditor {
         if (!info.shiftKey || !localState.uiSelection) {
           localState.uiSelection = [];
         }
-        var layer = ixer.index("uiComponentLayer")[info.elem.control[3]];
+        var layer = ixer.index("uiComponentLayer")[info.layerId];
         if (layer[4] || layer[5]) return;
-        localState.uiSelection.push(info.elem.control[1]);
-        localState.uiActiveLayer = info.elem.control[3];
+        localState.uiSelection.push(info.elementId);
+        localState.uiActiveLayer = info.layerId;
         break;
       case "toggleUiPreview":
         localState.uiPreview = !localState.uiPreview;
@@ -428,7 +428,7 @@ module uiEditor {
     }
 
     var selectionInfo = getSelectionInfo(componentId, true);
-    var canvasLayers = (ixer.index("parentLayerToLayers")[componentId] || []).map(function(layer) {
+    var canvasLayers = (ixer.index("parentLayerToLayers", true)[componentId] || []).map(function(layer) {
       return canvasLayer(layer, selectionInfo);
     });
 
@@ -481,30 +481,30 @@ module uiEditor {
   }
 
   function canvasLayer(layer, selectionInfo) {
-    var layerId = layer[1];
-    var subLayers = (ixer.index("parentLayerToLayers")[layerId] || []).map(function(sub) {
+    var layerId = layer["uiComponentLayer: id"];
+    var subLayers = (ixer.index("parentLayerToLayers", true)[layerId] || []).map(function(sub) {
       return canvasLayer(sub, selectionInfo);
     });
     if (selectionInfo && layerId === localState.uiActiveLayer) {
       subLayers.unshift(uiGrid());
     }
-    var elements = ixer.index("uiLayerToElements")[layerId] || [];
-    var attrsIndex = ixer.index("uiStyleToAttrs");
-    var stylesIndex = ixer.index("uiElementToStyles");
+    var elements = ixer.index("uiLayerToElements", true)[layerId] || [];
+    var attrsIndex = ixer.index("uiStyleToAttrs", true);
+    var stylesIndex = ixer.index("uiElementToStyles", true);
     var els = elements.map(function(cur) {
-      var id = cur[1];
+      var id = cur["uiComponentElement: id"];
       var selected = selectionInfo ? selectionInfo.selectedIds[id] : false;
 
       var attrs = [];
       var styles = stylesIndex[id] || [];
       for (var ix = 0, len = styles.length; ix < len; ix++) {
         var style = styles[ix];
-        attrs.push.apply(attrs, attrsIndex[style[1]]);
+        attrs.push.apply(attrs, attrsIndex[style["uiStyle: id"]]);
       }
 
       return control(cur, attrs, selected, layer);
     });
-    return { c: "ui-canvas-layer", id: layer[1], zIndex: layer[3] + 1, children: subLayers.concat(els) };
+    return { c: "ui-canvas-layer", id: layerId, zIndex: layer["uiComponentLayer: layer"] + 1, children: subLayers.concat(els) };
   }
 
   function layersBox(componentId, layers, activeLayer) {
@@ -585,12 +585,12 @@ module uiEditor {
           subItems.push(layerListItem(cur, depth + 1));
         });
       }
-      var elements = ixer.index("uiLayerToElements")[layerId] || [];
+      var elements = ixer.index("uiLayerToElements", true)[layerId] || [];
       elements.sort(function(a, b) {
-        return a[9] - b[9];
+        return a["uiComponentElement: zindex"] - b["uiComponentElement: zindex"];
       });
       elements.forEach(function(cur) {
-        var elemId = cur[1];
+        var elemId = cur["uiComponentElement: id"];
         var selectedClass = "";
         if (localState.uiSelection && localState.uiSelection.indexOf(elemId) > -1) {
           selectedClass = " selected";
@@ -600,7 +600,7 @@ module uiEditor {
             {
               c: "layer-row", itemId: elemId, draggable: true, dragstart: layerDrag, type: "element", children: [
                 { c: "icon ion-ios-crop" + (selectedClass ? "-strong" : "") },
-                { text: cur[4] }
+                { text: cur["uiComponentElement: control"] }
               ]
             }
           ]
@@ -921,24 +921,22 @@ module uiEditor {
   }
 
   function control(cur, attrs, selected, layer) {
-    var id = cur[1];
-    var type = cur[4];
+    var id = cur["uiComponentElement: id"];
+    var type = cur["uiComponentElement: control"];
     var selClass = selected ? " selected" : "";
-    var hidden = layer[5] ? " hidden" : "";
-    var locked = layer[4] ? " locked" : "";
+    var hidden = layer["uiComponentLayer: hidden"] ? " hidden" : "";
+    var locked = layer["uiComponentLayer: locked"] ? " locked" : "";
     var klass = type + " ui-element" + selClass + hidden + locked;
     var elem: any = {
-      c: klass, id: "elem" + id, left: cur[5], top: cur[6], width: cur[7] - cur[5], height: cur[8] - cur[6],
-      control: cur, mousedown: addToSelection, selected: selected, zIndex: layer[3] + (cur[9] || 0),
+      c: klass, id: "elem" + id, left: cur["uiComponentElement: left"], top: cur["uiComponentElement: top"], width: cur["uiComponentElement: right"] - cur["uiComponentElement: left"], height: cur["uiComponentElement: bottom"] - cur["uiComponentElement: top"],
+      control: cur, mousedown: addToSelection, selected: selected, zIndex: layer["uiComponentLayer: layer"] + (cur["uiComponentElement: zindex"] || 0),
       draggable: true, dragover: preventDefault, drop: dropOnControl, drag: moveSelection, dragend: stopMoveSelection, dragstart: startMoveSelection, dblclick: setModifyingText
     };
     if (attrs) {
       for (var i = 0, len = attrs.length; i < len; i++) {
         var curAttr = attrs[i];
-        var name = attrMappings[curAttr[2]] || curAttr[2];
-        if (curAttr[3].constructor !== Array) {
-          elem[name] = curAttr[3];
-        }
+        var name = attrMappings[curAttr["uiComponentAttribute: property"]] || curAttr["uiComponentAttribute: property"];        
+        elem[name] = curAttr["uiComponentAttribute: value"];
       }
     }
 
@@ -949,7 +947,7 @@ module uiEditor {
       elem.attr = "text";
     }
 
-    var binding = (ixer.index("elementAttrToBinding")[id] || {})[elem.attr];
+    var binding = (ixer.index("elementAttrToBinding", true)[id] || {})[elem.attr];
     if (binding) {
       elem.children = [
         {
@@ -988,13 +986,13 @@ module uiEditor {
   function dropOnControl(e, elem) {
     var type = e.dataTransfer.getData("type");
     if (type === "binding") {
-      dispatch("bindAttr", { attr: elem.attr, elementId: elem.control[1], field: e.dataTransfer.getData("itemId") })
+      dispatch("bindAttr", { attr: elem.attr, elementId: elem.control["uiComponentElement: id"], field: e.dataTransfer.getData("itemId") })
       e.stopPropagation();
     }
   }
 
   function setModifyingText(e, elem) {
-    dispatch("setModifyingText", elem);
+    dispatch("setModifyingText", {elementId: elem.control["uiComponentElement: id"], attr: elem.attr});
   }
 
   function updateContent(e, elem) {
@@ -1012,7 +1010,7 @@ module uiEditor {
   function addToSelection(e, elem) {
     e.stopPropagation();
     if (elem.selected) return;
-    dispatch("addToSelection", {elem: elem, shiftKey: e.shiftKey});
+    dispatch("addToSelection", {elementId: elem.control["uiComponentElement: id"], layerId: elem.control["uiComponentElement: layer"], shiftKey: e.shiftKey});
   }
 
 
@@ -1041,7 +1039,7 @@ module uiEditor {
     if (e.altKey) {
       //@HACK: if you cause a rerender before the event finishes, the drag is killed?
       setTimeout(function() {
-        dispatch("duplicateSelection", { componentId: elem.control[2] });
+        dispatch("duplicateSelection", { componentId: elem.control["uiComponentElement: component"] });
       }, 0);
     }
   }
@@ -1055,7 +1053,7 @@ module uiEditor {
     y -= Math.floor(canvasRect.top);
     var neueX = toGrid(localState.uiGridSize, Math.floor(x - localState.dragOffsetX));
     var neueY = toGrid(localState.uiGridSize, Math.floor(y - localState.dragOffsetY));
-    dispatch("moveSelection", { x: neueX, y: neueY, elemId: elem.control[1], componentId: elem.control[2] });
+    dispatch("moveSelection", { x: neueX, y: neueY, elemId: elem.control["uiComponentElement: id"], componentId: elem.control["uiComponentElement: component"] });
   }
 
   function stopMoveSelection(e, elem) {
@@ -1094,8 +1092,8 @@ module uiEditor {
   function getGroupInfo(elements, withAttributes) {
     elements = elements || [];
 
-    var attrsIndex = ixer.index("uiStyleToAttrs");
-    var stylesIndex = ixer.index("uiElementToStyles");
+    var attrsIndex = ixer.index("uiStyleToAttrs", true);
+    var stylesIndex = ixer.index("uiElementToStyles", true);
 
     var ids = {};
     var attributes = {};
@@ -1110,17 +1108,17 @@ module uiEditor {
         var attrs = [];
         for (var ix = 0, len = elStyles.length; ix < len; ix++) {
           var style = elStyles[ix];
-          var type = style[2];
+          var type = style["uiStyle: type"];
           if (styles[type] === undefined) { styles[type] = style; }
-          else if (!style || !styles[type] || styles[type][1] !== style[1]) { styles[type] = null; }
+          else if (!style || !styles[type] || styles[type]["uiStyle: id"] !== style["uiStyle: id"]) { styles[type] = null; }
 
-          attrs.push.apply(attrs, attrsIndex[style[1]]);
+          attrs.push.apply(attrs, attrsIndex[style["uiStyle: id"]]);
         }
 
         if (attrs) {
           attrs.forEach(function(cur) {
-            var key = cur[2];
-            var value = cur[3];
+            var key = cur["uiComponentAttribute: property"];
+            var value = cur["uiComponentAttribute: value"];
             if (attributes[key] === undefined) {
               attributes[key] = value;
             } else if (attributes[key] !== value) {
@@ -1385,7 +1383,7 @@ module uiEditor {
     borderRadiusAdjuster.finalizer = stopAdjustAttr;
 
     if (!localState.addingAppearanceStyle) {
-      var sharedAppearance = (ixer.index("stylesBySharedAndType")["true"] || {})["appearance"] || {};
+      var sharedAppearance = (ixer.index("stylesBySharedAndType", true)["true"] || {})["appearance"] || {};
       var uniqueStyles = Object.keys(sharedAppearance);
       var styles = uniqueStyles.map(function(cur) {
         return { value: cur, text: code.name(cur) };
@@ -1538,7 +1536,7 @@ module uiEditor {
     align.handler = selectAlign;
 
     if (!localState.addingTypographyStyle) {
-      var sharedTypography = (ixer.index("stylesBySharedAndType")["true"] || {})["typography"] || {};
+      var sharedTypography = (ixer.index("stylesBySharedAndType", true)["true"] || {})["typography"] || {};
       var uniqueStyles = Object.keys(sharedTypography);
       var styles = uniqueStyles.map(function(cur) {
         return { value: cur, text: code.name(cur) };

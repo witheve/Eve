@@ -76,7 +76,9 @@ struct Credential {
 }
 
 fn main() {
-	Server::http("0.0.0.0:8080").unwrap().handle(login).unwrap();
+
+    // TODO high thread-count is a workaround for https://github.com/hyperium/hyper/issues/368
+	Server::http("0.0.0.0:8080").unwrap().handle_threads(login, 100).unwrap();
 }
 
 fn read_file_bytes(filename: &str) -> Vec<u8> {

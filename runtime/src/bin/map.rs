@@ -255,6 +255,56 @@ fn bench_query_string_sorted(b: &mut Bencher) {
     });
 }
 
+#[bench]
+fn bench_iter_string_map(b: &mut Bencher) {
+    let words = words();
+    let nums = nums();
+    let mut map = Map::new();
+    for word in words.iter() {
+        map.insert(word.clone(), 1);
+    }
+    b.iter(|| {
+        map.iter().collect::<Vec<_>>()
+    });
+}
+
+#[bench]
+fn bench_iter_string_btree(b: &mut Bencher) {
+    let words = words();
+    let nums = nums();
+    let mut map = BTreeMap::new();
+    for word in words.iter() {
+        map.insert(word.clone(), 1);
+    }
+    b.iter(|| {
+        map.iter().collect::<Vec<_>>()
+    });
+}
+
+#[bench]
+fn bench_iter_string_hash(b: &mut Bencher) {
+    let words = words();
+    let nums = nums();
+    let mut map = HashMap::new();
+    for word in words.iter() {
+        map.insert(word.clone(), 1);
+    }
+    b.iter(|| {
+        map.iter().collect::<Vec<_>>()
+    });
+}
+
+#[bench]
+fn bench_iter_string_sorted(b: &mut Bencher) {
+    let words = words();
+    let nums = nums();
+    let mut map = words.clone();
+    map.sort();
+    b.iter(|| {
+        map.iter().collect::<Vec<_>>()
+    });
+}
+
 // TODO bench_clone_* are not very useful at such small sizes
 
 #[bench]
@@ -316,6 +366,20 @@ fn bench_clone_int_sorted(b: &mut Bencher) {
     });
 }
 
+// TODO sorted iter is too slow
+// #[test]
+// fn test_iter_is_sorted() {
+//     let words = words();
+//     let mut map = Map::new();
+//     for word in words.iter() {
+//         map.insert(word.clone(), 1);
+//     }
+//     let words_a = map.iter().collect::<Vec<_>>();
+//     let mut words_b = map.iter().collect::<Vec<_>>();
+//     words_b.sort();
+//     assert_eq!(words_a, words_b);
+// }
+
 
 #[allow(dead_code)]
 fn main() {
@@ -325,10 +389,14 @@ fn main() {
     for word in words.iter() {
         map.insert(word.clone(), 1);
     }
-    for _ in (0..50) {
-        for num in nums.iter() {
-            let word = &words[(*num as usize) % words.len()];
-            test::black_box(map.query(word));
-        }
-    }
+    let words_a = map.iter().collect::<Vec<_>>();
+    let mut words_b = map.iter().collect::<Vec<_>>();
+    words_b.sort();
+    assert_eq!(words_a, words_b);
+    // for _ in (0..50) {
+    //     for num in nums.iter() {
+    //         let word = &words[(*num as usize) % words.len()];
+    //         test::black_box(map.query(word));
+    //     }
+    // }
 }

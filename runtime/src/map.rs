@@ -69,4 +69,35 @@ impl<K: Ord + Default + Clone, V: Eq + Default + Clone> Map<K,V> {
         }
         return None
     }
+
+    pub fn iter(&self) -> Iter<K, V> {
+        let mut chunk_iter = self.chunks.iter();
+        let item_iter = chunk_iter.next().map_or([].iter(), |chunk| chunk.iter());
+        Iter{chunk_iter: chunk_iter, item_iter: item_iter}
+    }
+}
+
+pub struct Iter<'a, K, V> where K: 'a, V: 'a {
+    chunk_iter: ::std::slice::Iter<'a, Rc<Vec<(K,V)>>>,
+    item_iter: ::std::slice::Iter<'a, (K,V)>,
+}
+
+// TODO this is not ordered
+impl<'a, K, V> Iterator for Iter<'a, K,V> where K: Ord {
+    type Item = &'a (K,V);
+
+    fn next(&mut self) -> Option<&'a (K,V)> {
+        match self.item_iter.next() {
+            Some(item) => Some(item),
+            None => {
+                match self.chunk_iter.next() {
+                    Some(chunk) => {
+                        self.item_iter = chunk.iter();
+                        self.item_iter.next()
+                    }
+                    None => None
+                }
+            }
+        }
+    }
 }

@@ -310,26 +310,24 @@ module Indexing {
         
         var pack = generatePackerFn(table, this.getFields(table));
         var depth = indexObj.keys.length - 1;
-                
-        function reducer(memo, key, cur, curDepth) {
-          if(cur[key] instanceof Array) {
-            memo[key] = cur[key].map(pack);
-          } else if(typeof cur[key] === "object") {
-            if(curDepth === depth) {
-              memo[key] = pack(cur[key]);
-            } else {
-              memo[key] = reduce(cur[key], curDepth + 1);
-            }
-          } else {
-            memo[key] = cur[key];
-          }
-        }
-        function reduce(cur, depth = 0) {
+
+        function reduce(cur, curDepth = 0) {
           var memo = {};
           var keys = Object.keys(cur);
           for(var key of keys) {
             if(key === "undefined") { throw new Error("Index: " + name + " contains invalid key(s) at depth " + depth); }
-            reducer(memo, key, cur, depth);
+            
+            if(cur[key] instanceof Array) {
+              memo[key] = cur[key].map(pack);
+            } else if(typeof cur[key] === "object") {
+              if(curDepth === depth) {
+                memo[key] = pack(cur[key]);
+              } else {
+                memo[key] = reduce(cur[key], curDepth + 1);
+              }
+            } else {
+              memo[key] = cur[key];
+            }
           }
           return memo;
         }

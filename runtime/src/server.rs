@@ -198,29 +198,25 @@ pub fn run() {
                 };
                 flow = send_changes(add_session,flow,&mut senders);
 
-                time!("syncing", {
-                    let changes = flow.as_changes();
-                    let text = format!("{}", Event{changes: changes, session: session_id}.to_json());
-                    match sender.send_message(Message::Text(text)) {
-                        Ok(_) => (),
-                        Err(error) => println!("Send error: {}", error),
-                    };
-                    senders.push(sender)
-                })
+                let changes = flow.as_changes();
+                let text = format!("{}", Event{changes: changes, session: session_id}.to_json());
+                match sender.send_message(Message::Text(text)) {
+                    Ok(_) => (),
+                    Err(error) => println!("Send error: {}", error),
+                };
+                senders.push(sender)
             }
 
             ServerEvent::Change(input_bytes) => {
-                time!("changing", {
-                    // TODO we throw cbor in here to avoid https://github.com/rust-lang/rustc-serialize/issues/113
-                    let mut decoder = cbor::Decoder::from_bytes(&input_bytes[..]);
-                    let cbor = decoder.items().next().unwrap().unwrap();
-                    let json = cbor.to_json();
-                    events.write_all(format!("{}", json).as_bytes()).unwrap();
-                    events.write_all("\n".as_bytes()).unwrap();
-                    events.flush().unwrap();
-                    let event: Event = FromJson::from_json(&json);
-                    flow = send_changes(event,flow,&mut senders);
-                })
+                // TODO we throw cbor in here to avoid https://github.com/rust-lang/rustc-serialize/issues/113
+                let mut decoder = cbor::Decoder::from_bytes(&input_bytes[..]);
+                let cbor = decoder.items().next().unwrap().unwrap();
+                let json = cbor.to_json();
+                events.write_all(format!("{}", json).as_bytes()).unwrap();
+                events.write_all("\n".as_bytes()).unwrap();
+                events.flush().unwrap();
+                let event: Event = FromJson::from_json(&json);
+                flow = send_changes(event,flow,&mut senders);
             }
 
             ServerEvent::Terminate(m) => {
@@ -281,10 +277,13 @@ pub fn run() {
 }
 
 fn send_changes(event: Event, mut flow: Flow, mut senders: &mut Vec<sender::Sender<WebSocketStream>>) -> Flow {
-
-    let old_flow = flow.clone();
+    let old_flow = time!("cloning", {
+        flow.clone()
+    });
     flow = flow.quiesce(event.changes);
-    let changes = flow.changes_from(old_flow);
+    let changes = time!("diffing", {
+        flow.changes_from(old_flow)
+    });
     let changes_json = changes_to_json(changes.clone());
     for sender in senders.iter_mut() {
     	let session_id = format!("{}", sender.get_mut().peer_addr().unwrap());
