@@ -123,10 +123,10 @@ module queryEditor {
           var name = code.name(info.sourceFieldId);
           var calculated = ixer.selectOne("calculated field", {view: info.viewId, source: info.sourceId, field: info.sourceFieldId});
           if(calculated) {
-            name = code.name(calculated["calculated field"]);
+            name = code.name(calculated["calculated field: calculated field"]);
           }
 
-          var fields = ixer.select("field", {view: info.viewId}) || [];
+          var fields = ixer.selectPretty("field", {view: info.viewId}) || [];
           neueField = api.insert("field", {view: info.viewId, field: info.fieldId, kind: "output", dependents: {
             "display name": {name: name},
             "display order": {priority: -fields.length}
@@ -174,9 +174,6 @@ module queryEditor {
             sendToServer = false;
           }
         }
-        
-        
-        
         break;
       case "removeViewSource":
         diffs = diff.removeViewSource(info.viewId, info.sourceId);
@@ -186,6 +183,7 @@ module queryEditor {
         sendToServer = false;
         break;
       case "updateViewConstraint":
+      console.log("update", info);
         // @TODO: redesign this to pass in opts directly.
         var change = api.change("constraint", {constraint: info.constraintId});
         var constraint:any = change.content[0];
@@ -210,9 +208,11 @@ module queryEditor {
           }
           diffs.push(["constant", "inserted", [constantFieldId, info.value]]);
         }
+        console.log(change);
         diffs = diffs.concat(api.toDiffs(change));
+        console.log(diffs);
         
-        var calculatedFields = ixer.select("calculated field", {view: viewId, source: constraint["left source"]});
+        var calculatedFields = ixer.selectPretty("calculated field", {view: viewId, source: constraint["left source"]});
         if(calculatedFields.length) {
           for(var calculatedField of calculatedFields) {
             var calculatedFieldId = calculatedField["calculated field"];
@@ -531,9 +531,9 @@ module queryEditor {
     if(elem.key === "add filter") {
       var source = ixer.selectOne("source", {view: info.viewId});
       if(!source) { return console.error("Cannot add a constraint to a view with no sources."); }
-      var field = ixer.selectOne("field", {view: source["source view"]});
+      var field = ixer.selectOne("field", {view: source["source: source view"]});
       if(!field) { return console.error("Cannot add a constraint to a view source with no fields."); }
-      dispatch("addViewConstraint", {viewId: info.viewId, leftSource: source.source, leftField: field.field});
+      dispatch("addViewConstraint", {viewId: info.viewId, leftSource: source["source: source"], leftField: field["field: field"]});
     }
   }
 
@@ -732,13 +732,13 @@ module queryEditor {
   function getSourceName(viewId, sourceId) {
     var source = ixer.selectOne("source", {view: viewId, source: sourceId});
     if(!source) { throw new Error("Source " + sourceId + " not found on view " + viewId + "."); }
-    var sourceName = code.name(source["source view"]);
+    var sourceName = code.name(source["source: source view"]);
     
     var sources = ixer.select("source", {view: viewId});
     var ix = 0;
     for(var cur of sources) {
-      if(cur.source === source.source) { break; }
-      if(cur["source view"] === source["source view"]) { ix++; }
+      if(cur["source: source"] === source["source: source"]) { break; }
+      if(cur["source: source view"] === source["source: source view"]) { ix++; }
     }
     if(ix) {
       sourceName += " (" + (ix + 1) + ")";
@@ -755,8 +755,8 @@ module queryEditor {
     var fields = ixer.select("block field", {view: viewId, source: sourceId}) || [];
     var fieldItems = [];
     fields.forEach(function(field) {
-      var id = field["block field"];
-      var fieldId = field["field"];
+      var id = field["block field: block field"];
+      var fieldId = field["block field: field"];
       fieldItems.push(fieldItem(code.name(fieldId) || "Untitled", id, {c: "pill field"}));
       fieldItems.push({t: "pre", text: ", "});
     });
@@ -822,7 +822,7 @@ module queryEditor {
       });
 
       var content = calculatedFields.map(function(calculatedField) {
-        var id = calculatedField["calculated field"];
+        var id = calculatedField["calculated field: calculated field"];
         return fieldItem(code.name(id), id, {c: "pill field"})
       }).concat(
         {text: "⇒"},
@@ -844,7 +844,7 @@ module queryEditor {
       if(constraintArgs.length !== 2) { throw new Error("Invalid arity for infix primitive " + constraintArgs.length); }
       
       var content = calculatedFields.map(function(calculatedField) {
-        var id = calculatedField["calculated field"];
+        var id = calculatedField["calculated field: calculated field"];
         return fieldItem(code.name(id), id, {c: "pill field"})
       }).concat(
         {text: "⇒"},
@@ -1167,9 +1167,9 @@ module queryEditor {
       ];
       
       for(var field of fields) {
-        var select = ixer.selectOne("select", {view: viewId, "view field": field.field, source: source.source});
-        rowItems.push({t: "td", c: "mapped-field", text: (select) ? code.name(select["source field"]) : "---",
-                       viewId: viewId, sourceId: source.source, fieldId: field.field,
+        var select = ixer.selectOne("select", {view: viewId, "view field": field["field: field"], source: source.source});
+        rowItems.push({t: "td", c: "mapped-field", text: (select) ? code.name(select["select: source field"]) : "---",
+                       viewId: viewId, sourceId: source.source, fieldId: field["field: field"],
                        click: fieldSuggestions, handler: setMappingField});
       }
       rowItems.push({t: "td", c: "mapped-field", text: "---", viewId: viewId, sourceId: source.source,
@@ -1179,7 +1179,7 @@ module queryEditor {
 
     var headerItems:any = [{td: "th", c: "spacer"}];    
     for(var field of fields) {
-      headerItems.push({t: "th", c: "mapping-header", text: code.name(field.field)});  
+      headerItems.push({t: "th", c: "mapping-header", text: code.name(field["field: field"])});  
     }
     headerItems.push({t: "th", c: "mapping-header", text: "---"});
     
@@ -1190,8 +1190,7 @@ module queryEditor {
                 ]},
                 {t: "tbody", children: sourceItems}
               ]}
-//               {c: "block-pane mapping", viewId: viewId, dragover: preventDefault, drop: unionSourceMappingDrop, children: fieldMappingItems},
-    ]};
+            ]};
   }
 
   function fieldSuggestions(e, elem) {

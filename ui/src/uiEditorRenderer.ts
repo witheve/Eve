@@ -37,10 +37,10 @@ module uiEditorRenderer {
   
   export function refreshMaps() {
     for(var mapId in mapCache.map) {
-      var map = mapCache.map[mapId];
+      var map = mapCache.map[mapId];     
       google.maps.event.trigger(map, "resize");
-      var lat = (ixer.selectOne("uiMapAttr", {map: map.map, property: "lat"}) || {value: 0}).value;
-      var lng = (ixer.selectOne("uiMapAttr", {map: map.map, property: "lng"}) || {value: 0}).value;
+      var lat = (ixer.selectOne("uiMapAttr", {map: mapId, property: "lat"}) || {"uiMapAttr: value": 0})["uiMapAttr: value"];
+      var lng = (ixer.selectOne("uiMapAttr", {map: mapId, property: "lng"}) || {"uiMapAttr: value": 0})["uiMapAttr: value"];
       map.setCenter({lat: lat, lng: lng});
     }
   }
@@ -87,7 +87,7 @@ module uiEditorRenderer {
     var keys = [];
     fields.forEach(function(fieldId, ix) {
       if(code.hasTag(fieldId, "key")) {
-        keys.push(code.name(fieldId));
+        keys.push(fieldId);
       }
     });
     if(keys.length) {
@@ -164,10 +164,10 @@ module uiEditorRenderer {
     var finalBottom = -Infinity;
     var finalRight = -Infinity;
     elements.forEach(function(element) {
-      var left = element["left"];
-      var top = element["top"];
-      var right = element["right"];
-      var bottom = element["bottom"];
+      var left = element["uiComponentElement: left"];
+      var top = element["uiComponentElement: top"];
+      var right = element["uiComponentElement: right"];
+      var bottom = element["uiComponentElement: bottom"];
       if(left < finalLeft) {
         finalLeft = left;
       }
@@ -186,13 +186,13 @@ module uiEditorRenderer {
   }
 
   function renderElement(element, offset, row, key) {
-    var elementId = element["id"];
-    var type = element["control"];
-    var left = element["left"];
-    var top = element["top"];
-    var right = element["right"];
-    var bottom = element["bottom"];
-    var zIndex = element["zindex"];
+    var elementId = element["uiComponentElement: id"];
+    var type = element["uiComponentElement: control"];
+    var left = element["uiComponentElement: left"];
+    var top = element["uiComponentElement: top"];
+    var right = element["uiComponentElement: right"];
+    var bottom = element["uiComponentElement: bottom"];
+    var zIndex = element["uiComponentElement: zindex"];
     var elem: any = {c: "absolute", left: left - offset.left, top: top - offset.top,
                      width: right - left, height: bottom - top, elementId: elementId,
                      zIndex: zIndex, key: key};
@@ -205,24 +205,25 @@ module uiEditorRenderer {
     } else if(type === "map") {
       elem.postRender = function(node, elem) {
         var map = ixer.selectOne("uiMap", {element: elementId});
-        var mapAttrs = ixer.select("uiMapAttr", {map: map.map}) || [];
-        var mapContainer = mapCache.container[map.map];
-        var mapInstance = mapCache.map[map.map];
+        var mapId = map["uiMap: map"];
+        var mapAttrs = ixer.select("uiMapAttr", {map: mapId}) || [];
+        var mapContainer = mapCache.container[mapId];
+        var mapInstance = mapCache.map[mapId];
         if(!mapContainer) {
           mapContainer = document.createElement("div");
           document.body.appendChild(mapContainer);
           mapContainer.className = "full-size-wrapper";
-          mapCache.container[map.map] = mapContainer;
+          mapCache.container[mapId] = mapContainer;
         }
         mapContainer.style.width = node.style.width || document.body.offsetWidth;
         mapContainer.style.height = node.style.height || document.body.offsetHeight;
         if(!mapInstance) {
           mapInstance = new google.maps.Map(mapContainer);
-          mapCache.map[map.map] = mapInstance;          
+          mapCache.map[mapId] = mapInstance;          
         }
-        var lat = (ixer.selectOne("uiMapAttr", {map: map.map, property: "lat"}) || {value: 0}).value;
-        var lng = (ixer.selectOne("uiMapAttr", {map: map.map, property: "lng"}) || {value: 0}).value;
-        var zoom = (ixer.selectOne("uiMapAttr", {map: map.map, property: "zoom"}) || {value: 8}).value;
+        var lat = (ixer.selectOne("uiMapAttr", {map: mapId, property: "lat"}) || {"uiMapAttr: value": 0})["uiMapAttr: value"];
+        var lng = (ixer.selectOne("uiMapAttr", {map: mapId, property: "lng"}) || {"uiMapAttr: value": 0})["uiMapAttr: value"];
+        var zoom = (ixer.selectOne("uiMapAttr", {map: mapId, property: "zoom"}) || {"uiMapAttr: value": 8})["uiMapAttr: value"];
         var oldPos = mapInstance.getCenter();
         if(!oldPos || oldPos.lat !== lat || oldPos.lng !== lng) {
           mapInstance.panTo({lat: lat, lng: lng});
@@ -231,11 +232,13 @@ module uiEditorRenderer {
           mapInstance.setZoom(zoom);
         }
         
-        var mapAttrs = ixer.select("uiMapAttr", {map: map.map}) || [];
+        var mapAttrs = ixer.select("uiMapAttr", {map: mapId}) || [];
         var opts = {};
         for(var mapAttr of mapAttrs) {
-          if(mapAttr.property === "lat" || mapAttr.property === "lng" || mapAttr.property === "zoom") { continue; }
-          opts[mapAttr.property] = mapAttr.value;
+          if(mapAttr["uiMapAttr: property"] === "lat" || mapAttr["uiMapAttr: property"] === "lng" || mapAttr["uiMapAttr: property"] === "zoom") {
+            continue;
+          }
+          opts[mapAttr["uiMapAttr: property"]] = mapAttr["uiMapAttr: value"];
         }
         mapInstance.setOptions(opts);
         
@@ -297,7 +300,7 @@ module uiEditorRenderer {
 
   function bindingToValue(binding, row) {
     var fieldId = binding["uiAttrBinding: field"];
-    return row[code.name(fieldId)];
+    return row[fieldId];
   }
 
   var eventId = 0;
