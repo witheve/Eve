@@ -1,5 +1,6 @@
 use value::{Value};
 use std::str::FromStr;
+use std::f64;
 
 #[derive(Clone, Debug, Copy)]
 pub enum Primitive {
@@ -63,7 +64,12 @@ impl Primitive {
                 string.split(split).enumerate().map(|(ix, segment)| vec![Float(ix as f64), String(segment.to_owned())]).collect()
             },
             (Concat, [&String(ref a), &String(ref b)]) => vec![vec![String(a.to_owned() + b)]],
-            (ParseFloat, [&String(ref a)]) => vec![vec![Float(f64::from_str(&a).unwrap())]],
+            (ParseFloat, [&String(ref a)]) => {
+                match f64::from_str(&a) {
+                    Ok(v) => vec![vec![Float(v), Bool(true)]],
+                    _ => vec![vec![Float(f64::MAX), Bool(false)]]
+                }
+            },
             (Count, _) => panic!("Cannot use {:?} in a join", self),
             (Sum, _) => panic!("Cannot use {:?} in a join", self),
             (Mean, _) => panic!("Cannot use {:?} in a join", self),
@@ -163,7 +169,7 @@ pub fn primitives() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>, 
         ("contains", vec!["inner", "outer"], vec![], vec!["out"]),
         ("split", vec!["split", "string"], vec![], vec!["ix", "segment"]),
         ("concat", vec!["a", "b"], vec![], vec!["out"]),
-        ("parse float", vec!["a"], vec![], vec!["out"]),
+        ("parse float", vec!["a"], vec![], vec!["out", "valid"]),
         ("count", vec![], vec!["in"], vec!["out"]),
         ("sum", vec![], vec!["in"], vec!["out"]),
         ("mean", vec![], vec!["in"], vec!["out"]),

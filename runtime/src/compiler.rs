@@ -1001,7 +1001,6 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
         for (view, _) in runtime_schema().into_iter() {
             tag_table.index.insert(vec![string!("{}", view), string!("runtime")]);
             tag_table.index.insert(vec![string!("{}", view), string!("hidden")]);
-            tag_table.index.insert(vec![string!("{}", view), string!("remote")]);
         }
 
         for (view, names) in schema.into_iter() {
