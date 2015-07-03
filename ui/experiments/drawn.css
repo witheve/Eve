@@ -31,4 +31,4 @@ body { font-family:"Avenir"; }
 
 .links text {text-anchor: middle; font-size:10pt; fill: #999; }
 
-.back-button { z-index: 10; }
+.button { z-index: 10; padding:5px 10px; background: rgba(0,0,0,0.03); }
