@@ -1,4 +1,4 @@
-/// <reference path="indexer.ts" />
+0/// <reference path="indexer.ts" />
 module api {
   // @NOTE: We should really be using CommonJS modules with this instead of tsc's wonky module system.
   declare var window;
@@ -880,13 +880,14 @@ module api {
              ["block", "field", "source", "aggregate grouping", "aggregate sorting", "aggregate limit from", "aggregate limit to", "editor item", "query export", "block aggregate"])},
     source: {key: ["view", "source"],
              foreign: {view: "view"},
-             dependents: ["constraint", "source order"]},
+             dependents: ["constraint", "source order", "calculated field"]},
     "source order": {foreign: {view: "view", source: "source"}},
     field: {key: "field",
             foreign: {view: "view"},
             dependents: pkDependents.concat(["select"])},
     select: {foreign: {view: "view", field: "view field"}},
     constraint: {key: "constraint", foreign: {view: "view", source: "left source"}},
+    constant: {key: "constant"},
 
     "aggregate grouping": {foreign: {view: "aggregate", /*field: "inner field"*/}},
     "aggregate sorting": {foreign: {view: "aggregate", /*field: "inner field"*/}},
@@ -897,6 +898,7 @@ module api {
 
      "query export": {foreign: {view: "view"},
                       singular: true},
+     "calculated field": {key: "block field", foreign: {view: "view", source: "source"}},
      "text input": {},
      "mouse position": {},
      "click": {},
@@ -1163,10 +1165,43 @@ module api {
     return write;
   }
 
-  export function change(type:string, params, context?:Context):Write<any> {
-    if(arguments.length < 2) { throw new Error("Must specify type and query for change."); }
+  function writeInto(dest, src) {
+    if(dest.constructor === Array) {
+      return dest.map(function(item) {
+        return writeInto(item, src);
+      })
+    }
+    for(var key in src) {
+      if(src[key] === undefined) { continue; }
+      // If the source attribute is an array, append its contents to the dest key.
+      if(src[key].constructor === Array) {
+        if(dest[key].constructor !== Array) { dest[key] = [dest[key]]; }
+        dest[key] = dest[key].concat(src[key]);
+      }
+      // If it's an object, recurse.
+      // @NOTE: This will fail if the destination is dissimilarly shaped (e.g. contains a primitive here).
+      else if(typeof src[key] === "object") {
+        dest[key] = writeInto(dest[key] || {}, src[key]);
+      }
+      // If it's a primitive value, overwrite the current value.
+      else {
+        dest[key] = src[key];
+      }
+    }
+    return dest;
+  }
+
+  export function change(type:string, params, changes, upsert:boolean = false, context?:Context):Write<any> {
+    if(arguments.length < 3) { throw new Error("Must specify type and query and changes for change."); }
     var read = retrieve(type, params, context);
-    return {type: type, content: read, context: context, mode: "changed", originalKeys: clone(params)};
+    var write = read.map(function(item) {
+      return writeInto(item, changes);
+    });
+    if(!write.length && upsert) {
+      var insertParams = writeInto(writeInto({}, params), changes);
+      return insert(type, insertParams);
+    }
+    return {type: type, content: write, context: context, mode: "changed", originalKeys: clone(params)};
   }
 
   export function remove(type:string, params, context?:Context):Write<any> {
@@ -1277,6 +1312,46 @@ module api {
           }).filter(Boolean)
         }
       };
+    },
+    autojoin: function(viewId, sourceId, sourceViewId) {
+      var sources = ixer.select("source", {view: viewId});
+      if(!sources) { return []; }
+
+      var fields = ixer.select("field", {view: sourceViewId});
+      if(!fields) { return []; }
+      var names = fields.map(function(field) {
+        var fieldId = field["field: field"];
+        return code.name(fieldId);
+      });
+
+      var constraints = [];
+      sources.forEach(function(source) {
+        var curSourceId = source["source: source"];
+        var curSourceViewId = source["source: source view"];
+        if(curSourceViewId === sourceViewId) {
+          // It never makes sense to join every field in a source.
+          return;
+        }
+        var curFields = ixer.select("field", {view: curSourceViewId});
+        if(!curFields) { return; }
+        curFields.forEach(function(cur) {
+          var curId = cur["field: field"];
+          var curName = code.name(curId);
+          var fieldIx = names.indexOf(curName);
+          if(fieldIx !== -1) {
+            var field = fields[fieldIx];
+            var fieldId = field["field: field"];
+            constraints.push(api.insert("constraint", {
+              "left source": sourceId,
+               "left field": fieldId,
+               operation: "=",
+               "right source": curSourceId,
+               "right field": curId
+            }, {view: viewId}));
+          }
+        });
+      });
+      return constraints;
     }
   };
 }
