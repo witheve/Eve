@@ -123,6 +123,7 @@ fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("variable", vec!["view", "variable"]),
     ("binding", vec!["variable", "source", "field"]),
     ("constant*", vec!["variable", "value"]),
+    ("select*", vec!["view", "field", "variable"]),
     ]
 }
 
@@ -419,6 +420,14 @@ fn plan(flow: &Flow) {
                 });
             });
         }
+    });
+
+    let mut select_ish_table = flow.overwrite_output("select*");
+    find!(select_table, [view, view_field, source, source_field], {
+        find!(eq_group_table, [(= view), (= source), (= source_field), group_source, group_field], {
+            let variable = &string!("{}->{}->{}", view.as_str(), group_source.as_str(), group_field.as_str());
+            insert!(select_ish_table, [view, view_field, variable]);
+        });
     });
 }
 
