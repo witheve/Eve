@@ -196,29 +196,30 @@ module queryEditor {
       break;
       case "updateViewConstraint":
         // @TODO: redesign this to pass in opts directly.
-        var change = api.change("constraint", {constraint: info.constraintId});
-        var constraint:any = change.content[0];
+        var overrides = {};
         if(!info.isConstant) {
           if(info.type === "left") {
-            constraint["left field"] = info.value.field[code.ix("field", "field")] || constraint["left field"];
-            constraint["left source"] = info.value.source[code.ix("source", "source")] || constraint["left source"];
+            overrides["left field"] = info.value.field[code.ix("field", "field")];
+            overrides["left source"] = info.value.source[code.ix("source", "source")];
           } else if(info.type === "right") {
-            constraint["right field"] = info.value.field[code.ix("field", "field")] || constraint["right field"];
-            constraint["right source"] = info.value.source[code.ix("source", "source")] || constraint["right source"];
+            overrides["right field"] = info.value.field[code.ix("field", "field")];
+            overrides["right source"] = info.value.source[code.ix("source", "source")];
           } else if(info.type === "operation") {
-            constraint.operation = info.value || constraint.operation;
+            overrides["operation"] = info.value;
           }
         } else {
           var constantFieldId = uuid();
           if(info.type === "left") {
-            constraint["left field"] = constantFieldId;
-            constraint["left source"] = "constant";
+            overrides["left field"] = constantFieldId;
+            overrides["left source"] = "constant";
           } else if(info.type === "right") {
-            constraint["right field"] = constantFieldId;
-            constraint["right source"] = "constant";
+            overrides["right field"] = constantFieldId;
+            overrides["right source"] = "constant";
           }
           diffs.push(["constant", "inserted", [constantFieldId, info.value]]);
         }
+        var change = api.change("constraint", {constraint: info.constraintId}, overrides);
+        var constraint = change.content[0];
         diffs = diffs.concat(api.toDiffs(change));
         
         var calculatedFields = ixer.selectPretty("calculated field", {view: viewId, source: constraint["left source"]});
