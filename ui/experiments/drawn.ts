@@ -2,16 +2,16 @@
 /// <reference path="../src/api.ts" />
 /// <reference path="../src/client.ts" />
 module drawn {
-  
+
   declare var uuid;
   var localState = api.localState;
   var ixer = api.ixer;
   var code = api.code;
-  
+
   //---------------------------------------------------------
   // Utils
   //---------------------------------------------------------
-  
+
    function coerceInput(input) {
         if (input.match(/^-?[\d]+$/gim)) {
             return parseInt(input);
@@ -27,19 +27,19 @@ module drawn {
         }
         return input;
     }
-    
+
     function stopPropagation(e) {
         e.stopPropagation();
     }
-    
+
     function preventDefault(e) {
         e.preventDefault();
     }
-     
+
 	//---------------------------------------------------------
   // Renderer
   //---------------------------------------------------------
-  
+
   export var renderer = new microReact.Renderer();
   document.body.appendChild(renderer.content);
   renderer.queued = false;
@@ -58,15 +58,16 @@ module drawn {
       });
     }
   }
-  
+
   window.addEventListener("resize", render);
-  
+
   //---------------------------------------------------------
   // localState
   //---------------------------------------------------------
-  
-  localState.selectedEntities = [];
-  
+
+  localState.selectedNodes = {};
+  localState.overlappingNodes = {};
+
   var fieldToEntity = {
     "source: source": "source",
     "source: view": "view",
@@ -77,7 +78,7 @@ module drawn {
     "place to image: place": "place",
     "place to address: place": "place",
   }
-  
+
   export var entities = [];
   for(var field in fieldToEntity) {
     var ent = fieldToEntity[field];
@@ -85,43 +86,159 @@ module drawn {
       entities.push(ent);
     }
   }
-  
+
   export var positions = {}
-  
+
   function loadPositions() {
     var loadedPositions = ixer.select("editor node position", {});
     for(var pos of loadedPositions) {
       positions[pos["editor node position: node"]] = {top: pos["editor node position: y"], left: pos["editor node position: x"]};
     }
   }
-  
+
   localState.drawnUiActiveId = "da7f9321-a4c9-4292-8cf6-5174f3ed2f11";
 // localState.drawnUiActiveId = "block field";
-  
+localState.drawnUiActiveId = "e10b9868-b2e8-4942-9ead-1e2830046d4d";
+
+  //---------------------------------------------------------
+  // Node helpers
+  //---------------------------------------------------------
+
+  function findNodesIntersecting(currentNodeId, nodes, radius = 30) {
+    let currentNodePosition = positions[currentNodeId];
+    let overlaps = [];
+    for (let node of nodes) {
+      if (node.id === currentNodeId) continue;
+      let nodePosition = positions[node.id];
+      if (currentNodePosition.left > nodePosition.left - radius &&
+        currentNodePosition.left < nodePosition.left + radius &&
+        currentNodePosition.top > nodePosition.top - radius &&
+        currentNodePosition.top < nodePosition.top + radius) {
+        overlaps.push(node.id);
+      }
+    }
+    return overlaps;
+  }
+
+  function intersectionAction(nodeA, nodeB): any {
+    //given two nodes, we check to see if their intersection should cause something to happen
+    //e.g. two attributes intersecting would signal joining them
+    if(nodeA.type === "attribute" && nodeB.type === "attribute") {
+      return "joinNodes";
+    }
+    return false;
+  }
+
+  function actionableIntersections(viewId, currentNodeId, radius = 30) {
+    let {nodeLookup, nodes} = viewToEntityInfo(ixer.selectOne("view", {view: viewId}));
+    let overlaps = findNodesIntersecting(currentNodeId, nodes, radius);
+    let curNode = nodeLookup[currentNodeId];
+    let actions = [];
+    let lookup = {};
+    for(let overlappingId of overlaps) {
+      let overlappingNode = nodeLookup[overlappingId];
+      let action = intersectionAction(curNode, overlappingNode);
+      if(action) {
+        let info = {node: curNode, target: overlappingNode, action};
+        actions.push(info);
+        lookup[overlappingId] = info;
+      }
+    }
+    return {actions, lookup};
+  }
+
+  //---------------------------------------------------------
+  // AST helpers
+  //---------------------------------------------------------
+
+  function removeSource(sourceId) {
+    return [
+      api.remove("source", {source: sourceId}),
+      api.remove("constraint", {"left source": sourceId}),
+      api.remove("constraint", {"right source": sourceId})
+    ]
+  }
+
   //---------------------------------------------------------
   // Dispatch
   //---------------------------------------------------------
-  
+
   function dispatch(event, info, rentrant?) {
     //console.log("dispatch[" + event + "]", info);
     var diffs = [];
     switch(event) {
+      //---------------------------------------------------------
+      // Node selection
+      //---------------------------------------------------------
+      case "selectNode":
+        var node = info.node;
+        //if this node is already in the selection, we should ignore this
+        if(localState.selectedNodes[node.id]) return;
+        //if shift isn't pressed, then we need to clear the current selection
+        if(!info.shiftKey) {
+          localState.selectedNodes = {};
+        }
+        localState.selectedNodes[node.id] = node;
+      break;
+      case "clearSelection":
+        localState.selectedNodes = {};
+      break;
+      case "removeSelection":
+        for(let nodeId in localState.selectedNodes) {
+          let node = localState.selectedNodes[nodeId];
+          if(node.type === "relationship") {
+            diffs = removeSource(node.id);
+          } else if (node.type === "primitive") {
+            diffs = removeSource(node.sourceId);
+          }
+        }
+      break;
+      //---------------------------------------------------------
+      // Node positioning
+      //---------------------------------------------------------
       case "setDragOffset":
         localState.dragOffsetX = info.x;
         localState.dragOffsetY = info.y;
       break;
       case "setNodePosition":
-        var id = info.node.id;
-        positions[id] = info.pos;
+        var originalPosition = positions[info.node.id];
+        var offsetLeft = info.pos.left - originalPosition.left;
+        var offsetTop = info.pos.top - originalPosition.top;
+        var selectionSize = 0;
+        for(let nodeId in localState.selectedNodes) {
+          let node = localState.selectedNodes[nodeId];
+          let prevPosition = positions[node.id];
+          positions[node.id] = {left: prevPosition.left + offsetLeft, top: prevPosition.top + offsetTop};
+          selectionSize++;
+        }
+        // if we have only one thing selected we need to check for overlaps to show potential actions that
+        // could take place
+        if(selectionSize === 1) {
+          localState.overlappingNodes = actionableIntersections(localState.drawnUiActiveId, info.node.id).lookup;
+        } else {
+          localState.overlappingNodes = {};
+        }
       break;
       case "finalNodePosition":
-        var id = info.node.id;
-        var currentPos = positions[id];
-        diffs = [
-          api.insert("editor node position", {node: id, x: currentPos.left, y: currentPos.top}),
-          api.remove("editor node position", {node: id})
-        ]
+       var selectionSize = 0;
+       for(let nodeId in localState.selectedNodes) {
+          let node = localState.selectedNodes[nodeId];
+          let currentPos = positions[node.id];
+          diffs.push(api.insert("editor node position", {node: nodeId, x: currentPos.left, y: currentPos.top}),
+                     api.remove("editor node position", {node: nodeId}));
+          selectionSize++;
+        }
+        // @TODO: Check for potential overlap with other nodes
+        if(selectionSize === 1) {
+          let {lookup, actions} = actionableIntersections(localState.drawnUiActiveId, info.node.id);
+          for(let action of actions) {
+            dispatch(action.action, action, true);
+          }
+        }
       break;
+      //---------------------------------------------------------
+      // Navigation
+      //---------------------------------------------------------
       case "openRelationship":
         localState.drawnUiActiveId = info.node.source["source: source view"];
       break;
@@ -131,13 +248,132 @@ module drawn {
       case "gotoQuerySelector":
         localState.drawnUiActiveId = false;
       break;
+      //---------------------------------------------------------
+      // Query building
+      //---------------------------------------------------------
       case "createNewQuery":
-        var newId = uuid();
+        let newId = uuid();
         localState.drawnUiActiveId = newId;
         diffs = [
-          api.insert("view", {view: newId, kind: "join", dependents: {"display name": {name: "New query!"}}})  
+          api.insert("view", {view: newId, kind: "join", dependents: {"display name": {name: "New query!"}}})
         ];
       break;
+      case "addViewToQuery":
+        let sourceId = uuid();
+        let queryId = localState.drawnUiActiveId;
+        diffs = [
+          api.insert("source", {view: queryId, source: sourceId, "source view": info.viewId})
+        ];
+        // @FIXME: if the source view is a primitive, we need to bind its fields to constants or we blow up the server
+        // this will no longer be necessary once we have validation in.
+        var sourceView = ixer.selectOne("view", {view: info.viewId});
+        if(sourceView["view: kind"] === "primitive") {
+          ixer.select("field", {view: info.viewId}).forEach(function(field) {
+            let fieldId = field["field: field"];
+            if(field["field: kind"] === "scalar input") {
+              diffs.push(api.insert("constraint", {
+              constraint: uuid(),
+              view: localState.drawnUiActiveId,
+              "left source": sourceId,
+              "left field": fieldId,
+              "right source": "constant",
+              "right field": api.primitiveDefaults[info.viewId][fieldId],
+              operation: "="}));
+            }
+          });
+        }
+        //we may also have information about where we should position it.
+        if(info.top !== undefined) {
+          diffs.push(api.insert("editor node position", {node: sourceId, x: info.left, y: info.top}));
+          positions[sourceId] = {left: info.left, top: info.top};
+          console.log("set position", sourceId, info);
+        }
+      break;
+      case "joinNodes":
+        var {target, node} = info;
+        if(!node || !target) throw new Error("Trying to join at least one non-existent node");
+        let constraintId = uuid();
+        diffs = [
+          api.insert("constraint", {
+            constraint: constraintId,
+            view: localState.drawnUiActiveId,
+            "left source": node.source["source: source"],
+            "left field": node.field,
+            "right source": target.source["source: source"],
+            "right field": target.field,
+            operation: "="}),
+        ];
+
+        //if either of these nodes are a primitive input, then we need should remove any constant
+        //constraint that was on there.
+        var primitiveNode;
+        if(target.isInput) {
+          primitiveNode = target;
+        } else if(node.isInput) {
+          primitiveNode = node;
+        }
+        if(primitiveNode) {
+          diffs.push(api.remove("constraint", {
+            view: localState.drawnUiActiveId,
+            "left source": primitiveNode.source["source: source"],
+            "left field": primitiveNode.field,
+            "right source": "constant"
+          }));
+        }
+
+      break;
+      case "unjoinNodes":
+        var {fromNode} = info;
+        //remove all the constraints related to this node
+        diffs = [
+          api.remove("constraint", {"left source": fromNode.source["source: source"], "left field": fromNode.field}),
+          api.remove("constraint", {"right source": fromNode.source["source: source"], "right field": fromNode.field}),
+        ]
+
+        //if one of the unjoined nodes is a primitive input, then we need to rebind it to a default value
+        function bindPrimitiveField(sourceId, fieldId) {
+          var source = ixer.selectOne("source", {source: sourceId});
+          var field = ixer.selectOne("field", {field: fieldId});
+          if(field["field: kind"] === "scalar input") {
+            console.log("bind prim", {
+              constraint: uuid(),
+              view: localState.drawnUiActiveId,
+              "left source": sourceId,
+              "left field": fieldId,
+              "right source": "constant",
+              "right field": api.primitiveDefaults[source["source: source view"]][fieldId],
+              operation: "="});
+            diffs.push(api.insert("constraint", {
+              constraint: uuid(),
+              view: localState.drawnUiActiveId,
+              "left source": sourceId,
+              "left field": fieldId,
+              "right source": "constant",
+              "right field": api.primitiveDefaults[source["source: source view"]][fieldId],
+              operation: "="}));
+          }
+        }
+
+        bindPrimitiveField(fromNode.source["source: source"], fromNode.field);
+        (api.retrieve("constraint", {"left source": fromNode.source["source: source"], "left field": fromNode.field}) || []).forEach((constraint) => {
+          var sourceId = constraint["right source"];
+          var fieldId = constraint["right field"];
+          bindPrimitiveField(sourceId, fieldId);
+        });
+        (api.retrieve("constraint", {"right source": fromNode.source["source: source"], "right field": fromNode.field}) || []).forEach((constraint) => {
+          var sourceId = constraint["left source"];
+          var fieldId = constraint["left field"];
+          bindPrimitiveField(sourceId, fieldId);
+        });
+
+      break;
+      case "setQueryName":
+        diffs.push(api.insert("display name", {id: info.viewId, name: info.value}),
+                   api.remove("display name", {id: info.viewId}));
+      break;
+      //---------------------------------------------------------
+      // Menu
+      //---------------------------------------------------------
       case "showMenu":
         localState.menu = {top: info.y, left: info.x, contentFunction: info.contentFunction};
       break;
@@ -148,21 +384,21 @@ module drawn {
         console.error("Unknown dispatch:", event, info);
         break;
     }
-    
-    if(!rentrant) {
-      if(diffs.length) {
+
+    if(diffs.length) {
         var formatted = api.toDiffs(diffs);
         ixer.handleDiffs(formatted);
         client.sendToServer(formatted, false);
-      }
-      render();  
+    }
+    if(!rentrant) {
+      render();
     }
   }
-  
+
   //---------------------------------------------------------
   // root
   //---------------------------------------------------------
-  
+
   function root() {
     var page:any;
     if(localState.drawnUiActiveId) {
@@ -172,7 +408,7 @@ module drawn {
     }
     return {id: "root", children: [page]};
   }
-  
+
   function querySelector() {
     var queries = api.ixer.select("view", {kind: "join"}).map((view) => {
       var viewId = view["view: view"];
@@ -182,34 +418,39 @@ module drawn {
       ]};
     });
     return {c: "query-selector-wrapper", children: [
-      {c: "button", text: "add query", click: createNewQuery}, 
+      {c: "button", text: "add query", click: createNewQuery},
       {c: "query-selector", children: queries}
     ]};
   }
-  
+
   function createNewQuery(e, elem) {
     dispatch("createNewQuery", {});
   }
-  
+
   function openQuery(e, elem) {
     dispatch("openQuery", {queryId: elem.queryId});
   }
-  
+
   function queryUi(viewId) {
     var view = ixer.select("view", {view: viewId});
     if(!view || !view.length) return;
     return {c: "query", children: [
+      {c: "query-name", contentEditable: true, blur: setQueryName, viewId: viewId, text: code.name(viewId)},
       queryMenu(view[0]),
       queryCanvas(view[0]),
       localState.drawnUiActiveId ? {c: "button", text: "back", click: gotoQuerySelector} : undefined,
       //queryTools(view[0]),
     ]};
   }
-  
+
+  function setQueryName(e, elem) {
+    dispatch("setQueryName", {viewId: elem.viewId, value: e.currentTarget.textContent});
+  }
+
   function gotoQuerySelector(e, elem) {
     dispatch("gotoQuerySelector", {});
   }
-  
+
   function queryMenu(query) {
     var menu = localState.menu;
     if(!menu) return {};
@@ -219,24 +460,24 @@ module drawn {
       ]}
     ]};
   }
-  
+
   function clearMenuOnClick(e, elem) {
     if(e.target === e.currentTarget) {
       dispatch("clearMenu", {});
-    } 
+    }
   }
-  
+
   function queryTools(query) {
     return {c: "toolbox", children: [
       {c: "tool entity", text: "entity", click: addEntity},
       {c: "tool attribute", text: "attribute"},
     ]};
   }
-  
+
   function addEntity(e, elem) {
     dispatch("addEntity", {queryId: elem.queryId});
   }
-  
+
   function toPosition(node) {
     var random = {left: 100 + Math.random() * 300, top: 100 + Math.random() * 300};
     var key = node.id;
@@ -245,10 +486,10 @@ module drawn {
     }
     return positions[key];
   }
-  
+
   function joinToEntityInfo(view) {
     var nodes = [];
-    var entLookup = {};
+    var nodeLookup = {};
     var sourceAttributeLookup = {};
     var constraints = [];
     var links = [];
@@ -262,10 +503,11 @@ module drawn {
           constraints.push(constraint);
         }
         var isRel = true;
-        var curRel; 
+        var curRel;
         if(isRel) {
           curRel = {type: "relationship", source: source, id: sourceId};
           nodes.push(curRel);
+          nodeLookup[curRel.id] = curRel;
         }
         for(var field of ixer.select("field", {view: sourceViewId})) {
           var attribute: any = {type: "attribute", field: field["field: field"], source};
@@ -277,37 +519,39 @@ module drawn {
           }
           sourceAttributeLookup[`${sourceId}|${attribute.field}`] = attribute;
           nodes.push(attribute);
+          nodeLookup[attribute.id] = attribute;
           var link: any = {left: attribute, right: attribute.relationship};
           if(attribute.entity && code.name(attribute.field) !== attribute.entity) {
             link.name = code.name(attribute.field);
           }
           links.push(link);
         }
-        
+
       } else {
-        //@TODO: draw calculations somehow
         for(var constraint of sourceConstraints) {
           constraints.push(constraint);
         }
-        var curPrim: any = {type: "primitive", source: sourceId, primitive: source["source: source view"]};
+        var curPrim: any = {type: "primitive", sourceId: sourceId, primitive: source["source: source view"]};
         curPrim.id = `${curPrim.source}|${curPrim.primitive}`;
-        
-        for(var field of ixer.select("field", {view: sourceViewId})) {
-          if(field.kind === "output") {
-            var attribute: any = {type: "attribute", field: field["field: field"], source, id: `${sourceId}|${field["field: field"]}`};
+        let fields = ixer.select("field", {view: sourceViewId});
+        for(var field of fields) {
+          // if(field["field: kind"] === "output") {
+            var attribute: any = {type: "attribute", field: field["field: field"], source, isInput: field["field: kind"] !== "output", id: `${sourceId}|${field["field: field"]}`};
             sourceAttributeLookup[attribute.id] = attribute;
             nodes.push(attribute);
+            nodeLookup[attribute.id] = attribute;
             var link: any = {left: attribute, right: curPrim};
             link.name = code.name(attribute.field);
             links.push(link);
-          } else {
-            //if it's not an output field then it's an input which we represent as links
-            sourceAttributeLookup[`${sourceId}|${field["field: field"]}`] = {type: "primitive-input", primitive: curPrim, input: true, field: field["field: field"], source, id: `${sourceId}|${field["field: field"]}`};  
-          }
-          
+          // } else {
+          //   //if it's not an output field then it's an input which we represent as links
+          //   sourceAttributeLookup[`${sourceId}|${field["field: field"]}`] = {type: "primitive-input", primitive: curPrim, input: true, field: field["field: field"], source, id: `${sourceId}|${field["field: field"]}`};
+          // }
+
         }
-        
+
         nodes.push(curPrim);
+        nodeLookup[curPrim.id] = curPrim;
       }
     }
     //look through the constraints, and dedupe overlapping attributes
@@ -322,7 +566,7 @@ module drawn {
         //this constraint represents an attribute relationship
         var leftAttr = sourceAttributeLookup[leftId];
         var rightAttr = sourceAttributeLookup[rightId];
-        
+
         //We need to handle constant relationships differently
         if(!leftAttr || !rightAttr) {
           var constant, attr;
@@ -338,7 +582,7 @@ module drawn {
           }
           continue;
         }
-        
+
         if(leftAttr.input || rightAttr.input) {
           var left, right, name;
           if(leftAttr.input) {
@@ -356,7 +600,8 @@ module drawn {
         } else if(op === "=") {
           var rightIx = nodes.indexOf(rightAttr);
           if(rightIx > -1) {
-            nodes.splice(rightIx, 1);  
+            nodes.splice(rightIx, 1);
+            delete nodeLookup[rightAttr.id];
           }
           //fix links as well
           var neueLeftId = leftId;
@@ -365,17 +610,29 @@ module drawn {
             neueLeftId = mappedEntities[neueLeftId];
           }
           if(rightId !== neueLeftId) {
-            mappedEntities[rightId] = neueLeftId;  
+            mappedEntities[rightId] = neueLeftId;
           }
           var neueLeft = sourceAttributeLookup[neueLeftId];
+          if(neueLeft.mergedAttributes === undefined) {
+            neueLeft.mergedAttributes = [];
+          }
+          neueLeft.mergedAttributes.push(rightAttr);
           if(rightAttr.entity && neueLeft.entity === undefined) {
             neueLeft.entity = rightAttr.entity;
+          }
+
+          //if they have different names then we need to name the link
+          var newName = undefined;
+          if(code.name(neueLeft.field) !== code.name(rightAttr.field)) {
+            newName = code.name(rightAttr.field);
           }
           for(var link of links) {
             if(link.left === rightAttr) {
               link.left = neueLeft;
+              if(newName) link.name = newName;
             } else if(link.right === rightAttr) {
               link.right = neueLeft;
+              if(newName) link.name = newName;
             }
           }
         } else {
@@ -384,17 +641,19 @@ module drawn {
           links.push({left: leftAttr, right: attrRelationship});
           links.push({left: rightAttr, right: attrRelationship});
           nodes.push(attrRelationship);
+          nodeLookup[attrRelationship.id] = attrRelationship;
         }
     }
-    return {nodes, links};
+    return {nodes, links, nodeLookup};
   }
-  
+
   function tableToEntityInfo(view) {
     var nodes = [];
     var links = [];
-    return {nodes, links};
+    let nodeLookup = {};
+    return {nodes, links, nodeLookup};
   }
-  
+
   function viewToEntityInfo(view) {
     if(view["view: kind"] === "join") {
       return joinToEntityInfo(view);
@@ -402,7 +661,7 @@ module drawn {
       return tableToEntityInfo(view);
     }
   }
-  
+
   function queryCanvas(view) {
     var {nodes, links} = viewToEntityInfo(view);
     var items = [];
@@ -435,8 +694,9 @@ module drawn {
         var toLeft = leftItem.left + 30;
         var toTop = leftItem.top + 13;
       }
-      var d = `M ${fromLeft} ${fromTop} L ${toLeft} ${toTop}`;
       var color = "#bbb";
+      var d = `M ${fromLeft} ${fromTop} L ${toLeft} ${toTop}`;
+
       var pathId = `${link.right.id} ${link.left.id} path`;
       linkItems.push({svg: true, id: pathId, t: "path", d: d, c: "link", stroke: color, strokeWidth: 1});
       linkItems.push({svg: true, t: "text", children: [
@@ -448,33 +708,48 @@ module drawn {
       {c: "nodes", children: items}
     ]};
   }
-  
+
   function showCanvasMenu(e, elem) {
     e.preventDefault();
     dispatch("showMenu", {x: e.clientX, y: e.clientY, contentFunction: canvasMenu});
   }
-  
+
   function canvasMenu() {
-    return {text: "menu here!"};
+    var views = ixer.select("view", {}).filter((view) => {
+      return !api.code.hasTag(view["view: view"], "hidden"); // && view["view: kind"] !== "primitive";
+    }).map((view) => {
+      return {c: "item relationship", text: code.name(view["view: view"]), click: addViewToQuery, viewId: view["view: view"]};
+    });
+    return {c: "view-selector", children: views};
   }
-  
+
+  function addViewToQuery(e, elem) {
+    var menu = localState.menu;
+    dispatch("clearMenu", {}, true);
+    dispatch("addViewToQuery", {viewId: elem.viewId, top: menu.top, left: menu.left});
+  }
+
   function clearCanvasSelection(e, elem) {
     if(e.target === e.currentTarget && !e.shiftKey) {
       dispatch("clearSelection", {});
     }
   }
-  
+
   function nodeItem(curNode): any {
-    var editable = localState.editingEntity === curNode.id;
-    var selected = localState.selectedEntities.indexOf(curNode.id) > -1;
+    var content = [];
+    var selected = localState.selectedNodes[curNode.id];
+    var overlapped = localState.overlappingNodes[curNode.id];
     var klass = "";
-    if(editable) {
-      klass += " editing";
-    }
     if(selected) {
       klass += " selected";
+      if(curNode.mergedAttributes) {
+        content.push({node: curNode, click: unjoinNodes, text: "unmerge"});
+      }
     }
-    var text, adornment;
+    if(overlapped) {
+      klass += " overlapped";
+    }
+    var text;
     klass += ` ${curNode.type}`;
     if (curNode.entity !== undefined) {
       text = curNode.entity;
@@ -487,91 +762,76 @@ module drawn {
       text = code.name(curNode.field);
       if (curNode.filter) {
         var op = curNode.filter.operation;
-        adornment = {c: "attribute-filter", children: [
+        content.push({c: "attribute-filter", children: [
           op !== "=" ? {c: "operation", text: curNode.filter.operation} : undefined,
-          {c: "value", text: curNode.filter.value} 
-        ]}
+          {c: "value", text: curNode.filter.value}
+        ]});
       }
     } else if (curNode.type === "attribute-relationship") {
       text = curNode.operation;
     }
     var {left, top} = toPosition(curNode);
-    var elem = {c: "item " + klass, contentEditable: editable, input: updateEntityName, blur: stopEditingEntity, 
-                mousedown: selectEntity, dblclick: openNode, draggable: true, dragstart: storeDragOffset, 
-                drag: setNodePosition, dragend: finalNodePosition, node: curNode, top: top, left: left, text: text}
-    if(adornment) {
-      elem.top = undefined;
-      elem.left = undefined;
-      return {c: "item-wrapper", top: top, left: left, node: curNode, children: [
-        elem,
-        adornment
-      ]};
-    }
-    return elem;
+    var elem = {c: "item " + klass, selected: selected,
+                mousedown: selectNode, dblclick: openNode, draggable: true, dragstart: storeDragOffset,
+                drag: setNodePosition, dragend: finalNodePosition, node: curNode, text: text}
+    content.unshift(elem);
+    return {c: "item-wrapper", top: top, left: left, node: curNode, selected: selected, children: content};
   }
-  
-  function selectEntity(e, elem) {
-    dispatch("selectEntity", {queryEntityId: elem.queryEntityId, shiftKey: e.shiftKey});
+
+  function unjoinNodes(e, elem) {
+    dispatch("unjoinNodes", {fromNode: elem.node});
   }
-  
+
+  function selectNode(e, elem) {
+    dispatch("selectNode", {node: elem.node, shiftKey: e.shiftKey});
+  }
+
   function openNode(e, elem) {
     if(elem.node.type === "relationship") {
       dispatch("openRelationship", {node: elem.node});
     }
   }
-  
-  function editEntityName(e, elem) {
-    dispatch("editEntityName", {queryEntityId: elem.queryEntityId});
-  }
-  
-  function updateEntityName(e, elem) {
-    dispatch("updateEntityName", {queryEntityId: elem.queryEntityId, value: e.currentTarget.textContent});
-  }
-  
-  function stopEditingEntity(e, elem) {
-    dispatch("stopEditingEntity", {});
-  }
-  
+
   function storeDragOffset(e, elem) {
     var rect = e.currentTarget.getBoundingClientRect();
     e.dataTransfer.setDragImage(document.getElementById("clear-pixel"),0,0);
     dispatch("setDragOffset", {x: e.clientX - rect.left, y: e.clientY - rect.top});
   }
-  
+
   function finalNodePosition(e, elem) {
     dispatch("finalNodePosition", {node: elem.node});
   }
-  
+
   function setNodePosition(e, elem) {
     if(e.clientX === 0 && e.clientY === 0) return;
     dispatch("setNodePosition", {
-      node: elem.node, 
+      node: elem.node,
       pos: {left: e.clientX - api.localState.dragOffsetX, top: e.clientY - api.localState.dragOffsetY}
     });
   }
- 
+
   //---------------------------------------------------------
   // auto completer
   //---------------------------------------------------------
-  
+
   interface completion {
     text: string;
     value: any;
     class?: string;
   }
-  
+
   function autoCompleter(completions: completion[]) {
     var items = completions.map(completionItem);
   }
-  
+
   function completionItem(completion: completion) {
     return {c: `completion-item ${completion.class}`, text: completion.text, key: completion.value};
   }
-  
+
   //---------------------------------------------------------
   // keyboard handling
   //---------------------------------------------------------
-  
+
   document.addEventListener("keydown", function(e) {
     var KEYS = api.KEYS;
     //Don't capture keys if they are
@@ -588,20 +848,20 @@ module drawn {
     } else if((e.metaKey || e.ctrlKey) && e.keyCode === KEYS.Z) {
       dispatch("undo", null);
     }
-    
+
     //remove
     if(e.keyCode === KEYS.BACKSPACE) {
-      dispatch("remove", null);
+      dispatch("removeSelection", null);
       e.preventDefault();
-    } 
-    
+    }
+
 
   });
-  
+
   //---------------------------------------------------------
   // Go!
   //---------------------------------------------------------
-  
+
   client.afterInit(() => {
     loadPositions();
     render();

@@ -7,8 +7,10 @@ body { font-family:"Avenir"; }
 .query-item .query { width:300px; height:300px; overflow:hidden; border-radius:5px; border:1px solid #ddd; }
 .query-item .query-name { position:absolute; padding:10px; color: #888; }
 
-.menu-shade { z-index: 100; position:absolute; top:0; bottom:0; left:0; right:0; background:rgba(0,0,0,0.2); }
+.menu-shade { z-index: 100; position:absolute; top:0; bottom:0; left:0; right:0; background:rgba(255,255,255,0.9); }
 .menu { position:absolute; }
+
+.query-name { display:block; position:absolute; left:80px; top:10px; z-index:10; right:10px; }
 
 .toolbox { flex:none; padding:10px; z-index:10; }
 .toolbox .tool { align-items: center; justify-content:center; }
@@ -21,13 +23,17 @@ body { font-family:"Avenir"; }
 .canvas .item-wrapper { position:absolute; flex-direction:row; }
 .canvas .item-wrapper .item { position: static; z-index:2; }
 .canvas .attribute-filter { align-items: center; justify-content: center; min-width: 40px; min-height: 20px; background:rgba(230,230,255,1); border: 1px solid rgba(194, 186, 242, 1); padding: 3px 10px; color:#555; border-radius:10px; margin-left:-15px; padding-left:15px; z-index:1; }
-.canvas .item { flex:none; position: absolute; align-items: center; justify-content: center; min-width: 40px; min-height: 20px; padding: 3px 10px; border-radius:2px; }
+.canvas .item, .view-selector .item { flex:none; position: absolute; align-items: center; justify-content: center; min-width: 40px; min-height: 20px; padding: 3px 10px; border-radius:2px; }
 .canvas .item.selected { border: 1px solid black; }
-.canvas .relationship { background: rgba(205,205,205,1); color: #555; padding:3px; font-size:9pt; border-radius:50px; }
+.canvas .item.overlapped { background: red; }
+.canvas .relationship, .view-selector .relationship { background: rgba(205,205,205,1); color: #555; padding:3px; font-size:9pt; border-radius:50px; }
 .canvas .primitive { background: rgba(105,105,205,1); color: white; padding:3px; font-size:9pt; border-radius:50px; }
 .canvas .attribute { background:white; border: 1px solid rgba(205,205,205,1); padding: 3px 10px; color:#555; border-radius:10px; }
 .canvas .attribute-relationship { background: rgba(205,205,205,1); color: #555; padding:3px; font-size:9pt; border-radius:50px; }
 .canvas .entity { background: rgba(187,85,85,1); color: white; border-color: rgba(187,85,85,1); }
+
+.view-selector { flex-direction:row; flex-wrap:wrap; }
+.view-selector .item { position:static; margin:10px;}
 
 .links text {text-anchor: middle; font-size:10pt; fill: #999; }
 
