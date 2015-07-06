@@ -121,6 +121,9 @@ module microReact {
           if(cur.c !== prev.c) div.setAttributeNS(null, "class", cur.c);  
           if(cur.x !== prev.x)  div.setAttributeNS(null, "x", cur.x);
           if(cur.y !== prev.y) div.setAttributeNS(null, "y", cur.y);
+          if(cur.cx !== prev.cx)  div.setAttributeNS(null, "cx", cur.cx);
+          if(cur.cy !== prev.cy) div.setAttributeNS(null, "cy", cur.cy);
+          if(cur.r !== prev.r) div.setAttributeNS(null, "r", cur.r);
           if(cur.height !== prev.height) div.setAttributeNS(null, "height", cur.height);
           if(cur.width !== prev.width)  div.setAttributeNS(null, "width", cur.width);
           if(cur.xlinkhref !== prev.xlinkhref)  div.setAttributeNS('http://www.w3.org/1999/xlink', "href", cur.xlinkhref);
@@ -244,10 +247,14 @@ module microReact {
            && (curB.svg === undefined || (
                curA.x === curB.x
                && curA.y === curB.y
+               && curA.cx === curB.cx
+               && curA.cy === curB.cy
+               && curA.r === curB.r
                && curA.d === curB.d
                && curA.fill === curB.fill
                && curA.stroke === curB.stroke
                && curA.strokeWidth === curB.strokeWidth
+               && curA.xlinkhref !== curB.xlinkhref
                ))) {
           continue;
         }
