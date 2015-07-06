@@ -243,12 +243,13 @@ module tableEditor {
       });
     }
     //   trs.push({id: "spacer2", c: "spacer", height: Math.max(totalRows - start - numRows, 0) * itemHeight});
-    return {
-      c: "table", children: [
+    return {c: "table-container", children: [
+      {c: "table", children: [
         { c: "headers", children: ths },
         { c: "rows", children: trs }
       ]
-    };
+      }
+    ]};
   }
 
   
