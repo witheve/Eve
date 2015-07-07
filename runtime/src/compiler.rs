@@ -127,8 +127,13 @@ fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("select*", vec!["view", "field", "variable"]),
     ("provides", vec!["view", "source", "variable"]),
     ("requires", vec!["view", "source", "variable"]),
-    ("source schedule*", vec!["view", "source", "ix"]),
-    ("variable schedule", vec!["view", "variable", "ix"]),
+    ("unscheduled source", vec!["view", "source"]),
+    ("schedulable source", vec!["view", "source"]),
+    ("unschedulable source", vec!["view", "source", "variable"]),
+    ("source schedule* (pre)", vec!["view", "pass", "source"]),
+    ("source schedule*", vec!["view", "pass", "source", "ix"]),
+    ("variable schedule (pre)", vec!["view", "pass", "variable"]),
+    ("variable schedule", vec!["view", "pass", "variable", "ix"]),
     ]
 }
 
@@ -227,10 +232,10 @@ macro_rules! find {
 
 macro_rules! dont_find {
     ($table:expr, [ $($pattern:tt),* ]) => {{
-        find!($table, [ $($pattern),* ]).len() == 0
+        $table.dont_find(vec![$( find_pattern!( $pattern ) ),*])
     }};
     ($table:expr, [ $($pattern:tt),* ], $body:expr) => {{
-        if dont_find!($table, [ $($pattern),* ]).len() {
+        if dont_find!($table, [ $($pattern),* ]) {
             $body
         }
     }};
@@ -353,7 +358,7 @@ fn plan(flow: &Flow) {
     ordinal_by(&*view_schedule_pre_table, &mut *view_schedule_table, &[]);
 
     let mut source_dependency_table = flow.overwrite_output("source dependency");
-    find!(constraint_ish_table, [_, constraint, left_source, left_field, operation, right_source, right_field], {
+    find!(constraint_ish_table, [_, _, left_source, left_field, operation, right_source, right_field], {
         if operation.as_str() == "="
         && left_source != right_source {
             find!(field_table, [_, (= left_field), left_kind], {
@@ -383,7 +388,7 @@ fn plan(flow: &Flow) {
         });
     });
     // every pair of source/field constrained by "=" are equal
-    find!(constraint_ish_table, [view, constraint, left_source, left_field, operation, right_source, right_field], {
+    find!(constraint_ish_table, [view, _, left_source, left_field, operation, right_source, right_field], {
         if operation.as_str() == "="
         && left_source.as_str() != "constant"
         && right_source.as_str() != "constant" {
@@ -415,7 +420,7 @@ fn plan(flow: &Flow) {
     });
 
     let mut constant_ish_table = flow.overwrite_output("constant*");
-    find!(constraint_ish_table, [view, constraint, left_source, left_field, operation, right_source, right_field], {
+    find!(constraint_ish_table, [view, _, left_source, left_field, operation, right_source, right_field], {
         match (operation.as_str(), left_source.as_str(), right_source.as_str()) {
             ("=", "constant", "constant") => panic!("Why would you do that..."),
             ("=", "constant", _) => {
@@ -458,6 +463,70 @@ fn plan(flow: &Flow) {
             });
         });
     });
+
+    let mut source_schedule_ish_pre_table = flow.overwrite_output("source schedule* (pre)");
+    let mut variable_schedule_pre_table = flow.overwrite_output("variable schedule (pre)");
+    let mut pass = 0;
+    {
+        find!(constant_ish_table, [variable, _], {
+            find!(variable_table, [view, (= variable)], {
+                insert!(variable_schedule_pre_table, [view, Float(pass as f64), variable]);
+            });
+        });
+        pass += 1;
+    }
+    loop {
+        let mut unscheduled_source_table = flow.overwrite_output("unscheduled source");
+        find!(source_table, [view, source, _], {
+            dont_find!(source_schedule_ish_pre_table, [(= view), _, (= source)], {
+                insert!(unscheduled_source_table, [view, source]);
+            });
+        });
+
+        let mut unschedulable_source_table = flow.overwrite_output("unschedulable source");
+        find!(unscheduled_source_table, [view, source], {
+            find!(requires_table, [(= view), (= source), variable], {
+                dont_find!(variable_schedule_pre_table, [(= view), _, (= variable)], {
+                    insert!(unschedulable_source_table, [view, source, variable]);
+                });
+            });
+        });
+
+        let mut schedulable_source_table = flow.overwrite_output("schedulable source");
+        find!(unscheduled_source_table, [view, source], {
+            dont_find!(unschedulable_source_table, [(= view), (= source), _], {
+                insert!(schedulable_source_table, [view, source]);
+            })
+        });
+
+        find!(schedulable_source_table, [view, source], {
+            insert!(source_schedule_ish_pre_table, [view, Float(pass as f64), source]);
+        });
+
+        find!(schedulable_source_table, [view, source], {
+            find!(provides_table, [(= view), (= source), variable], {
+                dont_find!(variable_schedule_pre_table, [(= view), _, (= variable)], {
+                    insert!(variable_schedule_pre_table, [view, Float(pass as f64), variable]);
+                });
+            });
+        });
+
+        if schedulable_source_table.index.len() == 0 {
+            if unscheduled_source_table.index.len() == 0 {
+                break; // done
+            } else {
+                panic!("Cannot schedule {:?}", unschedulable_source_table.iter().collect::<Vec<_>>());
+            }
+        }
+
+        pass += 1;
+    }
+
+    let mut source_schedule_ish_table = flow.overwrite_output("source schedule*");
+    ordinal_by(&*source_schedule_ish_pre_table, &mut *source_schedule_ish_table, &["view"]);
+
+    let mut variable_schedule_table = flow.overwrite_output("variable schedule");
+    ordinal_by(&*variable_schedule_pre_table, &mut *variable_schedule_table, &["view"]);
 }
 
 // TODO really need to define physical ordering of fields in each view

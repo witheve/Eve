@@ -130,6 +130,15 @@ impl Relation {
         ).collect()
     }
 
+    pub fn dont_find<'a>(&self, pattern: Vec<&Value>) -> bool {
+        assert_eq!(self.fields.len(), pattern.len());
+        !self.index.iter().any(|values|
+            pattern.iter().zip(values.iter()).all(|(pattern_value, value)|
+                (**pattern_value == Value::Null) || (*pattern_value == value)
+                )
+            )
+    }
+
     pub fn find_maybe(&self, name: &str, value: &Value) -> Option<Tuple> {
         let ix = self.names.iter().position(|my_name| &my_name[..] == name).unwrap();
         self.index.iter().find(|values| values[ix] == *value).map(|values|
