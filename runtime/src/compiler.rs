@@ -118,12 +118,17 @@ fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("view layout", vec!["view", "source", "field", "ix"]),
 
     // temp state for transition to variables
+    ("constraint*", vec!["view", "constraint", "left source", "right source", "operation", "left field", "right field"]),
     ("eq link", vec!["view", "left source", "left field", "right source", "right field"]),
     ("eq group", vec!["view", "left source", "left field", "right source", "right field"]),
     ("variable", vec!["view", "variable"]),
     ("binding", vec!["variable", "source", "field"]),
     ("constant*", vec!["variable", "value"]),
     ("select*", vec!["view", "field", "variable"]),
+    ("provides", vec!["view", "source", "variable"]),
+    ("requires", vec!["view", "source", "variable"]),
+    ("source schedule*", vec!["view", "source", "ix"]),
+    ("variable schedule", vec!["view", "variable", "ix"]),
     ]
 }
 
@@ -220,9 +225,28 @@ macro_rules! find {
     }};
 }
 
+macro_rules! dont_find {
+    ($table:expr, [ $($pattern:tt),* ]) => {{
+        find!($table, [ $($pattern),* ]).len() == 0
+    }};
+    ($table:expr, [ $($pattern:tt),* ], $body:expr) => {{
+        if dont_find!($table, [ $($pattern),* ]).len() {
+            $body
+        }
+    }};
+}
+
 macro_rules! insert {
     ($table:expr, [ $($value:expr),* ]) => {{
         $table.index.insert(vec![$( { let value: Value = $value.to_owned(); value } ),*])
+    }}
+}
+
+macro_rules! remove {
+    ($table:expr, [ $($pattern:tt),* ]) => {{
+        for row in find!($table, [ $($pattern),* ]).into_iter() {
+            $table.index.remove(row);
+        }
     }}
 }
 
@@ -291,6 +315,17 @@ fn plan(flow: &Flow) {
     let aggregate_limit_to_table = flow.get_output("aggregate limit to");
     let select_table = flow.get_output("select");
 
+    let mut constraint_ish_table = flow.overwrite_output("constraint*");
+    find!(constraint_table, [constraint, view], {
+        find!(constraint_operation_table, [(= constraint), operation], {
+            find!(constraint_left_table, [(= constraint), left_source, left_field], {
+                find!(constraint_right_table, [(= constraint), right_source, right_field], {
+                    insert!(constraint_ish_table, [view, constraint, left_source, left_field, operation, right_source, right_field]);
+                });
+            });
+        });
+    });
+
     let mut view_dependency_pre_table = flow.overwrite_output("view dependency (pre)");
     find!(view_table, [view, _], {
         find!(source_table, [(= view), source, source_view], {
@@ -318,27 +353,22 @@ fn plan(flow: &Flow) {
     ordinal_by(&*view_schedule_pre_table, &mut *view_schedule_table, &[]);
 
     let mut source_dependency_table = flow.overwrite_output("source dependency");
-    find!(constraint_operation_table, [constraint, operation], {
-        if operation.as_str() == "=" {
-            find!(constraint_left_table, [(= constraint), left_source, left_field], {
-                find!(constraint_right_table, [(= constraint), right_source, right_field], {
-                    if left_source != right_source {
-                        find!(field_table, [_, (= left_field), left_kind], {
-                            if left_kind.as_str() != "output" {
-                                insert!(source_dependency_table,
-                                    [left_source, left_field, right_source, right_field]
-                                    );
-                            }
-                        });
-                        find!(field_table, [_, (= right_field), right_kind], {
-                            if right_kind.as_str() != "output" {
-                                insert!(source_dependency_table,
-                                    [right_source, right_field, left_source, left_field]
-                                    );
-                            }
-                        });
-                    }
-                });
+    find!(constraint_ish_table, [_, constraint, left_source, left_field, operation, right_source, right_field], {
+        if operation.as_str() == "="
+        && left_source != right_source {
+            find!(field_table, [_, (= left_field), left_kind], {
+                if left_kind.as_str() != "output" {
+                    insert!(source_dependency_table,
+                        [left_source, left_field, right_source, right_field]
+                        );
+                }
+            });
+            find!(field_table, [_, (= right_field), right_kind], {
+                if right_kind.as_str() != "output" {
+                    insert!(source_dependency_table,
+                        [right_source, right_field, left_source, left_field]
+                        );
+                }
             });
         }
     });
@@ -353,18 +383,12 @@ fn plan(flow: &Flow) {
         });
     });
     // every pair of source/field constrained by "=" are equal
-    find!(constraint_operation_table, [constraint, operation], {
-        if operation.as_str() == "=" {
-            find!(constraint_table, [(= constraint), view], {
-                find!(constraint_left_table, [(= constraint), left_source, left_field], {
-                    find!(constraint_right_table, [(= constraint), right_source, right_field], {
-                        if (left_source.as_str() != "constant") && (right_source.as_str() != "constant") {
-                            insert!(eq_link_table, [view, left_source, left_field, right_source, right_field]);
-                            insert!(eq_link_table, [view, right_source, right_field, left_source, left_field]);
-                        }
-                    });
-                });
-            });
+    find!(constraint_ish_table, [view, constraint, left_source, left_field, operation, right_source, right_field], {
+        if operation.as_str() == "="
+        && left_source.as_str() != "constant"
+        && right_source.as_str() != "constant" {
+            insert!(eq_link_table, [view, left_source, left_field, right_source, right_field]);
+            insert!(eq_link_table, [view, right_source, right_field, left_source, left_field]);
         }
     });
     // equality is transitive
@@ -391,34 +415,26 @@ fn plan(flow: &Flow) {
     });
 
     let mut constant_ish_table = flow.overwrite_output("constant*");
-    find!(constraint_operation_table, [constraint, operation], {
-        if operation.as_str() == "=" {
-            find!(constraint_table, [(= constraint), view], {
-                find!(constraint_left_table, [(= constraint), left_source, left_field], {
-                    find!(constraint_right_table, [(= constraint), right_source, right_field], {
-                        match (left_source.as_str(), right_source.as_str()) {
-                            ("constant", "constant") => panic!("Why would you do that..."),
-                            ("constant", _) => {
-                                find!(constant_table, [(= left_field), value], {
-                                    find!(eq_group_table, [(= view), (= right_source), (= right_field), group_source, group_field], {
-                                        let variable = &string!("{}->{}->{}", view.as_str(), group_source.as_str(), group_field.as_str());
-                                        insert!(constant_ish_table, [variable, value]);
-                                    });
-                                });
-                            }
-                            (_, "constant") => {
-                                find!(constant_table, [(= right_field), value], {
-                                    find!(eq_group_table, [(= view), (= left_source), (= left_field), group_source, group_field], {
-                                        let variable = &string!("{}->{}->{}", view.as_str(), group_source.as_str(), group_field.as_str());
-                                        insert!(constant_ish_table, [variable, value]);
-                                    });
-                                });
-                            }
-                            (_, _) => (),
-                        }
+    find!(constraint_ish_table, [view, constraint, left_source, left_field, operation, right_source, right_field], {
+        match (operation.as_str(), left_source.as_str(), right_source.as_str()) {
+            ("=", "constant", "constant") => panic!("Why would you do that..."),
+            ("=", "constant", _) => {
+                find!(constant_table, [(= left_field), value], {
+                    find!(eq_group_table, [(= view), (= right_source), (= right_field), group_source, group_field], {
+                        let variable = &string!("{}->{}->{}", view.as_str(), group_source.as_str(), group_field.as_str());
+                        insert!(constant_ish_table, [variable, value]);
                     });
                 });
-            });
+            }
+            ("=", _, "constant") => {
+                find!(constant_table, [(= right_field), value], {
+                    find!(eq_group_table, [(= view), (= left_source), (= left_field), group_source, group_field], {
+                        let variable = &string!("{}->{}->{}", view.as_str(), group_source.as_str(), group_field.as_str());
+                        insert!(constant_ish_table, [variable, value]);
+                    });
+                });
+            }
+            _ => (),
         }
     });
 
@@ -427,6 +443,19 @@ fn plan(flow: &Flow) {
         find!(eq_group_table, [(= view), (= source), (= source_field), group_source, group_field], {
             let variable = &string!("{}->{}->{}", view.as_str(), group_source.as_str(), group_field.as_str());
             insert!(select_ish_table, [view, view_field, variable]);
+        });
+    });
+
+    let mut provides_table = flow.overwrite_output("provides");
+    let mut requires_table = flow.overwrite_output("requires");
+    find!(variable_table, [view, variable], {
+        find!(binding_table, [(= variable), source, field], {
+            find!(field_table, [_, (= field), field_kind], {
+                match field_kind.as_str() {
+                    "output" => insert!(provides_table, [view, source, variable]),
+                    _ => insert!(requires_table, [view, source, variable]),
+                };
+            });
         });
     });
 }
