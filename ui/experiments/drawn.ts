@@ -96,9 +96,10 @@ module drawn {
     }
   }
 
-  localState.drawnUiActiveId = "da7f9321-a4c9-4292-8cf6-5174f3ed2f11";
-// localState.drawnUiActiveId = "block field";
-localState.drawnUiActiveId = "e10b9868-b2e8-4942-9ead-1e2830046d4d";
+// localState.drawnUiActiveId = "da7f9321-a4c9-4292-8cf6-5174f3ed2f11";
+localState.drawnUiActiveId = "block field";
+// localState.drawnUiActiveId = "e10b9868-b2e8-4942-9ead-1e2830046d4d";
+// localState.drawnUiActiveId = false;
 
   //---------------------------------------------------------
   // Node helpers
@@ -435,7 +436,7 @@ localState.drawnUiActiveId = "e10b9868-b2e8-4942-9ead-1e2830046d4d";
     var view = ixer.select("view", {view: viewId});
     if(!view || !view.length) return;
     return {c: "query", children: [
-      {c: "query-name", contentEditable: true, blur: setQueryName, viewId: viewId, text: code.name(viewId)},
+      {c: "query-name-input", contentEditable: true, blur: setQueryName, viewId: viewId, text: code.name(viewId)},
       queryMenu(view[0]),
       queryCanvas(view[0]),
       localState.drawnUiActiveId ? {c: "button", text: "back", click: gotoQuerySelector} : undefined,
@@ -532,10 +533,9 @@ localState.drawnUiActiveId = "e10b9868-b2e8-4942-9ead-1e2830046d4d";
           constraints.push(constraint);
         }
         var curPrim: any = {type: "primitive", sourceId: sourceId, primitive: source["source: source view"]};
-        curPrim.id = `${curPrim.source}|${curPrim.primitive}`;
+        curPrim.id = `${curPrim.sourceId}|${curPrim.primitive}`;
         let fields = ixer.select("field", {view: sourceViewId});
         for(var field of fields) {
-          // if(field["field: kind"] === "output") {
             var attribute: any = {type: "attribute", field: field["field: field"], source, isInput: field["field: kind"] !== "output", id: `${sourceId}|${field["field: field"]}`};
             sourceAttributeLookup[attribute.id] = attribute;
             nodes.push(attribute);
@@ -543,107 +543,55 @@ localState.drawnUiActiveId = "e10b9868-b2e8-4942-9ead-1e2830046d4d";
             var link: any = {left: attribute, right: curPrim};
             link.name = code.name(attribute.field);
             links.push(link);
-          // } else {
-          //   //if it's not an output field then it's an input which we represent as links
-          //   sourceAttributeLookup[`${sourceId}|${field["field: field"]}`] = {type: "primitive-input", primitive: curPrim, input: true, field: field["field: field"], source, id: `${sourceId}|${field["field: field"]}`};
-          // }
-
         }
 
         nodes.push(curPrim);
         nodeLookup[curPrim.id] = curPrim;
       }
     }
-    //look through the constraints, and dedupe overlapping attributes
-    var mappedEntities = {};
-    for(var constraint of constraints) {
-      var constraintId = constraint["constraint: constraint"];
-      var op = ixer.select("constraint operation", {constraint: constraintId})[0]["constraint operation: operation"];
-      var leftSide = ixer.select("constraint left", {constraint: constraintId})[0];
-      var rightSide = ixer.select("constraint right", {constraint: constraintId})[0];
-      var rightId = `${rightSide["constraint right: right source"]}|${rightSide["constraint right: right field"]}`;
-      var leftId = `${leftSide["constraint left: left source"]}|${leftSide["constraint left: left field"]}`;
-        //this constraint represents an attribute relationship
-        var leftAttr = sourceAttributeLookup[leftId];
-        var rightAttr = sourceAttributeLookup[rightId];
-
-        //We need to handle constant relationships differently
-        if(!leftAttr || !rightAttr) {
-          var constant, attr;
-          if(leftAttr) {
-            attr = leftAttr;
-            constant = ixer.select("constant", {constant: rightSide["constraint right: right field"]})[0];
-          } else {
-            attr = rightAttr;
-            constant = ixer.select("constant", {constant: leftSide["constraint left: left field"]})[0];
-          }
-          if(constant !== undefined) {
-            attr.filter = {operation: op, value: constant["constant: value"]};
-          }
-          continue;
-        }
-
-        if(leftAttr.input || rightAttr.input) {
-          var left, right, name;
-          if(leftAttr.input) {
-            left = rightAttr;
-            right = leftAttr.primitive;
-            name = code.name(leftAttr.field);
-          } else {
-            left = leftAttr;
-            right = rightAttr.primitive;
-            name = code.name(rightAttr.field);
-          }
-          var primLink = {left, right, name};
-          links.push(primLink);
-        //If this is an equality then these nodes are the "same" and we need to remove the right-side.
-        } else if(op === "=") {
-          var rightIx = nodes.indexOf(rightAttr);
-          if(rightIx > -1) {
-            nodes.splice(rightIx, 1);
-            delete nodeLookup[rightAttr.id];
-          }
-          //fix links as well
-          var neueLeftId = leftId;
-          //check if left has already been remapped too
-          while(mappedEntities[neueLeftId]) {
-            neueLeftId = mappedEntities[neueLeftId];
-          }
-          if(rightId !== neueLeftId) {
-            mappedEntities[rightId] = neueLeftId;
-          }
-          var neueLeft = sourceAttributeLookup[neueLeftId];
-          if(neueLeft.mergedAttributes === undefined) {
-            neueLeft.mergedAttributes = [];
-          }
-          neueLeft.mergedAttributes.push(rightAttr);
-          if(rightAttr.entity && neueLeft.entity === undefined) {
-            neueLeft.entity = rightAttr.entity;
-          }
-
-          //if they have different names then we need to name the link
-          var newName = undefined;
-          if(code.name(neueLeft.field) !== code.name(rightAttr.field)) {
-            newName = code.name(rightAttr.field);
+    
+    //look through the variables and dedupe attributes
+    var variables = ixer.select("variable", {view: view["view: view"]});
+    for(var variable of variables) {
+      let variableId = variable["variable: variable"];
+      let bindings = ixer.select("binding", {variable: variableId});
+      if(!bindings.length) continue;
+      let entity = undefined;
+      let mergedAttributes = [];
+      let attribute = nodeLookup[`${bindings[0]["binding: source"]}|${bindings[0]["binding: field"]}`];
+      // @HACK: when removing things we need to remove variables.
+      if(!attribute) continue;
+      for(var binding of bindings) {
+        // @TODO: which attribute should we choose to show?
+        let curNode = nodeLookup[`${binding["binding: source"]}|${binding["binding: field"]}`];
+        if(!curNode) continue;
+        if(curNode.entity) entity = curNode.entity;
+        if(curNode !== attribute) {
+          let ix = nodes.indexOf(curNode);
+          mergedAttributes.push(curNode);
+          if(ix > -1) {
+            nodes.splice(ix, 1);
+            delete nodeLookup[curNode.id];
           }
           for(var link of links) {
-            if(link.left === rightAttr) {
-              link.left = neueLeft;
-              if(newName) link.name = newName;
-            } else if(link.right === rightAttr) {
-              link.right = neueLeft;
-              if(newName) link.name = newName;
+            if(link.left === curNode) {
+              link.left = attribute;
+              // if(newName) link.name = newName;
+            } else if(link.right === curNode) {
+              link.right = attribute;
+              // if(newName) link.name = newName;
             }
           }
-        } else {
-          //otherwise we create a relationship between the two attributes
-          var attrRelationship = {type: "attribute-relationship", operation: op, id: constraintId};
-          links.push({left: leftAttr, right: attrRelationship});
-          links.push({left: rightAttr, right: attrRelationship});
-          nodes.push(attrRelationship);
-          nodeLookup[attrRelationship.id] = attrRelationship;
         }
+      }
+      attribute.mergedAttributes = mergedAttributes.length ? mergedAttributes : undefined;
+      attribute.entity = entity;
+      let constants = ixer.select("constant*", {variable: variableId}) 
+      for(var constant of constants) {
+        attribute.filter = {operation: "=", value: constant["constant*: value"]};
+      }
     }
+    
     return {nodes, links, nodeLookup};
   }
 
