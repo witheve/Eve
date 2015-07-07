@@ -15,9 +15,7 @@ url = "*"
 mime = "*"
 cbor = "*"
 conduit-mime-types = "*"
-
-[dependencies.websocket]
-git = "https://github.com/jamii/rust-websocket.git"
+websocket = "*"
 
 [profile.release]
 debug = true
