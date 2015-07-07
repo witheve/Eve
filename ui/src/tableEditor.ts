@@ -109,7 +109,7 @@ module tableEditor {
           }}),
           api.insert("view", {view: info.itemId + ": insert", kind: "union", dependents: {
             "display name": {name: "insert"},
-            tag: [{tag: "local"}],
+            tag: [{tag: "local"}, {tag: "remote"}], //@FIXME: remove w/ port to tags
             block: {query: queryId, block: info.itemId + ": insert block"},
             source: {source: info.itemId + ": insert source", "source view": info.itemId + ": placeholder"},
             field: fields.map(function(fieldId) {
@@ -121,7 +121,7 @@ module tableEditor {
           }}),
           api.insert("view", {view: info.itemId + ": remove", kind: "union", dependents: {
             "display name": {name: "remove"},
-            tag: [{tag: "local"}],
+            tag: [{tag: "local"}, {tag: "remote"}], //@FIXME: remove w/ port to tags
             block: {query: queryId, block: info.itemId + ": remove block"},
             source: {source: info.itemId + ": remove source", "source view": info.itemId + ": placeholder"},
             field: fields.map(function(fieldId) {
@@ -140,7 +140,9 @@ module tableEditor {
           }), {view: info.itemId}),
           api.insert("select", fields.map(function(fieldId) {
             return {"view field": fieldId, source: "remove", "source field": fieldId + ": remove"};
-          }), {view: info.itemId})
+          }), {view: info.itemId}),
+          api.remove("tag", {view: info.itemId, tag: "editor"}),
+          api.insert("tag", {view: info.itemId, tag: "remote"}) //@FIXME: remove w/ port to tags
         ]);
         eveEditor.dispatch("selectItem", {itemId: queryId});
         break;
