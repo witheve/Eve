@@ -25,16 +25,7 @@ module itemList {
         localState.showMenu = false;
         dispatch("selectItem", info, true);
         break;
-      case "selectItem":
-        localState.activeItem = info.itemId;
-        var type = ixer.index("editor item to type")[info.itemId];
-        if (type === "table") {
-          localState.adderRows = [[], []];
-        } else if (type === "ui") {
-          var layer = ixer.index("parentLayerToLayers")[info.itemId][0];
-          localState.uiActiveLayer = layer[1];
-        }
-        break;
+
       default:
         redispatched = true;
         eveEditor.dispatch(event, info);
