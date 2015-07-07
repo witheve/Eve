@@ -6,11 +6,12 @@ body { font-family:"Avenir"; }
 .query-item { margin: 10px; }
 .query-item .query { width:300px; height:300px; overflow:hidden; border-radius:5px; border:1px solid #ddd; }
 .query-item .query-name { position:absolute; padding:10px; color: #888; }
+.query-item .query-name-input { display:none; }
 
 .menu-shade { z-index: 100; position:absolute; top:0; bottom:0; left:0; right:0; background:rgba(255,255,255,0.9); }
 .menu { position:absolute; }
 
-.query-name { display:block; position:absolute; left:80px; top:10px; z-index:10; right:10px; }
+.query-name-input { display:block; position:absolute; left:80px; top:10px; z-index:10; right:10px; }
 
 .toolbox { flex:none; padding:10px; z-index:10; }
 .toolbox .tool { align-items: center; justify-content:center; }

@@ -19,9 +19,7 @@ module client {
   export function nukeTable(viewId) { // from orbit
     var fieldIds = api.code.sortedViewFields(viewId);
     var toRemove = api.ixer.facts(viewId);
-    var displayOrderIndex = api.ixer.index("display order");
-    sendToServer({ changes: [[viewId, fieldIds, [], toRemove],
-                             ["display order", api.ixer.getFields("display order"), []]]}, true);
+    sendToServer({ changes: [[viewId, fieldIds, [], toRemove]]}, true);
   }
 
 

@@ -116,6 +116,14 @@ fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // view layout determines the order in which source/field pairs are stored while computing the view
     // `ix` is an integer, the index of the field
     ("view layout", vec!["view", "source", "field", "ix"]),
+
+    // temp state for transition to variables
+    ("eq link", vec!["view", "left source", "left field", "right source", "right field"]),
+    ("eq group", vec!["view", "left source", "left field", "right source", "right field"]),
+    ("variable", vec!["view", "variable"]),
+    ("binding", vec!["variable", "source", "field"]),
+    ("constant*", vec!["variable", "value"]),
+    ("select*", vec!["view", "field", "variable"]),
     ]
 }
 
@@ -218,11 +226,13 @@ macro_rules! insert {
     }}
 }
 
-fn group_by(input_table: &Relation, key_fields: &[&str]) -> Vec<Vec<Vec<Value>>> {
-    for (ix, key_field) in key_fields.iter().enumerate() {
-        assert_eq!(&input_table.names[ix][..], *key_field);
+fn check_fields(table: &Relation, fields: Vec<&&str>) {
+    for (ix, field) in fields.iter().enumerate() {
+        assert_eq!(&table.names[ix][..], **field);
     }
-    let key_len = key_fields.len();
+}
+
+fn group_by(input_table: &Relation, key_len: usize) -> Vec<Vec<Vec<Value>>> {
     let mut groups = Vec::new();
     match input_table.index.iter().next() {
         Some(row) => {
@@ -244,13 +254,23 @@ fn group_by(input_table: &Relation, key_fields: &[&str]) -> Vec<Vec<Vec<Value>>>
 }
 
 fn ordinal_by(input_table: &Relation, output_table: &mut Relation, key_fields: &[&str]) {
-    for group in group_by(input_table, key_fields).into_iter() {
+    check_fields(input_table, key_fields.iter().collect());
+    for group in group_by(input_table, key_fields.len()).into_iter() {
         let mut ix = 0;
         for mut row in group.into_iter() {
             row.push(Value::Float(ix as f64));
             output_table.index.insert(row);
             ix += 1;
         }
+    }
+}
+
+fn min_by(input_table: &Relation, output_table: &mut Relation, key_fields: &[&str], val_fields: &[&str]) {
+    check_fields(input_table, key_fields.iter().chain(val_fields.iter()).collect());
+    let val_range = key_fields.len()..key_fields.len()+val_fields.len();
+    for group in group_by(input_table, key_fields.len()).into_iter() {
+        let min = group.iter().min_by(|row| &row[val_range.clone()]).unwrap();
+        output_table.index.insert(min.clone());
     }
 }
 
@@ -321,6 +341,93 @@ fn plan(flow: &Flow) {
                 });
             });
         }
+    });
+
+    let mut eq_link_table = flow.overwrite_output("eq link");
+    // every source/field is equal to itself
+    find!(view_table, [view, _], {
+        find!(source_table, [(= view), source, source_view], {
+            find!(field_table, [(= source_view), field, _], {
+                insert!(eq_link_table, [view, source, field, source, field]);
+            });
+        });
+    });
+    // every pair of source/field constrained by "=" are equal
+    find!(constraint_operation_table, [constraint, operation], {
+        if operation.as_str() == "=" {
+            find!(constraint_table, [(= constraint), view], {
+                find!(constraint_left_table, [(= constraint), left_source, left_field], {
+                    find!(constraint_right_table, [(= constraint), right_source, right_field], {
+                        if (left_source.as_str() != "constant") && (right_source.as_str() != "constant") {
+                            insert!(eq_link_table, [view, left_source, left_field, right_source, right_field]);
+                            insert!(eq_link_table, [view, right_source, right_field, left_source, left_field]);
+                        }
+                    });
+                });
+            });
+        }
+    });
+    // equality is transitive
+    loop {
+        let mut changed = false;
+        let eq_link_table_clone = eq_link_table.clone();
+        find!(eq_link_table_clone, [view, left_source, left_field, mid_source, mid_field], {
+            find!(eq_link_table_clone, [(= view), (= mid_source), (= mid_field), right_source, right_field], {
+                changed = changed || insert!(eq_link_table, [view, left_source, left_field, right_source, right_field]);
+            });
+        });
+        if !changed { break; }
+    }
+
+    let mut eq_group_table = flow.overwrite_output("eq group");
+    min_by(&*eq_link_table, &mut *eq_group_table, &["view", "left source", "left field"], &["right source", "right field"]);
+
+    let mut variable_table = flow.overwrite_output("variable");
+    let mut binding_table = flow.overwrite_output("binding");
+    find!(eq_group_table, [view, source, field, group_source, group_field], {
+        let variable = &string!("{}->{}->{}", view.as_str(), group_source.as_str(), group_field.as_str());
+        insert!(variable_table, [view, variable]);
+        insert!(binding_table, [variable, source, field]);
+    });
+
+    let mut constant_ish_table = flow.overwrite_output("constant*");
+    find!(constraint_operation_table, [constraint, operation], {
+        if operation.as_str() == "=" {
+            find!(constraint_table, [(= constraint), view], {
+                find!(constraint_left_table, [(= constraint), left_source, left_field], {
+                    find!(constraint_right_table, [(= constraint), right_source, right_field], {
+                        match (left_source.as_str(), right_source.as_str()) {
+                            ("constant", "constant") => panic!("Why would you do that..."),
+                            ("constant", _) => {
+                                find!(constant_table, [(= left_field), value], {
+                                    find!(eq_group_table, [(= view), (= right_source), (= right_field), group_source, group_field], {
+                                        let variable = &string!("{}->{}->{}", view.as_str(), group_source.as_str(), group_field.as_str());
+                                        insert!(constant_ish_table, [variable, value]);
+                                    });
+                                });
+                            }
+                            (_, "constant") => {
+                                find!(constant_table, [(= right_field), value], {
+                                    find!(eq_group_table, [(= view), (= left_source), (= left_field), group_source, group_field], {
+                                        let variable = &string!("{}->{}->{}", view.as_str(), group_source.as_str(), group_field.as_str());
+                                        insert!(constant_ish_table, [variable, value]);
+                                    });
+                                });
+                            }
+                            (_, _) => (),
+                        }
+                    });
+                });
+            });
+        }
+    });
+
+    let mut select_ish_table = flow.overwrite_output("select*");
+    find!(select_table, [view, view_field, source, source_field], {
+        find!(eq_group_table, [(= view), (= source), (= source_field), group_source, group_field], {
+            let variable = &string!("{}->{}->{}", view.as_str(), group_source.as_str(), group_field.as_str());
+            insert!(select_ish_table, [view, view_field, variable]);
+        });
     });
 }
 
