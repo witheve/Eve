@@ -66,6 +66,25 @@ pub struct Join {
 }
 
 #[derive(Clone, Debug)]
+pub enum Input {
+    Primitive(Primitive),
+    View(usize),
+}
+
+#[derive(Clone, Debug)]
+pub struct Source {
+    input: Input,
+    bindings: Vec<usize>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Join2 {
+    pub constants: Vec<Value>,
+    pub sources: Vec<Source>,
+    pub select: Vec<usize>,
+}
+
+#[derive(Clone, Debug)]
 pub struct Reducer {
     pub primitive: Primitive,
     pub arguments: Vec<usize>,
@@ -96,6 +115,7 @@ pub enum View {
     Union(Union),
     Join(Join),
     Aggregate(Aggregate),
+    Join2(Join2),
 }
 
 fn push_all<'a>(state: &mut Vec<&'a Value>, input: &'a Vec<Value>) {
@@ -251,6 +271,7 @@ impl View {
                 }
                 Some(output)
             }
+            View::Join2(ref join2) => unimplemented!(),
         }
     }
 }

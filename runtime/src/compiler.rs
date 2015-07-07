@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use value::{Value, Tuple};
 use relation::{Relation, IndexSelect, ViewSelect, mapping, with_mapping};
-use view::{View, Table, Union, Join, JoinSource, Constraint, ConstraintOp, Aggregate, Direction, Reducer};
+use view::{View, Table, Union, Join, JoinSource, Input, Source, Join2, Constraint, ConstraintOp, Aggregate, Direction, Reducer};
 use flow::{Node, Flow};
 use primitive;
 use primitive::Primitive;
@@ -206,8 +206,8 @@ fn schema() -> Vec<(&'static str, Vec<&'static str>)> {
 
 macro_rules! find_pattern {
     ( (= $name:expr) ) => {{ $name }};
-    ( _ ) => {{ &Null }};
-    ( $name:ident ) => {{ &Null }};
+    ( _ ) => {{ &Value::Null }};
+    ( $name:ident ) => {{ &Value::Null }};
 }
 
 macro_rules! find_binding {
@@ -527,6 +527,43 @@ fn plan(flow: &Flow) {
 
     let mut variable_schedule_table = flow.overwrite_output("variable schedule");
     ordinal_by(&*variable_schedule_pre_table, &mut *variable_schedule_table, &["view"]);
+}
+
+fn create(flow: &Flow) -> Flow {
+    let mut nodes = Vec::new();
+    let mut dirty = BitSet::new();
+    let mut outputs = Vec::new();
+
+    find!(flow.get_output("node layout"), [view_ix, view, kind], {
+        nodes.push(Node{
+            id: view.as_str().to_owned(),
+            view: match kind.as_str() {
+                "join" => View::Join2(Join2{
+                    constants: vec![],
+                    sources: vec![],
+                    select: vec![],
+                }),
+                _ => unimplemented!(),
+            },
+            upstream: vec![],
+            downstream: vec![],
+        });
+        outputs.push(RefCell::new(Relation::new(
+            view.as_str().to_owned(),
+            vec![],
+            vec![],
+            )));
+    });
+
+    // TODO
+    // fill in fields and names in output
+    // fill in constants in join
+    // fill in sources in join
+    // fill in bindings in sources
+    // fill in select in join
+    // fill in downstream
+
+    unimplemented!();
 }
 
 // TODO really need to define physical ordering of fields in each view
