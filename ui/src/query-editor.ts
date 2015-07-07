@@ -144,16 +144,18 @@ module queryEditor {
         if(info.isUnion) {
           var sources = ixer.select("source", {view: info.viewId}) || [];
           var numSources = sources.reduce(function(memo, source) {
-            return (source.source !== info.sourceId) ? memo + 1 : memo;
+            return (source["source: source"] !== info.sourceId) ? memo + 1 : memo;
           }, 1);
           var fields = ixer.select("field", {view: info.viewId}) || [];
           var numFields = fields.reduce(function(memo, field) {
-            return (field.field !== info.fieldId) ? memo + 1 : memo;
+            return (field["field: field"] !== info.fieldId) ? memo + 1 : memo;
           }, 1);
           var selects = ixer.select("select", {view: info.viewId}) || [];
           var numSelects = selects.reduce(function(memo, select) {
-            return (select.source !== info.sourceId || select["view field"] !== info.fieldId) ? memo + 1 : memo;
+            return (select["select: source"] !== info.sourceId || select["select: view field"] !== info.fieldId) ? memo + 1 : memo;
           }, 1);
+          
+          console.log(numSelects, "=", numFields, "*", numSources);
           
           if(numSelects !== numFields * numSources) {
             sendToServer = false;
@@ -361,11 +363,19 @@ module queryEditor {
   //---------------------------------------------------------
 
   export function queryWorkspace(queryId) {
-    return eveEditor.genericWorkspace("query", queryId,
-                            {c: "query-editor",
-                             children: [
-                               editor(queryId)
-                             ]});
+    var isStateQuery = false;
+    if(queryId.substr(-13) === ": state query") { // @FIXME: hacky
+      isStateQuery = true;
+    }
+    return eveEditor.genericWorkspace({
+      itemId: queryId,
+      klass: "query",
+      name: (isStateQuery ? code.name(queryId.substr(0, queryId.length - 13)) + " (state query)" : undefined),
+      content: {c: "query-editor",
+                children: [
+                  editor(queryId, isStateQuery)
+                ]}
+    });
   }
 
   //---------------------------------------------------------
@@ -410,8 +420,8 @@ module queryEditor {
     return { t: "select", c: "input", key: key, input: input, focus: tableEditor.storeInitialInput, blur: blur, children: children };
   }
   
-  function editor(queryId) {
-    var blocks = ixer.index("query to blocks")[queryId] || [];
+  function editor(queryId:string, isStateQuery?:boolean) {
+    var blocks = (ixer.index("query to blocks")[queryId] || []).slice();
     var items = [];
     var order = ixer.index("display order");
     blocks.sort(function(a, b) {
@@ -1204,7 +1214,9 @@ module queryEditor {
 
   function setMappingField(e, elem) {
     var info = localState.queryEditorInfo;
-    dispatch("addViewSelection", {viewId: info.viewId, sourceFieldId: elem.key, sourceId: info.sourceId, fieldId: info.fieldId, isUnion: true});
+    var sourceId = elem.key.source[1];
+    var fieldId = elem.key.field[1];
+    dispatch("addViewSelection", {viewId: info.viewId, sourceFieldId: fieldId, sourceId: sourceId, fieldId: info.fieldId, isUnion: true});
     e.stopPropagation();
   }
 

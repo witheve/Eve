@@ -122,6 +122,14 @@ module eveEditor {
         diffs.push(["display name", "inserted", [id, info.value]],
                    ["display name", "removed", info.initial])
         break;
+      case "selectItem":
+        localState.activeItem = info.itemId;
+        var type = ixer.index("editor item to type")[info.itemId];
+        if (type === "ui") {
+          var layer = ixer.index("parentLayerToLayers")[info.itemId][0];
+          localState.uiActiveLayer = layer[1];
+        }
+        break;
       case "undo":
         storeEvent = false;
         diffs = scaryUndoEvent();
@@ -172,6 +180,10 @@ module eveEditor {
   function root() {
     var itemId = <string>code.activeItemId() || "";
     var type = ixer.index("editor item to type")[itemId];
+    
+    if(itemId.substr(-13) === ": state query") { // @FIXME: hacky.
+      type = "query";
+    }
 
     var workspace;
     if(type === "query") {
@@ -189,13 +201,16 @@ module eveEditor {
     ]};
   }
   
-  export function genericWorkspace(klass, itemId, content) {
-    var title = tableEditor.input(code.name(itemId), itemId, tableEditor.rename, tableEditor.rename);
+  export function genericWorkspace({itemId, content, controls = [], klass = "", name = undefined}) {
+    var title = tableEditor.input(name || code.name(itemId), itemId, tableEditor.rename, tableEditor.rename);
     title.c += " title";
     return {id: "workspace",
             c: "workspace-container " + klass,
             children: [
-              title,
+              {c: "header", children: [
+                title,
+                {c: "controls", children: controls}
+              ]},
               {c: "content", children: [content]}
             ]};
   }

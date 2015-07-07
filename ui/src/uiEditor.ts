@@ -452,9 +452,10 @@ module uiEditor {
     if (localState.uiPreview) {
       canvas = canvasPreview();
     }
-    return eveEditor.genericWorkspace("query",
-      componentId,
-      {
+    return eveEditor.genericWorkspace({
+      klass: "query",
+      itemId: componentId,
+      content: {
         c: "ui-editor",
         children: [
           layersBox(componentId, layers, activeLayer),
@@ -465,7 +466,8 @@ module uiEditor {
             ]
           },
         ]
-      });
+      }
+    });
   }
 
   function canvasPreview() {

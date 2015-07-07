@@ -1,7 +1,6 @@
 /// <reference path="api.ts" />
 /// <reference path="query-editor.ts" />
 module tableEditor {
-  declare var api;
   declare var uuid;
   declare var DEBUG;
   var ixer = api.ixer;
@@ -14,7 +13,7 @@ module tableEditor {
   // Table workspace
   //---------------------------------------------------------
   
-  function dispatch(event: string, info: any) {
+  function dispatch(event: string, info: any, rentrant?: boolean) {
      //         console.info("[dispatch]", evt, info);
     var storeEvent = true;
     var sendToServer = true;
@@ -64,7 +63,7 @@ module tableEditor {
         }));
         break;
       case "addRow":
-        var ix = ixer.facts(info.table).length || 0;
+        var ix:any = ixer.facts(info.table).length || 0;
         diffs.push([info.table, "inserted", info.neue],
                    ["display order", "inserted", [info.table + JSON.stringify(info.neue), ix]]);
         break;
@@ -96,12 +95,61 @@ module tableEditor {
       case "setTableSort":
         localState.sort[info.table] = {field: info.field, dir: info.dir};
         break;
+      case "createTableStateQuery": // @NOTE: This has to be entirely nuked in the event that a field is added.
+        var queryId = info.itemId + ": state query";
+        var fields = api.ixer.getFields(info.itemId);
+        diffs = api.toDiffs([
+          api.insert("view", {view: info.itemId + ": placeholder", kind: "table", dependents: {
+            "display name": {name: "placeholder"},
+            field: fields.map(function(fieldId) {
+              return {field: fieldId + ": placeholder", kind: "output", dependents: {
+                "display name": {name: api.code.name(fieldId)}
+              }}
+            })
+          }}),
+          api.insert("view", {view: info.itemId + ": insert", kind: "union", dependents: {
+            "display name": {name: "insert"},
+            tag: [{tag: "local"}],
+            block: {query: queryId, block: info.itemId + ": insert block"},
+            source: {source: info.itemId + ": insert source", "source view": info.itemId + ": placeholder"},
+            field: fields.map(function(fieldId) {
+              return {field: fieldId + ": insert", kind: "output", dependents: {
+                "display name": {name: api.code.name(fieldId)},
+                select: {source: info.itemId + ": insert source", "source field": fieldId + ": placeholder"}
+              }}
+            })
+          }}),
+          api.insert("view", {view: info.itemId + ": remove", kind: "union", dependents: {
+            "display name": {name: "remove"},
+            tag: [{tag: "local"}],
+            block: {query: queryId, block: info.itemId + ": remove block"},
+            source: {source: info.itemId + ": remove source", "source view": info.itemId + ": placeholder"},
+            field: fields.map(function(fieldId) {
+              return {field: fieldId + ": remove", kind: "output", dependents: {
+                "display name": {name: api.code.name(fieldId)},
+                select: {source: info.itemId + ": remove source", "source field": fieldId + ": placeholder"}
+              }}
+            })
+          }}),
+          api.insert("source", [
+            {source: "insert", "source view": info.itemId + ": insert"},
+            {source: "remove", "source view": info.itemId + ": remove"}            
+          ], {view: info.itemId}),
+          api.insert("select", fields.map(function(fieldId) {
+            return {"view field": fieldId, source: "insert", "source field": fieldId + ": insert"};
+          }), {view: info.itemId}),
+          api.insert("select", fields.map(function(fieldId) {
+            return {"view field": fieldId, source: "remove", "source field": fieldId + ": remove"};
+          }), {view: info.itemId})
+        ]);
+        eveEditor.dispatch("selectItem", {itemId: queryId});
+        break;
       default:
         redispatched = true;
         eveEditor.dispatch(event, info);
         break;
     }
-    if(!redispatched) {
+    if(!redispatched && !rentrant) {
       eveEditor.executeDispatch(diffs, storeEvent, sendToServer);  
     }
   }
@@ -150,14 +198,21 @@ module tableEditor {
       var bIx = order[tableId + JSON.stringify(b)] || 0;
       return aIx - bIx;
     });
-    return eveEditor.genericWorkspace("",
-      tableId,
-      {
+    return eveEditor.genericWorkspace({
+      itemId: tableId,
+      content: {
         c: "table-editor",
         children: [
           virtualizedTable(tableId, fields, rows, true)
         ]
-      });
+      }, 
+      controls: [
+        {class: "control", text:"+/-", click: openTableQuery, itemId: tableId}
+      ]});
+  }
+  
+  function openTableQuery(evt, elem) {
+    dispatch("createTableStateQuery", elem);
   }
 
   export function rename(e, elem, sendToServer) {
@@ -233,7 +288,7 @@ module tableEditor {
       trs.push({c: "row", children: tds });
     })
     if (isEditable) {
-      var adderRows = localState.adderRows;
+      var adderRows = ensureAdderRows(id);
       adderRows.forEach(function(cur, rowNum) {
         var tds = [];
         for (var i = 0, len = fields.length; i < len; i++) {
@@ -252,6 +307,27 @@ module tableEditor {
     ]};
   }
 
+  function ensureAdderRows(viewId) {
+    if(!localState.adderRows || localState.adderItemId !== viewId) {
+      localState.adderRows = [];
+      localState.adderItemId = viewId;
+    }
+    if(localState.adderRows.length >= 2) { return localState.adderRows; }
+        
+    var fieldIds = api.ixer.getFields(viewId);
+    var autoIncrement = api.code.hasTag(fieldIds[0], "auto increment");
+    if(autoIncrement) { 
+      var nextId = (api.ixer.facts(viewId, true) || []).length + 1 + localState.adderRows.length;
+    }   
+    while(localState.adderRows.length < 2) {
+      if(autoIncrement) {
+        localState.adderRows.push([nextId++]);
+      } else {
+        localState.adderRows.push([]);
+      }      
+    }
+    return localState.adderRows;
+  }
   
   function setTableSort(evt, elem) {
     var sort = localState.sort[elem.tableId];
@@ -297,15 +373,6 @@ module tableEditor {
     });
     if(!hasAtLeastOneValue) return;
     localState.adderRows.splice(key.priority, 1);
-    if (localState.adderRows.length <= 1) {
-      var fieldIds = api.ixer.getFields(key.view);
-      if(api.code.hasTag(fieldIds[0], "auto increment")) {
-        var id = (api.ixer.facts(key.view, true) || []).length + 2 + localState.adderRows.length;
-        localState.adderRows.push([id]);
-      } else {
-        localState.adderRows.push([]);
-      }
-    }
     dispatch("addRow", { table: key.view, neue: row });
   }
 
