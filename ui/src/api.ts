@@ -23,7 +23,14 @@ module api {
   if(!window.DEBUG) {
     window.DEBUG = {RECEIVE: 0,
                     SEND: 0,
-                    INDEXER: 0};
+                    INDEXER: 0,
+                    goToView: function(viewId) {
+                      var block = api.retrieve("block", {view: viewId})[0];
+                      var queryId = block["query"];
+                      api.localState.activeItem = queryId;
+                      eveEditor.render();
+                      return api.code.name(queryId) + " --> " + api.code.name(viewId);
+                    }};
   }
 
   export var KEYS = {
