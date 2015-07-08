@@ -176,7 +176,11 @@ module queryEditor {
             sendToServer = false;
           }
         }
-        diffs = api.toDiffs([neueSource].concat(autoJoinConstraints));
+        var changes = [neueSource].concat(autoJoinConstraints);
+        if(info.kind) {
+          changes.push(api.remove("source", {view: info.viewId, source: info.kind}));
+        }
+        diffs = api.toDiffs(changes);
         break;
       case "removeViewSource":
         diffs = api.toDiffs(api.remove("source", {view: info.viewId, source: info.sourceId}));
