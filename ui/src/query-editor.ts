@@ -90,7 +90,7 @@ module queryEditor {
             tag: [{tag: "local"}, {tag: "remote"}],
             block: {query: queryId},
             source: (info.sourceId ? {
-              "source view": info.sourceId
+              "source view": api.diff2.source(info.sourceId)
             } : undefined)
           }
         }));                                                             
@@ -110,6 +110,7 @@ module queryEditor {
             source: [
               {source: "inner", "source view": "empty view"},
               {source: "outer", "source view": "empty view"},
+              api.diff2.source(info.kind)
             ]
           }
         }));
@@ -165,10 +166,7 @@ module queryEditor {
         }
         break;
       case "addViewSource":
-        var neueSource = api.insert("source", {
-          "source view": info.sourceId,
-          source: info.kind
-        }, {view: info.viewId});
+        var neueSource = api.insert("source", api.diff2.source(info.sourceId, info.kind), {view: info.viewId});
         var autoJoinConstraints = api.diff2.autojoin(info.viewId, neueSource.content["source"], info.sourceId);
         
         var viewKind = (api.ixer.selectOne("view", {view: info.viewId}) || {})["view: kind"];
