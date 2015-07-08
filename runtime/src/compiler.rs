@@ -86,13 +86,14 @@ fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     vec![
     // a view dependency exists whenever the contents of one view depend directly on another
     // `ix` is an integer identifying the position in the downstream views input list
-    ("view dependency", vec!["downstream view", "source", "upstream view", "ix"]),
+    // TODO can remove `source` once old compiler is totally gone
     ("view dependency (pre)", vec!["downstream view", "source", "upstream view"]),
+    ("view dependency", vec!["downstream view", "source", "upstream view", "ix"]),
 
     // the view schedule determines what order views will be executed in
     // `ix` is an integer. views with lower ixes are executed first.
-    ("view schedule", vec!["view", "ix"]),
     ("view schedule (pre)", vec!["view"]),
+    ("view schedule", vec!["view", "ix"]),
 
     // a source dependency exists whenever one source must be calculated before another
     // eg arguments to a primitive view
@@ -134,6 +135,9 @@ fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("source schedule*", vec!["view", "pass", "source", "ix"]),
     ("variable schedule (pre)", vec!["view", "pass", "variable"]),
     ("variable schedule", vec!["view", "pass", "variable", "ix"]),
+    ("compiler index layout", vec!["view", "field", "ix"]),
+    ("default index layout (pre)", vec!["view", "field"]),
+    ("default index layout", vec!["view", "field", "ix"]),
     ]
 }
 
@@ -300,6 +304,15 @@ fn min_by(input_table: &Relation, output_table: &mut Relation, key_fields: &[&st
     for group in group_by(input_table, key_fields.len()).into_iter() {
         let min = group.iter().min_by(|row| &row[val_range.clone()]).unwrap();
         output_table.index.insert(min.clone());
+    }
+}
+
+fn union(input_tables: &[&Relation], output_table: &mut Relation) {
+    for input_table in input_tables.iter() {
+        assert_eq!(input_table.names, output_table.names);
+        for row in input_table.index.iter() {
+            output_table.index.insert(row.clone());
+        }
     }
 }
 
@@ -527,6 +540,26 @@ fn plan(flow: &Flow) {
 
     let mut variable_schedule_table = flow.overwrite_output("variable schedule");
     ordinal_by(&*variable_schedule_pre_table, &mut *variable_schedule_table, &["view"]);
+
+    let mut compiler_index_layout_table = flow.overwrite_output("compiler index layout");
+    for (view, names) in schema().into_iter() {
+        for (ix, name) in names.into_iter().enumerate() {
+            insert!(compiler_index_layout_table, [string!("{}", view), string!("{}: {}", view, name), Float(ix as f64)]);
+        }
+    }
+
+    let mut default_index_layout_pre_table = flow.overwrite_output("default index layout (pre)");
+    find!(field_table, [view, field, _], {
+        dont_find!(compiler_index_layout_table, [(= view), _, _], {
+            insert!(default_index_layout_pre_table, [view, field]);
+        });
+    });
+
+    let mut default_index_layout_table = flow.overwrite_output("default index layout");
+    ordinal_by(&*default_index_layout_pre_table, &mut *default_index_layout_table, &["view"]);
+
+    let mut index_layout_table = flow.overwrite_output("index layout");
+    union(&[&*compiler_index_layout_table, &*default_index_layout_table], &mut *index_layout_table);
 }
 
 fn create(flow: &Flow) -> Flow {
@@ -548,6 +581,7 @@ fn create(flow: &Flow) -> Flow {
             upstream: vec![],
             downstream: vec![],
         });
+        dirty.insert(view_ix.as_usize());
         outputs.push(RefCell::new(Relation::new(
             view.as_str().to_owned(),
             vec![],
@@ -676,39 +710,6 @@ fn calculate_constraint_schedule(flow: &Flow) {
         }
     }
     overwrite_compiler_view(flow, "constraint schedule", items);
-}
-
-fn calculate_index_layout(flow: &Flow) {
-    let mut items = Vec::new();
-    let schema = schema();
-    let view_table = flow.get_output("view");
-    let field_table = flow.get_output("field");
-    for view in view_table.iter() {
-        match schema.iter().find(|&&(view_id, _)| view_id == view["view"].as_str()) {
-            Some(&(_, ref fields)) => {
-                // force compiler fields to be stored in the order we wrote the fields
-                for (ix, field) in fields.iter().enumerate() {
-                    items.push(vec![
-                        view["view"].clone(),
-                        string!("{}: {}", view["view"].as_str(), field),
-                        Value::Float(ix as f64),
-                        ]);
-                }
-            }
-            None => {
-                // other fields we just order arbitrarily
-                for (ix, field) in field_table.find_all("view", &view["view"]).iter().enumerate() {
-                    items.push(vec![
-                        view["view"].clone(),
-                        field["field"].clone(),
-                        Value::Float(ix as f64),
-                        ]);
-                }
-
-            }
-        }
-    }
-    overwrite_compiler_view(flow, "index layout", items);
 }
 
 fn calculate_view_reference(flow: &Flow) {
@@ -1193,7 +1194,6 @@ pub fn recompile(old_flow: Flow) -> Flow {
     plan(&old_flow);
     calculate_source_schedule(&old_flow);
     calculate_constraint_schedule(&old_flow);
-    calculate_index_layout(&old_flow);
     calculate_view_reference(&old_flow);
     calculate_view_layout(&old_flow);
     let mut new_flow = create_flow(&old_flow);
