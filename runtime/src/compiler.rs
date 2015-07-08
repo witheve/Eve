@@ -121,6 +121,7 @@ fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // temp state for transition to variables
     ("constraint*", vec!["view", "constraint", "left source", "left field", "operation", "right source", "right field"]),
     ("eq link", vec!["view", "left source", "left field", "right source", "right field"]),
+    ("eq link step", vec!["view", "left source", "left field", "right source", "right field"]),
     ("eq group", vec!["view", "left source", "left field", "right source", "right field"]),
     ("variable", vec!["view", "variable"]),
     ("binding", vec!["variable", "source", "field"]),
@@ -392,14 +393,6 @@ fn plan(flow: &Flow) {
     });
 
     let mut eq_link_table = flow.overwrite_output("eq link");
-    // every source/field is equal to itself
-    find!(view_table, [view, _], {
-        find!(source_table, [(= view), source, source_view], {
-            find!(field_table, [(= source_view), field, _], {
-                insert!(eq_link_table, [view, source, field, source, field]);
-            });
-        });
-    });
     // every pair of source/field constrained by "=" are equal
     find!(constraint_ish_table, [view, _, left_source, left_field, operation, right_source, right_field], {
         if operation.as_str() == "="
@@ -411,15 +404,30 @@ fn plan(flow: &Flow) {
     });
     // equality is transitive
     loop {
-        let mut changed = false;
-        let eq_link_table_clone = eq_link_table.clone();
-        find!(eq_link_table_clone, [view, left_source, left_field, mid_source, mid_field], {
-            find!(eq_link_table_clone, [(= view), (= mid_source), (= mid_field), right_source, right_field], {
-                changed = changed || insert!(eq_link_table, [view, left_source, left_field, right_source, right_field]);
+        let mut eq_link_step_table = flow.overwrite_output("eq link step");
+        find!(eq_link_table, [view, left_source, left_field, mid_source, mid_field], {
+            find!(eq_link_table, [(= view), (= mid_source), (= mid_field), right_source, right_field], {
+                dont_find!(eq_link_table, [(= view), (= left_source), (= left_field), (= right_source), (= right_field)], {
+                    insert!(eq_link_step_table, [view, left_source, left_field, right_source, right_field]);
+                });
             });
         });
-        if !changed { break; }
+        if eq_link_step_table.index.len() > 0 {
+            find!(eq_link_step_table, [view, left_source, left_field, right_source, right_field], {
+                insert!(eq_link_table, [view, left_source, left_field, right_source, right_field]);
+            });
+        } else {
+            break; // done
+        }
     }
+    // every source/field is equal to itself
+    find!(view_table, [view, _], {
+        find!(source_table, [(= view), source, source_view], {
+            find!(field_table, [(= source_view), field, _], {
+                insert!(eq_link_table, [view, source, field, source, field]);
+            });
+        });
+    });
 
     let mut eq_group_table = flow.overwrite_output("eq group");
     min_by(&*eq_link_table, &mut *eq_group_table, &["view", "left source", "left field"], &["right source", "right field"]);
