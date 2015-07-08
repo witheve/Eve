@@ -139,7 +139,12 @@ fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("variable schedule", vec!["view", "ix", "pass", "variable"]),
     ("compiler index layout", vec!["view", "ix", "field", "name"]),
     ("default index layout", vec!["view", "ix", "field", "kind"]),
-    ("output layout", vec!["view ix", "view", "field ix", "field", "name"]),
+
+    // layout for `create`
+    ("output layout", vec!["view ix", "field ix", "field", "name"]),
+    ("number of variables (pre)", vec!["view", "num"]),
+    ("number of variables", vec!["view ix", "num"]),
+    ("constant layout", vec!["view ix", "variable ix", "value"]),
     ]
 }
 
@@ -290,7 +295,7 @@ fn group_by(input_table: &Relation, key_len: usize) -> Vec<Vec<Vec<Value>>> {
 
 fn ordinal_by(input_table: &Relation, output_table: &mut Relation, key_fields: &[&str]) {
     let key_len = key_fields.len();
-    check_fields(input_table, key_fields.into_iter().collect());
+    check_fields(input_table, key_fields.to_owned());
     check_fields(output_table, {
         let mut names = input_table.names.clone();
         names.insert(key_len, "ix".to_owned());
@@ -313,6 +318,22 @@ fn min_by(input_table: &Relation, output_table: &mut Relation, key_fields: &[&st
     for group in group_by(input_table, key_fields.len()).into_iter() {
         let min = group.iter().min_by(|row| &row[val_range.clone()]).unwrap();
         output_table.index.insert(min.clone());
+    }
+}
+
+fn count_by(input_table: &Relation, output_table: &mut Relation, key_fields: &[&str]) {
+    let key_len = key_fields.len();
+    check_fields(input_table, key_fields.to_owned());
+    check_fields(output_table, {
+        let mut names = key_fields.to_owned();
+        names.push(&"num");
+        names
+    });
+    for group in group_by(input_table, key_fields.len()).into_iter() {
+        let count = group.len();
+        let mut row = group[0][0..key_len].to_owned();
+        row.push(Value::Float(count as f64));
+        output_table.index.insert(row);
     }
 }
 
@@ -580,12 +601,35 @@ fn plan(flow: &Flow) {
         });
     });
 
+    // rest is just denormalising for `create`
+
     let mut output_layout_table = flow.overwrite_output("output layout");
     find!(index_layout_table, [view, field_ix, field, name], {
         find!(view_schedule_table, [view_ix, (= view), _], {
-            insert!(output_layout_table, [view_ix, view, field_ix, field, name]);
+            insert!(output_layout_table, [view_ix, field_ix, field, name]);
         });
     });
+
+    let mut number_of_variables_pre_table = flow.overwrite_output("number of variables (pre)");
+    count_by(&*variable_schedule_table, &mut *number_of_variables_pre_table, &["view"]);
+
+    let mut number_of_variables_table = flow.overwrite_output("number of variables");
+    find!(number_of_variables_pre_table, [view, num], {
+        find!(view_schedule_table, [view_ix, (= view), _], {
+            insert!(number_of_variables_table, [view_ix, num]);
+        });
+    });
+
+    let mut constant_layout_table = flow.overwrite_output("constant layout");
+    find!(constant_ish_table, [variable, value], {
+        find!(variable_table, [view, (= variable)], {
+            find!(view_schedule_table, [view_ix, (= view), _], {
+                find!(variable_schedule_table, [(= view), variable_ix, _, (= variable)], {
+                    insert!(constant_layout_table, [view_ix, variable_ix, value]);
+                });
+            })
+        })
+    })
 }
 
 fn push_at<T>(items: &mut Vec<T>, ix: &Value, item: T) {
@@ -598,7 +642,7 @@ fn create(flow: &Flow) -> Flow {
     let mut dirty = BitSet::new();
     let mut outputs = Vec::new();
 
-    find!(flow.get_output("node layout"), [view_ix, view, kind], {
+    find!(flow.get_output("view schedule"), [view_ix, view, kind], {
         nodes.push(Node{
             id: view.as_str().to_owned(),
             view: match kind.as_str() {
@@ -620,14 +664,27 @@ fn create(flow: &Flow) -> Flow {
             )));
     });
 
-    find!(flow.get_output("output layout"), [view_ix, view, field_ix, field, name], {
+    find!(flow.get_output("output layout"), [view_ix, field_ix, field, name], {
         let mut output = outputs[view_ix.as_usize()].borrow_mut();
         push_at(&mut output.fields, field_ix, field.as_str().to_owned());
         push_at(&mut output.names, field_ix, name.as_str().to_owned());
     });
 
+    find!(flow.get_output("number of variables"), [view_ix, num], {
+        match &mut nodes[view_ix.as_usize()].view {
+            &mut View::Join2(ref mut join) => join.constants = vec![Value::Null; num.as_usize()],
+            other => panic!("Should not have variables for {:?}", other),
+        }
+    });
+
+    find!(flow.get_output("constant layout"), [view_ix, variable_ix, value], {
+        match &mut nodes[view_ix.as_usize()].view {
+            &mut View::Join2(ref mut join) => join.constants[variable_ix.as_usize()] = value.clone(),
+            other => panic!("Should not have variables for {:?}", other),
+        }
+    });
+
     // TODO
-    // fill in fields and names in output
     // fill in constants in join
     // fill in sources in join
     // fill in bindings in sources
