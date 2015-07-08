@@ -118,7 +118,7 @@ fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("view layout", vec!["view", "source", "field", "ix"]),
 
     // temp state for transition to variables
-    ("constraint*", vec!["view", "constraint", "left source", "right source", "operation", "left field", "right field"]),
+    ("constraint*", vec!["view", "constraint", "left source", "left field", "operation", "right source", "right field"]),
     ("eq link", vec!["view", "left source", "left field", "right source", "right field"]),
     ("eq group", vec!["view", "left source", "left field", "right source", "right field"]),
     ("variable", vec!["view", "variable"]),
