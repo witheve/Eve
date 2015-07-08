@@ -1,6 +1,7 @@
 use std::collections::BitSet;
 use std::cell::{RefCell, Ref};
 use std::fmt::Debug;
+use std::convert::AsRef;
 
 use value::{Value, Tuple};
 use relation::{Relation, IndexSelect, ViewSelect, mapping, with_mapping};
@@ -88,12 +89,12 @@ fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // `ix` is an integer identifying the position in the downstream views input list
     // TODO can remove `source` once old compiler is totally gone
     ("view dependency (pre)", vec!["downstream view", "source", "upstream view"]),
-    ("view dependency", vec!["downstream view", "source", "upstream view", "ix"]),
+    ("view dependency", vec!["downstream view", "ix", "source", "upstream view"]),
 
     // the view schedule determines what order views will be executed in
     // `ix` is an integer. views with lower ixes are executed first.
-    ("view schedule (pre)", vec!["view"]),
-    ("view schedule", vec!["view", "ix"]),
+    ("view schedule (pre)", vec!["view", "kind"]),
+    ("view schedule", vec!["ix", "view", "kind"]),
 
     // a source dependency exists whenever one source must be calculated before another
     // eg arguments to a primitive view
@@ -109,7 +110,7 @@ fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
 
     // index layout determines the order in which fields are stored in the view index
     // `ix` is an integer, the index of the field
-    ("index layout", vec!["view", "field", "ix"]),
+    ("index layout", vec!["view", "ix", "field"]),
 
     // sources and fields actually used by each view
     ("view reference", vec!["view", "source", "field"]),
@@ -121,6 +122,7 @@ fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // temp state for transition to variables
     ("constraint*", vec!["view", "constraint", "left source", "left field", "operation", "right source", "right field"]),
     ("eq link", vec!["view", "left source", "left field", "right source", "right field"]),
+    ("eq link step", vec!["view", "left source", "left field", "right source", "right field"]),
     ("eq group", vec!["view", "left source", "left field", "right source", "right field"]),
     ("variable", vec!["view", "variable"]),
     ("binding", vec!["variable", "source", "field"]),
@@ -132,12 +134,12 @@ fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("schedulable source", vec!["view", "source"]),
     ("unschedulable source", vec!["view", "source", "variable"]),
     ("source schedule* (pre)", vec!["view", "pass", "source"]),
-    ("source schedule*", vec!["view", "pass", "source", "ix"]),
+    ("source schedule*", vec!["view", "ix", "pass", "source"]),
     ("variable schedule (pre)", vec!["view", "pass", "variable"]),
-    ("variable schedule", vec!["view", "pass", "variable", "ix"]),
-    ("compiler index layout", vec!["view", "field", "ix"]),
+    ("variable schedule", vec!["view", "ix", "pass", "variable"]),
+    ("compiler index layout", vec!["view", "ix", "field"]),
     ("default index layout (pre)", vec!["view", "field"]),
-    ("default index layout", vec!["view", "field", "ix"]),
+    ("default index layout", vec!["view", "ix", "field"]),
     ]
 }
 
@@ -259,9 +261,9 @@ macro_rules! remove {
     }}
 }
 
-fn check_fields(table: &Relation, fields: Vec<&&str>) {
+fn check_fields<S: AsRef<str>>(table: &Relation, fields: Vec<S>) {
     for (ix, field) in fields.iter().enumerate() {
-        assert_eq!(&table.names[ix][..], **field);
+        assert_eq!(&table.names[ix][..], field.as_ref());
     }
 }
 
@@ -287,11 +289,17 @@ fn group_by(input_table: &Relation, key_len: usize) -> Vec<Vec<Vec<Value>>> {
 }
 
 fn ordinal_by(input_table: &Relation, output_table: &mut Relation, key_fields: &[&str]) {
-    check_fields(input_table, key_fields.iter().collect());
-    for group in group_by(input_table, key_fields.len()).into_iter() {
+    let key_len = key_fields.len();
+    check_fields(input_table, key_fields.into_iter().collect());
+    check_fields(output_table, {
+        let mut names = input_table.names.clone();
+        names.insert(key_len, "ix".to_owned());
+        names
+    });
+    for group in group_by(input_table, key_len).into_iter() {
         let mut ix = 0;
         for mut row in group.into_iter() {
-            row.push(Value::Float(ix as f64));
+            row.insert(key_len, Value::Float(ix as f64));
             output_table.index.insert(row);
             ix += 1;
         }
@@ -300,6 +308,7 @@ fn ordinal_by(input_table: &Relation, output_table: &mut Relation, key_fields: &
 
 fn min_by(input_table: &Relation, output_table: &mut Relation, key_fields: &[&str], val_fields: &[&str]) {
     check_fields(input_table, key_fields.iter().chain(val_fields.iter()).collect());
+    check_fields(output_table, input_table.names.clone());
     let val_range = key_fields.len()..key_fields.len()+val_fields.len();
     for group in group_by(input_table, key_fields.len()).into_iter() {
         let min = group.iter().min_by(|row| &row[val_range.clone()]).unwrap();
@@ -363,7 +372,7 @@ fn plan(flow: &Flow) {
     let mut view_schedule_pre_table = flow.overwrite_output("view schedule (pre)");
     find!(view_table, [view, kind], {
         if kind.as_str() != "primitive" {
-            insert!(view_schedule_pre_table, [view]);
+            insert!(view_schedule_pre_table, [view, kind]);
         }
     });
 
@@ -392,14 +401,6 @@ fn plan(flow: &Flow) {
     });
 
     let mut eq_link_table = flow.overwrite_output("eq link");
-    // every source/field is equal to itself
-    find!(view_table, [view, _], {
-        find!(source_table, [(= view), source, source_view], {
-            find!(field_table, [(= source_view), field, _], {
-                insert!(eq_link_table, [view, source, field, source, field]);
-            });
-        });
-    });
     // every pair of source/field constrained by "=" are equal
     find!(constraint_ish_table, [view, _, left_source, left_field, operation, right_source, right_field], {
         if operation.as_str() == "="
@@ -411,15 +412,30 @@ fn plan(flow: &Flow) {
     });
     // equality is transitive
     loop {
-        let mut changed = false;
-        let eq_link_table_clone = eq_link_table.clone();
-        find!(eq_link_table_clone, [view, left_source, left_field, mid_source, mid_field], {
-            find!(eq_link_table_clone, [(= view), (= mid_source), (= mid_field), right_source, right_field], {
-                changed = changed || insert!(eq_link_table, [view, left_source, left_field, right_source, right_field]);
+        let mut eq_link_step_table = flow.overwrite_output("eq link step");
+        find!(eq_link_table, [view, left_source, left_field, mid_source, mid_field], {
+            find!(eq_link_table, [(= view), (= mid_source), (= mid_field), right_source, right_field], {
+                dont_find!(eq_link_table, [(= view), (= left_source), (= left_field), (= right_source), (= right_field)], {
+                    insert!(eq_link_step_table, [view, left_source, left_field, right_source, right_field]);
+                });
             });
         });
-        if !changed { break; }
+        if eq_link_step_table.index.len() > 0 {
+            find!(eq_link_step_table, [view, left_source, left_field, right_source, right_field], {
+                insert!(eq_link_table, [view, left_source, left_field, right_source, right_field]);
+            });
+        } else {
+            break; // done
+        }
     }
+    // every source/field is equal to itself
+    find!(view_table, [view, _], {
+        find!(source_table, [(= view), source, source_view], {
+            find!(field_table, [(= source_view), field, _], {
+                insert!(eq_link_table, [view, source, field, source, field]);
+            });
+        });
+    });
 
     let mut eq_group_table = flow.overwrite_output("eq group");
     min_by(&*eq_link_table, &mut *eq_group_table, &["view", "left source", "left field"], &["right source", "right field"]);
@@ -544,7 +560,7 @@ fn plan(flow: &Flow) {
     let mut compiler_index_layout_table = flow.overwrite_output("compiler index layout");
     for (view, names) in schema().into_iter() {
         for (ix, name) in names.into_iter().enumerate() {
-            insert!(compiler_index_layout_table, [string!("{}", view), string!("{}: {}", view, name), Float(ix as f64)]);
+            insert!(compiler_index_layout_table, [string!("{}", view), Float(ix as f64), string!("{}: {}", view, name)]);
         }
     }
 
@@ -1119,6 +1135,7 @@ fn create_node(flow: &Flow, view_id: &Value, view_kind: &Value) -> Node {
         "union" => View::Union(create_union(flow, view_id)),
         "join" => View::Join(create_join(flow, view_id)),
         "aggregate" => View::Aggregate(create_aggregate(flow, view_id)),
+        "primitive" => panic!("Should not be creating nodes for primitives!"),
         other => panic!("Unknown view kind: {}", other),
     };
     let upstream = flow.get_output("view dependency").find_all("downstream view", view_id).iter().map(|dependency| {
