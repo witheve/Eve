@@ -147,6 +147,7 @@ div:hover > .hover-reveal { opacity: 1; }
 
 .ui-editor .grid { pointer-events:none; }
 .ui-editor .ui-canvas-layer { pointer-events:none; }
+.ui-editor .ui-canvas-layer.repeat-h { flex-direction: row; }
 
 .ui-editor .box-selection { position:absolute; border:1px solid rgba(0,146,201,1); z-index: 1000;}
 

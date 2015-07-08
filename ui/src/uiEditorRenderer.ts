@@ -155,7 +155,8 @@ module uiEditorRenderer {
         layerChildren = items;
       }
     })
-    return {c: "layer", id: layerId, top: offset.top, left: offset.left, zIndex:layerIx, children: layerChildren};
+    var layerHRepeat = (ixer.selectOne("uiComponentAttribute", {id: layerId, property: "h-repeat"}) || {})["uiComponentAttribute: value"];
+    return {c: "layer" + (layerHRepeat ? " repeat-h" : ""), id: layerId, top: offset.top, left: offset.left, zIndex:layerIx, children: layerChildren};
   }
 
   function elementsToBoundingBox(elements) {
