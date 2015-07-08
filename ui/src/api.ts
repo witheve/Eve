@@ -1297,10 +1297,18 @@ module api {
   }
 
   export var diff2 = {
-    primitiveSource: function(primitiveId) {
+    source: function(sourceViewId, sourceId?) {
+      var isPrimitive = ixer.selectOne("primitive", {view: sourceViewId});
+      if(isPrimitive || sourceViewId === "sort+limit") {
+        return diff2.primitiveSource(sourceViewId);
+      }
+      return {source: sourceId, "source view": sourceViewId};
+    },
+    primitiveSource: function(primitiveId, sourceId?) {
       if(primitiveId === "sort+limit") { return; }
       if(!primitiveDefaults[primitiveId]) { throw new Error("Must specify defaults for primitive " + primitiveId); }
       return {
+        source: sourceId,
         "source view": primitiveId,
         dependents : {
           constraint: (ixer.select("field", {view: primitiveId}) || []).map(function(field) {
