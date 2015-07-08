@@ -405,6 +405,10 @@ module tableEditor {
     }
     return { c: "input text-input", contentEditable: true, input: oninput, focus: storeInitialInput, text: value, key: key, blur: blur, keydown: keydown };
   }
+  
+  export function checkbox(value, key, onChange) {
+    return {t: "input", type: "checkbox", c: "input checkbox-input", change: onChange, checked: value, key: key};
+  }
 
   export function storeInitialInput(e, elem) {
     localState.initialKey = elem.key;
