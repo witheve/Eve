@@ -3,7 +3,6 @@
 /// <reference path="eveEditor.ts" />
 /// <reference path="api.ts" />
 module uiEditor {
-  declare var api;
   declare var jQuery;
   declare var uuid;
   declare var uiEditorRenderer;
@@ -253,6 +252,15 @@ module uiEditor {
         });
         localState.uiSelection = null;
         break;
+      case "setAttribute":
+        storeEvent = info.storeEvent;
+        sendToServer = info.storeEvent;
+        var oldProps = ixer.index("uiStyleToAttr")[info.id];
+        if (oldProps && oldProps[info.property]) {
+          diffs.push(["uiComponentAttribute", "removed", oldProps[info.property]]);
+        }
+        diffs.push(["uiComponentAttribute", "inserted", [txId, info.id, info.property, info.value]]);
+        break;
       case "setAttributeForSelection":
         storeEvent = info.storeEvent;
         sendToServer = info.storeEvent;
@@ -489,7 +497,8 @@ module uiEditor {
     });
     if (selectionInfo && layerId === localState.uiActiveLayer) {
       subLayers.unshift(uiGrid());
-    }
+    }   
+    
     var elements = ixer.index("uiLayerToElements", true)[layerId] || [];
     var attrsIndex = ixer.index("uiStyleToAttrs", true);
     var stylesIndex = ixer.index("uiElementToStyles", true);
@@ -506,7 +515,9 @@ module uiEditor {
 
       return control(cur, attrs, selected, layer);
     });
-    return { c: "ui-canvas-layer", id: layerId, zIndex: layer["uiComponentLayer: layer"] + 1, children: subLayers.concat(els) };
+    
+    var layerHRepeat = (ixer.selectOne("uiComponentAttribute", {id: layerId, property: "h-repeat"}) || {})["uiComponentAttribute: value"];
+    return { c: "ui-canvas-layer" + (layerHRepeat ? " repeat-h" : ""), id: layerId, zIndex: layer["uiComponentLayer: layer"] + 1, children: subLayers.concat(els) };
   }
 
   function layersBox(componentId, layers, activeLayer) {
@@ -1591,12 +1602,19 @@ module uiEditor {
 
   uiProperties.layer = [];
   function layerInspector(layer, elements) {
+    var layerId = layer[1];
     var componentId = layer[2];
     var info = getGroupInfo(elements, true);
     var attrs = info.attributes; // @FIXME: Layer attributes.
     var bounds = info.bounds;
 
-    return { c: "inspector-panel", children: [] };
+    var layerHRepeat = (ixer.selectOne("uiComponentAttribute", {id: layerId, property: "h-repeat"}) || {})["uiComponentAttribute: value"];
+    return { c: "inspector-panel", children: [
+      {c: "pair", children: [
+        {c: "label", text: "repeat horizontally"},
+        tableEditor.checkbox(!!layerHRepeat, [componentId, "h-repeat", layerId], setAttributeForLayer)
+      ]}
+    ] };
   }
 
   uiProperties.map = [];
@@ -1767,6 +1785,24 @@ module uiEditor {
 
     dispatch("setAttributeForSelection", { componentId: componentId, property: property, value: value, storeEvent: storeEvent });
   }
+
+  // Layer attribute handler.
+  function setAttributeForLayer(e, elem, storeEvent) {
+    var componentId = elem.key[0];
+    var property = elem.key[1];
+    var id = elem.key[2];
+    var target = e.currentTarget;
+    var value = target.value;
+    if (target.type === "color") {
+      value = target.value;
+    } else if (target.type === "checkbox") {
+      value = target.checked;
+    } else if (target.type === undefined) {
+      value = target.textContent;
+    }
+    dispatch("setAttribute", { componentId: componentId, id: id, property: property, value: value, storeEvent: true });
+  }
+
 
   // Map attribute handler
   function setMapAttribute(e, elem) {
