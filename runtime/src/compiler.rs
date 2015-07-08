@@ -110,7 +110,7 @@ fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
 
     // index layout determines the order in which fields are stored in the view index
     // `ix` is an integer, the index of the field
-    ("index layout", vec!["view", "ix", "field"]),
+    ("index layout", vec!["view", "field ix", "field", "name"]),
 
     // sources and fields actually used by each view
     ("view reference", vec!["view", "source", "field"]),
@@ -137,9 +137,9 @@ fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("source schedule*", vec!["view", "ix", "pass", "source"]),
     ("variable schedule (pre)", vec!["view", "pass", "variable"]),
     ("variable schedule", vec!["view", "ix", "pass", "variable"]),
-    ("compiler index layout", vec!["view", "ix", "field"]),
-    ("default index layout (pre)", vec!["view", "field"]),
-    ("default index layout", vec!["view", "ix", "field"]),
+    ("compiler index layout", vec!["view", "ix", "field", "name"]),
+    ("default index layout", vec!["view", "ix", "field", "kind"]),
+    ("output layout", vec!["view ix", "view", "field ix", "field", "name"]),
     ]
 }
 
@@ -560,22 +560,37 @@ fn plan(flow: &Flow) {
     let mut compiler_index_layout_table = flow.overwrite_output("compiler index layout");
     for (view, names) in schema().into_iter() {
         for (ix, name) in names.into_iter().enumerate() {
-            insert!(compiler_index_layout_table, [string!("{}", view), Float(ix as f64), string!("{}: {}", view, name)]);
+            insert!(compiler_index_layout_table,
+                [string!("{}", view), Float(ix as f64), string!("{}: {}", view, name), string!("{}", name)]);
         }
     }
 
-    let mut default_index_layout_pre_table = flow.overwrite_output("default index layout (pre)");
-    find!(field_table, [view, field, _], {
-        dont_find!(compiler_index_layout_table, [(= view), _, _], {
-            insert!(default_index_layout_pre_table, [view, field]);
+    let mut default_index_layout_table = flow.overwrite_output("default index layout");
+    ordinal_by(&*field_table, &mut *default_index_layout_table, &["view"]);
+
+    let mut index_layout_table = flow.overwrite_output("index layout");
+    find!(view_table, [view, _], {
+        find!(compiler_index_layout_table, [(= view), field_ix, field, name], {
+            insert!(index_layout_table, [view, field_ix, field, name]);
+        });
+        dont_find!(compiler_index_layout_table, [(= view), _, _, _], {
+            find!(default_index_layout_table, [(= view), field_ix, field, _], {
+                insert!(index_layout_table, [view, field_ix, field, string!("")]);
+            });
         });
     });
 
-    let mut default_index_layout_table = flow.overwrite_output("default index layout");
-    ordinal_by(&*default_index_layout_pre_table, &mut *default_index_layout_table, &["view"]);
+    let mut output_layout_table = flow.overwrite_output("output layout");
+    find!(index_layout_table, [view, field_ix, field, name], {
+        find!(view_schedule_table, [view_ix, (= view), _], {
+            insert!(output_layout_table, [view_ix, view, field_ix, field, name]);
+        });
+    });
+}
 
-    let mut index_layout_table = flow.overwrite_output("index layout");
-    union(&[&*compiler_index_layout_table, &*default_index_layout_table], &mut *index_layout_table);
+fn push_at<T>(items: &mut Vec<T>, ix: &Value, item: T) {
+    assert_eq!(items.len(), ix.as_usize());
+    items.push(item);
 }
 
 fn create(flow: &Flow) -> Flow {
@@ -603,6 +618,12 @@ fn create(flow: &Flow) -> Flow {
             vec![],
             vec![],
             )));
+    });
+
+    find!(flow.get_output("output layout"), [view_ix, view, field_ix, field, name], {
+        let mut output = outputs[view_ix.as_usize()].borrow_mut();
+        push_at(&mut output.fields, field_ix, field.as_str().to_owned());
+        push_at(&mut output.names, field_ix, name.as_str().to_owned());
     });
 
     // TODO
@@ -644,8 +665,8 @@ fn topological_sort<K: Eq + Debug>(mut input: Vec<(K, Vec<K>)>) -> Vec<(K, Vec<K
     output
 }
 
-fn sort_by_ix(tuples: &mut Vec<Tuple>) {
-    tuples.sort_by(|a,b| a["ix"].cmp(&b["ix"]));
+fn sort_by(tuples: &mut Vec<Tuple>, field: &str) {
+    tuples.sort_by(|a,b| a[field].cmp(&b[field]));
 }
 
 fn sort_by_priority(tuples: &mut Vec<Tuple>) {
@@ -808,7 +829,7 @@ fn calculate_view_layout(flow: &Flow) {
 
         // then other sources go in source order
         let mut source_schedules = source_schedule_table.find_all("view", &view["view"]);
-        sort_by_ix(&mut source_schedules);
+        sort_by(&mut source_schedules, "ix");
         for source_schedule in source_schedules {
             let source = source_table.iter().find(|source|
                 source["view"] == view["view"]
@@ -862,7 +883,7 @@ fn calculate_view_layout(flow: &Flow) {
                 _ => {
                     // use all fields
                     let mut index_layouts = index_layout_table.find_all("view", &source["source view"]);
-                    sort_by_ix(&mut index_layouts);
+                    sort_by(&mut index_layouts, "field ix");
                     for index_layout in index_layouts.into_iter() {
                         let field = field_table.find_one("field", &index_layout["field"]);
                         if field["kind"].as_str() == "output" {
@@ -880,7 +901,7 @@ fn get_index_layout_ix(flow: &Flow, view_id: &Value, field_id: &Value) -> usize 
     flow.get_output("index layout").iter().find(|index_layout|
         index_layout["view"] == *view_id
         && index_layout["field"] == *field_id
-        ).unwrap()["ix"].as_usize()
+        ).unwrap()["field ix"].as_usize()
 }
 
 fn get_view_layout_ix(flow: &Flow, view_id: &Value, source_id: &Value, field_id: &Value) -> usize {
@@ -898,7 +919,7 @@ fn create_constants(flow: &Flow, view_id: &Value) -> Vec<Value> {
         view_layout["view"] == *view_id
         && view_layout["source"].as_str() == "constant"
         ).collect::<Vec<_>>();
-    sort_by_ix(&mut view_layouts);
+    sort_by(&mut view_layouts, "ix");
     view_layouts.iter().map(|view_layout| {
         let constant = constant_table.find_one("constant", &view_layout["field"]);
         constant["value"].clone()
@@ -914,7 +935,7 @@ fn create_index_select(flow: &Flow, view_id: &Value, source_id: &Value, source_i
         && (select["source"] == *source_id)
         ).collect::<Vec<_>>();
     let mut index_layouts = index_layout_table.find_all("view", view_id);
-    sort_by_ix(&mut index_layouts);
+    sort_by(&mut index_layouts, "field ix");
     let source_fields = index_layouts.iter().map(|index_layout| {
         let select = selects.iter().find(|select|
             select["view field"] == index_layout["field"]
@@ -934,7 +955,7 @@ fn create_view_select(flow: &Flow, view_id: &Value) -> ViewSelect {
     let index_layout_table = flow.get_output("index layout");
     let select_table = flow.get_output("select");
     let mut index_layouts = index_layout_table.find_all("view", view_id);
-    sort_by_ix(&mut index_layouts);
+    sort_by(&mut index_layouts, "field ix");
     let mapping = index_layouts.iter().map(|index_layout| {
         let select = select_table.iter().find(|select|
             select["view"] == *view_id
@@ -1066,7 +1087,7 @@ fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
     let outer_dependency = dependencies[outer_ix].clone();
     let inner_dependency = dependencies[inner_ix].clone();
     let mut view_layouts = view_layout_table.find_all("view", view_id);
-    sort_by_ix(&mut view_layouts);
+    sort_by(&mut view_layouts, "ix");
     let outer_mapping = view_layouts.iter().filter(|view_layout|
             view_layout["source"].as_str() == "outer"
         ).map(|view_layout|
@@ -1169,7 +1190,7 @@ fn create_flow(flow: &Flow) -> Flow {
         nodes.push(create_node(flow, &view["view"], &view["kind"]));
         dirty.insert(schedule["ix"].as_usize());
         let mut index_layouts = index_layout_table.find_all("view", &view["view"]);
-        sort_by_ix(&mut index_layouts);
+        sort_by(&mut index_layouts, "field ix");
         let field_ids = index_layouts.iter().map(|index_layout|
             index_layout["field"].as_str().to_owned()
             ).collect();
