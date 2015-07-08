@@ -89,9 +89,7 @@ module queryEditor {
             "display name": {name: name},
             tag: [{tag: "local"}, {tag: "remote"}],
             block: {query: queryId},
-            source: (info.sourceId ? {
-              "source view": api.diff2.source(info.sourceId)
-            } : undefined)
+            source: (info.sourceId ? api.diff2.source(info.sourceId) : undefined)
           }
         }));                                                             
         break;
