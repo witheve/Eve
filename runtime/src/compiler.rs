@@ -628,9 +628,26 @@ fn plan(flow: &Flow) {
                 find!(variable_schedule_table, [(= view), variable_ix, _, (= variable)], {
                     insert!(constant_layout_table, [view_ix, variable_ix, value]);
                 });
-            })
-        })
-    })
+            });
+        });
+    });
+
+    let mut source_layout_table = flow.overwrite_output("source layout");
+    find!(view_schedule_table, [view_ix, view, _], {
+        find!(source_schedule_ish_table, [(= view), source_ix, _, source], {
+            find!(source_table, [(= view), (= source), source_view], {
+                find!(view_table, [(= source_view), kind], {
+                    if kind.as_str() == "primitive" {
+                        insert!(source_layout_table, [view_ix, source_ix, source_view]);
+                    } else {
+                        find!(view_schedule_table, [source_view_ix, (= source_view), _], {
+                            insert!(source_layout_table, [view_ix, source_ix, source_view_ix]);
+                        });
+                    }
+                });
+            });
+        });
+    });
 }
 
 fn push_at<T>(items: &mut Vec<T>, ix: &Value, item: T) {
@@ -638,7 +655,7 @@ fn push_at<T>(items: &mut Vec<T>, ix: &Value, item: T) {
     items.push(item);
 }
 
-fn create(flow: &Flow) -> Flow {
+fn create(flow: &Flow) {
     let mut nodes = Vec::new();
     let mut dirty = BitSet::new();
     let mut outputs = Vec::new();
@@ -652,7 +669,10 @@ fn create(flow: &Flow) -> Flow {
                     sources: vec![],
                     select: vec![],
                 }),
-                _ => unimplemented!(),
+                _ => {
+                    println!("Unimplemented: create for {:?} {:?} {:?}", view_ix, view, kind);
+                    View::Table(Table{insert:None, remove:None}) // dummy node
+                }
             },
             upstream: vec![],
             downstream: vec![],
@@ -674,25 +694,22 @@ fn create(flow: &Flow) -> Flow {
     find!(flow.get_output("number of variables"), [view_ix, num], {
         match &mut nodes[view_ix.as_usize()].view {
             &mut View::Join2(ref mut join) => join.constants = vec![Value::Null; num.as_usize()],
-            other => panic!("Should not have variables for {:?}", other),
+            other => println!("Unimplemented: variables for {:?} {:?}", view_ix, other),
         }
     });
 
     find!(flow.get_output("constant layout"), [view_ix, variable_ix, value], {
         match &mut nodes[view_ix.as_usize()].view {
             &mut View::Join2(ref mut join) => join.constants[variable_ix.as_usize()] = value.clone(),
-            other => panic!("Should not have variables for {:?}", other),
+            other => println!("Unimplemented: variables for {:?} {:?}", view_ix, other),
         }
     });
 
     // TODO
-    // fill in constants in join
     // fill in sources in join
     // fill in bindings in sources
     // fill in select in join
     // fill in downstream
-
-    unimplemented!();
 }
 
 // TODO really need to define physical ordering of fields in each view
@@ -1292,6 +1309,7 @@ pub fn recompile(old_flow: Flow) -> Flow {
     calculate_constraint_schedule(&old_flow);
     calculate_view_reference(&old_flow);
     calculate_view_layout(&old_flow);
+    drop(create(&old_flow)); // just running this to catch errors for now
     let mut new_flow = create_flow(&old_flow);
     reuse_state(old_flow, &mut new_flow);
     new_flow
