@@ -80,7 +80,7 @@ pub fn code_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ]
 }
 
-fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
+pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // the compiler reflects its decisions into some builtin tables
     // views marked "(pre)" are intermediate calculations
 
@@ -145,10 +145,11 @@ fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("number of variables (pre)", vec!["view", "num"]),
     ("number of variables", vec!["view ix", "num"]),
     ("constant layout", vec!["view ix", "variable ix", "value"]),
+    ("source layout", vec!["view ix", "source ix", "input"]),
     ]
 }
 
-fn editor_schema() -> Vec<(&'static str, Vec<&'static str>)> {
+pub fn editor_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // the editor uses some tables to control the display of code and data
 
     vec![
@@ -189,7 +190,7 @@ fn editor_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ]
 }
 
-fn client_schema() -> Vec<(&'static str, Vec<&'static str>)> {
+pub fn client_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // clients store their local state (ui events, session data etc)
 
     vec![
@@ -207,7 +208,7 @@ fn client_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ]
 }
 
-fn schema() -> Vec<(&'static str, Vec<&'static str>)> {
+pub fn schema() -> Vec<(&'static str, Vec<&'static str>)> {
     code_schema().into_iter()
     .chain(compiler_schema().into_iter())
     .chain(editor_schema().into_iter())
