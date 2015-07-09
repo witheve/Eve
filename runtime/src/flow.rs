@@ -193,7 +193,7 @@ impl Flow {
                             view_changed = view_changed || index.insert(insert);
                         }
                         for remove in removes {
-                            view_changed = view_changed || !index.remove(&remove);
+                            view_changed = view_changed || index.remove(&remove);
                         }
                     }
                     if view_changed {
