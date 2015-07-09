@@ -517,7 +517,13 @@ module uiEditor {
     });
     
     var layerHRepeat = (ixer.selectOne("uiComponentAttribute", {id: layerId, property: "h-repeat"}) || {})["uiComponentAttribute: value"];
-    return { c: "ui-canvas-layer" + (layerHRepeat ? " repeat-h" : ""), id: layerId, zIndex: layer["uiComponentLayer: layer"] + 1, children: subLayers.concat(els) };
+    var layerScroll = (ixer.selectOne("uiComponentAttribute", {id: layerId, property: "scroll"}) || {})["uiComponentAttribute: value"];
+    var layerMask = (ixer.selectOne("uiComponentAttribute", {id: layerId, property: "mask"}) || {})["uiComponentAttribute: value"];
+    var klass = "ui-canvas-layer" +
+      (layerHRepeat ? " repeat-h" : "") +
+      (layerScroll ? " overflow-scroll" : "") +
+      (layerMask ? " overflow-hidden" : "");
+    return { c: klass, id: layerId, zIndex: layer["uiComponentLayer: layer"] + 1, children: subLayers.concat(els) };
   }
 
   function layersBox(componentId, layers, activeLayer) {
@@ -1609,11 +1615,22 @@ module uiEditor {
     var bounds = info.bounds;
 
     var layerHRepeat = (ixer.selectOne("uiComponentAttribute", {id: layerId, property: "h-repeat"}) || {})["uiComponentAttribute: value"];
+    var layerScroll = (ixer.selectOne("uiComponentAttribute", {id: layerId, property: "scroll"}) || {})["uiComponentAttribute: value"];
+    var layerMask = (ixer.selectOne("uiComponentAttribute", {id: layerId, property: "mask"}) || {})["uiComponentAttribute: value"];
+
     return { c: "inspector-panel", children: [
       {c: "pair", children: [
         {c: "label", text: "repeat horizontally"},
         tableEditor.checkbox(!!layerHRepeat, [componentId, "h-repeat", layerId], setAttributeForLayer)
-      ]}
+      ]},
+      {c: "pair", children: [
+        {c: "label", text: "scroll overflow"},
+        tableEditor.checkbox(!!layerScroll, [componentId, "scroll", layerId], setAttributeForLayer)
+      ]},
+      {c: "pair", children: [
+        {c: "label", text: "mask overflow"},
+        tableEditor.checkbox(!!layerMask, [componentId, "mask", layerId], setAttributeForLayer)
+      ]},
     ] };
   }
 
