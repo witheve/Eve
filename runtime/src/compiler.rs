@@ -141,6 +141,7 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("default index layout", vec!["view", "ix", "field", "kind"]),
 
     // layout for `create`
+    // TODO these names are awful...
     ("output layout", vec!["view ix", "field ix", "field", "name"]),
     ("number of variables (pre)", vec!["view", "num"]),
     ("number of variables", vec!["view ix", "num"]),
@@ -656,6 +657,8 @@ fn push_at<T>(items: &mut Vec<T>, ix: &Value, item: T) {
 }
 
 fn create(flow: &Flow) {
+    use value::Value::*;
+
     let mut nodes = Vec::new();
     let mut dirty = BitSet::new();
     let mut outputs = Vec::new();
@@ -705,11 +708,27 @@ fn create(flow: &Flow) {
         }
     });
 
+    find!(flow.get_output("source layout"), [view_ix, source_ix, input], {
+        match &mut nodes[view_ix.as_usize()].view {
+            &mut View::Join2(ref mut join) => {
+                let source = Source{
+                    input: match input {
+                        &String(ref primitive) => Input::Primitive(Primitive::from_str(primitive)),
+                        &Float(view_ix) => Input::View(view_ix as usize),
+                        other => panic!("Unknown input type: {:?}", other),
+                    },
+                    bindings: vec![],
+                };
+                push_at(&mut join.sources, source_ix, source);
+            }
+            other => println!("Unimplemented: sources for {:?} {:?}", view_ix, other),
+        }
+    })
+
     // TODO
-    // fill in sources in join
+    // fill in downstream
     // fill in bindings in sources
     // fill in select in join
-    // fill in downstream
 }
 
 // TODO really need to define physical ordering of fields in each view

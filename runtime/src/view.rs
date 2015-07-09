@@ -73,8 +73,8 @@ pub enum Input {
 
 #[derive(Clone, Debug)]
 pub struct Source {
-    input: Input,
-    bindings: Vec<usize>,
+    pub input: Input,
+    pub bindings: Vec<usize>,
 }
 
 #[derive(Clone, Debug)]
