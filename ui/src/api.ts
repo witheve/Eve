@@ -101,6 +101,7 @@ module api {
     "!=": {"!=: in A": "default zero", "!=: in B": "default zero"},
     add: {"add: in A": "default zero", "add: in B": "default zero"},
     multiply: {"multiply: in A": "default zero", "multiply: in B": "default zero"},
+    round: {"round: in A": "default zero", "round: in B": "default zero"},
     contains: {"contains: inner": "default space", "contains: outer": "default empty"},
     count: {"count: in": "default zero"},
     empty: {"empty: in": "default zero"},
