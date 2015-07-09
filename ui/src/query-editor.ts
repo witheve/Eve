@@ -27,7 +27,7 @@ module queryEditor {
       // meh
     }
   }
-  
+
   function focusOnce(node, elem) {
     if(!elem.__focused) {
       setTimeout(function() { node.focus(); }, 5);
@@ -39,7 +39,7 @@ module queryEditor {
   // utils
   //---------------------------------------------------------
 
-  
+
   function coerceInput(input) {
     if(input.match(/^-?[\d]+$/gim)) {
       return parseInt(input);
@@ -52,7 +52,7 @@ module queryEditor {
     }
     return input;
   }
-  
+
   function stopPropagation(e) {
     e.stopPropagation();
   }
@@ -81,7 +81,7 @@ module queryEditor {
       case "addViewBlock":
         var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
         var name = api.getUniqueName(code.queryViews(queryId), api.alphabet);
-        
+
         diffs = api.toDiffs(api.insert("view", {
           view: info.viewId,
           kind: info.kind,
@@ -91,12 +91,12 @@ module queryEditor {
             block: {query: queryId},
             source: (info.sourceId ? api.diff2.source(info.sourceId) : undefined)
           }
-        }));                                                             
+        }));
         break;
       case "addAggregateBlock":
         var queryId = (info.queryId !== undefined) ? info.queryId: code.activeItemId();
         var name = api.getUniqueName(code.queryViews(queryId), api.alphabet);
-        
+
         diffs = api.toDiffs(api.insert("view", {
           view: info.viewId,
           kind: "aggregate",
@@ -132,7 +132,7 @@ module queryEditor {
           }});
           info.fieldId = neueField.content.field;
         }
-      
+
         diffs = api.toDiffs([
           neueField,
           api.remove("select", {view: info.viewId, "view field": info.fieldId, source: (info.isUnion ? info.sourceId : undefined)}),
@@ -152,7 +152,7 @@ module queryEditor {
           var numSelects = selects.reduce(function(memo, select) {
             return (select["select: source"] !== info.sourceId || select["select: view field"] !== info.fieldId) ? memo + 1 : memo;
           }, 1);
-          
+
           if(numSelects !== numFields * numSources) {
             sendToServer = false;
           } else {
@@ -163,7 +163,7 @@ module queryEditor {
       case "addViewSource":
         var neueSource = api.insert("source", api.diff2.source(info.sourceId, info.kind), {view: info.viewId});
         var autoJoinConstraints = api.diff2.autojoin(info.viewId, neueSource.content["source"], info.sourceId);
-        
+
         var viewKind = (api.ixer.selectOne("view", {view: info.viewId}) || {})["view: kind"];
         if(viewKind === "union") {
           let selects = ixer.select("select", {view: info.viewId});
@@ -220,7 +220,7 @@ module queryEditor {
         var change = api.change("constraint", {constraint: info.constraintId}, overrides);
         var constraint = change.content[0];
         diffs = diffs.concat(api.toDiffs(change));
-        
+
         var calculatedFields = ixer.selectPretty("calculated field", {view: viewId, source: constraint["left source"]});
         if(calculatedFields.length) {
           for(var calculatedField of calculatedFields) {
@@ -347,12 +347,12 @@ module queryEditor {
         eveEditor.dispatch(evt, info);
         break;
     }
-    
+
     if(!redispatched) {
       eveEditor.executeDispatch(diffs, storeEvent, sendToServer);
     }
-    
-    
+
+
   }
 
    //---------------------------------------------------------
@@ -398,7 +398,7 @@ module queryEditor {
   //---------------------------------------------------------
   // Editor
   //---------------------------------------------------------
-  
+
   function selectInput(value, key, options, onsubmit): any {
     var blur, input;
     if (onsubmit) {
@@ -416,7 +416,7 @@ module queryEditor {
     }
     return { t: "select", c: "input", key: key, input: input, focus: tableEditor.storeInitialInput, blur: blur, children: children };
   }
-  
+
   function editor(queryId:string, isStateQuery?:boolean) {
     var blocks = (ixer.index("query to blocks")[queryId] || []).slice();
     var items = [];
@@ -744,7 +744,7 @@ module queryEditor {
     var source = ixer.selectOne("source", {view: viewId, source: sourceId});
     if(!source) { throw new Error("Source " + sourceId + " not found on view " + viewId + "."); }
     var sourceName = code.name(source["source: source view"]);
-    
+
     var sources = ixer.select("source", {view: viewId});
     var ix = 0;
     for(var cur of sources) {
@@ -754,7 +754,7 @@ module queryEditor {
     if(ix) {
       sourceName += " (" + (ix + 1) + ")";
     }
-    
+
     if(sourceId == "inner" || sourceId === "outer" || sourceId === "insert" || sourceId === "remove") {
       sourceName += " [" + sourceId + "]";
     }
@@ -853,7 +853,7 @@ module queryEditor {
         return viewConstraintToken("right", constraint.constraint, viewId, name);
       });
       if(constraintArgs.length !== 2) { throw new Error("Invalid arity for infix primitive " + constraintArgs.length); }
-      
+
       var content = calculatedFields.map(function(calculatedField) {
         var id = calculatedField["calculated field: calculated field"];
         return fieldItem(code.name(id), id, {c: "pill field"})
@@ -862,7 +862,7 @@ module queryEditor {
         constraintArgs[0],
         {text: operator},
         constraintArgs[1]
-      );        
+      );
 
       return {c: "spaced-row primitive-constraint", children: content}
     },
@@ -872,6 +872,9 @@ module queryEditor {
     },
     subtract: function(viewId, sourceId, sourceViewId) {
       return primitiveEditor.infix(viewId, sourceId, sourceViewId, "-");
+    },
+    multiply: function(viewId, sourceId, sourceViewId) {
+      return primitiveEditor.infix(viewId, sourceId, sourceViewId, "*");
     },
     "<": function(viewId, sourceId, sourceViewId) {
       return primitiveEditor.infix(viewId, sourceId, sourceViewId, "<");
@@ -1167,7 +1170,7 @@ module queryEditor {
    */
   function unionBlock(viewId, ix) {
     var fields = ixer.select("field", {view: viewId}) || [];
-    var sources = ixer.select("source", {view: viewId}) || []; 
+    var sources = ixer.select("source", {view: viewId}) || [];
 
     var sourceItems = [];
     for(var source of sources) {
@@ -1176,7 +1179,7 @@ module queryEditor {
           {t: "h4", c: "union-source-title source-title", text: getSourceName(viewId, source["source: source"]) || "Untitled"}
         ]}
       ];
-      
+
       for(var field of fields) {
         var select = ixer.selectOne("select", {view: viewId, "view field": field["field: field"], source: source["source: source"]});
         rowItems.push({t: "td", c: "mapped-field", text: (select) ? code.name(select["select: source field"]) : "---",
@@ -1188,12 +1191,12 @@ module queryEditor {
       sourceItems.push({t: "tr", children: rowItems});
     }
 
-    var headerItems:any = [{td: "th", c: "spacer"}];    
+    var headerItems:any = [{td: "th", c: "spacer"}];
     for(var field of fields) {
-      headerItems.push({t: "th", c: "mapping-header", text: code.name(field["field: field"])});  
+      headerItems.push({t: "th", c: "mapping-header", text: code.name(field["field: field"])});
     }
     headerItems.push({t: "th", c: "mapping-header", text: "---"});
-    
+
     return {c: "block union-block", viewId: viewId, dragover: preventDefault, drop: viewBlockDrop, children: [
               {t: "table", children: [
                 {t: "thead", children: [
@@ -1383,5 +1386,5 @@ module queryEditor {
     return {t: "li", c: "selector-item field " + opts.c, key: opts.key, text: opts.name, value: opts.value, click: onChange};
   }
 
-  
+
 }
