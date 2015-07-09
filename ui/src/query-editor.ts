@@ -131,7 +131,6 @@ module queryEditor {
             "display order": {priority: -fields.length}
           }});
           info.fieldId = neueField.content.field;
-          console.log("neue", info.fieldId);
         }
       
         diffs = api.toDiffs([
@@ -153,8 +152,6 @@ module queryEditor {
           var numSelects = selects.reduce(function(memo, select) {
             return (select["select: source"] !== info.sourceId || select["select: view field"] !== info.fieldId) ? memo + 1 : memo;
           }, 1);
-          
-          console.log(numSelects, "=", numFields, "*", numSources);
           
           if(numSelects !== numFields * numSources) {
             sendToServer = false;
@@ -1176,17 +1173,17 @@ module queryEditor {
     for(var source of sources) {
       var rowItems:any[] = [
         {t: "td", c: "source-name", children: [
-          {t: "h4", c: "union-source-title source-title", text: getSourceName(viewId, source.source) || "Untitled"}
+          {t: "h4", c: "union-source-title source-title", text: getSourceName(viewId, source["source: source"]) || "Untitled"}
         ]}
       ];
       
       for(var field of fields) {
-        var select = ixer.selectOne("select", {view: viewId, "view field": field["field: field"], source: source.source});
+        var select = ixer.selectOne("select", {view: viewId, "view field": field["field: field"], source: source["source: source"]});
         rowItems.push({t: "td", c: "mapped-field", text: (select) ? code.name(select["select: source field"]) : "---",
-                       viewId: viewId, sourceId: source.source, fieldId: field["field: field"],
+                       viewId: viewId, fieldId: field["field: field"], key: {source: source["source: source"], field: (select ? select["select: source field"] : "")},
                        click: fieldSuggestions, handler: setMappingField});
       }
-      rowItems.push({t: "td", c: "mapped-field", text: "---", viewId: viewId, sourceId: source.source,
+      rowItems.push({t: "td", c: "mapped-field", text: "---", viewId: viewId, key: {source: source["source: source"]},
                      click: fieldSuggestions, handler: setMappingField});
       sourceItems.push({t: "tr", children: rowItems});
     }
@@ -1218,19 +1215,6 @@ module queryEditor {
     var fieldId = elem.key.field[1];
     dispatch("addViewSelection", {viewId: info.viewId, sourceFieldId: fieldId, sourceId: sourceId, fieldId: info.fieldId, isUnion: true});
     e.stopPropagation();
-  }
-
-  function unionSourceMappingDrop(evt, elem) {
-    var type = evt.dataTransfer.getData("type");
-    if(type !== "field") { return; }
-    var blockFieldId = evt.dataTransfer.getData("fieldId");
-    var blockField = ixer.index("block field")[blockFieldId];
-    var fieldId = blockField[code.ix("block field", "field")];
-    var viewId = blockField[code.ix("block field", "view")];
-    var sourceId = blockField[code.ix("block field", "source")];
-    if(viewId !== elem.viewId) { return; }
-    dispatch("addViewSelection", {viewId: viewId, sourceFieldId: fieldId, sourceId: sourceId, fieldId: elem.fieldId, isUnion: true});
-    evt.stopPropagation();
   }
 
   /**
