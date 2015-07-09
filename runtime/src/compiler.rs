@@ -87,7 +87,6 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     vec![
     // a view dependency exists whenever the contents of one view depend directly on another
     // `ix` is an integer identifying the position in the downstream views input list
-    // TODO can remove `ix` and `source` once upstream is gone
     ("view dependency (pre)", vec!["downstream view", "source", "upstream view"]),
     ("view dependency", vec!["downstream view", "ix", "source", "upstream view"]),
 
@@ -147,7 +146,6 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("number of variables", vec!["view ix", "num"]),
     ("constant layout", vec!["view ix", "variable ix", "value"]),
     ("source layout", vec!["view ix", "source ix", "input"]),
-    // TODO can remove `ix` here once upstream is gone
     ("downstream layout", vec!["downstream view ix", "ix", "upstream view ix"]),
     ("binding layout", vec!["view ix", "source ix", "field ix", "variable ix"]),
     ("select layout", vec!["view ix", "ix", "variable ix"]),
@@ -654,8 +652,8 @@ fn plan(flow: &Flow) {
                     if kind.as_str() == "primitive" {
                         insert!(source_layout_table, [view_ix, source_ix, source_view]);
                     } else {
-                        find!(view_schedule_table, [source_view_ix, (= source_view), _], {
-                            insert!(source_layout_table, [view_ix, source_ix, source_view_ix]);
+                        find!(view_dependency_table, [(= view), input_ix, (= source), (= source_view)], {
+                            insert!(source_layout_table, [view_ix, source_ix, input_ix]);
                         });
                     }
                 });
@@ -752,7 +750,6 @@ fn create(flow: &Flow) {
         }
     });
 
-    // TODO need to either remove the upstream indirection or fix up the view_ix
     find!(flow.get_output("source layout"), [view_ix, source_ix, input], {
         match &mut nodes[view_ix.as_usize()].view {
             &mut View::Join2(ref mut join) => {
