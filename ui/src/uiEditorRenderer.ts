@@ -156,7 +156,14 @@ module uiEditorRenderer {
       }
     })
     var layerHRepeat = (ixer.selectOne("uiComponentAttribute", {id: layerId, property: "h-repeat"}) || {})["uiComponentAttribute: value"];
-    return {c: "layer" + (layerHRepeat ? " repeat-h" : ""), id: layerId, top: offset.top, left: offset.left, zIndex:layerIx, children: layerChildren};
+    var layerScroll = (ixer.selectOne("uiComponentAttribute", {id: layerId, property: "scroll"}) || {})["uiComponentAttribute: value"];
+    var layerMask = (ixer.selectOne("uiComponentAttribute", {id: layerId, property: "mask"}) || {})["uiComponentAttribute: value"];
+    var klass = "layer" +
+      (layerHRepeat ? " repeat-h" : "") +
+      (layerScroll ? " overflow-scroll" : "") +
+      (layerMask ? " overflow-hidden" : "");
+
+    return {c: klass, id: layerId, top: offset.top, left: offset.left, zIndex:layerIx, children: layerChildren};
   }
 
   function elementsToBoundingBox(elements) {

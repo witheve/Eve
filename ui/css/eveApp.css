@@ -12,6 +12,8 @@ div { display: flex; flex-direction: column; }
 .rendered-program .absolute { position:absolute; overflow:hidden; cursor:default; text-align:left; background-size:100%; }
 .rendered-program .layer {flex: 1; position:absolute; }
 .rendered-program .layer.repeat-h { flex-direction:row; }
+.rendered-program .layer.overflow-scroll { overflow: auto; }
+.rendered-program .layer.overflow-hidden { overflow: hidden; }
 .rendered-program .repeat-container { position:relative; }
 .rendered-program .non-interactive { pointer-events:none; }
 .rendered-program input { padding-left:15px; border: none; }

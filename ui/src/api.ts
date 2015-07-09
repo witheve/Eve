@@ -24,6 +24,7 @@ module api {
     window.DEBUG = {RECEIVE: 0,
                     SEND: 0,
                     INDEXER: 0,
+                    TABLE_CELL_LOOKUP: true,
                     goToView: function(viewId) {
                       var block = api.retrieve("block", {view: viewId})[0];
                       var queryId = block["query"];

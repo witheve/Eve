@@ -271,14 +271,14 @@ module tableEditor {
         if(typeA === "number") { return -1; }
         if(typeB === "number") { return 1; }
         if(typeA === "undefined") { return -1; }
-        if(typeB === "undefined") { return -1; }
+        if(typeB === "undefined") { return 1; }
         return a.localeCompare(b);
       });
     }
     rows.forEach(function(cur, rowIx) {
       var tds = [];
       for (var tdIx = 0, len = fields.length; tdIx < len; tdIx++) {
-        tds[tdIx] = { c: "field" };
+        tds[tdIx] = { c: "field", contextmenu: (DEBUG.TABLE_CELL_LOOKUP ? lookupDisplayName: undefined) };
         
         // @NOTE: We can hoist this if perf is an issue.
         if (isEditable) {
@@ -307,6 +307,14 @@ module tableEditor {
       ]
       }
     ]};
+  }
+
+  function lookupDisplayName(evt) {
+    var content = evt.target.textContent;
+    console.log("text:", content);
+    console.log(" - name:", (api.ixer.selectOnePretty("display name", {id: content}) || {})["name"]);
+    console.log(" - order:", (api.ixer.selectOnePretty("display order", {id: content}) || {})["priority"]);
+    console.log(" - tags:", api.ixer.selectPretty("tag", {view: content}).map((tag) => tag["tag"]));
   }
 
   function ensureAdderRows(viewId) {
