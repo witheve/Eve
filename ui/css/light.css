@@ -247,7 +247,7 @@ div:hover > .hover-reveal { opacity: 1; }
 
 .query-workspace .block-pane { flex: 1; }
 
-.query-workspace .inspector-pane { min-height:50px; max-height:100px; flex:1; }
+.query-workspace .inspector-pane { min-height:300px; max-height:800px; flex:1; }
 .query-workspace .inspector-pane .header { padding-left: 10px; }
 .query-workspace .inspector-pane .rows { padding-left: 5px; }
 

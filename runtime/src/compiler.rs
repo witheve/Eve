@@ -141,11 +141,13 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("default index layout", vec!["view", "ix", "field", "kind"]),
 
     // layout for `create`
+    // TODO these names are awful...
     ("output layout", vec!["view ix", "field ix", "field", "name"]),
     ("number of variables (pre)", vec!["view", "num"]),
     ("number of variables", vec!["view ix", "num"]),
     ("constant layout", vec!["view ix", "variable ix", "value"]),
     ("source layout", vec!["view ix", "source ix", "input"]),
+    ("downstream layout", vec!["downstream ix", "ix", "upstream ix"]),
     ]
 }
 
@@ -611,6 +613,15 @@ fn plan(flow: &Flow) {
         });
     });
 
+    let mut downstream_layout_table = flow.overwrite_output("downstream layout");
+    find!(view_dependency_table, [downstream_view, ix, _, upstream_view], {
+        find!(view_schedule_table, [downstream_view_ix, (= downstream_view), _], {
+            find!(view_schedule_table, [upstream_view_ix, (= upstream_view), _], {
+                insert!(downstream_layout_table, [downstream_view_ix, ix, upstream_view_ix]);
+            });
+        });
+    });
+
     let mut number_of_variables_pre_table = flow.overwrite_output("number of variables (pre)");
     count_by(&*variable_schedule_table, &mut *number_of_variables_pre_table, &["view"]);
 
@@ -656,6 +667,8 @@ fn push_at<T>(items: &mut Vec<T>, ix: &Value, item: T) {
 }
 
 fn create(flow: &Flow) {
+    use value::Value::*;
+
     let mut nodes = Vec::new();
     let mut dirty = BitSet::new();
     let mut outputs = Vec::new();
@@ -691,6 +704,11 @@ fn create(flow: &Flow) {
         push_at(&mut output.names, field_ix, name.as_str().to_owned());
     });
 
+    find!(flow.get_output("downstream layout"), [downstream_ix, ix, upstream_ix], {
+        push_at(&mut nodes[downstream_ix.as_usize()].upstream, ix, upstream_ix.as_usize());
+        nodes[upstream_ix.as_usize()].downstream.push(downstream_ix.as_usize());
+    });
+
     find!(flow.get_output("number of variables"), [view_ix, num], {
         match &mut nodes[view_ix.as_usize()].view {
             &mut View::Join2(ref mut join) => join.constants = vec![Value::Null; num.as_usize()],
@@ -705,11 +723,27 @@ fn create(flow: &Flow) {
         }
     });
 
+    // TODO need to either remove the upstream indirection or fix up the view_ix
+    find!(flow.get_output("source layout"), [view_ix, source_ix, input], {
+        match &mut nodes[view_ix.as_usize()].view {
+            &mut View::Join2(ref mut join) => {
+                let source = Source{
+                    input: match input {
+                        &String(ref primitive) => Input::Primitive(Primitive::from_str(primitive)),
+                        &Float(upstream_view_ix) => Input::View(upstream_view_ix as usize),
+                        other => panic!("Unknown input type: {:?}", other),
+                    },
+                    bindings: vec![],
+                };
+                push_at(&mut join.sources, source_ix, source);
+            }
+            other => println!("Unimplemented: sources for {:?} {:?}", view_ix, other),
+        }
+    })
+
     // TODO
-    // fill in sources in join
     // fill in bindings in sources
     // fill in select in join
-    // fill in downstream
 }
 
 // TODO really need to define physical ordering of fields in each view
