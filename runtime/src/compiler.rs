@@ -147,6 +147,7 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("number of variables", vec!["view ix", "num"]),
     ("constant layout", vec!["view ix", "variable ix", "value"]),
     ("source layout", vec!["view ix", "source ix", "input"]),
+    ("downstream layout", vec!["downstream ix", "ix", "upstream ix"]),
     ]
 }
 
@@ -612,6 +613,15 @@ fn plan(flow: &Flow) {
         });
     });
 
+    let mut downstream_layout_table = flow.overwrite_output("downstream layout");
+    find!(view_dependency_table, [downstream_view, ix, _, upstream_view], {
+        find!(view_schedule_table, [downstream_view_ix, (= downstream_view), _], {
+            find!(view_schedule_table, [upstream_view_ix, (= upstream_view), _], {
+                insert!(downstream_layout_table, [downstream_view_ix, ix, upstream_view_ix]);
+            });
+        });
+    });
+
     let mut number_of_variables_pre_table = flow.overwrite_output("number of variables (pre)");
     count_by(&*variable_schedule_table, &mut *number_of_variables_pre_table, &["view"]);
 
@@ -694,6 +704,11 @@ fn create(flow: &Flow) {
         push_at(&mut output.names, field_ix, name.as_str().to_owned());
     });
 
+    find!(flow.get_output("downstream layout"), [downstream_ix, ix, upstream_ix], {
+        push_at(&mut nodes[downstream_ix.as_usize()].upstream, ix, upstream_ix.as_usize());
+        nodes[upstream_ix.as_usize()].downstream.push(downstream_ix.as_usize());
+    });
+
     find!(flow.get_output("number of variables"), [view_ix, num], {
         match &mut nodes[view_ix.as_usize()].view {
             &mut View::Join2(ref mut join) => join.constants = vec![Value::Null; num.as_usize()],
@@ -726,7 +741,6 @@ fn create(flow: &Flow) {
     })
 
     // TODO
-    // fill in downstream
     // fill in bindings in sources
     // fill in select in join
 }
