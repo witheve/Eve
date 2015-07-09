@@ -12,6 +12,7 @@ use rustc_serialize::json::{ToJson, Json};
 
 use eve::server::*;
 use eve::flow::*;
+use eve::compiler::*;
 
 fn migrate_file<F>(filename: &str, migrate: &F) where F: Fn(&mut Vec<Event>) {
     let mut old_events_string = String::new();
@@ -49,6 +50,15 @@ fn remove_view(id: &str, events: &mut Vec<Event>) {
     }
 }
 
+fn reset_compiler(events: &mut Vec<Event>) {
+    let compiler_schema = compiler_schema();
+    for event in events.iter_mut() {
+        event.changes.retain(|&(ref change_id, _)|
+            !compiler_schema.iter().any(|&(ref id, _)| change_id == id)
+            );
+    }
+}
+
 fn compact(events: &mut Vec<Event>) {
     let mut flow = Flow::new();
     for event in events.drain(..) {
@@ -64,6 +74,7 @@ fn main() {
     match &borrowed_args[..] {
         [_, "remove_view", id] => migrate_all(&|events| remove_view(id, events)),
         [_, "compact", filename] => migrate_file(filename, &compact),
+        [_, "reset_compiler"] => migrate_all(&reset_compiler),
         other => panic!("Bad arguments (look at src/bin/migrate.rs for correct usage): {:?}", &other[1..]),
     }
 }
