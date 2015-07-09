@@ -278,7 +278,7 @@ module tableEditor {
     rows.forEach(function(cur, rowIx) {
       var tds = [];
       for (var tdIx = 0, len = fields.length; tdIx < len; tdIx++) {
-        tds[tdIx] = { c: "field", contextmenu: lookupDisplayName };
+        tds[tdIx] = { c: "field", contextmenu: (DEBUG.TABLE_CELL_LOOKUP ? lookupDisplayName: undefined) };
         
         // @NOTE: We can hoist this if perf is an issue.
         if (isEditable) {
