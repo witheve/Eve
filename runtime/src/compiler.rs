@@ -87,7 +87,7 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     vec![
     // a view dependency exists whenever the contents of one view depend directly on another
     // `ix` is an integer identifying the position in the downstream views input list
-    // TODO can remove `source` once old compiler is totally gone
+    // TODO can remove `ix` and `source` once upstream is gone
     ("view dependency (pre)", vec!["downstream view", "source", "upstream view"]),
     ("view dependency", vec!["downstream view", "ix", "source", "upstream view"]),
 
@@ -147,7 +147,10 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("number of variables", vec!["view ix", "num"]),
     ("constant layout", vec!["view ix", "variable ix", "value"]),
     ("source layout", vec!["view ix", "source ix", "input"]),
-    ("downstream layout", vec!["downstream ix", "ix", "upstream ix"]),
+    // TODO can remove `ix` here once upstream is gone
+    ("downstream layout", vec!["downstream view ix", "ix", "upstream view ix"]),
+    ("binding layout", vec!["view ix", "source ix", "field ix", "variable ix"]),
+    ("select layout", vec!["view ix", "ix", "variable ix"]),
     ]
 }
 
@@ -659,6 +662,32 @@ fn plan(flow: &Flow) {
             });
         });
     });
+
+    let mut binding_layout_table = flow.overwrite_output("binding layout");
+    find!(view_schedule_table, [view_ix, view, _], {
+        find!(source_schedule_ish_table, [(= view), source_ix, _, source], {
+            find!(source_table, [(= view), (= source), source_view], {
+                find!(index_layout_table, [(= source_view), field_ix, field, _], {
+                    find!(binding_table, [variable, (= source), (= field)], {
+                        find!(variable_schedule_table, [(= view), variable_ix, _, (= variable)], {
+                            insert!(binding_layout_table, [view_ix, source_ix, field_ix, variable_ix]);
+                        });
+                    });
+                });
+            });
+        });
+    });
+
+    let mut select_layout_table = flow.overwrite_output("select layout");
+    find!(view_schedule_table, [view_ix, view, _], {
+        find!(index_layout_table, [(= view), field_ix, field, _], {
+            find!(select_ish_table, [(= view), (= field), variable], {
+                find!(variable_schedule_table, [(= view), variable_ix, _, (= variable)], {
+                    insert!(select_layout_table, [view_ix, field_ix, variable_ix]);
+                });
+            });
+        });
+    });
 }
 
 fn push_at<T>(items: &mut Vec<T>, ix: &Value, item: T) {
@@ -711,7 +740,7 @@ fn create(flow: &Flow) {
 
     find!(flow.get_output("number of variables"), [view_ix, num], {
         match &mut nodes[view_ix.as_usize()].view {
-            &mut View::Join2(ref mut join) => join.constants = vec![Value::Null; num.as_usize()],
+            &mut View::Join2(ref mut join) => join.constants = vec![Null; num.as_usize()],
             other => println!("Unimplemented: variables for {:?} {:?}", view_ix, other),
         }
     });
@@ -739,11 +768,25 @@ fn create(flow: &Flow) {
             }
             other => println!("Unimplemented: sources for {:?} {:?}", view_ix, other),
         }
-    })
+    });
 
-    // TODO
-    // fill in bindings in sources
-    // fill in select in join
+    find!(flow.get_output("binding layout"), [view_ix, source_ix, field_ix, binding_ix], {
+        match &mut nodes[view_ix.as_usize()].view {
+            &mut View::Join2(ref mut join) => {
+                push_at(&mut join.sources[source_ix.as_usize()].bindings, field_ix, binding_ix.as_usize());
+            }
+            other => println!("Unimplemented: bindings for {:?} {:?}", view_ix, other),
+        }
+    });
+
+    find!(flow.get_output("select layout"), [view_ix, field_ix, variable_ix], {
+        match &mut nodes[view_ix.as_usize()].view {
+            &mut View::Join2(ref mut join) => {
+                push_at(&mut join.select, field_ix, variable_ix.as_usize());
+            }
+            other => println!("Unimplemented: bindings for {:?} {:?}", view_ix, other),
+        }
+    });
 }
 
 // TODO really need to define physical ordering of fields in each view
