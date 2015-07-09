@@ -723,13 +723,14 @@ fn create(flow: &Flow) {
         }
     });
 
+    // TODO need to either remove the upstream indirection or fix up the view_ix
     find!(flow.get_output("source layout"), [view_ix, source_ix, input], {
         match &mut nodes[view_ix.as_usize()].view {
             &mut View::Join2(ref mut join) => {
                 let source = Source{
                     input: match input {
                         &String(ref primitive) => Input::Primitive(Primitive::from_str(primitive)),
-                        &Float(view_ix) => Input::View(view_ix as usize),
+                        &Float(upstream_view_ix) => Input::View(upstream_view_ix as usize),
                         other => panic!("Unknown input type: {:?}", other),
                     },
                     bindings: vec![],
