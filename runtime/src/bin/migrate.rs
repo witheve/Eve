@@ -59,13 +59,14 @@ fn remove_view(id: &str) {
     }
 }
 
-fn reset_compiler() {
+fn reset_internal_views() {
     let compiler_schema = compiler_schema();
+    let client_schema = client_schema();
     for filename in all_filenames() {
         let mut events = read_events(&filename[..]);
         for event in events.iter_mut() {
             event.changes.retain(|&(ref change_id, _)|
-                !compiler_schema.iter().any(|&(ref id, _)| change_id == id)
+                !compiler_schema.iter().chain(client_schema.iter()).any(|&(ref id, _)| change_id == id)
                 );
         }
         write_events(&filename[..], &events[..]);
@@ -147,7 +148,7 @@ fn main() {
     let borrowed_args = args.iter().map(|s| &s[..]).collect::<Vec<&str>>();
     match &borrowed_args[..] {
         [_, "remove_view", id] => remove_view(id),
-        [_, "reset_compiler"] => reset_compiler(),
+        [_, "reset_internal_views"] => reset_internal_views(),
         [_, "compact", filename] => compact(filename),
         [_, "make_bug_test"] => make_bug_test(),
         [_, "make_regression_test"] => make_regression_test(),
