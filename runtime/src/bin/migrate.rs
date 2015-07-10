@@ -73,9 +73,11 @@ fn reset_compiler() {
 }
 
 fn compact(filename: &str) {
+    let mut flow = Flow::new();
+    let bootstrap_events = read_events("./bootstrap");
     let events = read_events(&filename[..]);
     let mut flow = Flow::new();
-    for event in events.into_iter() {
+    for event in bootstrap_events.into_iter().chain(events.into_iter()) {
         flow = flow.quiesce(event.changes);
     }
     // TODO session is blank which doesn't seem to matter because it is never used
@@ -92,9 +94,11 @@ fn make_bug_test() {
 }
 
 fn make_regression_test() {
+    let mut flow = Flow::new();
+    let bootstrap_events = read_events("./bootstrap");
     let events = read_events("./events");
     let mut flow = Flow::new();
-    for event in events.clone().into_iter() {
+    for event in bootstrap_events.into_iter().chain(events.into_iter()) {
         flow = flow.quiesce(event.changes);
     }
     let time = time::precise_time_ns();

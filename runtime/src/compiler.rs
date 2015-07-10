@@ -203,7 +203,7 @@ pub fn client_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("client event", vec!["session", "eventId", "type", "element", "row"]),
     ("mouse position", vec!["session", "eventId", "x", "y"]),
     ("text input", vec!["session", "eventId", "element", "binding", "value"]),
-    ("location", vec!["session", "latitude", "longitude", "accuracy", "timestamp","city"]),
+    ("location", vec!["session", "latitude", "longitude", "accuracy", "timestamp", "city"]),
     ("session url", vec!["session", "eventId", "href", "origin", "path", "hash"]),
     ("eveusers", vec!["id", "username"]),
     ("sessions", vec!["id", "status"]),
