@@ -138,6 +138,7 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("variable schedule", vec!["view", "ix", "pass", "variable"]),
     ("compiler index layout", vec!["view", "ix", "field", "name"]),
     ("default index layout", vec!["view", "ix", "field", "kind"]),
+    ("constrained binding", vec!["variable", "source", "field"]),
 
     // layout for `create`
     // TODO these names are awful...
@@ -147,7 +148,7 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("constant layout", vec!["view ix", "variable ix", "value"]),
     ("source layout", vec!["view ix", "source ix", "input"]),
     ("downstream layout", vec!["downstream view ix", "ix", "upstream view ix"]),
-    ("binding layout", vec!["view ix", "source ix", "field ix", "variable ix"]),
+    ("binding layout", vec!["view ix", "source ix", "field ix", "variable ix", "kind"]),
     ("select layout", vec!["view ix", "ix", "variable ix"]),
     ]
 }
@@ -321,6 +322,16 @@ fn min_by(input_table: &Relation, output_table: &mut Relation, key_fields: &[&st
     let val_range = key_fields.len()..key_fields.len()+val_fields.len();
     for group in group_by(input_table, key_fields.len()).into_iter() {
         let min = group.iter().min_by(|row| &row[val_range.clone()]).unwrap();
+        output_table.index.insert(min.clone());
+    }
+}
+
+fn max_by(input_table: &Relation, output_table: &mut Relation, key_fields: &[&str], val_fields: &[&str]) {
+    check_fields(input_table, key_fields.iter().chain(val_fields.iter()).collect());
+    check_fields(output_table, input_table.names.clone());
+    let val_range = key_fields.len()..key_fields.len()+val_fields.len();
+    for group in group_by(input_table, key_fields.len()).into_iter() {
+        let min = group.iter().max_by(|row| &row[val_range.clone()]).unwrap();
         output_table.index.insert(min.clone());
     }
 }
@@ -582,6 +593,28 @@ fn plan(flow: &Flow) {
     let mut variable_schedule_table = flow.overwrite_output("variable schedule");
     ordinal_by(&*variable_schedule_pre_table, &mut *variable_schedule_table, &["view"]);
 
+    let mut constrained_binding_table = flow.overwrite_output("constrained binding");
+    find!(variable_table, [view, variable], {
+        find!(constant_ish_table, [(= variable), _], {
+            find!(binding_table, [(= variable), source, field], {
+                insert!(constrained_binding_table, [variable, source, field]);
+            });
+        });
+    });
+    find!(variable_table, [view, variable], {
+        find!(binding_table, [(= variable), source, field], {
+            find!(binding_table, [(= variable), other_source, other_field], {
+                find!(source_schedule_ish_table, [(= view), source_ix, _, (= source)], {
+                    find!(source_schedule_ish_table, [(= view), other_source_ix, _, (= other_source)], {
+                        if other_source_ix < source_ix {
+                            insert!(constrained_binding_table, [variable, source, field]);
+                        }
+                    });
+                });
+            });
+        });
+    });
+
     let mut compiler_index_layout_table = flow.overwrite_output("compiler index layout");
     for (view, names) in schema().into_iter() {
         for (ix, name) in names.into_iter().enumerate() {
@@ -668,7 +701,17 @@ fn plan(flow: &Flow) {
                 find!(index_layout_table, [(= source_view), field_ix, field, _], {
                     find!(binding_table, [variable, (= source), (= field)], {
                         find!(variable_schedule_table, [(= view), variable_ix, _, (= variable)], {
-                            insert!(binding_layout_table, [view_ix, source_ix, field_ix, variable_ix]);
+                            find!(field_table, [(= source_view), (= field), field_kind], {
+                                let unconstrained = dont_find!(constrained_binding_table, [(= variable), (= source), (= field)]);
+                                let kind = match (field_kind.as_str(), unconstrained) {
+                                    ("scalar input", _) => string!("input"),
+                                    ("vector input", _) => string!("input"),
+                                    ("output", false) => string!("constraint"),
+                                    ("output", true) => string!("output"),
+                                    other => panic!("Unknown field kind: {:?}", other),
+                                };
+                                insert!(binding_layout_table, [view_ix, source_ix, field_ix, variable_ix, kind]);
+                            });
                         });
                     });
                 });
@@ -707,7 +750,9 @@ fn create(flow: &Flow) {
                 "join" => View::Join2(Join2{
                     constants: vec![],
                     sources: vec![],
-                    select: vec![],
+                    select: ViewSelect{
+                        mapping: vec![]
+                    },
                 }),
                 _ => {
                     println!("Unimplemented: create for {:?} {:?} {:?}", view_ix, view, kind);
@@ -755,11 +800,17 @@ fn create(flow: &Flow) {
             &mut View::Join2(ref mut join) => {
                 let source = Source{
                     input: match input {
-                        &String(ref primitive) => Input::Primitive(Primitive::from_str(primitive)),
-                        &Float(upstream_view_ix) => Input::View(upstream_view_ix as usize),
+                        &String(ref primitive) => Input::Primitive{
+                            primitive: Primitive::from_str(primitive),
+                            input_bindings: vec![],
+                        },
+                        &Float(upstream_view_ix) => Input::View{
+                            input_ix: upstream_view_ix as usize
+                        },
                         other => panic!("Unknown input type: {:?}", other),
                     },
-                    bindings: vec![],
+                    constraint_bindings: vec![],
+                    output_bindings: vec![],
                 };
                 push_at(&mut join.sources, source_ix, source);
             }
@@ -767,10 +818,17 @@ fn create(flow: &Flow) {
         }
     });
 
-    find!(flow.get_output("binding layout"), [view_ix, source_ix, field_ix, binding_ix], {
+    find!(flow.get_output("binding layout"), [view_ix, source_ix, field_ix, variable_ix, kind], {
         match &mut nodes[view_ix.as_usize()].view {
             &mut View::Join2(ref mut join) => {
-                push_at(&mut join.sources[source_ix.as_usize()].bindings, field_ix, binding_ix.as_usize());
+                let source = &mut join.sources[source_ix.as_usize()];
+                let binding = (field_ix.as_usize(), variable_ix.as_usize());
+                match (kind.as_str(), &mut source.input) {
+                    ("input", &mut Input::Primitive{ref mut input_bindings, ..}) => input_bindings.push(binding),
+                    ("constraint", _) => source.constraint_bindings.push(binding),
+                    ("output", _) => source.output_bindings.push(binding),
+                    other => panic!("Unexpected binding kind / input combo: {:?}", other),
+                }
             }
             other => println!("Unimplemented: bindings for {:?} {:?}", view_ix, other),
         }
@@ -779,7 +837,7 @@ fn create(flow: &Flow) {
     find!(flow.get_output("select layout"), [view_ix, field_ix, variable_ix], {
         match &mut nodes[view_ix.as_usize()].view {
             &mut View::Join2(ref mut join) => {
-                push_at(&mut join.select, field_ix, variable_ix.as_usize());
+                push_at(&mut join.select.mapping, field_ix, variable_ix.as_usize());
             }
             other => println!("Unimplemented: bindings for {:?} {:?}", view_ix, other),
         }

@@ -67,21 +67,27 @@ pub struct Join {
 
 #[derive(Clone, Debug)]
 pub enum Input {
-    Primitive(Primitive),
-    View(usize),
+    Primitive{
+        primitive: Primitive,
+        input_bindings: Vec<(usize, usize)>,
+    },
+    View{
+        input_ix: usize,
+    },
 }
 
 #[derive(Clone, Debug)]
 pub struct Source {
     pub input: Input,
-    pub bindings: Vec<usize>,
+    pub constraint_bindings: Vec<(usize, usize)>,
+    pub output_bindings: Vec<(usize, usize)>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Join2 {
     pub constants: Vec<Value>,
     pub sources: Vec<Source>,
-    pub select: Vec<usize>,
+    pub select: ViewSelect,
 }
 
 #[derive(Clone, Debug)]
@@ -188,15 +194,15 @@ fn compare_in_direction(xs: &[Value], ys: &[Value], directions: &[Direction]) ->
 
 impl View {
     pub fn run(&self, old_output: &Relation, inputs: &[&Relation]) -> Option<Relation> {
+        let mut output = Relation::new(
+            old_output.view.clone(),
+            old_output.fields.clone(),
+            old_output.names.clone()
+            );
         match *self {
             View::Table(_) => None,
             View::Union(ref union) => {
                 assert_eq!(union.selects.len(), inputs.len());
-                let mut output = Relation::new(
-                    old_output.view.clone(),
-                    old_output.fields.clone(),
-                    old_output.names.clone()
-                    );
                 for select in union.selects.iter() {
                     for values in select.select(&inputs[..]) {
                         output.index.insert(values);
@@ -205,21 +211,12 @@ impl View {
                 Some(output)
             }
             View::Join(ref join) => {
-                let mut output = Relation::new(
-                    old_output.view.clone(),
-                    old_output.fields.clone(),
-                    old_output.names.clone()
-                    );
                 let mut state = join.constants.iter().collect();
                 join_step(join, 0, inputs, &mut state, &mut output.index);
                 Some(output)
             }
+            View::Join2(ref join2) => unimplemented!(),
             View::Aggregate(ref aggregate) => {
-                let mut output = Relation::new(
-                    old_output.view.clone(),
-                    old_output.fields.clone(),
-                    old_output.names.clone()
-                    );
                 let mut outer = aggregate.outer.select(&inputs[..]);
                 let mut inner = aggregate.inner.select(&inputs[..]);
                 outer.sort_by(|a,b| compare_in_direction(&a[..], &b[..], &aggregate.directions[..]));
@@ -271,7 +268,6 @@ impl View {
                 }
                 Some(output)
             }
-            View::Join2(ref join2) => unimplemented!(),
         }
     }
 }
