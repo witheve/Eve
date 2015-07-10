@@ -63,6 +63,7 @@ pub struct Join {
     pub sources: Vec<JoinSource>,
     pub constraints: Vec<Vec<Constraint>>,
     pub select: ViewSelect,
+    pub join2: Join2,
 }
 
 #[derive(Clone, Debug)]
@@ -251,6 +252,22 @@ impl View {
             View::Join(ref join) => {
                 let mut state = join.constants.iter().collect();
                 join_step(join, 0, inputs, &mut state, &mut output.index);
+                let output2 = {
+                    let mut output = Relation::new(
+                        old_output.view.clone(),
+                        old_output.fields.clone(),
+                        old_output.names.clone()
+                        );
+                    let mut state = join.join2.constants.iter().collect();
+                    join_step2(&join.join2, 0, inputs, &mut state, &mut output.index);
+                    output
+                };
+                if output.index != output2.index {
+                    println!("Failed for:");
+                    println!("{:#?}", join);
+                    println!("{:#?}", output);
+                    println!("{:#?}", output2);
+                }
                 Some(output)
             }
             View::Join2(ref join) => {

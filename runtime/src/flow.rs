@@ -39,6 +39,10 @@ impl Flow {
         self.nodes.iter().position(|node| &node.id[..] == id)
     }
 
+    pub fn get_node(&self, id: &str) -> &Node {
+        self.nodes.iter().find(|node| &node.id[..] == id).unwrap()
+    }
+
     pub fn get_output(&self, id: &str) -> Ref<Relation> {
         self.outputs[self.get_ix(id).unwrap()].borrow()
     }

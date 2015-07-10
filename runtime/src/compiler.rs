@@ -736,7 +736,7 @@ fn push_at<T>(items: &mut Vec<T>, ix: &Value, item: T) {
     items.push(item);
 }
 
-fn create(flow: &Flow) {
+fn create(flow: &Flow) -> Flow {
     use value::Value::*;
 
     let mut nodes = Vec::new();
@@ -842,6 +842,13 @@ fn create(flow: &Flow) {
             other => println!("Unimplemented: bindings for {:?} {:?}", view_ix, other),
         }
     });
+
+    Flow{
+        nodes: nodes,
+        dirty: dirty,
+        outputs: outputs,
+        needs_recompile: false,
+    }
 }
 
 // TODO really need to define physical ordering of fields in each view
@@ -1213,7 +1220,7 @@ fn create_constraint(flow: &Flow, view_id: &Value, constraint_id: &Value) -> Con
     Constraint{left: left, op: op, right: right}
 }
 
-fn create_join(flow: &Flow, view_id: &Value) -> Join {
+fn create_join(flow: &Flow, join2: Join2, view_id: &Value) -> Join {
     let source_table = flow.get_output("source");
     let source_schedule_table = flow.get_output("source schedule");
     let source_dependency_table = flow.get_output("source dependency");
@@ -1273,7 +1280,7 @@ fn create_join(flow: &Flow, view_id: &Value) -> Join {
 
     let select = create_view_select(flow, view_id);
 
-    Join{constants: constants, sources: join_sources, constraints: join_constraints, select: select}
+    Join{constants: constants, sources: join_sources, constraints: join_constraints, select: select, join2: join2}
 }
 
 fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
@@ -1357,11 +1364,17 @@ fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
     Aggregate{constants: constants, outer: outer, inner: inner, directions: directions, limit_from: limit_from, limit_to: limit_to, reducers: reducers, selects_inner: selects_inner, select: select}
 }
 
-fn create_node(flow: &Flow, view_id: &Value, view_kind: &Value) -> Node {
+fn create_node(flow: &Flow, new_flow2: &Flow, view_id: &Value, view_kind: &Value) -> Node {
     let view = match view_kind.as_str() {
         "table" => View::Table(create_table(flow, view_id)),
         "union" => View::Union(create_union(flow, view_id)),
-        "join" => View::Join(create_join(flow, view_id)),
+        "join" => {
+            let join2 = match new_flow2.get_node(view_id.as_str()).view {
+                View::Join2(ref join2) => join2.clone(),
+                ref other => panic!("Expected a join instead of {:?}", other),
+            };
+            View::Join(create_join(flow, join2, view_id))
+        }
         "aggregate" => View::Aggregate(create_aggregate(flow, view_id)),
         "primitive" => panic!("Should not be creating nodes for primitives!"),
         other => panic!("Unknown view kind: {}", other),
@@ -1382,7 +1395,7 @@ fn create_node(flow: &Flow, view_id: &Value, view_kind: &Value) -> Node {
     }
 }
 
-fn create_flow(flow: &Flow) -> Flow {
+fn create_flow(flow: &Flow, new_flow2: &Flow) -> Flow {
     let mut nodes = Vec::new();
     let mut dirty = BitSet::new();
     let mut outputs = Vec::new();
@@ -1394,7 +1407,7 @@ fn create_flow(flow: &Flow) -> Flow {
         let view_table = flow.get_output("view");
         let view = view_table.find_one("view", &schedule["view"]);
         let view_id = view["view"].as_str().to_owned();
-        nodes.push(create_node(flow, &view["view"], &view["kind"]));
+        nodes.push(create_node(flow, new_flow2, &view["view"], &view["kind"]));
         dirty.insert(schedule["ix"].as_usize());
         let mut index_layouts = index_layout_table.find_all("view", &view["view"]);
         sort_by(&mut index_layouts, "field ix");
@@ -1441,8 +1454,8 @@ pub fn recompile(old_flow: Flow) -> Flow {
     calculate_constraint_schedule(&old_flow);
     calculate_view_reference(&old_flow);
     calculate_view_layout(&old_flow);
-    drop(create(&old_flow)); // just running this to catch errors for now
-    let mut new_flow = create_flow(&old_flow);
+    let new_flow2 = create(&old_flow);
+    let mut new_flow = create_flow(&old_flow, &new_flow2);
     reuse_state(old_flow, &mut new_flow);
     new_flow
 }
