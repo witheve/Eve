@@ -153,12 +153,50 @@ fn join_step<'a>(join: &'a Join, ix: usize, inputs: &[&'a Relation], state: &mut
             JoinSource::Primitive{ref primitive, ref arguments, ..} => {
                 for values in primitive.eval_from_join(&arguments[..], &state[..]).into_iter() {
                     // promise the borrow checker that we will pop values before we exit this scope
+                    // TODO this is not panic-safe - we should use CowString in Value instead
                     let values = unsafe { ::std::mem::transmute::<&Vec<Value>, &'a Vec<Value>>(&values) };
                     push_all(state, values);
                     if join.constraints[ix].iter().all(|constraint| constraint.is_satisfied_by(&state[..])) {
                         join_step(join, ix+1, inputs, state, index)
                     }
                     pop_all(state, values);
+                }
+            }
+        }
+    }
+}
+
+fn join_step2<'a>(join: &'a Join2, ix: usize, inputs: &[&'a Relation], state: &mut Vec<&'a Value>, index: &mut BTreeSet<Vec<Value>>) {
+    if ix == join.sources.len() {
+        index.insert(join.select.select(&state[..]));
+    } else {
+        let source = &join.sources[ix];
+        match source.input {
+            Input::View{input_ix} => {
+                for values in inputs[input_ix].index.iter() {
+                    if source.constraint_bindings.iter().all(|&(field_ix, variable_ix)|
+                        *state[variable_ix] == values[field_ix]
+                    ) {
+                        for &(field_ix, variable_ix) in source.output_bindings.iter() {
+                            state[variable_ix] = &values[field_ix];
+                        }
+                        join_step2(join, ix+1, inputs, state, index);
+                    }
+                }
+            }
+            Input::Primitive{primitive, ref input_bindings} => {
+                for values in primitive.eval_from_join2(&input_bindings[..], &state[..]).into_iter() {
+                    // promise the borrow checker that we wont read these values after exiting this scope
+                    // TODO this is not panic-safe - we should use CowString in Value instead
+                    let values = unsafe { ::std::mem::transmute::<&Vec<Value>, &'a Vec<Value>>(&values) };
+                    if source.constraint_bindings.iter().all(|&(field_ix, variable_ix)|
+                        *state[variable_ix] == values[field_ix]
+                    ) {
+                        for &(field_ix, variable_ix) in source.output_bindings.iter() {
+                            state[variable_ix] = &values[field_ix];
+                        }
+                        join_step2(join, ix+1, inputs, state, index);
+                    }
                 }
             }
         }
@@ -215,7 +253,11 @@ impl View {
                 join_step(join, 0, inputs, &mut state, &mut output.index);
                 Some(output)
             }
-            View::Join2(ref join2) => unimplemented!(),
+            View::Join2(ref join) => {
+                let mut state = join.constants.iter().collect();
+                join_step2(join, 0, inputs, &mut state, &mut output.index);
+                Some(output)
+            }
             View::Aggregate(ref aggregate) => {
                 let mut outer = aggregate.outer.select(&inputs[..]);
                 let mut inner = aggregate.inner.select(&inputs[..]);

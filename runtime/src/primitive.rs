@@ -83,6 +83,46 @@ impl Primitive {
         }
     }
 
+    pub fn eval_from_join2<'a>(&self, input_bindings: &[(usize, usize)], inputs: &[&Value]) -> Vec<Vec<Value>> {
+        use primitive::Primitive::*;
+        use value::Value::*;
+        let values = input_bindings.iter().enumerate().map(|(ix, &(field_ix, variable_ix))| {
+            assert_eq!(ix, field_ix);
+            inputs[variable_ix]
+        }).collect::<Vec<_>>();
+        match (*self, &values[..]) {
+            // NOTE be aware that arguments will be in alphabetical order by field id
+            (LT, [ref a, ref b]) => if a < b {vec![vec![]]} else {vec![]},
+            (LTE, [ref a, ref b]) => if a <= b {vec![vec![]]} else {vec![]},
+            (NEQ, [ref a, ref b]) => if a != b {vec![vec![]]} else {vec![]},
+            (Add, [&Float(a), &Float(b)]) => vec![vec![Float(a+b)]],
+            (Subtract, [&Float(a), &Float(b)]) => vec![vec![Float(a-b)]],
+            (Multiply, [&Float(a), &Float(b)]) => vec![vec![Float(a*b)]],
+            (Round, [&Float(a), &Float(b)]) => vec![vec![Float((a*10f64.powf(b)).round()/10f64.powf(b))]],
+            (Contains, [&String(ref inner), &String(ref outer)]) => {
+              let inner_lower = &inner.to_lowercase();
+              let outer_lower = &outer.to_lowercase();
+              vec![vec![Bool(outer_lower.contains(inner_lower))]]
+            },
+            (Split, [&String(ref split), &String(ref string)]) => {
+                string.split(split).enumerate().map(|(ix, segment)| vec![Float(ix as f64), String(segment.to_owned())]).collect()
+            },
+            (Concat, [&String(ref a), &String(ref b)]) => vec![vec![String(a.to_owned() + b)]],
+            (ParseFloat, [&String(ref a)]) => {
+                match f64::from_str(&a) {
+                    Ok(v) => vec![vec![Float(v), Bool(true)]],
+                    _ => vec![vec![Float(f64::MAX), Bool(false)]]
+                }
+            },
+            (Count, _) => panic!("Cannot use {:?} in a join", self),
+            (Sum, _) => panic!("Cannot use {:?} in a join", self),
+            (Mean, _) => panic!("Cannot use {:?} in a join", self),
+            (StandardDeviation, _) => panic!("Cannot use {:?} in a join", self),
+            (Empty, _) => panic!("Cannot use {:?} in a join", self),
+            _ => panic!("Type error while calling: {:?} {:?}", self, values)
+        }
+    }
+
     pub fn eval_from_aggregate<'a>(&self, arguments: &[usize], constants: &[Value], outer: &[Value], inner: &[Vec<Value>]) -> Vec<Vec<Value>> {
         use primitive::Primitive::*;
         use value::Value::*;
