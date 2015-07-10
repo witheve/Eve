@@ -117,6 +117,13 @@ module client {
       throw(error);
     };
 
+    ws.onclose = function() {
+      var error_banner = document.createElement("div");
+      error_banner.innerHTML = "Error: Eve Server is Dead!";
+      error_banner.setAttribute("class","dead-server-banner");
+      document.body.appendChild(error_banner);
+    }
+
     ws.onmessage = function(e) {
       var start = now();
       var data = JSON.parse(e.data);
