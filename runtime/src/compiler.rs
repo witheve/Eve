@@ -622,6 +622,16 @@ fn plan(flow: &Flow) {
                 [string!("{}", view), Float(ix as f64), string!("{}: {}", view, name), string!("{}", name)]);
         }
     }
+    for (view, scalar_input_names, vector_input_names, output_names) in primitive::primitives().into_iter() {
+        for (ix, name) in
+        scalar_input_names.into_iter()
+        .chain(vector_input_names.into_iter())
+        .chain(output_names.into_iter())
+        .enumerate() {
+            insert!(compiler_index_layout_table,
+                [string!("{}", view), Float(ix as f64), string!("{}: {}", view, name), string!("{}", name)]);
+        }
+    }
 
     let mut default_index_layout_table = flow.overwrite_output("default index layout");
     ordinal_by(&*field_table, &mut *default_index_layout_table, &["view"]);
