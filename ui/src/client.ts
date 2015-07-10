@@ -117,6 +117,15 @@ module client {
       throw(error);
     };
 
+    ws.onclose = function() {
+      var error_banner = document.createElement("div");
+      error_banner.innerHTML = "Error: Eve Server is Dead!";
+      error_banner.setAttribute("class","dead-server-banner");
+      document.body.appendChild(error_banner);
+      //document.body.innerHTML += '<div class="dead-server-banner">Error: Eve Server is Dead!</div>';
+      console.log("websocket closed");
+    }
+
     ws.onmessage = function(e) {
       var start = now();
       var data = JSON.parse(e.data);
