@@ -56,7 +56,7 @@ impl<T: FromJson> FromJson for Vec<T> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Event {
     pub changes: Changes,
     pub session: String,
