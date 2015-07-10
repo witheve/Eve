@@ -186,15 +186,17 @@ fn join_step2<'a>(join: &'a Join2, ix: usize, inputs: &[&'a Relation], state: &m
                 }
             }
             Input::Primitive{primitive, ref input_bindings} => {
+                // values returned from primitives don't include inputs, so we will have to offset accesses by input_len
+                let input_len = input_bindings.len();
                 for values in primitive.eval_from_join2(&input_bindings[..], &state[..]).into_iter() {
                     // promise the borrow checker that we wont read these values after exiting this scope
                     // TODO this is not panic-safe - we should use CowString in Value instead
                     let values = unsafe { ::std::mem::transmute::<&Vec<Value>, &'a Vec<Value>>(&values) };
                     if source.constraint_bindings.iter().all(|&(field_ix, variable_ix)|
-                        *state[variable_ix] == values[field_ix]
+                        *state[variable_ix] == values[field_ix - input_len]
                     ) {
                         for &(field_ix, variable_ix) in source.output_bindings.iter() {
-                            state[variable_ix] = &values[field_ix];
+                            state[variable_ix] = &values[field_ix - input_len];
                         }
                         join_step2(join, ix+1, inputs, state, index);
                     }
