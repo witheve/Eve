@@ -16,56 +16,6 @@ pub struct Union {
     pub selects: Vec<IndexSelect>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ConstraintOp {
-    EQ,
-    NEQ,
-    LT,
-    GT,
-    LTE,
-    GTE,
-}
-
-#[derive(Clone, Debug)]
-pub struct Constraint {
-    pub left: usize,
-    pub op: ConstraintOp,
-    pub right: usize,
-}
-
-impl Constraint {
-    fn is_satisfied_by(&self, state: &[&Value]) -> bool {
-        match self.op {
-            ConstraintOp::EQ => state[self.left] == state[self.right],
-            ConstraintOp::NEQ => state[self.left] != state[self.right],
-            ConstraintOp::LT => state[self.left] < state[self.right],
-            ConstraintOp::GT => state[self.left] > state[self.right],
-            ConstraintOp::LTE => state[self.left] <= state[self.right],
-            ConstraintOp::GTE => state[self.left] >= state[self.right],
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub enum JoinSource {
-    Relation{
-        input: usize
-    },
-    Primitive{
-        primitive: Primitive,
-        arguments: Vec<usize>,
-    },
-}
-
-#[derive(Clone, Debug)]
-pub struct Join {
-    pub constants: Vec<Value>,
-    pub sources: Vec<JoinSource>,
-    pub constraints: Vec<Vec<Constraint>>,
-    pub select: ViewSelect,
-    pub join2: Join2,
-}
-
 #[derive(Clone, Debug)]
 pub enum Input {
     Primitive{
@@ -85,7 +35,7 @@ pub struct Source {
 }
 
 #[derive(Clone, Debug)]
-pub struct Join2 {
+pub struct Join {
     pub constants: Vec<Value>,
     pub sources: Vec<Source>,
     pub select: ViewSelect,
@@ -122,7 +72,6 @@ pub enum View {
     Union(Union),
     Join(Join),
     Aggregate(Aggregate),
-    Join2(Join2),
 }
 
 fn push_all<'a>(state: &mut Vec<&'a Value>, input: &'a Vec<Value>) {
@@ -141,36 +90,6 @@ fn join_step<'a>(join: &'a Join, ix: usize, inputs: &[&'a Relation], state: &mut
     if ix == join.sources.len() {
         index.insert(join.select.select(&state[..]));
     } else {
-        match join.sources[ix] {
-            JoinSource::Relation{input} => {
-                for values in inputs[input].index.iter() {
-                    push_all(state, values);
-                    if join.constraints[ix].iter().all(|constraint| constraint.is_satisfied_by(&state[..])) {
-                        join_step(join, ix+1, inputs, state, index)
-                    }
-                    pop_all(state, values);
-                }
-            }
-            JoinSource::Primitive{ref primitive, ref arguments, ..} => {
-                for values in primitive.eval_from_join(&arguments[..], &state[..]).into_iter() {
-                    // promise the borrow checker that we will pop values before we exit this scope
-                    // TODO this is not panic-safe - we should use CowString in Value instead
-                    let values = unsafe { ::std::mem::transmute::<&Vec<Value>, &'a Vec<Value>>(&values) };
-                    push_all(state, values);
-                    if join.constraints[ix].iter().all(|constraint| constraint.is_satisfied_by(&state[..])) {
-                        join_step(join, ix+1, inputs, state, index)
-                    }
-                    pop_all(state, values);
-                }
-            }
-        }
-    }
-}
-
-fn join_step2<'a>(join: &'a Join2, ix: usize, inputs: &[&'a Relation], state: &mut Vec<&'a Value>, index: &mut BTreeSet<Vec<Value>>) {
-    if ix == join.sources.len() {
-        index.insert(join.select.select(&state[..]));
-    } else {
         let source = &join.sources[ix];
         match source.input {
             Input::View{input_ix} => {
@@ -181,14 +100,14 @@ fn join_step2<'a>(join: &'a Join2, ix: usize, inputs: &[&'a Relation], state: &m
                     if source.constraint_bindings.iter().all(|&(field_ix, variable_ix)|
                         *state[variable_ix] == values[field_ix]
                     ) {
-                        join_step2(join, ix+1, inputs, state, index);
+                        join_step(join, ix+1, inputs, state, index);
                     }
                 }
             }
             Input::Primitive{primitive, ref input_bindings} => {
                 // values returned from primitives don't include inputs, so we will have to offset accesses by input_len
                 let input_len = input_bindings.len();
-                for values in primitive.eval_from_join2(&input_bindings[..], &state[..]).into_iter() {
+                for values in primitive.eval_from_join(&input_bindings[..], &state[..]).into_iter() {
                     // promise the borrow checker that we wont read these values after exiting this scope
                     // TODO this is not panic-safe - we should use CowString in Value instead
                     let values = unsafe { ::std::mem::transmute::<&Vec<Value>, &'a Vec<Value>>(&values) };
@@ -198,7 +117,7 @@ fn join_step2<'a>(join: &'a Join2, ix: usize, inputs: &[&'a Relation], state: &m
                     if source.constraint_bindings.iter().all(|&(field_ix, variable_ix)|
                         *state[variable_ix] == values[field_ix - input_len]
                     ) {
-                        join_step2(join, ix+1, inputs, state, index);
+                        join_step(join, ix+1, inputs, state, index);
                     }
                 }
             }
@@ -254,27 +173,6 @@ impl View {
             View::Join(ref join) => {
                 let mut state = join.constants.iter().collect();
                 join_step(join, 0, inputs, &mut state, &mut output.index);
-                let output2 = {
-                    let mut output = Relation::new(
-                        old_output.view.clone(),
-                        old_output.fields.clone(),
-                        old_output.names.clone()
-                        );
-                    let mut state = join.join2.constants.iter().collect();
-                    join_step2(&join.join2, 0, inputs, &mut state, &mut output.index);
-                    output
-                };
-                if output.index != output2.index {
-                    println!("Failed for:");
-                    println!("{:#?}", join);
-                    println!("{:#?}", output);
-                    println!("{:#?}", output2);
-                }
-                Some(output)
-            }
-            View::Join2(ref join) => {
-                let mut state = join.constants.iter().collect();
-                join_step2(join, 0, inputs, &mut state, &mut output.index);
                 Some(output)
             }
             View::Aggregate(ref aggregate) => {
