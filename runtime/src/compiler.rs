@@ -606,7 +606,9 @@ fn plan(flow: &Flow) {
             find!(binding_table, [(= variable), other_source, other_field], {
                 find!(source_schedule_ish_table, [(= view), source_ix, _, (= source)], {
                     find!(source_schedule_ish_table, [(= view), other_source_ix, _, (= other_source)], {
-                        if other_source_ix < source_ix {
+                        if (other_source_ix < source_ix)
+                        // arbitrary field ordering, just to have to pick one to be the unconstrained binding
+                        || (other_source_ix == source_ix && other_field < field) {
                             insert!(constrained_binding_table, [variable, source, field]);
                         }
                     });
