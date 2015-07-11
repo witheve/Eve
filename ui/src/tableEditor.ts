@@ -183,34 +183,29 @@ module tableEditor {
   }
 
   export function tableWorkspace(tableId) {
-    var order = ixer.index("display order");
-    var fields = (ixer.index("view to fields")[tableId] || []).map(function(field) {
-      var id = field[code.ix("field", "field")];
-      return { name: getLocalFieldName(id), id: id, priority: order[id] || 0 };
-    });
-    fields.sort(function(a, b) {
-      var delta = b.priority - a.priority;
-      if (delta) { return delta; }
-      else { return a.id.localeCompare(b.id); }
-    });
-
-    var rows = ixer.facts(tableId);
-    rows.sort(function(a, b) {
-      var aIx = order[tableId + JSON.stringify(a)] || 0;
-      var bIx = order[tableId + JSON.stringify(b)] || 0;
-      return aIx - bIx;
-    });
     return eveEditor.genericWorkspace({
       itemId: tableId,
       content: {
         c: "table-editor",
         children: [
-          virtualizedTable(tableId, fields, rows, true)
+          tableForView(tableId, true)
         ]
       }, 
       controls: [
         {class: "control", text:"+/-", click: openTableQuery, itemId: tableId}
-      ]});
+      ]})
+  }
+  
+  export function tableForView(viewId, editable = false, limit:any = false) {
+    var fields = (ixer.getFields(viewId) || []).map(function(fieldId, ix) {
+      return { name: getLocalFieldName(fieldId), id: fieldId, priority: ix };
+    });
+
+    var rows = ixer.facts(viewId);
+    if(limit !== false) {
+      rows = rows.slice(0, limit);
+    }
+    return virtualizedTable(viewId, fields, rows, editable);
   }
   
   function openTableQuery(evt, elem) {
