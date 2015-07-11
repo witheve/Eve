@@ -5,7 +5,7 @@ use std::convert::AsRef;
 
 use value::{Value, Tuple};
 use relation::{Relation, IndexSelect, ViewSelect, mapping, with_mapping};
-use view::{View, Table, Union, Join, JoinSource, Input, Source, Join2, Constraint, ConstraintOp, Aggregate, Direction, Reducer};
+use view::{View, Table, Union, Join, Input, Source, Aggregate, Direction, Reducer};
 use flow::{Node, Flow};
 use primitive;
 use primitive::Primitive;
@@ -87,7 +87,6 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     vec![
     // a view dependency exists whenever the contents of one view depend directly on another
     // `ix` is an integer identifying the position in the downstream views input list
-    // TODO can remove `ix` and `source` once upstream is gone
     ("view dependency (pre)", vec!["downstream view", "source", "upstream view"]),
     ("view dependency", vec!["downstream view", "ix", "source", "upstream view"]),
 
@@ -139,6 +138,7 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("variable schedule", vec!["view", "ix", "pass", "variable"]),
     ("compiler index layout", vec!["view", "ix", "field", "name"]),
     ("default index layout", vec!["view", "ix", "field", "kind"]),
+    ("constrained binding", vec!["variable", "source", "field"]),
 
     // layout for `create`
     // TODO these names are awful...
@@ -147,9 +147,8 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("number of variables", vec!["view ix", "num"]),
     ("constant layout", vec!["view ix", "variable ix", "value"]),
     ("source layout", vec!["view ix", "source ix", "input"]),
-    // TODO can remove `ix` here once upstream is gone
     ("downstream layout", vec!["downstream view ix", "ix", "upstream view ix"]),
-    ("binding layout", vec!["view ix", "source ix", "field ix", "variable ix"]),
+    ("binding layout", vec!["view ix", "source ix", "field ix", "variable ix", "kind"]),
     ("select layout", vec!["view ix", "ix", "variable ix"]),
     ]
 }
@@ -204,7 +203,7 @@ pub fn client_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("client event", vec!["session", "eventId", "type", "element", "row"]),
     ("mouse position", vec!["session", "eventId", "x", "y"]),
     ("text input", vec!["session", "eventId", "element", "binding", "value"]),
-    ("location", vec!["session", "latitude", "longitude", "accuracy", "timestamp"]),
+    ("location", vec!["session", "latitude", "longitude", "accuracy", "timestamp", "city"]),
     ("session url", vec!["session", "eventId", "href", "origin", "path", "hash"]),
     ("eveusers", vec!["id", "username"]),
     ("sessions", vec!["id", "status"]),
@@ -343,15 +342,6 @@ fn count_by(input_table: &Relation, output_table: &mut Relation, key_fields: &[&
     }
 }
 
-fn union(input_tables: &[&Relation], output_table: &mut Relation) {
-    for input_table in input_tables.iter() {
-        assert_eq!(input_table.names, output_table.names);
-        for row in input_table.index.iter() {
-            output_table.index.insert(row.clone());
-        }
-    }
-}
-
 fn plan(flow: &Flow) {
     use value::Value::*;
 
@@ -363,10 +353,10 @@ fn plan(flow: &Flow) {
     let constraint_left_table = flow.get_output("constraint left");
     let constraint_right_table = flow.get_output("constraint right");
     let constraint_operation_table = flow.get_output("constraint operation");
-    let aggregate_grouping_table = flow.get_output("aggregate grouping");
-    let aggregate_sorting_table = flow.get_output("aggregate sorting");
-    let aggregate_limit_from_table = flow.get_output("aggregate limit from");
-    let aggregate_limit_to_table = flow.get_output("aggregate limit to");
+    // let aggregate_grouping_table = flow.get_output("aggregate grouping");
+    // let aggregate_sorting_table = flow.get_output("aggregate sorting");
+    // let aggregate_limit_from_table = flow.get_output("aggregate limit from");
+    // let aggregate_limit_to_table = flow.get_output("aggregate limit to");
     let select_table = flow.get_output("select");
 
     let mut constraint_ish_table = flow.overwrite_output("constraint*");
@@ -584,9 +574,43 @@ fn plan(flow: &Flow) {
     let mut variable_schedule_table = flow.overwrite_output("variable schedule");
     ordinal_by(&*variable_schedule_pre_table, &mut *variable_schedule_table, &["view"]);
 
+    let mut constrained_binding_table = flow.overwrite_output("constrained binding");
+    find!(variable_table, [view, variable], {
+        find!(constant_ish_table, [(= variable), _], {
+            find!(binding_table, [(= variable), source, field], {
+                insert!(constrained_binding_table, [variable, source, field]);
+            });
+        });
+    });
+    find!(variable_table, [view, variable], {
+        find!(binding_table, [(= variable), source, field], {
+            find!(binding_table, [(= variable), other_source, other_field], {
+                find!(source_schedule_ish_table, [(= view), source_ix, _, (= source)], {
+                    find!(source_schedule_ish_table, [(= view), other_source_ix, _, (= other_source)], {
+                        if (other_source_ix < source_ix)
+                        // arbitrary field ordering, just to have to pick one to be the unconstrained binding
+                        || (other_source_ix == source_ix && other_field < field) {
+                            insert!(constrained_binding_table, [variable, source, field]);
+                        }
+                    });
+                });
+            });
+        });
+    });
+
     let mut compiler_index_layout_table = flow.overwrite_output("compiler index layout");
     for (view, names) in schema().into_iter() {
         for (ix, name) in names.into_iter().enumerate() {
+            insert!(compiler_index_layout_table,
+                [string!("{}", view), Float(ix as f64), string!("{}: {}", view, name), string!("{}", name)]);
+        }
+    }
+    for (view, scalar_input_names, vector_input_names, output_names) in primitive::primitives().into_iter() {
+        for (ix, name) in
+        scalar_input_names.into_iter()
+        .chain(vector_input_names.into_iter())
+        .chain(output_names.into_iter())
+        .enumerate() {
             insert!(compiler_index_layout_table,
                 [string!("{}", view), Float(ix as f64), string!("{}: {}", view, name), string!("{}", name)]);
         }
@@ -654,8 +678,8 @@ fn plan(flow: &Flow) {
                     if kind.as_str() == "primitive" {
                         insert!(source_layout_table, [view_ix, source_ix, source_view]);
                     } else {
-                        find!(view_schedule_table, [source_view_ix, (= source_view), _], {
-                            insert!(source_layout_table, [view_ix, source_ix, source_view_ix]);
+                        find!(view_dependency_table, [(= view), input_ix, (= source), (= source_view)], {
+                            insert!(source_layout_table, [view_ix, source_ix, input_ix]);
                         });
                     }
                 });
@@ -670,7 +694,17 @@ fn plan(flow: &Flow) {
                 find!(index_layout_table, [(= source_view), field_ix, field, _], {
                     find!(binding_table, [variable, (= source), (= field)], {
                         find!(variable_schedule_table, [(= view), variable_ix, _, (= variable)], {
-                            insert!(binding_layout_table, [view_ix, source_ix, field_ix, variable_ix]);
+                            find!(field_table, [(= source_view), (= field), field_kind], {
+                                let unconstrained = dont_find!(constrained_binding_table, [(= variable), (= source), (= field)]);
+                                let kind = match (field_kind.as_str(), unconstrained) {
+                                    ("scalar input", _) => string!("input"),
+                                    ("vector input", _) => string!("input"),
+                                    ("output", false) => string!("constraint"),
+                                    ("output", true) => string!("output"),
+                                    other => panic!("Unknown field kind: {:?}", other),
+                                };
+                                insert!(binding_layout_table, [view_ix, source_ix, field_ix, variable_ix, kind]);
+                            });
                         });
                     });
                 });
@@ -695,7 +729,7 @@ fn push_at<T>(items: &mut Vec<T>, ix: &Value, item: T) {
     items.push(item);
 }
 
-fn create(flow: &Flow) {
+fn create(flow: &Flow) -> Flow {
     use value::Value::*;
 
     let mut nodes = Vec::new();
@@ -706,10 +740,12 @@ fn create(flow: &Flow) {
         nodes.push(Node{
             id: view.as_str().to_owned(),
             view: match kind.as_str() {
-                "join" => View::Join2(Join2{
+                "join" => View::Join(Join{
                     constants: vec![],
                     sources: vec![],
-                    select: vec![],
+                    select: ViewSelect{
+                        mapping: vec![]
+                    },
                 }),
                 _ => {
                     println!("Unimplemented: create for {:?} {:?} {:?}", view_ix, view, kind);
@@ -740,29 +776,34 @@ fn create(flow: &Flow) {
 
     find!(flow.get_output("number of variables"), [view_ix, num], {
         match &mut nodes[view_ix.as_usize()].view {
-            &mut View::Join2(ref mut join) => join.constants = vec![Null; num.as_usize()],
+            &mut View::Join(ref mut join) => join.constants = vec![Null; num.as_usize()],
             other => println!("Unimplemented: variables for {:?} {:?}", view_ix, other),
         }
     });
 
     find!(flow.get_output("constant layout"), [view_ix, variable_ix, value], {
         match &mut nodes[view_ix.as_usize()].view {
-            &mut View::Join2(ref mut join) => join.constants[variable_ix.as_usize()] = value.clone(),
+            &mut View::Join(ref mut join) => join.constants[variable_ix.as_usize()] = value.clone(),
             other => println!("Unimplemented: variables for {:?} {:?}", view_ix, other),
         }
     });
 
-    // TODO need to either remove the upstream indirection or fix up the view_ix
     find!(flow.get_output("source layout"), [view_ix, source_ix, input], {
         match &mut nodes[view_ix.as_usize()].view {
-            &mut View::Join2(ref mut join) => {
+            &mut View::Join(ref mut join) => {
                 let source = Source{
                     input: match input {
-                        &String(ref primitive) => Input::Primitive(Primitive::from_str(primitive)),
-                        &Float(upstream_view_ix) => Input::View(upstream_view_ix as usize),
+                        &String(ref primitive) => Input::Primitive{
+                            primitive: Primitive::from_str(primitive),
+                            input_bindings: vec![],
+                        },
+                        &Float(upstream_view_ix) => Input::View{
+                            input_ix: upstream_view_ix as usize
+                        },
                         other => panic!("Unknown input type: {:?}", other),
                     },
-                    bindings: vec![],
+                    constraint_bindings: vec![],
+                    output_bindings: vec![],
                 };
                 push_at(&mut join.sources, source_ix, source);
             }
@@ -770,10 +811,17 @@ fn create(flow: &Flow) {
         }
     });
 
-    find!(flow.get_output("binding layout"), [view_ix, source_ix, field_ix, binding_ix], {
+    find!(flow.get_output("binding layout"), [view_ix, source_ix, field_ix, variable_ix, kind], {
         match &mut nodes[view_ix.as_usize()].view {
-            &mut View::Join2(ref mut join) => {
-                push_at(&mut join.sources[source_ix.as_usize()].bindings, field_ix, binding_ix.as_usize());
+            &mut View::Join(ref mut join) => {
+                let source = &mut join.sources[source_ix.as_usize()];
+                let binding = (field_ix.as_usize(), variable_ix.as_usize());
+                match (kind.as_str(), &mut source.input) {
+                    ("input", &mut Input::Primitive{ref mut input_bindings, ..}) => input_bindings.push(binding),
+                    ("constraint", _) => source.constraint_bindings.push(binding),
+                    ("output", _) => source.output_bindings.push(binding),
+                    other => panic!("Unexpected binding kind / input combo: {:?}", other),
+                }
             }
             other => println!("Unimplemented: bindings for {:?} {:?}", view_ix, other),
         }
@@ -781,12 +829,19 @@ fn create(flow: &Flow) {
 
     find!(flow.get_output("select layout"), [view_ix, field_ix, variable_ix], {
         match &mut nodes[view_ix.as_usize()].view {
-            &mut View::Join2(ref mut join) => {
-                push_at(&mut join.select, field_ix, variable_ix.as_usize());
+            &mut View::Join(ref mut join) => {
+                push_at(&mut join.select.mapping, field_ix, variable_ix.as_usize());
             }
             other => println!("Unimplemented: bindings for {:?} {:?}", view_ix, other),
         }
     });
+
+    Flow{
+        nodes: nodes,
+        dirty: dirty,
+        outputs: outputs,
+        needs_recompile: false,
+    }
 }
 
 // TODO really need to define physical ordering of fields in each view
@@ -1139,88 +1194,6 @@ fn create_union(flow: &Flow, view_id: &Value) -> Union {
     Union{selects: selects}
 }
 
-fn create_constraint(flow: &Flow, view_id: &Value, constraint_id: &Value) -> Constraint {
-    let left_table = flow.get_output("constraint left");
-    let left = left_table.find_one("constraint", constraint_id);
-    let left = get_view_layout_ix(flow, view_id, &left["left source"], &left["left field"]);
-    let right_table = flow.get_output("constraint right");
-    let right = right_table.find_one("constraint", constraint_id);
-    let right = get_view_layout_ix(flow, view_id, &right["right source"], &right["right field"]);
-    let op = match flow.get_output("constraint operation").find_one("constraint", constraint_id)["operation"].as_str() {
-        "=" => ConstraintOp::EQ,
-        "!=" => ConstraintOp::NEQ,
-        "<" => ConstraintOp::LT,
-        ">" => ConstraintOp::GT,
-        "<=" => ConstraintOp::LTE,
-        ">=" => ConstraintOp::GTE,
-        other => panic!("Unknown constraint operation: {:?}", other),
-    };
-    Constraint{left: left, op: op, right: right}
-}
-
-fn create_join(flow: &Flow, view_id: &Value) -> Join {
-    let source_table = flow.get_output("source");
-    let source_schedule_table = flow.get_output("source schedule");
-    let source_dependency_table = flow.get_output("source dependency");
-    let view_table = flow.get_output("view");
-    let view_dependency_table = flow.get_output("view dependency");
-    let constraint_table = flow.get_output("constraint");
-    let constraint_schedule_table = flow.get_output("constraint schedule");
-    let field_table = flow.get_output("field");
-
-    let constants = create_constants(flow, view_id);
-
-    let dependencies = view_dependency_table.find_all("downstream view", view_id);
-
-    let mut ixes_and_sources = source_table.find_all("view", view_id).into_iter().map(|source| {
-        let schedule = source_schedule_table.find_one("source", &source["source"]);
-        (schedule["ix"].as_usize(), source)
-        }).collect::<Vec<_>>();
-    ixes_and_sources.sort();
-    let sources = ixes_and_sources.into_iter().map(|(_, source)| source).collect::<Vec<_>>();
-
-    let mut join_constraints = vec![vec![]; sources.len()];
-    for constraint in constraint_table.find_all("view", view_id).iter() {
-        match constraint_schedule_table.find_maybe("constraint", &constraint["constraint"]) {
-            Some(constraint_schedule) => {
-                let join_constraint = create_constraint(flow, view_id, &constraint["constraint"]);
-                join_constraints[constraint_schedule["ix"].as_usize()].push(join_constraint);
-            }
-            None => () // not scheduled, must be a primitive argument instead
-        }
-    }
-
-    let join_sources = sources.iter().map(|source| {
-        let source_view = view_table.find_one("view", &source["source view"]);
-        match source_view["kind"].as_str() {
-            "primitive" => {
-                let primitive = Primitive::from_str(source_view["view"].as_str());
-                let fields = field_table.find_all("view", &source_view["view"]);
-                let input_fields = fields.iter()
-                    .filter(|field| field["kind"].as_str() != "output")
-                    .map(|field| field["field"].clone())
-                    .collect::<Vec<_>>();
-                let dependencies = source_dependency_table.find_all("downstream source", &source["source"]);
-                let arguments = input_fields.iter().map(|input_field| {
-                    let dependency = dependencies.iter().find(|dependency| dependency["downstream field"] == *input_field).unwrap();
-                    get_view_layout_ix(flow, view_id, &dependency["upstream source"], &dependency["upstream field"])
-                    }).collect();
-                JoinSource::Primitive{primitive: primitive, arguments: arguments}
-            }
-            _ => {
-                let input_ix = dependencies.iter().position(|dependency|
-                    dependency["source"] == source["source"]
-                    ).unwrap(); // TODO really should use ix here but it's tricky in create_node
-                JoinSource::Relation{input: input_ix}
-            }
-        }
-    }).collect();
-
-    let select = create_view_select(flow, view_id);
-
-    Join{constants: constants, sources: join_sources, constraints: join_constraints, select: select}
-}
-
 fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
     let view_table = flow.get_output("view");
     let source_table = flow.get_output("source");
@@ -1302,11 +1275,11 @@ fn create_aggregate(flow: &Flow, view_id: &Value) -> Aggregate {
     Aggregate{constants: constants, outer: outer, inner: inner, directions: directions, limit_from: limit_from, limit_to: limit_to, reducers: reducers, selects_inner: selects_inner, select: select}
 }
 
-fn create_node(flow: &Flow, view_id: &Value, view_kind: &Value) -> Node {
+fn create_node(flow: &Flow, new_flow2: &Flow, view_id: &Value, view_kind: &Value) -> Node {
     let view = match view_kind.as_str() {
         "table" => View::Table(create_table(flow, view_id)),
         "union" => View::Union(create_union(flow, view_id)),
-        "join" => View::Join(create_join(flow, view_id)),
+        "join" => new_flow2.get_node(view_id.as_str()).view.clone(),
         "aggregate" => View::Aggregate(create_aggregate(flow, view_id)),
         "primitive" => panic!("Should not be creating nodes for primitives!"),
         other => panic!("Unknown view kind: {}", other),
@@ -1327,7 +1300,7 @@ fn create_node(flow: &Flow, view_id: &Value, view_kind: &Value) -> Node {
     }
 }
 
-fn create_flow(flow: &Flow) -> Flow {
+fn create_flow(flow: &Flow, new_flow2: &Flow) -> Flow {
     let mut nodes = Vec::new();
     let mut dirty = BitSet::new();
     let mut outputs = Vec::new();
@@ -1339,7 +1312,7 @@ fn create_flow(flow: &Flow) -> Flow {
         let view_table = flow.get_output("view");
         let view = view_table.find_one("view", &schedule["view"]);
         let view_id = view["view"].as_str().to_owned();
-        nodes.push(create_node(flow, &view["view"], &view["kind"]));
+        nodes.push(create_node(flow, new_flow2, &view["view"], &view["kind"]));
         dirty.insert(schedule["ix"].as_usize());
         let mut index_layouts = index_layout_table.find_all("view", &view["view"]);
         sort_by(&mut index_layouts, "field ix");
@@ -1386,8 +1359,8 @@ pub fn recompile(old_flow: Flow) -> Flow {
     calculate_constraint_schedule(&old_flow);
     calculate_view_reference(&old_flow);
     calculate_view_layout(&old_flow);
-    drop(create(&old_flow)); // just running this to catch errors for now
-    let mut new_flow = create_flow(&old_flow);
+    let new_flow2 = create(&old_flow);
+    let mut new_flow = create_flow(&old_flow, &new_flow2);
     reuse_state(old_flow, &mut new_flow);
     new_flow
 }

@@ -10,6 +10,11 @@ div:hover > .hover-reveal { opacity: 1; }
 .row { flex-direction:row; flex: 1; }
 .flex-column { flex-direction: column !important; }
 .full-size-wrapper { position: absolute !important; top: 0; left: 0; right: 0; bottom: 0; }
+@keyframes banner {
+	from {top: -20px; }
+	to { top: 0px; }
+}
+.dead-server-banner {position:fixed; left: 0px; top: 0px; width:100%; padding: 10px; text-align: center; color: #FFF; background:rgba(255,0,0,.5); animation-name: banner; animation-duration: .5s;}
 
 /*---------------------------------------------------------
 - root

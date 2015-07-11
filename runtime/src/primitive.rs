@@ -9,6 +9,8 @@ pub enum Primitive {
     NEQ,
     Add,
     Subtract,
+    Multiply,
+    Round,
     Split,
     Concat,
     ParseFloat,
@@ -44,10 +46,13 @@ pub fn resolve_as_vector<'a>(mut ix: usize, constants: &'a [Value], outer: &'a [
 }
 
 impl Primitive {
-    pub fn eval_from_join<'a>(&self, arguments: &[usize], inputs: &[&Value]) -> Vec<Vec<Value>> {
+    pub fn eval_from_join<'a>(&self, input_bindings: &[(usize, usize)], inputs: &[&Value]) -> Vec<Vec<Value>> {
         use primitive::Primitive::*;
         use value::Value::*;
-        let values = arguments.iter().map(|ix| inputs[*ix]).collect::<Vec<_>>();
+        let values = input_bindings.iter().enumerate().map(|(ix, &(field_ix, variable_ix))| {
+            assert_eq!(ix, field_ix);
+            inputs[variable_ix]
+        }).collect::<Vec<_>>();
         match (*self, &values[..]) {
             // NOTE be aware that arguments will be in alphabetical order by field id
             (LT, [ref a, ref b]) => if a < b {vec![vec![]]} else {vec![]},
@@ -55,6 +60,8 @@ impl Primitive {
             (NEQ, [ref a, ref b]) => if a != b {vec![vec![]]} else {vec![]},
             (Add, [&Float(a), &Float(b)]) => vec![vec![Float(a+b)]],
             (Subtract, [&Float(a), &Float(b)]) => vec![vec![Float(a-b)]],
+            (Multiply, [&Float(a), &Float(b)]) => vec![vec![Float(a*b)]],
+            (Round, [&Float(a), &Float(b)]) => vec![vec![Float((a*10f64.powf(b)).round()/10f64.powf(b))]],
             (Contains, [&String(ref inner), &String(ref outer)]) => {
               let inner_lower = &inner.to_lowercase();
               let outer_lower = &outer.to_lowercase();
@@ -75,7 +82,7 @@ impl Primitive {
             (Mean, _) => panic!("Cannot use {:?} in a join", self),
             (StandardDeviation, _) => panic!("Cannot use {:?} in a join", self),
             (Empty, _) => panic!("Cannot use {:?} in a join", self),
-            _ => panic!("Type error while calling: {:?} {:?}", self, &arguments)
+            _ => panic!("Type error while calling: {:?} {:?}", self, values)
         }
     }
 
@@ -89,6 +96,8 @@ impl Primitive {
             (NEQ, _) => panic!("Cannot use {:?} in an aggregate", self),
             (Add, _) => panic!("Cannot use {:?} in an aggregate", self),
             (Subtract, _) => panic!("Cannot use {:?} in an aggregate", self),
+            (Multiply, _) => panic!("Cannot use {:?} in an aggregate", self),
+            (Round, _) => panic!("Cannot use {:?} in an aggregate", self),
             (Contains, _) => panic!("Cannot use {:?} in an aggregate", self),
             (Split, _) => panic!("Cannot use {:?} in an aggregate", self),
             (Concat, _) => panic!("Cannot use {:?} in an aggregate", self),
@@ -145,6 +154,8 @@ impl Primitive {
             "!=" => Primitive::NEQ,
             "add" => Primitive::Add,
             "subtract" => Primitive::Subtract,
+            "multiply" => Primitive::Multiply,
+            "round" => Primitive::Round,
             "contains" => Primitive::Contains,
             "split" => Primitive::Split,
             "concat" => Primitive::Concat,
@@ -166,6 +177,8 @@ pub fn primitives() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>, 
         ("!=", vec!["in A", "in B"], vec![], vec![]),
         ("add", vec!["in A", "in B"], vec![], vec!["out"]),
         ("subtract", vec!["in A", "in B"], vec![], vec!["out"]),
+        ("multiply", vec!["in A", "in B"], vec![], vec!["out"]),
+        ("round", vec!["in A", "in B"], vec![], vec!["out"]),
         ("contains", vec!["inner", "outer"], vec![], vec!["out"]),
         ("split", vec!["split", "string"], vec![], vec!["ix", "segment"]),
         ("concat", vec!["a", "b"], vec![], vec!["out"]),

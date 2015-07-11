@@ -1,8 +1,8 @@
 #![feature(fs_walk)]
 #![feature(slice_patterns)]
-#![feature(drain)]
 
 extern crate rustc_serialize;
+extern crate time;
 extern crate eve;
 
 use std::env;
@@ -14,67 +14,144 @@ use eve::server::*;
 use eve::flow::*;
 use eve::compiler::*;
 
-fn migrate_file<F>(filename: &str, migrate: &F) where F: Fn(&mut Vec<Event>) {
-    let mut old_events_string = String::new();
+fn read_events(filename: &str) -> Vec<Event> {
+    let mut events_string = String::new();
     {
-        let mut old_events_file = OpenOptions::new().create(true).open(&filename).unwrap();
-        old_events_file.read_to_string(&mut old_events_string).unwrap();
+        let mut events_file = OpenOptions::new().create(true).open(&filename).unwrap();
+        events_file.read_to_string(&mut events_string).unwrap();
     }
-    let mut events = old_events_string.lines().map(|line|
+    events_string.lines().map(|line|
         FromJson::from_json(&Json::from_str(&line).unwrap())
-        ).collect();
-    migrate(&mut events);
-    let mut new_events_file = OpenOptions::new().truncate(true).write(true).open(&filename).unwrap();
-    for event in events {
+        ).collect()
+}
+
+fn write_events(filename: &str, events: &[Event]) {
+    let mut new_events_file = OpenOptions::new().create(true).truncate(true).write(true).open(&filename).unwrap();
+    for event in events.iter() {
         new_events_file.write_all(format!("{}", event.to_json()).as_bytes()).unwrap();
         new_events_file.write_all("\n".as_bytes()).unwrap();
     }
 }
 
-fn migrate_all<F>(migrate: &F) where F: Fn(&mut Vec<Event>) {
+fn all_filenames() -> Vec<String> {
+    let mut filenames = vec![];
+    filenames.push("./events".to_owned());
+    filenames.push("./boostrap".to_owned());
     for entry in walk_dir("./test-inputs").unwrap() {
-        let filename = entry.unwrap().path().to_str().unwrap().to_owned();
-        migrate_file(&filename[..], &migrate)
+        filenames.push(entry.unwrap().path().to_str().unwrap().to_owned());
+    }
+    for entry in walk_dir("./test-outputs").unwrap() {
+        filenames.push(entry.unwrap().path().to_str().unwrap().to_owned());
     }
     for entry in walk_dir("./examples").unwrap() {
-        let filename = entry.unwrap().path().to_str().unwrap().to_owned();
-        migrate_file(&filename[..], &migrate)
+        filenames.push(entry.unwrap().path().to_str().unwrap().to_owned());
     }
-    migrate_file("./events", &migrate);
-    migrate_file("./bootstrap", &migrate);
+    filenames
 }
 
-fn remove_view(id: &str, events: &mut Vec<Event>) {
-    for event in events.iter_mut() {
-        event.changes.retain(|&(ref change_id, _)| change_id != id);
+fn remove_view(id: &str) {
+    for filename in all_filenames() {
+        let mut events = read_events(&filename[..]);
+        for event in events.iter_mut() {
+            event.changes.retain(|&(ref change_id, _)| change_id != id);
+        }
+        write_events(&filename[..], &events[..]);
     }
 }
 
-fn reset_compiler(events: &mut Vec<Event>) {
+fn reset_internal_views() {
     let compiler_schema = compiler_schema();
-    for event in events.iter_mut() {
-        event.changes.retain(|&(ref change_id, _)|
-            !compiler_schema.iter().any(|&(ref id, _)| change_id == id)
-            );
+    let client_schema = client_schema();
+    for filename in all_filenames() {
+        let mut events = read_events(&filename[..]);
+        for event in events.iter_mut() {
+            event.changes.retain(|&(ref change_id, _)|
+                !compiler_schema.iter().chain(client_schema.iter()).any(|&(ref id, _)| change_id == id)
+                );
+        }
+        write_events(&filename[..], &events[..]);
     }
 }
 
-fn compact(events: &mut Vec<Event>) {
+fn compact(filename: &str) {
     let mut flow = Flow::new();
-    for event in events.drain(..) {
+    let bootstrap_events = read_events("./bootstrap");
+    let events = read_events(&filename[..]);
+    let mut flow = Flow::new();
+    for event in bootstrap_events.into_iter().chain(events.into_iter()) {
         flow = flow.quiesce(event.changes);
     }
     // TODO session is blank which doesn't seem to matter because it is never used
-    events.push(Event{changes: flow.as_changes(), session: "".to_owned()})
+    write_events(&filename[..], &[Event{changes: flow.as_changes(), session: "".to_owned()}]);
+}
+
+fn make_bug_test() {
+    let events = read_events("./events");
+    let time = time::precise_time_ns();
+    let input_filename = format!("./test-inputs/bug-{}", time);
+    let output_filename = format!("./test-outputs/bug-{}", time);
+    write_events(&input_filename[..], &events[..]);
+    write_events(&output_filename[..], &[]);
+}
+
+fn make_regression_test() {
+    let mut flow = Flow::new();
+    let bootstrap_events = read_events("./bootstrap");
+    let events = read_events("./events");
+    let mut flow = Flow::new();
+    for event in bootstrap_events.into_iter().chain(events.into_iter()) {
+        flow = flow.quiesce(event.changes);
+    }
+    let time = time::precise_time_ns();
+    let input_filename = format!("./test-inputs/regression-{}", time);
+    let output_filename = format!("./test-outputs/regression-{}", time);
+    write_events(&input_filename[..], &[Event{changes: flow.as_changes(), session: "".to_owned()}]);
+    write_events(&output_filename[..],  &[Event{changes: flow.as_changes(), session: "".to_owned()}]);
+}
+
+#[test]
+fn test_examples() {
+    let inputs = walk_dir("./test-inputs").unwrap().collect::<Vec<_>>();
+    let outputs = walk_dir("./test-outputs").unwrap().collect::<Vec<_>>();
+    assert_eq!(inputs.len(), outputs.len());
+    for (input_entry, output_entry) in inputs.into_iter().zip(outputs.into_iter()) {
+        let input_filename = input_entry.unwrap().path().to_str().unwrap().to_owned();
+        let output_filename = output_entry.unwrap().path().to_str().unwrap().to_owned();
+        println!("Testing {:?} against {:?}", input_filename, output_filename);
+
+        let bootstrap_events = read_events("./bootstrap");
+        let input_events = read_events(&input_filename[..]);
+        let mut input_flow = Flow::new();
+        for event in bootstrap_events.into_iter().chain(input_events.into_iter()) {
+            input_flow = input_flow.quiesce(event.changes);
+        }
+
+        let output_events = read_events(&output_filename[..]);
+        let mut output_flow = Flow::new();
+        for event in output_events.into_iter() {
+            output_flow.change(event.changes);
+        }
+
+        let schema = schema();
+        for output_cell in output_flow.outputs.iter() {
+            let output = output_cell.borrow();
+            // ignore internal views
+            if !schema.iter().any(|&(ref id, _)| **id == *output.view) {
+                assert_eq!(output.index, input_flow.get_output(&output.view[..]).index);
+            }
+        }
+    }
 }
 
 fn main() {
     let args = env::args().collect::<Vec<String>>();
     let borrowed_args = args.iter().map(|s| &s[..]).collect::<Vec<&str>>();
     match &borrowed_args[..] {
-        [_, "remove_view", id] => migrate_all(&|events| remove_view(id, events)),
-        [_, "compact", filename] => migrate_file(filename, &compact),
-        [_, "reset_compiler"] => migrate_all(&reset_compiler),
+        [_, "remove_view", id] => remove_view(id),
+        [_, "reset_internal_views"] => reset_internal_views(),
+        [_, "compact", filename] => compact(filename),
+        [_, "make_bug_test"] => make_bug_test(),
+        [_, "make_regression_test"] => make_regression_test(),
         other => panic!("Bad arguments (look at src/bin/migrate.rs for correct usage): {:?}", &other[1..]),
     }
 }

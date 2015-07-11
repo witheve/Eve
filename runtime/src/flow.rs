@@ -39,6 +39,10 @@ impl Flow {
         self.nodes.iter().position(|node| &node.id[..] == id)
     }
 
+    pub fn get_node(&self, id: &str) -> &Node {
+        self.nodes.iter().find(|node| &node.id[..] == id).unwrap()
+    }
+
     pub fn get_output(&self, id: &str) -> Ref<Relation> {
         self.outputs[self.get_ix(id).unwrap()].borrow()
     }
@@ -193,7 +197,7 @@ impl Flow {
                             view_changed = view_changed || index.insert(insert);
                         }
                         for remove in removes {
-                            view_changed = view_changed || !index.remove(&remove);
+                            view_changed = view_changed || index.remove(&remove);
                         }
                     }
                     if view_changed {
