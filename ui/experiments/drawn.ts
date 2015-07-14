@@ -449,7 +449,7 @@ localState.drawnUiActiveId = "block field";
             "right source": "constant"
           }));
         }
-
+        diffs.push.apply(diffs, dispatch("clearSelection", info, true));
       break;
       case "unjoinNodes":
         var {fromNode} = info;
@@ -1050,7 +1050,7 @@ localState.drawnUiActiveId = "block field";
     if (curNode.filter) {
       var op = curNode.filter.operation;
       var filterUi:any = {c: "attribute-filter", dblclick: modifyFilter, node: curNode, children: [
-        {c: "operation", text: curNode.filter.operation}
+        //{c: "operation", text: curNode.filter.operation}
       ]};
       if(localState.modifyingFilterNodeId === curNode.id) {
         filterUi.children.push({c: "value", children: [
