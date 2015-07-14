@@ -27,14 +27,16 @@ body { font-family:"Avenir"; }
 .canvas { position:absolute; left: 0; right:0; top:0; bottom:0; }
 
 .selection { position:absolute; left: 0; right:0; top:0; bottom:0; pointer-events:none; }
-.selection-rectangle { stroke: #0f0; fill: #020; }
+.selection-rectangle { stroke: #0f0; fill: #020; rx: 5px; ry:5px; }
 
 .links { position:absolute; left: 0; right:0; top:0; bottom:0; pointer-events: none; }
 .nodes { position:absolute; left: 0; right:0; top:0; bottom:0; }
 
 .canvas .item-wrapper { position:absolute; flex-direction:row; }
 .canvas .item-wrapper .item { position: static; z-index:2; }
-.canvas .attribute-filter { align-items: center; justify-content: center; min-width: 40px; min-height: 20px; background:rgba(230,230,255,1); border: 1px solid rgba(194, 186, 242, 1); padding: 3px 10px; color:#555; border-radius:10px; margin-left:-15px; padding-left:15px; z-index:1; }
+.canvas .attribute-filter { flex-direction:row; align-items: center; justify-content: center; min-width: 40px; min-height: 20px; background:rgba(230,230,255,1); border: 1px solid rgba(194, 186, 242, 1); padding: 3px 10px; color:#555; border-radius:10px; margin-left:-15px; padding-left:15px; z-index:1; }
+.canvas .attribute-filter .value { margin-left: 5px;  }
+.canvas .filter-editor { min-width:20px; outline:none; }
 .canvas .item, .view-selector .item { flex:none; position: absolute; align-items: center; justify-content: center; min-width: 40px; min-height: 20px; padding: 3px 10px; border-radius:2px; }
 .canvas .item.uiSelected { border: 1px solid black; }
 .canvas .item.overlapped { background: red; }
@@ -84,6 +86,5 @@ body { font-family:"Avenir"; }
 .dark .canvas .item.overlapped { background: red; }
 .dark .canvas .entity { background:rgba(165, 85, 187, 1); color: rgba(255,255,255,0.8); border-color: rgba(165, 85, 187, 1); }
 .dark .canvas .attribute-filter { background:rgba(48, 119, 105, 1); border: 1px solid rgba(121, 167, 171, 1); color:rgba(255,255,255,0.8); }
-.dark .canvas .item.uiSelected { border-color: #0f0; border-width: 3px; }
-.dark .canvas .item.projected {  }
+.dark .canvas .item.uiSelected { border-color: #0f0; border-width: 1px; }
 .dark .table-container .table .header { background: rgba(255,255,255,0.1); } 

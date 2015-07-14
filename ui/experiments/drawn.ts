@@ -82,6 +82,13 @@ module drawn {
     function preventDefault(e) {
         e.preventDefault();
     }
+    
+    function focusOnce(node, elem) {
+        if (!elem.__focused) {
+            setTimeout(function () { node.focus(); }, 5);
+            elem.__focused = true;
+        }
+    }
 
 	//---------------------------------------------------------
   // Renderer
@@ -214,6 +221,21 @@ localState.drawnUiActiveId = "block field";
       return overlapLeft < overlapRight && overlapTop < overlapBottom; 
     });
   }
+  
+  function nodesToRectangle(nodes) {
+    let top = Infinity;
+    let left = Infinity;
+    let bottom = -Infinity;
+    let right = -Infinity;
+    for(var node of nodes) {
+      let info = nodeDisplayInfo(node);
+      if(info.left < left) left = info.left;
+      if(info.left + info.width > right) right = info.left + info.width;
+      if(info.top < top) top = info.top;
+      if(info.top + info.height > bottom) bottom = info.top + info.height;
+    }
+    return {top, left, width: right - left, height: bottom - top};
+  }
 
   //---------------------------------------------------------
   // AST helpers
@@ -342,6 +364,7 @@ localState.drawnUiActiveId = "block field";
       //---------------------------------------------------------
       case "openRelationship":
         localState.drawnUiActiveId = info.node.source["source: source view"];
+        diffs = dispatch("clearSelection", {}, true);
       break;
       case "openQuery":
         localState.drawnUiActiveId = info.queryId;
@@ -360,8 +383,8 @@ localState.drawnUiActiveId = "block field";
         ];
       break;
       case "addViewToQuery":
-        let sourceId = uuid();
-        let queryId = localState.drawnUiActiveId;
+        var sourceId = uuid();
+        var queryId = localState.drawnUiActiveId;
         diffs = [
           api.insert("source", {view: queryId, source: sourceId, "source view": info.viewId})
         ];
@@ -398,7 +421,7 @@ localState.drawnUiActiveId = "block field";
       case "joinNodes":
         var {target, node} = info;
         if(!node || !target) throw new Error("Trying to join at least one non-existent node");
-        let constraintId = uuid();
+        var constraintId = uuid();
         diffs = [
           api.insert("constraint", {
             constraint: constraintId,
@@ -492,6 +515,39 @@ localState.drawnUiActiveId = "block field";
         diffs.push(api.insert("display name", {id: info.viewId, name: info.value}),
                    api.remove("display name", {id: info.viewId}));
       break;
+      case "addFilter":
+        var fieldId = info.node.field;
+        var sourceId = info.node.source["source: source"];
+        diffs.push(api.insert("constraint", {
+          view: info.viewId, 
+          operation: "=", 
+          "left source": sourceId, 
+          "left field": fieldId, 
+          "right source": "constant", 
+          "right field": "default empty"
+        }));
+        dispatch("modifyFilter", info, true);
+      break;
+      case "modifyFilter":
+        localState.modifyingFilterNodeId = info.node.id;
+      break;
+      case "removeFilter":
+        var fieldId = info.node.field;
+        var sourceId = info.node.source["source: source"];
+        console.log(sourceId, fieldId);
+        diffs.push(api.remove("constraint", {view: info.viewId, "left source": sourceId, "left field": fieldId, "right source": "constant"}));
+      break;
+      case "stopModifyingFilter":
+        //insert a constant
+        var fieldId = info.node.field;
+        var sourceId = info.node.source["source: source"];
+        var constantId = uuid();
+        diffs.push(api.insert("constant", {constant: constantId, value: info.value}));
+        //change the constraint to reference that new constant
+        diffs.push(api.remove("constraint", {view: info.viewId, "left source": sourceId, "left field": fieldId, "right source": "constant"}));
+        diffs.push(api.insert("constraint", {view: info.viewId, operation: "=", "left source": sourceId, "left field": fieldId, "right source": "constant", "right field": constantId}));
+        localState.modifyingFilterNodeId = undefined;
+      break;
       //---------------------------------------------------------
       // Menu
       //---------------------------------------------------------
@@ -554,15 +610,15 @@ localState.drawnUiActiveId = "block field";
   }
 
   function queryUi(viewId, showResults = false) {
-    var view = ixer.select("view", {view: viewId});
-    if(!view || !view.length) return;
+    var view = ixer.selectOne("view", {view: viewId});
+    if(!view) return;
     return {c: "query", children: [
-      localState.drawnUiActiveId ? queryTools(viewId) : undefined,
+      localState.drawnUiActiveId ? queryTools(view) : undefined,
       {c: "container", children: [
         {c: "surface", children: [
           {c: "query-name-input", contentEditable: true, blur: setQueryName, viewId: viewId, text: code.name(viewId)},
-          queryMenu(view[0]),
-          queryCanvas(view[0]),
+          queryMenu(view),
+          queryCanvas(view),
         ]},
         showResults ? queryResults(viewId) : undefined
       ]}
@@ -570,7 +626,7 @@ localState.drawnUiActiveId = "block field";
     ]};
   }
   
-  function queryTools(viewId) {
+  function queryTools(view) {
     // What tools are available depends on what is selected.
     // no matter what though you should be able to go back to the
     // query selector.
@@ -581,8 +637,16 @@ localState.drawnUiActiveId = "block field";
     // @FIXME: what is the correct way to divy this up? The criteria for
     // what tools show up can be pretty complicated.
     
+    let viewId = view["view: view"];
+    
+    // @FIXME: we ask for the entity info multiple times to draw the editor
+    // we should probably find a way to do it in just one.
+    let {nodeLookup} = viewToEntityInfo(view);
+    
     let selectedNodes = Object.keys(localState.selectedNodes).map(function(nodeId) {
-      return localState.selectedNodes[nodeId];
+      // we can't rely on the actual nodes of the uiSelection because they don't get updated
+      // so we have to look them up again.
+      return nodeLookup[nodeId];
     });
     
     // no selection
@@ -605,16 +669,31 @@ localState.drawnUiActiveId = "block field";
         } else {
           tools.push({c: "tool", text: "select", click: selectAttribute, node, viewId});
         }
-        
+        if(!node.filter) {
+          tools.push({c: "tool", text: "add filter", click: addFilter, node, viewId});
+        } else {
+          tools.push({c: "tool", text: "change filter", click: modifyFilter, node, viewId});
+          tools.push({c: "tool", text: "remove filter", click: removeFilter, node, viewId});
+        }
       }
       
     //multi-selection  
     } else {
       
     }
-    
-    
     return {c: "query-tools", children: tools};
+  }
+  
+  function addFilter(e, elem) {
+    dispatch("addFilter", {node: elem.node, viewId: elem.viewId});
+  }
+  
+  function removeFilter(e, elem) {
+    dispatch("removeFilter", {node: elem.node, viewId: elem.viewId});
+  }
+  
+  function modifyFilter(e, elem) {
+    dispatch("modifyFilter", {node: elem.node});
   }
   
   function unselectAttribute(e, elem) {
@@ -764,13 +843,17 @@ localState.drawnUiActiveId = "block field";
             nodes.splice(ix, 1);
             delete nodeLookup[curNode.id];
           }
+          let newName;
+          if(code.name(curNode.field) !== code.name(attribute.field)) {
+            newName = code.name(curNode.field);
+          }
           for(let link of links) {
             if(link.left === curNode) {
               link.left = attribute;
-              // if(newName) link.name = newName;
+              if(newName) link.name = newName;
             } else if(link.right === curNode) {
               link.right = attribute;
-              // if(newName) link.name = newName;
+              if(newName) link.name = newName;
             }
           }
         }
@@ -802,10 +885,11 @@ localState.drawnUiActiveId = "block field";
   }
 
   function queryCanvas(view) {
+    let viewId = view["view: view"];
     var {nodes, links} = viewToEntityInfo(view);
     var items = [];
     for(var node of nodes) {
-      items.push(nodeItem(node));
+      items.push(nodeItem(node, viewId));
     }
     var linkItems = [];
     for(var link of links) {
@@ -857,6 +941,12 @@ localState.drawnUiActiveId = "block field";
           topLeft.y = end.y;
         }
         selection = {svg: true, c: "selection-rectangle", t: "rect", x: topLeft.x, y: topLeft.y, width, height};
+      }
+    } else {
+      let selectedNodeIds = Object.keys(localState.selectedNodes);
+      if(selectedNodeIds.length) {
+        let {top, left, width, height} = nodesToRectangle(selectedNodeIds.map((nodeId) => localState.selectedNodes[nodeId]));
+        selection = {svg: true, c: "selection-rectangle", t: "rect", x: left - 10, y: top - 10, width: width + 20, height: height + 20};
       }
     }
     return {c: "canvas", contextmenu: showCanvasMenu, mousedown: startBoxSelection, mousemove: continueBoxSelection, mouseup: endBoxSelection, dragover: preventDefault, children: [
@@ -939,7 +1029,7 @@ localState.drawnUiActiveId = "block field";
     return {left, top, width, height, text};
   }
 
-  function nodeItem(curNode): any {
+  function nodeItem(curNode, viewId): any {
     var content = [];
     var uiSelected = localState.selectedNodes[curNode.id];
     var overlapped = localState.overlappingNodes[curNode.id];
@@ -959,10 +1049,18 @@ localState.drawnUiActiveId = "block field";
     }
     if (curNode.filter) {
       var op = curNode.filter.operation;
-      content.push({c: "attribute-filter", children: [
-        op !== "=" ? {c: "operation", text: curNode.filter.operation} : undefined,
-        {c: "value", text: curNode.filter.value}
-      ]});
+      var filterUi:any = {c: "attribute-filter", dblclick: modifyFilter, node: curNode, children: [
+        {c: "operation", text: curNode.filter.operation}
+      ]};
+      if(localState.modifyingFilterNodeId === curNode.id) {
+        filterUi.children.push({c: "value", children: [
+          {c: "filter-editor", contentEditable: true, postRender: focusOnce, keydown: submitOnEnter, 
+            blur: stopModifyingFilter, viewId, node: curNode, text: curNode.filter.value}
+        ]});
+      } else {
+        filterUi.children.push({c: "value", text: curNode.filter.value});
+      }
+      content.push(filterUi);
     }
     var {left, top, width, height, text} = nodeDisplayInfo(curNode);
     var elem = {c: "item " + klass, selected: uiSelected, width, height,
@@ -970,6 +1068,17 @@ localState.drawnUiActiveId = "block field";
                 drag: setNodePosition, dragend: finalNodePosition, node: curNode, text};
     content.unshift(elem);
     return {c: "item-wrapper", top: top, left: left, size: {width, height}, node: curNode, selected: uiSelected, children: content};
+  }
+  
+  function submitOnEnter(e, elem) {
+    if(e.keyCode === api.KEYS.ENTER) {
+      stopModifyingFilter(e, elem);
+      e.preventDefault();
+    }
+  }
+  
+  function stopModifyingFilter(e, elem) {
+    dispatch("stopModifyingFilter", {node: elem.node, value: coerceInput(e.currentTarget.textContent), viewId: elem.viewId});
   }
 
   function unjoinNodes(e, elem) {
