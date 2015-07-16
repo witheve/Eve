@@ -1,13 +1,60 @@
 /// <reference path="../src/microReact.ts" />
 /// <reference path="../src/api.ts" />
 /// <reference path="../src/client.ts" />
-module drawn {
-
-  declare var uuid;
+/// <reference path="../src/tableEditor.ts" />
+module eveEditor {
   var localState = api.localState;
   var ixer = api.ixer;
   var code = api.code;
+  var DEBUG = window["DEBUG"];
+  
+  export function executeDispatch(diffs, storeEvent, sendToServer) {
+    if(diffs && diffs.length) {
+      if(storeEvent) {
+        var eventItem = {event: event, diffs: diffs, children: [], parent: eventStack, localState: api.clone(localState), root: false};
+        eventStack.children.push(eventItem);
+        eventStack = eventItem;
+      }
 
+      ixer.handleDiffs(diffs);
+      if(sendToServer) {
+        if(DEBUG.DELAY) {
+          setTimeout(function() {
+            client.sendToServer(diffs, false);
+          }, DEBUG.DELAY);
+        } else {
+          client.sendToServer(diffs, false);
+        }
+      }
+
+    } else {
+      //       console.warn("No diffs to index, skipping.");
+    }
+    
+    //@TODO: since we don't have a way to determine if localState has changed, we have
+    //to render anytime dispatch is called
+    drawn.render();
+  }
+}
+
+module drawn {
+
+  declare var uuid;
+  const localState = api.localState;
+  const ixer = api.ixer;
+  const code = api.code;
+  
+  //---------------------------------------------------------
+  // Constants
+  //---------------------------------------------------------
+
+  const nodeWidthMultiplier = 8;
+  const nodeSmallWidthMultiplier = 8;
+  const nodeWidthPadding = 10;
+  const nodeHeight = 18;
+  const nodeHeightPadding = 3;
+  const nodeWidthMin = 50;
+  
   //---------------------------------------------------------
   // Utils
   //---------------------------------------------------------
@@ -35,6 +82,13 @@ module drawn {
     function preventDefault(e) {
         e.preventDefault();
     }
+    
+    function focusOnce(node, elem) {
+        if (!elem.__focused) {
+            setTimeout(function () { node.focus(); }, 5);
+            elem.__focused = true;
+        }
+    }
 
 	//---------------------------------------------------------
   // Renderer
@@ -46,7 +100,9 @@ module drawn {
   export function render() {
    if(renderer.queued === false) {
       renderer.queued = true;
-      requestAnimationFrame(function() {
+      // @FIXME: why does using request animation frame cause events to stack up and the renderer to get behind?
+      setTimeout(function() {
+      // requestAnimationFrame(function() {
         var start = performance.now();
         var tree = root();
         var total = performance.now() - start;
@@ -55,7 +111,7 @@ module drawn {
         }
         renderer.render(tree);
         renderer.queued = false;
-      });
+      }, 16);
     }
   }
 
@@ -98,7 +154,7 @@ module drawn {
 
 // localState.drawnUiActiveId = "da7f9321-a4c9-4292-8cf6-5174f3ed2f11";
 localState.drawnUiActiveId = "block field";
-// localState.drawnUiActiveId = "e10b9868-b2e8-4942-9ead-1e2830046d4d";
+// localState.drawnUiActiveId = "b43aad08-ab56-4cef-80f9-98f79a12b0ef";
 // localState.drawnUiActiveId = false;
 
   //---------------------------------------------------------
@@ -147,17 +203,56 @@ localState.drawnUiActiveId = "block field";
     }
     return {actions, lookup};
   }
+  
+  function getNodesInRectangle(viewId, box) {
+    let {nodes} = viewToEntityInfo(ixer.selectOne("view", {view: viewId}));
+    let boxLeft = Math.min(box.start.x, box.end.x);
+    let boxRight = Math.max(box.start.x, box.end.x)
+    let boxTop = Math.min(box.start.y, box.end.y);
+    let boxBottom = Math.max(box.start.y, box.end.y);
+    return nodes.map((node) => {
+      return {node, displayInfo: nodeDisplayInfo(node)};
+    }).filter((info) => {
+      let {node, displayInfo} = info;
+      let overlapLeft = Math.max(boxLeft, displayInfo.left);
+      let overlapRight = Math.min(boxRight, displayInfo.left + displayInfo.width);
+      let overlapTop = Math.max(boxTop, displayInfo.top);
+      let overlapBottom = Math.min(boxBottom, displayInfo.top + displayInfo.height);
+      return overlapLeft < overlapRight && overlapTop < overlapBottom; 
+    });
+  }
+  
+  function nodesToRectangle(nodes) {
+    let top = Infinity;
+    let left = Infinity;
+    let bottom = -Infinity;
+    let right = -Infinity;
+    for(var node of nodes) {
+      let info = nodeDisplayInfo(node);
+      if(info.left < left) left = info.left;
+      if(info.left + info.width > right) right = info.left + info.width;
+      if(info.top < top) top = info.top;
+      if(info.top + info.height > bottom) bottom = info.top + info.height;
+    }
+    return {top, left, width: right - left, height: bottom - top};
+  }
 
   //---------------------------------------------------------
   // AST helpers
   //---------------------------------------------------------
 
   function removeSource(sourceId) {
-    return [
+    var diffs = [
       api.remove("source", {source: sourceId}),
       api.remove("constraint", {"left source": sourceId}),
-      api.remove("constraint", {"right source": sourceId})
+      api.remove("constraint", {"right source": sourceId}),
+      api.remove("select", {source: sourceId})
     ]
+    let selects = ixer.select("select", {source: sourceId});
+    for(let select of selects) {
+      diffs.push(api.remove("field", {field: select["select: view field"]}));
+    }
+    return diffs;
   }
 
   //---------------------------------------------------------
@@ -177,12 +272,15 @@ localState.drawnUiActiveId = "block field";
         if(localState.selectedNodes[node.id]) return;
         //if shift isn't pressed, then we need to clear the current selection
         if(!info.shiftKey) {
-          localState.selectedNodes = {};
+          dispatch("clearSelection", {}, true);
         }
         localState.selectedNodes[node.id] = node;
+        //build a query with the selected things in it
       break;
       case "clearSelection":
+        // diffs.push(api.remove("view", api.retrieve("view", {view: localState.selectedViewId})));
         localState.selectedNodes = {};
+        localState.selectedViewId = uuid();
       break;
       case "removeSelection":
         for(let nodeId in localState.selectedNodes) {
@@ -193,6 +291,30 @@ localState.drawnUiActiveId = "block field";
             diffs = removeSource(node.sourceId);
           }
         }
+        dispatch("clearSelection", {}, true);
+      break;
+      case "startBoxSelection":
+        //if shift isn't pressed, then we need to clear the current selection
+        if(!info.shiftKey) {
+          dispatch("clearSelection", {}, true);
+        }
+        localState.selecting = true;
+        localState.boxSelection = {start: info.coords};
+      break;
+      case "continueBoxSelection":
+        if(!localState.selecting) return;
+        localState.boxSelection.end = info;
+      break;
+      case "endBoxSelection":
+        if(localState.boxSelection && localState.boxSelection.end) {
+          var boxSelectedNodes = getNodesInRectangle(localState.drawnUiActiveId, localState.boxSelection);
+          boxSelectedNodes.forEach((info) => {
+            let {node} = info;
+            localState.selectedNodes[node.id] = node; 
+          }); 
+        }
+        localState.selecting = false;
+        localState.boxSelection = false;
       break;
       //---------------------------------------------------------
       // Node positioning
@@ -233,7 +355,7 @@ localState.drawnUiActiveId = "block field";
         if(selectionSize === 1) {
           let {lookup, actions} = actionableIntersections(localState.drawnUiActiveId, info.node.id);
           for(let action of actions) {
-            dispatch(action.action, action, true);
+            diffs.push.apply(diffs, dispatch(action.action, action, true));
           }
         }
       break;
@@ -242,6 +364,7 @@ localState.drawnUiActiveId = "block field";
       //---------------------------------------------------------
       case "openRelationship":
         localState.drawnUiActiveId = info.node.source["source: source view"];
+        diffs = dispatch("clearSelection", {}, true);
       break;
       case "openQuery":
         localState.drawnUiActiveId = info.queryId;
@@ -256,12 +379,12 @@ localState.drawnUiActiveId = "block field";
         let newId = uuid();
         localState.drawnUiActiveId = newId;
         diffs = [
-          api.insert("view", {view: newId, kind: "join", dependents: {"display name": {name: "New query!"}}})
+          api.insert("view", {view: newId, kind: "join", dependents: {"display name": {name: "New query!"}, "tag": [{tag: "remote"}]}})
         ];
       break;
       case "addViewToQuery":
-        let sourceId = uuid();
-        let queryId = localState.drawnUiActiveId;
+        var sourceId = uuid();
+        var queryId = localState.drawnUiActiveId;
         diffs = [
           api.insert("source", {view: queryId, source: sourceId, "source view": info.viewId})
         ];
@@ -282,18 +405,23 @@ localState.drawnUiActiveId = "block field";
               operation: "="}));
             }
           });
+
         }
+        ixer.select("field", {view: info.viewId, kind: "output"}).forEach(function(field) {
+            let fieldId = field["field: field"];
+            // select all those fields
+            diffs.push.apply(diffs, dispatch("addSelectToQuery", {viewId: queryId, sourceId: sourceId, sourceFieldId: fieldId}, true));
+          });
         //we may also have information about where we should position it.
         if(info.top !== undefined) {
           diffs.push(api.insert("editor node position", {node: sourceId, x: info.left, y: info.top}));
           positions[sourceId] = {left: info.left, top: info.top};
-          console.log("set position", sourceId, info);
         }
       break;
       case "joinNodes":
         var {target, node} = info;
         if(!node || !target) throw new Error("Trying to join at least one non-existent node");
-        let constraintId = uuid();
+        var constraintId = uuid();
         diffs = [
           api.insert("constraint", {
             constraint: constraintId,
@@ -321,7 +449,7 @@ localState.drawnUiActiveId = "block field";
             "right source": "constant"
           }));
         }
-
+        diffs.push.apply(diffs, dispatch("clearSelection", info, true));
       break;
       case "unjoinNodes":
         var {fromNode} = info;
@@ -336,14 +464,6 @@ localState.drawnUiActiveId = "block field";
           var source = ixer.selectOne("source", {source: sourceId});
           var field = ixer.selectOne("field", {field: fieldId});
           if(field["field: kind"] === "scalar input") {
-            console.log("bind prim", {
-              constraint: uuid(),
-              view: localState.drawnUiActiveId,
-              "left source": sourceId,
-              "left field": fieldId,
-              "right source": "constant",
-              "right field": api.primitiveDefaults[source["source: source view"]][fieldId],
-              operation: "="});
             diffs.push(api.insert("constraint", {
               constraint: uuid(),
               view: localState.drawnUiActiveId,
@@ -368,9 +488,65 @@ localState.drawnUiActiveId = "block field";
         });
 
       break;
+      case "removeSelectFromQuery":
+        var selects = ixer.select("select", {view: info.viewId, source: info.sourceId, "source field": info.sourceFieldId}) || [];
+        for(let select of selects) {
+          let fieldId = select["select: view field"];
+          diffs.push(api.remove("field", {field: fieldId}));
+        }
+        diffs.push(api.remove("select", {view: info.viewId, source: info.sourceId, "source field": info.sourceFieldId}));
+      break;
+      case "addSelectToQuery":
+        var name = code.name(info.sourceFieldId);
+        var fields = ixer.select("field", {view: info.viewId}) || [];
+        var neueField = api.insert("field", {view: info.viewId, field: info.fieldId, kind: "output", dependents: {
+          "display name": {name: name},
+          "display order": {priority: -fields.length}
+        }});
+        var fieldId = neueField.content.field;
+      
+        diffs = [
+          neueField,
+          api.insert("select", {view: info.viewId, "view field": fieldId, source: info.sourceId, "source field": info.sourceFieldId})
+        ]; 
+      break;
       case "setQueryName":
+        if(info.value === ixer.selectOne("display name", {id: info.viewId})["display name: name"]) return;
         diffs.push(api.insert("display name", {id: info.viewId, name: info.value}),
                    api.remove("display name", {id: info.viewId}));
+      break;
+      case "addFilter":
+        var fieldId = info.node.field;
+        var sourceId = info.node.source["source: source"];
+        diffs.push(api.insert("constraint", {
+          view: info.viewId, 
+          operation: "=", 
+          "left source": sourceId, 
+          "left field": fieldId, 
+          "right source": "constant", 
+          "right field": "default empty"
+        }));
+        dispatch("modifyFilter", info, true);
+      break;
+      case "modifyFilter":
+        localState.modifyingFilterNodeId = info.node.id;
+      break;
+      case "removeFilter":
+        var fieldId = info.node.field;
+        var sourceId = info.node.source["source: source"];
+        console.log(sourceId, fieldId);
+        diffs.push(api.remove("constraint", {view: info.viewId, "left source": sourceId, "left field": fieldId, "right source": "constant"}));
+      break;
+      case "stopModifyingFilter":
+        //insert a constant
+        var fieldId = info.node.field;
+        var sourceId = info.node.source["source: source"];
+        var constantId = uuid();
+        diffs.push(api.insert("constant", {constant: constantId, value: info.value}));
+        //change the constraint to reference that new constant
+        diffs.push(api.remove("constraint", {view: info.viewId, "left source": sourceId, "left field": fieldId, "right source": "constant"}));
+        diffs.push(api.insert("constraint", {view: info.viewId, operation: "=", "left source": sourceId, "left field": fieldId, "right source": "constant", "right field": constantId}));
+        localState.modifyingFilterNodeId = undefined;
       break;
       //---------------------------------------------------------
       // Menu
@@ -386,14 +562,15 @@ localState.drawnUiActiveId = "block field";
         break;
     }
 
-    if(diffs.length) {
-        var formatted = api.toDiffs(diffs);
+    if(!rentrant) {
+      if(diffs.length) {
+        let formatted = api.toDiffs(diffs);
         ixer.handleDiffs(formatted);
         client.sendToServer(formatted, false);
-    }
-    if(!rentrant) {
+      }
       render();
     }
+    return diffs;
   }
 
   //---------------------------------------------------------
@@ -403,7 +580,7 @@ localState.drawnUiActiveId = "block field";
   function root() {
     var page:any;
     if(localState.drawnUiActiveId) {
-      page = queryUi(localState.drawnUiActiveId);
+      page = queryUi(localState.drawnUiActiveId, true);
     } else {
       page = querySelector();
     }
@@ -432,15 +609,108 @@ localState.drawnUiActiveId = "block field";
     dispatch("openQuery", {queryId: elem.queryId});
   }
 
-  function queryUi(viewId) {
-    var view = ixer.select("view", {view: viewId});
-    if(!view || !view.length) return;
+  function queryUi(viewId, showResults = false) {
+    var view = ixer.selectOne("view", {view: viewId});
+    if(!view) return;
     return {c: "query", children: [
-      {c: "query-name-input", contentEditable: true, blur: setQueryName, viewId: viewId, text: code.name(viewId)},
-      queryMenu(view[0]),
-      queryCanvas(view[0]),
-      localState.drawnUiActiveId ? {c: "button", text: "back", click: gotoQuerySelector} : undefined,
-      //queryTools(view[0]),
+      localState.drawnUiActiveId ? queryTools(view) : undefined,
+      {c: "container", children: [
+        {c: "surface", children: [
+          {c: "query-name-input", contentEditable: true, blur: setQueryName, viewId: viewId, text: code.name(viewId)},
+          queryMenu(view),
+          queryCanvas(view),
+        ]},
+        showResults ? queryResults(viewId) : undefined
+      ]}
+      
+    ]};
+  }
+  
+  function queryTools(view) {
+    // What tools are available depends on what is selected.
+    // no matter what though you should be able to go back to the
+    // query selector.
+    let tools:any = [
+       {c: "tool", text: "back", click: gotoQuerySelector},
+    ];
+    
+    // @FIXME: what is the correct way to divy this up? The criteria for
+    // what tools show up can be pretty complicated.
+    
+    let viewId = view["view: view"];
+    
+    // @FIXME: we ask for the entity info multiple times to draw the editor
+    // we should probably find a way to do it in just one.
+    let {nodeLookup} = viewToEntityInfo(view);
+    
+    let selectedNodes = Object.keys(localState.selectedNodes).map(function(nodeId) {
+      // we can't rely on the actual nodes of the uiSelection because they don't get updated
+      // so we have to look them up again.
+      return nodeLookup[nodeId];
+    });
+    
+    // no selection
+    if(!selectedNodes.length) {
+      tools.push.apply(tools, [
+        {c: "tool", text: "Entity"},
+        {c: "tool", text: "Attribute"},
+        {c: "tool", text: "Relationship", click: showCanvasMenu},  
+      ]);
+      
+    // single selection  
+    } else if(selectedNodes.length === 1) {
+      let node = selectedNodes[0];
+      if(node.type === "attribute") {
+        if(node.mergedAttributes) {
+          tools.push({c: "tool", text: "unmerge", click: unjoinNodes, node: node});
+        }
+        if(ixer.selectOne("select", {view: viewId, "source field": node.field})) {
+          tools.push({c: "tool", text: "unselect", click: unselectAttribute, node, viewId});  
+        } else {
+          tools.push({c: "tool", text: "select", click: selectAttribute, node, viewId});
+        }
+        if(!node.filter) {
+          tools.push({c: "tool", text: "add filter", click: addFilter, node, viewId});
+        } else {
+          tools.push({c: "tool", text: "change filter", click: modifyFilter, node, viewId});
+          tools.push({c: "tool", text: "remove filter", click: removeFilter, node, viewId});
+        }
+      }
+      
+    //multi-selection  
+    } else {
+      
+    }
+    return {c: "query-tools", children: tools};
+  }
+  
+  function addFilter(e, elem) {
+    dispatch("addFilter", {node: elem.node, viewId: elem.viewId});
+  }
+  
+  function removeFilter(e, elem) {
+    dispatch("removeFilter", {node: elem.node, viewId: elem.viewId});
+  }
+  
+  function modifyFilter(e, elem) {
+    dispatch("modifyFilter", {node: elem.node});
+  }
+  
+  function unselectAttribute(e, elem) {
+    dispatch("removeSelectFromQuery", {viewId: elem.viewId, sourceId: elem.node.source["source: source"], sourceFieldId: elem.node.field});
+  }
+  function selectAttribute(e, elem) {
+    dispatch("addSelectToQuery", {viewId: elem.viewId, sourceId: elem.node.source["source: source"], sourceFieldId: elem.node.field});
+  }
+  
+  function queryResults(viewId) {
+    let resultViewId = viewId;
+    let selectedNodeIds = Object.keys(localState.selectedNodes);
+    if(selectedNodeIds.length === 1 && localState.selectedNodes[selectedNodeIds[0]].type === "relationship") {
+      resultViewId = localState.selectedNodes[selectedNodeIds[0]].source["source: source view"];
+    }
+    return {c: "query-results", children: [
+      tableEditor.tableForView(resultViewId, false, 100)
     ]};
   }
 
@@ -466,17 +736,6 @@ localState.drawnUiActiveId = "block field";
     if(e.target === e.currentTarget) {
       dispatch("clearMenu", {});
     }
-  }
-
-  function queryTools(query) {
-    return {c: "toolbox", children: [
-      {c: "tool entity", text: "entity", click: addEntity},
-      {c: "tool attribute", text: "attribute"},
-    ]};
-  }
-
-  function addEntity(e, elem) {
-    dispatch("addEntity", {queryId: elem.queryId});
   }
 
   function toPosition(node) {
@@ -526,6 +785,10 @@ localState.drawnUiActiveId = "block field";
             link.name = code.name(attribute.field);
           }
           links.push(link);
+          let select = ixer.selectOne("select", {source: sourceId, "source field": attribute.field});
+          if(select) {
+            attribute.select = select; 
+          }
         }
 
       } else {
@@ -543,6 +806,10 @@ localState.drawnUiActiveId = "block field";
             var link: any = {left: attribute, right: curPrim};
             link.name = code.name(attribute.field);
             links.push(link);
+            let select = ixer.selectOne("select", {source: sourceId, "source field": attribute.field});
+            if(select) {
+              attribute.select = select; 
+            }
         }
 
         nodes.push(curPrim);
@@ -551,19 +818,22 @@ localState.drawnUiActiveId = "block field";
     }
     
     //look through the variables and dedupe attributes
-    var variables = ixer.select("variable", {view: view["view: view"]});
-    for(var variable of variables) {
+    let variables = ixer.select("variable", {view: view["view: view"]});
+    for(let variable of variables) {
       let variableId = variable["variable: variable"];
       let bindings = ixer.select("binding", {variable: variableId});
       if(!bindings.length) continue;
       let entity = undefined;
       let mergedAttributes = [];
-      let attribute = nodeLookup[`${bindings[0]["binding: source"]}|${bindings[0]["binding: field"]}`];
-      // @HACK: when removing things we need to remove variables.
+      let bindingNodes = bindings.map((binding) => {
+        return nodeLookup[`${binding["binding: source"]}|${binding["binding: field"]}`];
+      });
+      // console.log(nodes);
+      let attribute = bindingNodes.filter(node => node && !node.isInput)[0] || bindingNodes[0];
+      // @HACK: when removing query parts we need to remove variables as well.
       if(!attribute) continue;
-      for(var binding of bindings) {
+      for(let curNode of bindingNodes) {
         // @TODO: which attribute should we choose to show?
-        let curNode = nodeLookup[`${binding["binding: source"]}|${binding["binding: field"]}`];
         if(!curNode) continue;
         if(curNode.entity) entity = curNode.entity;
         if(curNode !== attribute) {
@@ -573,13 +843,17 @@ localState.drawnUiActiveId = "block field";
             nodes.splice(ix, 1);
             delete nodeLookup[curNode.id];
           }
-          for(var link of links) {
+          let newName;
+          if(code.name(curNode.field) !== code.name(attribute.field)) {
+            newName = code.name(curNode.field);
+          }
+          for(let link of links) {
             if(link.left === curNode) {
               link.left = attribute;
-              // if(newName) link.name = newName;
+              if(newName) link.name = newName;
             } else if(link.right === curNode) {
               link.right = attribute;
-              // if(newName) link.name = newName;
+              if(newName) link.name = newName;
             }
           }
         }
@@ -611,10 +885,11 @@ localState.drawnUiActiveId = "block field";
   }
 
   function queryCanvas(view) {
+    let viewId = view["view: view"];
     var {nodes, links} = viewToEntityInfo(view);
     var items = [];
     for(var node of nodes) {
-      items.push(nodeItem(node));
+      items.push(nodeItem(node, viewId));
     }
     var linkItems = [];
     for(var link of links) {
@@ -631,16 +906,17 @@ localState.drawnUiActiveId = "block field";
           break;
         }
       }
+
       if(leftItem.left <= rightItem.left) {
-        var fromLeft = leftItem.left + 30;
-        var fromTop = leftItem.top + 13;
-        var toLeft = rightItem.left + 30;
-        var toTop = rightItem.top + 13;
+      var fromLeft = leftItem.left + (leftItem.size.width / 2);
+        var fromTop = leftItem.top + (leftItem.size.height / 2);
+        var toLeft = rightItem.left + (rightItem.size.width / 2);
+        var toTop = rightItem.top + (rightItem.size.height / 2);
       } else {
-        var fromLeft = rightItem.left + 30;
-        var fromTop = rightItem.top + 13;
-        var toLeft = leftItem.left + 30;
-        var toTop = leftItem.top + 13;
+        var fromLeft = rightItem.left + (rightItem.size.width / 2);
+        var fromTop = rightItem.top + (rightItem.size.height / 2);
+        var toLeft = leftItem.left + (leftItem.size.width / 2);
+        var toTop = leftItem.top + (leftItem.size.height / 2);
       }
       var color = "#bbb";
       var d = `M ${fromLeft} ${fromTop} L ${toLeft} ${toTop}`;
@@ -651,12 +927,54 @@ localState.drawnUiActiveId = "block field";
         {svg: true, t: "textPath", startOffset: "50%", xlinkhref: `#${pathId}`, text: link.name}
       ]});
     }
-    return {c: "canvas", contextmenu: showCanvasMenu, mousedown: clearCanvasSelection, dragover: preventDefault, children: [
+    let selection;
+    if(localState.selecting) {
+      let {start, end} = localState.boxSelection; 
+      if(end) {
+        let topLeft = {x: start.x, y: start.y};
+        let width = Math.abs(end.x - start.x);
+        let height = Math.abs(end.y - start.y);  
+        if(end.x < start.x) {
+          topLeft.x = end.x;
+        }
+        if(end.y < start.y) {
+          topLeft.y = end.y;
+        }
+        selection = {svg: true, c: "selection-rectangle", t: "rect", x: topLeft.x, y: topLeft.y, width, height};
+      }
+    } else {
+      let selectedNodeIds = Object.keys(localState.selectedNodes);
+      if(selectedNodeIds.length) {
+        let {top, left, width, height} = nodesToRectangle(selectedNodeIds.map((nodeId) => localState.selectedNodes[nodeId]));
+        selection = {svg: true, c: "selection-rectangle", t: "rect", x: left - 10, y: top - 10, width: width + 20, height: height + 20};
+      }
+    }
+    return {c: "canvas", contextmenu: showCanvasMenu, mousedown: startBoxSelection, mousemove: continueBoxSelection, mouseup: endBoxSelection, dragover: preventDefault, children: [
+      {c: "selection", svg: true, width: "100%", height: "100%", t: "svg", children: [selection]},
       {c: "links", svg: true, width:"100%", height:"100%", t: "svg", children: linkItems},
       {c: "nodes", children: items}
     ]};
   }
-
+  
+  function surfaceRelativeCoords(e) {
+    let surface:any = document.getElementsByClassName("surface")[0];
+    let surfaceRect = surface.getBoundingClientRect();
+    let x = e.clientX - surfaceRect.left;
+    let y = e.clientY - surfaceRect.top;
+    return {x, y};
+  }
+  
+  function startBoxSelection(e, elem) {
+    let coords = surfaceRelativeCoords(e);
+    dispatch("startBoxSelection", {coords, shiftKey: e.shiftKey});
+  }
+  function continueBoxSelection(e, elem) {
+    if(!localState.selecting || (e.clientX === 0 && e.clientY === 0)) return;
+    dispatch("continueBoxSelection", surfaceRelativeCoords(e));
+  }
+  function endBoxSelection(e, elem) {
+    dispatch("endBoxSelection", {});
+  }
   function showCanvasMenu(e, elem) {
     e.preventDefault();
     dispatch("showMenu", {x: e.clientX, y: e.clientY, contentFunction: canvasMenu});
@@ -664,9 +982,12 @@ localState.drawnUiActiveId = "block field";
 
   function canvasMenu() {
     var views = ixer.select("view", {}).filter((view) => {
-      return !api.code.hasTag(view["view: view"], "hidden"); // && view["view: kind"] !== "primitive";
+      return true; //!api.code.hasTag(view["view: view"], "hidden"); // && view["view: kind"] !== "primitive";
     }).map((view) => {
       return {c: "item relationship", text: code.name(view["view: view"]), click: addViewToQuery, viewId: view["view: view"]};
+    });
+    views.sort(function(a, b) {
+      return a.text.localeCompare(b.text);
     });
     return {c: "view-selector", children: views};
   }
@@ -682,48 +1003,82 @@ localState.drawnUiActiveId = "block field";
       dispatch("clearSelection", {});
     }
   }
+  
+  function nodeDisplayInfo(curNode) {
+    let text = "";
+    let small = false;
+    if (curNode.entity !== undefined) {
+      text = curNode.entity;
+    } else if (curNode.type === "relationship") {
+      text = code.name(curNode.source["source: source view"]);
+      small = true;
+    } else if (curNode.type === "primitive") {
+      text = code.name(curNode.primitive);
+      small = true;
+    } else if (curNode.type === "attribute") {
+      text = code.name(curNode.field);
+    } else if (curNode.type === "attribute-relationship") {
+      text = curNode.operation;
+    }
+    let {left, top} = toPosition(curNode);
+    let height = nodeHeight + 2 * nodeHeightPadding;
+    let width = Math.max(text.length * nodeWidthMultiplier + 2 * nodeWidthPadding, nodeWidthMin); 
+    if(small) {
+      width = Math.max(text.length * nodeSmallWidthMultiplier + nodeWidthPadding, nodeWidthMin);
+    }
+    return {left, top, width, height, text};
+  }
 
-  function nodeItem(curNode): any {
+  function nodeItem(curNode, viewId): any {
     var content = [];
-    var selected = localState.selectedNodes[curNode.id];
+    var uiSelected = localState.selectedNodes[curNode.id];
     var overlapped = localState.overlappingNodes[curNode.id];
     var klass = "";
-    if(selected) {
-      klass += " selected";
-      if(curNode.mergedAttributes) {
-        content.push({node: curNode, click: unjoinNodes, text: "unmerge"});
-      }
+    if(uiSelected) {
+      klass += " uiSelected";
+    }
+    if(curNode.select) {
+      klass += " projected";
     }
     if(overlapped) {
       klass += " overlapped";
     }
-    var text;
     klass += ` ${curNode.type}`;
     if (curNode.entity !== undefined) {
-      text = curNode.entity;
       klass += " entity";
-    } else if (curNode.type === "relationship") {
-      text = code.name(curNode.source["source: source view"]);
-    } else if (curNode.type === "primitive") {
-      text = code.name(curNode.primitive);
-    } else if (curNode.type === "attribute") {
-      text = code.name(curNode.field);
-      if (curNode.filter) {
-        var op = curNode.filter.operation;
-        content.push({c: "attribute-filter", children: [
-          op !== "=" ? {c: "operation", text: curNode.filter.operation} : undefined,
-          {c: "value", text: curNode.filter.value}
-        ]});
-      }
-    } else if (curNode.type === "attribute-relationship") {
-      text = curNode.operation;
     }
-    var {left, top} = toPosition(curNode);
-    var elem = {c: "item " + klass, selected: selected,
+    if (curNode.filter) {
+      var op = curNode.filter.operation;
+      var filterUi:any = {c: "attribute-filter", dblclick: modifyFilter, node: curNode, children: [
+        //{c: "operation", text: curNode.filter.operation}
+      ]};
+      if(localState.modifyingFilterNodeId === curNode.id) {
+        filterUi.children.push({c: "value", children: [
+          {c: "filter-editor", contentEditable: true, postRender: focusOnce, keydown: submitOnEnter, 
+            blur: stopModifyingFilter, viewId, node: curNode, text: curNode.filter.value}
+        ]});
+      } else {
+        filterUi.children.push({c: "value", text: curNode.filter.value});
+      }
+      content.push(filterUi);
+    }
+    var {left, top, width, height, text} = nodeDisplayInfo(curNode);
+    var elem = {c: "item " + klass, selected: uiSelected, width, height,
                 mousedown: selectNode, dblclick: openNode, draggable: true, dragstart: storeDragOffset,
-                drag: setNodePosition, dragend: finalNodePosition, node: curNode, text: text}
+                drag: setNodePosition, dragend: finalNodePosition, node: curNode, text};
     content.unshift(elem);
-    return {c: "item-wrapper", top: top, left: left, node: curNode, selected: selected, children: content};
+    return {c: "item-wrapper", top: top, left: left, size: {width, height}, node: curNode, selected: uiSelected, children: content};
+  }
+  
+  function submitOnEnter(e, elem) {
+    if(e.keyCode === api.KEYS.ENTER) {
+      stopModifyingFilter(e, elem);
+      e.preventDefault();
+    }
+  }
+  
+  function stopModifyingFilter(e, elem) {
+    dispatch("stopModifyingFilter", {node: elem.node, value: coerceInput(e.currentTarget.textContent), viewId: elem.viewId});
   }
 
   function unjoinNodes(e, elem) {
@@ -731,6 +1086,7 @@ localState.drawnUiActiveId = "block field";
   }
 
   function selectNode(e, elem) {
+    e.stopPropagation();
     dispatch("selectNode", {node: elem.node, shiftKey: e.shiftKey});
   }
 
@@ -752,9 +1108,13 @@ localState.drawnUiActiveId = "block field";
 
   function setNodePosition(e, elem) {
     if(e.clientX === 0 && e.clientY === 0) return;
+    let surface:any = document.getElementsByClassName("surface")[0];
+    let surfaceRect = surface.getBoundingClientRect();
+    let x = e.clientX - surfaceRect.left - api.localState.dragOffsetX;
+    let y = e.clientY - surfaceRect.top - api.localState.dragOffsetY;
     dispatch("setNodePosition", {
       node: elem.node,
-      pos: {left: e.clientX - api.localState.dragOffsetX, top: e.clientY - api.localState.dragOffsetY}
+      pos: {left: x, top: y}
     });
   }
 
