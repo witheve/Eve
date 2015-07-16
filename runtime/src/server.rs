@@ -1,11 +1,12 @@
 use std::thread;
 use std::sync::mpsc;
-use websocket::{Server, Message, Sender, Receiver};
+use websocket;
+use websocket::{Message, Sender, Receiver};
 use websocket::server::sender;
 use websocket::stream::WebSocketStream;
 use websocket::message::CloseData;
 use std::io::prelude::*;
-use std::fs::OpenOptions;
+use std::fs::{OpenOptions, File};
 use std::net::Shutdown;
 use rustc_serialize::json::{Json, ToJson};
 use cbor;
@@ -73,8 +74,11 @@ impl ToJson for Event {
                         view_changes.insert.to_json(),
                         view_changes.remove.to_json(),
                         ])
-                }).collect())
-            ),("session".to_string(),Json::String(self.session.clone()))].into_iter().collect())
+                }).collect()
+                )
+            ),
+            ("session".to_string(), self.session.to_json()),
+        ].into_iter().collect())
     }
 }
 
@@ -103,10 +107,10 @@ pub enum ServerEvent {
 }
 
 // TODO holy crap why is everything blocking? this is a mess
-pub fn serve() -> mpsc::Receiver<ServerEvent> {
+pub fn server_events() -> mpsc::Receiver<ServerEvent> {
     let (event_sender, event_receiver) = mpsc::channel();
     thread::spawn(move || {
-        let server = Server::bind("0.0.0.0:2794").unwrap();
+        let server = websocket::Server::bind("0.0.0.0:2794").unwrap();
         for connection in server {
             let event_sender = event_sender.clone();
             thread::spawn(move || {
@@ -152,30 +156,57 @@ pub fn serve() -> mpsc::Receiver<ServerEvent> {
     event_receiver
 }
 
-pub fn load(mut flow: Flow, filename: &str) -> Flow {
+pub fn load(flow: &mut Flow, filename: &str) {
     let mut events = OpenOptions::new().create(true).open(filename).unwrap();
     let mut old_events = String::new();
     events.read_to_string(&mut old_events).unwrap();
     for line in old_events.lines() {
         let json = Json::from_str(&line).unwrap();
         let event: Event = FromJson::from_json(&json);
-        flow = flow.quiesce(event.changes);
+        flow.quiesce(event.changes);
     }
-    flow
+}
+
+pub struct Server {
+    pub flow: Flow,
+    pub events: File,
+    pub senders: Vec<sender::Sender<WebSocketStream>>,
+}
+
+pub fn handle_event(server: &mut Server, event: Event, event_json: Json) {
+    server.events.write_all(format!("{}", event_json).as_bytes()).unwrap();
+    server.events.write_all("\n".as_bytes()).unwrap();
+    server.events.flush().unwrap();
+    let old_flow = time!("cloning", {
+        server.flow.clone()
+    });
+    server.flow.quiesce(event.changes);
+    let changes = time!("diffing", {
+        server.flow.changes_from(old_flow)
+    });
+    for sender in server.senders.iter_mut() {
+        let session_id = format!("{}", sender.get_mut().peer_addr().unwrap());
+        let text = format!("{}", Event{changes: changes.clone(), session: session_id}.to_json());
+        match sender.send_message(Message::Text(text)) {
+            Ok(_) => (),
+            Err(error) => println!("Send error: {}", error),
+        };
+    }
 }
 
 pub fn run() {
     let mut flow = Flow::new();
     time!("reading saved state", {
-        flow = load(flow, "./bootstrap");
-        flow = load(flow, "./events");
+        load(&mut flow, "./bootstrap");
+        load(&mut flow, "./events");
     });
 
-    let mut events = OpenOptions::new().write(true).append(true).open("./events").unwrap();
-    let mut senders: Vec<sender::Sender<_>> = Vec::new();
+    let events = OpenOptions::new().write(true).append(true).open("./events").unwrap();
+    let senders: Vec<sender::Sender<WebSocketStream>> = Vec::new();
 
+    let mut server = Server{flow: flow, events: events, senders: senders};
 
-    for server_event in serve() {
+    for server_event in server_events() {
         match server_event {
 
             ServerEvent::Sync((mut sender,user_id)) => {
@@ -196,15 +227,16 @@ pub fn run() {
                     },
                     None => add_session,
                 };
-                flow = send_changes(add_session,flow,&mut senders);
+                let json = add_session.to_json();
+                handle_event(&mut server, add_session, json);
 
-                let changes = flow.as_changes();
+                let changes = server.flow.as_changes();
                 let text = format!("{}", Event{changes: changes, session: session_id}.to_json());
                 match sender.send_message(Message::Text(text)) {
                     Ok(_) => (),
                     Err(error) => println!("Send error: {}", error),
                 };
-                senders.push(sender)
+                server.senders.push(sender)
             }
 
             ServerEvent::Change(input_bytes) => {
@@ -212,11 +244,8 @@ pub fn run() {
                 let mut decoder = cbor::Decoder::from_bytes(&input_bytes[..]);
                 let cbor = decoder.items().next().unwrap().unwrap();
                 let json = cbor.to_json();
-                events.write_all(format!("{}", json).as_bytes()).unwrap();
-                events.write_all("\n".as_bytes()).unwrap();
-                events.flush().unwrap();
-                let event: Event = FromJson::from_json(&json);
-                flow = send_changes(event,flow,&mut senders);
+                let event = FromJson::from_json(&json);
+                handle_event(&mut server, event, json);
             }
 
             ServerEvent::Terminate(m) => {
@@ -224,7 +253,7 @@ pub fn run() {
                 let terminate_ip = m.unwrap().reason;
                 println!("Closing connection from {}...",terminate_ip);
                 // Find the index of the connection's sender
-                let ip_ix = senders.iter_mut().position(|mut sender| {
+                let ip_ix = server.senders.iter_mut().position(|mut sender| {
                                                           let ip = format!("{}",sender.get_mut().peer_addr().unwrap());
                                                           ip == terminate_ip
                                                         });
@@ -233,36 +262,36 @@ pub fn run() {
                 match ip_ix {
                     Some(ix) => {
                         // Close the connection
-                        let _ = senders[ix].send_message(Message::Close(None));
+                        let _ = server.senders[ix].send_message(Message::Close(None));
 
-                        match senders[ix].get_mut().shutdown(Shutdown::Both) {
+                        match server.senders[ix].get_mut().shutdown(Shutdown::Both) {
                             Ok(_) => println!("Connection from {} has closed successfully.",terminate_ip),
                             Err(e) => println!("Connection from {} failed to shut down properly: {}",terminate_ip,e),
                         }
-                        senders.remove(ix);
+                        server.senders.remove(ix);
 
                         // Update the session table
-                        let sessions = flow.get_output("sessions").clone();
+                        let sessions = server.flow.get_output("sessions").clone();
                         let ip_string = Value::String(terminate_ip.clone());
 
                         match sessions.find_maybe("id",&ip_string) {
                             Some(session) => {
                             	let closed_session = session.clone();
-                                let mut close_sesion_values = &mut closed_session.values.to_vec();
+                                let mut close_session_values = &mut closed_session.values.to_vec();
                                 let status_ix = match closed_session.names.iter().position(|name| name == "status") {
                                 	Some(ix) => ix,
                                 	None => panic!("No field named \"status\""),
                                 };
-                                close_sesion_values[status_ix] = Value::Float(0f64);
+                                close_session_values[status_ix] = Value::Float(0f64);
 
                                 let change = Change {
                                                         fields: sessions.fields.clone(),
-                                                        insert: vec![close_sesion_values.clone()],
+                                                        insert: vec![close_session_values.clone()],
                                                         remove: vec![session.values.to_vec().clone()],
                                                     };
-
-                                let make_session_inactive = Event{changes: vec![("sessions".to_string(),change)], session: "".to_string()};
-                                flow = send_changes(make_session_inactive,flow,&mut senders);
+                                let event = Event{changes: vec![("sessions".to_string(),change)], session: "".to_string()};
+                                let json = event.to_json();
+                                handle_event(&mut server, event, json);
 
                             },
                             None => println!("No session found"),
@@ -276,27 +305,6 @@ pub fn run() {
     }
 }
 
-fn send_changes(event: Event, mut flow: Flow, mut senders: &mut Vec<sender::Sender<WebSocketStream>>) -> Flow {
-    let old_flow = time!("cloning", {
-        flow.clone()
-    });
-    flow = flow.quiesce(event.changes);
-    let changes = time!("diffing", {
-        flow.changes_from(old_flow)
-    });
-    let changes_json = changes_to_json(changes.clone());
-    for sender in senders.iter_mut() {
-    	let session_id = format!("{}", sender.get_mut().peer_addr().unwrap());
-		// TODO this is a hack to avoid having to json an event for every sender
-		let output_text = format!("{{\"changes\":{},\"session\":\"{}\"}}",changes_json,session_id.clone());
-        match sender.send_message(Message::Text(output_text.clone())) {
-            Ok(_) => (),
-            Err(error) => println!("Send error: {}", error),
-        };
-    }
-    flow
-}
-
 pub fn get_user_id(cookies: Option<&Cookie>) -> Option<String> {
     match cookies {
         Some(cookies) => {
@@ -307,16 +315,4 @@ pub fn get_user_id(cookies: Option<&Cookie>) -> Option<String> {
         },
         None => None,
     }
-}
-
-
-fn changes_to_json(changes: Changes) -> Json {
-    Json::Array(changes.iter().map(|&(ref view_id, ref view_changes)| {
-        Json::Array(vec![
-            view_id.to_json(),
-            view_changes.fields.to_json(),
-            view_changes.insert.to_json(),
-            view_changes.remove.to_json(),
-            ])
-    }).collect())
 }

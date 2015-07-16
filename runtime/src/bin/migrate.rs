@@ -74,12 +74,11 @@ fn reset_internal_views() {
 }
 
 fn compact(filename: &str) {
-    let mut flow = Flow::new();
     let bootstrap_events = read_events("./bootstrap");
     let events = read_events(&filename[..]);
     let mut flow = Flow::new();
     for event in bootstrap_events.into_iter().chain(events.into_iter()) {
-        flow = flow.quiesce(event.changes);
+        flow.quiesce(event.changes);
     }
     // TODO session is blank which doesn't seem to matter because it is never used
     write_events(&filename[..], &[Event{changes: flow.as_changes(), session: "".to_owned()}]);
@@ -95,12 +94,11 @@ fn make_bug_test() {
 }
 
 fn make_regression_test() {
-    let mut flow = Flow::new();
     let bootstrap_events = read_events("./bootstrap");
     let events = read_events("./events");
     let mut flow = Flow::new();
     for event in bootstrap_events.into_iter().chain(events.into_iter()) {
-        flow = flow.quiesce(event.changes);
+        flow.quiesce(event.changes);
     }
     let time = time::precise_time_ns();
     let input_filename = format!("./test-inputs/regression-{}", time);

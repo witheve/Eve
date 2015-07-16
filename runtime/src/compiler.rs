@@ -2,6 +2,7 @@ use std::collections::BitSet;
 use std::cell::{RefCell, Ref};
 use std::fmt::Debug;
 use std::convert::AsRef;
+use std::mem::replace;
 
 use value::{Value, Tuple};
 use relation::{Relation, IndexSelect, ViewSelect, mapping, with_mapping};
@@ -1332,8 +1333,9 @@ fn create_flow(flow: &Flow, new_flow2: &Flow) -> Flow {
     }
 }
 
-fn reuse_state(old_flow: Flow, new_flow: &mut Flow) {
-    let Flow{nodes, outputs, ..} = old_flow;
+fn reuse_state(old_flow: &mut Flow, new_flow: &mut Flow) {
+    let nodes = replace(&mut old_flow.nodes, vec![]);
+    let outputs = replace(&mut old_flow.outputs, vec![]);
     for (old_node, old_output) in nodes.into_iter().zip(outputs.into_iter()) {
         if let Some(new_ix) = new_flow.get_ix(&old_node.id[..]) {
             let old_output = old_output.into_inner();
@@ -1351,20 +1353,19 @@ fn reuse_state(old_flow: Flow, new_flow: &mut Flow) {
     }
 }
 
-pub fn recompile(old_flow: Flow) -> Flow {
-    plan(&old_flow);
-    calculate_source_schedule(&old_flow);
-    calculate_constraint_schedule(&old_flow);
-    calculate_view_reference(&old_flow);
-    calculate_view_layout(&old_flow);
-    let new_flow2 = create(&old_flow);
-    let mut new_flow = create_flow(&old_flow, &new_flow2);
+pub fn recompile(old_flow: &mut Flow) {
+    plan(&*old_flow);
+    calculate_source_schedule(&*old_flow);
+    calculate_constraint_schedule(&*old_flow);
+    calculate_view_reference(&*old_flow);
+    calculate_view_layout(&*old_flow);
+    let new_flow2 = create(&*old_flow);
+    let mut new_flow = create_flow(&*old_flow, &new_flow2);
     reuse_state(old_flow, &mut new_flow);
-    new_flow
+    *old_flow = new_flow;
 }
 
-// TODO separate remote for internals
-pub fn bootstrap(mut flow: Flow) -> Flow {
+pub fn bootstrap(flow: &mut Flow) {
     let schema = schema();
     for &(view, ref names) in schema.iter() {
         flow.nodes.push(Node{
@@ -1451,5 +1452,5 @@ pub fn bootstrap(mut flow: Flow) -> Flow {
         let mut empty_view_table = flow.overwrite_output("empty view");
         empty_view_table.index.insert(vec![]);
     }
-    recompile(flow) // bootstrap away our dummy nodes
+    recompile(flow); // bootstrap away our dummy nodes
 }

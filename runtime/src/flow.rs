@@ -26,13 +26,14 @@ pub struct Flow {
 
 impl Flow {
     pub fn new() -> Self {
-        let flow = Flow {
+        let mut flow = Flow {
             nodes: Vec::new(),
             outputs: Vec::new(),
             dirty: BitSet::new(),
             needs_recompile: true,
         };
-        compiler::bootstrap(flow)
+        compiler::bootstrap(&mut flow);
+        flow
     }
 
     pub fn get_ix(&self, id: &str) -> Option<usize> {
@@ -216,14 +217,14 @@ impl Flow {
         flow_changed
     }
 
-    pub fn quiesce(mut self, changes: Changes) -> Self {
+    pub fn quiesce(&mut self, changes: Changes)  {
         time!("changing", {
             self.change(changes);
         });
         loop {
             if self.needs_recompile {
                 time!("compiling", {
-                    self = compiler::recompile(self);
+                    compiler::recompile(self);
                 });
             }
             time!("calculating", {
@@ -236,6 +237,5 @@ impl Flow {
                 break
             }
         }
-        self
     }
 }
