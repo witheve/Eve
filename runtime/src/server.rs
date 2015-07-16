@@ -28,6 +28,7 @@ impl ToJson for Value {
             Value::Bool(bool) => Json::Boolean(bool),
             Value::String(ref string) => Json::String(string.clone()),
             Value::Float(float) => Json::F64(float),
+            Value::Column(ref column) => Json::Array(column.iter().map(|v| v.to_json()).collect()),
         }
     }
 }

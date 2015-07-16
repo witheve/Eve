@@ -7,6 +7,7 @@ pub enum Value {
     Bool(bool),
     String(String),
     Float(f64),
+    Column(Vec<Value>),
 }
 
 impl ::std::fmt::Debug for Value {
@@ -16,6 +17,7 @@ impl ::std::fmt::Debug for Value {
             Value::Bool(bool) => bool.fmt(formatter).unwrap(),
             Value::String(ref string) => string.fmt(formatter).unwrap(),
             Value::Float(float) => float.fmt(formatter).unwrap(),
+            Value::Column(ref column) => column.fmt(formatter).unwrap(),
         };
         Ok(())
     }
