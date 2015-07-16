@@ -41,6 +41,7 @@ impl FromJson for Value {
             Json::F64(float) => Value::Float(float),
             Json::I64(int) => Value::Float(int as f64),
             Json::U64(uint) => Value::Float(uint as f64),
+            Json::Array(ref array) => Value::Column(array.iter().map(FromJson::from_json).collect()),
             _ => panic!("Cannot decode {:?} as Value", json),
         }
     }
