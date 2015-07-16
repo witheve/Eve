@@ -140,6 +140,10 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("compiler index layout", vec!["view", "ix", "field", "name"]),
     ("default index layout", vec!["view", "ix", "field", "kind"]),
     ("constrained binding", vec!["variable", "source", "field"]),
+    ("grouped source", vec!["source"]),
+    ("grouped field", vec!["source", "field"]),
+    ("sorted field", vec!["source", "ix", "field"]),
+    ("ordinal binding", vec!["variable", "source"]),
 
     // layout for `create`
     // TODO these names are awful...
