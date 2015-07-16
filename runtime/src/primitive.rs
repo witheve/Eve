@@ -77,11 +77,39 @@ impl Primitive {
                     _ => vec![vec![Float(f64::MAX), Bool(false)]]
                 }
             },
-            (Count, _) => panic!("Cannot use {:?} in a join", self),
-            (Sum, _) => panic!("Cannot use {:?} in a join", self),
-            (Mean, _) => panic!("Cannot use {:?} in a join", self),
-            (StandardDeviation, _) => panic!("Cannot use {:?} in a join", self),
-            (Empty, _) => panic!("Cannot use {:?} in a join", self),
+            (Count, [&Column(ref column)]) => vec![vec![Float(column.len() as f64)]],
+            (Sum, [&Column(ref column)]) => {
+                let sum = column.iter().fold(0f64, |sum, value|
+                    match *value {
+                        Float(float) => sum + float,
+                        _ => panic!("Type error while calling: {:?} {:?}", self, column),
+                    });
+                vec![vec![Float(sum)]]
+            }
+            (Mean, [&Column(ref column)]) => {
+                let sum = column.iter().fold(0f64, |sum, value|
+                    match *value {
+                        Float(float) => sum + float,
+                        _ => panic!("Type error while calling: {:?} {:?}", self, column),
+                    });
+                let mean = sum / (column.len() as f64);
+                vec![vec![Float(mean)]]
+            },
+            (StandardDeviation, [&Column(ref column)]) => {
+                let sum = column.iter().fold(0f64, |sum, value|
+                    match *value {
+                        Float(float) => sum + float,
+                        _ => panic!("Type error while calling: {:?} {:?}", self, column),
+                    });
+                let sum_squares = column.iter().fold(0f64, |sum, value|
+                    match *value {
+                        Float(float) => sum + float.powi(2),
+                        _ => panic!("Type error while calling: {:?} {:?}", self, column),
+                    });
+                let standard_deviation = ((sum_squares - sum.powi(2)) / (column.len() as f64)).sqrt();
+                vec![vec![Float(standard_deviation)]]
+            }
+            (Empty, [&Column(ref column)]) => vec![vec![Bool(column.len() == 0)]],
             _ => panic!("Type error while calling: {:?} {:?}", self, values)
         }
     }
