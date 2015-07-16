@@ -743,9 +743,7 @@ fn create(flow: &Flow) -> Flow {
                 "join" => View::Join(Join{
                     constants: vec![],
                     sources: vec![],
-                    select: ViewSelect{
-                        mapping: vec![]
-                    },
+                    select: vec![],
                 }),
                 _ => {
                     println!("Unimplemented: create for {:?} {:?} {:?}", view_ix, view, kind);
@@ -830,7 +828,7 @@ fn create(flow: &Flow) -> Flow {
     find!(flow.get_output("select layout"), [view_ix, field_ix, variable_ix], {
         match &mut nodes[view_ix.as_usize()].view {
             &mut View::Join(ref mut join) => {
-                push_at(&mut join.select.mapping, field_ix, variable_ix.as_usize());
+                push_at(&mut join.select, field_ix, variable_ix.as_usize());
             }
             other => println!("Unimplemented: bindings for {:?} {:?}", view_ix, other),
         }

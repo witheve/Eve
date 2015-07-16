@@ -46,12 +46,12 @@ pub fn resolve_as_vector<'a>(mut ix: usize, constants: &'a [Value], outer: &'a [
 }
 
 impl Primitive {
-    pub fn eval_from_join<'a>(&self, input_bindings: &[(usize, usize)], inputs: &[&Value]) -> Vec<Vec<Value>> {
+    pub fn eval_from_join<'a>(&self, input_bindings: &[(usize, usize)], inputs: &[Value]) -> Vec<Vec<Value>> {
         use primitive::Primitive::*;
         use value::Value::*;
         let values = input_bindings.iter().enumerate().map(|(ix, &(field_ix, variable_ix))| {
             assert_eq!(ix, field_ix);
-            inputs[variable_ix]
+            &inputs[variable_ix]
         }).collect::<Vec<_>>();
         match (*self, &values[..]) {
             // NOTE be aware that arguments will be in alphabetical order by field id

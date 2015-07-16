@@ -4,6 +4,7 @@ use value::Value;
 use relation::{Relation, IndexSelect, ViewSelect};
 use primitive::{Primitive, resolve_as_scalar};
 use std::cmp::{min, max, Ordering};
+use std::mem::replace;
 
 #[derive(Clone, Debug)]
 pub struct Table {
@@ -38,7 +39,7 @@ pub struct Source {
 pub struct Join {
     pub constants: Vec<Value>,
     pub sources: Vec<Source>,
-    pub select: ViewSelect,
+    pub select: Vec<usize>,
 }
 
 #[derive(Clone, Debug)]
@@ -86,19 +87,20 @@ fn pop_all<'a>(state: &mut Vec<&'a Value>, input: &'a Vec<Value>) {
     }
 }
 
-fn join_step<'a>(join: &'a Join, ix: usize, inputs: &[&'a Relation], state: &mut Vec<&'a Value>, index: &mut BTreeSet<Vec<Value>>) {
+// TODO this algorithm is incredibly naive and also clones excessively
+fn join_step(join: &Join, ix: usize, inputs: &[&Relation], state: &mut Vec<Value>, index: &mut BTreeSet<Vec<Value>>) {
     if ix == join.sources.len() {
-        index.insert(join.select.select(&state[..]));
+        index.insert(join.select.iter().map(|ix| state[*ix].clone()).collect());
     } else {
         let source = &join.sources[ix];
         match source.input {
             Input::View{input_ix} => {
                 for values in inputs[input_ix].index.iter() {
                     for &(field_ix, variable_ix) in source.output_bindings.iter() {
-                        state[variable_ix] = &values[field_ix];
+                        state[variable_ix] = values[field_ix].clone();
                     }
                     if source.constraint_bindings.iter().all(|&(field_ix, variable_ix)|
-                        *state[variable_ix] == values[field_ix]
+                        state[variable_ix] == values[field_ix]
                     ) {
                         join_step(join, ix+1, inputs, state, index);
                     }
@@ -107,15 +109,12 @@ fn join_step<'a>(join: &'a Join, ix: usize, inputs: &[&'a Relation], state: &mut
             Input::Primitive{primitive, ref input_bindings} => {
                 // values returned from primitives don't include inputs, so we will have to offset accesses by input_len
                 let input_len = input_bindings.len();
-                for values in primitive.eval_from_join(&input_bindings[..], &state[..]).into_iter() {
-                    // promise the borrow checker that we wont read these values after exiting this scope
-                    // TODO this is not panic-safe - we should use CowString in Value instead
-                    let values = unsafe { ::std::mem::transmute::<&Vec<Value>, &'a Vec<Value>>(&values) };
+                for mut values in primitive.eval_from_join(&input_bindings[..], &state[..]).into_iter() {
                     for &(field_ix, variable_ix) in source.output_bindings.iter() {
-                        state[variable_ix] = &values[field_ix - input_len];
+                        state[variable_ix] = replace(&mut values[field_ix - input_len], Value::Null);
                     }
                     if source.constraint_bindings.iter().all(|&(field_ix, variable_ix)|
-                        *state[variable_ix] == values[field_ix - input_len]
+                        state[variable_ix] == values[field_ix - input_len]
                     ) {
                         join_step(join, ix+1, inputs, state, index);
                     }
@@ -171,7 +170,7 @@ impl View {
                 Some(output)
             }
             View::Join(ref join) => {
-                let mut state = join.constants.iter().collect();
+                let mut state = join.constants.clone();
                 join_step(join, 0, inputs, &mut state, &mut output.index);
                 Some(output)
             }
