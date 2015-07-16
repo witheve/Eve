@@ -121,7 +121,7 @@ fn test_examples() {
         let input_events = read_events(&input_filename[..]);
         let mut input_flow = Flow::new();
         for event in bootstrap_events.into_iter().chain(input_events.into_iter()) {
-            input_flow = input_flow.quiesce(event.changes);
+            input_flow.quiesce(event.changes);
         }
 
         let output_events = read_events(&output_filename[..]);
