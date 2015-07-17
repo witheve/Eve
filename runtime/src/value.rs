@@ -41,6 +41,13 @@ impl Value {
         }
     }
 
+    pub fn as_bool(&self) -> bool {
+        match *self {
+            Value::Bool(bool) => bool,
+            _ => panic!("Cannot convert this to bool: {:?}", self),
+        }
+    }
+
     pub fn as_f64(&self) -> f64 {
         match *self {
             Value::Float(float) => float,
@@ -73,6 +80,13 @@ impl Value {
                 }
             },
             _ => panic!("Cannot convert this to usize: {:?}", self),
+        }
+    }
+
+    pub fn as_column_mut(&mut self) -> &mut Vec<Value> {
+        match *self {
+            Value::Column(ref mut column) => column,
+            _ => panic!("Cannot convert this to column: {:?}", self),
         }
     }
 }

@@ -17,6 +17,65 @@ pub struct Union {
     pub selects: Vec<IndexSelect>,
 }
 
+#[derive(Clone, Debug, Copy)]
+pub enum Direction {
+    Ascending,
+    Descending,
+}
+
+#[derive(Clone, Debug)]
+pub struct Grouping {
+    pub grouped_fields: Vec<usize>,
+    pub sorted_fields: Vec<(usize, Direction)>,
+}
+
+impl Grouping {
+    fn group(&self, input: &Relation) -> Vec<Vec<Value>> {
+        let mut rows = input.index.iter().map(|row| row.clone()).collect::<Vec<_>>();
+        rows.sort_by(|a, b| {
+            for &ix in self.grouped_fields.iter() {
+                match a[ix].cmp(&b[ix]) {
+                    Ordering::Greater => return Ordering::Greater,
+                    Ordering::Less => return Ordering::Less,
+                    Ordering::Equal => ()
+                }
+            }
+            for &(ix, direction) in self.sorted_fields.iter() {
+                match (a[ix].cmp(&b[ix]), direction) {
+                    (Ordering::Greater, Direction::Ascending) => return Ordering::Greater,
+                    (Ordering::Greater, Direction::Descending) => return Ordering::Less,
+                    (Ordering::Less, Direction::Ascending) => return Ordering::Less,
+                    (Ordering::Less, Direction::Descending) => return Ordering::Greater,
+                    (Ordering::Equal, _) => ()
+                }
+            }
+            return Ordering::Equal;
+        });
+        let mut groups = Vec::new();
+        let mut group = vec![Value::Null; input.fields.len()];
+        let mut ix = 1;
+        for row in rows.into_iter() {
+            if self.grouped_fields.iter().all(|&ix| row[ix] == group[ix]) {
+                for &(ix, _) in self.sorted_fields.iter() {
+                    group[ix].as_column_mut().push(row[ix].clone())
+                }
+            } else {
+                groups.push(group);
+                group = row;
+                for &(ix, _) in self.sorted_fields.iter() {
+                    let value = replace(&mut group[ix], Value::Null);
+                    group[ix] = Value::Column(vec![value]);
+                }
+                group.push(Value::Float(ix as f64));
+                ix += 1;
+            }
+        }
+        groups.push(group);
+        groups.remove(0); // remove the dummy group we started with
+        groups
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum Input {
     Primitive{
@@ -25,6 +84,7 @@ pub enum Input {
     },
     View{
         input_ix: usize,
+        grouping: Option<Grouping>,
     },
 }
 
@@ -46,12 +106,6 @@ pub struct Join {
 pub struct Reducer {
     pub primitive: Primitive,
     pub arguments: Vec<usize>,
-}
-
-#[derive(Clone, Debug, Copy)]
-pub enum Direction {
-    Ascending,
-    Descending,
 }
 
 #[derive(Clone, Debug)]
@@ -88,14 +142,14 @@ fn pop_all<'a>(state: &mut Vec<&'a Value>, input: &'a Vec<Value>) {
 }
 
 // TODO this algorithm is incredibly naive and also clones excessively
-fn join_step(join: &Join, ix: usize, inputs: &[&Relation], state: &mut Vec<Value>, index: &mut BTreeSet<Vec<Value>>) {
+fn join_step(join: &Join, ix: usize, inputs: &[Vec<Vec<Value>>], state: &mut Vec<Value>, index: &mut BTreeSet<Vec<Value>>) {
     if ix == join.sources.len() {
         index.insert(join.select.iter().map(|ix| state[*ix].clone()).collect());
     } else {
         let source = &join.sources[ix];
         match source.input {
-            Input::View{input_ix} => {
-                for values in inputs[input_ix].index.iter() {
+            Input::View{..} => {
+                for values in inputs[ix].iter() {
                     for &(field_ix, variable_ix) in source.output_bindings.iter() {
                         state[variable_ix] = values[field_ix].clone();
                     }
@@ -152,7 +206,7 @@ fn compare_in_direction(xs: &[Value], ys: &[Value], directions: &[Direction]) ->
 }
 
 impl View {
-    pub fn run(&self, old_output: &Relation, inputs: &[&Relation]) -> Option<Relation> {
+    pub fn run(&self, old_output: &Relation, upstream: &[&Relation]) -> Option<Relation> {
         let mut output = Relation::new(
             old_output.view.clone(),
             old_output.fields.clone(),
@@ -161,9 +215,9 @@ impl View {
         match *self {
             View::Table(_) => None,
             View::Union(ref union) => {
-                assert_eq!(union.selects.len(), inputs.len());
+                assert_eq!(union.selects.len(), upstream.len());
                 for select in union.selects.iter() {
-                    for values in select.select(&inputs[..]) {
+                    for values in select.select(&upstream[..]) {
                         output.index.insert(values);
                     }
                 }
@@ -171,12 +225,23 @@ impl View {
             }
             View::Join(ref join) => {
                 let mut state = join.constants.clone();
-                join_step(join, 0, inputs, &mut state, &mut output.index);
+                let inputs = join.sources.iter().map(|source|
+                    match source.input {
+                        Input::Primitive{..} => vec![],
+                        Input::View{input_ix, ref grouping} => {
+                            let input = upstream[input_ix];
+                            match *grouping {
+                                None => input.index.iter().map(|row| row.clone()).collect(),
+                                Some(ref grouping) => grouping.group(input),
+                            }
+                        }
+                    }).collect::<Vec<_>>();
+                join_step(join, 0, &inputs[..], &mut state, &mut output.index);
                 Some(output)
             }
             View::Aggregate(ref aggregate) => {
-                let mut outer = aggregate.outer.select(&inputs[..]);
-                let mut inner = aggregate.inner.select(&inputs[..]);
+                let mut outer = aggregate.outer.select(&upstream[..]);
+                let mut inner = aggregate.inner.select(&upstream[..]);
                 outer.sort_by(|a,b| compare_in_direction(&a[..], &b[..], &aggregate.directions[..]));
                 outer.dedup();
                 inner.sort_by(|a,b| compare_in_direction(&a[..], &b[..], &aggregate.directions[..]));

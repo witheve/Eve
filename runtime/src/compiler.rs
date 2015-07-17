@@ -6,7 +6,7 @@ use std::mem::replace;
 
 use value::{Value, Tuple};
 use relation::{Relation, IndexSelect, ViewSelect, mapping, with_mapping};
-use view::{View, Table, Union, Join, Input, Source, Aggregate, Direction, Reducer};
+use view::{View, Table, Union, Join, Grouping, Input, Source, Aggregate, Direction, Reducer};
 use flow::{Node, Flow};
 use primitive;
 use primitive::Primitive;
@@ -140,10 +140,11 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("compiler index layout", vec!["view", "ix", "field", "name"]),
     ("default index layout", vec!["view", "ix", "field", "kind"]),
     ("constrained binding", vec!["variable", "source", "field"]),
-    ("grouped source", vec!["source"]),
-    ("grouped field", vec!["source", "field"]),
-    ("sorted field", vec!["source", "ix", "field"]),
+    ("grouped source", vec!["view", "source"]),
+    ("grouped field", vec!["view", "source", "field"]),
+    ("sorted field", vec!["view", "source", "ix", "field", "direction"]),
     ("ordinal binding", vec!["variable", "source"]),
+    ("number of fields", vec!["view", "num"]),
 
     // layout for `create`
     // TODO these names are awful...
@@ -151,10 +152,12 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("number of variables (pre)", vec!["view", "num"]),
     ("number of variables", vec!["view ix", "num"]),
     ("constant layout", vec!["view ix", "variable ix", "value"]),
-    ("source layout", vec!["view ix", "source ix", "input"]),
+    ("source layout", vec!["view ix", "source ix", "input", "is grouped"]),
     ("downstream layout", vec!["downstream view ix", "ix", "upstream view ix"]),
     ("binding layout", vec!["view ix", "source ix", "field ix", "variable ix", "kind"]),
     ("select layout", vec!["view ix", "ix", "variable ix"]),
+    ("grouped field layout", vec!["view ix", "source ix", "field ix"]),
+    ("sorted field layout", vec!["view ix", "source ix", "ix", "field ix", "direction"]),
     ]
 }
 
@@ -363,6 +366,10 @@ fn plan(flow: &Flow) {
     // let aggregate_limit_from_table = flow.get_output("aggregate limit from");
     // let aggregate_limit_to_table = flow.get_output("aggregate limit to");
     let select_table = flow.get_output("select");
+    let grouped_source_table = flow.get_output("grouped source");
+    let grouped_field_table = flow.get_output("grouped field");
+    let sorted_field_table = flow.get_output("sorted field");
+    let ordinal_binding_table = flow.get_output("ordinal binding");
 
     let mut constraint_ish_table = flow.overwrite_output("constraint*");
     find!(constraint_table, [constraint, view], {
@@ -636,6 +643,9 @@ fn plan(flow: &Flow) {
         });
     });
 
+    let mut number_of_fields_table = flow.overwrite_output("number of fields");
+    count_by(&*index_layout_table, &mut *number_of_fields_table, &["view"]);
+
     // rest is just denormalising for `create`
 
     let mut output_layout_table = flow.overwrite_output("output layout");
@@ -680,11 +690,12 @@ fn plan(flow: &Flow) {
         find!(source_schedule_ish_table, [(= view), source_ix, _, source], {
             find!(source_table, [(= view), (= source), source_view], {
                 find!(view_table, [(= source_view), kind], {
+                    let grouped = !dont_find!(grouped_source_table, [(= view), (= source)]);
                     if kind.as_str() == "primitive" {
-                        insert!(source_layout_table, [view_ix, source_ix, source_view]);
+                        insert!(source_layout_table, [view_ix, source_ix, source_view, Bool(grouped)]);
                     } else {
                         find!(view_dependency_table, [(= view), input_ix, (= source), (= source_view)], {
-                            insert!(source_layout_table, [view_ix, source_ix, input_ix]);
+                            insert!(source_layout_table, [view_ix, source_ix, input_ix, Bool(grouped)]);
                         });
                     }
                 });
@@ -716,6 +727,19 @@ fn plan(flow: &Flow) {
             });
         });
     });
+    find!(ordinal_binding_table, [variable, source], {
+        find!(variable_schedule_table, [view, variable_ix, _, (= variable)], {
+            find!(view_schedule_table, [view_ix, (= view), _], {
+                find!(source_schedule_ish_table, [(= view), source_ix, _, (= source)], {
+                    find!(source_table, [(= view), (= source), source_view], {
+                        find!(number_of_fields_table, [(= source_view), number_of_fields], {
+                            insert!(binding_layout_table, [view_ix, source_ix, number_of_fields, variable_ix, string!("output")]);
+                        });
+                    });
+                });
+            });
+        });
+    });
 
     let mut select_layout_table = flow.overwrite_output("select layout");
     find!(view_schedule_table, [view_ix, view, _], {
@@ -723,6 +747,32 @@ fn plan(flow: &Flow) {
             find!(select_ish_table, [(= view), (= field), variable], {
                 find!(variable_schedule_table, [(= view), variable_ix, _, (= variable)], {
                     insert!(select_layout_table, [view_ix, field_ix, variable_ix]);
+                });
+            });
+        });
+    });
+
+    let mut grouped_field_layout_table = flow.overwrite_output("grouped field layout");
+    find!(grouped_field_table, [view, source, field], {
+        find!(view_schedule_table, [view_ix, (= view), _], {
+            find!(source_schedule_ish_table, [(= view), source_ix, _, (= source)], {
+                find!(source_table, [(= view), (= source), source_view], {
+                    find!(index_layout_table, [(= source_view), field_ix, (= field), _], {
+                        insert!(grouped_field_layout_table, [view_ix, source_ix, field_ix]);
+                    });
+                });
+            });
+        });
+    });
+
+    let mut sorted_field_layout_table = flow.overwrite_output("sorted field layout");
+    find!(sorted_field_table, [view, source, ix, field, direction], {
+        find!(view_schedule_table, [view_ix, (= view), _], {
+            find!(source_schedule_ish_table, [(= view), source_ix, _, (= source)], {
+                find!(source_table, [(= view), (= source), source_view], {
+                    find!(index_layout_table, [(= source_view), field_ix, (= field), _], {
+                        insert!(sorted_field_layout_table, [view_ix, source_ix, ix, field_ix, direction]);
+                    });
                 });
             });
         });
@@ -791,7 +841,7 @@ fn create(flow: &Flow) -> Flow {
         }
     });
 
-    find!(flow.get_output("source layout"), [view_ix, source_ix, input], {
+    find!(flow.get_output("source layout"), [view_ix, source_ix, input, grouped], {
         match &mut nodes[view_ix.as_usize()].view {
             &mut View::Join(ref mut join) => {
                 let source = Source{
@@ -801,7 +851,14 @@ fn create(flow: &Flow) -> Flow {
                             input_bindings: vec![],
                         },
                         &Float(upstream_view_ix) => Input::View{
-                            input_ix: upstream_view_ix as usize
+                            input_ix: upstream_view_ix as usize,
+                            grouping: match grouped.as_bool() {
+                                true => Some(Grouping{
+                                    grouped_fields: vec![],
+                                    sorted_fields: vec![],
+                                }),
+                                false => None,
+                            },
                         },
                         other => panic!("Unknown input type: {:?}", other),
                     },
@@ -836,6 +893,45 @@ fn create(flow: &Flow) -> Flow {
                 push_at(&mut join.select, field_ix, variable_ix.as_usize());
             }
             other => println!("Unimplemented: bindings for {:?} {:?}", view_ix, other),
+        }
+    });
+
+    find!(flow.get_output("grouped field layout"), [view_ix, source_ix, field_ix], {
+        match &mut nodes[view_ix.as_usize()].view {
+            &mut View::Join(ref mut join) => {
+                match &mut join.sources[source_ix.as_usize()].input {
+                    &mut Input::View{grouping: Some(ref mut grouping), ..} => {
+                        grouping.grouped_fields.push(field_ix.as_usize());
+                    }
+                    other => {
+                        panic!("Grouped fields given for non-grouped source {:?} {:?} {:?}", view_ix, source_ix, other);
+                    }
+                }
+
+            }
+            other => panic!("Grouped fields given for non-join view {:?} {:?}", view_ix, other),
+        }
+    });
+
+    find!(flow.get_output("sorted field layout"), [view_ix, source_ix, ix, field_ix, direction], {
+        match &mut nodes[view_ix.as_usize()].view {
+            &mut View::Join(ref mut join) => {
+                match &mut join.sources[source_ix.as_usize()].input {
+                    &mut Input::View{grouping: Some(ref mut grouping), ..} => {
+                        let direction = match direction.as_str() {
+                            "ascending" => Direction::Ascending,
+                            "descending" => Direction::Descending,
+                            _ => panic!("Uknown direction {:?}", direction),
+                        };
+                        push_at(&mut grouping.sorted_fields, ix, (field_ix.as_usize(), direction));
+                    }
+                    other => {
+                        panic!("Sorted fields given for non-grouped source {:?} {:?} {:?}", view_ix, source_ix, other);
+                    }
+                }
+
+            }
+            other => panic!("Sorted fields given for non-join view {:?} {:?}", view_ix, other),
         }
     });
 
