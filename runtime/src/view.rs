@@ -24,14 +24,29 @@ pub enum Direction {
 }
 
 #[derive(Clone, Debug)]
-pub struct Grouping {
-    pub grouped_fields: Vec<usize>,
-    pub sorted_fields: Vec<(usize, Direction)>,
+pub enum Input {
+    Primitive{
+        primitive: Primitive,
+        input_bindings: Vec<(usize, usize)>,
+    },
+    View{
+        input_ix: usize,
+    },
 }
 
-impl Grouping {
-    fn group(&self, input: &Relation) -> Vec<Vec<Value>> {
-        let mut rows = input.index.iter().map(|row| row.clone()).collect::<Vec<_>>();
+#[derive(Clone, Debug)]
+pub struct Source {
+    pub input: Input,
+    pub grouped_fields: Vec<usize>,
+    pub sorted_fields: Vec<(usize, Direction)>,
+    pub chunked: bool,
+    pub constraint_bindings: Vec<(usize, usize)>,
+    pub output_bindings: Vec<(usize, usize)>,
+}
+
+impl Source {
+    fn prepare(&self, mut rows: Vec<Vec<Value>>) -> Vec<Vec<Value>> {
+        // TODO compensate for inputs if primitive
         rows.sort_by(|a, b| {
             for &ix in self.grouped_fields.iter() {
                 match a[ix].cmp(&b[ix]) {
@@ -52,47 +67,44 @@ impl Grouping {
             return Ordering::Equal;
         });
         let mut groups = Vec::new();
-        let mut group = vec![Value::Null; input.fields.len()];
+        let row_len = rows.iter().next().map_or(0, |row| row.len());
+        let mut group = vec![Value::Null; row_len];
         let mut ix = 1;
-        for row in rows.into_iter() {
-            if self.grouped_fields.iter().all(|&ix| row[ix] == group[ix]) {
-                for &(ix, _) in self.sorted_fields.iter() {
-                    group[ix].as_column_mut().push(row[ix].clone())
+        for mut row in rows.into_iter() {
+            row.push(Value::Float(ix as f64));
+            let is_same_group = self.grouped_fields.iter().all(|&ix| row[ix] == group[ix]);
+            match (self.chunked, is_same_group) {
+                (true, true) => {
+                    for &(ix, _) in self.sorted_fields.iter() {
+                        group[ix].as_column_mut().push(row[ix].clone())
+                    }
+                    ix += 1;
                 }
-            } else {
-                groups.push(group);
-                group = row;
-                for &(ix, _) in self.sorted_fields.iter() {
-                    let value = replace(&mut group[ix], Value::Null);
-                    group[ix] = Value::Column(vec![value]);
+                (true, false) => {
+                    groups.push(group);
+                    group = row;
+                    for &(ix, _) in self.sorted_fields.iter() {
+                        let value = replace(&mut group[ix], Value::Null);
+                        group[ix] = Value::Column(vec![value]);
+                    }
+                    ix = 1;
                 }
-                group.push(Value::Float(ix as f64));
-                ix += 1;
+                (false, true) => {
+                    groups.push(group);
+                    group = row;
+                    ix += 1;
+                }
+                (false, false) => {
+                    groups.push(group);
+                    group = row;
+                    ix = 1;
+                }
             }
         }
         groups.push(group);
         groups.remove(0); // remove the dummy group we started with
         groups
     }
-}
-
-#[derive(Clone, Debug)]
-pub enum Input {
-    Primitive{
-        primitive: Primitive,
-        input_bindings: Vec<(usize, usize)>,
-    },
-    View{
-        input_ix: usize,
-        grouping: Option<Grouping>,
-    },
-}
-
-#[derive(Clone, Debug)]
-pub struct Source {
-    pub input: Input,
-    pub constraint_bindings: Vec<(usize, usize)>,
-    pub output_bindings: Vec<(usize, usize)>,
 }
 
 #[derive(Clone, Debug)]
@@ -227,13 +239,11 @@ impl View {
                 let mut state = join.constants.clone();
                 let inputs = join.sources.iter().map(|source|
                     match source.input {
-                        Input::Primitive{..} => vec![],
-                        Input::View{input_ix, ref grouping} => {
-                            let input = upstream[input_ix];
-                            match *grouping {
-                                None => input.index.iter().map(|row| row.clone()).collect(),
-                                Some(ref grouping) => grouping.group(input),
-                            }
+                        Input::Primitive{..} => {
+                            vec![]
+                        }
+                        Input::View{input_ix, ..} => {
+                            source.prepare(upstream[input_ix].index.iter().map(|row| row.clone()).collect())
                         }
                     }).collect::<Vec<_>>();
                 join_step(join, 0, &inputs[..], &mut state, &mut output.index);

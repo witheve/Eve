@@ -6,7 +6,7 @@ use std::mem::replace;
 
 use value::{Value, Tuple};
 use relation::{Relation, IndexSelect, ViewSelect, mapping, with_mapping};
-use view::{View, Table, Union, Join, Grouping, Input, Source, Aggregate, Direction, Reducer};
+use view::{View, Table, Union, Join, Input, Source, Aggregate, Direction, Reducer};
 use flow::{Node, Flow};
 use primitive;
 use primitive::Primitive;
@@ -140,7 +140,9 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("compiler index layout", vec!["view", "ix", "field", "name"]),
     ("default index layout", vec!["view", "ix", "field", "kind"]),
     ("constrained binding", vec!["variable", "source", "field"]),
-    ("grouped source", vec!["view", "source"]),
+    // TODO currently grouping does not work on primitives
+    // TODO if sorting / grouping is not specified then sort order is undefined behaviour
+    ("chunked source", vec!["view", "source"]),
     ("grouped field", vec!["view", "source", "field"]),
     ("sorted field", vec!["view", "source", "ix", "field", "direction"]),
     ("ordinal binding", vec!["variable", "source"]),
@@ -366,7 +368,7 @@ fn plan(flow: &Flow) {
     // let aggregate_limit_from_table = flow.get_output("aggregate limit from");
     // let aggregate_limit_to_table = flow.get_output("aggregate limit to");
     let select_table = flow.get_output("select");
-    let grouped_source_table = flow.get_output("grouped source");
+    let chunked_source_table = flow.get_output("chunked source");
     let grouped_field_table = flow.get_output("grouped field");
     let sorted_field_table = flow.get_output("sorted field");
     let ordinal_binding_table = flow.get_output("ordinal binding");
@@ -690,12 +692,12 @@ fn plan(flow: &Flow) {
         find!(source_schedule_ish_table, [(= view), source_ix, _, source], {
             find!(source_table, [(= view), (= source), source_view], {
                 find!(view_table, [(= source_view), kind], {
-                    let grouped = !dont_find!(grouped_source_table, [(= view), (= source)]);
+                    let chunked = !dont_find!(chunked_source_table, [(= view), (= source)]);
                     if kind.as_str() == "primitive" {
-                        insert!(source_layout_table, [view_ix, source_ix, source_view, Bool(grouped)]);
+                        insert!(source_layout_table, [view_ix, source_ix, source_view, Bool(chunked)]);
                     } else {
                         find!(view_dependency_table, [(= view), input_ix, (= source), (= source_view)], {
-                            insert!(source_layout_table, [view_ix, source_ix, input_ix, Bool(grouped)]);
+                            insert!(source_layout_table, [view_ix, source_ix, input_ix, Bool(chunked)]);
                         });
                     }
                 });
@@ -841,7 +843,7 @@ fn create(flow: &Flow) -> Flow {
         }
     });
 
-    find!(flow.get_output("source layout"), [view_ix, source_ix, input, grouped], {
+    find!(flow.get_output("source layout"), [view_ix, source_ix, input, chunked], {
         match &mut nodes[view_ix.as_usize()].view {
             &mut View::Join(ref mut join) => {
                 let source = Source{
@@ -852,16 +854,12 @@ fn create(flow: &Flow) -> Flow {
                         },
                         &Float(upstream_view_ix) => Input::View{
                             input_ix: upstream_view_ix as usize,
-                            grouping: match grouped.as_bool() {
-                                true => Some(Grouping{
-                                    grouped_fields: vec![],
-                                    sorted_fields: vec![],
-                                }),
-                                false => None,
-                            },
                         },
                         other => panic!("Unknown input type: {:?}", other),
                     },
+                    grouped_fields: vec![],
+                    sorted_fields: vec![],
+                    chunked: chunked.as_bool(),
                     constraint_bindings: vec![],
                     output_bindings: vec![],
                 };
@@ -899,15 +897,7 @@ fn create(flow: &Flow) -> Flow {
     find!(flow.get_output("grouped field layout"), [view_ix, source_ix, field_ix], {
         match &mut nodes[view_ix.as_usize()].view {
             &mut View::Join(ref mut join) => {
-                match &mut join.sources[source_ix.as_usize()].input {
-                    &mut Input::View{grouping: Some(ref mut grouping), ..} => {
-                        grouping.grouped_fields.push(field_ix.as_usize());
-                    }
-                    other => {
-                        panic!("Grouped fields given for non-grouped source {:?} {:?} {:?}", view_ix, source_ix, other);
-                    }
-                }
-
+                join.sources[source_ix.as_usize()].grouped_fields.push(field_ix.as_usize());
             }
             other => panic!("Grouped fields given for non-join view {:?} {:?}", view_ix, other),
         }
@@ -916,20 +906,12 @@ fn create(flow: &Flow) -> Flow {
     find!(flow.get_output("sorted field layout"), [view_ix, source_ix, ix, field_ix, direction], {
         match &mut nodes[view_ix.as_usize()].view {
             &mut View::Join(ref mut join) => {
-                match &mut join.sources[source_ix.as_usize()].input {
-                    &mut Input::View{grouping: Some(ref mut grouping), ..} => {
-                        let direction = match direction.as_str() {
-                            "ascending" => Direction::Ascending,
-                            "descending" => Direction::Descending,
-                            _ => panic!("Uknown direction {:?}", direction),
-                        };
-                        push_at(&mut grouping.sorted_fields, ix, (field_ix.as_usize(), direction));
-                    }
-                    other => {
-                        panic!("Sorted fields given for non-grouped source {:?} {:?} {:?}", view_ix, source_ix, other);
-                    }
-                }
-
+                let direction = match direction.as_str() {
+                    "ascending" => Direction::Ascending,
+                    "descending" => Direction::Descending,
+                    _ => panic!("Unknown direction {:?}", direction),
+                };
+                push_at(&mut join.sources[source_ix.as_usize()].sorted_fields, ix, (field_ix.as_usize(), direction));
             }
             other => panic!("Sorted fields given for non-join view {:?} {:?}", view_ix, other),
         }
