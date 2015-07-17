@@ -7,7 +7,7 @@ module eveEditor {
   var ixer = api.ixer;
   var code = api.code;
   var DEBUG = window["DEBUG"];
-  
+
   export function executeDispatch(diffs, storeEvent, sendToServer) {
     if(diffs && diffs.length) {
       if(storeEvent) {
@@ -30,7 +30,7 @@ module eveEditor {
     } else {
       //       console.warn("No diffs to index, skipping.");
     }
-    
+
     //@TODO: since we don't have a way to determine if localState has changed, we have
     //to render anytime dispatch is called
     drawn.render();
@@ -43,18 +43,18 @@ module drawn {
   const localState = api.localState;
   const ixer = api.ixer;
   const code = api.code;
-  
+
   //---------------------------------------------------------
   // Constants
   //---------------------------------------------------------
 
-  const nodeWidthMultiplier = 8;
+  const nodeWidthMultiplier = 9;
   const nodeSmallWidthMultiplier = 8;
   const nodeWidthPadding = 10;
   const nodeHeight = 18;
   const nodeHeightPadding = 3;
   const nodeWidthMin = 50;
-  
+
   //---------------------------------------------------------
   // Utils
   //---------------------------------------------------------
@@ -82,7 +82,7 @@ module drawn {
     function preventDefault(e) {
         e.preventDefault();
     }
-    
+
     function focusOnce(node, elem) {
         if (!elem.__focused) {
             setTimeout(function () { node.focus(); }, 5);
@@ -203,7 +203,7 @@ localState.drawnUiActiveId = "block field";
     }
     return {actions, lookup};
   }
-  
+
   function getNodesInRectangle(viewId, box) {
     let {nodes} = viewToEntityInfo(ixer.selectOne("view", {view: viewId}));
     let boxLeft = Math.min(box.start.x, box.end.x);
@@ -218,10 +218,10 @@ localState.drawnUiActiveId = "block field";
       let overlapRight = Math.min(boxRight, displayInfo.left + displayInfo.width);
       let overlapTop = Math.max(boxTop, displayInfo.top);
       let overlapBottom = Math.min(boxBottom, displayInfo.top + displayInfo.height);
-      return overlapLeft < overlapRight && overlapTop < overlapBottom; 
+      return overlapLeft < overlapRight && overlapTop < overlapBottom;
     });
   }
-  
+
   function nodesToRectangle(nodes) {
     let top = Infinity;
     let left = Infinity;
@@ -310,8 +310,8 @@ localState.drawnUiActiveId = "block field";
           var boxSelectedNodes = getNodesInRectangle(localState.drawnUiActiveId, localState.boxSelection);
           boxSelectedNodes.forEach((info) => {
             let {node} = info;
-            localState.selectedNodes[node.id] = node; 
-          }); 
+            localState.selectedNodes[node.id] = node;
+          });
         }
         localState.selecting = false;
         localState.boxSelection = false;
@@ -394,7 +394,7 @@ localState.drawnUiActiveId = "block field";
         if(sourceView["view: kind"] === "primitive") {
           ixer.select("field", {view: info.viewId}).forEach(function(field) {
             let fieldId = field["field: field"];
-            if(field["field: kind"] === "scalar input") {
+            if(field["field: kind"] === "scalar input" || field["field: kind"] === "vector input") {
               diffs.push(api.insert("constraint", {
               constraint: uuid(),
               view: localState.drawnUiActiveId,
@@ -463,7 +463,7 @@ localState.drawnUiActiveId = "block field";
         function bindPrimitiveField(sourceId, fieldId) {
           var source = ixer.selectOne("source", {source: sourceId});
           var field = ixer.selectOne("field", {field: fieldId});
-          if(field["field: kind"] === "scalar input") {
+          if(field["field: kind"] === "scalar input" || field["field: kind"] === "vector input") {
             diffs.push(api.insert("constraint", {
               constraint: uuid(),
               view: localState.drawnUiActiveId,
@@ -504,11 +504,11 @@ localState.drawnUiActiveId = "block field";
           "display order": {priority: -fields.length}
         }});
         var fieldId = neueField.content.field;
-      
+
         diffs = [
           neueField,
           api.insert("select", {view: info.viewId, "view field": fieldId, source: info.sourceId, "source field": info.sourceFieldId})
-        ]; 
+        ];
       break;
       case "setQueryName":
         if(info.value === ixer.selectOne("display name", {id: info.viewId})["display name: name"]) return;
@@ -519,11 +519,11 @@ localState.drawnUiActiveId = "block field";
         var fieldId = info.node.field;
         var sourceId = info.node.source["source: source"];
         diffs.push(api.insert("constraint", {
-          view: info.viewId, 
-          operation: "=", 
-          "left source": sourceId, 
-          "left field": fieldId, 
-          "right source": "constant", 
+          view: info.viewId,
+          operation: "=",
+          "left source": sourceId,
+          "left field": fieldId,
+          "right source": "constant",
           "right field": "default empty"
         }));
         dispatch("modifyFilter", info, true);
@@ -547,6 +547,31 @@ localState.drawnUiActiveId = "block field";
         diffs.push(api.remove("constraint", {view: info.viewId, "left source": sourceId, "left field": fieldId, "right source": "constant"}));
         diffs.push(api.insert("constraint", {view: info.viewId, operation: "=", "left source": sourceId, "left field": fieldId, "right source": "constant", "right field": constantId}));
         localState.modifyingFilterNodeId = undefined;
+      break;
+      case "chunkSource":
+        var sourceId = info.node.source["source: source"];
+        diffs.push(api.insert("chunked source", {view: info.viewId, source: sourceId}));
+      break;
+      case "unchunkSource":
+        var sourceId = info.node.source["source: source"];
+        diffs.push(api.remove("chunked source", {view: info.viewId, source: sourceId}));
+      break;
+      case "addOrdinal":
+        var sourceId = info.node.source["source: source"];
+        // @TODO: we need a way to create a variable for this to really work
+        var fields = ixer.select("field", {view: info.viewId}) || [];
+        var neueField = api.insert("field", {view: info.viewId, kind: "output", dependents: {
+          "display name": {name: "ordinal"},
+          "display order": {priority: -fields.length}
+        }});
+        var fieldId = neueField.content.field;
+        diffs.push(
+          api.insert("ordinal binding", {source: sourceId, variable: fieldId})
+        );
+      break;
+      case "removeOrdinal":
+        // @TODO: implement remove ordinal
+        console.log("TODO: implement remove ordinal");
       break;
       //---------------------------------------------------------
       // Menu
@@ -622,10 +647,10 @@ localState.drawnUiActiveId = "block field";
         ]},
         showResults ? queryResults(viewId) : undefined
       ]}
-      
+
     ]};
   }
-  
+
   function queryTools(view) {
     // What tools are available depends on what is selected.
     // no matter what though you should be able to go back to the
@@ -633,31 +658,31 @@ localState.drawnUiActiveId = "block field";
     let tools:any = [
        {c: "tool", text: "back", click: gotoQuerySelector},
     ];
-    
+
     // @FIXME: what is the correct way to divy this up? The criteria for
     // what tools show up can be pretty complicated.
-    
+
     let viewId = view["view: view"];
-    
+
     // @FIXME: we ask for the entity info multiple times to draw the editor
     // we should probably find a way to do it in just one.
     let {nodeLookup} = viewToEntityInfo(view);
-    
+
     let selectedNodes = Object.keys(localState.selectedNodes).map(function(nodeId) {
       // we can't rely on the actual nodes of the uiSelection because they don't get updated
       // so we have to look them up again.
       return nodeLookup[nodeId];
     });
-    
+
     // no selection
     if(!selectedNodes.length) {
       tools.push.apply(tools, [
         {c: "tool", text: "Entity"},
         {c: "tool", text: "Attribute"},
-        {c: "tool", text: "Relationship", click: showCanvasMenu},  
+        {c: "tool", text: "Relationship", click: showCanvasMenu},
       ]);
-      
-    // single selection  
+
+    // single selection
     } else if(selectedNodes.length === 1) {
       let node = selectedNodes[0];
       if(node.type === "attribute") {
@@ -665,7 +690,7 @@ localState.drawnUiActiveId = "block field";
           tools.push({c: "tool", text: "unmerge", click: unjoinNodes, node: node});
         }
         if(ixer.selectOne("select", {view: viewId, "source field": node.field})) {
-          tools.push({c: "tool", text: "unselect", click: unselectAttribute, node, viewId});  
+          tools.push({c: "tool", text: "unselect", click: unselectAttribute, node, viewId});
         } else {
           tools.push({c: "tool", text: "select", click: selectAttribute, node, viewId});
         }
@@ -675,34 +700,63 @@ localState.drawnUiActiveId = "block field";
           tools.push({c: "tool", text: "change filter", click: modifyFilter, node, viewId});
           tools.push({c: "tool", text: "remove filter", click: removeFilter, node, viewId});
         }
+      } else if(node.type === "relationship") {
+        if(node.chunked) {
+          tools.push({c: "tool", text: "unchunk", click: unchunkSource, node, viewId});
+        } else {
+          tools.push({c: "tool", text: "chunk", click: chunkSource, node, viewId});
+        }
+        if(node.ordinal) {
+          tools.push({c: "tool", text: "remove ordinal", click removeOrdinal, node, viewId});
+        } else {
+          tools.push({c: "tool", text: "add ordinal", click addOrdinal, node, viewId});
+        }
+
       }
-      
-    //multi-selection  
+
+    //multi-selection
     } else {
-      
+
     }
     return {c: "query-tools", children: tools};
   }
-  
+
+  function addOrdinal(e, elem) {
+    dispatch("addOrdinal", {node: elem.node, viewId: elem.viewId});
+  }
+
+  function removeOrdinal(e, elem) {
+    dispatch("removeOrdinal", {node: elem.node, viewId: elem.viewId});
+  }
+
+
+  function chunkSource(e, elem) {
+    dispatch("chunkSource", {node: elem.node, viewId: elem.viewId});
+  }
+
+  function unchunkSource(e, elem) {
+    dispatch("unchunkSource", {node: elem.node, viewId: elem.viewId});
+  }
+
   function addFilter(e, elem) {
     dispatch("addFilter", {node: elem.node, viewId: elem.viewId});
   }
-  
+
   function removeFilter(e, elem) {
     dispatch("removeFilter", {node: elem.node, viewId: elem.viewId});
   }
-  
+
   function modifyFilter(e, elem) {
     dispatch("modifyFilter", {node: elem.node});
   }
-  
+
   function unselectAttribute(e, elem) {
     dispatch("removeSelectFromQuery", {viewId: elem.viewId, sourceId: elem.node.source["source: source"], sourceFieldId: elem.node.field});
   }
   function selectAttribute(e, elem) {
     dispatch("addSelectToQuery", {viewId: elem.viewId, sourceId: elem.node.source["source: source"], sourceFieldId: elem.node.field});
   }
-  
+
   function queryResults(viewId) {
     let resultViewId = viewId;
     let selectedNodeIds = Object.keys(localState.selectedNodes);
@@ -753,10 +807,15 @@ localState.drawnUiActiveId = "block field";
     var sourceAttributeLookup = {};
     var constraints = [];
     var links = [];
-    for(var source of ixer.select("source", {view: view["view: view"]})) {
-      var sourceConstraints = ixer.select("constraint", {view: view["view: view"]});
+    let viewId = view["view: view"];
+    for(var source of ixer.select("source", {view: viewId})) {
+      var sourceConstraints = ixer.select("constraint", {view: viewId});
       var sourceViewId = source["source: source view"];
-      var sourceView = api.ixer.select("view", {view: sourceViewId})[0];
+      var sourceView = api.ixer.selectOne("view", {view: sourceViewId});
+      if(!sourceView) {
+        console.error("Source view not found for source:", source);
+        continue;
+      }
       var sourceId = source["source: source"];
       if(sourceView["view: kind"] !== "primitive") {
         for(var constraint of sourceConstraints) {
@@ -768,6 +827,9 @@ localState.drawnUiActiveId = "block field";
           curRel = {type: "relationship", source: source, id: sourceId};
           nodes.push(curRel);
           nodeLookup[curRel.id] = curRel;
+        }
+        if(ixer.selectOne("chunked source", {source: sourceId, view: viewId})) {
+          curRel.chunked = true;
         }
         for(var field of ixer.select("field", {view: sourceViewId})) {
           var attribute: any = {type: "attribute", field: field["field: field"], source};
@@ -787,7 +849,7 @@ localState.drawnUiActiveId = "block field";
           links.push(link);
           let select = ixer.selectOne("select", {source: sourceId, "source field": attribute.field});
           if(select) {
-            attribute.select = select; 
+            attribute.select = select;
           }
         }
 
@@ -808,7 +870,7 @@ localState.drawnUiActiveId = "block field";
             links.push(link);
             let select = ixer.selectOne("select", {source: sourceId, "source field": attribute.field});
             if(select) {
-              attribute.select = select; 
+              attribute.select = select;
             }
         }
 
@@ -816,7 +878,7 @@ localState.drawnUiActiveId = "block field";
         nodeLookup[curPrim.id] = curPrim;
       }
     }
-    
+
     //look through the variables and dedupe attributes
     let variables = ixer.select("variable", {view: view["view: view"]});
     for(let variable of variables) {
@@ -860,12 +922,12 @@ localState.drawnUiActiveId = "block field";
       }
       attribute.mergedAttributes = mergedAttributes.length ? mergedAttributes : undefined;
       attribute.entity = entity;
-      let constants = ixer.select("constant*", {variable: variableId}) 
+      let constants = ixer.select("constant*", {variable: variableId})
       for(var constant of constants) {
         attribute.filter = {operation: "=", value: constant["constant*: value"]};
       }
     }
-    
+
     return {nodes, links, nodeLookup};
   }
 
@@ -881,6 +943,11 @@ localState.drawnUiActiveId = "block field";
       return joinToEntityInfo(view);
     } else if(view["view: kind"] === "table") {
       return tableToEntityInfo(view);
+    } else {
+      let nodes = [];
+      let links = [];
+      let nodeLookup = {};
+      return {nodeLookup, nodes, links}
     }
   }
 
@@ -929,11 +996,11 @@ localState.drawnUiActiveId = "block field";
     }
     let selection;
     if(localState.selecting) {
-      let {start, end} = localState.boxSelection; 
+      let {start, end} = localState.boxSelection;
       if(end) {
         let topLeft = {x: start.x, y: start.y};
         let width = Math.abs(end.x - start.x);
-        let height = Math.abs(end.y - start.y);  
+        let height = Math.abs(end.y - start.y);
         if(end.x < start.x) {
           topLeft.x = end.x;
         }
@@ -955,7 +1022,7 @@ localState.drawnUiActiveId = "block field";
       {c: "nodes", children: items}
     ]};
   }
-  
+
   function surfaceRelativeCoords(e) {
     let surface:any = document.getElementsByClassName("surface")[0];
     let surfaceRect = surface.getBoundingClientRect();
@@ -963,7 +1030,7 @@ localState.drawnUiActiveId = "block field";
     let y = e.clientY - surfaceRect.top;
     return {x, y};
   }
-  
+
   function startBoxSelection(e, elem) {
     let coords = surfaceRelativeCoords(e);
     dispatch("startBoxSelection", {coords, shiftKey: e.shiftKey});
@@ -1003,7 +1070,7 @@ localState.drawnUiActiveId = "block field";
       dispatch("clearSelection", {});
     }
   }
-  
+
   function nodeDisplayInfo(curNode) {
     let text = "";
     let small = false;
@@ -1022,7 +1089,7 @@ localState.drawnUiActiveId = "block field";
     }
     let {left, top} = toPosition(curNode);
     let height = nodeHeight + 2 * nodeHeightPadding;
-    let width = Math.max(text.length * nodeWidthMultiplier + 2 * nodeWidthPadding, nodeWidthMin); 
+    let width = Math.max(text.length * nodeWidthMultiplier + 2 * nodeWidthPadding, nodeWidthMin);
     if(small) {
       width = Math.max(text.length * nodeSmallWidthMultiplier + nodeWidthPadding, nodeWidthMin);
     }
@@ -1043,6 +1110,9 @@ localState.drawnUiActiveId = "block field";
     if(overlapped) {
       klass += " overlapped";
     }
+    if(curNode.chunked) {
+      klass += " chunked";
+    }
     klass += ` ${curNode.type}`;
     if (curNode.entity !== undefined) {
       klass += " entity";
@@ -1054,7 +1124,7 @@ localState.drawnUiActiveId = "block field";
       ]};
       if(localState.modifyingFilterNodeId === curNode.id) {
         filterUi.children.push({c: "value", children: [
-          {c: "filter-editor", contentEditable: true, postRender: focusOnce, keydown: submitOnEnter, 
+          {c: "filter-editor", contentEditable: true, postRender: focusOnce, keydown: submitOnEnter,
             blur: stopModifyingFilter, viewId, node: curNode, text: curNode.filter.value}
         ]});
       } else {
@@ -1069,14 +1139,14 @@ localState.drawnUiActiveId = "block field";
     content.unshift(elem);
     return {c: "item-wrapper", top: top, left: left, size: {width, height}, node: curNode, selected: uiSelected, children: content};
   }
-  
+
   function submitOnEnter(e, elem) {
     if(e.keyCode === api.KEYS.ENTER) {
       stopModifyingFilter(e, elem);
       e.preventDefault();
     }
   }
-  
+
   function stopModifyingFilter(e, elem) {
     dispatch("stopModifyingFilter", {node: elem.node, value: coerceInput(e.currentTarget.textContent), viewId: elem.viewId});
   }
