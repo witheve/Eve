@@ -906,6 +906,9 @@ module api {
     "aggregate limit to": {foreign: {view: "aggregate"},
                            singular: true},
 
+    "chunked source": {},
+    "ordinal binding": {},
+
      "query export": {foreign: {view: "view"},
                       singular: true},
      "calculated field": {key: "block field", foreign: {view: "view", source: "source"}},
