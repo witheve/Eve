@@ -14,7 +14,7 @@ use primitive::Primitive;
 // schemas are arranged as (table name, fields)
 // any field whose type is not described is a UUID
 
-pub fn code_schema() -> Vec<(&'static str, Vec<&'static str>)> {
+pub fn old_code_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // eve code is stored in tables
 
     vec![
@@ -79,6 +79,71 @@ pub fn code_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // tags are used to organise views
     ("tag", vec!["view", "tag"]),
     ]
+}
+
+pub fn new_code_schema() -> Vec<(&'static str, Vec<&'static str>)> {
+    vec![
+    // all data lives in a view of some kind
+    // `kind` is one of:
+    // "table" - a view which can depend on the past
+    // "join" - take the product of multiple views and filter the results
+    // "union" - take the union of multiple views
+    // "primitive" - a built-in function, represented as a view with one or more non-Data fields
+    // ("view", vec!["view", "kind"]),
+
+    // views have fields
+    // some fields have constraints on how they can be queried
+    // `kind` is one of:
+    // "output" - a normal field
+    // "scalar input" - a field that must be constrained to a single scalar value
+    // "vector input" - a field that must be constrained to a single vector value (in an aggregate)
+    // ("field", vec!["view", "field", "kind"]),
+
+    // source ids have two purposes
+    // a) uniquely generated ids to disambiguate multiple uses of the same view
+    // (eg when joining a view with itself)
+    // b) fixed ids to identify views which are used for some specific purpose
+    // (these are "insert" and "remove" in tables)
+    // ("source", vec!["view", "source", "source view"]),
+
+    // every view has a set of variables which are used to express constraints on the result of the view
+    ("variable (new)", vec!["view", "variable"]),
+
+    // variables can be bound to constant values
+    ("constant (new)", vec!["variable", "value"]),
+
+    // variables can be bound to fields
+    ("binding (new)", vec!["variable", "source", "field"]),
+
+    // views produce output by binding fields from sources
+    // each table or join field must be bound exactly once
+    // each union field must be bound exactly once per source
+    ("select (new)", vec!["view", "field", "variable"]),
+
+    // sources can be grouped by a subset of their fields
+    // TODO primitive sources can't be grouped currently
+    ("grouped field", vec!["view", "source", "field"]),
+
+    // each group is then sorted by the reamining fields
+    // `ix` is an ascending integer indicating the position of the field in the sort order
+    // `direction` is one of "ascending" or "descending"
+    // TODO how should we handle cases where some fields are neither grouped nor sorted?
+    ("sorted field", vec!["view", "source", "ix", "field", "direction"]),
+
+    // the ordinal is a virtual field that tracks the position of each row in the group
+    // eg the first row has ordinal '1', the second row has ordinal '2' etc
+    ("ordinal binding", vec!["variable", "source"]),
+
+    // if a source is chunked, it will return each group as a whole rather than breaking them back down into rows
+    ("chunked source", vec!["view", "source"]),
+
+    // tags are used to organise views
+    // ("tag", vec!["view", "tag"]),
+    ]
+}
+
+pub fn code_schema() -> Vec<(&'static str, Vec<&'static str>)> {
+    old_code_schema().into_iter().chain(new_code_schema().into_iter()).collect()
 }
 
 pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
@@ -352,7 +417,7 @@ fn count_by(input_table: &Relation, output_table: &mut Relation, key_fields: &[&
     }
 }
 
-fn plan(flow: &Flow) {
+fn migrate(flow: &Flow) {
     use value::Value::*;
 
     let view_table = flow.get_output("view");
@@ -368,10 +433,6 @@ fn plan(flow: &Flow) {
     // let aggregate_limit_from_table = flow.get_output("aggregate limit from");
     // let aggregate_limit_to_table = flow.get_output("aggregate limit to");
     let select_table = flow.get_output("select");
-    let chunked_source_table = flow.get_output("chunked source");
-    let grouped_field_table = flow.get_output("grouped field");
-    let sorted_field_table = flow.get_output("sorted field");
-    let ordinal_binding_table = flow.get_output("ordinal binding");
 
     let mut constraint_ish_table = flow.overwrite_output("constraint*");
     find!(constraint_table, [constraint, view], {
@@ -382,53 +443,6 @@ fn plan(flow: &Flow) {
                 });
             });
         });
-    });
-
-    let mut view_dependency_pre_table = flow.overwrite_output("view dependency (pre)");
-    find!(view_table, [view, _], {
-        find!(source_table, [(= view), source, source_view], {
-            find!(view_table, [(= source_view), source_kind], {
-                if source_kind.as_str() != "primitive" {
-                    insert!(view_dependency_pre_table, [view, source, source_view]);
-                }
-            })
-        })
-    });
-
-    let mut view_dependency_table = flow.overwrite_output("view dependency");
-    ordinal_by(&*view_dependency_pre_table, &mut *view_dependency_table, &["downstream view"]);
-
-    // TODO actually schedule sensibly
-    // TODO warn about cycles through aggregates
-    let mut view_schedule_pre_table = flow.overwrite_output("view schedule (pre)");
-    find!(view_table, [view, kind], {
-        if kind.as_str() != "primitive" {
-            insert!(view_schedule_pre_table, [view, kind]);
-        }
-    });
-
-    let mut view_schedule_table = flow.overwrite_output("view schedule");
-    ordinal_by(&*view_schedule_pre_table, &mut *view_schedule_table, &[]);
-
-    let mut source_dependency_table = flow.overwrite_output("source dependency");
-    find!(constraint_ish_table, [_, _, left_source, left_field, operation, right_source, right_field], {
-        if operation.as_str() == "="
-        && left_source != right_source {
-            find!(field_table, [_, (= left_field), left_kind], {
-                if left_kind.as_str() != "output" {
-                    insert!(source_dependency_table,
-                        [left_source, left_field, right_source, right_field]
-                        );
-                }
-            });
-            find!(field_table, [_, (= right_field), right_kind], {
-                if right_kind.as_str() != "output" {
-                    insert!(source_dependency_table,
-                        [right_source, right_field, left_source, left_field]
-                        );
-                }
-            });
-        }
     });
 
     let mut eq_link_table = flow.overwrite_output("eq link");
@@ -478,6 +492,12 @@ fn plan(flow: &Flow) {
         insert!(variable_table, [view, variable]);
         insert!(binding_table, [variable, source, field]);
     });
+    find!(flow.get_output("variable (new)"), [view, variable], {
+        insert!(variable_table, [view, variable]);
+    });
+    find!(flow.get_output("binding (new)"), [variable, source, field], {
+        insert!(binding_table, [variable, source, field]);
+    });
 
     let mut constant_ish_table = flow.overwrite_output("constant*");
     find!(constraint_ish_table, [view, _, left_source, left_field, operation, right_source, right_field], {
@@ -502,6 +522,9 @@ fn plan(flow: &Flow) {
             _ => (),
         }
     });
+    find!(flow.get_output("constant (new)"), [variable, value], {
+        insert!(constant_ish_table, [variable, value]);
+    });
 
     let mut select_ish_table = flow.overwrite_output("select*");
     find!(select_table, [view, view_field, source, source_field], {
@@ -510,6 +533,72 @@ fn plan(flow: &Flow) {
             insert!(select_ish_table, [view, view_field, variable]);
         });
     });
+    find!(flow.get_output("select (new)"), [view, field, variable], {
+        insert!(select_ish_table, [view, field, variable]);
+    });
+
+    let mut source_dependency_table = flow.overwrite_output("source dependency");
+    find!(constraint_ish_table, [_, _, left_source, left_field, operation, right_source, right_field], {
+        if operation.as_str() == "="
+        && left_source != right_source {
+            find!(field_table, [_, (= left_field), left_kind], {
+                if left_kind.as_str() != "output" {
+                    insert!(source_dependency_table,
+                        [left_source, left_field, right_source, right_field]
+                        );
+                }
+            });
+            find!(field_table, [_, (= right_field), right_kind], {
+                if right_kind.as_str() != "output" {
+                    insert!(source_dependency_table,
+                        [right_source, right_field, left_source, left_field]
+                        );
+                }
+            });
+        }
+    });
+}
+
+fn plan(flow: &Flow) {
+    use value::Value::*;
+
+    let view_table = flow.get_output("view");
+    let field_table = flow.get_output("field");
+    let source_table = flow.get_output("source");
+    let variable_table = flow.get_output("variable");
+    let constant_ish_table = flow.get_output("constant*");
+    let binding_table = flow.get_output("binding");
+    let select_ish_table = flow.get_output("select*");
+    let chunked_source_table = flow.get_output("chunked source");
+    let grouped_field_table = flow.get_output("grouped field");
+    let sorted_field_table = flow.get_output("sorted field");
+    let ordinal_binding_table = flow.get_output("ordinal binding");
+
+    let mut view_dependency_pre_table = flow.overwrite_output("view dependency (pre)");
+    find!(view_table, [view, _], {
+        find!(source_table, [(= view), source, source_view], {
+            find!(view_table, [(= source_view), source_kind], {
+                if source_kind.as_str() != "primitive" {
+                    insert!(view_dependency_pre_table, [view, source, source_view]);
+                }
+            })
+        })
+    });
+
+    let mut view_dependency_table = flow.overwrite_output("view dependency");
+    ordinal_by(&*view_dependency_pre_table, &mut *view_dependency_table, &["downstream view"]);
+
+    // TODO actually schedule sensibly
+    // TODO warn about cycles through aggregates
+    let mut view_schedule_pre_table = flow.overwrite_output("view schedule (pre)");
+    find!(view_table, [view, kind], {
+        if kind.as_str() != "primitive" {
+            insert!(view_schedule_pre_table, [view, kind]);
+        }
+    });
+
+    let mut view_schedule_table = flow.overwrite_output("view schedule");
+    ordinal_by(&*view_schedule_pre_table, &mut *view_schedule_table, &[]);
 
     let mut provides_table = flow.overwrite_output("provides");
     let mut requires_table = flow.overwrite_output("requires");
@@ -1436,13 +1525,14 @@ fn reuse_state(old_flow: &mut Flow, new_flow: &mut Flow) {
 }
 
 pub fn recompile(old_flow: &mut Flow) {
-    plan(&*old_flow);
-    calculate_source_schedule(&*old_flow);
-    calculate_constraint_schedule(&*old_flow);
-    calculate_view_reference(&*old_flow);
-    calculate_view_layout(&*old_flow);
-    let new_flow2 = create(&*old_flow);
-    let mut new_flow = create_flow(&*old_flow, &new_flow2);
+    migrate(old_flow);
+    plan(old_flow);
+    calculate_source_schedule(old_flow);
+    calculate_constraint_schedule(old_flow);
+    calculate_view_reference(old_flow);
+    calculate_view_layout(old_flow);
+    let new_flow2 = create(old_flow);
+    let mut new_flow = create_flow(old_flow, &new_flow2);
     reuse_state(old_flow, &mut new_flow);
     *old_flow = new_flow;
 }
