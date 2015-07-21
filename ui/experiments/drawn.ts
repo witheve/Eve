@@ -394,7 +394,7 @@ localState.drawnUiActiveId = "block field";
         if(sourceView["view: kind"] === "primitive") {
           ixer.select("field", {view: info.viewId}).forEach(function(field) {
             let fieldId = field["field: field"];
-            if(field["field: kind"] === "scalar input" || field["field: kind"] === "vector input") {
+            if(field["field: kind"] === "scalar input") {
               diffs.push(api.insert("constraint", {
               constraint: uuid(),
               view: localState.drawnUiActiveId,
@@ -403,6 +403,16 @@ localState.drawnUiActiveId = "block field";
               "right source": "constant",
               "right field": api.primitiveDefaults[info.viewId][fieldId],
               operation: "="}));
+            } else if(field["field: kind"] === "vector input") {
+              //add a variable
+              //let variableId = uuid();
+              //diffs.push(api.insert("variable (new)", {view: queryId, variable: variableId}));
+              let variableId = `${queryId}->${sourceId}->${field["field: field"]}`;
+              //bind the field to it
+              diffs.push(api.insert("binding (new)", {variable: variableId, source: sourceId, field: field["field: field"]}));
+              //add a constant empty column to it
+              diffs.push(api.insert("constant (new)", {variable: variableId, value: []}));
+              console.log("vector input");
             }
           });
 
@@ -448,6 +458,9 @@ localState.drawnUiActiveId = "block field";
             "left field": primitiveNode.field,
             "right source": "constant"
           }));
+          if(primitiveNode.variable) {
+            diffs.push(api.remove("constant (new)", {variable: primitiveNode.variable}));
+          }
         }
         diffs.push.apply(diffs, dispatch("clearSelection", info, true));
       break;
@@ -463,7 +476,7 @@ localState.drawnUiActiveId = "block field";
         function bindPrimitiveField(sourceId, fieldId) {
           var source = ixer.selectOne("source", {source: sourceId});
           var field = ixer.selectOne("field", {field: fieldId});
-          if(field["field: kind"] === "scalar input" || field["field: kind"] === "vector input") {
+          if(field["field: kind"] === "scalar input") {
             diffs.push(api.insert("constraint", {
               constraint: uuid(),
               view: localState.drawnUiActiveId,
@@ -472,7 +485,17 @@ localState.drawnUiActiveId = "block field";
               "right source": "constant",
               "right field": api.primitiveDefaults[source["source: source view"]][fieldId],
               operation: "="}));
-          }
+          } else if(field["field: kind"] === "vector input") {
+              //add a variable
+              //let variableId = uuid();
+              //diffs.push(api.insert("variable (new)", {view: queryId, variable: variableId}));
+              let variableId = `${localState.drawnUiActiveId}->${sourceId}->${fieldId}`;
+              //bind the field to it
+              diffs.push(api.insert("binding (new)", {variable: variableId, source: sourceId, field: fieldId}));
+              //add a constant empty column to it
+              diffs.push(api.insert("constant (new)", {variable: variableId, value: []}));
+              console.log("vector input");
+            }
         }
 
         bindPrimitiveField(fromNode.source["source: source"], fromNode.field);
@@ -572,6 +595,16 @@ localState.drawnUiActiveId = "block field";
       case "removeOrdinal":
         // @TODO: implement remove ordinal
         console.log("TODO: implement remove ordinal");
+      break;
+      case "groupAttribute":
+        var sourceId = info.node.source["source: source"];
+        var fieldId = info.node.field;
+        diffs.push(api.insert("grouped field", {view: info.viewId, source: sourceId, field: fieldId}));
+      break;
+      case "ungroupAttribute":
+        var sourceId = info.node.source["source: source"];
+        var fieldId = info.node.field;
+        diffs.push(api.remove("grouped field", {view: info.viewId, source: sourceId, field: fieldId}));
       break;
       //---------------------------------------------------------
       // Menu
@@ -700,6 +733,16 @@ localState.drawnUiActiveId = "block field";
           tools.push({c: "tool", text: "change filter", click: modifyFilter, node, viewId});
           tools.push({c: "tool", text: "remove filter", click: removeFilter, node, viewId});
         }
+        //get the source for this attribute
+        let sourceNode = nodeLookup[node.source["source: source"]];
+        if(sourceNode && sourceNode.chunked) {
+          if(node.grouped) {
+            tools.push({c: "tool", text: "ungroup", click: ungroupAttribute, node, viewId});
+          } else {
+            tools.push({c: "tool", text: "group", click: groupAttribute, node, viewId});
+          }
+
+        }
       } else if(node.type === "relationship") {
         if(node.chunked) {
           tools.push({c: "tool", text: "unchunk", click: unchunkSource, node, viewId});
@@ -707,9 +750,9 @@ localState.drawnUiActiveId = "block field";
           tools.push({c: "tool", text: "chunk", click: chunkSource, node, viewId});
         }
         if(node.ordinal) {
-          tools.push({c: "tool", text: "remove ordinal", click removeOrdinal, node, viewId});
+          tools.push({c: "tool", text: "remove ordinal", click: removeOrdinal, node, viewId});
         } else {
-          tools.push({c: "tool", text: "add ordinal", click addOrdinal, node, viewId});
+          tools.push({c: "tool", text: "add ordinal", click: addOrdinal, node, viewId});
         }
 
       }
@@ -719,6 +762,14 @@ localState.drawnUiActiveId = "block field";
 
     }
     return {c: "query-tools", children: tools};
+  }
+
+  function groupAttribute(e, elem) {
+    dispatch("groupAttribute", {node: elem.node, viewId: elem.viewId});
+  }
+
+  function ungroupAttribute(e,elem) {
+    dispatch("ungroupAttribute", {node: elem.node, viewId: elem.viewId});
   }
 
   function addOrdinal(e, elem) {
@@ -851,6 +902,10 @@ localState.drawnUiActiveId = "block field";
           if(select) {
             attribute.select = select;
           }
+          let grouped = ixer.selectOne("grouped field", {source: sourceId, field: attribute.field});
+          if(grouped) {
+            attribute.grouped = true;
+          }
         }
 
       } else {
@@ -922,6 +977,7 @@ localState.drawnUiActiveId = "block field";
       }
       attribute.mergedAttributes = mergedAttributes.length ? mergedAttributes : undefined;
       attribute.entity = entity;
+      attribute.variable = variableId;
       let constants = ixer.select("constant*", {variable: variableId})
       for(var constant of constants) {
         attribute.filter = {operation: "=", value: constant["constant*: value"]};

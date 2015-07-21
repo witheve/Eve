@@ -908,6 +908,11 @@ module api {
 
     "chunked source": {},
     "ordinal binding": {},
+    "grouped field": {},
+
+    "variable (new)" : {},
+    "binding (new)": {},
+    "constant (new)": {},
 
      "query export": {foreign: {view: "view"},
                       singular: true},

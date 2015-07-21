@@ -8,11 +8,11 @@ module tableEditor {
   var diff = api.diff;
   var localState = api.localState;
   var KEYS = api.KEYS;
-  
+
   //---------------------------------------------------------
   // Table workspace
   //---------------------------------------------------------
-  
+
   function dispatch(event: string, info: any, rentrant?: boolean) {
      //         console.info("[dispatch]", evt, info);
     var storeEvent = true;
@@ -133,7 +133,7 @@ module tableEditor {
           }}),
           api.insert("source", [
             {source: "insert", "source view": info.itemId + ": insert"},
-            {source: "remove", "source view": info.itemId + ": remove"}            
+            {source: "remove", "source view": info.itemId + ": remove"}
           ], {view: info.itemId}),
           api.insert("select", fields.map(function(fieldId) {
             return {"view field": fieldId, source: "insert", "source field": fieldId + ": insert"};
@@ -152,10 +152,10 @@ module tableEditor {
         break;
     }
     if(!redispatched && !rentrant) {
-      eveEditor.executeDispatch(diffs, storeEvent, sendToServer);  
+      eveEditor.executeDispatch(diffs, storeEvent, sendToServer);
     }
   }
-  
+
   //---------------------------------------------------------
   // Table workspace
   //---------------------------------------------------------
@@ -168,7 +168,7 @@ module tableEditor {
       return code.name(fieldId);
     }
   }
-  
+
   function coerceInput(input) {
     if(input.match(/^-?[\d]+$/gim)) {
       return parseInt(input);
@@ -190,12 +190,12 @@ module tableEditor {
         children: [
           tableForView(tableId, true)
         ]
-      }, 
+      },
       controls: [
         {class: "control", text:"+/-", click: openTableQuery, itemId: tableId}
       ]})
   }
-  
+
   export function tableForView(viewId, editable = false, limit:any = false) {
     var fields = (ixer.getFields(viewId) || []).map(function(fieldId, ix) {
       return { name: getLocalFieldName(fieldId), id: fieldId, priority: ix };
@@ -207,7 +207,7 @@ module tableEditor {
     }
     return virtualizedTable(viewId, fields, rows, editable);
   }
-  
+
   function openTableQuery(evt, elem) {
     dispatch("createTableStateQuery", elem);
   }
@@ -232,7 +232,7 @@ module tableEditor {
         break;
       }
     }
-    
+
     var ths = fields.map(function(cur) {
       var oninput, onsubmit;
       if (cur.id) {
@@ -267,6 +267,7 @@ module tableEditor {
         if(typeB === "number") { return 1; }
         if(typeA === "undefined") { return -1; }
         if(typeB === "undefined") { return 1; }
+        if(a.constructor === Array) { return JSON.stringify(a).localeCompare(JSON.stringify(b)); }
         return a.localeCompare(b);
       });
     }
@@ -274,7 +275,7 @@ module tableEditor {
       var tds = [];
       for (var tdIx = 0, len = fields.length; tdIx < len; tdIx++) {
         tds[tdIx] = { c: "field", contextmenu: (DEBUG.TABLE_CELL_LOOKUP ? lookupDisplayName: undefined) };
-        
+
         // @NOTE: We can hoist this if perf is an issue.
         if (isEditable) {
           tds[tdIx].children = [input(cur[tdIx], { priority: rowIx, numFields: len, row: cur, fieldIx: tdIx, view: id }, updateRow, submitRow)];
@@ -318,22 +319,22 @@ module tableEditor {
       localState.adderItemId = viewId;
     }
     if(localState.adderRows.length >= 2) { return localState.adderRows; }
-        
+
     var fieldIds = api.ixer.getFields(viewId);
     var autoIncrement = api.code.hasTag(fieldIds[0], "auto increment");
-    if(autoIncrement) { 
+    if(autoIncrement) {
       var nextId = (api.ixer.facts(viewId, true) || []).length + 1 + localState.adderRows.length;
-    }   
+    }
     while(localState.adderRows.length < 2) {
       if(autoIncrement) {
         localState.adderRows.push([nextId++]);
       } else {
         localState.adderRows.push([]);
-      }      
+      }
     }
     return localState.adderRows;
   }
-  
+
   function setTableSort(evt, elem) {
     var sort = localState.sort[elem.tableId];
     var dir = 1;
@@ -356,7 +357,7 @@ module tableEditor {
     var row = localState.adderRows[key.priority];
     row[key.fieldIx] = coerceInput(e.currentTarget.textContent);
   }
-  
+
   function checkRow(row, numFields): boolean {
     if (row.length !== numFields) { return false; }
     //check to see if the row is complete. If not, we're done here.
@@ -408,7 +409,7 @@ module tableEditor {
     }
     return { c: "input text-input", contentEditable: true, input: oninput, focus: storeInitialInput, text: value, key: key, blur: blur, keydown: keydown };
   }
-  
+
   export function checkbox(value, key, onChange) {
     return {t: "input", type: "checkbox", c: "input checkbox-input", change: onChange, checked: value, key: key};
   }
