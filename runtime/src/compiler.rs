@@ -660,6 +660,14 @@ fn plan(flow: &Flow) {
             });
         });
 
+        find!(schedulable_source_table, [view, source], {
+            find!(ordinal_binding_table, [variable, (= source)], {
+                dont_find!(variable_schedule_pre_table, [(= view), _, (= variable)], {
+                    insert!(variable_schedule_pre_table, [view, Float(pass as f64), variable]);
+                });
+            });
+        });
+
         if schedulable_source_table.index.len() == 0 {
             if unscheduled_source_table.index.len() == 0 {
                 break; // done
