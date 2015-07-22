@@ -588,8 +588,15 @@ localState.drawnUiActiveId = "block field";
           "display order": {priority: -fields.length}
         }});
         var fieldId = neueField.content.field;
+        var variableId = uuid();
         diffs.push(
-          api.insert("ordinal binding", {source: sourceId, variable: fieldId})
+          neueField,
+          // create a variable
+          api.insert("variable (new)", {view: info.viewId, variable: variableId}),
+          // bind the ordinal to it
+          api.insert("ordinal binding", {source: sourceId, variable: variableId}),
+          // select the variable into the created field
+          api.insert("select (new)", {view: info.viewId, variable: variableId, field: fieldId})
         );
       break;
       case "removeOrdinal":

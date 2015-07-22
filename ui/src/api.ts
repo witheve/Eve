@@ -910,6 +910,7 @@ module api {
     "ordinal binding": {},
     "grouped field": {},
 
+    "select (new)": {},
     "variable (new)" : {},
     "binding (new)": {},
     "constant (new)": {},
