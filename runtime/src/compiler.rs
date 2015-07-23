@@ -487,10 +487,13 @@ fn migrate(flow: &Flow) {
 
     let mut variable_table = flow.overwrite_output("variable");
     let mut binding_table = flow.overwrite_output("binding");
+    let mut binding_new_table = flow.get_output("binding (new)");
     find!(eq_group_table, [view, source, field, group_source, group_field], {
-        let variable = &string!("{}->{}->{}", view.as_str(), group_source.as_str(), group_field.as_str());
-        insert!(variable_table, [view, variable]);
-        insert!(binding_table, [variable, source, field]);
+        dont_find!(binding_new_table, [_, (= group_source), (= group_field)], {
+            let variable = &string!("{}->{}->{}", view.as_str(), group_source.as_str(), group_field.as_str());
+            insert!(variable_table, [view, variable]);
+            insert!(binding_table, [variable, source, field]);
+        });
     });
     find!(flow.get_output("variable (new)"), [view, variable], {
         insert!(variable_table, [view, variable]);
