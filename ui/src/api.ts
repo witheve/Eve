@@ -1,4 +1,4 @@
-0/// <reference path="indexer.ts" />
+/// <reference path="indexer.ts" />
 module api {
   // @NOTE: We should really be using CommonJS modules with this instead of tsc's wonky module system.
   declare var window;
@@ -206,7 +206,8 @@ module api {
   ixer.addIndex("elementAttrToBinding", "uiAttrBinding", Indexing.create.lookup(["uiAttrBinding: elementId", "uiAttrBinding: attr", "uiAttrBinding: field"]));
   ixer.addIndex("elementAttrBindings", "uiAttrBinding", Indexing.create.collector(["uiAttrBinding: elementId"]));
 
-  ixer.addIndex("uiElementToMap", "uiMap", Indexing.create.latestLookup({keys: ["uiMap: element", false]}));
+  ixer.addIndex("uiElementToMap", "uiMap", Indexing.create.lookup(["uiMap: element", false]));
+  ixer.addIndex("uiMapAttr", "uiMapAttr", Indexing.create.lookup(["uiMapAttr: map","uiMapAttr: property", "uiMapAttr: value"]));
 
 
   //---------------------------------------------------------
