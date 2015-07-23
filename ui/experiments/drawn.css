@@ -27,7 +27,7 @@ body { font-family:"Avenir"; }
 .canvas { position:absolute; left: 0; right:0; top:0; bottom:0; }
 
 .selection { position:absolute; left: 0; right:0; top:0; bottom:0; pointer-events:none; }
-.selection-rectangle { stroke: #0f0; fill: #020; rx: 5px; ry:5px; }
+.selection-rectangle { stroke: #0ba; fill: #00443f; rx: 5px; ry:5px; }
 
 .links { position:absolute; left: 0; right:0; top:0; bottom:0; pointer-events: none; }
 .nodes { position:absolute; left: 0; right:0; top:0; bottom:0; }
@@ -39,13 +39,12 @@ body { font-family:"Avenir"; }
 .canvas .filter-editor { min-width:20px; outline:none; }
 .canvas .item, .view-selector .item { flex:none; position: absolute; align-items: center; justify-content: center; min-width: 40px; min-height: 20px; padding: 3px 10px; border-radius:2px; }
 .canvas .item.uiSelected { border-color: black; }
-.canvas .item.overlapped { background: red; }
+.canvas .item.overlapped { background: #999; color: #222; }
 .canvas .relationship, .view-selector .relationship { background: rgba(205,205,205,1); color: #555; padding:3px; font-size:9pt; border-radius:50px; }
 .canvas .primitive { background: rgba(105,105,205,1); color: white; padding:3px; font-size:9pt; border-radius:50px; }
 .canvas .attribute { background:white; border: 1px dashed rgba(205,205,205,1); padding: 3px 10px; color:#555; border-radius:10px; }
 .canvas .attribute-relationship { background: rgba(205,205,205,1); color: #555; padding:3px; font-size:9pt; border-radius:50px; }
 .canvas .entity { background: rgba(187,85,85,1); color: white; border-color: rgba(187,85,85,1); }
-.canvas .item.relationship.chunked { background: #f0f; }
 
 
 .view-selector { flex-direction:row; flex-wrap:wrap; }
@@ -54,6 +53,8 @@ body { font-family:"Avenir"; }
 .links text {text-anchor: middle; font-size:10pt; fill: #999; }
 
 .button { z-index: 10; padding:5px 10px; background: rgba(0,0,0,0.03); }
+
+.dead-server-banner { position:absolute; top:0; left: 0; right:0; padding: 20px; background: red; color: black; z-index:10000; }
 
 /*---------------------------------------------------------
 - Table
@@ -75,8 +76,6 @@ body { font-family:"Avenir"; }
 .table-editor > .table .headers { padding-left: 10px;  }
 .table-editor > .table .rows { padding-left: 10px; height:100%; flex:1; }
 
-
-
 /*---------------------------------------------------------
 - dark
 ---------------------------------------------------------*/
@@ -84,9 +83,13 @@ body { font-family:"Avenir"; }
 .dark { background: #222; color: #ccc; }
 .dark .canvas .attribute { background: #222; color: #ccc; border-color: #888; }
 .dark .canvas .relationship { background: #707070; color: #222; }
-.dark .canvas .item.overlapped { background: red; }
 .dark .canvas .entity { background:rgba(165, 85, 187, 1); color: rgba(255,255,255,0.8); border-color: #ccc; }
 .dark .canvas .attribute-filter { background:rgba(48, 119, 105, 1); border: 1px solid rgba(121, 167, 171, 1); color:rgba(255,255,255,0.8); }
-.dark .canvas .item.uiSelected { border-color: #0f0; border-width: 1px; }
+.dark .canvas .item.uiSelected { border-color: #0ba; border-width: 1px; }
 .dark .canvas .projected { border-style: solid; }
+.dark .canvas .chunked:before { content: " "; position: absolute; z-index: -1; top: -2px; left: -2px; right: -2px; bottom: -2px; border:1px solid #888;  border-radius: 20px; }
+.dark .canvas .column:before { content: " "; position: absolute; z-index: -1; top: -2px; left: -2px; right: -2px; bottom: -2px; border:1px dashed #888;  border-radius: 12px; }
+.dark .canvas .column.projected:before { border-style:solid; }
+.dark .canvas .column.uiSelected:before { border-color:#0ba; }
+.dark .canvas .item.overlapped { background: #bbb; color: #222; }
 .dark .table-container .table .header { background: rgba(255,255,255,0.1); }

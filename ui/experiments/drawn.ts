@@ -245,6 +245,8 @@ localState.drawnUiActiveId = false;
     let diffs = [];
     diffs.push(api.remove("variable (new)", {variable: variableId}));
     diffs.push(api.remove("constant (new)", {variable: variableId}));
+    // we need to remove any bindings to this variable
+    diffs.push(api.remove("binding (new)", {variable: variableId}));
     // we also need to remove any fields and selects that pull from the variable
     let selects = ixer.select("select (new)", { variable: variableId });
     for(let select of selects) {
@@ -458,12 +460,27 @@ localState.drawnUiActiveId = false;
         //if either of these nodes are a primitive input, then we should remove any constant
         //constraint that was on there.
         var primitiveNode;
+        var nonPrimitiveNode;
         if(target.isInput) {
           primitiveNode = target;
+          nonPrimitiveNode = node;
         } else if(node.isInput) {
           primitiveNode = node;
+          nonPrimitiveNode = target;
         }
         if(primitiveNode) {
+          // ensure that these nodes can act as inputs:
+          // if it's a vector input this has to be a non-grouped, sourceChunked attribute
+          // if it's a scalar input this has to be either grouped or a non-sourceChunked attribute
+          if(primitiveNode.inputKind === "vector input" && (nonPrimitiveNode.grouped || !nonPrimitiveNode.sourceChunked)) {
+            // @TODO: what do we do as a user-level error reporting mechanism?
+            console.error("Attempted to use an invalid node as an input to an aggregate:", nonPrimitiveNode, primitiveNode);
+            return;
+          } else if(primitiveNode.inputKind === "scalar input" && !nonPrimitiveNode.grouped && nonPrimitiveNode.sourceChunked) {
+            // @TODO: what do we do as a user-level error reporting mechanism?
+            console.error("Attempted to use an invalid node as an input to a function:", nonPrimitiveNode, primitiveNode);
+            return;
+          }
           diffs.push(api.remove("constant (new)", {variable: primitiveNode.variable}));
         }
         diffs.push.apply(diffs, dispatch("clearSelection", info, true));
@@ -719,8 +736,9 @@ localState.drawnUiActiveId = false;
           tools.push({c: "tool", text: "change filter", click: modifyFilter, node, viewId});
           tools.push({c: "tool", text: "remove filter", click: removeFilter, node, viewId});
         }
-        //get the source for this attribute
-        if(node.sourceChunked) {
+
+        // if this node's source is chunked or there's an ordinal binding, we can group
+        if(node.sourceChunked || node.sourceHasOrdinal) {
           if(node.grouped) {
             tools.push({c: "tool", text: "ungroup", click: ungroupAttribute, node, viewId});
           } else {
@@ -859,6 +877,9 @@ localState.drawnUiActiveId = false;
         if(ixer.selectOne("chunked source", {source: sourceId, view: viewId})) {
           curRel.chunked = true;
         }
+        if(ixer.selectOne("ordinal binding", {source: sourceId})) {
+          curRel.hasOrdinal = true;
+        }
       } else {
         var curPrim: any = {type: "primitive", sourceId: sourceId, primitive: sourceViewId, name: code.name(sourceViewId)};
         curPrim.id = curPrim.sourceId;
@@ -872,63 +893,81 @@ localState.drawnUiActiveId = false;
     for(let variable of variables) {
       let variableId = variable["variable: variable"];
       let bindings = ixer.select("binding", {variable: variableId});
-      // @TODO: we should be allowed to have variables that only have a constant in them
-      if(!bindings.length) continue;
-      let entity = undefined;
-      let name = "";
-      let singleBinding = bindings.length === 1;
+      let constants = ixer.select("constant*", {variable: variableId});
+      let ordinals = ixer.select("ordinal binding", {variable: variableId});
       let attribute:any = {type: "attribute", id: variableId, variable: variableId};
-      // run through the bindings once to determine if it's an entity, what it's name is,
-      // and all the other properties of this node.
-      for(let binding of bindings) {
-        let sourceId = binding["binding: source"];
-        let fieldId = binding["binding: field"];
-        let fieldKind = ixer.selectOne("field", {field: fieldId})["field: kind"];
-        if(!entity) entity = fieldToEntity[fieldId];
-        // we don't really want to use input field names as they aren't descriptive.
-        // so we set the name only if this is an output or there isn't a name yet
-        if(fieldKind === "output" || !name) {
-          name = code.name(fieldId);
+
+       // if we have bindings, this is a normal attribute and we go through to create
+       // links to the sources and so on.
+      if(bindings.length) {
+        let entity = undefined;
+        let name = "";
+        let singleBinding = bindings.length === 1;
+
+        // run through the bindings once to determine if it's an entity, what it's name is,
+        // and all the other properties of this node.
+        for(let binding of bindings) {
+          let sourceId = binding["binding: source"];
+          let fieldId = binding["binding: field"];
+          let fieldKind = ixer.selectOne("field", {field: fieldId})["field: kind"];
+          if(!entity) entity = fieldToEntity[fieldId];
+          // we don't really want to use input field names as they aren't descriptive.
+          // so we set the name only if this is an output or there isn't a name yet
+          if(fieldKind === "output" || !name) {
+            name = code.name(fieldId);
+          }
+          // if it's a single binding and it's an input then this node is an input
+          if(singleBinding && fieldKind !== "output") {
+            attribute.isInput = true;
+            attribute.inputKind = fieldKind;
+          }
+          let grouped = ixer.selectOne("grouped field", {source: sourceId, field: fieldId});
+          if(grouped) {
+            attribute.grouped = true;
+          }
+          let sourceNode = nodeLookup[sourceId];
+          if(sourceNode) {
+            attribute.sourceChunked = attribute.sourceChunked || sourceNode.chunked;
+            attribute.sourceHasOrdinal = attribute.sourceHasOrdinal || sourceNode.hasOrdinal;
+          }
         }
-        // if it's a single binding and it's an input then this node is an input
-        if(singleBinding && fieldKind !== "output") {
-          attribute.isInput = true;
+        // the final name of the node is either the entity name or the whichever name we picked
+        name = entity || name;
+        // now that it's been named, go through the bindings again and create links to their sources
+        for(let binding of bindings) {
+          let sourceId = binding["binding: source"];
+          let fieldId = binding["binding: field"];
+          let sourceNode = nodeLookup[sourceId];
+          // @FIXME: because the client isn't authorative about code, there are cases where the source
+          // is removed but the variable still exists. Once the AST is editor-owned, this will no longer
+          // be necessary.
+          if(!sourceNode) continue;
+          let link: any = {left: attribute, right: sourceNode};
+          let fieldName = code.name(fieldId);
+          if(fieldName !== name) {
+            link.name = fieldName;
+          }
+          links.push(link);
         }
-        let grouped = ixer.selectOne("grouped field", {source: sourceId, field: fieldId});
-        if(grouped) {
-          attribute.grouped = true;
+        attribute.name = name;
+        attribute.mergedAttributes = bindings.length > 1 ? bindings : undefined;
+        attribute.entity = entity;
+        attribute.select = ixer.selectOne("select (new)", {variable: variableId});
+        for(var constant of constants) {
+          attribute.filter = {operation: "=", value: constant["constant*: value"]};
         }
-        let sourceNode = nodeLookup[sourceId];
-        if(sourceNode && sourceNode.chunked) {
-          attribute.sourceChunked = true;
-        }
-      }
-      // the final name of the node is either the entity name or the whichever name we picked
-      name = entity || name;
-      // now that it's been named, go through the bindings again and create links to their sources
-      for(let binding of bindings) {
-        let sourceId = binding["binding: source"];
-        let fieldId = binding["binding: field"];
-        let sourceNode = nodeLookup[sourceId];
-        // @FIXME: because the client isn't authorative about code, there are cases where the source
-        // is removed but the variable still exists. Once the AST is editor-owned, this will no longer
-        // be necessary.
-        if(!sourceNode) continue;
-        var link: any = {left: attribute, right: sourceNode};
-        let fieldName = code.name(fieldId);
-        if(fieldName !== name) {
-          link.name = fieldName;
-        }
+      } else if(constants.length) {
+        // some variables are just a constant
+        attribute.name = "constant";
+        attribute.filter = {operation: "=", value: constants[0]["constant*: value"]};
+      } else if(ordinals.length) {
+        // we have to handle ordinals specially since they're a virtual field on a table
+        attribute.isOrdinal = true;
+        attribute.name = "ordinal";
+        attribute.select = ixer.selectOne("select (new)", {variable: variableId});
+        let sourceNode = nodeLookup[ordinals[0]["ordinal binding: source"]];
+        let link: any = {left: attribute, right: sourceNode, name: "ordinal"};
         links.push(link);
-      }
-      attribute.name = name;
-      attribute.mergedAttributes = bindings.length > 1 ? bindings : undefined;
-      attribute.entity = entity;
-      attribute.variable = variableId;
-      attribute.select = ixer.selectOne("select (new)", {variable: variableId});
-      let constants = ixer.select("constant*", {variable: variableId})
-      for(var constant of constants) {
-        attribute.filter = {operation: "=", value: constant["constant*: value"]};
       }
       nodeLookup[attribute.id] = attribute;
       nodes.push(attribute);
@@ -1106,11 +1145,14 @@ localState.drawnUiActiveId = false;
     if(curNode.chunked) {
       klass += " chunked";
     }
+    if((curNode.sourceChunked && !curNode.grouped) || curNode.inputKind === "vector input") {
+      klass += " column";
+    }
     klass += ` ${curNode.type}`;
     if (curNode.entity !== undefined) {
       klass += " entity";
     }
-    if (curNode.filter) {
+    if (curNode.filter && curNode.inputKind !== "vector input") {
       var op = curNode.filter.operation;
       var filterUi:any = {c: "attribute-filter", dblclick: modifyFilter, node: curNode, children: [
         //{c: "operation", text: curNode.filter.operation}
