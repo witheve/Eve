@@ -114,6 +114,25 @@ module api {
     sum: {"sum: in": "default zero"}
   }
 
+  export var newPrimitiveDefaults = {
+    "<": {"<: in A": 0, "<: in B": 0},
+    "<=": {"<=: in A": 0, "<=: in B": 0},
+    "!=": {"!=: in A": 0, "!=: in B": 0},
+    add: {"add: in A": 0, "add: in B": 0},
+    multiply: {"multiply: in A": 0, "multiply: in B": 0},
+    round: {"round: in A": 0, "round: in B": 0},
+    contains: {"contains: inner": " ", "contains: outer": ""},
+    count: {"count: in": []},
+    empty: {"empty: in": []},
+    mean: {"mean: in": []},
+    split: {"split: split": " ", "split: string": ""},
+    concat: {"concat: a": "", "concat: b": ""},
+    "parse float": {"parse float: a": "0"},
+    "stddev": {"stddev: in": []},
+    subtract: {"subtract: in A": 0, "subtract: in B": 0},
+    sum: {"sum: in": []}
+  }
+
   // This index needs to be hardcoded for code.ix to work.
   ixer.addIndex("view to fields", "field", Indexing.create.collector(["field: view"]));
 
