@@ -72,6 +72,7 @@ impl Primitive {
             },
             (Concat, [&String(ref a), &String(ref b)]) => vec![vec![String(a.to_owned() + b)]],
             (Concat, [&String(ref a), &Float(ref b)]) => vec![vec![String(a.to_owned() + &format!("{}", b))]],
+            (Concat, [&Float(ref a), &String(ref b)]) => vec![vec![String(format!("{}", a) + b)]],
             (ParseFloat, [&String(ref a)]) => {
                 match f64::from_str(&a) {
                     Ok(v) => vec![vec![Float(v), Bool(true)]],
