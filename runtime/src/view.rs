@@ -103,6 +103,7 @@ impl Source {
                     group[field_ix].as_column_mut().push(row[field_ix].clone());
                 }
             }
+            group.push(Value::Float(ordinal as f64));
             groups.push(group);
             // if there are grouped fields then the first group is the initial placeholder and
             // should be removed
