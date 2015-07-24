@@ -161,16 +161,17 @@ localState.drawnUiActiveId = false;
   // Node helpers
   //---------------------------------------------------------
 
-  function findNodesIntersecting(currentNodeId, nodes, radius = 30) {
-    let currentNodePosition = positions[currentNodeId];
+  function findNodesIntersecting(currentNode, nodes, nodeLookup) {
+    let currentNodePosition = nodeDisplayInfo(currentNode);
     let overlaps = [];
     for (let node of nodes) {
-      if (node.id === currentNodeId) continue;
-      let nodePosition = positions[node.id];
-      if (currentNodePosition.left > nodePosition.left - radius &&
-        currentNodePosition.left < nodePosition.left + radius &&
-        currentNodePosition.top > nodePosition.top - radius &&
-        currentNodePosition.top < nodePosition.top + radius) {
+      if (node.id === currentNode.id) continue;
+      let nodePosition = nodeDisplayInfo(nodeLookup[node.id]);
+
+      if (currentNodePosition.left + currentNodePosition.width > nodePosition.left &&
+        currentNodePosition.left < nodePosition.left + nodePosition.width &&
+        currentNodePosition.top + currentNodePosition.height > nodePosition.top &&
+        currentNodePosition.top < nodePosition.top + nodePosition.height) {
         overlaps.push(node.id);
       }
     }
@@ -188,7 +189,7 @@ localState.drawnUiActiveId = false;
 
   function actionableIntersections(viewId, currentNodeId, radius = 30) {
     let {nodeLookup, nodes} = viewToEntityInfo(ixer.selectOne("view", {view: viewId}));
-    let overlaps = findNodesIntersecting(currentNodeId, nodes, radius);
+    let overlaps = findNodesIntersecting(nodeLookup[currentNodeId], nodes, nodeLookup);
     let curNode = nodeLookup[currentNodeId];
     let actions = [];
     let lookup = {};
