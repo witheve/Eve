@@ -1673,14 +1673,14 @@ module uiEditor {
     });
 
     return {
-      c: "inspector-panel", children: [
-        { c: "title", text: "Map" },
+      c: "option-group map-attributes", children: [
+        { c: "title spaced-row", children: [{c: "ion-map"},{text: "Map"}] },
         {
-          c: "pair", children: [{ c: "label", text: "lat." },
+          c: "pair", children: [{ c: "label", text: "latitude" },
             inspectorInput(attrs["lat"], [componentId, "lat"], setMapAttribute, binding)]
         },
         {
-          c: "pair", children: [{ c: "label", text: "long." },
+          c: "pair", children: [{ c: "label", text: "longitude" },
             inspectorInput(attrs["lng"], [componentId, "lng"], setMapAttribute, binding)]
         },
         {
