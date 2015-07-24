@@ -523,7 +523,7 @@ module uiEditor {
       (layerHRepeat ? " repeat-h" : "") +
       (layerScroll ? " overflow-scroll" : "") +
       (layerMask ? " overflow-hidden" : "");
-    return { c: klass, id: layerId, zIndex: layer["uiComponentLayer: layer"] + 1, children: subLayers.concat(els) };
+    return { c: klass, id: layerId, zIndex: layer["uiComponentLayer: layer"] + 1, children: els.concat(subLayers) };
   }
 
   function layersBox(componentId, layers, activeLayer) {
