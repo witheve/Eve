@@ -247,6 +247,7 @@ localState.drawnUiActiveId = false;
     diffs.push(api.remove("constant (new)", {variable: variableId}));
     // we need to remove any bindings to this variable
     diffs.push(api.remove("binding (new)", {variable: variableId}));
+    diffs.push(api.remove("ordinal binding", {variable: variableId}));
     // we also need to remove any fields and selects that pull from the variable
     let selects = ixer.select("select (new)", { variable: variableId });
     for(let select of selects) {
@@ -272,6 +273,10 @@ localState.drawnUiActiveId = false;
         diffs.push.apply(diffs, removeVariable(variableId));
       }
     }
+    let ordinal = ixer.selectOne("ordinal binding", {source: sourceId});
+    if(ordinal) {
+       diffs.push.apply(diffs, removeVariable(ordinal["ordinal binding: variable"]));
+    }
     return diffs;
   }
 
@@ -279,11 +284,8 @@ localState.drawnUiActiveId = false;
     let diffs = [];
     let kind = ixer.selectOne("field", {field: fieldId})["field: kind"];
     // add a variable
-    // @FIXME: this can't be done yet because the compiler currently auto-creates variables for the fields of
-    // a source. Once we stop doing that for compatability reasons, we need to actually add the variable
     let variableId = uuid();
     diffs.push(api.insert("variable (new)", {view: queryId, variable: variableId}));
-    // let variableId = `${queryId}->${sourceId}->${fieldId}`;
     // bind the field to it
     diffs.push(api.insert("binding (new)", {variable: variableId, source: sourceId, field: fieldId}));
     if(kind === "output") {
@@ -584,8 +586,9 @@ localState.drawnUiActiveId = false;
         );
       break;
       case "removeOrdinal":
-        // @TODO: implement remove ordinal
-        console.log("TODO: implement remove ordinal");
+        var sourceId = info.node.source["source: source"];
+        var variableId = ixer.selectOne("ordinal binding", {source: sourceId})["ordinal binding: variable"];
+        diffs = removeVariable(variableId);
       break;
       case "groupAttribute":
         var variableId = info.node.variable;
@@ -752,7 +755,7 @@ localState.drawnUiActiveId = false;
         } else {
           tools.push({c: "tool", text: "chunk", click: chunkSource, node, viewId});
         }
-        if(node.ordinal) {
+        if(node.hasOrdinal) {
           tools.push({c: "tool", text: "remove ordinal", click: removeOrdinal, node, viewId});
         } else {
           tools.push({c: "tool", text: "add ordinal", click: addOrdinal, node, viewId});
@@ -966,8 +969,12 @@ localState.drawnUiActiveId = false;
         attribute.name = "ordinal";
         attribute.select = ixer.selectOne("select (new)", {variable: variableId});
         let sourceNode = nodeLookup[ordinals[0]["ordinal binding: source"]];
-        let link: any = {left: attribute, right: sourceNode, name: "ordinal"};
-        links.push(link);
+        if(sourceNode) {
+          let link: any = {left: attribute, right: sourceNode, name: "ordinal"};
+          links.push(link);
+        }
+      } else {
+        attribute.name = "unknown variable";
       }
       nodeLookup[attribute.id] = attribute;
       nodes.push(attribute);
