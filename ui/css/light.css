@@ -85,8 +85,11 @@ div:hover > .hover-reveal { opacity: 1; }
 ---------------------------------------------------------*/
 
 .option-bar { background: ; min-height:30px; flex-direction:row; align-items:center; padding-left:15px; }
-.option-bar .option-group { flex-direction:row; }
-.option-bar .option-group + .option-group { border-left: 1px solid rgba(45,56,57,0.1); }
+.option-bar .option-group { flex-direction:row;}
+.option-bar .option-group + .option-group { border-left: 1px solid rgba(45,56,57,0.1);}
+.option-group .text-input {background: #FFF; border: 1px solid #AAA; border-radius: 5px; padding: 5 10 5 10; overflow: hidden; white-space: nowrap;}
+.option-group .pair {margin-bottom: 5px;}
+.option-group .title {font-weight: bold; font-size: 16px; margin-bottom: 10px;}
 
 /*---------------------------------------------------------
 - Table
@@ -192,10 +195,10 @@ div:hover > .hover-reveal { opacity: 1; }
 ---------------------------------------------------------*/
 
 .attributes { align-items:center; }
-.attributes .option-group { position:relative; font-size: 9pt; margin-bottom: 20px;}
+.attributes .option-group { width: 100%; padding: 10px; position:relative; font-size: 9pt; margin-bottom: 0px; border-bottom: 1px solid #E0E0E0;}
 
 /* size attributes */
-.attributes .size-attributes { min-width:90px; min-height:80px; margin-top:10px; }
+.attributes .size-attributes { min-width:90px; min-height:100px; margin-top:10px; }
 .attributes .size-outline { width:40px; height:40px; border:1px solid #bbb; border-radius:0px; position:absolute; top: 20px; left: 20px; }
 .attributes .width-outline { width:40px; height:4px; border:1px solid #999; border-top:none; position:absolute; top:62px; left: 20px; }
 .attributes .height-outline { width:4px; height:40px; border:1px solid #999; border-left:none; position:absolute; top: 20px; left: 62px; }

@@ -10,6 +10,7 @@ pub enum Primitive {
     Add,
     Subtract,
     Multiply,
+    Remainder,
     Round,
     Split,
     Concat,
@@ -61,6 +62,7 @@ impl Primitive {
             (Add, [&Float(a), &Float(b)]) => vec![vec![Float(a+b)]],
             (Subtract, [&Float(a), &Float(b)]) => vec![vec![Float(a-b)]],
             (Multiply, [&Float(a), &Float(b)]) => vec![vec![Float(a*b)]],
+            (Remainder, [&Float(a), &Float(b)]) => vec![vec![Float(a%b)]], // akin to C-like languages, the % operator is remainder,
             (Round, [&Float(a), &Float(b)]) => vec![vec![Float((a*10f64.powf(b)).round()/10f64.powf(b))]],
             (Contains, [&String(ref inner), &String(ref outer)]) => {
               let inner_lower = &inner.to_lowercase();
@@ -71,6 +73,8 @@ impl Primitive {
                 string.split(split).enumerate().map(|(ix, segment)| vec![Float(ix as f64), String(segment.to_owned())]).collect()
             },
             (Concat, [&String(ref a), &String(ref b)]) => vec![vec![String(a.to_owned() + b)]],
+            (Concat, [&String(ref a), &Float(ref b)]) => vec![vec![String(a.to_owned() + &format!("{}", b))]],
+            (Concat, [&Float(ref a), &String(ref b)]) => vec![vec![String(format!("{}", a) + b)]],
             (ParseFloat, [&String(ref a)]) => {
                 match f64::from_str(&a) {
                     Ok(v) => vec![vec![Float(v), Bool(true)]],
@@ -125,6 +129,7 @@ impl Primitive {
             (Add, _) => panic!("Cannot use {:?} in an aggregate", self),
             (Subtract, _) => panic!("Cannot use {:?} in an aggregate", self),
             (Multiply, _) => panic!("Cannot use {:?} in an aggregate", self),
+            (Remainder, _) => panic!("Cannot use {:?} in an aggregate", self),
             (Round, _) => panic!("Cannot use {:?} in an aggregate", self),
             (Contains, _) => panic!("Cannot use {:?} in an aggregate", self),
             (Split, _) => panic!("Cannot use {:?} in an aggregate", self),
@@ -183,6 +188,7 @@ impl Primitive {
             "add" => Primitive::Add,
             "subtract" => Primitive::Subtract,
             "multiply" => Primitive::Multiply,
+            "remainder" => Primitive::Remainder,
             "round" => Primitive::Round,
             "contains" => Primitive::Contains,
             "split" => Primitive::Split,
@@ -206,6 +212,7 @@ pub fn primitives() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>, 
         ("add", vec!["in A", "in B"], vec![], vec!["out"]),
         ("subtract", vec!["in A", "in B"], vec![], vec!["out"]),
         ("multiply", vec!["in A", "in B"], vec![], vec!["out"]),
+        ("remainder", vec!["in A", "in B"], vec![], vec!["out"]),
         ("round", vec!["in A", "in B"], vec![], vec!["out"]),
         ("contains", vec!["inner", "outer"], vec![], vec!["out"]),
         ("split", vec!["split", "string"], vec![], vec!["ix", "segment"]),

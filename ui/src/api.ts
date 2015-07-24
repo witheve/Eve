@@ -1,4 +1,4 @@
-0/// <reference path="indexer.ts" />
+/// <reference path="indexer.ts" />
 module api {
   // @NOTE: We should really be using CommonJS modules with this instead of tsc's wonky module system.
   declare var window;
@@ -101,6 +101,7 @@ module api {
     "!=": {"!=: in A": "default zero", "!=: in B": "default zero"},
     add: {"add: in A": "default zero", "add: in B": "default zero"},
     multiply: {"multiply: in A": "default zero", "multiply: in B": "default zero"},
+    remainder: {"remainder: in A": "default zero", "remainder: in B": "default zero"},
     round: {"round: in A": "default zero", "round: in B": "default zero"},
     contains: {"contains: inner": "default space", "contains: outer": "default empty"},
     count: {"count: in": "default zero"},
@@ -112,6 +113,26 @@ module api {
     "stddev": {"stddev: in": "default zero"},
     subtract: {"subtract: in A": "default zero", "subtract: in B": "default zero"},
     sum: {"sum: in": "default zero"}
+  }
+
+  export var newPrimitiveDefaults = {
+    "<": {"<: in A": 0, "<: in B": 0},
+    "<=": {"<=: in A": 0, "<=: in B": 0},
+    "!=": {"!=: in A": 0, "!=: in B": 0},
+    add: {"add: in A": 0, "add: in B": 0},
+    multiply: {"multiply: in A": 0, "multiply: in B": 0},
+    remainder: {"remainder: in A": 0, "remainder: in B": 0},
+    round: {"round: in A": 0, "round: in B": 0},
+    contains: {"contains: inner": " ", "contains: outer": ""},
+    count: {"count: in": []},
+    empty: {"empty: in": []},
+    mean: {"mean: in": []},
+    split: {"split: split": " ", "split: string": ""},
+    concat: {"concat: a": "", "concat: b": ""},
+    "parse float": {"parse float: a": "0"},
+    "stddev": {"stddev: in": []},
+    subtract: {"subtract: in A": 0, "subtract: in B": 0},
+    sum: {"sum: in": []}
   }
 
   // This index needs to be hardcoded for code.ix to work.
@@ -185,7 +206,8 @@ module api {
   ixer.addIndex("elementAttrToBinding", "uiAttrBinding", Indexing.create.lookup(["uiAttrBinding: elementId", "uiAttrBinding: attr", "uiAttrBinding: field"]));
   ixer.addIndex("elementAttrBindings", "uiAttrBinding", Indexing.create.collector(["uiAttrBinding: elementId"]));
 
-  ixer.addIndex("uiElementToMap", "uiMap", Indexing.create.latestLookup({keys: ["uiMap: element", false]}));
+  ixer.addIndex("uiElementToMap", "uiMap", Indexing.create.lookup(["uiMap: element", false]));
+  ixer.addIndex("uiMapAttr", "uiMapAttr", Indexing.create.lookup(["uiMapAttr: map","uiMapAttr: property", "uiMapAttr: value"]));
 
 
   //---------------------------------------------------------
@@ -908,6 +930,12 @@ module api {
 
     "chunked source": {},
     "ordinal binding": {},
+    "grouped field": {},
+
+    "select (new)": {},
+    "variable (new)" : {},
+    "binding (new)": {},
+    "constant (new)": {},
 
      "query export": {foreign: {view: "view"},
                       singular: true},

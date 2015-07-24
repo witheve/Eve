@@ -66,44 +66,74 @@ impl Source {
             }
             return Ordering::Equal;
         });
-        let mut groups = Vec::new();
-        let row_len = rows.iter().next().map_or(0, |row| row.len());
-        let mut group = vec![Value::Null; row_len];
-        let mut ix = 1;
-        for mut row in rows.into_iter() {
-            row.push(Value::Float(ix as f64));
-            let is_same_group = self.grouped_fields.iter().all(|&ix| row[ix] == group[ix]);
-            match (self.chunked, is_same_group) {
-                (true, true) => {
-                    for &(ix, _) in self.sorted_fields.iter() {
-                        group[ix].as_column_mut().push(row[ix].clone())
+
+
+        if self.chunked {
+            // if the source is chunked, we need to turn all of the fields into columns for each grouping
+            // we want the grouped fields to be scalars so that they can be joined against and every other
+            // field should be a column of the values for that group
+            let mut groups = Vec::new();
+            let mut ordinal = 0;
+            let grouped_fields = &self.grouped_fields;
+            let row_len = rows.iter().next().map_or(0, |row| row.len());
+            let ungrouped_fields = &(0..row_len).filter(|field_ix| !self.grouped_fields.contains(field_ix)).collect::<Vec<usize>>();
+            let mut group: Vec<Value> = vec![Value::Column(vec![]); row_len]; // this creates a vector of the given length with all the values set to Value::Null
+            for mut row in rows.into_iter() {
+                // check if this is a new group
+                let is_new_group = match self.grouped_fields.len() {
+                    0 => false,
+                    _ => !self.grouped_fields.iter().all(|&ix| row[ix] == group[ix])
+                };
+                if is_new_group {
+                    // add the current ordinal to the group
+                    group.push(Value::Float(ordinal as f64));
+                    // push the old group
+                    groups.push(group);
+                    // create a new group with every field being a column
+                    ordinal += 1;
+                    group = vec![Value::Column(vec![]); row_len];
+                    // any grouped field should have a scalar value for its index so that it can be joined on
+                    // e.g. ["foo", [..], [..]] if you've grouped on index 0
+                    for &grouped_field_ix in grouped_fields {
+                        group[grouped_field_ix] = row[grouped_field_ix].clone();
                     }
-                    ix += 1;
                 }
-                (true, false) => {
-                    groups.push(group);
-                    group = row;
-                    for &(ix, _) in self.sorted_fields.iter() {
-                        let value = replace(&mut group[ix], Value::Null);
-                        group[ix] = Value::Column(vec![value]);
-                    }
-                    ix = 1;
-                }
-                (false, true) => {
-                    groups.push(group);
-                    group = row;
-                    ix += 1;
-                }
-                (false, false) => {
-                    groups.push(group);
-                    group = row;
-                    ix = 1;
+                // add the fields for this row
+                for &field_ix in ungrouped_fields {
+                    group[field_ix].as_column_mut().push(row[field_ix].clone());
                 }
             }
+            group.push(Value::Float(ordinal as f64));
+            groups.push(group);
+            // if there are grouped fields then the first group is the initial placeholder and
+            // should be removed
+            if self.grouped_fields.len() > 0 {
+                groups.remove(0);
+            }
+            groups
+        } else {
+            // in the case where the source is not chunked all we need to worry about is setting the ordinal correctly
+            // if there are no groups, then this is just normal rows and we number them monotonically
+            // if there are groups, each new group resets the ordinal to 1
+            let otherwise = vec![];
+            let mut groups = Vec::new();
+            let mut ordinal = 1;
+            let mut prev_row = rows.iter().next().map_or(otherwise, |row| row.clone());
+            for mut row in rows.into_iter() {
+                let is_new_group = match self.grouped_fields.len() {
+                    0 => false,
+                    _ => !self.grouped_fields.iter().all(|&ix| row[ix] == prev_row[ix])
+                };
+                if is_new_group {
+                    ordinal = 1;
+                    prev_row = row.clone(); // @TODO: is there a way to do this without having to clone it?
+                }
+                row.push(Value::Float(ordinal as f64));
+                groups.push(row);
+                ordinal += 1;
+            }
+            groups
         }
-        groups.push(group);
-        groups.remove(0); // remove the dummy group we started with
-        groups
     }
 }
 

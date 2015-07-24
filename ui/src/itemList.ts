@@ -7,7 +7,7 @@ module itemList {
   var ixer = api.ixer;
   var code = api.code;
   var localState = api.localState;
-  
+
   function dispatch(event: string, info: any, rentrant?: boolean) {
     var storeEvent = true;
     var sendToServer = true;
@@ -25,17 +25,19 @@ module itemList {
         localState.showMenu = false;
         dispatch("selectItem", info, true);
         break;
-
+      case "removeItem":
+        diffs = api.toDiffs(api.remove("editor item",{"item":info}));
+        break;
       default:
         redispatched = true;
         eveEditor.dispatch(event, info);
         break;
     }
     if(!redispatched && !rentrant) {
-      eveEditor.executeDispatch(diffs, storeEvent, sendToServer);  
+      eveEditor.executeDispatch(diffs, storeEvent, sendToServer);
     }
   }
-	
+
  	export function editorItemList(itemId) {
     var views = ixer.facts("editor item");
     // @TODO: filter me based on tags local and compiler.
@@ -69,6 +71,7 @@ module itemList {
       return {c: klass, name: name, click: selectEditorItem, dblclick: closeSelectEditorItem, dragData: {value: dragId, type: "view"}, itemId: id, draggable: draggable, dragstart: dragItem, children: [
         {c: "icon " + icon},
         {text: name},
+        {c: "add-layer", text: "X", click: removeItem, id: id},
       ]};
     })
     items.sort(function(a, b) {
@@ -100,6 +103,10 @@ module itemList {
     ]};
   }
 
+  function removeItem(evt,elem) {
+    dispatch("removeItem",elem.id);
+  }
+
   function dragItem(evt, elem) {
     for(var key in elem.dragData) {
       evt.dataTransfer.setData(key, elem.dragData[key]);
@@ -122,7 +129,7 @@ module itemList {
   function closeSelectEditorItem(e, elem) {
     dispatch("closeAndSelectItem", elem);
   }
-  
+
   export function toggleMenu() {
     dispatch("toggleMenu", null);
   }

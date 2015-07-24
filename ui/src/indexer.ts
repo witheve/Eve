@@ -4,15 +4,16 @@ module Indexing {
 
   type Id = string;
   type ArrayFact = any[];
-  type MapFact = any; 
+  type MapFact = any;
   type PayloadChange = [Id, Id[], ArrayFact[], ArrayFact[]];
   interface Payload { changes: PayloadChange[] };
 
-  export function arraysIdentical(a:any[], b:any[]):boolean { 
+  export function arraysIdentical(a:any[], b:any[]):boolean {
     var i = a.length;
     if (!b || i != b.length) return false;
     while (i--) {
       if(a[i] && a[i].constructor === Array) {
+        console.log("here");
         if(!arraysIdentical(a[i], b[i])) return false;
         continue;
       }
@@ -25,22 +26,23 @@ module Indexing {
     }
     return true;
   }
-  
+
   export function objectsIdentical(a:any, b:any):boolean {
     if(typeof a !== typeof b) { return false; }
     if(typeof a !== "object") { return a === b; }
     var aKeys = Object.keys(a);
     if(!arraysIdentical(aKeys, Object.keys(b))) { return false; }
-    
+
     for(var key of aKeys) {
       if(typeof a[key] !== typeof b[key]) { return false; }
       if(typeof a[key] !== "object" && a[key] !== b[key]) { return false; }
+      if(a[key].constructor === Array) { console.log(a[key], b[key], arraysIdentical(a[key], b[key])); return arraysIdentical(a[key], b[key]); }
       else if(!objectsIdentical(a[key], b[key])) { return false; }
     }
-    
+
     return true;
   }
-  
+
   export function clone<T>(item:T): T;
   export function clone(item:Object): Object;
   export function clone(item:any[]): any[];
@@ -64,7 +66,7 @@ module Indexing {
     }
     return result;
   }
-  
+
   export function zip(rows, keys) {
     var keysLength = keys.length;
     var zipped = [];
@@ -77,7 +79,7 @@ module Indexing {
     }
     return zipped;
   }
-  
+
   export function unzip(zipped, keys?) {
     if(!zipped || !zipped.length) { return {keys: [], rows: []}; }
     if(!keys) {
@@ -93,34 +95,34 @@ module Indexing {
     }
     return {keys: keys, rows: rows};
   }
-  
+
   type Extractor = (fact:ArrayFact) => MapFact;
   function generateExtractorFn(view:Id, keys:Id[]):Extractor {
     return <Extractor> new Function("fact", `return { ${keys.map(function(key, ix) {
       return `"${key}": fact["${ix}"]`;
     }).join(", ")} };`);
   }
-  
+
   type Packer = {(fact:MapFact): ArrayFact; fields: Id[]};
-  function generatePackerFn(view:Id, keys:Id[]):Packer {    
+  function generatePackerFn(view:Id, keys:Id[]):Packer {
     var packer = <Packer> new Function("fact", `return [${keys.map(function(key) {
       return `fact["${key}"]`;
     }).join(", ")}];`);
     packer.fields = keys;
     return packer;
   }
-  
+
   type Mapper = (fact:MapFact) => MapFact;
   function generateMapperFn(view:Id, keys:Id[], mapping):Extractor {
     return <Mapper> new Function("fact", `return { ${keys.map(function(key) {
       return `"${mapping[key]}": fact["${key}"]`;
     }).join(", ")} };`);
   }
-  
+
   type EqualityChecker = (a:MapFact, b:MapFact) => Boolean;
   function generateEqualityFn(view:Id, keys:Id[]):EqualityChecker {
     return <EqualityChecker> new Function("a", "b",  `return ${keys.map(function(key, ix) {
-      return `a["${key}"] === b["${key}"]`;
+      return `(a["${key}"] === b["${key}"] || (a["${key}"] && a["${key}"].constructor === Array && Indexing.arraysIdentical(a["${key}"], b["${key}"])))`;
     }).join(" && ")};`);
   }
 
@@ -266,7 +268,7 @@ module Indexing {
       return JSON.stringify({changes: compiler}) + "\n" + JSON.stringify({changes: facts}) + "\n";
     }
     handleMapDiffs(diffs) {
-      for(var [table, fields, inserted, removed] of diffs) { 
+      for(var [table, fields, inserted, removed] of diffs) {
         if(inserted.length || removed.length) {
           var extract = generateExtractorFn(table, fields);
           this.handleDiff(table, fields, (inserted || []).map(extract), (removed || []).map(extract));
@@ -315,7 +317,7 @@ module Indexing {
         var index  = this.indexes[name].index;
         if(!index) return {};
         if(unpacked) return index;
-        
+
         var pack = generatePackerFn(table, this.getFields(table));
         var depth = indexObj.keys.length - 1;
 
@@ -324,7 +326,7 @@ module Indexing {
           var keys = Object.keys(cur);
           for(var key of keys) {
             if(key === "undefined") { throw new Error("Index: " + name + " contains invalid key(s) at depth " + depth); }
-            
+
             if(cur[key] instanceof Array) {
               memo[key] = cur[key].map(pack);
             } else if(typeof cur[key] === "object") {
@@ -387,7 +389,7 @@ module Indexing {
         facts = <MapFact[]>this.facts(table, true);
       }
       if(!facts) { return []; }
-      return facts;      
+      return facts;
     }
     selectPretty(table:Id, opts): MapFact[] {
       var names = this.index("display name", true);

@@ -265,7 +265,11 @@ pub fn editor_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("uiAttrBinding", vec!["elementId", "attr", "field"]),
     ("uiKeyCapture", vec!["elementId", "key"]),
     ("uiMap", vec!["tx", "map", "element"]),
-    ("uiMapAttr", vec!["tx", "map", "property", "value"])
+    ("uiMapAttr", vec!["tx", "map", "property", "value"]),
+    ("uiMapMarker", vec!["id", "map", "lat", "lng"]),
+    ("geocoding request", vec!["formatted address"]),
+    ("geocoding response status", vec!["formatted address","status"]),
+    ("geocoding response data", vec!["formatted address","lat","lng"]),
     ]
 }
 
@@ -487,10 +491,13 @@ fn migrate(flow: &Flow) {
 
     let mut variable_table = flow.overwrite_output("variable");
     let mut binding_table = flow.overwrite_output("binding");
+    let mut binding_new_table = flow.get_output("binding (new)");
     find!(eq_group_table, [view, source, field, group_source, group_field], {
-        let variable = &string!("{}->{}->{}", view.as_str(), group_source.as_str(), group_field.as_str());
-        insert!(variable_table, [view, variable]);
-        insert!(binding_table, [variable, source, field]);
+        dont_find!(binding_new_table, [_, (= group_source), (= group_field)], {
+            let variable = &string!("{}->{}->{}", view.as_str(), group_source.as_str(), group_field.as_str());
+            insert!(variable_table, [view, variable]);
+            insert!(binding_table, [variable, source, field]);
+        });
     });
     find!(flow.get_output("variable (new)"), [view, variable], {
         insert!(variable_table, [view, variable]);
@@ -654,6 +661,14 @@ fn plan(flow: &Flow) {
 
         find!(schedulable_source_table, [view, source], {
             find!(provides_table, [(= view), (= source), variable], {
+                dont_find!(variable_schedule_pre_table, [(= view), _, (= variable)], {
+                    insert!(variable_schedule_pre_table, [view, Float(pass as f64), variable]);
+                });
+            });
+        });
+
+        find!(schedulable_source_table, [view, source], {
+            find!(ordinal_binding_table, [variable, (= source)], {
                 dont_find!(variable_schedule_pre_table, [(= view), _, (= variable)], {
                     insert!(variable_schedule_pre_table, [view, Float(pass as f64), variable]);
                 });

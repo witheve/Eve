@@ -19,7 +19,6 @@ module uiEditor {
     }
   }
 
-
   export function dispatch(event: string, info: any, rentrant?: boolean) {
     //         console.info("[dispatch]", evt, info);
     var storeEvent = true;
@@ -374,7 +373,7 @@ module uiEditor {
         break;
       case "clearSelection":
         localState.uiSelection = null;
-        break; 
+        break;
       case "startAdjustAttr":
         var attrs = []
         var style = getUiPropertyType(info.attr);
@@ -410,6 +409,23 @@ module uiEditor {
       case "toggleUiPreview":
         localState.uiPreview = !localState.uiPreview;
         break;
+      case "setMapAttributeForSelection":
+        storeEvent = true;
+        sendToServer = true;
+
+        var sel = localState.uiSelection;
+        sel.forEach(function(cur) {
+
+          var mapId = ixer.selectOnePretty("uiMap",{"element":cur}).map;
+
+          var oldProps = ixer.selectOnePretty("uiMapAttr",{"map":mapId,"property":info.property});
+          if (oldProps) {
+            diffs.push(["uiMapAttr", "removed", api.mapToFact("uiMapAttr",oldProps)]);
+          }
+          var value = !isNaN(info.value) ? +info.value : info.value;
+          diffs.push(["uiMapAttr", "inserted", [txId, mapId, info.property, value]]);
+        });
+        break;
       default:
         redispatched = true;
         eveEditor.dispatch(event, info);
@@ -420,11 +436,11 @@ module uiEditor {
     }
 
   }
-  
+
   //---------------------------------------------------------
   // UI workspace
   //---------------------------------------------------------
-  
+
   export function uiWorkspace(componentId) {
     var elements = ixer.index("uiComponentToElements")[componentId] || [];
     var layers = ixer.index("uiComponentToLayers")[componentId] || [];
@@ -497,8 +513,8 @@ module uiEditor {
     });
     if (selectionInfo && layerId === localState.uiActiveLayer) {
       subLayers.unshift(uiGrid());
-    }   
-    
+    }
+
     var elements = ixer.index("uiLayerToElements", true)[layerId] || [];
     var attrsIndex = ixer.index("uiStyleToAttrs", true);
     var stylesIndex = ixer.index("uiElementToStyles", true);
@@ -515,7 +531,7 @@ module uiEditor {
 
       return control(cur, attrs, selected, layer);
     });
-    
+
     var layerHRepeat = (ixer.selectOne("uiComponentAttribute", {id: layerId, property: "h-repeat"}) || {})["uiComponentAttribute: value"];
     var layerScroll = (ixer.selectOne("uiComponentAttribute", {id: layerId, property: "scroll"}) || {})["uiComponentAttribute: value"];
     var layerMask = (ixer.selectOne("uiComponentAttribute", {id: layerId, property: "mask"}) || {})["uiComponentAttribute: value"];
@@ -954,7 +970,7 @@ module uiEditor {
     if (attrs) {
       for (var i = 0, len = attrs.length; i < len; i++) {
         var curAttr = attrs[i];
-        var name = attrMappings[curAttr["uiComponentAttribute: property"]] || curAttr["uiComponentAttribute: property"];        
+        var name = attrMappings[curAttr["uiComponentAttribute: property"]] || curAttr["uiComponentAttribute: property"];
         elem[name] = curAttr["uiComponentAttribute: value"];
       }
     }
@@ -1247,10 +1263,15 @@ module uiEditor {
     }
     if (selectionInfo) {
       // @TODO: Only show appropriate inspectors for each type based on trait instead of hardcoding.
+
+      var showMapInspector = selectionInfo.elements.every(function(cur) { return cur[4] === "map"; });
+      var showLinkInspector = selectionInfo.elements.every(function(cur) { return cur[4] === "link"; });
+
       inspectors.push(layoutInspector(selectionInfo, binding),
         appearanceInspector(selectionInfo, binding),
         textInspector(selectionInfo, binding),
-        linkInspector(selectionInfo, binding));
+        showLinkInspector ? linkInspector(selectionInfo, binding) : undefined,
+        showMapInspector ? mapInspector(selectionInfo, binding) : undefined);
 
       //       var showMapInspector = selectionInfo.elements.every(function(cur) {
       //         return cur[4] === "map";
@@ -1635,18 +1656,30 @@ module uiEditor {
   }
 
   uiProperties.map = [];
-  function mapInspector(selectionInfo, mapInfo, binding) {
+  function mapInspector(selectionInfo, binding) {
     var componentId = selectionInfo.componentId;
-    var attrs = mapInfo.attributes;
+
+    var attrs = {};
+    var els = selectionInfo.elements.map(function(cur) {
+      var uiMap = ixer.index("uiElementToMap")[cur[1]];
+      var mapAttr = ixer.index("uiMapAttr")[uiMap[1]] || {};
+      var props = Object.keys(mapAttr);
+      for(var ix = 0, len = props.length; ix < len; ix++) {
+        var prop = props[ix];
+        if(attrs[prop] === undefined) { attrs[prop] = mapAttr[prop]; }
+        else if(attrs[prop] !== mapAttr[prop]) { attrs[prop] = null; }
+      }
+    });
+
     return {
-      c: "inspector-panel", children: [
-        { c: "title", text: "Map" },
+      c: "option-group map-attributes", children: [
+        { c: "title spaced-row", children: [{c: "ion-map"},{text: "Map"}] },
         {
-          c: "pair", children: [{ c: "label", text: "lat." },
+          c: "pair", children: [{ c: "label", text: "latitude" },
             inspectorInput(attrs["lat"], [componentId, "lat"], setMapAttribute, binding)]
         },
         {
-          c: "pair", children: [{ c: "label", text: "long." },
+          c: "pair", children: [{ c: "label", text: "longitude" },
             inspectorInput(attrs["lng"], [componentId, "lng"], setMapAttribute, binding)]
         },
         {
@@ -1656,20 +1689,20 @@ module uiEditor {
       ]
     };
   }
-  
-    
+
+
   uiProperties.link = ["href"];
   function linkInspector(selectionInfo, binding) {
     var attrs = selectionInfo.attributes;
     var componentId = selectionInfo.componentId;
-    
+
     var urlInput = inspectorInput(attrs.href || "", [componentId, "href"], setAttribute, binding); // @TODO: FINISH ME.
     urlInput.storeEvent = true;
     return {c: "option-group link-attributes", children: [
-      {c: "row spaced-row", children: [
-        {c: "label", text: "url"},
-        urlInput
-      ]}
+      { c: "title spaced-row", children: [{c: "ion-link"},{text: "Link"}] },
+      {
+        c: "pair", children: [{c: "label", text: "URL"}, urlInput]
+      },
     ]};
   }
 
@@ -1734,7 +1767,7 @@ module uiEditor {
   }
 
   setupColorPickers();
-  
+
   // Layout handlers
   function adjustWidth(elem, value) {
     var componentId = elem.componentId;
