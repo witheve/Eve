@@ -265,7 +265,11 @@ pub fn editor_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("uiAttrBinding", vec!["elementId", "attr", "field"]),
     ("uiKeyCapture", vec!["elementId", "key"]),
     ("uiMap", vec!["tx", "map", "element"]),
-    ("uiMapAttr", vec!["tx", "map", "property", "value"])
+    ("uiMapAttr", vec!["tx", "map", "property", "value"]),
+    ("uiMapMarker", vec!["id", "map", "lat", "lng"]),
+    ("geocoding request", vec!["formatted address"]),
+    ("geocoding response status", vec!["formatted address","status"]),
+    ("geocoding response data", vec!["formatted address","lat","lng"]),
     ]
 }
 
