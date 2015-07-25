@@ -37,7 +37,7 @@ div:hover > .hover-reveal { opacity: 1; }
 .editor-item-list .adder .query { color: rgba(266,146,253, 1); }
 .editor-item-list .adder .table { color: #88FFCD; }
 .editor-item-list .adder .ui { color: rgba(156,192,255, 1); }
-.editor-item-list .adder .button:hover { background: rgba(255,255,255, 0.2); }
+.editor-item-list .adder .button:hover { background: rgba(255,255,255, 0.2);}
 
 .editor-item-list .items { flex:1; margin-top:10px; overflow-y:auto;}
 
@@ -45,7 +45,11 @@ div:hover > .hover-reveal { opacity: 1; }
 
 .editor-item { padding: 5px; padding-left:10px; margin-right: 10px; width:190px; flex:none; flex-direction:row; align-items:center; cursor:default; }
 .editor-item.selected { background: rgba(62,73,75,1); }
-.editor-item .icon { margin-right: 10px; }
+.editor-item .icon { width: 16px; margin-right: 10px; }
+.editor-item .label { width: 150px; padding-right: 20px;}
+.editor-item .delete { color: #777; visibility: hidden;}
+.editor-item .delete.selected {visibility: visible;}
+
 
 .editor-item.query .icon { color: #E292FD; }
 .editor-item.query.selected { background: rgba(266,146,253, 0.2); }
@@ -58,6 +62,8 @@ div:hover > .hover-reveal { opacity: 1; }
 
 .items-toggle { width:20px; font-size:20pt; flex: none; align-items:center; justify-content:center; transition: all 0.2s ease-in-out; opacity:0; }
 .items-toggle:hover {  opacity:1; background: rgba(0,0,0,0.3); }
+
+
 
 /*---------------------------------------------------------
 - workspace
