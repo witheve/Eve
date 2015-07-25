@@ -138,7 +138,7 @@ module uiEditorRenderer {
     return rows;
    }
 
-  function renderLayer(layer, key?) {
+  function renderLayer(layer, key?, rootOffset?) {
     var layerId = layer[1];
     var layerIx = layer[3];
     var elements = ixer.select("uiComponentElement", {layer: layerId});
@@ -156,16 +156,17 @@ module uiEditorRenderer {
     } else {
       boundRows = [[]];
     }
+    var offsetForChildren = reverseOffsetBoundingBox(offset, rootOffset);
     boundRows.forEach(function(row) {
       var items = [];
       if(subLayers) {
         subLayers.forEach(function(subLayer) {
-          items.push(renderLayer(subLayer, rowToKey(row)));
+          items.push(renderLayer(subLayer, rowToKey(row), offsetForChildren));
         })
       }
       if(elements) {
         elements.forEach(function(element) {
-          items.push(renderElement(element, offset, row, rowToKey(row)));
+          items.push(renderElement(element, offsetForChildren, row, rowToKey(row)));
         });
       }
       if(binding) {
@@ -183,6 +184,12 @@ module uiEditorRenderer {
       (layerMask ? " overflow-hidden" : "");
 
     return {c: klass, id: layerId + (key ? "::" + key : ""), top: offset.top, left: offset.left, zIndex:layerIx, children: layerChildren};
+  }
+  
+  function reverseOffsetBoundingBox(box, offset) {
+    if(!box || !offset) { return box; }
+    let result = {top: box.top + offset.top, left: box.left + offset.left, width: box.width, height: box.height, bottom: box.bottom, right: box.right};
+    return result;
   }
 
   function elementsToBoundingBox(elements) {
