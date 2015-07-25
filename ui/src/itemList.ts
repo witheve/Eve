@@ -54,8 +54,10 @@ module itemList {
       } else if(type === "ui") {
         icon = "ion-image";
       }
+      var deleteBottonVisibility = "";
       if(itemId === id) {
         klass += " selected";
+        deleteBottonVisibility = "selected ";
       }
 
       var dragId = id;
@@ -68,10 +70,9 @@ module itemList {
       }
 
       var name = code.name(id) || "";
-      return {c: klass, name: name, click: selectEditorItem, dblclick: closeSelectEditorItem, dragData: {value: dragId, type: "view"}, itemId: id, draggable: draggable, dragstart: dragItem, children: [
-        {c: "icon " + icon},
-        {text: name},
-        {c: "add-layer", text: "X", click: removeItem, id: id},
+      return {c: klass, name: name, mousein: foobar, click: selectEditorItem, dblclick: closeSelectEditorItem, dragData: {value: dragId, type: "view"}, itemId: id, draggable: draggable, dragstart: dragItem, children: [
+        {c: "spaced-row", children: [{c: "icon " + icon},{c: "label", text: name},]},
+        {c: deleteBottonVisibility+"delete ion-close", click: removeItem, id: id},
       ]};
     })
     items.sort(function(a, b) {
@@ -79,7 +80,7 @@ module itemList {
     });
     var width = 0;
     if(localState.showMenu) {
-      width = 200;
+      width = 235;
     }
     return {c: "editor-item-list", width:width, children: [
       {c: "adder", children: [
@@ -124,6 +125,10 @@ module itemList {
 
   function selectEditorItem(e, elem) {
     dispatch("selectItem", elem);
+  }
+
+  function foobar(e,elem) {
+    console.log("foo");
   }
 
   function closeSelectEditorItem(e, elem) {
