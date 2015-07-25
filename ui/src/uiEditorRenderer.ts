@@ -146,7 +146,7 @@ module uiEditorRenderer {
     var subLayers = parentLayerIndex[layerId];
     var bindingIndex = ixer.index("groupToBinding");
     var binding = bindingIndex[layerId];
-    var offset = elements && binding ? elementsToBoundingBox(elements) : {top: 0, left: 0, width: "100%", height: "100%"};
+    var offset = elements.length && binding ? elementsToBoundingBox(elements) : {top: 0, left: 0, width: "100%", height: "100%"};
     var boundRows;
     var layerChildren = [];
     var rowToKey = function(x: any) { return; };
