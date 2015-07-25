@@ -212,11 +212,8 @@ fn login(req: Request, mut res: Response<Fresh>) {
 
 											// Form the response headers
 											let mut headers = Headers::new();
-														//let foo = req.headers.get::<hyper::header::Host>();
 											let redirect_url = referer_url.scheme.clone() + "://" + referer_url.domain().unwrap().clone() + port + "/" + page;
 											let location = Location(redirect_url);
-											//let location = Location("http://192.168.106.142:8000/editor".to_owned());
-											//headers.set(Host{hostname:"192.168.106.142".to_owned(),port:Some(8000)});
 											let user_cookie = Cookie::new("userid".to_string(),session_data.user.id.clone());
 											let cookies = SetCookie(vec![user_cookie]);
 											headers.set(location);
