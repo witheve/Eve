@@ -26,7 +26,8 @@ $(function(){
     if (response.error) {
     	$("#login-errors").text(response.error);
     } else {
-    	window.location = window.location.origin + ":8000/login.html?page=" + document.getElementById('login_submit').getAttribute('target')  + "&token=" + response.token;
+    	window.location = window.location.origin + "/login.html?page=" + document.getElementById('login_submit').getAttribute('target')  + "&token=" + response.token;
+      debugger;
     }
   };
 });
@@ -45,7 +46,8 @@ $(function(){
     if (response.error) {
     	$("#signup-errors").text(response.error);
     } else {
-    	window.location = window.location.origin + ":8000/login.html?page=" + document.getElementById('signup_submit').getAttribute('target')  + "&token=" + response.token;
+    	window.location = window.location.origin + "/login.html?page=" + document.getElementById('signup_submit').getAttribute('target')  + "&token=" + response.token;
+      debugger;
     }
   };
 });

@@ -539,7 +539,7 @@ module uiEditor {
       (layerHRepeat ? " repeat-h" : "") +
       (layerScroll ? " overflow-scroll" : "") +
       (layerMask ? " overflow-hidden" : "");
-    return { c: klass, id: layerId, zIndex: layer["uiComponentLayer: layer"] + 1, children: subLayers.concat(els) };
+    return { c: klass, id: layerId, zIndex: layer["uiComponentLayer: layer"] + 1, children: els.concat(subLayers) };
   }
 
   function layersBox(componentId, layers, activeLayer) {
@@ -1264,14 +1264,13 @@ module uiEditor {
     if (selectionInfo) {
       // @TODO: Only show appropriate inspectors for each type based on trait instead of hardcoding.
 
-      var showMapInspector = selectionInfo.elements.every(function(cur) {
-        return cur[4] === "map";
-      });
+      var showMapInspector = selectionInfo.elements.every(function(cur) { return cur[4] === "map"; });
+      var showLinkInspector = selectionInfo.elements.every(function(cur) { return cur[4] === "link"; });
 
       inspectors.push(layoutInspector(selectionInfo, binding),
         appearanceInspector(selectionInfo, binding),
         textInspector(selectionInfo, binding),
-        linkInspector(selectionInfo, binding),
+        showLinkInspector ? linkInspector(selectionInfo, binding) : undefined,
         showMapInspector ? mapInspector(selectionInfo, binding) : undefined);
 
       //       var showMapInspector = selectionInfo.elements.every(function(cur) {
@@ -1673,14 +1672,14 @@ module uiEditor {
     });
 
     return {
-      c: "inspector-panel", children: [
-        { c: "title", text: "Map" },
+      c: "option-group map-attributes", children: [
+        { c: "title spaced-row", children: [{c: "ion-map"},{text: "Map"}] },
         {
-          c: "pair", children: [{ c: "label", text: "lat." },
+          c: "pair", children: [{ c: "label", text: "latitude" },
             inspectorInput(attrs["lat"], [componentId, "lat"], setMapAttribute, binding)]
         },
         {
-          c: "pair", children: [{ c: "label", text: "long." },
+          c: "pair", children: [{ c: "label", text: "longitude" },
             inspectorInput(attrs["lng"], [componentId, "lng"], setMapAttribute, binding)]
         },
         {
@@ -1700,10 +1699,10 @@ module uiEditor {
     var urlInput = inspectorInput(attrs.href || "", [componentId, "href"], setAttribute, binding); // @TODO: FINISH ME.
     urlInput.storeEvent = true;
     return {c: "option-group link-attributes", children: [
-      {c: "row spaced-row", children: [
-        {c: "label", text: "url"},
-        urlInput
-      ]}
+      { c: "title spaced-row", children: [{c: "ion-link"},{text: "Link"}] },
+      {
+        c: "pair", children: [{c: "label", text: "URL"}, urlInput]
+      },
     ]};
   }
 

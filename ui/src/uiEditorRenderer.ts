@@ -105,21 +105,40 @@ module uiEditorRenderer {
     }
   }
   
-  function getBoundRows(binding) {
+  function getBoundRows(binding, key?) {
     var sessionIx;
-    api.ixer.getFields(binding).forEach((field, ix) => {
-      if(code.name(field) === "session") {
+    var keys = [];
+    api.ixer.getFields(binding).forEach((fieldId, ix) => {
+      if(code.hasTag(fieldId, "key")) {
+          keys.push(fieldId);
+      }
+      if(code.name(fieldId) === "session") {
         sessionIx = ix; 
       } 
     });
+    var query = {};
     if(sessionIx !== undefined) {
-      return ixer.select(binding, {session: session});
-    } else {
-      return ixer.select(binding, {});  
+      query["session"] = session;
     }
-  }
+    
+    // If key is singular we can short circuit this filter for speed improvements at selection time.
+    var filterByKey = false;
+    if(key !== undefined && keys.length === 1) {
+      query[code.name(keys[0])] = key;
+    } else if(key !== undefined && keys.length > 1) {
+      filterByKey = true;
+    }
+    var rows = ixer.select(binding, query);
+    if(filterByKey) {
+      var rowToKey = rowToKeyFunction(binding);
+      rows = rows.filter(function(row) {
+        return rowToKey(row) === key;
+      });
+    }
+    return rows;
+   }
 
-  function renderLayer(layer) {
+  function renderLayer(layer, key?, rootOffset?) {
     var layerId = layer[1];
     var layerIx = layer[3];
     var elements = ixer.select("uiComponentElement", {layer: layerId});
@@ -127,26 +146,27 @@ module uiEditorRenderer {
     var subLayers = parentLayerIndex[layerId];
     var bindingIndex = ixer.index("groupToBinding");
     var binding = bindingIndex[layerId];
-    var offset = elements && binding ? elementsToBoundingBox(elements) : {top: 0, left: 0, width: "100%", height: "100%"};
+    var offset = elements.length && binding ? elementsToBoundingBox(elements) : {top: 0, left: 0, width: "100%", height: "100%"};
     var boundRows;
     var layerChildren = [];
-    var rowToKey = function(x: any) { return ""; };
+    var rowToKey = function(x: any) { return; };
     if(binding) {
-      boundRows = getBoundRows(binding);
+      boundRows = getBoundRows(binding, key);
       rowToKey = rowToKeyFunction(binding);
     } else {
       boundRows = [[]];
     }
+    var offsetForChildren = reverseOffsetBoundingBox(offset, rootOffset);
     boundRows.forEach(function(row) {
       var items = [];
       if(subLayers) {
         subLayers.forEach(function(subLayer) {
-          items.push(renderLayer(subLayer));
+          items.push(renderLayer(subLayer, rowToKey(row), offsetForChildren));
         })
       }
       if(elements) {
         elements.forEach(function(element) {
-          items.push(renderElement(element, offset, row, rowToKey(row)));
+          items.push(renderElement(element, offsetForChildren, row, rowToKey(row)));
         });
       }
       if(binding) {
@@ -163,7 +183,13 @@ module uiEditorRenderer {
       (layerScroll ? " overflow-scroll" : "") +
       (layerMask ? " overflow-hidden" : "");
 
-    return {c: klass, id: layerId, top: offset.top, left: offset.left, zIndex:layerIx, children: layerChildren};
+    return {c: klass, id: layerId + (key ? "::" + key : ""), top: offset.top, left: offset.left, zIndex:layerIx, children: layerChildren};
+  }
+  
+  function reverseOffsetBoundingBox(box, offset) {
+    if(!box || !offset) { return box; }
+    let result = {top: box.top + offset.top, left: box.left + offset.left, width: box.width, height: box.height, bottom: box.bottom, right: box.right};
+    return result;
   }
 
   function elementsToBoundingBox(elements) {
@@ -193,7 +219,7 @@ module uiEditorRenderer {
             width: finalRight - finalLeft, height: finalBottom - finalTop};
   }
 
-  function renderElement(element, offset, row, key) {
+  function renderElement(element, offset, row, key:string|void = "") {
     var elementId = element["uiComponentElement: id"];
     var type = element["uiComponentElement: control"];
     var left = element["uiComponentElement: left"];
