@@ -152,10 +152,8 @@ module drawn {
     }
   }
 
-// localState.drawnUiActiveId = "da7f9321-a4c9-4292-8cf6-5174f3ed2f11";
-// localState.drawnUiActiveId = "block field";
-// localState.drawnUiActiveId = "b43aad08-ab56-4cef-80f9-98f79a12b0ef";
-localState.drawnUiActiveId = false;
+  localState.drawnUiActiveId = false;
+  localState.errors = [];
 
   //---------------------------------------------------------
   // Node helpers
@@ -476,13 +474,11 @@ localState.drawnUiActiveId = false;
           // if it's a vector input this has to be a non-grouped, sourceChunked attribute
           // if it's a scalar input this has to be either grouped or a non-sourceChunked attribute
           if(primitiveNode.inputKind === "vector input" && (nonPrimitiveNode.grouped || !nonPrimitiveNode.sourceChunked)) {
-            // @TODO: what do we do as a user-level error reporting mechanism?
-            console.error("Attempted to use an invalid node as an input to an aggregate:", nonPrimitiveNode, primitiveNode);
-            return;
+            //we do this as a normal dispatch as we want to bail out in the error case.
+            return dispatch("setError", {errorText: "Aggregates require columns as input, try selecting the source and chunking it."});
           } else if(primitiveNode.inputKind === "scalar input" && !nonPrimitiveNode.grouped && nonPrimitiveNode.sourceChunked) {
-            // @TODO: what do we do as a user-level error reporting mechanism?
-            console.error("Attempted to use an invalid node as an input to a function:", nonPrimitiveNode, primitiveNode);
-            return;
+            //we do this as a normal dispatch as we want to bail out in the error case.
+            return dispatch("setError", {errorText: "Normal functions can't take columns as input, you could try unchunking the source or grouping this field."});
           }
           diffs.push(api.remove("constant (new)", {variable: primitiveNode.variable}));
         }
@@ -595,7 +591,8 @@ localState.drawnUiActiveId = false;
         var variableId = info.node.variable;
         var bindings = ixer.select("binding", {variable: variableId});
         if(bindings.length > 1) {
-          console.error("Cannot group an attribute that has multiple bindings, not sure what to do.");
+          //we do this as a normal dispatch as we want to bail out in the error case.
+          return dispatch("setError", {errorText: "Cannot group an attribute that has multiple bindings, not sure what to do."});
           return;
         }
         var sourceId = bindings[0]["binding: source"];
@@ -606,12 +603,30 @@ localState.drawnUiActiveId = false;
         var variableId = info.node.variable;
         var bindings = ixer.select("binding", {variable: variableId});
         if(bindings.length > 1) {
-          console.error("Cannot group an attribute that has multiple bindings, not sure what to do.");
-          return;
+          //we do this as a normal dispatch as we want to bail out in the error case.
+          return dispatch("setError", {errorText: "Cannot group an attribute that has multiple bindings, not sure what to do."});
         }
         var sourceId = bindings[0]["binding: source"];
         var fieldId = bindings[0]["binding: field"];
         diffs.push(api.remove("grouped field", {view: info.viewId, source: sourceId, field: fieldId}));
+      break;
+      //---------------------------------------------------------
+      // Errors
+      //---------------------------------------------------------
+      case "setError":
+        var errorId = localState.errors.length;
+        var newError: any = {text: info.errorText, time: api.now(), id: errorId};
+        newError.errorTimeout = setTimeout(() => dispatch("fadeError", {errorId}), 2000);
+        localState.errors.push(newError);
+      break;
+      case "fadeError":
+        var errorId = info.errorId;
+        var currentError = localState.errors[errorId];
+        currentError.fading = true;
+        currentError.errorTimeout = setTimeout(() => dispatch("clearError", {errorId: info.errorId}), 1000);
+      break;
+      case "clearError":
+        // localState.errors = false;
       break;
       //---------------------------------------------------------
       // Menu
@@ -684,11 +699,23 @@ localState.drawnUiActiveId = false;
           {c: "query-name-input", contentEditable: true, blur: setQueryName, viewId: viewId, text: code.name(viewId)},
           queryMenu(view),
           queryCanvas(view),
+          queryErrors(view),
         ]},
         showResults ? queryResults(viewId) : undefined
       ]}
 
     ]};
+  }
+
+  function queryErrors(view) {
+    let errors = localState.errors.map((error) => {
+      let klass = "error";
+      if(error.fading) {
+        klass += " fade";
+      }
+      return {c: klass, text: error.text};
+    }).reverse();
+    return {c: "query-errors", children: errors};
   }
 
   function queryTools(view) {

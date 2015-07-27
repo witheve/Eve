@@ -77,6 +77,17 @@ body { font-family:"Avenir"; }
 .table-editor > .table .rows { padding-left: 10px; height:100%; flex:1; }
 
 /*---------------------------------------------------------
+- errors
+---------------------------------------------------------*/
+
+.query-errors { position: absolute; top:10px; right:0; bottom:10px; align-items: flex-end; }
+.error { flex:none; margin-bottom:2px; padding:20px; width: 250px; height:120px; background: rgb(229, 197, 69); color: #222; border-radius:1px; overflow:hidden; }
+.error.fade { width: 20px; height: 5px; padding:0; color: transparent; transition: width 0.8s ease-in, height 0.8s ease-in, padding 0.8s ease-in, color 0.7s ease-in-out; }
+
+.query-errors:hover { overflow: auto; }
+.query-errors:hover .error.fade { transition: width 0.4s ease-in, height 0.4s ease-in, padding 0.4s ease-in, color 0.4s 0.2s ease-in-out; width:250px; height:120px; padding: 20px; color: #222; }
+
+/*---------------------------------------------------------
 - dark
 ---------------------------------------------------------*/
 

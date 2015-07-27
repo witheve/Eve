@@ -16,6 +16,13 @@ module api {
     operation?: Id,
   }
 
+  export function now() {
+    if (window.performance) {
+      return window.performance.now();
+    }
+    return (new Date()).getTime();
+  }
+
   export var arraysIdentical:(a:any[], b:any[])=>boolean = Indexing.arraysIdentical;
   export var zip:(keys:string[], rows:any[][])=>any[] = Indexing.zip;
   export var clone:<T>(item:T)=>T = Indexing.clone;
