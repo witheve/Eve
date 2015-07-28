@@ -281,15 +281,26 @@ module drawn {
 
   function addSourceFieldVariable(queryId, sourceViewId, sourceId, fieldId) {
     let diffs = [];
-    let kind = ixer.selectOne("field", {field: fieldId})["field: kind"];
+    let kind;
+    // check if we're adding an ordinal
+    if(fieldId === "ordinal") {
+      kind = "ordinal";
+    } else {
+      kind = ixer.selectOne("field", {field: fieldId})["field: kind"];
+    }
     // add a variable
     let variableId = uuid();
     diffs.push(api.insert("variable (new)", {view: queryId, variable: variableId}));
-    // bind the field to it
-    diffs.push(api.insert("binding (new)", {variable: variableId, source: sourceId, field: fieldId}));
-    if(kind === "output") {
+    if(kind === "ordinal") {
+      // create an ordinal binding
+      diffs.push(api.insert("ordinal binding", {variable: variableId, source: sourceId}));
+    } else {
+      // bind the field to it
+      diffs.push(api.insert("binding (new)", {variable: variableId, source: sourceId, field: fieldId}));
+    }
+    if(kind === "output" || kind === "ordinal") {
       // select the field
-      diffs.push.apply(diffs, dispatch("addSelectToQuery", {viewId: queryId, variableId: variableId, name: code.name(fieldId)}, true));
+      diffs.push.apply(diffs, dispatch("addSelectToQuery", {viewId: queryId, variableId: variableId, name: code.name(fieldId) || fieldId}, true));
     } else {
       // otherwise we're an input field and we need to add a default constant value
       diffs.push(api.insert("constant (new)", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
@@ -454,6 +465,11 @@ module drawn {
           let fieldId = binding["binding (new): field"];
           diffs.push(api.insert("binding (new)", {variable: variableId, source: sourceId, field: fieldId}));
         }
+        // check for an ordinal binding and move it over if it exists
+        var ordinalBinding = ixer.selectOne("ordinal binding", {variable: variableIdToRemove});
+        if(ordinalBinding) {
+          diffs.push(api.insert("ordinal binding", {variable: variableId, source: ordinalBinding["ordinal binding: source"]}));
+        }
 
         // remove the old variable
         diffs.push.apply(diffs, removeVariable(variableIdToRemove));
@@ -497,6 +513,12 @@ module drawn {
           let sourceViewId = ixer.selectOne("source", {source: sourceId})["source: source view"];
           diffs.push.apply(diffs, addSourceFieldVariable(queryId, sourceViewId, sourceId, fieldId));
           diffs.push(api.remove("binding (new)", {variable: variableIdToRemove, source: sourceId, field: fieldId}));
+        }
+        // check for an ordinal binding and create a new variable for it if it exists
+        var ordinalBinding = ixer.selectOne("ordinal binding", {variable: variableIdToRemove});
+        if(ordinalBinding) {
+          diffs.push.apply(diffs, addSourceFieldVariable(queryId, null, ordinalBinding["ordinal binding: source"], "ordinal"));
+          diffs.push(api.remove("ordinal binding", {variable: variableIdToRemove}));
         }
         // we have to check to make sure that if the original binding represents an input it gets a default
         // added to it to prevent the server from crashing
@@ -935,6 +957,16 @@ module drawn {
         let name = "";
         let singleBinding = bindings.length === 1;
 
+        // check if an ordinal is bound here.
+        if(ordinals.length) {
+          let sourceNode = nodeLookup[ordinals[0]["ordinal binding: source"]];
+          if(sourceNode) {
+            let link: any = {left: attribute, right: sourceNode, name: "ordinal"};
+            links.push(link);
+          }
+          name = "ordinal";
+        }
+
         // run through the bindings once to determine if it's an entity, what it's name is,
         // and all the other properties of this node.
         for(let binding of bindings) {
@@ -981,7 +1013,7 @@ module drawn {
           links.push(link);
         }
         attribute.name = name;
-        attribute.mergedAttributes = bindings.length > 1 ? bindings : undefined;
+        attribute.mergedAttributes = bindings.length + ordinals.length > 1 ? bindings : undefined;
         attribute.entity = entity;
         attribute.select = ixer.selectOne("select (new)", {variable: variableId});
         for(var constant of constants) {
