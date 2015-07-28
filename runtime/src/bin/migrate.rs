@@ -86,7 +86,7 @@ fn compact(filename: &str) {
 
 fn make_bug_test() {
     let events = read_events("./events");
-    let time = time::precise_time_ns();
+    let time = time::get_time().sec;
     let input_filename = format!("./test-inputs/bug-{}", time);
     let output_filename = format!("./test-outputs/bug-{}", time);
     write_events(&input_filename[..], &events[..]);
@@ -100,7 +100,7 @@ fn make_regression_test() {
     for event in bootstrap_events.into_iter().chain(events.into_iter()) {
         flow.quiesce(event.changes);
     }
-    let time = time::precise_time_ns();
+    let time = time::get_time().sec;
     let input_filename = format!("./test-inputs/regression-{}", time);
     let output_filename = format!("./test-outputs/regression-{}", time);
     write_events(&input_filename[..], &[Event{changes: flow.as_changes(), session: "".to_owned()}]);
