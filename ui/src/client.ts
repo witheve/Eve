@@ -135,10 +135,27 @@ module client {
         console.log("slow parse (> 5ms):", time);
       }
 
+      // For an explanation of what changes are synced, check: <https://github.com/Kodowa/Eve/blob/master/design/sync.md>
       var changes = [];
-      for(var change of data.changes) {
-        var [view, fields, inserts, removes] = change;
-        if (!api.code.hasTag(view, "editor")) {
+      for(let change of data.changes) {
+        let [view, fields, inserts, removes] = change;
+        if(api.code.hasTag(view, "client")) { // If view is client-controlled, discard any changes originating from our session.
+          var sessionFieldIx:number;
+          for(let fieldIx = 0; fieldIx < fields.length; fieldIx++) {
+            if(api.code.hasTag(fields[fieldIx], "session")) {
+              sessionFieldIx = fieldIx;
+              break;
+            }
+          }
+          if(sessionFieldIx === undefined) { throw new Error(`Client-controlled view: '${view}' must contain exactly one field tagged "session". `); }
+          function filterFactsBySession(fact) {
+            return fact[sessionFieldIx] !== data.session;
+          }
+          let neueChange = [view, fields, inserts.filter(filterFactsBySession), removes.filter(filterFactsBySession)];
+          changes.push(neueChange);
+          
+        } else if (!api.code.hasTag(view, "editor")) {
+          // If view is editor controlled, we discard all changes.
           changes.push(change);
         }
       }
