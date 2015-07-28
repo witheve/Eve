@@ -1593,9 +1593,13 @@ pub fn bootstrap(flow: &mut Flow) {
             tag_table.index.insert(vec![string!("{}", view), string!("hidden")]);
         }
 
-        for (view, _) in client_schema().into_iter() {
+        for (view, fields) in client_schema().into_iter() {
             tag_table.index.insert(vec![string!("{}", view), string!("client")]);
             tag_table.index.insert(vec![string!("{}", view), string!("hidden")]);
+            let has_session = fields.into_iter().any(|name| name == "session");
+            if has_session {
+                tag_table.index.insert(vec![string!("{}: {}", view, "session"), string!("session")]);
+            }
         }
 
         for (view, names) in schema.into_iter() {
