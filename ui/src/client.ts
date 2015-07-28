@@ -206,74 +206,34 @@ module client {
         }
       }
     };
-
-    ws.onopen = function() {
-      server.connected = true;
-      for (var i = 0, len = queue.length; i < len; i++) {
-        sendToServer(queue[i], false);
-      }
-    }
   }
 
   export function sendToServer(message, formatted?) {
     if (!server.connected) {
-      console.log("not connected");
+      console.warn("Not connected to server, adding message to queue.");
       server.queue.push(message);
     } else {
-      // console.log("sending", message);
       if (!formatted) {
         message = toMapDiffs(message);
       }
-      var payload = { changes: [] };
-      var specialPayload = { changes: [] };
-
-      for (var ix = 0; ix < message.changes.length; ix++) {
-        var table = message.changes[ix][0];
-        if (api.code.hasTag(table, "code")) {
-          specialPayload.changes.push(message.changes[ix]);
-        } else {
-          payload.changes.push(message.changes[ix]);
-        }
-      }
+      var payload = message;
 
       if (DEBUG.SEND) {
         var stats = getDataStats(payload);
-        var specialStats = getDataStats(specialPayload);
-        if (stats.adds || stats.removes || specialStats.adds || specialStats.removes) {
-          var header = "[client:sent][+" + (stats.adds + specialStats.adds) + "/-" + (stats.removes + specialStats.removes) + "]";
-          console.groupCollapsed(pad(header, formatTime(undefined), undefined, undefined));
-
-          if (specialStats.adds || specialStats.removes) {
-            var header = "[special][+" + specialStats.adds + "/-" + specialStats.removes + "]";
-            console.group(header);
-            if (specialStats.malformedDiffs.length) {
-              console.warn("The following views have malformed diffs:", specialStats.malformedDiffs);
-            }
-            if (stats.badValues.length) {
-              console.warn("The following views have bad values:", stats.badValues);
-            }
-            writeDataToConsole(specialPayload, DEBUG.SEND);
-            console.groupEnd();
+        if (stats.adds || stats.removes) {
+          var header = `[client:sent][+${stats.adds}/-${stats.removes}]`;
+          console.groupCollapsed(pad(header, formatTime()));
+          if (stats.malformedDiffs.length) {
+            console.warn("The following views have malformed diffs:", stats.malformedDiffs);
           }
-          if (stats.adds || stats.removes) {
-            var header = "[normal][+" + stats.adds + "/-" + stats.removes + "]";
-            console.group(header);
-            if (stats.malformedDiffs.length) {
-              console.warn("The following views have malformed diffs:", stats.malformedDiffs);
-            }
-            if (stats.badValues.length) {
-              console.warn("The following views have bad values:", stats.badValues);
-            }
-            writeDataToConsole(payload, DEBUG.SEND);
-            console.groupEnd();
+          if (stats.badValues.length) {
+            console.warn("The following views have bad values:", stats.badValues);
           }
+          writeDataToConsole(payload, DEBUG.SEND);
           console.groupEnd();
         }
       }
 
-      if (specialPayload.changes.length) {
-        server.ws.send(CBOR.encode(specialPayload));
-      }
       if (payload.changes.length) {
         server.ws.send(CBOR.encode(payload));
       }
