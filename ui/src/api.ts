@@ -46,7 +46,10 @@ module api {
     UP: 38,
     DOWN: 40,
     ENTER: 13,
-    Z: 90
+    Z: 90,
+    F: 70,
+    ESC: 27,
+    SPACE: 32,
   };
 
 

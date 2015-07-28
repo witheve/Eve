@@ -2,6 +2,7 @@
 /// <reference path="../src/api.ts" />
 /// <reference path="../src/client.ts" />
 /// <reference path="../src/tableEditor.ts" />
+/// <reference path="../src/glossary.ts" />
 module eveEditor {
   var localState = api.localState;
   var ixer = api.ixer;
@@ -651,6 +652,36 @@ module drawn {
         // localState.errors = false;
       break;
       //---------------------------------------------------------
+      // search
+      //---------------------------------------------------------
+      case "updateSearch":
+        localState.searchingFor = info.value;
+        localState.searchResults = searchResultsFor(info.value);
+      break;
+      case "startSearching":
+        localState.searching = true;
+        diffs.push.apply(diffs, dispatch("updateSearch", {value: info.value || ""}, true));
+      break;
+      case "stopSearching":
+        localState.searching = false;
+      break;
+      case "handleSearchKey":
+        if(info.keyCode === api.KEYS.ENTER) {
+          // @TODO: execute an action
+          let currentSearchGroup = localState.searchResults[0];
+          if(currentSearchGroup && currentSearchGroup.results.length) {
+            let results = currentSearchGroup.results;
+            currentSearchGroup.onSelect(null, {result: currentSearchGroup.results[results.length - 1]});
+          }
+          diffs.push.apply(diffs, dispatch("stopSearching", {}, true));
+        } else if(info.keyCode === api.KEYS.ESC) {
+          diffs.push.apply(diffs, dispatch("stopSearching", {}, true));
+        } else if(info.keyCode === api.KEYS.F && (info.ctrlKey || info.metaKey)) {
+          diffs.push.apply(diffs, dispatch("stopSearching", {}, true));
+          info.e.preventDefault();
+        }
+      break;
+      //---------------------------------------------------------
       // Menu
       //---------------------------------------------------------
       case "showMenu":
@@ -673,6 +704,93 @@ module drawn {
       render();
     }
     return diffs;
+  }
+
+  //---------------------------------------------------------
+  // Search
+  //---------------------------------------------------------
+
+  function scoreHaystack(haystack, needle) {
+    let score = 0;
+    let found = {};
+    let lowerHaystack = haystack.toLowerCase();
+    if(needle.length === 1 && haystack === needle[0]) {
+      score += 2;
+    }
+    for(let word of needle) {
+      let ix = lowerHaystack.indexOf(word);
+      if(ix === 0) {
+        score += 1;
+      }
+      if(ix > -1) {
+        score += 1;
+        found[word] = ix;
+      }
+    }
+    return {score, found};
+  }
+
+  function sortByScore(a, b) {
+    let aScore = a.score.score;
+    let bScore = b.score.score;
+    if(aScore === bScore) {
+      return b.text.length - a.text.length;
+    }
+    return aScore - bScore;
+  }
+
+  function searchResultsFor(searchValue) {
+    let start = api.now();
+    let needle = searchValue.trim().toLowerCase().split(" ");
+    // search results should be an ordered set of maps that contain the kind of results
+    // being provided, the ordered set of results, and a selection handler
+    let searchResults = [];
+
+    let rels = searchRelations(needle);
+    if(rels) searchResults.push(rels);
+
+    let glossary = searchGlossary(needle);
+    if(glossary) searchResults.push(glossary);
+
+    let end = api.now();
+    if(end - start > 5) {
+      console.error("Slow search (>5 ms):", end - start, searchValue);
+    }
+    return searchResults;
+  }
+
+  function searchRelations(needle) {
+    let matchingViews = [];
+    for(let view of ixer.select("view", {})) {
+      let id = view["view: view"];
+      let name = code.name(view["view: view"]);
+      let score = scoreHaystack(name, needle);
+      if(score.score) {
+        let description = ixer.selectOne("view description", {view: id});
+        if(description) {
+          description = description["view description: description"];
+        } else {
+          description = "No description :(";
+        }
+        matchingViews.push({text: name, viewId: id, score, description});
+      }
+    }
+    matchingViews.sort(sortByScore);
+    return {kind: "Sources", results: matchingViews, onSelect: (e, elem) => {
+      dispatch("addViewToQuery", {viewId: elem.result.viewId});
+    }};
+  }
+
+  function searchGlossary(needle) {
+    let matchingTerms = [];
+    for(let term of glossary.terms) {
+      let score = scoreHaystack(term.term, needle);
+      if(score.score) {
+        matchingTerms.push({text: term.term, description: term.description, score});
+      }
+    }
+    matchingTerms.sort(sortByScore);
+    return {kind: "Glossary", results: matchingTerms, onSelect: () => { console.log("selected glossary item")}};
   }
 
   //---------------------------------------------------------
@@ -766,9 +884,7 @@ module drawn {
     // no selection
     if(!selectedNodes.length) {
       tools.push.apply(tools, [
-        {c: "tool", text: "Entity"},
-        {c: "tool", text: "Attribute"},
-        {c: "tool", text: "Relationship", click: showCanvasMenu},
+        {c: "tool", text: "Search", click: startSearching},
       ]);
 
     // single selection
@@ -817,7 +933,54 @@ module drawn {
     } else {
 
     }
-    return {c: "query-tools", children: tools};
+    return {c: "left-side-container", children: [
+      {c: "query-tools", children: tools},
+      querySearcher()
+    ]};
+  }
+
+  function querySearcher() {
+    if(!localState.searching) return;
+    let results = localState.searchResults;
+    let resultGroups = [];
+    if(results) {
+      resultGroups = results.map((resultGroup) => {
+        let onSelect = resultGroup.onSelect;
+        let items = resultGroup.results.map((result) => {
+          return {c: "search-result-item", result, click: onSelect, children: [
+            {c: "result-text", text: result.text},
+            result.description ? {c: "result-description", text: result.description} : undefined,
+          ]};
+        });
+        return {c: "search-result-group", children: [
+          {c: "search-result-items", children: items},
+          {c: "group-type", text: resultGroup.kind},
+        ]}
+      });
+    }
+    return {c: "searcher-container", children: [
+      {c: "searcher-shade", click: stopSearching},
+      {c: "searcher", children: [
+        {c: "search-results", children: resultGroups},
+        {c: "search-box", contentEditable: true, postRender: focusOnce, text: localState.searchingFor, input: updateSearch, keydown: handleSearchKey}
+      ]}
+    ]};
+  }
+
+  function handleSearchKey(e, elem) {
+    dispatch("handleSearchKey", {keyCode: e.keyCode, metaKey: e.metaKey, ctrlKey: e.ctrlKey, e});
+  }
+
+  function startSearching(e, elem) {
+    dispatch("startSearching", {value: elem.searchValue});
+  }
+
+  function stopSearching(e, elem) {
+    dispatch("stopSearching", {});
+  }
+
+  function updateSearch(e, elem) {
+    dispatch("updateSearch", {value: e.currentTarget.textContent});
   }
 
   function groupAttribute(e, elem) {
@@ -994,6 +1157,8 @@ module drawn {
             attribute.sourceHasOrdinal = attribute.sourceHasOrdinal || sourceNode.hasOrdinal;
           }
         }
+
+
         // the final name of the node is either the entity name or the whichever name we picked
         name = entity || name;
         // now that it's been named, go through the bindings again and create links to their sources
@@ -1314,7 +1479,7 @@ module drawn {
 
   document.addEventListener("keydown", function(e) {
     var KEYS = api.KEYS;
-    //Don't capture keys if they are
+    //Don't capture keys if we're focused on an input of some kind
     var target: any = e.target;
     if(e.defaultPrevented
        || target.nodeName === "INPUT"
@@ -1332,6 +1497,11 @@ module drawn {
     //remove
     if(e.keyCode === KEYS.BACKSPACE) {
       dispatch("removeSelection", null);
+      e.preventDefault();
+    }
+
+    if((e.ctrlKey || e.metaKey) && e.keyCode === KEYS.F) {
+      dispatch("startSearching", {value: ""});
       e.preventDefault();
     }
 
