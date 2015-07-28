@@ -15,25 +15,26 @@ module client {
     }
     return (new Date()).getTime();
   }
+  
+  function isUndefined(val) {
+    return val === undefined;
+  }
 
+  /* Integrated Debugging Tooling */
   export function nukeTable(viewId) { // from orbit
     var fieldIds = api.code.sortedViewFields(viewId);
     var toRemove = api.ixer.facts(viewId);
     sendToServer({ changes: [[viewId, fieldIds, [], toRemove]]}, true);
   }
 
-
-
-  function formatTime(time) {
+  function formatTime(time?) {
     time = time || new Date();
     return pad("", time.getHours(), "0", 2) + ":" + pad("", time.getMinutes(), "0", 2) + ":" + pad("", time.getSeconds(), "0", 2);
   }
 
-  function pad(left, right, pad, length) {
+  function pad(left, right = "", pad = " ", length = 120) {
     left = "" + left;
     right = "" + right;
-    pad = (pad !== undefined) ? pad : " ";
-    length = (length !== undefined) ? length : 120;
 
     var padding = "";
     var delta = length - left.length - right.length;
@@ -44,42 +45,40 @@ module client {
   }
 
   function writeDataToConsole(data, verbosity) {
-    var console: any = window.console;
     verbosity = +verbosity;
+    var consoleTable = console["table"] || console.log.bind(console);
     data.changes.forEach(function(change) {
       if (change[2].length || change[3].length) {
         if (verbosity == 1) {
-          console.log(" ", change[0], "+" + change[2].length + "/-" + change[3].length);
+          console.log(" ", change[0], `+${change[2].length}/-${change[3].length}`);
         }
         if (verbosity == 2) {
-          console.log(" ", change[0], "+" + change[2].length + "/-" + change[3].length,
+          console.log(" ", change[0], `+${change[2].length}/-${change[3].length}`,
             { fields: change[1], inserts: change[2], removes: change[3] });
         }
         if (verbosity == 3) {
-          console.log(" ", change[0], "+" + change[2].length + "/-" + change[3].length);
-          console.groupCollapsed("   inserts", change[1]);
-          console.table(change[2]);
+          console.log(" ", change[0], `+${change[2].length}/-${change[3].length}`);
+          console.groupCollapsed(`   inserts ${change[1]}`);
+          consoleTable(change[2]);
           console.groupEnd();
-          console.groupCollapsed("   removes", change[1]);
-          console.table(change[3]);
+          console.groupCollapsed(`   removes ${change[1]}`);
+          consoleTable(change[3]);
           console.groupEnd();
         }
       }
     });
   }
 
-  function isUndefined(val) {
-    return val === undefined;
-  }
-
-  function getDataStats(data) {
+  // Generate debugging information on incoming or outgoing payloads.
+  function getDataStats(data:Indexing.Payload) {
     var totalAdds = 0;
     var totalRemoves = 0;
-    var malformedDiffs = [];
-    var badValues = [];
+    var malformedDiffs:string[] = [];
+    var badValues:string[] = [];
     data.changes.forEach(function(change) {
       totalAdds += change[2].length;
       totalRemoves += change[3].length;
+      // Simple check to notify programmers of definitely unhealthy payloads they may be sending.
       var hasMalformedDiffs = false;
       var hasBadValues = false;
       change[2].forEach(function(diff) {
@@ -147,8 +146,8 @@ module client {
       if (DEBUG.RECEIVE) {
         var stats = getDataStats({changes: changes});
         if (stats.adds || stats.removes) {
-          var header = "[client:received][+" + stats.adds + "/-" + stats.removes + "]";
-          console.groupCollapsed(pad(header, formatTime(null), undefined, undefined));
+          var header = `[client:received][+${stats.adds}/-${stats.removes}]`;
+          console.groupCollapsed(pad(header, formatTime()));
           if (stats.malformedDiffs.length) {
             console.warn("The following views have malformed diffs:", stats.malformedDiffs);
           }
@@ -158,27 +157,31 @@ module client {
           writeDataToConsole({ changes: changes }, DEBUG.RECEIVE);
           console.groupEnd();
         }
+        
+        start = now();      
       }
-
-      var start = now();
 
       ixer.handleMapDiffs(changes);
 
+      // If we haven't initialized the client yet, do so after we've handled the initial payload, so it can be accessed via the indexer.
+      var initializing = !server.initialized;
+      server.initialized = true;
       if (initializing) {
-        var eventId = (ixer.facts("client event") || []).length;
+        var eventId = (ixer.facts("client event") || []).length; // Ensure eids are monotonic across sessions.
         uiEditorRenderer.setEventId(eventId);
-        uiEditorRenderer.setSessionId(data.session);
-        var neueDiffs = api.diff.computePrimitives();
-
+        uiEditorRenderer.setSessionId(data.session); // Store server-assigned session id for use in client-controlled tables.
+        var neueDiffs = api.diff.computePrimitives(); // @FIXME: This will be obsolete once bootstrapped.
         ixer.handleDiffs(neueDiffs);
         for(var initFunc of afterInitFuncs) {
           initFunc();
         }
       }
 
-      var time = now() - start;
-      if (time > 5) {
-        console.log("slow handleDiffs (> 5ms):", time);
+      time = now() - start;
+      if(DEBUG.RECEIVE) {
+        if (time > 5) {
+          console.log("slow handleDiffs (> 5ms):", time);
+        }
       }
 
       dispatcher.render();
@@ -266,8 +269,9 @@ module client {
       final[table][action].push(fact);
     }
 
+    // If fields are added to a view at the same time as new data is, our local fields list will be out of sync.
+    // neueFields will contain any additional fields we need to include in the mapping we send to the server.
     var neueFields = {};
-
     for (var fieldIx = 0; final.field && fieldIx < final.field.inserted.length; fieldIx++) {
       // @FIXME: These must be inserted in order to work.
       // @FIXME: Does not account for removed fields, only appended fields.
@@ -281,7 +285,7 @@ module client {
     var changes = [];
     for (var table in final) {
       if(!final[table]) continue;
-      var fieldIds = api.code.sortedViewFields(table) || [];
+      var fieldIds = api.ixer.getFields(table) || [];
       fieldIds = fieldIds.concat(neueFields[table] || []);
 
       changes.push([table, fieldIds, final[table].inserted, final[table].removed]);
@@ -297,5 +301,4 @@ module client {
   document.addEventListener("DOMContentLoaded", function() {
     connectToServer();
   });
-
 }
