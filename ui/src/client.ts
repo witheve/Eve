@@ -112,37 +112,34 @@ module client {
     var ws = new WebSocket(wsAddress, []);
     server.ws = ws;
 
-    ws.onerror = function(error) {
+    ws.onerror = ws.onclose = function(error) {
       server.dead = true;
-      throw(error);
-    };
-
-    ws.onclose = function() {
       var error_banner = document.createElement("div");
-      error_banner.innerHTML = "Error: Eve Server is Dead!";
+      error_banner.innerHTML = `Error: Eve Server is Dead! ${error ? `Reason: ${error}` : ""}`;
       error_banner.setAttribute("class","dead-server-banner");
       document.body.appendChild(error_banner);
+    }
+    
+    ws.onopen = function() {
+      server.connected = true;
+      for (var i = 0, len = queue.length; i < len; i++) {
+        sendToServer(queue[i], false);
+      }
     }
 
     ws.onmessage = function(e) {
       var start = now();
+      var time:number;
       var data = JSON.parse(e.data);
       var time = now() - start;
       if (time > 5) {
         console.log("slow parse (> 5ms):", time);
       }
 
-      var initializing = false;
-
-      if (!server.initialized) {
-        server.initialized = true;
-        initializing = true;
-      }
-
       var changes = [];
       for(var change of data.changes) {
         var [view, fields, inserts, removes] = change;
-        if (initializing || api.code.hasTag(view, "remote")) {
+        if (!api.code.hasTag(view, "editor")) {
           changes.push(change);
         }
       }
