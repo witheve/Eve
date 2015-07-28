@@ -618,6 +618,9 @@ fn plan(flow: &Flow) {
                 };
             });
         });
+        find!(ordinal_binding_table, [(= variable), source], {
+            insert!(provides_table, [view, source, variable]);
+        });
     });
 
     let mut source_schedule_ish_pre_table = flow.overwrite_output("source schedule* (pre)");
@@ -661,14 +664,6 @@ fn plan(flow: &Flow) {
 
         find!(schedulable_source_table, [view, source], {
             find!(provides_table, [(= view), (= source), variable], {
-                dont_find!(variable_schedule_pre_table, [(= view), _, (= variable)], {
-                    insert!(variable_schedule_pre_table, [view, Float(pass as f64), variable]);
-                });
-            });
-        });
-
-        find!(schedulable_source_table, [view, source], {
-            find!(ordinal_binding_table, [variable, (= source)], {
                 dont_find!(variable_schedule_pre_table, [(= view), _, (= variable)], {
                     insert!(variable_schedule_pre_table, [view, Float(pass as f64), variable]);
                 });
