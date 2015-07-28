@@ -46,7 +46,7 @@ module client {
 
   function writeDataToConsole(data, verbosity) {
     verbosity = +verbosity;
-    var consoleTable = console["table"] || console.log.bind(console);
+    var consoleTable = console["table"].bind(console) || console.log.bind(console);
     data.changes.forEach(function(change) {
       if (change[2].length || change[3].length) {
         if (verbosity == 1) {
@@ -101,6 +101,16 @@ module client {
     return { adds: totalAdds, removes: totalRemoves, malformedDiffs: malformedDiffs, badValues: badValues };
   }
 
+  function filterFactsBySession<T>(facts:T[], sessionFieldIx:number, session:string) {
+    var neue:T[] = [];
+    for(let fact of facts) {
+      if(fact[sessionFieldIx] !== session) {
+        neue.push(fact);
+      }
+    }
+    return neue;
+  }
+
   var server = { connected: false, queue: [], initialized: false, lastSent: [], ws: null, dead: false };
   function connectToServer() {
     var queue = server.queue;
@@ -139,7 +149,8 @@ module client {
       var changes = [];
       for(let change of data.changes) {
         let [view, fields, inserts, removes] = change;
-        if(api.code.hasTag(view, "client")) { // If view is client-controlled, discard any changes originating from our session.
+        if(api.code.hasTag(view, "client")) {
+          // If view is client-controlled, discard any changes originating from our session.
           var sessionFieldIx:number;
           for(let fieldIx = 0; fieldIx < fields.length; fieldIx++) {
             if(api.code.hasTag(fields[fieldIx], "session")) {
@@ -147,15 +158,17 @@ module client {
               break;
             }
           }
-          if(sessionFieldIx === undefined) { throw new Error(`Client-controlled view: '${view}' must contain exactly one field tagged "session". `); }
-          function filterFactsBySession(fact) {
-            return fact[sessionFieldIx] !== data.session;
-          }
-          let neueChange = [view, fields, inserts.filter(filterFactsBySession), removes.filter(filterFactsBySession)];
-          changes.push(neueChange);
+
+          changes.push([view,
+                        fields,
+                        filterFactsBySession(inserts, sessionFieldIx, data.session),
+                        filterFactsBySession(removes, sessionFieldIx, data.session)]);
           
-        } else if (!api.code.hasTag(view, "editor")) {
+        } else if (api.code.hasTag(view, "editor")) {
           // If view is editor controlled, we discard all changes.
+          continue;
+        } else {
+          // If view is server controlled, accept all changes.
           changes.push(change);
         }
       }
