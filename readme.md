@@ -11,3 +11,15 @@ Take a broken events file and add a test that asserts that it doesn't crash:
 ```
 cargo run --release --bin=migrate make_bug_test
 ```
+
+Remove all changes to a view from all events files:
+
+```
+cargo run --release --bin=migrate remove_view 'block field'
+```
+
+Remove a specific row from a view from all events files:
+
+```
+cargo run --release --bin=migrate remove_row 'tag' '["block field", "editor"]'
+```

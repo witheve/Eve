@@ -13,6 +13,7 @@ use rustc_serialize::json::{ToJson, Json};
 use eve::server::*;
 use eve::flow::*;
 use eve::compiler::*;
+use eve::value::*;
 
 fn read_events(filename: &str) -> Vec<Event> {
     let mut events_string = String::new();
@@ -49,11 +50,25 @@ fn all_filenames() -> Vec<String> {
     filenames
 }
 
-fn remove_view(id: &str) {
+fn remove_view(view: &str) {
     for filename in all_filenames() {
         let mut events = read_events(&filename[..]);
         for event in events.iter_mut() {
-            event.changes.retain(|&(ref change_id, _)| change_id != id);
+            event.changes.retain(|&(ref change_view, _)| change_view != view);
+        }
+        write_events(&filename[..], &events[..]);
+    }
+}
+
+fn remove_row(view: &str, row: Vec<Value>) {
+    for filename in all_filenames() {
+        let mut events = read_events(&filename[..]);
+        for event in events.iter_mut() {
+            for &mut (ref change_view, ref mut change) in event.changes.iter_mut() {
+                if change_view == view {
+                    change.insert.retain(|insert_row| *insert_row != row)
+                }
+            }
         }
         write_events(&filename[..], &events[..]);
     }
@@ -145,7 +160,8 @@ fn main() {
     let args = env::args().collect::<Vec<String>>();
     let borrowed_args = args.iter().map(|s| &s[..]).collect::<Vec<&str>>();
     match &borrowed_args[..] {
-        [_, "remove_view", id] => remove_view(id),
+        [_, "remove_view", view] => remove_view(view),
+        [_, "remove_row", view, row] => remove_row(view, FromJson::from_json(&Json::from_str(&row).unwrap())),
         [_, "reset_internal_views"] => reset_internal_views(),
         [_, "compact", filename] => compact(filename),
         [_, "make_bug_test"] => make_bug_test(),
