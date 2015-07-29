@@ -99,8 +99,8 @@ fn compact(filename: &str) {
     write_events(&filename[..], &[Event{changes: flow.as_changes(), session: "".to_owned()}]);
 }
 
-fn make_bug_test() {
-    let events = read_events("./events");
+fn make_bug_test(filename: &str) {
+    let events = read_events(filename);
     let time = time::get_time().sec;
     let input_filename = format!("./test-inputs/bug-{}", time);
     let output_filename = format!("./test-outputs/bug-{}", time);
@@ -108,9 +108,9 @@ fn make_bug_test() {
     write_events(&output_filename[..], &[]);
 }
 
-fn make_regression_test() {
+fn make_regression_test(filename: &str) {
     let bootstrap_events = read_events("./bootstrap");
-    let events = read_events("./events");
+    let events = read_events(filename);
     let mut flow = Flow::new();
     for event in bootstrap_events.into_iter().chain(events.into_iter()) {
         flow.quiesce(event.changes);
@@ -164,8 +164,8 @@ fn main() {
         [_, "remove_row", view, row] => remove_row(view, FromJson::from_json(&Json::from_str(&row).unwrap())),
         [_, "reset_internal_views"] => reset_internal_views(),
         [_, "compact", filename] => compact(filename),
-        [_, "make_bug_test"] => make_bug_test(),
-        [_, "make_regression_test"] => make_regression_test(),
+        [_, "make_bug_test", filename] => make_bug_test(filename),
+        [_, "make_regression_test", filename] => make_regression_test(filename),
         other => panic!("Bad arguments (look at src/bin/migrate.rs for correct usage): {:?}", &other[1..]),
     }
 }

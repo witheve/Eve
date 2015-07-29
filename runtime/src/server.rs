@@ -196,14 +196,14 @@ pub fn handle_event(server: &mut Server, event: Event, event_json: Json) {
     }
 }
 
-pub fn run() {
+pub fn run(filename: &str) {
     let mut flow = Flow::new();
     time!("reading saved state", {
         load(&mut flow, "./bootstrap");
-        load(&mut flow, "./events");
+        load(&mut flow, filename);
     });
 
-    let events = OpenOptions::new().write(true).append(true).open("./events").unwrap();
+    let events = OpenOptions::new().write(true).append(true).open(filename).unwrap();
     let senders: Vec<sender::Sender<WebSocketStream>> = Vec::new();
 
     let mut server = Server{flow: flow, events: events, senders: senders};
