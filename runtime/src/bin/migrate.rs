@@ -36,7 +36,7 @@ fn write_events(filename: &str, events: &[Event]) {
 fn all_filenames() -> Vec<String> {
     let mut filenames = vec![];
     filenames.push("./events".to_owned());
-    filenames.push("./boostrap".to_owned());
+    filenames.push("./bootstrap".to_owned());
     for entry in walk_dir("./test-inputs").unwrap() {
         filenames.push(entry.unwrap().path().to_str().unwrap().to_owned());
     }
