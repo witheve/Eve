@@ -205,13 +205,9 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("compiler index layout", vec!["view", "ix", "field", "name"]),
     ("default index layout", vec!["view", "ix", "field", "kind"]),
     ("constrained binding", vec!["variable", "source", "field"]),
-    // TODO currently grouping does not work on primitives
-    // TODO if sorting / grouping is not specified then sort order is undefined behaviour
-    ("chunked source", vec!["view", "source"]),
-    ("grouped field", vec!["view", "source", "field"]),
-    ("sorted field", vec!["view", "source", "ix", "field", "direction"]),
-    ("ordinal binding", vec!["variable", "source"]),
     ("number of fields", vec!["view", "num"]),
+    ("non-sorted field (pre)", vec!["view", "source", "field"]),
+    ("non-sorted field", vec!["view", "source", "ix", "field"]),
 
     // layout for `create`
     // TODO these names are awful...
@@ -225,6 +221,7 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("select layout", vec!["view ix", "ix", "variable ix"]),
     ("grouped field layout", vec!["view ix", "source ix", "field ix"]),
     ("sorted field layout", vec!["view ix", "source ix", "ix", "field ix", "direction"]),
+    ("non-sorted field layout", vec!["view ix", "source ix", "ix", "field ix"]),
     ]
 }
 
@@ -441,6 +438,8 @@ fn migrate(flow: &Flow) {
     // let aggregate_limit_to_table = flow.get_output("aggregate limit to");
     let select_table = flow.get_output("select");
 
+    let binding_new_table = flow.get_output("binding (new)");
+
     let mut constraint_ish_table = flow.overwrite_output("constraint*");
     find!(constraint_table, [constraint, view], {
         find!(constraint_operation_table, [(= constraint), operation], {
@@ -494,7 +493,6 @@ fn migrate(flow: &Flow) {
 
     let mut variable_table = flow.overwrite_output("variable");
     let mut binding_table = flow.overwrite_output("binding");
-    let mut binding_new_table = flow.get_output("binding (new)");
     find!(eq_group_table, [view, source, field, group_source, group_field], {
         dont_find!(binding_new_table, [_, (= group_source), (= group_field)], {
             let variable = &string!("{}->{}->{}", view.as_str(), group_source.as_str(), group_field.as_str());
@@ -750,7 +748,25 @@ fn plan(flow: &Flow) {
     let mut number_of_fields_table = flow.overwrite_output("number of fields");
     count_by(&*index_layout_table, &mut *number_of_fields_table, &["view"]);
 
-    // rest is just denormalising for `create`
+    let mut non_sorted_field_pre_table = flow.overwrite_output("non-sorted field (pre)");
+    find!(view_table, [view, kind], {
+        if kind.as_str() == "join" {
+            find!(source_table, [(= view), source, source_view], {
+                find!(field_table, [(= source_view), field, _], {
+                    dont_find!(grouped_field_table, [(= view), (= source), (= field)], {
+                        dont_find!(sorted_field_table, [(= view), (= source), _, (= field), _], {
+                            insert!(non_sorted_field_pre_table, [view, source, field]);
+                        });
+                    });
+                });
+            });
+        }
+    });
+
+    let mut non_sorted_field_table = flow.overwrite_output("non-sorted field");
+    ordinal_by(&*non_sorted_field_pre_table, &mut *non_sorted_field_table, &["view", "source"]);
+
+    // rest of this is just denormalising for `create`
 
     let mut output_layout_table = flow.overwrite_output("output layout");
     find!(index_layout_table, [view, field_ix, field, name], {
@@ -881,6 +897,21 @@ fn plan(flow: &Flow) {
             });
         });
     });
+
+    let mut non_sorted_field_layout_table = flow.overwrite_output("non-sorted field layout");
+    find!(non_sorted_field_table, [view, source, ix, field], {
+        find!(view_schedule_table, [view_ix, (= view), _], {
+            find!(source_schedule_ish_table, [(= view), source_ix, _, (= source)], {
+                find!(source_table, [(= view), (= source), source_view], {
+                    find!(index_layout_table, [(= source_view), field_ix, (= field), _], {
+                        insert!(non_sorted_field_layout_table, [view_ix, source_ix, ix, field_ix]);
+                    });
+                });
+            });
+        });
+    });
+
+    // TODO default to sorting fields in id order
 }
 
 fn push_at<T>(items: &mut Vec<T>, ix: &Value, item: T) {
@@ -1014,6 +1045,16 @@ fn create(flow: &Flow) -> Flow {
                     _ => panic!("Unknown direction {:?}", direction),
                 };
                 push_at(&mut join.sources[source_ix.as_usize()].sorted_fields, ix, (field_ix.as_usize(), direction));
+            }
+            other => panic!("Sorted fields given for non-join view {:?} {:?}", view_ix, other),
+        }
+    });
+
+    find!(flow.get_output("non-sorted field layout"), [view_ix, source_ix, _, field_ix], {
+        match &mut nodes[view_ix.as_usize()].view {
+            &mut View::Join(ref mut join) => {
+                let direction = Direction::Ascending;
+                join.sources[source_ix.as_usize()].sorted_fields.push((field_ix.as_usize(), direction));
             }
             other => panic!("Sorted fields given for non-join view {:?} {:?}", view_ix, other),
         }
