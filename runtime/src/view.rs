@@ -40,6 +40,7 @@ pub struct Source {
     pub grouped_fields: Vec<usize>,
     pub sorted_fields: Vec<(usize, Direction)>,
     pub chunked: bool,
+    pub negated: bool,
     pub constraint_bindings: Vec<(usize, usize)>,
     pub output_bindings: Vec<(usize, usize)>,
 }
@@ -175,11 +176,19 @@ fn join_step(join: &Join, ix: usize, inputs: &[Vec<Vec<Value>>], state: &mut Vec
                     for &(field_ix, variable_ix) in source.output_bindings.iter() {
                         state[variable_ix] = values[field_ix].clone();
                     }
-                    if source.constraint_bindings.iter().all(|&(field_ix, variable_ix)|
+                    let satisfies_constraints = source.constraint_bindings.iter().all(|&(field_ix, variable_ix)|
                         state[variable_ix] == values[field_ix]
-                    ) {
-                        join_step(join, ix+1, inputs, state, index);
+                        );
+                    match (source.negated, satisfies_constraints) {
+                            (false, false) => (), // skip row
+                            (false, true) => join_step(join, ix+1, inputs, state, index), // choose row and continue
+                            (true, false) => (), // skip row
+                            (true, true) => return, // bail out
                     }
+                }
+                if source.negated {
+                    // if we haven't bailed out yet, continue
+                    join_step(join, ix+1, inputs, state, index);
                 }
             }
             Input::Primitive{primitive, ref input_bindings} => {
