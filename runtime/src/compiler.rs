@@ -137,6 +137,10 @@ pub fn new_code_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // if a source is chunked, it will return each group as a whole rather than breaking them back down into rows
     ("chunked source", vec!["view", "source"]),
 
+    // if a source is negated, the view fails whenever the source returns rows
+    // every bound field of a negated source is treated as an input field
+    ("negated source", vec!["view", "source"]),
+
     // tags are used to organise views
     // ("tag", vec!["view", "tag"]),
     ]
@@ -215,7 +219,7 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("number of variables (pre)", vec!["view", "num"]),
     ("number of variables", vec!["view ix", "num"]),
     ("constant layout", vec!["view ix", "variable ix", "value"]),
-    ("source layout", vec!["view ix", "source ix", "input", "is grouped"]),
+    ("source layout", vec!["view ix", "source ix", "input", "chunked", "negated"]),
     ("downstream layout", vec!["downstream view ix", "ix", "upstream view ix"]),
     ("binding layout", vec!["view ix", "source ix", "field ix", "variable ix", "kind"]),
     ("select layout", vec!["view ix", "ix", "variable ix"]),
@@ -581,6 +585,7 @@ fn plan(flow: &Flow) {
     let grouped_field_table = flow.get_output("grouped field");
     let sorted_field_table = flow.get_output("sorted field");
     let ordinal_binding_table = flow.get_output("ordinal binding");
+    let negated_source_table = flow.get_output("negated source");
 
     let mut view_dependency_pre_table = flow.overwrite_output("view dependency (pre)");
     find!(view_table, [view, _], {
@@ -612,15 +617,31 @@ fn plan(flow: &Flow) {
     let mut requires_table = flow.overwrite_output("requires");
     find!(variable_table, [view, variable], {
         find!(binding_table, [(= variable), source, field], {
-            find!(field_table, [_, (= field), field_kind], {
-                match field_kind.as_str() {
-                    "output" => insert!(provides_table, [view, source, variable]),
-                    _ => insert!(requires_table, [view, source, variable]),
-                };
-            });
+            if dont_find!(negated_source_table, [(= view), (= source)]) {
+                find!(field_table, [_, (= field), field_kind], {
+                    match field_kind.as_str() {
+                        "output" => insert!(provides_table, [view, source, variable]),
+                        _ => insert!(requires_table, [view, source, variable]),
+                    };
+                });
+            } else {
+                // for negated tables, any variable that is bound elsewhere must be provided first
+                find!(binding_table, [(= variable), other_source, _], {
+                    if source != other_source {
+                        insert!(requires_table, [view, source, variable]);
+                    }
+                });
+                find!(ordinal_binding_table, [(= variable), other_source, _], {
+                    if source != other_source {
+                        insert!(requires_table, [view, source, variable]);
+                    }
+                });
+            }
         });
         find!(ordinal_binding_table, [(= variable), source], {
-            insert!(provides_table, [view, source, variable]);
+            if dont_find!(negated_source_table, [(= view), (= source)]) {
+                insert!(provides_table, [view, source, variable]);
+            }
         });
     });
 
@@ -811,11 +832,12 @@ fn plan(flow: &Flow) {
             find!(source_table, [(= view), (= source), source_view], {
                 find!(view_table, [(= source_view), kind], {
                     let chunked = !dont_find!(chunked_source_table, [(= view), (= source)]);
+                    let negated = !dont_find!(negated_source_table, [(= view), (= source)]);
                     if kind.as_str() == "primitive" {
-                        insert!(source_layout_table, [view_ix, source_ix, source_view, Bool(chunked)]);
+                        insert!(source_layout_table, [view_ix, source_ix, source_view, Bool(chunked), Bool(negated)]);
                     } else {
                         find!(view_dependency_table, [(= view), input_ix, (= source), (= source_view)], {
-                            insert!(source_layout_table, [view_ix, source_ix, input_ix, Bool(chunked)]);
+                            insert!(source_layout_table, [view_ix, source_ix, input_ix, Bool(chunked), Bool(negated)]);
                         });
                     }
                 });
@@ -976,7 +998,7 @@ fn create(flow: &Flow) -> Flow {
         }
     });
 
-    find!(flow.get_output("source layout"), [view_ix, source_ix, input, chunked], {
+    find!(flow.get_output("source layout"), [view_ix, source_ix, input, chunked, negated], {
         match &mut nodes[view_ix.as_usize()].view {
             &mut View::Join(ref mut join) => {
                 let source = Source{
@@ -993,6 +1015,7 @@ fn create(flow: &Flow) -> Flow {
                     grouped_fields: vec![],
                     sorted_fields: vec![],
                     chunked: chunked.as_bool(),
+                    negated: negated.as_bool(),
                     constraint_bindings: vec![],
                     output_bindings: vec![],
                 };
