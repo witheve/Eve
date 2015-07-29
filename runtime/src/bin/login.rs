@@ -27,6 +27,7 @@ use std::path::Path;
 use std::fs::PathExt;
 use conduit_mime_types::Types;
 use std::str::FromStr;
+use std::env;
 
 use eve::client::*;
 use eve::server;
@@ -122,6 +123,17 @@ fn serve_local_or_file(mut res: Response<Fresh>, path: &Vec<String>, default_fil
 
 fn login(req: Request, mut res: Response<Fresh>) {
 
+	// Don't use a port if we're running in local mode
+	let mut port = ":8000";
+	for argument in env::args() {
+    	match &*argument {
+    		"local" => {
+    			port = "";
+    		},
+    		_ => continue,
+    	}
+	}
+
 	match (&req.method.clone(), &req.uri.clone()) {
 		(&hyper::Get, &RequestUri::AbsolutePath(ref relative_path)) => {
 
@@ -154,6 +166,10 @@ fn login(req: Request, mut res: Response<Fresh>) {
 				},
 				"login.html" => {
 					println!("Authenticating User");
+
+					let referer = format!("{}",req.headers.get::<hyper::header::Referer>().unwrap());
+					let referer_url = Url::parse(&*referer).unwrap();
+
 					let pairs = query_pairs.clone().unwrap();
 					match &pairs[..] {
 						[(_ , ref page), (ref token_type, ref token), ..] if token_type.clone() == "token".to_string() => {
@@ -196,7 +212,8 @@ fn login(req: Request, mut res: Response<Fresh>) {
 
 											// Form the response headers
 											let mut headers = Headers::new();
-											let location = Location("/".to_string() + page);
+											let redirect_url = referer_url.scheme.clone() + "://" + referer_url.domain().unwrap().clone() + port + "/" + page;
+											let location = Location(redirect_url);
 											let user_cookie = Cookie::new("userid".to_string(),session_data.user.id.clone());
 											let cookies = SetCookie(vec![user_cookie]);
 											headers.set(location);
