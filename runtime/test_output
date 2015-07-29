@@ -1,0 +1,8 @@
+   Compiling eve v0.0.1 (file:///home/jamie/eve/runtime)
+     Running target/debug/migrate-eacf18097af7a307
+
+running 1 test
+test test_examples ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured
+
