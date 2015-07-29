@@ -5,8 +5,8 @@ module Indexing {
   type Id = string;
   type ArrayFact = any[];
   type MapFact = any;
-  type PayloadChange = [Id, Id[], ArrayFact[], ArrayFact[]];
-  interface Payload { changes: PayloadChange[] };
+  export type PayloadChange = [Id, Id[], ArrayFact[], ArrayFact[]];
+  export interface Payload { changes: PayloadChange[] };
 
   export function arraysIdentical(a:any[], b:any[]):boolean {
     var i = a.length;
