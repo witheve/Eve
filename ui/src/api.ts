@@ -941,6 +941,7 @@ module api {
     "chunked source": {},
     "ordinal binding": {},
     "grouped field": {},
+    "negated source": {},
 
     "select (new)": {},
     "variable (new)" : {},

@@ -16,6 +16,8 @@ body { font-family:"Avenir"; }
 .query-tools { flex:none; padding:0px 0; z-index:10; background: rgba(0,0,0,0.03); width:120px; }
 .query-tools .tool { align-items: center; justify-content:center; padding: 10px 15px; }
 .query-tools .tool + .tool { border-top:1px solid rgba(0,0,0,0.08); }
+.query-tools .tool.disabled { color: #666; }
+
 .searcher-container { position:absolute; top:0; bottom:0; left:0; right: 0; z-index: 10; }
 .searcher-shade { position:absolute; top:0; bottom:0; left:0; right:0; }
 .searcher { position:absolute; z-index: 10; bottom:0; left:0; background:#444;}
@@ -32,10 +34,14 @@ body { font-family:"Avenir"; }
 
 .container { flex: 1; }
 
+.tooltip { position:absolute; background: #444; padding:10px; border-radius:3px; z-index:100; font-size:10pt; }
+.tooltip .header { font-size: 11pt; margin-bottom:5px; }
+.tooltip .button-info { max-width:300px; line-height:18px; }
+.tooltip .disabled-message { color: #F98B8A; margin-top: 5px; }
+.tooltip .description { color: #aaa; }
+
 .surface { flex: 1; position:relative; overflow:hidden; }
 .query-results { flex: 0.5; padding: 10px; padding-left:20px; }
-
-
 
 .canvas { position:absolute; left: 0; right:0; top:0; bottom:0; }
 
@@ -115,5 +121,6 @@ body { font-family:"Avenir"; }
 .dark .canvas .column:before { content: " "; position: absolute; z-index: -1; top: -2px; left: -2px; right: -2px; bottom: -2px; border:1px dashed #888;  border-radius: 12px; }
 .dark .canvas .column.projected:before { border-style:solid; }
 .dark .canvas .column.uiSelected:before { border-color:#0ba; }
+.dark .canvas .negated { background:#F98B8A; color: #222; }
 .dark .canvas .item.overlapped { background: #bbb; color: #222; }
 .dark .table-container .table .header { background: rgba(255,255,255,0.1); }
