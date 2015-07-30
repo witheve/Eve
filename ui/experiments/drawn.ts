@@ -1532,7 +1532,7 @@ module drawn {
         selection = {svg: true, c: "selection-rectangle", t: "rect", x: left - 10, y: top - 10, width: width + 20, height: height + 20};
       }
     }
-    return {c: "canvas", contextmenu: showCanvasMenu, mousedown: startBoxSelection, mousemove: continueBoxSelection, mouseup: endBoxSelection, dragover: preventDefault, children: [
+    return {c: "canvas", mousedown: startBoxSelection, mousemove: continueBoxSelection, mouseup: endBoxSelection, dragover: preventDefault, children: [
       {c: "selection", svg: true, width: "100%", height: "100%", t: "svg", children: [selection]},
       {c: "links", svg: true, width:"100%", height:"100%", t: "svg", children: linkItems},
       {c: "nodes", children: items}
@@ -1557,28 +1557,6 @@ module drawn {
   }
   function endBoxSelection(e, elem) {
     dispatch("endBoxSelection", {});
-  }
-  function showCanvasMenu(e, elem) {
-    e.preventDefault();
-    dispatch("showMenu", {x: e.clientX, y: e.clientY, contentFunction: canvasMenu});
-  }
-
-  function canvasMenu() {
-    var views = ixer.select("view", {}).filter((view) => {
-      return true; //!api.code.hasTag(view["view: view"], "hidden"); // && view["view: kind"] !== "primitive";
-    }).map((view) => {
-      return {c: "item relationship", text: code.name(view["view: view"]), click: addViewToQuery, viewId: view["view: view"]};
-    });
-    views.sort(function(a, b) {
-      return a.text.localeCompare(b.text);
-    });
-    return {c: "view-selector", children: views};
-  }
-
-  function addViewToQuery(e, elem) {
-    var menu = localState.menu;
-    dispatch("clearMenu", {}, true);
-    dispatch("addViewToQuery", {viewId: elem.viewId, top: menu.top, left: menu.left});
   }
 
   function clearCanvasSelection(e, elem) {
