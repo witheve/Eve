@@ -539,7 +539,7 @@ module drawn {
         let root = localState.selectedNodes[ids[0]];
         for(let nodeId of ids.slice(1)) {
           let node = localState.selectedNodes[nodeId];
-          diffs.push.apply(diffs, dispatch("joinNodes", {node, target: root}));
+          diffs.push.apply(diffs, dispatch("joinNodes", {node, target: root}, true));
         }
       break;
       case "unjoinNodes":
@@ -609,13 +609,13 @@ module drawn {
       case "selectSelection":
         for(let nodeId in localState.selectedNodes) {
           let node = localState.selectedNodes[nodeId];
-          diffs.push.apply(diffs, dispatch("addSelectToQuery", {variableId: node.variable, name: node.name, viewId: localState.drawnUiActiveId}));
+          diffs.push.apply(diffs, dispatch("addSelectToQuery", {variableId: node.variable, name: node.name, viewId: localState.drawnUiActiveId}, true));
         }
       break;
       case "unselectSelection":
         for(let nodeId in localState.selectedNodes) {
           let node = localState.selectedNodes[nodeId];
-          diffs.push.apply(diffs, dispatch("removeSelectFromQuery", {variableId: node.variable, viewId: localState.drawnUiActiveId}));
+          diffs.push.apply(diffs, dispatch("removeSelectFromQuery", {variableId: node.variable, viewId: localState.drawnUiActiveId}, true));
         }
       break;
       case "setQueryName":
@@ -705,7 +705,7 @@ module drawn {
         for(let binding of ixer.select("binding", {source: info.sourceId})) {
           let variableId = binding["binding: variable"];
           if(ixer.select("binding", {variable: variableId}).length === 1) {
-            diffs.push.apply(diffs, dispatch("removeSelectFromQuery", {variableId: variableId, viewId: localState.drawnUiActiveId}));
+            diffs.push.apply(diffs, dispatch("removeSelectFromQuery", {variableId: variableId, viewId: localState.drawnUiActiveId}, true));
           }
         }
       break;
@@ -718,7 +718,7 @@ module drawn {
             let binding = ixer.selectOne("binding (new)", {source: info.sourceId, field: fieldId});
             let bindingVariableId = binding["binding (new): variable"];
             if(!ixer.selectOne("select (new)", {variable: bindingVariableId})) {
-              diffs.push.apply(diffs, dispatch("addSelectToQuery", {variableId: bindingVariableId, name: code.name(fieldId), viewId: localState.drawnUiActiveId, allowNegated: true}));
+              diffs.push.apply(diffs, dispatch("addSelectToQuery", {variableId: bindingVariableId, name: code.name(fieldId), viewId: localState.drawnUiActiveId, allowNegated: true}, true));
             }
         });
       break;
