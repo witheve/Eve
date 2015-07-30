@@ -446,6 +446,16 @@ fn migrate(flow: &Flow) {
 
     let binding_new_table = flow.get_output("binding (new)");
 
+    let mut view_ish_table = flow.overwrite_output("view*");
+    find!(view_table, [view, kind], {
+        insert!(view_ish_table, [view, kind]);
+    });
+
+    let mut source_ish_table = flow.overwrite_output("source*");
+    find!(source_table, [view, source, source_view], {
+        insert!(source_ish_table, [view, source, source_view]);
+    });
+
     let mut constraint_ish_table = flow.overwrite_output("constraint*");
     find!(constraint_table, [constraint, view], {
         find!(constraint_operation_table, [(= constraint), operation], {
@@ -576,9 +586,9 @@ fn migrate(flow: &Flow) {
 fn plan(flow: &Flow) {
     use value::Value::*;
 
-    let view_table = flow.get_output("view");
+    let view_table = flow.get_output("view*");
     let field_table = flow.get_output("field");
-    let source_table = flow.get_output("source");
+    let source_table = flow.get_output("source*");
     let variable_table = flow.get_output("variable");
     let constant_table = flow.get_output("constant*");
     let binding_table = flow.get_output("binding");
