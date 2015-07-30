@@ -13,7 +13,7 @@ fn main() {
 	for argument in env::args() {
     	match &*argument {
     		"clean" => {
-    			OpenOptions::new().create(true).truncate(true).open("./events").unwrap();
+    			OpenOptions::new().create(true).truncate(true).open("./autosave").unwrap();
     			()
     		},
     		_ => continue,
