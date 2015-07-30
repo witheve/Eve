@@ -741,7 +741,7 @@ module drawn {
           content: {c: "button-info", children: [
             {c: "header", text: info.header},
             {c: "description", text: info.description},
-            info.disabledMessage ? {c: "disabled-message", text: "Disabled beacuse " + info.disabledMessage} : undefined,
+            info.disabledMessage ? {c: "disabled-message", text: "Disabled because " + info.disabledMessage} : undefined,
           ]},
           x: info.x + 10,
           y: info.y
@@ -993,24 +993,24 @@ module drawn {
     // no selection
     if(!selectedNodes.length) {
       disabled = {
-        "join": "Join only applies to attributes",
-        "select": "Select only applies to attributes",
-        "filter": "Filter only applies to attributes",
-        "group": "Group only applies to attributes",
-        "chunk": "Chunk only applies to sources",
-        "ordinal": "Ordinal only applies to sources",
-        "negate": "Negate only applies to sources",
+        "join": "join only applies to attributes",
+        "select": "select only applies to attributes",
+        "filter": "filter only applies to attributes",
+        "group": "group only applies to attributes",
+        "chunk": "chunk only applies to sources",
+        "ordinal": "ordinal only applies to sources",
+        "negate": "negate only applies to sources",
       }
 
     // single selection
     } else if(selectedNodes.length === 1) {
       let node = selectedNodes[0];
       if(node.type === "attribute") {
-        disabled["chunk"] = "Chunk only applies to sources";
-        disabled["ordinal"] = "Ordinal only applies to sources";
-        disabled["negate"] = "Negate only applies to sources";
+        disabled["chunk"] = "chunk only applies to sources";
+        disabled["ordinal"] = "ordinal only applies to sources";
+        disabled["negate"] = "negate only applies to sources";
         if(!node.mergedAttributes || node.mergedAttributes.length === 0) {
-          disabled["join"] = "Multiple attributes aren't joined together on this node.";
+          disabled["join"] = "multiple attributes aren't joined together on this node.";
         } else {
           actions["join"] = {func: unjoinNodes, text: "Unjoin"};
         }
@@ -1029,18 +1029,18 @@ module drawn {
           disabled["group"] = "To group an attribute, the source must either have an ordinal or be chunked";
         }
       } else if(node.type === "relationship") {
-        disabled["select"] = "Select only applies to attributes.";
-        disabled["filter"] = "Filter only applies to attributes.";
-        disabled["group"] = "Group only applies to attributes.";
-        disabled["join"] = "Join only applies to attributes.";
+        disabled["select"] = "select only applies to attributes.";
+        disabled["filter"] = "filter only applies to attributes.";
+        disabled["group"] = "group only applies to attributes.";
+        disabled["join"] = "join only applies to attributes.";
         let hasJoins = sourceHasJoins(node.id);
         if(hasJoins) {
-          disabled["chunk"] = "You cannot chunk if attributes of the source are joined to other sources";
+          disabled["chunk"] = "you cannot chunk if attributes of the source are joined to other sources";
         }
         if(node.chunked) {
           actions["chunk"] = {func: unchunkSource, text: "Unchunk"};
            if(hasJoins) {
-              disabled["chunk"] = "You cannot unchunk if attributes of the source are joined to other sources";
+              disabled["chunk"] = "you cannot unchunk if attributes of the source are joined to other sources";
            }
         }
         if(node.isNegated) {
@@ -1055,18 +1055,18 @@ module drawn {
     //multi-selection
     } else {
       disabled = {
-        "filter": "Filter only applies to single attributes",
-        "group": "Group only applies to single attributes",
-        "chunk": "Chunk only applies to single sources",
-        "ordinal": "Ordinal only applies to single sources",
-        "negate": "Negate only applies to single sources",
+        "filter": "filter only applies to single attributes",
+        "group": "group only applies to single attributes",
+        "chunk": "chunk only applies to single sources",
+        "ordinal": "ordinal only applies to single sources",
+        "negate": "negate only applies to single sources",
       }
 
       // join and select are only valid if everything is an attribute, so if we
       // find a non-attribute, we have to disable them
       if(selectedNodes.some((node) => node.type !== "attribute")) {
-        disabled["join"] = "Join only applies to attributes";
-        disabled["select"] = "Select only applies to attributes";
+        disabled["join"] = "join only applies to attributes";
+        disabled["select"] = "select only applies to attributes";
       } else {
         // whether or not we are showing or hiding is based on the state of the first node
         // in the selection
