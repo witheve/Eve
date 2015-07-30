@@ -96,7 +96,7 @@ fn compact(filename: &str) {
         flow.quiesce(event.changes);
     }
     // TODO session is blank which doesn't seem to matter because it is never used
-    write_events(&filename[..], &[Event{changes: flow.as_changes(), session: "".to_owned()}]);
+    write_events(&filename[..], &[Event{changes: flow.as_changes(), session: "".to_owned(), commands: vec![]}]);
 }
 
 fn make_bug_test() {
@@ -118,8 +118,8 @@ fn make_regression_test() {
     let time = time::get_time().sec;
     let input_filename = format!("./test-inputs/regression-{}", time);
     let output_filename = format!("./test-outputs/regression-{}", time);
-    write_events(&input_filename[..], &[Event{changes: flow.as_changes(), session: "".to_owned()}]);
-    write_events(&output_filename[..],  &[Event{changes: flow.as_changes(), session: "".to_owned()}]);
+    write_events(&input_filename[..], &[Event{changes: flow.as_changes(), session: "".to_owned(), commands: vec![]}]);
+    write_events(&output_filename[..],  &[Event{changes: flow.as_changes(), session: "".to_owned(), commands: vec![]}]);
 }
 
 #[test]

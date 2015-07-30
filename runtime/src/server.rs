@@ -63,6 +63,7 @@ impl<T: FromJson> FromJson for Vec<T> {
 pub struct Event {
     pub changes: Changes,
     pub session: String,
+    pub commands: Vec<Vec<String>>,
 }
 
 impl ToJson for Event {
@@ -80,6 +81,7 @@ impl ToJson for Event {
                 )
             ),
             ("session".to_string(), self.session.to_json()),
+            ("commands".to_string(), self.commands.to_json()),
         ].into_iter().collect())
     }
 }
@@ -98,6 +100,7 @@ impl FromJson for Event {
                 (view_id, Change{fields:fields, insert: insert, remove: remove})
             }).collect(),
             session: "".to_string(),
+            commands: FromJson::from_json(json.as_object().unwrap().get("commands").unwrap_or(&Json::Array(vec![]))),
         }
     }
 }
@@ -169,6 +172,13 @@ pub fn load(flow: &mut Flow, filename: &str) {
     }
 }
 
+pub fn save(flow: &Flow, filename: &str) {
+    let changes = flow.as_changes();
+    let text = format!("{}", Event{changes: changes, session: "".to_owned(), commands: vec![]}.to_json());
+    let mut events = OpenOptions::new().create(true).truncate(true).write(true).open(filename).unwrap();
+    events.write_all(text.as_bytes()).unwrap();
+}
+
 pub struct Server {
     pub flow: Flow,
     pub events: File,
@@ -186,9 +196,24 @@ pub fn handle_event(server: &mut Server, event: Event, event_json: Json) {
     let changes = time!("diffing", {
         server.flow.changes_from(old_flow)
     });
+    for command in event.commands.iter() {
+        let borrowed_words = command.iter().map(|word| &word[..]).collect::<Vec<_>>();
+        match &borrowed_words[..] {
+            ["load", filename] => {
+                server.flow = Flow::new();
+                load(&mut server.flow, "./bootstrap");
+                load(&mut server.flow, filename);
+                save(&server.flow, "./events");
+            }
+            ["save", filename] => {
+                save(&server.flow, filename);
+            }
+            other => panic!("Unknown command: {:?}", other),
+        }
+    }
     for sender in server.senders.iter_mut() {
         let session_id = format!("{}", sender.get_mut().peer_addr().unwrap());
-        let text = format!("{}", Event{changes: changes.clone(), session: session_id}.to_json());
+        let text = format!("{}", Event{changes: changes.clone(), session: session_id, commands: vec![]}.to_json());
         match sender.send_message(Message::Text(text)) {
             Ok(_) => (),
             Err(error) => println!("Send error: {}", error),
@@ -233,7 +258,7 @@ pub fn run() {
                 handle_event(&mut server, add_session, json);
 
                 let changes = server.flow.as_changes();
-                let text = format!("{}", Event{changes: changes, session: session_id}.to_json());
+                let text = format!("{}", Event{changes: changes, session: session_id, commands: vec![]}.to_json());
                 match sender.send_message(Message::Text(text)) {
                     Ok(_) => (),
                     Err(error) => println!("Send error: {}", error),
@@ -291,7 +316,7 @@ pub fn run() {
                                                         insert: vec![close_session_values.clone()],
                                                         remove: vec![session.values.to_vec().clone()],
                                                     };
-                                let event = Event{changes: vec![("sessions".to_string(),change)], session: "".to_string()};
+                                let event = Event{changes: vec![("sessions".to_string(),change)], session: "".to_string(), commands: vec![]};
                                 let json = event.to_json();
                                 handle_event(&mut server, event, json);
 
