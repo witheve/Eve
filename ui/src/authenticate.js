@@ -27,7 +27,6 @@ $(function(){
     	$("#login-errors").text(response.error);
     } else {
     	window.location = window.location.origin + "/login.html?page=" + document.getElementById('login_submit').getAttribute('target')  + "&token=" + response.token;
-      debugger;
     }
   };
 });
@@ -47,7 +46,6 @@ $(function(){
     	$("#signup-errors").text(response.error);
     } else {
     	window.location = window.location.origin + "/login.html?page=" + document.getElementById('signup_submit').getAttribute('target')  + "&token=" + response.token;
-      debugger;
     }
   };
 });
