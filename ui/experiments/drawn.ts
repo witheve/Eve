@@ -283,21 +283,28 @@ module drawn {
       // if this variable is only bound to this field, then we need to remove it
       if(singleBinding) {
         diffs.push.apply(diffs, removeVariable(variableId));
-      } else if(allVariableBindings.length === 2) {
-        // if there's just one other binding, we need to check if the remaining binding is an input and
+      } else {
+        // we need to check if the remaining bindings are all inputs, if so we
         // bind it to a constant to ensure the code remains valid
+        let needsConstant = true;
+        let input;
         for(let variableBinding of allVariableBindings) {
            if(variableBinding === binding) continue;
-           var fieldId = variableBinding["binding (new): field"];
-           var kind = ixer.selectOne("field", {field: fieldId})["field: kind"];
-           if(kind !== "output") {
-             let sourceViewId = ixer.selectOne("source", {source: variableBinding["binding (new): source"]})["source: source view"];
-             diffs.push(api.insert("constant (new)", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
+           let fieldId = variableBinding["binding (new): field"];
+           let kind = ixer.selectOne("field", {field: fieldId})["field: kind"];
+           if(kind === "output") {
+             needsConstant = false;
+             break;
+           } else {
+             input = variableBinding;
            }
         }
-
+        if(needsConstant) {
+           let fieldId = input["binding (new): field"];
+           let sourceViewId = ixer.selectOne("source", {source: input["binding (new): source"]})["source: source view"];
+           diffs.push(api.insert("constant (new)", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
+        }
       }
-
     }
     let ordinal = ixer.selectOne("ordinal binding", {source: sourceId});
     if(ordinal) {
