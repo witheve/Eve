@@ -36,7 +36,7 @@ fn write_events(filename: &str, events: &[Event]) {
 
 fn all_filenames() -> Vec<String> {
     let mut filenames = vec![];
-    filenames.push("./events".to_owned());
+    filenames.push("./autosave".to_owned());
     filenames.push("./bootstrap".to_owned());
     for entry in walk_dir("./test-inputs").unwrap() {
         filenames.push(entry.unwrap().path().to_str().unwrap().to_owned());
@@ -100,7 +100,7 @@ fn compact(filename: &str) {
 }
 
 fn make_bug_test() {
-    let events = read_events("./events");
+    let events = read_events("./autosave");
     let time = time::get_time().sec;
     let input_filename = format!("./test-inputs/bug-{}", time);
     let output_filename = format!("./test-outputs/bug-{}", time);
@@ -110,7 +110,7 @@ fn make_bug_test() {
 
 fn make_regression_test() {
     let bootstrap_events = read_events("./bootstrap");
-    let events = read_events("./events");
+    let events = read_events("./autosave");
     let mut flow = Flow::new();
     for event in bootstrap_events.into_iter().chain(events.into_iter()) {
         flow.quiesce(event.changes);

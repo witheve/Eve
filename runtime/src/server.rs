@@ -6,7 +6,7 @@ use websocket::server::sender;
 use websocket::stream::WebSocketStream;
 use websocket::message::CloseData;
 use std::io::prelude::*;
-use std::fs::{OpenOptions, File};
+use std::fs::{OpenOptions};
 use std::net::Shutdown;
 use rustc_serialize::json::{Json, ToJson};
 use cbor;
@@ -181,14 +181,14 @@ pub fn save(flow: &Flow, filename: &str) {
 
 pub struct Server {
     pub flow: Flow,
-    pub events: File,
     pub senders: Vec<sender::Sender<WebSocketStream>>,
 }
 
 pub fn handle_event(server: &mut Server, event: Event, event_json: Json) {
-    server.events.write_all(format!("{}", event_json).as_bytes()).unwrap();
-    server.events.write_all("\n".as_bytes()).unwrap();
-    server.events.flush().unwrap();
+    let mut autosave = OpenOptions::new().write(true).append(true).open("./autosave").unwrap();
+    autosave.write_all(format!("{}", event_json).as_bytes()).unwrap();
+    autosave.write_all("\n".as_bytes()).unwrap();
+    autosave.flush().unwrap();
     let old_flow = time!("cloning", {
         server.flow.clone()
     });
@@ -203,7 +203,7 @@ pub fn handle_event(server: &mut Server, event: Event, event_json: Json) {
                 server.flow = Flow::new();
                 load(&mut server.flow, "./bootstrap");
                 load(&mut server.flow, filename);
-                save(&server.flow, "./events");
+                save(&server.flow, "./autosave");
             }
             ["save", filename] => {
                 save(&server.flow, filename);
@@ -225,13 +225,12 @@ pub fn run() {
     let mut flow = Flow::new();
     time!("reading saved state", {
         load(&mut flow, "./bootstrap");
-        load(&mut flow, "./events");
+        load(&mut flow, "./autosave");
     });
 
-    let events = OpenOptions::new().write(true).append(true).open("./events").unwrap();
     let senders: Vec<sender::Sender<WebSocketStream>> = Vec::new();
 
-    let mut server = Server{flow: flow, events: events, senders: senders};
+    let mut server = Server{flow: flow, senders: senders};
 
     for server_event in server_events() {
         match server_event {
