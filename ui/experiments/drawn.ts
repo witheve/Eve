@@ -88,6 +88,14 @@ module drawn {
         if (!elem.__focused) {
             setTimeout(function () { node.focus(); }, 5);
             elem.__focused = true;
+            if(elem.contentEditable) {
+              let range = document.createRange();
+              range.setStart(node.firstChild, node.textContent.length);
+              range.setEnd(node.firstChild, node.textContent.length);
+              let sel = window.getSelection();
+              sel.removeAllRanges();
+              sel.addRange(range);
+            }
         }
     }
 
@@ -487,22 +495,36 @@ module drawn {
           api.insert("view", {view: newId, kind: "join", dependents: {"display name": {name: "New query!"}, "tag": [{tag: "remote"}]}})
         ];
       break;
-      case "addViewToQuery":
+      case "addViewAndMaybeJoin":
         var sourceId = uuid();
         var queryId = localState.drawnUiActiveId;
         diffs = [
           api.insert("source", {view: queryId, source: sourceId, "source view": info.viewId})
         ];
+        // if there's a selection, we want to try and join on those nodes if possible
+        // so that we don't produce product joins all the time
+        var potentialJoinNodes = {};
+        for(let selectedId in localState.selectedNodes) {
+          let node = localState.selectedNodes[selectedId];
+          // we can only join on attributes
+          if(node.type === "attribute") {
+            potentialJoinNodes[node.name] = node;
+          }
+        }
+        // add variables for all the fields of this view
         var sourceView = ixer.selectOne("view", {view: info.viewId});
         ixer.select("field", {view: info.viewId}).forEach(function(field) {
             let fieldId = field["field: field"];
-            diffs.push.apply(diffs, addSourceFieldVariable(queryId, info.viewId, sourceId, fieldId));
+            let name = code.name(fieldId);
+            // check if we should try to join this field to one of the potential join nodes
+            if(potentialJoinNodes[name]) {
+              // if we're going to join, we just need a binding to this node
+              diffs.push(api.insert("binding (new)", {source: sourceId, field: fieldId, variable: potentialJoinNodes[name].variable}));
+            } else {
+              // otherwise we need to create a variable for this field
+              diffs.push.apply(diffs, addSourceFieldVariable(queryId, info.viewId, sourceId, fieldId));
+            }
         });
-        //we may also have information about where we should position it.
-        if(info.top !== undefined) {
-          diffs.push(api.insert("editor node position", {node: sourceId, x: info.left, y: info.top}));
-          positions[sourceId] = {left: info.left, top: info.top};
-        }
       break;
       case "joinNodes":
         var {target, node} = info;
@@ -767,7 +789,15 @@ module drawn {
       break;
       case "startSearching":
         localState.searching = true;
-        diffs.push.apply(diffs, dispatch("updateSearch", {value: info.value || ""}, true));
+        var searchValue = info.value || "";
+        var selectedIds = Object.keys(localState.selectedNodes);
+        if(selectedIds.length === 1) {
+          let node = localState.selectedNodes[selectedIds[0]];
+          if(node.type === "attribute") {
+            searchValue = `[field: ${node.name}] `;
+          }
+        }
+        diffs.push.apply(diffs, dispatch("updateSearch", {value: searchValue}, true));
       break;
       case "stopSearching":
         localState.searching = false;
@@ -990,7 +1020,7 @@ module drawn {
     }
     matchingViews.sort(sortByScore);
     return {kind: "Sources", results: matchingViews, onSelect: (e, elem) => {
-      dispatch("addViewToQuery", {viewId: elem.result.viewId});
+      dispatch("addViewAndMaybeJoin", {viewId: elem.result.viewId});
     }};
   }
 
