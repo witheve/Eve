@@ -865,14 +865,30 @@ module drawn {
     return aScore - bScore;
   }
 
+  var availableFilters = ["field", "tag"];
   function searchResultsFor(searchValue) {
     let start = api.now();
-    let needle = searchValue.trim().toLowerCase().split(" ");
+
     // search results should be an ordered set of maps that contain the kind of results
     // being provided, the ordered set of results, and a selection handler
     let searchResults = [];
 
-    let rels = searchRelations(needle);
+    // see if there are any filters
+    let filters = [];
+    let normalizedSearchValue = searchValue.trim().toLowerCase();
+    for(let filter of availableFilters) {
+      let regex = new RegExp(`\\[${filter}:(.*?)\\]\s*`, "g");
+      let origSearch = normalizedSearchValue;
+      let match;
+      while(match = regex.exec(origSearch)) {
+        normalizedSearchValue = normalizedSearchValue.replace(match[0], "");
+        filters.push({type: filter, value: match[1].trim()});
+      }
+    }
+
+    let needle = normalizedSearchValue.trim().split(" ");
+
+    let rels = searchRelations(needle, filters);
     if(rels) searchResults.push(rels);
 
     let glossary = searchGlossary(needle);
@@ -885,20 +901,73 @@ module drawn {
     return searchResults;
   }
 
-  function searchRelations(needle) {
+  function arrayIntersect(a, b) {
+    let ai = 0;
+    let bi = 0;
+    let result = [];
+    while(ai < a.length && bi < b.length){
+       if (a[ai] < b[bi] ){ ai++; }
+       else if (a[ai] > b[bi] ){ bi++; }
+       else {
+         result.push(a[ai]);
+         ai++;
+         bi++;
+       }
+    }
+    return result;
+  }
+
+  function searchRelations(needle, filters) {
     let matchingViews = [];
-    for(let view of ixer.select("view", {})) {
-      let id = view["view: view"];
-      let name = code.name(view["view: view"]);
+    let viewIds;
+    //handle filters
+    for(let filter of filters) {
+      if(filter.type === "field") {
+        // we need to only look at views with a field with the given name
+        var potentialViews = [];
+        ixer.select("display name", {name: filter.value}).forEach((name) => {
+          let field = ixer.selectOne("field", {field: name["display name: id"]});
+          if(field) {
+            potentialViews.push(field["field: view"]);
+          }
+       });
+       potentialViews.sort();
+       if(!viewIds) {
+          viewIds = potentialViews;
+        } else {
+          viewIds = arrayIntersect(viewIds, potentialViews);
+        }
+      } else if(filter.type === "tag") {
+        // we only look at views with the given tag
+        let tagged = ixer.select("tag", {tag: filter.value});
+        if(!viewIds) {
+          viewIds = [];
+          tagged.forEach((tag) => {
+            viewIds.push(tag["tag: view"]);
+          });
+          viewIds.sort();
+        } else {
+          let taggedIds = tagged.map((tag) => tag["tag: view"]).sort();
+          viewIds = arrayIntersect(viewIds, taggedIds);
+        }
+      }
+    }
+
+    if(!filters.length) {
+      viewIds = ixer.select("view", {}).map((view) => view["view: view"]);
+    }
+
+    for(let viewId of viewIds) {
+      let name = code.name(viewId);
       let score = scoreHaystack(name, needle);
       if(score.score) {
-        let description = ixer.selectOne("view description", {view: id});
+        let description = ixer.selectOne("view description", {view: viewId});
         if(description) {
           description = description["view description: description"];
         } else {
           description = "No description :(";
         }
-        matchingViews.push({text: name, viewId: id, score, description});
+        matchingViews.push({text: name, viewId, score, description});
       }
     }
     matchingViews.sort(sortByScore);
