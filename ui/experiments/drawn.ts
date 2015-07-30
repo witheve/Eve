@@ -790,11 +790,13 @@ module drawn {
       case "startSearching":
         localState.searching = true;
         var searchValue = info.value || "";
-        var selectedIds = Object.keys(localState.selectedNodes);
-        if(selectedIds.length === 1) {
-          let node = localState.selectedNodes[selectedIds[0]];
+        // when we start searching, lets check if there are attributes selected and if there
+        // are, go ahead and add filters to our search for them. This makes it really easy to
+        // figure out what you can join those attributes on
+        for(let nodeId in localState.selectedNodes) {
+          let node = localState.selectedNodes[nodeId];
           if(node.type === "attribute") {
-            searchValue = `[field: ${node.name}] `;
+            searchValue += `[field: ${node.name}] `;
           }
         }
         diffs.push.apply(diffs, dispatch("updateSearch", {value: searchValue}, true));
@@ -804,7 +806,7 @@ module drawn {
       break;
       case "handleSearchKey":
         if(info.keyCode === api.KEYS.ENTER) {
-          // @TODO: execute an action
+          // execute whatever the first result's action is
           let currentSearchGroup = localState.searchResults[0];
           if(currentSearchGroup && currentSearchGroup.results.length) {
             let results = currentSearchGroup.results;
