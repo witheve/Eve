@@ -588,6 +588,19 @@ module drawn {
         }});
         var fieldId = neueField.content.field;
 
+        // check to make sure this isn't only a negated attribute
+        var onlyNegated = !info.allowNegated;
+        var bindings = ixer.select("binding (new)", {variable: info.variableId});
+        for(let binding of bindings) {
+          let sourceId = binding["binding (new): source"];
+          if(!ixer.selectOne("negated source", {source: sourceId})) {
+            onlyNegated = false;
+          }
+        }
+        if(bindings.length && onlyNegated) {
+          return dispatch("setError", {errorText: "Attributes that belong to a negated source that aren't joined with something else, can't be selected since they represent the absence of a value."});
+        }
+
         diffs = [
           neueField,
           api.insert("select (new)", {view: info.viewId, field: fieldId, variable: info.variableId})
@@ -687,9 +700,27 @@ module drawn {
       break;
       case "negateSource":
         diffs.push(api.insert("negated source", {view: info.viewId, source: info.sourceId}));
+        // you can't select anything from a negated source, so if there are no joins on a variable this
+        // source uses we need to deselect it
+        for(let binding of ixer.select("binding", {source: info.sourceId})) {
+          let variableId = binding["binding: variable"];
+          if(ixer.select("binding", {variable: variableId}).length === 1) {
+            diffs.push.apply(diffs, dispatch("removeSelectFromQuery", {variableId: variableId, viewId: localState.drawnUiActiveId}));
+          }
+        }
       break;
       case "unnegateSource":
         diffs.push(api.remove("negated source", {view: info.viewId, source: info.sourceId}));
+        // since we removed all your selects when you negated the source, let's re-select them
+        var sourceViewId = ixer.selectOne("source", {source: info.sourceId})["source: source view"];
+        ixer.select("field", {view: sourceViewId}).forEach(function(field) {
+            let fieldId = field["field: field"];
+            let binding = ixer.selectOne("binding (new)", {source: info.sourceId, field: fieldId});
+            let bindingVariableId = binding["binding (new): variable"];
+            if(!ixer.selectOne("select (new)", {variable: bindingVariableId})) {
+              diffs.push.apply(diffs, dispatch("addSelectToQuery", {variableId: bindingVariableId, name: code.name(fieldId), viewId: localState.drawnUiActiveId, allowNegated: true}));
+            }
+        });
       break;
       //---------------------------------------------------------
       // Errors
@@ -1016,11 +1047,16 @@ module drawn {
         disabled["chunk"] = "chunk only applies to sources";
         disabled["ordinal"] = "ordinal only applies to sources";
         disabled["negate"] = "negate only applies to sources";
-        if(!node.mergedAttributes || node.mergedAttributes.length === 0) {
+        if(!node.mergedAttributes) {
+          // you can't select a node if the source is negated and it's not joined with anything else
+          if(node.sourceNegated) {
+            disabled["select"] = "negated sources prove the absence of a row, which means you'd be selecting from nothing."
+          }
           disabled["join"] = "multiple attributes aren't joined together on this node.";
         } else {
           actions["join"] = {func: unjoinNodes, text: "Unjoin"};
         }
+
         if(ixer.selectOne("select (new)", {view: viewId, variable: node.variable})) {
           actions["select"] = {func: unselectAttribute, text: "Hide"};
         }
@@ -1357,6 +1393,7 @@ module drawn {
           if(sourceNode) {
             attribute.sourceChunked = attribute.sourceChunked || sourceNode.chunked;
             attribute.sourceHasOrdinal = attribute.sourceHasOrdinal || sourceNode.hasOrdinal;
+            attribute.sourceNegated = attribute.sourceNegated || sourceNode.isNegated;
           }
         }
 
