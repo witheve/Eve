@@ -370,12 +370,30 @@ module drawn {
         localState.selectedViewId = uuid();
       break;
       case "removeSelection":
+        var removedSources = {};
         for(let nodeId in localState.selectedNodes) {
           let node = localState.selectedNodes[nodeId];
           if(node.type === "relationship") {
-            diffs = removeSource(node.id);
+            removedSources[node.id] = true;
+            diffs.push.apply(diffs, removeSource(node.id));
           } else if (node.type === "primitive") {
-            diffs = removeSource(node.sourceId);
+            removedSources[node.sourceId] = true;
+            diffs.push.apply(diffs, removeSource(node.sourceId));
+          }
+        }
+        // we need to check for any variables that got orphaned by removing all the given sources
+        for(let variable of ixer.select("variable (new)", {view: localState.drawnUiActiveId})) {
+          let variableId = variable["variable (new): variable"];
+          let bindings = ixer.select("binding (new)", {variable: variableId});
+          let shouldRemove = true;
+          for(let binding of bindings) {
+            if(!removedSources[binding["binding (new): source"]]) {
+              shouldRemove = false;
+              break;
+            }
+          }
+          if(shouldRemove) {
+            diffs.push.apply(diffs, removeVariable(variableId));
           }
         }
         dispatch("clearSelection", {}, true);
