@@ -88,6 +88,14 @@ module drawn {
         if (!elem.__focused) {
             setTimeout(function () { node.focus(); }, 5);
             elem.__focused = true;
+            if(elem.contentEditable) {
+              let range = document.createRange();
+              range.setStart(node.firstChild, node.textContent.length);
+              range.setEnd(node.firstChild, node.textContent.length);
+              let sel = window.getSelection();
+              sel.removeAllRanges();
+              sel.addRange(range);
+            }
         }
     }
 
@@ -370,12 +378,30 @@ module drawn {
         localState.selectedViewId = uuid();
       break;
       case "removeSelection":
+        var removedSources = {};
         for(let nodeId in localState.selectedNodes) {
           let node = localState.selectedNodes[nodeId];
           if(node.type === "relationship") {
-            diffs = removeSource(node.id);
+            removedSources[node.id] = true;
+            diffs.push.apply(diffs, removeSource(node.id));
           } else if (node.type === "primitive") {
-            diffs = removeSource(node.sourceId);
+            removedSources[node.sourceId] = true;
+            diffs.push.apply(diffs, removeSource(node.sourceId));
+          }
+        }
+        // we need to check for any variables that got orphaned by removing all the given sources
+        for(let variable of ixer.select("variable (new)", {view: localState.drawnUiActiveId})) {
+          let variableId = variable["variable (new): variable"];
+          let bindings = ixer.select("binding (new)", {variable: variableId});
+          let shouldRemove = true;
+          for(let binding of bindings) {
+            if(!removedSources[binding["binding (new): source"]]) {
+              shouldRemove = false;
+              break;
+            }
+          }
+          if(shouldRemove) {
+            diffs.push.apply(diffs, removeVariable(variableId));
           }
         }
         dispatch("clearSelection", {}, true);
@@ -469,22 +495,36 @@ module drawn {
           api.insert("view", {view: newId, kind: "join", dependents: {"display name": {name: "New query!"}, "tag": [{tag: "remote"}]}})
         ];
       break;
-      case "addViewToQuery":
+      case "addViewAndMaybeJoin":
         var sourceId = uuid();
         var queryId = localState.drawnUiActiveId;
         diffs = [
           api.insert("source", {view: queryId, source: sourceId, "source view": info.viewId})
         ];
+        // if there's a selection, we want to try and join on those nodes if possible
+        // so that we don't produce product joins all the time
+        var potentialJoinNodes = {};
+        for(let selectedId in localState.selectedNodes) {
+          let node = localState.selectedNodes[selectedId];
+          // we can only join on attributes
+          if(node.type === "attribute") {
+            potentialJoinNodes[node.name] = node;
+          }
+        }
+        // add variables for all the fields of this view
         var sourceView = ixer.selectOne("view", {view: info.viewId});
         ixer.select("field", {view: info.viewId}).forEach(function(field) {
             let fieldId = field["field: field"];
-            diffs.push.apply(diffs, addSourceFieldVariable(queryId, info.viewId, sourceId, fieldId));
+            let name = code.name(fieldId);
+            // check if we should try to join this field to one of the potential join nodes
+            if(potentialJoinNodes[name]) {
+              // if we're going to join, we just need a binding to this node
+              diffs.push(api.insert("binding (new)", {source: sourceId, field: fieldId, variable: potentialJoinNodes[name].variable}));
+            } else {
+              // otherwise we need to create a variable for this field
+              diffs.push.apply(diffs, addSourceFieldVariable(queryId, info.viewId, sourceId, fieldId));
+            }
         });
-        //we may also have information about where we should position it.
-        if(info.top !== undefined) {
-          diffs.push(api.insert("editor node position", {node: sourceId, x: info.left, y: info.top}));
-          positions[sourceId] = {left: info.left, top: info.top};
-        }
       break;
       case "joinNodes":
         var {target, node} = info;
@@ -539,7 +579,7 @@ module drawn {
         let root = localState.selectedNodes[ids[0]];
         for(let nodeId of ids.slice(1)) {
           let node = localState.selectedNodes[nodeId];
-          diffs.push.apply(diffs, dispatch("joinNodes", {node, target: root}));
+          diffs.push.apply(diffs, dispatch("joinNodes", {node, target: root}, true));
         }
       break;
       case "unjoinNodes":
@@ -609,13 +649,13 @@ module drawn {
       case "selectSelection":
         for(let nodeId in localState.selectedNodes) {
           let node = localState.selectedNodes[nodeId];
-          diffs.push.apply(diffs, dispatch("addSelectToQuery", {variableId: node.variable, name: node.name, viewId: localState.drawnUiActiveId}));
+          diffs.push.apply(diffs, dispatch("addSelectToQuery", {variableId: node.variable, name: node.name, viewId: localState.drawnUiActiveId}, true));
         }
       break;
       case "unselectSelection":
         for(let nodeId in localState.selectedNodes) {
           let node = localState.selectedNodes[nodeId];
-          diffs.push.apply(diffs, dispatch("removeSelectFromQuery", {variableId: node.variable, viewId: localState.drawnUiActiveId}));
+          diffs.push.apply(diffs, dispatch("removeSelectFromQuery", {variableId: node.variable, viewId: localState.drawnUiActiveId}, true));
         }
       break;
       case "setQueryName":
@@ -705,7 +745,7 @@ module drawn {
         for(let binding of ixer.select("binding", {source: info.sourceId})) {
           let variableId = binding["binding: variable"];
           if(ixer.select("binding", {variable: variableId}).length === 1) {
-            diffs.push.apply(diffs, dispatch("removeSelectFromQuery", {variableId: variableId, viewId: localState.drawnUiActiveId}));
+            diffs.push.apply(diffs, dispatch("removeSelectFromQuery", {variableId: variableId, viewId: localState.drawnUiActiveId}, true));
           }
         }
       break;
@@ -718,7 +758,7 @@ module drawn {
             let binding = ixer.selectOne("binding (new)", {source: info.sourceId, field: fieldId});
             let bindingVariableId = binding["binding (new): variable"];
             if(!ixer.selectOne("select (new)", {variable: bindingVariableId})) {
-              diffs.push.apply(diffs, dispatch("addSelectToQuery", {variableId: bindingVariableId, name: code.name(fieldId), viewId: localState.drawnUiActiveId, allowNegated: true}));
+              diffs.push.apply(diffs, dispatch("addSelectToQuery", {variableId: bindingVariableId, name: code.name(fieldId), viewId: localState.drawnUiActiveId, allowNegated: true}, true));
             }
         });
       break;
@@ -749,14 +789,24 @@ module drawn {
       break;
       case "startSearching":
         localState.searching = true;
-        diffs.push.apply(diffs, dispatch("updateSearch", {value: info.value || ""}, true));
+        var searchValue = info.value || "";
+        // when we start searching, lets check if there are attributes selected and if there
+        // are, go ahead and add filters to our search for them. This makes it really easy to
+        // figure out what you can join those attributes on
+        for(let nodeId in localState.selectedNodes) {
+          let node = localState.selectedNodes[nodeId];
+          if(node.type === "attribute") {
+            searchValue += `[field: ${node.name}] `;
+          }
+        }
+        diffs.push.apply(diffs, dispatch("updateSearch", {value: searchValue}, true));
       break;
       case "stopSearching":
         localState.searching = false;
       break;
       case "handleSearchKey":
         if(info.keyCode === api.KEYS.ENTER) {
-          // @TODO: execute an action
+          // execute whatever the first result's action is
           let currentSearchGroup = localState.searchResults[0];
           if(currentSearchGroup && currentSearchGroup.results.length) {
             let results = currentSearchGroup.results;
@@ -865,14 +915,30 @@ module drawn {
     return aScore - bScore;
   }
 
+  var availableFilters = ["field", "tag"];
   function searchResultsFor(searchValue) {
     let start = api.now();
-    let needle = searchValue.trim().toLowerCase().split(" ");
+
     // search results should be an ordered set of maps that contain the kind of results
     // being provided, the ordered set of results, and a selection handler
     let searchResults = [];
 
-    let rels = searchRelations(needle);
+    // see if there are any filters
+    let filters = [];
+    let normalizedSearchValue = searchValue.trim().toLowerCase();
+    for(let filter of availableFilters) {
+      let regex = new RegExp(`\\[${filter}:(.*?)\\]\s*`, "g");
+      let origSearch = normalizedSearchValue;
+      let match;
+      while(match = regex.exec(origSearch)) {
+        normalizedSearchValue = normalizedSearchValue.replace(match[0], "");
+        filters.push({type: filter, value: match[1].trim()});
+      }
+    }
+
+    let needle = normalizedSearchValue.trim().split(" ");
+
+    let rels = searchRelations(needle, filters);
     if(rels) searchResults.push(rels);
 
     let glossary = searchGlossary(needle);
@@ -885,25 +951,78 @@ module drawn {
     return searchResults;
   }
 
-  function searchRelations(needle) {
+  function arrayIntersect(a, b) {
+    let ai = 0;
+    let bi = 0;
+    let result = [];
+    while(ai < a.length && bi < b.length){
+       if (a[ai] < b[bi] ){ ai++; }
+       else if (a[ai] > b[bi] ){ bi++; }
+       else {
+         result.push(a[ai]);
+         ai++;
+         bi++;
+       }
+    }
+    return result;
+  }
+
+  function searchRelations(needle, filters) {
     let matchingViews = [];
-    for(let view of ixer.select("view", {})) {
-      let id = view["view: view"];
-      let name = code.name(view["view: view"]);
+    let viewIds;
+    //handle filters
+    for(let filter of filters) {
+      if(filter.type === "field") {
+        // we need to only look at views with a field with the given name
+        var potentialViews = [];
+        ixer.select("display name", {name: filter.value}).forEach((name) => {
+          let field = ixer.selectOne("field", {field: name["display name: id"]});
+          if(field) {
+            potentialViews.push(field["field: view"]);
+          }
+       });
+       potentialViews.sort();
+       if(!viewIds) {
+          viewIds = potentialViews;
+        } else {
+          viewIds = arrayIntersect(viewIds, potentialViews);
+        }
+      } else if(filter.type === "tag") {
+        // we only look at views with the given tag
+        let tagged = ixer.select("tag", {tag: filter.value});
+        if(!viewIds) {
+          viewIds = [];
+          tagged.forEach((tag) => {
+            viewIds.push(tag["tag: view"]);
+          });
+          viewIds.sort();
+        } else {
+          let taggedIds = tagged.map((tag) => tag["tag: view"]).sort();
+          viewIds = arrayIntersect(viewIds, taggedIds);
+        }
+      }
+    }
+
+    if(!filters.length) {
+      viewIds = ixer.select("view", {}).map((view) => view["view: view"]);
+    }
+
+    for(let viewId of viewIds) {
+      let name = code.name(viewId);
       let score = scoreHaystack(name, needle);
       if(score.score) {
-        let description = ixer.selectOne("view description", {view: id});
+        let description = ixer.selectOne("view description", {view: viewId});
         if(description) {
           description = description["view description: description"];
         } else {
           description = "No description :(";
         }
-        matchingViews.push({text: name, viewId: id, score, description});
+        matchingViews.push({text: name, viewId, score, description});
       }
     }
     matchingViews.sort(sortByScore);
     return {kind: "Sources", results: matchingViews, onSelect: (e, elem) => {
-      dispatch("addViewToQuery", {viewId: elem.result.viewId});
+      dispatch("addViewAndMaybeJoin", {viewId: elem.result.viewId});
     }};
   }
 
