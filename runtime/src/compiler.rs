@@ -617,31 +617,24 @@ fn plan(flow: &Flow) {
     let mut requires_table = flow.overwrite_output("requires");
     find!(variable_table, [view, variable], {
         find!(binding_table, [(= variable), source, field], {
-            if dont_find!(negated_source_table, [(= view), (= source)]) {
+            dont_find!(negated_source_table, [(= view), (= source)], {
                 find!(field_table, [_, (= field), field_kind], {
                     match field_kind.as_str() {
                         "output" => insert!(provides_table, [view, source, variable]),
                         _ => insert!(requires_table, [view, source, variable]),
                     };
                 });
-            } else {
-                // for negated tables, any variable that is bound elsewhere must be provided first
-                find!(binding_table, [(= variable), other_source, _], {
-                    if source != other_source {
-                        insert!(requires_table, [view, source, variable]);
-                    }
-                });
-                find!(ordinal_binding_table, [(= variable), other_source, _], {
-                    if source != other_source {
-                        insert!(requires_table, [view, source, variable]);
-                    }
-                });
-            }
+            });
         });
-        find!(ordinal_binding_table, [(= variable), source], {
-            if dont_find!(negated_source_table, [(= view), (= source)]) {
-                insert!(provides_table, [view, source, variable]);
-            }
+    });
+    find!(variable_table, [view, variable], {
+        find!(binding_table, [(= variable), source, _], {
+            find!(negated_source_table, [(= view), (= source)], {
+                find!(provides_table, [(= view), _, (= variable)], {
+                    // negated sources treat fields as input if they are bound elsewhere
+                    insert!(requires_table, [view, source, variable]);
+                });
+            });
         });
     });
 
