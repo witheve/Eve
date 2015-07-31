@@ -942,6 +942,7 @@ module api {
     "ordinal binding": {},
     "grouped field": {},
     "negated source": {},
+    "sorted field": {},
 
     "select (new)": {},
     "variable (new)" : {},

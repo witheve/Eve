@@ -763,6 +763,83 @@ module drawn {
         });
       break;
       //---------------------------------------------------------
+      // sorting
+      //---------------------------------------------------------
+      case "startSort":
+        var {sourceId} = info;
+        localState.sorting = info;
+        // make sure that the tooltip isn't obstructing the sorter
+        dispatch("hideTooltip", {}, true);
+        // if we haven't created sort fields for this before, then we create them in the
+        // order that the fields of the source view are displayed in
+        if(!ixer.selectOne("sorted field", {source: sourceId})) {
+          let sourceViewId = ixer.selectOne("source", {source: sourceId})["source: source view"];
+          let fieldIds = ixer.getFields(sourceViewId);
+          let viewId = localState.drawnUiActiveId;
+          fieldIds.forEach((fieldId, ix) => {
+            diffs.push(api.insert("sorted field", {view: viewId, source: sourceId, ix, field: fieldId, direction: "ascending"}));
+          })
+        }
+      break;
+      case "stopSort":
+        localState.sorting = false;
+      break;
+      case "moveSortField":
+        var {from, to, sourceId} = info;
+        // if we haven't actually moved, then we just ignore the drop.
+        if(from === to) break;
+        // grab all the fields and get them in their current order
+        var sorted = ixer.select("sorted field", {source: sourceId});
+        sorted.sort((a, b) => {
+          return a["sorted field: ix"] - b["sorted field: ix"];
+        });
+        // now update the orders based on inserting the moved item in its new location
+        var viewId = localState.drawnUiActiveId;
+        var updatedIx = 0;
+        sorted.forEach((sort, ix) => {
+          // we have to keep track of how far ahead we need to move, which depends on if
+          // we insert to the left or right of the index we're moving to.
+          let advanceBy = 1;
+          // if this is the item we're moving, skip it
+          if(ix === from) return;
+          // if this is the item we're moving to, then we need to place it here
+          if(ix === to) {
+            let movedIx;
+            // if we're moving from a greater location to a lesser on, we want to insert
+            // to the left, which means we take the current updatedIndex, and the item that's
+            // currently there will get bumped up one.
+            if(from > to) {
+              movedIx = updatedIx;
+              updatedIx++;
+            // if we're move from a lesser location to a greater one, we want to insert to the
+            // right of it, which means we leave the current updatedIx alone and we take the index
+            // after that. That means we need to advance the updatedIx by two, once for the moved item
+            // and once for the item already at this index.
+            } else {
+              // go to the right
+              movedIx = updatedIx + 1;
+              advanceBy = 2;
+            }
+            let moved = sorted[from];
+            // replace this field
+            diffs.push(api.remove("sorted field", {view: viewId, source: sourceId, ix: moved["sorted field: ix"], field: moved["sorted field: field"], direction: moved["sorted field: direction"]}))
+            diffs.push(api.insert("sorted field", {view: viewId, source: sourceId, ix: movedIx, field: moved["sorted field: field"], direction: moved["sorted field: direction"]}))
+          }
+          // we only replace this field if its index has actually changed
+          if(sort["sorted field: ix"] !== updatedIx) {
+            diffs.push(api.remove("sorted field", {view: viewId, source: sourceId, ix: sort["sorted field: ix"], field: sort["sorted field: field"], direction: sort["sorted field: direction"]}))
+            diffs.push(api.insert("sorted field", {view: viewId, source: sourceId, ix: updatedIx, field: sort["sorted field: field"], direction: sort["sorted field: direction"]}))
+          }
+          updatedIx += advanceBy;
+        });
+      break;
+      case "toggleSortDirection":
+        var sortedField = ixer.selectOne("sorted field", {source: info.sourceId, field: info.fieldId});
+        diffs.push(api.remove("sorted field", {source: info.sourceId, field: info.fieldId}));
+        var direction = sortedField["sorted field: direction"] === "ascending" ? "descending" : "ascending";
+        diffs.push(api.insert("sorted field", {view: sortedField["sorted field: view"], source: info.sourceId, field: info.fieldId, ix: sortedField["sorted field: ix"], direction}))
+      break;
+      //---------------------------------------------------------
       // Errors
       //---------------------------------------------------------
       case "setError":
@@ -856,6 +933,7 @@ module drawn {
       break;
       case "hideTooltip":
         localState.tooltip = false;
+        clearTimeout(localState.tooltipTimeout);
       break;
       //---------------------------------------------------------
       // Menu
@@ -1142,6 +1220,7 @@ module drawn {
       "select": {func: selectAttribute, text: "Show"},
       "filter": {func: addFilter, text: "Filter"},
       "group": {func: groupAttribute, text: "Group"},
+      "sort": {func: startSort, text: "Sort"},
       "chunk": {func: chunkSource, text: "Chunk"},
       "ordinal": {func: addOrdinal, text: "Ordinal"},
       "negate": {func: negateSource, text: "Negate"},
@@ -1154,6 +1233,7 @@ module drawn {
         "select": "select only applies to attributes",
         "filter": "filter only applies to attributes",
         "group": "group only applies to attributes",
+        "sort": "sort only applies to sources",
         "chunk": "chunk only applies to sources",
         "ordinal": "ordinal only applies to sources",
         "negate": "negate only applies to sources",
@@ -1163,6 +1243,7 @@ module drawn {
     } else if(selectedNodes.length === 1) {
       let node = selectedNodes[0];
       if(node.type === "attribute") {
+        disabled["sort"] = "sort only applies to sources";
         disabled["chunk"] = "chunk only applies to sources";
         disabled["ordinal"] = "ordinal only applies to sources";
         disabled["negate"] = "negate only applies to sources";
@@ -1197,12 +1278,12 @@ module drawn {
         disabled["join"] = "join only applies to attributes.";
         let hasJoins = sourceHasJoins(node.id);
         if(hasJoins) {
-          disabled["chunk"] = "you cannot chunk if attributes of the source are joined to other sources";
+          disabled["chunk"] = "this source is joined with other sources that are not chunked.";
         }
         if(node.chunked) {
           actions["chunk"] = {func: unchunkSource, text: "Unchunk"};
            if(hasJoins) {
-              disabled["chunk"] = "you cannot unchunk if attributes of the source are joined to other sources";
+              disabled["chunk"] = "this source is joined with other sources that are chunked.";
            }
         }
         if(node.isNegated) {
@@ -1219,6 +1300,7 @@ module drawn {
       disabled = {
         "filter": "filter only applies to single attributes",
         "group": "group only applies to single attributes",
+        "sort": "sort only applies to single sources",
         "chunk": "chunk only applies to single sources",
         "ordinal": "ordinal only applies to single sources",
         "negate": "negate only applies to single sources",
@@ -1260,7 +1342,34 @@ module drawn {
 
     return {c: "left-side-container", children: [
       {c: "query-tools", children: tools},
+      sorter(),
       querySearcher()
+    ]};
+  }
+
+  function sorter() {
+    if(!localState.sorting) return;
+    let sourceId = localState.sorting.sourceId;
+    let sourceViewId = ixer.selectOne("source", {source: sourceId})["source: source view"];
+    let fieldItems = ixer.getFields(sourceViewId).map((field, ix) => {
+      let sortedField = ixer.selectOne("sorted field", {source: sourceId, field: field});
+      let sortIx = sortedField ? sortedField["sorted field: ix"] : ix;
+      let sortArrow = sortedField["sorted field: direction"] === "ascending" ? "ion-arrow-up-b" : "ion-arrow-down-b";
+      return {c: "field", draggable: true, dragstart: sortDragStart, dragover: sortFieldDragOver, drop: sortFieldDrop, sortIx, sourceId, children: [
+        {c: "field-name", text: code.name(field)},
+        {c: `sort-direction ${sortArrow}`, sortedField, click: toggleSortDirection},
+      ]};
+    });
+    fieldItems.sort((a, b) => {
+      return a.sortIx - b.sortIx;
+    });
+    return {c: "sorter-container", children: [
+      {c: "sorter-shade", click: stopSort},
+      {c: "sorter", top: localState.sorting.y, left: localState.sorting.x,  children: [
+        {c: "header", text: "Adjust sorting"},
+        {c: "description", text: "Order the fields in the order you want them to be sorted in and click the arrow to adjust whether to sort ascending or descending"},
+        {c: "fields", children: fieldItems}
+      ]}
     ]};
   }
 
@@ -1297,11 +1406,41 @@ module drawn {
     ]};
   }
 
+  function toggleSortDirection(e, elem) {
+    dispatch("toggleSortDirection", {sourceId: elem.sortedField["sorted field: source"], fieldId: elem.sortedField["sorted field: field"]});
+  }
+
+  function sortDragStart(e, elem) {
+    e.dataTransfer.setData("sortIx", elem.sortIx);
+  }
+
+  function sortFieldDragOver(e, elem) {
+    e.preventDefault();
+  }
+
+  function sortFieldDrop(e, elem) {
+    e.preventDefault();
+    dispatch("moveSortField", {
+      sourceId: elem.sourceId,
+      from: parseInt(e.dataTransfer.getData("sortIx")),
+      to: elem.sortIx,
+    });
+  }
+
   function scrollToTheBottomOnChange(node, elem) {
     if(!node.searchValue || node.searchValue !== elem.value) {
       node.scrollTop = 100000000;
       node.searchValue = elem.value;
     }
+  }
+
+  function stopSort(e, elem) {
+    dispatch("stopSort", {});
+  }
+
+  function startSort(e, elem) {
+    let rect = e.currentTarget.getBoundingClientRect();
+    dispatch("startSort", {x: rect.right + 10, y: rect.top, sourceId: elem.node.id});
   }
 
   function showButtonTooltip(e, elem) {
@@ -1805,7 +1944,7 @@ module drawn {
       pos: {left: x, top: y}
     });
   }
-  
+
   //---------------------------------------------------------
   // keyboard handling
   //---------------------------------------------------------
