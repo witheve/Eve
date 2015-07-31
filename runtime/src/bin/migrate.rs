@@ -123,7 +123,6 @@ fn make_regression_test() {
 }
 
 #[test]
-/*
 fn test_examples() {
     let inputs = walk_dir("./test-inputs").unwrap().collect::<Vec<_>>();
     let outputs = walk_dir("./test-outputs").unwrap().collect::<Vec<_>>();
@@ -156,7 +155,6 @@ fn test_examples() {
         }
     }
 }
-*/
 
 fn main() {
     let args = env::args().collect::<Vec<String>>();
