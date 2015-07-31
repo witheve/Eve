@@ -2,6 +2,7 @@
 /// <reference path="../src/api.ts" />
 /// <reference path="../src/client.ts" />
 /// <reference path="../src/tableEditor.ts" />
+/// <reference path="../src/glossary.ts" />
 module eveEditor {
   var localState = api.localState;
   var ixer = api.ixer;
@@ -87,6 +88,14 @@ module drawn {
         if (!elem.__focused) {
             setTimeout(function () { node.focus(); }, 5);
             elem.__focused = true;
+            if(elem.contentEditable && node.firstChild) {
+              let range = document.createRange();
+              range.setStart(node.firstChild, node.textContent.length);
+              range.setEnd(node.firstChild, node.textContent.length);
+              let sel = window.getSelection();
+              sel.removeAllRanges();
+              sel.addRange(range);
+            }
         }
     }
 
@@ -240,6 +249,17 @@ module drawn {
   // AST helpers
   //---------------------------------------------------------
 
+  function sourceHasJoins(sourceId) {
+    let bindings = ixer.select("binding (new)", {source: sourceId});
+    for(let binding of bindings) {
+      let variableId = binding["binding (new): variable"];
+      if(ixer.select("binding (new)", {variable: variableId}).length > 1) return true;
+      if(ixer.select("ordinal binding", {variable: variableId}).length) return true;
+      if(ixer.select("constant (new)", {variable: variableId}).length) return true;
+    }
+    return false;
+  }
+
   function removeVariable(variableId) {
     let diffs = [];
     diffs.push(api.remove("variable (new)", {variable: variableId}));
@@ -266,10 +286,32 @@ module drawn {
     for(let binding of bindings) {
       let variableId = binding["binding (new): variable"];
       // determine if this is the only binding for this variable
-      let singleBinding = ixer.select("binding (new)", {variable: variableId}).length === 1;
+      let allVariableBindings = ixer.select("binding (new)", {variable: variableId});
+      let singleBinding = allVariableBindings.length === 1;
       // if this variable is only bound to this field, then we need to remove it
       if(singleBinding) {
         diffs.push.apply(diffs, removeVariable(variableId));
+      } else {
+        // we need to check if the remaining bindings are all inputs, if so we
+        // bind it to a constant to ensure the code remains valid
+        let needsConstant = true;
+        let input;
+        for(let variableBinding of allVariableBindings) {
+           if(variableBinding === binding) continue;
+           let fieldId = variableBinding["binding (new): field"];
+           let kind = ixer.selectOne("field", {field: fieldId})["field: kind"];
+           if(kind === "output") {
+             needsConstant = false;
+             break;
+           } else {
+             input = variableBinding;
+           }
+        }
+        if(needsConstant) {
+           let fieldId = input["binding (new): field"];
+           let sourceViewId = ixer.selectOne("source", {source: input["binding (new): source"]})["source: source view"];
+           diffs.push(api.insert("constant (new)", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
+        }
       }
     }
     let ordinal = ixer.selectOne("ordinal binding", {source: sourceId});
@@ -281,15 +323,26 @@ module drawn {
 
   function addSourceFieldVariable(queryId, sourceViewId, sourceId, fieldId) {
     let diffs = [];
-    let kind = ixer.selectOne("field", {field: fieldId})["field: kind"];
+    let kind;
+    // check if we're adding an ordinal
+    if(fieldId === "ordinal") {
+      kind = "ordinal";
+    } else {
+      kind = ixer.selectOne("field", {field: fieldId})["field: kind"];
+    }
     // add a variable
     let variableId = uuid();
     diffs.push(api.insert("variable (new)", {view: queryId, variable: variableId}));
-    // bind the field to it
-    diffs.push(api.insert("binding (new)", {variable: variableId, source: sourceId, field: fieldId}));
-    if(kind === "output") {
+    if(kind === "ordinal") {
+      // create an ordinal binding
+      diffs.push(api.insert("ordinal binding", {variable: variableId, source: sourceId}));
+    } else {
+      // bind the field to it
+      diffs.push(api.insert("binding (new)", {variable: variableId, source: sourceId, field: fieldId}));
+    }
+    if(kind === "output" || kind === "ordinal") {
       // select the field
-      diffs.push.apply(diffs, dispatch("addSelectToQuery", {viewId: queryId, variableId: variableId, name: code.name(fieldId)}, true));
+      diffs.push.apply(diffs, dispatch("addSelectToQuery", {viewId: queryId, variableId: variableId, name: code.name(fieldId) || fieldId}, true));
     } else {
       // otherwise we're an input field and we need to add a default constant value
       diffs.push(api.insert("constant (new)", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
@@ -325,12 +378,30 @@ module drawn {
         localState.selectedViewId = uuid();
       break;
       case "removeSelection":
+        var removedSources = {};
         for(let nodeId in localState.selectedNodes) {
           let node = localState.selectedNodes[nodeId];
           if(node.type === "relationship") {
-            diffs = removeSource(node.id);
+            removedSources[node.id] = true;
+            diffs.push.apply(diffs, removeSource(node.id));
           } else if (node.type === "primitive") {
-            diffs = removeSource(node.sourceId);
+            removedSources[node.sourceId] = true;
+            diffs.push.apply(diffs, removeSource(node.sourceId));
+          }
+        }
+        // we need to check for any variables that got orphaned by removing all the given sources
+        for(let variable of ixer.select("variable (new)", {view: localState.drawnUiActiveId})) {
+          let variableId = variable["variable (new): variable"];
+          let bindings = ixer.select("binding (new)", {variable: variableId});
+          let shouldRemove = true;
+          for(let binding of bindings) {
+            if(!removedSources[binding["binding (new): source"]]) {
+              shouldRemove = false;
+              break;
+            }
+          }
+          if(shouldRemove) {
+            diffs.push.apply(diffs, removeVariable(variableId));
           }
         }
         dispatch("clearSelection", {}, true);
@@ -424,22 +495,36 @@ module drawn {
           api.insert("view", {view: newId, kind: "join", dependents: {"display name": {name: "New query!"}, "tag": [{tag: "remote"}]}})
         ];
       break;
-      case "addViewToQuery":
+      case "addViewAndMaybeJoin":
         var sourceId = uuid();
         var queryId = localState.drawnUiActiveId;
         diffs = [
           api.insert("source", {view: queryId, source: sourceId, "source view": info.viewId})
         ];
+        // if there's a selection, we want to try and join on those nodes if possible
+        // so that we don't produce product joins all the time
+        var potentialJoinNodes = {};
+        for(let selectedId in localState.selectedNodes) {
+          let node = localState.selectedNodes[selectedId];
+          // we can only join on attributes
+          if(node.type === "attribute") {
+            potentialJoinNodes[node.name] = node;
+          }
+        }
+        // add variables for all the fields of this view
         var sourceView = ixer.selectOne("view", {view: info.viewId});
         ixer.select("field", {view: info.viewId}).forEach(function(field) {
             let fieldId = field["field: field"];
-            diffs.push.apply(diffs, addSourceFieldVariable(queryId, info.viewId, sourceId, fieldId));
+            let name = code.name(fieldId);
+            // check if we should try to join this field to one of the potential join nodes
+            if(potentialJoinNodes[name]) {
+              // if we're going to join, we just need a binding to this node
+              diffs.push(api.insert("binding (new)", {source: sourceId, field: fieldId, variable: potentialJoinNodes[name].variable}));
+            } else {
+              // otherwise we need to create a variable for this field
+              diffs.push.apply(diffs, addSourceFieldVariable(queryId, info.viewId, sourceId, fieldId));
+            }
         });
-        //we may also have information about where we should position it.
-        if(info.top !== undefined) {
-          diffs.push(api.insert("editor node position", {node: sourceId, x: info.left, y: info.top}));
-          positions[sourceId] = {left: info.left, top: info.top};
-        }
       break;
       case "joinNodes":
         var {target, node} = info;
@@ -453,6 +538,11 @@ module drawn {
           let sourceId = binding["binding (new): source"];
           let fieldId = binding["binding (new): field"];
           diffs.push(api.insert("binding (new)", {variable: variableId, source: sourceId, field: fieldId}));
+        }
+        // check for an ordinal binding and move it over if it exists
+        var ordinalBinding = ixer.selectOne("ordinal binding", {variable: variableIdToRemove});
+        if(ordinalBinding) {
+          diffs.push(api.insert("ordinal binding", {variable: variableId, source: ordinalBinding["ordinal binding: source"]}));
         }
 
         // remove the old variable
@@ -484,10 +574,17 @@ module drawn {
         }
         diffs.push.apply(diffs, dispatch("clearSelection", info, true));
       break;
+      case "joinSelection":
+        let ids = Object.keys(localState.selectedNodes);
+        let root = localState.selectedNodes[ids[0]];
+        for(let nodeId of ids.slice(1)) {
+          let node = localState.selectedNodes[nodeId];
+          diffs.push.apply(diffs, dispatch("joinNodes", {node, target: root}, true));
+        }
+      break;
       case "unjoinNodes":
-        var {fromNode} = info;
         var queryId = localState.drawnUiActiveId;
-        var variableIdToRemove = fromNode.variable;
+        var variableIdToRemove = info.variableId;
         var oldBindings = ixer.select("binding (new)", {variable: variableIdToRemove});
          // push all the bindings onto their own variables, skipping the first as that one can reuse
          // the current variable
@@ -497,6 +594,12 @@ module drawn {
           let sourceViewId = ixer.selectOne("source", {source: sourceId})["source: source view"];
           diffs.push.apply(diffs, addSourceFieldVariable(queryId, sourceViewId, sourceId, fieldId));
           diffs.push(api.remove("binding (new)", {variable: variableIdToRemove, source: sourceId, field: fieldId}));
+        }
+        // check for an ordinal binding and create a new variable for it if it exists
+        var ordinalBinding = ixer.selectOne("ordinal binding", {variable: variableIdToRemove});
+        if(ordinalBinding) {
+          diffs.push.apply(diffs, addSourceFieldVariable(queryId, null, ordinalBinding["ordinal binding: source"], "ordinal"));
+          diffs.push(api.remove("ordinal binding", {variable: variableIdToRemove}));
         }
         // we have to check to make sure that if the original binding represents an input it gets a default
         // added to it to prevent the server from crashing
@@ -525,10 +628,35 @@ module drawn {
         }});
         var fieldId = neueField.content.field;
 
+        // check to make sure this isn't only a negated attribute
+        var onlyNegated = !info.allowNegated;
+        var bindings = ixer.select("binding (new)", {variable: info.variableId});
+        for(let binding of bindings) {
+          let sourceId = binding["binding (new): source"];
+          if(!ixer.selectOne("negated source", {source: sourceId})) {
+            onlyNegated = false;
+          }
+        }
+        if(bindings.length && onlyNegated) {
+          return dispatch("setError", {errorText: "Attributes that belong to a negated source that aren't joined with something else, can't be selected since they represent the absence of a value."});
+        }
+
         diffs = [
           neueField,
           api.insert("select (new)", {view: info.viewId, field: fieldId, variable: info.variableId})
         ];
+      break;
+      case "selectSelection":
+        for(let nodeId in localState.selectedNodes) {
+          let node = localState.selectedNodes[nodeId];
+          diffs.push.apply(diffs, dispatch("addSelectToQuery", {variableId: node.variable, name: node.name, viewId: localState.drawnUiActiveId}, true));
+        }
+      break;
+      case "unselectSelection":
+        for(let nodeId in localState.selectedNodes) {
+          let node = localState.selectedNodes[nodeId];
+          diffs.push.apply(diffs, dispatch("removeSelectFromQuery", {variableId: node.variable, viewId: localState.drawnUiActiveId}, true));
+        }
       break;
       case "setQueryName":
         if(info.value === ixer.selectOne("display name", {id: info.viewId})["display name: name"]) return;
@@ -610,6 +738,30 @@ module drawn {
         var fieldId = bindings[0]["binding: field"];
         diffs.push(api.remove("grouped field", {view: info.viewId, source: sourceId, field: fieldId}));
       break;
+      case "negateSource":
+        diffs.push(api.insert("negated source", {view: info.viewId, source: info.sourceId}));
+        // you can't select anything from a negated source, so if there are no joins on a variable this
+        // source uses we need to deselect it
+        for(let binding of ixer.select("binding", {source: info.sourceId})) {
+          let variableId = binding["binding: variable"];
+          if(ixer.select("binding", {variable: variableId}).length === 1) {
+            diffs.push.apply(diffs, dispatch("removeSelectFromQuery", {variableId: variableId, viewId: localState.drawnUiActiveId}, true));
+          }
+        }
+      break;
+      case "unnegateSource":
+        diffs.push(api.remove("negated source", {view: info.viewId, source: info.sourceId}));
+        // since we removed all your selects when you negated the source, let's re-select them
+        var sourceViewId = ixer.selectOne("source", {source: info.sourceId})["source: source view"];
+        ixer.select("field", {view: sourceViewId}).forEach(function(field) {
+            let fieldId = field["field: field"];
+            let binding = ixer.selectOne("binding (new)", {source: info.sourceId, field: fieldId});
+            let bindingVariableId = binding["binding (new): variable"];
+            if(!ixer.selectOne("select (new)", {variable: bindingVariableId})) {
+              diffs.push.apply(diffs, dispatch("addSelectToQuery", {variableId: bindingVariableId, name: code.name(fieldId), viewId: localState.drawnUiActiveId, allowNegated: true}, true));
+            }
+        });
+      break;
       //---------------------------------------------------------
       // Errors
       //---------------------------------------------------------
@@ -627,6 +779,83 @@ module drawn {
       break;
       case "clearError":
         // localState.errors = false;
+      break;
+      //---------------------------------------------------------
+      // search
+      //---------------------------------------------------------
+      case "updateSearch":
+        localState.searchingFor = info.value;
+        localState.searchResults = searchResultsFor(info.value);
+      break;
+      case "startSearching":
+        localState.searching = true;
+        var searchValue = info.value || "";
+        // when we start searching, lets check if there are attributes selected and if there
+        // are, go ahead and add filters to our search for them. This makes it really easy to
+        // figure out what you can join those attributes on
+        for(let nodeId in localState.selectedNodes) {
+          let node = localState.selectedNodes[nodeId];
+          if(node.type === "attribute") {
+            searchValue += `[field: ${node.name}] `;
+          }
+        }
+        diffs.push.apply(diffs, dispatch("updateSearch", {value: searchValue}, true));
+      break;
+      case "stopSearching":
+        localState.searching = false;
+      break;
+      case "handleSearchKey":
+        if(info.keyCode === api.KEYS.ENTER) {
+          // execute whatever the first result's action is
+          let currentSearchGroup = localState.searchResults[0];
+          if(currentSearchGroup && currentSearchGroup.results.length) {
+            let results = currentSearchGroup.results;
+            currentSearchGroup.onSelect(null, {result: currentSearchGroup.results[results.length - 1]});
+          }
+          diffs.push.apply(diffs, dispatch("stopSearching", {}, true));
+        } else if(info.keyCode === api.KEYS.ESC) {
+          diffs.push.apply(diffs, dispatch("stopSearching", {}, true));
+        } else if(info.keyCode === api.KEYS.F && (info.ctrlKey || info.metaKey)) {
+          diffs.push.apply(diffs, dispatch("stopSearching", {}, true));
+          info.e.preventDefault();
+        }
+      break;
+      //---------------------------------------------------------
+      // Tooltip
+      //---------------------------------------------------------
+      case "showButtonTooltip":
+        localState.maybeShowingTooltip = true;
+        var tooltip = {
+          content: {c: "button-info", children: [
+            {c: "header", text: info.header},
+            {c: "description", text: info.description},
+            info.disabledMessage ? {c: "disabled-message", text: "Disabled because " + info.disabledMessage} : undefined,
+          ]},
+          x: info.x + 10,
+          y: info.y
+        };
+        if(!localState.tooltip) {
+          localState.tooltipTimeout = setTimeout(function() {
+            dispatch("showTooltip", tooltip);
+          }, 500);
+        } else {
+          diffs = dispatch("showTooltip", tooltip, true);
+        }
+      break;
+      case "hideButtonTooltip":
+        clearTimeout(localState.tooltipTimeout);
+        localState.maybeShowingTooltip = false;
+        localState.tooltipTimeout = setTimeout(function() {
+          if(!localState.maybeShowingTooltip) {
+            dispatch("hideTooltip", {});
+          }
+        }, 10);
+      break;
+      case "showTooltip":
+        localState.tooltip = info;
+      break;
+      case "hideTooltip":
+        localState.tooltip = false;
       break;
       //---------------------------------------------------------
       // Menu
@@ -651,6 +880,162 @@ module drawn {
       render();
     }
     return diffs;
+  }
+
+  //---------------------------------------------------------
+  // Search
+  //---------------------------------------------------------
+
+  function scoreHaystack(haystack, needle) {
+    let score = 0;
+    let found = {};
+    let lowerHaystack = haystack.toLowerCase();
+    if(needle.length === 1 && haystack === needle[0]) {
+      score += 2;
+    }
+    for(let word of needle) {
+      let ix = lowerHaystack.indexOf(word);
+      if(ix === 0) {
+        score += 1;
+      }
+      if(ix > -1) {
+        score += 1;
+        found[word] = ix;
+      }
+    }
+    return {score, found};
+  }
+
+  function sortByScore(a, b) {
+    let aScore = a.score.score;
+    let bScore = b.score.score;
+    if(aScore === bScore) {
+      return b.text.length - a.text.length;
+    }
+    return aScore - bScore;
+  }
+
+  var availableFilters = ["field", "tag"];
+  function searchResultsFor(searchValue) {
+    let start = api.now();
+
+    // search results should be an ordered set of maps that contain the kind of results
+    // being provided, the ordered set of results, and a selection handler
+    let searchResults = [];
+
+    // see if there are any filters
+    let filters = [];
+    let normalizedSearchValue = searchValue.trim().toLowerCase();
+    for(let filter of availableFilters) {
+      let regex = new RegExp(`\\[${filter}:(.*?)\\]\s*`, "g");
+      let origSearch = normalizedSearchValue;
+      let match;
+      while(match = regex.exec(origSearch)) {
+        normalizedSearchValue = normalizedSearchValue.replace(match[0], "");
+        filters.push({type: filter, value: match[1].trim()});
+      }
+    }
+
+    let needle = normalizedSearchValue.trim().split(" ");
+
+    let rels = searchRelations(needle, filters);
+    if(rels) searchResults.push(rels);
+
+    let glossary = searchGlossary(needle);
+    if(glossary) searchResults.push(glossary);
+
+    let end = api.now();
+    if(end - start > 5) {
+      console.error("Slow search (>5 ms):", end - start, searchValue);
+    }
+    return searchResults;
+  }
+
+  function arrayIntersect(a, b) {
+    let ai = 0;
+    let bi = 0;
+    let result = [];
+    while(ai < a.length && bi < b.length){
+       if (a[ai] < b[bi] ){ ai++; }
+       else if (a[ai] > b[bi] ){ bi++; }
+       else {
+         result.push(a[ai]);
+         ai++;
+         bi++;
+       }
+    }
+    return result;
+  }
+
+  function searchRelations(needle, filters) {
+    let matchingViews = [];
+    let viewIds;
+    //handle filters
+    for(let filter of filters) {
+      if(filter.type === "field") {
+        // we need to only look at views with a field with the given name
+        var potentialViews = [];
+        ixer.select("display name", {name: filter.value}).forEach((name) => {
+          let field = ixer.selectOne("field", {field: name["display name: id"]});
+          if(field) {
+            potentialViews.push(field["field: view"]);
+          }
+       });
+       potentialViews.sort();
+       if(!viewIds) {
+          viewIds = potentialViews;
+        } else {
+          viewIds = arrayIntersect(viewIds, potentialViews);
+        }
+      } else if(filter.type === "tag") {
+        // we only look at views with the given tag
+        let tagged = ixer.select("tag", {tag: filter.value});
+        if(!viewIds) {
+          viewIds = [];
+          tagged.forEach((tag) => {
+            viewIds.push(tag["tag: view"]);
+          });
+          viewIds.sort();
+        } else {
+          let taggedIds = tagged.map((tag) => tag["tag: view"]).sort();
+          viewIds = arrayIntersect(viewIds, taggedIds);
+        }
+      }
+    }
+
+    if(!filters.length) {
+      viewIds = ixer.select("view", {}).map((view) => view["view: view"]);
+    }
+
+    for(let viewId of viewIds) {
+      let name = code.name(viewId);
+      let score = scoreHaystack(name, needle);
+      if(score.score) {
+        let description = ixer.selectOne("view description", {view: viewId});
+        if(description) {
+          description = description["view description: description"];
+        } else {
+          description = "No description :(";
+        }
+        matchingViews.push({text: name, viewId, score, description});
+      }
+    }
+    matchingViews.sort(sortByScore);
+    return {kind: "Sources", results: matchingViews, onSelect: (e, elem) => {
+      dispatch("addViewAndMaybeJoin", {viewId: elem.result.viewId});
+    }};
+  }
+
+  function searchGlossary(needle) {
+    let matchingTerms = [];
+    for(let term of glossary.terms) {
+      let score = scoreHaystack(term.term, needle);
+      if(score.score) {
+        matchingTerms.push({text: term.term, description: term.description, score});
+      }
+    }
+    matchingTerms.sort(sortByScore);
+    return {kind: "Glossary", results: matchingTerms, onSelect: () => { console.log("selected glossary item")}};
   }
 
   //---------------------------------------------------------
@@ -693,6 +1078,7 @@ module drawn {
     var view = ixer.selectOne("view", {view: viewId});
     if(!view) return;
     return {c: "query", children: [
+      tooltipUi(),
       localState.drawnUiActiveId ? queryTools(view) : undefined,
       {c: "container", children: [
         {c: "surface", children: [
@@ -703,8 +1089,20 @@ module drawn {
         ]},
         showResults ? queryResults(viewId) : undefined
       ]}
-
     ]};
+  }
+
+  function tooltipUi() {
+    let tooltip = localState.tooltip;
+    if(tooltip) {
+      let elem = {c: "tooltip", left: tooltip.x, top: tooltip.y};
+      if(typeof tooltip.content === "string") {
+        elem["text"] = tooltip.content;
+      } else {
+        elem["children"] = [tooltip.content];
+      }
+      return elem;
+    }
   }
 
   function queryErrors(view) {
@@ -726,9 +1124,6 @@ module drawn {
        {c: "tool", text: "back", click: gotoQuerySelector},
     ];
 
-    // @FIXME: what is the correct way to divy this up? The criteria for
-    // what tools show up can be pretty complicated.
-
     let viewId = view["view: view"];
 
     // @FIXME: we ask for the entity info multiple times to draw the editor
@@ -741,61 +1136,200 @@ module drawn {
       return nodeLookup[nodeId];
     });
 
+    let disabled = {};
+    let actions = {
+      "join": {func: joinSelection, text: "Join"},
+      "select": {func: selectAttribute, text: "Show"},
+      "filter": {func: addFilter, text: "Filter"},
+      "group": {func: groupAttribute, text: "Group"},
+      "chunk": {func: chunkSource, text: "Chunk"},
+      "ordinal": {func: addOrdinal, text: "Ordinal"},
+      "negate": {func: negateSource, text: "Negate"},
+    }
+
     // no selection
     if(!selectedNodes.length) {
-      tools.push.apply(tools, [
-        {c: "tool", text: "Entity"},
-        {c: "tool", text: "Attribute"},
-        {c: "tool", text: "Relationship", click: showCanvasMenu},
-      ]);
+      disabled = {
+        "join": "join only applies to attributes",
+        "select": "select only applies to attributes",
+        "filter": "filter only applies to attributes",
+        "group": "group only applies to attributes",
+        "chunk": "chunk only applies to sources",
+        "ordinal": "ordinal only applies to sources",
+        "negate": "negate only applies to sources",
+      }
 
     // single selection
     } else if(selectedNodes.length === 1) {
       let node = selectedNodes[0];
       if(node.type === "attribute") {
-        if(node.mergedAttributes) {
-          tools.push({c: "tool", text: "unmerge", click: unjoinNodes, node: node});
-        }
-        if(ixer.selectOne("select (new)", {view: viewId, variable: node.variable})) {
-          tools.push({c: "tool", text: "unselect", click: unselectAttribute, node, viewId});
+        disabled["chunk"] = "chunk only applies to sources";
+        disabled["ordinal"] = "ordinal only applies to sources";
+        disabled["negate"] = "negate only applies to sources";
+        if(!node.mergedAttributes) {
+          // you can't select a node if the source is negated and it's not joined with anything else
+          if(node.sourceNegated) {
+            disabled["select"] = "negated sources prove the absence of a row, which means you'd be selecting from nothing."
+          }
+          disabled["join"] = "multiple attributes aren't joined together on this node.";
         } else {
-          tools.push({c: "tool", text: "select", click: selectAttribute, node, viewId});
-        }
-        if(!node.filter) {
-          tools.push({c: "tool", text: "add filter", click: addFilter, node, viewId});
-        } else {
-          tools.push({c: "tool", text: "change filter", click: modifyFilter, node, viewId});
-          tools.push({c: "tool", text: "remove filter", click: removeFilter, node, viewId});
+          actions["join"] = {func: unjoinNodes, text: "Unjoin"};
         }
 
+        if(ixer.selectOne("select (new)", {view: viewId, variable: node.variable})) {
+          actions["select"] = {func: unselectAttribute, text: "Hide"};
+        }
+        if(node.filter) {
+          actions["filter"] = {func: removeFilter, text: "Unfilter"};
+        }
         // if this node's source is chunked or there's an ordinal binding, we can group
         if(node.sourceChunked || node.sourceHasOrdinal) {
           if(node.grouped) {
-            tools.push({c: "tool", text: "ungroup", click: ungroupAttribute, node, viewId});
-          } else {
-            tools.push({c: "tool", text: "group", click: groupAttribute, node, viewId});
+            actions["group"] = {func: ungroupAttribute, text: "Ungroup"};
           }
-
+        } else {
+          disabled["group"] = "To group an attribute, the source must either have an ordinal or be chunked";
         }
       } else if(node.type === "relationship") {
+        disabled["select"] = "select only applies to attributes.";
+        disabled["filter"] = "filter only applies to attributes.";
+        disabled["group"] = "group only applies to attributes.";
+        disabled["join"] = "join only applies to attributes.";
+        let hasJoins = sourceHasJoins(node.id);
+        if(hasJoins) {
+          disabled["chunk"] = "you cannot chunk if attributes of the source are joined to other sources";
+        }
         if(node.chunked) {
-          tools.push({c: "tool", text: "unchunk", click: unchunkSource, node, viewId});
-        } else {
-          tools.push({c: "tool", text: "chunk", click: chunkSource, node, viewId});
+          actions["chunk"] = {func: unchunkSource, text: "Unchunk"};
+           if(hasJoins) {
+              disabled["chunk"] = "you cannot unchunk if attributes of the source are joined to other sources";
+           }
+        }
+        if(node.isNegated) {
+          actions["negate"] = {func: unnegateSource, text: "Unnegate"};
         }
         if(node.hasOrdinal) {
-          tools.push({c: "tool", text: "remove ordinal", click: removeOrdinal, node, viewId});
-        } else {
-          tools.push({c: "tool", text: "add ordinal", click: addOrdinal, node, viewId});
+          actions["ordinal"] = {func: removeOrdinal, text: "Unordinal"};
         }
 
       }
 
     //multi-selection
     } else {
+      disabled = {
+        "filter": "filter only applies to single attributes",
+        "group": "group only applies to single attributes",
+        "chunk": "chunk only applies to single sources",
+        "ordinal": "ordinal only applies to single sources",
+        "negate": "negate only applies to single sources",
+      }
 
+      // join and select are only valid if everything is an attribute, so if we
+      // find a non-attribute, we have to disable them
+      if(selectedNodes.some((node) => node.type !== "attribute")) {
+        disabled["join"] = "join only applies to attributes";
+        disabled["select"] = "select only applies to attributes";
+      } else {
+        // whether or not we are showing or hiding is based on the state of the first node
+        // in the selection
+        let root = selectedNodes[0];
+        if(ixer.selectOne("select (new)", {view: viewId, variable: root.variable})) {
+          actions["select"] = {func: unselectSelection, text: "Hide"};
+        } else {
+          actions["select"] = {func: selectSelection, text: "Show"};
+        }
+      }
     }
-    return {c: "query-tools", children: tools};
+
+    for(let actionName in actions) {
+      let action = actions[actionName];
+      let description;
+      if(glossary.lookup[action.text]) {
+        description = glossary.lookup[action.text].description;
+      }
+      let tool = {c: "tool", text: action.text, viewId, node: selectedNodes[0], mouseover: showButtonTooltip, mouseout: hideButtonTooltip, description};
+      if(!disabled[actionName]) {
+        tool["click"] = action.func;
+      } else {
+        tool["c"] += " disabled";
+        tool["disabledMessage"] = disabled[actionName];
+      }
+      tools.push(tool);
+    }
+    tools.push({c: "tool", text: "search", click: startSearching});
+
+    return {c: "left-side-container", children: [
+      {c: "query-tools", children: tools},
+      querySearcher()
+    ]};
+  }
+
+  function querySearcher() {
+    if(!localState.searching) return;
+    let results = localState.searchResults;
+    let resultGroups = [];
+    if(results) {
+      resultGroups = results.map((resultGroup) => {
+        let onSelect = resultGroup.onSelect;
+        let items = resultGroup.results.map((result) => {
+          return {c: "search-result-item", result, click: onSelect, children: [
+            {c: "result-text", text: result.text},
+            result.description ? {c: "result-description", text: result.description} : undefined,
+          ]};
+        });
+        return {c: "search-result-group", children: [
+          {c: "search-result-items", children: items},
+          {c: "group-type", children: [
+            {c: "group-name", text: resultGroup.kind},
+            {c: "result-size", text: resultGroup.results.length}
+          ]},
+        ]}
+      });
+    }
+    return {c: "searcher-container", children: [
+      {c: "searcher-shade", click: stopSearching},
+      {c: "searcher", children: [
+        {c: "search-results", children: resultGroups},
+        {c: "search-box", contentEditable: true, postRender: focusOnce, text: localState.searchingFor, input: updateSearch, keydown: handleSearchKey}
+      ]}
+    ]};
+  }
+
+  function showButtonTooltip(e, elem) {
+    let rect = e.currentTarget.getBoundingClientRect();
+    dispatch("showButtonTooltip", {header: elem.text, disabledMessage: elem.disabledMessage, description: elem.description, x: rect.right, y: rect.top});
+  }
+
+  function hideButtonTooltip(e, elem) {
+    dispatch("hideButtonTooltip", {});
+  }
+
+  function handleSearchKey(e, elem) {
+    dispatch("handleSearchKey", {keyCode: e.keyCode, metaKey: e.metaKey, ctrlKey: e.ctrlKey, e});
+  }
+
+  function startSearching(e, elem) {
+    dispatch("startSearching", {value: elem.searchValue});
+  }
+
+  function stopSearching(e, elem) {
+    dispatch("stopSearching", {});
+  }
+
+  function updateSearch(e, elem) {
+    dispatch("updateSearch", {value: e.currentTarget.textContent});
+  }
+
+  function joinSelection(e, elem) {
+    dispatch("joinSelection", {});
+  }
+
+  function selectSelection(e, elem) {
+    dispatch("selectSelection", {});
+  }
+
+  function unselectSelection(e, elem) {
+    dispatch("unselectSelection", {});
   }
 
   function groupAttribute(e, elem) {
@@ -804,6 +1338,14 @@ module drawn {
 
   function ungroupAttribute(e,elem) {
     dispatch("ungroupAttribute", {node: elem.node, viewId: elem.viewId});
+  }
+
+  function negateSource(e, elem) {
+    dispatch("negateSource", {sourceId: elem.node.id, viewId: elem.viewId});
+  }
+
+  function unnegateSource(e, elem) {
+    dispatch("unnegateSource", {sourceId: elem.node.id, viewId: elem.viewId});
   }
 
   function addOrdinal(e, elem) {
@@ -911,6 +1453,9 @@ module drawn {
         if(ixer.selectOne("ordinal binding", {source: sourceId})) {
           curRel.hasOrdinal = true;
         }
+        if(ixer.selectOne("negated source", {source: sourceId})) {
+          curRel.isNegated = true;
+        }
       } else {
         var curPrim: any = {type: "primitive", sourceId: sourceId, primitive: sourceViewId, name: code.name(sourceViewId)};
         curPrim.id = curPrim.sourceId;
@@ -934,6 +1479,16 @@ module drawn {
         let entity = undefined;
         let name = "";
         let singleBinding = bindings.length === 1;
+
+        // check if an ordinal is bound here.
+        if(ordinals.length) {
+          let sourceNode = nodeLookup[ordinals[0]["ordinal binding: source"]];
+          if(sourceNode) {
+            let link: any = {left: attribute, right: sourceNode, name: "ordinal"};
+            links.push(link);
+          }
+          name = "ordinal";
+        }
 
         // run through the bindings once to determine if it's an entity, what it's name is,
         // and all the other properties of this node.
@@ -960,8 +1515,11 @@ module drawn {
           if(sourceNode) {
             attribute.sourceChunked = attribute.sourceChunked || sourceNode.chunked;
             attribute.sourceHasOrdinal = attribute.sourceHasOrdinal || sourceNode.hasOrdinal;
+            attribute.sourceNegated = attribute.sourceNegated || sourceNode.isNegated;
           }
         }
+
+
         // the final name of the node is either the entity name or the whichever name we picked
         name = entity || name;
         // now that it's been named, go through the bindings again and create links to their sources
@@ -981,7 +1539,7 @@ module drawn {
           links.push(link);
         }
         attribute.name = name;
-        attribute.mergedAttributes = bindings.length > 1 ? bindings : undefined;
+        attribute.mergedAttributes = bindings.length + ordinals.length > 1 ? bindings : undefined;
         attribute.entity = entity;
         attribute.select = ixer.selectOne("select (new)", {variable: variableId});
         for(var constant of constants) {
@@ -1096,7 +1654,7 @@ module drawn {
         selection = {svg: true, c: "selection-rectangle", t: "rect", x: left - 10, y: top - 10, width: width + 20, height: height + 20};
       }
     }
-    return {c: "canvas", contextmenu: showCanvasMenu, mousedown: startBoxSelection, mousemove: continueBoxSelection, mouseup: endBoxSelection, dragover: preventDefault, children: [
+    return {c: "canvas", mousedown: startBoxSelection, mousemove: continueBoxSelection, mouseup: endBoxSelection, dragover: preventDefault, children: [
       {c: "selection", svg: true, width: "100%", height: "100%", t: "svg", children: [selection]},
       {c: "links", svg: true, width:"100%", height:"100%", t: "svg", children: linkItems},
       {c: "nodes", children: items}
@@ -1121,28 +1679,6 @@ module drawn {
   }
   function endBoxSelection(e, elem) {
     dispatch("endBoxSelection", {});
-  }
-  function showCanvasMenu(e, elem) {
-    e.preventDefault();
-    dispatch("showMenu", {x: e.clientX, y: e.clientY, contentFunction: canvasMenu});
-  }
-
-  function canvasMenu() {
-    var views = ixer.select("view", {}).filter((view) => {
-      return true; //!api.code.hasTag(view["view: view"], "hidden"); // && view["view: kind"] !== "primitive";
-    }).map((view) => {
-      return {c: "item relationship", text: code.name(view["view: view"]), click: addViewToQuery, viewId: view["view: view"]};
-    });
-    views.sort(function(a, b) {
-      return a.text.localeCompare(b.text);
-    });
-    return {c: "view-selector", children: views};
-  }
-
-  function addViewToQuery(e, elem) {
-    var menu = localState.menu;
-    dispatch("clearMenu", {}, true);
-    dispatch("addViewToQuery", {viewId: elem.viewId, top: menu.top, left: menu.left});
   }
 
   function clearCanvasSelection(e, elem) {
@@ -1179,6 +1715,9 @@ module drawn {
     }
     if(curNode.chunked) {
       klass += " chunked";
+    }
+    if(curNode.isNegated) {
+      klass += " negated";
     }
     if((curNode.sourceChunked && !curNode.grouped) || curNode.inputKind === "vector input") {
       klass += " column";
@@ -1222,7 +1761,7 @@ module drawn {
   }
 
   function unjoinNodes(e, elem) {
-    dispatch("unjoinNodes", {fromNode: elem.node});
+    dispatch("unjoinNodes", {variableId: elem.node.variable});
   }
 
   function selectNode(e, elem) {
@@ -1282,7 +1821,7 @@ module drawn {
 
   document.addEventListener("keydown", function(e) {
     var KEYS = api.KEYS;
-    //Don't capture keys if they are
+    //Don't capture keys if we're focused on an input of some kind
     var target: any = e.target;
     if(e.defaultPrevented
        || target.nodeName === "INPUT"
@@ -1300,6 +1839,11 @@ module drawn {
     //remove
     if(e.keyCode === KEYS.BACKSPACE) {
       dispatch("removeSelection", null);
+      e.preventDefault();
+    }
+
+    if((e.ctrlKey || e.metaKey) && e.keyCode === KEYS.F) {
+      dispatch("startSearching", {value: ""});
       e.preventDefault();
     }
 

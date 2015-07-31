@@ -3,6 +3,7 @@
 #![feature(bitset)]
 #![feature(append)]
 #![feature(iter_cmp)]
+#![feature(drain)]
 
 extern crate rustc_serialize;
 extern crate cbor;

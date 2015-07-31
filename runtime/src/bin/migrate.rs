@@ -13,6 +13,7 @@ use rustc_serialize::json::{ToJson, Json};
 use eve::server::*;
 use eve::flow::*;
 use eve::compiler::*;
+use eve::value::*;
 
 fn read_events(filename: &str) -> Vec<Event> {
     let mut events_string = String::new();
@@ -35,8 +36,8 @@ fn write_events(filename: &str, events: &[Event]) {
 
 fn all_filenames() -> Vec<String> {
     let mut filenames = vec![];
-    filenames.push("./events".to_owned());
-    filenames.push("./boostrap".to_owned());
+    filenames.push("./autosave".to_owned());
+    filenames.push("./bootstrap".to_owned());
     for entry in walk_dir("./test-inputs").unwrap() {
         filenames.push(entry.unwrap().path().to_str().unwrap().to_owned());
     }
@@ -49,11 +50,25 @@ fn all_filenames() -> Vec<String> {
     filenames
 }
 
-fn remove_view(id: &str) {
+fn remove_view(view: &str) {
     for filename in all_filenames() {
         let mut events = read_events(&filename[..]);
         for event in events.iter_mut() {
-            event.changes.retain(|&(ref change_id, _)| change_id != id);
+            event.changes.retain(|&(ref change_view, _)| change_view != view);
+        }
+        write_events(&filename[..], &events[..]);
+    }
+}
+
+fn remove_row(view: &str, row: Vec<Value>) {
+    for filename in all_filenames() {
+        let mut events = read_events(&filename[..]);
+        for event in events.iter_mut() {
+            for &mut (ref change_view, ref mut change) in event.changes.iter_mut() {
+                if change_view == view {
+                    change.insert.retain(|insert_row| *insert_row != row)
+                }
+            }
         }
         write_events(&filename[..], &events[..]);
     }
@@ -81,12 +96,12 @@ fn compact(filename: &str) {
         flow.quiesce(event.changes);
     }
     // TODO session is blank which doesn't seem to matter because it is never used
-    write_events(&filename[..], &[Event{changes: flow.as_changes(), session: "".to_owned()}]);
+    write_events(&filename[..], &[Event{changes: flow.as_changes(), session: "".to_owned(), commands: vec![]}]);
 }
 
 fn make_bug_test() {
-    let events = read_events("./events");
-    let time = time::precise_time_ns();
+    let events = read_events("./autosave");
+    let time = time::get_time().sec;
     let input_filename = format!("./test-inputs/bug-{}", time);
     let output_filename = format!("./test-outputs/bug-{}", time);
     write_events(&input_filename[..], &events[..]);
@@ -95,16 +110,16 @@ fn make_bug_test() {
 
 fn make_regression_test() {
     let bootstrap_events = read_events("./bootstrap");
-    let events = read_events("./events");
+    let events = read_events("./autosave");
     let mut flow = Flow::new();
     for event in bootstrap_events.into_iter().chain(events.into_iter()) {
         flow.quiesce(event.changes);
     }
-    let time = time::precise_time_ns();
+    let time = time::get_time().sec;
     let input_filename = format!("./test-inputs/regression-{}", time);
     let output_filename = format!("./test-outputs/regression-{}", time);
-    write_events(&input_filename[..], &[Event{changes: flow.as_changes(), session: "".to_owned()}]);
-    write_events(&output_filename[..],  &[Event{changes: flow.as_changes(), session: "".to_owned()}]);
+    write_events(&input_filename[..], &[Event{changes: flow.as_changes(), session: "".to_owned(), commands: vec![]}]);
+    write_events(&output_filename[..],  &[Event{changes: flow.as_changes(), session: "".to_owned(), commands: vec![]}]);
 }
 
 #[test]
@@ -145,7 +160,8 @@ fn main() {
     let args = env::args().collect::<Vec<String>>();
     let borrowed_args = args.iter().map(|s| &s[..]).collect::<Vec<&str>>();
     match &borrowed_args[..] {
-        [_, "remove_view", id] => remove_view(id),
+        [_, "remove_view", view] => remove_view(view),
+        [_, "remove_row", view, row] => remove_row(view, FromJson::from_json(&Json::from_str(&row).unwrap())),
         [_, "reset_internal_views"] => reset_internal_views(),
         [_, "compact", filename] => compact(filename),
         [_, "make_bug_test"] => make_bug_test(),

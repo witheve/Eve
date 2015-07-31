@@ -118,7 +118,7 @@ module microReact {
           if(cur.stroke !== prev.stroke) div.setAttributeNS(null, "stroke", cur.stroke);
           if(cur.strokeWidth !== prev.strokeWidth) div.setAttributeNS(null, "stroke-width", cur.strokeWidth);
           if(cur.d !== prev.d) div.setAttributeNS(null, "d", cur.d);
-          if(cur.c !== prev.c) div.setAttributeNS(null, "class", cur.c);  
+          if(cur.c !== prev.c) div.setAttributeNS(null, "class", cur.c);
           if(cur.x !== prev.x)  div.setAttributeNS(null, "x", cur.x);
           if(cur.y !== prev.y) div.setAttributeNS(null, "y", cur.y);
           if(cur.cx !== prev.cx)  div.setAttributeNS(null, "cx", cur.cx);
@@ -134,7 +134,7 @@ module microReact {
           if(cur.draggable !== prev.draggable) div.setAttributeNS(null, "draggable", cur.draggable);
           if(cur.textAnchor !== prev.textAnchor) div.setAttributeNS(null, "text-anchor", cur.textAnchor);
         }
-        
+
         if(cur.backgroundColor !== prev.backgroundColor) style.backgroundColor = cur.backgroundColor || "transparent";
         if(cur.backgroundImage !== prev.backgroundImage) {
           style.backgroundImage = "url('" + cur.backgroundImage + "')";
@@ -167,7 +167,7 @@ module microReact {
         if(cur.mousedown !== prev.mousedown) div.onmousedown = cur.mousedown !== undefined ? this.handleEvent : undefined;
         if(cur.mousemove !== prev.mousemove) div.onmousemove = cur.mousemove !== undefined ? this.handleEvent : undefined;
         if(cur.mouseup !== prev.mouseup) div.onmouseup = cur.mouseup !== undefined ? this.handleEvent : undefined;
-        if(cur.mousein !== prev.mousein) div.onmousein = cur.mousein !== undefined ? this.handleEvent : undefined;
+        if(cur.mouseover !== prev.mouseover) div.onmouseover = cur.mouseover !== undefined ? this.handleEvent : undefined;
         if(cur.mouseout !== prev.mouseout) div.onmouseout = cur.mouseout !== undefined ? this.handleEvent : undefined;
         if(cur.mouseleave !== prev.mouseleave) div.onmouseleave = cur.mouseleave !== undefined ? this.handleEvent : undefined;
         if(cur.mousewheel !== prev.mousewheel) div.onmouseheel = cur.mousewheel !== undefined ? this.handleEvent : undefined;
