@@ -7,7 +7,7 @@ module MicroReactStyleLayoutAdapter {
     ticksPerFrame: number 
   }
  
-  export var defaultSettings = {
+  export let defaultSettings = {
     animate: false,    // Continuously render graph during layout process.
     msPerTick: 0,    // Milliseconds per simulation tick.
     stepsPerTick: 8,  // Iterations per simulation tick. 
@@ -22,8 +22,8 @@ module MicroReactStyleLayoutAdapter {
     
     constructor(opts?) {
       super(opts || {});
-      var settings = opts || {};
-      for(var key in defaultSettings) {
+      let settings = opts || {};
+      for(let key in defaultSettings) {
         if(settings[key] === undefined) { settings[key] = defaultSettings[key]; }
       }
       this.settings = settings;
@@ -32,15 +32,6 @@ module MicroReactStyleLayoutAdapter {
     // Used by cola to notify layout of updates.
     trigger(evt:cola.Event) {
       switch(evt.type) {
-        case cola.EventType.tick:
-          if(this.settings.animate) {
-            if(this.frameClock % this.settings.ticksPerFrame === 0) {
-              this.frameClock = 0;
-              this.render();
-            }
-            this.frameClock++;
-          }
-          break;
         case cola.EventType.end:
           this.render();
           break;
@@ -54,7 +45,6 @@ module MicroReactStyleLayoutAdapter {
     }
     
     on(eventType:cola.EventType|string, listener: (evt?:any) => void) : MicroReactLayoutAdaptor {
-      console.log(`[on]`, eventType, listener);
       if(!this._handlers[eventType]) { this._handlers[eventType] = []; }
       if(this._handlers[eventType].indexOf(listener) === -1) {
         this._handlers[eventType].push(listener);
@@ -73,21 +63,10 @@ module MicroReactStyleLayoutAdapter {
       }
       return this;
     }
-    
-    maybeStep(): boolean {
-      let converged = false;
-      for(var ix = 0; ix < this.settings.stepsPerTick && !converged; ix++) {
-        converged = converged || this.tick();  
-      }
-      
-      if(!converged) {
-        setTimeout(this.maybeStep.bind(this), this.settings.msPerTick);
-      }
-      return converged;
-    }
-    
+
     kick() {
-      this.maybeStep();
+      while(!this.tick()) {}
+      return true;
     }
     
     drag() {}
@@ -99,74 +78,195 @@ module MicroReactStyleLayoutAdapter {
 }
 
 module datawang {
-  var seed = 1;
+  let seed = 1;
+  let nid = 0;
+  
+  interface Node {
+    id: string
+    index: number
+    x?: number
+    y?: number
+    width?: number
+    height?: number
+    kind?: any
+  }
+  
+  interface Edge {
+    source: number,
+    target: number
+  }
+  
+  export function reset() {
+    nid = 0;
+  }
   
   // courtesy of <http://stackoverflow.com/a/19303725>
   export function srand() {
-      var x = Math.sin(seed++) * 10000;
+      let x = Math.sin(seed++) * 10000;
       return x - Math.floor(x);
   }
   
-  export function genData(nodes:number, edges:number, nodeOffset:number=0, edgeOffset:number=0) {
-    var data = {nodes: [], edges: []};
-    for(var ix = 0; ix < nodes; ix++) {
-      data.nodes[ix] = {id: ""+(ix + nodeOffset), width: Math.floor(srand() * 8) * 10 + 40, height: Math.floor(srand() * 8) * 10 + 20};
+  export function chooseInt(min:number, max:number):number {
+    return min + Math.floor(srand() * (max - min));
+  }
+  
+  export function choose<T>(choices:T[]): T {
+    return choices[chooseInt(0, choices.length)];
+  }
+  
+  export function genNodes(num:number, offset:number = 0):Node[] {
+    let nodes:Node[] = [];
+    for(let ix = nid; ix < num + nid; ix++) {
+      nodes.push({
+        id: "node-" + (ix + offset),
+        index: ix + offset,
+        width: Math.floor(srand() * 8) * 10 + 40,
+        height: Math.floor(srand() * 8) * 10 + 20
+      });
     }
-    var usedEdges = {};
-    for(var ix = 0; ix < edges; ix++) {
-      let src = Math.floor(srand() * data.nodes.length + edgeOffset);
-      let dest = Math.floor(srand() * data.nodes.length + edgeOffset);
-      if(src === dest || (usedEdges[src] && usedEdges[src].indexOf(dest) !== -1)) {
+    nid += num;
+    return nodes;
+  }
+  export function genEdges(num:number, sources:Node[], targets:Node[], existing:Edge[] = []):Edge[] {
+    let edges:Edge[] = [];
+    let usedEdges = {};
+    for(let edge of existing) {
+      if(!usedEdges[edge.source]) { usedEdges[edge.source] = []; }
+       usedEdges[edge.source].push(edge.target);
+    }
+    let tries = 0;
+    for(let ix = 0; ix < num; ix++) {
+      let src = choose(sources);
+      let dest = choose(targets);
+      if(src.index === dest.index || (usedEdges[src.index] && usedEdges[src.index].indexOf(dest.index) !== -1)) {
+        if(tries > 100) { throw new Error(`Cannot join ${ix} of ${num} edges from ${sources.length} to ${targets.length} stochastically, bailing.`); }
         ix--;
+        tries++;
         continue;
       }
-      if(!usedEdges[src]) { usedEdges[src] = []; }
-      usedEdges[src].push(dest);
-      data.edges[ix] = {source: src, target: dest};
+      tries = 0;
+      if(!usedEdges[src.index]) { usedEdges[src.index] = []; }
+      usedEdges[src.index].push(dest);
+      edges.push({source: src.index, target: dest.index});
     }
-    return data;
+    return edges;
+  }
+  
+  export function genData(sourceCount:number, attrCount:number, joinCount:number) {
+    let sources = genNodes(sourceCount).map(function(node) {
+      node.kind = "source";
+      return node;
+    });
+    let attrs = genNodes(attrCount);
+    let edges:Edge[] = [];
+    
+    for(let dest of attrs) {
+      let src = choose(sources);
+      edges.push({source: src.index, target: dest.index});
+    }
+    let joins = genEdges(joinCount, sources, attrs, edges);
+    
+    return {nodes: sources.concat(attrs), edges: edges.concat(joins)};
   }
 }
 
 module test {
-  var adaptor = new MicroReactStyleLayoutAdapter.MicroReactLayoutAdaptor({animate: false});
-  adaptor.size([960, 958]);
-  adaptor.linkDistance(150);
-  adaptor.handleDisconnected(true);
-  adaptor.symmetricDiffLinkLengths(10, 5);
-  adaptor.avoidOverlaps(true);
-  var testData = datawang.genData(20, 10);
-  adaptor.nodes(testData.nodes);
-  adaptor.links(testData.edges);
-  window['a'] = adaptor;
+
   
-  let start = Date.now();
+  let start;
+  let _adaptor;
+  let _nodes;
+  let _edges;
   
-  adaptor.on("render", function renderToCanvas(evt) {
+  function renderToCanvas(evt) {
     console.log("[render]", Date.now() - start, "ms");
-    var nodes = evt.nodes;
-    var cvs = <HTMLCanvasElement>document.getElementById("canvas");
-    var ctx = cvs.getContext('2d');
-    ctx.clearRect(0, 0, 1000, 1000);
-    for(var node of nodes) {
-      console.log(node);
-      ctx.fillStyle = `hsla(${Math.floor(360*(+node.id) / nodes.length)}, 50%, 30%, 0.5)`;
-      ctx.fillRect(node.x, node.y, node.width, node.height);
+    let nodes = evt.nodes;
+    let cvs = <HTMLCanvasElement>document.getElementById("canvas");
+    let ctx = cvs.getContext('2d');
+    ctx.clearRect(0, 0, cvs.width, cvs.height);
+    ctx.strokeStyle = "#3366CC";
+    for(let node of nodes) {
+      ctx.fillStyle = `hsla(${Math.floor(360*node.index / nodes.length)}, 50%, 30%, 0.5)`;
+      ctx.fillRect(node.x - node.width / 2, node.y - node.height / 2, node.width, node.height);
+      if(node.kind === "source") {
+        ctx.strokeRect(node.x - node.width / 2, node.y - node.height / 2, node.width, node.height);
+      }
       ctx.fillStyle = "rgb(255, 255, 255)";
-      ctx.fillText(node.id, node.x + 4, node.y + 12);
+      ctx.fillText(node.id, node.x - node.width / 2 + 4, node.y - node.height / 2 + 12);
     }
     
     ctx.strokeStyle = "#FFF";
-    for(var edge of evt.edges) {
-      var source = nodes[edge.source.index];
-      var target = nodes[edge.target.index];
+    for(let edge of evt.edges) {
+      ctx.beginPath();
+      let source = nodes[edge.source.index];
+      let target = nodes[edge.target.index];
       ctx.moveTo(source.x, source.y);
       ctx.lineTo(target.x, target.y);
       ctx.stroke();
-      console.log("line", edge);
+      ctx.closePath();
     }
-  });
+  }
   
-
-  adaptor.start()
+  
+  export function go() {
+    let adaptor = new MicroReactStyleLayoutAdapter.MicroReactLayoutAdaptor();
+    adaptor.size([960, 958]);
+    //adaptor.symmetricDiffLinkLengths(75, 0.25);
+    adaptor.jaccardLinkLengths(100, 0.5);
+    //adaptor.handleDisconnected(true);
+    adaptor.avoidOverlaps(true);
+    adaptor.on("render", renderToCanvas);
+    window['a'] = _adaptor = adaptor;
+    
+    datawang.reset();
+    let testData = datawang.genData(4, 12, 3);
+    _nodes = testData.nodes;
+    _edges = testData.edges;
+    console.log("data", testData);
+    
+    adaptor.nodes(<any>_nodes);
+    adaptor.links(<any>_edges);
+    
+    start = Date.now();
+    adaptor.start(30, 30, 30);
+  }
+  
+  function edgesToString(edge) {
+    console.log(edge);
+    return `${_nodes[edge.source].id} -> ${_nodes[edge.target].id}`;
+  }
+  
+  function isSource(node) {
+    return node.kind === "source";
+  }
+  
+  function isAttribute(node) {
+    return node.kind !== "source";
+  }
+  
+  export function addSource() { 
+    let data = datawang.genData(1, datawang.chooseInt(0, 5), 0);
+    let joinCount = Math.floor(datawang.srand() * datawang.srand() * (data.nodes.length - 1));
+    console.log(`[addSource] nodes: ${_nodes.length} + ${data.nodes.length} | edges: ${_edges.length} + ${data.nodes.length} | joins: ${joinCount}`);
+    _nodes.push.apply(_nodes, data.nodes);
+    _edges.push.apply(_edges, data.edges);
+    var joins = datawang.genEdges(joinCount, _nodes.filter(isSource), data.nodes.filter(isAttribute), _edges);
+    if(joins.length) { console.log("* joins: ", joins.map(edgesToString)); }
+    _edges.push.apply(_edges, joins);
+    
+    _adaptor.nodes(_nodes);
+    _adaptor.links(_edges);
+    start = Date.now();
+    _adaptor.start();
+  }
+  
+  export function addJoin() {
+    console.log(`[addJoin] nodes: ${_nodes.length} + 0 | edges: ${_edges.length} + 1 | joins: 1`);
+    var joins = datawang.genEdges(1, _nodes.filter(isSource), _nodes.filter(isAttribute), _edges);
+    if(joins.length) { console.log("* joins: ", joins.map(edgesToString)); }
+    _edges.push.apply(_edges, joins);
+    _adaptor.links(_edges);
+    start = Date.now();
+    _adaptor.start();
+  }
 }
