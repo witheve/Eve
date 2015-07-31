@@ -325,7 +325,7 @@ macro_rules! find {
         for row in find!($table, [ $($pattern),* ]).into_iter() {
             match row {
                 [$( find_binding!($pattern) ),*] => $body,
-                _ => panic!(),
+                other => panic!("Did not expect {:?} in find!", other),
             }
         }
     }};
@@ -438,22 +438,125 @@ fn migrate(flow: &Flow) {
     let constraint_left_table = flow.get_output("constraint left");
     let constraint_right_table = flow.get_output("constraint right");
     let constraint_operation_table = flow.get_output("constraint operation");
-    // let aggregate_grouping_table = flow.get_output("aggregate grouping");
-    // let aggregate_sorting_table = flow.get_output("aggregate sorting");
-    // let aggregate_limit_from_table = flow.get_output("aggregate limit from");
-    // let aggregate_limit_to_table = flow.get_output("aggregate limit to");
+    let aggregate_grouping_table = flow.get_output("aggregate grouping");
+    let aggregate_sorting_table = flow.get_output("aggregate sorting");
+    let aggregate_limit_from_table = flow.get_output("aggregate limit from");
+    let aggregate_limit_to_table = flow.get_output("aggregate limit to");
     let select_table = flow.get_output("select");
 
     let binding_new_table = flow.get_output("binding (new)");
 
+    find!(view_table, [view, kind], {
+        if kind.as_str() == "aggregate" {
+            // check that inner and outer have the same source_view
+            find!(source_table, [(= view), (= &string!("inner")), inner_view], {
+                find!(source_table, [(= view), (= &string!("outer")), outer_view], {
+                    assert!((inner_view == outer_view) || (outer_view.as_str() == "empty view"));
+                });
+            });
+            // check that it uses either aggregates or limits, not both
+            find!(source_table, [(= view), source, _], {
+                if source.as_str() != "inner" && source.as_str() != "outer" {
+                    assert!(dont_find!(aggregate_limit_from_table, [(= view), _, _]));
+                    assert!(dont_find!(aggregate_limit_to_table, [(=view), _, _]));
+                }
+            });
+        }
+    });
+
     let mut view_ish_table = flow.overwrite_output("view*");
     find!(view_table, [view, kind], {
-        insert!(view_ish_table, [view, kind]);
+        match kind.as_str() {
+            "aggregate" => insert!(view_ish_table, [view, string!("join")]),
+            _ => insert!(view_ish_table, [view, kind]),
+        };
     });
 
     let mut source_ish_table = flow.overwrite_output("source*");
     find!(source_table, [view, source, source_view], {
-        insert!(source_ish_table, [view, source, source_view]);
+        find!(view_table, [(= view), kind], {
+            match kind.as_str() {
+                "aggregate" => {
+                    if source.as_str() != "outer" {
+                        insert!(source_ish_table, [view, source, source_view]);
+                    }
+                }
+                _ => {
+                    insert!(source_ish_table, [view, source, source_view]);
+                }
+            }
+        });
+    });
+
+    let mut grouped_field_table = flow.overwrite_output("grouped field");
+    find!(aggregate_grouping_table, [view, inner_field, _], {
+        insert!(grouped_field_table, [view, string!("inner"), inner_field]);
+    });
+
+    let mut sorted_field_table = flow.overwrite_output("sorted field");
+    find!(view_table, [view, kind], {
+        if kind.as_str() == "aggregate" {
+            // TODO this reverses the sort order :(
+            let mut ix = 0;
+            find!(aggregate_sorting_table, [(= view), inner_field, _, direction], {
+                insert!(sorted_field_table, [view, string!("inner"), Float(ix as f64), inner_field, direction]);
+                ix += 1;
+            });
+        }
+    });
+
+    let mut chunked_source_table = flow.overwrite_output("chunked source");
+    find!(view_table, [view, kind], {
+        if kind.as_str() == "aggregate" {
+            find!(source_table, [(= view), source, _], {
+                if (source.as_str() != "inner") && (source.as_str() != "outer") {
+                    insert!(chunked_source_table, [view, string!("inner")]);
+                }
+            });
+        }
+    });
+
+    let mut variable_table = flow.overwrite_output("variable");
+    let mut binding_table = flow.overwrite_output("binding");
+    let mut ordinal_binding_table = flow.overwrite_output("ordinal binding");
+    let mut constant_ish_table = flow.overwrite_output("constant*");
+    find!(view_table, [view, kind], {
+        if kind.as_str() == "aggregate" {
+            find!(aggregate_limit_from_table, [view, source, field], {
+                assert_eq!(source.as_str(), "constant");
+                find!(constant_table, [(= field), value], {
+                    let ordinal_variable = string!("{}->ordinal", view.as_str());
+                    insert!(variable_table, [view, ordinal_variable]);
+                    insert!(ordinal_binding_table, [ordinal_variable, string!("inner")]);
+
+                    let limit_from_variable = string!("{}->limit from variable", view.as_str());
+                    insert!(variable_table, [view, limit_from_variable]);
+                    insert!(constant_ish_table, [limit_from_variable, value]);
+
+                    let limit_from_source = string!("{}->limit from source", view.as_str());
+                    insert!(source_ish_table, [view, limit_from_source, string!("<=")]);
+                    insert!(binding_table, [limit_from_variable, limit_from_source, string!("<=: in A")]);
+                    insert!(binding_table, [ordinal_variable, limit_from_source, string!("<=: in B")]);
+                })
+            });
+            find!(aggregate_limit_to_table, [view, source, field], {
+                assert_eq!(source.as_str(), "constant");
+                find!(constant_table, [(= field), value], {
+                    let ordinal_variable = string!("{}->ordinal", view.as_str());
+                    insert!(variable_table, [view, ordinal_variable]);
+                    insert!(ordinal_binding_table, [ordinal_variable, string!("inner")]);
+
+                    let limit_to_variable = string!("{}->limit to variable", view.as_str());
+                    insert!(variable_table, [view, limit_to_variable]);
+                    insert!(constant_ish_table, [limit_to_variable, value]);
+
+                    let limit_to_source = string!("{}->limit to source", view.as_str());
+                    insert!(source_ish_table, [view, limit_to_source, string!("<=")]);
+                    insert!(binding_table, [ordinal_variable, limit_to_source, string!("<=: in A")]);
+                    insert!(binding_table, [limit_to_variable, limit_to_source, string!("<=: in B")]);
+                })
+            });
+        }
     });
 
     let mut constraint_ish_table = flow.overwrite_output("constraint*");
@@ -507,8 +610,6 @@ fn migrate(flow: &Flow) {
     let mut eq_group_table = flow.overwrite_output("eq group");
     min_by(&*eq_link_table, &mut *eq_group_table, &["view", "left source", "left field"], &["right source", "right field"]);
 
-    let mut variable_table = flow.overwrite_output("variable");
-    let mut binding_table = flow.overwrite_output("binding");
     find!(eq_group_table, [view, source, field, group_source, group_field], {
         dont_find!(binding_new_table, [_, (= group_source), (= group_field)], {
             let variable = &string!("{}->{}->{}", view.as_str(), group_source.as_str(), group_field.as_str());
@@ -523,7 +624,6 @@ fn migrate(flow: &Flow) {
         insert!(binding_table, [variable, source, field]);
     });
 
-    let mut constant_ish_table = flow.overwrite_output("constant*");
     find!(constraint_ish_table, [view, _, left_source, left_field, operation, right_source, right_field], {
         match (operation.as_str(), left_source.as_str(), right_source.as_str()) {
             ("=", "constant", "constant") => panic!("Why would you do that..."),
@@ -640,6 +740,13 @@ fn plan(flow: &Flow) {
         });
     });
     find!(variable_table, [view, variable], {
+        find!(ordinal_binding_table, [(= variable), source], {
+            dont_find!(negated_source_table, [(= view), (= source)], {
+                insert!(provides_table, [view, source, variable]);
+            });
+        });
+    });
+    find!(variable_table, [view, variable], {
         find!(binding_table, [(= variable), source, _], {
             find!(negated_source_table, [(= view), (= source)], {
                 find!(provides_table, [(= view), _, (= variable)], {
@@ -663,9 +770,11 @@ fn plan(flow: &Flow) {
     }
     loop {
         let mut unscheduled_source_table = flow.overwrite_output("unscheduled source");
-        find!(source_table, [view, source, _], {
-            dont_find!(source_schedule_pre_table, [(= view), _, (= source)], {
-                insert!(unscheduled_source_table, [view, source]);
+        find!(view_table, [view, _], {
+            find!(source_table, [(= view), source, _], {
+                dont_find!(source_schedule_pre_table, [(= view), _, (= source)], {
+                    insert!(unscheduled_source_table, [view, source]);
+                });
             });
         });
 
@@ -701,7 +810,7 @@ fn plan(flow: &Flow) {
             if unscheduled_source_table.index.len() == 0 {
                 break; // done
             } else {
-                panic!("Cannot schedule {:?}", unschedulable_source_table.iter().collect::<Vec<_>>());
+                panic!("Cannot schedule {:#?}", unschedulable_source_table);
             }
         }
 
@@ -937,8 +1046,6 @@ fn plan(flow: &Flow) {
             });
         });
     });
-
-    // TODO default to sorting fields in id order
 }
 
 fn push_at<T>(items: &mut Vec<T>, ix: &Value, item: T) {
@@ -1532,7 +1639,7 @@ fn create_node(flow: &Flow, new_flow2: &Flow, view_id: &Value, view_kind: &Value
         "table" => View::Table(create_table(flow, view_id)),
         "union" => View::Union(create_union(flow, view_id)),
         "join" => new_flow2.get_node(view_id.as_str()).view.clone(),
-        "aggregate" => View::Aggregate(create_aggregate(flow, view_id)),
+        "aggregate" => new_flow2.get_node(view_id.as_str()).view.clone(),
         "primitive" => panic!("Should not be creating nodes for primitives!"),
         other => panic!("Unknown view kind: {}", other),
     };
