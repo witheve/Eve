@@ -1805,25 +1805,7 @@ module drawn {
       pos: {left: x, top: y}
     });
   }
-
-  //---------------------------------------------------------
-  // auto completer
-  //---------------------------------------------------------
-
-  interface completion {
-    text: string;
-    value: any;
-    class?: string;
-  }
-
-  function autoCompleter(completions: completion[]) {
-    var items = completions.map(completionItem);
-  }
-
-  function completionItem(completion: completion) {
-    return {c: `completion-item ${completion.class}`, text: completion.text, key: completion.value};
-  }
-
+  
   //---------------------------------------------------------
   // keyboard handling
   //---------------------------------------------------------
