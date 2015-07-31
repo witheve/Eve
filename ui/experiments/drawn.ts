@@ -88,7 +88,7 @@ module drawn {
         if (!elem.__focused) {
             setTimeout(function () { node.focus(); }, 5);
             elem.__focused = true;
-            if(elem.contentEditable) {
+            if(elem.contentEditable && node.firstChild) {
               let range = document.createRange();
               range.setStart(node.firstChild, node.textContent.length);
               range.setEnd(node.firstChild, node.textContent.length);
