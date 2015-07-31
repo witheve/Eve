@@ -1429,7 +1429,7 @@ module drawn {
 
   function scrollToTheBottomOnChange(node, elem) {
     if(!node.searchValue || node.searchValue !== elem.value) {
-      node.scrollTop = 100000000;
+      node.scrollTop = Number.MAX_VALUE;
       node.searchValue = elem.value;
     }
   }
