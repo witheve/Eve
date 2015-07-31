@@ -1279,7 +1279,10 @@ module drawn {
         });
         return {c: "search-result-group", children: [
           {c: "search-result-items", children: items},
-          {c: "group-type", text: resultGroup.kind},
+          {c: "group-type", children: [
+            {c: "group-name", text: resultGroup.kind},
+            {c: "result-size", text: resultGroup.results.length}
+          ]},
         ]}
       });
     }
