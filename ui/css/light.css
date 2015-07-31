@@ -69,7 +69,7 @@ div:hover > .hover-reveal { opacity: 1; }
 - workspace
 ---------------------------------------------------------*/
 
-.workspace-container { flex: 1; margin:20px; margin-left:0; margin-top:10px; }
+.workspace-container { flex: 1; margin:20px; margin-left:0; margin-top:10px; overflow: auto; }
 .workspace-container .content { flex: 1; }
 .workspace-container .header { margin-bottom:10px; display: flex; flex: 0 0; flex-direction: row; justify-content: space-between; align-items: stretch; }
 .workspace-container .header > .title { font-size: 14pt; margin-left: 10px; }
