@@ -26,11 +26,14 @@ body { font-family:"Avenir"; }
 .searcher .search-results .search-result-group { max-height:290px; width: 300px; margin-top:10px; }
 .searcher .search-results .search-result-group + .search-result-group .search-result-items { border-left: 1px solid rgba(255,255,255,0.1); }
 .searcher .search-results .search-result-group + .search-result-group .group-type { border-left: 1px solid rgba(255,255,255,0.1); }
-.searcher .search-results .search-result-items { flex: 1; overflow:auto; justify-content: flex-end; padding:15px; }
-.searcher .search-results .group-type { flex: none; background:rgba(255,255,255,0.1); padding: 10px 10px; }
+.searcher .search-results .search-result-items { flex: 1; overflow:auto; padding:15px; }
+.searcher .search-results .group-type { flex: none; background:rgba(255,255,255,0.1); padding: 10px 10px; flex-direction: row; align-items:center; }
+.searcher .search-results .group-type .group-name { flex:1; }
+.searcher .search-results .group-type .result-size { flex: none; color: rgba(255,255,255,0.5); font-size:10pt; }
 .searcher .search-results .search-result-item { margin-top:20px; flex:none;  }
 .searcher .search-results .search-result-item .result-text {  }
 .searcher .search-results .search-result-item .result-description { margin-top:2px; font-size: 10pt; color: #aaa; line-height:15px; }
+
 
 .container { flex: 1; }
 

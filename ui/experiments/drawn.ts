@@ -88,7 +88,7 @@ module drawn {
         if (!elem.__focused) {
             setTimeout(function () { node.focus(); }, 5);
             elem.__focused = true;
-            if(elem.contentEditable) {
+            if(elem.contentEditable && node.firstChild) {
               let range = document.createRange();
               range.setStart(node.firstChild, node.textContent.length);
               range.setEnd(node.firstChild, node.textContent.length);
@@ -1278,8 +1278,13 @@ module drawn {
           ]};
         });
         return {c: "search-result-group", children: [
-          {c: "search-result-items", children: items},
-          {c: "group-type", text: resultGroup.kind},
+          // @HACK: setting value here is weird, but it causes the postRender to get called every time the search changes
+          // which will ensure that the results are always scrolled to the bottom
+          {c: "search-result-items", value: localState.searchingFor, postRender: scrollToTheBottomOnChange, children: items},
+          {c: "group-type", children: [
+            {c: "group-name", text: resultGroup.kind},
+            {c: "result-size", text: resultGroup.results.length}
+          ]},
         ]}
       });
     }
@@ -1290,6 +1295,13 @@ module drawn {
         {c: "search-box", contentEditable: true, postRender: focusOnce, text: localState.searchingFor, input: updateSearch, keydown: handleSearchKey}
       ]}
     ]};
+  }
+
+  function scrollToTheBottomOnChange(node, elem) {
+    if(!node.searchValue || node.searchValue !== elem.value) {
+      node.scrollTop = 100000000;
+      node.searchValue = elem.value;
+    }
   }
 
   function showButtonTooltip(e, elem) {
@@ -1793,25 +1805,7 @@ module drawn {
       pos: {left: x, top: y}
     });
   }
-
-  //---------------------------------------------------------
-  // auto completer
-  //---------------------------------------------------------
-
-  interface completion {
-    text: string;
-    value: any;
-    class?: string;
-  }
-
-  function autoCompleter(completions: completion[]) {
-    var items = completions.map(completionItem);
-  }
-
-  function completionItem(completion: completion) {
-    return {c: `completion-item ${completion.class}`, text: completion.text, key: completion.value};
-  }
-
+  
   //---------------------------------------------------------
   // keyboard handling
   //---------------------------------------------------------
