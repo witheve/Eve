@@ -113,7 +113,7 @@ impl Primitive {
                 let standard_deviation = ((sum_squares - sum.powi(2)) / (column.len() as f64)).sqrt();
                 vec![vec![Float(standard_deviation)]]
             }
-            (Empty, [&Column(ref column)]) => vec![vec![Bool(column.len() == 0)]],
+            (Empty, _) => vec![vec![Bool(false)]], // TODO empty doesn't make sense with non-outer joins
             _ => panic!("Type error while calling: {:?} {:?}", self, values)
         }
     }
