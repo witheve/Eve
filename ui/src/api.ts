@@ -927,7 +927,6 @@ module api {
     field: {key: "field",
             foreign: {view: "view"},
             dependents: pkDependents.concat(["select"])},
-    select: {foreign: {view: "view", field: "view field"}},
     constraint: {key: "constraint", foreign: {view: "view", source: "left source"}},
     constant: {key: "constant"},
 
@@ -943,10 +942,10 @@ module api {
     "grouped field": {},
     "negated source": {},
 
-    "select (new)": {},
-    "variable (new)" : {},
-    "binding (new)": {},
-    "constant (new)": {},
+    "select": {},
+    "variable" : {},
+    "binding": {},
+    "constant": {},
 
      "query export": {foreign: {view: "view"},
                       singular: true},

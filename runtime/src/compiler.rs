@@ -39,18 +39,18 @@ pub fn code_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("source", vec!["view", "source", "source view"]),
 
     // every view has a set of variables which are used to express constraints on the result of the view
-    ("variable (new)", vec!["view", "variable"]),
+    ("variable", vec!["view", "variable"]),
 
     // variables can be bound to constant values
-    ("constant (new)", vec!["variable", "value"]),
+    ("constant", vec!["variable", "value"]),
 
     // variables can be bound to fields
-    ("binding (new)", vec!["variable", "source", "field"]),
+    ("binding", vec!["variable", "source", "field"]),
 
     // views produce output by binding fields from sources
     // each table or join field must be bound exactly once
     // each union field must be bound exactly once per source
-    ("select (new)", vec!["view", "field", "variable"]),
+    ("select", vec!["view", "field", "variable"]),
 
     // sources can be grouped by a subset of their fields
     // TODO primitive sources can't be grouped currently
@@ -93,9 +93,10 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("view schedule (pre)", vec!["view", "kind"]),
     ("view schedule", vec!["ix", "view", "kind"]),
 
-    // the source schedule determines in what order sources will be explored inside joins/aggregates
+    // the source schedule determines in what order sources will be explored inside joins
     // `ix` is an integer. views with lower ixes are explored first.
-    ("source schedule", vec!["view", "source", "ix"]),
+    ("source schedule (pre)", vec!["view", "pass", "source"]),
+    ("source schedule", vec!["view", "ix", "pass", "source"]),
 
     // the constraint schedule determines when constraints will be checked
     // `ix` is an integer. the constraint will be checked after the corresponding source is explored
@@ -118,8 +119,6 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("unscheduled source", vec!["view", "source"]),
     ("schedulable source", vec!["view", "source"]),
     ("unschedulable source", vec!["view", "source", "variable"]),
-    ("source schedule (pre)", vec!["view", "pass", "source"]),
-    ("source schedule", vec!["view", "ix", "pass", "source"]),
     ("variable schedule (pre)", vec!["view", "pass", "variable"]),
     ("variable schedule", vec!["view", "ix", "pass", "variable"]),
     ("compiler index layout", vec!["view", "ix", "field", "name"]),
@@ -337,10 +336,10 @@ fn plan(flow: &Flow) {
     let view_table = flow.get_output("view");
     let field_table = flow.get_output("field");
     let source_table = flow.get_output("source");
-    let variable_table = flow.get_output("variable (new)");
-    let constant_table = flow.get_output("constant (new)");
-    let binding_table = flow.get_output("binding (new)");
-    let select_table = flow.get_output("select (new)");
+    let variable_table = flow.get_output("variable");
+    let constant_table = flow.get_output("constant");
+    let binding_table = flow.get_output("binding");
+    let select_table = flow.get_output("select");
     let chunked_source_table = flow.get_output("chunked source");
     let grouped_field_table = flow.get_output("grouped field");
     let sorted_field_table = flow.get_output("sorted field");
