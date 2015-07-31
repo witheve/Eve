@@ -300,27 +300,20 @@ pub fn run() {
                         let sessions = server.flow.get_output("sessions").clone();
                         let ip_string = Value::String(terminate_ip.clone());
 
-                        match sessions.find_maybe("id",&ip_string) {
-                            Some(session) => {
-                            	let closed_session = session.clone();
-                                let mut close_session_values = &mut closed_session.values.to_vec();
-                                let status_ix = match closed_session.names.iter().position(|name| name == "status") {
-                                	Some(ix) => ix,
-                                	None => panic!("No field named \"status\""),
-                                };
-                                close_session_values[status_ix] = Value::Float(0f64);
-
-                                let change = Change {
-                                                        fields: sessions.fields.clone(),
-                                                        insert: vec![close_session_values.clone()],
-                                                        remove: vec![session.values.to_vec().clone()],
-                                                    };
-                                let event = Event{changes: vec![("sessions".to_string(),change)], session: "".to_string(), commands: vec![]};
-                                let json = event.to_json();
-                                handle_event(&mut server, event, json);
-
-                            },
-                            None => println!("No session found"),
+                        for row in sessions.find(vec![&ip_string, &Value::Null]) {
+                            match row {
+                                [_, ref status] => {
+                                    let change = Change {
+                                        fields: sessions.fields.clone(),
+                                        insert: vec![vec![ip_string.clone(), Value::Float(0f64)]],
+                                        remove: vec![vec![ip_string.clone(), status.clone()]],
+                                    };
+                                    let event = Event{changes: vec![("sessions".to_string(),change)], session: "".to_string(), commands: vec![]};
+                                    let json = event.to_json();
+                                    handle_event(&mut server, event, json);
+                                }
+                                _ => unreachable!(),
+                            }
                         }
 
                     },

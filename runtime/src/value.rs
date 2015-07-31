@@ -1,5 +1,4 @@
 use std::cmp::Ordering;
-use std::ops::Index;
 
 #[derive(Clone, PartialOrd, PartialEq)]
 pub enum Value {
@@ -92,29 +91,3 @@ impl Value {
 }
 
 pub type Field = Id;
-
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Tuple<'a> {
-    pub view: &'a str,
-    pub names: &'a [String],
-    pub values: &'a [Value],
-}
-
-impl<'a, 'b> Index<&'b str> for Tuple<'a> {
-    type Output = Value;
-    fn index<'c>(&'c self, index: &'b str) -> &'c Value {
-        let ix = self.names.iter().position(|name| &name[..] == index).unwrap();
-        &self.values[ix]
-    }
-}
-
-impl<'a> ::std::fmt::Debug for Tuple<'a> {
-    fn fmt(&self, formatter: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error> {
-        let mut debug_struct = formatter.debug_struct(self.view);
-        for (name, value) in self.names.iter().zip(self.values.iter()) {
-            debug_struct.field(name, value);
-        }
-        debug_struct.finish().unwrap();
-        Ok(())
-    }
-}

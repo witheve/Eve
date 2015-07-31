@@ -23,31 +23,8 @@ pub enum Primitive {
     Empty,
 }
 
-pub fn resolve_as_scalar<'a>(mut ix: usize, constants: &'a [Value], outer: &'a [Value]) -> &'a Value {
-    if ix < constants.len() {
-        return &constants[ix];
-    } else {
-        ix = ix - constants.len()
-    }
-    return &outer[ix];
-}
-
-pub fn resolve_as_vector<'a>(mut ix: usize, constants: &'a [Value], outer: &'a [Value], inner: &'a [Vec<Value>]) -> Vec<&'a Value> {
-    if ix < constants.len() {
-        return vec![&constants[ix]; inner.len()];
-    } else {
-        ix = ix - constants.len()
-    }
-    if ix < outer.len() {
-        return vec![&outer[ix]; inner.len()];
-    } else {
-        ix = ix - outer.len()
-    }
-    return inner.iter().map(|values| &values[ix]).collect();
-}
-
 impl Primitive {
-    pub fn eval_from_join<'a>(&self, input_bindings: &[(usize, usize)], inputs: &[Value]) -> Vec<Vec<Value>> {
+    pub fn eval<'a>(&self, input_bindings: &[(usize, usize)], inputs: &[Value]) -> Vec<Vec<Value>> {
         use primitive::Primitive::*;
         use value::Value::*;
         let values = input_bindings.iter().enumerate().map(|(ix, &(field_ix, variable_ix))| {
@@ -115,68 +92,6 @@ impl Primitive {
             }
             (Empty, _) => vec![vec![Bool(false)]], // TODO empty doesn't make sense with non-outer joins
             _ => panic!("Type error while calling: {:?} {:?}", self, values)
-        }
-    }
-
-    pub fn eval_from_aggregate<'a>(&self, arguments: &[usize], constants: &[Value], outer: &[Value], inner: &[Vec<Value>]) -> Vec<Vec<Value>> {
-        use primitive::Primitive::*;
-        use value::Value::*;
-        match (*self, arguments) {
-            // NOTE be aware that arguments will be in alphabetical order by field id
-            (LT, _) => panic!("Cannot use {:?} in an aggregate", self),
-            (LTE, _) => panic!("Cannot use {:?} in an aggregate", self),
-            (NEQ, _) => panic!("Cannot use {:?} in an aggregate", self),
-            (Add, _) => panic!("Cannot use {:?} in an aggregate", self),
-            (Subtract, _) => panic!("Cannot use {:?} in an aggregate", self),
-            (Multiply, _) => panic!("Cannot use {:?} in an aggregate", self),
-            (Remainder, _) => panic!("Cannot use {:?} in an aggregate", self),
-            (Round, _) => panic!("Cannot use {:?} in an aggregate", self),
-            (Contains, _) => panic!("Cannot use {:?} in an aggregate", self),
-            (Split, _) => panic!("Cannot use {:?} in an aggregate", self),
-            (Concat, _) => panic!("Cannot use {:?} in an aggregate", self),
-            (ParseFloat, _) => panic!("Cannot use {:?} in an aggregate", self),
-            (Count, [_]) => {
-                vec![vec![Float(inner.len() as f64)]]
-            },
-            (Sum, [in_ix]) => {
-                let in_values = resolve_as_vector(in_ix, constants, outer, inner);
-                let sum = in_values.iter().fold(0f64, |sum, value|
-                    match **value {
-                        Float(float) => sum + float,
-                        _ => panic!("Type error while calling: {:?} {:?}", self, in_values),
-                    });
-                vec![vec![Float(sum)]]
-            },
-            (Mean, [in_ix]) => {
-                let in_values = resolve_as_vector(in_ix, constants, outer, inner);
-                let sum = in_values.iter().fold(0f64, |sum, value|
-                    match **value {
-                        Float(float) => sum + float,
-                        _ => panic!("Type error while calling: {:?} {:?}", self, in_values),
-                    });
-                let mean = sum / (in_values.len() as f64);
-                vec![vec![Float(mean)]]
-            },
-            (StandardDeviation, [in_ix]) => {
-                let in_values = resolve_as_vector(in_ix, constants, outer, inner);
-                let sum = in_values.iter().fold(0f64, |sum, value|
-                    match **value {
-                        Float(float) => sum + float,
-                        _ => panic!("Type error while calling: {:?} {:?}", self, in_values),
-                    });
-                let sum_squares = in_values.iter().fold(0f64, |sum, value|
-                    match **value {
-                        Float(float) => sum + float.powi(2),
-                        _ => panic!("Type error while calling: {:?} {:?}", self, in_values),
-                    });
-                let standard_deviation = ((sum_squares - sum.powi(2)) / (in_values.len() as f64)).sqrt();
-                vec![vec![Float(standard_deviation)]]
-            },
-            (Empty, [in_ix]) => {
-                let in_values = resolve_as_vector(in_ix, constants, outer, inner);
-                vec![vec![Bool(in_values.len() == 0)]]
-            },
-            _ => panic!("Wrong number of arguments while calling: {:?} {:?}", self, arguments),
         }
     }
 
