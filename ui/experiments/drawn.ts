@@ -1278,7 +1278,9 @@ module drawn {
           ]};
         });
         return {c: "search-result-group", children: [
-          {c: "search-result-items", children: items},
+          // @HACK: setting value here is weird, but it causes the postRender to get called every time the search changes
+          // which will ensure that the results are always scrolled to the bottom
+          {c: "search-result-items", value: localState.searchingFor, postRender: scrollToTheBottomOnChange, children: items},
           {c: "group-type", children: [
             {c: "group-name", text: resultGroup.kind},
             {c: "result-size", text: resultGroup.results.length}
@@ -1293,6 +1295,13 @@ module drawn {
         {c: "search-box", contentEditable: true, postRender: focusOnce, text: localState.searchingFor, input: updateSearch, keydown: handleSearchKey}
       ]}
     ]};
+  }
+
+  function scrollToTheBottomOnChange(node, elem) {
+    if(!node.searchValue || node.searchValue !== elem.value) {
+      node.scrollTop = 100000000;
+      node.searchValue = elem.value;
+    }
   }
 
   function showButtonTooltip(e, elem) {
