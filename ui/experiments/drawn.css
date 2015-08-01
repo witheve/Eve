@@ -34,10 +34,21 @@ body { font-family:"Avenir"; }
 .searcher .search-results .search-result-item .result-text {  }
 .searcher .search-results .search-result-item .result-description { margin-top:2px; font-size: 10pt; color: #aaa; line-height:15px; }
 
+.sorter-container { position:absolute; top:0; bottom:0; left:0; right: 0; z-index: 11; }
+.sorter-shade { position:absolute; top:0; bottom:0; left:0; right:0; }
+.sorter { position:absolute; z-index:11; background: #444; padding:10px; font-size:10pt; border-radius:3px; }
+.sorter .header { font-size: 11pt; margin-bottom:5px; }
+.sorter .description { margin-bottom:10px; max-width: 300px; color: #aaa; }
+.sorter .fields { flex-direction: row;  }
+.sorter .field { padding:5px; background: rgba(255,255,255,0.1); border-radius:3px; min-width: 40px; text-align: center; align-items: center; flex-direction: row; padding-left:10px; cursor: default; }
+.sorter .field + .field { margin-left: 5px; }
+.sorter .field-name { flex:1; }
+.sorter .sort-direction { font-size: 16px; line-height: 16px; margin-left: 5px; padding:0 5px; }
+
 
 .container { flex: 1; }
 
-.tooltip { position:absolute; background: #444; padding:10px; border-radius:3px; z-index:100; font-size:10pt; }
+.tooltip { position:absolute; background: #444; padding:10px; border-radius:3px; z-index:10; font-size:10pt; }
 .tooltip .header { font-size: 11pt; margin-bottom:5px; }
 .tooltip .button-info { max-width:300px; line-height:18px; }
 .tooltip .disabled-message { color: #F98B8A; margin-top: 5px; }
