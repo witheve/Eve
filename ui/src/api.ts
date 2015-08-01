@@ -928,7 +928,6 @@ module api {
             foreign: {view: "view"},
             dependents: pkDependents.concat(["select"])},
     constraint: {key: "constraint", foreign: {view: "view", source: "left source"}},
-    constant: {key: "constant"},
 
     "aggregate grouping": {foreign: {view: "aggregate", /*field: "inner field"*/}},
     "aggregate sorting": {foreign: {view: "aggregate", /*field: "inner field"*/}},
