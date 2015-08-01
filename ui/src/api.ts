@@ -913,6 +913,8 @@ module api {
                       singular: true},
     tag: {foreign: {$last: "view"}},
 
+    "editor item": {key: "item", foreign: {view: "item"}, dependents: pkDependents},
+
     view: {key: "view",
            dependents: pkDependents.concat(
              ["field", "source"])},
