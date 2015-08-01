@@ -133,16 +133,7 @@ module drawn {
   localState.selectedNodes = {};
   localState.overlappingNodes = {};
 
-  var fieldToEntity = {
-    "source: source": "source",
-    "source: view": "view",
-    "source: source view": "view",
-    "field: field": "field",
-    "field: view": "view",
-    "place: place": "place",
-    "place to image: place": "place",
-    "place to address: place": "place",
-  }
+  var fieldToEntity = {}
 
   export var entities = [];
   for(var field in fieldToEntity) {
