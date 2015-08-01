@@ -913,29 +913,17 @@ module api {
                       singular: true},
     tag: {foreign: {$last: "view"}},
 
-    block: {key: "block",
-            foreign: {view: "view"},
-            singular: true,
-            dependents: pkDependents},
     view: {key: "view",
            dependents: pkDependents.concat(
-             ["block", "field", "source", "aggregate grouping", "aggregate sorting", "aggregate limit from", "aggregate limit to", "editor item", "query export", "block aggregate"])},
+             ["field", "source"])},
     source: {key: ["view", "source"],
              foreign: {view: "view"},
-             dependents: ["constraint", "source order", "calculated field"]},
-    "source order": {foreign: {view: "view", source: "source"}},
+             dependents: []},
     field: {key: "field",
             foreign: {view: "view"},
-            dependents: pkDependents.concat(["select"])},
+            dependents: pkDependents,
+            },
     constraint: {key: "constraint", foreign: {view: "view", source: "left source"}},
-    constant: {key: "constant"},
-
-    "aggregate grouping": {foreign: {view: "aggregate", /*field: "inner field"*/}},
-    "aggregate sorting": {foreign: {view: "aggregate", /*field: "inner field"*/}},
-    "aggregate limit from": {foreign: {view: "aggregate"},
-                             singular: true},
-    "aggregate limit to": {foreign: {view: "aggregate"},
-                           singular: true},
 
     "chunked source": {},
     "ordinal binding": {},
@@ -947,9 +935,6 @@ module api {
     "binding": {},
     "constant": {},
 
-     "query export": {foreign: {view: "view"},
-                      singular: true},
-     "calculated field": {key: "block field", foreign: {view: "view", source: "source"}},
      "text input": {},
      "mouse position": {},
      "click": {},
@@ -958,8 +943,6 @@ module api {
      "session url": {},
      "captured key": {},
      "editor node position": {key: "node"},
-     "editor item": {key: "item", foreign: {view: "item"}, dependents: pkDependents},
-     "block aggregate": {foreign: {view: "view"}}
   };
 
   /***************************************************************************\

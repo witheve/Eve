@@ -271,7 +271,7 @@ module drawn {
     let selects = ixer.select("select", { variable: variableId });
     for(let select of selects) {
       let fieldId = select["select: field"];
-      diffs.push(api.remove("field", { field: fieldId }));
+      diffs.push(api.remove("field", { field: fieldId}));
       diffs.push(api.remove("select", { variable: variableId }));
     }
     return diffs;
