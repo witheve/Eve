@@ -1151,7 +1151,13 @@ module drawn {
       var viewId = view["view: view"];
       return {c: "query-item", queryId: viewId, click: openQuery, children:[
         {c: "query-name", text: code.name(viewId)},
-        queryUi(viewId)
+        {c: "query", children: [
+          {c: "container", children: [
+            {c: "surface", children: [
+              queryPreview(view)
+            ]},
+          ]}
+        ]}
       ]};
     });
     return {c: "query-selector-wrapper", children: [
@@ -1746,13 +1752,7 @@ module drawn {
     }
   }
 
-  function queryCanvas(view) {
-    let viewId = view["view: view"];
-    var {nodes, links} = viewToEntityInfo(view);
-    var items = [];
-    for(var node of nodes) {
-      items.push(nodeItem(node, viewId));
-    }
+  function drawLinks(links, items) {
     var linkItems = [];
     for(var link of links) {
       var leftItem, rightItem;
@@ -1789,6 +1789,31 @@ module drawn {
         {svg: true, t: "textPath", startOffset: "50%", xlinkhref: `#${pathId}`, text: link.name}
       ]});
     }
+    return linkItems;
+  }
+
+  function queryPreview(view) {
+    let viewId = view["view: view"];
+    var {nodes, links} = viewToEntityInfo(view);
+    var items = [];
+    for(var node of nodes) {
+      items.push(nodeItem(node, viewId));
+    }
+    let linkItems = drawLinks(links, items);
+    return {c: "canvas", children: [
+      {c: "links", svg: true, width:"100%", height:"100%", t: "svg", children: linkItems},
+      {c: "nodes", children: items}
+    ]};
+  }
+
+  function queryCanvas(view) {
+    let viewId = view["view: view"];
+    var {nodes, links} = viewToEntityInfo(view);
+    var items = [];
+    for(var node of nodes) {
+      items.push(nodeItem(node, viewId));
+    }
+    let linkItems = drawLinks(links, items);
     let selection;
     if(localState.selecting) {
       let {start, end} = localState.boxSelection;
