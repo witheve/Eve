@@ -240,15 +240,18 @@ module drawn {
   // AST helpers
   //---------------------------------------------------------
 
-  function sourceHasJoins(sourceId) {
+  function joinedBindingsFromSource(sourceId) {
+    let joined = [];
     let bindings = ixer.select("binding", {source: sourceId});
     for(let binding of bindings) {
       let variableId = binding["binding: variable"];
-      if(ixer.select("binding", {variable: variableId}).length > 1) return true;
-      if(ixer.select("ordinal binding", {variable: variableId}).length) return true;
-      if(ixer.select("constant", {variable: variableId}).length) return true;
+      if(ixer.select("binding", {variable: variableId}).length > 1
+         || ixer.select("ordinal binding", {variable: variableId}).length
+         || ixer.select("constant", {variable: variableId}).length) {
+        joined.push(binding);
+      }
     }
-    return false;
+    return joined;
   }
 
   function removeVariable(variableId) {
@@ -676,10 +679,32 @@ module drawn {
       case "chunkSource":
         var sourceId = info.node.source["source: source"];
         diffs.push(api.insert("chunked source", {view: info.viewId, source: sourceId}));
+        // we need to group any fields that are joined to ensure the join continues to do what you'd expect
+        for(let binding of joinedBindingsFromSource(sourceId)) {
+          let fieldId = binding["binding: field"];
+          diffs.push(api.insert("grouped field", {view: info.viewId, source: sourceId, field: fieldId}));
+        }
       break;
       case "unchunkSource":
         var sourceId = info.node.source["source: source"];
         diffs.push(api.remove("chunked source", {view: info.viewId, source: sourceId}));
+        // when you unchunk, we should ungroup the fields that we grouped when chunking.
+        for(let binding of joinedBindingsFromSource(sourceId)) {
+          console.log(binding);
+          let fieldId = binding["binding: field"];
+          let variableId = binding["binding: variable"];
+          // We have to check for an aggregate binding, as unchunking will cause the
+          // vector binding to error out. If there is an aggregate binding, then we have to bail
+          // out of unchunking.
+          for(let variableBinding of ixer.select("binding", {variable: variableId})) {
+            let fieldKind = ixer.selectOne("field", {field: variableBinding["binding: field"]})["field: kind"];
+            console.log("fieldKind", fieldKind);
+            if(fieldKind === "vector input") {
+              return dispatch("setError", {errorText: "Cannot unchunk this source because it's bound to an aggregate, which requires a column."});
+            }
+          }
+          diffs.push(api.remove("grouped field", {view: info.viewId, source: sourceId, field: fieldId}));
+        }
       break;
       case "addOrdinal":
         var sourceId = info.node.source["source: source"];
@@ -1186,15 +1211,8 @@ module drawn {
         disabled["filter"] = "filter only applies to attributes.";
         disabled["group"] = "group only applies to attributes.";
         disabled["join"] = "join only applies to attributes.";
-        let hasJoins = sourceHasJoins(node.id);
-        if(hasJoins) {
-          disabled["chunk"] = "you cannot chunk if attributes of the source are joined to other sources";
-        }
         if(node.chunked) {
           actions["chunk"] = {func: unchunkSource, text: "Unchunk"};
-           if(hasJoins) {
-              disabled["chunk"] = "you cannot unchunk if attributes of the source are joined to other sources";
-           }
         }
         if(node.isNegated) {
           actions["negate"] = {func: unnegateSource, text: "Unnegate"};
