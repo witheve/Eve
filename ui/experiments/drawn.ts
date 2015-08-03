@@ -88,6 +88,14 @@ module drawn {
         if (!elem.__focused) {
             setTimeout(function () { node.focus(); }, 5);
             elem.__focused = true;
+            if(elem.contentEditable && node.firstChild) {
+              let range = document.createRange();
+              range.setStart(node.firstChild, node.textContent.length);
+              range.setEnd(node.firstChild, node.textContent.length);
+              let sel = window.getSelection();
+              sel.removeAllRanges();
+              sel.addRange(range);
+            }
         }
     }
 
@@ -125,16 +133,7 @@ module drawn {
   localState.selectedNodes = {};
   localState.overlappingNodes = {};
 
-  var fieldToEntity = {
-    "source: source": "source",
-    "source: view": "view",
-    "source: source view": "view",
-    "field: field": "field",
-    "field: view": "view",
-    "place: place": "place",
-    "place to image: place": "place",
-    "place to address: place": "place",
-  }
+  var fieldToEntity = {}
 
   export var entities = [];
   for(var field in fieldToEntity) {
@@ -241,30 +240,33 @@ module drawn {
   // AST helpers
   //---------------------------------------------------------
 
-  function sourceHasJoins(sourceId) {
-    let bindings = ixer.select("binding (new)", {source: sourceId});
+  function joinedBindingsFromSource(sourceId) {
+    let joined = [];
+    let bindings = ixer.select("binding", {source: sourceId});
     for(let binding of bindings) {
-      let variableId = binding["binding (new): variable"];
-      if(ixer.select("binding (new)", {variable: variableId}).length > 1) return true;
-      if(ixer.select("ordinal binding", {variable: variableId}).length) return true;
-      if(ixer.select("constant (new)", {variable: variableId}).length) return true;
+      let variableId = binding["binding: variable"];
+      if(ixer.select("binding", {variable: variableId}).length > 1
+         || ixer.select("ordinal binding", {variable: variableId}).length
+         || ixer.select("constant", {variable: variableId}).length) {
+        joined.push(binding);
+      }
     }
-    return false;
+    return joined;
   }
 
   function removeVariable(variableId) {
     let diffs = [];
-    diffs.push(api.remove("variable (new)", {variable: variableId}));
-    diffs.push(api.remove("constant (new)", {variable: variableId}));
+    diffs.push(api.remove("variable", {variable: variableId}));
+    diffs.push(api.remove("constant", {variable: variableId}));
     // we need to remove any bindings to this variable
-    diffs.push(api.remove("binding (new)", {variable: variableId}));
+    diffs.push(api.remove("binding", {variable: variableId}));
     diffs.push(api.remove("ordinal binding", {variable: variableId}));
     // we also need to remove any fields and selects that pull from the variable
-    let selects = ixer.select("select (new)", { variable: variableId });
+    let selects = ixer.select("select", { variable: variableId });
     for(let select of selects) {
-      let fieldId = select["select (new): field"];
-      diffs.push(api.remove("field", { field: fieldId }));
-      diffs.push(api.remove("select (new)", { variable: variableId }));
+      let fieldId = select["select: field"];
+      diffs.push(api.remove("field", { field: fieldId}));
+      diffs.push(api.remove("select", { variable: variableId }));
     }
     return diffs;
   }
@@ -272,13 +274,13 @@ module drawn {
   function removeSource(sourceId) {
     var diffs = [
       api.remove("source", {source: sourceId}),
-      api.remove("binding (new)", {source: sourceId})
+      api.remove("binding", {source: sourceId})
     ]
-    let bindings = ixer.select("binding (new)", {source: sourceId});
+    let bindings = ixer.select("binding", {source: sourceId});
     for(let binding of bindings) {
-      let variableId = binding["binding (new): variable"];
+      let variableId = binding["binding: variable"];
       // determine if this is the only binding for this variable
-      let allVariableBindings = ixer.select("binding (new)", {variable: variableId});
+      let allVariableBindings = ixer.select("binding", {variable: variableId});
       let singleBinding = allVariableBindings.length === 1;
       // if this variable is only bound to this field, then we need to remove it
       if(singleBinding) {
@@ -290,7 +292,7 @@ module drawn {
         let input;
         for(let variableBinding of allVariableBindings) {
            if(variableBinding === binding) continue;
-           let fieldId = variableBinding["binding (new): field"];
+           let fieldId = variableBinding["binding: field"];
            let kind = ixer.selectOne("field", {field: fieldId})["field: kind"];
            if(kind === "output") {
              needsConstant = false;
@@ -300,9 +302,9 @@ module drawn {
            }
         }
         if(needsConstant) {
-           let fieldId = input["binding (new): field"];
-           let sourceViewId = ixer.selectOne("source", {source: input["binding (new): source"]})["source: source view"];
-           diffs.push(api.insert("constant (new)", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
+           let fieldId = input["binding: field"];
+           let sourceViewId = ixer.selectOne("source", {source: input["binding: source"]})["source: source view"];
+           diffs.push(api.insert("constant", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
         }
       }
     }
@@ -324,20 +326,20 @@ module drawn {
     }
     // add a variable
     let variableId = uuid();
-    diffs.push(api.insert("variable (new)", {view: queryId, variable: variableId}));
+    diffs.push(api.insert("variable", {view: queryId, variable: variableId}));
     if(kind === "ordinal") {
       // create an ordinal binding
       diffs.push(api.insert("ordinal binding", {variable: variableId, source: sourceId}));
     } else {
       // bind the field to it
-      diffs.push(api.insert("binding (new)", {variable: variableId, source: sourceId, field: fieldId}));
+      diffs.push(api.insert("binding", {variable: variableId, source: sourceId, field: fieldId}));
     }
     if(kind === "output" || kind === "ordinal") {
       // select the field
       diffs.push.apply(diffs, dispatch("addSelectToQuery", {viewId: queryId, variableId: variableId, name: code.name(fieldId) || fieldId}, true));
     } else {
       // otherwise we're an input field and we need to add a default constant value
-      diffs.push(api.insert("constant (new)", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
+      diffs.push(api.insert("constant", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
     }
     return diffs;
   }
@@ -370,12 +372,30 @@ module drawn {
         localState.selectedViewId = uuid();
       break;
       case "removeSelection":
+        var removedSources = {};
         for(let nodeId in localState.selectedNodes) {
           let node = localState.selectedNodes[nodeId];
           if(node.type === "relationship") {
-            diffs = removeSource(node.id);
+            removedSources[node.id] = true;
+            diffs.push.apply(diffs, removeSource(node.id));
           } else if (node.type === "primitive") {
-            diffs = removeSource(node.sourceId);
+            removedSources[node.sourceId] = true;
+            diffs.push.apply(diffs, removeSource(node.sourceId));
+          }
+        }
+        // we need to check for any variables that got orphaned by removing all the given sources
+        for(let variable of ixer.select("variable", {view: localState.drawnUiActiveId})) {
+          let variableId = variable["variable: variable"];
+          let bindings = ixer.select("binding", {variable: variableId});
+          let shouldRemove = true;
+          for(let binding of bindings) {
+            if(!removedSources[binding["binding: source"]]) {
+              shouldRemove = false;
+              break;
+            }
+          }
+          if(shouldRemove) {
+            diffs.push.apply(diffs, removeVariable(variableId));
           }
         }
         dispatch("clearSelection", {}, true);
@@ -469,22 +489,36 @@ module drawn {
           api.insert("view", {view: newId, kind: "join", dependents: {"display name": {name: "New query!"}, "tag": [{tag: "remote"}]}})
         ];
       break;
-      case "addViewToQuery":
+      case "addViewAndMaybeJoin":
         var sourceId = uuid();
         var queryId = localState.drawnUiActiveId;
         diffs = [
           api.insert("source", {view: queryId, source: sourceId, "source view": info.viewId})
         ];
+        // if there's a selection, we want to try and join on those nodes if possible
+        // so that we don't produce product joins all the time
+        var potentialJoinNodes = {};
+        for(let selectedId in localState.selectedNodes) {
+          let node = localState.selectedNodes[selectedId];
+          // we can only join on attributes
+          if(node.type === "attribute") {
+            potentialJoinNodes[node.name] = node;
+          }
+        }
+        // add variables for all the fields of this view
         var sourceView = ixer.selectOne("view", {view: info.viewId});
         ixer.select("field", {view: info.viewId}).forEach(function(field) {
             let fieldId = field["field: field"];
-            diffs.push.apply(diffs, addSourceFieldVariable(queryId, info.viewId, sourceId, fieldId));
+            let name = code.name(fieldId);
+            // check if we should try to join this field to one of the potential join nodes
+            if(potentialJoinNodes[name]) {
+              // if we're going to join, we just need a binding to this node
+              diffs.push(api.insert("binding", {source: sourceId, field: fieldId, variable: potentialJoinNodes[name].variable}));
+            } else {
+              // otherwise we need to create a variable for this field
+              diffs.push.apply(diffs, addSourceFieldVariable(queryId, info.viewId, sourceId, fieldId));
+            }
         });
-        //we may also have information about where we should position it.
-        if(info.top !== undefined) {
-          diffs.push(api.insert("editor node position", {node: sourceId, x: info.left, y: info.top}));
-          positions[sourceId] = {left: info.left, top: info.top};
-        }
       break;
       case "joinNodes":
         var {target, node} = info;
@@ -493,11 +527,11 @@ module drawn {
         var variableIdToRemove = target.variable;
 
         // transfer all the bindings to the new variable
-        var oldBindings = ixer.select("binding (new)", {variable: variableIdToRemove});
+        var oldBindings = ixer.select("binding", {variable: variableIdToRemove});
         for(let binding of oldBindings) {
-          let sourceId = binding["binding (new): source"];
-          let fieldId = binding["binding (new): field"];
-          diffs.push(api.insert("binding (new)", {variable: variableId, source: sourceId, field: fieldId}));
+          let sourceId = binding["binding: source"];
+          let fieldId = binding["binding: field"];
+          diffs.push(api.insert("binding", {variable: variableId, source: sourceId, field: fieldId}));
         }
         // check for an ordinal binding and move it over if it exists
         var ordinalBinding = ixer.selectOne("ordinal binding", {variable: variableIdToRemove});
@@ -530,7 +564,7 @@ module drawn {
             //we do this as a normal dispatch as we want to bail out in the error case.
             return dispatch("setError", {errorText: "Normal functions can't take columns as input, you could try unchunking the source or grouping this field."});
           }
-          diffs.push(api.remove("constant (new)", {variable: primitiveNode.variable}));
+          diffs.push(api.remove("constant", {variable: primitiveNode.variable}));
         }
         diffs.push.apply(diffs, dispatch("clearSelection", info, true));
       break;
@@ -539,21 +573,21 @@ module drawn {
         let root = localState.selectedNodes[ids[0]];
         for(let nodeId of ids.slice(1)) {
           let node = localState.selectedNodes[nodeId];
-          diffs.push.apply(diffs, dispatch("joinNodes", {node, target: root}));
+          diffs.push.apply(diffs, dispatch("joinNodes", {node, target: root}, true));
         }
       break;
       case "unjoinNodes":
         var queryId = localState.drawnUiActiveId;
         var variableIdToRemove = info.variableId;
-        var oldBindings = ixer.select("binding (new)", {variable: variableIdToRemove});
+        var oldBindings = ixer.select("binding", {variable: variableIdToRemove});
          // push all the bindings onto their own variables, skipping the first as that one can reuse
          // the current variable
         for(let binding of oldBindings.slice(1)) {
-          let sourceId = binding["binding (new): source"];
-          let fieldId = binding["binding (new): field"];
+          let sourceId = binding["binding: source"];
+          let fieldId = binding["binding: field"];
           let sourceViewId = ixer.selectOne("source", {source: sourceId})["source: source view"];
           diffs.push.apply(diffs, addSourceFieldVariable(queryId, sourceViewId, sourceId, fieldId));
-          diffs.push(api.remove("binding (new)", {variable: variableIdToRemove, source: sourceId, field: fieldId}));
+          diffs.push(api.remove("binding", {variable: variableIdToRemove, source: sourceId, field: fieldId}));
         }
         // check for an ordinal binding and create a new variable for it if it exists
         var ordinalBinding = ixer.selectOne("ordinal binding", {variable: variableIdToRemove});
@@ -563,21 +597,21 @@ module drawn {
         }
         // we have to check to make sure that if the original binding represents an input it gets a default
         // added to it to prevent the server from crashing
-        var fieldId = oldBindings[0]["binding (new): field"];
+        var fieldId = oldBindings[0]["binding: field"];
         var kind = ixer.selectOne("field", {field: fieldId})["field: kind"];
         if(kind !== "output") {
-          let sourceViewId = ixer.selectOne("source", {source: oldBindings[0]["binding (new): source"]})["source: source view"];
-          diffs.push(api.insert("constant (new)", {variable: variableIdToRemove, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
+          let sourceViewId = ixer.selectOne("source", {source: oldBindings[0]["binding: source"]})["source: source view"];
+          diffs.push(api.insert("constant", {variable: variableIdToRemove, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
         }
 
       break;
       case "removeSelectFromQuery":
-        var selects = ixer.select("select (new)", {view: info.viewId, variable: info.variableId}) || [];
+        var selects = ixer.select("select", {view: info.viewId, variable: info.variableId}) || [];
         for(let select of selects) {
-          let fieldId = select["select (new): field"];
+          let fieldId = select["select: field"];
           diffs.push(api.remove("field", {field: fieldId}));
         }
-        diffs.push(api.remove("select (new)", {view: info.viewId, variable: info.variableId}));
+        diffs.push(api.remove("select", {view: info.viewId, variable: info.variableId}));
       break;
       case "addSelectToQuery":
         var name = info.name;
@@ -590,9 +624,9 @@ module drawn {
 
         // check to make sure this isn't only a negated attribute
         var onlyNegated = !info.allowNegated;
-        var bindings = ixer.select("binding (new)", {variable: info.variableId});
+        var bindings = ixer.select("binding", {variable: info.variableId});
         for(let binding of bindings) {
-          let sourceId = binding["binding (new): source"];
+          let sourceId = binding["binding: source"];
           if(!ixer.selectOne("negated source", {source: sourceId})) {
             onlyNegated = false;
           }
@@ -603,19 +637,19 @@ module drawn {
 
         diffs = [
           neueField,
-          api.insert("select (new)", {view: info.viewId, field: fieldId, variable: info.variableId})
+          api.insert("select", {view: info.viewId, field: fieldId, variable: info.variableId})
         ];
       break;
       case "selectSelection":
         for(let nodeId in localState.selectedNodes) {
           let node = localState.selectedNodes[nodeId];
-          diffs.push.apply(diffs, dispatch("addSelectToQuery", {variableId: node.variable, name: node.name, viewId: localState.drawnUiActiveId}));
+          diffs.push.apply(diffs, dispatch("addSelectToQuery", {variableId: node.variable, name: node.name, viewId: localState.drawnUiActiveId}, true));
         }
       break;
       case "unselectSelection":
         for(let nodeId in localState.selectedNodes) {
           let node = localState.selectedNodes[nodeId];
-          diffs.push.apply(diffs, dispatch("removeSelectFromQuery", {variableId: node.variable, viewId: localState.drawnUiActiveId}));
+          diffs.push.apply(diffs, dispatch("removeSelectFromQuery", {variableId: node.variable, viewId: localState.drawnUiActiveId}, true));
         }
       break;
       case "setQueryName":
@@ -625,7 +659,7 @@ module drawn {
       break;
       case "addFilter":
         var variableId = info.node.variable;
-        diffs.push(api.insert("constant (new)", {variable: variableId, value: ""}));
+        diffs.push(api.insert("constant", {variable: variableId, value: ""}));
         dispatch("modifyFilter", info, true);
       break;
       case "modifyFilter":
@@ -633,22 +667,44 @@ module drawn {
       break;
       case "removeFilter":
         var variableId = info.node.variable;
-        diffs.push(api.remove("constant (new)", {variable: variableId}));
+        diffs.push(api.remove("constant", {variable: variableId}));
       break;
       case "stopModifyingFilter":
         //insert a constant
         var variableId = info.node.variable;
-        diffs.push(api.remove("constant (new)", {variable: variableId}));
-        diffs.push(api.insert("constant (new)", {variable: variableId, value: info.value}));
+        diffs.push(api.remove("constant", {variable: variableId}));
+        diffs.push(api.insert("constant", {variable: variableId, value: info.value}));
         localState.modifyingFilterNodeId = undefined;
       break;
       case "chunkSource":
         var sourceId = info.node.source["source: source"];
         diffs.push(api.insert("chunked source", {view: info.viewId, source: sourceId}));
+        // we need to group any fields that are joined to ensure the join continues to do what you'd expect
+        for(let binding of joinedBindingsFromSource(sourceId)) {
+          let fieldId = binding["binding: field"];
+          diffs.push(api.insert("grouped field", {view: info.viewId, source: sourceId, field: fieldId}));
+        }
       break;
       case "unchunkSource":
         var sourceId = info.node.source["source: source"];
         diffs.push(api.remove("chunked source", {view: info.viewId, source: sourceId}));
+        // when you unchunk, we should ungroup the fields that we grouped when chunking.
+        for(let binding of joinedBindingsFromSource(sourceId)) {
+          console.log(binding);
+          let fieldId = binding["binding: field"];
+          let variableId = binding["binding: variable"];
+          // We have to check for an aggregate binding, as unchunking will cause the
+          // vector binding to error out. If there is an aggregate binding, then we have to bail
+          // out of unchunking.
+          for(let variableBinding of ixer.select("binding", {variable: variableId})) {
+            let fieldKind = ixer.selectOne("field", {field: variableBinding["binding: field"]})["field: kind"];
+            console.log("fieldKind", fieldKind);
+            if(fieldKind === "vector input") {
+              return dispatch("setError", {errorText: "Cannot unchunk this source because it's bound to an aggregate, which requires a column."});
+            }
+          }
+          diffs.push(api.remove("grouped field", {view: info.viewId, source: sourceId, field: fieldId}));
+        }
       break;
       case "addOrdinal":
         var sourceId = info.node.source["source: source"];
@@ -663,11 +719,11 @@ module drawn {
         diffs.push(
           neueField,
           // create a variable
-          api.insert("variable (new)", {view: info.viewId, variable: variableId}),
+          api.insert("variable", {view: info.viewId, variable: variableId}),
           // bind the ordinal to it
           api.insert("ordinal binding", {source: sourceId, variable: variableId}),
           // select the variable into the created field
-          api.insert("select (new)", {view: info.viewId, variable: variableId, field: fieldId})
+          api.insert("select", {view: info.viewId, variable: variableId, field: fieldId})
         );
       break;
       case "removeOrdinal":
@@ -705,7 +761,7 @@ module drawn {
         for(let binding of ixer.select("binding", {source: info.sourceId})) {
           let variableId = binding["binding: variable"];
           if(ixer.select("binding", {variable: variableId}).length === 1) {
-            diffs.push.apply(diffs, dispatch("removeSelectFromQuery", {variableId: variableId, viewId: localState.drawnUiActiveId}));
+            diffs.push.apply(diffs, dispatch("removeSelectFromQuery", {variableId: variableId, viewId: localState.drawnUiActiveId}, true));
           }
         }
       break;
@@ -715,12 +771,89 @@ module drawn {
         var sourceViewId = ixer.selectOne("source", {source: info.sourceId})["source: source view"];
         ixer.select("field", {view: sourceViewId}).forEach(function(field) {
             let fieldId = field["field: field"];
-            let binding = ixer.selectOne("binding (new)", {source: info.sourceId, field: fieldId});
-            let bindingVariableId = binding["binding (new): variable"];
-            if(!ixer.selectOne("select (new)", {variable: bindingVariableId})) {
-              diffs.push.apply(diffs, dispatch("addSelectToQuery", {variableId: bindingVariableId, name: code.name(fieldId), viewId: localState.drawnUiActiveId, allowNegated: true}));
+            let binding = ixer.selectOne("binding", {source: info.sourceId, field: fieldId});
+            let bindingVariableId = binding["binding: variable"];
+            if(!ixer.selectOne("select", {variable: bindingVariableId})) {
+              diffs.push.apply(diffs, dispatch("addSelectToQuery", {variableId: bindingVariableId, name: code.name(fieldId), viewId: localState.drawnUiActiveId, allowNegated: true}, true));
             }
         });
+      break;
+      //---------------------------------------------------------
+      // sorting
+      //---------------------------------------------------------
+      case "startSort":
+        var {sourceId} = info;
+        localState.sorting = info;
+        // make sure that the tooltip isn't obstructing the sorter
+        dispatch("hideTooltip", {}, true);
+        // if we haven't created sort fields for this before, then we create them in the
+        // order that the fields of the source view are displayed in
+        if(!ixer.selectOne("sorted field", {source: sourceId})) {
+          let sourceViewId = ixer.selectOne("source", {source: sourceId})["source: source view"];
+          let fieldIds = ixer.getFields(sourceViewId);
+          let viewId = localState.drawnUiActiveId;
+          fieldIds.forEach((fieldId, ix) => {
+            diffs.push(api.insert("sorted field", {view: viewId, source: sourceId, ix, field: fieldId, direction: "ascending"}));
+          })
+        }
+      break;
+      case "stopSort":
+        localState.sorting = false;
+      break;
+      case "moveSortField":
+        var {from, to, sourceId} = info;
+        // if we haven't actually moved, then we just ignore the drop.
+        if(from === to) break;
+        // grab all the fields and get them in their current order
+        var sorted = ixer.select("sorted field", {source: sourceId});
+        sorted.sort((a, b) => {
+          return a["sorted field: ix"] - b["sorted field: ix"];
+        });
+        // now update the orders based on inserting the moved item in its new location
+        var viewId = localState.drawnUiActiveId;
+        var updatedIx = 0;
+        sorted.forEach((sort, ix) => {
+          // we have to keep track of how far ahead we need to move, which depends on if
+          // we insert to the left or right of the index we're moving to.
+          let advanceBy = 1;
+          // if this is the item we're moving, skip it
+          if(ix === from) return;
+          // if this is the item we're moving to, then we need to place it here
+          if(ix === to) {
+            let movedIx;
+            // if we're moving from a greater location to a lesser on, we want to insert
+            // to the left, which means we take the current updatedIndex, and the item that's
+            // currently there will get bumped up one.
+            if(from > to) {
+              movedIx = updatedIx;
+              updatedIx++;
+            // if we're move from a lesser location to a greater one, we want to insert to the
+            // right of it, which means we leave the current updatedIx alone and we take the index
+            // after that. That means we need to advance the updatedIx by two, once for the moved item
+            // and once for the item already at this index.
+            } else {
+              // go to the right
+              movedIx = updatedIx + 1;
+              advanceBy = 2;
+            }
+            let moved = sorted[from];
+            // replace this field
+            diffs.push(api.remove("sorted field", {view: viewId, source: sourceId, ix: moved["sorted field: ix"], field: moved["sorted field: field"], direction: moved["sorted field: direction"]}))
+            diffs.push(api.insert("sorted field", {view: viewId, source: sourceId, ix: movedIx, field: moved["sorted field: field"], direction: moved["sorted field: direction"]}))
+          }
+          // we only replace this field if its index has actually changed
+          if(sort["sorted field: ix"] !== updatedIx) {
+            diffs.push(api.remove("sorted field", {view: viewId, source: sourceId, ix: sort["sorted field: ix"], field: sort["sorted field: field"], direction: sort["sorted field: direction"]}))
+            diffs.push(api.insert("sorted field", {view: viewId, source: sourceId, ix: updatedIx, field: sort["sorted field: field"], direction: sort["sorted field: direction"]}))
+          }
+          updatedIx += advanceBy;
+        });
+      break;
+      case "toggleSortDirection":
+        var sortedField = ixer.selectOne("sorted field", {source: info.sourceId, field: info.fieldId});
+        diffs.push(api.remove("sorted field", {source: info.sourceId, field: info.fieldId}));
+        var direction = sortedField["sorted field: direction"] === "ascending" ? "descending" : "ascending";
+        diffs.push(api.insert("sorted field", {view: sortedField["sorted field: view"], source: info.sourceId, field: info.fieldId, ix: sortedField["sorted field: ix"], direction}))
       break;
       //---------------------------------------------------------
       // Errors
@@ -749,14 +882,24 @@ module drawn {
       break;
       case "startSearching":
         localState.searching = true;
-        diffs.push.apply(diffs, dispatch("updateSearch", {value: info.value || ""}, true));
+        var searchValue = info.value || "";
+        // when we start searching, lets check if there are attributes selected and if there
+        // are, go ahead and add filters to our search for them. This makes it really easy to
+        // figure out what you can join those attributes on
+        for(let nodeId in localState.selectedNodes) {
+          let node = localState.selectedNodes[nodeId];
+          if(node.type === "attribute") {
+            searchValue += `[field: ${node.name}] `;
+          }
+        }
+        diffs.push.apply(diffs, dispatch("updateSearch", {value: searchValue}, true));
       break;
       case "stopSearching":
         localState.searching = false;
       break;
       case "handleSearchKey":
         if(info.keyCode === api.KEYS.ENTER) {
-          // @TODO: execute an action
+          // execute whatever the first result's action is
           let currentSearchGroup = localState.searchResults[0];
           if(currentSearchGroup && currentSearchGroup.results.length) {
             let results = currentSearchGroup.results;
@@ -806,6 +949,7 @@ module drawn {
       break;
       case "hideTooltip":
         localState.tooltip = false;
+        clearTimeout(localState.tooltipTimeout);
       break;
       //---------------------------------------------------------
       // Menu
@@ -865,14 +1009,30 @@ module drawn {
     return aScore - bScore;
   }
 
+  var availableFilters = ["field", "tag"];
   function searchResultsFor(searchValue) {
     let start = api.now();
-    let needle = searchValue.trim().toLowerCase().split(" ");
+
     // search results should be an ordered set of maps that contain the kind of results
     // being provided, the ordered set of results, and a selection handler
     let searchResults = [];
 
-    let rels = searchRelations(needle);
+    // see if there are any filters
+    let filters = [];
+    let normalizedSearchValue = searchValue.trim().toLowerCase();
+    for(let filter of availableFilters) {
+      let regex = new RegExp(`\\[${filter}:(.*?)\\]\s*`, "g");
+      let origSearch = normalizedSearchValue;
+      let match;
+      while(match = regex.exec(origSearch)) {
+        normalizedSearchValue = normalizedSearchValue.replace(match[0], "");
+        filters.push({type: filter, value: match[1].trim()});
+      }
+    }
+
+    let needle = normalizedSearchValue.trim().split(" ");
+
+    let rels = searchRelations(needle, filters);
     if(rels) searchResults.push(rels);
 
     let glossary = searchGlossary(needle);
@@ -885,25 +1045,78 @@ module drawn {
     return searchResults;
   }
 
-  function searchRelations(needle) {
+  function arrayIntersect(a, b) {
+    let ai = 0;
+    let bi = 0;
+    let result = [];
+    while(ai < a.length && bi < b.length){
+       if (a[ai] < b[bi] ){ ai++; }
+       else if (a[ai] > b[bi] ){ bi++; }
+       else {
+         result.push(a[ai]);
+         ai++;
+         bi++;
+       }
+    }
+    return result;
+  }
+
+  function searchRelations(needle, filters) {
     let matchingViews = [];
-    for(let view of ixer.select("view", {})) {
-      let id = view["view: view"];
-      let name = code.name(view["view: view"]);
+    let viewIds;
+    //handle filters
+    for(let filter of filters) {
+      if(filter.type === "field") {
+        // we need to only look at views with a field with the given name
+        var potentialViews = [];
+        ixer.select("display name", {name: filter.value}).forEach((name) => {
+          let field = ixer.selectOne("field", {field: name["display name: id"]});
+          if(field) {
+            potentialViews.push(field["field: view"]);
+          }
+       });
+       potentialViews.sort();
+       if(!viewIds) {
+          viewIds = potentialViews;
+        } else {
+          viewIds = arrayIntersect(viewIds, potentialViews);
+        }
+      } else if(filter.type === "tag") {
+        // we only look at views with the given tag
+        let tagged = ixer.select("tag", {tag: filter.value});
+        if(!viewIds) {
+          viewIds = [];
+          tagged.forEach((tag) => {
+            viewIds.push(tag["tag: view"]);
+          });
+          viewIds.sort();
+        } else {
+          let taggedIds = tagged.map((tag) => tag["tag: view"]).sort();
+          viewIds = arrayIntersect(viewIds, taggedIds);
+        }
+      }
+    }
+
+    if(!filters.length) {
+      viewIds = ixer.select("view", {}).map((view) => view["view: view"]);
+    }
+
+    for(let viewId of viewIds) {
+      let name = code.name(viewId);
       let score = scoreHaystack(name, needle);
       if(score.score) {
-        let description = ixer.selectOne("view description", {view: id});
+        let description = ixer.selectOne("view description", {view: viewId});
         if(description) {
           description = description["view description: description"];
         } else {
           description = "No description :(";
         }
-        matchingViews.push({text: name, viewId: id, score, description});
+        matchingViews.push({text: name, viewId, score, description});
       }
     }
     matchingViews.sort(sortByScore);
     return {kind: "Sources", results: matchingViews, onSelect: (e, elem) => {
-      dispatch("addViewToQuery", {viewId: elem.result.viewId});
+      dispatch("addViewAndMaybeJoin", {viewId: elem.result.viewId});
     }};
   }
 
@@ -938,7 +1151,13 @@ module drawn {
       var viewId = view["view: view"];
       return {c: "query-item", queryId: viewId, click: openQuery, children:[
         {c: "query-name", text: code.name(viewId)},
-        queryUi(viewId)
+        {c: "query", children: [
+          {c: "container", children: [
+            {c: "surface", children: [
+              queryPreview(view)
+            ]},
+          ]}
+        ]}
       ]};
     });
     return {c: "query-selector-wrapper", children: [
@@ -1023,6 +1242,7 @@ module drawn {
       "select": {func: selectAttribute, text: "Show"},
       "filter": {func: addFilter, text: "Filter"},
       "group": {func: groupAttribute, text: "Group"},
+      "sort": {func: startSort, text: "Sort"},
       "chunk": {func: chunkSource, text: "Chunk"},
       "ordinal": {func: addOrdinal, text: "Ordinal"},
       "negate": {func: negateSource, text: "Negate"},
@@ -1035,6 +1255,7 @@ module drawn {
         "select": "select only applies to attributes",
         "filter": "filter only applies to attributes",
         "group": "group only applies to attributes",
+        "sort": "sort only applies to sources",
         "chunk": "chunk only applies to sources",
         "ordinal": "ordinal only applies to sources",
         "negate": "negate only applies to sources",
@@ -1044,6 +1265,7 @@ module drawn {
     } else if(selectedNodes.length === 1) {
       let node = selectedNodes[0];
       if(node.type === "attribute") {
+        disabled["sort"] = "sort only applies to sources";
         disabled["chunk"] = "chunk only applies to sources";
         disabled["ordinal"] = "ordinal only applies to sources";
         disabled["negate"] = "negate only applies to sources";
@@ -1057,7 +1279,7 @@ module drawn {
           actions["join"] = {func: unjoinNodes, text: "Unjoin"};
         }
 
-        if(ixer.selectOne("select (new)", {view: viewId, variable: node.variable})) {
+        if(ixer.selectOne("select", {view: viewId, variable: node.variable})) {
           actions["select"] = {func: unselectAttribute, text: "Hide"};
         }
         if(node.filter) {
@@ -1076,15 +1298,8 @@ module drawn {
         disabled["filter"] = "filter only applies to attributes.";
         disabled["group"] = "group only applies to attributes.";
         disabled["join"] = "join only applies to attributes.";
-        let hasJoins = sourceHasJoins(node.id);
-        if(hasJoins) {
-          disabled["chunk"] = "you cannot chunk if attributes of the source are joined to other sources";
-        }
         if(node.chunked) {
           actions["chunk"] = {func: unchunkSource, text: "Unchunk"};
-           if(hasJoins) {
-              disabled["chunk"] = "you cannot unchunk if attributes of the source are joined to other sources";
-           }
         }
         if(node.isNegated) {
           actions["negate"] = {func: unnegateSource, text: "Unnegate"};
@@ -1100,6 +1315,7 @@ module drawn {
       disabled = {
         "filter": "filter only applies to single attributes",
         "group": "group only applies to single attributes",
+        "sort": "sort only applies to single sources",
         "chunk": "chunk only applies to single sources",
         "ordinal": "ordinal only applies to single sources",
         "negate": "negate only applies to single sources",
@@ -1114,7 +1330,7 @@ module drawn {
         // whether or not we are showing or hiding is based on the state of the first node
         // in the selection
         let root = selectedNodes[0];
-        if(ixer.selectOne("select (new)", {view: viewId, variable: root.variable})) {
+        if(ixer.selectOne("select", {view: viewId, variable: root.variable})) {
           actions["select"] = {func: unselectSelection, text: "Hide"};
         } else {
           actions["select"] = {func: selectSelection, text: "Show"};
@@ -1141,7 +1357,34 @@ module drawn {
 
     return {c: "left-side-container", children: [
       {c: "query-tools", children: tools},
+      sorter(),
       querySearcher()
+    ]};
+  }
+
+  function sorter() {
+    if(!localState.sorting) return;
+    let sourceId = localState.sorting.sourceId;
+    let sourceViewId = ixer.selectOne("source", {source: sourceId})["source: source view"];
+    let fieldItems = ixer.getFields(sourceViewId).map((field, ix) => {
+      let sortedField = ixer.selectOne("sorted field", {source: sourceId, field: field});
+      let sortIx = sortedField ? sortedField["sorted field: ix"] : ix;
+      let sortArrow = sortedField["sorted field: direction"] === "ascending" ? "ion-arrow-up-b" : "ion-arrow-down-b";
+      return {c: "field", draggable: true, dragstart: sortDragStart, dragover: sortFieldDragOver, drop: sortFieldDrop, sortIx, sourceId, children: [
+        {c: "field-name", text: code.name(field)},
+        {c: `sort-direction ${sortArrow}`, sortedField, click: toggleSortDirection},
+      ]};
+    });
+    fieldItems.sort((a, b) => {
+      return a.sortIx - b.sortIx;
+    });
+    return {c: "sorter-container", children: [
+      {c: "sorter-shade", click: stopSort},
+      {c: "sorter", top: localState.sorting.y, left: localState.sorting.x,  children: [
+        {c: "header", text: "Adjust sorting"},
+        {c: "description", text: "Order the fields in the order you want them to be sorted in and click the arrow to adjust whether to sort ascending or descending"},
+        {c: "fields", children: fieldItems}
+      ]}
     ]};
   }
 
@@ -1159,8 +1402,13 @@ module drawn {
           ]};
         });
         return {c: "search-result-group", children: [
-          {c: "search-result-items", children: items},
-          {c: "group-type", text: resultGroup.kind},
+          // @HACK: setting value here is weird, but it causes the postRender to get called every time the search changes
+          // which will ensure that the results are always scrolled to the bottom
+          {c: "search-result-items", value: localState.searchingFor, postRender: scrollToTheBottomOnChange, children: items},
+          {c: "group-type", children: [
+            {c: "group-name", text: resultGroup.kind},
+            {c: "result-size", text: resultGroup.results.length}
+          ]},
         ]}
       });
     }
@@ -1171,6 +1419,43 @@ module drawn {
         {c: "search-box", contentEditable: true, postRender: focusOnce, text: localState.searchingFor, input: updateSearch, keydown: handleSearchKey}
       ]}
     ]};
+  }
+
+  function toggleSortDirection(e, elem) {
+    dispatch("toggleSortDirection", {sourceId: elem.sortedField["sorted field: source"], fieldId: elem.sortedField["sorted field: field"]});
+  }
+
+  function sortDragStart(e, elem) {
+    e.dataTransfer.setData("sortIx", elem.sortIx);
+  }
+
+  function sortFieldDragOver(e, elem) {
+    e.preventDefault();
+  }
+
+  function sortFieldDrop(e, elem) {
+    e.preventDefault();
+    dispatch("moveSortField", {
+      sourceId: elem.sourceId,
+      from: parseInt(e.dataTransfer.getData("sortIx")),
+      to: elem.sortIx,
+    });
+  }
+
+  function scrollToTheBottomOnChange(node, elem) {
+    if(!node.searchValue || node.searchValue !== elem.value) {
+      node.scrollTop = Number.MAX_VALUE;
+      node.searchValue = elem.value;
+    }
+  }
+
+  function stopSort(e, elem) {
+    dispatch("stopSort", {});
+  }
+
+  function startSort(e, elem) {
+    let rect = e.currentTarget.getBoundingClientRect();
+    dispatch("startSort", {x: rect.right + 10, y: rect.top, sourceId: elem.node.id});
   }
 
   function showButtonTooltip(e, elem) {
@@ -1347,7 +1632,7 @@ module drawn {
     for(let variable of variables) {
       let variableId = variable["variable: variable"];
       let bindings = ixer.select("binding", {variable: variableId});
-      let constants = ixer.select("constant*", {variable: variableId});
+      let constants = ixer.select("constant", {variable: variableId});
       let ordinals = ixer.select("ordinal binding", {variable: variableId});
       let attribute:any = {type: "attribute", id: variableId, variable: variableId};
 
@@ -1419,19 +1704,19 @@ module drawn {
         attribute.name = name;
         attribute.mergedAttributes = bindings.length + ordinals.length > 1 ? bindings : undefined;
         attribute.entity = entity;
-        attribute.select = ixer.selectOne("select (new)", {variable: variableId});
+        attribute.select = ixer.selectOne("select", {variable: variableId});
         for(var constant of constants) {
-          attribute.filter = {operation: "=", value: constant["constant*: value"]};
+          attribute.filter = {operation: "=", value: constant["constant: value"]};
         }
       } else if(constants.length) {
         // some variables are just a constant
         attribute.name = "constant";
-        attribute.filter = {operation: "=", value: constants[0]["constant*: value"]};
+        attribute.filter = {operation: "=", value: constants[0]["constant: value"]};
       } else if(ordinals.length) {
         // we have to handle ordinals specially since they're a virtual field on a table
         attribute.isOrdinal = true;
         attribute.name = "ordinal";
-        attribute.select = ixer.selectOne("select (new)", {variable: variableId});
+        attribute.select = ixer.selectOne("select", {variable: variableId});
         let sourceNode = nodeLookup[ordinals[0]["ordinal binding: source"]];
         if(sourceNode) {
           let link: any = {left: attribute, right: sourceNode, name: "ordinal"};
@@ -1467,13 +1752,7 @@ module drawn {
     }
   }
 
-  function queryCanvas(view) {
-    let viewId = view["view: view"];
-    var {nodes, links} = viewToEntityInfo(view);
-    var items = [];
-    for(var node of nodes) {
-      items.push(nodeItem(node, viewId));
-    }
+  function drawLinks(links, items) {
     var linkItems = [];
     for(var link of links) {
       var leftItem, rightItem;
@@ -1510,6 +1789,31 @@ module drawn {
         {svg: true, t: "textPath", startOffset: "50%", xlinkhref: `#${pathId}`, text: link.name}
       ]});
     }
+    return linkItems;
+  }
+
+  function queryPreview(view) {
+    let viewId = view["view: view"];
+    var {nodes, links} = viewToEntityInfo(view);
+    var items = [];
+    for(var node of nodes) {
+      items.push(nodeItem(node, viewId));
+    }
+    let linkItems = drawLinks(links, items);
+    return {c: "canvas", children: [
+      {c: "links", svg: true, width:"100%", height:"100%", t: "svg", children: linkItems},
+      {c: "nodes", children: items}
+    ]};
+  }
+
+  function queryCanvas(view) {
+    let viewId = view["view: view"];
+    var {nodes, links} = viewToEntityInfo(view);
+    var items = [];
+    for(var node of nodes) {
+      items.push(nodeItem(node, viewId));
+    }
+    let linkItems = drawLinks(links, items);
     let selection;
     if(localState.selecting) {
       let {start, end} = localState.boxSelection;
@@ -1673,24 +1977,6 @@ module drawn {
       node: elem.node,
       pos: {left: x, top: y}
     });
-  }
-
-  //---------------------------------------------------------
-  // auto completer
-  //---------------------------------------------------------
-
-  interface completion {
-    text: string;
-    value: any;
-    class?: string;
-  }
-
-  function autoCompleter(completions: completion[]) {
-    var items = completions.map(completionItem);
-  }
-
-  function completionItem(completion: completion) {
-    return {c: `completion-item ${completion.class}`, text: completion.text, key: completion.value};
   }
 
   //---------------------------------------------------------
