@@ -84,52 +84,45 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
 
     vec![
     // a view dependency exists whenever the contents of one view depend directly on another
-    // `ix` is an integer identifying the position in the downstream views input list
     ("view dependency (pre)", vec!["downstream view", "source", "upstream view"]),
     ("view dependency", vec!["downstream view", "ix", "source", "upstream view"]),
 
-    // the view schedule determines what order views will be executed in
-    // `ix` is an integer. views with lower ixes are executed first.
+    // the view schedule determines what order views will be calculated in
     ("view schedule (pre)", vec!["view", "kind"]),
     ("view schedule", vec!["ix", "view", "kind"]),
 
-    // the source schedule determines in what order sources will be explored inside joins
-    // `ix` is an integer. views with lower ixes are explored first.
-    ("source schedule (pre)", vec!["view", "pass", "source"]),
-    ("source schedule", vec!["view", "ix", "pass", "source"]),
-
-    // the constraint schedule determines when constraints will be checked
-    // `ix` is an integer. the constraint will be checked after the corresponding source is explored
-    ("constraint schedule", vec!["constraint", "ix"]),
-
-    // index layout determines the order in which fields are stored in the view index
-    // `ix` is an integer, the index of the field
-    ("index layout", vec!["view", "field ix", "field", "name"]),
-
-    // sources and fields actually used by each view
-    ("view reference", vec!["view", "source", "field"]),
-
-    // view layout determines the order in which source/field pairs are stored while computing the view
-    // `ix` is an integer, the index of the field
-    ("view layout", vec!["view", "source", "field", "ix"]),
-
-    // temp state for transition to variables
+    // a source 'provides' a variable if it can reduce thevariable to a finite number of values
+    // a source 'requires' a variable if it needs the variable reduced to a finite number of values before it can contribute
     ("provides", vec!["view", "source", "variable"]),
     ("requires", vec!["view", "source", "variable"]),
+
+    // the source schedule determines in which order the sources will be explored
+    // the variable schedule determines whether a given variable is being assigned from a given source or constrained against it
     ("unscheduled source", vec!["view", "source"]),
     ("schedulable source", vec!["view", "source"]),
     ("unschedulable source", vec!["view", "source", "variable"]),
+    ("source schedule (pre)", vec!["view", "pass", "source"]),
+    ("source schedule", vec!["view", "ix", "pass", "source"]),
     ("variable schedule (pre)", vec!["view", "pass", "variable"]),
     ("variable schedule", vec!["view", "ix", "pass", "variable"]),
+
+    // when a variable is bound to multiple fields from the same source we must arbitrarily decide to make
+    // one an assignment and the others constraints
+    ("constrained binding", vec!["variable", "source", "field"]),
+
+    // index layout determines the order in which fields are stored in the view index
     ("compiler index layout", vec!["view", "ix", "field", "name"]),
     ("default index layout", vec!["view", "ix", "field", "kind"]),
-    ("constrained binding", vec!["variable", "source", "field"]),
+    ("index layout", vec!["view", "field ix", "field", "name"]),
+
+    // we need to know the number of fields per view to calculate the index of the ordinal
     ("number of fields", vec!["view", "num"]),
+
+    // when a source has fields that are neither grouped nor sorted, we treat them as being sorted in id order
     ("non-sorted field (pre)", vec!["view", "source", "field"]),
     ("non-sorted field", vec!["view", "source", "ix", "field"]),
 
-    // layout for `create`
-    // TODO these names are awful...
+    // we denormalise all the above views so that the `create` function only needs to make a single pass over each table
     ("output layout", vec!["view ix", "field ix", "field", "name"]),
     ("number of variables (pre)", vec!["view", "num"]),
     ("number of variables", vec!["view ix", "num"]),
