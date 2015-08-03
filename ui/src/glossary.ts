@@ -33,7 +33,8 @@ module glossary {
        description: "Negating a source causes anything joined with that source to be removed from the results. You can think of this as checking if something is \"not in\" the set of rows this source has. For example, if you wanted to find all employees who have not taken vacation, you could join the employees source with a negated vacation source."},
       {term: "Unnegate",
        description: "Return the source to producing each row as a result as opposed to removing any rows that join with this source."},
-
+      {term: "Sort",
+       description: "Set the sort order for the attributes of this source. Sorting only impacts what order ordinals and aggregates are applied in, to sort the results of your query click on the arrows on the result columns."},
     ];
 
     export var lookup = {};
