@@ -91,6 +91,12 @@ module datawang {
     kind?: any
   }
   
+  interface NodeGroup {
+    padding?: number
+    leaves: Node[]
+    groups: NodeGroup[]
+  }
+  
   interface Edge {
     source: number,
     target: number
@@ -160,6 +166,8 @@ module datawang {
     let attrs = genNodes(attrCount);
     let edges:Edge[] = [];
     
+    let groups:NodeGroup = {leaves: [], groups: []};
+    
     for(let dest of attrs) {
       let src = choose(sources);
       edges.push({source: src.index, target: dest.index});
@@ -213,7 +221,7 @@ module test {
     adaptor.size([960, 958]);
     //adaptor.symmetricDiffLinkLengths(75, 0.25);
     adaptor.jaccardLinkLengths(100, 0.5);
-    //adaptor.handleDisconnected(true);
+    adaptor.handleDisconnected(true);
     adaptor.avoidOverlaps(true);
     adaptor.on("render", renderToCanvas);
     window['a'] = _adaptor = adaptor;
@@ -244,7 +252,11 @@ module test {
     return node.kind !== "source";
   }
   
-  export function addSource() { 
+  export function addSource() {
+    for(let node of _nodes) {
+      node.fixed = true;
+    }
+    
     let data = datawang.genData(1, datawang.chooseInt(0, 5), 0);
     let joinCount = Math.floor(datawang.srand() * datawang.srand() * (data.nodes.length - 1));
     console.log(`[addSource] nodes: ${_nodes.length} + ${data.nodes.length} | edges: ${_edges.length} + ${data.nodes.length} | joins: ${joinCount}`);
@@ -257,16 +269,24 @@ module test {
     _adaptor.nodes(_nodes);
     _adaptor.links(_edges);
     start = Date.now();
-    _adaptor.start();
+    _adaptor.start(10, 10, 10);
   }
   
   export function addJoin() {
     console.log(`[addJoin] nodes: ${_nodes.length} + 0 | edges: ${_edges.length} + 1 | joins: 1`);
     var joins = datawang.genEdges(1, _nodes.filter(isSource), _nodes.filter(isAttribute), _edges);
     if(joins.length) { console.log("* joins: ", joins.map(edgesToString)); }
+    var join = joins[0];
+    for(var node of _nodes) {
+      if(node.index !== join.source && node.index !== join.target) {
+        node.fixed = true;
+      } else {
+        node.fixed = false;
+      }
+    }
     _edges.push.apply(_edges, joins);
     _adaptor.links(_edges);
     start = Date.now();
-    _adaptor.start();
+    _adaptor.start(10, 10, 10);
   }
 }
