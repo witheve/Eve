@@ -8,6 +8,32 @@ module eveEditor {
   var ixer = api.ixer;
   var code = api.code;
   var DEBUG = window["DEBUG"];
+  // we'll keep separate stacks for each workspace
+  var eventStacks = {};
+
+  export function storeEvent(workspace, event, diffs) {
+    if(!eventStacks[workspace]) {
+        eventStacks[workspace] = {root: true, children: [], parent: null, diffs: null};
+    }
+    var eventItem = {event, diffs, children: [], parent: eventStacks[workspace], root: false};
+    eventStacks[workspace].children.push(eventItem);
+    eventStacks[workspace] = eventItem;
+  }
+
+  export function scaryUndoEvent(workspace): any[] {
+    let eventStack = eventStacks[workspace];
+    if(!eventStack.parent || !eventStack.diffs) return [];
+    var old = eventStack;
+    eventStacks[workspace] = old.parent;
+    return api.reverseDiff(old.diffs);
+  }
+
+  export function scaryRedoEvent(workspace): any[] {
+    let eventStack = eventStacks[workspace];
+    if(!eventStack.children.length) return [];
+    eventStacks[workspace] = eventStack.children[eventStack.children.length - 1];
+    return eventStacks[workspace].diffs;
+  }
 
   export function executeDispatch(diffs, storeEvent, sendToServer) {
     if(diffs && diffs.length) {
@@ -351,6 +377,7 @@ module drawn {
   function dispatch(event, info, rentrant?) {
     //console.log("dispatch[" + event + "]", info);
     var diffs = [];
+    var storeEvent = true;
     switch(event) {
       //---------------------------------------------------------
       // Node selection
@@ -960,6 +987,17 @@ module drawn {
       case "clearMenu":
         localState.menu = false;
       break;
+      //---------------------------------------------------------
+      // undo
+      //---------------------------------------------------------
+      case "undo":
+        diffs = eveEditor.scaryUndoEvent(localState.drawnUiActiveId);
+        storeEvent = false;
+      break;
+      case "redo":
+        diffs = eveEditor.scaryRedoEvent(localState.drawnUiActiveId);
+        storeEvent = false;
+      break;
       default:
         console.error("Unknown dispatch:", event, info);
         break;
@@ -968,8 +1006,20 @@ module drawn {
     if(!rentrant) {
       if(diffs.length) {
         let formatted = api.toDiffs(diffs);
+        if(event === "undo" || event === "redo") {
+          formatted = diffs;
+        }
+        if(storeEvent && formatted.length) {
+          eveEditor.storeEvent(localState.drawnUiActiveId, event, formatted);
+        }
         ixer.handleDiffs(formatted);
         client.sendToServer(formatted, false);
+        // @HACK: since we load positions up once and assume we're authorative, we have to handle
+        // the case where an undo/redo can change positions without going through the normal
+        // dispatch. To deal with this, we'll just reload our positions on undo and redo.
+        if(event === "undo" || event === "redo") {
+          loadPositions();
+        }
       }
       render();
     }
@@ -1234,7 +1284,7 @@ module drawn {
       // we can't rely on the actual nodes of the uiSelection because they don't get updated
       // so we have to look them up again.
       return nodeLookup[nodeId];
-    });
+    }).filter((node) => node);
 
     let disabled = {};
     let actions = {
