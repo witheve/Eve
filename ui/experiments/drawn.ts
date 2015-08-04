@@ -81,6 +81,7 @@ module drawn {
   const nodeHeight = 18;
   const nodeHeightPadding = 3;
   const nodeWidthMin = 50;
+  const nodeFilterWidthMin = 30;
 
   //---------------------------------------------------------
   // Utils
@@ -192,10 +193,10 @@ module drawn {
       if (node.id === currentNode.id) continue;
       let nodePosition = nodeDisplayInfo(nodeLookup[node.id]);
 
-      if (currentNodePosition.left + currentNodePosition.width > nodePosition.left &&
-        currentNodePosition.left < nodePosition.left + nodePosition.width &&
-        currentNodePosition.top + currentNodePosition.height > nodePosition.top &&
-        currentNodePosition.top < nodePosition.top + nodePosition.height) {
+      if (currentNodePosition.right > nodePosition.left &&
+        currentNodePosition.left < nodePosition.right &&
+        currentNodePosition.bottom > nodePosition.top &&
+        currentNodePosition.top < nodePosition.bottom) {
         overlaps.push(node.id);
       }
     }
@@ -240,9 +241,9 @@ module drawn {
     }).filter((info) => {
       let {node, displayInfo} = info;
       let overlapLeft = Math.max(boxLeft, displayInfo.left);
-      let overlapRight = Math.min(boxRight, displayInfo.left + displayInfo.width);
+      let overlapRight = Math.min(boxRight, displayInfo.right);
       let overlapTop = Math.max(boxTop, displayInfo.top);
-      let overlapBottom = Math.min(boxBottom, displayInfo.top + displayInfo.height);
+      let overlapBottom = Math.min(boxBottom, displayInfo.bottom);
       return overlapLeft < overlapRight && overlapTop < overlapBottom;
     });
   }
@@ -255,9 +256,9 @@ module drawn {
     for(var node of nodes) {
       let info = nodeDisplayInfo(node);
       if(info.left < left) left = info.left;
-      if(info.left + info.width > right) right = info.left + info.width;
+      if(info.right > right) right = info.right;
       if(info.top < top) top = info.top;
-      if(info.top + info.height > bottom) bottom = info.top + info.height;
+      if(info.bottom > bottom) bottom = info.bottom;
     }
     return {top, left, right, bottom, width: right - left, height: bottom - top};
   }
@@ -1873,7 +1874,7 @@ module drawn {
 
   function queryCanvas(view, entityInfo) {
     let viewId = view["view: view"];
-    var {nodes, links} = entityInfo;
+    var {nodes, links, nodeLookup} = entityInfo;
     var items = [];
     for(var node of nodes) {
       items.push(nodeItem(node, viewId));
@@ -1897,7 +1898,7 @@ module drawn {
     } else {
       let selectedNodeIds = Object.keys(localState.selectedNodes);
       if(selectedNodeIds.length) {
-        let {top, left, width, height} = nodesToRectangle(selectedNodeIds.map((nodeId) => localState.selectedNodes[nodeId]));
+        let {top, left, width, height} = nodesToRectangle(selectedNodeIds.map((nodeId) => nodeLookup[nodeId]).filter((node) => node));
         selection = {svg: true, c: "selection-rectangle", t: "rect", x: left - 10, y: top - 10, width: width + 20, height: height + 20};
       }
     }
@@ -1940,10 +1941,18 @@ module drawn {
     let {left, top} = toPosition(curNode);
     let height = nodeHeight + 2 * nodeHeightPadding;
     let width = Math.max(text.length * nodeWidthMultiplier + 2 * nodeWidthPadding, nodeWidthMin);
+    let right = left + width;
+    let bottom = top + height;
+    let filterWidth;
+    if(curNode.filter) {
+      filterWidth = Math.max(curNode.filter.value.length * nodeWidthMultiplier + 25, nodeWidthMin);
+      // subtract the 15 pixel overlap that occurs between nodes and their filters
+      right += filterWidth - 15;
+    }
     if(small) {
       width = Math.max(text.length * nodeSmallWidthMultiplier + nodeWidthPadding, nodeWidthMin);
     }
-    return {left, top, width, height, text};
+    return {left, top, right, bottom, width, height, text, filterWidth};
   }
 
   function nodeItem(curNode, viewId): any {
@@ -1973,22 +1982,26 @@ module drawn {
     if (curNode.entity !== undefined) {
       klass += " entity";
     }
+    var {left, top, width, height, text, filterWidth} = nodeDisplayInfo(curNode);
     if (curNode.filter && curNode.inputKind !== "vector input") {
       var op = curNode.filter.operation;
+      let filterIsBeingEdited = localState.modifyingFilterNodeId === curNode.id;
       var filterUi:any = {c: "attribute-filter", dblclick: modifyFilter, node: curNode, children: [
         //{c: "operation", text: curNode.filter.operation}
       ]};
-      if(localState.modifyingFilterNodeId === curNode.id) {
+
+      if(filterIsBeingEdited) {
         filterUi.children.push({c: "value", children: [
           {c: "filter-editor", contentEditable: true, postRender: focusOnce, keydown: submitOnEnter,
             blur: stopModifyingFilter, viewId, node: curNode, text: curNode.filter.value}
         ]});
       } else {
+        // we only want an explicit width if the filter isn't changing size to try and fit being edited.
+        filterUi.width = filterWidth;
         filterUi.children.push({c: "value", text: curNode.filter.value});
       }
       content.push(filterUi);
     }
-    var {left, top, width, height, text} = nodeDisplayInfo(curNode);
     var elem = {c: "item " + klass, selected: uiSelected, width, height,
                 mousedown: selectNode, dblclick: openNode, draggable: true, dragstart: storeDragOffset,
                 drag: setNodePosition, dragend: finalNodePosition, node: curNode, text};
