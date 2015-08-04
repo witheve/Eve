@@ -49,28 +49,28 @@ pub fn code_schema() -> Vec<(&'static str, Vec<&'static str>)> {
 
     // joins produce output by binding fields from sources
     // each field must be bound exactly once
-    ("select", vec!["view", "field", "variable"]),
+    ("select", vec!["field", "variable"]),
 
     // sources can be grouped by a subset of their fields
     // TODO primitive sources can't be grouped currently
-    ("grouped field", vec!["view", "source", "field"]),
+    ("grouped field", vec!["source", "field"]),
 
     // each group is then sorted by the reamining fields
     // `ix` is an ascending integer indicating the position of the field in the sort order
     // `direction` is one of "ascending" or "descending"
     // TODO how should we handle cases where some fields are neither grouped nor sorted?
-    ("sorted field", vec!["view", "source", "ix", "field", "direction"]),
+    ("sorted field", vec!["source", "ix", "field", "direction"]),
 
     // the ordinal is a virtual field that tracks the position of each row in the group
     // eg the first row has ordinal '1', the second row has ordinal '2' etc
     ("ordinal binding", vec!["variable", "source"]),
 
     // if a source is chunked, it will return each group as a whole rather than breaking them back down into rows
-    ("chunked source", vec!["view", "source"]),
+    ("chunked source", vec!["source"]),
 
     // if a source is negated, the view fails whenever the source returns rows
     // every bound field of a negated source is treated as an input field
-    ("negated source", vec!["view", "source"]),
+    ("negated source", vec!["source"]),
 
     // tags are used to organise all kinds of things
     ("tag", vec!["view", "tag"]),
@@ -468,7 +468,6 @@ fn plan(flow: &Flow) {
         );
 
     let select_table = flow.get_output("select");
-    // TODO select doesn't need view
     check_unique_key(&mut *warning_table, &*select_table, &["field"]);
     check_foreign_key(&mut *warning_table, &*select_table, &["field"], &*field_table, &["field"]);
     check_foreign_key(&mut *warning_table, &*select_table, &["variable"], &*variable_table, &["variable"]);
@@ -479,7 +478,6 @@ fn plan(flow: &Flow) {
         );
 
     let grouped_field_table = flow.get_output("grouped field");
-    // TODO grouped field does not need view
     check_foreign_key(&mut *warning_table, &*grouped_field_table, &["source"], &*source_table, &["source"]);
     check_foreign_key(&mut *warning_table, &*grouped_field_table, &["field"], &*field_table, &["field"]);
     check_triangle_key(&mut *warning_table,
@@ -489,7 +487,6 @@ fn plan(flow: &Flow) {
         );
 
     let sorted_field_table = flow.get_output("sorted field");
-    // TODO sorted field does not need view
     check_unique_key(&mut *warning_table, &*sorted_field_table, &["source", "field"]);
     check_foreign_key(&mut *warning_table, &*sorted_field_table, &["source"], &*source_table, &["source"]);
     check_foreign_key(&mut *warning_table, &*sorted_field_table, &["field"], &*field_table, &["field"]);
@@ -508,11 +505,9 @@ fn plan(flow: &Flow) {
     check_foreign_key(&mut *warning_table, &*ordinal_binding_table, &["variable"], &*variable_table, &["variable"]);
 
     let chunked_source_table = flow.get_output("chunked source");
-    // TODO chunked source does not need view
     check_foreign_key(&mut *warning_table, &*chunked_source_table, &["source"], &*source_table, &["source"]);
 
     let negated_source_table = flow.get_output("negated source");
-    // TODO negated source does not need view
     check_foreign_key(&mut *warning_table, &*negated_source_table, &["source"], &*source_table, &["source"]);
 
     // TODO check every field is selected
@@ -552,7 +547,7 @@ fn plan(flow: &Flow) {
     let mut requires_table = flow.overwrite_output("requires");
     find!(variable_table, [view, variable], {
         find!(binding_table, [(= variable), source, field], {
-            dont_find!(negated_source_table, [(= view), (= source)], {
+            dont_find!(negated_source_table, [(= source)], {
                 find!(field_table, [_, (= field), field_kind], {
                     match field_kind.as_str() {
                         "output" => insert!(provides_table, [view, source, variable]),
@@ -564,14 +559,14 @@ fn plan(flow: &Flow) {
     });
     find!(variable_table, [view, variable], {
         find!(ordinal_binding_table, [(= variable), source], {
-            dont_find!(negated_source_table, [(= view), (= source)], {
+            dont_find!(negated_source_table, [(= source)], {
                 insert!(provides_table, [view, source, variable]);
             });
         });
     });
     find!(variable_table, [view, variable], {
         find!(binding_table, [(= variable), source, _], {
-            find!(negated_source_table, [(= view), (= source)], {
+            find!(negated_source_table, [(= source)], {
                 find!(provides_table, [(= view), _, (= variable)], {
                     // negated sources treat fields as input if they are bound elsewhere
                     insert!(requires_table, [view, source, variable]);
@@ -711,8 +706,8 @@ fn plan(flow: &Flow) {
         if kind.as_str() == "join" {
             find!(source_table, [(= view), source, source_view], {
                 find!(field_table, [(= source_view), field, _], {
-                    dont_find!(grouped_field_table, [(= view), (= source), (= field)], {
-                        dont_find!(sorted_field_table, [(= view), (= source), _, (= field), _], {
+                    dont_find!(grouped_field_table, [(= source), (= field)], {
+                        dont_find!(sorted_field_table, [(= source), _, (= field), _], {
                             insert!(non_sorted_field_pre_table, [view, source, field]);
                         });
                     });
@@ -768,8 +763,8 @@ fn plan(flow: &Flow) {
         find!(source_schedule_table, [(= view), source_ix, _, source], {
             find!(source_table, [(= view), (= source), source_view], {
                 find!(view_table, [(= source_view), kind], {
-                    let chunked = !dont_find!(chunked_source_table, [(= view), (= source)]);
-                    let negated = !dont_find!(negated_source_table, [(= view), (= source)]);
+                    let chunked = !dont_find!(chunked_source_table, [(= source)]);
+                    let negated = !dont_find!(negated_source_table, [(= source)]);
                     if kind.as_str() == "primitive" {
                         insert!(source_layout_table, [view_ix, source_ix, source_view, Bool(chunked), Bool(negated)]);
                     } else {
@@ -823,7 +818,7 @@ fn plan(flow: &Flow) {
     let mut select_layout_table = flow.overwrite_output("select layout");
     find!(view_schedule_table, [view_ix, view, _], {
         find!(index_layout_table, [(= view), field_ix, field, _], {
-            find!(select_table, [(= view), (= field), variable], {
+            find!(select_table, [(= field), variable], {
                 find!(variable_schedule_table, [(= view), variable_ix, _, (= variable)], {
                     insert!(select_layout_table, [view_ix, field_ix, variable_ix]);
                 });
@@ -832,10 +827,10 @@ fn plan(flow: &Flow) {
     });
 
     let mut grouped_field_layout_table = flow.overwrite_output("grouped field layout");
-    find!(grouped_field_table, [view, source, field], {
-        find!(view_schedule_table, [view_ix, (= view), _], {
-            find!(source_schedule_table, [(= view), source_ix, _, (= source)], {
-                find!(source_table, [(= view), (= source), source_view], {
+    find!(grouped_field_table, [source, field], {
+        find!(source_table, [view, (= source), source_view], {
+            find!(view_schedule_table, [view_ix, (= view), _], {
+                find!(source_schedule_table, [(= view), source_ix, _, (= source)], {
                     find!(index_layout_table, [(= source_view), field_ix, (= field), _], {
                         insert!(grouped_field_layout_table, [view_ix, source_ix, field_ix]);
                     });
@@ -845,10 +840,10 @@ fn plan(flow: &Flow) {
     });
 
     let mut sorted_field_layout_table = flow.overwrite_output("sorted field layout");
-    find!(sorted_field_table, [view, source, ix, field, direction], {
-        find!(view_schedule_table, [view_ix, (= view), _], {
-            find!(source_schedule_table, [(= view), source_ix, _, (= source)], {
-                find!(source_table, [(= view), (= source), source_view], {
+    find!(sorted_field_table, [source, ix, field, direction], {
+        find!(source_table, [view, (= source), source_view], {
+            find!(view_schedule_table, [view_ix, (= view), _], {
+                find!(source_schedule_table, [(= view), source_ix, _, (= source)], {
                     find!(index_layout_table, [(= source_view), field_ix, (= field), _], {
                         insert!(sorted_field_layout_table, [view_ix, source_ix, ix, field_ix, direction]);
                     });
