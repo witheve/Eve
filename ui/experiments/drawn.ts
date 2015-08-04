@@ -1606,13 +1606,18 @@ module drawn {
       let peekViewId = localState.selectedNodes[selectedNodeIds[0]].source["source: source view"];
       let numFields = ixer.select("field", {view: peekViewId}).length;
       let rect = nodesToRectangle(entityInfo.nodes);
+      let peekViewSize = ixer.select(peekViewId, {}).length;
       peek = {c: "peek-results", width: numFields * 100, left: rect.right + 50, top: (rect.top + rect.height /2) - 75, children: [
-        tableEditor.tableForView(peekViewId, false, 100)
+        {c: "result-size", text: `${peekViewSize} rows`},
+        tableEditor.tableForView(peekViewId, false, 100),
+
       ]};
     }
+    let resultViewSize = ixer.select(resultViewId, {}).length;
     return {c: "query-results", children: [
       peek,
       {c: "query-results-container", children: [
+        {c: "result-size", text: `${resultViewSize} results`},
         tableEditor.tableForView(resultViewId, false, 100)
       ]}
     ]};

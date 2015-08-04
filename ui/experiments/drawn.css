@@ -56,9 +56,11 @@ body { font-family:"Avenir"; }
 
 .surface { flex: 1; position:relative; overflow:hidden; }
 .query-results { flex: 0.5; padding: 10px; padding-left:20px; }
+.query-results .result-size { padding-left: 0px; margin-bottom:2px; font-size:10pt; }
 .query-results-container { flex: 1; }
 
-.peek-results { position:absolute; flex: 1; top: 20px; right: 20px; height: 150px; font-size: 10pt; }
+.peek-results { position:absolute; flex: 1; top: 20px; right: 20px; height: 150px; font-size: 10pt; color: #0ba; }
+.peek-results .result-size { padding-left: 2px; margin-bottom:2px;}
 .peek-results .table-container { border-color: #0ba; }
 .peek-results .table-container .table .headers { background: #00443f; border-color: #00443f; }
 .peek-results .table-container .table .header { width: 100px; background: #00443f; color: #0ba; }
