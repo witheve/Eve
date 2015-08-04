@@ -33,6 +33,20 @@ module QueryEditor {
     let x = Math.sin(seed++) * 10000;
     return x - Math.floor(x);
   }
+  
+  function clone<T>(obj:T):T {
+    let res = {};
+    for(var k in obj) {
+      if(obj.constructor === Array) {
+        res[k] = obj[k].slice();
+      } else if(typeof obj === "object") {
+        res[k] = clone(obj[k]);
+      } else {
+        res[k] = obj[k];
+      }
+    }
+    return <T>res;
+  }
 
   export class Graph {
     constructor(public size:[number, number], public sources:Node[] = [], public attributes:Node[] = [], public edges:Edge[] = []) {}
@@ -42,7 +56,7 @@ module QueryEditor {
      * @param {number} [maxSamples] The total number of unique layouts to test.
      * @param {number} [ratio] The number of edge layouts to try per structural layout. Structural layouts place all nodes but joins.
      */
-    layout(maxSamples:number = 5000, ratio:number = 2) {
+    layout(maxSamples:number = 1000, ratio:number = 2) {
       // Build source -> target and target -> source lookups.
       let sourceToTarget:IdToIdsMap = {};
       let targetToSources:IdToIdsMap = {};
@@ -97,7 +111,7 @@ module QueryEditor {
       let width = this.size[0];
       let height = this.size[1];
       let hw = width / 2;
-      let hh = height ; 2;
+      let hh = height / 2;
       let fixedNodes = fixedSources.concat(fixedAttributes);
       
       let minError = Infinity;
@@ -105,33 +119,31 @@ module QueryEditor {
       let bestLayout:Layout;
       let bestSample:number = 0;
 
+      let fixedLayout:Layout = {bounds: {top: 0, left: 0, bottom: 0, right: 0}, nodes: {}, subBounds: []};
+      for(let node of fixedNodes) {
+        fixedLayout.bounds[node.id] = [node.x, node.y];
+        let hw = node.width / 2;
+        let hh = node.height / 2;
+        let nodeBounds:NodeBounds = {id: node.id, left: node.x - hw, top: node.y - hh, right: node.x + hw, bottom: node.y + hh};
+        if(nodeBounds.left < fixedLayout.bounds.left) { fixedLayout.bounds.left = nodeBounds.left; }
+        if(nodeBounds.top < fixedLayout.bounds.top) { fixedLayout.bounds.top = nodeBounds.top; }
+        if(nodeBounds.right > fixedLayout.bounds.right) { fixedLayout.bounds.right = nodeBounds.right; }
+        if(nodeBounds.bottom > fixedLayout.bounds.bottom) { fixedLayout.bounds.bottom = nodeBounds.bottom; }
+        fixedLayout.subBounds.push(nodeBounds);
+      }
+
       for(let sample = 0; sample < maxSamples; sample++) {
-        let currentLayout:Layout = {nodes: {}, bounds: {left: hw, top: hh, right: hw, bottom: hh}, subBounds: []};
-        for(let node of fixedNodes) {
-          currentLayout[node.id] = [node.x, node.y];
-          let hw = node.width / 2;
-          let hh = node.height / 2;
-          let nodeBounds:NodeBounds = {id: node.id, left: node.x - hw, top: node.y - hh, right: node.x + hw, bottom: node.y + hh};
-          if(nodeBounds.left < currentLayout.bounds.left) { currentLayout.bounds.left = nodeBounds.left; }
-          if(nodeBounds.top < currentLayout.bounds.top) { currentLayout.bounds.top = nodeBounds.top; }
-          if(nodeBounds.right > currentLayout.bounds.right) { currentLayout.bounds.right = nodeBounds.right; }
-          if(nodeBounds.bottom > currentLayout.bounds.bottom) { currentLayout.bounds.bottom = nodeBounds.bottom; }
-          currentLayout.subBounds.push(nodeBounds);
-        }
+        let currentLayout:Layout = {nodes: clone(fixedLayout.nodes), bounds: clone(fixedLayout.bounds), subBounds: fixedLayout.subBounds.slice()};
+        
         
         // Ease bounds restrictions as samples fail.
-        if(bestLayout) {
-          currentLayout.bounds.left = bestLayout.bounds.left - width * misfits * (sample - bestSample) / 40;
-          currentLayout.bounds.top = bestLayout.bounds.top - height * misfits * (sample - bestSample) / 40;
-          currentLayout.bounds.right = bestLayout.bounds.right + width * misfits * (sample - bestSample) / 40;
-          currentLayout.bounds.bottom = bestLayout.bounds.bottom + height * misfits * (sample - bestSample) / 40;
-        }
+        currentLayout.bounds = {left: 0, top: 0, right: width, bottom: height};
+        
         
         this.fillLayout(currentLayout, activeSources, activeAttributes, sourceGroups);
-        //console.group(`Sample: ${sample}`);
-        //console.log("[bounds]", JSON.stringify(currentLayout.bounds));
+        console.group(`Sample: ${sample}`);
         let err = this.measureError(currentLayout, bestLayout);
-        //console.groupEnd();
+        console.groupEnd();
         if(err < minError) {
           minError = err;
           bestLayout = currentLayout;
@@ -139,7 +151,7 @@ module QueryEditor {
           bestSample = sample;
         }
       }
-      console.log("best sample", bestSample, "misfits", misfits);
+      console.log("best sample", bestSample);
       return bestLayout;
     }
     
@@ -191,7 +203,7 @@ module QueryEditor {
       }
     }
     
-    protected placeInLayout(bounds:Bounds, nodes:NodePositions, layout:Layout, tries:number = 500) {
+    protected placeInLayout(bounds:Bounds, nodes:NodePositions, layout:Layout, tries:number = 100) {
       let x0 = layout.bounds.left;
       let y0 = layout.bounds.top;
       let width = layout.bounds.right - x0 - (bounds.right - bounds.left);
@@ -233,8 +245,8 @@ module QueryEditor {
       // Update layout bounds if necessary.
       if(bounds.left < layout.bounds.left) { layout.bounds.left = bounds.left; }
       if(bounds.top < layout.bounds.top) { layout.bounds.top = bounds.top; }
-      if(bounds.right < layout.bounds.right) { layout.bounds.right = bounds.right; }
-      if(bounds.bottom < layout.bounds.bottom) { layout.bounds.bottom = bounds.bottom; }
+      if(bounds.right > layout.bounds.right) { layout.bounds.right = bounds.right; }
+      if(bounds.bottom > layout.bounds.bottom) { layout.bounds.bottom = bounds.bottom; }
       
       // Add node absolute node positions.
       for(let nodeId in nodes) {
@@ -250,7 +262,7 @@ module QueryEditor {
       let error = 0;
       // Prefer layouts without overlaps.
       error += layout.misfits * 100;
-      //console.log("[misfit]", layout.misfits * 100);
+      console.log("[misfit]", layout.misfits * 100);
       
       // Prefer shorter edges.
       let edgeLengths = 0;
@@ -260,19 +272,8 @@ module QueryEditor {
         edgeLengths += Math.sqrt(Math.pow(dest[0] - src[0], 2) + Math.pow(dest[1] - src[1], 2));
       }
       edgeLengths /= this.edges.length;
-      error += edgeLengths / Math.sqrt(this.size[0] + this.size[1]) * 20;
-      //console.log("[edge length]", edgeLengths / Math.sqrt(this.size[0] + this.size[1]) * 20);
-      
-      // if(best) {
-      //   // Prefer more compact layouts.
-      //   let sizeDelta = (best.bounds.left - layout.bounds.left) +
-      //                   (layout.bounds.right - best.bounds.right) +
-      //                   (best.bounds.top - layout.bounds.top) +
-      //                   (layout.bounds.bottom - best.bounds.bottom);
-      //                   
-      //   error += sizeDelta / 5;
-      //   //console.log("[size delta]", sizeDelta / 5);
-      // }
+      error += edgeLengths / 5;
+      console.log("[edge]", edgeLengths / 5);
       error += ((layout.bounds.right - layout.bounds.left) + (layout.bounds.bottom - layout.bounds.top) / 10);
       
       return error;
