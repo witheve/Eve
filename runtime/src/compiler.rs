@@ -47,9 +47,8 @@ pub fn code_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // variables can be bound to fields
     ("binding", vec!["variable", "source", "field"]),
 
-    // views produce output by binding fields from sources
-    // each table or join field must be bound exactly once
-    // each union field must be bound exactly once per source
+    // joins produce output by binding fields from sources
+    // each field must be bound exactly once
     ("select", vec!["view", "field", "variable"]),
 
     // sources can be grouped by a subset of their fields
@@ -73,7 +72,7 @@ pub fn code_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // every bound field of a negated source is treated as an input field
     ("negated source", vec!["view", "source"]),
 
-    // tags are used to organise views
+    // tags are used to organise all kinds of things
     ("tag", vec!["view", "tag"]),
     ]
 }
@@ -83,6 +82,9 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // views marked "(pre)" are intermediate calculations
 
     vec![
+    // warnings are generated for any schema violations in the input tables
+    ("warning", vec!["view", "row", "reason"]),
+
     // a view dependency exists whenever the contents of one view depend directly on another
     ("view dependency (pre)", vec!["downstream view", "source", "upstream view"]),
     ("view dependency", vec!["downstream view", "ix", "source", "upstream view"]),
@@ -227,12 +229,21 @@ macro_rules! find {
     ($table:expr, [ $($pattern:tt),* ]) => {{
         $table.find(vec![$( find_pattern!( $pattern ) ),*])
     }};
-    ($table:expr, [ $($pattern:tt),* ], $body:expr) => {{
-        for row in find!($table, [ $($pattern),* ]).into_iter() {
-            match row {
-                [$( find_binding!($pattern) ),*] => $body,
-                other => panic!("Did not expect {:?} in find!", other),
+    ($table:expr, [ $($pattern:tt),* ], $if_expr:expr) => {{
+        find!($table, [ $($pattern),* ], $if_expr, ());
+    }};
+    ($table:expr, [ $($pattern:tt),* ], $if_expr:expr, $else_expr:expr) => {{
+        let table = &$table;
+        let rows = find!(table, [ $($pattern),* ]);
+        if rows.len() > 0 {
+            for row in rows.into_iter() {
+                match row {
+                    [$( find_binding!($pattern) ),*] => $if_expr,
+                    other => panic!("Did not expect {:?} in find!", other),
+                }
             }
+        } else {
+            $else_expr
         }
     }};
 }
@@ -323,21 +334,193 @@ fn count_by(input_table: &Relation, output_table: &mut Relation, key_fields: &[&
     }
 }
 
+fn check_unique_key(warning_table: &mut Relation, relation: &Relation, key_fields: &[&str]) {
+    let key_mapping = key_fields.iter().map(|field|
+        relation.names.iter().position(|name| name == field).unwrap()
+        ).collect::<Vec<_>>();
+    for row in relation.index.iter() {
+        for other_row in relation.index.iter() {
+            if row != other_row && key_mapping.iter().all(|&ix| row[ix] == other_row[ix]) {
+                warning_table.index.insert(vec![
+                    Value::String(relation.view.to_owned()),
+                    Value::Column(row.clone()),
+                    string!("Duplicate rows for key {:?}", key_fields),
+                    ]);
+            }
+        }
+    }
+}
+
+fn check_foreign_key(warning_table: &mut Relation, relation: &Relation, key_fields: &[&str], foreign_relation: &Relation, foreign_key_fields: &[&str]) {
+    let key_mapping = key_fields.iter().map(|field|
+        relation.names.iter().position(|name| name == field).unwrap()
+        ).collect::<Vec<_>>();
+    let foreign_key_mapping = foreign_key_fields.iter().map(|field|
+        foreign_relation.names.iter().position(|name| name == field).unwrap()
+        ).collect::<Vec<_>>();
+    let mapping = key_mapping.into_iter().zip(foreign_key_mapping.into_iter()).collect::<Vec<_>>();
+    'next_row: for row in relation.index.iter() {
+        for foreign_row in foreign_relation.index.iter() {
+            if mapping.iter().all(|&(ix, foreign_ix)| row[ix] == foreign_row[foreign_ix]) {
+               continue 'next_row;
+            }
+        }
+        warning_table.index.insert(vec![
+            Value::String(relation.view.to_owned()),
+            Value::Column(row.clone()),
+            string!("Missing row for key {:?} in {:?} {:?}", key_fields, &foreign_relation.view, foreign_key_fields),
+            ]);
+    }
+}
+
+fn check_triangle_key(warning_table: &mut Relation,
+    base_relation: &Relation, base_to_left_field: &str, base_to_right_field: &str,
+    left_relation: &Relation, left_to_base_field: &str, left_to_right_field: &str,
+    right_relation: &Relation, right_to_base_field: &str, right_to_left_field: &str
+    ) {
+    let base_to_left_ix = base_relation.names.iter().position(|name| name == base_to_left_field).unwrap();
+    let base_to_right_ix = base_relation.names.iter().position(|name| name == base_to_right_field).unwrap();
+    let left_to_base_ix = left_relation.names.iter().position(|name| name == left_to_base_field).unwrap();
+    let left_to_right_ix = left_relation.names.iter().position(|name| name == left_to_right_field).unwrap();
+    let right_to_base_ix = right_relation.names.iter().position(|name| name == right_to_base_field).unwrap();
+    let right_to_left_ix = right_relation.names.iter().position(|name| name == right_to_left_field).unwrap();
+    'next_row: for base_row in base_relation.index.iter() {
+        for left_row in left_relation.index.iter() {
+            if base_row[base_to_left_ix] == left_row[left_to_base_ix] {
+                for right_row in right_relation.index.iter() {
+                    if base_row[base_to_right_ix] == right_row[right_to_base_ix] {
+                        if left_row[left_to_right_ix] != right_row[right_to_left_ix] {
+                            warning_table.index.insert(vec![
+                                Value::String(base_relation.view.to_owned()),
+                                Value::Column(base_row.clone()),
+                                string!("Row maps to {:?} in {:?} and to {:?} in {:?} but {:?} != {:?}",
+                                    &left_row, &left_relation.view,
+                                    &right_row, &right_relation.view,
+                                    left_to_right_field, right_to_left_field
+                                    ),
+                                ]);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn check_enum(warning_table: &mut Relation, relation: &Relation, field: &str, values: &[Value]) {
+    let ix = relation.names.iter().position(|name| name == field).unwrap();
+    for row in relation.index.iter() {
+        if !values.iter().any(|value| *value == row[ix]) {
+            warning_table.index.insert(vec![
+                Value::String(relation.view.to_owned()),
+                Value::Column(row.clone()),
+                string!("Value for {:?} is not in {:?}", field, values),
+                ]);
+        }
+    }
+}
+
 fn plan(flow: &Flow) {
     use value::Value::*;
 
+    let mut warning_table = flow.overwrite_output("warning");
+
+    // --- check inputs ---
+
     let view_table = flow.get_output("view");
+    check_unique_key(&mut *warning_table, &*view_table, &["view"]);
+    check_enum(&mut *warning_table, &*view_table, "kind",
+        &[string!("table"), string!("join"), string!("union"), string!("primitive")]);
+
     let field_table = flow.get_output("field");
+    check_unique_key(&mut *warning_table, &*field_table, &["field"]);
+    check_foreign_key(&mut *warning_table, &*field_table, &["view"], &*view_table, &["view"]);
+    check_enum(&mut *warning_table, &*field_table, "kind",
+        &[string!("scalar input"), string!("vector input"), string!("output")]);
+
     let source_table = flow.get_output("source");
+    check_unique_key(&mut *warning_table, &*source_table, &["source"]);
+    check_foreign_key(&mut *warning_table, &*source_table, &["view"], &*view_table, &["view"]);
+    check_foreign_key(&mut *warning_table, &*source_table, &["source view"], &*view_table, &["view"]);
+
     let variable_table = flow.get_output("variable");
+    check_unique_key(&mut *warning_table, &*variable_table, &["variable"]);
+    check_foreign_key(&mut *warning_table, &*variable_table, &["view"], &*view_table, &["view"]);
+
     let constant_table = flow.get_output("constant");
+    check_unique_key(&mut *warning_table, &*constant_table, &["variable"]);
+    check_foreign_key(&mut *warning_table, &*constant_table, &["variable"], &*variable_table, &["variable"]);
+
     let binding_table = flow.get_output("binding");
+    check_unique_key(&mut *warning_table, &*binding_table, &["source", "field"]);
+    check_foreign_key(&mut *warning_table, &*binding_table, &["variable"], &*variable_table, &["variable"]);
+    check_foreign_key(&mut *warning_table, &*binding_table, &["source"], &*source_table, &["source"]);
+    check_foreign_key(&mut *warning_table, &*binding_table, &["field"], &*field_table, &["field"]);
+    check_triangle_key(&mut *warning_table,
+        &*binding_table, "variable", "source",
+        &*variable_table, "variable", "view",
+        &*source_table, "source", "view",
+        );
+    check_triangle_key(&mut *warning_table,
+        &*binding_table, "field", "source",
+        &*field_table, "field", "view",
+        &*source_table, "source", "source view",
+        );
+
     let select_table = flow.get_output("select");
-    let chunked_source_table = flow.get_output("chunked source");
+    // TODO select doesn't need view
+    check_unique_key(&mut *warning_table, &*select_table, &["field"]);
+    check_foreign_key(&mut *warning_table, &*select_table, &["field"], &*field_table, &["field"]);
+    check_foreign_key(&mut *warning_table, &*select_table, &["variable"], &*variable_table, &["variable"]);
+    check_triangle_key(&mut *warning_table,
+        &*select_table, "field", "variable",
+        &*field_table, "field", "view",
+        &*variable_table, "variable", "view"
+        );
+
     let grouped_field_table = flow.get_output("grouped field");
+    // TODO grouped field does not need view
+    check_foreign_key(&mut *warning_table, &*grouped_field_table, &["source"], &*source_table, &["source"]);
+    check_foreign_key(&mut *warning_table, &*grouped_field_table, &["field"], &*field_table, &["field"]);
+    check_triangle_key(&mut *warning_table,
+        &*grouped_field_table, "source", "field",
+        &*source_table, "source", "view",
+        &*field_table, "field", "view",
+        );
+
     let sorted_field_table = flow.get_output("sorted field");
+    // TODO sorted field does not need view
+    check_unique_key(&mut *warning_table, &*sorted_field_table, &["source", "field"]);
+    check_foreign_key(&mut *warning_table, &*sorted_field_table, &["source"], &*source_table, &["source"]);
+    check_foreign_key(&mut *warning_table, &*sorted_field_table, &["field"], &*field_table, &["field"]);
+    check_triangle_key(&mut *warning_table,
+        &*sorted_field_table, "source", "field",
+        &*source_table, "source", "view",
+        &*field_table, "field", "view",
+        );
+    check_enum(&mut *warning_table, &*sorted_field_table, "direction",
+        &[string!("ascending"), string!("descending")]);
+    // TODO check ixes are consecutive range
+
     let ordinal_binding_table = flow.get_output("ordinal binding");
+    check_unique_key(&mut *warning_table, &*ordinal_binding_table, &["source"]);
+    check_foreign_key(&mut *warning_table, &*ordinal_binding_table, &["source"], &*source_table, &["source"]);
+    check_foreign_key(&mut *warning_table, &*ordinal_binding_table, &["variable"], &*variable_table, &["variable"]);
+
+    let chunked_source_table = flow.get_output("chunked source");
+    // TODO chunked source does not need view
+    check_foreign_key(&mut *warning_table, &*chunked_source_table, &["source"], &*source_table, &["source"]);
+
     let negated_source_table = flow.get_output("negated source");
+    // TODO negated source does not need view
+    check_foreign_key(&mut *warning_table, &*negated_source_table, &["source"], &*source_table, &["source"]);
+
+    // TODO check every field is selected
+    // TODO check every variable is bound
+    // TODO check fields are not sorted and grouped
+    // TODO check sources are not chunked and negated
+
+    // --- plan the flow ---
 
     let mut view_dependency_pre_table = flow.overwrite_output("view dependency (pre)");
     find!(view_table, [view, _], {
@@ -541,7 +724,7 @@ fn plan(flow: &Flow) {
     let mut non_sorted_field_table = flow.overwrite_output("non-sorted field");
     ordinal_by(&*non_sorted_field_pre_table, &mut *non_sorted_field_table, &["view", "source"]);
 
-    // rest of this is just denormalising for `create`
+    // --- denormalise for `create` ---
 
     let mut output_layout_table = flow.overwrite_output("output layout");
     find!(index_layout_table, [view, field_ix, field, name], {
