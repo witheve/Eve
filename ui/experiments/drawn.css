@@ -46,7 +46,7 @@ body { font-family:"Avenir"; }
 .sorter .sort-direction { font-size: 16px; line-height: 16px; margin-left: 5px; padding:0 5px; }
 
 
-.container { flex: 1; }
+.container { flex: 1; position:relative; }
 
 .tooltip { position:absolute; background: #444; padding:10px; border-radius:3px; z-index:10; font-size:10pt; }
 .tooltip .header { font-size: 11pt; margin-bottom:5px; }
@@ -56,6 +56,13 @@ body { font-family:"Avenir"; }
 
 .surface { flex: 1; position:relative; overflow:hidden; }
 .query-results { flex: 0.5; padding: 10px; padding-left:20px; }
+.query-results-container { flex: 1; }
+
+.peek-results { position:absolute; flex: 1; top: 20px; right: 20px; height: 150px; font-size: 10pt; }
+.peek-results .table-container { border-color: #0ba; }
+.peek-results .table-container .table .headers { background: #00443f; border-color: #00443f; }
+.peek-results .table-container .table .header { width: 100px; background: #00443f; color: #0ba; }
+.peek-results .table-container .table .field { width: 100px; color: #0ba; }
 
 .canvas { position:absolute; left: 0; right:0; top:0; bottom:0; }
 

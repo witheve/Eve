@@ -259,7 +259,7 @@ module drawn {
       if(info.top < top) top = info.top;
       if(info.top + info.height > bottom) bottom = info.top + info.height;
     }
-    return {top, left, width: right - left, height: bottom - top};
+    return {top, left, right, bottom, width: right - left, height: bottom - top};
   }
 
   //---------------------------------------------------------
@@ -1227,17 +1227,18 @@ module drawn {
   function queryUi(viewId, showResults = false) {
     var view = ixer.selectOne("view", {view: viewId});
     if(!view) return;
+    let entityInfo = viewToEntityInfo(view);
     return {c: "query", children: [
       tooltipUi(),
-      localState.drawnUiActiveId ? queryTools(view) : undefined,
+      localState.drawnUiActiveId ? queryTools(view, entityInfo) : undefined,
       {c: "container", children: [
         {c: "surface", children: [
           {c: "query-name-input", contentEditable: true, blur: setQueryName, viewId: viewId, text: code.name(viewId)},
           queryMenu(view),
-          queryCanvas(view),
+          queryCanvas(view, entityInfo),
           queryErrors(view),
         ]},
-        showResults ? queryResults(viewId) : undefined
+        showResults ? queryResults(viewId, entityInfo) : undefined
       ]}
     ]};
   }
@@ -1266,7 +1267,7 @@ module drawn {
     return {c: "query-errors", children: errors};
   }
 
-  function queryTools(view) {
+  function queryTools(view, entityInfo) {
     // What tools are available depends on what is selected.
     // no matter what though you should be able to go back to the
     // query selector.
@@ -1278,7 +1279,7 @@ module drawn {
 
     // @FIXME: we ask for the entity info multiple times to draw the editor
     // we should probably find a way to do it in just one.
-    let {nodeLookup} = viewToEntityInfo(view);
+    let {nodeLookup} = entityInfo;
 
     let selectedNodes = Object.keys(localState.selectedNodes).map(function(nodeId) {
       // we can't rely on the actual nodes of the uiSelection because they don't get updated
@@ -1597,14 +1598,23 @@ module drawn {
     dispatch("addSelectToQuery", {viewId: elem.viewId, variableId: elem.node.variable, name: elem.node.name});
   }
 
-  function queryResults(viewId) {
+  function queryResults(viewId, entityInfo) {
     let resultViewId = viewId;
     let selectedNodeIds = Object.keys(localState.selectedNodes);
+    let peek;
     if(selectedNodeIds.length === 1 && localState.selectedNodes[selectedNodeIds[0]].type === "relationship") {
-      resultViewId = localState.selectedNodes[selectedNodeIds[0]].source["source: source view"];
+      let peekViewId = localState.selectedNodes[selectedNodeIds[0]].source["source: source view"];
+      let numFields = ixer.select("field", {view: peekViewId}).length;
+      let rect = nodesToRectangle(entityInfo.nodes);
+      peek = {c: "peek-results", width: numFields * 100, left: rect.right + 50, top: (rect.top + rect.height /2) - 75, children: [
+        tableEditor.tableForView(peekViewId, false, 100)
+      ]};
     }
     return {c: "query-results", children: [
-      tableEditor.tableForView(resultViewId, false, 100)
+      peek,
+      {c: "query-results-container", children: [
+        tableEditor.tableForView(resultViewId, false, 100)
+      ]}
     ]};
   }
 
@@ -1856,9 +1866,9 @@ module drawn {
     ]};
   }
 
-  function queryCanvas(view) {
+  function queryCanvas(view, entityInfo) {
     let viewId = view["view: view"];
-    var {nodes, links} = viewToEntityInfo(view);
+    var {nodes, links} = entityInfo;
     var items = [];
     for(var node of nodes) {
       items.push(nodeItem(node, viewId));
