@@ -82,6 +82,8 @@ module drawn {
   const nodeHeightPadding = 3;
   const nodeWidthMin = 50;
   const nodeFilterWidthMin = 30;
+  const previewWidth = 250;
+  const previewHeight = 225;
 
   //---------------------------------------------------------
   // Utils
@@ -1199,20 +1201,38 @@ module drawn {
 
   function querySelector() {
     var queries = api.ixer.select("view", {kind: "join"}).map((view) => {
-      var viewId = view["view: view"];
+      let viewId = view["view: view"];
+      let entityInfo = viewToEntityInfo(view);
+      let boundingBox = nodesToRectangle(entityInfo.nodes);
+      // translate the canvas so that the top left corner is the top left corner of the
+      // bounding box for the nodes
+      let xTranslate = -boundingBox.left;
+      let yTranslate = -boundingBox.top;
+      let scale;
+      // scale the canvas so that it matches the size of the preview, preserving the aspect-ratio.
+      if(boundingBox.width > previewWidth || boundingBox.height > previewHeight) {
+        scale = Math.min(previewWidth / boundingBox.width, previewHeight / boundingBox.height);
+      } else {
+        scale = 0.7;
+      }
       return {c: "query-item", queryId: viewId, click: openQuery, children:[
         {c: "query-name", text: code.name(viewId)},
         {c: "query", children: [
           {c: "container", children: [
-            {c: "surface", children: [
-              queryPreview(view)
+            {c: "surface", transform:`scale(${scale}, ${scale}) translate(${xTranslate}px, ${yTranslate}px) `, children: [
+              queryPreview(view, entityInfo, boundingBox)
             ]},
           ]}
         ]}
       ]};
     });
     return {c: "query-selector-wrapper", children: [
-      {c: "button", text: "add query", click: createNewQuery},
+      {c: "query-selector-tools", children: [
+        {c: "button", text: "add query", click: createNewQuery},
+        {c: "button", text: "add query", click: createNewQuery},
+        {c: "button", text: "add query", click: createNewQuery},
+        {c: "button", text: "add query", click: createNewQuery},
+      ]},
       {c: "query-selector", children: queries}
     ]};
   }
@@ -1858,16 +1878,16 @@ module drawn {
     return linkItems;
   }
 
-  function queryPreview(view) {
+  function queryPreview(view, entityInfo, boundingBox) {
     let viewId = view["view: view"];
-    var {nodes, links} = viewToEntityInfo(view);
+    var {nodes, links} = entityInfo;
     var items = [];
     for(var node of nodes) {
       items.push(nodeItem(node, viewId));
     }
     let linkItems = drawLinks(links, items);
     return {c: "canvas", children: [
-      {c: "links", svg: true, width:"100%", height:"100%", t: "svg", children: linkItems},
+      {c: "links", svg: true, width: boundingBox.right, height: boundingBox.bottom, t: "svg", children: linkItems},
       {c: "nodes", children: items}
     ]};
   }
