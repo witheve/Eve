@@ -393,10 +393,9 @@ fn check_triangle_key(warning_table: &mut Relation,
                             warning_table.index.insert(vec![
                                 Value::String(base_relation.view.to_owned()),
                                 Value::Column(base_row.clone()),
-                                string!("Row maps to {:?} in {:?} and to {:?} in {:?} but {:?} != {:?}",
-                                    &left_row, &left_relation.view,
-                                    &right_row, &right_relation.view,
-                                    left_to_right_field, right_to_left_field
+                                string!("This row has {:?}={:?} in {:?} and {:?}={:?} in {:?}",
+                                    left_to_right_field, &left_row[left_to_right_ix], &left_relation.view,
+                                    right_to_left_field, &right_row[right_to_left_ix], &right_relation.view
                                     ),
                                 ]);
                         }
@@ -504,7 +503,7 @@ fn plan(flow: &Flow) {
     check_foreign_key(&mut *warning_table, &*grouped_field_table, &["field"], &*field_table, &["field"]);
     check_triangle_key(&mut *warning_table,
         &*grouped_field_table, "source", "field",
-        &*source_table, "source", "view",
+        &*source_table, "source", "source view",
         &*field_table, "field", "view",
         );
 
@@ -514,12 +513,12 @@ fn plan(flow: &Flow) {
     check_foreign_key(&mut *warning_table, &*sorted_field_table, &["field"], &*field_table, &["field"]);
     check_triangle_key(&mut *warning_table,
         &*sorted_field_table, "source", "field",
-        &*source_table, "source", "view",
+        &*source_table, "source", "source view",
         &*field_table, "field", "view",
         );
     check_enum(&mut *warning_table, &*sorted_field_table, "direction",
         &[string!("ascending"), string!("descending")]);
-    find!(source_table, [_, source, source_view], {
+    find!(source_table, [_, source, _], {
         let sorted_fields = find!(sorted_field_table, [(= source), _, _, _]);
         let mut ixes = sorted_fields.iter().map(|sorted_field| sorted_field[1].as_usize()).collect::<Vec<_>>();
         ixes.sort();
@@ -545,14 +544,18 @@ fn plan(flow: &Flow) {
     let negated_source_table = flow.get_output("negated source");
     check_foreign_key(&mut *warning_table, &*negated_source_table, &["source"], &*source_table, &["source"]);
 
-    find!(field_table, [view, field, kind], {
-        dont_find!(select_table, [(= field), _], {
-            warning_table.index.insert(vec![
-                string!("field"),
-                Column(vec![view.clone(), field.clone(), kind.clone()]),
-                string!("This field has no select"),
-                ]);
-        });
+    find!(view_table, [view, view_kind], {
+        if view_kind.as_str() == "join" {
+            find!(field_table, [(= view), field, field_kind], {
+                dont_find!(select_table, [(= field), _], {
+                    warning_table.index.insert(vec![
+                        string!("field"),
+                        Column(vec![view.clone(), field.clone(), field_kind.clone()]),
+                        string!("This field has no select"),
+                        ]);
+                });
+            });
+        }
     });
 
     find!(variable_table, [view, variable], {
