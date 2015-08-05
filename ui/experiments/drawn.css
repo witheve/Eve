@@ -2,9 +2,11 @@ body { font-family:"Avenir"; }
 * { display: flex; flex-direction:column; box-sizing: border-box; }
 .query { height: 100%; width: 100%; position:relative; flex-direction:row; }
 
-.query-selector { flex-direction:row; flex-wrap:wrap; position:relative; justify-content:center; }
+.query-selector-wrapper { flex-direction: row; }
+.query-selector { flex: 1; flex-direction:row; flex-wrap:wrap; position:relative; justify-content:center; }
 .query-item { margin: 10px; }
-.query-item .query { width:300px; height:300px; overflow:hidden; border-radius:5px; border:1px solid #ddd; }
+.query-item .query { width:300px; height:300px; border-radius:5px; border:1px solid #ddd; padding:25px; padding-top:50px; }
+.query-item .surface { overflow:visible; transform-origin: 0 0; }
 .query-item .query-name { position:absolute; padding:10px; color: #888; }
 .query-item .query-name-input { display:none; }
 
@@ -79,7 +81,7 @@ body { font-family:"Avenir"; }
 .canvas .attribute-filter { flex-direction:row; align-items: center; justify-content: center; min-width: 40px; min-height: 20px; background:rgba(230,230,255,1); border: 1px solid rgba(194, 186, 242, 1); padding: 3px 10px; color:#555; border-radius:10px; margin-left:-15px; padding-left:15px; z-index:1; }
 .canvas .attribute-filter .value { margin-left: 5px;  }
 .canvas .filter-editor { min-width:20px; outline:none; }
-.canvas .item, .view-selector .item { flex:none; position: absolute; align-items: center; justify-content: center; min-width: 40px; min-height: 20px; padding: 3px 10px; border-radius:2px; }
+.canvas .item, .view-selector .item { flex:none; position: absolute; align-items: center; justify-content: center; min-width: 40px; min-height: 20px; padding: 3px 10px; border-radius:2px; rx: 5px; ry:5px; }
 .canvas .item.uiSelected { border-color: black; }
 .canvas .item.overlapped { background: #999; color: #222; }
 .canvas .relationship, .view-selector .relationship { background: rgba(205,205,205,1); color: #555; padding:3px; font-size:9pt; border-radius:50px; }
@@ -135,7 +137,7 @@ body { font-family:"Avenir"; }
 
 .dark { background: #222; color: #ccc; }
 .dark .canvas .attribute { background: #222; color: #ccc; border-color: #888; }
-.dark .canvas .relationship { background: #707070; color: #222; }
+.dark .canvas .relationship { background: #707070; color: #222; fill: #707070; }
 .dark .canvas .entity { background:rgba(165, 85, 187, 1); color: rgba(255,255,255,0.8); border-color: #ccc; }
 .dark .canvas .attribute-filter { background:rgba(48, 119, 105, 1); border: 1px solid rgba(121, 167, 171, 1); color:rgba(255,255,255,0.8); }
 .dark .canvas .item.uiSelected { border-color: #0ba; border-width: 1px; }
