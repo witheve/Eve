@@ -83,7 +83,8 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
 
     vec![
     // warnings are generated for any schema violations in the input tables
-    ("warning", vec!["view", "row", "reason"]),
+    ("warning", vec!["view", "row", "warning"]),
+    ("disabled view", vec!["view", "warning view", "warning row", "warning"]),
 
     // a view dependency exists whenever the contents of one view depend directly on another
     ("view dependency (pre)", vec!["downstream view", "source", "upstream view"]),
@@ -587,6 +588,45 @@ fn plan(flow: &Flow) {
                 string!("This source is both chunked and negated"),
                 ]);
         });
+    });
+
+    // --- disable views which have warnings ---
+
+    let disabled_view_table = RefCell::new(flow.overwrite_output("disabled view"));
+    find!(warning_table, [warning_view, warning_row, warning], {
+        let disable_view = |view: &Value| {
+            insert!(disabled_view_table.borrow_mut(), [view, warning_view, warning_row, warning]);
+        };
+        let disable_source = |source: &Value| {
+            find!(source_table, [view, (= source), _], {
+                insert!(disabled_view_table.borrow_mut(), [view, warning_view, warning_row, warning]);
+            });
+        };
+        let disable_variable = |variable: &Value| {
+            find!(variable_table, [view, (= variable)], {
+                insert!(disabled_view_table.borrow_mut(), [view, warning_view, warning_row, warning]);
+            });
+        };
+        let disable_field = |field: &Value| {
+            find!(field_table, [view, (= field), _], {
+                insert!(disabled_view_table.borrow_mut(), [view, warning_view, warning_row, warning]);
+            });
+        };
+        match (warning_view.as_str(), &warning_row.as_column()[..]) {
+            ("view", [ref view, _]) => disable_view(view),
+            ("field", [ref view, _, _]) => disable_view(view),
+            ("source", [ref view, _, _]) => disable_view(view),
+            ("variable", [ref view, _]) => disable_view(view),
+            ("constant", [ref variable, _]) => disable_variable(variable),
+            ("binding", [ref variable, ref source, _]) => { disable_variable(variable); disable_source(source) },
+            ("select", [ref field, ref variable]) => { disable_field(field); disable_variable(variable) },
+            ("grouped field", [ref source, _]) => disable_source(source),
+            ("sorted field", [ref source, _, _, _]) => disable_source(source),
+            ("ordinal binding", [ref variable, ref source]) => { disable_variable(variable); disable_source(source) },
+            ("chunked source", [ref source]) => disable_source(source),
+            ("negated source", [ref source]) => disable_source(source),
+            _ => panic!("Don't know how to handle this warning: {:?} {:?} {:?}", warning_view, warning_row, warning),
+        }
     });
 
     // --- plan the flow ---

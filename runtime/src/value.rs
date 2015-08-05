@@ -82,6 +82,14 @@ impl Value {
         }
     }
 
+
+    pub fn as_column(&self) -> &Vec<Value> {
+        match *self {
+            Value::Column(ref column) => column,
+            _ => panic!("Cannot convert this to column: {:?}", self),
+        }
+    }
+
     pub fn as_column_mut(&mut self) -> &mut Vec<Value> {
         match *self {
             Value::Column(ref mut column) => column,
