@@ -442,10 +442,32 @@ fn plan(flow: &Flow) {
     check_unique_key(&mut *warning_table, &*source_table, &["source"]);
     check_foreign_key(&mut *warning_table, &*source_table, &["view"], &*view_table, &["view"]);
     check_foreign_key(&mut *warning_table, &*source_table, &["source view"], &*view_table, &["view"]);
+    find!(source_table, [view, source, source_view], {
+        find!(view_table, [(= view), kind], {
+            if kind.as_str() != "join" {
+                warning_table.index.insert(vec![
+                    string!("source"),
+                    Column(vec![view.clone(), source.clone(), source_view.clone()]),
+                    string!("This source is attached to a non-join view of kind: {:?}", kind),
+                    ]);
+            }
+        });
+    });
 
     let variable_table = flow.get_output("variable");
     check_unique_key(&mut *warning_table, &*variable_table, &["variable"]);
     check_foreign_key(&mut *warning_table, &*variable_table, &["view"], &*view_table, &["view"]);
+    find!(variable_table, [view, variable], {
+        find!(view_table, [(= view), kind], {
+            if kind.as_str() != "join" {
+                warning_table.index.insert(vec![
+                    string!("variable"),
+                    Column(vec![view.clone(), variable.clone()]),
+                    string!("This variable is attached to a non-join view of kind: {:?}", kind),
+                    ]);
+            }
+        });
+    });
 
     let constant_table = flow.get_output("constant");
     check_unique_key(&mut *warning_table, &*constant_table, &["variable"]);
@@ -497,7 +519,20 @@ fn plan(flow: &Flow) {
         );
     check_enum(&mut *warning_table, &*sorted_field_table, "direction",
         &[string!("ascending"), string!("descending")]);
-    // TODO check ixes are consecutive range
+    find!(source_table, [_, source, source_view], {
+        let sorted_fields = find!(sorted_field_table, [(= source), _, _, _]);
+        let mut ixes = sorted_fields.iter().map(|sorted_field| sorted_field[1].as_usize()).collect::<Vec<_>>();
+        ixes.sort();
+        if ixes != (1..ixes.len()+1).collect::<Vec<_>>() {
+            for sorted_field in sorted_fields.into_iter() {
+                warning_table.index.insert(vec![
+                    string!("sorted field"),
+                    Column(sorted_field.to_vec()),
+                    string!("Ixes are not 1..n"),
+                    ]);
+            }
+        }
+    });
 
     let ordinal_binding_table = flow.get_output("ordinal binding");
     check_unique_key(&mut *warning_table, &*ordinal_binding_table, &["source"]);
@@ -510,10 +545,46 @@ fn plan(flow: &Flow) {
     let negated_source_table = flow.get_output("negated source");
     check_foreign_key(&mut *warning_table, &*negated_source_table, &["source"], &*source_table, &["source"]);
 
-    // TODO check every field is selected
-    // TODO check every variable is bound
-    // TODO check fields are not sorted and grouped
-    // TODO check sources are not chunked and negated
+    find!(field_table, [view, field, kind], {
+        dont_find!(select_table, [(= field), _], {
+            warning_table.index.insert(vec![
+                string!("field"),
+                Column(vec![view.clone(), field.clone(), kind.clone()]),
+                string!("This field has no select"),
+                ]);
+        });
+    });
+
+    find!(variable_table, [view, variable], {
+        if dont_find!(binding_table, [(= variable), _, _])
+        && dont_find!(ordinal_binding_table, [(= variable), _]) {
+            warning_table.index.insert(vec![
+                string!("variable"),
+                Column(vec![view.clone(), variable.clone()]),
+                string!("This variable is never bound")
+                ]);
+        }
+    });
+
+    find!(grouped_field_table, [source, field], {
+        find!(sorted_field_table, [(= source), _, (= field), _], {
+            warning_table.index.insert(vec![
+                string!("grouped field"),
+                Column(vec![source.clone(), field.clone()]),
+                string!("This field is both grouped and sorted"),
+                ]);
+        });
+    });
+
+    find!(chunked_source_table, [source], {
+        find!(negated_source_table, [(= source)], {
+            warning_table.index.insert(vec![
+                string!("chunked source"),
+                Column(vec![source.clone()]),
+                string!("This source is both chunked and negated"),
+                ]);
+        });
+    });
 
     // --- plan the flow ---
 
