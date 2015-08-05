@@ -164,12 +164,6 @@ pub fn editor_schema() -> Vec<(&'static str, Vec<&'static str>)> {
 
     // TODO what are this?
     ("primitive", vec!["view", "kind"]),
-    ("block", vec!["query", "block", "view"]),
-    ("block aggregate", vec!["view", "kind"]),
-    ("calculated field", vec!["calculated field", "view", "source", "source view", "field"]),
-    ("empty view", vec![]),
-    ("query export", vec!["query", "view"]),
-    ("source order", vec!["view", "source", "priority"]),
 
     // TODO what are this?
     ("uiComponentElement", vec!["tx", "id", "component", "layer", "control", "left", "top", "right", "bottom", "zindex"]),
