@@ -584,45 +584,6 @@ fn plan(flow: &Flow) {
         });
     });
 
-    // --- disable views which have warnings ---
-
-    let disabled_view_table = RefCell::new(flow.overwrite_output("disabled view"));
-    find!(warning_table, [warning_view, warning_row, warning], {
-        let disable_view = |view: &Value| {
-            insert!(disabled_view_table.borrow_mut(), [view, warning_view, warning_row, warning]);
-        };
-        let disable_source = |source: &Value| {
-            find!(source_table, [view, (= source), _], {
-                insert!(disabled_view_table.borrow_mut(), [view, warning_view, warning_row, warning]);
-            });
-        };
-        let disable_variable = |variable: &Value| {
-            find!(variable_table, [view, (= variable)], {
-                insert!(disabled_view_table.borrow_mut(), [view, warning_view, warning_row, warning]);
-            });
-        };
-        let disable_field = |field: &Value| {
-            find!(field_table, [view, (= field), _], {
-                insert!(disabled_view_table.borrow_mut(), [view, warning_view, warning_row, warning]);
-            });
-        };
-        match (warning_view.as_str(), &warning_row.as_column()[..]) {
-            ("view", [ref view, _]) => disable_view(view),
-            ("field", [ref view, _, _]) => disable_view(view),
-            ("source", [ref view, _, _]) => disable_view(view),
-            ("variable", [ref view, _]) => disable_view(view),
-            ("constant", [ref variable, _]) => disable_variable(variable),
-            ("binding", [ref variable, ref source, _]) => { disable_variable(variable); disable_source(source) },
-            ("select", [ref field, ref variable]) => { disable_field(field); disable_variable(variable) },
-            ("grouped field", [ref source, _]) => disable_source(source),
-            ("sorted field", [ref source, _, _, _]) => disable_source(source),
-            ("ordinal binding", [ref variable, ref source]) => { disable_variable(variable); disable_source(source) },
-            ("chunked source", [ref source]) => disable_source(source),
-            ("negated source", [ref source]) => disable_source(source),
-            _ => panic!("Don't know how to handle this warning: {:?} {:?} {:?}", warning_view, warning_row, warning),
-        }
-    });
-
     // --- plan the flow ---
 
     let mut view_dependency_pre_table = flow.overwrite_output("view dependency (pre)");
@@ -733,11 +694,14 @@ fn plan(flow: &Flow) {
         });
 
         if schedulable_source_table.index.len() == 0 {
-            if unscheduled_source_table.index.len() == 0 {
-                break; // done
-            } else {
-                panic!("Cannot schedule {:#?}", unschedulable_source_table);
-            }
+            find!(unschedulable_source_table, [view, source, variable], {
+                warning_table.index.insert(vec![
+                    string!("unschedulable source"),
+                    Column(vec![view.clone(), source.clone(), variable.clone()]),
+                    string!("This source cannot be scheduled because this variable cannot be scheduled"),
+                    ]);
+            });
+            break; // done scheduling
         }
 
         pass += 1;
@@ -971,6 +935,46 @@ fn plan(flow: &Flow) {
                 });
             });
         });
+    });
+
+    // --- disable views which have warnings ---
+
+    let disabled_view_table = RefCell::new(flow.overwrite_output("disabled view"));
+    find!(warning_table, [warning_view, warning_row, warning], {
+        let disable_view = |view: &Value| {
+            insert!(disabled_view_table.borrow_mut(), [view, warning_view, warning_row, warning]);
+        };
+        let disable_source = |source: &Value| {
+            find!(source_table, [view, (= source), _], {
+                insert!(disabled_view_table.borrow_mut(), [view, warning_view, warning_row, warning]);
+            });
+        };
+        let disable_variable = |variable: &Value| {
+            find!(variable_table, [view, (= variable)], {
+                insert!(disabled_view_table.borrow_mut(), [view, warning_view, warning_row, warning]);
+            });
+        };
+        let disable_field = |field: &Value| {
+            find!(field_table, [view, (= field), _], {
+                insert!(disabled_view_table.borrow_mut(), [view, warning_view, warning_row, warning]);
+            });
+        };
+        match (warning_view.as_str(), &warning_row.as_column()[..]) {
+            ("view", [ref view, _]) => disable_view(view),
+            ("field", [ref view, _, _]) => disable_view(view),
+            ("source", [ref view, _, _]) => disable_view(view),
+            ("variable", [ref view, _]) => disable_view(view),
+            ("constant", [ref variable, _]) => disable_variable(variable),
+            ("binding", [ref variable, ref source, _]) => { disable_variable(variable); disable_source(source) },
+            ("select", [ref field, ref variable]) => { disable_field(field); disable_variable(variable) },
+            ("grouped field", [ref source, _]) => disable_source(source),
+            ("sorted field", [ref source, _, _, _]) => disable_source(source),
+            ("ordinal binding", [ref variable, ref source]) => { disable_variable(variable); disable_source(source) },
+            ("chunked source", [ref source]) => disable_source(source),
+            ("negated source", [ref source]) => disable_source(source),
+            ("unschedulable source", [ref view, ref source, ref variable]) => { disable_view(view); disable_source(source); disable_variable(variable) },
+            _ => panic!("Don't know how to handle this warning: {:?} {:?} {:?}", warning_view, warning_row, warning),
+        }
     });
 }
 
