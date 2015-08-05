@@ -49,28 +49,28 @@ pub fn code_schema() -> Vec<(&'static str, Vec<&'static str>)> {
 
     // joins produce output by binding fields from sources
     // each field must be bound exactly once
-    ("select", vec!["view", "field", "variable"]),
+    ("select", vec!["field", "variable"]),
 
     // sources can be grouped by a subset of their fields
     // TODO primitive sources can't be grouped currently
-    ("grouped field", vec!["view", "source", "field"]),
+    ("grouped field", vec!["source", "field"]),
 
     // each group is then sorted by the reamining fields
     // `ix` is an ascending integer indicating the position of the field in the sort order
     // `direction` is one of "ascending" or "descending"
     // TODO how should we handle cases where some fields are neither grouped nor sorted?
-    ("sorted field", vec!["view", "source", "ix", "field", "direction"]),
+    ("sorted field", vec!["source", "ix", "field", "direction"]),
 
     // the ordinal is a virtual field that tracks the position of each row in the group
     // eg the first row has ordinal '1', the second row has ordinal '2' etc
     ("ordinal binding", vec!["variable", "source"]),
 
     // if a source is chunked, it will return each group as a whole rather than breaking them back down into rows
-    ("chunked source", vec!["view", "source"]),
+    ("chunked source", vec!["source"]),
 
     // if a source is negated, the view fails whenever the source returns rows
     // every bound field of a negated source is treated as an input field
-    ("negated source", vec!["view", "source"]),
+    ("negated source", vec!["source"]),
 
     // tags are used to organise all kinds of things
     ("tag", vec!["view", "tag"]),
@@ -393,10 +393,9 @@ fn check_triangle_key(warning_table: &mut Relation,
                             warning_table.index.insert(vec![
                                 Value::String(base_relation.view.to_owned()),
                                 Value::Column(base_row.clone()),
-                                string!("Row maps to {:?} in {:?} and to {:?} in {:?} but {:?} != {:?}",
-                                    &left_row, &left_relation.view,
-                                    &right_row, &right_relation.view,
-                                    left_to_right_field, right_to_left_field
+                                string!("This row has {:?}={:?} in {:?} and {:?}={:?} in {:?}",
+                                    left_to_right_field, &left_row[left_to_right_ix], &left_relation.view,
+                                    right_to_left_field, &right_row[right_to_left_ix], &right_relation.view
                                     ),
                                 ]);
                         }
@@ -442,10 +441,32 @@ fn plan(flow: &Flow) {
     check_unique_key(&mut *warning_table, &*source_table, &["source"]);
     check_foreign_key(&mut *warning_table, &*source_table, &["view"], &*view_table, &["view"]);
     check_foreign_key(&mut *warning_table, &*source_table, &["source view"], &*view_table, &["view"]);
+    find!(source_table, [view, source, source_view], {
+        find!(view_table, [(= view), kind], {
+            if kind.as_str() != "join" {
+                warning_table.index.insert(vec![
+                    string!("source"),
+                    Column(vec![view.clone(), source.clone(), source_view.clone()]),
+                    string!("This source is attached to a non-join view of kind: {:?}", kind),
+                    ]);
+            }
+        });
+    });
 
     let variable_table = flow.get_output("variable");
     check_unique_key(&mut *warning_table, &*variable_table, &["variable"]);
     check_foreign_key(&mut *warning_table, &*variable_table, &["view"], &*view_table, &["view"]);
+    find!(variable_table, [view, variable], {
+        find!(view_table, [(= view), kind], {
+            if kind.as_str() != "join" {
+                warning_table.index.insert(vec![
+                    string!("variable"),
+                    Column(vec![view.clone(), variable.clone()]),
+                    string!("This variable is attached to a non-join view of kind: {:?}", kind),
+                    ]);
+            }
+        });
+    });
 
     let constant_table = flow.get_output("constant");
     check_unique_key(&mut *warning_table, &*constant_table, &["variable"]);
@@ -468,7 +489,6 @@ fn plan(flow: &Flow) {
         );
 
     let select_table = flow.get_output("select");
-    // TODO select doesn't need view
     check_unique_key(&mut *warning_table, &*select_table, &["field"]);
     check_foreign_key(&mut *warning_table, &*select_table, &["field"], &*field_table, &["field"]);
     check_foreign_key(&mut *warning_table, &*select_table, &["variable"], &*variable_table, &["variable"]);
@@ -479,28 +499,39 @@ fn plan(flow: &Flow) {
         );
 
     let grouped_field_table = flow.get_output("grouped field");
-    // TODO grouped field does not need view
     check_foreign_key(&mut *warning_table, &*grouped_field_table, &["source"], &*source_table, &["source"]);
     check_foreign_key(&mut *warning_table, &*grouped_field_table, &["field"], &*field_table, &["field"]);
     check_triangle_key(&mut *warning_table,
         &*grouped_field_table, "source", "field",
-        &*source_table, "source", "view",
+        &*source_table, "source", "source view",
         &*field_table, "field", "view",
         );
 
     let sorted_field_table = flow.get_output("sorted field");
-    // TODO sorted field does not need view
     check_unique_key(&mut *warning_table, &*sorted_field_table, &["source", "field"]);
     check_foreign_key(&mut *warning_table, &*sorted_field_table, &["source"], &*source_table, &["source"]);
     check_foreign_key(&mut *warning_table, &*sorted_field_table, &["field"], &*field_table, &["field"]);
     check_triangle_key(&mut *warning_table,
         &*sorted_field_table, "source", "field",
-        &*source_table, "source", "view",
+        &*source_table, "source", "source view",
         &*field_table, "field", "view",
         );
     check_enum(&mut *warning_table, &*sorted_field_table, "direction",
         &[string!("ascending"), string!("descending")]);
-    // TODO check ixes are consecutive range
+    find!(source_table, [_, source, _], {
+        let sorted_fields = find!(sorted_field_table, [(= source), _, _, _]);
+        let mut ixes = sorted_fields.iter().map(|sorted_field| sorted_field[1].as_usize()).collect::<Vec<_>>();
+        ixes.sort();
+        if ixes != (1..ixes.len()+1).collect::<Vec<_>>() {
+            for sorted_field in sorted_fields.into_iter() {
+                warning_table.index.insert(vec![
+                    string!("sorted field"),
+                    Column(sorted_field.to_vec()),
+                    string!("Ixes are not 1..n"),
+                    ]);
+            }
+        }
+    });
 
     let ordinal_binding_table = flow.get_output("ordinal binding");
     check_unique_key(&mut *warning_table, &*ordinal_binding_table, &["source"]);
@@ -508,17 +539,55 @@ fn plan(flow: &Flow) {
     check_foreign_key(&mut *warning_table, &*ordinal_binding_table, &["variable"], &*variable_table, &["variable"]);
 
     let chunked_source_table = flow.get_output("chunked source");
-    // TODO chunked source does not need view
     check_foreign_key(&mut *warning_table, &*chunked_source_table, &["source"], &*source_table, &["source"]);
 
     let negated_source_table = flow.get_output("negated source");
-    // TODO negated source does not need view
     check_foreign_key(&mut *warning_table, &*negated_source_table, &["source"], &*source_table, &["source"]);
 
-    // TODO check every field is selected
-    // TODO check every variable is bound
-    // TODO check fields are not sorted and grouped
-    // TODO check sources are not chunked and negated
+    find!(view_table, [view, view_kind], {
+        if view_kind.as_str() == "join" {
+            find!(field_table, [(= view), field, field_kind], {
+                dont_find!(select_table, [(= field), _], {
+                    warning_table.index.insert(vec![
+                        string!("field"),
+                        Column(vec![view.clone(), field.clone(), field_kind.clone()]),
+                        string!("This field has no select"),
+                        ]);
+                });
+            });
+        }
+    });
+
+    find!(variable_table, [view, variable], {
+        if dont_find!(binding_table, [(= variable), _, _])
+        && dont_find!(ordinal_binding_table, [(= variable), _]) {
+            warning_table.index.insert(vec![
+                string!("variable"),
+                Column(vec![view.clone(), variable.clone()]),
+                string!("This variable is never bound")
+                ]);
+        }
+    });
+
+    find!(grouped_field_table, [source, field], {
+        find!(sorted_field_table, [(= source), _, (= field), _], {
+            warning_table.index.insert(vec![
+                string!("grouped field"),
+                Column(vec![source.clone(), field.clone()]),
+                string!("This field is both grouped and sorted"),
+                ]);
+        });
+    });
+
+    find!(chunked_source_table, [source], {
+        find!(negated_source_table, [(= source)], {
+            warning_table.index.insert(vec![
+                string!("chunked source"),
+                Column(vec![source.clone()]),
+                string!("This source is both chunked and negated"),
+                ]);
+        });
+    });
 
     // --- plan the flow ---
 
@@ -552,7 +621,7 @@ fn plan(flow: &Flow) {
     let mut requires_table = flow.overwrite_output("requires");
     find!(variable_table, [view, variable], {
         find!(binding_table, [(= variable), source, field], {
-            dont_find!(negated_source_table, [(= view), (= source)], {
+            dont_find!(negated_source_table, [(= source)], {
                 find!(field_table, [_, (= field), field_kind], {
                     match field_kind.as_str() {
                         "output" => insert!(provides_table, [view, source, variable]),
@@ -564,14 +633,14 @@ fn plan(flow: &Flow) {
     });
     find!(variable_table, [view, variable], {
         find!(ordinal_binding_table, [(= variable), source], {
-            dont_find!(negated_source_table, [(= view), (= source)], {
+            dont_find!(negated_source_table, [(= source)], {
                 insert!(provides_table, [view, source, variable]);
             });
         });
     });
     find!(variable_table, [view, variable], {
         find!(binding_table, [(= variable), source, _], {
-            find!(negated_source_table, [(= view), (= source)], {
+            find!(negated_source_table, [(= source)], {
                 find!(provides_table, [(= view), _, (= variable)], {
                     // negated sources treat fields as input if they are bound elsewhere
                     insert!(requires_table, [view, source, variable]);
@@ -711,8 +780,8 @@ fn plan(flow: &Flow) {
         if kind.as_str() == "join" {
             find!(source_table, [(= view), source, source_view], {
                 find!(field_table, [(= source_view), field, _], {
-                    dont_find!(grouped_field_table, [(= view), (= source), (= field)], {
-                        dont_find!(sorted_field_table, [(= view), (= source), _, (= field), _], {
+                    dont_find!(grouped_field_table, [(= source), (= field)], {
+                        dont_find!(sorted_field_table, [(= source), _, (= field), _], {
                             insert!(non_sorted_field_pre_table, [view, source, field]);
                         });
                     });
@@ -768,8 +837,8 @@ fn plan(flow: &Flow) {
         find!(source_schedule_table, [(= view), source_ix, _, source], {
             find!(source_table, [(= view), (= source), source_view], {
                 find!(view_table, [(= source_view), kind], {
-                    let chunked = !dont_find!(chunked_source_table, [(= view), (= source)]);
-                    let negated = !dont_find!(negated_source_table, [(= view), (= source)]);
+                    let chunked = !dont_find!(chunked_source_table, [(= source)]);
+                    let negated = !dont_find!(negated_source_table, [(= source)]);
                     if kind.as_str() == "primitive" {
                         insert!(source_layout_table, [view_ix, source_ix, source_view, Bool(chunked), Bool(negated)]);
                     } else {
@@ -823,7 +892,7 @@ fn plan(flow: &Flow) {
     let mut select_layout_table = flow.overwrite_output("select layout");
     find!(view_schedule_table, [view_ix, view, _], {
         find!(index_layout_table, [(= view), field_ix, field, _], {
-            find!(select_table, [(= view), (= field), variable], {
+            find!(select_table, [(= field), variable], {
                 find!(variable_schedule_table, [(= view), variable_ix, _, (= variable)], {
                     insert!(select_layout_table, [view_ix, field_ix, variable_ix]);
                 });
@@ -832,10 +901,10 @@ fn plan(flow: &Flow) {
     });
 
     let mut grouped_field_layout_table = flow.overwrite_output("grouped field layout");
-    find!(grouped_field_table, [view, source, field], {
-        find!(view_schedule_table, [view_ix, (= view), _], {
-            find!(source_schedule_table, [(= view), source_ix, _, (= source)], {
-                find!(source_table, [(= view), (= source), source_view], {
+    find!(grouped_field_table, [source, field], {
+        find!(source_table, [view, (= source), source_view], {
+            find!(view_schedule_table, [view_ix, (= view), _], {
+                find!(source_schedule_table, [(= view), source_ix, _, (= source)], {
                     find!(index_layout_table, [(= source_view), field_ix, (= field), _], {
                         insert!(grouped_field_layout_table, [view_ix, source_ix, field_ix]);
                     });
@@ -845,10 +914,10 @@ fn plan(flow: &Flow) {
     });
 
     let mut sorted_field_layout_table = flow.overwrite_output("sorted field layout");
-    find!(sorted_field_table, [view, source, ix, field, direction], {
-        find!(view_schedule_table, [view_ix, (= view), _], {
-            find!(source_schedule_table, [(= view), source_ix, _, (= source)], {
-                find!(source_table, [(= view), (= source), source_view], {
+    find!(sorted_field_table, [source, ix, field, direction], {
+        find!(source_table, [view, (= source), source_view], {
+            find!(view_schedule_table, [view_ix, (= view), _], {
+                find!(source_schedule_table, [(= view), source_ix, _, (= source)], {
                     find!(index_layout_table, [(= source_view), field_ix, (= field), _], {
                         insert!(sorted_field_layout_table, [view_ix, source_ix, ix, field_ix, direction]);
                     });

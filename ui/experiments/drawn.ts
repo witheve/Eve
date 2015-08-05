@@ -636,12 +636,12 @@ module drawn {
 
       break;
       case "removeSelectFromQuery":
-        var selects = ixer.select("select", {view: info.viewId, variable: info.variableId}) || [];
+        var selects = ixer.select("select", {variable: info.variableId}) || [];
         for(let select of selects) {
           let fieldId = select["select: field"];
           diffs.push(api.remove("field", {field: fieldId}));
         }
-        diffs.push(api.remove("select", {view: info.viewId, variable: info.variableId}));
+        diffs.push(api.remove("select", {variable: info.variableId}));
       break;
       case "addSelectToQuery":
         var name = info.name;
@@ -667,7 +667,7 @@ module drawn {
 
         diffs = [
           neueField,
-          api.insert("select", {view: info.viewId, field: fieldId, variable: info.variableId})
+          api.insert("select", {field: fieldId, variable: info.variableId})
         ];
       break;
       case "selectSelection":
@@ -708,16 +708,16 @@ module drawn {
       break;
       case "chunkSource":
         var sourceId = info.node.source["source: source"];
-        diffs.push(api.insert("chunked source", {view: info.viewId, source: sourceId}));
+        diffs.push(api.insert("chunked source", {source: sourceId}));
         // we need to group any fields that are joined to ensure the join continues to do what you'd expect
         for(let binding of joinedBindingsFromSource(sourceId)) {
           let fieldId = binding["binding: field"];
-          diffs.push(api.insert("grouped field", {view: info.viewId, source: sourceId, field: fieldId}));
+          diffs.push(api.insert("grouped field", {source: sourceId, field: fieldId}));
         }
       break;
       case "unchunkSource":
         var sourceId = info.node.source["source: source"];
-        diffs.push(api.remove("chunked source", {view: info.viewId, source: sourceId}));
+        diffs.push(api.remove("chunked source", {source: sourceId}));
         // when you unchunk, we should ungroup the fields that we grouped when chunking.
         for(let binding of joinedBindingsFromSource(sourceId)) {
           console.log(binding);
@@ -733,7 +733,7 @@ module drawn {
               return dispatch("setError", {errorText: "Cannot unchunk this source because it's bound to an aggregate, which requires a column."});
             }
           }
-          diffs.push(api.remove("grouped field", {view: info.viewId, source: sourceId, field: fieldId}));
+          diffs.push(api.remove("grouped field", {source: sourceId, field: fieldId}));
         }
       break;
       case "addOrdinal":
@@ -753,7 +753,7 @@ module drawn {
           // bind the ordinal to it
           api.insert("ordinal binding", {source: sourceId, variable: variableId}),
           // select the variable into the created field
-          api.insert("select", {view: info.viewId, variable: variableId, field: fieldId})
+          api.insert("select", {variable: variableId, field: fieldId})
         );
       break;
       case "removeOrdinal":
@@ -771,7 +771,7 @@ module drawn {
         }
         var sourceId = bindings[0]["binding: source"];
         var fieldId = bindings[0]["binding: field"];
-        diffs.push(api.insert("grouped field", {view: info.viewId, source: sourceId, field: fieldId}));
+        diffs.push(api.insert("grouped field", {source: sourceId, field: fieldId}));
       break;
       case "ungroupAttribute":
         var variableId = info.node.variable;
@@ -782,10 +782,10 @@ module drawn {
         }
         var sourceId = bindings[0]["binding: source"];
         var fieldId = bindings[0]["binding: field"];
-        diffs.push(api.remove("grouped field", {view: info.viewId, source: sourceId, field: fieldId}));
+        diffs.push(api.remove("grouped field", {source: sourceId, field: fieldId}));
       break;
       case "negateSource":
-        diffs.push(api.insert("negated source", {view: info.viewId, source: info.sourceId}));
+        diffs.push(api.insert("negated source", {source: info.sourceId}));
         // you can't select anything from a negated source, so if there are no joins on a variable this
         // source uses we need to deselect it
         for(let binding of ixer.select("binding", {source: info.sourceId})) {
@@ -796,7 +796,7 @@ module drawn {
         }
       break;
       case "unnegateSource":
-        diffs.push(api.remove("negated source", {view: info.viewId, source: info.sourceId}));
+        diffs.push(api.remove("negated source", {source: info.sourceId}));
         // since we removed all your selects when you negated the source, let's re-select them
         var sourceViewId = ixer.selectOne("source", {source: info.sourceId})["source: source view"];
         ixer.select("field", {view: sourceViewId}).forEach(function(field) {
@@ -823,7 +823,7 @@ module drawn {
           let fieldIds = ixer.getFields(sourceViewId);
           let viewId = localState.drawnUiActiveId;
           fieldIds.forEach((fieldId, ix) => {
-            diffs.push(api.insert("sorted field", {view: viewId, source: sourceId, ix, field: fieldId, direction: "ascending"}));
+            diffs.push(api.insert("sorted field", {source: sourceId, ix, field: fieldId, direction: "ascending"}));
           })
         }
       break;
@@ -868,13 +868,13 @@ module drawn {
             }
             let moved = sorted[from];
             // replace this field
-            diffs.push(api.remove("sorted field", {view: viewId, source: sourceId, ix: moved["sorted field: ix"], field: moved["sorted field: field"], direction: moved["sorted field: direction"]}))
-            diffs.push(api.insert("sorted field", {view: viewId, source: sourceId, ix: movedIx, field: moved["sorted field: field"], direction: moved["sorted field: direction"]}))
+            diffs.push(api.remove("sorted field", {source: sourceId, ix: moved["sorted field: ix"], field: moved["sorted field: field"], direction: moved["sorted field: direction"]}))
+            diffs.push(api.insert("sorted field", {source: sourceId, ix: movedIx, field: moved["sorted field: field"], direction: moved["sorted field: direction"]}))
           }
           // we only replace this field if its index has actually changed
           if(sort["sorted field: ix"] !== updatedIx) {
-            diffs.push(api.remove("sorted field", {view: viewId, source: sourceId, ix: sort["sorted field: ix"], field: sort["sorted field: field"], direction: sort["sorted field: direction"]}))
-            diffs.push(api.insert("sorted field", {view: viewId, source: sourceId, ix: updatedIx, field: sort["sorted field: field"], direction: sort["sorted field: direction"]}))
+            diffs.push(api.remove("sorted field", {source: sourceId, ix: sort["sorted field: ix"], field: sort["sorted field: field"], direction: sort["sorted field: direction"]}))
+            diffs.push(api.insert("sorted field", {source: sourceId, ix: updatedIx, field: sort["sorted field: field"], direction: sort["sorted field: direction"]}))
           }
           updatedIx += advanceBy;
         });
@@ -883,7 +883,7 @@ module drawn {
         var sortedField = ixer.selectOne("sorted field", {source: info.sourceId, field: info.fieldId});
         diffs.push(api.remove("sorted field", {source: info.sourceId, field: info.fieldId}));
         var direction = sortedField["sorted field: direction"] === "ascending" ? "descending" : "ascending";
-        diffs.push(api.insert("sorted field", {view: sortedField["sorted field: view"], source: info.sourceId, field: info.fieldId, ix: sortedField["sorted field: ix"], direction}))
+        diffs.push(api.insert("sorted field", {source: info.sourceId, field: info.fieldId, ix: sortedField["sorted field: ix"], direction}))
       break;
       //---------------------------------------------------------
       // Errors
@@ -1351,7 +1351,7 @@ module drawn {
           actions["join"] = {func: unjoinNodes, text: "Unjoin"};
         }
 
-        if(ixer.selectOne("select", {view: viewId, variable: node.variable})) {
+        if(ixer.selectOne("select", {variable: node.variable})) {
           actions["select"] = {func: unselectAttribute, text: "Hide"};
         }
         if(node.filter) {
@@ -1402,7 +1402,7 @@ module drawn {
         // whether or not we are showing or hiding is based on the state of the first node
         // in the selection
         let root = selectedNodes[0];
-        if(ixer.selectOne("select", {view: viewId, variable: root.variable})) {
+        if(ixer.selectOne("select", {variable: root.variable})) {
           actions["select"] = {func: unselectSelection, text: "Hide"};
         } else {
           actions["select"] = {func: selectSelection, text: "Show"};
@@ -1696,7 +1696,7 @@ module drawn {
         var curRel:any = {type: "relationship", source: source, id: sourceId, name: code.name(sourceViewId)};
         nodes.push(curRel);
         nodeLookup[curRel.id] = curRel;
-        if(ixer.selectOne("chunked source", {source: sourceId, view: viewId})) {
+        if(ixer.selectOne("chunked source", {source: sourceId})) {
           curRel.chunked = true;
         }
         if(ixer.selectOne("ordinal binding", {source: sourceId})) {
