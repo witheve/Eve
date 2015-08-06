@@ -114,7 +114,7 @@ module graphLayout {
     public sourcesById:{[id:string]: Node}
     public attributesById:{[id:string]: Node}
     
-    constructor(public size:[number, number], public sources:Node[] = [], public attributes:Node[] = [], public edges:Edge[] = []) {}
+    constructor(public sources:Node[] = [], public attributes:Node[] = [], public edges:Edge[] = []) {}
     
     /**
      * Attempt to stochastically place nodes to minimize edge intersections, node overlaps, and node spread.

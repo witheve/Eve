@@ -1946,7 +1946,7 @@ module drawn {
         edges.push({source: link.right.id, target: link.left.id});
       }
       
-      let graph = new graphLayout.Graph([500, 500], sourceNodes, attributeNodes, edges);
+      let graph = new graphLayout.Graph(sourceNodes, attributeNodes, edges);
       let layout = graph.layout();
       for(let node of nodes) {
         let p = layout.positions[node.id];
