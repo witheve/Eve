@@ -8,6 +8,32 @@ module eveEditor {
   var ixer = api.ixer;
   var code = api.code;
   var DEBUG = window["DEBUG"];
+  // we'll keep separate stacks for each workspace
+  var eventStacks = {};
+
+  export function storeEvent(workspace, event, diffs) {
+    if(!eventStacks[workspace]) {
+        eventStacks[workspace] = {root: true, children: [], parent: null, diffs: null};
+    }
+    var eventItem = {event, diffs, children: [], parent: eventStacks[workspace], root: false};
+    eventStacks[workspace].children.push(eventItem);
+    eventStacks[workspace] = eventItem;
+  }
+
+  export function scaryUndoEvent(workspace): any[] {
+    let eventStack = eventStacks[workspace];
+    if(!eventStack.parent || !eventStack.diffs) return [];
+    var old = eventStack;
+    eventStacks[workspace] = old.parent;
+    return api.reverseDiff(old.diffs);
+  }
+
+  export function scaryRedoEvent(workspace): any[] {
+    let eventStack = eventStacks[workspace];
+    if(!eventStack.children.length) return [];
+    eventStacks[workspace] = eventStack.children[eventStack.children.length - 1];
+    return eventStacks[workspace].diffs;
+  }
 
   export function executeDispatch(diffs, storeEvent, sendToServer) {
     if(diffs && diffs.length) {
@@ -55,6 +81,9 @@ module drawn {
   const nodeHeight = 18;
   const nodeHeightPadding = 3;
   const nodeWidthMin = 50;
+  const nodeFilterWidthMin = 30;
+  const previewWidth = 250;
+  const previewHeight = 225;
 
   //---------------------------------------------------------
   // Utils
@@ -85,9 +114,9 @@ module drawn {
     }
 
     function focusOnce(node, elem) {
-        if (!elem.__focused) {
-            setTimeout(function () { node.focus(); }, 5);
-            elem.__focused = true;
+        if (!node.__focused) {
+            node.focus();
+            node.__focused = true;
             if(elem.contentEditable && node.firstChild) {
               let range = document.createRange();
               range.setStart(node.firstChild, node.textContent.length);
@@ -166,10 +195,10 @@ module drawn {
       if (node.id === currentNode.id) continue;
       let nodePosition = nodeDisplayInfo(nodeLookup[node.id]);
 
-      if (currentNodePosition.left + currentNodePosition.width > nodePosition.left &&
-        currentNodePosition.left < nodePosition.left + nodePosition.width &&
-        currentNodePosition.top + currentNodePosition.height > nodePosition.top &&
-        currentNodePosition.top < nodePosition.top + nodePosition.height) {
+      if (currentNodePosition.right > nodePosition.left &&
+        currentNodePosition.left < nodePosition.right &&
+        currentNodePosition.bottom > nodePosition.top &&
+        currentNodePosition.top < nodePosition.bottom) {
         overlaps.push(node.id);
       }
     }
@@ -214,9 +243,9 @@ module drawn {
     }).filter((info) => {
       let {node, displayInfo} = info;
       let overlapLeft = Math.max(boxLeft, displayInfo.left);
-      let overlapRight = Math.min(boxRight, displayInfo.left + displayInfo.width);
+      let overlapRight = Math.min(boxRight, displayInfo.right);
       let overlapTop = Math.max(boxTop, displayInfo.top);
-      let overlapBottom = Math.min(boxBottom, displayInfo.top + displayInfo.height);
+      let overlapBottom = Math.min(boxBottom, displayInfo.bottom);
       return overlapLeft < overlapRight && overlapTop < overlapBottom;
     });
   }
@@ -229,11 +258,11 @@ module drawn {
     for(var node of nodes) {
       let info = nodeDisplayInfo(node);
       if(info.left < left) left = info.left;
-      if(info.left + info.width > right) right = info.left + info.width;
+      if(info.right > right) right = info.right;
       if(info.top < top) top = info.top;
-      if(info.top + info.height > bottom) bottom = info.top + info.height;
+      if(info.bottom > bottom) bottom = info.bottom;
     }
-    return {top, left, width: right - left, height: bottom - top};
+    return {top, left, right, bottom, width: right - left, height: bottom - top};
   }
 
   //---------------------------------------------------------
@@ -315,7 +344,7 @@ module drawn {
     return diffs;
   }
 
-  function addSourceFieldVariable(queryId, sourceViewId, sourceId, fieldId) {
+  function addSourceFieldVariable(itemId, sourceViewId, sourceId, fieldId) {
     let diffs = [];
     let kind;
     // check if we're adding an ordinal
@@ -326,7 +355,7 @@ module drawn {
     }
     // add a variable
     let variableId = uuid();
-    diffs.push(api.insert("variable", {view: queryId, variable: variableId}));
+    diffs.push(api.insert("variable", {view: itemId, variable: variableId}));
     if(kind === "ordinal") {
       // create an ordinal binding
       diffs.push(api.insert("ordinal binding", {variable: variableId, source: sourceId}));
@@ -336,7 +365,7 @@ module drawn {
     }
     if(kind === "output" || kind === "ordinal") {
       // select the field
-      diffs.push.apply(diffs, dispatch("addSelectToQuery", {viewId: queryId, variableId: variableId, name: code.name(fieldId) || fieldId}, true));
+      diffs.push.apply(diffs, dispatch("addSelectToQuery", {viewId: itemId, variableId: variableId, name: code.name(fieldId) || fieldId}, true));
     } else {
       // otherwise we're an input field and we need to add a default constant value
       diffs.push(api.insert("constant", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
@@ -351,6 +380,7 @@ module drawn {
   function dispatch(event, info, rentrant?) {
     //console.log("dispatch[" + event + "]", info);
     var diffs = [];
+    var storeEvent = true;
     switch(event) {
       //---------------------------------------------------------
       // Node selection
@@ -474,9 +504,12 @@ module drawn {
         diffs = dispatch("clearSelection", {}, true);
       break;
       case "openQuery":
-        localState.drawnUiActiveId = info.queryId;
+        localState.drawnUiActiveId = info.itemId;
       break;
-      case "gotoQuerySelector":
+      case "gotoItemSelector":
+        // clear selection when leaving a workspace to ensure it doesn't end up taking effect in the
+        // next one you go to.
+        diffs = dispatch("clearSelection", {}, true);
         localState.drawnUiActiveId = false;
       break;
       //---------------------------------------------------------
@@ -491,9 +524,9 @@ module drawn {
       break;
       case "addViewAndMaybeJoin":
         var sourceId = uuid();
-        var queryId = localState.drawnUiActiveId;
+        var itemId = localState.drawnUiActiveId;
         diffs = [
-          api.insert("source", {view: queryId, source: sourceId, "source view": info.viewId})
+          api.insert("source", {view: itemId, source: sourceId, "source view": info.viewId})
         ];
         // if there's a selection, we want to try and join on those nodes if possible
         // so that we don't produce product joins all the time
@@ -516,7 +549,7 @@ module drawn {
               diffs.push(api.insert("binding", {source: sourceId, field: fieldId, variable: potentialJoinNodes[name].variable}));
             } else {
               // otherwise we need to create a variable for this field
-              diffs.push.apply(diffs, addSourceFieldVariable(queryId, info.viewId, sourceId, fieldId));
+              diffs.push.apply(diffs, addSourceFieldVariable(itemId, info.viewId, sourceId, fieldId));
             }
         });
       break;
@@ -577,7 +610,7 @@ module drawn {
         }
       break;
       case "unjoinNodes":
-        var queryId = localState.drawnUiActiveId;
+        var itemId = localState.drawnUiActiveId;
         var variableIdToRemove = info.variableId;
         var oldBindings = ixer.select("binding", {variable: variableIdToRemove});
          // push all the bindings onto their own variables, skipping the first as that one can reuse
@@ -586,13 +619,13 @@ module drawn {
           let sourceId = binding["binding: source"];
           let fieldId = binding["binding: field"];
           let sourceViewId = ixer.selectOne("source", {source: sourceId})["source: source view"];
-          diffs.push.apply(diffs, addSourceFieldVariable(queryId, sourceViewId, sourceId, fieldId));
+          diffs.push.apply(diffs, addSourceFieldVariable(itemId, sourceViewId, sourceId, fieldId));
           diffs.push(api.remove("binding", {variable: variableIdToRemove, source: sourceId, field: fieldId}));
         }
         // check for an ordinal binding and create a new variable for it if it exists
         var ordinalBinding = ixer.selectOne("ordinal binding", {variable: variableIdToRemove});
         if(ordinalBinding) {
-          diffs.push.apply(diffs, addSourceFieldVariable(queryId, null, ordinalBinding["ordinal binding: source"], "ordinal"));
+          diffs.push.apply(diffs, addSourceFieldVariable(itemId, null, ordinalBinding["ordinal binding: source"], "ordinal"));
           diffs.push(api.remove("ordinal binding", {variable: variableIdToRemove}));
         }
         // we have to check to make sure that if the original binding represents an input it gets a default
@@ -606,12 +639,12 @@ module drawn {
 
       break;
       case "removeSelectFromQuery":
-        var selects = ixer.select("select", {view: info.viewId, variable: info.variableId}) || [];
+        var selects = ixer.select("select", {variable: info.variableId}) || [];
         for(let select of selects) {
           let fieldId = select["select: field"];
           diffs.push(api.remove("field", {field: fieldId}));
         }
-        diffs.push(api.remove("select", {view: info.viewId, variable: info.variableId}));
+        diffs.push(api.remove("select", {variable: info.variableId}));
       break;
       case "addSelectToQuery":
         var name = info.name;
@@ -637,7 +670,7 @@ module drawn {
 
         diffs = [
           neueField,
-          api.insert("select", {view: info.viewId, field: fieldId, variable: info.variableId})
+          api.insert("select", {field: fieldId, variable: info.variableId})
         ];
       break;
       case "selectSelection":
@@ -678,16 +711,16 @@ module drawn {
       break;
       case "chunkSource":
         var sourceId = info.node.source["source: source"];
-        diffs.push(api.insert("chunked source", {view: info.viewId, source: sourceId}));
+        diffs.push(api.insert("chunked source", {source: sourceId}));
         // we need to group any fields that are joined to ensure the join continues to do what you'd expect
         for(let binding of joinedBindingsFromSource(sourceId)) {
           let fieldId = binding["binding: field"];
-          diffs.push(api.insert("grouped field", {view: info.viewId, source: sourceId, field: fieldId}));
+          diffs.push(api.insert("grouped field", {source: sourceId, field: fieldId}));
         }
       break;
       case "unchunkSource":
         var sourceId = info.node.source["source: source"];
-        diffs.push(api.remove("chunked source", {view: info.viewId, source: sourceId}));
+        diffs.push(api.remove("chunked source", {source: sourceId}));
         // when you unchunk, we should ungroup the fields that we grouped when chunking.
         for(let binding of joinedBindingsFromSource(sourceId)) {
           console.log(binding);
@@ -703,7 +736,7 @@ module drawn {
               return dispatch("setError", {errorText: "Cannot unchunk this source because it's bound to an aggregate, which requires a column."});
             }
           }
-          diffs.push(api.remove("grouped field", {view: info.viewId, source: sourceId, field: fieldId}));
+          diffs.push(api.remove("grouped field", {source: sourceId, field: fieldId}));
         }
       break;
       case "addOrdinal":
@@ -723,7 +756,7 @@ module drawn {
           // bind the ordinal to it
           api.insert("ordinal binding", {source: sourceId, variable: variableId}),
           // select the variable into the created field
-          api.insert("select", {view: info.viewId, variable: variableId, field: fieldId})
+          api.insert("select", {variable: variableId, field: fieldId})
         );
       break;
       case "removeOrdinal":
@@ -741,7 +774,7 @@ module drawn {
         }
         var sourceId = bindings[0]["binding: source"];
         var fieldId = bindings[0]["binding: field"];
-        diffs.push(api.insert("grouped field", {view: info.viewId, source: sourceId, field: fieldId}));
+        diffs.push(api.insert("grouped field", {source: sourceId, field: fieldId}));
       break;
       case "ungroupAttribute":
         var variableId = info.node.variable;
@@ -752,10 +785,10 @@ module drawn {
         }
         var sourceId = bindings[0]["binding: source"];
         var fieldId = bindings[0]["binding: field"];
-        diffs.push(api.remove("grouped field", {view: info.viewId, source: sourceId, field: fieldId}));
+        diffs.push(api.remove("grouped field", {source: sourceId, field: fieldId}));
       break;
       case "negateSource":
-        diffs.push(api.insert("negated source", {view: info.viewId, source: info.sourceId}));
+        diffs.push(api.insert("negated source", {source: info.sourceId}));
         // you can't select anything from a negated source, so if there are no joins on a variable this
         // source uses we need to deselect it
         for(let binding of ixer.select("binding", {source: info.sourceId})) {
@@ -766,7 +799,7 @@ module drawn {
         }
       break;
       case "unnegateSource":
-        diffs.push(api.remove("negated source", {view: info.viewId, source: info.sourceId}));
+        diffs.push(api.remove("negated source", {source: info.sourceId}));
         // since we removed all your selects when you negated the source, let's re-select them
         var sourceViewId = ixer.selectOne("source", {source: info.sourceId})["source: source view"];
         ixer.select("field", {view: sourceViewId}).forEach(function(field) {
@@ -793,7 +826,7 @@ module drawn {
           let fieldIds = ixer.getFields(sourceViewId);
           let viewId = localState.drawnUiActiveId;
           fieldIds.forEach((fieldId, ix) => {
-            diffs.push(api.insert("sorted field", {view: viewId, source: sourceId, ix, field: fieldId, direction: "ascending"}));
+            diffs.push(api.insert("sorted field", {source: sourceId, ix, field: fieldId, direction: "ascending"}));
           })
         }
       break;
@@ -838,13 +871,13 @@ module drawn {
             }
             let moved = sorted[from];
             // replace this field
-            diffs.push(api.remove("sorted field", {view: viewId, source: sourceId, ix: moved["sorted field: ix"], field: moved["sorted field: field"], direction: moved["sorted field: direction"]}))
-            diffs.push(api.insert("sorted field", {view: viewId, source: sourceId, ix: movedIx, field: moved["sorted field: field"], direction: moved["sorted field: direction"]}))
+            diffs.push(api.remove("sorted field", {source: sourceId, ix: moved["sorted field: ix"], field: moved["sorted field: field"], direction: moved["sorted field: direction"]}))
+            diffs.push(api.insert("sorted field", {source: sourceId, ix: movedIx, field: moved["sorted field: field"], direction: moved["sorted field: direction"]}))
           }
           // we only replace this field if its index has actually changed
           if(sort["sorted field: ix"] !== updatedIx) {
-            diffs.push(api.remove("sorted field", {view: viewId, source: sourceId, ix: sort["sorted field: ix"], field: sort["sorted field: field"], direction: sort["sorted field: direction"]}))
-            diffs.push(api.insert("sorted field", {view: viewId, source: sourceId, ix: updatedIx, field: sort["sorted field: field"], direction: sort["sorted field: direction"]}))
+            diffs.push(api.remove("sorted field", {source: sourceId, ix: sort["sorted field: ix"], field: sort["sorted field: field"], direction: sort["sorted field: direction"]}))
+            diffs.push(api.insert("sorted field", {source: sourceId, ix: updatedIx, field: sort["sorted field: field"], direction: sort["sorted field: direction"]}))
           }
           updatedIx += advanceBy;
         });
@@ -853,7 +886,7 @@ module drawn {
         var sortedField = ixer.selectOne("sorted field", {source: info.sourceId, field: info.fieldId});
         diffs.push(api.remove("sorted field", {source: info.sourceId, field: info.fieldId}));
         var direction = sortedField["sorted field: direction"] === "ascending" ? "descending" : "ascending";
-        diffs.push(api.insert("sorted field", {view: sortedField["sorted field: view"], source: info.sourceId, field: info.fieldId, ix: sortedField["sorted field: ix"], direction}))
+        diffs.push(api.insert("sorted field", {source: info.sourceId, field: info.fieldId, ix: sortedField["sorted field: ix"], direction}))
       break;
       //---------------------------------------------------------
       // Errors
@@ -896,6 +929,8 @@ module drawn {
       break;
       case "stopSearching":
         localState.searching = false;
+        localState.searchResults = false;
+        localState.searchingFor = "";
       break;
       case "handleSearchKey":
         if(info.keyCode === api.KEYS.ENTER) {
@@ -960,6 +995,17 @@ module drawn {
       case "clearMenu":
         localState.menu = false;
       break;
+      //---------------------------------------------------------
+      // undo
+      //---------------------------------------------------------
+      case "undo":
+        diffs = eveEditor.scaryUndoEvent(localState.drawnUiActiveId);
+        storeEvent = false;
+      break;
+      case "redo":
+        diffs = eveEditor.scaryRedoEvent(localState.drawnUiActiveId);
+        storeEvent = false;
+      break;
       default:
         console.error("Unknown dispatch:", event, info);
         break;
@@ -968,8 +1014,20 @@ module drawn {
     if(!rentrant) {
       if(diffs.length) {
         let formatted = api.toDiffs(diffs);
+        if(event === "undo" || event === "redo") {
+          formatted = diffs;
+        }
+        if(storeEvent && formatted.length) {
+          eveEditor.storeEvent(localState.drawnUiActiveId, event, formatted);
+        }
         ixer.handleDiffs(formatted);
         client.sendToServer(formatted, false);
+        // @HACK: since we load positions up once and assume we're authorative, we have to handle
+        // the case where an undo/redo can change positions without going through the normal
+        // dispatch. To deal with this, we'll just reload our positions on undo and redo.
+        if(event === "undo" || event === "redo") {
+          loadPositions();
+        }
       }
       render();
     }
@@ -1116,7 +1174,11 @@ module drawn {
     }
     matchingViews.sort(sortByScore);
     return {kind: "Sources", results: matchingViews, onSelect: (e, elem) => {
-      dispatch("addViewAndMaybeJoin", {viewId: elem.result.viewId});
+      if(localState.drawnUiActiveId) {
+        dispatch("addViewAndMaybeJoin", {viewId: elem.result.viewId});
+      } else {
+        dispatch("openQuery", {itemId: elem.result.viewId})
+      }
     }};
   }
 
@@ -1141,29 +1203,69 @@ module drawn {
     if(localState.drawnUiActiveId) {
       page = queryUi(localState.drawnUiActiveId, true);
     } else {
-      page = querySelector();
+      page = itemSelector();
     }
-    return {id: "root", children: [page]};
+    return {id: "root", children: [tooltipUi(), page]};
   }
 
-  function querySelector() {
-    var queries = api.ixer.select("view", {kind: "join"}).map((view) => {
-      var viewId = view["view: view"];
-      return {c: "query-item", queryId: viewId, click: openQuery, children:[
+  function itemSelector() {
+    let viewIds;
+    let searching = false;
+    if(localState.searchingFor && localState.searchResults && localState.searchResults.length) {
+      viewIds = localState.searchResults[0].results.map((searchResult) => searchResult.viewId);
+      searching = true;
+    } else {
+      viewIds = ixer.select("view", {}).map((view) => view["view: view"]);
+    }
+    let queries = [];
+    viewIds.forEach((viewId) : any => {
+      let view = ixer.selectOne("view", {view: viewId});
+      let kind = view["view: kind"];
+      if(!searching && ixer.selectOne("tag", {view: viewId, tag: "hidden"})) {
+        return;
+      }
+      if(kind === "join") {
+        return queries.push(queryItem(view));
+      }
+      if(kind === "table") {
+        return queries.push(tableForm(view["view: view"]));
+      }
+    });
+    let actions = {
+      "search": {func: startSearching, text: "Search", description: "Search for items to open by name"},
+      "create": {func: createNewQuery, text: "Create", description: "Create a new set of data, query, or merge"},
+    }
+    return {c: "query-selector-wrapper", children: [
+      leftToolbar(actions),
+      {c: "query-selector", children: queries}
+    ]};
+  }
+
+  function queryItem(view) {
+    let viewId = view["view: view"];
+      let entityInfo = viewToEntityInfo(view);
+      let boundingBox = nodesToRectangle(entityInfo.nodes);
+      // translate the canvas so that the top left corner is the top left corner of the
+      // bounding box for the nodes
+      let xTranslate = -boundingBox.left;
+      let yTranslate = -boundingBox.top;
+      let scale;
+      // scale the canvas so that it matches the size of the preview, preserving the aspect-ratio.
+      if(boundingBox.width > previewWidth || boundingBox.height > previewHeight) {
+        scale = Math.min(previewWidth / boundingBox.width, previewHeight / boundingBox.height);
+      } else {
+        scale = 0.7;
+      }
+      return {c: "query-item", id: viewId, itemId: viewId, click: openQuery, children:[
         {c: "query-name", text: code.name(viewId)},
         {c: "query", children: [
           {c: "container", children: [
-            {c: "surface", children: [
-              queryPreview(view)
+            {c: "surface", transform:`scale(${scale}, ${scale}) translate(${xTranslate}px, ${yTranslate}px) `, children: [
+              queryPreview(view, entityInfo, boundingBox)
             ]},
           ]}
         ]}
       ]};
-    });
-    return {c: "query-selector-wrapper", children: [
-      {c: "button", text: "add query", click: createNewQuery},
-      {c: "query-selector", children: queries}
-    ]};
   }
 
   function createNewQuery(e, elem) {
@@ -1171,23 +1273,24 @@ module drawn {
   }
 
   function openQuery(e, elem) {
-    dispatch("openQuery", {queryId: elem.queryId});
+    dispatch("openQuery", {itemId: elem.itemId});
   }
 
   function queryUi(viewId, showResults = false) {
     var view = ixer.selectOne("view", {view: viewId});
     if(!view) return;
+    let entityInfo = viewToEntityInfo(view);
     return {c: "query", children: [
-      tooltipUi(),
-      localState.drawnUiActiveId ? queryTools(view) : undefined,
+      sorter(),
+      localState.drawnUiActiveId ? queryTools(view, entityInfo) : undefined,
       {c: "container", children: [
         {c: "surface", children: [
           {c: "query-name-input", contentEditable: true, blur: setQueryName, viewId: viewId, text: code.name(viewId)},
           queryMenu(view),
-          queryCanvas(view),
+          queryCanvas(view, entityInfo),
           queryErrors(view),
         ]},
-        showResults ? queryResults(viewId) : undefined
+        showResults ? queryResults(viewId, entityInfo) : undefined
       ]}
     ]};
   }
@@ -1216,28 +1319,25 @@ module drawn {
     return {c: "query-errors", children: errors};
   }
 
-  function queryTools(view) {
-    // What tools are available depends on what is selected.
-    // no matter what though you should be able to go back to the
-    // query selector.
-    let tools:any = [
-       {c: "tool", text: "back", click: gotoQuerySelector},
-    ];
-
+  function queryTools(view, entityInfo) {
     let viewId = view["view: view"];
-
-    // @FIXME: we ask for the entity info multiple times to draw the editor
-    // we should probably find a way to do it in just one.
-    let {nodeLookup} = viewToEntityInfo(view);
+    let {nodeLookup} = entityInfo;
 
     let selectedNodes = Object.keys(localState.selectedNodes).map(function(nodeId) {
       // we can't rely on the actual nodes of the uiSelection because they don't get updated
       // so we have to look them up again.
       return nodeLookup[nodeId];
-    });
+    }).filter((node) => node);
 
     let disabled = {};
     let actions = {
+      // What tools are available depends on what is selected.
+      // no matter what though you should be able to go back to the
+      // query selector and search.
+      "Back": {func: gotoItemSelector, text: "Back", description: "Return to the item selection page"},
+      "Search": {func: startSearching, text: "Search", description: "Find sources to add to your query"},
+      // These may get changed below depending on what's selected and the
+      // current state.
       "join": {func: joinSelection, text: "Join"},
       "select": {func: selectAttribute, text: "Show"},
       "filter": {func: addFilter, text: "Filter"},
@@ -1279,7 +1379,7 @@ module drawn {
           actions["join"] = {func: unjoinNodes, text: "Unjoin"};
         }
 
-        if(ixer.selectOne("select", {view: viewId, variable: node.variable})) {
+        if(ixer.selectOne("select", {variable: node.variable})) {
           actions["select"] = {func: unselectAttribute, text: "Hide"};
         }
         if(node.filter) {
@@ -1330,21 +1430,28 @@ module drawn {
         // whether or not we are showing or hiding is based on the state of the first node
         // in the selection
         let root = selectedNodes[0];
-        if(ixer.selectOne("select", {view: viewId, variable: root.variable})) {
+        if(ixer.selectOne("select", {variable: root.variable})) {
           actions["select"] = {func: unselectSelection, text: "Hide"};
         } else {
           actions["select"] = {func: selectSelection, text: "Show"};
         }
       }
     }
+    return leftToolbar(actions, disabled, {node: selectedNodes[0], viewId});
+  }
 
+  function leftToolbar(actions, disabled = {}, extraKeys = {}) {
+    var tools = [];
     for(let actionName in actions) {
       let action = actions[actionName];
-      let description;
+      let description = action.description;
       if(glossary.lookup[action.text]) {
         description = glossary.lookup[action.text].description;
       }
-      let tool = {c: "tool", text: action.text, viewId, node: selectedNodes[0], mouseover: showButtonTooltip, mouseout: hideButtonTooltip, description};
+      let tool = {c: "tool", text: action.text, mouseover: showButtonTooltip, mouseout: hideButtonTooltip, description};
+      for(var extraKey in extraKeys) {
+        tool[extraKey] = extraKeys[extraKey];
+      }
       if(!disabled[actionName]) {
         tool["click"] = action.func;
       } else {
@@ -1353,11 +1460,10 @@ module drawn {
       }
       tools.push(tool);
     }
-    tools.push({c: "tool", text: "search", click: startSearching});
+    tools.push();
 
     return {c: "left-side-container", children: [
       {c: "query-tools", children: tools},
-      sorter(),
       querySearcher()
     ]};
   }
@@ -1547,14 +1653,28 @@ module drawn {
     dispatch("addSelectToQuery", {viewId: elem.viewId, variableId: elem.node.variable, name: elem.node.name});
   }
 
-  function queryResults(viewId) {
+  function queryResults(viewId, entityInfo) {
     let resultViewId = viewId;
     let selectedNodeIds = Object.keys(localState.selectedNodes);
+    let peek;
     if(selectedNodeIds.length === 1 && localState.selectedNodes[selectedNodeIds[0]].type === "relationship") {
-      resultViewId = localState.selectedNodes[selectedNodeIds[0]].source["source: source view"];
+      let peekViewId = localState.selectedNodes[selectedNodeIds[0]].source["source: source view"];
+      let numFields = ixer.select("field", {view: peekViewId}).length;
+      let rect = nodesToRectangle(entityInfo.nodes);
+      let peekViewSize = ixer.select(peekViewId, {}).length;
+      peek = {c: "peek-results", width: numFields * 100, left: rect.right + 50, top: (rect.top + rect.height /2) - 75, children: [
+        {c: "result-size", text: `${peekViewSize} rows`},
+        tableEditor.tableForView(peekViewId, false, 100),
+
+      ]};
     }
+    let resultViewSize = ixer.select(resultViewId, {}).length;
     return {c: "query-results", children: [
-      tableEditor.tableForView(resultViewId, false, 100)
+      peek,
+      {c: "query-results-container", children: [
+        {c: "result-size", text: `${resultViewSize} results`},
+        tableEditor.tableForView(resultViewId, false, 100)
+      ]}
     ]};
   }
 
@@ -1562,8 +1682,8 @@ module drawn {
     dispatch("setQueryName", {viewId: elem.viewId, value: e.currentTarget.textContent});
   }
 
-  function gotoQuerySelector(e, elem) {
-    dispatch("gotoQuerySelector", {});
+  function gotoItemSelector(e, elem) {
+    dispatch("gotoItemSelector", {});
   }
 
   function queryMenu(query) {
@@ -1610,7 +1730,7 @@ module drawn {
         var curRel:any = {type: "relationship", source: source, id: sourceId, name: code.name(sourceViewId)};
         nodes.push(curRel);
         nodeLookup[curRel.id] = curRel;
-        if(ixer.selectOne("chunked source", {source: sourceId, view: viewId})) {
+        if(ixer.selectOne("chunked source", {source: sourceId})) {
           curRel.chunked = true;
         }
         if(ixer.selectOne("ordinal binding", {source: sourceId})) {
@@ -1792,23 +1912,23 @@ module drawn {
     return linkItems;
   }
 
-  function queryPreview(view) {
+  function queryPreview(view, entityInfo, boundingBox) {
     let viewId = view["view: view"];
-    var {nodes, links} = viewToEntityInfo(view);
+    var {nodes, links} = entityInfo;
     var items = [];
     for(var node of nodes) {
       items.push(nodeItem(node, viewId));
     }
     let linkItems = drawLinks(links, items);
     return {c: "canvas", children: [
-      {c: "links", svg: true, width:"100%", height:"100%", t: "svg", children: linkItems},
+      {c: "links", svg: true, width: boundingBox.right, height: boundingBox.bottom, t: "svg", children: linkItems},
       {c: "nodes", children: items}
     ]};
   }
 
-  function queryCanvas(view) {
+  function queryCanvas(view, entityInfo) {
     let viewId = view["view: view"];
-    var {nodes, links} = viewToEntityInfo(view);
+    var {nodes, links, nodeLookup} = entityInfo;
     var items = [];
     for(var node of nodes) {
       items.push(nodeItem(node, viewId));
@@ -1832,7 +1952,7 @@ module drawn {
     } else {
       let selectedNodeIds = Object.keys(localState.selectedNodes);
       if(selectedNodeIds.length) {
-        let {top, left, width, height} = nodesToRectangle(selectedNodeIds.map((nodeId) => localState.selectedNodes[nodeId]));
+        let {top, left, width, height} = nodesToRectangle(selectedNodeIds.map((nodeId) => nodeLookup[nodeId]).filter((node) => node));
         selection = {svg: true, c: "selection-rectangle", t: "rect", x: left - 10, y: top - 10, width: width + 20, height: height + 20};
       }
     }
@@ -1875,10 +1995,18 @@ module drawn {
     let {left, top} = toPosition(curNode);
     let height = nodeHeight + 2 * nodeHeightPadding;
     let width = Math.max(text.length * nodeWidthMultiplier + 2 * nodeWidthPadding, nodeWidthMin);
+    let right = left + width;
+    let bottom = top + height;
+    let filterWidth;
+    if(curNode.filter) {
+      filterWidth = Math.max(curNode.filter.value.length * nodeWidthMultiplier + 25, nodeWidthMin);
+      // subtract the 15 pixel overlap that occurs between nodes and their filters
+      right += filterWidth - 15;
+    }
     if(small) {
       width = Math.max(text.length * nodeSmallWidthMultiplier + nodeWidthPadding, nodeWidthMin);
     }
-    return {left, top, width, height, text};
+    return {left, top, right, bottom, width, height, text, filterWidth};
   }
 
   function nodeItem(curNode, viewId): any {
@@ -1908,22 +2036,26 @@ module drawn {
     if (curNode.entity !== undefined) {
       klass += " entity";
     }
+    var {left, top, width, height, text, filterWidth} = nodeDisplayInfo(curNode);
     if (curNode.filter && curNode.inputKind !== "vector input") {
       var op = curNode.filter.operation;
+      let filterIsBeingEdited = localState.modifyingFilterNodeId === curNode.id;
       var filterUi:any = {c: "attribute-filter", dblclick: modifyFilter, node: curNode, children: [
         //{c: "operation", text: curNode.filter.operation}
       ]};
-      if(localState.modifyingFilterNodeId === curNode.id) {
+
+      if(filterIsBeingEdited) {
         filterUi.children.push({c: "value", children: [
           {c: "filter-editor", contentEditable: true, postRender: focusOnce, keydown: submitOnEnter,
             blur: stopModifyingFilter, viewId, node: curNode, text: curNode.filter.value}
         ]});
       } else {
+        // we only want an explicit width if the filter isn't changing size to try and fit being edited.
+        filterUi.width = filterWidth;
         filterUi.children.push({c: "value", text: curNode.filter.value});
       }
       content.push(filterUi);
     }
-    var {left, top, width, height, text} = nodeDisplayInfo(curNode);
     var elem = {c: "item " + klass, selected: uiSelected, width, height,
                 mousedown: selectNode, dblclick: openNode, draggable: true, dragstart: storeDragOffset,
                 drag: setNodePosition, dragend: finalNodePosition, node: curNode, text};
@@ -1977,6 +2109,40 @@ module drawn {
       node: elem.node,
       pos: {left: x, top: y}
     });
+  }
+
+  //---------------------------------------------------------
+  // table selector / editor
+  //---------------------------------------------------------
+
+  function tableForm(tableId) {
+    let rows = ixer.select(tableId, {});
+    let fields = ixer.select("field", {view: tableId}).map((field) => {
+      let fieldId = field["field: field"];
+      let value = rows[0] ? rows[0][fieldId] : "";
+      return {c: "field-item", children: [
+
+        {c: "label", text: code.name(fieldId)},
+                {c: "entry-field", text: value},
+      ]};
+    });
+    return {c: "form-container", children: [
+      {c: "form", children: [
+        {c: "form-name", text: code.name(tableId)},
+        {c: "form-fields", children: fields},
+        rows.length > 0 ? {c: "size", text: `1 of ${rows.length}`} : {c: "size", text: "No entries"}
+      ]},
+      rows.length > 1 ? formRepeat(1) : undefined,
+      rows.length > 2 ? formRepeat(2) : undefined,
+    ]};
+  }
+
+  function formRepeat(depth) {
+    let offset = 4 * depth;
+    let topDir = Math.round(Math.random()) === 1 ? 1 : -1;
+    let leftDir = Math.round(Math.random()) === 1 ? 1 : -1;
+    return {c: `form-repeat`, zIndex: -1 * depth, transform: `rotate(${Math.random() * 3 * topDir + 1}deg)`, top: offset * topDir, left: offset * leftDir
+      };
   }
 
   //---------------------------------------------------------

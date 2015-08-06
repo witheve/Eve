@@ -150,7 +150,8 @@ fn test_examples() {
             let output = output_cell.borrow();
             // ignore internal views
             if !schema.iter().any(|&(ref id, _)| **id == *output.view) {
-                assert_eq!(output.index, input_flow.get_output(&output.view[..]).index);
+                let input = input_flow.get_output(&output.view[..]);
+                assert_eq!((&output.view, &output.index), (&input.view, &input.index));
             }
         }
     }

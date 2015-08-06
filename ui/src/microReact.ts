@@ -159,6 +159,7 @@ module microReact {
         if(cur.verticalAlign !== prev.verticalAlign) style.justifyContent = cur.verticalAlign;
         if(cur.color !== prev.color) style.color = cur.color || "inherit";
         if(cur.fontFamily !== prev.fontFamily) style.fontFamily = cur.fontFamily || "inherit";
+        if(cur.transform !== prev.transform) style.transform = cur.transform || "none";
 
         //events
         if(cur.dblclick !== prev.dblclick) div.ondblclick = cur.dblclick !== undefined ? this.handleEvent : undefined;

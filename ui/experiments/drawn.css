@@ -2,25 +2,38 @@ body { font-family:"Avenir"; }
 * { display: flex; flex-direction:column; box-sizing: border-box; }
 .query { height: 100%; width: 100%; position:relative; flex-direction:row; }
 
-.query-selector { flex-direction:row; flex-wrap:wrap; position:relative; justify-content:center; }
+.query-selector-wrapper { flex-direction: row; }
+.query-selector { flex: 1; flex-direction:row; flex-wrap:wrap; position:relative; justify-content:center; }
 .query-item { margin: 10px; }
-.query-item .query { width:300px; height:300px; overflow:hidden; border-radius:5px; border:1px solid #ddd; }
-.query-item .query-name { position:absolute; padding:10px; color: #888; }
+.query-item .query { width:300px; height:300px; border-radius:5px; box-shadow:0 0 8px #000; background: #404040; padding:25px; padding-top:50px; }
+.query-item .surface { overflow:visible; transform-origin: 0 0; }
+.query-item .query-name { position:absolute; padding:10px; color: #aaa; z-index:10; }
 .query-item .query-name-input { display:none; }
+
+.form-container { width: 300px;  margin:15px; position:relative; }
+.form-container .form-sub-container { flex: none; position:relative; }
+.form-container .form { flex: 1; position:relative;  padding:15px; box-shadow: 0 0 8px #000; border-radius:3px; background: #404040; margin-bottom:10px; }
+.form-container .form-repeat { transform-origin: center center; width: 300px; height:100%; position:absolute; left: 4px; top:4px; background:#404040; z-index: -1; box-shadow: 0 0 8px #000; border-radius:2px; }
+.form-container .field-item { margin-bottom:12px;  border:0px solid rgba(255,255,255,0.1); border-radius:3px; flex:none; }
+.form-container .form-name { font-size: 14pt; margin-bottom:20px; flex:none; }
+.form-container .form-fields { flex: 1; overflow:auto; margin-bottom:20px; }
+.form-container .label { margin-bottom: 3px; font-size:10pt; color: #aaa; font-weight: normal; }
+.form-container .entry-field { background: rgba(0,0,0, 0.15); border:0px solid rgba(255,255,255,0.1); min-height:25px; padding:5px; border-radius:3px; }
+.form-container .size { align-items: flex-end; font-size: 10pt; flex:none; color: #999; }
 
 .menu-shade { z-index: 100; position:absolute; top:0; bottom:0; left:0; right:0; background:rgba(255,255,255,0.9); overflow:auto; }
 .menu { position:absolute;  }
 
 .query-name-input { display:block; position:absolute; left:80px; top:10px; z-index:10; right:10px; }
 
-.query-tools { flex:none; padding:0px 0; z-index:10; background: rgba(0,0,0,0.03); width:120px; }
-.query-tools .tool { align-items: center; justify-content:center; padding: 10px 15px; }
+.query-tools { flex:none; padding:0px 0; z-index:10; background: rgba(0,0,0,0.03); width:100px; }
+.query-tools .tool { align-items: center; justify-content:center;  padding: 10px 15px; }
 .query-tools .tool + .tool { border-top:1px solid rgba(0,0,0,0.08); }
 .query-tools .tool.disabled { color: #666; }
 
 .searcher-container { position:absolute; top:0; bottom:0; left:0; right: 0; z-index: 10; }
 .searcher-shade { position:absolute; top:0; bottom:0; left:0; right:0; }
-.searcher { position:absolute; z-index: 10; bottom:0; left:0; background:#444;}
+.searcher { position:absolute; z-index: 10; bottom:0; left:0; background:#444; box-shadow:0 0 8px #000; }
 .searcher .search-box { outline: none; height:150px; padding:10px; }
 .searcher .search-results { flex-direction: row; }
 .searcher .search-results .search-result-group { max-height:290px; width: 300px; margin-top:10px; }
@@ -46,7 +59,7 @@ body { font-family:"Avenir"; }
 .sorter .sort-direction { font-size: 16px; line-height: 16px; margin-left: 5px; padding:0 5px; }
 
 
-.container { flex: 1; }
+.container { flex: 1; position:relative; }
 
 .tooltip { position:absolute; background: #444; padding:10px; border-radius:3px; z-index:10; font-size:10pt; }
 .tooltip .header { font-size: 11pt; margin-bottom:5px; }
@@ -56,6 +69,15 @@ body { font-family:"Avenir"; }
 
 .surface { flex: 1; position:relative; overflow:hidden; }
 .query-results { flex: 0.5; padding: 10px; padding-left:20px; }
+.query-results .result-size { padding-left: 0px; margin-bottom:2px; font-size:10pt; }
+.query-results-container { flex: 1; }
+
+.peek-results { position:absolute; flex: 1; top: 20px; right: 20px; height: 150px; font-size: 10pt; color: #0ba; }
+.peek-results .result-size { padding-left: 2px; margin-bottom:2px;}
+.peek-results .table-container { border-color: #0ba; }
+.peek-results .table-container .table .headers { background: #00443f; border-color: #00443f; }
+.peek-results .table-container .table .header { width: 100px; background: #00443f; color: #0ba; }
+.peek-results .table-container .table .field { width: 100px; color: #0ba; }
 
 .canvas { position:absolute; left: 0; right:0; top:0; bottom:0; }
 
@@ -70,7 +92,7 @@ body { font-family:"Avenir"; }
 .canvas .attribute-filter { flex-direction:row; align-items: center; justify-content: center; min-width: 40px; min-height: 20px; background:rgba(230,230,255,1); border: 1px solid rgba(194, 186, 242, 1); padding: 3px 10px; color:#555; border-radius:10px; margin-left:-15px; padding-left:15px; z-index:1; }
 .canvas .attribute-filter .value { margin-left: 5px;  }
 .canvas .filter-editor { min-width:20px; outline:none; }
-.canvas .item, .view-selector .item { flex:none; position: absolute; align-items: center; justify-content: center; min-width: 40px; min-height: 20px; padding: 3px 10px; border-radius:2px; }
+.canvas .item, .view-selector .item { flex:none; position: absolute; align-items: center; justify-content: center; min-width: 40px; min-height: 20px; padding: 3px 10px; border-radius:2px; rx: 5px; ry:5px; }
 .canvas .item.uiSelected { border-color: black; }
 .canvas .item.overlapped { background: #999; color: #222; }
 .canvas .relationship, .view-selector .relationship { background: rgba(205,205,205,1); color: #555; padding:3px; font-size:9pt; border-radius:50px; }
@@ -126,7 +148,7 @@ body { font-family:"Avenir"; }
 
 .dark { background: #222; color: #ccc; }
 .dark .canvas .attribute { background: #222; color: #ccc; border-color: #888; }
-.dark .canvas .relationship { background: #707070; color: #222; }
+.dark .canvas .relationship { background: #707070; color: #222; fill: #707070; }
 .dark .canvas .entity { background:rgba(165, 85, 187, 1); color: rgba(255,255,255,0.8); border-color: #ccc; }
 .dark .canvas .attribute-filter { background:rgba(48, 119, 105, 1); border: 1px solid rgba(121, 167, 171, 1); color:rgba(255,255,255,0.8); }
 .dark .canvas .item.uiSelected { border-color: #0ba; border-width: 1px; }
