@@ -83,7 +83,9 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
 
     vec![
     // warnings are generated for any schema violations in the input tables
-    ("warning", vec!["view", "row", "reason"]),
+    ("warning", vec!["view", "row", "warning"]),
+    ("disabled view", vec!["view", "warning view", "warning row", "warning"]),
+    ("enabled view", vec!["view ix", "view", "kind"]),
 
     // a view dependency exists whenever the contents of one view depend directly on another
     ("view dependency (pre)", vec!["downstream view", "source", "upstream view"]),
@@ -125,6 +127,7 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("non-sorted field", vec!["view", "source", "ix", "field"]),
 
     // we denormalise all the above views so that the `create` function only needs to make a single pass over each table
+    ("view layout", vec!["view ix", "view", "kind"]),
     ("output layout", vec!["view ix", "field ix", "field", "name"]),
     ("number of variables (pre)", vec!["view", "num"]),
     ("number of variables", vec!["view ix", "num"]),
@@ -163,12 +166,6 @@ pub fn editor_schema() -> Vec<(&'static str, Vec<&'static str>)> {
 
     // TODO what are this?
     ("primitive", vec!["view", "kind"]),
-    ("block", vec!["query", "block", "view"]),
-    ("block aggregate", vec!["view", "kind"]),
-    ("calculated field", vec!["calculated field", "view", "source", "source view", "field"]),
-    ("empty view", vec![]),
-    ("query export", vec!["query", "view"]),
-    ("source order", vec!["view", "source", "priority"]),
 
     // TODO what are this?
     ("uiComponentElement", vec!["tx", "id", "component", "layer", "control", "left", "top", "right", "bottom", "zindex"]),
@@ -699,11 +696,14 @@ fn plan(flow: &Flow) {
         });
 
         if schedulable_source_table.index.len() == 0 {
-            if unscheduled_source_table.index.len() == 0 {
-                break; // done
-            } else {
-                panic!("Cannot schedule {:#?}", unschedulable_source_table);
-            }
+            find!(unschedulable_source_table, [view, source, variable], {
+                warning_table.index.insert(vec![
+                    string!("unschedulable source"),
+                    Column(vec![view.clone(), source.clone(), variable.clone()]),
+                    string!("This source cannot be scheduled because this variable cannot be scheduled"),
+                    ]);
+            });
+            break; // done scheduling
         }
 
         pass += 1;
@@ -793,19 +793,76 @@ fn plan(flow: &Flow) {
     let mut non_sorted_field_table = flow.overwrite_output("non-sorted field");
     ordinal_by(&*non_sorted_field_pre_table, &mut *non_sorted_field_table, &["view", "source"]);
 
+    // --- disable views which have warnings ---
+
+    let disabled_view_table = RefCell::new(flow.overwrite_output("disabled view"));
+    find!(warning_table, [warning_view, warning_row, warning], {
+        let disable_view = |view: &Value| {
+            insert!(disabled_view_table.borrow_mut(), [view, warning_view, warning_row, warning]);
+        };
+        let disable_source = |source: &Value| {
+            find!(source_table, [view, (= source), _], {
+                insert!(disabled_view_table.borrow_mut(), [view, warning_view, warning_row, warning]);
+            });
+        };
+        let disable_variable = |variable: &Value| {
+            find!(variable_table, [view, (= variable)], {
+                insert!(disabled_view_table.borrow_mut(), [view, warning_view, warning_row, warning]);
+            });
+        };
+        let disable_field = |field: &Value| {
+            find!(field_table, [view, (= field), _], {
+                insert!(disabled_view_table.borrow_mut(), [view, warning_view, warning_row, warning]);
+            });
+        };
+        match (warning_view.as_str(), &warning_row.as_column()[..]) {
+            ("view", [ref view, _]) => disable_view(view),
+            ("field", [ref view, _, _]) => disable_view(view),
+            ("source", [ref view, _, _]) => disable_view(view),
+            ("variable", [ref view, _]) => disable_view(view),
+            ("constant", [ref variable, _]) => disable_variable(variable),
+            ("binding", [ref variable, ref source, _]) => { disable_variable(variable); disable_source(source) },
+            ("select", [ref field, ref variable]) => { disable_field(field); disable_variable(variable) },
+            ("grouped field", [ref source, _]) => disable_source(source),
+            ("sorted field", [ref source, _, _, _]) => disable_source(source),
+            ("ordinal binding", [ref variable, ref source]) => { disable_variable(variable); disable_source(source) },
+            ("chunked source", [ref source]) => disable_source(source),
+            ("negated source", [ref source]) => disable_source(source),
+            ("unschedulable source", [ref view, ref source, ref variable]) => { disable_view(view); disable_source(source); disable_variable(variable) },
+            _ => panic!("Don't know how to handle this warning: {:?} {:?} {:?}", warning_view, warning_row, warning),
+        }
+    });
+
+    let mut enabled_view_table = flow.overwrite_output("enabled view");
+    find!(view_schedule_table, [view_ix, view, kind], {
+        dont_find!(disabled_view_table.borrow(), [(= view), _, _, _], {
+            insert!(enabled_view_table, [view_ix, view, kind]);
+        });
+    });
+
     // --- denormalise for `create` ---
+
+    let mut view_layout_table = flow.overwrite_output("view layout");
+    find!(view_schedule_table, [view_ix, view, kind], {
+        if dont_find!(disabled_view_table.borrow(), [(= view), _, _, _]) {
+            insert!(view_layout_table, [view_ix, view, kind]);
+        } else {
+            // disabled views are just treated as constants
+            insert!(view_layout_table, [view_ix, view, string!("table")]);
+        }
+    });
 
     let mut output_layout_table = flow.overwrite_output("output layout");
     find!(index_layout_table, [view, field_ix, field, name], {
-        find!(view_schedule_table, [view_ix, (= view), _], {
+        find!(view_layout_table, [view_ix, (= view), _], {
             insert!(output_layout_table, [view_ix, field_ix, field, name]);
         });
     });
 
     let mut downstream_layout_table = flow.overwrite_output("downstream layout");
     find!(view_dependency_table, [downstream_view, ix, _, upstream_view], {
-        find!(view_schedule_table, [downstream_view_ix, (= downstream_view), _], {
-            find!(view_schedule_table, [upstream_view_ix, (= upstream_view), _], {
+        find!(view_layout_table, [downstream_view_ix, (= downstream_view), _], {
+            find!(view_layout_table, [upstream_view_ix, (= upstream_view), _], {
                 insert!(downstream_layout_table, [downstream_view_ix, ix, upstream_view_ix]);
             });
         });
@@ -816,7 +873,7 @@ fn plan(flow: &Flow) {
 
     let mut number_of_variables_table = flow.overwrite_output("number of variables");
     find!(number_of_variables_pre_table, [view, num], {
-        find!(view_schedule_table, [view_ix, (= view), _], {
+        find!(enabled_view_table, [view_ix, (= view), _], {
             insert!(number_of_variables_table, [view_ix, num]);
         });
     });
@@ -824,7 +881,7 @@ fn plan(flow: &Flow) {
     let mut constant_layout_table = flow.overwrite_output("constant layout");
     find!(constant_table, [variable, value], {
         find!(variable_table, [view, (= variable)], {
-            find!(view_schedule_table, [view_ix, (= view), _], {
+            find!(enabled_view_table, [view_ix, (= view), _], {
                 find!(variable_schedule_table, [(= view), variable_ix, _, (= variable)], {
                     insert!(constant_layout_table, [view_ix, variable_ix, value]);
                 });
@@ -833,7 +890,7 @@ fn plan(flow: &Flow) {
     });
 
     let mut source_layout_table = flow.overwrite_output("source layout");
-    find!(view_schedule_table, [view_ix, view, _], {
+    find!(enabled_view_table, [view_ix, view, _], {
         find!(source_schedule_table, [(= view), source_ix, _, source], {
             find!(source_table, [(= view), (= source), source_view], {
                 find!(view_table, [(= source_view), kind], {
@@ -852,7 +909,7 @@ fn plan(flow: &Flow) {
     });
 
     let mut binding_layout_table = flow.overwrite_output("binding layout");
-    find!(view_schedule_table, [view_ix, view, _], {
+    find!(enabled_view_table, [view_ix, view, _], {
         find!(source_schedule_table, [(= view), source_ix, _, source], {
             find!(source_table, [(= view), (= source), source_view], {
                 find!(index_layout_table, [(= source_view), field_ix, field, _], {
@@ -877,7 +934,7 @@ fn plan(flow: &Flow) {
     });
     find!(ordinal_binding_table, [variable, source], {
         find!(variable_schedule_table, [view, variable_ix, _, (= variable)], {
-            find!(view_schedule_table, [view_ix, (= view), _], {
+            find!(enabled_view_table, [view_ix, (= view), _], {
                 find!(source_schedule_table, [(= view), source_ix, _, (= source)], {
                     find!(source_table, [(= view), (= source), source_view], {
                         find!(number_of_fields_table, [(= source_view), number_of_fields], {
@@ -890,7 +947,7 @@ fn plan(flow: &Flow) {
     });
 
     let mut select_layout_table = flow.overwrite_output("select layout");
-    find!(view_schedule_table, [view_ix, view, _], {
+    find!(enabled_view_table, [view_ix, view, _], {
         find!(index_layout_table, [(= view), field_ix, field, _], {
             find!(select_table, [(= field), variable], {
                 find!(variable_schedule_table, [(= view), variable_ix, _, (= variable)], {
@@ -903,7 +960,7 @@ fn plan(flow: &Flow) {
     let mut grouped_field_layout_table = flow.overwrite_output("grouped field layout");
     find!(grouped_field_table, [source, field], {
         find!(source_table, [view, (= source), source_view], {
-            find!(view_schedule_table, [view_ix, (= view), _], {
+            find!(enabled_view_table, [view_ix, (= view), _], {
                 find!(source_schedule_table, [(= view), source_ix, _, (= source)], {
                     find!(index_layout_table, [(= source_view), field_ix, (= field), _], {
                         insert!(grouped_field_layout_table, [view_ix, source_ix, field_ix]);
@@ -916,7 +973,7 @@ fn plan(flow: &Flow) {
     let mut sorted_field_layout_table = flow.overwrite_output("sorted field layout");
     find!(sorted_field_table, [source, ix, field, direction], {
         find!(source_table, [view, (= source), source_view], {
-            find!(view_schedule_table, [view_ix, (= view), _], {
+            find!(enabled_view_table, [view_ix, (= view), _], {
                 find!(source_schedule_table, [(= view), source_ix, _, (= source)], {
                     find!(index_layout_table, [(= source_view), field_ix, (= field), _], {
                         insert!(sorted_field_layout_table, [view_ix, source_ix, ix, field_ix, direction]);
@@ -928,7 +985,7 @@ fn plan(flow: &Flow) {
 
     let mut non_sorted_field_layout_table = flow.overwrite_output("non-sorted field layout");
     find!(non_sorted_field_table, [view, source, ix, field], {
-        find!(view_schedule_table, [view_ix, (= view), _], {
+        find!(enabled_view_table, [view_ix, (= view), _], {
             find!(source_schedule_table, [(= view), source_ix, _, (= source)], {
                 find!(source_table, [(= view), (= source), source_view], {
                     find!(index_layout_table, [(= source_view), field_ix, (= field), _], {
@@ -952,7 +1009,7 @@ fn create(flow: &Flow) -> Flow {
     let mut dirty = BitSet::new();
     let mut outputs = Vec::new();
 
-    find!(flow.get_output("view schedule"), [view_ix, view, kind], {
+    find!(flow.get_output("view layout"), [view_ix, view, kind], {
         nodes.push(Node{
             id: view.as_str().to_owned(),
             view: match kind.as_str() {
