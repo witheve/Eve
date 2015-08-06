@@ -507,6 +507,9 @@ module drawn {
         localState.drawnUiActiveId = info.queryId;
       break;
       case "gotoQuerySelector":
+        // clear selection when leaving a workspace to ensure it doesn't end up taking effect in the
+        // next one you go to.
+        diffs = dispatch("clearSelection", {}, true);
         localState.drawnUiActiveId = false;
       break;
       //---------------------------------------------------------
