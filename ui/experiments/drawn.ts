@@ -472,11 +472,11 @@ module drawn {
         }
       break;
       case "initializeNodePosition":
-      let node = info.node;
-        let currentPos = positions[node.id];
+        var node = info.node;
+        var currentPos = positions[node.id];
         diffs.push(api.insert("editor node position", {node: node.id, x: currentPos.left, y: currentPos.top}),
                    api.remove("editor node position", {node: node.id}));
-        break;
+      break;
       //---------------------------------------------------------
       // Navigation
       //---------------------------------------------------------
