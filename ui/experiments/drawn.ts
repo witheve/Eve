@@ -503,7 +503,7 @@ module drawn {
         localState.drawnUiActiveId = info.node.source["source: source view"];
         diffs = dispatch("clearSelection", {}, true);
       break;
-      case "openQuery":
+      case "openItem":
         localState.drawnUiActiveId = info.itemId;
       break;
       case "gotoItemSelector":
@@ -515,12 +515,17 @@ module drawn {
       //---------------------------------------------------------
       // Query building
       //---------------------------------------------------------
-      case "createNewQuery":
-        let newId = uuid();
+      case "createNewItem":
+        var newId = uuid();
         localState.drawnUiActiveId = newId;
+        var tag;
+        if(info.kind === "table") {
+          tag = [{tag: "editor"}];
+        }
         diffs = [
-          api.insert("view", {view: newId, kind: "join", dependents: {"display name": {name: "New query!"}, "tag": [{tag: "remote"}]}})
+          api.insert("view", {view: newId, kind: info.kind, dependents: {"display name": {name: info.name}, tag}})
         ];
+        diffs.push.apply(diffs, dispatch("hideTooltip", {}, true));
       break;
       case "addViewAndMaybeJoin":
         var sourceId = uuid();
@@ -823,8 +828,6 @@ module drawn {
       case "startSort":
         var {sourceId} = info;
         localState.sorting = info;
-        // make sure that the tooltip isn't obstructing the sorter
-        dispatch("hideTooltip", {}, true);
         // if we haven't created sort fields for this before, then we create them in the
         // order that the fields of the source view are displayed in
         if(!ixer.selectOne("sorted field", {source: sourceId})) {
@@ -835,9 +838,18 @@ module drawn {
             diffs.push(api.insert("sorted field", {source: sourceId, ix, field: fieldId, direction: "ascending"}));
           })
         }
+        var tooltip:any = {
+          x: info.x,
+          y: info.y,
+          content: sorter,
+          persistent: true,
+          stopPersisting: stopSort,
+        };
+        dispatch("showTooltip", tooltip, true);
       break;
       case "stopSort":
         localState.sorting = false;
+        dispatch("hideTooltip", {}, true);
       break;
       case "moveSortField":
         var {from, to, sourceId} = info;
@@ -935,8 +947,6 @@ module drawn {
       break;
       case "stopSearching":
         localState.searching = false;
-        localState.searchResults = false;
-        localState.searchingFor = "";
       break;
       case "handleSearchKey":
         if(info.keyCode === api.KEYS.ENTER) {
@@ -955,17 +965,36 @@ module drawn {
         }
       break;
       //---------------------------------------------------------
+      // Create menu
+      //---------------------------------------------------------
+      case "startCreating":
+        localState.creating = info;
+        // make sure that the tooltip isn't obstructing the creator
+        var tooltip:any = {
+          x: info.x,
+          y: info.y,
+          content: creator,
+          persistent: true,
+          stopPersisting: stopCreating,
+        }
+        dispatch("showTooltip", tooltip, true);
+      break;
+      case "stopCreating":
+        localState.creating = false;
+        dispatch("hideTooltip", {}, true);
+      break;
+      //---------------------------------------------------------
       // Tooltip
       //---------------------------------------------------------
       case "showButtonTooltip":
         localState.maybeShowingTooltip = true;
-        var tooltip = {
+        var tooltip:any = {
           content: {c: "button-info", children: [
             {c: "header", text: info.header},
             {c: "description", text: info.description},
             info.disabledMessage ? {c: "disabled-message", text: "Disabled because " + info.disabledMessage} : undefined,
           ]},
-          x: info.x + 10,
+          x: info.x + 5,
           y: info.y
         };
         if(!localState.tooltip) {
@@ -977,6 +1006,7 @@ module drawn {
         }
       break;
       case "hideButtonTooltip":
+        if(localState.tooltip && localState.tooltip.persistent) return;
         clearTimeout(localState.tooltipTimeout);
         localState.maybeShowingTooltip = false;
         localState.tooltipTimeout = setTimeout(function() {
@@ -987,6 +1017,7 @@ module drawn {
       break;
       case "showTooltip":
         localState.tooltip = info;
+        clearTimeout(localState.tooltipTimeout);
       break;
       case "hideTooltip":
         localState.tooltip = false;
@@ -1183,7 +1214,7 @@ module drawn {
       if(localState.drawnUiActiveId) {
         dispatch("addViewAndMaybeJoin", {viewId: elem.result.viewId});
       } else {
-        dispatch("openQuery", {itemId: elem.result.viewId})
+        dispatch("openItem", {itemId: elem.result.viewId})
       }
     }};
   }
@@ -1239,11 +1270,32 @@ module drawn {
     });
     let actions = {
       "search": {func: startSearching, text: "Search", description: "Search for items to open by name"},
-      "create": {func: createNewQuery, text: "Create", description: "Create a new set of data, query, or merge"},
+      "create": {func: startCreating, text: "Create", description: "Create a new set of data, query, or merge"},
     }
     return {c: "query-selector-wrapper", children: [
       leftToolbar(actions),
       {c: "query-selector", children: queries}
+    ]};
+  }
+
+  function startCreating(e, elem) {
+    let rect = e.currentTarget.getBoundingClientRect();
+    dispatch("startCreating", {x: rect.right + 10, y: rect.top});
+  }
+
+  function stopCreating(e, elem) {
+    dispatch("stopCreating", {});
+  }
+
+  function creator() {
+    return {c: "creator", children: [
+      {c: "header", text: "Create"},
+      {c: "description", text: "Create a set of data if you want to input some values into Eve. Create a query if you want to work with your data. Create a union if you want to merge a bunch of different queries or data sets together."},
+      {c: "types", children: [
+        {c: "type", text: "Data", click: createNewItem, kind: "table", newName: "New table!"},
+        {c: "type", text: "Query", click: createNewItem, kind: "join", newName: "New query!"},
+        {c: "type", text: "Union", click: createNewItem, kind: "union", newName: "New union!"},
+      ]}
     ]};
   }
 
@@ -1262,7 +1314,7 @@ module drawn {
       } else {
         scale = 0.7;
       }
-      return {c: "query-item", id: viewId, itemId: viewId, click: openQuery, children:[
+      return {c: "query-item", id: viewId, itemId: viewId, click: openItem, children:[
         {c: "query-name", text: code.name(viewId)},
         {c: "query", children: [
           {c: "container", children: [
@@ -1308,14 +1360,22 @@ module drawn {
     ]};
   }
 
-  function tooltipUi() {
+  function tooltipUi(): any {
     let tooltip = localState.tooltip;
     if(tooltip) {
       let elem = {c: "tooltip", left: tooltip.x, top: tooltip.y};
       if(typeof tooltip.content === "string") {
         elem["text"] = tooltip.content;
+      } else if(typeof tooltip.content === "function") {
+        elem["children"] = [tooltip.content()];
       } else {
         elem["children"] = [tooltip.content];
+      }
+      if(tooltip.persistent) {
+        return {id: "tooltip-container", c: "tooltip-container", children: [
+          {c: "tooltip-shade", click: tooltip.stopPersisting},
+          elem,
+        ]};
       }
       return elem;
     }
@@ -1473,7 +1533,6 @@ module drawn {
       }
       tools.push(tool);
     }
-    tools.push();
 
     return {c: "left-side-container", children: [
       {c: "query-tools", children: tools},
@@ -1482,7 +1541,6 @@ module drawn {
   }
 
   function sorter() {
-    if(!localState.sorting) return;
     let sourceId = localState.sorting.sourceId;
     let sourceViewId = ixer.selectOne("source", {source: sourceId})["source: source view"];
     let fieldItems = ixer.getFields(sourceViewId).map((field, ix) => {
@@ -1497,14 +1555,11 @@ module drawn {
     fieldItems.sort((a, b) => {
       return a.sortIx - b.sortIx;
     });
-    return {c: "sorter-container", children: [
-      {c: "sorter-shade", click: stopSort},
-      {c: "sorter", top: localState.sorting.y, left: localState.sorting.x,  children: [
+    return {c: "sorter", children: [
         {c: "header", text: "Adjust sorting"},
         {c: "description", text: "Order the fields in the order you want them to be sorted in and click the arrow to adjust whether to sort ascending or descending"},
         {c: "fields", children: fieldItems}
-      ]}
-    ]};
+      ]};
   }
 
   function querySearcher() {
@@ -1981,7 +2036,7 @@ module drawn {
   }
 
   function surfaceRelativeCoords(e) {
-    let surface:any = document.getElementsByClassName("surface")[0];
+    let surface:any = document.getElementsByClassName("query-workspace")[0];
     let surfaceRect = surface.getBoundingClientRect();
     let x = e.clientX - surfaceRect.left;
     let y = e.clientY - surfaceRect.top;
@@ -2118,7 +2173,7 @@ module drawn {
 
   function setNodePosition(e, elem) {
     if(e.clientX === 0 && e.clientY === 0) return;
-    let surface:any = document.getElementsByClassName("surface")[0];
+    let surface:any = document.getElementsByClassName("query-workspace")[0];
     let surfaceRect = surface.getBoundingClientRect();
     let x = e.clientX - surfaceRect.left - api.localState.dragOffsetX;
     let y = e.clientY - surfaceRect.top - api.localState.dragOffsetY;
