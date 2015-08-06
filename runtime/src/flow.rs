@@ -195,10 +195,12 @@ impl Flow {
                         let mut output = self.outputs[ix].borrow_mut();
                         let mut index = &mut output.index;
                         for insert in inserts {
-                            view_changed = view_changed || index.insert(insert);
+                            let inserted = index.insert(insert);
+                            view_changed = view_changed || inserted;
                         }
                         for remove in removes {
-                            view_changed = view_changed || index.remove(&remove);
+                            let removed = index.remove(&remove);
+                            view_changed = view_changed || removed;
                         }
                     }
                     if view_changed {
