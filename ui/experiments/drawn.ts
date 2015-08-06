@@ -690,6 +690,12 @@ module drawn {
         diffs.push(api.insert("display name", {id: info.viewId, name: info.value}),
                    api.remove("display name", {id: info.viewId}));
       break;
+      case "setQueryDescription":
+        var prevDescription = ixer.selectOne("view description", {view: info.viewId});
+        if(prevDescription && info.value === prevDescription["view description: description"]) return;
+        diffs.push(api.insert("view description", {view: info.viewId, description: info.value}),
+                   api.remove("view description", {view: info.viewId}));
+      break;
       case "addFilter":
         var variableId = info.node.variable;
         diffs.push(api.insert("constant", {variable: variableId, value: ""}));
@@ -1268,26 +1274,33 @@ module drawn {
       ]};
   }
 
-  function createNewQuery(e, elem) {
-    dispatch("createNewQuery", {});
+  function createNewItem(e, elem) {
+    dispatch("createNewItem", {name: elem.newName, kind: elem.kind});
   }
 
-  function openQuery(e, elem) {
-    dispatch("openQuery", {itemId: elem.itemId});
+  function openItem(e, elem) {
+    dispatch("openItem", {itemId: elem.itemId});
   }
 
   function queryUi(viewId, showResults = false) {
     var view = ixer.selectOne("view", {view: viewId});
     if(!view) return;
     let entityInfo = viewToEntityInfo(view);
-    return {c: "query", children: [
-      sorter(),
+    let description = "No description :(";
+    let viewDescription = ixer.selectOne("view description", {view: viewId});
+    if(viewDescription) {
+      description = viewDescription["view description: description"];
+    }
+    return {c: "query query-editor", children: [
       localState.drawnUiActiveId ? queryTools(view, entityInfo) : undefined,
       {c: "container", children: [
         {c: "surface", children: [
-          {c: "query-name-input", contentEditable: true, blur: setQueryName, viewId: viewId, text: code.name(viewId)},
           queryMenu(view),
-          queryCanvas(view, entityInfo),
+          {c: "query-workspace", children: [
+            {c: "query-name-input", contentEditable: true, blur: setQueryName, viewId: viewId, text: code.name(viewId)},
+            {c: "query-description-input", contentEditable: true, blur: setQueryDescription, viewId, text: description},
+            queryCanvas(view, entityInfo),
+          ]},
           queryErrors(view),
         ]},
         showResults ? queryResults(viewId, entityInfo) : undefined
@@ -1680,6 +1693,10 @@ module drawn {
 
   function setQueryName(e, elem) {
     dispatch("setQueryName", {viewId: elem.viewId, value: e.currentTarget.textContent});
+  }
+
+  function setQueryDescription(e, elem) {
+    dispatch("setQueryDescription", {viewId: elem.viewId, value: e.currentTarget.textContent});
   }
 
   function gotoItemSelector(e, elem) {

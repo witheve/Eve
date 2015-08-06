@@ -938,6 +938,8 @@ module api {
     "binding": {},
     "constant": {},
 
+    "view description": {},
+
      "text input": {},
      "mouse position": {},
      "click": {},
