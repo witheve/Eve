@@ -3,6 +3,7 @@
 /// <reference path="../src/client.ts" />
 /// <reference path="../src/tableEditor.ts" />
 /// <reference path="../src/glossary.ts" />
+/// <reference path="../experiments/layout.ts" />
 module eveEditor {
   var localState = api.localState;
   var ixer = api.ixer;
@@ -162,11 +163,13 @@ module drawn {
   function findNodesIntersecting(currentNode, nodes, nodeLookup) {
     let currentNodePosition = nodeDisplayInfo(currentNode);
     let overlaps = [];
+    if (currentNodePosition.left === undefined || currentNodePosition.top === undefined) { return overlaps; }
     for (let node of nodes) {
       if (node.id === currentNode.id) continue;
       let nodePosition = nodeDisplayInfo(nodeLookup[node.id]);
 
-      if (currentNodePosition.left + currentNodePosition.width > nodePosition.left &&
+      if (nodePosition.left !== undefined && nodePosition.top !== undefined &&
+        currentNodePosition.left + currentNodePosition.width > nodePosition.left &&
         currentNodePosition.left < nodePosition.left + nodePosition.width &&
         currentNodePosition.top + currentNodePosition.height > nodePosition.top &&
         currentNodePosition.top < nodePosition.top + nodePosition.height) {
@@ -213,6 +216,7 @@ module drawn {
       return {node, displayInfo: nodeDisplayInfo(node)};
     }).filter((info) => {
       let {node, displayInfo} = info;
+      if(displayInfo.left === undefined || displayInfo.top === undefined) { return false; }
       let overlapLeft = Math.max(boxLeft, displayInfo.left);
       let overlapRight = Math.min(boxRight, displayInfo.left + displayInfo.width);
       let overlapTop = Math.max(boxTop, displayInfo.top);
@@ -228,6 +232,7 @@ module drawn {
     let right = -Infinity;
     for(var node of nodes) {
       let info = nodeDisplayInfo(node);
+      if(info.left === undefined || info.top === undefined) { continue; }
       if(info.left < left) left = info.left;
       if(info.left + info.width > right) right = info.left + info.width;
       if(info.top < top) top = info.top;
@@ -466,6 +471,12 @@ module drawn {
           }
         }
       break;
+      case "initializeNodePosition":
+      let node = info.node;
+        let currentPos = positions[node.id];
+        diffs.push(api.insert("editor node position", {node: node.id, x: currentPos.left, y: currentPos.top}),
+                   api.remove("editor node position", {node: node.id}));
+        break;
       //---------------------------------------------------------
       // Navigation
       //---------------------------------------------------------
@@ -1582,14 +1593,6 @@ module drawn {
     }
   }
 
-  function toPosition(node) {
-    var random = {left: 100 + Math.random() * 300, top: 100 + Math.random() * 300};
-    var key = node.id;
-    if(!positions[key]) {
-      positions[key] = random;
-    }
-    return positions[key];
-  }
 
   function joinToEntityInfo(view) {
     var nodes = [];
@@ -1792,9 +1795,54 @@ module drawn {
     return linkItems;
   }
 
+  function refreshNodePositions(nodes, links) {
+    let sourceNodes:graphLayout.Node[] = [];
+    let attributeNodes:graphLayout.Node[] = [];
+    let dirty = false;
+    for(let node of nodes) {
+      let displayInfo = nodeDisplayInfo(node);
+      let graphNode:graphLayout.Node = {id: node.id, type: node.type, width: displayInfo.width, height: displayInfo.height };
+      if(displayInfo.left !== undefined && displayInfo.top !== undefined) {
+        graphNode.x = displayInfo.left + displayInfo.width / 2;
+        graphNode.y = displayInfo.top + displayInfo.height / 2;
+      } else {
+        dirty = true;
+      }
+      if(node.type === "relationship" || node.type === "primitive") {
+        sourceNodes.push(graphNode);
+      } else if(node.type === "attribute") {
+        attributeNodes.push(graphNode);
+      } else {
+        console.warn("unhandled node type:", node.type);
+      }
+    }
+
+
+    if(dirty) {
+      let edges:graphLayout.Edge[] = [];
+      for(let link of links) { // Right is source, left is attribute.
+        edges.push({source: link.right.id, target: link.left.id});
+      }
+      
+      let graph = new graphLayout.Graph([500, 500], sourceNodes, attributeNodes, edges);
+      let layout = graph.layout();
+      for(let node of nodes) {
+        let p = layout.positions[node.id];
+        let s = layout.sizes[node.id];
+        let neue = {left: p[0] - s[0] / 2, top: p[1] - s[1] / 2};
+        let old = positions[node.id];
+        if(!old || old.left !== neue.left || old.top !== neue.top) {
+          positions[node.id] = neue;          
+          dispatch("initializeNodePosition", {node: node});
+        }
+      }
+    }
+  }
+
   function queryPreview(view) {
     let viewId = view["view: view"];
     var {nodes, links} = viewToEntityInfo(view);
+    refreshNodePositions(nodes, links);
     var items = [];
     for(var node of nodes) {
       items.push(nodeItem(node, viewId));
@@ -1808,9 +1856,11 @@ module drawn {
 
   function queryCanvas(view) {
     let viewId = view["view: view"];
-    var {nodes, links} = viewToEntityInfo(view);
-    var items = [];
-    for(var node of nodes) {
+    let {nodes, links} = viewToEntityInfo(view);
+    refreshNodePositions(nodes, links);
+    let items = [];
+    
+    for(let node of nodes) {
       items.push(nodeItem(node, viewId));
     }
     let linkItems = drawLinks(links, items);
@@ -1872,7 +1922,7 @@ module drawn {
   function nodeDisplayInfo(curNode) {
     let text = curNode.name;
     let small = false;
-    let {left, top} = toPosition(curNode);
+    let {left, top} = positions[curNode.id] || {};
     let height = nodeHeight + 2 * nodeHeightPadding;
     let width = Math.max(text.length * nodeWidthMultiplier + 2 * nodeWidthPadding, nodeWidthMin);
     if(small) {
