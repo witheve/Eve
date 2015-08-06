@@ -344,7 +344,7 @@ module drawn {
     return diffs;
   }
 
-  function addSourceFieldVariable(queryId, sourceViewId, sourceId, fieldId) {
+  function addSourceFieldVariable(itemId, sourceViewId, sourceId, fieldId) {
     let diffs = [];
     let kind;
     // check if we're adding an ordinal
@@ -355,7 +355,7 @@ module drawn {
     }
     // add a variable
     let variableId = uuid();
-    diffs.push(api.insert("variable", {view: queryId, variable: variableId}));
+    diffs.push(api.insert("variable", {view: itemId, variable: variableId}));
     if(kind === "ordinal") {
       // create an ordinal binding
       diffs.push(api.insert("ordinal binding", {variable: variableId, source: sourceId}));
@@ -365,7 +365,7 @@ module drawn {
     }
     if(kind === "output" || kind === "ordinal") {
       // select the field
-      diffs.push.apply(diffs, dispatch("addSelectToQuery", {viewId: queryId, variableId: variableId, name: code.name(fieldId) || fieldId}, true));
+      diffs.push.apply(diffs, dispatch("addSelectToQuery", {viewId: itemId, variableId: variableId, name: code.name(fieldId) || fieldId}, true));
     } else {
       // otherwise we're an input field and we need to add a default constant value
       diffs.push(api.insert("constant", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
@@ -504,9 +504,9 @@ module drawn {
         diffs = dispatch("clearSelection", {}, true);
       break;
       case "openQuery":
-        localState.drawnUiActiveId = info.queryId;
+        localState.drawnUiActiveId = info.itemId;
       break;
-      case "gotoQuerySelector":
+      case "gotoItemSelector":
         // clear selection when leaving a workspace to ensure it doesn't end up taking effect in the
         // next one you go to.
         diffs = dispatch("clearSelection", {}, true);
@@ -524,9 +524,9 @@ module drawn {
       break;
       case "addViewAndMaybeJoin":
         var sourceId = uuid();
-        var queryId = localState.drawnUiActiveId;
+        var itemId = localState.drawnUiActiveId;
         diffs = [
-          api.insert("source", {view: queryId, source: sourceId, "source view": info.viewId})
+          api.insert("source", {view: itemId, source: sourceId, "source view": info.viewId})
         ];
         // if there's a selection, we want to try and join on those nodes if possible
         // so that we don't produce product joins all the time
@@ -549,7 +549,7 @@ module drawn {
               diffs.push(api.insert("binding", {source: sourceId, field: fieldId, variable: potentialJoinNodes[name].variable}));
             } else {
               // otherwise we need to create a variable for this field
-              diffs.push.apply(diffs, addSourceFieldVariable(queryId, info.viewId, sourceId, fieldId));
+              diffs.push.apply(diffs, addSourceFieldVariable(itemId, info.viewId, sourceId, fieldId));
             }
         });
       break;
@@ -610,7 +610,7 @@ module drawn {
         }
       break;
       case "unjoinNodes":
-        var queryId = localState.drawnUiActiveId;
+        var itemId = localState.drawnUiActiveId;
         var variableIdToRemove = info.variableId;
         var oldBindings = ixer.select("binding", {variable: variableIdToRemove});
          // push all the bindings onto their own variables, skipping the first as that one can reuse
@@ -619,13 +619,13 @@ module drawn {
           let sourceId = binding["binding: source"];
           let fieldId = binding["binding: field"];
           let sourceViewId = ixer.selectOne("source", {source: sourceId})["source: source view"];
-          diffs.push.apply(diffs, addSourceFieldVariable(queryId, sourceViewId, sourceId, fieldId));
+          diffs.push.apply(diffs, addSourceFieldVariable(itemId, sourceViewId, sourceId, fieldId));
           diffs.push(api.remove("binding", {variable: variableIdToRemove, source: sourceId, field: fieldId}));
         }
         // check for an ordinal binding and create a new variable for it if it exists
         var ordinalBinding = ixer.selectOne("ordinal binding", {variable: variableIdToRemove});
         if(ordinalBinding) {
-          diffs.push.apply(diffs, addSourceFieldVariable(queryId, null, ordinalBinding["ordinal binding: source"], "ordinal"));
+          diffs.push.apply(diffs, addSourceFieldVariable(itemId, null, ordinalBinding["ordinal binding: source"], "ordinal"));
           diffs.push(api.remove("ordinal binding", {variable: variableIdToRemove}));
         }
         // we have to check to make sure that if the original binding represents an input it gets a default
@@ -929,6 +929,8 @@ module drawn {
       break;
       case "stopSearching":
         localState.searching = false;
+        localState.searchResults = false;
+        localState.searchingFor = "";
       break;
       case "handleSearchKey":
         if(info.keyCode === api.KEYS.ENTER) {
@@ -1172,7 +1174,11 @@ module drawn {
     }
     matchingViews.sort(sortByScore);
     return {kind: "Sources", results: matchingViews, onSelect: (e, elem) => {
-      dispatch("addViewAndMaybeJoin", {viewId: elem.result.viewId});
+      if(localState.drawnUiActiveId) {
+        dispatch("addViewAndMaybeJoin", {viewId: elem.result.viewId});
+      } else {
+        dispatch("openQuery", {itemId: elem.result.viewId})
+      }
     }};
   }
 
@@ -1197,14 +1203,46 @@ module drawn {
     if(localState.drawnUiActiveId) {
       page = queryUi(localState.drawnUiActiveId, true);
     } else {
-      page = querySelector();
+      page = itemSelector();
     }
-    return {id: "root", children: [page]};
+    return {id: "root", children: [tooltipUi(), page]};
   }
 
-  function querySelector() {
-    var queries = api.ixer.select("view", {kind: "join"}).map((view) => {
-      let viewId = view["view: view"];
+  function itemSelector() {
+    let viewIds;
+    let searching = false;
+    if(localState.searchingFor && localState.searchResults && localState.searchResults.length) {
+      viewIds = localState.searchResults[0].results.map((searchResult) => searchResult.viewId);
+      searching = true;
+    } else {
+      viewIds = ixer.select("view", {}).map((view) => view["view: view"]);
+    }
+    let queries = [];
+    viewIds.forEach((viewId) : any => {
+      let view = ixer.selectOne("view", {view: viewId});
+      let kind = view["view: kind"];
+      if(!searching && ixer.selectOne("tag", {view: viewId, tag: "hidden"})) {
+        return;
+      }
+      if(kind === "join") {
+        return queries.push(queryItem(view));
+      }
+      if(kind === "table") {
+        return queries.push(tableForm(view["view: view"]));
+      }
+    });
+    let actions = {
+      "search": {func: startSearching, text: "Search", description: "Search for items to open by name"},
+      "create": {func: createNewQuery, text: "Create", description: "Create a new set of data, query, or merge"},
+    }
+    return {c: "query-selector-wrapper", children: [
+      leftToolbar(actions),
+      {c: "query-selector", children: queries}
+    ]};
+  }
+
+  function queryItem(view) {
+    let viewId = view["view: view"];
       let entityInfo = viewToEntityInfo(view);
       let boundingBox = nodesToRectangle(entityInfo.nodes);
       // translate the canvas so that the top left corner is the top left corner of the
@@ -1218,7 +1256,7 @@ module drawn {
       } else {
         scale = 0.7;
       }
-      return {c: "query-item", queryId: viewId, click: openQuery, children:[
+      return {c: "query-item", id: viewId, itemId: viewId, click: openQuery, children:[
         {c: "query-name", text: code.name(viewId)},
         {c: "query", children: [
           {c: "container", children: [
@@ -1228,16 +1266,6 @@ module drawn {
           ]}
         ]}
       ]};
-    });
-    return {c: "query-selector-wrapper", children: [
-      {c: "query-selector-tools", children: [
-        {c: "button", text: "add query", click: createNewQuery},
-        {c: "button", text: "add query", click: createNewQuery},
-        {c: "button", text: "add query", click: createNewQuery},
-        {c: "button", text: "add query", click: createNewQuery},
-      ]},
-      {c: "query-selector", children: queries}
-    ]};
   }
 
   function createNewQuery(e, elem) {
@@ -1245,7 +1273,7 @@ module drawn {
   }
 
   function openQuery(e, elem) {
-    dispatch("openQuery", {queryId: elem.queryId});
+    dispatch("openQuery", {itemId: elem.itemId});
   }
 
   function queryUi(viewId, showResults = false) {
@@ -1253,7 +1281,7 @@ module drawn {
     if(!view) return;
     let entityInfo = viewToEntityInfo(view);
     return {c: "query", children: [
-      tooltipUi(),
+      sorter(),
       localState.drawnUiActiveId ? queryTools(view, entityInfo) : undefined,
       {c: "container", children: [
         {c: "surface", children: [
@@ -1292,17 +1320,7 @@ module drawn {
   }
 
   function queryTools(view, entityInfo) {
-    // What tools are available depends on what is selected.
-    // no matter what though you should be able to go back to the
-    // query selector.
-    let tools:any = [
-       {c: "tool", text: "back", click: gotoQuerySelector},
-    ];
-
     let viewId = view["view: view"];
-
-    // @FIXME: we ask for the entity info multiple times to draw the editor
-    // we should probably find a way to do it in just one.
     let {nodeLookup} = entityInfo;
 
     let selectedNodes = Object.keys(localState.selectedNodes).map(function(nodeId) {
@@ -1313,6 +1331,13 @@ module drawn {
 
     let disabled = {};
     let actions = {
+      // What tools are available depends on what is selected.
+      // no matter what though you should be able to go back to the
+      // query selector and search.
+      "Back": {func: gotoItemSelector, text: "Back", description: "Return to the item selection page"},
+      "Search": {func: startSearching, text: "Search", description: "Find sources to add to your query"},
+      // These may get changed below depending on what's selected and the
+      // current state.
       "join": {func: joinSelection, text: "Join"},
       "select": {func: selectAttribute, text: "Show"},
       "filter": {func: addFilter, text: "Filter"},
@@ -1412,14 +1437,21 @@ module drawn {
         }
       }
     }
+    return leftToolbar(actions, disabled, {node: selectedNodes[0], viewId});
+  }
 
+  function leftToolbar(actions, disabled = {}, extraKeys = {}) {
+    var tools = [];
     for(let actionName in actions) {
       let action = actions[actionName];
-      let description;
+      let description = action.description;
       if(glossary.lookup[action.text]) {
         description = glossary.lookup[action.text].description;
       }
-      let tool = {c: "tool", text: action.text, viewId, node: selectedNodes[0], mouseover: showButtonTooltip, mouseout: hideButtonTooltip, description};
+      let tool = {c: "tool", text: action.text, mouseover: showButtonTooltip, mouseout: hideButtonTooltip, description};
+      for(var extraKey in extraKeys) {
+        tool[extraKey] = extraKeys[extraKey];
+      }
       if(!disabled[actionName]) {
         tool["click"] = action.func;
       } else {
@@ -1428,11 +1460,10 @@ module drawn {
       }
       tools.push(tool);
     }
-    tools.push({c: "tool", text: "search", click: startSearching});
+    tools.push();
 
     return {c: "left-side-container", children: [
       {c: "query-tools", children: tools},
-      sorter(),
       querySearcher()
     ]};
   }
@@ -1651,8 +1682,8 @@ module drawn {
     dispatch("setQueryName", {viewId: elem.viewId, value: e.currentTarget.textContent});
   }
 
-  function gotoQuerySelector(e, elem) {
-    dispatch("gotoQuerySelector", {});
+  function gotoItemSelector(e, elem) {
+    dispatch("gotoItemSelector", {});
   }
 
   function queryMenu(query) {
@@ -2078,6 +2109,40 @@ module drawn {
       node: elem.node,
       pos: {left: x, top: y}
     });
+  }
+
+  //---------------------------------------------------------
+  // table selector / editor
+  //---------------------------------------------------------
+
+  function tableForm(tableId) {
+    let rows = ixer.select(tableId, {});
+    let fields = ixer.select("field", {view: tableId}).map((field) => {
+      let fieldId = field["field: field"];
+      let value = rows[0] ? rows[0][fieldId] : "";
+      return {c: "field-item", children: [
+
+        {c: "label", text: code.name(fieldId)},
+                {c: "entry-field", text: value},
+      ]};
+    });
+    return {c: "form-container", children: [
+      {c: "form", children: [
+        {c: "form-name", text: code.name(tableId)},
+        {c: "form-fields", children: fields},
+        rows.length > 0 ? {c: "size", text: `1 of ${rows.length}`} : {c: "size", text: "No entries"}
+      ]},
+      rows.length > 1 ? formRepeat(1) : undefined,
+      rows.length > 2 ? formRepeat(2) : undefined,
+    ]};
+  }
+
+  function formRepeat(depth) {
+    let offset = 4 * depth;
+    let topDir = Math.round(Math.random()) === 1 ? 1 : -1;
+    let leftDir = Math.round(Math.random()) === 1 ? 1 : -1;
+    return {c: `form-repeat`, zIndex: -1 * depth, transform: `rotate(${Math.random() * 3 * topDir + 1}deg)`, top: offset * topDir, left: offset * leftDir
+      };
   }
 
   //---------------------------------------------------------
