@@ -1303,31 +1303,6 @@ module api {
                    ["constraint right", mode, mapToFact("constraint right", params)],
                    ["constraint operation", mode, mapToFact("constraint operation", params)]);
         break;
-      case "source":
-        var isPrimitive = ixer.selectOne("primitive", {view: params["source view"]})
-        if(isPrimitive) {
-          var calculatedFieldNames = (ixer.selectPretty("calculated field", {view: params["view"]}) || []).map(function(field) {
-            return code.name(field["calculated field"]);
-          });
-          var nameIx = getUniqueNameIx(calculatedFieldNames, alphabetLower);
-
-          (ixer.select("field", {view: params["source view"]}) || []).forEach(function(field) {
-            if(field["field: kind"] === "output") {
-              var name = alphabetLower[nameIx++];
-              var calculatedId = params["view"] + params["source"] + field["field: field"];
-              diffs.push(["calculated field", mode, mapToFact("calculated field", {
-                "calculated field": calculatedId,
-                view: params["view"],
-                source: params["source"],
-                "source view": params["source view"],
-                field: field["field: field"]
-              })],
-              ["display name", mode, mapToFact("display name", {id: calculatedId, name: name})]);
-            }
-          });
-        }
-
-        break;
     }
 
     return diffs;
