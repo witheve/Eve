@@ -1,5 +1,5 @@
 body { font-family:"Avenir"; }
-* { display: flex; flex-direction:column; box-sizing: border-box; }
+* { display: flex; flex-direction:column; box-sizing: border-box; outline:none; }
 .query { height: 100%; width: 100%; position:relative; flex-direction:row; }
 
 .query-selector-wrapper { flex-direction: row; height:100vh; }
@@ -10,12 +10,15 @@ body { font-family:"Avenir"; }
 .query-item .query-name { position:absolute; padding:10px; color: #aaa; z-index:10; }
 .query-item .query-name-input { display:none; }
 
+.query-selector .selected { border: 2px solid #0ba; border-radius:8px; }
+
 .form-container { width: 300px;  margin:15px; position:relative; }
 .form-container .form-sub-container { flex: none; position:relative; }
 .form-container .form { flex: 1; position:relative;  padding:15px; box-shadow: 0 0 8px #000; border-radius:3px; background: #404040; margin-bottom:10px; }
 .form-container .form-repeat { transform-origin: center center; width: 300px; height:100%; position:absolute; left: 4px; top:4px; background:#404040; z-index: -1; box-shadow: 0 0 8px #000; border-radius:2px; }
 .form-container .field-item { margin-bottom:12px;  border:0px solid rgba(255,255,255,0.1); border-radius:3px; flex:none; }
-.form-container .form-name { font-size: 14pt; margin-bottom:20px; flex:none; }
+.form-container .form-name { font-size: 14pt; margin-bottom:3px; flex:none; }
+.form-container .form-description { margin-bottom:20px; flex:none; line-height:1.25; min-width:50px; max-width:300px; outline:none; font-size: 10pt; color: #aaa; }
 .form-container .form-fields { flex: 1; overflow:auto; margin-bottom:20px; }
 .form-container .label { margin-bottom: 3px; font-size:10pt; color: #aaa; font-weight: normal; }
 .form-container .entry-field { background: rgba(0,0,0, 0.15); border:0px solid rgba(255,255,255,0.1); min-height:25px; padding:5px; border-radius:3px; }
@@ -148,7 +151,7 @@ body { font-family:"Avenir"; }
 ---------------------------------------------------------*/
 
 .dark { background: #222; color: #ccc; }
-.dark .query-workspace { flex: 1; position:relative;  overflow:auto;  margin:0px 20px; border-radius:3px;  }
+.dark .query-workspace { flex: 1; position:relative; overflow:auto; margin:0px 20px; border-radius:3px; align-items: flex-start; }
 .dark .canvas .attribute { background: #404040; color: #ccc; border-color: #888; }
 .dark .canvas .relationship { background: #707070; color: #222; fill: #707070; }
 .dark .canvas .entity { background:rgba(165, 85, 187, 1); color: rgba(255,255,255,0.8); border-color: #ccc; }

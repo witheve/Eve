@@ -15,7 +15,7 @@ module client {
     }
     return (new Date()).getTime();
   }
-  
+
   function isUndefined(val) {
     return val === undefined;
   }
@@ -128,7 +128,7 @@ module client {
       error_banner.setAttribute("class","dead-server-banner");
       document.body.appendChild(error_banner);
     }
-    
+
     ws.onopen = function() {
       server.connected = true;
       for (var i = 0, len = queue.length; i < len; i++) {
@@ -163,7 +163,7 @@ module client {
                         fields,
                         filterFactsBySession(inserts, sessionFieldIx, data.session),
                         filterFactsBySession(removes, sessionFieldIx, data.session)]);
-          
+
         } else if (api.code.hasTag(view, "editor")) {
           // If view is editor controlled, we discard all changes.
           continue;
@@ -187,8 +187,8 @@ module client {
           writeDataToConsole({ changes: changes }, DEBUG.RECEIVE);
           console.groupEnd();
         }
-        
-        start = now();      
+
+        start = now();
       }
 
       ixer.handleMapDiffs(changes);
@@ -200,8 +200,6 @@ module client {
         var eventId = (ixer.facts("client event") || []).length; // Ensure eids are monotonic across sessions.
         uiEditorRenderer.setEventId(eventId);
         uiEditorRenderer.setSessionId(data.session); // Store server-assigned session id for use in client-controlled tables.
-        var neueDiffs = api.diff.computePrimitives(); // @FIXME: This will be obsolete once bootstrapped.
-        ixer.handleDiffs(neueDiffs);
         for(var initFunc of afterInitFuncs) {
           initFunc();
         }

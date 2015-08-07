@@ -1,5 +1,4 @@
 /// <reference path="api.ts" />
-/// <reference path="query-editor.ts" />
 module tableEditor {
   declare var uuid;
   declare var DEBUG;
@@ -95,60 +94,9 @@ module tableEditor {
       case "setTableSort":
         localState.sort[info.table] = {field: info.field, dir: info.dir};
         break;
-      case "createTableStateQuery": // @NOTE: This has to be entirely nuked in the event that a field is added.
-        var queryId = info.itemId + ": state query";
-        var fields = api.ixer.getFields(info.itemId);
-        diffs = api.toDiffs([
-          api.insert("view", {view: info.itemId + ": placeholder", kind: "table", dependents: {
-            "display name": {name: "placeholder"},
-            field: fields.map(function(fieldId) {
-              return {field: fieldId + ": placeholder", kind: "output", dependents: {
-                "display name": {name: api.code.name(fieldId)}
-              }}
-            })
-          }}),
-          api.insert("view", {view: info.itemId + ": insert", kind: "union", dependents: {
-            "display name": {name: "insert"},
-            tag: [{tag: "local"}, {tag: "remote"}], //@FIXME: remove w/ port to tags
-            block: {query: queryId, block: info.itemId + ": insert block"},
-            source: {source: info.itemId + ": insert source", "source view": info.itemId + ": placeholder"},
-            field: fields.map(function(fieldId) {
-              return {field: fieldId + ": insert", kind: "output", dependents: {
-                "display name": {name: api.code.name(fieldId)},
-                select: {source: info.itemId + ": insert source", "source field": fieldId + ": placeholder"}
-              }}
-            })
-          }}),
-          api.insert("view", {view: info.itemId + ": remove", kind: "union", dependents: {
-            "display name": {name: "remove"},
-            tag: [{tag: "local"}, {tag: "remote"}], //@FIXME: remove w/ port to tags
-            block: {query: queryId, block: info.itemId + ": remove block"},
-            source: {source: info.itemId + ": remove source", "source view": info.itemId + ": placeholder"},
-            field: fields.map(function(fieldId) {
-              return {field: fieldId + ": remove", kind: "output", dependents: {
-                "display name": {name: api.code.name(fieldId)},
-                select: {source: info.itemId + ": remove source", "source field": fieldId + ": placeholder"}
-              }}
-            })
-          }}),
-          api.insert("source", [
-            {source: "insert", "source view": info.itemId + ": insert"},
-            {source: "remove", "source view": info.itemId + ": remove"}
-          ], {view: info.itemId}),
-          api.insert("select", fields.map(function(fieldId) {
-            return {"view field": fieldId, source: "insert", "source field": fieldId + ": insert"};
-          }), {view: info.itemId}),
-          api.insert("select", fields.map(function(fieldId) {
-            return {"view field": fieldId, source: "remove", "source field": fieldId + ": remove"};
-          }), {view: info.itemId}),
-          api.remove("tag", {view: info.itemId, tag: "editor"}),
-          api.insert("tag", {view: info.itemId, tag: "remote"}) //@FIXME: remove w/ port to tags
-        ]);
-        eveEditor.dispatch("selectItem", {itemId: queryId});
-        break;
       default:
         redispatched = true;
-        eveEditor.dispatch(event, info);
+        drawn.dispatch(event, info);
         break;
     }
     if(!redispatched && !rentrant) {
@@ -173,20 +121,6 @@ module tableEditor {
       return false;
     }
     return input;
-  }
-
-  export function tableWorkspace(tableId) {
-    return eveEditor.genericWorkspace({
-      itemId: tableId,
-      content: {
-        c: "table-editor",
-        children: [
-          tableForView(tableId, true)
-        ]
-      },
-      controls: [
-        {class: "control", text:"+/-", click: openTableQuery, itemId: tableId}
-      ]})
   }
 
   export function tableForView(viewId, editable = false, limit:any = false) {
