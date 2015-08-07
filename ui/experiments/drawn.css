@@ -10,6 +10,8 @@ body { font-family:"Avenir"; }
 .query-item .query-name { position:absolute; padding:10px; color: #aaa; z-index:10; }
 .query-item .query-name-input { display:none; }
 
+.query-selector .selected { border: 2px solid #0ba; border-radius:8px; }
+
 .form-container { width: 300px;  margin:15px; position:relative; }
 .form-container .form-sub-container { flex: none; position:relative; }
 .form-container .form { flex: 1; position:relative;  padding:15px; box-shadow: 0 0 8px #000; border-radius:3px; background: #404040; margin-bottom:10px; }

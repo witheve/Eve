@@ -162,6 +162,9 @@ module drawn {
 
   localState.selectedNodes = {};
   localState.overlappingNodes = {};
+  localState.drawnUiActiveId = false;
+  localState.errors = [];
+  localState.selectedItems = {};
 
   var fieldToEntity = {}
 
@@ -181,9 +184,6 @@ module drawn {
       positions[pos["editor node position: node"]] = {top: pos["editor node position: y"], left: pos["editor node position: x"]};
     }
   }
-
-  localState.drawnUiActiveId = false;
-  localState.errors = [];
 
   //---------------------------------------------------------
   // Node helpers
@@ -522,6 +522,25 @@ module drawn {
         // next one you go to.
         diffs = dispatch("clearSelection", {}, true);
         localState.drawnUiActiveId = false;
+      break;
+      case "selectItem":
+        if(!info.shiftKey) {
+          localState.selectedItems = {};
+        } else if(info.shiftKey && localState.selectedItems[info.itemId]) {
+          // if this item is already selected and we click it again with the shiftKey
+          // then we need to deselect it
+          delete localState.selectedItems[info.itemId];
+          break;
+        }
+        console.log("select", info.itemId);
+        localState.selectedItems[info.itemId] = true;
+      break;
+      case "clearSelectedItems":
+        localState.selectedItems = {};
+      break;
+      case "removeSelectedItems":
+        // @TODO: implement item removal
+        console.error("TODO: implement item removal");
       break;
       //---------------------------------------------------------
       // Query building
@@ -1276,17 +1295,31 @@ module drawn {
         return queries.push(queryItem(view));
       }
       if(kind === "table") {
-        return queries.push(tableForm(view["view: view"]));
+        return queries.push(tableItem(view["view: view"]));
       }
     });
     let actions = {
       "search": {func: startSearching, text: "Search", description: "Search for items to open by name"},
       "create": {func: startCreating, text: "Create", description: "Create a new set of data, query, or merge"},
+      "remove": {func: removeSelectedItems, text: "Remove", description: "Remove an item from the database"},
+    };
+    let disabled = {};
+    // if nothing is selected, then remove needs to be disabled
+    if(!Object.keys(localState.selectedItems).length) {
+      disabled["remove"] = "no items are selected to be removed. Click on one of the cards to select it.";
     }
     return {c: "query-selector-wrapper", children: [
-      leftToolbar(actions),
-      {c: "query-selector", children: queries}
+      leftToolbar(actions, disabled),
+      {c: "query-selector", click: clearSelectedItems, children: queries}
     ]};
+  }
+
+  function clearSelectedItems(e, elem) {
+    dispatch("clearSelectedItems", {});
+  }
+
+  function removeSelectedItems(e, elem) {
+    dispatch("removeSelectedItems", {})
   }
 
   function startCreating(e, elem) {
@@ -1312,33 +1345,39 @@ module drawn {
 
   function queryItem(view) {
     let viewId = view["view: view"];
-      let entityInfo = viewToEntityInfo(view);
-      let boundingBox = nodesToRectangle(entityInfo.nodes);
-      // translate the canvas so that the top left corner is the top left corner of the
-      // bounding box for the nodes
-      let xTranslate = -boundingBox.left;
-      let yTranslate = -boundingBox.top;
-      let scale;
-      // scale the canvas so that it matches the size of the preview, preserving the aspect-ratio.
-      if(boundingBox.width > previewWidth || boundingBox.height > previewHeight) {
-        scale = Math.min(previewWidth / boundingBox.width, previewHeight / boundingBox.height);
-      } else {
-        scale = 0.7;
-      }
-      return {c: "query-item", id: viewId, itemId: viewId, click: openItem, children:[
-        {c: "query-name", text: code.name(viewId)},
-        {c: "query", children: [
-          {c: "container", children: [
-            {c: "surface", transform:`scale(${scale}, ${scale}) translate(${xTranslate}px, ${yTranslate}px) `, children: [
-              queryPreview(view, entityInfo, boundingBox)
-            ]},
-          ]}
+    let entityInfo = viewToEntityInfo(view);
+    let boundingBox = nodesToRectangle(entityInfo.nodes);
+    // translate the canvas so that the top left corner is the top left corner of the
+    // bounding box for the nodes
+    let xTranslate = -boundingBox.left;
+    let yTranslate = -boundingBox.top;
+    let scale;
+    // scale the canvas so that it matches the size of the preview, preserving the aspect-ratio.
+    if(boundingBox.width > previewWidth || boundingBox.height > previewHeight) {
+      scale = Math.min(previewWidth / boundingBox.width, previewHeight / boundingBox.height);
+    } else {
+      scale = 0.7;
+    }
+    let selected = localState.selectedItems[viewId] ? "selected" : "";
+    return {c: `query-item ${selected}`, id: viewId, itemId: viewId, click: selectItem, dblclick: openItem, children:[
+      {c: "query-name", text: code.name(viewId)},
+      {c: "query", children: [
+        {c: "container", children: [
+          {c: "surface", transform:`scale(${scale}, ${scale}) translate(${xTranslate}px, ${yTranslate}px) `, children: [
+            queryPreview(view, entityInfo, boundingBox)
+          ]},
         ]}
-      ]};
+      ]}
+    ]};
   }
 
   function createNewItem(e, elem) {
     dispatch("createNewItem", {name: elem.newName, kind: elem.kind});
+  }
+
+  function selectItem(e, elem) {
+    e.stopPropagation();
+    dispatch("selectItem", {itemId: elem.itemId, shiftKey: e.shiftKey});
   }
 
   function openItem(e, elem) {
@@ -2238,6 +2277,13 @@ module drawn {
   //---------------------------------------------------------
   // table selector / editor
   //---------------------------------------------------------
+
+   function tableItem(tableId) {
+     let selected = localState.selectedItems[tableId] ? "selected" : "";
+    return {c: `table-item ${selected}`, itemId: tableId, click: selectItem, dblclick: openItem, children: [
+      tableForm(tableId)
+    ]};
+  }
 
   function tableForm(tableId) {
     let rows = ixer.select(tableId, {});
