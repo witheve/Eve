@@ -1993,8 +1993,8 @@ module drawn {
     let dirty = false;
     for(let node of nodes) {
       let displayInfo = nodeDisplayInfo(node);
-      let width = displayInfo.totalWidth;
-      let height = displayInfo.totalHeight;
+      let width = displayInfo.totalWidth + 10;
+      let height = displayInfo.totalHeight + 10;
       let graphNode:graphLayout.Node = {id: node.id, type: node.type, width, height };
       if(displayInfo.left !== undefined && displayInfo.top !== undefined) {
         graphNode.x = displayInfo.left + width / 2;
@@ -2017,16 +2017,16 @@ module drawn {
       for(let link of links) { // Right is source, left is attribute.
         edges.push({source: link.right.id, target: link.left.id});
       }
-      
+
       let graph = new graphLayout.Graph(sourceNodes, attributeNodes, edges);
       let layout = graph.layout();
       for(let node of nodes) {
         let p = layout.positions[node.id];
         let s = layout.sizes[node.id];
-        let neue = {left: p[0] - s[0] / 2, top: p[1] - s[1] / 2};
+        let neue = {left: p[0] - s[0] / 2 - 5, top: p[1] - s[1] / 2 - 5};
         let old = positions[node.id];
         if(!old || old.left !== neue.left || old.top !== neue.top) {
-          positions[node.id] = neue;          
+          positions[node.id] = neue;
           dispatch("initializeNodePosition", {node: node});
         }
       }
@@ -2052,7 +2052,7 @@ module drawn {
     let viewId = view["view: view"];
     let {nodes, links, nodeLookup} = entityInfo;
     refreshNodePositions(nodes, links);
-    
+
     var items = [];
     for(var node of nodes) {
       items.push(nodeItem(node, viewId));
