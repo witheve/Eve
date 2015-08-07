@@ -80,6 +80,9 @@ body { font-family:"Avenir"; }
 .query-results .result-size { padding-left: 0px; margin-bottom:2px; font-size:10pt; }
 .query-results-container { flex: 1; }
 
+.table-editor .surface { flex:none; }
+.table-editor .query-result { flex:1; }
+
 .peek-results { position:absolute; flex: 1; top: 20px; right: 20px; height: 150px; font-size: 10pt; color: #0ba; }
 .peek-results .result-size { padding-left: 2px; margin-bottom:2px;}
 .peek-results .table-container { border-color: #0ba; }
@@ -134,10 +137,6 @@ body { font-family:"Avenir"; }
 .table-container .table .header:hover .icon { display:flex; }
 .table-container .table .header .icon.active { display:flex; color: #999; }
 .table-container .table .field { width: 200px; padding: 5px; flex:none; white-space: nowrap; overflow:hidden; }
-
-.table-editor {  flex:1; border-radius:3px; box-shadow:0 0 20px #111; background: #fff; color: #555; }
-.table-editor > .table .headers { padding-left: 10px;  }
-.table-editor > .table .rows { padding-left: 10px; height:100%; flex:1; }
 
 /*---------------------------------------------------------
 - errors

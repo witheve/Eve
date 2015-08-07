@@ -1003,7 +1003,14 @@ module drawn {
         console.error("Implement newTableEntry");
       break;
       case "deleteTableEntry":
-        console.error("Implement deleteTableEntry");
+        var row = localState.tableEntry;
+        var tableId = localState.drawnUiActiveId;
+        // if the row is not empty, remove it. Otherwise we'd remove every
+        // value in the table and be sad :(
+        if(Object.keys(row).length) {
+          diffs.push(api.remove(tableId, row, undefined, true));
+        }
+        localState.tableEntry = {};
       break;
       case "addFieldToTable":
         var tableId = info.tableId || localState.drawnUiActiveId;
@@ -1455,12 +1462,12 @@ module drawn {
 
   function tooltipUi(): any {
     let tooltip = localState.tooltip;
-    
+
     if(tooltip) {
       let viewHeight = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
        // @FIXME: We need to get the actual element size here.
       let elem:any = {c: "tooltip", left: tooltip.x, top: Math.min(tooltip.y, viewHeight - 61)};
-      
+
       if(typeof tooltip.content === "string") {
         elem["text"] = tooltip.content;
       } else if(typeof tooltip.content === "function") {
@@ -1655,7 +1662,7 @@ module drawn {
         };
     dispatch("showTooltip", tooltip);
   }
-  
+
   function settingsPanel() {
     return {text: "@TODO: Settings"};
   }
@@ -2431,11 +2438,11 @@ module drawn {
       "back": {text: "Back", func: gotoItemSelector, description: "Return to the item selection page"},
       "new": {text: "New", func: newTableEntry, description: "Create a new entry"},
       "delete": {text: "Delete", func: deleteTableEntry, description: "Delete the current entry"},
-      "add field": {text: "Add", func: addFieldToTable, description: "Add a field to the card"},
-      "remove field": {text: "Remove", func: removeFieldFromTable, description: "Remove the active field from the card"},
+      "add field": {text: "+Field", func: addFieldToTable, description: "Add a field to the card"},
+      "remove field": {text: "-Field", func: removeFieldFromTable, description: "Remove the active field from the card"},
     };
     let resultViewSize = ixer.select(tableId, {}).length;
-    return {c: "query query-editor", children: [
+    return {c: "query table-editor", children: [
       leftToolbar(actions),
       {c: "container", children: [
         {c: "surface", children: [

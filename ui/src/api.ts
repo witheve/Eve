@@ -424,7 +424,7 @@ module api {
     var schema = schemas[type] || {};
     if(!schema) { throw new Error("Attempted to retrieve unknown type " + type + " with params " + JSON.stringify(query)); }
     var keys:string[] = (schema.key instanceof Array) ? <string[]>schema.key : (schema.key) ? [<string>schema.key] : [];
-    var facts = useIds ? ixer.select(type, query) : ixer.selectPretty(type, query);
+    var facts = useIds ? ixer.select(type, query, useIds) : ixer.selectPretty(type, query);
 
     if(!facts.length) { return; }
     for(var fact of facts) {
@@ -583,7 +583,7 @@ module api {
 
     if(params instanceof Array) {
       for(var item of params) {
-        diffs = diffs.concat(toDiffs({type: type, content: item, context: write.context, mode: mode}));
+        diffs = diffs.concat(toDiffs({type: type, content: item, context: write.context, mode: mode, useIds: write.useIds}));
       }
       return diffs;
     }
