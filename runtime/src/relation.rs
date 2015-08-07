@@ -47,17 +47,30 @@ impl Relation {
         }
     }
 
-    pub fn change(&mut self, change: Change) {
+    pub fn change(&mut self, change: Change) -> bool {
         assert_eq!(self.fields.len(), change.fields.len());
         let mapping = mapping(&*change.fields, &*self.fields).unwrap();
-        for values in change.insert.into_iter() {
-            assert_eq!(values.len(), mapping.len());
-            self.index.insert(with_mapping(values, &*mapping));
+        let inserts = change.insert.into_iter().map(|row| with_mapping(row, &*mapping)).collect();
+        let removes = change.remove.into_iter().map(|row| with_mapping(row, &*mapping)).collect();
+        self.change_raw(inserts, removes)
+    }
+
+    pub fn change_raw(&mut self, mut inserts: Vec<Vec<Value>>, mut removes: Vec<Vec<Value>>) -> bool {
+        inserts.sort();
+        removes.sort();
+        inserts.retain(|insert| removes.binary_search(&insert).is_err());
+        removes.retain(|remove| inserts.binary_search(&remove).is_err());
+        let mut index = &mut self.index;
+        let mut changed = false;
+        for insert in inserts {
+            let inserted = index.insert(insert);
+            changed = changed || inserted;
         }
-        for values in change.remove.into_iter() {
-            assert_eq!(values.len(), mapping.len());
-            self.index.remove(&with_mapping(values, &*mapping));
+        for remove in removes {
+            let removed = index.remove(&remove);
+            changed = changed || removed;
         }
+        changed
     }
 
     pub fn as_insert(&self) -> Change {

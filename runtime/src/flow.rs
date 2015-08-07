@@ -1,7 +1,8 @@
 use std::collections::{BitSet, BTreeSet};
 use std::cell::{RefCell, Ref, RefMut};
+use std::mem::replace;
 
-use value::{Id};
+use value::{Id, Value};
 use relation::{Change, Relation};
 use view::{View, Table};
 use compiler;
@@ -20,6 +21,7 @@ pub type Changes = Vec<(Id, Change)>;
 pub struct Flow {
     pub nodes: Vec<Node>,
     pub outputs: Vec<RefCell<Relation>>,
+    pub errors: Vec<Vec<Vec<Value>>>,
     pub dirty: BitSet,
     pub needs_recompile: bool,
 }
@@ -29,6 +31,7 @@ impl Flow {
         let mut flow = Flow {
             nodes: Vec::new(),
             outputs: Vec::new(),
+            errors: Vec::new(),
             dirty: BitSet::new(),
             needs_recompile: true,
         };
@@ -142,16 +145,25 @@ impl Flow {
     }
 
     pub fn recalculate(&mut self) {
-        let Flow{ref nodes, ref mut outputs, ref mut dirty, ..} = *self;
+        let error_ix = self.get_ix("error").unwrap();
+        let Flow{ref nodes, ref mut outputs, ref mut errors, ref mut dirty, ..} = *self;
         let code_schema = compiler::code_schema();
         while let Some(ix) = dirty.iter().next() {
             dirty.remove(&ix);
             let node = &nodes[ix];
+            let mut new_errors = &mut errors[ix];
+            let old_errors = replace(new_errors, vec![]);
             let new_output = {
                 let upstream = node.upstream.iter().map(|&ix| outputs[ix].borrow()).collect::<Vec<_>>();
                 let inputs = upstream.iter().map(|borrowed| &**borrowed).collect::<Vec<_>>();
-                node.view.run(&*outputs[ix].borrow(), &inputs[..])
+                node.view.run(&*outputs[ix].borrow(), &inputs[..], &mut new_errors)
             };
+            let errors_changed = outputs[error_ix].borrow_mut().change_raw(new_errors.clone(), old_errors);
+            if errors_changed {
+                for ix in nodes[error_ix].downstream.iter() {
+                    dirty.insert(*ix);
+                }
+            }
             match new_output {
                 None => (), // view does not want to update
                 Some(new_output) => {
@@ -176,33 +188,19 @@ impl Flow {
         for (ix, node) in self.nodes.iter().enumerate() {
             match node.view {
                 View::Table(Table{ref insert, ref remove}) => {
-                    let mut view_changed = false;
-                    {
+                    let view_changed = {
                         let upstream = node.upstream.iter().map(|ix| self.outputs[*ix].borrow()).collect::<Vec<_>>();
                         let inputs = upstream.iter().map(|borrowed| &**borrowed).collect::<Vec<_>>();
-                        let mut inserts = match *insert {
+                        let inserts = match *insert {
                             Some(ref select) => select.select(&inputs[..]),
                             None => vec![],
                         };
-                        let mut removes = match *remove {
+                        let removes = match *remove {
                             Some(ref select) => select.select(&inputs[..]),
                             None => vec![],
                         };
-                        inserts.sort();
-                        removes.sort();
-                        inserts.retain(|insert| removes.binary_search(&insert).is_err());
-                        removes.retain(|remove| inserts.binary_search(&remove).is_err());
-                        let mut output = self.outputs[ix].borrow_mut();
-                        let mut index = &mut output.index;
-                        for insert in inserts {
-                            let inserted = index.insert(insert);
-                            view_changed = view_changed || inserted;
-                        }
-                        for remove in removes {
-                            let removed = index.remove(&remove);
-                            view_changed = view_changed || removed;
-                        }
-                    }
+                        self.outputs[ix].borrow_mut().change_raw(inserts, removes)
+                    };
                     if view_changed {
                         if code_schema.iter().find(|&&(ref code_id, _)| **code_id == node.id).is_some() {
                             self.needs_recompile = true;
