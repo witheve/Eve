@@ -354,20 +354,28 @@ module Indexing {
     first(table: Id, unpacked:boolean = false):ArrayFact|MapFact {
       return this.facts(table, unpacked)[0];
     }
-    select(table: Id, opts): MapFact[] {
+    select(table: Id, opts, useIds = false): MapFact[] {
       var facts:MapFact[] = [];
       var first = this.first(table, true);
       if(!first) { return []; }
       var fieldIds = (this.index("view to fields", true)[table] || []).map((fact) => fact["field: field"]);
-      var nameLen = table.length + 2;
-      var names = this.index("display name", true);
-      var fieldNames = fieldIds.map((cur) => names[cur]);
-      var keys = Object.keys(opts).filter((key) => opts[key] !== undefined);
-      keys = keys.map(function (key) {
-        var result = fieldIds[fieldNames.indexOf(key)];
-        if(result === undefined) { throw new Error("Field " + keys + " is not a valid field of table " + table); }
-        return result;
-      });
+      var names, keys;
+      if(!useIds) {
+        names = this.index("display name", true);
+        var fieldNames = fieldIds.map((cur) => names[cur]);
+        keys = Object.keys(opts).filter((key) => opts[key] !== undefined);
+        keys = keys.map(function (key) {
+          var result = fieldIds[fieldNames.indexOf(key)];
+          if(result === undefined) { throw new Error("Field " + keys + " is not a valid field of table " + table); }
+          return result;
+        });
+      } else {
+        keys = fieldIds;
+        names = {};
+        for(let fieldId of fieldIds) {
+          names[fieldId] = fieldId;
+        }
+      }
       keys.sort();
       if(keys.length > 0) {
         var indexName = `${table}|${keys.join("|") }`;
