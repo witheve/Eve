@@ -38,12 +38,6 @@ module eveEditor {
 
   export function executeDispatch(diffs, storeEvent, sendToServer) {
     if(diffs && diffs.length) {
-      if(storeEvent) {
-        var eventItem = {event: event, diffs: diffs, children: [], parent: eventStack, localState: api.clone(localState), root: false};
-        eventStack.children.push(eventItem);
-        eventStack = eventItem;
-      }
-
       ixer.handleDiffs(diffs);
       if(sendToServer) {
         if(DEBUG.DELAY) {
@@ -165,6 +159,7 @@ module drawn {
   localState.drawnUiActiveId = false;
   localState.errors = [];
   localState.selectedItems = {};
+  localState.tableEntry = {};
 
   var fieldToEntity = {}
 
@@ -382,7 +377,7 @@ module drawn {
   // Dispatch
   //---------------------------------------------------------
 
-  function dispatch(event, info, rentrant?) {
+  export function dispatch(event, info, rentrant?) {
     //console.log("dispatch[" + event + "]", info);
     var diffs = [];
     var storeEvent = true;
@@ -516,12 +511,19 @@ module drawn {
       break;
       case "openItem":
         localState.drawnUiActiveId = info.itemId;
+        // store the current search information so that when we return to the selector
+        // we can make sure it's how you left it even if you do searches in the editor
+        localState.selectorSearchingFor = localState.searchingFor;
+        localState.selectorSearchResults = localState.searchResults;
       break;
       case "gotoItemSelector":
         // clear selection when leaving a workspace to ensure it doesn't end up taking effect in the
         // next one you go to.
         diffs = dispatch("clearSelection", {}, true);
         localState.drawnUiActiveId = false;
+        // restore the previous search state so that the selector is how you left it
+        localState.searchingFor = localState.selectorSearchingFor;
+        localState.searchResults = localState.selectorSearchResults;
       break;
       case "selectItem":
         if(!info.shiftKey) {
@@ -551,11 +553,11 @@ module drawn {
         var tag;
         if(info.kind === "table") {
           tag = [{tag: "editor"}];
+          diffs.push.apply(diffs, dispatch("addFieldToTable", {tableId: newId}, true));
         }
-        diffs = [
-          api.insert("view", {view: newId, kind: info.kind, dependents: {"display name": {name: info.name}, tag}})
-        ];
+        diffs.push(api.insert("view", {view: newId, kind: info.kind, dependents: {"display name": {name: info.name}, tag}}));
         diffs.push.apply(diffs, dispatch("hideTooltip", {}, true));
+
       break;
       case "addViewAndMaybeJoin":
         var sourceId = uuid();
@@ -720,10 +722,10 @@ module drawn {
           diffs.push.apply(diffs, dispatch("removeSelectFromQuery", {variableId: node.variable, viewId: localState.drawnUiActiveId}, true));
         }
       break;
-      case "setQueryName":
-        if(info.value === ixer.selectOne("display name", {id: info.viewId})["display name: name"]) return;
-        diffs.push(api.insert("display name", {id: info.viewId, name: info.value}),
-                   api.remove("display name", {id: info.viewId}));
+      case "rename":
+        if(info.value === ixer.selectOne("display name", {id: info.renameId})["display name: name"]) return;
+        diffs.push(api.insert("display name", {id: info.renameId, name: info.value}),
+                   api.remove("display name", {id: info.renameId}));
       break;
       case "setQueryDescription":
         var prevDescription = ixer.selectOne("view description", {view: info.viewId});
@@ -993,6 +995,36 @@ module drawn {
           diffs.push.apply(diffs, dispatch("stopSearching", {}, true));
           info.e.preventDefault();
         }
+      break;
+      //---------------------------------------------------------
+      // Tables
+      //---------------------------------------------------------
+      case "newTableEntry":
+        console.error("Implement newTableEntry");
+      break;
+      case "deleteTableEntry":
+        console.error("Implement deleteTableEntry");
+      break;
+      case "addFieldToTable":
+        var tableId = info.tableId || localState.drawnUiActiveId;
+        var fields = ixer.select("field", {view: tableId}) || [];
+        var neueField = api.insert("field", {view: tableId, kind: "output", dependents: {
+          "display name": {name: `Field ${api.alphabet[fields.length]}`},
+          "display order": {priority: -fields.length}
+        }});
+        diffs.push(neueField);
+      break;
+      case "removeFieldFromTable":
+        console.error("Implement removeFieldFromTable");
+      break;
+      case "submitTableEntry":
+        var row = localState.tableEntry;
+        var tableId = localState.drawnUiActiveId;
+        diffs.push(api.insert(tableId, row, undefined, true));
+        localState.tableEntry = {};
+      break;
+      case "setTableEntryField":
+        localState.tableEntry[info.fieldId] = info.value;
       break;
       //---------------------------------------------------------
       // Create menu
@@ -1267,8 +1299,18 @@ module drawn {
 
   function root() {
     var page:any;
-    if(localState.drawnUiActiveId) {
-      page = queryUi(localState.drawnUiActiveId, true);
+    let viewId = localState.drawnUiActiveId;
+    if(viewId) {
+      let viewKind = ixer.selectOne("view", {view: viewId})["view: kind"];
+      if(viewKind === "join") {
+        page = queryUi(viewId, true);
+      } else if(viewKind === "table") {
+        page = tableUi(viewId);
+      } else if(viewKind === "union") {
+        console.error("TODO: implement union view");
+        page = itemSelector();
+      }
+
     } else {
       page = itemSelector();
     }
@@ -1361,6 +1403,7 @@ module drawn {
     let selected = localState.selectedItems[viewId] ? "selected" : "";
     return {c: `query-item ${selected}`, id: viewId, itemId: viewId, click: selectItem, dblclick: openItem, children:[
       {c: "query-name", text: code.name(viewId)},
+      // {c: "query-description", text: getDescription(viewId)},
       {c: "query", children: [
         {c: "container", children: [
           {c: "surface", transform:`scale(${scale}, ${scale}) translate(${xTranslate}px, ${yTranslate}px) `, children: [
@@ -1399,7 +1442,7 @@ module drawn {
         {c: "surface", children: [
           queryMenu(view),
           {c: "query-workspace", children: [
-            {c: "query-name-input", contentEditable: true, blur: setQueryName, viewId: viewId, text: code.name(viewId)},
+            {c: "query-name-input", contentEditable: true, blur: rename, renameId: viewId, text: code.name(viewId)},
             {c: "query-description-input", contentEditable: true, blur: setQueryDescription, viewId, text: description},
             queryCanvas(view, entityInfo),
           ]},
@@ -1796,8 +1839,8 @@ module drawn {
     ]};
   }
 
-  function setQueryName(e, elem) {
-    dispatch("setQueryName", {viewId: elem.viewId, value: e.currentTarget.textContent});
+  function rename(e, elem) {
+    dispatch("rename", {renameId: elem.renameId, value: e.currentTarget.textContent});
   }
 
   function setQueryDescription(e, elem) {
@@ -2285,22 +2328,51 @@ module drawn {
     ]};
   }
 
-  function tableForm(tableId) {
-    let rows = ixer.select(tableId, {});
-    let fields = ixer.select("field", {view: tableId}).map((field) => {
-      let fieldId = field["field: field"];
-      let value = rows[0] ? rows[0][fieldId] : "";
+  function tableFormEditor(tableId, row = null, rowNum = 0, rowTotal = 0) {
+    let fields = ixer.getFields(tableId).map((fieldId) => {
+      let value = row ? row[fieldId] : "";
+      let entryField = {c: "entry-field", fieldId, text: value, contentEditable: true, keydown: submitTableEntry, input: setTableEntryField};
       return {c: "field-item", children: [
-
-        {c: "label", text: code.name(fieldId)},
-                {c: "entry-field", text: value},
+        {c: "label", contentEditable: true, blur: rename, renameId: fieldId, text: code.name(fieldId)},
+        entryField,
       ]};
     });
+    let sizeUi = rowTotal > 0 ? {c: "size", text: `${rowNum} of ${rowTotal}`} : undefined;
     return {c: "form-container", children: [
       {c: "form", children: [
-        {c: "form-name", text: code.name(tableId)},
+        {c: "form-name", contentEditable: true, blur: rename, renameId: tableId, text: code.name(tableId)},
+        {c: "form-description", contentEditable: true, blur: setQueryDescription, viewId: tableId, text: getDescription(tableId)},
         {c: "form-fields", children: fields},
-        rows.length > 0 ? {c: "size", text: `1 of ${rows.length}`} : {c: "size", text: "No entries"}
+        sizeUi,
+      ]},
+      rowTotal > 1 ? formRepeat(1) : undefined,
+      rowTotal > 2 ? formRepeat(2) : undefined,
+    ]};
+  }
+
+  function tableForm(tableId, editable = false) {
+    let rows = ixer.select(tableId, {});
+    let fields = ixer.getFields(tableId).map((fieldId) => {
+      let value = rows[0] ? rows[0][fieldId] : "";
+      let entryField = {c: "entry-field", text: value};
+      if(editable) {
+        entryField["contentEditable"] = true;
+      }
+      return {c: "field-item", children: [
+        {c: "label", contentEditable: editable, blur: rename, renameId: fieldId, text: code.name(fieldId)},
+        entryField,
+      ]};
+    });
+    let sizeUi;
+    if(!editable) {
+      sizeUi = rows.length > 0 ? {c: "size", text: `1 of ${rows.length}`} : {c: "size", text: "No entries"};
+    }
+    return {c: "form-container", children: [
+      {c: "form", children: [
+        {c: "form-name", contentEditable: editable, blur: rename, renameId: tableId, text: code.name(tableId)},
+        {c: "form-description", contentEditable: editable, blur: setQueryDescription, viewId: tableId, text: getDescription(tableId)},
+        {c: "form-fields", children: fields},
+        sizeUi,
       ]},
       rows.length > 1 ? formRepeat(1) : undefined,
       rows.length > 2 ? formRepeat(2) : undefined,
@@ -2313,6 +2385,73 @@ module drawn {
     let leftDir = Math.round(Math.random()) === 1 ? 1 : -1;
     return {c: `form-repeat`, zIndex: -1 * depth, transform: `rotate(${Math.random() * 3 * topDir + 1}deg)`, top: offset * topDir, left: offset * leftDir
       };
+  }
+
+  function getDescription(viewId) {
+    let description = "No description :(";
+    let viewDescription = ixer.selectOne("view description", {view: viewId});
+    if(viewDescription) {
+      description = viewDescription["view description: description"];
+    }
+    return description;
+  }
+
+  function tableUi(tableId) {
+    var view = ixer.selectOne("view", {view: tableId});
+    if(!view) return;
+
+    let actions = {
+      "back": {text: "Back", func: gotoItemSelector, description: "Return to the item selection page"},
+      "new": {text: "New", func: newTableEntry, description: "Create a new entry"},
+      "delete": {text: "Delete", func: deleteTableEntry, description: "Delete the current entry"},
+      "add field": {text: "Add", func: addFieldToTable, description: "Add a field to the card"},
+      "remove field": {text: "Remove", func: removeFieldFromTable, description: "Remove the active field from the card"},
+    };
+    let resultViewSize = ixer.select(tableId, {}).length;
+    return {c: "query query-editor", children: [
+      leftToolbar(actions),
+      {c: "container", children: [
+        {c: "surface", children: [
+          {c: "table-workspace", children: [
+            tableFormEditor(tableId, {}, 1, 0),
+          ]},
+          queryErrors(view),
+        ]},
+        {c: "query-results", children: [
+          {c: "query-results-container", children: [
+            {c: "result-size", text: `${resultViewSize} entries`},
+            tableEditor.tableForView(tableId, false, 100)
+           ]},
+        ]},
+      ]},
+    ]};
+  }
+
+  function submitTableEntry(e, elem) {
+    if(e.keyCode === api.KEYS.ENTER) {
+      dispatch("submitTableEntry", {});
+      e.preventDefault();
+    }
+  }
+
+  function setTableEntryField(e, elem) {
+    dispatch("setTableEntryField", {fieldId: elem.fieldId, value: coerceInput(e.currentTarget.textContent)});
+  }
+
+  function newTableEntry(e, elem) {
+    dispatch("newTableEntry", {});
+  }
+
+  function deleteTableEntry(e, elem) {
+    dispatch("deleteTableEntry", {});
+  }
+
+  function addFieldToTable(e, elem) {
+    dispatch("addFieldToTable", {});
+  }
+
+  function removeFieldFromTable(e, elem) {
+    dispatch("removeFieldFromTable", {});
   }
 
   //---------------------------------------------------------
