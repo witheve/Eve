@@ -160,14 +160,7 @@ module tableEditor {
   // Table workspace
   //---------------------------------------------------------
 
-  function getLocalFieldName(fieldId) {
-    var calculatedId = ixer.index("field to calculated field")[fieldId];
-    if (calculatedId) {
-      return code.name(calculatedId);
-    } else {
-      return code.name(fieldId);
-    }
-  }
+  var getLocalFieldName = code.name;
 
   function coerceInput(input) {
     if(input.match(/^-?[\d]+$/gim)) {

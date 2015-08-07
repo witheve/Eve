@@ -3,6 +3,7 @@
 /// <reference path="../src/client.ts" />
 /// <reference path="../src/tableEditor.ts" />
 /// <reference path="../src/glossary.ts" />
+/// <reference path="../experiments/layout.ts" />
 module eveEditor {
   var localState = api.localState;
   var ixer = api.ixer;
@@ -191,11 +192,13 @@ module drawn {
   function findNodesIntersecting(currentNode, nodes, nodeLookup) {
     let currentNodePosition = nodeDisplayInfo(currentNode);
     let overlaps = [];
+    if (currentNodePosition.left === undefined || currentNodePosition.top === undefined) { return overlaps; }
     for (let node of nodes) {
       if (node.id === currentNode.id) continue;
       let nodePosition = nodeDisplayInfo(nodeLookup[node.id]);
 
-      if (currentNodePosition.right > nodePosition.left &&
+      if (nodePosition.left !== undefined && nodePosition.top !== undefined &&
+        currentNodePosition.right > nodePosition.left &&
         currentNodePosition.left < nodePosition.right &&
         currentNodePosition.bottom > nodePosition.top &&
         currentNodePosition.top < nodePosition.bottom) {
@@ -242,6 +245,7 @@ module drawn {
       return {node, displayInfo: nodeDisplayInfo(node)};
     }).filter((info) => {
       let {node, displayInfo} = info;
+      if(displayInfo.left === undefined || displayInfo.top === undefined) { return false; }
       let overlapLeft = Math.max(boxLeft, displayInfo.left);
       let overlapRight = Math.min(boxRight, displayInfo.right);
       let overlapTop = Math.max(boxTop, displayInfo.top);
@@ -257,6 +261,7 @@ module drawn {
     let right = -Infinity;
     for(var node of nodes) {
       let info = nodeDisplayInfo(node);
+      if(info.left === undefined || info.top === undefined) { continue; }
       if(info.left < left) left = info.left;
       if(info.right > right) right = info.right;
       if(info.top < top) top = info.top;
@@ -496,6 +501,12 @@ module drawn {
           }
         }
       break;
+      case "initializeNodePosition":
+        var node = info.node;
+        var currentPos = positions[node.id];
+        diffs.push(api.insert("editor node position", {node: node.id, x: currentPos.left, y: currentPos.top}),
+                   api.remove("editor node position", {node: node.id}));
+      break;
       //---------------------------------------------------------
       // Navigation
       //---------------------------------------------------------
@@ -503,7 +514,7 @@ module drawn {
         localState.drawnUiActiveId = info.node.source["source: source view"];
         diffs = dispatch("clearSelection", {}, true);
       break;
-      case "openQuery":
+      case "openItem":
         localState.drawnUiActiveId = info.itemId;
       break;
       case "gotoItemSelector":
@@ -515,12 +526,17 @@ module drawn {
       //---------------------------------------------------------
       // Query building
       //---------------------------------------------------------
-      case "createNewQuery":
-        let newId = uuid();
+      case "createNewItem":
+        var newId = uuid();
         localState.drawnUiActiveId = newId;
+        var tag;
+        if(info.kind === "table") {
+          tag = [{tag: "editor"}];
+        }
         diffs = [
-          api.insert("view", {view: newId, kind: "join", dependents: {"display name": {name: "New query!"}, "tag": [{tag: "remote"}]}})
+          api.insert("view", {view: newId, kind: info.kind, dependents: {"display name": {name: info.name}, tag}})
         ];
+        diffs.push.apply(diffs, dispatch("hideTooltip", {}, true));
       break;
       case "addViewAndMaybeJoin":
         var sourceId = uuid();
@@ -690,6 +706,12 @@ module drawn {
         diffs.push(api.insert("display name", {id: info.viewId, name: info.value}),
                    api.remove("display name", {id: info.viewId}));
       break;
+      case "setQueryDescription":
+        var prevDescription = ixer.selectOne("view description", {view: info.viewId});
+        if(prevDescription && info.value === prevDescription["view description: description"]) return;
+        diffs.push(api.insert("view description", {view: info.viewId, description: info.value}),
+                   api.remove("view description", {view: info.viewId}));
+      break;
       case "addFilter":
         var variableId = info.node.variable;
         diffs.push(api.insert("constant", {variable: variableId, value: ""}));
@@ -817,8 +839,6 @@ module drawn {
       case "startSort":
         var {sourceId} = info;
         localState.sorting = info;
-        // make sure that the tooltip isn't obstructing the sorter
-        dispatch("hideTooltip", {}, true);
         // if we haven't created sort fields for this before, then we create them in the
         // order that the fields of the source view are displayed in
         if(!ixer.selectOne("sorted field", {source: sourceId})) {
@@ -829,9 +849,18 @@ module drawn {
             diffs.push(api.insert("sorted field", {source: sourceId, ix, field: fieldId, direction: "ascending"}));
           })
         }
+        var tooltip:any = {
+          x: info.x,
+          y: info.y,
+          content: sorter,
+          persistent: true,
+          stopPersisting: stopSort,
+        };
+        dispatch("showTooltip", tooltip, true);
       break;
       case "stopSort":
         localState.sorting = false;
+        dispatch("hideTooltip", {}, true);
       break;
       case "moveSortField":
         var {from, to, sourceId} = info;
@@ -929,8 +958,6 @@ module drawn {
       break;
       case "stopSearching":
         localState.searching = false;
-        localState.searchResults = false;
-        localState.searchingFor = "";
       break;
       case "handleSearchKey":
         if(info.keyCode === api.KEYS.ENTER) {
@@ -949,17 +976,36 @@ module drawn {
         }
       break;
       //---------------------------------------------------------
+      // Create menu
+      //---------------------------------------------------------
+      case "startCreating":
+        localState.creating = info;
+        // make sure that the tooltip isn't obstructing the creator
+        var tooltip:any = {
+          x: info.x,
+          y: info.y,
+          content: creator,
+          persistent: true,
+          stopPersisting: stopCreating,
+        }
+        dispatch("showTooltip", tooltip, true);
+      break;
+      case "stopCreating":
+        localState.creating = false;
+        dispatch("hideTooltip", {}, true);
+      break;
+      //---------------------------------------------------------
       // Tooltip
       //---------------------------------------------------------
       case "showButtonTooltip":
         localState.maybeShowingTooltip = true;
-        var tooltip = {
+        var tooltip:any = {
           content: {c: "button-info", children: [
             {c: "header", text: info.header},
             {c: "description", text: info.description},
             info.disabledMessage ? {c: "disabled-message", text: "Disabled because " + info.disabledMessage} : undefined,
           ]},
-          x: info.x + 10,
+          x: info.x + 5,
           y: info.y
         };
         if(!localState.tooltip) {
@@ -971,6 +1017,7 @@ module drawn {
         }
       break;
       case "hideButtonTooltip":
+        if(localState.tooltip && localState.tooltip.persistent) return;
         clearTimeout(localState.tooltipTimeout);
         localState.maybeShowingTooltip = false;
         localState.tooltipTimeout = setTimeout(function() {
@@ -981,6 +1028,7 @@ module drawn {
       break;
       case "showTooltip":
         localState.tooltip = info;
+        clearTimeout(localState.tooltipTimeout);
       break;
       case "hideTooltip":
         localState.tooltip = false;
@@ -1177,7 +1225,7 @@ module drawn {
       if(localState.drawnUiActiveId) {
         dispatch("addViewAndMaybeJoin", {viewId: elem.result.viewId});
       } else {
-        dispatch("openQuery", {itemId: elem.result.viewId})
+        dispatch("openItem", {itemId: elem.result.viewId})
       }
     }};
   }
@@ -1233,11 +1281,32 @@ module drawn {
     });
     let actions = {
       "search": {func: startSearching, text: "Search", description: "Search for items to open by name"},
-      "create": {func: createNewQuery, text: "Create", description: "Create a new set of data, query, or merge"},
+      "create": {func: startCreating, text: "Create", description: "Create a new set of data, query, or merge"},
     }
     return {c: "query-selector-wrapper", children: [
       leftToolbar(actions),
       {c: "query-selector", children: queries}
+    ]};
+  }
+
+  function startCreating(e, elem) {
+    let rect = e.currentTarget.getBoundingClientRect();
+    dispatch("startCreating", {x: rect.right + 10, y: rect.top});
+  }
+
+  function stopCreating(e, elem) {
+    dispatch("stopCreating", {});
+  }
+
+  function creator() {
+    return {c: "creator", children: [
+      {c: "header", text: "Create"},
+      {c: "description", text: "Create a set of data if you want to input some values into Eve. Create a query if you want to work with your data. Create a union if you want to merge a bunch of different queries or data sets together."},
+      {c: "types", children: [
+        {c: "type", text: "Data", click: createNewItem, kind: "table", newName: "New table!"},
+        {c: "type", text: "Query", click: createNewItem, kind: "join", newName: "New query!"},
+        {c: "type", text: "Union", click: createNewItem, kind: "union", newName: "New union!"},
+      ]}
     ]};
   }
 
@@ -1256,7 +1325,7 @@ module drawn {
       } else {
         scale = 0.7;
       }
-      return {c: "query-item", id: viewId, itemId: viewId, click: openQuery, children:[
+      return {c: "query-item", id: viewId, itemId: viewId, click: openItem, children:[
         {c: "query-name", text: code.name(viewId)},
         {c: "query", children: [
           {c: "container", children: [
@@ -1268,26 +1337,33 @@ module drawn {
       ]};
   }
 
-  function createNewQuery(e, elem) {
-    dispatch("createNewQuery", {});
+  function createNewItem(e, elem) {
+    dispatch("createNewItem", {name: elem.newName, kind: elem.kind});
   }
 
-  function openQuery(e, elem) {
-    dispatch("openQuery", {itemId: elem.itemId});
+  function openItem(e, elem) {
+    dispatch("openItem", {itemId: elem.itemId});
   }
 
   function queryUi(viewId, showResults = false) {
     var view = ixer.selectOne("view", {view: viewId});
     if(!view) return;
     let entityInfo = viewToEntityInfo(view);
-    return {c: "query", children: [
-      sorter(),
+    let description = "No description :(";
+    let viewDescription = ixer.selectOne("view description", {view: viewId});
+    if(viewDescription) {
+      description = viewDescription["view description: description"];
+    }
+    return {c: "query query-editor", children: [
       localState.drawnUiActiveId ? queryTools(view, entityInfo) : undefined,
       {c: "container", children: [
         {c: "surface", children: [
-          {c: "query-name-input", contentEditable: true, blur: setQueryName, viewId: viewId, text: code.name(viewId)},
           queryMenu(view),
-          queryCanvas(view, entityInfo),
+          {c: "query-workspace", children: [
+            {c: "query-name-input", contentEditable: true, blur: setQueryName, viewId: viewId, text: code.name(viewId)},
+            {c: "query-description-input", contentEditable: true, blur: setQueryDescription, viewId, text: description},
+            queryCanvas(view, entityInfo),
+          ]},
           queryErrors(view),
         ]},
         showResults ? queryResults(viewId, entityInfo) : undefined
@@ -1295,14 +1371,22 @@ module drawn {
     ]};
   }
 
-  function tooltipUi() {
+  function tooltipUi(): any {
     let tooltip = localState.tooltip;
     if(tooltip) {
       let elem = {c: "tooltip", left: tooltip.x, top: tooltip.y};
       if(typeof tooltip.content === "string") {
         elem["text"] = tooltip.content;
+      } else if(typeof tooltip.content === "function") {
+        elem["children"] = [tooltip.content()];
       } else {
         elem["children"] = [tooltip.content];
+      }
+      if(tooltip.persistent) {
+        return {id: "tooltip-container", c: "tooltip-container", children: [
+          {c: "tooltip-shade", click: tooltip.stopPersisting},
+          elem,
+        ]};
       }
       return elem;
     }
@@ -1460,7 +1544,6 @@ module drawn {
       }
       tools.push(tool);
     }
-    tools.push();
 
     return {c: "left-side-container", children: [
       {c: "query-tools", children: tools},
@@ -1469,7 +1552,6 @@ module drawn {
   }
 
   function sorter() {
-    if(!localState.sorting) return;
     let sourceId = localState.sorting.sourceId;
     let sourceViewId = ixer.selectOne("source", {source: sourceId})["source: source view"];
     let fieldItems = ixer.getFields(sourceViewId).map((field, ix) => {
@@ -1484,14 +1566,11 @@ module drawn {
     fieldItems.sort((a, b) => {
       return a.sortIx - b.sortIx;
     });
-    return {c: "sorter-container", children: [
-      {c: "sorter-shade", click: stopSort},
-      {c: "sorter", top: localState.sorting.y, left: localState.sorting.x,  children: [
+    return {c: "sorter", children: [
         {c: "header", text: "Adjust sorting"},
         {c: "description", text: "Order the fields in the order you want them to be sorted in and click the arrow to adjust whether to sort ascending or descending"},
         {c: "fields", children: fieldItems}
-      ]}
-    ]};
+      ]};
   }
 
   function querySearcher() {
@@ -1682,6 +1761,10 @@ module drawn {
     dispatch("setQueryName", {viewId: elem.viewId, value: e.currentTarget.textContent});
   }
 
+  function setQueryDescription(e, elem) {
+    dispatch("setQueryDescription", {viewId: elem.viewId, value: e.currentTarget.textContent});
+  }
+
   function gotoItemSelector(e, elem) {
     dispatch("gotoItemSelector", {});
   }
@@ -1702,14 +1785,6 @@ module drawn {
     }
   }
 
-  function toPosition(node) {
-    var random = {left: 100 + Math.random() * 300, top: 100 + Math.random() * 300};
-    var key = node.id;
-    if(!positions[key]) {
-      positions[key] = random;
-    }
-    return positions[key];
-  }
 
   function joinToEntityInfo(view) {
     var nodes = [];
@@ -1912,9 +1987,56 @@ module drawn {
     return linkItems;
   }
 
+  function refreshNodePositions(nodes, links) {
+    let sourceNodes:graphLayout.Node[] = [];
+    let attributeNodes:graphLayout.Node[] = [];
+    let dirty = false;
+    for(let node of nodes) {
+      let displayInfo = nodeDisplayInfo(node);
+      let width = displayInfo.totalWidth;
+      let height = displayInfo.totalHeight;
+      let graphNode:graphLayout.Node = {id: node.id, type: node.type, width, height };
+      if(displayInfo.left !== undefined && displayInfo.top !== undefined) {
+        graphNode.x = displayInfo.left + width / 2;
+        graphNode.y = displayInfo.top + height / 2;
+      } else {
+        dirty = true;
+      }
+      if(node.type === "relationship" || node.type === "primitive") {
+        sourceNodes.push(graphNode);
+      } else if(node.type === "attribute") {
+        attributeNodes.push(graphNode);
+      } else {
+        console.warn("unhandled node type:", node.type);
+      }
+    }
+
+
+    if(dirty) {
+      let edges:graphLayout.Edge[] = [];
+      for(let link of links) { // Right is source, left is attribute.
+        edges.push({source: link.right.id, target: link.left.id});
+      }
+      
+      let graph = new graphLayout.Graph(sourceNodes, attributeNodes, edges);
+      let layout = graph.layout();
+      for(let node of nodes) {
+        let p = layout.positions[node.id];
+        let s = layout.sizes[node.id];
+        let neue = {left: p[0] - s[0] / 2, top: p[1] - s[1] / 2};
+        let old = positions[node.id];
+        if(!old || old.left !== neue.left || old.top !== neue.top) {
+          positions[node.id] = neue;          
+          dispatch("initializeNodePosition", {node: node});
+        }
+      }
+    }
+  }
+
   function queryPreview(view, entityInfo, boundingBox) {
     let viewId = view["view: view"];
-    var {nodes, links} = entityInfo;
+    let {nodes, links} = entityInfo;
+    refreshNodePositions(nodes, links);
     var items = [];
     for(var node of nodes) {
       items.push(nodeItem(node, viewId));
@@ -1928,7 +2050,9 @@ module drawn {
 
   function queryCanvas(view, entityInfo) {
     let viewId = view["view: view"];
-    var {nodes, links, nodeLookup} = entityInfo;
+    let {nodes, links, nodeLookup} = entityInfo;
+    refreshNodePositions(nodes, links);
+    
     var items = [];
     for(var node of nodes) {
       items.push(nodeItem(node, viewId));
@@ -1964,7 +2088,7 @@ module drawn {
   }
 
   function surfaceRelativeCoords(e) {
-    let surface:any = document.getElementsByClassName("surface")[0];
+    let surface:any = document.getElementsByClassName("query-workspace")[0];
     let surfaceRect = surface.getBoundingClientRect();
     let x = e.clientX - surfaceRect.left;
     let y = e.clientY - surfaceRect.top;
@@ -1990,23 +2114,23 @@ module drawn {
   }
 
   function nodeDisplayInfo(curNode) {
-    let text = curNode.name;
+    let text = curNode.name.toString();
     let small = false;
-    let {left, top} = toPosition(curNode);
+    let {left, top} = positions[curNode.id] || {};
     let height = nodeHeight + 2 * nodeHeightPadding;
     let width = Math.max(text.length * nodeWidthMultiplier + 2 * nodeWidthPadding, nodeWidthMin);
     let right = left + width;
     let bottom = top + height;
     let filterWidth;
     if(curNode.filter) {
-      filterWidth = Math.max(curNode.filter.value.length * nodeWidthMultiplier + 25, nodeWidthMin);
+      filterWidth = Math.max(curNode.filter.value.toString().length * nodeWidthMultiplier + 25, nodeWidthMin);
       // subtract the 15 pixel overlap that occurs between nodes and their filters
       right += filterWidth - 15;
     }
     if(small) {
       width = Math.max(text.length * nodeSmallWidthMultiplier + nodeWidthPadding, nodeWidthMin);
     }
-    return {left, top, right, bottom, width, height, text, filterWidth};
+    return {left, top, right, bottom, width, height, text, filterWidth, totalWidth: (curNode.filter ? width + filterWidth - 15 : width), totalHeight: height};
   }
 
   function nodeItem(curNode, viewId): any {
@@ -2101,7 +2225,7 @@ module drawn {
 
   function setNodePosition(e, elem) {
     if(e.clientX === 0 && e.clientY === 0) return;
-    let surface:any = document.getElementsByClassName("surface")[0];
+    let surface:any = document.getElementsByClassName("query-workspace")[0];
     let surfaceRect = surface.getBoundingClientRect();
     let x = e.clientX - surfaceRect.left - api.localState.dragOffsetX;
     let y = e.clientY - surfaceRect.top - api.localState.dragOffsetY;
