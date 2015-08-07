@@ -1,4 +1,4 @@
-use value::{Value, Id};
+use value::{Value};
 use std::str::FromStr;
 use std::f64;
 

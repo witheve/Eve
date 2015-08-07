@@ -152,7 +152,7 @@ impl Flow {
             dirty.remove(&ix);
             let node = &nodes[ix];
             let mut new_errors = &mut errors[ix];
-            let mut old_errors = replace(new_errors, vec![]);
+            let old_errors = replace(new_errors, vec![]);
             let new_output = {
                 let upstream = node.upstream.iter().map(|&ix| outputs[ix].borrow()).collect::<Vec<_>>();
                 let inputs = upstream.iter().map(|borrowed| &**borrowed).collect::<Vec<_>>();
@@ -191,11 +191,11 @@ impl Flow {
                     let view_changed = {
                         let upstream = node.upstream.iter().map(|ix| self.outputs[*ix].borrow()).collect::<Vec<_>>();
                         let inputs = upstream.iter().map(|borrowed| &**borrowed).collect::<Vec<_>>();
-                        let mut inserts = match *insert {
+                        let inserts = match *insert {
                             Some(ref select) => select.select(&inputs[..]),
                             None => vec![],
                         };
-                        let mut removes = match *remove {
+                        let removes = match *remove {
                             Some(ref select) => select.select(&inputs[..]),
                             None => vec![],
                         };
