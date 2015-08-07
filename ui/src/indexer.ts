@@ -13,7 +13,6 @@ module Indexing {
     if (!b || i != b.length) return false;
     while (i--) {
       if(a[i] && a[i].constructor === Array) {
-        console.log("here");
         if(!arraysIdentical(a[i], b[i])) return false;
         continue;
       }
