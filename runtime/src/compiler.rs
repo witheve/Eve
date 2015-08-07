@@ -1221,6 +1221,10 @@ pub fn bootstrap(flow: &mut Flow) {
             tag_table.index.insert(vec![string!("{}", view), string!("hidden")]);
         }
 
+        for (view, _) in server_schema().into_iter() {
+            tag_table.index.insert(vec![string!("{}", view), string!("hidden")]);
+        }
+
         for (view, _) in editor_schema().into_iter() {
             tag_table.index.insert(vec![string!("{}", view), string!("editor")]);
             tag_table.index.insert(vec![string!("{}", view), string!("hidden")]);
