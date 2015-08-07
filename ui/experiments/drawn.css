@@ -1,5 +1,8 @@
 body { font-family:"Avenir"; }
 * { display: flex; flex-direction:column; box-sizing: border-box; }
+
+.flex-spacer { flex: 1; }
+
 .query { height: 100%; width: 100%; position:relative; flex-direction:row; }
 
 .query-selector-wrapper { flex-direction: row; height:100vh; }
@@ -29,8 +32,9 @@ body { font-family:"Avenir"; }
 
 .query-tools { flex:1; padding:0px 5px; z-index:10; border-right:1px solid #333; width:100px; }
 .query-tools .tool { align-items: center; justify-content:center;  padding: 10px 15px; border: 0px solid rgba(255,255,255, 0.1); }
-.query-tools .tool + .tool { border-top:1px solid #333; }
-.query-tools .tool.disabled { color: #666; }
+.query-tools .tool + .tool, .query-tools .flex-spacer + .tool { border-top:1px solid #333; }
+.query-tools .tool:hover { background: rgba(255, 255, 255, 0.08); }
+.query-tools .tool.disabled { color: #666; background: transparent; }
 
 .searcher-container { position:absolute; top:0; bottom:0; left:0; right: 0; z-index: 10; }
 .searcher-shade { position:absolute; top:0; bottom:0; left:0; right:0; }

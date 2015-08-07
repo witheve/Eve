@@ -1373,8 +1373,12 @@ module drawn {
 
   function tooltipUi(): any {
     let tooltip = localState.tooltip;
+    
     if(tooltip) {
-      let elem = {c: "tooltip", left: tooltip.x, top: tooltip.y};
+      let viewHeight = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
+       // @FIXME: We need to get the actual element size here.
+      let elem:any = {c: "tooltip", left: tooltip.x, top: Math.min(tooltip.y, viewHeight - 61)};
+      
       if(typeof tooltip.content === "string") {
         elem["text"] = tooltip.content;
       } else if(typeof tooltip.content === "function") {
@@ -1544,11 +1548,34 @@ module drawn {
       }
       tools.push(tool);
     }
+    tools.push({c: "flex-spacer"},
+               {c: "tool ion-gear-b",
+                title: "Settings",
+                mouseover: showButtonTooltip,
+                mouseout: hideButtonTooltip,
+                click: openSettings,
+                description: "Open Eve's settings panel"})
 
     return {c: "left-side-container", children: [
       {c: "query-tools", children: tools},
       querySearcher()
     ]};
+  }
+
+  function openSettings(evt, elem:Element) {
+    let rect = evt.currentTarget.getBoundingClientRect();
+    let tooltip:any = {
+          x: rect.left,
+          y: rect.bottom,
+          content: settingsPanel,
+          persistent: true,
+          stopPersisting: stopSort,
+        };
+    dispatch("showTooltip", tooltip);
+  }
+  
+  function settingsPanel() {
+    return {text: "@TODO: Settings"};
   }
 
   function sorter() {
@@ -1645,7 +1672,7 @@ module drawn {
 
   function showButtonTooltip(e, elem) {
     let rect = e.currentTarget.getBoundingClientRect();
-    dispatch("showButtonTooltip", {header: elem.text, disabledMessage: elem.disabledMessage, description: elem.description, x: rect.right, y: rect.top});
+    dispatch("showButtonTooltip", {header: elem.text || elem.title, disabledMessage: elem.disabledMessage, description: elem.description, x: rect.right, y: rect.top} );
   }
 
   function hideButtonTooltip(e, elem) {
