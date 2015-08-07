@@ -1,4 +1,4 @@
-use value::{Value};
+use value::{Value, Id};
 use std::str::FromStr;
 use std::f64;
 
@@ -24,7 +24,7 @@ pub enum Primitive {
 }
 
 impl Primitive {
-    pub fn eval<'a>(&self, input_bindings: &[(usize, usize)], inputs: &[Value]) -> Vec<Vec<Value>> {
+    pub fn eval<'a>(&self, input_bindings: &[(usize, usize)], inputs: &[Value], source: &str, errors: &mut Vec<Vec<Value>>) -> Vec<Vec<Value>> {
         use primitive::Primitive::*;
         use value::Value::*;
         let values = input_bindings.iter().enumerate().map(|(ix, &(field_ix, variable_ix))| {
@@ -49,9 +49,9 @@ impl Primitive {
             (Split, [&String(ref split), &String(ref string)]) => {
                 string.split(split).enumerate().map(|(ix, segment)| vec![Float(ix as f64), String(segment.to_owned())]).collect()
             },
-            (Concat, [&String(ref a), &String(ref b)]) => vec![vec![String(a.to_owned() + b)]],
-            (Concat, [&String(ref a), &Float(ref b)]) => vec![vec![String(a.to_owned() + &format!("{}", b))]],
-            (Concat, [&Float(ref a), &String(ref b)]) => vec![vec![String(format!("{}", a) + b)]],
+            (Concat, [&String(ref a), &String(ref b)]) => vec![vec![string!("{}{}", a, b)]],
+            (Concat, [&String(ref a), &Float(ref b)]) => vec![vec![string!("{}{}", a, b)]],
+            (Concat, [&Float(ref a), &String(ref b)]) => vec![vec![string!("{}{}", a, b)]],
             (ParseFloat, [&String(ref a)]) => {
                 match f64::from_str(&a) {
                     Ok(v) => vec![vec![Float(v), Bool(true)]],
@@ -91,7 +91,13 @@ impl Primitive {
                 vec![vec![Float(standard_deviation)]]
             }
             (Empty, _) => vec![vec![Bool(false)]], // TODO empty doesn't make sense with non-outer joins
-            _ => panic!("Type error while calling: {:?} {:?}", self, values)
+            _ => {
+                errors.push(vec![
+                    String(source.to_owned()),
+                    string!("Type error while calling: {:?} {:?}", self, values)
+                ]);
+                vec![]
+            }
         }
     }
 

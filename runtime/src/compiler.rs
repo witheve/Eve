@@ -95,7 +95,7 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("view schedule (pre)", vec!["view", "kind"]),
     ("view schedule", vec!["ix", "view", "kind"]),
 
-    // a source 'provides' a variable if it can reduce thevariable to a finite number of values
+    // a source 'provides' a variable if it can reduce the variable to a finite number of values
     // a source 'requires' a variable if it needs the variable reduced to a finite number of values before it can contribute
     ("provides", vec!["view", "source", "variable"]),
     ("requires", vec!["view", "source", "variable"]),
@@ -132,13 +132,20 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("number of variables (pre)", vec!["view", "num"]),
     ("number of variables", vec!["view ix", "num"]),
     ("constant layout", vec!["view ix", "variable ix", "value"]),
-    ("source layout", vec!["view ix", "source ix", "input", "chunked", "negated"]),
+    ("source layout", vec!["view ix", "source ix", "source", "input", "chunked", "negated"]),
     ("downstream layout", vec!["downstream view ix", "ix", "upstream view ix"]),
     ("binding layout", vec!["view ix", "source ix", "field ix", "variable ix", "kind"]),
     ("select layout", vec!["view ix", "ix", "variable ix"]),
     ("grouped field layout", vec!["view ix", "source ix", "field ix"]),
     ("sorted field layout", vec!["view ix", "source ix", "ix", "field ix", "direction"]),
     ("non-sorted field layout", vec!["view ix", "source ix", "ix", "field ix"]),
+    ]
+}
+
+pub fn server_schema() -> Vec<(&'static str, Vec<&'static str>)> {
+    vec![
+    // certain primitive views can generate errors when they fail at runtime
+    ("error", vec!["source", "error"]),
     ]
 }
 
@@ -205,6 +212,7 @@ pub fn client_schema() -> Vec<(&'static str, Vec<&'static str>)> {
 pub fn schema() -> Vec<(&'static str, Vec<&'static str>)> {
     code_schema().into_iter()
     .chain(compiler_schema().into_iter())
+    .chain(server_schema().into_iter())
     .chain(editor_schema().into_iter())
     .chain(client_schema().into_iter())
     .collect()
@@ -897,10 +905,10 @@ fn plan(flow: &Flow) {
                     let chunked = !dont_find!(chunked_source_table, [(= source)]);
                     let negated = !dont_find!(negated_source_table, [(= source)]);
                     if kind.as_str() == "primitive" {
-                        insert!(source_layout_table, [view_ix, source_ix, source_view, Bool(chunked), Bool(negated)]);
+                        insert!(source_layout_table, [view_ix, source_ix, source, source_view, Bool(chunked), Bool(negated)]);
                     } else {
                         find!(view_dependency_table, [(= view), input_ix, (= source), (= source_view)], {
-                            insert!(source_layout_table, [view_ix, source_ix, input_ix, Bool(chunked), Bool(negated)]);
+                            insert!(source_layout_table, [view_ix, source_ix, source, input_ix, Bool(chunked), Bool(negated)]);
                         });
                     }
                 });
@@ -1008,6 +1016,7 @@ fn create(flow: &Flow) -> Flow {
     let mut nodes = Vec::new();
     let mut dirty = BitSet::new();
     let mut outputs = Vec::new();
+    let mut errors = Vec::new();
 
     find!(flow.get_output("view layout"), [view_ix, view, kind], {
         nodes.push(Node{
@@ -1032,6 +1041,7 @@ fn create(flow: &Flow) -> Flow {
             vec![],
             vec![],
             )));
+        errors.push(vec![]);
     });
 
     find!(flow.get_output("output layout"), [view_ix, field_ix, field, name], {
@@ -1059,10 +1069,11 @@ fn create(flow: &Flow) -> Flow {
         }
     });
 
-    find!(flow.get_output("source layout"), [view_ix, source_ix, input, chunked, negated], {
+    find!(flow.get_output("source layout"), [view_ix, source_ix, source, input, chunked, negated], {
         match &mut nodes[view_ix.as_usize()].view {
             &mut View::Join(ref mut join) => {
                 let source = Source{
+                    id: source.as_str().to_owned(),
                     input: match input {
                         &String(ref primitive) => Input::Primitive{
                             primitive: Primitive::from_str(primitive),
@@ -1148,6 +1159,7 @@ fn create(flow: &Flow) -> Flow {
         nodes: nodes,
         dirty: dirty,
         outputs: outputs,
+        errors: errors,
         needs_recompile: false,
     }
 }

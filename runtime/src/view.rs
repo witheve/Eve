@@ -1,8 +1,8 @@
 use std::collections::BTreeSet;
 
-use value::Value;
+use value::{Value, Id};
 use relation::{Relation, IndexSelect};
-use primitive::Primitive;
+use primitive::{Primitive};
 use std::cmp::Ordering;
 use std::mem::replace;
 
@@ -36,6 +36,7 @@ pub enum Input {
 
 #[derive(Clone, Debug)]
 pub struct Source {
+    pub id: Id, // used for reporting errors
     pub input: Input,
     pub grouped_fields: Vec<usize>,
     pub sorted_fields: Vec<(usize, Direction)>,
@@ -133,7 +134,7 @@ pub enum View {
 }
 
 // TODO this algorithm is incredibly naive and also clones excessively
-fn join_step(join: &Join, ix: usize, inputs: &[Vec<Vec<Value>>], state: &mut Vec<Value>, index: &mut BTreeSet<Vec<Value>>) {
+fn join_step(join: &Join, ix: usize, inputs: &[Vec<Vec<Value>>], state: &mut Vec<Value>, index: &mut BTreeSet<Vec<Value>>, errors: &mut Vec<Vec<Value>>) {
     if ix == join.sources.len() {
         index.insert(join.select.iter().map(|ix| state[*ix].clone()).collect());
     } else {
@@ -149,27 +150,27 @@ fn join_step(join: &Join, ix: usize, inputs: &[Vec<Vec<Value>>], state: &mut Vec
                         );
                     match (source.negated, satisfies_constraints) {
                             (false, false) => (), // skip row
-                            (false, true) => join_step(join, ix+1, inputs, state, index), // choose row and continue
+                            (false, true) => join_step(join, ix+1, inputs, state, index, errors), // choose row and continue
                             (true, false) => (), // skip row
                             (true, true) => return, // bail out
                     }
                 }
                 if source.negated {
                     // if we haven't bailed out yet, continue
-                    join_step(join, ix+1, inputs, state, index);
+                    join_step(join, ix+1, inputs, state, index, errors);
                 }
             }
             Input::Primitive{primitive, ref input_bindings} => {
                 // values returned from primitives don't include inputs, so we will have to offset accesses by input_len
                 let input_len = input_bindings.len();
-                for mut values in primitive.eval(&input_bindings[..], &state[..]).into_iter() {
+                for mut values in primitive.eval(&input_bindings[..], &state[..], &source.id, errors).into_iter() {
                     for &(field_ix, variable_ix) in source.output_bindings.iter() {
                         state[variable_ix] = replace(&mut values[field_ix - input_len], Value::Null);
                     }
                     if source.constraint_bindings.iter().all(|&(field_ix, variable_ix)|
                         state[variable_ix] == values[field_ix - input_len]
                     ) {
-                        join_step(join, ix+1, inputs, state, index);
+                        join_step(join, ix+1, inputs, state, index, errors);
                     }
                 }
             }
@@ -178,7 +179,7 @@ fn join_step(join: &Join, ix: usize, inputs: &[Vec<Vec<Value>>], state: &mut Vec
 }
 
 impl View {
-    pub fn run(&self, old_output: &Relation, upstream: &[&Relation]) -> Option<Relation> {
+    pub fn run(&self, old_output: &Relation, upstream: &[&Relation], errors: &mut Vec<Vec<Value>>) -> Option<Relation> {
         let mut output = Relation::new(
             old_output.view.clone(),
             old_output.fields.clone(),
@@ -206,7 +207,7 @@ impl View {
                             source.prepare(upstream[input_ix].index.iter().map(|row| row.clone()).collect())
                         }
                     }).collect::<Vec<_>>();
-                join_step(join, 0, &inputs[..], &mut state, &mut output.index);
+                join_step(join, 0, &inputs[..], &mut state, &mut output.index, errors);
                 Some(output)
             }
         }
