@@ -515,6 +515,11 @@ module drawn {
         // we can make sure it's how you left it even if you do searches in the editor
         localState.selectorSearchingFor = localState.searchingFor;
         localState.selectorSearchResults = localState.searchResults;
+        // if this item is a table, we should setup the initial table entry
+        var kind = ixer.selectOne("view", {view: info.itemId})["view: kind"];
+        if(kind === "table") {
+          diffs.push.apply(diffs, dispatch("newTableEntry", {}, true));
+        }
       break;
       case "gotoItemSelector":
         // clear selection when leaving a workspace to ensure it doesn't end up taking effect in the
@@ -1000,7 +1005,14 @@ module drawn {
       // Tables
       //---------------------------------------------------------
       case "newTableEntry":
-        console.error("Implement newTableEntry");
+        var entry = {};
+        var fields:any[] = ixer.getFields(localState.drawnUiActiveId);
+        for(let fieldId of fields) {
+          entry[fieldId] = "";
+        }
+        localState.tableEntry = entry;
+        localState.selectedTableEntry = false;
+        localState.focusedTableEntryField = fields[0];
       break;
       case "deleteTableEntry":
         var row = localState.tableEntry;
@@ -1010,7 +1022,12 @@ module drawn {
         if(Object.keys(row).length) {
           diffs.push(api.remove(tableId, row, undefined, true));
         }
-        localState.tableEntry = {};
+        diffs.push.apply(diffs, dispatch("newTableEntry", {}, true));
+      break;
+      case "selectTableEntry":
+        localState.tableEntry = api.clone(info.row);
+        localState.selectedTableEntry = info.row;
+        localState.focusedTableEntryField = info.fieldId;
       break;
       case "addFieldToTable":
         var tableId = info.tableId || localState.drawnUiActiveId;
@@ -1022,17 +1039,45 @@ module drawn {
         diffs.push(neueField);
       break;
       case "removeFieldFromTable":
-        console.error("Implement removeFieldFromTable");
+        // we remove whatever field is currently active in the form
+        if(localState.activeTableEntryField) {
+          diffs.push(api.remove("field", {field: localState.activeTableEntryField}));
+        }
+      break;
+      case "activeTableEntryField":
+        // this tracks the focus state of form fields for removal
+        localState.activeTableEntryField = info.fieldId;
+      break;
+      case "clearActiveTableEntryField":
+        // @HACK: because blur happens before a click on remove would get registered,
+        // we have to wait to clear activeTableEntry to give the click time to go through
+        setTimeout(function() {
+          if(localState.activeTableEntryField === info.fieldId) {
+            dispatch("forceClearActiveTableEntryField", info, true);
+          }
+        }, 150);
+      break;
+      case "forceClearActiveTableEntryField":
+        localState.activeTableEntryField = false;
+      break;
+      case "focusTableEntryField":
+        localState.focusedTableEntryField = false;
       break;
       case "submitTableEntry":
         var row = localState.tableEntry;
         var tableId = localState.drawnUiActiveId;
         diffs.push(api.insert(tableId, row, undefined, true));
-        localState.tableEntry = {};
+        // if there's a selectedTableEntry then this is an edit and we should
+        // remove the old row
+        if(localState.selectedTableEntry) {
+          diffs.push(api.remove(tableId, localState.selectedTableEntry, undefined, true));
+        }
+        diffs.push.apply(diffs, dispatch("newTableEntry", {}, true));
       break;
       case "setTableEntryField":
         localState.tableEntry[info.fieldId] = info.value;
       break;
+
       //---------------------------------------------------------
       // Create menu
       //---------------------------------------------------------
@@ -1859,7 +1904,7 @@ module drawn {
       let peekViewSize = ixer.select(peekViewId, {}).length;
       peek = {c: "peek-results", width: numFields * 100, left: rect.right + 50, top: (rect.top + rect.height /2) - 75, children: [
         {c: "result-size", text: `${peekViewSize} rows`},
-        tableEditor.tableForView(peekViewId, false, 100),
+        tableEditor.tableForView(peekViewId, 100),
 
       ]};
     }
@@ -1868,12 +1913,12 @@ module drawn {
       peek,
       {c: "query-results-container", children: [
         {c: "result-size", text: `${resultViewSize} results`},
-        tableEditor.tableForView(resultViewId, false, 100)
+        tableEditor.tableForView(resultViewId, 100)
       ]}
     ]};
   }
 
-  function rename(e, elem) {
+  export function rename(e, elem) {
     dispatch("rename", {renameId: elem.renameId, value: e.currentTarget.textContent});
   }
 
@@ -2365,9 +2410,9 @@ module drawn {
   function tableFormEditor(tableId, row = null, rowNum = 0, rowTotal = 0) {
     let fields = ixer.getFields(tableId).map((fieldId) => {
       let value = row ? row[fieldId] : "";
-      let entryField = {c: "entry-field", fieldId, text: value, contentEditable: true, keydown: submitTableEntry, input: setTableEntryField};
+      let entryField = {c: "entry-field", fieldId, postRender: maybeFocusFormField, text: value, contentEditable: true, keydown: keyboardSubmitTableEntry, input: setTableEntryField, blur: clearActiveTableEntryField, focus: activeTableEntryField};
       return {c: "field-item", children: [
-        {c: "label", contentEditable: true, blur: rename, renameId: fieldId, text: code.name(fieldId)},
+        {c: "label", tabindex:-1, contentEditable: true, blur: rename, renameId: fieldId, text: code.name(fieldId)},
         entryField,
       ]};
     });
@@ -2378,6 +2423,7 @@ module drawn {
         {c: "form-description", contentEditable: true, blur: setQueryDescription, viewId: tableId, text: getDescription(tableId)},
         {c: "form-fields", children: fields},
         sizeUi,
+        {c: "submit-button", click: submitTableEntry, text: "submit"}
       ]},
       rowTotal > 1 ? formRepeat(1) : undefined,
       rowTotal > 2 ? formRepeat(2) : undefined,
@@ -2447,25 +2493,52 @@ module drawn {
       {c: "container", children: [
         {c: "surface", children: [
           {c: "table-workspace", children: [
-            tableFormEditor(tableId, {}, 1, 0),
+            tableFormEditor(tableId, localState.tableEntry, 1, 0),
           ]},
           queryErrors(view),
         ]},
-        {c: "query-results", children: [
+        {id: `${tableId}-results`, c: "query-results", children: [
           {c: "query-results-container", children: [
             {c: "result-size", text: `${resultViewSize} entries`},
-            tableEditor.tableForView(tableId, false, 100)
-           ]},
+            tableEditor.tableForView(tableId, 100, {
+              onSelect: selectTableEntry,
+              activeRow: localState.selectedTableEntry || localState.tableEntry,
+            })
+         ]},
         ]},
       ]},
     ]};
   }
 
-  function submitTableEntry(e, elem) {
+  function maybeFocusFormField(e, elem) {
+    if(elem.fieldId === localState.focusedTableEntryField) {
+      e.focus();
+      dispatch("focusTableEntryField", {});
+    }
+  }
+
+  function selectTableEntry(e, elem) {
+    e.stopPropagation();
+    dispatch("selectTableEntry", {row: api.clone(elem.row), fieldId: elem.fieldId});
+  }
+
+  function keyboardSubmitTableEntry(e, elem) {
     if(e.keyCode === api.KEYS.ENTER) {
       dispatch("submitTableEntry", {});
       e.preventDefault();
     }
+  }
+
+  function submitTableEntry(e, elem) {
+    dispatch("submitTableEntry", {});
+  }
+
+  function clearActiveTableEntryField(e, elem) {
+    dispatch("clearActiveTableEntryField", {fieldId: elem.fieldId});
+  }
+
+  function activeTableEntryField(e, elem) {
+    dispatch("activeTableEntryField", {fieldId: elem.fieldId});
   }
 
   function setTableEntryField(e, elem) {
@@ -2505,8 +2578,10 @@ module drawn {
     //undo + redo
     if((e.metaKey || e.ctrlKey) && e.shiftKey && e.keyCode === KEYS.Z) {
       dispatch("redo", null);
+      e.preventDefault();
     } else if((e.metaKey || e.ctrlKey) && e.keyCode === KEYS.Z) {
       dispatch("undo", null);
+      e.preventDefault();
     }
 
     //remove

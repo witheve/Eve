@@ -18,6 +18,26 @@ module uiEditor {
     }
   }
 
+
+  export function input(value, key, oninput, onsubmit): any {
+    var blur, keydown;
+    if (onsubmit) {
+      blur = function inputBlur(e, elem) {
+        onsubmit(e, elem, "blurred");
+      }
+      keydown = function inputKeyDown(e, elem) {
+        if (e.keyCode === KEYS.ENTER) {
+          onsubmit(e, elem, "enter");
+        }
+      }
+    }
+    return { c: "input text-input", contentEditable: true, input: oninput, focus: storeInitialInput, text: value, key: key, blur: blur, keydown: keydown };
+  }
+
+  export function checkbox(value, key, onChange) {
+    return {t: "input", type: "checkbox", c: "input checkbox-input", change: onChange, checked: value, key: key};
+  }
+
   export function dispatch(event: string, info: any, rentrant?: boolean) {
     //         console.info("[dispatch]", evt, info);
     var storeEvent = true;
@@ -646,7 +666,7 @@ module uiEditor {
         {
           c: "layer-row", draggable: true, itemId: layerId, dragstart: layerDrag, type: "layer", children: [
             { c: "icon " + icon, click: toggleOpenLayer, layerId: layerId },
-            tableEditor.input(code.name(layerId), layerId, tableEditor.rename, tableEditor.rename),
+            input(code.name(layerId), layerId, tableEditor.rename, tableEditor.rename),
             {
               c: "controls", children: [
                 { c: hiddenClass, click: toggleHidden, dblclick: stopPropagation, layer: layer },
@@ -993,13 +1013,13 @@ module uiEditor {
     if (localState.modifyingUiText === id) {
       var curInput: any;
       if (type === "image") {
-        curInput = tableEditor.input(elem.backgroundImage, { id: id }, updateImage, submitContent);
+        curInput = input(elem.backgroundImage, { id: id }, updateImage, submitContent);
         curInput.postRender = focusOnce;
         elem.children = [curInput];
         curInput.attr = "backgroundImage";
         elem.text = undefined;
       } else {
-        curInput = tableEditor.input(elem.text, { id: id }, updateContent, submitContent);
+        curInput = input(elem.text, { id: id }, updateContent, submitContent);
         curInput.postRender = focusOnce;
         elem.children = [curInput];
         curInput.attr = "text";
@@ -1438,7 +1458,7 @@ module uiEditor {
         }
       }
     } else {
-      visualStyle = tableEditor.input("", localState.addingAppearanceStyle, tableEditor.rename, doneAddingStyle);
+      visualStyle = input("", localState.addingAppearanceStyle, tableEditor.rename, doneAddingStyle);
       visualStyle.postRender = focusOnce;
     }
     return {
@@ -1591,7 +1611,7 @@ module uiEditor {
         }
       }
     } else {
-      typographyStyle = tableEditor.input("", localState.addingTypographyStyle, tableEditor.rename, doneAddingStyle);
+      typographyStyle = input("", localState.addingTypographyStyle, tableEditor.rename, doneAddingStyle);
       typographyStyle.postRender = focusOnce;
     }
 
@@ -1637,15 +1657,15 @@ module uiEditor {
     return { c: "inspector-panel", children: [
       {c: "pair", children: [
         {c: "label", text: "repeat horizontally"},
-        tableEditor.checkbox(!!layerHRepeat, [componentId, "h-repeat", layerId], setAttributeForLayer)
+        checkbox(!!layerHRepeat, [componentId, "h-repeat", layerId], setAttributeForLayer)
       ]},
       {c: "pair", children: [
         {c: "label", text: "scroll overflow"},
-        tableEditor.checkbox(!!layerScroll, [componentId, "scroll", layerId], setAttributeForLayer)
+        checkbox(!!layerScroll, [componentId, "scroll", layerId], setAttributeForLayer)
       ]},
       {c: "pair", children: [
         {c: "label", text: "mask overflow"},
-        tableEditor.checkbox(!!layerMask, [componentId, "mask", layerId], setAttributeForLayer)
+        checkbox(!!layerMask, [componentId, "mask", layerId], setAttributeForLayer)
       ]},
     ] };
   }
@@ -1704,7 +1724,7 @@ module uiEditor {
 
   // Inputs
   function inspectorInput(value, key, onChange, binding) {
-    var field: any = tableEditor.input(value, key, onChange, function(evt, elem) {
+    var field: any = input(value, key, onChange, function(evt, elem) {
       onChange(evt, elem, true);
       evt.preventDefault();
     });
