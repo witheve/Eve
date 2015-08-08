@@ -1089,7 +1089,7 @@ fn create(flow: &Flow) -> Flow {
                     select: vec![],
                 }),
                 _ => {
-                    println!("Unimplemented: create for {:?} {:?} {:?}", view_ix, view, kind);
+                    println!("Unsupported: create for {:?} {:?} {:?}", view_ix, view, kind);
                     View::Table(Table{insert:None, remove:None}) // dummy node
                 }
             },
@@ -1119,14 +1119,14 @@ fn create(flow: &Flow) -> Flow {
     find!(flow.get_output("number of variables"), [view_ix, num], {
         match &mut nodes[view_ix.as_usize()].view {
             &mut View::Join(ref mut join) => join.constants = vec![Null; num.as_usize()],
-            other => println!("Unimplemented: variables for {:?} {:?}", view_ix, other),
+            other => panic!("Variables given for non-join view {:?} {:?}", view_ix, other),
         }
     });
 
     find!(flow.get_output("constant layout"), [view_ix, variable_ix, value], {
         match &mut nodes[view_ix.as_usize()].view {
             &mut View::Join(ref mut join) => join.constants[variable_ix.as_usize()] = value.clone(),
-            other => println!("Unimplemented: variables for {:?} {:?}", view_ix, other),
+            other => panic!("Constants given for non-join/union view {:?} {:?}", view_ix, other),
         }
     });
 
@@ -1154,7 +1154,7 @@ fn create(flow: &Flow) -> Flow {
                 };
                 push_at(&mut join.sources, source_ix, source);
             }
-            other => println!("Unimplemented: sources for {:?} {:?}", view_ix, other),
+            other => panic!("Sources given for non-join view {:?} {:?}", view_ix, other),
         }
     });
 
@@ -1170,7 +1170,7 @@ fn create(flow: &Flow) -> Flow {
                     other => panic!("Unexpected binding kind / input combo: {:?}", other),
                 }
             }
-            other => println!("Unimplemented: bindings for {:?} {:?}", view_ix, other),
+            other => panic!("Bindings given for non-join view {:?} {:?}", view_ix, other),
         }
     });
 
@@ -1179,7 +1179,7 @@ fn create(flow: &Flow) -> Flow {
             &mut View::Join(ref mut join) => {
                 push_at(&mut join.select, field_ix, variable_ix.as_usize());
             }
-            other => println!("Unimplemented: bindings for {:?} {:?}", view_ix, other),
+            other => panic!("Selects given for non-join view {:?} {:?}", view_ix, other),
         }
     });
 
