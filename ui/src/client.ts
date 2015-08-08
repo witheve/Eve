@@ -261,7 +261,6 @@ module client {
       if(commands) {
         payload.commands = commands;
       }
-      console.log("hi", payload);
 
       if (DEBUG.SEND) {
         var stats = getDataStats(payload);
@@ -279,9 +278,7 @@ module client {
         }
       }
 
-      console.log("commands", commands);
       if (payload.changes.length || payload.commands && payload.commands.length) {
-        console.log("sending");
         server.ws.send(CBOR.encode(payload));
       }
     }
