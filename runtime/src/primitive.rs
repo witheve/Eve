@@ -10,6 +10,7 @@ pub enum Primitive {
     Add,
     Subtract,
     Multiply,
+    Divide,
     Remainder,
     Round,
     Split,
@@ -20,7 +21,6 @@ pub enum Primitive {
     Sum,
     Mean,
     StandardDeviation,
-    Empty,
 }
 
 impl Primitive {
@@ -39,6 +39,7 @@ impl Primitive {
             (Add, [&Float(a), &Float(b)]) => vec![vec![Float(a+b)]],
             (Subtract, [&Float(a), &Float(b)]) => vec![vec![Float(a-b)]],
             (Multiply, [&Float(a), &Float(b)]) => vec![vec![Float(a*b)]],
+            (Divide, [&Float(a), &Float(b)]) => vec![vec![Float(a/b)]],
             (Remainder, [&Float(a), &Float(b)]) => vec![vec![Float(a%b)]], // akin to C-like languages, the % operator is remainder,
             (Round, [&Float(a), &Float(b)]) => vec![vec![Float((a*10f64.powf(b)).round()/10f64.powf(b))]],
             (Contains, [&String(ref inner), &String(ref outer)]) => {
@@ -90,7 +91,6 @@ impl Primitive {
                 let standard_deviation = ((sum_squares - sum.powi(2)) / (column.len() as f64)).sqrt();
                 vec![vec![Float(standard_deviation)]]
             }
-            (Empty, _) => vec![vec![Bool(false)]], // TODO empty doesn't make sense with non-outer joins
             _ => {
                 errors.push(vec![
                     String(source.to_owned()),
@@ -106,9 +106,10 @@ impl Primitive {
             "<" => Primitive::LT,
             "<=" => Primitive::LTE,
             "!=" => Primitive::NEQ,
-            "add" => Primitive::Add,
-            "subtract" => Primitive::Subtract,
-            "multiply" => Primitive::Multiply,
+            "+" => Primitive::Add,
+            "-" => Primitive::Subtract,
+            "*" => Primitive::Multiply,
+            "/" => Primitive::Divide,
             "remainder" => Primitive::Remainder,
             "round" => Primitive::Round,
             "contains" => Primitive::Contains,
@@ -119,7 +120,6 @@ impl Primitive {
             "sum" => Primitive::Sum,
             "mean" => Primitive::Mean,
             "standard deviation" => Primitive::StandardDeviation,
-            "empty" => Primitive::Empty,
             _ => panic!("Unknown primitive: {:?}", string),
         }
     }
@@ -130,9 +130,10 @@ pub fn primitives() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>, 
         ("<", vec!["in A", "in B"], vec![], vec![]),
         ("<=", vec!["in A", "in B"], vec![], vec![]),
         ("!=", vec!["in A", "in B"], vec![], vec![]),
-        ("add", vec!["in A", "in B"], vec![], vec!["out"]),
-        ("subtract", vec!["in A", "in B"], vec![], vec!["out"]),
-        ("multiply", vec!["in A", "in B"], vec![], vec!["out"]),
+        ("+", vec!["in A", "in B"], vec![], vec!["out"]),
+        ("-", vec!["in A", "in B"], vec![], vec!["out"]),
+        ("*", vec!["in A", "in B"], vec![], vec!["out"]),
+        ("/", vec!["in A", "in B"], vec![], vec!["out"]),
         ("remainder", vec!["in A", "in B"], vec![], vec!["out"]),
         ("round", vec!["in A", "in B"], vec![], vec!["out"]),
         ("contains", vec!["inner", "outer"], vec![], vec!["out"]),
@@ -143,6 +144,5 @@ pub fn primitives() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>, 
         ("sum", vec![], vec!["in"], vec!["out"]),
         ("mean", vec![], vec!["in"], vec!["out"]),
         ("standard deviation", vec![], vec!["in"], vec!["out"]),
-        ("empty", vec![], vec!["in"], vec!["out"]),
     ]
 }

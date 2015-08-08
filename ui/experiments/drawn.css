@@ -80,6 +80,9 @@ body { font-family:"Avenir"; }
 .query-results .result-size { padding-left: 0px; margin-bottom:2px; font-size:10pt; }
 .query-results-container { flex: 1; }
 
+.table-editor .surface { flex:none; }
+.table-editor .query-result { flex:1; }
+
 .peek-results { position:absolute; flex: 1; top: 20px; right: 20px; height: 150px; font-size: 10pt; color: #0ba; }
 .peek-results .result-size { padding-left: 2px; margin-bottom:2px;}
 .peek-results .table-container { border-color: #0ba; }
@@ -119,6 +122,10 @@ body { font-family:"Avenir"; }
 
 .dead-server-banner { position:absolute; top:0; left: 0; right:0; padding: 20px; background: red; color: black; z-index:10000; }
 
+.query-selector-filter { padding:0px 24px; margin-top:10px; height:20px; flex:none; font-size:10pt; color: #999; flex-direction: row; align-items:center;  }
+.query-selector-filter .searching-for { flex-direction: row; align-items: center; }
+.query-selector-filter .searching-for .search-text { padding:3px 5px; background: #444; margin:0 3px; border-radius:2px; }
+
 /*---------------------------------------------------------
 - Table
 ---------------------------------------------------------*/
@@ -128,6 +135,7 @@ body { font-family:"Avenir"; }
 .table-container .table .rows { overflow-y: auto; overflow-x:hidden; }
 .table-container .table .rows > div { flex-direction:row; }
 .table-container .table .row { flex: none; }
+.table-container .table .row.active { background: #00443f; color: #0ba; }
 .table-container .table .header { flex-direction:row; width: 200px; padding: 5px; flex:none; background: rgba(243,243,243,1); border-bottom:1px solid rgba(0,0,0,0.1); margin-bottom:-1px; }
 .table-container .table .header .input { flex: 1; }
 .table-container .table .header .icon { color: #ccc; display:none; padding: 0 5px; }
@@ -135,9 +143,7 @@ body { font-family:"Avenir"; }
 .table-container .table .header .icon.active { display:flex; color: #999; }
 .table-container .table .field { width: 200px; padding: 5px; flex:none; white-space: nowrap; overflow:hidden; }
 
-.table-editor {  flex:1; border-radius:3px; box-shadow:0 0 20px #111; background: #fff; color: #555; }
-.table-editor > .table .headers { padding-left: 10px;  }
-.table-editor > .table .rows { padding-left: 10px; height:100%; flex:1; }
+.empty-value { font-size: 10pt; color: #888; }
 
 /*---------------------------------------------------------
 - errors

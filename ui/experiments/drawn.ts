@@ -276,7 +276,7 @@ module drawn {
       let variableId = binding["binding: variable"];
       if(ixer.select("binding", {variable: variableId}).length > 1
          || ixer.select("ordinal binding", {variable: variableId}).length
-         || ixer.select("constant", {variable: variableId}).length) {
+         || ixer.select("constant binding", {variable: variableId}).length) {
         joined.push(binding);
       }
     }
@@ -286,7 +286,7 @@ module drawn {
   function removeVariable(variableId) {
     let diffs = [];
     diffs.push(api.remove("variable", {variable: variableId}));
-    diffs.push(api.remove("constant", {variable: variableId}));
+    diffs.push(api.remove("constant binding", {variable: variableId}));
     // we need to remove any bindings to this variable
     diffs.push(api.remove("binding", {variable: variableId}));
     diffs.push(api.remove("ordinal binding", {variable: variableId}));
@@ -333,7 +333,7 @@ module drawn {
         if(needsConstant) {
            let fieldId = input["binding: field"];
            let sourceViewId = ixer.selectOne("source", {source: input["binding: source"]})["source: source view"];
-           diffs.push(api.insert("constant", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
+           diffs.push(api.insert("constant binding", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
         }
       }
     }
@@ -368,7 +368,7 @@ module drawn {
       diffs.push.apply(diffs, dispatch("addSelectToQuery", {viewId: itemId, variableId: variableId, name: code.name(fieldId) || fieldId}, true));
     } else {
       // otherwise we're an input field and we need to add a default constant value
-      diffs.push(api.insert("constant", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
+      diffs.push(api.insert("constant binding", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
     }
     return diffs;
   }
@@ -515,6 +515,11 @@ module drawn {
         // we can make sure it's how you left it even if you do searches in the editor
         localState.selectorSearchingFor = localState.searchingFor;
         localState.selectorSearchResults = localState.searchResults;
+        // if this item is a table, we should setup the initial table entry
+        var kind = ixer.selectOne("view", {view: info.itemId})["view: kind"];
+        if(kind === "table") {
+          diffs.push.apply(diffs, dispatch("newTableEntry", {}, true));
+        }
       break;
       case "gotoItemSelector":
         // clear selection when leaving a workspace to ensure it doesn't end up taking effect in the
@@ -634,7 +639,7 @@ module drawn {
             //we do this as a normal dispatch as we want to bail out in the error case.
             return dispatch("setError", {errorText: "Normal functions can't take columns as input, you could try unchunking the source or grouping this field."});
           }
-          diffs.push(api.remove("constant", {variable: primitiveNode.variable}));
+          diffs.push(api.remove("constant binding", {variable: primitiveNode.variable}));
         }
         diffs.push.apply(diffs, dispatch("clearSelection", info, true));
       break;
@@ -671,7 +676,7 @@ module drawn {
         var kind = ixer.selectOne("field", {field: fieldId})["field: kind"];
         if(kind !== "output") {
           let sourceViewId = ixer.selectOne("source", {source: oldBindings[0]["binding: source"]})["source: source view"];
-          diffs.push(api.insert("constant", {variable: variableIdToRemove, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
+          diffs.push(api.insert("constant binding", {variable: variableIdToRemove, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
         }
 
       break;
@@ -735,7 +740,7 @@ module drawn {
       break;
       case "addFilter":
         var variableId = info.node.variable;
-        diffs.push(api.insert("constant", {variable: variableId, value: ""}));
+        diffs.push(api.insert("constant binding", {variable: variableId, value: ""}));
         dispatch("modifyFilter", info, true);
       break;
       case "modifyFilter":
@@ -743,13 +748,13 @@ module drawn {
       break;
       case "removeFilter":
         var variableId = info.node.variable;
-        diffs.push(api.remove("constant", {variable: variableId}));
+        diffs.push(api.remove("constant binding", {variable: variableId}));
       break;
       case "stopModifyingFilter":
         //insert a constant
         var variableId = info.node.variable;
-        diffs.push(api.remove("constant", {variable: variableId}));
-        diffs.push(api.insert("constant", {variable: variableId, value: info.value}));
+        diffs.push(api.remove("constant binding", {variable: variableId}));
+        diffs.push(api.insert("constant binding", {variable: variableId, value: info.value}));
         localState.modifyingFilterNodeId = undefined;
       break;
       case "chunkSource":
@@ -990,6 +995,8 @@ module drawn {
           }
           diffs.push.apply(diffs, dispatch("stopSearching", {}, true));
         } else if(info.keyCode === api.KEYS.ESC) {
+          localState.searchingFor = "";
+          localState.searchResults = false;
           diffs.push.apply(diffs, dispatch("stopSearching", {}, true));
         } else if(info.keyCode === api.KEYS.F && (info.ctrlKey || info.metaKey)) {
           diffs.push.apply(diffs, dispatch("stopSearching", {}, true));
@@ -1000,10 +1007,29 @@ module drawn {
       // Tables
       //---------------------------------------------------------
       case "newTableEntry":
-        console.error("Implement newTableEntry");
+        var entry = {};
+        var fields:any[] = ixer.getFields(localState.drawnUiActiveId);
+        for(let fieldId of fields) {
+          entry[fieldId] = "";
+        }
+        localState.tableEntry = entry;
+        localState.selectedTableEntry = false;
+        localState.focusedTableEntryField = fields[0];
       break;
       case "deleteTableEntry":
-        console.error("Implement deleteTableEntry");
+        var row = localState.tableEntry;
+        var tableId = localState.drawnUiActiveId;
+        // if the row is not empty, remove it. Otherwise we'd remove every
+        // value in the table and be sad :(
+        if(Object.keys(row).length) {
+          diffs.push(api.remove(tableId, row, undefined, true));
+        }
+        diffs.push.apply(diffs, dispatch("newTableEntry", {}, true));
+      break;
+      case "selectTableEntry":
+        localState.tableEntry = api.clone(info.row);
+        localState.selectedTableEntry = info.row;
+        localState.focusedTableEntryField = info.fieldId;
       break;
       case "addFieldToTable":
         var tableId = info.tableId || localState.drawnUiActiveId;
@@ -1015,17 +1041,45 @@ module drawn {
         diffs.push(neueField);
       break;
       case "removeFieldFromTable":
-        console.error("Implement removeFieldFromTable");
+        // we remove whatever field is currently active in the form
+        if(localState.activeTableEntryField) {
+          diffs.push(api.remove("field", {field: localState.activeTableEntryField}));
+        }
+      break;
+      case "activeTableEntryField":
+        // this tracks the focus state of form fields for removal
+        localState.activeTableEntryField = info.fieldId;
+      break;
+      case "clearActiveTableEntryField":
+        // @HACK: because blur happens before a click on remove would get registered,
+        // we have to wait to clear activeTableEntry to give the click time to go through
+        setTimeout(function() {
+          if(localState.activeTableEntryField === info.fieldId) {
+            dispatch("forceClearActiveTableEntryField", info, true);
+          }
+        }, 150);
+      break;
+      case "forceClearActiveTableEntryField":
+        localState.activeTableEntryField = false;
+      break;
+      case "focusTableEntryField":
+        localState.focusedTableEntryField = false;
       break;
       case "submitTableEntry":
         var row = localState.tableEntry;
         var tableId = localState.drawnUiActiveId;
         diffs.push(api.insert(tableId, row, undefined, true));
-        localState.tableEntry = {};
+        // if there's a selectedTableEntry then this is an edit and we should
+        // remove the old row
+        if(localState.selectedTableEntry) {
+          diffs.push(api.remove(tableId, localState.selectedTableEntry, undefined, true));
+        }
+        diffs.push.apply(diffs, dispatch("newTableEntry", {}, true));
       break;
       case "setTableEntryField":
         localState.tableEntry[info.fieldId] = info.value;
       break;
+
       //---------------------------------------------------------
       // Create menu
       //---------------------------------------------------------
@@ -1259,6 +1313,9 @@ module drawn {
     }
 
     for(let viewId of viewIds) {
+      if(!localStorage["showHidden"] && ixer.selectOne("tag", {view: viewId, tag: "hidden"})) {
+        continue;
+      }
       let name = code.name(viewId);
       let score = scoreHaystack(name, needle);
       if(score.score) {
@@ -1317,9 +1374,22 @@ module drawn {
     return {id: "root", children: [tooltipUi(), page]};
   }
 
+  function visibleItemCount() {
+    let allViews = ixer.select("view", {});
+    let totalCount = allViews.length;
+    // hidden views don't contribute to the count
+    if(!localStorage["showHidden"]) {
+      totalCount -= ixer.select("tag", {tag: "hidden"}).length
+    }
+    // primtive views don't contribute to the count
+    totalCount -= ixer.select("view", {kind: "primitive"}).length;
+    return totalCount;
+  }
+
   function itemSelector() {
     let viewIds;
     let searching = false;
+    let totalCount = visibleItemCount();
     if(localState.searchingFor && localState.searchResults && localState.searchResults.length) {
       viewIds = localState.searchResults[0].results.map((searchResult) => searchResult.viewId);
       searching = true;
@@ -1352,7 +1422,16 @@ module drawn {
     }
     return {c: "query-selector-wrapper", children: [
       leftToolbar(actions, disabled),
-      {c: "query-selector", click: clearSelectedItems, children: queries}
+      {c: "query-selector-body", click: clearSelectedItems, children: [
+        {c: "query-selector-filter", children: [
+          searching ? {c: "searching-for", children: [
+            {text: `Searching for`},
+            {c: "search-text", text: localState.searchingFor}
+          ]} : undefined,
+          queries.length === totalCount ? {c: "showing", text: `Showing all ${totalCount} items`} : {c: "showing", text: `found ${queries.length} of ${totalCount} items.`},
+        ]},
+        {c: "query-selector", children: queries}
+      ]}
     ]};
   }
 
@@ -1455,12 +1534,12 @@ module drawn {
 
   function tooltipUi(): any {
     let tooltip = localState.tooltip;
-    
+
     if(tooltip) {
       let viewHeight = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
        // @FIXME: We need to get the actual element size here.
       let elem:any = {c: "tooltip", left: tooltip.x, top: Math.min(tooltip.y, viewHeight - 61)};
-      
+
       if(typeof tooltip.content === "string") {
         elem["text"] = tooltip.content;
       } else if(typeof tooltip.content === "function") {
@@ -1655,7 +1734,7 @@ module drawn {
         };
     dispatch("showTooltip", tooltip);
   }
-  
+
   function settingsPanel() {
     return {text: "@TODO: Settings"};
   }
@@ -1852,7 +1931,7 @@ module drawn {
       let peekViewSize = ixer.select(peekViewId, {}).length;
       peek = {c: "peek-results", width: numFields * 100, left: rect.right + 50, top: (rect.top + rect.height /2) - 75, children: [
         {c: "result-size", text: `${peekViewSize} rows`},
-        tableEditor.tableForView(peekViewId, false, 100),
+        tableEditor.tableForView(peekViewId, 100),
 
       ]};
     }
@@ -1861,12 +1940,12 @@ module drawn {
       peek,
       {c: "query-results-container", children: [
         {c: "result-size", text: `${resultViewSize} results`},
-        tableEditor.tableForView(resultViewId, false, 100)
+        tableEditor.tableForView(resultViewId, 100)
       ]}
     ]};
   }
 
-  function rename(e, elem) {
+  export function rename(e, elem) {
     dispatch("rename", {renameId: elem.renameId, value: e.currentTarget.textContent});
   }
 
@@ -1936,7 +2015,7 @@ module drawn {
     for(let variable of variables) {
       let variableId = variable["variable: variable"];
       let bindings = ixer.select("binding", {variable: variableId});
-      let constants = ixer.select("constant", {variable: variableId});
+      let constants = ixer.select("constant binding", {variable: variableId});
       let ordinals = ixer.select("ordinal binding", {variable: variableId});
       let attribute:any = {type: "attribute", id: variableId, variable: variableId};
 
@@ -2010,12 +2089,12 @@ module drawn {
         attribute.entity = entity;
         attribute.select = ixer.selectOne("select", {variable: variableId});
         for(var constant of constants) {
-          attribute.filter = {operation: "=", value: constant["constant: value"]};
+          attribute.filter = {operation: "=", value: constant["constant binding: value"]};
         }
       } else if(constants.length) {
         // some variables are just a constant
-        attribute.name = "constant";
-        attribute.filter = {operation: "=", value: constants[0]["constant: value"]};
+        attribute.name = "constant binding";
+        attribute.filter = {operation: "=", value: constants[0]["constant binding: value"]};
       } else if(ordinals.length) {
         // we have to handle ordinals specially since they're a virtual field on a table
         attribute.isOrdinal = true;
@@ -2360,9 +2439,9 @@ module drawn {
   function tableFormEditor(tableId, row = null, rowNum = 0, rowTotal = 0) {
     let fields = ixer.getFields(tableId).map((fieldId) => {
       let value = row ? row[fieldId] : "";
-      let entryField = {c: "entry-field", fieldId, text: value, contentEditable: true, keydown: submitTableEntry, input: setTableEntryField};
+      let entryField = {c: "entry-field", fieldId, postRender: maybeFocusFormField, text: value, contentEditable: true, keydown: keyboardSubmitTableEntry, input: setTableEntryField, blur: clearActiveTableEntryField, focus: activeTableEntryField};
       return {c: "field-item", children: [
-        {c: "label", contentEditable: true, blur: rename, renameId: fieldId, text: code.name(fieldId)},
+        {c: "label", tabindex:-1, contentEditable: true, blur: rename, renameId: fieldId, text: code.name(fieldId)},
         entryField,
       ]};
     });
@@ -2373,6 +2452,7 @@ module drawn {
         {c: "form-description", contentEditable: true, blur: setQueryDescription, viewId: tableId, text: getDescription(tableId)},
         {c: "form-fields", children: fields},
         sizeUi,
+        {c: "submit-button", click: submitTableEntry, text: "submit"}
       ]},
       rowTotal > 1 ? formRepeat(1) : undefined,
       rowTotal > 2 ? formRepeat(2) : undefined,
@@ -2433,34 +2513,61 @@ module drawn {
       "back": {text: "Back", func: gotoItemSelector, description: "Return to the item selection page"},
       "new": {text: "New", func: newTableEntry, description: "Create a new entry"},
       "delete": {text: "Delete", func: deleteTableEntry, description: "Delete the current entry"},
-      "add field": {text: "Add", func: addFieldToTable, description: "Add a field to the card"},
-      "remove field": {text: "Remove", func: removeFieldFromTable, description: "Remove the active field from the card"},
+      "add field": {text: "+Field", func: addFieldToTable, description: "Add a field to the card"},
+      "remove field": {text: "-Field", func: removeFieldFromTable, description: "Remove the active field from the card"},
     };
     let resultViewSize = ixer.select(tableId, {}).length;
-    return {c: "query query-editor", children: [
+    return {c: "query table-editor", children: [
       leftToolbar(actions),
       {c: "container", children: [
         {c: "surface", children: [
           {c: "table-workspace", children: [
-            tableFormEditor(tableId, {}, 1, 0),
+            tableFormEditor(tableId, localState.tableEntry, 1, 0),
           ]},
           queryErrors(view),
         ]},
-        {c: "query-results", children: [
+        {id: `${tableId}-results`, c: "query-results", children: [
           {c: "query-results-container", children: [
             {c: "result-size", text: `${resultViewSize} entries`},
-            tableEditor.tableForView(tableId, false, 100)
-           ]},
+            tableEditor.tableForView(tableId, 100, {
+              onSelect: selectTableEntry,
+              activeRow: localState.selectedTableEntry || localState.tableEntry,
+            })
+         ]},
         ]},
       ]},
     ]};
   }
 
-  function submitTableEntry(e, elem) {
+  function maybeFocusFormField(e, elem) {
+    if(elem.fieldId === localState.focusedTableEntryField) {
+      e.focus();
+      dispatch("focusTableEntryField", {});
+    }
+  }
+
+  function selectTableEntry(e, elem) {
+    e.stopPropagation();
+    dispatch("selectTableEntry", {row: api.clone(elem.row), fieldId: elem.fieldId});
+  }
+
+  function keyboardSubmitTableEntry(e, elem) {
     if(e.keyCode === api.KEYS.ENTER) {
       dispatch("submitTableEntry", {});
       e.preventDefault();
     }
+  }
+
+  function submitTableEntry(e, elem) {
+    dispatch("submitTableEntry", {});
+  }
+
+  function clearActiveTableEntryField(e, elem) {
+    dispatch("clearActiveTableEntryField", {fieldId: elem.fieldId});
+  }
+
+  function activeTableEntryField(e, elem) {
+    dispatch("activeTableEntryField", {fieldId: elem.fieldId});
   }
 
   function setTableEntryField(e, elem) {
@@ -2500,8 +2607,10 @@ module drawn {
     //undo + redo
     if((e.metaKey || e.ctrlKey) && e.shiftKey && e.keyCode === KEYS.Z) {
       dispatch("redo", null);
+      e.preventDefault();
     } else if((e.metaKey || e.ctrlKey) && e.keyCode === KEYS.Z) {
       dispatch("undo", null);
+      e.preventDefault();
     }
 
     //remove
