@@ -144,12 +144,24 @@ module client {
       if (time > 5) {
         console.log("slow parse (> 5ms):", time);
       }
+      
+      
+      var initializing = !server.initialized;
+      server.initialized = true;
+      if(data.commands) {
+        for(let [command, ...args] of data.commands) {
+          // If we are loading in this event, we should ignore tags and accept all diffs.
+          if(command === "load") {
+            initializing = true;
+          }
+        }
+      }
 
       // For an explanation of what changes are synced, check: <https://github.com/Kodowa/Eve/blob/master/design/sync.md>
       var changes = [];
       for(let change of data.changes) {
         let [view, fields, inserts, removes] = change;
-        if(api.code.hasTag(view, "client")) {
+        if(!initializing && api.code.hasTag(view, "client")) {
           // If view is client-controlled, discard any changes originating from our session.
           var sessionFieldIx:number;
           for(let fieldIx = 0; fieldIx < fields.length; fieldIx++) {
@@ -164,7 +176,7 @@ module client {
                         filterFactsBySession(inserts, sessionFieldIx, data.session),
                         filterFactsBySession(removes, sessionFieldIx, data.session)]);
 
-        } else if (api.code.hasTag(view, "editor")) {
+        } else if (!initializing && api.code.hasTag(view, "editor")) {
           // If view is editor controlled, we discard all changes.
           continue;
         } else {
@@ -194,8 +206,6 @@ module client {
       ixer.handleMapDiffs(changes);
 
       // If we haven't initialized the client yet, do so after we've handled the initial payload, so it can be accessed via the indexer.
-      var initializing = !server.initialized;
-      server.initialized = true;
       if (initializing) {
         var eventId = (ixer.facts("client event") || []).length; // Ensure eids are monotonic across sessions.
         uiEditorRenderer.setEventId(eventId);
@@ -239,7 +249,7 @@ module client {
     };
   }
 
-  export function sendToServer(message, formatted?) {
+  export function sendToServer(message, formatted?, commands?) {
     if (!server.connected) {
       console.warn("Not connected to server, adding message to queue.");
       server.queue.push(message);
@@ -248,6 +258,10 @@ module client {
         message = toMapDiffs(message);
       }
       var payload = message;
+      if(commands) {
+        payload.commands = commands;
+      }
+      console.log("hi", payload);
 
       if (DEBUG.SEND) {
         var stats = getDataStats(payload);
@@ -265,7 +279,9 @@ module client {
         }
       }
 
-      if (payload.changes.length) {
+      console.log("commands", commands);
+      if (payload.changes.length || payload.commands && payload.commands.length) {
+        console.log("sending");
         server.ws.send(CBOR.encode(payload));
       }
     }
