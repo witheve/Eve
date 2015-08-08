@@ -193,9 +193,6 @@ pub fn handle_event(server: &mut Server, event: Event, event_json: Json) {
         server.flow.clone()
     });
     server.flow.quiesce(event.changes);
-    let changes = time!("diffing", {
-        server.flow.changes_from(old_flow)
-    });
     for command in event.commands.iter() {
         let borrowed_words = command.iter().map(|word| &word[..]).collect::<Vec<_>>();
         match &borrowed_words[..] {
@@ -211,6 +208,9 @@ pub fn handle_event(server: &mut Server, event: Event, event_json: Json) {
             other => panic!("Unknown command: {:?}", other),
         }
     }
+    let changes = time!("diffing", {
+        server.flow.changes_from(old_flow)
+    });
     for sender in server.senders.iter_mut() {
         let session_id = format!("{}", sender.get_mut().peer_addr().unwrap());
         let text = format!("{}", Event{changes: changes.clone(), session: session_id, commands: vec![]}.to_json());
