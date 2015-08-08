@@ -14,7 +14,8 @@ pub struct Table {
 
 #[derive(Clone, Debug)]
 pub struct Union {
-    pub selects: Vec<IndexSelect>,
+    pub constants: Vec<Value>,
+    pub mappings: Vec<Vec<(usize, usize)>>,
 }
 
 #[derive(Clone, Debug, Copy)]
@@ -188,10 +189,14 @@ impl View {
         match *self {
             View::Table(_) => None,
             View::Union(ref union) => {
-                assert_eq!(union.selects.len(), upstream.len());
-                for select in union.selects.iter() {
-                    for values in select.select(&upstream[..]) {
-                        output.index.insert(values);
+                assert_eq!(union.mappings.len(), upstream.len());
+                for (mapping, input) in union.mappings.iter().zip(upstream.iter()) {
+                    for old_row in input.index.iter() {
+                        let mut new_row = union.constants.clone();
+                        for &(new_ix, old_ix) in mapping.iter() {
+                            new_row[new_ix] = old_row[old_ix].clone();
+                        }
+                        output.index.insert(new_row);
                     }
                 }
                 Some(output)
