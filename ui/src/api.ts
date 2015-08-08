@@ -322,7 +322,7 @@ module api {
     "select": {},
     "variable" : {},
     "binding": {},
-    "constant": {},
+    "constant binding": {},
 
     "view description": {},
 

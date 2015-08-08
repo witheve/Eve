@@ -276,7 +276,7 @@ module drawn {
       let variableId = binding["binding: variable"];
       if(ixer.select("binding", {variable: variableId}).length > 1
          || ixer.select("ordinal binding", {variable: variableId}).length
-         || ixer.select("constant", {variable: variableId}).length) {
+         || ixer.select("constant binding", {variable: variableId}).length) {
         joined.push(binding);
       }
     }
@@ -286,7 +286,7 @@ module drawn {
   function removeVariable(variableId) {
     let diffs = [];
     diffs.push(api.remove("variable", {variable: variableId}));
-    diffs.push(api.remove("constant", {variable: variableId}));
+    diffs.push(api.remove("constant binding", {variable: variableId}));
     // we need to remove any bindings to this variable
     diffs.push(api.remove("binding", {variable: variableId}));
     diffs.push(api.remove("ordinal binding", {variable: variableId}));
@@ -333,7 +333,7 @@ module drawn {
         if(needsConstant) {
            let fieldId = input["binding: field"];
            let sourceViewId = ixer.selectOne("source", {source: input["binding: source"]})["source: source view"];
-           diffs.push(api.insert("constant", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
+           diffs.push(api.insert("constant binding", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
         }
       }
     }
@@ -368,7 +368,7 @@ module drawn {
       diffs.push.apply(diffs, dispatch("addSelectToQuery", {viewId: itemId, variableId: variableId, name: code.name(fieldId) || fieldId}, true));
     } else {
       // otherwise we're an input field and we need to add a default constant value
-      diffs.push(api.insert("constant", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
+      diffs.push(api.insert("constant binding", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
     }
     return diffs;
   }
@@ -639,7 +639,7 @@ module drawn {
             //we do this as a normal dispatch as we want to bail out in the error case.
             return dispatch("setError", {errorText: "Normal functions can't take columns as input, you could try unchunking the source or grouping this field."});
           }
-          diffs.push(api.remove("constant", {variable: primitiveNode.variable}));
+          diffs.push(api.remove("constant binding", {variable: primitiveNode.variable}));
         }
         diffs.push.apply(diffs, dispatch("clearSelection", info, true));
       break;
@@ -676,7 +676,7 @@ module drawn {
         var kind = ixer.selectOne("field", {field: fieldId})["field: kind"];
         if(kind !== "output") {
           let sourceViewId = ixer.selectOne("source", {source: oldBindings[0]["binding: source"]})["source: source view"];
-          diffs.push(api.insert("constant", {variable: variableIdToRemove, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
+          diffs.push(api.insert("constant binding", {variable: variableIdToRemove, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
         }
 
       break;
@@ -740,7 +740,7 @@ module drawn {
       break;
       case "addFilter":
         var variableId = info.node.variable;
-        diffs.push(api.insert("constant", {variable: variableId, value: ""}));
+        diffs.push(api.insert("constant binding", {variable: variableId, value: ""}));
         dispatch("modifyFilter", info, true);
       break;
       case "modifyFilter":
@@ -748,13 +748,13 @@ module drawn {
       break;
       case "removeFilter":
         var variableId = info.node.variable;
-        diffs.push(api.remove("constant", {variable: variableId}));
+        diffs.push(api.remove("constant binding", {variable: variableId}));
       break;
       case "stopModifyingFilter":
         //insert a constant
         var variableId = info.node.variable;
-        diffs.push(api.remove("constant", {variable: variableId}));
-        diffs.push(api.insert("constant", {variable: variableId, value: info.value}));
+        diffs.push(api.remove("constant binding", {variable: variableId}));
+        diffs.push(api.insert("constant binding", {variable: variableId, value: info.value}));
         localState.modifyingFilterNodeId = undefined;
       break;
       case "chunkSource":
@@ -1988,7 +1988,7 @@ module drawn {
     for(let variable of variables) {
       let variableId = variable["variable: variable"];
       let bindings = ixer.select("binding", {variable: variableId});
-      let constants = ixer.select("constant", {variable: variableId});
+      let constants = ixer.select("constant binding", {variable: variableId});
       let ordinals = ixer.select("ordinal binding", {variable: variableId});
       let attribute:any = {type: "attribute", id: variableId, variable: variableId};
 
@@ -2062,12 +2062,12 @@ module drawn {
         attribute.entity = entity;
         attribute.select = ixer.selectOne("select", {variable: variableId});
         for(var constant of constants) {
-          attribute.filter = {operation: "=", value: constant["constant: value"]};
+          attribute.filter = {operation: "=", value: constant["constant binding: value"]};
         }
       } else if(constants.length) {
         // some variables are just a constant
-        attribute.name = "constant";
-        attribute.filter = {operation: "=", value: constants[0]["constant: value"]};
+        attribute.name = "constant binding";
+        attribute.filter = {operation: "=", value: constants[0]["constant binding: value"]};
       } else if(ordinals.length) {
         // we have to handle ordinals specially since they're a virtual field on a table
         attribute.isOrdinal = true;
