@@ -527,12 +527,12 @@ fn plan(flow: &Flow) {
         let sorted_fields = find!(sorted_field_table, [(= source), _, _, _]);
         let mut ixes = sorted_fields.iter().map(|sorted_field| sorted_field[1].as_usize()).collect::<Vec<_>>();
         ixes.sort();
-        if ixes != (1..ixes.len()+1).collect::<Vec<_>>() {
+        if ixes != (0..ixes.len()).collect::<Vec<_>>() {
             for sorted_field in sorted_fields.into_iter() {
                 warning_table.index.insert(vec![
                     string!("sorted field"),
                     Column(sorted_field.to_vec()),
-                    string!("Ixes are not 1..n"),
+                    string!("Ixes should be consecutive integers from 0 to (number of sorted fields)-1"),
                     ]);
             }
         }
