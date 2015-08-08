@@ -66,8 +66,9 @@ body { font-family:"Avenir"; }
 .searcher .search-results .search-result-item .result-text {  }
 .searcher .search-results .search-result-item .result-description { margin-top:2px; font-size: 10pt; color: #aaa; line-height:15px; }
 
-.sorter .fields { flex-direction: row;  }
+.sorter .fields { flex-direction: row; margin-top:10px;  }
 .sorter .field { padding:5px; background: rgba(255,255,255,0.1); border-radius:3px; min-width: 40px; text-align: center; align-items: center; flex-direction: row; padding-left:10px; cursor: default; }
+.sorter .field.grouped { padding-right:10px; background: rgb(60,60,60); }
 .sorter .field + .field { margin-left: 5px; }
 .sorter .field-name { flex:1; }
 .sorter .sort-direction { font-size: 16px; line-height: 16px; margin-left: 5px; padding:0 5px; }

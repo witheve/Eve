@@ -826,6 +826,18 @@ module drawn {
         var sourceId = bindings[0]["binding: source"];
         var fieldId = bindings[0]["binding: field"];
         diffs.push(api.insert("grouped field", {source: sourceId, field: fieldId}));
+        // when grouping, we have to remove the sorted field for this if there is one, which requires
+        // re-indexing all the other sorted fields
+        var sortedFields = ixer.select("sorted field", {source: sourceId});
+        var ix = 0;
+        diffs.push(api.remove("sorted field", {source: sourceId}));
+        sortedFields.sort((a, b) => a["sorted field: ix"] - b["sorted field: ix"]);
+        for(let sortedField of sortedFields) {
+          let sortedFieldId = sortedField["sorted field: field"];
+          if(sortedFieldId === fieldId) continue;
+          diffs.push(api.insert("sorted field", {source: sourceId, field: sortedFieldId, ix, direction: sortedField["sorted field: direction"]}));
+          ix++;
+        }
       break;
       case "ungroupAttribute":
         var variableId = info.node.variable;
@@ -837,6 +849,17 @@ module drawn {
         var sourceId = bindings[0]["binding: source"];
         var fieldId = bindings[0]["binding: field"];
         diffs.push(api.remove("grouped field", {source: sourceId, field: fieldId}));
+        // add a sorted field back in for this attribute, which requires removing all the old sorts
+        // and shifting this one on to the front
+        var sortedFields = ixer.select("sorted field", {source: sourceId});
+        var ix = 0;
+        diffs.push(api.insert("sorted field", {source: sourceId, field: fieldId, ix, direction: "ascending"}));
+        diffs.push(api.remove("sorted field", {source: sourceId}));
+        sortedFields.sort((a, b) => a["sorted field: ix"] - b["sorted field: ix"]);
+        for(let sortedField of sortedFields) {
+          ix++;
+          diffs.push(api.insert("sorted field", {source: sourceId, field: sortedField["sorted field: field"], ix, direction: sortedField["sorted field: direction"]}));
+        }
       break;
       case "negateSource":
         diffs.push(api.insert("negated source", {source: info.sourceId}));
@@ -874,8 +897,11 @@ module drawn {
           let sourceViewId = ixer.selectOne("source", {source: sourceId})["source: source view"];
           let fieldIds = ixer.getFields(sourceViewId);
           let viewId = localState.drawnUiActiveId;
-          fieldIds.forEach((fieldId, ix) => {
+          let ix = 0;
+          fieldIds.forEach((fieldId) => {
+            if(ixer.selectOne("grouped field", {source: sourceId, field: fieldId})) return;
             diffs.push(api.insert("sorted field", {source: sourceId, ix, field: fieldId, direction: "ascending"}));
+            ix++;
           })
         }
         var tooltip:any = {
@@ -1791,7 +1817,7 @@ module drawn {
               dblclick: overwriteSave
             }})}
           ]} : undefined),
-          
+
           {c: "flex-row spaced-row", children: [{t: "input", input: setSaveLocation}, {t: "button", text: "Save", click: overwriteSave}]}
         ];
       }
@@ -1821,36 +1847,36 @@ module drawn {
       content: () =>  [{text: "💩"}]
     }
   };
-  
+
   function settingsPanel() {
     let current = settingsPanes[localState.currentTab] ? localState.currentTab : "preferences";
     let tabs = [];
     for(let tab in settingsPanes) {
       tabs.push({c: (tab === current) ? "active tab" : "tab", tab, text: settingsPanes[tab].title, click: switchTab});
     }
-    
+
     return {c: "settings-panel tabbed-box", children: [
       {c: "tabs", children: tabs},
       {c: "pane", children: settingsPanes[current].content()}
     ]};
   }
-  
+
   function switchTab(evt, elem) {
     dispatch("switchTab", {tab: elem.tab});
   }
-  
+
   function selectSave(evt, elem) {
     dispatch("selectSave", {save: elem.save});
   }
-  
+
   function setSaveLocation(evt, elem) {
     dispatch("selectSave", {save: evt.currentTarget.value});
   }
-  
+
   function overwriteSave(evt, elem) {
     dispatch("overwriteSave", {});
   }
-  
+
   function loadSave(evt, elem) {
     dispatch("loadSave", {});
   }
@@ -1858,14 +1884,22 @@ module drawn {
   function sorter() {
     let sourceId = localState.sorting.sourceId;
     let sourceViewId = ixer.selectOne("source", {source: sourceId})["source: source view"];
-    let fieldItems = ixer.getFields(sourceViewId).map((field, ix) => {
-      let sortedField = ixer.selectOne("sorted field", {source: sourceId, field: field});
+    let fieldItems = ixer.getFields(sourceViewId).map((fieldId, ix) => {
+      let sortedField = ixer.selectOne("sorted field", {source: sourceId, field: fieldId});
       let sortIx = sortedField ? sortedField["sorted field: ix"] : ix;
-      let sortArrow = sortedField["sorted field: direction"] === "ascending" ? "ion-arrow-up-b" : "ion-arrow-down-b";
-      return {c: "field", draggable: true, dragstart: sortDragStart, dragover: sortFieldDragOver, drop: sortFieldDrop, sortIx, sourceId, children: [
-        {c: "field-name", text: code.name(field)},
-        {c: `sort-direction ${sortArrow}`, sortedField, click: toggleSortDirection},
+      let fieldItem: any = {c: "field", draggable: true, dragstart: sortDragStart, dragover: sortFieldDragOver, drop: sortFieldDrop, sortIx, sourceId, children: [
+        {c: "field-name", text: code.name(fieldId)},
       ]};
+      if(!sortedField) {
+        fieldItem.c += " grouped";
+        fieldItem.sortIx = -1;
+        fieldItem.draggable = undefined;
+        fieldItem.drop = undefined;
+      } else {
+        let sortArrow = sortedField["sorted field: direction"] === "ascending" ? "ion-arrow-up-b" : "ion-arrow-down-b";
+        fieldItem.children.push({c: `sort-direction ${sortArrow}`, sortedField, click: toggleSortDirection});
+      }
+      return fieldItem;
     });
     fieldItems.sort((a, b) => {
       return a.sortIx - b.sortIx;
