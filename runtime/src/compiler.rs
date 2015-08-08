@@ -69,12 +69,12 @@ pub fn code_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // unions are fed data from zero or more member views
     ("member", vec!["view", "member", "member view"]),
 
+    // member fields are mapped to union fields
+    ("mapping", vec!["view field", "member", "member field"]),
+    ("constant mapping", vec!["view field", "member", "value"]),
+
     // if a member is negated, it's rows are subtracted from the union
     ("negated member", vec!["member"]),
-
-    // member fields are mapped to union fields
-    ("mapping", vec!["view", "view field", "member", "member field"]),
-    ("constant mapping", vec!["view", "view field", "value"]),
 
     // tags are used to organise all kinds of things
     ("tag", vec!["view", "tag"]),
@@ -549,6 +549,41 @@ fn plan(flow: &Flow) {
     let negated_source_table = flow.get_output("negated source");
     check_foreign_key(&mut *warning_table, &*negated_source_table, &["source"], &*source_table, &["source"]);
 
+    let member_table = flow.get_output("member");
+    check_unique_key(&mut *warning_table, &*member_table, &["member"]);
+    check_foreign_key(&mut *warning_table, &*member_table, &["view"], &*view_table, &["view"]);
+    check_foreign_key(&mut *warning_table, &*member_table, &["member view"], &*view_table, &["view"]);
+    check_view_kind(&mut *warning_table, &*member_table, "view", &*view_table, "union");
+
+    let mapping_table = flow.get_output("mapping");
+    check_unique_key(&mut *warning_table, &*mapping_table, &["view field", "member"]);
+    check_foreign_key(&mut *warning_table, &*mapping_table, &["view field"], &*field_table, &["field"]);
+    check_foreign_key(&mut *warning_table, &*mapping_table, &["member"], &*member_table, &["member"]);
+    check_foreign_key(&mut *warning_table, &*mapping_table, &["member field"], &*field_table, &["field"]);
+    check_triangle_key(&mut *warning_table,
+        &*mapping_table, "view field", "member",
+        &*field_table, "field", "view",
+        &*member_table, "member", "view",
+        );
+    check_triangle_key(&mut *warning_table,
+        &*mapping_table, "member field", "member",
+        &*field_table, "field", "view",
+        &*member_table, "member", "member view",
+        );
+
+    let constant_mapping_table = flow.get_output("constant mapping");
+    check_unique_key(&mut *warning_table, &*constant_mapping_table, &["view field", "member"]);
+    check_foreign_key(&mut *warning_table, &*constant_mapping_table, &["view field"], &*field_table, &["field"]);
+    check_foreign_key(&mut *warning_table, &*constant_mapping_table, &["member"], &*member_table, &["member"]);
+    check_triangle_key(&mut *warning_table,
+        &*constant_mapping_table, "view field", "member",
+        &*field_table, "field", "view",
+        &*member_table, "member", "view",
+        );
+
+    let negated_member_table = flow.get_output("negated member");
+    check_foreign_key(&mut *warning_table, &*negated_member_table, &["member"], &*member_table, &["member"]);
+
     find!(view_table, [view, view_kind], {
         if view_kind.as_str() == "join" {
             find!(field_table, [(= view), field, field_kind], {
@@ -558,6 +593,23 @@ fn plan(flow: &Flow) {
                         Column(vec![view.clone(), field.clone(), field_kind.clone()]),
                         string!("This field has no select"),
                         ]);
+                });
+            });
+        }
+    });
+
+    find!(view_table, [view, view_kind], {
+        if view_kind.as_str() == "union" {
+            find!(field_table, [(= view), field, field_kind], {
+                find!(member_table, [(= view), member, _], {
+                    if dont_find!(mapping_table, [(= field), (= member), _])
+                    && dont_find!(constant_mapping_table, [(= field), (= member), _]) {
+                        warning_table.index.insert(vec![
+                            string!("field"),
+                            Column(vec![view.clone(), field.clone(), field_kind.clone()]),
+                            string!("This field has no mapping in member {:?}", member),
+                            ]);
+                    }
                 });
             });
         }
@@ -823,6 +875,11 @@ fn plan(flow: &Flow) {
                 insert!(disabled_view_table.borrow_mut(), [view, warning_view, warning_row, warning]);
             });
         };
+        let disable_member = |member: &Value| {
+            find!(member_table, [view, (= member), _], {
+                insert!(disabled_view_table.borrow_mut(), [view, warning_view, warning_row, warning]);
+            });
+        };
         match (warning_view.as_str(), &warning_row.as_column()[..]) {
             ("view", [ref view, _]) => disable_view(view),
             ("field", [ref view, _, _]) => disable_view(view),
@@ -837,6 +894,10 @@ fn plan(flow: &Flow) {
             ("chunked source", [ref source]) => disable_source(source),
             ("negated source", [ref source]) => disable_source(source),
             ("unschedulable source", [ref view, ref source, ref variable]) => { disable_view(view); disable_source(source); disable_variable(variable) },
+            ("member", [ref view, _, _]) => disable_view(view),
+            ("mapping", [ref view_field, ref member, _]) => { disable_field(view_field); disable_member(member) },
+            ("constant mapping", [ref view_field, ref member, _]) => { disable_field(view_field); disable_member(member) },
+            ("negated member", [ref member]) => disable_member(member),
             _ => panic!("Don't know how to handle this warning: {:?} {:?} {:?}", warning_view, warning_row, warning),
         }
     });
