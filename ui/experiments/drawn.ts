@@ -2321,8 +2321,10 @@ module drawn {
       for(let link of links) { // Right is source, left is attribute.
         edges.push({source: link.right.id, target: link.left.id});
       }
+      // This placeholder ensures that graph nodes are not placed directly on top of the title/description of the query.
+      sourceNodes.push({id: "placeholder 1", type: "placeholder", width: 256, height: 64, x: 0, y: 0});
 
-      let graph = new graphLayout.Graph(sourceNodes, attributeNodes, edges);
+      let graph = new graphLayout.Graph(sourceNodes, attributeNodes, edges, [640, 480]);
       let layout = graph.layout();
       for(let node of nodes) {
         let p = layout.positions[node.id];
