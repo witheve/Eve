@@ -177,7 +177,7 @@ module graphLayout {
       for(let node of this.attributes) {
         if(node.x === undefined || node.y === undefined) {
           let sources = targetToSources[node.id];
-          if(sources && sources.length === 1) {
+          if(sources && sources.length === 1 && !this.sourcesById[sources[0]].fixed) {
             let source = sources[0];
             if(!sourceGroups[source]) { sourceGroups[source] = []; }
             sourceGroups[source].push(node);
@@ -219,6 +219,8 @@ module graphLayout {
       for(let node of activeAttributes) {
         neueWidth += node.width;
         neueHeight += node.height;
+        maxNeueWidth = maxNeueWidth > node.width ? maxNeueWidth : node.width;
+        maxNeueHeight = maxNeueHeight > node.height ? maxNeueHeight : node.height;
       }
       
       // Calculate a window that should be able to contain the new content.
