@@ -132,6 +132,7 @@ pub enum View {
     Table(Table),
     Union(Union),
     Join(Join),
+    Disabled,
 }
 
 // TODO this algorithm is incredibly naive and also clones excessively
@@ -215,6 +216,7 @@ impl View {
                 join_step(join, 0, &inputs[..], &mut state, &mut output.index, errors);
                 Some(output)
             }
+            View::Disabled => None,
         }
     }
 }

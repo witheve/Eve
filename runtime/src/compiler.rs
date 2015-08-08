@@ -916,8 +916,7 @@ fn plan(flow: &Flow) {
         if dont_find!(disabled_view_table.borrow(), [(= view), _, _, _]) {
             insert!(view_layout_table, [view_ix, view, kind]);
         } else {
-            // disabled views are just treated as constants
-            insert!(view_layout_table, [view_ix, view, string!("table")]);
+            insert!(view_layout_table, [view_ix, view, string!("disabled")]);
         }
     });
 
@@ -1088,6 +1087,7 @@ fn create(flow: &Flow) -> Flow {
                     sources: vec![],
                     select: vec![],
                 }),
+                "disabled" => View::Disabled,
                 _ => {
                     println!("Unsupported: create for {:?} {:?} {:?}", view_ix, view, kind);
                     View::Table(Table{insert:None, remove:None}) // dummy node
