@@ -2614,8 +2614,8 @@ module drawn {
         sizeUi,
         {c: "submit-button", click: submitTableEntry, text: "submit"}
       ]},
-      rowTotal > 1 ? formRepeat(1) : undefined,
-      rowTotal > 2 ? formRepeat(2) : undefined,
+      rowTotal > 1 ? formRepeat(tableId, 1) : undefined,
+      rowTotal > 2 ? formRepeat(tableId, 2) : undefined,
     ]};
   }
 
@@ -2643,15 +2643,26 @@ module drawn {
         {c: "form-fields", children: fields},
         sizeUi,
       ]},
-      rows.length > 1 ? formRepeat(1) : undefined,
-      rows.length > 2 ? formRepeat(2) : undefined,
+      rows.length > 1 ? formRepeat(tableId, 1) : undefined,
+      rows.length > 2 ? formRepeat(tableId, 2) : undefined,
     ]};
   }
 
-  function formRepeat(depth) {
+  let randomCardPlacements = {};
+
+  function formRepeat(tableId, depth) {
     let offset = 4 * depth;
-    let topDir = Math.round(Math.random()) === 1 ? 1 : -1;
-    let leftDir = Math.round(Math.random()) === 1 ? 1 : -1;
+    let topDir;
+    let leftDir;
+    if(randomCardPlacements[`${tableId}${depth}top`]) {
+      topDir = randomCardPlacements[`${tableId}${depth}top`];
+      leftDir = randomCardPlacements[`${tableId}${depth}left`];
+    } else {
+      topDir = Math.round(Math.random()) === 1 ? 1 : -1;
+      leftDir = Math.round(Math.random()) === 1 ? 1 : -1;
+      randomCardPlacements[`${tableId}${depth}top`] = topDir;
+      randomCardPlacements[`${tableId}${depth}left`] = leftDir;
+    }
     return {c: `form-repeat`, zIndex: -1 * depth, transform: `rotate(${Math.random() * 3 * topDir + 1}deg)`, top: offset * topDir, left: offset * leftDir
       };
   }
