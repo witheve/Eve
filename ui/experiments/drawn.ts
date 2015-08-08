@@ -160,6 +160,7 @@ module drawn {
   localState.errors = [];
   localState.selectedItems = {};
   localState.tableEntry = {};
+  localState.saves = JSON.parse(localStorage.getItem("saves") || "[]");
 
   var fieldToEntity = {}
 
@@ -1162,6 +1163,10 @@ module drawn {
         if(save.substr(-4) !== ".eve") {
           save += ".eve";
         }
+        if(localState.saves.indexOf(save) === -1) {
+          localState.saves.push(save);
+          localStorage.setItem("saves", JSON.stringify(localState.saves));
+        }
         localStorage.setItem("lastSave", save);
         commands.push(["load", save]);
         diffs = dispatch("hideTooltip", {}, true);
@@ -1171,6 +1176,10 @@ module drawn {
         var save:string = localState.selectedSave;
         if(save.substr(-4) !== ".eve") {
           save += ".eve";
+        }
+        if(localState.saves.indexOf(save) === -1) {
+          localState.saves.push(save);
+          localStorage.setItem("saves", JSON.stringify(localState.saves));
         }
         localStorage.setItem("lastSave", save);
         commands.push(["save", save]);
@@ -1743,12 +1752,14 @@ module drawn {
       title: "Save",
       content: function() {
         let saves = localState.saves || [];
+        let selected = localState.selectedSave;
         return [
           (saves.length ? {children: [
-            {text: "Existing Saves"},
+            {t: "h3", text: "Recent"},
             {c: "saves", children: saves.map((save) => { return {
-              text: save.name,
-              save: save.name,
+              c: (save === selected) ? "selected" : "",
+              text: save,
+              save: save,
               click: selectSave,
               dblclick: overwriteSave
             }})}
@@ -1762,12 +1773,14 @@ module drawn {
       title: "Load",
       content: function() {
         let saves = localState.saves || [];
+        let selected = localState.selectedSave;
         return [
           (saves.length ? {children: [
-            {text: "Existing Saves"},
+            {t: "h3", text: "Recent"},
             {c: "saves", children: saves.map((save) => { return {
-              text: save.name,
-              save: save.name,
+              c: (save === selected) ? "selected" : "",
+              text: save,
+              save: save,
               click: selectSave,
               dblclick: loadSave
             }})}
