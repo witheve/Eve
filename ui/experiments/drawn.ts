@@ -379,7 +379,9 @@ module drawn {
 
   export function dispatch(event, info, rentrant?) {
     //console.log("dispatch[" + event + "]", info);
+    var rerender = true;
     var diffs = [];
+    var commands = [];
     var storeEvent = true;
     switch(event) {
       //---------------------------------------------------------
@@ -1147,6 +1149,34 @@ module drawn {
         localState.menu = false;
       break;
       //---------------------------------------------------------
+      // Settings
+      //---------------------------------------------------------
+      case "switchTab":
+        localState.currentTab = info.tab;
+      break;
+      case "selectSave":
+        localState.selectedSave = info.save;
+      break;
+      case "loadSave":
+        var save:string = localState.selectedSave;
+        if(save.substr(-4) !== ".eve") {
+          save += ".eve";
+        }
+        localStorage.setItem("lastSave", save);
+        commands.push(["load", save]);
+        diffs = dispatch("hideTooltip", {}, true);
+        rerender = false;
+      break;
+      case "overwriteSave":
+        var save:string = localState.selectedSave;
+        if(save.substr(-4) !== ".eve") {
+          save += ".eve";
+        }
+        localStorage.setItem("lastSave", save);
+        commands.push(["save", save]);
+        diffs = dispatch("hideTooltip", {}, true);
+      break;
+      //---------------------------------------------------------
       // undo
       //---------------------------------------------------------
       case "undo":
@@ -1163,7 +1193,7 @@ module drawn {
     }
 
     if(!rentrant) {
-      if(diffs.length) {
+      if(diffs.length || commands.length) {
         let formatted = api.toDiffs(diffs);
         if(event === "undo" || event === "redo") {
           formatted = diffs;
@@ -1172,7 +1202,7 @@ module drawn {
           eveEditor.storeEvent(localState.drawnUiActiveId, event, formatted);
         }
         ixer.handleDiffs(formatted);
-        client.sendToServer(formatted, false);
+        client.sendToServer(formatted, false, commands);
         // @HACK: since we load positions up once and assume we're authorative, we have to handle
         // the case where an undo/redo can change positions without going through the normal
         // dispatch. To deal with this, we'll just reload our positions on undo and redo.
@@ -1180,7 +1210,9 @@ module drawn {
           loadPositions();
         }
       }
-      render();
+      if(rerender) {
+        render();
+      }
     }
     return diffs;
   }
@@ -1511,8 +1543,7 @@ module drawn {
     if(tooltip) {
       let viewHeight = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
        // @FIXME: We need to get the actual element size here.
-      let elem:any = {c: "tooltip", left: tooltip.x, top: Math.min(tooltip.y, viewHeight - 61)};
-
+      let elem:any = {c: "tooltip" + (tooltip.c ? " " + tooltip.c : ""), left: tooltip.x, top: Math.min(tooltip.y, viewHeight - 61)};
       if(typeof tooltip.content === "string") {
         elem["text"] = tooltip.content;
       } else if(typeof tooltip.content === "function") {
@@ -1699,17 +1730,89 @@ module drawn {
   function openSettings(evt, elem:Element) {
     let rect = evt.currentTarget.getBoundingClientRect();
     let tooltip:any = {
-          x: rect.left,
-          y: rect.bottom,
-          content: settingsPanel,
-          persistent: true,
-          stopPersisting: stopSort,
-        };
+      c: "settings-modal",
+      content: settingsPanel,
+      persistent: true,
+      stopPersisting: stopSort,
+    };
     dispatch("showTooltip", tooltip);
   }
 
+  let settingsPanes = {
+    "save": {
+      title: "Save",
+      content: function() {
+        let saves = localState.saves || [];
+        return [
+          (saves.length ? {children: [
+            {text: "Existing Saves"},
+            {c: "saves", children: saves.map((save) => { return {
+              text: save.name,
+              save: save.name,
+              click: selectSave,
+              dblclick: overwriteSave
+            }})}
+          ]} : undefined),
+          
+          {c: "flex-row spaced-row", children: [{t: "input", input: setSaveLocation}, {t: "button", text: "Save", click: overwriteSave}]}
+        ];
+      }
+    },
+    "load": {
+      title: "Load",
+      content: function() {
+        let saves = localState.saves || [];
+        return [
+          (saves.length ? {children: [
+            {text: "Existing Saves"},
+            {c: "saves", children: saves.map((save) => { return {
+              text: save.name,
+              save: save.name,
+              click: selectSave,
+              dblclick: loadSave
+            }})}
+          ]} : undefined),
+          {c: "flex-row spaced-row", children: [{t: "input", input: setSaveLocation}, {t: "button", text: "Load", click: loadSave}]}
+        ]
+      }
+    },
+    "preferences": {
+      title: "Preferences",
+      content: () =>  [{text: "💩"}]
+    }
+  };
+  
   function settingsPanel() {
-    return {text: "@TODO: Settings"};
+    let current = settingsPanes[localState.currentTab] ? localState.currentTab : "preferences";
+    let tabs = [];
+    for(let tab in settingsPanes) {
+      tabs.push({c: (tab === current) ? "active tab" : "tab", tab, text: settingsPanes[tab].title, click: switchTab});
+    }
+    
+    return {c: "settings-panel tabbed-box", children: [
+      {c: "tabs", children: tabs},
+      {c: "pane", children: settingsPanes[current].content()}
+    ]};
+  }
+  
+  function switchTab(evt, elem) {
+    dispatch("switchTab", {tab: elem.tab});
+  }
+  
+  function selectSave(evt, elem) {
+    dispatch("selectSave", {save: elem.save});
+  }
+  
+  function setSaveLocation(evt, elem) {
+    dispatch("selectSave", {save: evt.currentTarget.value});
+  }
+  
+  function overwriteSave(evt, elem) {
+    dispatch("overwriteSave", {});
+  }
+  
+  function loadSave(evt, elem) {
+    dispatch("loadSave", {});
   }
 
   function sorter() {
