@@ -1843,7 +1843,12 @@ module drawn {
     },
     "preferences": {
       title: "Preferences",
-      content: () =>  [{text: "💩"}]
+      content: () =>  {
+        return [
+          {c: "toggle", text: "light"},
+          {c: "toggle", text: "show hidden"},
+        ];
+      }
     }
   };
 
@@ -2663,8 +2668,7 @@ module drawn {
       randomCardPlacements[`${tableId}${depth}top`] = topDir;
       randomCardPlacements[`${tableId}${depth}left`] = leftDir;
     }
-    return {c: `form-repeat`, zIndex: -1 * depth, transform: `rotate(${Math.random() * 3 * topDir + 1}deg)`, top: offset * topDir, left: offset * leftDir
-      };
+    return {c: `form-repeat`, zIndex: -1 * depth, transform: `rotate(${Math.random() * 3 * topDir + 1}deg)`, top: offset * topDir, left: offset * leftDir};
   }
 
   function getDescription(viewId) {
