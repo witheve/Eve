@@ -122,6 +122,10 @@ body { font-family:"Avenir"; }
 
 .dead-server-banner { position:absolute; top:0; left: 0; right:0; padding: 20px; background: red; color: black; z-index:10000; }
 
+.query-selector-filter { padding:0px 24px; margin-top:10px; height:20px; flex:none; font-size:10pt; color: #999; flex-direction: row; align-items:center;  }
+.query-selector-filter .searching-for { flex-direction: row; align-items: center; }
+.query-selector-filter .searching-for .search-text { padding:3px 5px; background: #444; margin:0 3px; border-radius:2px; }
+
 /*---------------------------------------------------------
 - Table
 ---------------------------------------------------------*/
