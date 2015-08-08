@@ -304,6 +304,8 @@ module drawn {
   function removeSource(sourceId) {
     var diffs = [
       api.remove("source", {source: sourceId}),
+      api.remove("chunked source", {source: sourceId}),
+      api.remove("sorted field", {source: sourceId}),
       api.remove("binding", {source: sourceId})
     ]
     let bindings = ixer.select("binding", {source: sourceId});
@@ -542,7 +544,6 @@ module drawn {
           delete localState.selectedItems[info.itemId];
           break;
         }
-        console.log("select", info.itemId);
         localState.selectedItems[info.itemId] = true;
       break;
       case "clearSelectedItems":
@@ -774,7 +775,6 @@ module drawn {
         diffs.push(api.remove("chunked source", {source: sourceId}));
         // when you unchunk, we should ungroup the fields that we grouped when chunking.
         for(let binding of joinedBindingsFromSource(sourceId)) {
-          console.log(binding);
           let fieldId = binding["binding: field"];
           let variableId = binding["binding: variable"];
           // We have to check for an aggregate binding, as unchunking will cause the
@@ -782,7 +782,6 @@ module drawn {
           // out of unchunking.
           for(let variableBinding of ixer.select("binding", {variable: variableId})) {
             let fieldKind = ixer.selectOne("field", {field: variableBinding["binding: field"]})["field: kind"];
-            console.log("fieldKind", fieldKind);
             if(fieldKind === "vector input") {
               return dispatch("setError", {errorText: "Cannot unchunk this source because it's bound to an aggregate, which requires a column."});
             }
@@ -2191,7 +2190,13 @@ module drawn {
         for(let binding of bindings) {
           let sourceId = binding["binding: source"];
           let fieldId = binding["binding: field"];
-          let fieldKind = ixer.selectOne("field", {field: fieldId})["field: kind"];
+          let field = ixer.selectOne("field", {field: fieldId})
+          if(!field) {
+            attribute.error = "Binding to a field that doesn't exist";
+            console.error("Binding to a field that doesn't exist", binding);
+            continue;
+          }
+          let fieldKind = field["field: kind"];
           if(!entity) entity = fieldToEntity[fieldId];
           // we don't really want to use input field names as they aren't descriptive.
           // so we set the name only if this is an output or there isn't a name yet
@@ -2392,6 +2397,7 @@ module drawn {
     let viewId = view["view: view"];
     let {nodes, links, nodeLookup} = entityInfo;
     refreshNodePositions(nodes, links);
+    let queryBoundingBox = nodesToRectangle(nodes);
 
     var items = [];
     for(var node of nodes) {
@@ -2420,18 +2426,22 @@ module drawn {
         selection = {svg: true, c: "selection-rectangle", t: "rect", x: left - 10, y: top - 10, width: width + 20, height: height + 20};
       }
     }
+    // the minimum width and height of the canvas is based on the bottom, right of the
+    // bounding box of all the nodes in the query
+    let boundingWidth = queryBoundingBox.right + 50;
+    let boundingHeight = queryBoundingBox.bottom + 50;
     return {c: "canvas", mousedown: startBoxSelection, mousemove: continueBoxSelection, mouseup: endBoxSelection, dragover: preventDefault, children: [
-      {c: "selection", svg: true, width: "100%", height: "100%", t: "svg", children: [selection]},
-      {c: "links", svg: true, width:"100%", height:"100%", t: "svg", children: linkItems},
-      {c: "nodes", children: items}
+      {c: "selection", svg: true, width: boundingWidth, height: boundingHeight, t: "svg", children: [selection]},
+      {c: "links", svg: true, width: boundingWidth, height: boundingHeight, t: "svg", children: linkItems},
+      {c: "nodes", width: boundingWidth, height: boundingHeight, children: items}
     ]};
   }
 
   function surfaceRelativeCoords(e) {
     let surface:any = document.getElementsByClassName("query-workspace")[0];
     let surfaceRect = surface.getBoundingClientRect();
-    let x = e.clientX - surfaceRect.left;
-    let y = e.clientY - surfaceRect.top;
+    let x = e.clientX - surfaceRect.left + surface.scrollLeft;
+    let y = e.clientY - surfaceRect.top + surface.scrollTop;
     return {x, y};
   }
 
@@ -2567,8 +2577,8 @@ module drawn {
     if(e.clientX === 0 && e.clientY === 0) return;
     let surface:any = document.getElementsByClassName("query-workspace")[0];
     let surfaceRect = surface.getBoundingClientRect();
-    let x = e.clientX - surfaceRect.left - api.localState.dragOffsetX;
-    let y = e.clientY - surfaceRect.top - api.localState.dragOffsetY;
+    let x = e.clientX - surfaceRect.left - api.localState.dragOffsetX + surface.scrollLeft;
+    let y = e.clientY - surfaceRect.top - api.localState.dragOffsetY + surface.scrollTop;
     dispatch("setNodePosition", {
       node: elem.node,
       pos: {left: x, top: y}
