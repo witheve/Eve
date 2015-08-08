@@ -114,7 +114,7 @@ module graphLayout {
     public sourcesById:{[id:string]: Node}
     public attributesById:{[id:string]: Node}
     
-    constructor(public sources:Node[] = [], public attributes:Node[] = [], public edges:Edge[] = []) {}
+    constructor(public sources:Node[] = [], public attributes:Node[] = [], public edges:Edge[] = [], public minimumSize?:[number, number]) {}
     
     /**
      * Attempt to stochastically place nodes to minimize edge intersections, node overlaps, and node spread.
@@ -206,11 +206,15 @@ module graphLayout {
       let sourceLayouts = {};
       let neueWidth = 0;
       let neueHeight = 0;
+      let maxNeueWidth = 0;
+      let maxNeueHeight = 0;
       for(let source of activeSources) {
         sourceLayouts[source.id] = this.layoutSourceGroup(source, sourceGroups[source.id]);
         let bb:Bounds = sourceLayouts[source.id].bounds;
         neueWidth += (bb.right - bb.left);
         neueHeight += (bb.bottom - bb.top);
+        maxNeueWidth = (maxNeueWidth > (bb.right - bb.left)) ? maxNeueWidth : (bb.right - bb.left);
+        maxNeueHeight = (maxNeueHeight > (bb.bottom - bb.top)) ? maxNeueHeight : (bb.bottom - bb.top);
       }
       for(let node of activeAttributes) {
         neueWidth += node.width;
@@ -223,10 +227,14 @@ module graphLayout {
       let totalUsedHeight = fixedLayout.bounds.bottom - fixedLayout.bounds.top;
       if(totalUsedWidth < totalUsedHeight) {
         width = totalUsedWidth + neueWidth + 20;
-        height = Math.max(totalUsedHeight, neueHeight) + 20;  
+        height = Math.max(totalUsedHeight, maxNeueHeight) + 20;  
       } else {
-        width = Math.max(totalUsedWidth, neueWidth) + 20;
+        width = Math.max(totalUsedWidth, maxNeueWidth) + 20;
         height = totalUsedHeight + neueHeight + 20;
+      }
+      if(this.minimumSize) {
+        width = (width > this.minimumSize[0]) ? width : this.minimumSize[0];
+        height = (height > this.minimumSize[1]) ? height : this.minimumSize[1];
       }
       
       // Try [maxSamples] layouts, measuring the error of each and keeping the best.

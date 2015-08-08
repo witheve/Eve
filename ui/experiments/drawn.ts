@@ -160,6 +160,7 @@ module drawn {
   localState.errors = [];
   localState.selectedItems = {};
   localState.tableEntry = {};
+  localState.saves = JSON.parse(localStorage.getItem("saves") || "[]");
 
   var fieldToEntity = {}
 
@@ -379,7 +380,9 @@ module drawn {
 
   export function dispatch(event, info, rentrant?) {
     //console.log("dispatch[" + event + "]", info);
+    var rerender = true;
     var diffs = [];
+    var commands = [];
     var storeEvent = true;
     switch(event) {
       //---------------------------------------------------------
@@ -995,6 +998,8 @@ module drawn {
           }
           diffs.push.apply(diffs, dispatch("stopSearching", {}, true));
         } else if(info.keyCode === api.KEYS.ESC) {
+          localState.searchingFor = "";
+          localState.searchResults = false;
           diffs.push.apply(diffs, dispatch("stopSearching", {}, true));
         } else if(info.keyCode === api.KEYS.F && (info.ctrlKey || info.metaKey)) {
           diffs.push.apply(diffs, dispatch("stopSearching", {}, true));
@@ -1147,6 +1152,42 @@ module drawn {
         localState.menu = false;
       break;
       //---------------------------------------------------------
+      // Settings
+      //---------------------------------------------------------
+      case "switchTab":
+        localState.currentTab = info.tab;
+      break;
+      case "selectSave":
+        localState.selectedSave = info.save;
+      break;
+      case "loadSave":
+        var save:string = localState.selectedSave;
+        if(save.substr(-4) !== ".eve") {
+          save += ".eve";
+        }
+        if(localState.saves.indexOf(save) === -1) {
+          localState.saves.push(save);
+          localStorage.setItem("saves", JSON.stringify(localState.saves));
+        }
+        localStorage.setItem("lastSave", save);
+        commands.push(["load", save]);
+        diffs = dispatch("hideTooltip", {}, true);
+        rerender = false;
+      break;
+      case "overwriteSave":
+        var save:string = localState.selectedSave;
+        if(save.substr(-4) !== ".eve") {
+          save += ".eve";
+        }
+        if(localState.saves.indexOf(save) === -1) {
+          localState.saves.push(save);
+          localStorage.setItem("saves", JSON.stringify(localState.saves));
+        }
+        localStorage.setItem("lastSave", save);
+        commands.push(["save", save]);
+        diffs = dispatch("hideTooltip", {}, true);
+      break;
+      //---------------------------------------------------------
       // undo
       //---------------------------------------------------------
       case "undo":
@@ -1163,7 +1204,7 @@ module drawn {
     }
 
     if(!rentrant) {
-      if(diffs.length) {
+      if(diffs.length || commands.length) {
         let formatted = api.toDiffs(diffs);
         if(event === "undo" || event === "redo") {
           formatted = diffs;
@@ -1172,7 +1213,7 @@ module drawn {
           eveEditor.storeEvent(localState.drawnUiActiveId, event, formatted);
         }
         ixer.handleDiffs(formatted);
-        client.sendToServer(formatted, false);
+        client.sendToServer(formatted, false, commands);
         // @HACK: since we load positions up once and assume we're authorative, we have to handle
         // the case where an undo/redo can change positions without going through the normal
         // dispatch. To deal with this, we'll just reload our positions on undo and redo.
@@ -1180,7 +1221,9 @@ module drawn {
           loadPositions();
         }
       }
-      render();
+      if(rerender) {
+        render();
+      }
     }
     return diffs;
   }
@@ -1311,6 +1354,9 @@ module drawn {
     }
 
     for(let viewId of viewIds) {
+      if(!localStorage["showHidden"] && ixer.selectOne("tag", {view: viewId, tag: "hidden"})) {
+        continue;
+      }
       let name = code.name(viewId);
       let score = scoreHaystack(name, needle);
       if(score.score) {
@@ -1369,9 +1415,22 @@ module drawn {
     return {id: "root", children: [tooltipUi(), page]};
   }
 
+  function visibleItemCount() {
+    let allViews = ixer.select("view", {});
+    let totalCount = allViews.length;
+    // hidden views don't contribute to the count
+    if(!localStorage["showHidden"]) {
+      totalCount -= ixer.select("tag", {tag: "hidden"}).length
+    }
+    // primtive views don't contribute to the count
+    totalCount -= ixer.select("view", {kind: "primitive"}).length;
+    return totalCount;
+  }
+
   function itemSelector() {
     let viewIds;
     let searching = false;
+    let totalCount = visibleItemCount();
     if(localState.searchingFor && localState.searchResults && localState.searchResults.length) {
       viewIds = localState.searchResults[0].results.map((searchResult) => searchResult.viewId);
       searching = true;
@@ -1404,7 +1463,16 @@ module drawn {
     }
     return {c: "query-selector-wrapper", children: [
       leftToolbar(actions, disabled),
-      {c: "query-selector", click: clearSelectedItems, children: queries}
+      {c: "query-selector-body", click: clearSelectedItems, children: [
+        {c: "query-selector-filter", children: [
+          searching ? {c: "searching-for", children: [
+            {text: `Searching for`},
+            {c: "search-text", text: localState.searchingFor}
+          ]} : undefined,
+          queries.length === totalCount ? {c: "showing", text: `Showing all ${totalCount} items`} : {c: "showing", text: `found ${queries.length} of ${totalCount} items.`},
+        ]},
+        {c: "query-selector", children: queries}
+      ]}
     ]};
   }
 
@@ -1511,8 +1579,7 @@ module drawn {
     if(tooltip) {
       let viewHeight = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
        // @FIXME: We need to get the actual element size here.
-      let elem:any = {c: "tooltip", left: tooltip.x, top: Math.min(tooltip.y, viewHeight - 61)};
-
+      let elem:any = {c: "tooltip" + (tooltip.c ? " " + tooltip.c : ""), left: tooltip.x, top: Math.min(tooltip.y, viewHeight - 61)};
       if(typeof tooltip.content === "string") {
         elem["text"] = tooltip.content;
       } else if(typeof tooltip.content === "function") {
@@ -1699,17 +1766,93 @@ module drawn {
   function openSettings(evt, elem:Element) {
     let rect = evt.currentTarget.getBoundingClientRect();
     let tooltip:any = {
-          x: rect.left,
-          y: rect.bottom,
-          content: settingsPanel,
-          persistent: true,
-          stopPersisting: stopSort,
-        };
+      c: "settings-modal",
+      content: settingsPanel,
+      persistent: true,
+      stopPersisting: stopSort,
+    };
     dispatch("showTooltip", tooltip);
   }
 
+  let settingsPanes = {
+    "save": {
+      title: "Save",
+      content: function() {
+        let saves = localState.saves || [];
+        let selected = localState.selectedSave;
+        return [
+          (saves.length ? {children: [
+            {t: "h3", text: "Recent"},
+            {c: "saves", children: saves.map((save) => { return {
+              c: (save === selected) ? "selected" : "",
+              text: save,
+              save: save,
+              click: selectSave,
+              dblclick: overwriteSave
+            }})}
+          ]} : undefined),
+          
+          {c: "flex-row spaced-row", children: [{t: "input", input: setSaveLocation}, {t: "button", text: "Save", click: overwriteSave}]}
+        ];
+      }
+    },
+    "load": {
+      title: "Load",
+      content: function() {
+        let saves = localState.saves || [];
+        let selected = localState.selectedSave;
+        return [
+          (saves.length ? {children: [
+            {t: "h3", text: "Recent"},
+            {c: "saves", children: saves.map((save) => { return {
+              c: (save === selected) ? "selected" : "",
+              text: save,
+              save: save,
+              click: selectSave,
+              dblclick: loadSave
+            }})}
+          ]} : undefined),
+          {c: "flex-row spaced-row", children: [{t: "input", input: setSaveLocation}, {t: "button", text: "Load", click: loadSave}]}
+        ]
+      }
+    },
+    "preferences": {
+      title: "Preferences",
+      content: () =>  [{text: "💩"}]
+    }
+  };
+  
   function settingsPanel() {
-    return {text: "@TODO: Settings"};
+    let current = settingsPanes[localState.currentTab] ? localState.currentTab : "preferences";
+    let tabs = [];
+    for(let tab in settingsPanes) {
+      tabs.push({c: (tab === current) ? "active tab" : "tab", tab, text: settingsPanes[tab].title, click: switchTab});
+    }
+    
+    return {c: "settings-panel tabbed-box", children: [
+      {c: "tabs", children: tabs},
+      {c: "pane", children: settingsPanes[current].content()}
+    ]};
+  }
+  
+  function switchTab(evt, elem) {
+    dispatch("switchTab", {tab: elem.tab});
+  }
+  
+  function selectSave(evt, elem) {
+    dispatch("selectSave", {save: elem.save});
+  }
+  
+  function setSaveLocation(evt, elem) {
+    dispatch("selectSave", {save: evt.currentTarget.value});
+  }
+  
+  function overwriteSave(evt, elem) {
+    dispatch("overwriteSave", {});
+  }
+  
+  function loadSave(evt, elem) {
+    dispatch("loadSave", {});
   }
 
   function sorter() {
@@ -2178,8 +2321,10 @@ module drawn {
       for(let link of links) { // Right is source, left is attribute.
         edges.push({source: link.right.id, target: link.left.id});
       }
+      // This placeholder ensures that graph nodes are not placed directly on top of the title/description of the query.
+      sourceNodes.push({id: "placeholder 1", type: "placeholder", width: 256, height: 64, x: 0, y: 0});
 
-      let graph = new graphLayout.Graph(sourceNodes, attributeNodes, edges);
+      let graph = new graphLayout.Graph(sourceNodes, attributeNodes, edges, [640, 480]);
       let layout = graph.layout();
       for(let node of nodes) {
         let p = layout.positions[node.id];

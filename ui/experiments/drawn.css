@@ -1,6 +1,8 @@
 body { font-family:"Avenir"; }
 * { display: flex; flex-direction:column; box-sizing: border-box; outline:none; }
 
+.spaced-row > * + * { margin-left: 5px; }
+.flex-row { flex-direction: row; }
 .flex-spacer { flex: 1; }
 
 .query { height: 100%; width: 100%; position:relative; flex-direction:row; }
@@ -28,7 +30,16 @@ body { font-family:"Avenir"; }
 .form-container .size { align-items: flex-end; font-size: 10pt; flex:none; color: #999; }
 
 .menu-shade { z-index: 100; position:absolute; top:0; bottom:0; left:0; right:0; background:rgba(255,255,255,0.9); overflow:auto; }
-.menu { position:absolute;  }
+.menu { position:absolute; }
+
+.settings-modal { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 400px;}
+.settings-modal .pane { max-height: 90vh; min-height: 10vh; padding-top: 10px; }
+.settings-modal .h3 { text-align: left; align-self: stretch; }
+.settings-modal .saves > * { padding: 10px; align-self: stretch; min-width: 208px; }
+.tabbed-box .tabs { flex-direction: row; margin-bottom: -1px; }
+.tabbed-box .tabs > div { padding: 10px 15px; font-size: 16px; }
+.tabbed-box .tabs > div.active { padding: 10px 15px; border-bottom: 1px solid #333; border-top-left-radius: 3px; border-top-right-radius: 3px; }
+.tabbed-box .pane { flex-grow: 1; justify-content: center; align-items: center; padding: 5px; overflow-y: auto; border-bottom-left-radius: 3px; border-bottom-right-radius: 3px; }
 
 .query-name-input { flex:none; min-width:50px; padding:10px; z-index: 10; }
 .query-description-input { flex:none; line-height:1.25; min-width:50px; padding-left: 10px; z-index: 10; max-width:300px; outline:none; font-size: 10pt; color: #aaa; }
@@ -121,6 +132,10 @@ body { font-family:"Avenir"; }
 .button { z-index: 10; padding:5px 10px; background: rgba(0,0,0,0.03); }
 
 .dead-server-banner { position:absolute; top:0; left: 0; right:0; padding: 20px; background: red; color: black; z-index:10000; }
+
+.query-selector-filter { padding:0px 24px; margin-top:10px; height:20px; flex:none; font-size:10pt; color: #999; flex-direction: row; align-items:center;  }
+.query-selector-filter .searching-for { flex-direction: row; align-items: center; }
+.query-selector-filter .searching-for .search-text { padding:3px 5px; background: #444; margin:0 3px; border-radius:2px; }
 
 /*---------------------------------------------------------
 - Table
