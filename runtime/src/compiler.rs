@@ -31,21 +31,19 @@ pub fn code_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // "vector input" - a field that must be constrained to a single vector value (in an aggregate)
     ("field", vec!["view", "field", "kind"]),
 
-    // source ids have two purposes
-    // a) uniquely generated ids to disambiguate multiple uses of the same view
-    // (eg when joining a view with itself)
-    // b) fixed ids to identify views which are used for some specific purpose
-    // (these are "insert" and "remove" in tables)
+    // data in views can be inserted to or removed from tables
+    ("insert", vec!["view", "insert view"]),
+    ("remove", vec!["view", "remove view"]),
+
+    // sources are unique ids used to disambiguate multiple uses of the same view within a join
     ("source", vec!["view", "source", "source view"]),
 
     // every view has a set of variables which are used to express constraints on the result of the view
     ("variable", vec!["view", "variable"]),
 
-    // variables can be bound to constant values
-    ("constant", vec!["variable", "value"]),
-
     // variables can be bound to fields
     ("binding", vec!["variable", "source", "field"]),
+    ("constant binding", vec!["variable", "value"]),
 
     // joins produce output by binding fields from sources
     // each field must be bound exactly once
@@ -493,6 +491,10 @@ fn plan(flow: &Flow) {
         &*source_table, "source", "source view",
         );
 
+    let constant_binding_table = flow.get_output("constant binding");
+    check_unique_key(&mut *warning_table, &*constant_binding_table, &["variable"]);
+    check_foreign_key(&mut *warning_table, &*constant_binding_table, &["variable"], &*variable_table, &["variable"]);
+
     let select_table = flow.get_output("select");
     check_unique_key(&mut *warning_table, &*select_table, &["field"]);
     check_foreign_key(&mut *warning_table, &*select_table, &["field"], &*field_table, &["field"]);
@@ -658,7 +660,7 @@ fn plan(flow: &Flow) {
     let mut variable_schedule_pre_table = flow.overwrite_output("variable schedule (pre)");
     let mut pass = 0;
     {
-        find!(constant_table, [variable, _], {
+        find!(constant_binding_table, [variable, _], {
             find!(variable_table, [view, (= variable)], {
                 insert!(variable_schedule_pre_table, [view, Float(pass as f64), variable]);
             });
@@ -725,7 +727,7 @@ fn plan(flow: &Flow) {
 
     let mut constrained_binding_table = flow.overwrite_output("constrained binding");
     find!(variable_table, [view, variable], {
-        find!(constant_table, [(= variable), _], {
+        find!(constant_binding_table, [(= variable), _], {
             find!(binding_table, [(= variable), source, field], {
                 insert!(constrained_binding_table, [variable, source, field]);
             });
@@ -828,8 +830,8 @@ fn plan(flow: &Flow) {
             ("field", [ref view, _, _]) => disable_view(view),
             ("source", [ref view, _, _]) => disable_view(view),
             ("variable", [ref view, _]) => disable_view(view),
-            ("constant", [ref variable, _]) => disable_variable(variable),
             ("binding", [ref variable, ref source, _]) => { disable_variable(variable); disable_source(source) },
+            ("constant binding", [ref variable, _]) => disable_variable(variable),
             ("select", [ref field, ref variable]) => { disable_field(field); disable_variable(variable) },
             ("grouped field", [ref source, _]) => disable_source(source),
             ("sorted field", [ref source, _, _, _]) => disable_source(source),
@@ -887,7 +889,7 @@ fn plan(flow: &Flow) {
     });
 
     let mut constant_layout_table = flow.overwrite_output("constant layout");
-    find!(constant_table, [variable, value], {
+    find!(constant_binding_table, [variable, value], {
         find!(variable_table, [view, (= variable)], {
             find!(enabled_view_table, [view_ix, (= view), _], {
                 find!(variable_schedule_table, [(= view), variable_ix, _, (= variable)], {
