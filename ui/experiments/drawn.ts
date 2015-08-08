@@ -2518,7 +2518,7 @@ module drawn {
     let right = left + width;
     let bottom = top + height;
     let filterWidth;
-    if(curNode.filter) {
+    if(curNode.filter && curNode.inputKind !== "vector input") {
       filterWidth = Math.max(curNode.filter.value.toString().length * nodeWidthMultiplier + 25, nodeWidthMin);
       // subtract the 15 pixel overlap that occurs between nodes and their filters
       right += filterWidth - 15;

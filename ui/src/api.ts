@@ -100,8 +100,10 @@ module api {
     "<": {"<: in A": 0, "<: in B": 0},
     "<=": {"<=: in A": 0, "<=: in B": 0},
     "!=": {"!=: in A": 0, "!=: in B": 0},
-    add: {"add: in A": 0, "add: in B": 0},
-    multiply: {"multiply: in A": 0, "multiply: in B": 0},
+    "+": {"+: in A": 0, "+: in B": 0},
+    "*": {"*: in A": 0, "*: in B": 0},
+    "-": {"-: in A": 0, "-: in B": 0},
+    "/": {"/: in A": 0, "/: in B": 0},
     remainder: {"remainder: in A": 0, "remainder: in B": 0},
     round: {"round: in A": 0, "round: in B": 0},
     contains: {"contains: inner": " ", "contains: outer": ""},
@@ -112,7 +114,7 @@ module api {
     concat: {"concat: a": "", "concat: b": ""},
     "parse float": {"parse float: a": "0"},
     "standard deviation": {"standard deviation: in": []},
-    subtract: {"subtract: in A": 0, "subtract: in B": 0},
+
     sum: {"sum: in": []}
   }
 
