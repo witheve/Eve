@@ -111,7 +111,7 @@ module api {
     split: {"split: split": " ", "split: string": ""},
     concat: {"concat: a": "", "concat: b": ""},
     "parse float": {"parse float: a": "0"},
-    "stddev": {"stddev: in": []},
+    "standard deviation": {"standard deviation: in": []},
     subtract: {"subtract: in A": 0, "subtract: in B": 0},
     sum: {"sum: in": []}
   }
