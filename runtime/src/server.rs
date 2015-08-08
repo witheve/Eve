@@ -213,7 +213,8 @@ pub fn handle_event(server: &mut Server, event: Event, event_json: Json) {
     });
     for sender in server.senders.iter_mut() {
         let session_id = format!("{}", sender.get_mut().peer_addr().unwrap());
-        let text = format!("{}", Event{changes: changes.clone(), session: session_id, commands: vec![]}.to_json());
+        let event = Event{changes: changes.clone(), session: session_id, commands: event.commands.clone()};
+        let text = format!("{}", event.to_json());
         match sender.send_message(Message::Text(text)) {
             Ok(_) => (),
             Err(error) => println!("Send error: {}", error),
