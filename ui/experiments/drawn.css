@@ -1,5 +1,6 @@
-body { font-family:"Avenir"; }
+body { font-family:"Avenir"; overflow:hidden; }
 * { display: flex; flex-direction:column; box-sizing: border-box; outline:none; }
+#clear-pixel { position:absolute; }
 
 .spaced-row > * + * { margin-left: 5px; }
 .flex-row { flex-direction: row; }
@@ -9,6 +10,7 @@ body { font-family:"Avenir"; }
 
 .query-selector-wrapper { flex-direction: row; height:100vh; }
 .query-selector { flex: 1; flex-direction:row; flex-wrap:wrap; position:relative; align-items:flex-start; justify-content:flex-start; margin-left:10px; }
+.query-selector-body {overflow: auto;}
 .query-item { margin: 10px; }
 .query-item .query { width:300px; height:300px; border-radius:5px; box-shadow:0 0 8px #000; background: #404040; padding:25px; padding-top:50px; }
 .query-item .surface { overflow:visible; transform-origin: 0 0; }
@@ -40,6 +42,10 @@ body { font-family:"Avenir"; }
 .tabbed-box .tabs > div { padding: 10px 15px; font-size: 16px; }
 .tabbed-box .tabs > div.active { padding: 10px 15px; border-bottom: 1px solid #333; border-top-left-radius: 3px; border-top-right-radius: 3px; }
 .tabbed-box .pane { flex-grow: 1; justify-content: center; align-items: center; padding: 5px; overflow-y: auto; border-bottom-left-radius: 3px; border-bottom-right-radius: 3px; }
+.tabbed-box .preferences { flex-direction: row; }
+.tabbed-box .preferences .toggle { padding:8px 10px; background:#666; border-radius:3px; cursor:default; }
+.tabbed-box .preferences .toggle:hover { background: #777; }
+.tabbed-box .preferences .toggle + .toggle { margin-left:5px; }
 
 .query-name-input { flex:none; min-width:50px; padding:10px; z-index: 10; }
 .query-description-input { flex:none; line-height:1.25; min-width:50px; padding-left: 10px; z-index: 10; max-width:300px; outline:none; font-size: 10pt; color: #aaa; }

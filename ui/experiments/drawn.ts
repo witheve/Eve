@@ -1212,6 +1212,24 @@ module drawn {
         commands.push(["save", save]);
         diffs = dispatch("hideTooltip", {}, true);
       break;
+      case "toggleHidden":
+        var hidden = localStorage["showHidden"];
+        if(hidden) {
+          localStorage["showHidden"] = "";
+        } else {
+          localStorage["showHidden"] = "show";
+        }
+      break;
+      case "toggleTheme":
+        var theme = localStorage["theme"];
+        if(theme === "dark") {
+          localStorage["theme"] = "light";
+        } else if(theme === "light") {
+          localStorage["theme"] = "dark";
+        } else {
+          localStorage["theme"] = "light";
+        }
+      break;
       //---------------------------------------------------------
       // undo
       //---------------------------------------------------------
@@ -1437,7 +1455,7 @@ module drawn {
     } else {
       page = itemSelector();
     }
-    return {id: "root", children: [tooltipUi(), page]};
+    return {id: "root", c: localStorage["theme"] || "dark", children: [tooltipUi(), page]};
   }
 
   function visibleItemCount() {
@@ -1466,7 +1484,7 @@ module drawn {
     viewIds.forEach((viewId) : any => {
       let view = ixer.selectOne("view", {view: viewId});
       let kind = view["view: kind"];
-      if(!searching && ixer.selectOne("tag", {view: viewId, tag: "hidden"})) {
+      if(!searching && !localStorage["showHidden"] && ixer.selectOne("tag", {view: viewId, tag: "hidden"})) {
         return;
       }
       if(kind === "join") {
@@ -1844,13 +1862,36 @@ module drawn {
     "preferences": {
       title: "Preferences",
       content: () =>  {
+        let showHidden;
+        if(localStorage["showHidden"]) {
+          showHidden = {c: "toggle", click: toggleHidden, text: "Hide hidden"};
+        } else {
+          showHidden = {c: "toggle", click: toggleHidden, text: "Show hidden"};
+        }
+        let theme;
+        let curTheme = localStorage["theme"];
+        if(curTheme === "light") {
+          theme = {c: `toggle ${curTheme}`, click: toggleTheme, text: "Dark"};
+        } else {
+          theme = {c: `toggle ${curTheme}`, click: toggleTheme, text: "Light"};
+        }
         return [
-          {c: "toggle", text: "light"},
-          {c: "toggle", text: "show hidden"},
+          {c: "preferences", children: [
+            theme,
+            showHidden,
+          ]}
         ];
       }
     }
   };
+
+  function toggleHidden(e, elem) {
+    dispatch("toggleHidden", {});
+  }
+
+  function toggleTheme(e, elem) {
+    dispatch("toggleTheme", {});
+  }
 
   function settingsPanel() {
     let current = settingsPanes[localState.currentTab] ? localState.currentTab : "preferences";
