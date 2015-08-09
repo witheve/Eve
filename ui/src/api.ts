@@ -102,6 +102,7 @@ module api {
         callback(undefined, +request.responseText > +api.version);
       }
     }
+    //request.open("GET", "https://gist.githubusercontent.com/joshuafcole/117ec93af90c054bac23/raw/1350f2aae121e19129e561678b107ec042a6cbd2/version");
     request.open("GET", "https://raw.githubusercontent.com/Kodowa/Eve/master/version");
     request.send();
   }
