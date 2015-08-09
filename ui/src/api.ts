@@ -1,8 +1,9 @@
 /// <reference path="indexer.ts" />
 module api {
-  // @NOTE: We should really be using CommonJS modules with this instead of tsc's wonky module system.
   declare var window;
   declare var uuid;
+  
+  export var version = 0;
 
   type Id = string;
   type Fact = any[];
@@ -88,6 +89,22 @@ module api {
       }
     }
     return neue;
+  }
+  
+  export function checkVersion(callback:(error:Error, newVersionExists?:boolean) => void) {
+    let request = new XMLHttpRequest();
+    request.onreadystatechange = function() {
+      if(request.readyState === 4) {
+        if(request.status !== 200) {
+          return callback(new Error(`HTTP Response: ${request.status}`));
+        }
+        
+        callback(undefined, +request.responseText > +api.version);
+      }
+    }
+    //request.open("GET", "https://gist.githubusercontent.com/joshuafcole/117ec93af90c054bac23/raw/1350f2aae121e19129e561678b107ec042a6cbd2/version");
+    request.open("GET", "https://raw.githubusercontent.com/Kodowa/Eve/master/version");
+    request.send();
   }
 
   //---------------------------------------------------------

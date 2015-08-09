@@ -158,6 +158,7 @@ module drawn {
   localState.overlappingNodes = {};
   localState.drawnUiActiveId = false;
   localState.errors = [];
+  localState.notices = {};
   localState.selectedItems = {};
   localState.tableEntry = {};
   localState.saves = JSON.parse(localStorage.getItem("saves") || "[]");
@@ -1019,6 +1020,25 @@ module drawn {
       case "clearError":
         // localState.errors = false;
       break;
+      case "setNotice":
+        var noticeId = info.id || uuid();
+        var notice: any = {content: info.content, time: api.now(), id: noticeId, type: info.type || "info", duration: info.duration !== undefined ? info.duration : 2000}; 
+        if(notice.duration !== 0) {
+          notice.timeout = setTimeout(() => dispatch("fadeNotice", {noticeId}), notice.duration);
+        }
+        console.log("adding notice", notice);
+        localState.notices[noticeId] = notice;
+      break;
+      case "fadeNotice":
+        var noticeId = info.noticeId;
+        var notice = localState.notices[noticeId];
+        notice.fading = true;
+        notice.timeout = setTimeout(() => dispatch("clearNotice", {noticeId}), info.duration || 1000);
+      break;
+      case "clearNotice":
+        delete localState.notices[info.noticeId];
+      break;
+
       //---------------------------------------------------------
       // search
       //---------------------------------------------------------
@@ -1481,7 +1501,26 @@ module drawn {
     } else {
       page = itemSelector();
     }
-    return {id: "root", c: localStorage["theme"] || "dark", children: [tooltipUi(), page]};
+    return {id: "root", c: localStorage["theme"] || "dark", children: [tooltipUi(), notice(), page]};
+  }
+  
+  function notice() {
+    let noticeItems = [];
+    for(let noticeId in localState.notices) {
+      let notice = localState.notices[noticeId];
+      noticeItems.push({c: `flex-row spaced-row notice ${notice.type} ${notice.fading ? "fade" : ""}`, children: [
+        (typeof notice.content === "function") ? notice.content() : 
+          (typeof notice.content === "string") ? {text: notice.content} : notice.content,
+          {c: "flex-spacer", height: 0},
+          {c: "btn ion-close", noticeId: noticeId, click: closeNotice}
+      ]});
+    }
+    console.log("N", noticeItems);
+    return {c: "notices", children: noticeItems};
+  }
+  
+  function closeNotice(evt, elem) {
+    dispatch("fadeNotice", {noticeId: elem.noticeId, duration: 400});
   }
 
   function visibleItemCount() {
@@ -2451,14 +2490,14 @@ module drawn {
         edges.push({source: link.right.id, target: link.left.id});
       }
       // This placeholder ensures that graph nodes are not placed directly on top of the title/description of the query.
-      sourceNodes.push({id: "placeholder 1", type: "placeholder", width: 256, height: 64, x: 0, y: 0});
+      sourceNodes.push({id: "placeholder 1", type: "placeholder", width: 256, height: 64, x: 5, y: 5});
 
       let graph = new graphLayout.Graph(sourceNodes, attributeNodes, edges, [640, 480]);
       let layout = graph.layout();
       for(let node of nodes) {
         let p = layout.positions[node.id];
         let s = layout.sizes[node.id];
-        let neue = {left: p[0] - s[0] / 2 - 5, top: p[1] - s[1] / 2 - 5};
+        let neue = {left: p[0] - s[0] / 2, top: p[1] - s[1] / 2};
         let old = positions[node.id];
         if(!old || old.left !== neue.left || old.top !== neue.top) {
           positions[node.id] = neue;
@@ -2903,7 +2942,17 @@ module drawn {
   // Go!
   //---------------------------------------------------------
 
+  function maybeShowUpdate(error, newVersionExists?:boolean) {
+    console.log("hi", error, newVersionExists);
+    if(error) {
+      return dispatch("setNotice", {content: "Could not reach github to check for updates at this time", type: "warn"});
+    } else if(newVersionExists) {
+      return dispatch("setNotice", {content: {c: "flex-row spaced-row", children: [{text: "A new version of Eve is available! Check it out on"}, {t: "a", href: "https://github.com/Kodowa/Eve.", text: "Github"}]}, duration: 0});
+    }
+  }
+
   client.afterInit(() => {
+    api.checkVersion(maybeShowUpdate);
     loadPositions();
     render();
   });
