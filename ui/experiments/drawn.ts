@@ -1022,11 +1022,10 @@ module drawn {
       break;
       case "setNotice":
         var noticeId = info.id || uuid();
-        var notice: any = {content: info.content, time: api.now(), id: noticeId, type: info.type || "info", duration: info.duration !== undefined ? info.duration : 2000}; 
+        var notice: any = {content: info.content, time: api.now(), id: noticeId, type: info.type || "info", duration: info.duration !== undefined ? info.duration : 2000};
         if(notice.duration !== 0) {
           notice.timeout = setTimeout(() => dispatch("fadeNotice", {noticeId}), notice.duration);
         }
-        console.log("adding notice", notice);
         localState.notices[noticeId] = notice;
       break;
       case "fadeNotice":
@@ -1503,22 +1502,21 @@ module drawn {
     }
     return {id: "root", c: localStorage["theme"] || "dark", children: [tooltipUi(), notice(), page]};
   }
-  
+
   function notice() {
     let noticeItems = [];
     for(let noticeId in localState.notices) {
       let notice = localState.notices[noticeId];
       noticeItems.push({c: `flex-row spaced-row notice ${notice.type} ${notice.fading ? "fade" : ""}`, children: [
-        (typeof notice.content === "function") ? notice.content() : 
+        (typeof notice.content === "function") ? notice.content() :
           (typeof notice.content === "string") ? {text: notice.content} : notice.content,
           {c: "flex-spacer", height: 0},
           {c: "btn ion-close", noticeId: noticeId, click: closeNotice}
       ]});
     }
-    console.log("N", noticeItems);
     return {c: "notices", children: noticeItems};
   }
-  
+
   function closeNotice(evt, elem) {
     dispatch("fadeNotice", {noticeId: elem.noticeId, duration: 400});
   }
@@ -2943,7 +2941,6 @@ module drawn {
   //---------------------------------------------------------
 
   function maybeShowUpdate(error, newVersionExists?:boolean) {
-    console.log("hi", error, newVersionExists);
     if(error) {
       return dispatch("setNotice", {content: "Could not reach github to check for updates at this time", type: "warn"});
     } else if(newVersionExists) {
