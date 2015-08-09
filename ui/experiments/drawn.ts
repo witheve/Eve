@@ -2847,7 +2847,17 @@ module drawn {
   // Go!
   //---------------------------------------------------------
 
+  function maybeShowUpdate(error, newVersionExists?:boolean) {
+    console.log("hi", error, newVersionExists);
+    if(error) {
+      return dispatch("setError", {errorText: "Could not reach github to check version at this time."});
+    } else if(newVersionExists) {
+      return dispatch("setError", {errorText: `A new version of Eve is available! Check it out at https://github.com/Kodowa/Eve.`});
+    }
+  }
+
   client.afterInit(() => {
+    api.checkVersion(maybeShowUpdate);
     loadPositions();
     render();
   });
