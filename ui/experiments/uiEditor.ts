@@ -18,6 +18,10 @@ module uiEditor {
     }
   }
 
+  export function storeInitialInput(e, elem) {
+    localState.initialKey = elem.key;
+    localState.initialValue = elem.text;
+  }
 
   export function input(value, key, oninput, onsubmit): any {
     var blur, keydown;
