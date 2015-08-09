@@ -158,6 +158,7 @@ module drawn {
   localState.overlappingNodes = {};
   localState.drawnUiActiveId = false;
   localState.errors = [];
+  localState.notices = {};
   localState.selectedItems = {};
   localState.tableEntry = {};
   localState.saves = JSON.parse(localStorage.getItem("saves") || "[]");
@@ -989,6 +990,25 @@ module drawn {
       case "clearError":
         // localState.errors = false;
       break;
+      case "setNotice":
+        var noticeId = info.id || uuid();
+        var notice: any = {content: info.content, time: api.now(), id: noticeId, type: info.type || "info", duration: info.duration !== undefined ? info.duration : 2000}; 
+        if(notice.duration !== 0) {
+          notice.timeout = setTimeout(() => dispatch("fadeNotice", {noticeId}), notice.duration);
+        }
+        console.log("adding notice", notice);
+        localState.notices[noticeId] = notice;
+      break;
+      case "fadeNotice":
+        var noticeId = info.noticeId;
+        var notice = localState.notices[noticeId];
+        notice.fading = true;
+        notice.timeout = setTimeout(() => dispatch("clearNotice", {noticeId}), info.duration || 1000);
+      break;
+      case "clearNotice":
+        delete localState.notices[info.noticeId];
+      break;
+
       //---------------------------------------------------------
       // search
       //---------------------------------------------------------
@@ -1455,7 +1475,26 @@ module drawn {
     } else {
       page = itemSelector();
     }
-    return {id: "root", c: localStorage["theme"] || "dark", children: [tooltipUi(), page]};
+    return {id: "root", c: localStorage["theme"] || "dark", children: [tooltipUi(), notice(), page]};
+  }
+  
+  function notice() {
+    let noticeItems = [];
+    for(let noticeId in localState.notices) {
+      let notice = localState.notices[noticeId];
+      noticeItems.push({c: `flex-row spaced-row notice ${notice.type} ${notice.fading ? "fade" : ""}`, children: [
+        (typeof notice.content === "function") ? notice.content() : 
+          (typeof notice.content === "string") ? {text: notice.content} : notice.content,
+          {c: "flex-spacer", height: 0},
+          {c: "btn ion-close", noticeId: noticeId, click: closeNotice}
+      ]});
+    }
+    console.log("N", noticeItems);
+    return {c: "notices", children: noticeItems};
+  }
+  
+  function closeNotice(evt, elem) {
+    dispatch("fadeNotice", {noticeId: elem.noticeId, duration: 400});
   }
 
   function visibleItemCount() {
@@ -2850,9 +2889,9 @@ module drawn {
   function maybeShowUpdate(error, newVersionExists?:boolean) {
     console.log("hi", error, newVersionExists);
     if(error) {
-      return dispatch("setError", {errorText: "Could not reach github to check version at this time."});
+      return dispatch("setNotice", {content: "Could not reach github to check for updates at this time", type: "warn"});
     } else if(newVersionExists) {
-      return dispatch("setError", {errorText: `A new version of Eve is available! Check it out at https://github.com/Kodowa/Eve.`});
+      return dispatch("setNotice", {content: {c: "flex-row spaced-row", children: [{text: "A new version of Eve is available! Check it out on"}, {t: "a", href: "https://github.com/Kodowa/Eve.", text: "Github"}]}, duration: 0});
     }
   }
 

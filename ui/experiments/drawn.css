@@ -175,6 +175,18 @@ body { font-family:"Avenir"; overflow:hidden; }
 .query-errors:hover .error.fade { transition: width 0.4s ease-in, height 0.4s ease-in, padding 0.4s ease-in, color 0.4s 0.2s ease-in-out; width:250px; height:120px; padding: 20px; color: #222; }
 
 /*---------------------------------------------------------
+- notices
+---------------------------------------------------------*/
+.notices { border-bottom: 1px solid #333; }
+.notice { height: 2em; padding: 10px 15px; overflow: hidden; border-left: 10px solid transparent; border-top: 1px solid transparent; }
+.notice + .notice { border-top-color: #333; }
+.notice.info { border-left-color: rgb(32, 96, 224); }
+.notice.warn { border-left-color: rgb(224, 224, 32); }
+.notice.error { border-left-color: rgb(224, 32, 0); }
+.notice.fade { height: 0px; padding: 0 15px; transition: height 0.4s ease-in, padding 0.4s ease-in, border 0.4s ease-in, color 0.4s ease-in; border-left-color: transparent; border-top-color: transparent; color: #222; }
+
+
+/*---------------------------------------------------------
 - dark
 ---------------------------------------------------------*/
 
