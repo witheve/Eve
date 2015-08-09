@@ -207,7 +207,8 @@ module drawn {
   function intersectionAction(nodeA, nodeB): any {
     //given two nodes, we check to see if their intersection should cause something to happen
     //e.g. two attributes intersecting would signal joining them
-    if(nodeA.type === "attribute" && nodeB.type === "attribute") {
+    if(nodeA.type === "attribute" && nodeB.type === "attribute"
+      && !(nodeA.error || nodeB.error)) {
       return "joinNodes";
     }
     return false;
@@ -301,6 +302,60 @@ module drawn {
     return diffs;
   }
 
+  function addField(viewId, name) {
+    var diffs = [];
+    var fields = ixer.select("field", {view: viewId}) || [];
+    var neueField = api.insert("field", {view: viewId, kind: "output", dependents: {
+      "display name": {name: name},
+      "display order": {priority: -fields.length}
+    }});
+    var fieldId = neueField.content.field;
+    diffs.push(neueField);
+    // find all the sources that have this view and add variables/bindings for them
+    for(let source of ixer.select("source", {"source view": viewId})) {
+      let sourceId = source["source: source"];
+      let sourceViewId = source["source: view"];
+      let variableId = uuid();
+      diffs.push(api.insert("variable", {view: sourceViewId, variable: variableId}));
+      diffs.push(api.insert("binding", {variable: variableId, source: sourceId, field: fieldId}));
+    }
+    return {fieldId, diffs};
+  }
+
+  function removeBinding(binding) {
+    let diffs = [];
+    let variableId = binding["binding: variable"];
+    // determine if this is the only binding for this variable
+    let allVariableBindings = ixer.select("binding", {variable: variableId});
+    let singleBinding = allVariableBindings.length === 1;
+    // if this variable is only bound to this field, then we need to remove it
+    if(singleBinding) {
+      diffs.push.apply(diffs, removeVariable(variableId));
+    } else {
+      // we need to check if the remaining bindings are all inputs, if so we
+      // bind it to a constant to ensure the code remains valid
+      let needsConstant = true;
+      let input;
+      for(let variableBinding of allVariableBindings) {
+         if(variableBinding === binding) continue;
+         let fieldId = variableBinding["binding: field"];
+         let kind = ixer.selectOne("field", {field: fieldId})["field: kind"];
+         if(kind === "output") {
+           needsConstant = false;
+           break;
+         } else {
+           input = variableBinding;
+         }
+      }
+      if(needsConstant) {
+         let fieldId = input["binding: field"];
+         let sourceViewId = ixer.selectOne("source", {source: input["binding: source"]})["source: source view"];
+         diffs.push(api.insert("constant binding", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
+      }
+    }
+    return diffs;
+  }
+
   function removeSource(sourceId) {
     var diffs = [
       api.remove("source", {source: sourceId}),
@@ -310,35 +365,7 @@ module drawn {
     ]
     let bindings = ixer.select("binding", {source: sourceId});
     for(let binding of bindings) {
-      let variableId = binding["binding: variable"];
-      // determine if this is the only binding for this variable
-      let allVariableBindings = ixer.select("binding", {variable: variableId});
-      let singleBinding = allVariableBindings.length === 1;
-      // if this variable is only bound to this field, then we need to remove it
-      if(singleBinding) {
-        diffs.push.apply(diffs, removeVariable(variableId));
-      } else {
-        // we need to check if the remaining bindings are all inputs, if so we
-        // bind it to a constant to ensure the code remains valid
-        let needsConstant = true;
-        let input;
-        for(let variableBinding of allVariableBindings) {
-           if(variableBinding === binding) continue;
-           let fieldId = variableBinding["binding: field"];
-           let kind = ixer.selectOne("field", {field: fieldId})["field: kind"];
-           if(kind === "output") {
-             needsConstant = false;
-             break;
-           } else {
-             input = variableBinding;
-           }
-        }
-        if(needsConstant) {
-           let fieldId = input["binding: field"];
-           let sourceViewId = ixer.selectOne("source", {source: input["binding: source"]})["source: source view"];
-           diffs.push(api.insert("constant binding", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
-        }
-      }
+      diffs.push.apply(diffs, removeBinding(binding));
     }
     let ordinal = ixer.selectOne("ordinal binding", {source: sourceId});
     if(ordinal) {
@@ -693,13 +720,7 @@ module drawn {
         diffs.push(api.remove("select", {variable: info.variableId}));
       break;
       case "addSelectToQuery":
-        var name = info.name;
-        var fields = ixer.select("field", {view: info.viewId}) || [];
-        var neueField = api.insert("field", {view: info.viewId, kind: "output", dependents: {
-          "display name": {name: name},
-          "display order": {priority: -fields.length}
-        }});
-        var fieldId = neueField.content.field;
+        var {fieldId, diffs} = addField(info.viewId, info.name);
 
         // check to make sure this isn't only a negated attribute
         var onlyNegated = !info.allowNegated;
@@ -714,10 +735,7 @@ module drawn {
           return dispatch("setError", {errorText: "Attributes that belong to a negated source that aren't joined with something else, can't be selected since they represent the absence of a value."});
         }
 
-        diffs = [
-          neueField,
-          api.insert("select", {field: fieldId, variable: info.variableId})
-        ];
+        diffs.push(api.insert("select", {field: fieldId, variable: info.variableId}));
       break;
       case "selectSelection":
         for(let nodeId in localState.selectedNodes) {
@@ -791,16 +809,9 @@ module drawn {
       break;
       case "addOrdinal":
         var sourceId = info.node.source["source: source"];
-        // @TODO: we need a way to create a variable for this to really work
-        var fields = ixer.select("field", {view: info.viewId}) || [];
-        var neueField = api.insert("field", {view: info.viewId, kind: "output", dependents: {
-          "display name": {name: "ordinal"},
-          "display order": {priority: -fields.length}
-        }});
-        var fieldId = neueField.content.field;
+        var {fieldId, diffs} = addField(info.viewId, "ordinal");
         var variableId = uuid();
         diffs.push(
-          neueField,
           // create a variable
           api.insert("variable", {view: info.viewId, variable: variableId}),
           // bind the ordinal to it
@@ -883,6 +894,15 @@ module drawn {
               diffs.push.apply(diffs, dispatch("addSelectToQuery", {variableId: bindingVariableId, name: code.name(fieldId), viewId: localState.drawnUiActiveId, allowNegated: true}, true));
             }
         });
+      break;
+      case "removeErrorBinding":
+        for(let binding of ixer.select("binding", {variable: info.variableId})) {
+          let fieldId = binding["binding: field"];
+          let sourceId = binding["binding: source"];
+          if(!ixer.selectOne("field", {field: fieldId})) {
+            diffs.push.apply(diffs, removeBinding(binding));
+          }
+        }
       break;
       //---------------------------------------------------------
       // sorting
@@ -1062,11 +1082,7 @@ module drawn {
       case "addFieldToTable":
         var tableId = info.tableId || localState.drawnUiActiveId;
         var fields = ixer.select("field", {view: tableId}) || [];
-        var neueField = api.insert("field", {view: tableId, kind: "output", dependents: {
-          "display name": {name: `Field ${api.alphabet[fields.length]}`},
-          "display order": {priority: -fields.length}
-        }});
-        diffs.push(neueField);
+        var {fieldId, diffs} = addField(tableId, `Field ${api.alphabet[fields.length]}`);
       break;
       case "removeFieldFromTable":
         // we remove whatever field is currently active in the form
@@ -1648,7 +1664,18 @@ module drawn {
       }
       return {c: klass, text: error.text};
     }).reverse();
-    return {c: "query-errors", children: errors};
+    let warnings = ixer.select("warning", {}).map((warning) => {
+      return {text: warning["warning: warning"]};
+    });
+    let errorItems = ixer.select("error", {}).map((error) => {
+      return {text: error["error: error"]};
+    });
+    return {c: "query-errors", children: [
+      {text: ixer.select("warning", {}).length},
+      {children: warnings},
+      {text: ixer.select("error", {}).length},
+      {children: errorItems},
+    ]};
   }
 
   function queryTools(view, entityInfo) {
@@ -2238,6 +2265,7 @@ module drawn {
           let fieldId = binding["binding: field"];
           let field = ixer.selectOne("field", {field: fieldId})
           if(!field) {
+            name = code.name(fieldId);
             attribute.error = "Binding to a field that doesn't exist";
             console.error("Binding to a field that doesn't exist", binding);
             continue;
@@ -2280,6 +2308,9 @@ module drawn {
           if(!sourceNode) continue;
           let link: any = {left: attribute, right: sourceNode};
           let fieldName = code.name(fieldId);
+          if(attribute.error) {
+            link.isError = true;
+          }
           if(fieldName !== name) {
             link.name = fieldName;
           }
@@ -2365,6 +2396,9 @@ module drawn {
         var toTop = leftItem.top + (leftItem.size.height / 2);
       }
       var color = "#bbb";
+      if(link.isError) {
+        color = "#bb5555";
+      }
       var d = `M ${fromLeft} ${fromTop} L ${toLeft} ${toTop}`;
 
       var pathId = `${link.right.id} ${link.left.id} path`;
@@ -2549,6 +2583,13 @@ module drawn {
     if(curNode.isNegated) {
       klass += " negated";
     }
+    if(curNode.error) {
+      klass += " error";
+      content.push({c: "error-description", children: [
+        {text: curNode.error},
+        {c: "button", node: curNode, text: "remove", click: removeErrorBinding},
+      ]});
+    }
     if((curNode.sourceChunked && !curNode.grouped) || curNode.inputKind === "vector input") {
       klass += " column";
     }
@@ -2581,6 +2622,10 @@ module drawn {
                 drag: setNodePosition, dragend: finalNodePosition, node: curNode, text};
     content.unshift(elem);
     return {c: "item-wrapper", top: top, left: left, size: {width, height}, node: curNode, selected: uiSelected, children: content};
+  }
+
+  function removeErrorBinding(e, elem) {
+    dispatch("removeErrorBinding", {variableId: elem.node.variable});
   }
 
   function submitOnEnter(e, elem) {

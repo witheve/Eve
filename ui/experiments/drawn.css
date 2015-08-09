@@ -131,6 +131,7 @@ body { font-family:"Avenir"; overflow:hidden; }
 .canvas .entity { background: rgba(187,85,85,1); color: white; border-color: rgba(187,85,85,1); }
 
 
+
 .view-selector { flex-direction:row; flex-wrap:wrap; }
 .view-selector .item { position:static; margin:10px;}
 
@@ -192,5 +193,8 @@ body { font-family:"Avenir"; overflow:hidden; }
 .dark .canvas .column.uiSelected:before { border-color:#0ba; }
 .dark .canvas .negated { background:#F98B8A; color: #222; }
 .dark .canvas .item.overlapped { background: #bbb; color: #222; }
+.dark .canvas .item.error { border-color:rgba(187,85,85,1); background: rgb(123, 63, 63); z-index:100000; }
+.dark .query-item .canvas .error-description { display:none; }
+.dark .canvas .error-description { background: rgb(123, 63, 63); z-index:10000; border:1px solid rgb(187,85,85); width: 150px; font-size:10pt; padding:5px 10px; margin-left:-15px; padding-left: 25px; border-radius:10px; }
 .dark .table-container .table .headers { background: rgba(255,255,255,0.1); }
 .dark .table-container .table .header { background: none; }

@@ -296,7 +296,7 @@ module api {
     singular?: boolean
   }
 
-  var pkDependents = ["display name", "display order", "tag"];
+  var pkDependents = ["display order", "tag"];
   var schemas:{[id:string]: Schema} = {
     "display name": {foreign: {$last: "id"},
                      singular: true},
