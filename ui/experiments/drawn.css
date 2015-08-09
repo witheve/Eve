@@ -22,7 +22,7 @@ body { font-family:"Avenir"; overflow:hidden; }
 .form-container { width: 300px;  margin:15px; position:relative; }
 .form-container .form-sub-container { flex: none; position:relative; }
 .form-container .form { flex: 1; position:relative;  padding:15px; box-shadow: 0 0 8px #000; border-radius:3px; background: #404040; margin-bottom:10px; }
-.form-container .form-repeat { transform-origin: center center; width: 300px; height:100%; position:absolute; left: 4px; top:4px; background:#404040; z-index: -1; box-shadow: 0 0 8px #000; border-radius:2px; }
+.form-container .form-repeat { transform-origin: center center; width: 300px; height:100%; position:absolute; left: 4px; top:4px; background:#404040; box-shadow: 0 0 8px #000; border-radius:2px; }
 .form-container .field-item { margin-bottom:12px;  border:0px solid rgba(255,255,255,0.1); border-radius:3px; flex:none; }
 .form-container .form-name { font-size: 14pt; margin-bottom:3px; flex:none; }
 .form-container .form-description { margin-bottom:20px; flex:none; line-height:1.25; min-width:50px; max-width:300px; outline:none; font-size: 10pt; color: #aaa; }
@@ -93,7 +93,7 @@ body { font-family:"Avenir"; overflow:hidden; }
 .tooltip .disabled-message { color: #F98B8A; margin-top: 5px; }
 .tooltip .description { color: #ccc; line-height:18px; max-width:300px; }
 
-.surface { flex: 1; position:relative; overflow:hidden; }
+.surface { flex: 1; position:relative; overflow:hidden; -webkit-user-select: none; }
 .query-results { flex: 0.5; padding: 10px; padding-left:20px; margin-right:10px; }
 .query-results .result-size { padding-left: 0px; margin-bottom:2px; font-size:10pt; }
 .query-results-container { flex: 1; }
@@ -110,11 +110,11 @@ body { font-family:"Avenir"; overflow:hidden; }
 
 .canvas { position:absolute; left: 0; right:0; top:0; bottom:0; }
 
-.selection { position:absolute; left: 0; right:0; top:0; bottom:0; pointer-events:none; }
+.selection { position:absolute; left: 0; right:0; top:0; bottom:0; pointer-events:none; min-width:100%; min-height:100%; }
 .selection-rectangle { stroke: #0ba; fill: #00443f; rx: 5px; ry:5px; }
 
-.links { position:absolute; left: 0; right:0; top:0; bottom:0; pointer-events: none; }
-.nodes { position:absolute; left: 0; right:0; top:0; bottom:0; }
+.links { position:absolute; left: 0; right:0; top:0; bottom:0; pointer-events: none; min-width: 100%; min-height: 100%; }
+.nodes { position:absolute; left: 0; right:0; top:0; bottom:0; min-width:100%; min-height: 100%; }
 
 .canvas .item-wrapper { position:absolute; flex-direction:row; }
 .canvas .item-wrapper .item { position: static; z-index:2; }
@@ -168,7 +168,7 @@ body { font-family:"Avenir"; overflow:hidden; }
 - errors
 ---------------------------------------------------------*/
 
-.query-errors { position: absolute; top:10px; right:0; bottom:10px; align-items: flex-end; }
+.query-errors { position: absolute; top:10px; right:0; align-items: flex-end; }
 .error { flex:none; margin-bottom:2px; padding:20px; width: 250px; height:120px; background: rgb(229, 197, 69); color: #222; border-radius:1px; overflow:hidden; }
 .error.fade { width: 20px; height: 5px; padding:0; color: transparent; transition: width 0.8s ease-in, height 0.8s ease-in, padding 0.8s ease-in, color 0.7s ease-in-out; }
 
@@ -193,8 +193,7 @@ body { font-family:"Avenir"; overflow:hidden; }
 .dark .canvas .column.uiSelected:before { border-color:#0ba; }
 .dark .canvas .negated { background:#F98B8A; color: #222; }
 .dark .canvas .item.overlapped { background: #bbb; color: #222; }
-.dark .canvas .item.error { border-color:rgba(187,85,85,1); background: rgb(123, 63, 63); z-index:100000; }
-.dark .query-item .canvas .error-description { display:none; }
-.dark .canvas .error-description { background: rgb(123, 63, 63); z-index:10000; border:1px solid rgb(187,85,85); width: 150px; font-size:10pt; padding:5px 10px; margin-left:-15px; padding-left: 25px; border-radius:10px; }
+.dark .canvas .item.error { border-color:rgba(187,85,85,1); background: rgb(123, 63, 63); }
+.dark .canvas .error-description { background: rgb(123, 63, 63); padding:3px 15px; margin-left:-15px; padding-left: 25px; border-radius:10px; }
 .dark .table-container .table .headers { background: rgba(255,255,255,0.1); }
 .dark .table-container .table .header { background: none; }

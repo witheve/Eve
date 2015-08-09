@@ -23,7 +23,7 @@ module eveEditor {
 
   export function scaryUndoEvent(workspace): any[] {
     let eventStack = eventStacks[workspace];
-    if(!eventStack.parent || !eventStack.diffs) return [];
+    if(!eventStack || !eventStack.parent || !eventStack.diffs) return [];
     var old = eventStack;
     eventStacks[workspace] = old.parent;
     return api.reverseDiff(old.diffs);
@@ -31,7 +31,7 @@ module eveEditor {
 
   export function scaryRedoEvent(workspace): any[] {
     let eventStack = eventStacks[workspace];
-    if(!eventStack.children.length) return [];
+    if(!eventStack || !eventStack.children.length) return [];
     eventStacks[workspace] = eventStack.children[eventStack.children.length - 1];
     return eventStacks[workspace].diffs;
   }
@@ -161,6 +161,7 @@ module drawn {
   localState.selectedItems = {};
   localState.tableEntry = {};
   localState.saves = JSON.parse(localStorage.getItem("saves") || "[]");
+  localState.navigationHistory = [];
 
   var fieldToEntity = {}
 
@@ -537,30 +538,39 @@ module drawn {
       //---------------------------------------------------------
       // Navigation
       //---------------------------------------------------------
-      case "openRelationship":
-        localState.drawnUiActiveId = info.node.source["source: source view"];
-        diffs = dispatch("clearSelection", {}, true);
-      break;
       case "openItem":
+        var currentItem = localState.drawnUiActiveId;
+        // push the current location onto the history stack
+        localState.navigationHistory.push(currentItem);
         localState.drawnUiActiveId = info.itemId;
-        // store the current search information so that when we return to the selector
-        // we can make sure it's how you left it even if you do searches in the editor
-        localState.selectorSearchingFor = localState.searchingFor;
-        localState.selectorSearchResults = localState.searchResults;
+        // make sure selection doesn't persist
+        diffs = dispatch("clearSelection", {}, true);
+        // if we are leaving the itemSelector, then we want to store the search
+        if(currentItem === false) {
+          // store the current search information so that when we return to the selector
+          // we can make sure it's how you left it even if you do searches in the editor
+          localState.selectorSearchingFor = localState.searchingFor;
+          localState.selectorSearchResults = localState.searchResults;
+        }
         // if this item is a table, we should setup the initial table entry
         var kind = ixer.selectOne("view", {view: info.itemId})["view: kind"];
         if(kind === "table") {
           diffs.push.apply(diffs, dispatch("newTableEntry", {}, true));
         }
       break;
-      case "gotoItemSelector":
+      case "navigateBack":
         // clear selection when leaving a workspace to ensure it doesn't end up taking effect in the
         // next one you go to.
         diffs = dispatch("clearSelection", {}, true);
-        localState.drawnUiActiveId = false;
-        // restore the previous search state so that the selector is how you left it
-        localState.searchingFor = localState.selectorSearchingFor;
-        localState.searchResults = localState.selectorSearchResults;
+        // look at the history stack to see where we're headed next
+        var nextView = localState.navigationHistory.pop();
+        localState.drawnUiActiveId = nextView;
+        // if we're headed back to the item selector, restore our search
+        if(nextView === false) {
+          // restore the previous search state so that the selector is how you left it
+          localState.searchingFor = localState.selectorSearchingFor;
+          localState.searchResults = localState.selectorSearchResults;
+        }
       break;
       case "selectItem":
         if(!info.shiftKey) {
@@ -1693,7 +1703,7 @@ module drawn {
       // What tools are available depends on what is selected.
       // no matter what though you should be able to go back to the
       // query selector and search.
-      "Back": {func: gotoItemSelector, text: "Back", description: "Return to the item selection page"},
+      "Back": {func: navigateBack, text: "Back", description: "Return to the item selection page"},
       "Search": {func: startSearching, text: "Search", description: "Find sources to add to your query"},
       // These may get changed below depending on what's selected and the
       // current state.
@@ -2175,8 +2185,8 @@ module drawn {
     dispatch("setQueryDescription", {viewId: elem.viewId, value: e.currentTarget.textContent});
   }
 
-  function gotoItemSelector(e, elem) {
-    dispatch("gotoItemSelector", {});
+  function navigateBack(e, elem) {
+    dispatch("navigateBack", {});
   }
 
   function queryMenu(query) {
@@ -2650,7 +2660,7 @@ module drawn {
 
   function openNode(e, elem) {
     if(elem.node.type === "relationship") {
-      dispatch("openRelationship", {node: elem.node});
+      dispatch("openItem", {itemId: elem.node.source["source: source view"]});
     }
   }
 
@@ -2698,6 +2708,8 @@ module drawn {
     });
     let sizeUi = rowTotal > 0 ? {c: "size", text: `${rowNum} of ${rowTotal}`} : undefined;
     return {c: "form-container", children: [
+      rowTotal > 2 ? formRepeat(tableId, 2) : undefined,
+      rowTotal > 1 ? formRepeat(tableId, 1) : undefined,
       {c: "form", children: [
         {c: "form-name", contentEditable: true, blur: rename, renameId: tableId, text: code.name(tableId)},
         {c: "form-description", contentEditable: true, blur: setQueryDescription, viewId: tableId, text: getDescription(tableId)},
@@ -2705,8 +2717,7 @@ module drawn {
         sizeUi,
         {c: "submit-button", click: submitTableEntry, text: "submit"}
       ]},
-      rowTotal > 1 ? formRepeat(tableId, 1) : undefined,
-      rowTotal > 2 ? formRepeat(tableId, 2) : undefined,
+
     ]};
   }
 
@@ -2728,14 +2739,14 @@ module drawn {
       sizeUi = rows.length > 0 ? {c: "size", text: `1 of ${rows.length}`} : {c: "size", text: "No entries"};
     }
     return {c: "form-container", children: [
+      rows.length > 2 ? formRepeat(tableId, 2) : undefined,
+      rows.length > 1 ? formRepeat(tableId, 1) : undefined,
       {c: "form", children: [
         {c: "form-name", contentEditable: editable, blur: rename, renameId: tableId, text: code.name(tableId)},
         {c: "form-description", contentEditable: editable, blur: setQueryDescription, viewId: tableId, text: getDescription(tableId)},
         {c: "form-fields", children: fields},
         sizeUi,
       ]},
-      rows.length > 1 ? formRepeat(tableId, 1) : undefined,
-      rows.length > 2 ? formRepeat(tableId, 2) : undefined,
     ]};
   }
 
@@ -2754,7 +2765,7 @@ module drawn {
       randomCardPlacements[`${tableId}${depth}top`] = topDir;
       randomCardPlacements[`${tableId}${depth}left`] = leftDir;
     }
-    return {c: `form-repeat`, zIndex: -1 * depth, transform: `rotate(${Math.random() * 3 * topDir + 1}deg)`, top: offset * topDir, left: offset * leftDir};
+    return {c: `form-repeat`, transform: `rotate(${Math.random() * 3 * topDir + 1}deg)`, top: offset * topDir, left: offset * leftDir};
   }
 
   function getDescription(viewId) {
@@ -2771,7 +2782,7 @@ module drawn {
     if(!view) return;
 
     let actions = {
-      "back": {text: "Back", func: gotoItemSelector, description: "Return to the item selection page"},
+      "back": {text: "Back", func: navigateBack, description: "Return to the item selection page"},
       "new": {text: "New", func: newTableEntry, description: "Create a new entry"},
       "delete": {text: "Delete", func: deleteTableEntry, description: "Delete the current entry"},
       "add field": {text: "+Field", func: addFieldToTable, description: "Add a field to the card"},
