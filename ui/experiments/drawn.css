@@ -50,6 +50,7 @@ body { font-family:"Avenir"; overflow:hidden; }
 .query-name-input { flex:none; min-width:50px; padding:10px; z-index: 10; }
 .query-description-input { flex:none; line-height:1.25; min-width:50px; padding-left: 10px; z-index: 10; max-width:300px; outline:none; font-size: 10pt; color: #aaa; }
 
+.left-side-container { flex: 0 0 auto; }
 .query-tools { flex:1; padding:0px 5px; z-index:10; border-right:1px solid #333; width:100px; }
 .query-tools .tool { align-items: center; justify-content:center;  padding: 10px 15px; border: 0px solid rgba(255,255,255, 0.1); }
 .query-tools .tool + .tool, .query-tools .flex-spacer + .tool { border-top:1px solid #333; }
