@@ -1316,6 +1316,7 @@ module drawn {
         } else {
           localStorage["showHidden"] = "show";
         }
+        diffs = dispatch("updateSearch", {value: localState.searchingFor}, true);
       break;
       case "toggleTheme":
         var theme = localStorage["theme"];
