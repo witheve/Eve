@@ -287,6 +287,15 @@ module drawn {
     return joined;
   }
 
+  function getDescription(viewId) {
+    let description = "No description :(";
+    let viewDescription = ixer.selectOne("view description", {view: viewId});
+    if(viewDescription) {
+      description = viewDescription["view description: description"];
+    }
+    return description;
+  }
+
   function removeVariable(variableId) {
     let diffs = [];
     diffs.push(api.remove("variable", {variable: variableId}));
@@ -1230,15 +1239,6 @@ module drawn {
         clearTimeout(localState.tooltipTimeout);
       break;
       //---------------------------------------------------------
-      // Menu
-      //---------------------------------------------------------
-      case "showMenu":
-        localState.menu = {top: info.y, left: info.x, contentFunction: info.contentFunction};
-      break;
-      case "clearMenu":
-        localState.menu = false;
-      break;
-      //---------------------------------------------------------
       // Settings
       //---------------------------------------------------------
       case "switchTab":
@@ -1497,7 +1497,264 @@ module drawn {
   }
 
   //---------------------------------------------------------
-  // root
+  // AST to nodes
+  //---------------------------------------------------------
+
+  function viewToEntityInfo(view) {
+    if(view["view: kind"] === "join") {
+      return joinToEntityInfo(view);
+    } else if(view["view: kind"] === "table") {
+      return tableToEntityInfo(view);
+    } else {
+      let nodes = [];
+      let links = [];
+      let nodeLookup = {};
+      return {nodeLookup, nodes, links}
+    }
+  }
+
+  function joinToEntityInfo(view) {
+    // This translates our normalized AST into a set of denomralized graphical nodes.
+    var nodes = [];
+    var nodeLookup = {};
+    var constraints = [];
+    var links = [];
+    let viewId = view["view: view"];
+    // first go through each source for this query and determine if it's a primitive
+    // or a normal table/query
+    for(var source of ixer.select("source", {view: viewId})) {
+      var sourceViewId = source["source: source view"];
+      var sourceView = api.ixer.selectOne("view", {view: sourceViewId});
+      var sourceId = source["source: source"];
+      // if this is not a primitive, we have a standard relationship and need to check
+      // for chunking, ordinals, and negation
+      if(!sourceView || sourceView["view: kind"] !== "primitive") {
+        var isRel = true;
+        var curRel:any = {type: "relationship", source: source, id: sourceId, name: code.name(sourceViewId)};
+        if(!sourceView) {
+          curRel.error = "This table no longer exists";
+        }
+        nodes.push(curRel);
+        nodeLookup[curRel.id] = curRel;
+        if(ixer.selectOne("chunked source", {source: sourceId})) {
+          curRel.chunked = true;
+        }
+        if(ixer.selectOne("ordinal binding", {source: sourceId})) {
+          curRel.hasOrdinal = true;
+        }
+        if(ixer.selectOne("negated source", {source: sourceId})) {
+          curRel.isNegated = true;
+        }
+      } else {
+        // otherwise we have a primitive view, which is basically like a function in Eve
+        var curPrim: any = {type: "primitive", sourceId: sourceId, primitive: sourceViewId, name: code.name(sourceViewId)};
+        curPrim.id = curPrim.sourceId;
+        nodes.push(curPrim);
+        nodeLookup[curPrim.id] = curPrim;
+      }
+    }
+
+    // A variable is the other "node" on the canvas. Variables can have multiple bindings,
+    // filters, errors, and grouping. We also have to handle ordinals and constant-only
+    // variables specially here.
+    let variables = ixer.select("variable", {view: view["view: view"]});
+    for(let variable of variables) {
+      let variableId = variable["variable: variable"];
+      let bindings = ixer.select("binding", {variable: variableId});
+      let constants = ixer.select("constant binding", {variable: variableId});
+      let ordinals = ixer.select("ordinal binding", {variable: variableId});
+      let attribute:any = {type: "attribute", id: variableId, variable: variableId};
+
+       // if we have bindings, this is a normal attribute and we go through to create
+       // links to the sources and so on.
+      if(bindings.length) {
+        let entity = undefined;
+        let name = "";
+        let singleBinding = bindings.length === 1;
+
+        // check if an ordinal is bound here.
+        if(ordinals.length) {
+          let sourceNode = nodeLookup[ordinals[0]["ordinal binding: source"]];
+          if(sourceNode) {
+            let link: any = {left: attribute, right: sourceNode, name: "ordinal"};
+            links.push(link);
+          }
+          name = "ordinal";
+        }
+
+        // run through the bindings once to determine if it's an entity, what it's name is,
+        // and all the other properties of this node.
+        for(let binding of bindings) {
+          let sourceId = binding["binding: source"];
+          let fieldId = binding["binding: field"];
+          let field = ixer.selectOne("field", {field: fieldId});
+          let sourceNode = nodeLookup[sourceId];
+          if(!field) {
+            name = code.name(fieldId);
+            if(sourceNode && sourceNode.error) attribute.sourceError = true;
+            attribute.error = `${name} no longer exists.`;
+            continue;
+          }
+          let fieldKind = field["field: kind"];
+          if(!entity) entity = fieldToEntity[fieldId];
+          // we don't really want to use input field names as they aren't descriptive.
+          // so we set the name only if this is an output or there isn't a name yet
+          if(fieldKind === "output" || !name) {
+            name = code.name(fieldId);
+          }
+          // if it's a single binding and it's an input then this node is an input
+          if(singleBinding && fieldKind !== "output") {
+            attribute.isInput = true;
+            attribute.inputKind = fieldKind;
+          }
+          let grouped = ixer.selectOne("grouped field", {source: sourceId, field: fieldId});
+          if(grouped) {
+            attribute.grouped = true;
+          }
+          if(sourceNode) {
+            attribute.sourceChunked = attribute.sourceChunked || sourceNode.chunked;
+            attribute.sourceHasOrdinal = attribute.sourceHasOrdinal || sourceNode.hasOrdinal;
+            attribute.sourceNegated = attribute.sourceNegated || sourceNode.isNegated;
+          }
+        }
+
+
+        // the final name of the node is either the entity name or whichever other name we found
+        name = entity || name;
+        // now that it's been named, go through the bindings again and create links to their sources
+        for(let binding of bindings) {
+          let sourceId = binding["binding: source"];
+          let fieldId = binding["binding: field"];
+          let sourceNode = nodeLookup[sourceId];
+          let link: any = {left: attribute, right: sourceNode};
+          let fieldName = code.name(fieldId);
+          if(attribute.error) {
+            link.isError = true;
+          }
+          if(fieldName !== name) {
+            link.name = fieldName;
+          }
+          links.push(link);
+        }
+        attribute.name = name;
+        attribute.mergedAttributes = bindings.length + ordinals.length > 1 ? bindings : undefined;
+        attribute.entity = entity;
+        attribute.select = ixer.selectOne("select", {variable: variableId});
+        for(var constant of constants) {
+          attribute.filter = {operation: "=", value: constant["constant binding: value"]};
+        }
+      } else if(constants.length) {
+        // some variables are just a constant
+        attribute.name = "constant binding";
+        attribute.filter = {operation: "=", value: constants[0]["constant binding: value"]};
+      } else if(ordinals.length) {
+        // we have to handle ordinals specially since they're a virtual field on a table
+        attribute.isOrdinal = true;
+        attribute.name = "ordinal";
+        attribute.select = ixer.selectOne("select", {variable: variableId});
+        let sourceNode = nodeLookup[ordinals[0]["ordinal binding: source"]];
+        if(sourceNode) {
+          let link: any = {left: attribute, right: sourceNode, name: "ordinal"};
+          links.push(link);
+        }
+      } else {
+        attribute.name = "unknown variable";
+      }
+      nodeLookup[attribute.id] = attribute;
+      nodes.push(attribute);
+    }
+
+    return {nodes, links, nodeLookup};
+  }
+
+  function tableToEntityInfo(view) {
+    var nodes = [];
+    var links = [];
+    let nodeLookup = {};
+    return {nodes, links, nodeLookup};
+  }
+
+  //---------------------------------------------------------
+  // Node display and positioning information
+  //---------------------------------------------------------
+
+  function nodeDisplayInfo(curNode) {
+    let text = curNode.name.toString();
+    let small = false;
+    let {left, top} = positions[curNode.id] || {};
+    let height = nodeHeight + 2 * nodeHeightPadding;
+    let width = Math.max(text.length * nodeWidthMultiplier + 2 * nodeWidthPadding, nodeWidthMin);
+    let right = left + width;
+    let bottom = top + height;
+    let filterWidth = 0;
+    if(curNode.filter && curNode.inputKind !== "vector input") {
+      filterWidth = Math.max(curNode.filter.value.toString().length * nodeWidthMultiplier + 25, nodeWidthMin);
+      // subtract the 15 pixel overlap that occurs between nodes and their filters
+      right += filterWidth - 15;
+    }
+    if(small) {
+      width = Math.max(text.length * nodeSmallWidthMultiplier + nodeWidthPadding, nodeWidthMin);
+    }
+    return {left, top, right, bottom, width, height, text, filterWidth, totalWidth: (curNode.filter ? width + filterWidth - 15 : width), totalHeight: height};
+  }
+
+  function refreshNodePositions(nodes, links) {
+    let sourceNodes:graphLayout.Node[] = [];
+    let attributeNodes:graphLayout.Node[] = [];
+    let dirty = false;
+    for(let node of nodes) {
+      let displayInfo = nodeDisplayInfo(node);
+      let width = displayInfo.totalWidth + 10;
+      let height = displayInfo.totalHeight + 10;
+      let graphNode:graphLayout.Node = {id: node.id, type: node.type, width, height };
+      if(displayInfo.left !== undefined && displayInfo.top !== undefined) {
+        graphNode.x = displayInfo.left + width / 2;
+        graphNode.y = displayInfo.top + height / 2;
+      } else {
+        dirty = true;
+      }
+      if(node.type === "relationship" || node.type === "primitive") {
+        sourceNodes.push(graphNode);
+      } else if(node.type === "attribute") {
+        attributeNodes.push(graphNode);
+      } else {
+        console.warn("unhandled node type:", node.type);
+      }
+    }
+
+    if(dirty) {
+      let edges:graphLayout.Edge[] = [];
+      for(let link of links) { // Right is source, left is attribute.
+        edges.push({source: link.right.id, target: link.left.id});
+      }
+      // This placeholder ensures that graph nodes are not placed directly on top of the title/description of the query.
+      sourceNodes.push({id: "placeholder 1", type: "placeholder", width: 256, height: 64, x: 5, y: 5});
+
+      let graph = new graphLayout.Graph(sourceNodes, attributeNodes, edges, [640, 480]);
+      let layout = graph.layout();
+      for(let node of nodes) {
+        let p = layout.positions[node.id];
+        let s = layout.sizes[node.id];
+        let neue = {left: p[0] - s[0] / 2, top: p[1] - s[1] / 2};
+        let old = positions[node.id];
+        if(!old || old.left !== neue.left || old.top !== neue.top) {
+          positions[node.id] = neue;
+          dispatch("initializeNodePosition", {node: node});
+        }
+      }
+    }
+  }
+
+  function surfaceRelativeCoords(e) {
+    let surface:any = document.getElementsByClassName("query-workspace")[0];
+    let surfaceRect = surface.getBoundingClientRect();
+    let x = e.clientX - surfaceRect.left + surface.scrollLeft;
+    let y = e.clientY - surfaceRect.top + surface.scrollTop;
+    return {x, y};
+  }
+
+  //---------------------------------------------------------
+  // root component
   //---------------------------------------------------------
 
   function root() {
@@ -1520,37 +1777,11 @@ module drawn {
     return {id: "root", c: localStorage["theme"] || "dark", children: [tooltipUi(), notice(), page]};
   }
 
-  function notice() {
-    let noticeItems = [];
-    for(let noticeId in localState.notices) {
-      let notice = localState.notices[noticeId];
-      noticeItems.push({c: `flex-row spaced-row notice ${notice.type} ${notice.fading ? "fade" : ""}`, children: [
-        (typeof notice.content === "function") ? notice.content() :
-          (typeof notice.content === "string") ? {text: notice.content} : notice.content,
-          {c: "flex-spacer", height: 0},
-          {c: "btn ion-close", noticeId: noticeId, click: closeNotice}
-      ]});
-    }
-    return {c: "notices", children: noticeItems};
-  }
+  //---------------------------------------------------------
+  // Item selector component
+  //---------------------------------------------------------
 
-  function closeNotice(evt, elem) {
-    dispatch("fadeNotice", {noticeId: elem.noticeId, duration: 400});
-  }
-
-  function visibleItemCount() {
-    let allViews = ixer.select("view", {});
-    let totalCount = allViews.length;
-    // hidden views don't contribute to the count
-    if(!localStorage["showHidden"]) {
-      totalCount -= ixer.select("tag", {tag: "hidden"}).length
-    }
-    // primtive views don't contribute to the count
-    totalCount -= ixer.select("view", {kind: "primitive"}).length;
-    return totalCount;
-  }
-
-  function itemSelector() {
+    function itemSelector() {
     let viewIds;
     let searching = false;
     let totalCount = visibleItemCount();
@@ -1599,6 +1830,18 @@ module drawn {
     ]};
   }
 
+  function visibleItemCount() {
+    let allViews = ixer.select("view", {});
+    let totalCount = allViews.length;
+    // hidden views don't contribute to the count
+    if(!localStorage["showHidden"]) {
+      totalCount -= ixer.select("tag", {tag: "hidden"}).length
+    }
+    // primtive views don't contribute to the count
+    totalCount -= ixer.select("view", {kind: "primitive"}).length;
+    return totalCount;
+  }
+
   function clearSelectedItems(e, elem) {
     dispatch("clearSelectedItems", {});
   }
@@ -1606,6 +1849,270 @@ module drawn {
   function removeSelectedItems(e, elem) {
     dispatch("removeSelectedItems", {})
   }
+
+
+  function queryItem(view) {
+    let viewId = view["view: view"];
+    let entityInfo = viewToEntityInfo(view);
+    let boundingBox = nodesToRectangle(entityInfo.nodes);
+    // translate the canvas so that the top left corner is the top left corner of the
+    // bounding box for the nodes
+    let xTranslate = -boundingBox.left;
+    let yTranslate = -boundingBox.top;
+    let scale;
+    // scale the canvas so that it matches the size of the preview, preserving the aspect-ratio.
+    if(boundingBox.width > previewWidth || boundingBox.height > previewHeight) {
+      scale = Math.min(previewWidth / boundingBox.width, previewHeight / boundingBox.height);
+    } else {
+      scale = 0.7;
+    }
+    let selected = localState.selectedItems[viewId] ? "selected" : "";
+    return {c: `query-item ${selected}`, id: viewId, itemId: viewId, click: selectItem, dblclick: openItem, children:[
+      {c: "query-name", text: code.name(viewId)},
+      // {c: "query-description", text: getDescription(viewId)},
+      {c: "query", children: [
+        {c: "container", children: [
+          {c: "surface", transform:`scale(${scale}, ${scale}) translate(${xTranslate}px, ${yTranslate}px) `, children: [
+            queryPreview(view, entityInfo, boundingBox)
+          ]},
+        ]}
+      ]}
+    ]};
+  }
+
+  function selectItem(e, elem) {
+    e.stopPropagation();
+    dispatch("selectItem", {itemId: elem.itemId, shiftKey: e.shiftKey});
+  }
+
+  function openItem(e, elem) {
+    dispatch("openItem", {itemId: elem.itemId});
+  }
+
+  //---------------------------------------------------------
+  // Left toolbar component
+  //---------------------------------------------------------
+
+  function leftToolbar(actions, disabled = {}, extraKeys = {}) {
+    var tools = [];
+    for(let actionName in actions) {
+      let action = actions[actionName];
+      let description = action.description;
+      if(glossary.lookup[action.text]) {
+        description = glossary.lookup[action.text].description;
+      }
+      let tool = {c: "tool", text: action.text, mouseover: showButtonTooltip, mouseout: hideButtonTooltip, description};
+      for(var extraKey in extraKeys) {
+        tool[extraKey] = extraKeys[extraKey];
+      }
+      if(!disabled[actionName]) {
+        tool["click"] = action.func;
+      } else {
+        tool["c"] += " disabled";
+        tool["disabledMessage"] = disabled[actionName];
+      }
+      tools.push(tool);
+    }
+    tools.push({c: "flex-spacer"},
+               {c: "tool ion-gear-b",
+                title: "Settings",
+                mouseover: showButtonTooltip,
+                mouseout: hideButtonTooltip,
+                click: openSettings,
+                description: "Open Eve's settings panel"})
+
+    return {c: "left-side-container", children: [
+      {c: "query-tools", children: tools},
+      querySearcher()
+    ]};
+  }
+
+  function showButtonTooltip(e, elem) {
+    let rect = e.currentTarget.getBoundingClientRect();
+    dispatch("showButtonTooltip", {header: elem.text || elem.title, disabledMessage: elem.disabledMessage, description: elem.description, x: rect.right, y: rect.top} );
+  }
+
+  function hideButtonTooltip(e, elem) {
+    dispatch("hideButtonTooltip", {});
+  }
+
+  //---------------------------------------------------------
+  // Settings component
+  //---------------------------------------------------------
+
+  function openSettings(evt, elem:Element) {
+    let rect = evt.currentTarget.getBoundingClientRect();
+    let tooltip:any = {
+      c: "settings-modal",
+      content: settingsPanel,
+      persistent: true,
+      stopPersisting: stopSort,
+    };
+    dispatch("showTooltip", tooltip);
+  }
+
+  let settingsPanes = {
+    "save": {
+      title: "Save",
+      content: function() {
+        let saves = localState.saves || [];
+        let selected = localState.selectedSave;
+        return [
+          (saves.length ? {children: [
+            {t: "h3", text: "Recent"},
+            {c: "saves", children: saves.map((save) => { return {
+              c: (save === selected) ? "selected" : "",
+              text: save,
+              save: save,
+              click: selectSave,
+              dblclick: overwriteSave
+            }})}
+          ]} : undefined),
+
+          {c: "flex-row spaced-row", children: [{t: "input", input: setSaveLocation}, {t: "button", text: "Save", click: overwriteSave}]}
+        ];
+      }
+    },
+    "load": {
+      title: "Load",
+      content: function() {
+        let saves = localState.saves || [];
+        let selected = localState.selectedSave;
+        return [
+          (saves.length ? {children: [
+            {t: "h3", text: "Recent"},
+            {c: "saves", children: saves.map((save) => { return {
+              c: (save === selected) ? "selected" : "",
+              text: save,
+              save: save,
+              click: selectSave,
+              dblclick: loadSave
+            }})}
+          ]} : undefined),
+          {c: "flex-row spaced-row", children: [{t: "input", input: setSaveLocation}, {t: "button", text: "Load", click: loadSave}]}
+        ]
+      }
+    },
+    "preferences": {
+      title: "Preferences",
+      content: () =>  {
+        let showHidden;
+        if(localStorage["showHidden"]) {
+          showHidden = {c: "toggle", click: toggleHidden, text: "Hide hidden"};
+        } else {
+          showHidden = {c: "toggle", click: toggleHidden, text: "Show hidden"};
+        }
+        let theme;
+        let curTheme = localStorage["theme"];
+        if(curTheme === "light") {
+          theme = {c: `toggle ${curTheme}`, click: toggleTheme, text: "Dark"};
+        } else {
+          theme = {c: `toggle ${curTheme}`, click: toggleTheme, text: "Light"};
+        }
+        return [
+          {c: "preferences", children: [
+            theme,
+            showHidden,
+          ]}
+        ];
+      }
+    }
+  };
+
+  function toggleHidden(e, elem) {
+    dispatch("toggleHidden", {});
+  }
+
+  function toggleTheme(e, elem) {
+    dispatch("toggleTheme", {});
+  }
+
+  function settingsPanel() {
+    let current = settingsPanes[localState.currentTab] ? localState.currentTab : "preferences";
+    let tabs = [];
+    for(let tab in settingsPanes) {
+      tabs.push({c: (tab === current) ? "active tab" : "tab", tab, text: settingsPanes[tab].title, click: switchTab});
+    }
+
+    return {c: "settings-panel tabbed-box", children: [
+      {c: "tabs", children: tabs},
+      {c: "pane", children: settingsPanes[current].content()}
+    ]};
+  }
+
+  function switchTab(evt, elem) {
+    dispatch("switchTab", {tab: elem.tab});
+  }
+
+  function selectSave(evt, elem) {
+    dispatch("selectSave", {save: elem.save});
+  }
+
+  function setSaveLocation(evt, elem) {
+    dispatch("selectSave", {save: evt.currentTarget.value});
+  }
+
+  function overwriteSave(evt, elem) {
+    dispatch("overwriteSave", {});
+  }
+
+  function loadSave(evt, elem) {
+    dispatch("loadSave", {});
+  }
+
+  //---------------------------------------------------------
+  // Tooltip component
+  //---------------------------------------------------------
+
+  function tooltipUi(): any {
+    let tooltip = localState.tooltip;
+
+    if(tooltip) {
+      let viewHeight = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
+       // @FIXME: We need to get the actual element size here.
+      let elem:any = {c: "tooltip" + (tooltip.c ? " " + tooltip.c : ""), left: tooltip.x, top: Math.min(tooltip.y, viewHeight - 61)};
+      if(typeof tooltip.content === "string") {
+        elem["text"] = tooltip.content;
+      } else if(typeof tooltip.content === "function") {
+        elem["children"] = [tooltip.content()];
+      } else {
+        elem["children"] = [tooltip.content];
+      }
+      if(tooltip.persistent) {
+        return {id: "tooltip-container", c: "tooltip-container", children: [
+          {c: "tooltip-shade", click: tooltip.stopPersisting},
+          elem,
+        ]};
+      }
+      return elem;
+    }
+  }
+
+  //---------------------------------------------------------
+  // Notice component
+  //---------------------------------------------------------
+
+  function notice() {
+    let noticeItems = [];
+    for(let noticeId in localState.notices) {
+      let notice = localState.notices[noticeId];
+      noticeItems.push({c: `flex-row spaced-row notice ${notice.type} ${notice.fading ? "fade" : ""}`, children: [
+        (typeof notice.content === "function") ? notice.content() :
+          (typeof notice.content === "string") ? {text: notice.content} : notice.content,
+          {c: "flex-spacer", height: 0},
+          {c: "btn ion-close", noticeId: noticeId, click: closeNotice}
+      ]});
+    }
+    return {c: "notices", children: noticeItems};
+  }
+
+  function closeNotice(evt, elem) {
+    dispatch("fadeNotice", {noticeId: elem.noticeId, duration: 400});
+  }
+
+  //---------------------------------------------------------
+  // Creator component
+  //---------------------------------------------------------
 
   function startCreating(e, elem) {
     let rect = e.currentTarget.getBoundingClientRect();
@@ -1637,47 +2144,32 @@ module drawn {
     ]};
   }
 
-  function queryItem(view) {
-    let viewId = view["view: view"];
-    let entityInfo = viewToEntityInfo(view);
-    let boundingBox = nodesToRectangle(entityInfo.nodes);
-    // translate the canvas so that the top left corner is the top left corner of the
-    // bounding box for the nodes
-    let xTranslate = -boundingBox.left;
-    let yTranslate = -boundingBox.top;
-    let scale;
-    // scale the canvas so that it matches the size of the preview, preserving the aspect-ratio.
-    if(boundingBox.width > previewWidth || boundingBox.height > previewHeight) {
-      scale = Math.min(previewWidth / boundingBox.width, previewHeight / boundingBox.height);
-    } else {
-      scale = 0.7;
-    }
-    let selected = localState.selectedItems[viewId] ? "selected" : "";
-    return {c: `query-item ${selected}`, id: viewId, itemId: viewId, click: selectItem, dblclick: openItem, children:[
-      {c: "query-name", text: code.name(viewId)},
-      // {c: "query-description", text: getDescription(viewId)},
-      {c: "query", children: [
-        {c: "container", children: [
-          {c: "surface", transform:`scale(${scale}, ${scale}) translate(${xTranslate}px, ${yTranslate}px) `, children: [
-            queryPreview(view, entityInfo, boundingBox)
-          ]},
-        ]}
-      ]}
-    ]};
-  }
-
   function createNewItem(e, elem) {
     dispatch("createNewItem", {name: elem.newName, kind: elem.kind});
   }
 
-  function selectItem(e, elem) {
-    e.stopPropagation();
-    dispatch("selectItem", {itemId: elem.itemId, shiftKey: e.shiftKey});
+  //---------------------------------------------------------
+  // Query preview component
+  //---------------------------------------------------------
+
+  function queryPreview(view, entityInfo, boundingBox) {
+    let viewId = view["view: view"];
+    let {nodes, links} = entityInfo;
+    refreshNodePositions(nodes, links);
+    var items = [];
+    for(var node of nodes) {
+      items.push(nodeItem(node, viewId));
+    }
+    let linkItems = drawLinks(links, items);
+    return {c: "canvas", children: [
+      {c: "links", svg: true, width: boundingBox.right, height: boundingBox.bottom, t: "svg", children: linkItems},
+      {c: "nodes", children: items}
+    ]};
   }
 
-  function openItem(e, elem) {
-    dispatch("openItem", {itemId: elem.itemId});
-  }
+  //---------------------------------------------------------
+  // Query editor component
+  //---------------------------------------------------------
 
   function queryUi(viewId, showResults = false) {
     var view = ixer.selectOne("view", {view: viewId});
@@ -1692,7 +2184,6 @@ module drawn {
       localState.drawnUiActiveId !== "itemSelector" ? queryTools(view, entityInfo) : undefined,
       {c: "container", children: [
         {c: "surface", children: [
-          queryMenu(view),
           {c: "query-workspace", children: [
             {c: "query-name-input", contentEditable: true, blur: rename, renameId: viewId, text: code.name(viewId)},
             {c: "query-description-input", contentEditable: true, blur: setQueryDescription, viewId, text: description},
@@ -1705,29 +2196,246 @@ module drawn {
     ]};
   }
 
-  function tooltipUi(): any {
-    let tooltip = localState.tooltip;
+  function queryCanvas(view, entityInfo) {
+    let viewId = view["view: view"];
+    let {nodes, links, nodeLookup} = entityInfo;
+    refreshNodePositions(nodes, links);
+    let queryBoundingBox = nodesToRectangle(nodes);
 
-    if(tooltip) {
-      let viewHeight = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
-       // @FIXME: We need to get the actual element size here.
-      let elem:any = {c: "tooltip" + (tooltip.c ? " " + tooltip.c : ""), left: tooltip.x, top: Math.min(tooltip.y, viewHeight - 61)};
-      if(typeof tooltip.content === "string") {
-        elem["text"] = tooltip.content;
-      } else if(typeof tooltip.content === "function") {
-        elem["children"] = [tooltip.content()];
+    var items = [];
+    for(var node of nodes) {
+      items.push(nodeItem(node, viewId));
+    }
+    let linkItems = drawLinks(links, items);
+    let selection;
+    if(localState.selecting) {
+      let {start, end} = localState.boxSelection;
+      if(end) {
+        let topLeft = {x: start.x, y: start.y};
+        let width = Math.abs(end.x - start.x);
+        let height = Math.abs(end.y - start.y);
+        if(end.x < start.x) {
+          topLeft.x = end.x;
+        }
+        if(end.y < start.y) {
+          topLeft.y = end.y;
+        }
+        selection = {svg: true, c: "selection-rectangle", t: "rect", x: topLeft.x, y: topLeft.y, width, height};
+      }
+    } else {
+      let selectedNodeIds = Object.keys(localState.selectedNodes);
+      if(selectedNodeIds.length) {
+        let {top, left, width, height} = nodesToRectangle(selectedNodeIds.map((nodeId) => nodeLookup[nodeId]).filter((node) => node));
+        selection = {svg: true, c: "selection-rectangle", t: "rect", x: left - 10, y: top - 10, width: width + 20, height: height + 20};
+      }
+    }
+    // the minimum width and height of the canvas is based on the bottom, right of the
+    // bounding box of all the nodes in the query
+    let boundingWidth = queryBoundingBox.right + 50;
+    let boundingHeight = queryBoundingBox.bottom + 50;
+    return {c: "canvas", mousedown: startBoxSelection, mousemove: continueBoxSelection, mouseup: endBoxSelection, dragover: preventDefault, children: [
+      {c: "selection", svg: true, width: boundingWidth, height: boundingHeight, t: "svg", children: [selection]},
+      {c: "links", svg: true, width: boundingWidth, height: boundingHeight, t: "svg", children: linkItems},
+      {c: "nodes", width: boundingWidth, height: boundingHeight, children: items}
+    ]};
+  }
+
+  function drawLinks(links, items) {
+    var linkItems = [];
+    for(var link of links) {
+      var leftItem, rightItem;
+      for(var item of items) {
+        if(item.node === link.left) {
+          leftItem = item;
+          break;
+        }
+      }
+      for(var item of items) {
+        if(item.node === link.right) {
+          rightItem = item;
+          break;
+        }
+      }
+
+      if(leftItem.left <= rightItem.left) {
+      var fromLeft = leftItem.left + (leftItem.size.width / 2);
+        var fromTop = leftItem.top + (leftItem.size.height / 2);
+        var toLeft = rightItem.left + (rightItem.size.width / 2);
+        var toTop = rightItem.top + (rightItem.size.height / 2);
       } else {
-        elem["children"] = [tooltip.content];
+        var fromLeft = rightItem.left + (rightItem.size.width / 2);
+        var fromTop = rightItem.top + (rightItem.size.height / 2);
+        var toLeft = leftItem.left + (leftItem.size.width / 2);
+        var toTop = leftItem.top + (leftItem.size.height / 2);
       }
-      if(tooltip.persistent) {
-        return {id: "tooltip-container", c: "tooltip-container", children: [
-          {c: "tooltip-shade", click: tooltip.stopPersisting},
-          elem,
-        ]};
+      var color = "#bbb";
+      if(link.isError) {
+        color = "#bb5555";
       }
-      return elem;
+      var d = `M ${fromLeft} ${fromTop} L ${toLeft} ${toTop}`;
+
+      var pathId = `${link.right.id} ${link.left.id} path`;
+      linkItems.push({svg: true, id: pathId, t: "path", d: d, c: "link", stroke: color, strokeWidth: 1});
+      linkItems.push({svg: true, t: "text", children: [
+        {svg: true, t: "textPath", startOffset: "50%", xlinkhref: `#${pathId}`, text: link.name}
+      ]});
+    }
+    return linkItems;
+  }
+
+  function startBoxSelection(e, elem) {
+    let coords = surfaceRelativeCoords(e);
+    dispatch("startBoxSelection", {coords, shiftKey: e.shiftKey});
+  }
+
+  function continueBoxSelection(e, elem) {
+    if(!localState.selecting || (e.clientX === 0 && e.clientY === 0)) return;
+    dispatch("continueBoxSelection", surfaceRelativeCoords(e));
+  }
+
+  function endBoxSelection(e, elem) {
+    dispatch("endBoxSelection", {});
+  }
+
+  function clearCanvasSelection(e, elem) {
+    if(e.target === e.currentTarget && !e.shiftKey) {
+      dispatch("clearSelection", {});
     }
   }
+
+  //---------------------------------------------------------
+  // Node component
+  //---------------------------------------------------------
+
+  function nodeItem(curNode, viewId): any {
+    var content = [];
+    var uiSelected = localState.selectedNodes[curNode.id];
+    var overlapped = localState.overlappingNodes[curNode.id];
+    var klass = "";
+    if(uiSelected) {
+      klass += " uiSelected";
+    }
+    if(curNode.select) {
+      klass += " projected";
+    }
+    if(overlapped) {
+      klass += " overlapped";
+    }
+    if(curNode.chunked) {
+      klass += " chunked";
+    }
+    if(curNode.isNegated) {
+      klass += " negated";
+    }
+    if(curNode.error) {
+      klass += " error";
+      // if the whole source is an error, don't bother showing actions to remove individual
+      // fields, just show it on the source
+      if(!curNode.sourceError) {
+        let action = removeErrorBinding;
+        if(curNode.type === "relationship") {
+          action = removeErrorSource;
+        }
+        content.push({c: "error-description", children: [
+          {text: curNode.error},
+          {c: "button", node: curNode, text: "remove", click: action},
+        ]});
+      }
+    }
+    if((curNode.sourceChunked && !curNode.grouped) || curNode.inputKind === "vector input") {
+      klass += " column";
+    }
+    klass += ` ${curNode.type}`;
+    if (curNode.entity !== undefined) {
+      klass += " entity";
+    }
+    var {left, top, width, height, text, filterWidth} = nodeDisplayInfo(curNode);
+    if (curNode.filter && curNode.inputKind !== "vector input") {
+      var op = curNode.filter.operation;
+      let filterIsBeingEdited = localState.modifyingFilterNodeId === curNode.id;
+      var filterUi:any = {c: "attribute-filter", dblclick: modifyFilter, node: curNode, children: [
+        //{c: "operation", text: curNode.filter.operation}
+      ]};
+
+      if(filterIsBeingEdited) {
+        filterUi.children.push({c: "value", children: [
+          {c: "filter-editor", contentEditable: true, postRender: focusOnce, keydown: submitOnEnter,
+            blur: stopModifyingFilter, viewId, node: curNode, text: curNode.filter.value}
+        ]});
+      } else {
+        // we only want an explicit width if the filter isn't changing size to try and fit being edited.
+        filterUi.width = filterWidth;
+        filterUi.children.push({c: "value", text: curNode.filter.value});
+      }
+      content.push(filterUi);
+    }
+    var elem = {c: "item " + klass, selected: uiSelected, width, height,
+                mousedown: selectNode, draggable: true, dragstart: storeDragOffset,
+                drag: setNodePosition, dragend: finalNodePosition, node: curNode, text};
+
+    // if this is a relationship and not an error, then we can navigate into it
+    if(curNode.type === "relationship" && !curNode.error) {
+      elem["dblclick"] = openNode;
+    }
+    content.unshift(elem);
+    return {c: "item-wrapper", top: top, left: left, size: {width, height}, node: curNode, selected: uiSelected, children: content};
+  }
+
+  function selectNode(e, elem) {
+    e.stopPropagation();
+    dispatch("selectNode", {node: elem.node, shiftKey: e.shiftKey});
+  }
+
+  function openNode(e, elem) {
+    if(elem.node.type === "relationship") {
+      dispatch("openItem", {itemId: elem.node.source["source: source view"]});
+    }
+  }
+
+  function storeDragOffset(e, elem) {
+    var rect = e.currentTarget.getBoundingClientRect();
+    e.dataTransfer.setDragImage(document.getElementById("clear-pixel"),0,0);
+    dispatch("setDragOffset", {x: e.clientX - rect.left, y: e.clientY - rect.top});
+  }
+
+  function finalNodePosition(e, elem) {
+    dispatch("finalNodePosition", {node: elem.node});
+  }
+
+  function setNodePosition(e, elem) {
+    if(e.clientX === 0 && e.clientY === 0) return;
+    let surface:any = document.getElementsByClassName("query-workspace")[0];
+    let surfaceRect = surface.getBoundingClientRect();
+    let x = e.clientX - surfaceRect.left - api.localState.dragOffsetX + surface.scrollLeft;
+    let y = e.clientY - surfaceRect.top - api.localState.dragOffsetY + surface.scrollTop;
+    dispatch("setNodePosition", {
+      node: elem.node,
+      pos: {left: x, top: y}
+    });
+  }
+
+  function submitOnEnter(e, elem) {
+    if(e.keyCode === api.KEYS.ENTER) {
+      stopModifyingFilter(e, elem);
+      e.preventDefault();
+    }
+  }
+
+  function stopModifyingFilter(e, elem) {
+    dispatch("stopModifyingFilter", {node: elem.node, value: coerceInput(e.currentTarget.textContent), viewId: elem.viewId});
+  }
+
+  function removeErrorBinding(e, elem) {
+    dispatch("removeErrorBinding", {variableId: elem.node.variable});
+  }
+
+  function removeErrorSource(e, elem) {
+    dispatch("removeErrorSource", {sourceId: elem.node.source["source: source"]});
+  }
+
+  //---------------------------------------------------------
+  // Query errors component
+  //---------------------------------------------------------
 
   function queryErrors(view) {
     let errors = localState.errors.map((error) => {
@@ -1750,6 +2458,10 @@ module drawn {
       {children: errorItems},
     ]};
   }
+
+  //---------------------------------------------------------
+  // Query toolbar component
+  //---------------------------------------------------------
 
   function queryTools(view, entityInfo) {
     let viewId = view["view: view"];
@@ -1892,283 +2604,9 @@ module drawn {
     return leftToolbar(actions, disabled, {node: selectedNodes[0], viewId});
   }
 
-  function leftToolbar(actions, disabled = {}, extraKeys = {}) {
-    var tools = [];
-    for(let actionName in actions) {
-      let action = actions[actionName];
-      let description = action.description;
-      if(glossary.lookup[action.text]) {
-        description = glossary.lookup[action.text].description;
-      }
-      let tool = {c: "tool", text: action.text, mouseover: showButtonTooltip, mouseout: hideButtonTooltip, description};
-      for(var extraKey in extraKeys) {
-        tool[extraKey] = extraKeys[extraKey];
-      }
-      if(!disabled[actionName]) {
-        tool["click"] = action.func;
-      } else {
-        tool["c"] += " disabled";
-        tool["disabledMessage"] = disabled[actionName];
-      }
-      tools.push(tool);
-    }
-    tools.push({c: "flex-spacer"},
-               {c: "tool ion-gear-b",
-                title: "Settings",
-                mouseover: showButtonTooltip,
-                mouseout: hideButtonTooltip,
-                click: openSettings,
-                description: "Open Eve's settings panel"})
 
-    return {c: "left-side-container", children: [
-      {c: "query-tools", children: tools},
-      querySearcher()
-    ]};
-  }
-
-  function openSettings(evt, elem:Element) {
-    let rect = evt.currentTarget.getBoundingClientRect();
-    let tooltip:any = {
-      c: "settings-modal",
-      content: settingsPanel,
-      persistent: true,
-      stopPersisting: stopSort,
-    };
-    dispatch("showTooltip", tooltip);
-  }
-
-  let settingsPanes = {
-    "save": {
-      title: "Save",
-      content: function() {
-        let saves = localState.saves || [];
-        let selected = localState.selectedSave;
-        return [
-          (saves.length ? {children: [
-            {t: "h3", text: "Recent"},
-            {c: "saves", children: saves.map((save) => { return {
-              c: (save === selected) ? "selected" : "",
-              text: save,
-              save: save,
-              click: selectSave,
-              dblclick: overwriteSave
-            }})}
-          ]} : undefined),
-
-          {c: "flex-row spaced-row", children: [{t: "input", input: setSaveLocation}, {t: "button", text: "Save", click: overwriteSave}]}
-        ];
-      }
-    },
-    "load": {
-      title: "Load",
-      content: function() {
-        let saves = localState.saves || [];
-        let selected = localState.selectedSave;
-        return [
-          (saves.length ? {children: [
-            {t: "h3", text: "Recent"},
-            {c: "saves", children: saves.map((save) => { return {
-              c: (save === selected) ? "selected" : "",
-              text: save,
-              save: save,
-              click: selectSave,
-              dblclick: loadSave
-            }})}
-          ]} : undefined),
-          {c: "flex-row spaced-row", children: [{t: "input", input: setSaveLocation}, {t: "button", text: "Load", click: loadSave}]}
-        ]
-      }
-    },
-    "preferences": {
-      title: "Preferences",
-      content: () =>  {
-        let showHidden;
-        if(localStorage["showHidden"]) {
-          showHidden = {c: "toggle", click: toggleHidden, text: "Hide hidden"};
-        } else {
-          showHidden = {c: "toggle", click: toggleHidden, text: "Show hidden"};
-        }
-        let theme;
-        let curTheme = localStorage["theme"];
-        if(curTheme === "light") {
-          theme = {c: `toggle ${curTheme}`, click: toggleTheme, text: "Dark"};
-        } else {
-          theme = {c: `toggle ${curTheme}`, click: toggleTheme, text: "Light"};
-        }
-        return [
-          {c: "preferences", children: [
-            theme,
-            showHidden,
-          ]}
-        ];
-      }
-    }
-  };
-
-  function toggleHidden(e, elem) {
-    dispatch("toggleHidden", {});
-  }
-
-  function toggleTheme(e, elem) {
-    dispatch("toggleTheme", {});
-  }
-
-  function settingsPanel() {
-    let current = settingsPanes[localState.currentTab] ? localState.currentTab : "preferences";
-    let tabs = [];
-    for(let tab in settingsPanes) {
-      tabs.push({c: (tab === current) ? "active tab" : "tab", tab, text: settingsPanes[tab].title, click: switchTab});
-    }
-
-    return {c: "settings-panel tabbed-box", children: [
-      {c: "tabs", children: tabs},
-      {c: "pane", children: settingsPanes[current].content()}
-    ]};
-  }
-
-  function switchTab(evt, elem) {
-    dispatch("switchTab", {tab: elem.tab});
-  }
-
-  function selectSave(evt, elem) {
-    dispatch("selectSave", {save: elem.save});
-  }
-
-  function setSaveLocation(evt, elem) {
-    dispatch("selectSave", {save: evt.currentTarget.value});
-  }
-
-  function overwriteSave(evt, elem) {
-    dispatch("overwriteSave", {});
-  }
-
-  function loadSave(evt, elem) {
-    dispatch("loadSave", {});
-  }
-
-  function sorter() {
-    let sourceId = localState.sorting.sourceId;
-    let sourceViewId = ixer.selectOne("source", {source: sourceId})["source: source view"];
-    let fieldItems = ixer.getFields(sourceViewId).map((fieldId, ix) => {
-      let sortedField = ixer.selectOne("sorted field", {source: sourceId, field: fieldId});
-      let sortIx = sortedField ? sortedField["sorted field: ix"] : ix;
-      let fieldItem: any = {c: "field", draggable: true, dragstart: sortDragStart, dragover: sortFieldDragOver, drop: sortFieldDrop, sortIx, sourceId, children: [
-        {c: "field-name", text: code.name(fieldId)},
-      ]};
-      if(!sortedField) {
-        fieldItem.c += " grouped";
-        fieldItem.sortIx = -1;
-        fieldItem.draggable = undefined;
-        fieldItem.drop = undefined;
-      } else {
-        let sortArrow = sortedField["sorted field: direction"] === "ascending" ? "ion-arrow-up-b" : "ion-arrow-down-b";
-        fieldItem.children.push({c: `sort-direction ${sortArrow}`, sortedField, click: toggleSortDirection});
-      }
-      return fieldItem;
-    });
-    fieldItems.sort((a, b) => {
-      return a.sortIx - b.sortIx;
-    });
-    return {c: "sorter", children: [
-        {c: "header", text: "Adjust sorting"},
-        {c: "description", text: "Order the fields in the order you want them to be sorted in and click the arrow to adjust whether to sort ascending or descending"},
-        {c: "fields", children: fieldItems}
-      ]};
-  }
-
-  function querySearcher() {
-    if(!localState.searching) return;
-    let results = localState.searchResults;
-    let resultGroups = [];
-    if(results) {
-      resultGroups = results.map((resultGroup) => {
-        let onSelect = resultGroup.onSelect;
-        let items = resultGroup.results.map((result) => {
-          return {c: "search-result-item", result, click: onSelect, children: [
-            {c: "result-text", text: result.text},
-            result.description ? {c: "result-description", text: result.description} : undefined,
-          ]};
-        });
-        return {c: "search-result-group", children: [
-          // @HACK: setting value here is weird, but it causes the postRender to get called every time the search changes
-          // which will ensure that the results are always scrolled to the bottom
-          {c: "search-result-items", value: localState.searchingFor, postRender: scrollToTheBottomOnChange, children: items},
-          {c: "group-type", children: [
-            {c: "group-name", text: resultGroup.kind},
-            {c: "result-size", text: resultGroup.results.length}
-          ]},
-        ]}
-      });
-    }
-    return {c: "searcher-container", children: [
-      {c: "searcher-shade", click: stopSearching},
-      {c: "searcher", children: [
-        {c: "search-results", children: resultGroups},
-        {c: "search-box", contentEditable: true, postRender: focusOnce, text: localState.searchingFor, input: updateSearch, keydown: handleSearchKey}
-      ]}
-    ]};
-  }
-
-  function toggleSortDirection(e, elem) {
-    dispatch("toggleSortDirection", {sourceId: elem.sortedField["sorted field: source"], fieldId: elem.sortedField["sorted field: field"]});
-  }
-
-  function sortDragStart(e, elem) {
-    e.dataTransfer.setData("sortIx", elem.sortIx);
-  }
-
-  function sortFieldDragOver(e, elem) {
-    e.preventDefault();
-  }
-
-  function sortFieldDrop(e, elem) {
-    e.preventDefault();
-    dispatch("moveSortField", {
-      sourceId: elem.sourceId,
-      from: parseInt(e.dataTransfer.getData("sortIx")),
-      to: elem.sortIx,
-    });
-  }
-
-  function scrollToTheBottomOnChange(node, elem) {
-    if(!node.searchValue || node.searchValue !== elem.value) {
-      node.scrollTop = Number.MAX_VALUE;
-      node.searchValue = elem.value;
-    }
-  }
-
-  function stopSort(e, elem) {
-    dispatch("stopSort", {});
-  }
-
-  function startSort(e, elem) {
-    let rect = e.currentTarget.getBoundingClientRect();
-    dispatch("startSort", {x: rect.right + 10, y: rect.top, sourceId: elem.node.id});
-  }
-
-  function showButtonTooltip(e, elem) {
-    let rect = e.currentTarget.getBoundingClientRect();
-    dispatch("showButtonTooltip", {header: elem.text || elem.title, disabledMessage: elem.disabledMessage, description: elem.description, x: rect.right, y: rect.top} );
-  }
-
-  function hideButtonTooltip(e, elem) {
-    dispatch("hideButtonTooltip", {});
-  }
-
-  function handleSearchKey(e, elem) {
-    dispatch("handleSearchKey", {keyCode: e.keyCode, metaKey: e.metaKey, ctrlKey: e.ctrlKey, e});
-  }
-
-  function startSearching(e, elem) {
-    dispatch("startSearching", {value: elem.searchValue});
-  }
-
-  function stopSearching(e, elem) {
-    dispatch("stopSearching", {});
-  }
-
-  function updateSearch(e, elem) {
-    dispatch("updateSearch", {value: e.currentTarget.textContent});
+  function unjoinNodes(e, elem) {
+    dispatch("unjoinNodes", {variableId: elem.node.variable});
   }
 
   function joinSelection(e, elem) {
@@ -2235,6 +2673,134 @@ module drawn {
     dispatch("addSelectToQuery", {viewId: elem.viewId, variableId: elem.node.variable, name: elem.node.name});
   }
 
+  //---------------------------------------------------------
+  // Sorter component
+  //---------------------------------------------------------
+
+  function sorter() {
+    let sourceId = localState.sorting.sourceId;
+    let sourceViewId = ixer.selectOne("source", {source: sourceId})["source: source view"];
+    let fieldItems = ixer.getFields(sourceViewId).map((fieldId, ix) => {
+      let sortedField = ixer.selectOne("sorted field", {source: sourceId, field: fieldId});
+      let sortIx = sortedField ? sortedField["sorted field: ix"] : ix;
+      let fieldItem: any = {c: "field", draggable: true, dragstart: sortDragStart, dragover: sortFieldDragOver, drop: sortFieldDrop, sortIx, sourceId, children: [
+        {c: "field-name", text: code.name(fieldId)},
+      ]};
+      if(!sortedField) {
+        fieldItem.c += " grouped";
+        fieldItem.sortIx = -1;
+        fieldItem.draggable = undefined;
+        fieldItem.drop = undefined;
+      } else {
+        let sortArrow = sortedField["sorted field: direction"] === "ascending" ? "ion-arrow-up-b" : "ion-arrow-down-b";
+        fieldItem.children.push({c: `sort-direction ${sortArrow}`, sortedField, click: toggleSortDirection});
+      }
+      return fieldItem;
+    });
+    fieldItems.sort((a, b) => {
+      return a.sortIx - b.sortIx;
+    });
+    return {c: "sorter", children: [
+        {c: "header", text: "Adjust sorting"},
+        {c: "description", text: "Order the fields in the order you want them to be sorted in and click the arrow to adjust whether to sort ascending or descending"},
+        {c: "fields", children: fieldItems}
+      ]};
+  }
+
+  function toggleSortDirection(e, elem) {
+    dispatch("toggleSortDirection", {sourceId: elem.sortedField["sorted field: source"], fieldId: elem.sortedField["sorted field: field"]});
+  }
+
+  function sortDragStart(e, elem) {
+    e.dataTransfer.setData("sortIx", elem.sortIx);
+  }
+
+  function sortFieldDragOver(e, elem) {
+    e.preventDefault();
+  }
+
+  function sortFieldDrop(e, elem) {
+    e.preventDefault();
+    dispatch("moveSortField", {
+      sourceId: elem.sourceId,
+      from: parseInt(e.dataTransfer.getData("sortIx")),
+      to: elem.sortIx,
+    });
+  }
+
+  function stopSort(e, elem) {
+    dispatch("stopSort", {});
+  }
+
+  function startSort(e, elem) {
+    let rect = e.currentTarget.getBoundingClientRect();
+    dispatch("startSort", {x: rect.right + 10, y: rect.top, sourceId: elem.node.id});
+  }
+
+  //---------------------------------------------------------
+  // Searcher component
+  //---------------------------------------------------------
+
+  function querySearcher() {
+    if(!localState.searching) return;
+    let results = localState.searchResults;
+    let resultGroups = [];
+    if(results) {
+      resultGroups = results.map((resultGroup) => {
+        let onSelect = resultGroup.onSelect;
+        let items = resultGroup.results.map((result) => {
+          return {c: "search-result-item", result, click: onSelect, children: [
+            {c: "result-text", text: result.text},
+            result.description ? {c: "result-description", text: result.description} : undefined,
+          ]};
+        });
+        return {c: "search-result-group", children: [
+          // @HACK: setting value here is weird, but it causes the postRender to get called every time the search changes
+          // which will ensure that the results are always scrolled to the bottom
+          {c: "search-result-items", value: localState.searchingFor, postRender: scrollToTheBottomOnChange, children: items},
+          {c: "group-type", children: [
+            {c: "group-name", text: resultGroup.kind},
+            {c: "result-size", text: resultGroup.results.length}
+          ]},
+        ]}
+      });
+    }
+    return {c: "searcher-container", children: [
+      {c: "searcher-shade", click: stopSearching},
+      {c: "searcher", children: [
+        {c: "search-results", children: resultGroups},
+        {c: "search-box", contentEditable: true, postRender: focusOnce, text: localState.searchingFor, input: updateSearch, keydown: handleSearchKey}
+      ]}
+    ]};
+  }
+
+  function scrollToTheBottomOnChange(node, elem) {
+    if(!node.searchValue || node.searchValue !== elem.value) {
+      node.scrollTop = Number.MAX_VALUE;
+      node.searchValue = elem.value;
+    }
+  }
+
+  function handleSearchKey(e, elem) {
+    dispatch("handleSearchKey", {keyCode: e.keyCode, metaKey: e.metaKey, ctrlKey: e.ctrlKey, e});
+  }
+
+  function startSearching(e, elem) {
+    dispatch("startSearching", {value: elem.searchValue});
+  }
+
+  function stopSearching(e, elem) {
+    dispatch("stopSearching", {});
+  }
+
+  function updateSearch(e, elem) {
+    dispatch("updateSearch", {value: e.currentTarget.textContent});
+  }
+
+  //---------------------------------------------------------
+  // Query results component
+  //---------------------------------------------------------
+
   function queryResults(viewId, entityInfo) {
     let resultViewId = viewId;
     let selectedNodeIds = Object.keys(localState.selectedNodes);
@@ -2260,6 +2826,10 @@ module drawn {
     ]};
   }
 
+  //---------------------------------------------------------
+  // Shared dispatch functions
+  //---------------------------------------------------------
+
   export function rename(e, elem) {
     dispatch("rename", {renameId: elem.renameId, value: e.currentTarget.textContent});
   }
@@ -2272,519 +2842,6 @@ module drawn {
     dispatch("navigateBack", {});
   }
 
-  function queryMenu(query) {
-    var menu = localState.menu;
-    if(!menu) return {};
-    return {c: "menu-shade", mousedown: clearMenuOnClick, children: [
-      {c: "menu", top: menu.top, left: menu.left, children: [
-        menu.contentFunction()
-      ]}
-    ]};
-  }
-
-  function clearMenuOnClick(e, elem) {
-    if(e.target === e.currentTarget) {
-      dispatch("clearMenu", {});
-    }
-  }
-
-
-  function joinToEntityInfo(view) {
-    var nodes = [];
-    var nodeLookup = {};
-    var constraints = [];
-    var links = [];
-    let viewId = view["view: view"];
-    for(var source of ixer.select("source", {view: viewId})) {
-      var sourceViewId = source["source: source view"];
-      var sourceView = api.ixer.selectOne("view", {view: sourceViewId});
-      var sourceId = source["source: source"];
-      if(!sourceView || sourceView["view: kind"] !== "primitive") {
-        var isRel = true;
-        var curRel:any = {type: "relationship", source: source, id: sourceId, name: code.name(sourceViewId)};
-        if(!sourceView) {
-          curRel.error = "This table no longer exists";
-        }
-        nodes.push(curRel);
-        nodeLookup[curRel.id] = curRel;
-        if(ixer.selectOne("chunked source", {source: sourceId})) {
-          curRel.chunked = true;
-        }
-        if(ixer.selectOne("ordinal binding", {source: sourceId})) {
-          curRel.hasOrdinal = true;
-        }
-        if(ixer.selectOne("negated source", {source: sourceId})) {
-          curRel.isNegated = true;
-        }
-      } else {
-        var curPrim: any = {type: "primitive", sourceId: sourceId, primitive: sourceViewId, name: code.name(sourceViewId)};
-        curPrim.id = curPrim.sourceId;
-        nodes.push(curPrim);
-        nodeLookup[curPrim.id] = curPrim;
-      }
-    }
-
-    //look through the variables and dedupe attributes
-    let variables = ixer.select("variable", {view: view["view: view"]});
-    for(let variable of variables) {
-      let variableId = variable["variable: variable"];
-      let bindings = ixer.select("binding", {variable: variableId});
-      let constants = ixer.select("constant binding", {variable: variableId});
-      let ordinals = ixer.select("ordinal binding", {variable: variableId});
-      let attribute:any = {type: "attribute", id: variableId, variable: variableId};
-
-       // if we have bindings, this is a normal attribute and we go through to create
-       // links to the sources and so on.
-      if(bindings.length) {
-        let entity = undefined;
-        let name = "";
-        let singleBinding = bindings.length === 1;
-
-        // check if an ordinal is bound here.
-        if(ordinals.length) {
-          let sourceNode = nodeLookup[ordinals[0]["ordinal binding: source"]];
-          if(sourceNode) {
-            let link: any = {left: attribute, right: sourceNode, name: "ordinal"};
-            links.push(link);
-          }
-          name = "ordinal";
-        }
-
-        // run through the bindings once to determine if it's an entity, what it's name is,
-        // and all the other properties of this node.
-        for(let binding of bindings) {
-          let sourceId = binding["binding: source"];
-          let fieldId = binding["binding: field"];
-          let field = ixer.selectOne("field", {field: fieldId});
-          let sourceNode = nodeLookup[sourceId];
-          if(!field) {
-            name = code.name(fieldId);
-            if(sourceNode && sourceNode.error) attribute.sourceError = true;
-            attribute.error = `${name} no longer exists.`;
-            continue;
-          }
-          let fieldKind = field["field: kind"];
-          if(!entity) entity = fieldToEntity[fieldId];
-          // we don't really want to use input field names as they aren't descriptive.
-          // so we set the name only if this is an output or there isn't a name yet
-          if(fieldKind === "output" || !name) {
-            name = code.name(fieldId);
-          }
-          // if it's a single binding and it's an input then this node is an input
-          if(singleBinding && fieldKind !== "output") {
-            attribute.isInput = true;
-            attribute.inputKind = fieldKind;
-          }
-          let grouped = ixer.selectOne("grouped field", {source: sourceId, field: fieldId});
-          if(grouped) {
-            attribute.grouped = true;
-          }
-          if(sourceNode) {
-            attribute.sourceChunked = attribute.sourceChunked || sourceNode.chunked;
-            attribute.sourceHasOrdinal = attribute.sourceHasOrdinal || sourceNode.hasOrdinal;
-            attribute.sourceNegated = attribute.sourceNegated || sourceNode.isNegated;
-          }
-        }
-
-
-        // the final name of the node is either the entity name or the whichever name we picked
-        name = entity || name;
-        // now that it's been named, go through the bindings again and create links to their sources
-        for(let binding of bindings) {
-          let sourceId = binding["binding: source"];
-          let fieldId = binding["binding: field"];
-          let sourceNode = nodeLookup[sourceId];
-          // @FIXME: because the client isn't authorative about code, there are cases where the source
-          // is removed but the variable still exists. Once the AST is editor-owned, this will no longer
-          // be necessary.
-          if(!sourceNode) continue;
-          let link: any = {left: attribute, right: sourceNode};
-          let fieldName = code.name(fieldId);
-          if(attribute.error) {
-            link.isError = true;
-          }
-          if(fieldName !== name) {
-            link.name = fieldName;
-          }
-          links.push(link);
-        }
-        attribute.name = name;
-        attribute.mergedAttributes = bindings.length + ordinals.length > 1 ? bindings : undefined;
-        attribute.entity = entity;
-        attribute.select = ixer.selectOne("select", {variable: variableId});
-        for(var constant of constants) {
-          attribute.filter = {operation: "=", value: constant["constant binding: value"]};
-        }
-      } else if(constants.length) {
-        // some variables are just a constant
-        attribute.name = "constant binding";
-        attribute.filter = {operation: "=", value: constants[0]["constant binding: value"]};
-      } else if(ordinals.length) {
-        // we have to handle ordinals specially since they're a virtual field on a table
-        attribute.isOrdinal = true;
-        attribute.name = "ordinal";
-        attribute.select = ixer.selectOne("select", {variable: variableId});
-        let sourceNode = nodeLookup[ordinals[0]["ordinal binding: source"]];
-        if(sourceNode) {
-          let link: any = {left: attribute, right: sourceNode, name: "ordinal"};
-          links.push(link);
-        }
-      } else {
-        attribute.name = "unknown variable";
-      }
-      nodeLookup[attribute.id] = attribute;
-      nodes.push(attribute);
-    }
-
-    return {nodes, links, nodeLookup};
-  }
-
-  function tableToEntityInfo(view) {
-    var nodes = [];
-    var links = [];
-    let nodeLookup = {};
-    return {nodes, links, nodeLookup};
-  }
-
-  function viewToEntityInfo(view) {
-    if(view["view: kind"] === "join") {
-      return joinToEntityInfo(view);
-    } else if(view["view: kind"] === "table") {
-      return tableToEntityInfo(view);
-    } else {
-      let nodes = [];
-      let links = [];
-      let nodeLookup = {};
-      return {nodeLookup, nodes, links}
-    }
-  }
-
-  function drawLinks(links, items) {
-    var linkItems = [];
-    for(var link of links) {
-      var leftItem, rightItem;
-      for(var item of items) {
-        if(item.node === link.left) {
-          leftItem = item;
-          break;
-        }
-      }
-      for(var item of items) {
-        if(item.node === link.right) {
-          rightItem = item;
-          break;
-        }
-      }
-
-      if(leftItem.left <= rightItem.left) {
-      var fromLeft = leftItem.left + (leftItem.size.width / 2);
-        var fromTop = leftItem.top + (leftItem.size.height / 2);
-        var toLeft = rightItem.left + (rightItem.size.width / 2);
-        var toTop = rightItem.top + (rightItem.size.height / 2);
-      } else {
-        var fromLeft = rightItem.left + (rightItem.size.width / 2);
-        var fromTop = rightItem.top + (rightItem.size.height / 2);
-        var toLeft = leftItem.left + (leftItem.size.width / 2);
-        var toTop = leftItem.top + (leftItem.size.height / 2);
-      }
-      var color = "#bbb";
-      if(link.isError) {
-        color = "#bb5555";
-      }
-      var d = `M ${fromLeft} ${fromTop} L ${toLeft} ${toTop}`;
-
-      var pathId = `${link.right.id} ${link.left.id} path`;
-      linkItems.push({svg: true, id: pathId, t: "path", d: d, c: "link", stroke: color, strokeWidth: 1});
-      linkItems.push({svg: true, t: "text", children: [
-        {svg: true, t: "textPath", startOffset: "50%", xlinkhref: `#${pathId}`, text: link.name}
-      ]});
-    }
-    return linkItems;
-  }
-
-  function refreshNodePositions(nodes, links) {
-    let sourceNodes:graphLayout.Node[] = [];
-    let attributeNodes:graphLayout.Node[] = [];
-    let dirty = false;
-    for(let node of nodes) {
-      let displayInfo = nodeDisplayInfo(node);
-      let width = displayInfo.totalWidth + 10;
-      let height = displayInfo.totalHeight + 10;
-      let graphNode:graphLayout.Node = {id: node.id, type: node.type, width, height };
-      if(displayInfo.left !== undefined && displayInfo.top !== undefined) {
-        graphNode.x = displayInfo.left + width / 2;
-        graphNode.y = displayInfo.top + height / 2;
-      } else {
-        dirty = true;
-      }
-      if(node.type === "relationship" || node.type === "primitive") {
-        sourceNodes.push(graphNode);
-      } else if(node.type === "attribute") {
-        attributeNodes.push(graphNode);
-      } else {
-        console.warn("unhandled node type:", node.type);
-      }
-    }
-
-
-    if(dirty) {
-      let edges:graphLayout.Edge[] = [];
-      for(let link of links) { // Right is source, left is attribute.
-        edges.push({source: link.right.id, target: link.left.id});
-      }
-      // This placeholder ensures that graph nodes are not placed directly on top of the title/description of the query.
-      sourceNodes.push({id: "placeholder 1", type: "placeholder", width: 256, height: 64, x: 5, y: 5});
-
-      let graph = new graphLayout.Graph(sourceNodes, attributeNodes, edges, [640, 480]);
-      let layout = graph.layout();
-      for(let node of nodes) {
-        let p = layout.positions[node.id];
-        let s = layout.sizes[node.id];
-        let neue = {left: p[0] - s[0] / 2, top: p[1] - s[1] / 2};
-        let old = positions[node.id];
-        if(!old || old.left !== neue.left || old.top !== neue.top) {
-          positions[node.id] = neue;
-          dispatch("initializeNodePosition", {node: node});
-        }
-      }
-    }
-  }
-
-  function queryPreview(view, entityInfo, boundingBox) {
-    let viewId = view["view: view"];
-    let {nodes, links} = entityInfo;
-    refreshNodePositions(nodes, links);
-    var items = [];
-    for(var node of nodes) {
-      items.push(nodeItem(node, viewId));
-    }
-    let linkItems = drawLinks(links, items);
-    return {c: "canvas", children: [
-      {c: "links", svg: true, width: boundingBox.right, height: boundingBox.bottom, t: "svg", children: linkItems},
-      {c: "nodes", children: items}
-    ]};
-  }
-
-  function queryCanvas(view, entityInfo) {
-    let viewId = view["view: view"];
-    let {nodes, links, nodeLookup} = entityInfo;
-    refreshNodePositions(nodes, links);
-    let queryBoundingBox = nodesToRectangle(nodes);
-
-    var items = [];
-    for(var node of nodes) {
-      items.push(nodeItem(node, viewId));
-    }
-    let linkItems = drawLinks(links, items);
-    let selection;
-    if(localState.selecting) {
-      let {start, end} = localState.boxSelection;
-      if(end) {
-        let topLeft = {x: start.x, y: start.y};
-        let width = Math.abs(end.x - start.x);
-        let height = Math.abs(end.y - start.y);
-        if(end.x < start.x) {
-          topLeft.x = end.x;
-        }
-        if(end.y < start.y) {
-          topLeft.y = end.y;
-        }
-        selection = {svg: true, c: "selection-rectangle", t: "rect", x: topLeft.x, y: topLeft.y, width, height};
-      }
-    } else {
-      let selectedNodeIds = Object.keys(localState.selectedNodes);
-      if(selectedNodeIds.length) {
-        let {top, left, width, height} = nodesToRectangle(selectedNodeIds.map((nodeId) => nodeLookup[nodeId]).filter((node) => node));
-        selection = {svg: true, c: "selection-rectangle", t: "rect", x: left - 10, y: top - 10, width: width + 20, height: height + 20};
-      }
-    }
-    // the minimum width and height of the canvas is based on the bottom, right of the
-    // bounding box of all the nodes in the query
-    let boundingWidth = queryBoundingBox.right + 50;
-    let boundingHeight = queryBoundingBox.bottom + 50;
-    return {c: "canvas", mousedown: startBoxSelection, mousemove: continueBoxSelection, mouseup: endBoxSelection, dragover: preventDefault, children: [
-      {c: "selection", svg: true, width: boundingWidth, height: boundingHeight, t: "svg", children: [selection]},
-      {c: "links", svg: true, width: boundingWidth, height: boundingHeight, t: "svg", children: linkItems},
-      {c: "nodes", width: boundingWidth, height: boundingHeight, children: items}
-    ]};
-  }
-
-  function surfaceRelativeCoords(e) {
-    let surface:any = document.getElementsByClassName("query-workspace")[0];
-    let surfaceRect = surface.getBoundingClientRect();
-    let x = e.clientX - surfaceRect.left + surface.scrollLeft;
-    let y = e.clientY - surfaceRect.top + surface.scrollTop;
-    return {x, y};
-  }
-
-  function startBoxSelection(e, elem) {
-    let coords = surfaceRelativeCoords(e);
-    dispatch("startBoxSelection", {coords, shiftKey: e.shiftKey});
-  }
-  function continueBoxSelection(e, elem) {
-    if(!localState.selecting || (e.clientX === 0 && e.clientY === 0)) return;
-    dispatch("continueBoxSelection", surfaceRelativeCoords(e));
-  }
-  function endBoxSelection(e, elem) {
-    dispatch("endBoxSelection", {});
-  }
-
-  function clearCanvasSelection(e, elem) {
-    if(e.target === e.currentTarget && !e.shiftKey) {
-      dispatch("clearSelection", {});
-    }
-  }
-
-  function nodeDisplayInfo(curNode) {
-    let text = curNode.name.toString();
-    let small = false;
-    let {left, top} = positions[curNode.id] || {};
-    let height = nodeHeight + 2 * nodeHeightPadding;
-    let width = Math.max(text.length * nodeWidthMultiplier + 2 * nodeWidthPadding, nodeWidthMin);
-    let right = left + width;
-    let bottom = top + height;
-    let filterWidth = 0;
-    if(curNode.filter && curNode.inputKind !== "vector input") {
-      filterWidth = Math.max(curNode.filter.value.toString().length * nodeWidthMultiplier + 25, nodeWidthMin);
-      // subtract the 15 pixel overlap that occurs between nodes and their filters
-      right += filterWidth - 15;
-    }
-    if(small) {
-      width = Math.max(text.length * nodeSmallWidthMultiplier + nodeWidthPadding, nodeWidthMin);
-    }
-    return {left, top, right, bottom, width, height, text, filterWidth, totalWidth: (curNode.filter ? width + filterWidth - 15 : width), totalHeight: height};
-  }
-
-  function nodeItem(curNode, viewId): any {
-    var content = [];
-    var uiSelected = localState.selectedNodes[curNode.id];
-    var overlapped = localState.overlappingNodes[curNode.id];
-    var klass = "";
-    if(uiSelected) {
-      klass += " uiSelected";
-    }
-    if(curNode.select) {
-      klass += " projected";
-    }
-    if(overlapped) {
-      klass += " overlapped";
-    }
-    if(curNode.chunked) {
-      klass += " chunked";
-    }
-    if(curNode.isNegated) {
-      klass += " negated";
-    }
-    if(curNode.error) {
-      klass += " error";
-      // if the whole source is an error, don't bother showing actions to remove individual
-      // fields, just show it on the source
-      if(!curNode.sourceError) {
-        let action = removeErrorBinding;
-        if(curNode.type === "relationship") {
-          action = removeErrorSource;
-        }
-        content.push({c: "error-description", children: [
-          {text: curNode.error},
-          {c: "button", node: curNode, text: "remove", click: action},
-        ]});
-      }
-    }
-    if((curNode.sourceChunked && !curNode.grouped) || curNode.inputKind === "vector input") {
-      klass += " column";
-    }
-    klass += ` ${curNode.type}`;
-    if (curNode.entity !== undefined) {
-      klass += " entity";
-    }
-    var {left, top, width, height, text, filterWidth} = nodeDisplayInfo(curNode);
-    if (curNode.filter && curNode.inputKind !== "vector input") {
-      var op = curNode.filter.operation;
-      let filterIsBeingEdited = localState.modifyingFilterNodeId === curNode.id;
-      var filterUi:any = {c: "attribute-filter", dblclick: modifyFilter, node: curNode, children: [
-        //{c: "operation", text: curNode.filter.operation}
-      ]};
-
-      if(filterIsBeingEdited) {
-        filterUi.children.push({c: "value", children: [
-          {c: "filter-editor", contentEditable: true, postRender: focusOnce, keydown: submitOnEnter,
-            blur: stopModifyingFilter, viewId, node: curNode, text: curNode.filter.value}
-        ]});
-      } else {
-        // we only want an explicit width if the filter isn't changing size to try and fit being edited.
-        filterUi.width = filterWidth;
-        filterUi.children.push({c: "value", text: curNode.filter.value});
-      }
-      content.push(filterUi);
-    }
-    var elem = {c: "item " + klass, selected: uiSelected, width, height,
-                mousedown: selectNode, draggable: true, dragstart: storeDragOffset,
-                drag: setNodePosition, dragend: finalNodePosition, node: curNode, text};
-
-    // if this is a relationship and not an error, then we can navigate into it
-    if(curNode.type === "relationship" && !curNode.error) {
-      elem["dblclick"] = openNode;
-    }
-    content.unshift(elem);
-    return {c: "item-wrapper", top: top, left: left, size: {width, height}, node: curNode, selected: uiSelected, children: content};
-  }
-
-  function removeErrorBinding(e, elem) {
-    dispatch("removeErrorBinding", {variableId: elem.node.variable});
-  }
-
-  function removeErrorSource(e, elem) {
-    dispatch("removeErrorSource", {sourceId: elem.node.source["source: source"]});
-  }
-
-  function submitOnEnter(e, elem) {
-    if(e.keyCode === api.KEYS.ENTER) {
-      stopModifyingFilter(e, elem);
-      e.preventDefault();
-    }
-  }
-
-  function stopModifyingFilter(e, elem) {
-    dispatch("stopModifyingFilter", {node: elem.node, value: coerceInput(e.currentTarget.textContent), viewId: elem.viewId});
-  }
-
-  function unjoinNodes(e, elem) {
-    dispatch("unjoinNodes", {variableId: elem.node.variable});
-  }
-
-  function selectNode(e, elem) {
-    e.stopPropagation();
-    dispatch("selectNode", {node: elem.node, shiftKey: e.shiftKey});
-  }
-
-  function openNode(e, elem) {
-    if(elem.node.type === "relationship") {
-      dispatch("openItem", {itemId: elem.node.source["source: source view"]});
-    }
-  }
-
-  function storeDragOffset(e, elem) {
-    var rect = e.currentTarget.getBoundingClientRect();
-    e.dataTransfer.setDragImage(document.getElementById("clear-pixel"),0,0);
-    dispatch("setDragOffset", {x: e.clientX - rect.left, y: e.clientY - rect.top});
-  }
-
-  function finalNodePosition(e, elem) {
-    dispatch("finalNodePosition", {node: elem.node});
-  }
-
-  function setNodePosition(e, elem) {
-    if(e.clientX === 0 && e.clientY === 0) return;
-    let surface:any = document.getElementsByClassName("query-workspace")[0];
-    let surfaceRect = surface.getBoundingClientRect();
-    let x = e.clientX - surfaceRect.left - api.localState.dragOffsetX + surface.scrollLeft;
-    let y = e.clientY - surfaceRect.top - api.localState.dragOffsetY + surface.scrollTop;
-    dispatch("setNodePosition", {
-      node: elem.node,
-      pos: {left: x, top: y}
-    });
-  }
-
   //---------------------------------------------------------
   // table selector / editor
   //---------------------------------------------------------
@@ -2794,86 +2851,6 @@ module drawn {
     return {c: `table-item ${selected}`, itemId: tableId, click: selectItem, dblclick: openItem, children: [
       tableForm(tableId)
     ]};
-  }
-
-  function tableFormEditor(tableId, row = null, rowNum = 0, rowTotal = 0) {
-    let fields = ixer.getFields(tableId).map((fieldId) => {
-      let value = row ? row[fieldId] : "";
-      let entryField = {c: "entry-field", fieldId, postRender: maybeFocusFormField, text: value, contentEditable: true, keydown: keyboardSubmitTableEntry, input: setTableEntryField, blur: clearActiveTableEntryField, focus: activeTableEntryField};
-      return {c: "field-item", children: [
-        {c: "label", tabindex:-1, contentEditable: true, blur: rename, renameId: fieldId, text: code.name(fieldId)},
-        entryField,
-      ]};
-    });
-    let sizeUi = rowTotal > 0 ? {c: "size", text: `${rowNum} of ${rowTotal}`} : undefined;
-    return {c: "form-container", children: [
-      rowTotal > 2 ? formRepeat(tableId, 2) : undefined,
-      rowTotal > 1 ? formRepeat(tableId, 1) : undefined,
-      {c: "form", children: [
-        {c: "form-name", contentEditable: true, blur: rename, renameId: tableId, text: code.name(tableId)},
-        {c: "form-description", contentEditable: true, blur: setQueryDescription, viewId: tableId, text: getDescription(tableId)},
-        {c: "form-fields", children: fields},
-        sizeUi,
-        {c: "submit-button", click: submitTableEntry, text: "submit"}
-      ]},
-
-    ]};
-  }
-
-  function tableForm(tableId, editable = false) {
-    let rows = ixer.select(tableId, {});
-    let fields = ixer.getFields(tableId).map((fieldId) => {
-      let value = rows[0] ? rows[0][fieldId] : "";
-      let entryField = {c: "entry-field", text: value};
-      if(editable) {
-        entryField["contentEditable"] = true;
-      }
-      return {c: "field-item", children: [
-        {c: "label", contentEditable: editable, blur: rename, renameId: fieldId, text: code.name(fieldId)},
-        entryField,
-      ]};
-    });
-    let sizeUi;
-    if(!editable) {
-      sizeUi = rows.length > 0 ? {c: "size", text: `1 of ${rows.length}`} : {c: "size", text: "No entries"};
-    }
-    return {c: "form-container", children: [
-      rows.length > 2 ? formRepeat(tableId, 2) : undefined,
-      rows.length > 1 ? formRepeat(tableId, 1) : undefined,
-      {c: "form", children: [
-        {c: "form-name", contentEditable: editable, blur: rename, renameId: tableId, text: code.name(tableId)},
-        {c: "form-description", contentEditable: editable, blur: setQueryDescription, viewId: tableId, text: getDescription(tableId)},
-        {c: "form-fields", children: fields},
-        sizeUi,
-      ]},
-    ]};
-  }
-
-  let randomCardPlacements = {};
-
-  function formRepeat(tableId, depth) {
-    let offset = 4 * depth;
-    let topDir;
-    let leftDir;
-    if(randomCardPlacements[`${tableId}${depth}top`]) {
-      topDir = randomCardPlacements[`${tableId}${depth}top`];
-      leftDir = randomCardPlacements[`${tableId}${depth}left`];
-    } else {
-      topDir = Math.round(Math.random()) === 1 ? 1 : -1;
-      leftDir = Math.round(Math.random()) === 1 ? 1 : -1;
-      randomCardPlacements[`${tableId}${depth}top`] = topDir;
-      randomCardPlacements[`${tableId}${depth}left`] = leftDir;
-    }
-    return {c: `form-repeat`, transform: `rotate(${Math.random() * 3 * topDir + 1}deg)`, top: offset * topDir, left: offset * leftDir};
-  }
-
-  function getDescription(viewId) {
-    let description = "No description :(";
-    let viewDescription = ixer.selectOne("view description", {view: viewId});
-    if(viewDescription) {
-      description = viewDescription["view description: description"];
-    }
-    return description;
   }
 
   function tableUi(tableId) {
@@ -2908,6 +2885,70 @@ module drawn {
         ]},
       ]},
     ]};
+  }
+
+  function tableFormEditor(tableId, row = null, rowNum = 0, rowTotal = 0) {
+    let fields = ixer.getFields(tableId).map((fieldId) => {
+      let value = row ? row[fieldId] : "";
+      let entryField = {c: "entry-field", fieldId, postRender: maybeFocusFormField, text: value, contentEditable: true, keydown: keyboardSubmitTableEntry, input: setTableEntryField, blur: clearActiveTableEntryField, focus: activeTableEntryField};
+      return {c: "field-item", children: [
+        {c: "label", tabindex:-1, contentEditable: true, blur: rename, renameId: fieldId, text: code.name(fieldId)},
+        entryField,
+      ]};
+    });
+    let sizeUi = rowTotal > 0 ? {c: "size", text: `${rowNum} of ${rowTotal}`} : undefined;
+    return {c: "form-container", children: [
+      rowTotal > 2 ? formRepeat(tableId, 2) : undefined,
+      rowTotal > 1 ? formRepeat(tableId, 1) : undefined,
+      {c: "form", children: [
+        {c: "form-name", contentEditable: true, blur: rename, renameId: tableId, text: code.name(tableId)},
+        {c: "form-description", contentEditable: true, blur: setQueryDescription, viewId: tableId, text: getDescription(tableId)},
+        {c: "form-fields", children: fields},
+        sizeUi,
+        {c: "submit-button", click: submitTableEntry, text: "submit"}
+      ]},
+    ]};
+  }
+
+  function tableForm(tableId) {
+    let rows = ixer.select(tableId, {});
+    let fields = ixer.getFields(tableId).map((fieldId) => {
+      let value = rows[0] ? rows[0][fieldId] : "";
+      let entryField = {c: "entry-field", text: value};
+      return {c: "field-item", children: [
+        {c: "label", blur: rename, renameId: fieldId, text: code.name(fieldId)},
+        entryField,
+      ]};
+    });
+    let sizeUi = rows.length > 0 ? {c: "size", text: `1 of ${rows.length}`} : {c: "size", text: "No entries"};
+    return {c: "form-container", children: [
+      rows.length > 2 ? formRepeat(tableId, 2) : undefined,
+      rows.length > 1 ? formRepeat(tableId, 1) : undefined,
+      {c: "form", children: [
+        {c: "form-name", blur: rename, renameId: tableId, text: code.name(tableId)},
+        {c: "form-description", blur: setQueryDescription, viewId: tableId, text: getDescription(tableId)},
+        {c: "form-fields", children: fields},
+        sizeUi,
+      ]},
+    ]};
+  }
+
+  let randomCardPlacements = {};
+
+  function formRepeat(tableId, depth) {
+    let offset = 4 * depth;
+    let topDir;
+    let leftDir;
+    if(randomCardPlacements[`${tableId}${depth}top`]) {
+      topDir = randomCardPlacements[`${tableId}${depth}top`];
+      leftDir = randomCardPlacements[`${tableId}${depth}left`];
+    } else {
+      topDir = Math.round(Math.random()) === 1 ? 1 : -1;
+      leftDir = Math.round(Math.random()) === 1 ? 1 : -1;
+      randomCardPlacements[`${tableId}${depth}top`] = topDir;
+      randomCardPlacements[`${tableId}${depth}left`] = leftDir;
+    }
+    return {c: `form-repeat`, transform: `rotate(${Math.random() * 3 * topDir + 1}deg)`, top: offset * topDir, left: offset * leftDir};
   }
 
   function maybeFocusFormField(e, elem) {
@@ -2994,12 +3035,10 @@ module drawn {
       dispatch("startSearching", {value: ""});
       e.preventDefault();
     }
-
-
   });
 
   //---------------------------------------------------------
-  // Go!
+  // Update notice
   //---------------------------------------------------------
 
   function maybeShowUpdate(error, newVersionExists?:boolean) {
@@ -3009,6 +3048,10 @@ module drawn {
       return dispatch("setNotice", {content: {c: "flex-row spaced-row", children: [{text: "A new version of Eve is available! Check it out on"}, {t: "a", href: "https://github.com/Kodowa/Eve.", text: "Github"}]}, duration: 0});
     }
   }
+
+  //---------------------------------------------------------
+  // Go!
+  //---------------------------------------------------------
 
   client.afterInit(() => {
     api.checkVersion(maybeShowUpdate);
