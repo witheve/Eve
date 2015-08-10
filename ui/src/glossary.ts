@@ -35,11 +35,14 @@ module glossary {
        description: "Return the source to producing each row as a result as opposed to removing any rows that join with this source."},
       {term: "Sort",
        description: "Set the sort order for the attributes of this source. Sorting only impacts what order ordinals and aggregates are applied in, to sort the results of your query click on the arrows on the result columns."},
+      {term: "Data",
+       description: "Create a set of data if you want to input some values into Eve."},
+      {term: "Query",
+       description: "Create a query if you want to work with your data."},
     ];
 
     export var lookup = {};
     for(let term of terms) {
       lookup[term.term] = term;
     }
-
 }

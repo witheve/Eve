@@ -31,21 +31,15 @@ pub fn code_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // "vector input" - a field that must be constrained to a single vector value (in an aggregate)
     ("field", vec!["view", "field", "kind"]),
 
-    // source ids have two purposes
-    // a) uniquely generated ids to disambiguate multiple uses of the same view
-    // (eg when joining a view with itself)
-    // b) fixed ids to identify views which are used for some specific purpose
-    // (these are "insert" and "remove" in tables)
+    // sources are unique ids used to disambiguate multiple uses of the same view within a join
     ("source", vec!["view", "source", "source view"]),
 
     // every view has a set of variables which are used to express constraints on the result of the view
     ("variable", vec!["view", "variable"]),
 
-    // variables can be bound to constant values
-    ("constant", vec!["variable", "value"]),
-
     // variables can be bound to fields
     ("binding", vec!["variable", "source", "field"]),
+    ("constant binding", vec!["variable", "value"]),
 
     // joins produce output by binding fields from sources
     // each field must be bound exactly once
@@ -68,9 +62,19 @@ pub fn code_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // if a source is chunked, it will return each group as a whole rather than breaking them back down into rows
     ("chunked source", vec!["source"]),
 
-    // if a source is negated, the view fails whenever the source returns rows
+    // if a source is negated, the join fails whenever the source returns rows
     // every bound field of a negated source is treated as an input field
     ("negated source", vec!["source"]),
+
+    // unions are fed data from zero or more member views
+    ("member", vec!["view", "member", "member view"]),
+
+    // member fields are mapped to union fields
+    ("mapping", vec!["view field", "member", "member field"]),
+    ("constant mapping", vec!["view field", "member", "value"]),
+
+    // if a member is negated, it's rows are subtracted from the union
+    ("negated member", vec!["member"]),
 
     // tags are used to organise all kinds of things
     ("tag", vec!["view", "tag"]),
@@ -95,7 +99,7 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("view schedule (pre)", vec!["view", "kind"]),
     ("view schedule", vec!["ix", "view", "kind"]),
 
-    // a source 'provides' a variable if it can reduce thevariable to a finite number of values
+    // a source 'provides' a variable if it can reduce the variable to a finite number of values
     // a source 'requires' a variable if it needs the variable reduced to a finite number of values before it can contribute
     ("provides", vec!["view", "source", "variable"]),
     ("requires", vec!["view", "source", "variable"]),
@@ -132,13 +136,20 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("number of variables (pre)", vec!["view", "num"]),
     ("number of variables", vec!["view ix", "num"]),
     ("constant layout", vec!["view ix", "variable ix", "value"]),
-    ("source layout", vec!["view ix", "source ix", "input", "chunked", "negated"]),
+    ("source layout", vec!["view ix", "source ix", "source", "input", "chunked", "negated"]),
     ("downstream layout", vec!["downstream view ix", "ix", "upstream view ix"]),
     ("binding layout", vec!["view ix", "source ix", "field ix", "variable ix", "kind"]),
     ("select layout", vec!["view ix", "ix", "variable ix"]),
     ("grouped field layout", vec!["view ix", "source ix", "field ix"]),
     ("sorted field layout", vec!["view ix", "source ix", "ix", "field ix", "direction"]),
     ("non-sorted field layout", vec!["view ix", "source ix", "ix", "field ix"]),
+    ]
+}
+
+pub fn server_schema() -> Vec<(&'static str, Vec<&'static str>)> {
+    vec![
+    // certain primitive views can generate errors when they fail at runtime
+    ("error", vec!["source", "error"]),
     ]
 }
 
@@ -205,6 +216,7 @@ pub fn client_schema() -> Vec<(&'static str, Vec<&'static str>)> {
 pub fn schema() -> Vec<(&'static str, Vec<&'static str>)> {
     code_schema().into_iter()
     .chain(compiler_schema().into_iter())
+    .chain(server_schema().into_iter())
     .chain(editor_schema().into_iter())
     .chain(client_schema().into_iter())
     .collect()
@@ -416,6 +428,22 @@ fn check_enum(warning_table: &mut Relation, relation: &Relation, field: &str, va
     }
 }
 
+fn check_view_kind(warning_table: &mut Relation, relation: &Relation, field: &str, view_table: &Relation, kind: &str) {
+    let ix = relation.names.iter().position(|name| name == field).unwrap();
+    for row in relation.index.iter() {
+        let view = &row[ix];
+        find!(view_table, [(= view), view_kind], {
+            if view_kind.as_str() != kind {
+                warning_table.index.insert(vec![
+                    string!("source"),
+                    Value::Column(row.clone()),
+                    string!("This source is attached to a non-{} view of kind: {:?}", kind, view_kind),
+                    ]);
+            }
+        });
+    }
+}
+
 fn plan(flow: &Flow) {
     use value::Value::*;
 
@@ -438,36 +466,12 @@ fn plan(flow: &Flow) {
     check_unique_key(&mut *warning_table, &*source_table, &["source"]);
     check_foreign_key(&mut *warning_table, &*source_table, &["view"], &*view_table, &["view"]);
     check_foreign_key(&mut *warning_table, &*source_table, &["source view"], &*view_table, &["view"]);
-    find!(source_table, [view, source, source_view], {
-        find!(view_table, [(= view), kind], {
-            if kind.as_str() != "join" {
-                warning_table.index.insert(vec![
-                    string!("source"),
-                    Column(vec![view.clone(), source.clone(), source_view.clone()]),
-                    string!("This source is attached to a non-join view of kind: {:?}", kind),
-                    ]);
-            }
-        });
-    });
+    check_view_kind(&mut *warning_table, &*source_table, "view", &*view_table, "join");
 
     let variable_table = flow.get_output("variable");
     check_unique_key(&mut *warning_table, &*variable_table, &["variable"]);
     check_foreign_key(&mut *warning_table, &*variable_table, &["view"], &*view_table, &["view"]);
-    find!(variable_table, [view, variable], {
-        find!(view_table, [(= view), kind], {
-            if kind.as_str() != "join" {
-                warning_table.index.insert(vec![
-                    string!("variable"),
-                    Column(vec![view.clone(), variable.clone()]),
-                    string!("This variable is attached to a non-join view of kind: {:?}", kind),
-                    ]);
-            }
-        });
-    });
-
-    let constant_table = flow.get_output("constant");
-    check_unique_key(&mut *warning_table, &*constant_table, &["variable"]);
-    check_foreign_key(&mut *warning_table, &*constant_table, &["variable"], &*variable_table, &["variable"]);
+    check_view_kind(&mut *warning_table, &*variable_table, "view", &*view_table, "join");
 
     let binding_table = flow.get_output("binding");
     check_unique_key(&mut *warning_table, &*binding_table, &["source", "field"]);
@@ -484,6 +488,10 @@ fn plan(flow: &Flow) {
         &*field_table, "field", "view",
         &*source_table, "source", "source view",
         );
+
+    let constant_binding_table = flow.get_output("constant binding");
+    check_unique_key(&mut *warning_table, &*constant_binding_table, &["variable"]);
+    check_foreign_key(&mut *warning_table, &*constant_binding_table, &["variable"], &*variable_table, &["variable"]);
 
     let select_table = flow.get_output("select");
     check_unique_key(&mut *warning_table, &*select_table, &["field"]);
@@ -519,12 +527,12 @@ fn plan(flow: &Flow) {
         let sorted_fields = find!(sorted_field_table, [(= source), _, _, _]);
         let mut ixes = sorted_fields.iter().map(|sorted_field| sorted_field[1].as_usize()).collect::<Vec<_>>();
         ixes.sort();
-        if ixes != (1..ixes.len()+1).collect::<Vec<_>>() {
+        if ixes != (0..ixes.len()).collect::<Vec<_>>() {
             for sorted_field in sorted_fields.into_iter() {
                 warning_table.index.insert(vec![
                     string!("sorted field"),
                     Column(sorted_field.to_vec()),
-                    string!("Ixes are not 1..n"),
+                    string!("Ixes should be consecutive integers from 0 to (number of sorted fields)-1"),
                     ]);
             }
         }
@@ -541,6 +549,41 @@ fn plan(flow: &Flow) {
     let negated_source_table = flow.get_output("negated source");
     check_foreign_key(&mut *warning_table, &*negated_source_table, &["source"], &*source_table, &["source"]);
 
+    let member_table = flow.get_output("member");
+    check_unique_key(&mut *warning_table, &*member_table, &["member"]);
+    check_foreign_key(&mut *warning_table, &*member_table, &["view"], &*view_table, &["view"]);
+    check_foreign_key(&mut *warning_table, &*member_table, &["member view"], &*view_table, &["view"]);
+    check_view_kind(&mut *warning_table, &*member_table, "view", &*view_table, "union");
+
+    let mapping_table = flow.get_output("mapping");
+    check_unique_key(&mut *warning_table, &*mapping_table, &["view field", "member"]);
+    check_foreign_key(&mut *warning_table, &*mapping_table, &["view field"], &*field_table, &["field"]);
+    check_foreign_key(&mut *warning_table, &*mapping_table, &["member"], &*member_table, &["member"]);
+    check_foreign_key(&mut *warning_table, &*mapping_table, &["member field"], &*field_table, &["field"]);
+    check_triangle_key(&mut *warning_table,
+        &*mapping_table, "view field", "member",
+        &*field_table, "field", "view",
+        &*member_table, "member", "view",
+        );
+    check_triangle_key(&mut *warning_table,
+        &*mapping_table, "member field", "member",
+        &*field_table, "field", "view",
+        &*member_table, "member", "member view",
+        );
+
+    let constant_mapping_table = flow.get_output("constant mapping");
+    check_unique_key(&mut *warning_table, &*constant_mapping_table, &["view field", "member"]);
+    check_foreign_key(&mut *warning_table, &*constant_mapping_table, &["view field"], &*field_table, &["field"]);
+    check_foreign_key(&mut *warning_table, &*constant_mapping_table, &["member"], &*member_table, &["member"]);
+    check_triangle_key(&mut *warning_table,
+        &*constant_mapping_table, "view field", "member",
+        &*field_table, "field", "view",
+        &*member_table, "member", "view",
+        );
+
+    let negated_member_table = flow.get_output("negated member");
+    check_foreign_key(&mut *warning_table, &*negated_member_table, &["member"], &*member_table, &["member"]);
+
     find!(view_table, [view, view_kind], {
         if view_kind.as_str() == "join" {
             find!(field_table, [(= view), field, field_kind], {
@@ -550,6 +593,23 @@ fn plan(flow: &Flow) {
                         Column(vec![view.clone(), field.clone(), field_kind.clone()]),
                         string!("This field has no select"),
                         ]);
+                });
+            });
+        }
+    });
+
+    find!(view_table, [view, view_kind], {
+        if view_kind.as_str() == "union" {
+            find!(field_table, [(= view), field, field_kind], {
+                find!(member_table, [(= view), member, _], {
+                    if dont_find!(mapping_table, [(= field), (= member), _])
+                    && dont_find!(constant_mapping_table, [(= field), (= member), _]) {
+                        warning_table.index.insert(vec![
+                            string!("field"),
+                            Column(vec![view.clone(), field.clone(), field_kind.clone()]),
+                            string!("This field has no mapping in member {:?}", member),
+                            ]);
+                    }
                 });
             });
         }
@@ -650,7 +710,7 @@ fn plan(flow: &Flow) {
     let mut variable_schedule_pre_table = flow.overwrite_output("variable schedule (pre)");
     let mut pass = 0;
     {
-        find!(constant_table, [variable, _], {
+        find!(constant_binding_table, [variable, _], {
             find!(variable_table, [view, (= variable)], {
                 insert!(variable_schedule_pre_table, [view, Float(pass as f64), variable]);
             });
@@ -717,7 +777,7 @@ fn plan(flow: &Flow) {
 
     let mut constrained_binding_table = flow.overwrite_output("constrained binding");
     find!(variable_table, [view, variable], {
-        find!(constant_table, [(= variable), _], {
+        find!(constant_binding_table, [(= variable), _], {
             find!(binding_table, [(= variable), source, field], {
                 insert!(constrained_binding_table, [variable, source, field]);
             });
@@ -815,13 +875,18 @@ fn plan(flow: &Flow) {
                 insert!(disabled_view_table.borrow_mut(), [view, warning_view, warning_row, warning]);
             });
         };
+        let disable_member = |member: &Value| {
+            find!(member_table, [view, (= member), _], {
+                insert!(disabled_view_table.borrow_mut(), [view, warning_view, warning_row, warning]);
+            });
+        };
         match (warning_view.as_str(), &warning_row.as_column()[..]) {
             ("view", [ref view, _]) => disable_view(view),
             ("field", [ref view, _, _]) => disable_view(view),
             ("source", [ref view, _, _]) => disable_view(view),
             ("variable", [ref view, _]) => disable_view(view),
-            ("constant", [ref variable, _]) => disable_variable(variable),
             ("binding", [ref variable, ref source, _]) => { disable_variable(variable); disable_source(source) },
+            ("constant binding", [ref variable, _]) => disable_variable(variable),
             ("select", [ref field, ref variable]) => { disable_field(field); disable_variable(variable) },
             ("grouped field", [ref source, _]) => disable_source(source),
             ("sorted field", [ref source, _, _, _]) => disable_source(source),
@@ -829,6 +894,10 @@ fn plan(flow: &Flow) {
             ("chunked source", [ref source]) => disable_source(source),
             ("negated source", [ref source]) => disable_source(source),
             ("unschedulable source", [ref view, ref source, ref variable]) => { disable_view(view); disable_source(source); disable_variable(variable) },
+            ("member", [ref view, _, _]) => disable_view(view),
+            ("mapping", [ref view_field, ref member, _]) => { disable_field(view_field); disable_member(member) },
+            ("constant mapping", [ref view_field, ref member, _]) => { disable_field(view_field); disable_member(member) },
+            ("negated member", [ref member]) => disable_member(member),
             _ => panic!("Don't know how to handle this warning: {:?} {:?} {:?}", warning_view, warning_row, warning),
         }
     });
@@ -847,8 +916,7 @@ fn plan(flow: &Flow) {
         if dont_find!(disabled_view_table.borrow(), [(= view), _, _, _]) {
             insert!(view_layout_table, [view_ix, view, kind]);
         } else {
-            // disabled views are just treated as constants
-            insert!(view_layout_table, [view_ix, view, string!("table")]);
+            insert!(view_layout_table, [view_ix, view, string!("disabled")]);
         }
     });
 
@@ -879,7 +947,7 @@ fn plan(flow: &Flow) {
     });
 
     let mut constant_layout_table = flow.overwrite_output("constant layout");
-    find!(constant_table, [variable, value], {
+    find!(constant_binding_table, [variable, value], {
         find!(variable_table, [view, (= variable)], {
             find!(enabled_view_table, [view_ix, (= view), _], {
                 find!(variable_schedule_table, [(= view), variable_ix, _, (= variable)], {
@@ -897,10 +965,10 @@ fn plan(flow: &Flow) {
                     let chunked = !dont_find!(chunked_source_table, [(= source)]);
                     let negated = !dont_find!(negated_source_table, [(= source)]);
                     if kind.as_str() == "primitive" {
-                        insert!(source_layout_table, [view_ix, source_ix, source_view, Bool(chunked), Bool(negated)]);
+                        insert!(source_layout_table, [view_ix, source_ix, source, source_view, Bool(chunked), Bool(negated)]);
                     } else {
                         find!(view_dependency_table, [(= view), input_ix, (= source), (= source_view)], {
-                            insert!(source_layout_table, [view_ix, source_ix, input_ix, Bool(chunked), Bool(negated)]);
+                            insert!(source_layout_table, [view_ix, source_ix, source, input_ix, Bool(chunked), Bool(negated)]);
                         });
                     }
                 });
@@ -1008,6 +1076,7 @@ fn create(flow: &Flow) -> Flow {
     let mut nodes = Vec::new();
     let mut dirty = BitSet::new();
     let mut outputs = Vec::new();
+    let mut errors = Vec::new();
 
     find!(flow.get_output("view layout"), [view_ix, view, kind], {
         nodes.push(Node{
@@ -1018,8 +1087,9 @@ fn create(flow: &Flow) -> Flow {
                     sources: vec![],
                     select: vec![],
                 }),
+                "disabled" => View::Disabled,
                 _ => {
-                    println!("Unimplemented: create for {:?} {:?} {:?}", view_ix, view, kind);
+                    println!("Unsupported: create for {:?} {:?} {:?}", view_ix, view, kind);
                     View::Table(Table{insert:None, remove:None}) // dummy node
                 }
             },
@@ -1032,6 +1102,7 @@ fn create(flow: &Flow) -> Flow {
             vec![],
             vec![],
             )));
+        errors.push(vec![]);
     });
 
     find!(flow.get_output("output layout"), [view_ix, field_ix, field, name], {
@@ -1048,21 +1119,22 @@ fn create(flow: &Flow) -> Flow {
     find!(flow.get_output("number of variables"), [view_ix, num], {
         match &mut nodes[view_ix.as_usize()].view {
             &mut View::Join(ref mut join) => join.constants = vec![Null; num.as_usize()],
-            other => println!("Unimplemented: variables for {:?} {:?}", view_ix, other),
+            other => panic!("Variables given for non-join view {:?} {:?}", view_ix, other),
         }
     });
 
     find!(flow.get_output("constant layout"), [view_ix, variable_ix, value], {
         match &mut nodes[view_ix.as_usize()].view {
             &mut View::Join(ref mut join) => join.constants[variable_ix.as_usize()] = value.clone(),
-            other => println!("Unimplemented: variables for {:?} {:?}", view_ix, other),
+            other => panic!("Constants given for non-join/union view {:?} {:?}", view_ix, other),
         }
     });
 
-    find!(flow.get_output("source layout"), [view_ix, source_ix, input, chunked, negated], {
+    find!(flow.get_output("source layout"), [view_ix, source_ix, source, input, chunked, negated], {
         match &mut nodes[view_ix.as_usize()].view {
             &mut View::Join(ref mut join) => {
                 let source = Source{
+                    id: source.as_str().to_owned(),
                     input: match input {
                         &String(ref primitive) => Input::Primitive{
                             primitive: Primitive::from_str(primitive),
@@ -1082,7 +1154,7 @@ fn create(flow: &Flow) -> Flow {
                 };
                 push_at(&mut join.sources, source_ix, source);
             }
-            other => println!("Unimplemented: sources for {:?} {:?}", view_ix, other),
+            other => panic!("Sources given for non-join view {:?} {:?}", view_ix, other),
         }
     });
 
@@ -1098,7 +1170,7 @@ fn create(flow: &Flow) -> Flow {
                     other => panic!("Unexpected binding kind / input combo: {:?}", other),
                 }
             }
-            other => println!("Unimplemented: bindings for {:?} {:?}", view_ix, other),
+            other => panic!("Bindings given for non-join view {:?} {:?}", view_ix, other),
         }
     });
 
@@ -1107,7 +1179,7 @@ fn create(flow: &Flow) -> Flow {
             &mut View::Join(ref mut join) => {
                 push_at(&mut join.select, field_ix, variable_ix.as_usize());
             }
-            other => println!("Unimplemented: bindings for {:?} {:?}", view_ix, other),
+            other => panic!("Selects given for non-join view {:?} {:?}", view_ix, other),
         }
     });
 
@@ -1148,6 +1220,7 @@ fn create(flow: &Flow) -> Flow {
         nodes: nodes,
         dirty: dirty,
         outputs: outputs,
+        errors: errors,
         needs_recompile: false,
     }
 }
@@ -1206,6 +1279,10 @@ pub fn bootstrap(flow: &mut Flow) {
         }
 
         for (view, _) in compiler_schema().into_iter() {
+            tag_table.index.insert(vec![string!("{}", view), string!("hidden")]);
+        }
+
+        for (view, _) in server_schema().into_iter() {
             tag_table.index.insert(vec![string!("{}", view), string!("hidden")]);
         }
 

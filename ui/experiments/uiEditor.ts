@@ -1,7 +1,6 @@
-/// <reference path="tableEditor.ts" />
-/// <reference path="query-editor.ts" />
-/// <reference path="eveEditor.ts" />
-/// <reference path="api.ts" />
+/// <reference path="../src/tableEditor.ts" />
+/// <reference path="drawn.ts" />
+/// <reference path="../src/api.ts" />
 module uiEditor {
   declare var jQuery;
   declare var uuid;
@@ -17,6 +16,30 @@ module uiEditor {
       setTimeout(function() { node.focus(); }, 5);
       elem.__focused = true;
     }
+  }
+
+  export function storeInitialInput(e, elem) {
+    localState.initialKey = elem.key;
+    localState.initialValue = elem.text;
+  }
+
+  export function input(value, key, oninput, onsubmit): any {
+    var blur, keydown;
+    if (onsubmit) {
+      blur = function inputBlur(e, elem) {
+        onsubmit(e, elem, "blurred");
+      }
+      keydown = function inputKeyDown(e, elem) {
+        if (e.keyCode === KEYS.ENTER) {
+          onsubmit(e, elem, "enter");
+        }
+      }
+    }
+    return { c: "input text-input", contentEditable: true, input: oninput, focus: storeInitialInput, text: value, key: key, blur: blur, keydown: keydown };
+  }
+
+  export function checkbox(value, key, onChange) {
+    return {t: "input", type: "checkbox", c: "input checkbox-input", change: onChange, checked: value, key: key};
   }
 
   export function dispatch(event: string, info: any, rentrant?: boolean) {
@@ -428,7 +451,7 @@ module uiEditor {
         break;
       default:
         redispatched = true;
-        eveEditor.dispatch(event, info);
+        drawn.dispatch(event, info);
         break;
     }
     if (!redispatched && !rentrant) {
@@ -476,22 +499,18 @@ module uiEditor {
     if (localState.uiPreview) {
       canvas = canvasPreview();
     }
-    return eveEditor.genericWorkspace({
-      klass: "query",
-      itemId: componentId,
-      content: {
-        c: "ui-editor",
-        children: [
-          layersBox(componentId, layers, activeLayer),
-          {
-            c: "ui-canvas-container", children: [
-              uiControls(componentId, activeLayer),
-              canvas,
-            ]
-          },
-        ]
-      }
-    });
+    return {
+      c: "ui-editor",
+      children: [
+        layersBox(componentId, layers, activeLayer),
+        {
+          c: "ui-canvas-container", children: [
+            uiControls(componentId, activeLayer),
+            canvas,
+          ]
+        },
+      ]
+    };
   }
 
   function canvasPreview() {
@@ -651,7 +670,7 @@ module uiEditor {
         {
           c: "layer-row", draggable: true, itemId: layerId, dragstart: layerDrag, type: "layer", children: [
             { c: "icon " + icon, click: toggleOpenLayer, layerId: layerId },
-            tableEditor.input(code.name(layerId), layerId, tableEditor.rename, tableEditor.rename),
+            input(code.name(layerId), layerId, tableEditor.rename, tableEditor.rename),
             {
               c: "controls", children: [
                 { c: hiddenClass, click: toggleHidden, dblclick: stopPropagation, layer: layer },
@@ -998,13 +1017,13 @@ module uiEditor {
     if (localState.modifyingUiText === id) {
       var curInput: any;
       if (type === "image") {
-        curInput = tableEditor.input(elem.backgroundImage, { id: id }, updateImage, submitContent);
+        curInput = input(elem.backgroundImage, { id: id }, updateImage, submitContent);
         curInput.postRender = focusOnce;
         elem.children = [curInput];
         curInput.attr = "backgroundImage";
         elem.text = undefined;
       } else {
-        curInput = tableEditor.input(elem.text, { id: id }, updateContent, submitContent);
+        curInput = input(elem.text, { id: id }, updateContent, submitContent);
         curInput.postRender = focusOnce;
         elem.children = [curInput];
         curInput.attr = "text";
@@ -1297,13 +1316,13 @@ module uiEditor {
   adjustableShade.className = "adjustable-shade";
   adjustableShade.addEventListener("mousemove", function(e) {
     if (adjusterInfo) {
-      adjusterInfo.handler(e, eveEditor.renderer.tree[adjusterInfo.elem.id]);
+      adjusterInfo.handler(e, drawn.renderer.tree[adjusterInfo.elem.id]);
     }
   })
 
   adjustableShade.addEventListener("mouseup", function(e) {
     if (adjusterInfo.elem.finalizer) {
-      adjusterInfo.elem.finalizer(e, eveEditor.renderer.tree[adjusterInfo.elem.id]);
+      adjusterInfo.elem.finalizer(e, drawn.renderer.tree[adjusterInfo.elem.id]);
     }
     adjusterInfo = false;
     document.body.removeChild(adjustableShade);
@@ -1443,7 +1462,7 @@ module uiEditor {
         }
       }
     } else {
-      visualStyle = tableEditor.input("", localState.addingAppearanceStyle, tableEditor.rename, doneAddingStyle);
+      visualStyle = input("", localState.addingAppearanceStyle, tableEditor.rename, doneAddingStyle);
       visualStyle.postRender = focusOnce;
     }
     return {
@@ -1596,7 +1615,7 @@ module uiEditor {
         }
       }
     } else {
-      typographyStyle = tableEditor.input("", localState.addingTypographyStyle, tableEditor.rename, doneAddingStyle);
+      typographyStyle = input("", localState.addingTypographyStyle, tableEditor.rename, doneAddingStyle);
       typographyStyle.postRender = focusOnce;
     }
 
@@ -1642,15 +1661,15 @@ module uiEditor {
     return { c: "inspector-panel", children: [
       {c: "pair", children: [
         {c: "label", text: "repeat horizontally"},
-        tableEditor.checkbox(!!layerHRepeat, [componentId, "h-repeat", layerId], setAttributeForLayer)
+        checkbox(!!layerHRepeat, [componentId, "h-repeat", layerId], setAttributeForLayer)
       ]},
       {c: "pair", children: [
         {c: "label", text: "scroll overflow"},
-        tableEditor.checkbox(!!layerScroll, [componentId, "scroll", layerId], setAttributeForLayer)
+        checkbox(!!layerScroll, [componentId, "scroll", layerId], setAttributeForLayer)
       ]},
       {c: "pair", children: [
         {c: "label", text: "mask overflow"},
-        tableEditor.checkbox(!!layerMask, [componentId, "mask", layerId], setAttributeForLayer)
+        checkbox(!!layerMask, [componentId, "mask", layerId], setAttributeForLayer)
       ]},
     ] };
   }
@@ -1709,7 +1728,7 @@ module uiEditor {
 
   // Inputs
   function inspectorInput(value, key, onChange, binding) {
-    var field: any = tableEditor.input(value, key, onChange, function(evt, elem) {
+    var field: any = input(value, key, onChange, function(evt, elem) {
       onChange(evt, elem, true);
       evt.preventDefault();
     });
@@ -1748,7 +1767,7 @@ module uiEditor {
       opacity: false,
       onCommit: function($elm) {
         var div = $elm.get(0);
-        var eveElem = eveEditor.renderer.tree[div._id] || eveEditor.renderer.prevTree[div._id];
+        var eveElem = drawn.renderer.tree[div._id] || drawn.renderer.prevTree[div._id];
         if (eveElem && eveElem.commit) {
           eveElem.commit({ currentTarget: div }, eveElem);
         }
@@ -1756,7 +1775,7 @@ module uiEditor {
       renderCallback: function($elm, toggled) {
         if (toggled === false) return;
         var div = $elm.get(0);
-        var eveElem = eveEditor.renderer.tree[div._id];
+        var eveElem = drawn.renderer.tree[div._id];
         if (eveElem && eveElem.change) {
           div.type = "color";
           div.value = this.color.colors.HEX;
