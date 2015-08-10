@@ -563,6 +563,11 @@ module drawn {
       //---------------------------------------------------------
       case "openItem":
         var currentItem = localState.drawnUiActiveId;
+        // if we're already there, just clear the selection.
+        if(currentItem === info.itemId) {
+          diffs = dispatch("clearSelection", {}, true);
+          break;
+        }
         // push the current location onto the history stack
         localState.navigationHistory.push(currentItem);
         localState.drawnUiActiveId = info.itemId;
@@ -1034,17 +1039,17 @@ module drawn {
       case "setError":
         var errorId = localState.errors.length;
         var newError: any = {text: info.errorText, time: api.now(), id: errorId};
-        newError.errorTimeout = setTimeout(() => dispatch("fadeError", {errorId}), 2000);
+        newError.errorTimeout = setTimeout(() => dispatch("fadeError", {errorId}), 5000);
         localState.errors.push(newError);
       break;
       case "fadeError":
         var errorId = info.errorId;
         var currentError = localState.errors[errorId];
         currentError.fading = true;
-        currentError.errorTimeout = setTimeout(() => dispatch("clearError", {errorId: info.errorId}), 1000);
+        currentError.errorTimeout = setTimeout(() => dispatch("clearError", {errorId: info.errorId}), 200);
       break;
       case "clearError":
-        // localState.errors = false;
+        localState.errors.splice(info.errorId,1);
       break;
       case "setNotice":
         var noticeId = info.id || uuid();
@@ -1062,6 +1067,27 @@ module drawn {
       break;
       case "clearNotice":
         delete localState.notices[info.noticeId];
+      break;
+      case "gotoErrorSite":
+        // open the view that contains the source of the error
+        var viewForSource = ixer.selectOne("source", {source: info.sourceId})["source: view"];
+        diffs.push.apply(diffs, dispatch("openItem", {itemId: viewForSource}, true));
+        // select the source that is producing the error
+        var {nodeLookup} = viewToEntityInfo(ixer.selectOne("view", {view: viewForSource}));
+        localState.selectedNodes[info.sourceId] = nodeLookup[info.sourceId];
+      break;
+      case "gotoWarningSite":
+        var warning = info.warning;
+        var row = warning["warning: row"];
+        if(warning["warning: view"] === "binding") {
+          let variableId = row[0];
+          // open the view that contains the variable with the error
+          var viewForVariable = ixer.selectOne("variable", {variable: variableId})["variable: view"];
+          diffs.push.apply(diffs, dispatch("openItem", {itemId: viewForVariable}, true));
+          // select the source that is producing the error
+          var {nodeLookup} = viewToEntityInfo(ixer.selectOne("view", {view: viewForVariable}));
+          localState.selectedNodes[variableId] = nodeLookup[variableId];
+        }
       break;
 
       //---------------------------------------------------------
@@ -2438,25 +2464,57 @@ module drawn {
   //---------------------------------------------------------
 
   function queryErrors(view) {
-    let errors = localState.errors.map((error) => {
+    let editorWarningItems = localState.errors.map((error) => {
       let klass = "error";
       if(error.fading) {
         klass += " fade";
       }
       return {c: klass, text: error.text};
     }).reverse();
+    let editorWarnings;
+    if(editorWarningItems.length) {
+      editorWarnings = {c: "editor-warnings error-group", children: [
+          {c: "error-heading", text: `editor warnings (${editorWarningItems.length})`},
+          {c: "error-items", children: editorWarningItems},
+      ]};;
+    }
     let warnings = ixer.select("warning", {}).map((warning) => {
-      return {text: warning["warning: warning"]};
+      return {c: "warning", warning, click: gotoWarningSite, text: warning["warning: warning"]};
     });
+    let warningGroup;
+    if(warnings.length) {
+      warningGroup = {c: "error-group", children: [
+          {c: "error-heading", text: `code errors (${warnings.length})`},
+          {c: "error-items", children: warnings},
+      ]};
+    }
     let errorItems = ixer.select("error", {}).map((error) => {
-      return {text: error["error: error"]};
+      return {error, click: gotoErrorSite, text: error["error: error"]};
     });
+    let errorGroup;
+    if(errorItems.length) {
+      errorGroup = {c: "error-group", children: [
+          {c: "error-heading", text: `execution errors (${errorItems.length})`},
+          {c: "error-items", children: errorItems},
+      ]};
+    }
+    let totalErrors = warnings.length + errorItems.length;
     return {c: "query-errors", children: [
-      {text: ixer.select("warning", {}).length},
-      {children: warnings},
-      {text: ixer.select("error", {}).length},
-      {children: errorItems},
+      totalErrors ? {c: "error-count", text: totalErrors} : undefined,
+      editorWarnings,
+      totalErrors ? {c: "error-list", children: [
+        warningGroup,
+        errorGroup,
+      ]}: undefined,
     ]};
+  }
+
+  function gotoWarningSite(e, elem) {
+    dispatch("gotoWarningSite", {warning: elem.warning});
+  }
+
+  function gotoErrorSite(e, elem) {
+    dispatch("gotoErrorSite", {sourceId: elem.error["error: source"]});
   }
 
   //---------------------------------------------------------
@@ -2572,6 +2630,17 @@ module drawn {
           actions["ordinal"] = {func: removeOrdinal, text: "Unordinal"};
         }
 
+      } else if(node.type === "primitive") {
+        disabled = {
+          "join": "join only applies to attributes",
+          "select": "select only applies to attributes",
+          "filter": "filter only applies to attributes",
+          "group": "group only applies to attributes",
+          "sort": "sort only applies to data sources, not functions",
+          "chunk": "chunk only applies to data sources, not functions",
+          "ordinal": "ordinal only applies to data sources, not functions",
+          "negate": "negate only applies to data sources, not functions",
+        }
       }
 
     //multi-selection
