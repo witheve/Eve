@@ -1771,8 +1771,28 @@ module drawn {
       "negate": {func: negateSource, text: "Negate"},
     }
 
+    let selectionContainsErrors = false;
+    for(var selected of selectedNodes) {
+      if(selected.error) {
+        selectionContainsErrors = true;
+        break;
+      }
+    }
+    // if the selection contains error nodes, we can't do anything
+    if(selectionContainsErrors) {
+      disabled = {
+        "join": "join doesn't apply to error nodes",
+        "select": "select doesn't apply to error nodes",
+        "filter": "filter doesn't apply to error nodes",
+        "group": "group doesn't apply to error nodes",
+        "sort": "sort doesn't apply to error nodes",
+        "chunk": "chunk doesn't apply to error nodes",
+        "ordinal": "ordinal doesn't apply to error nodes",
+        "negate": "negate doesn't apply to error nodes",
+      }
+
     // no selection
-    if(!selectedNodes.length) {
+    } else if(!selectedNodes.length) {
       disabled = {
         "join": "join only applies to attributes",
         "select": "select only applies to attributes",
@@ -2689,8 +2709,13 @@ module drawn {
       content.push(filterUi);
     }
     var elem = {c: "item " + klass, selected: uiSelected, width, height,
-                mousedown: selectNode, dblclick: openNode, draggable: true, dragstart: storeDragOffset,
+                mousedown: selectNode, draggable: true, dragstart: storeDragOffset,
                 drag: setNodePosition, dragend: finalNodePosition, node: curNode, text};
+
+    // if this is a relationship and not an error, then we can navigate into it
+    if(curNode.type === "relationship" && !curNode.error) {
+      elem["dblclick"] = openNode;
+    }
     content.unshift(elem);
     return {c: "item-wrapper", top: top, left: left, size: {width, height}, node: curNode, selected: uiSelected, children: content};
   }
