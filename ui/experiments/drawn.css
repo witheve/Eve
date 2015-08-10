@@ -79,8 +79,10 @@ body { font-family:"Avenir"; overflow:hidden; }
 .sorter .field-name { flex:1; }
 .sorter .sort-direction { font-size: 16px; line-height: 16px; margin-left: 5px; padding:0 5px; }
 
-.creator .types { flex-direction: row; margin-top: 8px; }
-.creator .type { padding: 10px; border-radius:3px; background: rgba(255,255,255,0.2); margin-right: 10px; cursor:default; }
+.creator .types { margin-top: 10px; }
+.creator .type-container { flex-direction: row; align-items: center; max-width: 300px; color: #bbb; }
+.creator .type-container + .type-container { margin-top:10px; }
+.creator .type { align-items: center; color: #ddd; padding: 10px; border-radius:3px; background: rgba(255,255,255,0.2); margin-right: 10px; cursor:default; width: 70px; flex:none; }
 .creator .type:hover { background: rgba(255,255,255,0.4); color: #fff; }
 
 .container { flex: 1; position:relative; }

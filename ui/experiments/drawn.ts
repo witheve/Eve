@@ -1575,14 +1575,14 @@ module drawn {
       }
     });
     let actions = {
-      "search": {func: startSearching, text: "Search", description: "Search for items to open by name"},
-      "create": {func: startCreating, text: "Create", description: "Create a new set of data, query, or merge"},
-      "remove": {func: removeSelectedItems, text: "Remove", description: "Remove an item from the database"},
+      "search": {func: startSearching, text: "Search", description: "Search for items to open by name."},
+      "new": {func: startCreating, text: "New", description: "Add a new query or set of data."},
+      "delete": {func: removeSelectedItems, text: "Delete", description: "Delete an item from the database."},
     };
     let disabled = {};
     // if nothing is selected, then remove needs to be disabled
     if(!Object.keys(localState.selectedItems).length) {
-      disabled["remove"] = "no items are selected to be removed. Click on one of the cards to select it.";
+      disabled["delete"] = "no items are selected to be removed. Click on one of the cards to select it.";
     }
     return {c: "query-selector-wrapper", children: [
       leftToolbar(actions, disabled),
@@ -1618,12 +1618,21 @@ module drawn {
 
   function creator() {
     return {c: "creator", children: [
-      {c: "header", text: "Create"},
-      {c: "description", text: "Create a set of data if you want to input some values into Eve. Create a query if you want to work with your data. Create a union if you want to merge a bunch of different queries or data sets together."},
+      {c: "header", text: "New"},
+      {c: "description", text: "Select a kind of item to create."},
       {c: "types", children: [
-        {c: "type", text: "Data", click: createNewItem, kind: "table", newName: "New table!"},
-        {c: "type", text: "Query", click: createNewItem, kind: "join", newName: "New query!"},
-        {c: "type", text: "Union", click: createNewItem, kind: "union", newName: "New union!"},
+        {c: "type-container", children: [
+          {c: "type", text: "Data", click: createNewItem, kind: "table", newName: "New table!"},
+          {text: glossary.lookup["Data"].description}
+        ]},
+        {c: "type-container", children: [
+          {c: "type", text: "Query", click: createNewItem, kind: "join", newName: "New query!"},
+          {text: glossary.lookup["Query"].description}
+        ]},
+        // {c: "type-container", children: [
+          // {c: "type", text: "Union", click: createNewItem, kind: "union", newName: "New union!"},
+          // {text: "Create a union if you want to merge a bunch of different queries or data sets together."},
+        // ]},
       ]}
     ]};
   }
