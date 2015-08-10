@@ -280,13 +280,6 @@ module api {
     },
   };
 
-  var groupsToHide = {
-    "example": true,
-    "compiler": true,
-    "editor": true,
-    "test": true
-  };
-
   export var localState: any = {
     txId: 0,
     uiActiveLayer: null,
