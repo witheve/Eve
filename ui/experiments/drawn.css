@@ -206,6 +206,8 @@ body { font-family:"Avenir"; overflow:hidden; }
 .dark .canvas .negated { background:#F98B8A; color: #222; }
 .dark .canvas .item.overlapped { background: #bbb; color: #222; }
 .dark .canvas .item.error { border-color:rgba(187,85,85,1); background: rgb(123, 63, 63); }
-.dark .canvas .error-description { background: rgb(123, 63, 63); padding:3px 15px; margin-left:-15px; padding-left: 25px; border-radius:10px; }
+.dark .canvas .relationship.error { color: #ccc; }
+.dark .canvas .error-description { width: 150px; font-size: 10pt; border:1px solid rgba(187,85,85,1); z-index:10; background: rgb(123, 63, 63); padding:10px 10px; margin-left:-15px; border-radius:10px; }
+.query-item .canvas .error-description { display:none; }
 .dark .table-container .table .headers { background: rgba(255,255,255,0.1); }
 .dark .table-container .table .header { background: none; }

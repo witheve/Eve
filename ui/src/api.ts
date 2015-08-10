@@ -2,7 +2,7 @@
 module api {
   declare var window;
   declare var uuid;
-  
+
   export var version = 0;
 
   type Id = string;
@@ -90,7 +90,7 @@ module api {
     }
     return neue;
   }
-  
+
   export function checkVersion(callback:(error:Error, newVersionExists?:boolean) => void) {
     let request = new XMLHttpRequest();
     request.onreadystatechange = function() {
@@ -98,7 +98,7 @@ module api {
         if(request.status !== 200) {
           return callback(new Error(`HTTP Response: ${request.status}`));
         }
-        
+
         callback(undefined, +request.responseText > +api.version);
       }
     }
@@ -323,8 +323,8 @@ module api {
 
     view: {key: "view",
            dependents: pkDependents.concat(
-             ["field", "source"])},
-    source: {key: ["view", "source"],
+             ["field"])},
+    source: {key: "source",
              foreign: {view: "view"},
              dependents: []},
     field: {key: "field",

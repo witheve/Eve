@@ -156,7 +156,7 @@ module drawn {
 
   localState.selectedNodes = {};
   localState.overlappingNodes = {};
-  localState.drawnUiActiveId = false;
+  localState.drawnUiActiveId = "itemSelector";
   localState.errors = [];
   localState.notices = {};
   localState.selectedItems = {};
@@ -405,6 +405,19 @@ module drawn {
     return diffs;
   }
 
+  function removeView(viewId) {
+    let diffs = [
+      // removing the view will automatically remove the fields
+      api.remove("view", {view: viewId}),
+      api.remove("source", {view: viewId}),
+    ];
+    // go through and remove everything associated to variables
+    for(let variable of ixer.select("variable", {view: viewId})) {
+      diffs.push.apply(diffs, removeVariable(variable["variable: variable"]));
+    }
+    return diffs;
+  }
+
   //---------------------------------------------------------
   // Dispatch
   //---------------------------------------------------------
@@ -547,7 +560,7 @@ module drawn {
         // make sure selection doesn't persist
         diffs = dispatch("clearSelection", {}, true);
         // if we are leaving the itemSelector, then we want to store the search
-        if(currentItem === false) {
+        if(currentItem === "itemSelector") {
           // store the current search information so that when we return to the selector
           // we can make sure it's how you left it even if you do searches in the editor
           localState.selectorSearchingFor = localState.searchingFor;
@@ -567,7 +580,7 @@ module drawn {
         var nextView = localState.navigationHistory.pop();
         localState.drawnUiActiveId = nextView;
         // if we're headed back to the item selector, restore our search
-        if(nextView === false) {
+        if(nextView === "itemSelector") {
           // restore the previous search state so that the selector is how you left it
           localState.searchingFor = localState.selectorSearchingFor;
           localState.searchResults = localState.selectorSearchResults;
@@ -588,8 +601,9 @@ module drawn {
         localState.selectedItems = {};
       break;
       case "removeSelectedItems":
-        // @TODO: implement item removal
-        console.error("TODO: implement item removal");
+        for(let selectedItem in localState.selectedItems) {
+          diffs.push.apply(diffs, removeView(selectedItem));
+        }
       break;
       //---------------------------------------------------------
       // Query building
@@ -914,6 +928,9 @@ module drawn {
             diffs.push.apply(diffs, removeBinding(binding));
           }
         }
+      break;
+      case "removeErrorSource":
+        diffs.push(removeSource(info.sourceId));
       break;
       //---------------------------------------------------------
       // sorting
@@ -1459,7 +1476,7 @@ module drawn {
     }
     matchingViews.sort(sortByScore);
     return {kind: "Sources", results: matchingViews, onSelect: (e, elem) => {
-      if(localState.drawnUiActiveId) {
+      if(localState.drawnUiActiveId !== "itemSelector") {
         dispatch("addViewAndMaybeJoin", {viewId: elem.result.viewId});
       } else {
         dispatch("openItem", {itemId: elem.result.viewId})
@@ -1486,7 +1503,7 @@ module drawn {
   function root() {
     var page:any;
     let viewId = localState.drawnUiActiveId;
-    if(viewId) {
+    if(viewId !== "itemSelector") {
       let viewKind = ixer.selectOne("view", {view: viewId})["view: kind"];
       if(viewKind === "join") {
         page = queryUi(viewId, true);
@@ -1663,7 +1680,7 @@ module drawn {
       description = viewDescription["view description: description"];
     }
     return {c: "query query-editor", children: [
-      localState.drawnUiActiveId ? queryTools(view, entityInfo) : undefined,
+      localState.drawnUiActiveId !== "itemSelector" ? queryTools(view, entityInfo) : undefined,
       {c: "container", children: [
         {c: "surface", children: [
           queryMenu(view),
@@ -2252,14 +2269,13 @@ module drawn {
     for(var source of ixer.select("source", {view: viewId})) {
       var sourceViewId = source["source: source view"];
       var sourceView = api.ixer.selectOne("view", {view: sourceViewId});
-      if(!sourceView) {
-        console.error("Source view not found for source:", source);
-        continue;
-      }
       var sourceId = source["source: source"];
-      if(sourceView["view: kind"] !== "primitive") {
+      if(!sourceView || sourceView["view: kind"] !== "primitive") {
         var isRel = true;
         var curRel:any = {type: "relationship", source: source, id: sourceId, name: code.name(sourceViewId)};
+        if(!sourceView) {
+          curRel.error = "This table no longer exists";
+        }
         nodes.push(curRel);
         nodeLookup[curRel.id] = curRel;
         if(ixer.selectOne("chunked source", {source: sourceId})) {
@@ -2310,11 +2326,12 @@ module drawn {
         for(let binding of bindings) {
           let sourceId = binding["binding: source"];
           let fieldId = binding["binding: field"];
-          let field = ixer.selectOne("field", {field: fieldId})
+          let field = ixer.selectOne("field", {field: fieldId});
+          let sourceNode = nodeLookup[sourceId];
           if(!field) {
             name = code.name(fieldId);
-            attribute.error = "Binding to a field that doesn't exist";
-            console.error("Binding to a field that doesn't exist", binding);
+            if(sourceNode && sourceNode.error) attribute.sourceError = true;
+            attribute.error = `${name} no longer exists.`;
             continue;
           }
           let fieldKind = field["field: kind"];
@@ -2333,7 +2350,6 @@ module drawn {
           if(grouped) {
             attribute.grouped = true;
           }
-          let sourceNode = nodeLookup[sourceId];
           if(sourceNode) {
             attribute.sourceChunked = attribute.sourceChunked || sourceNode.chunked;
             attribute.sourceHasOrdinal = attribute.sourceHasOrdinal || sourceNode.hasOrdinal;
@@ -2632,10 +2648,18 @@ module drawn {
     }
     if(curNode.error) {
       klass += " error";
-      content.push({c: "error-description", children: [
-        {text: curNode.error},
-        {c: "button", node: curNode, text: "remove", click: removeErrorBinding},
-      ]});
+      // if the whole source is an error, don't bother showing actions to remove individual
+      // fields, just show it on the source
+      if(!curNode.sourceError) {
+        let action = removeErrorBinding;
+        if(curNode.type === "relationship") {
+          action = removeErrorSource;
+        }
+        content.push({c: "error-description", children: [
+          {text: curNode.error},
+          {c: "button", node: curNode, text: "remove", click: action},
+        ]});
+      }
     }
     if((curNode.sourceChunked && !curNode.grouped) || curNode.inputKind === "vector input") {
       klass += " column";
@@ -2673,6 +2697,10 @@ module drawn {
 
   function removeErrorBinding(e, elem) {
     dispatch("removeErrorBinding", {variableId: elem.node.variable});
+  }
+
+  function removeErrorSource(e, elem) {
+    dispatch("removeErrorSource", {sourceId: elem.node.source["source: source"]});
   }
 
   function submitOnEnter(e, elem) {
