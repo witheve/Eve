@@ -1229,17 +1229,19 @@ fn reuse_state(old_flow: &mut Flow, new_flow: &mut Flow) {
     let nodes = replace(&mut old_flow.nodes, vec![]);
     let outputs = replace(&mut old_flow.outputs, vec![]);
     for (old_node, old_output) in nodes.into_iter().zip(outputs.into_iter()) {
-        if let Some(new_ix) = new_flow.get_ix(&old_node.id[..]) {
-            let old_output = old_output.into_inner();
-            let mut new_output = new_flow.outputs[new_ix].borrow_mut();
-            if new_output.fields == old_output.fields {
-                new_output.index = old_output.index;
-            } else if let Some(mapping) = mapping(&old_output.fields[..], &new_output.fields[..]) {
-                for values in old_output.index.into_iter() {
-                    new_output.index.insert(with_mapping(values, &mapping[..]));
+        if &old_node.id[..] != "error" { // dont reuse old error state since we clear errors inside the nodes
+            if let Some(new_ix) = new_flow.get_ix(&old_node.id[..]) {
+                let old_output = old_output.into_inner();
+                let mut new_output = new_flow.outputs[new_ix].borrow_mut();
+                if new_output.fields == old_output.fields {
+                    new_output.index = old_output.index;
+                } else if let Some(mapping) = mapping(&old_output.fields[..], &new_output.fields[..]) {
+                    for values in old_output.index.into_iter() {
+                        new_output.index.insert(with_mapping(values, &mapping[..]));
+                    }
+                } else {
+                    println!("Warning, cannot migrate state for: {:?}", old_node.id);
                 }
-            } else {
-                println!("Warning, cannot migrate state for: {:?}", old_node.id);
             }
         }
     }
