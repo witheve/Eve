@@ -433,7 +433,6 @@ module drawn {
 
   export function dispatch(event, info, rentrant?) {
     //console.log("dispatch[" + event + "]", info);
-    var rerender = true;
     var diffs = [];
     var commands = [];
     var storeEvent = true;
@@ -1292,7 +1291,6 @@ module drawn {
         localStorage.setItem("lastSave", save);
         commands.push(["load", save]);
         diffs = dispatch("hideTooltip", {}, true);
-        rerender = false;
       break;
       case "overwriteSave":
         var save:string = localState.selectedSave;
@@ -1359,9 +1357,7 @@ module drawn {
           loadPositions();
         }
       }
-      if(rerender) {
-        render();
-      }
+      render();
     }
     return diffs;
   }
