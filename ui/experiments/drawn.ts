@@ -1087,6 +1087,13 @@ module drawn {
           // select the source that is producing the error
           var {nodeLookup} = viewToEntityInfo(ixer.selectOne("view", {view: viewForVariable}));
           localState.selectedNodes[variableId] = nodeLookup[variableId];
+        } else if(warning["warning: view"] === "source") {
+          let [viewId, sourceId] = row;
+          // open the view that contains the variable with the error
+          diffs.push.apply(diffs, dispatch("openItem", {itemId: viewId}, true));
+          // select the source that is producing the error
+          var {nodeLookup} = viewToEntityInfo(ixer.selectOne("view", {view: viewId}));
+          localState.selectedNodes[sourceId] = nodeLookup[sourceId];
         }
       break;
 
