@@ -622,6 +622,10 @@ module drawn {
       // Query building
       //---------------------------------------------------------
       case "createNewItem":
+        // push the current location onto the history stack
+        localState.navigationHistory.push(localState.drawnUiActiveId);
+        localState.drawnUiActiveId = info.itemId;
+
         var newId = uuid();
         localState.drawnUiActiveId = newId;
         var tag;
