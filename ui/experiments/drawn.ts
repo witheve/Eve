@@ -1761,6 +1761,7 @@ module drawn {
         edges.push({source: link.right.id, target: link.left.id});
       }
       // This placeholder ensures that graph nodes are not placed directly on top of the title/description of the query.
+      // @Hack: Height is fixed but width is not, we need some way of sampling it.
       sourceNodes.push({id: "placeholder 1", type: "placeholder", width: 256, height: 64, x: 5, y: 5});
 
       let graph = new graphLayout.Graph(sourceNodes, attributeNodes, edges, [640, 480]);
