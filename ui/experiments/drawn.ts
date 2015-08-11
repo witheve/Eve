@@ -373,6 +373,7 @@ module drawn {
          diffs.push(api.insert("constant binding", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
       }
     }
+    diffs.push(api.remove("binding", binding, undefined, true));
     return diffs;
   }
 
@@ -2409,7 +2410,7 @@ module drawn {
       klass += " entity";
     }
     var {left, top, width, height, text, filterWidth} = nodeDisplayInfo(curNode);
-    if (curNode.filter && curNode.inputKind !== "vector input") {
+    if (curNode.filter && curNode.inputKind !== "vector input" && !curNode.error) {
       var op = curNode.filter.operation;
       let filterIsBeingEdited = localState.modifyingFilterNodeId === curNode.id;
       var filterUi:any = {c: "attribute-filter", dblclick: modifyFilter, node: curNode, children: [
