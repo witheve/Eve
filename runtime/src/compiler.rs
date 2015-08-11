@@ -1,7 +1,8 @@
-use std::collections::BitSet;
 use std::cell::RefCell;
 use std::convert::AsRef;
 use std::mem::replace;
+
+use bit_set::BitSet;
 
 use value::Value;
 use relation::{Relation, mapping, with_mapping};

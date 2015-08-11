@@ -1,6 +1,6 @@
 test:
   pre:
     - ./install-multirust.sh
-    - multirust default nightly-2015-06-25
+    - multirust default nightly-2015-08-10
   post:
     - pushd runtime && RUST_BACKTRACE=1 cargo test && popd

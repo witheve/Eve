@@ -2,8 +2,10 @@
 
 name = "eve"
 version = "0.0.1"
-authors = ["Jamie Brandon <jamie@scattered-thoughts.net>",
-	   "Corey Montella <corey@kodowa.com>"]
+authors = [
+    "Jamie Brandon <jamie@scattered-thoughts.net>",
+    "Corey Montella <corey@kodowa.com>",
+    ]
 
 [dependencies]
 rand = "*"
@@ -16,6 +18,7 @@ mime = "*"
 cbor = "*"
 conduit-mime-types = "*"
 websocket = "*"
+bit-set = "*"
 
 [profile.release]
 debug = true

@@ -1,6 +1,5 @@
 #![feature(slice_patterns)]
 #![feature(rc_unique)]
-#![feature(bitset)]
 #![feature(drain)]
 
 extern crate rustc_serialize;
@@ -11,6 +10,7 @@ extern crate hyper;
 extern crate cookie;
 extern crate url;
 extern crate mime;
+extern crate bit_set;
 
 macro_rules! time {
     ($name:expr, $expr:expr) => {{

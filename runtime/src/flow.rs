@@ -1,6 +1,8 @@
-use std::collections::{BitSet, BTreeSet};
+use std::collections::{BTreeSet};
 use std::cell::{RefCell, Ref, RefMut};
 use std::mem::replace;
+
+use bit_set::BitSet;
 
 use value::{Id, Value};
 use relation::{Change, Relation};
