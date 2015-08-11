@@ -3,9 +3,28 @@ use std::iter::Iterator;
 use std::cmp::Ordering;
 use std::ops::IndexMut;
 
-use value::{Value, Field};
+use value::{Value, Id};
 
-pub fn mapping(from_fields: &[Field], to_fields: &[Field]) -> Option<Vec<usize>> {
+// The value of an Eve view at a specific time is a Relation - a set of tuples with named fields
+// The tuples are stored in a BTreeSet, sorted in lexicographic order
+// The order of the fields is an implementation detail and is not visible to the user.
+#[derive(Clone, Debug)]
+pub struct Relation {
+    pub view: Id, // view id is useful for debugging
+    pub names: Vec<String>, // human readable field names - currently used in the compiler to select fields
+    pub fields: Vec<Id>,
+    pub index: BTreeSet<Vec<Value>>,
+}
+
+// A change to be applied to a relation
+#[derive(Clone, Debug)]
+pub struct Change {
+    pub fields: Vec<Id>, // might not be in the same order as the relation
+    pub insert: Vec<Vec<Value>>,
+    pub remove: Vec<Vec<Value>>,
+}
+
+pub fn mapping(from_fields: &[Id], to_fields: &[Id]) -> Option<Vec<usize>> {
     let mut mapping = Vec::with_capacity(to_fields.len());
     for to_field in to_fields.iter() {
         match from_fields.iter().position(|from_field| from_field == to_field) {
@@ -22,23 +41,8 @@ pub fn with_mapping(mut values: Vec<Value>, mapping: &[usize]) -> Vec<Value> {
         ).collect()
 }
 
-#[derive(Clone, Debug)]
-pub struct Relation {
-    pub view: String,
-    pub fields: Vec<Field>,
-    pub names: Vec<String>,
-    pub index: BTreeSet<Vec<Value>>,
-}
-
-#[derive(Clone, Debug)]
-pub struct Change {
-    pub fields: Vec<Field>,
-    pub insert: Vec<Vec<Value>>,
-    pub remove: Vec<Vec<Value>>,
-}
-
 impl Relation {
-    pub fn new(view: String, fields: Vec<Field>, names: Vec<String>) -> Self {
+    pub fn new(view: String, fields: Vec<Id>, names: Vec<String>) -> Self {
         Relation{
             view: view,
             fields: fields,
@@ -55,6 +59,7 @@ impl Relation {
         self.change_raw(inserts, removes)
     }
 
+    // only used when we know that inserts/removes are already in the correct order
     pub fn change_raw(&mut self, mut inserts: Vec<Vec<Value>>, mut removes: Vec<Vec<Value>>) -> bool {
         inserts.sort();
         removes.sort();
@@ -89,6 +94,7 @@ impl Relation {
         }
     }
 
+    // x.change(y.change_from(x)) == y
     pub fn change_from(&self, other: &Self) -> Change {
         assert_eq!(self.fields, other.fields);
         let mut befores = other.index.iter();
@@ -131,6 +137,7 @@ impl Relation {
         Change{fields: self.fields.clone(), insert: insert, remove: remove}
     }
 
+    // return all rows that match the pattern, where nulls are treated as wildcards
     pub fn find<'a>(&self, pattern: Vec<&Value>) -> Vec<&[Value]> {
         assert_eq!(self.fields.len(), pattern.len());
         self.index.iter().filter(|values|
@@ -142,6 +149,7 @@ impl Relation {
         ).collect()
     }
 
+    // return true if there are no matching rows
     pub fn dont_find<'a>(&self, pattern: Vec<&Value>) -> bool {
         assert_eq!(self.fields.len(), pattern.len());
         !self.index.iter().any(|values|
@@ -149,22 +157,5 @@ impl Relation {
                 (**pattern_value == Value::Null) || (*pattern_value == value)
                 )
             )
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct IndexSelect{
-    pub source: usize,
-    pub mapping: Vec<usize>,
-}
-
-impl IndexSelect {
-    pub fn select(&self, inputs: &[&Relation]) -> Vec<Vec<Value>> {
-        let relation = inputs[self.source];
-        relation.index.iter().map(|values|
-            self.mapping.iter().map(|ix|
-                values[*ix].clone()
-            ).collect()
-        ).collect()
     }
 }

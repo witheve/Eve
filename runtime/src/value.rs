@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 
+// A single Eve value
 #[derive(Clone, PartialOrd, PartialEq)]
 pub enum Value {
     Null, // only used internally - not visible to users
@@ -22,15 +23,15 @@ impl ::std::fmt::Debug for Value {
     }
 }
 
-pub type Id = String; // TODO use uuid?
+pub type Id = String; // TODO we will eventually add a UUID type
 
 impl Ord for Value {
     fn cmp(&self, other: &Value) -> Ordering {
-        self.partial_cmp(other).unwrap() // TODO this will panic on NaN
+        self.partial_cmp(other).unwrap() // TODO this will panic on NaN - maybe NaN should go through error pathway instead?
     }
 }
 
-impl Eq for Value {} // TODO this is unsafe for NaN
+impl Eq for Value {} // TODO this is panic on NaN - maybe NaN should go through error pathway instead?
 
 impl Value {
     pub fn as_str(&self) -> &str {
@@ -97,5 +98,3 @@ impl Value {
         }
     }
 }
-
-pub type Field = Id;

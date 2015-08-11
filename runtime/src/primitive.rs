@@ -2,6 +2,7 @@ use value::{Value};
 use std::str::FromStr;
 use std::f64;
 
+// Primitive views are how Eve programs access built-in functions
 #[derive(Clone, Debug, Copy)]
 pub enum Primitive {
     LT,
@@ -125,6 +126,7 @@ impl Primitive {
     }
 }
 
+// List of (view_id, scalar_input_field_ids, vector_input_field_ids, output_field_ids)
 pub fn primitives() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>, Vec<&'static str>)> {
     vec![
         ("<", vec!["in A", "in B"], vec![], vec![]),

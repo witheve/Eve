@@ -6,6 +6,15 @@ use primitive::{Primitive};
 use std::cmp::Ordering;
 use std::mem::replace;
 
+// Every non-primitive view in Eve is one of...
+#[derive(Clone, Debug)]
+pub enum View {
+    Table, // stateful - currently can only be mutated from the outside world, not from Eve code
+    Union(Union), // a union of zero or more other views - not fully implemented yet
+    Join(Join), // a constrained join of zero or more other views
+    Disabled, // triggered a compiler error and is frozen until fixed
+}
+
 #[derive(Clone, Debug)]
 pub struct Union {
     pub constants: Vec<Value>,
@@ -22,7 +31,7 @@ pub enum Direction {
 pub enum Input {
     Primitive{
         primitive: Primitive,
-        input_bindings: Vec<(usize, usize)>,
+        input_bindings: Vec<(usize, usize)>, // (field_ix, variable_ix)
     },
     View{
         input_ix: usize,
@@ -30,33 +39,26 @@ pub enum Input {
 }
 
 #[derive(Clone, Debug)]
-pub struct Source {
-    pub id: Id, // used for reporting errors
-    pub input: Input,
-    pub grouped_fields: Vec<usize>,
-    pub sorted_fields: Vec<(usize, Direction)>,
-    pub chunked: bool,
-    pub negated: bool,
-    pub constraint_bindings: Vec<(usize, usize)>,
-    pub output_bindings: Vec<(usize, usize)>,
-}
-
-#[derive(Clone, Debug)]
 pub struct Join {
     pub constants: Vec<Value>,
     pub sources: Vec<Source>,
-    pub select: Vec<usize>,
+    pub select: Vec<usize>, // variable_ix
 }
 
 #[derive(Clone, Debug)]
-pub enum View {
-    Table,
-    Union(Union),
-    Join(Join),
-    Disabled,
+pub struct Source {
+    pub id: Id, // used for reporting errors
+    pub input: Input,
+    pub grouped_fields: Vec<usize>, // field_ix
+    pub sorted_fields: Vec<(usize, Direction)>, // field_ix
+    pub chunked: bool,
+    pub negated: bool,
+    pub constraint_bindings: Vec<(usize, usize)>, // (field_ix, variable_ix)
+    pub output_bindings: Vec<(usize, usize)>, // (field_ix, variable_ix)
 }
 
 impl Source {
+    // Handles grouping, sorting and ordinals
     fn prepare(&self, mut rows: Vec<Vec<Value>>) -> Vec<Vec<Value>> {
         // TODO compensate for inputs if primitive
 
@@ -129,45 +131,56 @@ impl Source {
     }
 }
 
+// Naive backtracking search
 // TODO this algorithm is incredibly naive and also clones excessively
+//      will be replaced by something smarted when the language settles down
 fn join_step(join: &Join, ix: usize, inputs: &[Vec<Vec<Value>>], state: &mut Vec<Value>, index: &mut BTreeSet<Vec<Value>>, errors: &mut Vec<Vec<Value>>) {
     if ix == join.sources.len() {
+        // done, push the result
         index.insert(join.select.iter().map(|ix| state[*ix].clone()).collect());
     } else {
         let source = &join.sources[ix];
         match source.input {
             Input::View{..} => {
-                for values in inputs[ix].iter() {
+                // grab rows from the input view
+                for row in inputs[ix].iter() {
+                    // write variables which are bound for the first time
                     for &(field_ix, variable_ix) in source.output_bindings.iter() {
-                        state[variable_ix] = values[field_ix].clone();
+                        state[variable_ix] = row[field_ix].clone();
                     }
+                    // check equality for variables which were bound by a previous source
                     let satisfies_constraints = source.constraint_bindings.iter().all(|&(field_ix, variable_ix)|
-                        state[variable_ix] == values[field_ix]
+                        state[variable_ix] == row[field_ix]
                         );
                     match (source.negated, satisfies_constraints) {
                             (false, false) => (), // skip row
                             (false, true) => join_step(join, ix+1, inputs, state, index, errors), // choose row and continue
                             (true, false) => (), // skip row
-                            (true, true) => return, // bail out
+                            (true, true) => return, // backtrack
                     }
                 }
                 if source.negated {
-                    // if we haven't bailed out yet, continue
+                    // if we haven't backtracked yet, continue once
                     join_step(join, ix+1, inputs, state, index, errors);
                 }
             }
             Input::Primitive{primitive, ref input_bindings} => {
-                // values returned from primitives don't include inputs, so we will have to offset accesses by input_len
+                // NOTE rows returned from primitives don't include inputs, so we have to offset accesses by input_len
                 let input_len = input_bindings.len();
-                for mut values in primitive.eval(&input_bindings[..], &state[..], &source.id, errors).into_iter() {
+                // call the primitive
+                for mut row in primitive.eval(&input_bindings[..], &state[..], &source.id, errors).into_iter() {
+                    // write variables which are bound for the first time
                     for &(field_ix, variable_ix) in source.output_bindings.iter() {
-                        state[variable_ix] = replace(&mut values[field_ix - input_len], Value::Null);
+                        state[variable_ix] = replace(&mut row[field_ix - input_len], Value::Null);
                     }
-                    if source.constraint_bindings.iter().all(|&(field_ix, variable_ix)|
-                        state[variable_ix] == values[field_ix - input_len]
-                    ) {
+                    // check equality for variables which were bound by a previous source
+                    let satisfies_constraints = source.constraint_bindings.iter().all(|&(field_ix, variable_ix)|
+                        state[variable_ix] == row[field_ix]
+                        );
+                    if satisfies_constraints {
+                        // continue
                         join_step(join, ix+1, inputs, state, index, errors);
-                    }
+                    } // else backtrack
                 }
             }
         }
@@ -185,6 +198,7 @@ impl View {
             View::Table => None,
             View::Union(ref union) => {
                 assert_eq!(union.mappings.len(), upstream.len());
+                // for each mapping, grab the corresponding input and insert mapped rows
                 for (mapping, input) in union.mappings.iter().zip(upstream.iter()) {
                     for old_row in input.index.iter() {
                         let mut new_row = union.constants.clone();
@@ -198,6 +212,7 @@ impl View {
             }
             View::Join(ref join) => {
                 let mut state = join.constants.clone();
+                // prepare any non-primitive upstream relations
                 let inputs = join.sources.iter().map(|source|
                     match source.input {
                         Input::Primitive{..} => {

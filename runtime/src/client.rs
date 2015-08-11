@@ -73,66 +73,6 @@ pub fn send_event(event: &Event,sender: &mut client::sender::Sender<stream::WebS
 	sender.send_message(Message::Binary(e.into_bytes())).unwrap();
 }
 
-pub fn create_table(table_name: &&str, table_fields: &Vec<&str>,old_event: Option<Event>) -> Event {
-
-	let table_string = Value::String(table_name.to_string());
-
-	// Creates a vector of names of the form: "table_name: field_name"
-	let concat_field_names = table_fields.iter()
-										 .map(|field_name| Value::String(table_name.to_string() + ": " + field_name))
-										 .collect::<Vec<_>>();
-
-	// Concats a vector of display names of the form: (display name: id, display name: name)
-	let mut display_name_fields = concat_field_names.iter()
-												.zip(table_fields.iter())
-												.map(|(concat_name,field_name)| vec![concat_name.clone(),Value::String(field_name.to_string())])
-												.collect::<Vec<_>>();
-
-	// Creates the display name insert
-	let mut display_name_inserts = vec![vec![table_string.clone(),table_string.clone()]];
-	display_name_inserts.append(&mut display_name_fields);
-
-	let display_name = ("display name".to_string(),Change {
-												fields: vec!["display name: id".to_string(),"display name: name".to_string()],
-												insert: display_name_inserts.clone(),
-												remove: vec![],
-											}
-						);
-
-	let view = ("view".to_string(),Change   {
-												fields: vec!["view: view".to_string(),"view: kind".to_string()],
-												insert: vec![
-																vec![table_string.clone(),Value::String("table".to_string())],
-															],
-												remove: vec![],
-											}
-				);
-
-	// Create field insert vector of the from: [field: view, field: field, "output"]
-	let field_inserts = concat_field_names.iter()
-										  .map(|concat_field| vec![table_string.clone(), concat_field.clone(), Value::String("output".to_string())])
-										  .collect::<Vec<_>>();
-
-	let field = ("field".to_string(),Change {
-												fields: vec!["field: view".to_string(),"field: field".to_string(),"field: kind".to_string()],
-												insert: field_inserts,
-												remove: vec![],
-											}
-				);
-
-	match old_event {
-		Some(mut event) => {
-			event.changes.push(field);
-			event.changes.push(view);
-			event.changes.push(display_name);
-			event
-		},
-		// TODO add session
-		None => Event{changes: vec![display_name,view,field], session: "".to_string(), commands: vec![]},
-	}
-
-}
-
 // TODO make sure table exists before trying to insert a fact into it
 pub fn insert_fact(table_name: &&str, table_fields: &Vec<&str>, row_data: &Vec<Value>, old_event: Option<Event>) -> Event {
 

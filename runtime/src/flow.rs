@@ -7,24 +7,25 @@ use relation::{Change, Relation};
 use view::{View};
 use compiler;
 
-#[derive(Clone, Debug)]
-pub struct Node {
-    pub id: Id,
-    pub view: View,
-    pub upstream: Vec<usize>,
-    pub downstream: Vec<usize>,
-}
-
-pub type Changes = Vec<(Id, Change)>;
-
+// The flow graph tracks the state of each view and is responsible for keeping them up-to-date
 #[derive(Clone, Debug)]
 pub struct Flow {
     pub nodes: Vec<Node>,
-    pub outputs: Vec<RefCell<Relation>>,
-    pub errors: Vec<Vec<Vec<Value>>>,
-    pub dirty: BitSet,
-    pub needs_recompile: bool,
+    pub outputs: Vec<RefCell<Relation>>, // the current state of eachview
+    pub errors: Vec<Vec<Vec<Value>>>, // the errors caused by the last run of each view
+    pub dirty: BitSet, // a set of views which need to be rerun
+    pub needs_recompile: bool, // when a code view is changed, the flow needs to be recompiled before the next tick
 }
+
+#[derive(Clone, Debug)]
+pub struct Node {
+    pub id: Id,
+    pub view: View, // specifies how to run this view
+    pub upstream: Vec<usize>, // list of views which directly affect the state of this view
+    pub downstream: Vec<usize>, // list of views whose state is directly affected by this view
+}
+
+pub type Changes = Vec<(Id, Change)>;
 
 impl Flow {
     pub fn new() -> Self {
@@ -85,7 +86,7 @@ impl Flow {
                         downstream: Vec::new(),
                     });
                     let fields = change.fields.clone();
-                    // compiler tables will never be missing, so it's safe to just put dummy names in here
+                    // compiler tables will never be missing and it's safe to just put dummy names in for other tables
                     let names = change.fields.iter().map(|_| "".to_owned()).collect();
                     self.outputs.push(RefCell::new(Relation::new(id.to_owned(), fields, names)));
                     self.outputs[self.outputs.len()-1].borrow_mut().change(change);
@@ -103,6 +104,7 @@ impl Flow {
         ).collect()
     }
 
+    // x.change(y.changes_from(x)) == y
     pub fn changes_from(&self, old_self: Self) -> Changes {
         let mut changes = Vec::new();
         for (ix, node) in self.nodes.iter().enumerate() {
@@ -114,6 +116,7 @@ impl Flow {
                         let change = new_output.change_from(&*old_output);
                         changes.push((node.id.clone(), change));
                     } else {
+                        // if the fields have changed we need to produce two separate changes
                         changes.push((node.id.clone(), old_output.as_remove()));
                         changes.push((node.id.clone(), new_output.as_insert()));
                     }
@@ -138,6 +141,7 @@ impl Flow {
         changes
     }
 
+    // Run all views until fixpoint is reached
     pub fn recalculate(&mut self) {
         let error_ix = self.get_ix("error").unwrap();
         let Flow{ref nodes, ref mut outputs, ref mut errors, ref mut dirty, ..} = *self;
@@ -176,27 +180,21 @@ impl Flow {
         }
     }
 
+    // Update stateful views
     pub fn tick(&mut self) -> bool {
-        // TODO state changes are not implemented in this version yet
+        // TODO internal state changes are not implemented in this version yet
         false
     }
 
+    // Tick until fixpoint
     pub fn quiesce(&mut self, changes: Changes)  {
-        time!("changing", {
-            self.change(changes);
-        });
+        self.change(changes);
         loop {
             if self.needs_recompile {
-                time!("compiling", {
-                    compiler::recompile(self);
-                });
+                compiler::recompile(self);
             }
-            time!("calculating", {
-                self.recalculate();
-            });
-            let changed = time!("ticking", {
-                self.tick()
-            });
+            self.recalculate();
+            let changed = self.tick();
             if !changed {
                 break
             }

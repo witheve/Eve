@@ -10,8 +10,14 @@ use flow::{Node, Flow};
 use primitive;
 use primitive::Primitive;
 
-// schemas are arranged as (table name, fields)
-// any field whose type is not described is a UUID
+// The compiler is responsible for creating a new Flow whenever the program changes.
+// Eve code is stored in tables, like all other state.
+// The compiler has to turn this relational AST into a Flow.
+
+// --- schemas ---
+
+// Schemas are written as (table name, field names).
+// Any field whose type is not described is an id.
 
 pub fn code_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     vec![
@@ -52,7 +58,6 @@ pub fn code_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // each group is then sorted by the reamining fields
     // `ix` is an ascending integer indicating the position of the field in the sort order
     // `direction` is one of "ascending" or "descending"
-    // TODO how should we handle cases where some fields are neither grouped nor sorted?
     ("sorted field", vec!["source", "ix", "field", "direction"]),
 
     // the ordinal is a virtual field that tracks the position of each row in the group
@@ -222,6 +227,8 @@ pub fn schema() -> Vec<(&'static str, Vec<&'static str>)> {
     .collect()
     }
 
+// --- macros ---
+
 macro_rules! find_pattern {
     ( (= $name:expr) ) => {{ $name }};
     ( _ ) => {{ &Value::Null }};
@@ -281,6 +288,8 @@ macro_rules! remove {
         }
     }}
 }
+
+// --- util ---
 
 fn check_fields<S: AsRef<str>>(table: &Relation, fields: Vec<S>) {
     for (ix, field) in fields.iter().enumerate() {
@@ -444,12 +453,17 @@ fn check_view_kind(warning_table: &mut Relation, relation: &Relation, field: &st
     }
 }
 
+// --- compiler ---
+
+// Make all the decisions (eg scheduling, layout, disabling).
+// The intention is that this entire function will eventually be implemented in Eve.
 fn plan(flow: &Flow) {
     use value::Value::*;
 
     let mut warning_table = flow.overwrite_output("warning");
 
     // --- check inputs ---
+    // see the view descriptions in `code_schema` above to understand the constraints applied here
 
     let view_table = flow.get_output("view");
     check_unique_key(&mut *warning_table, &*view_table, &["view"]);
@@ -647,6 +661,7 @@ fn plan(flow: &Flow) {
     });
 
     // --- plan the flow ---
+    // see the view descriptions in `compiler_schema` above to understand what is being calculated here
 
     let mut view_dependency_pre_table = flow.overwrite_output("view dependency (pre)");
     find!(view_table, [view, _], {
@@ -706,6 +721,7 @@ fn plan(flow: &Flow) {
         });
     });
 
+    // schedule sources/variables by topological sort of the provides/requires graph
     let mut source_schedule_pre_table = flow.overwrite_output("source schedule (pre)");
     let mut variable_schedule_pre_table = flow.overwrite_output("variable schedule (pre)");
     let mut pass = 0;
@@ -1070,6 +1086,7 @@ fn push_at<T>(items: &mut Vec<T>, ix: &Value, item: T) {
     items.push(item);
 }
 
+// Make a new flow, based on the decisions made in `plan`
 fn create(flow: &Flow) -> Flow {
     use value::Value::*;
 
@@ -1227,6 +1244,7 @@ fn create(flow: &Flow) -> Flow {
     }
 }
 
+// Where possible, carry state over from the old flow
 fn reuse_state(old_flow: &mut Flow, new_flow: &mut Flow) {
     let nodes = replace(&mut old_flow.nodes, vec![]);
     let outputs = replace(&mut old_flow.outputs, vec![]);
@@ -1256,6 +1274,7 @@ pub fn recompile(old_flow: &mut Flow) {
     *old_flow = new_flow;
 }
 
+// For new flows, mirror the info from `schema` into the flow
 pub fn bootstrap(flow: &mut Flow) {
     let schema = schema();
     for &(view, ref names) in schema.iter() {
@@ -1269,6 +1288,7 @@ pub fn bootstrap(flow: &mut Flow) {
         let names = names.iter().map(|name| format!("{}", name)).collect();
         flow.outputs.push(RefCell::new(Relation::new(format!("{}", view), fields, names)));
     }
+
     {
         let mut view_table = flow.overwrite_output("view");
         let mut field_table = flow.overwrite_output("field");
@@ -1335,5 +1355,6 @@ pub fn bootstrap(flow: &mut Flow) {
             }
         }
     }
+
     recompile(flow); // bootstrap away our dummy nodes
 }
