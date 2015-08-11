@@ -336,7 +336,7 @@ module drawn {
       //@HACK: We have to delay this until after the field has been processed and added to the index, or it will be ignored when converting to diffs.
       setTimeout(function() {
         dispatch("refreshTableRows", {tableId: viewId, fieldId: neueField.context["field"]});
-      }, 1);
+      }, 0);
 
     }
     return {fieldId, diffs};
@@ -1201,9 +1201,10 @@ module drawn {
         // we remove whatever field is currently active in the form
         if(localState.activeTableEntryField) {
           diffs.push(api.remove("field", {field: localState.activeTableEntryField}));
+          //@HACK: We have to delay this until after the field has been processed and removed from the index, or it will be expected when converting to diffs.
           setTimeout(function() {
             dispatch("refreshTableRows", {tableId});
-          }, 1);
+          }, 0);
         }
       break;
       case "refreshTableRows":
