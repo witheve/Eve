@@ -38,6 +38,11 @@ use eve::server::Event;
 use eve::relation::Change;
 use eve::server;
 
+// The (increasingly misnamed) login server is responsible for:
+// * handling authentication via authrocket
+// * serving static files for the editor and clients
+// TODO needs review
+
 #[derive(RustcDecodable, RustcEncodable, Debug, Clone)]
 struct Session {
     client: String,
