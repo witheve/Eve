@@ -330,6 +330,15 @@ module drawn {
       diffs.push(api.insert("variable", {view: sourceViewId, variable: variableId}));
       diffs.push(api.insert("binding", {variable: variableId, source: sourceId, field: fieldId}));
     }
+
+    let viewKind = (ixer.selectOne("view", {view: viewId}) || {})["view: kind"];
+    if(viewKind === "table") {
+      //@HACK: We have to delay this until after the field has been processed and added to the index, or it will be ignored when converting to diffs.
+      setTimeout(function() {
+        dispatch("initializeTableField", {tableId: viewId, fieldId: neueField.context["field"]});
+      }, 1);
+
+    }
     return {fieldId, diffs};
   }
 
@@ -1180,6 +1189,11 @@ module drawn {
         if(localState.activeTableEntryField) {
           diffs.push(api.remove("field", {field: localState.activeTableEntryField}));
         }
+      break;
+      case "initializeTableField":
+        let changes = {};
+        changes[info.fieldId] = "";
+        diffs.push(api.change(info.tableId, {}, changes, false, undefined, true));
       break;
       case "activeTableEntryField":
         // this tracks the focus state of form fields for removal
