@@ -15,7 +15,6 @@ use hyper::header::Cookie;
 use value::Value;
 use relation::Change;
 use flow::{Changes, Flow};
-use client;
 
 // The server manages a single Eve program and handles communication with the editor and clients
 // TODO needs review / refactoring, especially session handling
@@ -267,37 +266,37 @@ pub fn run() {
         match server_event {
 
             // a new client has connected and needs to sync its state
-            ServerEvent::Sync((mut sender,user_id)) => {
+            ServerEvent::Sync((mut sender, user_id)) => {
+                let mut changes = vec![];
 
                 // add a session to the session table
                 let session_id = format!("{}", sender.get_mut().peer_addr().unwrap());
-				let mut add_session = client::insert_fact(
-                    &"sessions",
-                    &vec!["id","status"],
-                    &vec![Value::String(session_id.clone()), Value::Float(1f64)],
-                    None
-                    );
+                changes.push(("sessions".to_owned(),
+                    Change{
+                        fields: vec!["id".to_owned(), "status".to_owned()],
+                        insert: vec![vec![Value::String(session_id.clone()), Value::Float(1f64)]],
+                        remove: vec![],
+                    }));
 
-				// if we have a user ID, add a mapping from the session ID to the user ID
-                add_session = match user_id {
-                    Some(user_id) => {
-                        client::insert_fact(
-                            &"session id to user id",
-                            &vec!["session id","user id"],
-                            &vec![Value::String(session_id.clone()), Value::String(user_id)],
-                            Some(add_session)
-                            )
-                    },
-                    None => add_session,
-                };
+                // if we have a user ID, add a mapping from the session ID to the user ID
+                if let Some(user_id) = user_id {
+                    changes.push(("session id to user id".to_owned(),
+                        Change{
+                            fields: vec!["session id".to_owned(), "user id".to_owned()],
+                            insert: vec![vec![Value::String(session_id.clone()), Value::String(user_id)]],
+                            remove: vec![]
+                        }));
+                }
 
                 // handle the session change
-                let json = add_session.to_json();
-                handle_event(&mut server, add_session, json);
+                let event = Event{changes: changes, session: session_id.clone(), commands: vec![]};
+                let json = event.to_json();
+                handle_event(&mut server, event, json);
 
                 // sync the new client
                 let changes = server.flow.as_changes();
-                let text = format!("{}", Event{changes: changes, session: session_id, commands: vec![]}.to_json());
+                let event = Event{changes: changes, session: session_id, commands: vec![]};
+                let text = format!("{}", event.to_json());
                 match sender.send_message(Message::Text(text)) {
                     Ok(_) => (),
                     Err(error) => println!("Send error: {}", error),
