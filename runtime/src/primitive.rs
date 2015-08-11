@@ -51,9 +51,7 @@ impl Primitive {
             (Split, [&String(ref split), &String(ref string)]) => {
                 string.split(split).enumerate().map(|(ix, segment)| vec![Float(ix as f64), String(segment.to_owned())]).collect()
             },
-            (Concat, [&String(ref a), &String(ref b)]) => vec![vec![string!("{}{}", a, b)]],
-            (Concat, [&String(ref a), &Float(ref b)]) => vec![vec![string!("{}{}", a, b)]],
-            (Concat, [&Float(ref a), &String(ref b)]) => vec![vec![string!("{}{}", a, b)]],
+            (Concat, [ref a, ref b]) => vec![vec![string!("{}{}", a, b)]],
             (ParseFloat, [&String(ref a)]) => {
                 match f64::from_str(&a) {
                     Ok(v) => vec![vec![Float(v), Bool(true)]],

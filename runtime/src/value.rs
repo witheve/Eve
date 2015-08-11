@@ -23,6 +23,19 @@ impl ::std::fmt::Debug for Value {
     }
 }
 
+impl ::std::fmt::Display for Value {
+    fn fmt(&self, formatter: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error> {
+        match *self {
+            Value::Null => formatter.write_str("null").unwrap(),
+            Value::Bool(bool) => bool.fmt(formatter).unwrap(),
+            Value::String(ref string) => string.fmt(formatter).unwrap(),
+            Value::Float(float) => float.fmt(formatter).unwrap(),
+            Value::Column(ref column) => formatter.debug_list().entries(column.iter()).finish().unwrap(),
+        };
+        Ok(())
+    }
+}
+
 pub type Id = String; // TODO we will eventually add a UUID type
 
 impl Ord for Value {
