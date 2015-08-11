@@ -335,7 +335,7 @@ module drawn {
     if(viewKind === "table") {
       //@HACK: We have to delay this until after the field has been processed and added to the index, or it will be ignored when converting to diffs.
       setTimeout(function() {
-        dispatch("initializeTableField", {tableId: viewId, fieldId: neueField.context["field"]});
+        dispatch("refreshTableRows", {tableId: viewId, fieldId: neueField.context["field"]});
       }, 1);
 
     }
@@ -642,6 +642,7 @@ module drawn {
         if(info.kind === "table") {
           tag = [{tag: "editor"}];
           diffs.push.apply(diffs, dispatch("addFieldToTable", {tableId: newId}, true));
+          diffs.push.apply(diffs, dispatch("newTableEntry", {}, true))
         }
         diffs.push(api.insert("view", {view: newId, kind: info.kind, dependents: {"display name": {name: info.name}, tag}}));
         diffs.push.apply(diffs, dispatch("hideTooltip", {}, true));
@@ -1196,15 +1197,25 @@ module drawn {
         var {fieldId, diffs} = addField(tableId, name);
       break;
       case "removeFieldFromTable":
+        var tableId = info.tableId || localState.drawnUiActiveId;
         // we remove whatever field is currently active in the form
         if(localState.activeTableEntryField) {
           diffs.push(api.remove("field", {field: localState.activeTableEntryField}));
+          setTimeout(function() {
+            dispatch("refreshTableRows", {tableId});
+          }, 1);
         }
       break;
-      case "initializeTableField":
-        let changes = {};
-        changes[info.fieldId] = "";
-        diffs.push(api.change(info.tableId, {}, changes, false, undefined, true));
+      case "refreshTableRows":
+        if(info.fieldId) {
+          // If we have a new field to initialize, do so.
+          let changes = {};
+          changes[info.fieldId] = "";
+          diffs.push(api.change(info.tableId, {}, changes, false, undefined, true));
+        } else if(ixer.getFields(info.tableId).length === 0) {
+          // If the view has no fields, the user cannot interact with its contents, which have been collapsed into a single empty row, so remove it.
+          diffs.push(api.remove(info.tableId, {}));
+        }
       break;
       case "activeTableEntryField":
         // this tracks the focus state of form fields for removal
@@ -1226,8 +1237,9 @@ module drawn {
         localState.focusedTableEntryField = false;
       break;
       case "submitTableEntry":
-        var row = localState.tableEntry;
         var tableId = localState.drawnUiActiveId;
+        var row = localState.tableEntry;
+        if(!row || Object.keys(row).length !== ixer.getFields(tableId, true).length) { return; }
         diffs.push(api.insert(tableId, row, undefined, true));
         // if there's a selectedTableEntry then this is an edit and we should
         // remove the old row
@@ -2932,7 +2944,7 @@ module drawn {
 
       ]};
     }
-    let resultViewSize = ixer.select(resultViewId, {}).length;
+    let resultViewSize = getViewSize(resultViewId);
     return {c: "query-results", children: [
       peek,
       {c: "query-results-container", children: [
@@ -2962,6 +2974,11 @@ module drawn {
   // table selector / editor
   //---------------------------------------------------------
 
+   function getViewSize(viewId) {
+     let facts = ixer.facts(viewId) || [];
+     return facts.length;
+   }
+
    function tableItem(tableId) {
      let selected = localState.selectedItems[tableId] ? "selected" : "";
     return {c: `table-item ${selected}`, itemId: tableId, click: selectItem, dblclick: openItem, children: [
@@ -2980,7 +2997,7 @@ module drawn {
       "add field": {text: "+Field", func: addFieldToTable, description: "Add a field to the card"},
       "remove field": {text: "-Field", func: removeFieldFromTable, description: "Remove the active field from the card"},
     };
-    let resultViewSize = ixer.select(tableId, {}).length;
+    let resultViewSize = getViewSize(tableId);
     return {c: "query table-editor", children: [
       leftToolbar(actions),
       {c: "container", children: [
@@ -3036,7 +3053,8 @@ module drawn {
         entryField,
       ]};
     });
-    let sizeUi = rows.length > 0 ? {c: "size", text: `1 of ${rows.length}`} : {c: "size", text: "No entries"};
+    let viewSize = getViewSize(tableId);
+    let sizeUi = viewSize > 0 ? {c: "size", text: `1 of ${viewSize}`} : {c: "size", text: "No entries"};
     return {c: "form-container", children: [
       rows.length > 2 ? formRepeat(tableId, 2) : undefined,
       rows.length > 1 ? formRepeat(tableId, 1) : undefined,
