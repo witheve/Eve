@@ -5,7 +5,7 @@ use std::mem::replace;
 
 use value::Value;
 use relation::{Relation, mapping, with_mapping};
-use view::{View, Table, Join, Input, Source, Direction};
+use view::{View, Join, Input, Source, Direction};
 use flow::{Node, Flow};
 use primitive;
 use primitive::Primitive;
@@ -1082,16 +1082,18 @@ fn create(flow: &Flow) -> Flow {
         nodes.push(Node{
             id: view.as_str().to_owned(),
             view: match kind.as_str() {
+                "table" => View::Table,
+                "union" => {
+                    println!("Warning: unions are not finished - making a dummy table for view {:?}", view);
+                    View::Table
+                }
                 "join" => View::Join(Join{
                     constants: vec![],
                     sources: vec![],
                     select: vec![],
                 }),
                 "disabled" => View::Disabled,
-                _ => {
-                    println!("Unsupported: create for {:?} {:?} {:?}", view_ix, view, kind);
-                    View::Table(Table{insert:None, remove:None}) // dummy node
-                }
+                _ => panic!("Unknown view kind: {:?}", kind)
             },
             upstream: vec![],
             downstream: vec![],
@@ -1259,7 +1261,7 @@ pub fn bootstrap(flow: &mut Flow) {
     for &(view, ref names) in schema.iter() {
         flow.nodes.push(Node{
             id: format!("{}", view),
-                view: View::Table(Table{insert: None, remove: None}), // dummy node, replaced by recompile
+                view: View::Table, // dummy node, replaced by recompile
                 upstream: Vec::new(),
                 downstream: Vec::new(),
             });
