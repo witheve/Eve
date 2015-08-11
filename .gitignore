@@ -25,5 +25,5 @@ stylus/*.css
 stylus/*.map
 *.log
 build/
-runtime/events
+runtime/autosave
 ui/bin
