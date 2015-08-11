@@ -1,16 +1,10 @@
 use std::collections::BTreeSet;
 
 use value::{Value, Id};
-use relation::{Relation, IndexSelect};
+use relation::{Relation};
 use primitive::{Primitive};
 use std::cmp::Ordering;
 use std::mem::replace;
-
-#[derive(Clone, Debug)]
-pub struct Table {
-    pub insert: Option<IndexSelect>,
-    pub remove: Option<IndexSelect>,
-}
 
 #[derive(Clone, Debug)]
 pub struct Union {
@@ -45,6 +39,21 @@ pub struct Source {
     pub negated: bool,
     pub constraint_bindings: Vec<(usize, usize)>,
     pub output_bindings: Vec<(usize, usize)>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Join {
+    pub constants: Vec<Value>,
+    pub sources: Vec<Source>,
+    pub select: Vec<usize>,
+}
+
+#[derive(Clone, Debug)]
+pub enum View {
+    Table,
+    Union(Union),
+    Join(Join),
+    Disabled,
 }
 
 impl Source {
@@ -120,21 +129,6 @@ impl Source {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct Join {
-    pub constants: Vec<Value>,
-    pub sources: Vec<Source>,
-    pub select: Vec<usize>,
-}
-
-#[derive(Clone, Debug)]
-pub enum View {
-    Table(Table),
-    Union(Union),
-    Join(Join),
-    Disabled,
-}
-
 // TODO this algorithm is incredibly naive and also clones excessively
 fn join_step(join: &Join, ix: usize, inputs: &[Vec<Vec<Value>>], state: &mut Vec<Value>, index: &mut BTreeSet<Vec<Value>>, errors: &mut Vec<Vec<Value>>) {
     if ix == join.sources.len() {
@@ -188,7 +182,7 @@ impl View {
             old_output.names.clone()
             );
         match *self {
-            View::Table(_) => None,
+            View::Table => None,
             View::Union(ref union) => {
                 assert_eq!(union.mappings.len(), upstream.len());
                 for (mapping, input) in union.mappings.iter().zip(upstream.iter()) {

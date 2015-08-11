@@ -4,7 +4,7 @@ use std::mem::replace;
 
 use value::{Id, Value};
 use relation::{Change, Relation};
-use view::{View, Table};
+use view::{View};
 use compiler;
 
 #[derive(Clone, Debug)]
@@ -66,27 +66,21 @@ impl Flow {
         for (id, change) in changes.into_iter() {
             match self.get_ix(&*id) {
                 Some(ix) => {
-                    match self.nodes[ix].view {
-                        View::Table(_) => (),
-                        _ => println!("Warning: changing a non-table view with id: {:?}", id),
-                    }
-                    // TODO should we be checking diffs after the fact?
-                    self.outputs[ix].borrow_mut().change(change);
-                    if code_schema.iter().find(|&&(ref code_id, _)| **code_id == id).is_some() {
-                        self.needs_recompile = true;
-                    }
-                    for ix in self.nodes[ix].downstream.iter() {
-                        self.dirty.insert(*ix);
+                    let changed = self.outputs[ix].borrow_mut().change(change);
+                    if changed {
+                        if code_schema.iter().find(|&&(ref code_id, _)| **code_id == id).is_some() {
+                            self.needs_recompile = true;
+                        }
+                        for ix in self.nodes[ix].downstream.iter() {
+                            self.dirty.insert(*ix);
+                        }
                     }
                 }
                 None => {
                     println!("Warning: creating a dummy view because you tried to change a non-existing view with id: {:?}", id);
                     self.nodes.push(Node{
                         id: id.to_owned(),
-                        view: View::Table(Table{
-                            insert:None,
-                            remove:None,
-                        }),
+                        view: View::Table,
                         upstream: Vec::new(),
                         downstream: Vec::new(),
                     });
@@ -183,38 +177,8 @@ impl Flow {
     }
 
     pub fn tick(&mut self) -> bool {
-        let code_schema = compiler::code_schema();
-        let mut flow_changed = false;
-        for (ix, node) in self.nodes.iter().enumerate() {
-            match node.view {
-                View::Table(Table{ref insert, ref remove}) => {
-                    let view_changed = {
-                        let upstream = node.upstream.iter().map(|ix| self.outputs[*ix].borrow()).collect::<Vec<_>>();
-                        let inputs = upstream.iter().map(|borrowed| &**borrowed).collect::<Vec<_>>();
-                        let inserts = match *insert {
-                            Some(ref select) => select.select(&inputs[..]),
-                            None => vec![],
-                        };
-                        let removes = match *remove {
-                            Some(ref select) => select.select(&inputs[..]),
-                            None => vec![],
-                        };
-                        self.outputs[ix].borrow_mut().change_raw(inserts, removes)
-                    };
-                    if view_changed {
-                        if code_schema.iter().find(|&&(ref code_id, _)| **code_id == node.id).is_some() {
-                            self.needs_recompile = true;
-                        }
-                        for ix in node.downstream.iter() {
-                            self.dirty.insert(*ix);
-                        }
-                    }
-                    flow_changed = flow_changed || view_changed;
-                }
-                _ => () // only tables tick
-            }
-        }
-        flow_changed
+        // TODO state changes are not implemented in this version yet
+        false
     }
 
     pub fn quiesce(&mut self, changes: Changes)  {
