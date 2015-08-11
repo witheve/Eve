@@ -1,7 +1,6 @@
 #![feature(slice_patterns)]
 #![feature(rc_unique)]
 #![feature(bitset)]
-#![feature(append)]
 #![feature(drain)]
 
 extern crate rustc_serialize;
