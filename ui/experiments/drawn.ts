@@ -1340,7 +1340,7 @@ module drawn {
         } else {
           localStorage["showHidden"] = "show";
         }
-        diffs = dispatch("updateSearch", {value: localState.searchingFor}, true);
+        diffs = dispatch("updateSearch", {value: localState.searchingFor || ""}, true);
       break;
       case "toggleTheme":
         var theme = localStorage["theme"];
@@ -2512,7 +2512,20 @@ module drawn {
       ]};;
     }
     let warnings = ixer.select("warning", {}).map((warning) => {
-      return {c: "warning", warning, click: gotoWarningSite, text: warning["warning: warning"]};
+      let text = warning["warning: warning"];
+
+      // Special case error message for bindings to help the user figure out what needs changed.
+      if(warning["warning: view"] === "binding" && text.indexOf("Missing row for key") === 0) {
+        let binding = api.factToMap("binding", warning["warning: row"]);
+        let fieldId = binding["field"];
+        let source = ixer.selectOne("source", {source: binding["source"]});
+        if(source) {
+          let viewId = source["source: view"];
+          let sourceViewId = source["source: source view"];
+          text = `Missing field "${code.name(fieldId) || fieldId}" in "${code.name(sourceViewId) || sourceViewId}" for query "${code.name(viewId) || viewId}"`;
+        }
+      }
+      return {c: "warning", warning, click: gotoWarningSite, text};
     });
     let warningGroup;
     if(warnings.length) {
