@@ -1182,7 +1182,17 @@ module drawn {
       case "addFieldToTable":
         var tableId = info.tableId || localState.drawnUiActiveId;
         var fields = ixer.select("field", {view: tableId}) || [];
-        var {fieldId, diffs} = addField(tableId, `Field ${api.alphabet[fields.length]}`);
+        let names = fields.map((field) => code.name(field["field: field"]));
+        let name = "Field A";
+        for(var ix = 1; names.indexOf(name) !== -1 && ix < 27 * 26; ix++) {
+          name = "Field ";
+          let leading = Math.floor(ix / 26);
+          if(leading > 0) {
+            name += api.alphabet[leading - 1];
+          }
+          name += api.alphabet[ix % 26];
+        }
+        var {fieldId, diffs} = addField(tableId, name);
       break;
       case "removeFieldFromTable":
         // we remove whatever field is currently active in the form
