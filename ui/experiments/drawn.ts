@@ -1213,6 +1213,10 @@ module drawn {
           let changes = {};
           changes[info.fieldId] = "";
           diffs.push(api.change(info.tableId, {}, changes, false, undefined, true));
+          if(localState.drawnUiActiveId === info.tableId) {
+            // If we're currently editing this table, add the new field to the current tableEntry as well.
+            localState.tableEntry[info.fieldId] = "";
+          }
         } else if(ixer.getFields(info.tableId).length === 0) {
           // If the view has no fields, the user cannot interact with its contents, which have been collapsed into a single empty row, so remove it.
           diffs.push(api.remove(info.tableId, {}));
