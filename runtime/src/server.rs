@@ -278,7 +278,7 @@ pub fn run() {
                         remove: vec![],
                     }));
 
-				// if we have a user ID, add a mapping from the session ID to the user ID
+                // if we have a user ID, add a mapping from the session ID to the user ID
                 if let Some(user_id) = user_id {
                     changes.push(("session id to user id".to_owned(),
                         Change{
