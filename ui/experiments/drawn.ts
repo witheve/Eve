@@ -2532,7 +2532,7 @@ module drawn {
       let text = warning["warning: warning"];
 
       // Special case error message for bindings to help the user figure out what needs changed.
-      if(warning["warning: view"] === "binding" && text.indexOf("Missing row for key") === 0) {
+      if(warning["warning: view"] === "binding" && text.indexOf("Foreign key") === 0) {
         let binding = api.factToMap("binding", warning["warning: row"]);
         let fieldId = binding["field"];
         let source = ixer.selectOne("source", {source: binding["source"]});
