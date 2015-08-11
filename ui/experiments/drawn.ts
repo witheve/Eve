@@ -1931,6 +1931,7 @@ module drawn {
   function queryItem(view) {
     let viewId = view["view: view"];
     let entityInfo = viewToEntityInfo(view);
+    refreshNodePositions(entityInfo.nodes, entityInfo.links);
     let boundingBox = nodesToRectangle(entityInfo.nodes);
     // translate the canvas so that the top left corner is the top left corner of the
     // bounding box for the nodes
@@ -2233,7 +2234,6 @@ module drawn {
   function queryPreview(view, entityInfo, boundingBox) {
     let viewId = view["view: view"];
     let {nodes, links} = entityInfo;
-    refreshNodePositions(nodes, links);
     var items = [];
     for(var node of nodes) {
       items.push(nodeItem(node, viewId));
@@ -2253,6 +2253,7 @@ module drawn {
     var view = ixer.selectOne("view", {view: viewId});
     if(!view) return;
     let entityInfo = viewToEntityInfo(view);
+    refreshNodePositions(entityInfo.nodes, entityInfo.links);
     let description = "No description :(";
     let viewDescription = ixer.selectOne("view description", {view: viewId});
     if(viewDescription) {
@@ -2277,7 +2278,6 @@ module drawn {
   function queryCanvas(view, entityInfo) {
     let viewId = view["view: view"];
     let {nodes, links, nodeLookup} = entityInfo;
-    refreshNodePositions(nodes, links);
     let queryBoundingBox = nodesToRectangle(nodes);
 
     var items = [];
