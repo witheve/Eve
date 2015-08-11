@@ -157,7 +157,7 @@ module drawn {
   localState.selectedNodes = {};
   localState.overlappingNodes = {};
   localState.drawnUiActiveId = "itemSelector";
-  localState.errors = [];
+  localState.errors = {};
   localState.notices = {};
   localState.selectedItems = {};
   localState.tableEntry = {};
@@ -1051,10 +1051,10 @@ module drawn {
       // Errors
       //---------------------------------------------------------
       case "setError":
-        var errorId = localState.errors.length;
+        var errorId = info.id || uuid();
         var newError: any = {text: info.errorText, time: api.now(), id: errorId};
         newError.errorTimeout = setTimeout(() => dispatch("fadeError", {errorId}), 5000);
-        localState.errors.push(newError);
+        localState.errors[errorId] = newError;
       break;
       case "fadeError":
         var errorId = info.errorId;
@@ -1063,7 +1063,7 @@ module drawn {
         currentError.errorTimeout = setTimeout(() => dispatch("clearError", {errorId: info.errorId}), 200);
       break;
       case "clearError":
-        localState.errors.splice(info.errorId,1);
+        delete localState.errors[info.errorId];
       break;
       case "setNotice":
         var noticeId = info.id || uuid();
@@ -2168,13 +2168,14 @@ module drawn {
     let noticeItems = [];
     for(let noticeId in localState.notices) {
       let notice = localState.notices[noticeId];
-      noticeItems.push({c: `flex-row spaced-row notice ${notice.type} ${notice.fading ? "fade" : ""}`, children: [
+      noticeItems.push({c: `flex-row spaced-row notice ${notice.type} ${notice.fading ? "fade" : ""}`, time: notice.time, children: [
         (typeof notice.content === "function") ? notice.content() :
           (typeof notice.content === "string") ? {text: notice.content} : notice.content,
           {c: "flex-spacer", height: 0},
           {c: "btn ion-close", noticeId: noticeId, click: closeNotice}
       ]});
     }
+    noticeItems.sort((a, b) => b.time - a.time);
     return {c: "notices", children: noticeItems};
   }
 
@@ -2510,13 +2511,16 @@ module drawn {
   //---------------------------------------------------------
 
   function queryErrors(view) {
-    let editorWarningItems = localState.errors.map((error) => {
+    let editorWarningItems = [];
+    for(let errorId in localState.errors) {
+      let error = localState.errors[errorId];
       let klass = "error";
       if(error.fading) {
         klass += " fade";
       }
-      return {c: klass, text: error.text};
-    }).reverse();
+      editorWarningItems.push({c: klass, text: error.text, time: error.time});
+    }
+    editorWarningItems.sort((a, b) => b.time - a.time);
     let editorWarnings;
     if(editorWarningItems.length) {
       editorWarnings = {c: "editor-warnings error-group", children: [
@@ -2528,7 +2532,7 @@ module drawn {
       let text = warning["warning: warning"];
 
       // Special case error message for bindings to help the user figure out what needs changed.
-      if(warning["warning: view"] === "binding" && text.indexOf("Missing row for key") === 0) {
+      if(warning["warning: view"] === "binding" && text.indexOf("Foreign key") === 0) {
         let binding = api.factToMap("binding", warning["warning: row"]);
         let fieldId = binding["field"];
         let source = ixer.selectOne("source", {source: binding["source"]});
