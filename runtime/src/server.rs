@@ -273,7 +273,7 @@ pub fn run() {
                 let session_id = format!("{}", sender.get_mut().peer_addr().unwrap());
                 changes.push(("sessions".to_owned(),
                     Change{
-                        fields: vec!["id".to_owned(), "status".to_owned()],
+                        fields: vec!["sessions: id".to_owned(), "sessions: status".to_owned()],
                         insert: vec![vec![Value::String(session_id.clone()), Value::Float(1f64)]],
                         remove: vec![],
                     }));
@@ -282,7 +282,7 @@ pub fn run() {
                 if let Some(user_id) = user_id {
                     changes.push(("session id to user id".to_owned(),
                         Change{
-                            fields: vec!["session id".to_owned(), "user id".to_owned()],
+                            fields: vec!["session id to user id: session id".to_owned(), "session id to user id: user id".to_owned()],
                             insert: vec![vec![Value::String(session_id.clone()), Value::String(user_id)]],
                             remove: vec![]
                         }));

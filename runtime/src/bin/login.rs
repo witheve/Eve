@@ -227,7 +227,7 @@ fn login(req: Request, mut res: Response<Fresh>) {
                                             // Create eveusers table and insert the new user
                                             let change = ("eveusers".to_owned(),
                                                 Change{
-                                                    fields: vec!["id".to_owned(), "username".to_owned()],
+                                                    fields: vec!["eveusers: id".to_owned(), "eveusers: username".to_owned()],
                                                     insert: vec![vec![
                                                         Value::String(session_data.user.id.clone()),
                                                         Value::String(session_data.user.username.clone())
