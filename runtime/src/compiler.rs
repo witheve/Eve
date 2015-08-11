@@ -362,7 +362,10 @@ fn check_unique_key(warning_table: &mut Relation, relation: &Relation, key_field
                 warning_table.index.insert(vec![
                     Value::String(relation.view.to_owned()),
                     Value::Column(row.clone()),
-                    string!("Duplicate rows for key {:?}", key_fields),
+                    string!("Duplicate rows for {:?}{:?}: {:?} and {:?}",
+                        &relation.view, key_fields,
+                        &row, &other_row
+                        ),
                     ]);
             }
         }
@@ -386,7 +389,10 @@ fn check_foreign_key(warning_table: &mut Relation, relation: &Relation, key_fiel
         warning_table.index.insert(vec![
             Value::String(relation.view.to_owned()),
             Value::Column(row.clone()),
-            string!("Missing row for key {:?} in {:?} {:?}", key_fields, &foreign_relation.view, foreign_key_fields),
+            string!("Foreign key {:?}{:?}={:?} has no matching entry in {:?}{:?}",
+                &relation.view, key_fields, &row,
+                &foreign_relation.view, foreign_key_fields
+                ),
             ]);
     }
 }
@@ -411,9 +417,10 @@ fn check_triangle_key(warning_table: &mut Relation,
                             warning_table.index.insert(vec![
                                 Value::String(base_relation.view.to_owned()),
                                 Value::Column(base_row.clone()),
-                                string!("This row has {:?}={:?} in {:?} and {:?}={:?} in {:?}",
-                                    left_to_right_field, &left_row[left_to_right_ix], &left_relation.view,
-                                    right_to_left_field, &right_row[right_to_left_ix], &right_relation.view
+                                string!("Row {:?}={:?} has {:?}{:?}={:?} but {:?}{:?}={:?}",
+                                    &base_relation.view, &base_row,
+                                    &left_relation.view, left_to_right_field, &left_row[left_to_right_ix],
+                                    &right_relation.view, right_to_left_field, &right_row[right_to_left_ix]
                                     ),
                                 ]);
                         }
