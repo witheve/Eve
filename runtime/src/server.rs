@@ -17,6 +17,31 @@ use relation::Change;
 use flow::{Changes, Flow};
 use client;
 
+// The server manages a single Eve program and handles communication with the editor and clients
+// TODO needs review / refactoring, especially session handling
+
+pub struct Server {
+    pub flow: Flow,
+    pub senders: Vec<sender::Sender<WebSocketStream>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Event {
+    pub changes: Changes,
+    pub session: String,
+    // commands that affect the whole program state have to go through this side-channel rather than being added to a view
+    // supported commands: ["load", filename], ["save", filename]
+    pub commands: Vec<Vec<String>>,
+}
+
+pub enum ServerEvent {
+    Change(Vec<u8>),
+    Sync((sender::Sender<WebSocketStream>, Option<String>)),
+    Terminate(Option<CloseData>),
+}
+
+// --- json encodings ---
+
 pub trait FromJson {
     fn from_json(json: &Json) -> Self;
 }
@@ -59,13 +84,6 @@ impl<T: FromJson> FromJson for Vec<T> {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct Event {
-    pub changes: Changes,
-    pub session: String,
-    pub commands: Vec<Vec<String>>,
-}
-
 impl ToJson for Event {
     fn to_json(&self) -> Json {
         Json::Object(vec![
@@ -105,13 +123,43 @@ impl FromJson for Event {
     }
 }
 
-pub enum ServerEvent {
-    Change(Vec<u8>),
-    Sync((sender::Sender<WebSocketStream>,Option<String>)),
-    Terminate(Option<CloseData>),
+// --- persistence ---
+
+pub fn load(flow: &mut Flow, filename: &str) {
+    let mut events = OpenOptions::new().create(true).open(filename).unwrap();
+    let mut old_events = String::new();
+    events.read_to_string(&mut old_events).unwrap();
+    for line in old_events.lines() {
+        let json = Json::from_str(&line).unwrap();
+        let event: Event = FromJson::from_json(&json);
+        flow.quiesce(event.changes);
+    }
 }
 
-// TODO holy crap why is everything blocking? this is a mess
+// TODO should probably just save changes, not the whole event
+pub fn save(flow: &Flow, filename: &str) {
+    let changes = flow.as_changes();
+    let text = format!("{}", Event{changes: changes, session: "".to_owned(), commands: vec![]}.to_json());
+    let mut events = OpenOptions::new().create(true).truncate(true).write(true).open(filename).unwrap();
+    events.write_all(text.as_bytes()).unwrap();
+}
+
+// --- server ---
+
+pub fn get_user_id(cookies: Option<&Cookie>) -> Option<String> {
+    match cookies {
+        Some(cookies) => {
+            match cookies.iter().find(|cookie| cookie.name == "userid") {
+                Some(user_id) => Some(user_id.value.clone()),
+                None => None,
+            }
+        },
+        None => None,
+    }
+}
+
+// rust-websocket is blocking, so we have to spawn a thread per connection
+// each thread sends events back to a central channel
 pub fn server_events() -> mpsc::Receiver<ServerEvent> {
     let (event_sender, event_receiver) = mpsc::channel();
     thread::spawn(move || {
@@ -123,7 +171,7 @@ pub fn server_events() -> mpsc::Receiver<ServerEvent> {
                 let request = connection.unwrap().read_request().unwrap();
                 request.validate().unwrap();
 
-                // Get the User ID from a cookie in the headers
+                // get the User ID from a cookie in the headers
                 let user_id = get_user_id(request.headers.get::<Cookie>());
 
                 let response = request.accept();
@@ -133,7 +181,7 @@ pub fn server_events() -> mpsc::Receiver<ServerEvent> {
                 println!("Connection from {}", ip);
                 ::std::io::stdout().flush().unwrap(); // TODO is this actually necessary?
 
-                // hand over sender
+                // hand over the sender
                 event_sender.send(ServerEvent::Sync((sender,user_id))).unwrap();
 
                 // handle messages
@@ -161,38 +209,20 @@ pub fn server_events() -> mpsc::Receiver<ServerEvent> {
     event_receiver
 }
 
-pub fn load(flow: &mut Flow, filename: &str) {
-    let mut events = OpenOptions::new().create(true).open(filename).unwrap();
-    let mut old_events = String::new();
-    events.read_to_string(&mut old_events).unwrap();
-    for line in old_events.lines() {
-        let json = Json::from_str(&line).unwrap();
-        let event: Event = FromJson::from_json(&json);
-        flow.quiesce(event.changes);
-    }
-}
-
-pub fn save(flow: &Flow, filename: &str) {
-    let changes = flow.as_changes();
-    let text = format!("{}", Event{changes: changes, session: "".to_owned(), commands: vec![]}.to_json());
-    let mut events = OpenOptions::new().create(true).truncate(true).write(true).open(filename).unwrap();
-    events.write_all(text.as_bytes()).unwrap();
-}
-
-pub struct Server {
-    pub flow: Flow,
-    pub senders: Vec<sender::Sender<WebSocketStream>>,
-}
-
 pub fn handle_event(server: &mut Server, event: Event, event_json: Json) {
+    // save the event
     let mut autosave = OpenOptions::new().write(true).append(true).open("./autosave").unwrap();
     autosave.write_all(format!("{}", event_json).as_bytes()).unwrap();
     autosave.write_all("\n".as_bytes()).unwrap();
     autosave.flush().unwrap();
-    let old_flow = time!("cloning", {
-        server.flow.clone()
-    });
+
+    // copy the old flow so we can compare to the new flow for changes
+    let old_flow = server.flow.clone();
+
+    // run the flow until it reaches fixpoint
     server.flow.quiesce(event.changes);
+
+    // handle commands
     for command in event.commands.iter() {
         let borrowed_words = command.iter().map(|word| &word[..]).collect::<Vec<_>>();
         match &borrowed_words[..] {
@@ -208,9 +238,9 @@ pub fn handle_event(server: &mut Server, event: Event, event_json: Json) {
             other => panic!("Unknown command: {:?}", other),
         }
     }
-    let changes = time!("diffing", {
-        server.flow.changes_from(old_flow)
-    });
+
+
+    let changes = server.flow.changes_from(old_flow);
     for sender in server.senders.iter_mut() {
         let session_id = format!("{}", sender.get_mut().peer_addr().unwrap());
         let event = Event{changes: changes.clone(), session: session_id, commands: event.commands.clone()};
@@ -236,27 +266,36 @@ pub fn run() {
     for server_event in server_events() {
         match server_event {
 
+            // a new client has connected and needs to sync its state
             ServerEvent::Sync((mut sender,user_id)) => {
 
-                // Add a session to the session table
+                // add a session to the session table
                 let session_id = format!("{}", sender.get_mut().peer_addr().unwrap());
-				let mut add_session = client::insert_fact(&"sessions",&vec!["id","status"],&vec![Value::String(session_id.clone()),
-				                                                                       		     Value::Float(1f64)
-				                                                                      	        ],None);
+				let mut add_session = client::insert_fact(
+                    &"sessions",
+                    &vec!["id","status"],
+                    &vec![Value::String(session_id.clone()), Value::Float(1f64)],
+                    None
+                    );
 
-				// If we have a user ID, add a mapping from the session ID to the user ID
+				// if we have a user ID, add a mapping from the session ID to the user ID
                 add_session = match user_id {
                     Some(user_id) => {
-
-                        client::insert_fact(&"session id to user id",&vec!["session id","user id"],&vec![Value::String(session_id.clone()),
-                                                                                                 Value::String(user_id),
-                                                                                                ],Some(add_session))
+                        client::insert_fact(
+                            &"session id to user id",
+                            &vec!["session id","user id"],
+                            &vec![Value::String(session_id.clone()), Value::String(user_id)],
+                            Some(add_session)
+                            )
                     },
                     None => add_session,
                 };
+
+                // handle the session change
                 let json = add_session.to_json();
                 handle_event(&mut server, add_session, json);
 
+                // sync the new client
                 let changes = server.flow.as_changes();
                 let text = format!("{}", Event{changes: changes, session: session_id, commands: vec![]}.to_json());
                 match sender.send_message(Message::Text(text)) {
@@ -266,6 +305,7 @@ pub fn run() {
                 server.senders.push(sender)
             }
 
+            // an existing client has sent a new message
             ServerEvent::Change(input_bytes) => {
                 // TODO we throw cbor in here to avoid https://github.com/rust-lang/rustc-serialize/issues/113
                 let mut decoder = cbor::Decoder::from_bytes(&input_bytes[..]);
@@ -276,31 +316,30 @@ pub fn run() {
             }
 
             ServerEvent::Terminate(m) => {
-
                 let terminate_ip = m.unwrap().reason;
                 println!("Closing connection from {}...",terminate_ip);
-                // Find the index of the connection's sender
-                let ip_ix = server.senders.iter_mut().position(|mut sender| {
-                                                          let ip = format!("{}",sender.get_mut().peer_addr().unwrap());
-                                                          ip == terminate_ip
-                                                        });
 
-                // Properly clean up connections and the session table
+                // find the index of the connection's sender
+                let ip_ix = server.senders.iter_mut().position(|mut sender| {
+                    let ip = format!("{}",sender.get_mut().peer_addr().unwrap());
+                    ip == terminate_ip
+                });
+
                 match ip_ix {
                     Some(ix) => {
-                        // Close the connection
+                        // close the connection
                         let _ = server.senders[ix].send_message(Message::Close(None));
-
                         match server.senders[ix].get_mut().shutdown(Shutdown::Both) {
                             Ok(_) => println!("Connection from {} has closed successfully.",terminate_ip),
                             Err(e) => println!("Connection from {} failed to shut down properly: {}",terminate_ip,e),
                         }
                         server.senders.remove(ix);
 
-                        // Update the session table
+                        // update the session table
                         let sessions = server.flow.get_output("sessions").clone();
                         let ip_string = Value::String(terminate_ip.clone());
 
+                        // change the session status to 0
                         for row in sessions.find(vec![&ip_string, &Value::Null]) {
                             match row {
                                 [_, ref status] => {
@@ -322,17 +361,5 @@ pub fn run() {
                 }
             }
         }
-    }
-}
-
-pub fn get_user_id(cookies: Option<&Cookie>) -> Option<String> {
-    match cookies {
-        Some(cookies) => {
-            match cookies.iter().find(|cookie| cookie.name == "userid") {
-                Some(user_id) => Some(user_id.value.clone()),
-                None => None,
-            }
-        },
-        None => None,
     }
 }
