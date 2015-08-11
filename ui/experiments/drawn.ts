@@ -2966,9 +2966,9 @@ module drawn {
   }
 
   function tableFormEditor(tableId, row = null, rowNum = 0, rowTotal = 0) {
-    let fields = ixer.getFields(tableId).map((fieldId) => {
+    let fields = ixer.getFields(tableId).map((fieldId, ix) => {
       let value = row ? row[fieldId] : "";
-      let entryField = {c: "entry-field", fieldId, postRender: maybeFocusFormField, text: value, contentEditable: true, keydown: keyboardSubmitTableEntry, input: setTableEntryField, blur: clearActiveTableEntryField, focus: activeTableEntryField};
+      let entryField = {c: "entry-field", fieldId, postRender: maybeFocusFormField, text: value, contentEditable: true, keydown: keyboardSubmitTableEntry, input: setTableEntryField, blur: clearActiveTableEntryField, focus: activeTableEntryField, key: JSON.stringify(row) + ix};
       return {c: "field-item", children: [
         {c: "label", tabindex:-1, contentEditable: true, blur: rename, renameId: fieldId, text: code.name(fieldId)},
         entryField,
