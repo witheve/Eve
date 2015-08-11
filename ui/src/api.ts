@@ -493,17 +493,17 @@ module api {
     return dest;
   }
 
-  export function change(type:string, params, changes, upsert:boolean = false, context?:Context):Write<any> {
+  export function change(type:string, params, changes, upsert:boolean = false, context?:Context, useIds = false):Write<any> {
     if(arguments.length < 3) { throw new Error("Must specify type and query and changes for change."); }
-    var read = retrieve(type, params, context);
+    var read = retrieve(type, params, context, useIds);
     var write = read.map(function(item) {
       return writeInto(item, changes);
     });
     if(!write.length && upsert) {
       var insertParams = writeInto(writeInto({}, params), changes);
-      return insert(type, insertParams);
+      return insert(type, insertParams, {}, useIds);
     }
-    return {type: type, content: write, context: context, mode: "changed", originalKeys: clone(params)};
+    return {type: type, content: write, context: context, mode: "changed", originalKeys: clone(params), useIds};
   }
 
   export function remove(type:string, params, context?:Context, useIds = false):Write<any> {

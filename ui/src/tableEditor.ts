@@ -99,7 +99,8 @@ module tableEditor {
         if(val !== "") {
           td["text"] = val;
         } else {
-          td["children"] = [{c: "empty-value", text: "<empty>"}];
+          td["text"] = "<empty>";
+          td["c"] += " empty-value";
         }
         tds.push(td);
       }
