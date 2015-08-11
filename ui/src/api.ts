@@ -129,7 +129,8 @@ module api {
     mean: {"mean: in": []},
     split: {"split: split": " ", "split: string": ""},
     concat: {"concat: a": "", "concat: b": ""},
-    "parse float": {"parse float: a": "0"},
+    "as number": {"as number: a": "0"},
+    "as text": {"as text: a": ""},
     "standard deviation": {"standard deviation: in": []},
 
     sum: {"sum: in": []}

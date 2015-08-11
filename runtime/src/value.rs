@@ -1,4 +1,6 @@
 use std::cmp::Ordering;
+use std::str::FromStr;
+use std::f64;
 
 // A single Eve value
 #[derive(Clone, PartialOrd, PartialEq)]
@@ -96,7 +98,6 @@ impl Value {
         }
     }
 
-
     pub fn as_column(&self) -> &Vec<Value> {
         match *self {
             Value::Column(ref column) => column,
@@ -108,6 +109,35 @@ impl Value {
         match *self {
             Value::Column(ref mut column) => column,
             _ => panic!("Cannot convert this to column: {:?}", self),
+        }
+    }
+
+    pub fn parse_as_f64(&self) -> Option<f64> {
+        match *self {
+            Value::Float(float) => Some(float),
+            Value::String(ref string) => {
+                match f64::from_str(string) {
+                    Ok(float) => Some(float),
+                    Err(_) => None,
+                }
+            }
+            _ => None,
+        }
+    }
+
+    pub fn parse_as_f64_vec(&self) -> Option<Vec<f64>> {
+        match *self {
+            Value::Column(ref column) => {
+                let mut floats = Vec::with_capacity(column.len());
+                for value in column.iter() {
+                    match value.parse_as_f64() {
+                        Some(float) => floats.push(float),
+                        None => return None,
+                    }
+                }
+                return Some(floats)
+            }
+            _ => None,
         }
     }
 }
