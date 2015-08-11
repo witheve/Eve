@@ -220,6 +220,7 @@ module microReact {
           continue;
         }
         if(curA.c === curB.c
+           && curA.key === curB.key
            && curA.tabindex === curB.tabindex
            && curA.href === curB.href
            && curA.placeholder === curB.placeholder
