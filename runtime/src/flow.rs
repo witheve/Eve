@@ -182,12 +182,6 @@ impl Flow {
         }
     }
 
-    // Update stateful views
-    pub fn tick(&mut self) -> bool {
-        // TODO internal state changes are not implemented in this version yet
-        false
-    }
-
     // Tick until fixpoint
     pub fn quiesce(&mut self, changes: Changes)  {
         self.change(changes);
@@ -196,8 +190,8 @@ impl Flow {
                 compiler::recompile(self);
             }
             self.recalculate();
-            let changed = self.tick();
-            if !changed {
+            let changed = false; // TODO once we have internal state change we need to check diffs
+            if !changed && !self.needs_recompile {
                 break
             }
         }
