@@ -363,7 +363,7 @@ fn check_unique_key(warning_table: &mut Relation, relation: &Relation, key_field
                 warning_table.index.insert(vec![
                     Value::String(relation.view.to_owned()),
                     Value::Column(row.clone()),
-                    string!("Duplicate rows for {:?}{:?}: {:?} and {:?}",
+                    string!("Duplicate rows {:?} and {:?} for unique key {:?}{:?}",
                         &relation.view, key_fields,
                         &row, &other_row
                         ),
@@ -391,7 +391,7 @@ fn check_foreign_key(warning_table: &mut Relation, relation: &Relation, key_fiel
             Value::String(relation.view.to_owned()),
             Value::Column(row.clone()),
             string!("Foreign key {:?}{:?}={:?} has no matching entry in {:?}{:?}",
-                &relation.view, key_fields, &row,
+                &relation.view, key_fields, mapping.iter().map(|&(ix, _)| &row[ix]).collect::<Vec<_>>(),
                 &foreign_relation.view, foreign_key_fields
                 ),
             ]);
