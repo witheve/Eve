@@ -129,7 +129,8 @@ module api {
     mean: {"mean: in": []},
     split: {"split: split": " ", "split: string": ""},
     concat: {"concat: a": "", "concat: b": ""},
-    "parse float": {"parse float: a": "0"},
+    "as number": {"as number: a": "0"},
+    "as text": {"as text: a": ""},
     "standard deviation": {"standard deviation: in": []},
 
     sum: {"sum: in": []}
@@ -493,6 +494,7 @@ module api {
 
   export function change(type:string, params, changes, upsert:boolean = false, context?:Context, useIds = false):Write<any> {
     if(arguments.length < 3) { throw new Error("Must specify type and query and changes for change."); }
+    // When useIds is set, retrieve will return undefined for an empty result
     var read = retrieve(type, params, context, useIds) || [];
     var write = read.map(function(item) {
       return writeInto(item, changes);

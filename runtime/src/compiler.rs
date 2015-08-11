@@ -363,7 +363,7 @@ fn check_unique_key(warning_table: &mut Relation, relation: &Relation, key_field
                 warning_table.index.insert(vec![
                     Value::String(relation.view.to_owned()),
                     Value::Column(row.clone()),
-                    string!("Duplicate rows for {:?}{:?}: {:?} and {:?}",
+                    string!("Duplicate rows {:?} and {:?} for unique key {:?}{:?}",
                         &relation.view, key_fields,
                         &row, &other_row
                         ),
@@ -391,7 +391,7 @@ fn check_foreign_key(warning_table: &mut Relation, relation: &Relation, key_fiel
             Value::String(relation.view.to_owned()),
             Value::Column(row.clone()),
             string!("Foreign key {:?}{:?}={:?} has no matching entry in {:?}{:?}",
-                &relation.view, key_fields, &row,
+                &relation.view, key_fields, mapping.iter().map(|&(ix, _)| &row[ix]).collect::<Vec<_>>(),
                 &foreign_relation.view, foreign_key_fields
                 ),
             ]);
@@ -418,7 +418,7 @@ fn check_triangle_key(warning_table: &mut Relation,
                             warning_table.index.insert(vec![
                                 Value::String(base_relation.view.to_owned()),
                                 Value::Column(base_row.clone()),
-                                string!("Row {:?}={:?} has {:?}{:?}={:?} but {:?}{:?}={:?}",
+                                string!("Row {:?}={:?} has {:?}[{:?}]=[{:?}] but {:?}[{:?}]=[{:?}]",
                                     &base_relation.view, &base_row,
                                     &left_relation.view, left_to_right_field, &left_row[left_to_right_ix],
                                     &right_relation.view, right_to_left_field, &right_row[right_to_left_ix]

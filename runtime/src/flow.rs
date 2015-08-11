@@ -69,14 +69,20 @@ impl Flow {
         for (id, change) in changes.into_iter() {
             match self.get_ix(&*id) {
                 Some(ix) => {
-                    let changed = self.outputs[ix].borrow_mut().change(change);
-                    if changed {
-                        if code_schema.iter().find(|&&(ref code_id, _)| **code_id == id).is_some() {
-                            self.needs_recompile = true;
+                    let node = &self.nodes[ix];
+                    match node.view {
+                        View::Table => {
+                            let changed = self.outputs[ix].borrow_mut().change(change);
+                            if changed {
+                                if code_schema.iter().find(|&&(ref code_id, _)| **code_id == id).is_some() {
+                                    self.needs_recompile = true;
+                                }
+                                for ix in self.nodes[ix].downstream.iter() {
+                                    self.dirty.insert(*ix);
+                                }
+                            }
                         }
-                        for ix in self.nodes[ix].downstream.iter() {
-                            self.dirty.insert(*ix);
-                        }
+                        _ => panic!("Tried to change view {:?} which is not a table", &node.id),
                     }
                 }
                 None => {
@@ -182,12 +188,6 @@ impl Flow {
         }
     }
 
-    // Update stateful views
-    pub fn tick(&mut self) -> bool {
-        // TODO internal state changes are not implemented in this version yet
-        false
-    }
-
     // Tick until fixpoint
     pub fn quiesce(&mut self, changes: Changes)  {
         self.change(changes);
@@ -196,8 +196,8 @@ impl Flow {
                 compiler::recompile(self);
             }
             self.recalculate();
-            let changed = self.tick();
-            if !changed {
+            let changed = false; // TODO once we have internal state change we need to check diffs
+            if !changed && !self.needs_recompile {
                 break
             }
         }
