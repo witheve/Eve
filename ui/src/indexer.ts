@@ -370,9 +370,9 @@ module Indexing {
           return result;
         });
       } else {
-        keys = fieldIds;
+        keys = Object.keys(opts);
         names = {};
-        for(let fieldId of fieldIds) {
+        for(let fieldId in opts) {
           names[fieldId] = fieldId;
         }
       }
