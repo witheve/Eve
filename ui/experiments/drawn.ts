@@ -1182,7 +1182,17 @@ module drawn {
       case "addFieldToTable":
         var tableId = info.tableId || localState.drawnUiActiveId;
         var fields = ixer.select("field", {view: tableId}) || [];
-        var {fieldId, diffs} = addField(tableId, `Field ${api.alphabet[fields.length]}`);
+        let names = fields.map((field) => code.name(field["field: field"]));
+        let name = "Field A";
+        for(var ix = 1; names.indexOf(name) !== -1 && ix < 27 * 26; ix++) {
+          name = "Field ";
+          let leading = Math.floor(ix / 26);
+          if(leading > 0) {
+            name += api.alphabet[leading - 1];
+          }
+          name += api.alphabet[ix % 26];
+        }
+        var {fieldId, diffs} = addField(tableId, name);
       break;
       case "removeFieldFromTable":
         // we remove whatever field is currently active in the form
@@ -1330,7 +1340,7 @@ module drawn {
         } else {
           localStorage["showHidden"] = "show";
         }
-        diffs = dispatch("updateSearch", {value: localState.searchingFor}, true);
+        diffs = dispatch("updateSearch", {value: localState.searchingFor || ""}, true);
       break;
       case "toggleTheme":
         var theme = localStorage["theme"];
@@ -2502,7 +2512,20 @@ module drawn {
       ]};;
     }
     let warnings = ixer.select("warning", {}).map((warning) => {
-      return {c: "warning", warning, click: gotoWarningSite, text: warning["warning: warning"]};
+      let text = warning["warning: warning"];
+
+      // Special case error message for bindings to help the user figure out what needs changed.
+      if(warning["warning: view"] === "binding" && text.indexOf("Missing row for key") === 0) {
+        let binding = api.factToMap("binding", warning["warning: row"]);
+        let fieldId = binding["field"];
+        let source = ixer.selectOne("source", {source: binding["source"]});
+        if(source) {
+          let viewId = source["source: view"];
+          let sourceViewId = source["source: source view"];
+          text = `Missing field "${code.name(fieldId) || fieldId}" in "${code.name(sourceViewId) || sourceViewId}" for query "${code.name(viewId) || viewId}"`;
+        }
+      }
+      return {c: "warning", warning, click: gotoWarningSite, text};
     });
     let warningGroup;
     if(warnings.length) {
