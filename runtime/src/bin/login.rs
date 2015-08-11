@@ -8,6 +8,7 @@ extern crate url;
 extern crate websocket;
 extern crate rustc_serialize;
 extern crate conduit_mime_types;
+extern crate cbor;
 
 use std::io::Read;
 use std::io::Write;
@@ -22,16 +23,20 @@ use cookie::Cookie;
 use mime::Mime;
 use url::SchemeData::Relative;
 use rustc_serialize::json;
-use websocket::{Message, Sender};
+use rustc_serialize::json::ToJson;
 use std::path::Path;
 use std::fs::PathExt;
 use conduit_mime_types::Types;
 use std::str::FromStr;
 use std::env;
+use websocket::{client,Client,stream,Message,Sender,Receiver};
+use std::thread;
+use cbor::ToCbor;
 
-use eve::client::*;
-use eve::server;
 use eve::value::Value;
+use eve::server::Event;
+use eve::relation::Change;
+use eve::server;
 
 #[derive(RustcDecodable, RustcEncodable, Debug, Clone)]
 struct Session {
@@ -220,15 +225,17 @@ fn login(req: Request, mut res: Response<Fresh>) {
 											*res.headers_mut() = headers;
 
 											// Create eveusers table and insert the new user
-											let table_name = "eveusers";
-											let table_fields = vec!["id","username"];
-
-											let row_data = vec![
-																Value::String(session_data.user.id.clone()),
-																Value::String(session_data.user.username.clone())
-														   	   ];
-											let insert_user = insert_fact(&table_name,&table_fields,&row_data,None);
-											send_event(&insert_user,&mut sender);
+										    let change = ("eveusers".to_owned(),
+										    	Change{
+										    		fields: vec!["id".to_owned(), "username".to_owned()],
+										    		insert: vec![vec![
+										    		    Value::String(session_data.user.id.clone()),
+										    		    Value::String(session_data.user.username.clone())
+										    		]],
+										    		remove: vec![],
+										    	});
+										    let event = Event{changes: vec![change], session: "".to_owned(), commands: vec![]};
+											send_event(event, &mut sender);
 											let _ = sender.send_message(Message::Close(None));
 										}
 										// Otherwise, throw an error... maybe redirect to a special page.
@@ -264,4 +271,67 @@ fn login(req: Request, mut res: Response<Fresh>) {
 		}
 		_ => panic!("Oh no!"),
 	}
+}
+
+pub fn open_websocket(url_string: &str) -> Result<client::sender::Sender<stream::WebSocketStream>,String> {
+
+	//let mut context = SslContext::new(SslMethod::Tlsv1).unwrap();
+	//let _ = context.set_certificate_file(&(Path::new("server.crt")), X509FileType::PEM);
+	//let _ = context.set_private_key_file(&(Path::new("server.key")), X509FileType::PEM);
+
+	let url = Url::parse(url_string).unwrap();
+	println!("Connecting to {}", url);
+
+	let request = match Client::connect(url) {
+		Ok(t) => t,
+		Err(e) => {
+			return Err(format!("{}", e).to_string());
+		}
+	};
+
+	let response = match request.send() {
+		Ok(t) => t,
+		Err(e) => {
+			return Err(format!("{}", e).to_string());
+		}
+	};
+
+	match response.validate() {
+		Ok(_) => println!("Response valid. Start sending/receiving..."),
+		Err(e) => {
+			return Err(format!("{}", e).to_string());
+		}
+	};
+
+	let (sender, mut receiver) = response.begin().split();
+
+	thread::spawn(move || {
+		for message in receiver.incoming_messages() {
+	        let message = match message {
+	            Ok(m) => m,
+	            Err(_) => return,
+	        };
+	        match message {
+	            Message::Text(_) => {
+	           		//let json = Json::from_str(&text).unwrap();
+                    //let event: Event = FromJson::from_json(&json);
+	        	},
+	            Message::Close(_) => {
+	                println!("Received close message");
+	                return;
+	            }
+	            _ => println!("Unknown message: {:?}", message)
+	        }
+        }
+	});
+
+	Ok(sender)
+}
+
+pub fn send_event(event: Event, sender: &mut client::sender::Sender<stream::WebSocketStream>) {
+	let mut e = cbor::Encoder::from_memory();
+	let json = event.to_json();
+	let cbor = json.to_cbor();
+	e.encode(vec![cbor]).unwrap();
+	sender.send_message(Message::Binary(e.into_bytes())).unwrap();
 }
