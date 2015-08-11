@@ -4,7 +4,6 @@ module tableEditor {
   declare var DEBUG;
   var ixer = api.ixer;
   var code = api.code;
-  var diff = api.diff;
   var localState = api.localState;
   var KEYS = api.KEYS;
 

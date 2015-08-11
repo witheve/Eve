@@ -1,5 +1,5 @@
 /// <reference path="../src/tableEditor.ts" />
-/// <reference path="drawn.ts" />
+/// <reference path="./drawn.ts" />
 /// <reference path="../src/api.ts" />
 module uiEditor {
   declare var jQuery;
@@ -7,7 +7,54 @@ module uiEditor {
   declare var uiEditorRenderer;
   var ixer = api.ixer;
   var code = api.code;
-  var diff = api.diff;
+  var diff = {
+    duplicateElement: function(element, id, txId) {
+      var diffs = [];
+      var oldId = element[1];
+      var neue = element.slice();
+      //generate new ids for the element, everything else remains
+      neue[0] = txId;
+      neue[1] = id;
+      diffs.push(["uiComponentElement", "inserted", neue]);
+      //duplicate all of the attributes
+      var styles = ixer.index("uiElementToStyles")[oldId];
+      if(styles) {
+        styles.forEach(function(cur) {
+          if(cur[4] === false) {
+            diffs.push.apply(diffs, diff.duplicateStyle(cur, neue[1], txId));
+          } else {
+            var style = cur.slice();
+            style[0] = txId;
+            style[3] = id;
+            diffs.push(["uiStyle", "inserted", style]);
+          }
+        });
+      }
+      console.log(diffs);
+      return diffs;
+    },
+    duplicateStyle: function(toDuplicate, elementId, txId, useStyleId?) {
+      var diffs = [];
+      var style = toDuplicate.slice();
+      var oldId = toDuplicate[1];
+      var neueId = useStyleId || uuid();
+      style[0] = txId;
+      style[1] = neueId;
+      style[3] = elementId;
+      if(!useStyleId) {
+        diffs.push(["uiStyle", "inserted", style]);
+      }
+      var styles = ixer.index("uiStyleToAttrs")[oldId];
+      if(styles) {
+        styles.forEach(function(attr) {
+          var neueAttr = attr.slice();
+          neueAttr[1] = neueId;
+          diffs.push(["uiComponentAttribute", "inserted", neueAttr]);
+        })
+      }
+      return diffs;
+    },
+  };
   var localState = api.localState;
   var KEYS = api.KEYS;
 

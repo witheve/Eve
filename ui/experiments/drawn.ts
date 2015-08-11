@@ -433,7 +433,6 @@ module drawn {
 
   export function dispatch(event, info, rentrant?) {
     //console.log("dispatch[" + event + "]", info);
-    var rerender = true;
     var diffs = [];
     var commands = [];
     var storeEvent = true;
@@ -623,6 +622,10 @@ module drawn {
       // Query building
       //---------------------------------------------------------
       case "createNewItem":
+        // push the current location onto the history stack
+        localState.navigationHistory.push(localState.drawnUiActiveId);
+        localState.drawnUiActiveId = info.itemId;
+
         var newId = uuid();
         localState.drawnUiActiveId = newId;
         var tag;
@@ -1292,7 +1295,6 @@ module drawn {
         localStorage.setItem("lastSave", save);
         commands.push(["load", save]);
         diffs = dispatch("hideTooltip", {}, true);
-        rerender = false;
       break;
       case "overwriteSave":
         var save:string = localState.selectedSave;
@@ -1314,6 +1316,7 @@ module drawn {
         } else {
           localStorage["showHidden"] = "show";
         }
+        diffs = dispatch("updateSearch", {value: localState.searchingFor}, true);
       break;
       case "toggleTheme":
         var theme = localStorage["theme"];
@@ -1359,9 +1362,7 @@ module drawn {
           loadPositions();
         }
       }
-      if(rerender) {
-        render();
-      }
+      render();
     }
     return diffs;
   }
