@@ -120,6 +120,7 @@ module Indexing {
 
   type EqualityChecker = (a:MapFact, b:MapFact) => Boolean;
   function generateEqualityFn(view:Id, keys:Id[]):EqualityChecker {
+    if(keys.length === 0) { return (a, b) => true; }
     return <EqualityChecker> new Function("a", "b",  `return ${keys.map(function(key, ix) {
       return `(a["${key}"] === b["${key}"] || (a["${key}"] && a["${key}"].constructor === Array && Indexing.arraysIdentical(a["${key}"], b["${key}"])))`;
     }).join(" && ")};`);
