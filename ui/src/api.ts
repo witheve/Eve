@@ -333,7 +333,6 @@ module api {
     }
 
     var schema = schemas[type] || {};
-    if(!schema) { throw new Error("Attempted to process unknown type " + type + " with params " + JSON.stringify(params)); }
     if(!params) { throw new Error("Invalid params specified for type " + type + " with params " + JSON.stringify(params)); }
     if(!context) { context = {}; } // @NOTE: Should we clone this? If so, should we clone params as well?
 
@@ -385,7 +384,6 @@ module api {
   export function retrieve(type:string, query:{[key:string]:string}, context?, useIds = false) {
     context = context || {};
     var schema = schemas[type] || {};
-    if(!schema) { throw new Error("Attempted to retrieve unknown type " + type + " with params " + JSON.stringify(query)); }
     var keys:string[] = (schema.key instanceof Array) ? <string[]>schema.key : (schema.key) ? [<string>schema.key] : [];
     var facts = useIds ? ixer.select(type, query, useIds) : ixer.selectPretty(type, query);
 
