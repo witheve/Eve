@@ -60,7 +60,7 @@ module eveEditor {
 }
 
 module drawn {
-
+  declare var Papa;
   declare var uuid;
   const localState = api.localState;
   const ixer = api.ixer;
@@ -313,12 +313,28 @@ module drawn {
     return diffs;
   }
 
-  function addField(viewId, name) {
+  function addField(viewId, name?, offset:number = 0) {
     var diffs = [];
     var fields = ixer.select("field", {view: viewId}) || [];
+
+    // Find an unused name in the range "Field A..Field ZZ".
+    let skip = offset;
+    if(!name) {
+      let names = fields.map((field) => code.name(field["field: field"]));
+      name = "Field A";
+      for(var ix = 1; (names.indexOf(name) !== -1 || skip-- > 0) && ix < 27 * 26; ix++) {
+        name = "Field ";
+        let leading = Math.floor(ix / 26);
+        if(leading > 0) {
+          name += api.alphabet[leading - 1];
+        }
+        name += api.alphabet[ix % 26];
+      }
+    }
+
     var neueField = api.insert("field", {view: viewId, kind: "output", dependents: {
       "display name": {name: name},
-      "display order": {priority: -fields.length}
+      "display order": {priority: -fields.length - offset}
     }});
     var fieldId = neueField.content.field;
     diffs.push(neueField);
@@ -1183,18 +1199,7 @@ module drawn {
       break;
       case "addFieldToTable":
         var tableId = info.tableId || localState.drawnUiActiveId;
-        var fields = ixer.select("field", {view: tableId}) || [];
-        let names = fields.map((field) => code.name(field["field: field"]));
-        let name = "Field A";
-        for(var ix = 1; names.indexOf(name) !== -1 && ix < 27 * 26; ix++) {
-          name = "Field ";
-          let leading = Math.floor(ix / 26);
-          if(leading > 0) {
-            name += api.alphabet[leading - 1];
-          }
-          name += api.alphabet[ix % 26];
-        }
-        var {fieldId, diffs} = addField(tableId, name);
+        var {fieldId, diffs} = addField(tableId);
       break;
       case "removeFieldFromTable":
         var tableId = info.tableId || localState.drawnUiActiveId;
@@ -1221,6 +1226,71 @@ module drawn {
           // If the view has no fields, the user cannot interact with its contents, which have been collapsed into a single empty row, so remove it.
           diffs.push(api.remove(info.tableId, {}));
         }
+      break;
+      case "openCsvImporter":
+        localState.importingCsv = true;
+        dispatch("importCsv", {});
+      break;
+      case "importCsv":
+        console.log("importing");
+        var tableId = localState.drawnUiActiveId;
+        var hasHeader = localState.csvHasHeader;
+        var result = Papa.parse("1,2,3\n4,5,6\n7,8,9");
+        for(var error of result.errors) {
+          diffs.push.apply(diffs, dispatch("setError", {errorText: error.message}, true));
+        }
+
+        if(!result.data.length) { break; }
+
+        // Nuke existing fields.
+        diffs.push(api.remove("field", {view: tableId}));
+        ixer.clearTable(tableId);
+
+        // Find number of columns in the CSV.
+        // If the CSV has a header, use that as the canonical field count, otherwise find the maximum number of fields.
+        var columns = 0;
+        var names = [];
+        if(hasHeader) {
+          columns = result.data[0].length;
+          names = result.data[0];
+        } else {
+          for(var row of result.data) {
+            if(row.length > columns) {
+              columns = row.length;
+            }
+          }
+        }
+
+        // Map record index to fieldId and create new CSV fields.
+        var mapping = [];
+        for(var ix = 0; ix < columns; ix++) {
+          var {fieldId, diffs: fieldDiffs} = addField(tableId, names[ix], ix);
+          console.log(ix, fieldId, fieldDiffs);
+          mapping[ix] = fieldId;
+          diffs.push.apply(diffs, fieldDiffs);
+        }
+
+        // @HACK: We need to wait until the new fields have been processed and old fields removed to add the data.
+        setTimeout(function() {
+          dispatch("importCsvData", {tableId, data: result.data, mapping: mapping});
+        }, 0);
+      break;
+      case "importCsvData":
+        console.log(info.mapping);
+        console.log(info.data);
+        var facts = [];
+        for(var rowIx = 0; rowIx < info.data.length; rowIx++) {
+          var row = info.data[rowIx];
+          if(row.length > info.mapping) {
+            diffs.push.apply(diffs, dispatch("setError", {errorText: `Row ${rowIx} has too many fields: ${row.length} (expected ${info.mapping.length})`}, true));
+          }
+          var factMap = {};
+          for(var fieldIx = 0; fieldIx < info.mapping.length; fieldIx++) {
+            factMap[info.mapping[fieldIx]] = row[fieldIx] || "";
+          }
+          facts.push(factMap);
+        }
+        diffs.push(api.insert(info.tableId, facts, undefined, true));
       break;
       case "activeTableEntryField":
         // this tracks the focus state of form fields for removal
@@ -3033,6 +3103,7 @@ module drawn {
       "delete": {text: "Delete", func: deleteTableEntry, description: "Delete the current entry"},
       "add field": {text: "+Field", func: addFieldToTable, description: "Add a field to the card"},
       "remove field": {text: "-Field", func: removeFieldFromTable, description: "Remove the active field from the card"},
+      "import csv": {text: "import csv", func: importRowsFromCsv, description: "Import an external CSV file for this table"}
     };
     let resultViewSize = getViewSize(tableId);
     return {c: "query table-editor", children: [
@@ -3171,6 +3242,10 @@ module drawn {
 
   function removeFieldFromTable(e, elem) {
     dispatch("removeFieldFromTable", {});
+  }
+
+  function importRowsFromCsv(evt, elem) {
+    dispatch("openCsvImporter", {});
   }
 
   //---------------------------------------------------------
