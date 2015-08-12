@@ -37,6 +37,8 @@ module glossary {
        description: "Set the sort order for the attributes of this source. Sorting only impacts what order ordinals and aggregates are applied in, to sort the results of your query click on the arrows on the result columns."},
       {term: "Data",
        description: "Create a set of data if you want to input some values into Eve."},
+      {term: "Data (from CSV)",
+       description: "Import from a CSV file to work with your existing data in Eve."},
       {term: "Query",
        description: "Create a query if you want to work with your data."},
     ];

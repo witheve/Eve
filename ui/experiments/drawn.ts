@@ -650,14 +650,15 @@ module drawn {
       case "createNewItem":
         // push the current location onto the history stack
         localState.navigationHistory.push(localState.drawnUiActiveId);
-        localState.drawnUiActiveId = info.itemId;
 
         var newId = uuid();
         localState.drawnUiActiveId = newId;
         var tag;
         if(info.kind === "table") {
           tag = [{tag: "editor"}];
-          diffs.push.apply(diffs, dispatch("addFieldToTable", {tableId: newId}, true));
+          if(!info.empty) {
+            diffs.push.apply(diffs, dispatch("addFieldToTable", {tableId: newId}, true));
+          }
           diffs.push.apply(diffs, dispatch("newTableEntry", {}, true))
         }
         diffs.push(api.insert("view", {view: newId, kind: info.kind, dependents: {"display name": {name: info.name}, tag}}));
@@ -1232,7 +1233,6 @@ module drawn {
         dispatch("importCsv", {});
       break;
       case "importCsv":
-        var tableId = localState.drawnUiActiveId;
         var hasHeader = localState.csvHasHeader;
         var result = Papa.parse("1,2,3\n4,5,6\n7,8,9");
         for(var error of result.errors) {
@@ -1240,10 +1240,8 @@ module drawn {
         }
 
         if(!result.data.length) { break; }
-
-        // Nuke existing fields.
-        diffs.push(api.remove("field", {view: tableId}));
-        ixer.clearTable(tableId);
+        diffs.push.apply(diffs, dispatch("createNewItem", {name: "@TODO: get name from file", kind: "table", empty: true}));
+        var tableId = localState.drawnUiActiveId;
 
         // Find number of columns in the CSV.
         // If the CSV has a header, use that as the canonical field count, otherwise find the maximum number of fields.
@@ -2280,6 +2278,10 @@ module drawn {
           {text: glossary.lookup["Data"].description}
         ]},
         {c: "type-container", children: [
+          {c: "type", text: "Data (from CSV)", click: importFromCsv, kind: "table", newName: "New table!"},
+          {text: glossary.lookup["Data (from CSV)"].description}
+        ]},
+        {c: "type-container", children: [
           {c: "type", text: "Query", click: createNewItem, kind: "join", newName: "New query!"},
           {text: glossary.lookup["Query"].description}
         ]},
@@ -2293,6 +2295,10 @@ module drawn {
 
   function createNewItem(e, elem) {
     dispatch("createNewItem", {name: elem.newName, kind: elem.kind});
+  }
+
+  function importFromCsv(evt, elem) {
+    dispatch("openCsvImporter", {});
   }
 
   //---------------------------------------------------------
@@ -3100,8 +3106,7 @@ module drawn {
       "new": {text: "New", func: newTableEntry, description: "Create a new entry"},
       "delete": {text: "Delete", func: deleteTableEntry, description: "Delete the current entry"},
       "add field": {text: "+Field", func: addFieldToTable, description: "Add a field to the card"},
-      "remove field": {text: "-Field", func: removeFieldFromTable, description: "Remove the active field from the card"},
-      "import csv": {text: "import csv", func: importRowsFromCsv, description: "Import an external CSV file for this table"}
+      "remove field": {text: "-Field", func: removeFieldFromTable, description: "Remove the active field from the card"}
     };
     let resultViewSize = getViewSize(tableId);
     return {c: "query table-editor", children: [
@@ -3240,10 +3245,6 @@ module drawn {
 
   function removeFieldFromTable(e, elem) {
     dispatch("removeFieldFromTable", {});
-  }
-
-  function importRowsFromCsv(evt, elem) {
-    dispatch("openCsvImporter", {});
   }
 
   //---------------------------------------------------------
