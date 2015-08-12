@@ -84,8 +84,8 @@ impl Primitive {
               let outer_lower = format!("{}", outer).to_lowercase();
               vec![vec![Bool(outer_lower.contains(&inner_lower))]]
             },
-            (Split, [ref split, ref string]) => {
-                format!("{}", string).split(&format!("{}", split)).enumerate().map(|(ix, segment)|
+            (Split, [ref delimiter, ref text]) => {
+                format!("{}", text).split(&format!("{}", delimiter)).enumerate().map(|(ix, segment)|
                     vec![Float((ix + 1) as f64), String(segment.to_owned())]
                     ).collect()
             },
@@ -157,26 +157,26 @@ impl Primitive {
     }
 }
 
-// List of (view_id, scalar_input_field_ids, vector_input_field_ids, output_field_ids)
-pub fn primitives() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>, Vec<&'static str>)> {
+// List of (view_id, scalar_input_field_ids, vector_input_field_ids, output_field_ids, description)
+pub fn primitives() -> Vec<(&'static str, Vec<&'static str>, Vec<&'static str>, Vec<&'static str>, &'static str)> {
     vec![
-        ("<", vec!["A", "B"], vec![], vec![]),
-        ("<=", vec!["A", "B"], vec![], vec![]),
-        ("!=", vec!["A", "B"], vec![], vec![]),
-        ("+", vec!["A", "B"], vec![], vec!["result"]),
-        ("-", vec!["A", "B"], vec![], vec!["result"]),
-        ("*", vec!["A", "B"], vec![], vec!["result"]),
-        ("/", vec!["A", "B"], vec![], vec!["result"]),
-        ("remainder", vec!["A", "B"], vec![], vec!["result"]),
-        ("round", vec!["A", "B"], vec![], vec!["result"]),
-        ("contains", vec!["inner", "outer"], vec![], vec!["result"]),
-        ("split", vec!["split", "string"], vec![], vec!["ix", "segment"]),
-        ("concat", vec!["A", "B"], vec![], vec!["result"]),
-        ("as number", vec!["A"], vec![], vec!["result"]),
-        ("as text", vec!["A"], vec![], vec!["result"]),
-        ("count", vec![], vec!["A"], vec!["result"]),
-        ("sum", vec![], vec!["A"], vec!["result"]),
-        ("mean", vec![], vec!["A"], vec!["result"]),
-        ("standard deviation", vec![], vec!["A"], vec!["result"]),
+        ("<", vec!["A", "B"], vec![], vec![], "Is A less than B?"),
+        ("<=", vec!["A", "B"], vec![], vec![], "Is A less than or equal to B?"),
+        ("!=", vec!["A", "B"], vec![], vec![], "Is A not equal to B?"),
+        ("+", vec!["A", "B"], vec![], vec!["result"], "A plus B."),
+        ("-", vec!["A", "B"], vec![], vec!["result"], "A minus B."),
+        ("*", vec!["A", "B"], vec![], vec!["result"], "A times B."),
+        ("/", vec!["A", "B"], vec![], vec!["result"], "A divided by B."),
+        ("remainder", vec!["A", "B"], vec![], vec!["result"], "The remainder of A after dividing by B."),
+        ("round", vec!["A", "B"], vec![], vec!["result"], "Round A to B decimal places."),
+        ("contains", vec!["inner", "outer"], vec![], vec!["result"], "Does the outer text contain the inner text?"),
+        ("split", vec!["delimiter", "text"], vec![], vec!["ix", "segment"], "Split the text into a new segment at each occurence of the delimiter."),
+        ("concat", vec!["A", "B"], vec![], vec!["result"], "Join the texts A and B together."),
+        ("as number", vec!["A"], vec![], vec!["result"], "Store A internally as a number."),
+        ("as text", vec!["A"], vec![], vec!["result"], "Store A internally as text."),
+        ("count", vec![], vec!["A"], vec!["result"], "Count the number of elements in A."),
+        ("sum", vec![], vec!["A"], vec!["result"], "Sum together the elements of A."),
+        ("mean", vec![], vec!["A"], vec!["result"], "Take the mean of the elements of A."),
+        ("standard deviation", vec![], vec!["A"], vec!["result"], "Take the standard deviation of the elements of A."),
     ]
 }

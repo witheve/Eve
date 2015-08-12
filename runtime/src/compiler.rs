@@ -830,7 +830,7 @@ fn plan(flow: &Flow) {
                 [string!("{}", view), Float(ix as f64), string!("{}: {}", view, name), string!("{}", name)]);
         }
     }
-    for (view, scalar_input_names, vector_input_names, output_names) in primitive::primitives().into_iter() {
+    for (view, scalar_input_names, vector_input_names, output_names, _) in primitive::primitives().into_iter() {
         for (ix, name) in
         scalar_input_names.into_iter()
         .chain(vector_input_names.into_iter())
@@ -1304,6 +1304,7 @@ pub fn bootstrap(flow: &mut Flow) {
         let mut display_name_table = flow.overwrite_output("display name");
         let mut display_order_table = flow.overwrite_output("display order");
         let mut editor_item_table = flow.overwrite_output("editor item");
+        let mut view_description_table = flow.overwrite_output("view description");
 
         for (view, _) in code_schema().into_iter() {
             tag_table.index.insert(vec![string!("{}", view), string!("editor")]);
@@ -1346,7 +1347,7 @@ pub fn bootstrap(flow: &mut Flow) {
             }
         }
 
-        for (primitive, scalar_inputs, vector_inputs, outputs) in primitive::primitives().into_iter() {
+        for (primitive, scalar_inputs, vector_inputs, outputs, description) in primitive::primitives().into_iter() {
             view_table.index.insert(vec![string!("{}", primitive), string!("primitive")]);
             display_name_table.index.insert(vec![string!("{}", primitive), string!("{}", primitive)]);
             for name in scalar_inputs.into_iter() {
@@ -1361,6 +1362,7 @@ pub fn bootstrap(flow: &mut Flow) {
                 field_table.index.insert(vec![string!("{}", primitive), string!("{}: {}", primitive, name), string!("output")]);
                 display_name_table.index.insert(vec![string!("{}: {}", primitive, name), string!("{}", name)]);
             }
+            view_description_table.index.insert(vec![string!("{}", primitive), string!("{}", description)]);
         }
     }
 
