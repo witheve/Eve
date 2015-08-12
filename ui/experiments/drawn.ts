@@ -1228,19 +1228,34 @@ module drawn {
           diffs.push(api.remove(info.tableId, {}));
         }
       break;
-      case "openCsvImporter":
-        localState.importingCsv = true;
-        dispatch("importCsv", {});
+      case "updateCsv":
+        if(info.file) { localState.csvFile = info.file; }
+        if(info.hasHeader) { localState.csvHasHeader = info.hasHeader; }
       break;
       case "importCsv":
-        var hasHeader = localState.csvHasHeader;
-        var result = Papa.parse("1,2,3\n4,5,6\n7,8,9");
+        var file = localState.csvFile;
+        if(!file) {
+          diffs = dispatch("setNotice", {content: "Must select a valid CSV file to import."}, true);
+          break;
+        }
+        var name = file.name;
+        // @NOTE: In order to load from a file, we *have* to parse asynchronously, even though
+        // its unlikely that reasonable file sizes would cause more than a ~100ms pause.
+        Papa.parse(file, {
+          complete: (result) => dispatch("importCsvContents", {name, result, hasHeader: info.hasHeader}),
+          error: (err) => dispatch("setError", {errorText: err.message})
+        });
+      break;
+      case "importCsvContents":
+        var hasHeader = info.hasHeader;
+        var result = info.result;
+        var name = info.name || "Untitled import";
         for(var error of result.errors) {
           diffs.push.apply(diffs, dispatch("setError", {errorText: error.message}, true));
         }
 
         if(!result.data.length) { break; }
-        diffs.push.apply(diffs, dispatch("createNewItem", {name: "@TODO: get name from file", kind: "table", empty: true}));
+        diffs.push.apply(diffs, dispatch("createNewItem", {name, kind: "table", empty: true}));
         var tableId = localState.drawnUiActiveId;
 
         // Find number of columns in the CSV.
@@ -1277,8 +1292,8 @@ module drawn {
         var facts = [];
         for(var rowIx = 0; rowIx < info.data.length; rowIx++) {
           var row = info.data[rowIx];
-          if(row.length > info.mapping) {
-            diffs.push.apply(diffs, dispatch("setError", {errorText: `Row ${rowIx} has too many fields: ${row.length} (expected ${info.mapping.length})`}, true));
+          if(row.length > info.mapping.length) {
+            diffs.push.apply(diffs, dispatch("setError", {errorText: `Row ${JSON.stringify(row)} has too many fields: ${row.length} (expected ${info.mapping.length})`}, true));
           }
           var factMap = {};
           for(var fieldIx = 0; fieldIx < info.mapping.length; fieldIx++) {
@@ -2085,9 +2100,8 @@ module drawn {
   //---------------------------------------------------------
 
   function openSettings(evt, elem:Element) {
-    let rect = evt.currentTarget.getBoundingClientRect();
     let tooltip:any = {
-      c: "settings-modal",
+      c: "centered-modal settings-modal",
       content: settingsPanel,
       persistent: true,
       stopPersisting: stopSort,
@@ -2214,7 +2228,7 @@ module drawn {
     if(tooltip) {
       let viewHeight = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
        // @FIXME: We need to get the actual element size here.
-      let elem:any = {c: "tooltip" + (tooltip.c ? " " + tooltip.c : ""), left: tooltip.x, top: Math.min(tooltip.y, viewHeight - 61)};
+      let elem:any = {c: "tooltip" + (tooltip.c ? " " + tooltip.c : ""), left: tooltip.x, top: tooltip.y};
       if(typeof tooltip.content === "string") {
         elem["text"] = tooltip.content;
       } else if(typeof tooltip.content === "function") {
@@ -2278,8 +2292,8 @@ module drawn {
           {text: glossary.lookup["Data"].description}
         ]},
         {c: "type-container", children: [
-          {c: "type", text: "Data (from CSV)", click: importFromCsv, kind: "table", newName: "New table!"},
-          {text: glossary.lookup["Data (from CSV)"].description}
+          {c: "type", text: "Import", click: openImporter, kind: "table"},
+          {text: glossary.lookup["Import"].description}
         ]},
         {c: "type-container", children: [
           {c: "type", text: "Query", click: createNewItem, kind: "join", newName: "New query!"},
@@ -2297,8 +2311,41 @@ module drawn {
     dispatch("createNewItem", {name: elem.newName, kind: elem.kind});
   }
 
+  function openImporter(evt, elem) {
+    let tooltip:any = {
+      c: "centered-modal importer-modal",
+      content: importerPanel,
+      persistent: true,
+      stopPersisting: stopSort
+    };
+    dispatch("showTooltip", tooltip);
+  }
+
+  function importerPanel() {
+    return {c: "settings-panel tabbed-box", children: [
+      {c: "tabs", children: [{text: "CSV"}]},
+      {c: "pane", children: [
+        {t: "input", type: "file", change: updateCsvFile},
+        {c: "flex-row spaced-row", children: [
+          {text: "Treat first row as header"}
+          {t: "input", type: "checkbox", change: updateCsvHasHeader}
+        ]},
+        {t: "button", text: "import", click: importFromCsv}]}
+    ]};
+  }
+
+  function updateCsvFile(evt, elem) {
+    let file = evt.target.files[0];
+    dispatch("updateCsv", {file});
+  }
+
+  function updateCsvHasHeader(evt, elem) {
+    let hasHeader = !!evt.target.checked;
+    dispatch("updateCsv", {hasHeader});
+  }
+
   function importFromCsv(evt, elem) {
-    dispatch("openCsvImporter", {});
+    dispatch("importCsv", {hasHeader: localState.csvHasHeader});
   }
 
   //---------------------------------------------------------

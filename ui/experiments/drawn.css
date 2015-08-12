@@ -34,7 +34,7 @@ body { font-family:"Avenir"; overflow:hidden; }
 .menu-shade { z-index: 100; position:absolute; top:0; bottom:0; left:0; right:0; background:rgba(255,255,255,0.9); overflow:auto; }
 .menu { position:absolute; }
 
-.settings-modal { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 400px;}
+.centered-modal { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 400px;}
 .settings-modal .pane { max-height: 90vh; min-height: 10vh; padding-top: 10px; }
 .settings-modal .h3 { text-align: left; align-self: stretch; }
 .settings-modal .saves > * { padding: 10px; align-self: stretch; min-width: 208px; }
