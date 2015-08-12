@@ -484,8 +484,8 @@ module drawn {
       break;
       case "removeSelection":
         var removedSources = {};
-        for(let nodeId in localState.selectedNodes) {
-          let node = localState.selectedNodes[nodeId];
+        for(let nodeId in info.nodes) {
+          let node = info.nodes[nodeId];
           if(node.type === "relationship") {
             removedSources[node.id] = true;
             diffs.push.apply(diffs, removeSource(node.id));
@@ -964,6 +964,21 @@ module drawn {
               diffs.push.apply(diffs, dispatch("addSelectToQuery", {variableId: bindingVariableId, name: code.name(fieldId), viewId: localState.drawnUiActiveId, allowNegated: true}, true));
             }
         });
+      break;
+      case "removeErrorSelection":
+        // run through the given nodes and determine if they're error'd sources or error'd variables
+        for(let nodeId in info.nodes) {
+          let node = info.nodes[nodeId];
+          if(!node.error) continue;
+          if(node.type === "relationship") {
+            diffs.push.apply(diffs, dispatch("removeErrorSource", {sourceId: node.id}, true));
+          } else {
+            diffs.push.apply(diffs, dispatch("removeErrorBinding", {variableId: info.variableId}, true));
+          }
+        }
+        // when we remove a selection, we should clear the selection for it otherwise you end up with
+        // a stale selection rect
+        diffs.push.apply(diffs, dispatch("clearSelection", {}, true));
       break;
       case "removeErrorBinding":
         for(let binding of ixer.select("binding", {variable: info.variableId})) {
@@ -2768,6 +2783,7 @@ module drawn {
       "Search": {func: startSearching, text: "Search", description: "Find sources to add to your query"},
       // These may get changed below depending on what's selected and the
       // current state.
+      "remove": {func: removeSelection, text: "Remove"},
       "join": {func: joinSelection, text: "Join"},
       "select": {func: selectAttribute, text: "Show"},
       "filter": {func: addFilter, text: "Filter"},
@@ -2797,10 +2813,12 @@ module drawn {
         "ordinal": "ordinal doesn't apply to error nodes",
         "negate": "negate doesn't apply to error nodes",
       }
+      actions["remove"].func = removeErrorSelection;
 
     // no selection
     } else if(!selectedNodes.length) {
       disabled = {
+        "remove": "remove only applies to sources",
         "join": "join only applies to attributes",
         "select": "select only applies to attributes",
         "filter": "filter only applies to attributes",
@@ -2815,6 +2833,7 @@ module drawn {
     } else if(selectedNodes.length === 1) {
       let node = selectedNodes[0];
       if(node.type === "attribute") {
+        disabled["remove"] = "remove only applies to sources";
         disabled["sort"] = "sort only applies to sources";
         disabled["chunk"] = "chunk only applies to sources";
         disabled["ordinal"] = "ordinal only applies to sources";
@@ -2887,6 +2906,9 @@ module drawn {
       if(selectedNodes.some((node) => node.type !== "attribute")) {
         disabled["join"] = "join only applies to attributes";
         disabled["select"] = "select only applies to attributes";
+        if(selectedNodes.some((node) => node.type !== "source")) {
+          disabled["remove"] = "remove only applies to sources";
+        }
       } else {
         // whether or not we are showing or hiding is based on the state of the first node
         // in the selection
@@ -2968,6 +2990,14 @@ module drawn {
   }
   function selectAttribute(e, elem) {
     dispatch("addSelectToQuery", {viewId: elem.viewId, variableId: elem.node.variable, name: elem.node.name});
+  }
+
+  function removeSelection(e, elem) {
+    dispatch("removeSelection", {nodes: localState.selectedNodes});
+  }
+
+  function removeErrorSelection(e, elem) {
+    dispatch("removeErrorSelection", {nodes: localState.selectedNodes});
   }
 
   //---------------------------------------------------------
@@ -3337,7 +3367,7 @@ module drawn {
 
     //remove
     if(e.keyCode === KEYS.BACKSPACE) {
-      dispatch("removeSelection", null);
+      dispatch("removeSelection", {nodes: localState.selectedNodes});
       e.preventDefault();
     }
 
