@@ -1232,7 +1232,6 @@ module drawn {
         dispatch("importCsv", {});
       break;
       case "importCsv":
-        console.log("importing");
         var tableId = localState.drawnUiActiveId;
         var hasHeader = localState.csvHasHeader;
         var result = Papa.parse("1,2,3\n4,5,6\n7,8,9");
@@ -1250,9 +1249,11 @@ module drawn {
         // If the CSV has a header, use that as the canonical field count, otherwise find the maximum number of fields.
         var columns = 0;
         var names = [];
+        var data = result.data;
         if(hasHeader) {
           columns = result.data[0].length;
           names = result.data[0];
+          data = result.data.slice(1);
         } else {
           for(var row of result.data) {
             if(row.length > columns) {
@@ -1265,19 +1266,16 @@ module drawn {
         var mapping = [];
         for(var ix = 0; ix < columns; ix++) {
           var {fieldId, diffs: fieldDiffs} = addField(tableId, names[ix], ix);
-          console.log(ix, fieldId, fieldDiffs);
           mapping[ix] = fieldId;
           diffs.push.apply(diffs, fieldDiffs);
         }
 
         // @HACK: We need to wait until the new fields have been processed and old fields removed to add the data.
         setTimeout(function() {
-          dispatch("importCsvData", {tableId, data: result.data, mapping: mapping});
+          dispatch("importCsvData", {tableId, data, mapping});
         }, 0);
       break;
       case "importCsvData":
-        console.log(info.mapping);
-        console.log(info.data);
         var facts = [];
         for(var rowIx = 0; rowIx < info.data.length; rowIx++) {
           var row = info.data[rowIx];
