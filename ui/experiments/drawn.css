@@ -47,6 +47,8 @@ body { font-family:"Avenir"; overflow:hidden; }
 .tabbed-box .preferences .toggle:hover { background: #777; }
 .tabbed-box .preferences .toggle + .toggle { margin-left:5px; }
 
+.import-panel .disabled { pointer-events: none; opacity: 0.6; }
+
 .query-name-input { flex:none; min-width:50px; padding:10px; z-index: 10; }
 .query-description-input { flex:none; line-height:1.25; min-width:50px; padding-left: 10px; z-index: 10; max-width:300px; outline:none; font-size: 10pt; color: #aaa; }
 

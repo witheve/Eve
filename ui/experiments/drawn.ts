@@ -1233,14 +1233,14 @@ module drawn {
         if(info.hasHeader) { localState.csvHasHeader = info.hasHeader; }
       break;
       case "importCsv":
-        var file = localState.csvFile;
+        var file = info.file;
         if(!file) {
           diffs = dispatch("setNotice", {content: "Must select a valid CSV file to import."}, true);
           break;
         }
         var name = file.name;
-        // @NOTE: In order to load from a file, we *have* to parse asynchronously, even though
-        // its unlikely that reasonable file sizes would cause more than a ~100ms pause.
+        localState.importing = true;
+        // @NOTE: In order to load from a file, we *have* to parse asynchronously.
         Papa.parse(file, {
           complete: (result) => dispatch("importCsvContents", {name, result, hasHeader: info.hasHeader}),
           error: (err) => dispatch("setError", {errorText: err.message})
@@ -1289,6 +1289,7 @@ module drawn {
         }, 0);
       break;
       case "importCsvData":
+        localState.importing = false;
         var facts = [];
         for(var rowIx = 0; rowIx < info.data.length; rowIx++) {
           var row = info.data[rowIx];
@@ -2104,7 +2105,7 @@ module drawn {
       c: "centered-modal settings-modal",
       content: settingsPanel,
       persistent: true,
-      stopPersisting: stopSort,
+      stopPersisting: () => dispatch("hideTooltip", {})
     };
     dispatch("showTooltip", tooltip);
   }
@@ -2224,7 +2225,6 @@ module drawn {
 
   function tooltipUi(): any {
     let tooltip = localState.tooltip;
-
     if(tooltip) {
       let viewHeight = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
        // @FIXME: We need to get the actual element size here.
@@ -2314,23 +2314,27 @@ module drawn {
   function openImporter(evt, elem) {
     let tooltip:any = {
       c: "centered-modal importer-modal",
-      content: importerPanel,
+      content: importPanel,
       persistent: true,
-      stopPersisting: stopSort
+      stopPersisting: () => dispatch("hideTooltip", {})
     };
     dispatch("showTooltip", tooltip);
   }
 
-  function importerPanel() {
-    return {c: "settings-panel tabbed-box", children: [
+  function importPanel() {
+    return {c: "import-panel tabbed-box", children: [
       {c: "tabs", children: [{text: "CSV"}]},
-      {c: "pane", children: [
-        {t: "input", type: "file", change: updateCsvFile},
-        {c: "flex-row spaced-row", children: [
-          {text: "Treat first row as header"}
-          {t: "input", type: "checkbox", change: updateCsvHasHeader}
-        ]},
-        {t: "button", text: "import", click: importFromCsv}]}
+      {c: "pane", children: (localState.importing) ?
+        [{text: "importing..."}] :
+        [
+          {t: "input", type: "file", change: updateCsvFile},
+          {c: "flex-row spaced-row", children: [
+            {text: "Treat first row as header"}
+            {t: "input", type: "checkbox", change: updateCsvHasHeader}
+          ]},
+          {t: "button", text: "import", click: importFromCsv}
+        ]
+      }
     ]};
   }
 
@@ -2345,7 +2349,8 @@ module drawn {
   }
 
   function importFromCsv(evt, elem) {
-    dispatch("importCsv", {hasHeader: localState.csvHasHeader});
+    evt.stopPropagation();
+    dispatch("importCsv", {file: localState.csvFile, hasHeader: localState.csvHasHeader});
   }
 
   //---------------------------------------------------------
