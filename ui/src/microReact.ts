@@ -121,6 +121,8 @@ module microReact {
           if(cur.c !== prev.c) div.setAttributeNS(null, "class", cur.c);
           if(cur.x !== prev.x)  div.setAttributeNS(null, "x", cur.x);
           if(cur.y !== prev.y) div.setAttributeNS(null, "y", cur.y);
+          if(cur.dx !== prev.dx)  div.setAttributeNS(null, "dx", cur.dx);
+          if(cur.dy !== prev.dy) div.setAttributeNS(null, "dy", cur.dy);
           if(cur.cx !== prev.cx)  div.setAttributeNS(null, "cx", cur.cx);
           if(cur.cy !== prev.cy) div.setAttributeNS(null, "cy", cur.cy);
           if(cur.r !== prev.r) div.setAttributeNS(null, "r", cur.r);
@@ -249,6 +251,8 @@ module microReact {
            && (curB.svg === undefined || (
                curA.x === curB.x
                && curA.y === curB.y
+               && curA.dx === curB.dx
+               && curA.dy === curB.dy
                && curA.cx === curB.cx
                && curA.cy === curB.cy
                && curA.r === curB.r
