@@ -2105,9 +2105,13 @@ module drawn {
       c: "centered-modal settings-modal",
       content: settingsPanel,
       persistent: true,
-      stopPersisting: () => dispatch("hideTooltip", {})
+      stopPersisting: closeTooltip
     };
     dispatch("showTooltip", tooltip);
+  }
+
+  function closeTooltip(evt, elem) {
+    dispatch("hideTooltip", {});
   }
 
   let settingsPanes = {
@@ -2194,7 +2198,7 @@ module drawn {
     }
 
     return {c: "settings-panel tabbed-box", children: [
-      {c: "tabs", children: tabs},
+      {c: "tabs", children: tabs.concat({c: "flex-spacer"}, {c: "ion-close", click: closeTooltip})},
       {c: "pane", children: settingsPanes[current].content()}
     ]};
   }
@@ -2316,14 +2320,14 @@ module drawn {
       c: "centered-modal importer-modal",
       content: importPanel,
       persistent: true,
-      stopPersisting: () => dispatch("hideTooltip", {})
+      stopPersisting: closeTooltip
     };
     dispatch("showTooltip", tooltip);
   }
 
   function importPanel() {
     return {c: "import-panel tabbed-box", children: [
-      {c: "tabs", children: [{text: "CSV"}]},
+      {c: "tabs", children: [{text: "CSV"}, {c: "flex-spacer"}, {c: "ion-close", click: closeTooltip}]},
       {c: "pane", children: (localState.importing) ?
         [{text: "importing..."}] :
         [
