@@ -2909,9 +2909,7 @@ module drawn {
           ]};
         });
         return {c: "search-result-group", children: [
-          // @HACK: setting value here is weird, but it causes the postRender to get called every time the search changes
-          // which will ensure that the results are always scrolled to the bottom
-          {c: "search-result-items", value: localState.searchingFor, postRender: scrollToTheBottomOnChange, children: items},
+          {c: "search-result-items", key: localState.searchingFor, postRender: scrollToTheBottomOnChange, children: items},
           {c: "group-type", children: [
             {c: "group-name", text: resultGroup.kind},
             {c: "result-size", text: resultGroup.results.length}
@@ -2975,9 +2973,22 @@ module drawn {
       peek,
       {c: "query-results-container", children: [
         {c: "result-size", text: `${resultViewSize} results`},
-        tableEditor.tableForView(resultViewId, 100)
+        tableEditor.tableForView(resultViewId, 100, {onSelect: selectFieldNode, onHeaderSelect: selectFieldNode})
       ]}
     ]};
+  }
+
+  function selectFieldNode(evt, elem) {
+    evt.stopPropagation();
+    let variableId = (ixer.selectOne("select", {field: elem.fieldId}) || {})["select: variable"];
+    let view = ixer.selectOne("view", {view: localState.drawnUiActiveId});
+    if(!view || !variableId) return;
+    let entityInfo = viewToEntityInfo(view);
+    for(let node of entityInfo.nodes) {
+      if(node.id === variableId) {
+        dispatch("selectNode", {node: node});
+      }
+    }
   }
 
   //---------------------------------------------------------
