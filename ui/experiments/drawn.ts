@@ -273,6 +273,30 @@ module drawn {
   // AST helpers
   //---------------------------------------------------------
 
+  function isVariableUsed(variableId) {
+    // a variable is unused if it is unselected, unjoined, without constants,
+    // and without an ordinal.
+    if(ixer.selectOne("select", {variable: variableId})
+       || ixer.select("binding", {variable: variableId}).length > 1
+       || ixer.select("ordinal binding", {variable: variableId}).length
+       || ixer.select("constant binding", {variable: variableId}).length) {
+      return true;
+    }
+    return false;
+  }
+
+  function removeDownstreamFieldUses(fieldId) {
+    let diffs = [];
+    // check if there are any downstream views that have this field unused and remove them
+    for(let downstreamBinding of ixer.select("binding", {field: fieldId})) {
+      let variableId = downstreamBinding["binding: variable"];
+      if(!isVariableUsed(variableId)) {
+        diffs.push.apply(diffs, removeVariable(variableId));
+      }
+    }
+    return diffs;
+  }
+
   function joinedBindingsFromSource(sourceId) {
     let joined = [];
     let bindings = ixer.select("binding", {source: sourceId});
@@ -309,6 +333,8 @@ module drawn {
       let fieldId = select["select: field"];
       diffs.push(api.remove("field", { field: fieldId}));
       diffs.push(api.remove("select", { variable: variableId }));
+      // remove any downstream uses of this field if it's safe
+      diffs.push.apply(diffs, removeDownstreamFieldUses(fieldId));
     }
     return diffs;
   }
@@ -484,8 +510,8 @@ module drawn {
       break;
       case "removeSelection":
         var removedSources = {};
-        for(let nodeId in localState.selectedNodes) {
-          let node = localState.selectedNodes[nodeId];
+        for(let nodeId in info.nodes) {
+          let node = info.nodes[nodeId];
           if(node.type === "relationship") {
             removedSources[node.id] = true;
             diffs.push.apply(diffs, removeSource(node.id));
@@ -786,6 +812,8 @@ module drawn {
         for(let select of selects) {
           let fieldId = select["select: field"];
           diffs.push(api.remove("field", {field: fieldId}));
+          // remove any downstream uses of this field if it's safe
+          diffs.push.apply(diffs, removeDownstreamFieldUses(fieldId));
         }
         diffs.push(api.remove("select", {variable: info.variableId}));
       break;
@@ -964,6 +992,21 @@ module drawn {
               diffs.push.apply(diffs, dispatch("addSelectToQuery", {variableId: bindingVariableId, name: code.name(fieldId), viewId: localState.drawnUiActiveId, allowNegated: true}, true));
             }
         });
+      break;
+      case "removeErrorSelection":
+        // run through the given nodes and determine if they're error'd sources or error'd variables
+        for(let nodeId in info.nodes) {
+          let node = info.nodes[nodeId];
+          if(!node.error) continue;
+          if(node.type === "relationship") {
+            diffs.push.apply(diffs, dispatch("removeErrorSource", {sourceId: node.id}, true));
+          } else {
+            diffs.push.apply(diffs, dispatch("removeErrorBinding", {variableId: info.variableId}, true));
+          }
+        }
+        // when we remove a selection, we should clear the selection for it otherwise you end up with
+        // a stale selection rect
+        diffs.push.apply(diffs, dispatch("clearSelection", {}, true));
       break;
       case "removeErrorBinding":
         for(let binding of ixer.select("binding", {variable: info.variableId})) {
@@ -1204,9 +1247,12 @@ module drawn {
       break;
       case "removeFieldFromTable":
         var tableId = info.tableId || localState.drawnUiActiveId;
+        var fieldId = localState.activeTableEntryField;
         // we remove whatever field is currently active in the form
-        if(localState.activeTableEntryField) {
-          diffs.push(api.remove("field", {field: localState.activeTableEntryField}));
+        if(fieldId) {
+          diffs.push(api.remove("field", {field: fieldId}));
+          // remove any downstream uses of this field if it's safe
+          diffs.push.apply(diffs, removeDownstreamFieldUses(fieldId));
           //@HACK: We have to delay this until after the field has been processed and removed from the index, or it will be expected when converting to diffs.
           setTimeout(function() {
             dispatch("refreshTableRows", {tableId});
@@ -1269,7 +1315,7 @@ module drawn {
 
       case "importFiles":
         for(let file of info.files) {
-          diffs.push.apply(diffs, dispatch("importCsv", {file: file}));
+          diffs.push.apply(diffs, dispatch("importCsv", {file: file, hasHeader: true}));
         }
       break;
       case "updateCsv":
@@ -2768,6 +2814,7 @@ module drawn {
       "Search": {func: startSearching, text: "Search", description: "Find sources to add to your query"},
       // These may get changed below depending on what's selected and the
       // current state.
+      "remove": {func: removeSelection, text: "Remove"},
       "join": {func: joinSelection, text: "Join"},
       "select": {func: selectAttribute, text: "Show"},
       "filter": {func: addFilter, text: "Filter"},
@@ -2797,10 +2844,12 @@ module drawn {
         "ordinal": "ordinal doesn't apply to error nodes",
         "negate": "negate doesn't apply to error nodes",
       }
+      actions["remove"].func = removeErrorSelection;
 
     // no selection
     } else if(!selectedNodes.length) {
       disabled = {
+        "remove": "remove only applies to sources",
         "join": "join only applies to attributes",
         "select": "select only applies to attributes",
         "filter": "filter only applies to attributes",
@@ -2815,6 +2864,7 @@ module drawn {
     } else if(selectedNodes.length === 1) {
       let node = selectedNodes[0];
       if(node.type === "attribute") {
+        disabled["remove"] = "remove only applies to sources";
         disabled["sort"] = "sort only applies to sources";
         disabled["chunk"] = "chunk only applies to sources";
         disabled["ordinal"] = "ordinal only applies to sources";
@@ -2887,6 +2937,9 @@ module drawn {
       if(selectedNodes.some((node) => node.type !== "attribute")) {
         disabled["join"] = "join only applies to attributes";
         disabled["select"] = "select only applies to attributes";
+        if(selectedNodes.some((node) => node.type !== "source")) {
+          disabled["remove"] = "remove only applies to sources";
+        }
       } else {
         // whether or not we are showing or hiding is based on the state of the first node
         // in the selection
@@ -2968,6 +3021,14 @@ module drawn {
   }
   function selectAttribute(e, elem) {
     dispatch("addSelectToQuery", {viewId: elem.viewId, variableId: elem.node.variable, name: elem.node.name});
+  }
+
+  function removeSelection(e, elem) {
+    dispatch("removeSelection", {nodes: localState.selectedNodes});
+  }
+
+  function removeErrorSelection(e, elem) {
+    dispatch("removeErrorSelection", {nodes: localState.selectedNodes});
   }
 
   //---------------------------------------------------------
@@ -3337,7 +3398,7 @@ module drawn {
 
     //remove
     if(e.keyCode === KEYS.BACKSPACE) {
-      dispatch("removeSelection", null);
+      dispatch("removeSelection", {nodes: localState.selectedNodes});
       e.preventDefault();
     }
 
