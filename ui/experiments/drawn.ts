@@ -3070,8 +3070,10 @@ module drawn {
   }
 
   function scrollToTheBottomOnChange(node, elem) {
+    console.log("scroll", node, elem);
     if(!node.searchValue || node.searchValue !== elem.value) {
-      node.scrollTop = Number.MAX_VALUE;
+      console.log("scrolling");
+      node.scrollTop = 2147483647; // 2^31 - 1, because Number.MAX_VALUE and Number.MAX_SAFE_INTEGER are too large and do nothing in FF...
       node.searchValue = elem.value;
     }
   }
