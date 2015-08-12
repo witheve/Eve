@@ -2194,11 +2194,11 @@ module drawn {
     let current = settingsPanes[localState.currentTab] ? localState.currentTab : "preferences";
     let tabs = [];
     for(let tab in settingsPanes) {
-      tabs.push({c: (tab === current) ? "active tab" : "tab", tab, text: settingsPanes[tab].title, click: switchTab});
+      tabs.push({c: (tab === current) ? "tab active" : "tab", tab, text: settingsPanes[tab].title, click: switchTab});
     }
 
     return {c: "settings-panel tabbed-box", children: [
-      {c: "tabs", children: tabs.concat({c: "flex-spacer"}, {c: "ion-close", click: closeTooltip})},
+      {c: "tabs", children: tabs.concat({c: "flex-spacer"}, {c: "ion-close tab", click: closeTooltip})},
       {c: "pane", children: settingsPanes[current].content()}
     ]};
   }
@@ -2326,8 +2326,11 @@ module drawn {
   }
 
   function importPanel() {
+    let current = "csv";
     return {c: "import-panel tabbed-box", children: [
-      {c: "tabs", children: [{text: "CSV"}, {c: "flex-spacer"}, {c: "ion-close", click: closeTooltip}]},
+      {c: "tabs", children: [
+        {c:  ("csv" === current) ? "tab active" : "tab", text: "CSV"},
+        {c: "flex-spacer"}, {c: "ion-close tab", click: closeTooltip}]},
       {c: "pane", children: (localState.importing) ?
         [{text: "importing..."}] :
         [
