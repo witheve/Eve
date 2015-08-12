@@ -107,8 +107,8 @@ module microReact {
         if(cur.tabindex !== prev.tabindex) div.setAttribute("tabindex", cur.tabindex);
         if(cur.href !== prev.href) div.setAttribute("href", cur.href);
 
-        if(cur.left !== prev.left)  style.left = cur.left === undefined ? "auto" : cur.left;
-        if(cur.top !== prev.top) style.top = cur.top === undefined ? "auto" : cur.top;
+        if(cur.left !== prev.left)  style.left = cur.left === undefined ? "" : cur.left;
+        if(cur.top !== prev.top) style.top = cur.top === undefined ? "" : cur.top;
         if(cur.height !== prev.height) style.height = cur.height === undefined ? "auto" : cur.height;
         if(cur.width !== prev.width)  style.width = cur.width === undefined ? "auto" : cur.width;
         if(cur.zIndex !== prev.zIndex) style.zIndex = cur.zIndex;
