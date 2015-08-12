@@ -138,7 +138,8 @@ body { font-family:"Avenir"; overflow:hidden; }
 .view-selector { flex-direction:row; flex-wrap:wrap; }
 .view-selector .item { position:static; margin:10px;}
 
-.links text {text-anchor: middle; font-size:10pt; fill: #999; }
+.links text { text-anchor: middle; font-size:10pt; fill: #999; }
+.links tspan { text-anchor: middle; }
 
 .button { z-index: 10; padding:5px 10px; background: rgba(0,0,0,0.03); }
 

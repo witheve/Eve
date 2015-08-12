@@ -2319,8 +2319,22 @@ module drawn {
   }
 
   function drawLinks(links, items) {
+    let collapsedLinks = {};
+    for(let link of links) {
+      let key = `${link.right.id} ${link.left.id}`;
+      if(collapsedLinks[key]) {
+        collapsedLinks[key].count++;
+        if(link.name) {
+          collapsedLinks[key].labels.push(link.name);
+        }
+      } else {
+        let labels = link.name ? [link.name] : [];
+        collapsedLinks[key] = {left: link.left, right: link.right, count: 1, labels}
+      }
+    }
     var linkItems = [];
-    for(var link of links) {
+    for(let key in collapsedLinks) {
+      let link = collapsedLinks[key];
       var leftItem, rightItem;
       for(var item of items) {
         if(item.node === link.left) {
@@ -2352,11 +2366,14 @@ module drawn {
       }
       var d = `M ${fromLeft} ${fromTop} L ${toLeft} ${toTop}`;
 
-      var pathId = `${link.right.id} ${link.left.id} path`;
+      var pathId = `${key} path`;
       linkItems.push({svg: true, id: pathId, t: "path", d: d, c: "link", stroke: color, strokeWidth: 1});
-      linkItems.push({svg: true, t: "text", children: [
-        {svg: true, t: "textPath", startOffset: "50%", xlinkhref: `#${pathId}`, text: link.name}
-      ]});
+      if(link.labels.length) {
+        linkItems.push({svg: true, t: "text", children: [
+          {svg: true, t: "textPath", startOffset: "50%", xlinkhref: `#${pathId}`, children: link.labels.map((label, ix) => {
+            return {svg: true, t: "tspan", dy: ix === 0 ? -2 : 14, x: 0, text: label}; })}
+        ]});
+      }
     }
     return linkItems;
   }
