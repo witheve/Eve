@@ -3161,22 +3161,30 @@ module drawn {
     let resultViewId = viewId;
     let selectedNodeIds = Object.keys(localState.selectedNodes);
     let peek;
+    let maxRenderedEntries = 100;
     if(selectedNodeIds.length === 1 && localState.selectedNodes[selectedNodeIds[0]].type === "relationship") {
       let peekViewId = localState.selectedNodes[selectedNodeIds[0]].source["source: source view"];
       let numFields = ixer.select("field", {view: peekViewId}).length;
       let rect = nodesToRectangle(entityInfo.nodes);
       let peekViewSize = ixer.select(peekViewId, {}).length;
+      let sizeText = `${peekViewSize} entries`;
+      if(peekViewSize > maxRenderedEntries) {
+        sizeText = `${maxRenderedEntries} of ` + sizeText;
+      }
       peek = {c: "peek-results", width: numFields * 100, left: rect.right + 50, top: (rect.top + rect.height /2) - 75, children: [
-        {c: "result-size", text: `${peekViewSize} rows`},
-        tableEditor.tableForView(peekViewId, 100),
-
+        {c: "result-size", text: sizeText},
+        tableEditor.tableForView(peekViewId, maxRenderedEntries),
       ]};
     }
     let resultViewSize = getViewSize(resultViewId);
+    let sizeText = `${resultViewSize} results`;
+    if(resultViewSize > maxRenderedEntries) {
+      sizeText = `${maxRenderedEntries} of ` + sizeText;
+    }
     return {c: "query-results", children: [
       peek,
       {c: "query-results-container", children: [
-        {c: "result-size", text: `${resultViewSize} results`},
+        {c: "result-size", text: sizeText},
         tableEditor.tableForView(resultViewId, 100, {onSelect: selectFieldNode, onHeaderSelect: selectFieldNode})
       ]}
     ]};
@@ -3227,6 +3235,7 @@ module drawn {
     var view = ixer.selectOne("view", {view: tableId});
     if(!view) return;
 
+    let maxRenderedEntries = 100;
     let actions = {
       "back": {text: "Back", func: navigateBack, description: "Return to the item selection page"},
       "new": {text: "New", func: newTableEntry, description: "Create a new entry"},
@@ -3235,6 +3244,10 @@ module drawn {
       "remove field": {text: "-Field", func: removeFieldFromTable, description: "Remove the active field from the card"}
     };
     let resultViewSize = getViewSize(tableId);
+    let sizeText = `${resultViewSize} entries`;
+    if(resultViewSize > maxRenderedEntries) {
+      sizeText = `${maxRenderedEntries} of ` + sizeText;
+    }
     return {c: "query table-editor", children: [
       leftToolbar(actions),
       {c: "container", children: [
@@ -3246,8 +3259,8 @@ module drawn {
         ]},
         {id: `${tableId}-results`, c: "query-results", children: [
           {c: "query-results-container", children: [
-            {c: "result-size", text: `${resultViewSize} entries`},
-            tableEditor.tableForView(tableId, 100, {
+            {c: "result-size", text: sizeText},
+            tableEditor.tableForView(tableId, maxRenderedEntries, {
               onSelect: selectTableEntry,
               activeRow: localState.selectedTableEntry || localState.tableEntry,
             })
