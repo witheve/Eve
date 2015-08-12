@@ -3126,12 +3126,8 @@ module drawn {
     let variableId = (ixer.selectOne("select", {field: elem.fieldId}) || {})["select: variable"];
     let view = ixer.selectOne("view", {view: localState.drawnUiActiveId});
     if(!view || !variableId) return;
-    let entityInfo = viewToEntityInfo(view);
-    for(let node of entityInfo.nodes) {
-      if(node.id === variableId) {
-        dispatch("selectNode", {node: node});
-      }
-    }
+    let {nodeLookup} = viewToEntityInfo(view);
+    dispatch("selectNode", {node: nodeLookup[variableId]});
   }
 
   //---------------------------------------------------------
