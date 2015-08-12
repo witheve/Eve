@@ -452,9 +452,9 @@ fn check_view_kind(warning_table: &mut Relation, relation: &Relation, field: &st
         find!(view_table, [(= view), view_kind], {
             if view_kind.as_str() != kind {
                 warning_table.index.insert(vec![
-                    string!("source"),
+                    Value::String(relation.view.to_owned()),
                     Value::Column(row.clone()),
-                    string!("This source is attached to a non-{} view of kind: {:?}", kind, view_kind),
+                    string!("This {:?} is attached to a non-{} view of kind: {:?}", &relation.view, kind, view_kind),
                     ]);
             }
         });
