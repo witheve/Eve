@@ -1,30 +1,33 @@
-use std::collections::{BitSet, BTreeSet};
+use std::collections::{BTreeSet};
 use std::cell::{RefCell, Ref, RefMut};
 use std::mem::replace;
 
+use bit_set::BitSet;
+
 use value::{Id, Value};
 use relation::{Change, Relation};
-use view::{View, Table};
+use view::{View};
 use compiler;
+
+// The flow graph tracks the state of each view and is responsible for keeping them up-to-date
+#[derive(Clone, Debug)]
+pub struct Flow {
+    pub nodes: Vec<Node>,
+    pub outputs: Vec<RefCell<Relation>>, // the current state of eachview
+    pub errors: Vec<Vec<Vec<Value>>>, // the errors caused by the last run of each view
+    pub dirty: BitSet, // a set of views which need to be rerun
+    pub needs_recompile: bool, // when a code view is changed, the flow needs to be recompiled before the next tick
+}
 
 #[derive(Clone, Debug)]
 pub struct Node {
     pub id: Id,
-    pub view: View,
-    pub upstream: Vec<usize>,
-    pub downstream: Vec<usize>,
+    pub view: View, // specifies how to run this view
+    pub upstream: Vec<usize>, // list of views which directly affect the state of this view
+    pub downstream: Vec<usize>, // list of views whose state is directly affected by this view
 }
 
 pub type Changes = Vec<(Id, Change)>;
-
-#[derive(Clone, Debug)]
-pub struct Flow {
-    pub nodes: Vec<Node>,
-    pub outputs: Vec<RefCell<Relation>>,
-    pub errors: Vec<Vec<Vec<Value>>>,
-    pub dirty: BitSet,
-    pub needs_recompile: bool,
-}
 
 impl Flow {
     pub fn new() -> Self {
@@ -66,32 +69,32 @@ impl Flow {
         for (id, change) in changes.into_iter() {
             match self.get_ix(&*id) {
                 Some(ix) => {
-                    match self.nodes[ix].view {
-                        View::Table(_) => (),
-                        _ => println!("Warning: changing a non-table view with id: {:?}", id),
-                    }
-                    // TODO should we be checking diffs after the fact?
-                    self.outputs[ix].borrow_mut().change(change);
-                    if code_schema.iter().find(|&&(ref code_id, _)| **code_id == id).is_some() {
-                        self.needs_recompile = true;
-                    }
-                    for ix in self.nodes[ix].downstream.iter() {
-                        self.dirty.insert(*ix);
+                    let node = &self.nodes[ix];
+                    match node.view {
+                        View::Table => {
+                            let changed = self.outputs[ix].borrow_mut().change(change);
+                            if changed {
+                                if code_schema.iter().find(|&&(ref code_id, _)| **code_id == id).is_some() {
+                                    self.needs_recompile = true;
+                                }
+                                for ix in self.nodes[ix].downstream.iter() {
+                                    self.dirty.insert(*ix);
+                                }
+                            }
+                        }
+                        _ => panic!("Tried to change view {:?} which is not a table", &node.id),
                     }
                 }
                 None => {
                     println!("Warning: creating a dummy view because you tried to change a non-existing view with id: {:?}", id);
                     self.nodes.push(Node{
                         id: id.to_owned(),
-                        view: View::Table(Table{
-                            insert:None,
-                            remove:None,
-                        }),
+                        view: View::Table,
                         upstream: Vec::new(),
                         downstream: Vec::new(),
                     });
                     let fields = change.fields.clone();
-                    // compiler tables will never be missing, so it's safe to just put dummy names in here
+                    // compiler tables will never be missing and it's safe to just put dummy names in for other tables
                     let names = change.fields.iter().map(|_| "".to_owned()).collect();
                     self.outputs.push(RefCell::new(Relation::new(id.to_owned(), fields, names)));
                     self.outputs[self.outputs.len()-1].borrow_mut().change(change);
@@ -109,6 +112,7 @@ impl Flow {
         ).collect()
     }
 
+    // x.change(y.changes_from(x)) == y
     pub fn changes_from(&self, old_self: Self) -> Changes {
         let mut changes = Vec::new();
         for (ix, node) in self.nodes.iter().enumerate() {
@@ -120,6 +124,7 @@ impl Flow {
                         let change = new_output.change_from(&*old_output);
                         changes.push((node.id.clone(), change));
                     } else {
+                        // if the fields have changed we need to produce two separate changes
                         changes.push((node.id.clone(), old_output.as_remove()));
                         changes.push((node.id.clone(), new_output.as_insert()));
                     }
@@ -144,6 +149,7 @@ impl Flow {
         changes
     }
 
+    // Run all views until fixpoint is reached
     pub fn recalculate(&mut self) {
         let error_ix = self.get_ix("error").unwrap();
         let Flow{ref nodes, ref mut outputs, ref mut errors, ref mut dirty, ..} = *self;
@@ -182,58 +188,16 @@ impl Flow {
         }
     }
 
-    pub fn tick(&mut self) -> bool {
-        let code_schema = compiler::code_schema();
-        let mut flow_changed = false;
-        for (ix, node) in self.nodes.iter().enumerate() {
-            match node.view {
-                View::Table(Table{ref insert, ref remove}) => {
-                    let view_changed = {
-                        let upstream = node.upstream.iter().map(|ix| self.outputs[*ix].borrow()).collect::<Vec<_>>();
-                        let inputs = upstream.iter().map(|borrowed| &**borrowed).collect::<Vec<_>>();
-                        let inserts = match *insert {
-                            Some(ref select) => select.select(&inputs[..]),
-                            None => vec![],
-                        };
-                        let removes = match *remove {
-                            Some(ref select) => select.select(&inputs[..]),
-                            None => vec![],
-                        };
-                        self.outputs[ix].borrow_mut().change_raw(inserts, removes)
-                    };
-                    if view_changed {
-                        if code_schema.iter().find(|&&(ref code_id, _)| **code_id == node.id).is_some() {
-                            self.needs_recompile = true;
-                        }
-                        for ix in node.downstream.iter() {
-                            self.dirty.insert(*ix);
-                        }
-                    }
-                    flow_changed = flow_changed || view_changed;
-                }
-                _ => () // only tables tick
-            }
-        }
-        flow_changed
-    }
-
+    // Tick until fixpoint
     pub fn quiesce(&mut self, changes: Changes)  {
-        time!("changing", {
-            self.change(changes);
-        });
+        self.change(changes);
         loop {
             if self.needs_recompile {
-                time!("compiling", {
-                    compiler::recompile(self);
-                });
+                compiler::recompile(self);
             }
-            time!("calculating", {
-                self.recalculate();
-            });
-            let changed = time!("ticking", {
-                self.tick()
-            });
-            if !changed {
+            self.recalculate();
+            let changed = false; // TODO once we have internal state change we need to check diffs
+            if !changed && !self.needs_recompile {
                 break
             }
         }

@@ -60,7 +60,7 @@ module eveEditor {
 }
 
 module drawn {
-
+  declare var Papa;
   declare var uuid;
   const localState = api.localState;
   const ixer = api.ixer;
@@ -157,7 +157,7 @@ module drawn {
   localState.selectedNodes = {};
   localState.overlappingNodes = {};
   localState.drawnUiActiveId = "itemSelector";
-  localState.errors = [];
+  localState.errors = {};
   localState.notices = {};
   localState.selectedItems = {};
   localState.tableEntry = {};
@@ -313,12 +313,28 @@ module drawn {
     return diffs;
   }
 
-  function addField(viewId, name) {
+  function addField(viewId, name?, offset:number = 0) {
     var diffs = [];
     var fields = ixer.select("field", {view: viewId}) || [];
+
+    // Find an unused name in the range "Field A..Field ZZ".
+    let skip = offset;
+    if(!name) {
+      let names = fields.map((field) => code.name(field["field: field"]));
+      name = "Field A";
+      for(var ix = 1; (names.indexOf(name) !== -1 || skip-- > 0) && ix < 27 * 26; ix++) {
+        name = "Field ";
+        let leading = Math.floor(ix / 26);
+        if(leading > 0) {
+          name += api.alphabet[leading - 1];
+        }
+        name += api.alphabet[ix % 26];
+      }
+    }
+
     var neueField = api.insert("field", {view: viewId, kind: "output", dependents: {
       "display name": {name: name},
-      "display order": {priority: -fields.length}
+      "display order": {priority: -fields.length - offset}
     }});
     var fieldId = neueField.content.field;
     diffs.push(neueField);
@@ -329,6 +345,15 @@ module drawn {
       let variableId = uuid();
       diffs.push(api.insert("variable", {view: sourceViewId, variable: variableId}));
       diffs.push(api.insert("binding", {variable: variableId, source: sourceId, field: fieldId}));
+    }
+
+    let viewKind = (ixer.selectOne("view", {view: viewId}) || {})["view: kind"];
+    if(viewKind === "table") {
+      //@HACK: We have to delay this until after the field has been processed and added to the index, or it will be ignored when converting to diffs.
+      setTimeout(function() {
+        dispatch("refreshTableRows", {tableId: viewId, fieldId: neueField.context["field"]});
+      }, 0);
+
     }
     return {fieldId, diffs};
   }
@@ -364,6 +389,7 @@ module drawn {
          diffs.push(api.insert("constant binding", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
       }
     }
+    diffs.push(api.remove("binding", binding, undefined, true));
     return diffs;
   }
 
@@ -433,7 +459,6 @@ module drawn {
 
   export function dispatch(event, info, rentrant?) {
     //console.log("dispatch[" + event + "]", info);
-    var rerender = true;
     var diffs = [];
     var commands = [];
     var storeEvent = true;
@@ -623,12 +648,18 @@ module drawn {
       // Query building
       //---------------------------------------------------------
       case "createNewItem":
+        // push the current location onto the history stack
+        localState.navigationHistory.push(localState.drawnUiActiveId);
+
         var newId = uuid();
         localState.drawnUiActiveId = newId;
         var tag;
         if(info.kind === "table") {
           tag = [{tag: "editor"}];
-          diffs.push.apply(diffs, dispatch("addFieldToTable", {tableId: newId}, true));
+          if(!info.empty) {
+            diffs.push.apply(diffs, dispatch("addFieldToTable", {tableId: newId}, true));
+          }
+          diffs.push.apply(diffs, dispatch("newTableEntry", {}, true))
         }
         diffs.push(api.insert("view", {view: newId, kind: info.kind, dependents: {"display name": {name: info.name}, tag}}));
         diffs.push.apply(diffs, dispatch("hideTooltip", {}, true));
@@ -1037,10 +1068,10 @@ module drawn {
       // Errors
       //---------------------------------------------------------
       case "setError":
-        var errorId = localState.errors.length;
+        var errorId = info.id || uuid();
         var newError: any = {text: info.errorText, time: api.now(), id: errorId};
         newError.errorTimeout = setTimeout(() => dispatch("fadeError", {errorId}), 5000);
-        localState.errors.push(newError);
+        localState.errors[errorId] = newError;
       break;
       case "fadeError":
         var errorId = info.errorId;
@@ -1049,7 +1080,7 @@ module drawn {
         currentError.errorTimeout = setTimeout(() => dispatch("clearError", {errorId: info.errorId}), 200);
       break;
       case "clearError":
-        localState.errors.splice(info.errorId,1);
+        delete localState.errors[info.errorId];
       break;
       case "setNotice":
         var noticeId = info.id || uuid();
@@ -1169,13 +1200,32 @@ module drawn {
       break;
       case "addFieldToTable":
         var tableId = info.tableId || localState.drawnUiActiveId;
-        var fields = ixer.select("field", {view: tableId}) || [];
-        var {fieldId, diffs} = addField(tableId, `Field ${api.alphabet[fields.length]}`);
+        var {fieldId, diffs} = addField(tableId);
       break;
       case "removeFieldFromTable":
+        var tableId = info.tableId || localState.drawnUiActiveId;
         // we remove whatever field is currently active in the form
         if(localState.activeTableEntryField) {
           diffs.push(api.remove("field", {field: localState.activeTableEntryField}));
+          //@HACK: We have to delay this until after the field has been processed and removed from the index, or it will be expected when converting to diffs.
+          setTimeout(function() {
+            dispatch("refreshTableRows", {tableId});
+          }, 0);
+        }
+      break;
+      case "refreshTableRows":
+        if(info.fieldId) {
+          // If we have a new field to initialize, do so.
+          let changes = {};
+          changes[info.fieldId] = "";
+          diffs.push(api.change(info.tableId, {}, changes, false, undefined, true));
+          if(localState.drawnUiActiveId === info.tableId) {
+            // If we're currently editing this table, add the new field to the current tableEntry as well.
+            localState.tableEntry[info.fieldId] = "";
+          }
+        } else if(ixer.getFields(info.tableId).length === 0) {
+          // If the view has no fields, the user cannot interact with its contents, which have been collapsed into a single empty row, so remove it.
+          diffs.push(api.remove(info.tableId, {}));
         }
       break;
       case "activeTableEntryField":
@@ -1198,8 +1248,9 @@ module drawn {
         localState.focusedTableEntryField = false;
       break;
       case "submitTableEntry":
-        var row = localState.tableEntry;
         var tableId = localState.drawnUiActiveId;
+        var row = localState.tableEntry;
+        if(!row || Object.keys(row).length !== ixer.getFields(tableId, true).length) { return; }
         diffs.push(api.insert(tableId, row, undefined, true));
         // if there's a selectedTableEntry then this is an edit and we should
         // remove the old row
@@ -1210,6 +1261,92 @@ module drawn {
       break;
       case "setTableEntryField":
         localState.tableEntry[info.fieldId] = info.value;
+      break;
+
+      //---------------------------------------------------------
+      // File/CSV handling
+      //---------------------------------------------------------
+
+      case "importFiles":
+        for(let file of info.files) {
+          diffs.push.apply(diffs, dispatch("importCsv", {file: file}));
+        }
+      break;
+      case "updateCsv":
+        if(info.file) { localState.csvFile = info.file; }
+        if(info.hasHeader) { localState.csvHasHeader = info.hasHeader; }
+      break;
+      case "importCsv":
+        var file = info.file;
+        if(!file) {
+          diffs = dispatch("setNotice", {content: "Must select a valid CSV file to import."}, true);
+          break;
+        }
+        var name = file.name;
+        localState.importing = true;
+        // @NOTE: In order to load from a file, we *have* to parse asynchronously.
+        Papa.parse(file, {
+          complete: (result) => dispatch("importCsvContents", {name, result, hasHeader: info.hasHeader}),
+          error: (err) => dispatch("setError", {errorText: err.message})
+        });
+      break;
+      case "importCsvContents":
+        var hasHeader = info.hasHeader;
+        var result = info.result;
+        var name = info.name || "Untitled import";
+        for(var error of result.errors) {
+          diffs.push.apply(diffs, dispatch("setError", {errorText: error.message}, true));
+        }
+
+        if(!result.data.length) { break; }
+        diffs.push.apply(diffs, dispatch("createNewItem", {name, kind: "table", empty: true}));
+        var tableId = localState.drawnUiActiveId;
+
+        // Find number of columns in the CSV.
+        // If the CSV has a header, use that as the canonical field count, otherwise find the maximum number of fields.
+        var columns = 0;
+        var names = [];
+        var data = result.data;
+        if(hasHeader) {
+          columns = result.data[0].length;
+          names = result.data[0];
+          data = result.data.slice(1);
+        } else {
+          for(var row of result.data) {
+            if(row.length > columns) {
+              columns = row.length;
+            }
+          }
+        }
+
+        // Map record index to fieldId and create new CSV fields.
+        var mapping = [];
+        for(var ix = 0; ix < columns; ix++) {
+          var {fieldId, diffs: fieldDiffs} = addField(tableId, names[ix], ix);
+          mapping[ix] = fieldId;
+          diffs.push.apply(diffs, fieldDiffs);
+        }
+
+        // @HACK: We need to wait until the new fields have been processed and old fields removed to add the data.
+        setTimeout(function() {
+          dispatch("importCsvData", {tableId, data, mapping});
+        }, 0);
+      break;
+      case "importCsvData":
+        localState.importing = false;
+        var facts = [];
+        for(var rowIx = 0; rowIx < info.data.length; rowIx++) {
+          var row = info.data[rowIx];
+          if(row.length > info.mapping.length) {
+            diffs.push.apply(diffs, dispatch("setError", {errorText: `Row ${JSON.stringify(row)} has too many fields: ${row.length} (expected ${info.mapping.length})`}, true));
+          }
+          var factMap = {};
+          for(var fieldIx = 0; fieldIx < info.mapping.length; fieldIx++) {
+            factMap[info.mapping[fieldIx]] = row[fieldIx] || "";
+          }
+          facts.push(factMap);
+        }
+        diffs.push(api.insert(info.tableId, facts, undefined, true));
       break;
 
       //---------------------------------------------------------
@@ -1292,7 +1429,6 @@ module drawn {
         localStorage.setItem("lastSave", save);
         commands.push(["load", save]);
         diffs = dispatch("hideTooltip", {}, true);
-        rerender = false;
       break;
       case "overwriteSave":
         var save:string = localState.selectedSave;
@@ -1314,6 +1450,7 @@ module drawn {
         } else {
           localStorage["showHidden"] = "show";
         }
+        diffs = dispatch("updateSearch", {value: localState.searchingFor || ""}, true);
       break;
       case "toggleTheme":
         var theme = localStorage["theme"];
@@ -1359,9 +1496,7 @@ module drawn {
           loadPositions();
         }
       }
-      if(rerender) {
-        render();
-      }
+      render();
     }
     return diffs;
   }
@@ -1888,6 +2023,7 @@ module drawn {
   function queryItem(view) {
     let viewId = view["view: view"];
     let entityInfo = viewToEntityInfo(view);
+    refreshNodePositions(entityInfo.nodes, entityInfo.links);
     let boundingBox = nodesToRectangle(entityInfo.nodes);
     // translate the canvas so that the top left corner is the top left corner of the
     // bounding box for the nodes
@@ -1975,14 +2111,17 @@ module drawn {
   //---------------------------------------------------------
 
   function openSettings(evt, elem:Element) {
-    let rect = evt.currentTarget.getBoundingClientRect();
     let tooltip:any = {
-      c: "settings-modal",
+      c: "centered-modal settings-modal",
       content: settingsPanel,
       persistent: true,
-      stopPersisting: stopSort,
+      stopPersisting: closeTooltip
     };
     dispatch("showTooltip", tooltip);
+  }
+
+  function closeTooltip(evt, elem) {
+    dispatch("hideTooltip", {});
   }
 
   let settingsPanes = {
@@ -2065,11 +2204,11 @@ module drawn {
     let current = settingsPanes[localState.currentTab] ? localState.currentTab : "preferences";
     let tabs = [];
     for(let tab in settingsPanes) {
-      tabs.push({c: (tab === current) ? "active tab" : "tab", tab, text: settingsPanes[tab].title, click: switchTab});
+      tabs.push({c: (tab === current) ? "tab active" : "tab", tab, text: settingsPanes[tab].title, click: switchTab});
     }
 
     return {c: "settings-panel tabbed-box", children: [
-      {c: "tabs", children: tabs},
+      {c: "tabs", children: tabs.concat({c: "flex-spacer"}, {c: "ion-close tab", click: closeTooltip})},
       {c: "pane", children: settingsPanes[current].content()}
     ]};
   }
@@ -2100,11 +2239,10 @@ module drawn {
 
   function tooltipUi(): any {
     let tooltip = localState.tooltip;
-
     if(tooltip) {
       let viewHeight = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
        // @FIXME: We need to get the actual element size here.
-      let elem:any = {c: "tooltip" + (tooltip.c ? " " + tooltip.c : ""), left: tooltip.x, top: Math.min(tooltip.y, viewHeight - 61)};
+      let elem:any = {c: "tooltip" + (tooltip.c ? " " + tooltip.c : ""), left: tooltip.x, top: tooltip.y};
       if(typeof tooltip.content === "string") {
         elem["text"] = tooltip.content;
       } else if(typeof tooltip.content === "function") {
@@ -2130,13 +2268,14 @@ module drawn {
     let noticeItems = [];
     for(let noticeId in localState.notices) {
       let notice = localState.notices[noticeId];
-      noticeItems.push({c: `flex-row spaced-row notice ${notice.type} ${notice.fading ? "fade" : ""}`, children: [
+      noticeItems.push({c: `flex-row spaced-row notice ${notice.type} ${notice.fading ? "fade" : ""}`, time: notice.time, children: [
         (typeof notice.content === "function") ? notice.content() :
           (typeof notice.content === "string") ? {text: notice.content} : notice.content,
           {c: "flex-spacer", height: 0},
           {c: "btn ion-close", noticeId: noticeId, click: closeNotice}
       ]});
     }
+    noticeItems.sort((a, b) => b.time - a.time);
     return {c: "notices", children: noticeItems};
   }
 
@@ -2167,6 +2306,10 @@ module drawn {
           {text: glossary.lookup["Data"].description}
         ]},
         {c: "type-container", children: [
+          {c: "type", text: "Import", click: openImporter, kind: "table"},
+          {text: glossary.lookup["Import"].description}
+        ]},
+        {c: "type-container", children: [
           {c: "type", text: "Query", click: createNewItem, kind: "join", newName: "New query!"},
           {text: glossary.lookup["Query"].description}
         ]},
@@ -2182,6 +2325,51 @@ module drawn {
     dispatch("createNewItem", {name: elem.newName, kind: elem.kind});
   }
 
+  function openImporter(evt, elem) {
+    let tooltip:any = {
+      c: "centered-modal importer-modal",
+      content: importPanel,
+      persistent: true,
+      stopPersisting: closeTooltip
+    };
+    dispatch("showTooltip", tooltip);
+  }
+
+  function importPanel() {
+    let current = "csv";
+    return {c: "import-panel tabbed-box", children: [
+      {c: "tabs", children: [
+        {c:  ("csv" === current) ? "tab active" : "tab", text: "CSV"},
+        {c: "flex-spacer"}, {c: "ion-close tab", click: closeTooltip}]},
+      {c: "pane", children: (localState.importing) ?
+        [{text: "importing..."}] :
+        [
+          {t: "input", type: "file", change: updateCsvFile},
+          {c: "flex-row spaced-row", children: [
+            {text: "Treat first row as header"}
+            {t: "input", type: "checkbox", change: updateCsvHasHeader}
+          ]},
+          {t: "button", text: "import", click: importFromCsv}
+        ]
+      }
+    ]};
+  }
+
+  function updateCsvFile(evt, elem) {
+    let file = evt.target.files[0];
+    dispatch("updateCsv", {file});
+  }
+
+  function updateCsvHasHeader(evt, elem) {
+    let hasHeader = !!evt.target.checked;
+    dispatch("updateCsv", {hasHeader});
+  }
+
+  function importFromCsv(evt, elem) {
+    evt.stopPropagation();
+    dispatch("importCsv", {file: localState.csvFile, hasHeader: localState.csvHasHeader});
+  }
+
   //---------------------------------------------------------
   // Query preview component
   //---------------------------------------------------------
@@ -2189,7 +2377,6 @@ module drawn {
   function queryPreview(view, entityInfo, boundingBox) {
     let viewId = view["view: view"];
     let {nodes, links} = entityInfo;
-    refreshNodePositions(nodes, links);
     var items = [];
     for(var node of nodes) {
       items.push(nodeItem(node, viewId));
@@ -2209,6 +2396,7 @@ module drawn {
     var view = ixer.selectOne("view", {view: viewId});
     if(!view) return;
     let entityInfo = viewToEntityInfo(view);
+    refreshNodePositions(entityInfo.nodes, entityInfo.links);
     let description = "No description :(";
     let viewDescription = ixer.selectOne("view description", {view: viewId});
     if(viewDescription) {
@@ -2233,7 +2421,6 @@ module drawn {
   function queryCanvas(view, entityInfo) {
     let viewId = view["view: view"];
     let {nodes, links, nodeLookup} = entityInfo;
-    refreshNodePositions(nodes, links);
     let queryBoundingBox = nodesToRectangle(nodes);
 
     var items = [];
@@ -2275,8 +2462,22 @@ module drawn {
   }
 
   function drawLinks(links, items) {
+    let collapsedLinks = {};
+    for(let link of links) {
+      let key = `${link.right.id} ${link.left.id}`;
+      if(collapsedLinks[key]) {
+        collapsedLinks[key].count++;
+        if(link.name) {
+          collapsedLinks[key].labels.push(link.name);
+        }
+      } else {
+        let labels = link.name ? [link.name] : [];
+        collapsedLinks[key] = {left: link.left, right: link.right, count: 1, labels}
+      }
+    }
     var linkItems = [];
-    for(var link of links) {
+    for(let key in collapsedLinks) {
+      let link = collapsedLinks[key];
       var leftItem, rightItem;
       for(var item of items) {
         if(item.node === link.left) {
@@ -2308,11 +2509,14 @@ module drawn {
       }
       var d = `M ${fromLeft} ${fromTop} L ${toLeft} ${toTop}`;
 
-      var pathId = `${link.right.id} ${link.left.id} path`;
+      var pathId = `${key} path`;
       linkItems.push({svg: true, id: pathId, t: "path", d: d, c: "link", stroke: color, strokeWidth: 1});
-      linkItems.push({svg: true, t: "text", children: [
-        {svg: true, t: "textPath", startOffset: "50%", xlinkhref: `#${pathId}`, text: link.name}
-      ]});
+      if(link.labels.length) {
+        linkItems.push({svg: true, t: "text", children: [
+          {svg: true, t: "textPath", startOffset: "50%", xlinkhref: `#${pathId}`, children: link.labels.map((label, ix) => {
+            return {svg: true, t: "tspan", dy: ix === 0 ? -2 : 14, x: 0, text: label}; })}
+        ]});
+      }
     }
     return linkItems;
   }
@@ -2384,7 +2588,7 @@ module drawn {
       klass += " entity";
     }
     var {left, top, width, height, text, filterWidth} = nodeDisplayInfo(curNode);
-    if (curNode.filter && curNode.inputKind !== "vector input") {
+    if (curNode.filter && curNode.inputKind !== "vector input" && !curNode.error) {
       var op = curNode.filter.operation;
       let filterIsBeingEdited = localState.modifyingFilterNodeId === curNode.id;
       var filterUi:any = {c: "attribute-filter", dblclick: modifyFilter, node: curNode, children: [
@@ -2472,13 +2676,16 @@ module drawn {
   //---------------------------------------------------------
 
   function queryErrors(view) {
-    let editorWarningItems = localState.errors.map((error) => {
+    let editorWarningItems = [];
+    for(let errorId in localState.errors) {
+      let error = localState.errors[errorId];
       let klass = "error";
       if(error.fading) {
         klass += " fade";
       }
-      return {c: klass, text: error.text};
-    }).reverse();
+      editorWarningItems.push({c: klass, text: error.text, time: error.time});
+    }
+    editorWarningItems.sort((a, b) => b.time - a.time);
     let editorWarnings;
     if(editorWarningItems.length) {
       editorWarnings = {c: "editor-warnings error-group", children: [
@@ -2487,7 +2694,20 @@ module drawn {
       ]};;
     }
     let warnings = ixer.select("warning", {}).map((warning) => {
-      return {c: "warning", warning, click: gotoWarningSite, text: warning["warning: warning"]};
+      let text = warning["warning: warning"];
+
+      // Special case error message for bindings to help the user figure out what needs changed.
+      if(warning["warning: view"] === "binding" && text.indexOf("Foreign key") === 0) {
+        let binding = api.factToMap("binding", warning["warning: row"]);
+        let fieldId = binding["field"];
+        let source = ixer.selectOne("source", {source: binding["source"]});
+        if(source) {
+          let viewId = source["source: view"];
+          let sourceViewId = source["source: source view"];
+          text = `Missing field "${code.name(fieldId) || fieldId}" in "${code.name(sourceViewId) || sourceViewId}" for query "${code.name(viewId) || viewId}"`;
+        }
+      }
+      return {c: "warning", warning, click: gotoWarningSite, text};
     });
     let warningGroup;
     if(warnings.length) {
@@ -2832,9 +3052,7 @@ module drawn {
           ]};
         });
         return {c: "search-result-group", children: [
-          // @HACK: setting value here is weird, but it causes the postRender to get called every time the search changes
-          // which will ensure that the results are always scrolled to the bottom
-          {c: "search-result-items", value: localState.searchingFor, postRender: scrollToTheBottomOnChange, children: items},
+          {c: "search-result-items", key: localState.searchingFor, postRender: scrollToTheBottomOnChange, children: items},
           {c: "group-type", children: [
             {c: "group-name", text: resultGroup.kind},
             {c: "result-size", text: resultGroup.results.length}
@@ -2893,14 +3111,23 @@ module drawn {
 
       ]};
     }
-    let resultViewSize = ixer.select(resultViewId, {}).length;
+    let resultViewSize = getViewSize(resultViewId);
     return {c: "query-results", children: [
       peek,
       {c: "query-results-container", children: [
         {c: "result-size", text: `${resultViewSize} results`},
-        tableEditor.tableForView(resultViewId, 100)
+        tableEditor.tableForView(resultViewId, 100, {onSelect: selectFieldNode, onHeaderSelect: selectFieldNode})
       ]}
     ]};
+  }
+
+  function selectFieldNode(evt, elem) {
+    evt.stopPropagation();
+    let variableId = (ixer.selectOne("select", {field: elem.fieldId}) || {})["select: variable"];
+    let view = ixer.selectOne("view", {view: localState.drawnUiActiveId});
+    if(!view || !variableId) return;
+    let {nodeLookup} = viewToEntityInfo(view);
+    dispatch("selectNode", {node: nodeLookup[variableId]});
   }
 
   //---------------------------------------------------------
@@ -2923,6 +3150,11 @@ module drawn {
   // table selector / editor
   //---------------------------------------------------------
 
+   function getViewSize(viewId) {
+     let facts = ixer.facts(viewId) || [];
+     return facts.length;
+   }
+
    function tableItem(tableId) {
      let selected = localState.selectedItems[tableId] ? "selected" : "";
     return {c: `table-item ${selected}`, itemId: tableId, click: selectItem, dblclick: openItem, children: [
@@ -2939,9 +3171,9 @@ module drawn {
       "new": {text: "New", func: newTableEntry, description: "Create a new entry"},
       "delete": {text: "Delete", func: deleteTableEntry, description: "Delete the current entry"},
       "add field": {text: "+Field", func: addFieldToTable, description: "Add a field to the card"},
-      "remove field": {text: "-Field", func: removeFieldFromTable, description: "Remove the active field from the card"},
+      "remove field": {text: "-Field", func: removeFieldFromTable, description: "Remove the active field from the card"}
     };
-    let resultViewSize = ixer.select(tableId, {}).length;
+    let resultViewSize = getViewSize(tableId);
     return {c: "query table-editor", children: [
       leftToolbar(actions),
       {c: "container", children: [
@@ -2965,9 +3197,9 @@ module drawn {
   }
 
   function tableFormEditor(tableId, row = null, rowNum = 0, rowTotal = 0) {
-    let fields = ixer.getFields(tableId).map((fieldId) => {
+    let fields = ixer.getFields(tableId).map((fieldId, ix) => {
       let value = row ? row[fieldId] : "";
-      let entryField = {c: "entry-field", fieldId, postRender: maybeFocusFormField, text: value, contentEditable: true, keydown: keyboardSubmitTableEntry, input: setTableEntryField, blur: clearActiveTableEntryField, focus: activeTableEntryField};
+      let entryField = {c: "entry-field", fieldId, postRender: maybeFocusFormField, text: value, contentEditable: true, keydown: keyboardSubmitTableEntry, input: setTableEntryField, blur: clearActiveTableEntryField, focus: activeTableEntryField, key: JSON.stringify(row) + ix + localState.focusedTableEntryField};
       return {c: "field-item", children: [
         {c: "label", tabindex:-1, contentEditable: true, blur: rename, renameId: fieldId, text: code.name(fieldId)},
         entryField,
@@ -2997,7 +3229,8 @@ module drawn {
         entryField,
       ]};
     });
-    let sizeUi = rows.length > 0 ? {c: "size", text: `1 of ${rows.length}`} : {c: "size", text: "No entries"};
+    let viewSize = getViewSize(tableId);
+    let sizeUi = viewSize > 0 ? {c: "size", text: `1 of ${viewSize}`} : {c: "size", text: "No entries"};
     return {c: "form-container", children: [
       rows.length > 2 ? formRepeat(tableId, 2) : undefined,
       rows.length > 1 ? formRepeat(tableId, 1) : undefined,
@@ -3112,6 +3345,15 @@ module drawn {
       dispatch("startSearching", {value: ""});
       e.preventDefault();
     }
+  });
+
+  document.addEventListener("dragover", (e) => e.preventDefault());
+  document.addEventListener("drop", function(e) {
+    let files = e.dataTransfer.files;
+    if(files.length) {
+      dispatch("importFiles", {files: files});
+    }
+    e.preventDefault();
   });
 
   //---------------------------------------------------------

@@ -1,5 +1,8 @@
 use std::cmp::Ordering;
+use std::str::FromStr;
+use std::f64;
 
+// A single Eve value
 #[derive(Clone, PartialOrd, PartialEq)]
 pub enum Value {
     Null, // only used internally - not visible to users
@@ -22,15 +25,28 @@ impl ::std::fmt::Debug for Value {
     }
 }
 
-pub type Id = String; // TODO use uuid?
-
-impl Ord for Value {
-    fn cmp(&self, other: &Value) -> Ordering {
-        self.partial_cmp(other).unwrap() // TODO this will panic on NaN
+impl ::std::fmt::Display for Value {
+    fn fmt(&self, formatter: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error> {
+        match *self {
+            Value::Null => formatter.write_str("null").unwrap(),
+            Value::Bool(bool) => bool.fmt(formatter).unwrap(),
+            Value::String(ref string) => string.fmt(formatter).unwrap(),
+            Value::Float(float) => float.fmt(formatter).unwrap(),
+            Value::Column(ref column) => formatter.debug_list().entries(column.iter()).finish().unwrap(),
+        };
+        Ok(())
     }
 }
 
-impl Eq for Value {} // TODO this is unsafe for NaN
+pub type Id = String; // TODO we will eventually add a UUID type
+
+impl Ord for Value {
+    fn cmp(&self, other: &Value) -> Ordering {
+        self.partial_cmp(other).unwrap() // TODO this will panic on NaN - maybe NaN should go through error pathway instead?
+    }
+}
+
+impl Eq for Value {} // TODO this is panic on NaN - maybe NaN should go through error pathway instead?
 
 impl Value {
     pub fn as_str(&self) -> &str {
@@ -82,7 +98,6 @@ impl Value {
         }
     }
 
-
     pub fn as_column(&self) -> &Vec<Value> {
         match *self {
             Value::Column(ref column) => column,
@@ -96,6 +111,33 @@ impl Value {
             _ => panic!("Cannot convert this to column: {:?}", self),
         }
     }
-}
 
-pub type Field = Id;
+    pub fn parse_as_f64(&self) -> Option<f64> {
+        match *self {
+            Value::Float(float) => Some(float),
+            Value::String(ref string) => {
+                match f64::from_str(string) {
+                    Ok(float) => Some(float),
+                    Err(_) => None,
+                }
+            }
+            _ => None,
+        }
+    }
+
+    pub fn parse_as_f64_vec(&self) -> Option<Vec<f64>> {
+        match *self {
+            Value::Column(ref column) => {
+                let mut floats = Vec::with_capacity(column.len());
+                for value in column.iter() {
+                    match value.parse_as_f64() {
+                        Some(float) => floats.push(float),
+                        None => return None,
+                    }
+                }
+                return Some(floats)
+            }
+            _ => None,
+        }
+    }
+}

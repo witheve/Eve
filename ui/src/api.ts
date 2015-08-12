@@ -129,7 +129,8 @@ module api {
     mean: {"mean: in": []},
     split: {"split: split": " ", "split: string": ""},
     concat: {"concat: a": "", "concat: b": ""},
-    "parse float": {"parse float: a": "0"},
+    "as number": {"as number: a": "0"},
+    "as text": {"as text: a": ""},
     "standard deviation": {"standard deviation: in": []},
 
     sum: {"sum: in": []}
@@ -229,62 +230,6 @@ module api {
         return memo;
       }, 0);
     }
-  }
-
-  export var diff = {
-    duplicateElement: function(element, id, txId) {
-      var diffs = [];
-      var oldId = element[1];
-      var neue = element.slice();
-      //generate new ids for the element, everything else remains
-      neue[0] = txId;
-      neue[1] = id;
-      diffs.push(["uiComponentElement", "inserted", neue]);
-      //duplicate all of the attributes
-      var styles = ixer.index("uiElementToStyles")[oldId];
-      if(styles) {
-        styles.forEach(function(cur) {
-          if(cur[4] === false) {
-            diffs.push.apply(diffs, diff.duplicateStyle(cur, neue[1], txId));
-          } else {
-            var style = cur.slice();
-            style[0] = txId;
-            style[3] = id;
-            diffs.push(["uiStyle", "inserted", style]);
-          }
-        });
-      }
-      console.log(diffs);
-      return diffs;
-    },
-    duplicateStyle: function(toDuplicate, elementId, txId, useStyleId?) {
-      var diffs = [];
-      var style = toDuplicate.slice();
-      var oldId = toDuplicate[1];
-      var neueId = useStyleId || uuid();
-      style[0] = txId;
-      style[1] = neueId;
-      style[3] = elementId;
-      if(!useStyleId) {
-        diffs.push(["uiStyle", "inserted", style]);
-      }
-      var styles = ixer.index("uiStyleToAttrs")[oldId];
-      if(styles) {
-        styles.forEach(function(attr) {
-          var neueAttr = attr.slice();
-          neueAttr[1] = neueId;
-          diffs.push(["uiComponentAttribute", "inserted", neueAttr]);
-        })
-      }
-      return diffs;
-    },
-  };
-
-  var groupsToHide = {
-    "example": true,
-    "compiler": true,
-    "editor": true,
-    "test": true
   };
 
   export var localState: any = {
@@ -381,7 +326,7 @@ module api {
     if(params instanceof Array) {
       var write = {type: type, content: [], context: []};
       for(var item of params) {
-        var result = process(type, item, clone(context));
+        var result = process(type, item, clone(context), useIds);
         write.content.push(result.content);
         write.context.push(result.context);
       }
@@ -389,7 +334,6 @@ module api {
     }
 
     var schema = schemas[type] || {};
-    if(!schema) { throw new Error("Attempted to process unknown type " + type + " with params " + JSON.stringify(params)); }
     if(!params) { throw new Error("Invalid params specified for type " + type + " with params " + JSON.stringify(params)); }
     if(!context) { context = {}; } // @NOTE: Should we clone this? If so, should we clone params as well?
 
@@ -441,7 +385,6 @@ module api {
   export function retrieve(type:string, query:{[key:string]:string}, context?, useIds = false) {
     context = context || {};
     var schema = schemas[type] || {};
-    if(!schema) { throw new Error("Attempted to retrieve unknown type " + type + " with params " + JSON.stringify(query)); }
     var keys:string[] = (schema.key instanceof Array) ? <string[]>schema.key : (schema.key) ? [<string>schema.key] : [];
     var facts = useIds ? ixer.select(type, query, useIds) : ixer.selectPretty(type, query);
 
@@ -549,17 +492,18 @@ module api {
     return dest;
   }
 
-  export function change(type:string, params, changes, upsert:boolean = false, context?:Context):Write<any> {
+  export function change(type:string, params, changes, upsert:boolean = false, context?:Context, useIds = false):Write<any> {
     if(arguments.length < 3) { throw new Error("Must specify type and query and changes for change."); }
-    var read = retrieve(type, params, context);
+    // When useIds is set, retrieve will return undefined for an empty result
+    var read = retrieve(type, params, context, useIds) || [];
     var write = read.map(function(item) {
       return writeInto(item, changes);
     });
     if(!write.length && upsert) {
       var insertParams = writeInto(writeInto({}, params), changes);
-      return insert(type, insertParams);
+      return insert(type, insertParams, {}, useIds);
     }
-    return {type: type, content: write, context: context, mode: "changed", originalKeys: clone(params)};
+    return {type: type, content: write, context: context, mode: "changed", originalKeys: clone(params), useIds};
   }
 
   export function remove(type:string, params, context?:Context, useIds = false):Write<any> {

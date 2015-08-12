@@ -4,7 +4,6 @@ module tableEditor {
   declare var DEBUG;
   var ixer = api.ixer;
   var code = api.code;
-  var diff = api.diff;
   var localState = api.localState;
   var KEYS = api.KEYS;
 
@@ -69,7 +68,7 @@ module tableEditor {
         sortClass += " active";
       }
       return {c: "header", children: [
-        {c: "input", contentEditable: true, renameId: fieldId, blur: drawn.rename, text: name},
+        {c: "input", contentEditable: true, fieldId, renameId: fieldId, blur: drawn.rename, click: opts.onHeaderSelect, text: name},
         { c: sortClass, click: setTableSort, tableId: id, fieldId}
       ]};
     });
@@ -100,7 +99,8 @@ module tableEditor {
         if(val !== "") {
           td["text"] = val;
         } else {
-          td["children"] = [{c: "empty-value", text: "<empty>"}];
+          td["text"] = "<empty>";
+          td["c"] += " empty-value";
         }
         tds.push(td);
       }

@@ -1,17 +1,24 @@
-use std::collections::BitSet;
 use std::cell::RefCell;
 use std::convert::AsRef;
 use std::mem::replace;
 
+use bit_set::BitSet;
+
 use value::Value;
 use relation::{Relation, mapping, with_mapping};
-use view::{View, Table, Join, Input, Source, Direction};
+use view::{View, Join, Input, Source, Direction};
 use flow::{Node, Flow};
 use primitive;
 use primitive::Primitive;
 
-// schemas are arranged as (table name, fields)
-// any field whose type is not described is a UUID
+// The compiler is responsible for creating a new Flow whenever the program changes.
+// Eve code is stored in tables, like all other state.
+// The compiler has to turn this relational AST into a Flow.
+
+// --- schemas ---
+
+// Schemas are written as (table name, field names).
+// Any field whose type is not described is an id.
 
 pub fn code_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     vec![
@@ -52,7 +59,6 @@ pub fn code_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // each group is then sorted by the reamining fields
     // `ix` is an ascending integer indicating the position of the field in the sort order
     // `direction` is one of "ascending" or "descending"
-    // TODO how should we handle cases where some fields are neither grouped nor sorted?
     ("sorted field", vec!["source", "ix", "field", "direction"]),
 
     // the ordinal is a virtual field that tracks the position of each row in the group
@@ -222,6 +228,8 @@ pub fn schema() -> Vec<(&'static str, Vec<&'static str>)> {
     .collect()
     }
 
+// --- macros ---
+
 macro_rules! find_pattern {
     ( (= $name:expr) ) => {{ $name }};
     ( _ ) => {{ &Value::Null }};
@@ -281,6 +289,8 @@ macro_rules! remove {
         }
     }}
 }
+
+// --- util ---
 
 fn check_fields<S: AsRef<str>>(table: &Relation, fields: Vec<S>) {
     for (ix, field) in fields.iter().enumerate() {
@@ -353,7 +363,10 @@ fn check_unique_key(warning_table: &mut Relation, relation: &Relation, key_field
                 warning_table.index.insert(vec![
                     Value::String(relation.view.to_owned()),
                     Value::Column(row.clone()),
-                    string!("Duplicate rows for key {:?}", key_fields),
+                    string!("Duplicate rows {:?} and {:?} for unique key {:?}{:?}",
+                        &relation.view, key_fields,
+                        &row, &other_row
+                        ),
                     ]);
             }
         }
@@ -377,7 +390,10 @@ fn check_foreign_key(warning_table: &mut Relation, relation: &Relation, key_fiel
         warning_table.index.insert(vec![
             Value::String(relation.view.to_owned()),
             Value::Column(row.clone()),
-            string!("Missing row for key {:?} in {:?} {:?}", key_fields, &foreign_relation.view, foreign_key_fields),
+            string!("Foreign key {:?}{:?}={:?} has no matching entry in {:?}{:?}",
+                &relation.view, key_fields, mapping.iter().map(|&(ix, _)| &row[ix]).collect::<Vec<_>>(),
+                &foreign_relation.view, foreign_key_fields
+                ),
             ]);
     }
 }
@@ -402,9 +418,10 @@ fn check_triangle_key(warning_table: &mut Relation,
                             warning_table.index.insert(vec![
                                 Value::String(base_relation.view.to_owned()),
                                 Value::Column(base_row.clone()),
-                                string!("This row has {:?}={:?} in {:?} and {:?}={:?} in {:?}",
-                                    left_to_right_field, &left_row[left_to_right_ix], &left_relation.view,
-                                    right_to_left_field, &right_row[right_to_left_ix], &right_relation.view
+                                string!("Row {:?}={:?} has {:?}[{:?}]=[{:?}] but {:?}[{:?}]=[{:?}]",
+                                    &base_relation.view, &base_row,
+                                    &left_relation.view, left_to_right_field, &left_row[left_to_right_ix],
+                                    &right_relation.view, right_to_left_field, &right_row[right_to_left_ix]
                                     ),
                                 ]);
                         }
@@ -435,21 +452,26 @@ fn check_view_kind(warning_table: &mut Relation, relation: &Relation, field: &st
         find!(view_table, [(= view), view_kind], {
             if view_kind.as_str() != kind {
                 warning_table.index.insert(vec![
-                    string!("source"),
+                    Value::String(relation.view.to_owned()),
                     Value::Column(row.clone()),
-                    string!("This source is attached to a non-{} view of kind: {:?}", kind, view_kind),
+                    string!("This {:?} is attached to a non-{} view of kind: {:?}", &relation.view, kind, view_kind),
                     ]);
             }
         });
     }
 }
 
+// --- compiler ---
+
+// Make all the decisions (eg scheduling, layout, disabling).
+// The intention is that this entire function will eventually be implemented in Eve.
 fn plan(flow: &Flow) {
     use value::Value::*;
 
     let mut warning_table = flow.overwrite_output("warning");
 
     // --- check inputs ---
+    // see the view descriptions in `code_schema` above to understand the constraints applied here
 
     let view_table = flow.get_output("view");
     check_unique_key(&mut *warning_table, &*view_table, &["view"]);
@@ -647,6 +669,7 @@ fn plan(flow: &Flow) {
     });
 
     // --- plan the flow ---
+    // see the view descriptions in `compiler_schema` above to understand what is being calculated here
 
     let mut view_dependency_pre_table = flow.overwrite_output("view dependency (pre)");
     find!(view_table, [view, _], {
@@ -706,6 +729,7 @@ fn plan(flow: &Flow) {
         });
     });
 
+    // schedule sources/variables by topological sort of the provides/requires graph
     let mut source_schedule_pre_table = flow.overwrite_output("source schedule (pre)");
     let mut variable_schedule_pre_table = flow.overwrite_output("variable schedule (pre)");
     let mut pass = 0;
@@ -1070,6 +1094,7 @@ fn push_at<T>(items: &mut Vec<T>, ix: &Value, item: T) {
     items.push(item);
 }
 
+// Make a new flow, based on the decisions made in `plan`
 fn create(flow: &Flow) -> Flow {
     use value::Value::*;
 
@@ -1082,16 +1107,18 @@ fn create(flow: &Flow) -> Flow {
         nodes.push(Node{
             id: view.as_str().to_owned(),
             view: match kind.as_str() {
+                "table" => View::Table,
+                "union" => {
+                    println!("Warning: unions are not finished - making a dummy table for view {:?}", view);
+                    View::Table
+                }
                 "join" => View::Join(Join{
                     constants: vec![],
                     sources: vec![],
                     select: vec![],
                 }),
                 "disabled" => View::Disabled,
-                _ => {
-                    println!("Unsupported: create for {:?} {:?} {:?}", view_ix, view, kind);
-                    View::Table(Table{insert:None, remove:None}) // dummy node
-                }
+                _ => panic!("Unknown view kind: {:?}", kind)
             },
             upstream: vec![],
             downstream: vec![],
@@ -1225,21 +1252,24 @@ fn create(flow: &Flow) -> Flow {
     }
 }
 
+// Where possible, carry state over from the old flow
 fn reuse_state(old_flow: &mut Flow, new_flow: &mut Flow) {
     let nodes = replace(&mut old_flow.nodes, vec![]);
     let outputs = replace(&mut old_flow.outputs, vec![]);
     for (old_node, old_output) in nodes.into_iter().zip(outputs.into_iter()) {
-        if let Some(new_ix) = new_flow.get_ix(&old_node.id[..]) {
-            let old_output = old_output.into_inner();
-            let mut new_output = new_flow.outputs[new_ix].borrow_mut();
-            if new_output.fields == old_output.fields {
-                new_output.index = old_output.index;
-            } else if let Some(mapping) = mapping(&old_output.fields[..], &new_output.fields[..]) {
-                for values in old_output.index.into_iter() {
-                    new_output.index.insert(with_mapping(values, &mapping[..]));
+        if &old_node.id[..] != "error" { // dont reuse old error state since we clear errors inside the nodes
+            if let Some(new_ix) = new_flow.get_ix(&old_node.id[..]) {
+                let old_output = old_output.into_inner();
+                let mut new_output = new_flow.outputs[new_ix].borrow_mut();
+                if new_output.fields == old_output.fields {
+                    new_output.index = old_output.index;
+                } else if let Some(mapping) = mapping(&old_output.fields[..], &new_output.fields[..]) {
+                    for values in old_output.index.into_iter() {
+                        new_output.index.insert(with_mapping(values, &mapping[..]));
+                    }
+                } else {
+                    println!("Warning, cannot migrate state for: {:?}", old_node.id);
                 }
-            } else {
-                println!("Warning, cannot migrate state for: {:?}", old_node.id);
             }
         }
     }
@@ -1252,12 +1282,13 @@ pub fn recompile(old_flow: &mut Flow) {
     *old_flow = new_flow;
 }
 
+// For new flows, mirror the info from `schema` into the flow
 pub fn bootstrap(flow: &mut Flow) {
     let schema = schema();
     for &(view, ref names) in schema.iter() {
         flow.nodes.push(Node{
             id: format!("{}", view),
-                view: View::Table(Table{insert: None, remove: None}), // dummy node, replaced by recompile
+                view: View::Table, // dummy node, replaced by recompile
                 upstream: Vec::new(),
                 downstream: Vec::new(),
             });
@@ -1265,6 +1296,7 @@ pub fn bootstrap(flow: &mut Flow) {
         let names = names.iter().map(|name| format!("{}", name)).collect();
         flow.outputs.push(RefCell::new(Relation::new(format!("{}", view), fields, names)));
     }
+
     {
         let mut view_table = flow.overwrite_output("view");
         let mut field_table = flow.overwrite_output("field");
@@ -1331,5 +1363,6 @@ pub fn bootstrap(flow: &mut Flow) {
             }
         }
     }
+
     recompile(flow); // bootstrap away our dummy nodes
 }
