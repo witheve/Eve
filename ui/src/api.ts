@@ -326,7 +326,7 @@ module api {
     if(params instanceof Array) {
       var write = {type: type, content: [], context: []};
       for(var item of params) {
-        var result = process(type, item, clone(context));
+        var result = process(type, item, clone(context), useIds);
         write.content.push(result.content);
         write.context.push(result.context);
       }
