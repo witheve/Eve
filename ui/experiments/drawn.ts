@@ -1315,7 +1315,7 @@ module drawn {
 
       case "importFiles":
         for(let file of info.files) {
-          diffs.push.apply(diffs, dispatch("importCsv", {file: file}));
+          diffs.push.apply(diffs, dispatch("importCsv", {file: file, hasHeader: true}));
         }
       break;
       case "updateCsv":
