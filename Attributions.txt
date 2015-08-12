@@ -11,15 +11,15 @@ Ionicons, v2.0.0
 Created by Ben Sperry for the Ionic Framework, http://ionicons.com/
 https://twitter.com/benjsperry  https://twitter.com/ionicframework
 
-Android-style icons originally built by Google’s
+Android-style icons originally built by Googleï¿½s
 Material Design Icons: https://github.com/google/material-design-icons
 used under CC BY http://creativecommons.org/licenses/by/4.0/
-Modified icons to fit ionicon’s grid from original.
+Modified icons to fit ioniconï¿½s grid from original.
 
 jquery (MIT License)
-jQuery v2.1.4 
-Copyright (c) 2005, 2015 jQuery Foundation, Inc. 
-jquery.org/license 
+jQuery v2.1.4
+Copyright (c) 2005, 2015 jQuery Foundation, Inc.
+jquery.org/license
 
 tinycolorpicker.js (MIT License)
 Copyright 2013 Maarten Baijs (MIT License)
@@ -30,10 +30,15 @@ Copyright (c) 2010-2012 Robert Kieffer
 https://github.com/broofa/node-uuid
 
 velocity.min.js (MIT License)
-VelocityJS.org (1.2.2). (C) 2014 Julian Shapiro. 
+VelocityJS.org (1.2.2). (C) 2014 Julian Shapiro.
 VelocityJS.org jQuery Shim (1.0.1). (C) 2014 The jQuery Foundation.
 https://github.com/julianshapiro/velocity
 
+Lato.ttf
+Copyright (c) 2010-2014 by tyPoland Lukasz Dziedzic (team@latofonts.com) with Reserved Font Name "Lato"
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+This license is copied below, and is also available with a FAQ at: http://scripts.sil.org/OFL
+https://www.google.com/fonts/specimen/Lato
 
 Backend Licenses:
 
