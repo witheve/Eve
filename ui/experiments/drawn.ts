@@ -1196,6 +1196,10 @@ module drawn {
       break;
       case "stopSearching":
         localState.searching = false;
+        if(info.clear) {
+          localState.searchingFor = "";
+          localState.searchResults = false;
+        }
       break;
       case "handleSearchKey":
         if(info.keyCode === api.KEYS.ENTER) {
@@ -1207,9 +1211,7 @@ module drawn {
           }
           diffs.push.apply(diffs, dispatch("stopSearching", {}, true));
         } else if(info.keyCode === api.KEYS.ESC) {
-          localState.searchingFor = "";
-          localState.searchResults = false;
-          diffs.push.apply(diffs, dispatch("stopSearching", {}, true));
+          diffs.push.apply(diffs, dispatch("stopSearching", {clear: true}, true));
         } else if(info.keyCode === api.KEYS.F && (info.ctrlKey || info.metaKey)) {
           diffs.push.apply(diffs, dispatch("stopSearching", {}, true));
           info.e.preventDefault();
@@ -2038,10 +2040,11 @@ module drawn {
     return {c: "query-selector-wrapper", children: [
       leftToolbar(actions, disabled),
       {c: "query-selector-body", click: clearSelectedItems, children: [
-        {c: "query-selector-filter", children: [
-          searching ? {c: "searching-for", children: [
+        {c: "spaced-row query-selector-filter", children: [
+          searching ? {c: "spaced-row searching-for", children: [
             {text: `Searching for`},
-            {c: "search-text", text: localState.searchingFor}
+            {c: "search-text", text: localState.searchingFor},
+            {c: "ion-close", clearSearch: true, click: stopSearching}
           ]} : undefined,
           queries.length === totalCount ? {c: "showing", text: `Showing all ${totalCount} items`} : {c: "showing", text: `found ${queries.length} of ${totalCount} items.`},
         ]},
@@ -3153,7 +3156,7 @@ module drawn {
   }
 
   function stopSearching(e, elem) {
-    dispatch("stopSearching", {});
+    dispatch("stopSearching", {clear: elem.clearSearch});
   }
 
   function updateSearch(e, elem) {
