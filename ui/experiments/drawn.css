@@ -3,7 +3,8 @@
   src: url('../fonts/Lato/Lato-Light.ttf'); /* IE9 Compat Modes */
 }
 
-body { font-family:"Lato"; overflow:hidden; }
+body { font-family:"Lato"; overflow:hidden; height: 100vh; }
+.__root, .__root > div { height: 100%; }
 * { display: flex; flex-direction:column; box-sizing: border-box; outline:none; }
 #clear-pixel { position:absolute; }
 
