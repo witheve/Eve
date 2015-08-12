@@ -9,28 +9,35 @@ body { font-family:"Avenir"; overflow:hidden; height: 100vh; }
 
 .query { height: 100%; width: 100%; position:relative; flex-direction:row; }
 
-.query-selector-wrapper { flex-direction: row; height:100vh; }
+.query-selector-wrapper { flex-direction: row; height:100vh; -webkit-user-select:none; }
 .query-selector { flex: 1; flex-direction:row; flex-wrap:wrap; position:relative; align-items:flex-start; justify-content:flex-start; margin-left:10px; }
 .query-selector-body {overflow: auto;}
 .query-item { margin: 10px; }
-.query-item .query { width:300px; height:300px; border-radius:5px; box-shadow:0 0 8px #000; background: #404040; padding:25px; padding-top:50px; }
+.query-item .query { border:2px solid #404040; width:300px; height:300px; border-radius:5px; box-shadow:0 0 8px #000; background: #404040; padding:25px; padding-top:50px; }
 .query-item .surface { overflow:visible; transform-origin: 0 0; }
 .query-item .query-name { position:absolute; padding:10px; color: #aaa; z-index:10; }
 .query-item .query-name-input { display:none; }
 
-.query-selector .selected { border: 2px solid #0ba; border-radius:8px; }
+.query-selector .query-item.selected .query { border: 2px solid #0ba; }
+.query-selector .selected .form { border: 2px solid #0ba; }
 
-.form-container { width: 300px;  margin:15px; position:relative; }
+.form-container { width: 300px; position:relative; margin:10px; }
 .form-container .form-sub-container { flex: none; position:relative; }
-.form-container .form { flex: 1; position:relative;  padding:15px; box-shadow: 0 0 8px #000; border-radius:3px; background: #404040; margin-bottom:10px; }
+.form-container .form { border:2px solid #404040; max-height:50vh; flex: 1; position:relative; box-shadow: 0 0 8px #000; border-radius:3px; background: #404040; margin-bottom:10px; }
 .form-container .form-repeat { transform-origin: center center; width: 300px; height:100%; position:absolute; left: 4px; top:4px; background:#404040; box-shadow: 0 0 8px #000; border-radius:2px; }
-.form-container .field-item { margin-bottom:12px;  border:0px solid rgba(255,255,255,0.1); border-radius:3px; flex:none; }
-.form-container .form-name { font-size: 14pt; margin-bottom:3px; flex:none; }
-.form-container .form-description { margin-bottom:20px; flex:none; line-height:1.25; min-width:50px; max-width:300px; outline:none; font-size: 10pt; color: #aaa; }
+.form-container .field-item { border:0px solid rgba(255,255,255,0.1); border-radius:3px; flex:none; margin:0 15px 12px 15px; }
+.form-container .form-name { font-size: 14pt; margin-bottom:3px; flex:none; padding:0 15px; margin-top:15px; }
+.form-container .form-description { padding:0 15px; margin-bottom:20px; flex:none; line-height:1.25; min-width:50px; max-width:300px; outline:none; font-size: 10pt; color: #aaa; }
 .form-container .form-fields { flex: 1; overflow:auto; margin-bottom:20px; }
 .form-container .label { margin-bottom: 3px; font-size:10pt; color: #aaa; font-weight: normal; }
 .form-container .entry-field { background: rgba(0,0,0, 0.15); border:0px solid rgba(255,255,255,0.1); min-height:25px; padding:5px; border-radius:3px; }
-.form-container .size { align-items: flex-end; font-size: 10pt; flex:none; color: #999; }
+.form-container .size { align-items: flex-end; font-size: 10pt; flex:none; color: #999; padding: 0 15px 15px 0; }
+.form-container .submit-button { margin: 0 0 15px 15px; }
+
+.table-workspace .form-container { width: auto; max-height:70vh; }
+.table-workspace .form { max-height:70vh; }
+.table-workspace .form-fields { flex-wrap:wrap; }
+.table-workspace .field-item { min-width:300px; }
 
 .menu-shade { z-index: 100; position:absolute; top:0; bottom:0; left:0; right:0; background:rgba(255,255,255,0.9); overflow:auto; }
 .menu { position:absolute; }
@@ -153,6 +160,8 @@ body { font-family:"Avenir"; overflow:hidden; height: 100vh; }
 .query-selector-filter { padding:0px 24px; margin-top:10px; height:20px; flex:none; font-size:10pt; color: #999; flex-direction: row; align-items:center;  }
 .query-selector-filter .searching-for { flex-direction: row; align-items: center; }
 .query-selector-filter .searching-for .search-text { padding:3px 5px; background: #444; margin:0 3px; border-radius:2px; }
+
+
 
 /*---------------------------------------------------------
 - Table
