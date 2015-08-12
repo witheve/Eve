@@ -603,11 +603,13 @@ module drawn {
           }
         }
       break;
-      case "initializeNodePosition":
-        var node = info.node;
-        var currentPos = positions[node.id];
-        diffs.push(api.insert("editor node position", {node: node.id, x: currentPos.left, y: currentPos.top}),
-                   api.remove("editor node position", {node: node.id}));
+      case "initializeNodePositions":
+        var nodes = info.nodes;
+        for(let node of nodes) {
+          var currentPos = positions[node.id];
+          diffs.push(api.insert("editor node position", {node: node.id, x: currentPos.left, y: currentPos.top}),
+                     api.remove("editor node position", {node: node.id}));
+        }
       break;
       //---------------------------------------------------------
       // Navigation
@@ -1947,6 +1949,7 @@ module drawn {
 
       let graph = new graphLayout.Graph(sourceNodes, attributeNodes, edges, [640, 480]);
       let layout = graph.layout();
+      let nodesToInitialize = [];
       for(let node of nodes) {
         let p = layout.positions[node.id];
         let s = layout.sizes[node.id];
@@ -1954,9 +1957,11 @@ module drawn {
         let old = positions[node.id];
         if(!old || old.left !== neue.left || old.top !== neue.top) {
           positions[node.id] = neue;
-          dispatch("initializeNodePosition", {node: node});
+          nodesToInitialize.push(node);
+
         }
       }
+      dispatch("initializeNodePositions", {nodes: nodesToInitialize});
     }
   }
 
