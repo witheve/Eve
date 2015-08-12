@@ -1228,6 +1228,50 @@ module drawn {
           diffs.push(api.remove(info.tableId, {}));
         }
       break;
+      case "activeTableEntryField":
+        // this tracks the focus state of form fields for removal
+        localState.activeTableEntryField = info.fieldId;
+      break;
+      case "clearActiveTableEntryField":
+        // @HACK: because blur happens before a click on remove would get registered,
+        // we have to wait to clear activeTableEntry to give the click time to go through
+        setTimeout(function() {
+          if(localState.activeTableEntryField === info.fieldId) {
+            dispatch("forceClearActiveTableEntryField", info, true);
+          }
+        }, 150);
+      break;
+      case "forceClearActiveTableEntryField":
+        localState.activeTableEntryField = false;
+      break;
+      case "focusTableEntryField":
+        localState.focusedTableEntryField = false;
+      break;
+      case "submitTableEntry":
+        var tableId = localState.drawnUiActiveId;
+        var row = localState.tableEntry;
+        if(!row || Object.keys(row).length !== ixer.getFields(tableId, true).length) { return; }
+        diffs.push(api.insert(tableId, row, undefined, true));
+        // if there's a selectedTableEntry then this is an edit and we should
+        // remove the old row
+        if(localState.selectedTableEntry) {
+          diffs.push(api.remove(tableId, localState.selectedTableEntry, undefined, true));
+        }
+        diffs.push.apply(diffs, dispatch("newTableEntry", {}, true));
+      break;
+      case "setTableEntryField":
+        localState.tableEntry[info.fieldId] = info.value;
+      break;
+
+      //---------------------------------------------------------
+      // File/CSV handling
+      //---------------------------------------------------------
+
+      case "importFiles":
+        for(let file of info.files) {
+          diffs.push.apply(diffs, dispatch("importCsv", {file: file}));
+        }
+      break;
       case "updateCsv":
         if(info.file) { localState.csvFile = info.file; }
         if(info.hasHeader) { localState.csvHasHeader = info.hasHeader; }
@@ -1303,40 +1347,6 @@ module drawn {
           facts.push(factMap);
         }
         diffs.push(api.insert(info.tableId, facts, undefined, true));
-      break;
-      case "activeTableEntryField":
-        // this tracks the focus state of form fields for removal
-        localState.activeTableEntryField = info.fieldId;
-      break;
-      case "clearActiveTableEntryField":
-        // @HACK: because blur happens before a click on remove would get registered,
-        // we have to wait to clear activeTableEntry to give the click time to go through
-        setTimeout(function() {
-          if(localState.activeTableEntryField === info.fieldId) {
-            dispatch("forceClearActiveTableEntryField", info, true);
-          }
-        }, 150);
-      break;
-      case "forceClearActiveTableEntryField":
-        localState.activeTableEntryField = false;
-      break;
-      case "focusTableEntryField":
-        localState.focusedTableEntryField = false;
-      break;
-      case "submitTableEntry":
-        var tableId = localState.drawnUiActiveId;
-        var row = localState.tableEntry;
-        if(!row || Object.keys(row).length !== ixer.getFields(tableId, true).length) { return; }
-        diffs.push(api.insert(tableId, row, undefined, true));
-        // if there's a selectedTableEntry then this is an edit and we should
-        // remove the old row
-        if(localState.selectedTableEntry) {
-          diffs.push(api.remove(tableId, localState.selectedTableEntry, undefined, true));
-        }
-        diffs.push.apply(diffs, dispatch("newTableEntry", {}, true));
-      break;
-      case "setTableEntryField":
-        localState.tableEntry[info.fieldId] = info.value;
       break;
 
       //---------------------------------------------------------
@@ -3339,6 +3349,15 @@ module drawn {
       dispatch("startSearching", {value: ""});
       e.preventDefault();
     }
+  });
+
+  document.addEventListener("dragover", (e) => e.preventDefault());
+  document.addEventListener("drop", function(e) {
+    let files = e.dataTransfer.files;
+    if(files.length) {
+      dispatch("importFiles", {files: files});
+    }
+    e.preventDefault();
   });
 
   //---------------------------------------------------------
