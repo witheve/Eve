@@ -1,4 +1,9 @@
-body { font-family:"Avenir"; overflow:hidden; }
+@font-face {
+  font-family: 'Lato';
+  src: url('../fonts/Lato/Lato-Light.ttf'); /* IE9 Compat Modes */
+}
+
+body { font-family:"Lato"; overflow:hidden; }
 * { display: flex; flex-direction:column; box-sizing: border-box; outline:none; }
 #clear-pixel { position:absolute; }
 
