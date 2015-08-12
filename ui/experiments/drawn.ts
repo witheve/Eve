@@ -273,6 +273,30 @@ module drawn {
   // AST helpers
   //---------------------------------------------------------
 
+  function isVariableUsed(variableId) {
+    // a variable is unused if it is unselected, unjoined, without constants,
+    // and without an ordinal.
+    if(ixer.selectOne("select", {variable: variableId})
+       || ixer.select("binding", {variable: variableId}).length > 1
+       || ixer.select("ordinal binding", {variable: variableId}).length
+       || ixer.select("constant binding", {variable: variableId}).length) {
+      return true;
+    }
+    return false;
+  }
+
+  function removeDownstreamFieldUses(fieldId) {
+    let diffs = [];
+    // check if there are any downstream views that have this field unused and remove them
+    for(let downstreamBinding of ixer.select("binding", {field: fieldId})) {
+      let variableId = downstreamBinding["binding: variable"];
+      if(!isVariableUsed(variableId)) {
+        diffs.push.apply(diffs, removeVariable(variableId));
+      }
+    }
+    return diffs;
+  }
+
   function joinedBindingsFromSource(sourceId) {
     let joined = [];
     let bindings = ixer.select("binding", {source: sourceId});
@@ -309,6 +333,8 @@ module drawn {
       let fieldId = select["select: field"];
       diffs.push(api.remove("field", { field: fieldId}));
       diffs.push(api.remove("select", { variable: variableId }));
+      // remove any downstream uses of this field if it's safe
+      diffs.push.apply(diffs, removeDownstreamFieldUses(fieldId));
     }
     return diffs;
   }
@@ -786,6 +812,8 @@ module drawn {
         for(let select of selects) {
           let fieldId = select["select: field"];
           diffs.push(api.remove("field", {field: fieldId}));
+          // remove any downstream uses of this field if it's safe
+          diffs.push.apply(diffs, removeDownstreamFieldUses(fieldId));
         }
         diffs.push(api.remove("select", {variable: info.variableId}));
       break;
@@ -1219,9 +1247,12 @@ module drawn {
       break;
       case "removeFieldFromTable":
         var tableId = info.tableId || localState.drawnUiActiveId;
+        var fieldId = localState.activeTableEntryField;
         // we remove whatever field is currently active in the form
-        if(localState.activeTableEntryField) {
-          diffs.push(api.remove("field", {field: localState.activeTableEntryField}));
+        if(fieldId) {
+          diffs.push(api.remove("field", {field: fieldId}));
+          // remove any downstream uses of this field if it's safe
+          diffs.push.apply(diffs, removeDownstreamFieldUses(fieldId));
           //@HACK: We have to delay this until after the field has been processed and removed from the index, or it will be expected when converting to diffs.
           setTimeout(function() {
             dispatch("refreshTableRows", {tableId});
