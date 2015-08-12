@@ -60,7 +60,7 @@ module eveEditor {
 }
 
 module drawn {
-
+  declare var Papa;
   declare var uuid;
   const localState = api.localState;
   const ixer = api.ixer;
@@ -313,12 +313,28 @@ module drawn {
     return diffs;
   }
 
-  function addField(viewId, name) {
+  function addField(viewId, name?, offset:number = 0) {
     var diffs = [];
     var fields = ixer.select("field", {view: viewId}) || [];
+
+    // Find an unused name in the range "Field A..Field ZZ".
+    let skip = offset;
+    if(!name) {
+      let names = fields.map((field) => code.name(field["field: field"]));
+      name = "Field A";
+      for(var ix = 1; (names.indexOf(name) !== -1 || skip-- > 0) && ix < 27 * 26; ix++) {
+        name = "Field ";
+        let leading = Math.floor(ix / 26);
+        if(leading > 0) {
+          name += api.alphabet[leading - 1];
+        }
+        name += api.alphabet[ix % 26];
+      }
+    }
+
     var neueField = api.insert("field", {view: viewId, kind: "output", dependents: {
       "display name": {name: name},
-      "display order": {priority: -fields.length}
+      "display order": {priority: -fields.length - offset}
     }});
     var fieldId = neueField.content.field;
     diffs.push(neueField);
@@ -634,14 +650,15 @@ module drawn {
       case "createNewItem":
         // push the current location onto the history stack
         localState.navigationHistory.push(localState.drawnUiActiveId);
-        localState.drawnUiActiveId = info.itemId;
 
         var newId = uuid();
         localState.drawnUiActiveId = newId;
         var tag;
         if(info.kind === "table") {
           tag = [{tag: "editor"}];
-          diffs.push.apply(diffs, dispatch("addFieldToTable", {tableId: newId}, true));
+          if(!info.empty) {
+            diffs.push.apply(diffs, dispatch("addFieldToTable", {tableId: newId}, true));
+          }
           diffs.push.apply(diffs, dispatch("newTableEntry", {}, true))
         }
         diffs.push(api.insert("view", {view: newId, kind: info.kind, dependents: {"display name": {name: info.name}, tag}}));
@@ -1183,18 +1200,7 @@ module drawn {
       break;
       case "addFieldToTable":
         var tableId = info.tableId || localState.drawnUiActiveId;
-        var fields = ixer.select("field", {view: tableId}) || [];
-        let names = fields.map((field) => code.name(field["field: field"]));
-        let name = "Field A";
-        for(var ix = 1; names.indexOf(name) !== -1 && ix < 27 * 26; ix++) {
-          name = "Field ";
-          let leading = Math.floor(ix / 26);
-          if(leading > 0) {
-            name += api.alphabet[leading - 1];
-          }
-          name += api.alphabet[ix % 26];
-        }
-        var {fieldId, diffs} = addField(tableId, name);
+        var {fieldId, diffs} = addField(tableId);
       break;
       case "removeFieldFromTable":
         var tableId = info.tableId || localState.drawnUiActiveId;
@@ -1255,6 +1261,92 @@ module drawn {
       break;
       case "setTableEntryField":
         localState.tableEntry[info.fieldId] = info.value;
+      break;
+
+      //---------------------------------------------------------
+      // File/CSV handling
+      //---------------------------------------------------------
+
+      case "importFiles":
+        for(let file of info.files) {
+          diffs.push.apply(diffs, dispatch("importCsv", {file: file}));
+        }
+      break;
+      case "updateCsv":
+        if(info.file) { localState.csvFile = info.file; }
+        if(info.hasHeader) { localState.csvHasHeader = info.hasHeader; }
+      break;
+      case "importCsv":
+        var file = info.file;
+        if(!file) {
+          diffs = dispatch("setNotice", {content: "Must select a valid CSV file to import."}, true);
+          break;
+        }
+        var name = file.name;
+        localState.importing = true;
+        // @NOTE: In order to load from a file, we *have* to parse asynchronously.
+        Papa.parse(file, {
+          complete: (result) => dispatch("importCsvContents", {name, result, hasHeader: info.hasHeader}),
+          error: (err) => dispatch("setError", {errorText: err.message})
+        });
+      break;
+      case "importCsvContents":
+        var hasHeader = info.hasHeader;
+        var result = info.result;
+        var name = info.name || "Untitled import";
+        for(var error of result.errors) {
+          diffs.push.apply(diffs, dispatch("setError", {errorText: error.message}, true));
+        }
+
+        if(!result.data.length) { break; }
+        diffs.push.apply(diffs, dispatch("createNewItem", {name, kind: "table", empty: true}));
+        var tableId = localState.drawnUiActiveId;
+
+        // Find number of columns in the CSV.
+        // If the CSV has a header, use that as the canonical field count, otherwise find the maximum number of fields.
+        var columns = 0;
+        var names = [];
+        var data = result.data;
+        if(hasHeader) {
+          columns = result.data[0].length;
+          names = result.data[0];
+          data = result.data.slice(1);
+        } else {
+          for(var row of result.data) {
+            if(row.length > columns) {
+              columns = row.length;
+            }
+          }
+        }
+
+        // Map record index to fieldId and create new CSV fields.
+        var mapping = [];
+        for(var ix = 0; ix < columns; ix++) {
+          var {fieldId, diffs: fieldDiffs} = addField(tableId, names[ix], ix);
+          mapping[ix] = fieldId;
+          diffs.push.apply(diffs, fieldDiffs);
+        }
+
+        // @HACK: We need to wait until the new fields have been processed and old fields removed to add the data.
+        setTimeout(function() {
+          dispatch("importCsvData", {tableId, data, mapping});
+        }, 0);
+      break;
+      case "importCsvData":
+        localState.importing = false;
+        var facts = [];
+        for(var rowIx = 0; rowIx < info.data.length; rowIx++) {
+          var row = info.data[rowIx];
+          if(row.length > info.mapping.length) {
+            diffs.push.apply(diffs, dispatch("setError", {errorText: `Row ${JSON.stringify(row)} has too many fields: ${row.length} (expected ${info.mapping.length})`}, true));
+          }
+          var factMap = {};
+          for(var fieldIx = 0; fieldIx < info.mapping.length; fieldIx++) {
+            factMap[info.mapping[fieldIx]] = row[fieldIx] || "";
+          }
+          facts.push(factMap);
+        }
+        diffs.push(api.insert(info.tableId, facts, undefined, true));
       break;
 
       //---------------------------------------------------------
@@ -2019,14 +2111,17 @@ module drawn {
   //---------------------------------------------------------
 
   function openSettings(evt, elem:Element) {
-    let rect = evt.currentTarget.getBoundingClientRect();
     let tooltip:any = {
-      c: "settings-modal",
+      c: "centered-modal settings-modal",
       content: settingsPanel,
       persistent: true,
-      stopPersisting: stopSort,
+      stopPersisting: closeTooltip
     };
     dispatch("showTooltip", tooltip);
+  }
+
+  function closeTooltip(evt, elem) {
+    dispatch("hideTooltip", {});
   }
 
   let settingsPanes = {
@@ -2109,11 +2204,11 @@ module drawn {
     let current = settingsPanes[localState.currentTab] ? localState.currentTab : "preferences";
     let tabs = [];
     for(let tab in settingsPanes) {
-      tabs.push({c: (tab === current) ? "active tab" : "tab", tab, text: settingsPanes[tab].title, click: switchTab});
+      tabs.push({c: (tab === current) ? "tab active" : "tab", tab, text: settingsPanes[tab].title, click: switchTab});
     }
 
     return {c: "settings-panel tabbed-box", children: [
-      {c: "tabs", children: tabs},
+      {c: "tabs", children: tabs.concat({c: "flex-spacer"}, {c: "ion-close tab", click: closeTooltip})},
       {c: "pane", children: settingsPanes[current].content()}
     ]};
   }
@@ -2144,11 +2239,10 @@ module drawn {
 
   function tooltipUi(): any {
     let tooltip = localState.tooltip;
-
     if(tooltip) {
       let viewHeight = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
        // @FIXME: We need to get the actual element size here.
-      let elem:any = {c: "tooltip" + (tooltip.c ? " " + tooltip.c : ""), left: tooltip.x, top: Math.min(tooltip.y, viewHeight - 61)};
+      let elem:any = {c: "tooltip" + (tooltip.c ? " " + tooltip.c : ""), left: tooltip.x, top: tooltip.y};
       if(typeof tooltip.content === "string") {
         elem["text"] = tooltip.content;
       } else if(typeof tooltip.content === "function") {
@@ -2212,6 +2306,10 @@ module drawn {
           {text: glossary.lookup["Data"].description}
         ]},
         {c: "type-container", children: [
+          {c: "type", text: "Import", click: openImporter, kind: "table"},
+          {text: glossary.lookup["Import"].description}
+        ]},
+        {c: "type-container", children: [
           {c: "type", text: "Query", click: createNewItem, kind: "join", newName: "New query!"},
           {text: glossary.lookup["Query"].description}
         ]},
@@ -2225,6 +2323,51 @@ module drawn {
 
   function createNewItem(e, elem) {
     dispatch("createNewItem", {name: elem.newName, kind: elem.kind});
+  }
+
+  function openImporter(evt, elem) {
+    let tooltip:any = {
+      c: "centered-modal importer-modal",
+      content: importPanel,
+      persistent: true,
+      stopPersisting: closeTooltip
+    };
+    dispatch("showTooltip", tooltip);
+  }
+
+  function importPanel() {
+    let current = "csv";
+    return {c: "import-panel tabbed-box", children: [
+      {c: "tabs", children: [
+        {c:  ("csv" === current) ? "tab active" : "tab", text: "CSV"},
+        {c: "flex-spacer"}, {c: "ion-close tab", click: closeTooltip}]},
+      {c: "pane", children: (localState.importing) ?
+        [{text: "importing..."}] :
+        [
+          {t: "input", type: "file", change: updateCsvFile},
+          {c: "flex-row spaced-row", children: [
+            {text: "Treat first row as header"}
+            {t: "input", type: "checkbox", change: updateCsvHasHeader}
+          ]},
+          {t: "button", text: "import", click: importFromCsv}
+        ]
+      }
+    ]};
+  }
+
+  function updateCsvFile(evt, elem) {
+    let file = evt.target.files[0];
+    dispatch("updateCsv", {file});
+  }
+
+  function updateCsvHasHeader(evt, elem) {
+    let hasHeader = !!evt.target.checked;
+    dispatch("updateCsv", {hasHeader});
+  }
+
+  function importFromCsv(evt, elem) {
+    evt.stopPropagation();
+    dispatch("importCsv", {file: localState.csvFile, hasHeader: localState.csvHasHeader});
   }
 
   //---------------------------------------------------------
@@ -2319,8 +2462,22 @@ module drawn {
   }
 
   function drawLinks(links, items) {
+    let collapsedLinks = {};
+    for(let link of links) {
+      let key = `${link.right.id} ${link.left.id}`;
+      if(collapsedLinks[key]) {
+        collapsedLinks[key].count++;
+        if(link.name) {
+          collapsedLinks[key].labels.push(link.name);
+        }
+      } else {
+        let labels = link.name ? [link.name] : [];
+        collapsedLinks[key] = {left: link.left, right: link.right, count: 1, labels}
+      }
+    }
     var linkItems = [];
-    for(var link of links) {
+    for(let key in collapsedLinks) {
+      let link = collapsedLinks[key];
       var leftItem, rightItem;
       for(var item of items) {
         if(item.node === link.left) {
@@ -2352,11 +2509,14 @@ module drawn {
       }
       var d = `M ${fromLeft} ${fromTop} L ${toLeft} ${toTop}`;
 
-      var pathId = `${link.right.id} ${link.left.id} path`;
+      var pathId = `${key} path`;
       linkItems.push({svg: true, id: pathId, t: "path", d: d, c: "link", stroke: color, strokeWidth: 1});
-      linkItems.push({svg: true, t: "text", children: [
-        {svg: true, t: "textPath", startOffset: "50%", xlinkhref: `#${pathId}`, text: link.name}
-      ]});
+      if(link.labels.length) {
+        linkItems.push({svg: true, t: "text", children: [
+          {svg: true, t: "textPath", startOffset: "50%", xlinkhref: `#${pathId}`, children: link.labels.map((label, ix) => {
+            return {svg: true, t: "tspan", dy: ix === 0 ? -2 : 14, x: 0, text: label}; })}
+        ]});
+      }
     }
     return linkItems;
   }
@@ -2892,9 +3052,7 @@ module drawn {
           ]};
         });
         return {c: "search-result-group", children: [
-          // @HACK: setting value here is weird, but it causes the postRender to get called every time the search changes
-          // which will ensure that the results are always scrolled to the bottom
-          {c: "search-result-items", value: localState.searchingFor, postRender: scrollToTheBottomOnChange, children: items},
+          {c: "search-result-items", key: localState.searchingFor, postRender: scrollToTheBottomOnChange, children: items},
           {c: "group-type", children: [
             {c: "group-name", text: resultGroup.kind},
             {c: "result-size", text: resultGroup.results.length}
@@ -2958,9 +3116,18 @@ module drawn {
       peek,
       {c: "query-results-container", children: [
         {c: "result-size", text: `${resultViewSize} results`},
-        tableEditor.tableForView(resultViewId, 100)
+        tableEditor.tableForView(resultViewId, 100, {onSelect: selectFieldNode, onHeaderSelect: selectFieldNode})
       ]}
     ]};
+  }
+
+  function selectFieldNode(evt, elem) {
+    evt.stopPropagation();
+    let variableId = (ixer.selectOne("select", {field: elem.fieldId}) || {})["select: variable"];
+    let view = ixer.selectOne("view", {view: localState.drawnUiActiveId});
+    if(!view || !variableId) return;
+    let {nodeLookup} = viewToEntityInfo(view);
+    dispatch("selectNode", {node: nodeLookup[variableId]});
   }
 
   //---------------------------------------------------------
@@ -3004,7 +3171,7 @@ module drawn {
       "new": {text: "New", func: newTableEntry, description: "Create a new entry"},
       "delete": {text: "Delete", func: deleteTableEntry, description: "Delete the current entry"},
       "add field": {text: "+Field", func: addFieldToTable, description: "Add a field to the card"},
-      "remove field": {text: "-Field", func: removeFieldFromTable, description: "Remove the active field from the card"},
+      "remove field": {text: "-Field", func: removeFieldFromTable, description: "Remove the active field from the card"}
     };
     let resultViewSize = getViewSize(tableId);
     return {c: "query table-editor", children: [
@@ -3032,7 +3199,7 @@ module drawn {
   function tableFormEditor(tableId, row = null, rowNum = 0, rowTotal = 0) {
     let fields = ixer.getFields(tableId).map((fieldId, ix) => {
       let value = row ? row[fieldId] : "";
-      let entryField = {c: "entry-field", fieldId, postRender: maybeFocusFormField, text: value, contentEditable: true, keydown: keyboardSubmitTableEntry, input: setTableEntryField, blur: clearActiveTableEntryField, focus: activeTableEntryField, key: JSON.stringify(row) + ix};
+      let entryField = {c: "entry-field", fieldId, postRender: maybeFocusFormField, text: value, contentEditable: true, keydown: keyboardSubmitTableEntry, input: setTableEntryField, blur: clearActiveTableEntryField, focus: activeTableEntryField, key: JSON.stringify(row) + ix + localState.focusedTableEntryField};
       return {c: "field-item", children: [
         {c: "label", tabindex:-1, contentEditable: true, blur: rename, renameId: fieldId, text: code.name(fieldId)},
         entryField,
@@ -3178,6 +3345,15 @@ module drawn {
       dispatch("startSearching", {value: ""});
       e.preventDefault();
     }
+  });
+
+  document.addEventListener("dragover", (e) => e.preventDefault());
+  document.addEventListener("drop", function(e) {
+    let files = e.dataTransfer.files;
+    if(files.length) {
+      dispatch("importFiles", {files: files});
+    }
+    e.preventDefault();
   });
 
   //---------------------------------------------------------

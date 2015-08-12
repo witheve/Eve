@@ -1,6 +1,8 @@
 Eve is built using the following technologies generously supplied by their attributed authors in accordance with the following licenses. If you recognize anything in this list as incorrect, please email us and we will correct it.
 
+------------------
 Frontend licenses:
+------------------
 
 CBOR.js (MIT License)
 Copyright (c) 2014 Patrick Gansterer <paroga@paroga.com>
@@ -11,31 +13,44 @@ Ionicons, v2.0.0
 Created by Ben Sperry for the Ionic Framework, http://ionicons.com/
 https://twitter.com/benjsperry  https://twitter.com/ionicframework
 
-Android-style icons originally built by Google’s
+Android-style icons originally built by Google's
 Material Design Icons: https://github.com/google/material-design-icons
 used under CC BY http://creativecommons.org/licenses/by/4.0/
-Modified icons to fit ionicon’s grid from original.
+Modified icons to fit ionicon's grid from original.
 
 jquery (MIT License)
-jQuery v2.1.4 
-Copyright (c) 2005, 2015 jQuery Foundation, Inc. 
-jquery.org/license 
+jQuery v2.1.4
+Copyright (c) 2005, 2015 jQuery Foundation, Inc.
+jquery.org/license
 
 tinycolorpicker.js (MIT License)
 Copyright 2013 Maarten Baijs (MIT License)
-http://www.baijs.com
+https://github.com/wieringen/tinycolorpicker
+http://baijs.com/tinycolorpicker/
 
 uuid.js (MIT License)
 Copyright (c) 2010-2012 Robert Kieffer
 https://github.com/broofa/node-uuid
 
 velocity.min.js (MIT License)
-VelocityJS.org (1.2.2). (C) 2014 Julian Shapiro. 
+VelocityJS.org (1.2.2). (C) 2014 Julian Shapiro.
 VelocityJS.org jQuery Shim (1.0.1). (C) 2014 The jQuery Foundation.
 https://github.com/julianshapiro/velocity
 
+PapaParse (MIT License)
+Copyright (c) 2015 Matthew Holt
+https://github.com/mholt/PapaParse
+http://papaparse.com/
 
+Lato.tff (Open Font License)
+Copyright (c) 2010-2014 by tyPoland Lukasz Dziedzic (team@latofonts.com) with Reserved Font Name "Lato"
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+This license is available with a FAQ at: http://scripts.sil.org/OFL
+https://www.google.com/fonts/specimen/Lato
+
+-----------------
 Backend Licenses:
+-----------------
 
 rust-websocket 0.12.2 (MIT License)
 Copyright (c) 2014-2015 Cyderize
