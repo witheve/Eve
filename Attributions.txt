@@ -42,10 +42,11 @@ Copyright (c) 2015 Matthew Holt
 https://github.com/mholt/PapaParse
 http://papaparse.com/
 
-Lato (Open Font License)
+Lato.tff (Open Font License)
 Copyright (c) 2010-2014 by tyPoland Lukasz Dziedzic (team@latofonts.com) with Reserved Font Name "Lato"
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 This license is available with a FAQ at: http://scripts.sil.org/OFL
+https://www.google.com/fonts/specimen/Lato
 
 -----------------
 Backend Licenses:
