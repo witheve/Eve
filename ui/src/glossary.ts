@@ -41,6 +41,8 @@ module glossary {
        description: "Import data from a CSV file to work with your existing data in Eve."},
       {term: "Query",
        description: "Create a query if you want to work with your data."},
+      {term: "Remove",
+       description: "Remove a source or error node from a query."},
     ];
 
     export var lookup = {};

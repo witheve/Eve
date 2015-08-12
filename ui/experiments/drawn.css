@@ -19,7 +19,7 @@ body { font-family:"Lato"; overflow:hidden; height: 100vh; }
 .query-selector-body {overflow: auto;}
 .query-item { margin: 10px; }
 .query-item .query { border:2px solid #404040; width:300px; height:300px; border-radius:5px; box-shadow:0 0 8px #000; background: #404040; padding:25px; padding-top:50px; }
-.query-item .surface { overflow:visible; transform-origin: 0 0; }
+.query-item .surface { overflow:visible; transform-origin: 0 0; pointer-events: none; }
 .query-item .query-name { position:absolute; padding:10px; color: #aaa; z-index:10; }
 .query-item .query-name-input { display:none; }
 
