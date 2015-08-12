@@ -1,4 +1,5 @@
-body { font-family:"Avenir"; overflow:hidden; }
+body { font-family:"Avenir"; overflow:hidden; height: 100vh; }
+.__root, .__root > div { height: 100%; }
 * { display: flex; flex-direction:column; box-sizing: border-box; outline:none; }
 #clear-pixel { position:absolute; }
 
