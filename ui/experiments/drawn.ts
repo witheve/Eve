@@ -273,6 +273,30 @@ module drawn {
   // AST helpers
   //---------------------------------------------------------
 
+  function isVariableUsed(variableId) {
+    // a variable is unused if it is unselected, unjoined, without constants,
+    // and without an ordinal.
+    if(ixer.selectOne("select", {variable: variableId})
+       || ixer.select("binding", {variable: variableId}).length > 1
+       || ixer.select("ordinal binding", {variable: variableId}).length
+       || ixer.select("constant binding", {variable: variableId}).length) {
+      return true;
+    }
+    return false;
+  }
+
+  function removeDownstreamFieldUses(fieldId) {
+    let diffs = [];
+    // check if there are any downstream views that have this field unused and remove them
+    for(let downstreamBinding of ixer.select("binding", {field: fieldId})) {
+      let variableId = downstreamBinding["binding: variable"];
+      if(!isVariableUsed(variableId)) {
+        diffs.push.apply(diffs, removeVariable(variableId));
+      }
+    }
+    return diffs;
+  }
+
   function joinedBindingsFromSource(sourceId) {
     let joined = [];
     let bindings = ixer.select("binding", {source: sourceId});
@@ -309,6 +333,8 @@ module drawn {
       let fieldId = select["select: field"];
       diffs.push(api.remove("field", { field: fieldId}));
       diffs.push(api.remove("select", { variable: variableId }));
+      // remove any downstream uses of this field if it's safe
+      diffs.push.apply(diffs, removeDownstreamFieldUses(fieldId));
     }
     return diffs;
   }
@@ -398,6 +424,7 @@ module drawn {
       api.remove("source", {source: sourceId}),
       api.remove("chunked source", {source: sourceId}),
       api.remove("sorted field", {source: sourceId}),
+      api.remove("grouped field", {source: sourceId}),
       api.remove("binding", {source: sourceId})
     ]
     let bindings = ixer.select("binding", {source: sourceId});
@@ -443,9 +470,12 @@ module drawn {
   function removeView(viewId) {
     let diffs = [
       // removing the view will automatically remove the fields
-      api.remove("view", {view: viewId}),
-      api.remove("source", {view: viewId}),
+      api.remove("view", {view: viewId})
     ];
+    for(let source of ixer.select("source", {view: viewId})) {
+      let sourceId = source["source: source"];
+      diffs.push.apply(diffs, removeSource(sourceId));
+    }
     // go through and remove everything associated to variables
     for(let variable of ixer.select("variable", {view: viewId})) {
       diffs.push.apply(diffs, removeVariable(variable["variable: variable"]));
@@ -484,8 +514,8 @@ module drawn {
       break;
       case "removeSelection":
         var removedSources = {};
-        for(let nodeId in localState.selectedNodes) {
-          let node = localState.selectedNodes[nodeId];
+        for(let nodeId in info.nodes) {
+          let node = info.nodes[nodeId];
           if(node.type === "relationship") {
             removedSources[node.id] = true;
             diffs.push.apply(diffs, removeSource(node.id));
@@ -577,11 +607,13 @@ module drawn {
           }
         }
       break;
-      case "initializeNodePosition":
-        var node = info.node;
-        var currentPos = positions[node.id];
-        diffs.push(api.insert("editor node position", {node: node.id, x: currentPos.left, y: currentPos.top}),
-                   api.remove("editor node position", {node: node.id}));
+      case "initializeNodePositions":
+        var nodes = info.nodes;
+        for(let node of nodes) {
+          var currentPos = positions[node.id];
+          diffs.push(api.insert("editor node position", {node: node.id, x: currentPos.left, y: currentPos.top}),
+                     api.remove("editor node position", {node: node.id}));
+        }
       break;
       //---------------------------------------------------------
       // Navigation
@@ -786,6 +818,8 @@ module drawn {
         for(let select of selects) {
           let fieldId = select["select: field"];
           diffs.push(api.remove("field", {field: fieldId}));
+          // remove any downstream uses of this field if it's safe
+          diffs.push.apply(diffs, removeDownstreamFieldUses(fieldId));
         }
         diffs.push(api.remove("select", {variable: info.variableId}));
       break;
@@ -964,6 +998,21 @@ module drawn {
               diffs.push.apply(diffs, dispatch("addSelectToQuery", {variableId: bindingVariableId, name: code.name(fieldId), viewId: localState.drawnUiActiveId, allowNegated: true}, true));
             }
         });
+      break;
+      case "removeErrorSelection":
+        // run through the given nodes and determine if they're error'd sources or error'd variables
+        for(let nodeId in info.nodes) {
+          let node = info.nodes[nodeId];
+          if(!node.error) continue;
+          if(node.type === "relationship") {
+            diffs.push.apply(diffs, dispatch("removeErrorSource", {sourceId: node.id}, true));
+          } else {
+            diffs.push.apply(diffs, dispatch("removeErrorBinding", {variableId: info.variableId}, true));
+          }
+        }
+        // when we remove a selection, we should clear the selection for it otherwise you end up with
+        // a stale selection rect
+        diffs.push.apply(diffs, dispatch("clearSelection", {}, true));
       break;
       case "removeErrorBinding":
         for(let binding of ixer.select("binding", {variable: info.variableId})) {
@@ -1151,6 +1200,10 @@ module drawn {
       break;
       case "stopSearching":
         localState.searching = false;
+        if(info.clear) {
+          localState.searchingFor = "";
+          localState.searchResults = false;
+        }
       break;
       case "handleSearchKey":
         if(info.keyCode === api.KEYS.ENTER) {
@@ -1162,9 +1215,7 @@ module drawn {
           }
           diffs.push.apply(diffs, dispatch("stopSearching", {}, true));
         } else if(info.keyCode === api.KEYS.ESC) {
-          localState.searchingFor = "";
-          localState.searchResults = false;
-          diffs.push.apply(diffs, dispatch("stopSearching", {}, true));
+          diffs.push.apply(diffs, dispatch("stopSearching", {clear: true}, true));
         } else if(info.keyCode === api.KEYS.F && (info.ctrlKey || info.metaKey)) {
           diffs.push.apply(diffs, dispatch("stopSearching", {}, true));
           info.e.preventDefault();
@@ -1204,9 +1255,12 @@ module drawn {
       break;
       case "removeFieldFromTable":
         var tableId = info.tableId || localState.drawnUiActiveId;
+        var fieldId = localState.activeTableEntryField;
         // we remove whatever field is currently active in the form
-        if(localState.activeTableEntryField) {
-          diffs.push(api.remove("field", {field: localState.activeTableEntryField}));
+        if(fieldId) {
+          diffs.push(api.remove("field", {field: fieldId}));
+          // remove any downstream uses of this field if it's safe
+          diffs.push.apply(diffs, removeDownstreamFieldUses(fieldId));
           //@HACK: We have to delay this until after the field has been processed and removed from the index, or it will be expected when converting to diffs.
           setTimeout(function() {
             dispatch("refreshTableRows", {tableId});
@@ -1232,15 +1286,6 @@ module drawn {
         // this tracks the focus state of form fields for removal
         localState.activeTableEntryField = info.fieldId;
       break;
-      case "clearActiveTableEntryField":
-        // @HACK: because blur happens before a click on remove would get registered,
-        // we have to wait to clear activeTableEntry to give the click time to go through
-        setTimeout(function() {
-          if(localState.activeTableEntryField === info.fieldId) {
-            dispatch("forceClearActiveTableEntryField", info, true);
-          }
-        }, 150);
-      break;
       case "forceClearActiveTableEntryField":
         localState.activeTableEntryField = false;
       break;
@@ -1261,6 +1306,15 @@ module drawn {
       break;
       case "setTableEntryField":
         localState.tableEntry[info.fieldId] = info.value;
+        if(info.clear) {
+          // @HACK: because blur happens before a click on remove would get registered,
+          // we have to wait to clear activeTableEntry to give the click time to go through
+          setTimeout(function() {
+            if(localState.activeTableEntryField === info.fieldId) {
+              dispatch("forceClearActiveTableEntryField", info, true);
+            }
+          }, 10);
+        }
       break;
 
       //---------------------------------------------------------
@@ -1269,7 +1323,7 @@ module drawn {
 
       case "importFiles":
         for(let file of info.files) {
-          diffs.push.apply(diffs, dispatch("importCsv", {file: file}));
+          diffs.push.apply(diffs, dispatch("importCsv", {file: file, hasHeader: true}));
         }
       break;
       case "updateCsv":
@@ -1901,6 +1955,7 @@ module drawn {
 
       let graph = new graphLayout.Graph(sourceNodes, attributeNodes, edges, [640, 480]);
       let layout = graph.layout();
+      let nodesToInitialize = [];
       for(let node of nodes) {
         let p = layout.positions[node.id];
         let s = layout.sizes[node.id];
@@ -1908,14 +1963,16 @@ module drawn {
         let old = positions[node.id];
         if(!old || old.left !== neue.left || old.top !== neue.top) {
           positions[node.id] = neue;
-          dispatch("initializeNodePosition", {node: node});
+          nodesToInitialize.push(node);
+
         }
       }
+      dispatch("initializeNodePositions", {nodes: nodesToInitialize});
     }
   }
 
   function surfaceRelativeCoords(e) {
-    let surface:any = document.getElementsByClassName("query-workspace")[0];
+    let surface:any = document.getElementsByClassName("query-editor")[0];
     let surfaceRect = surface.getBoundingClientRect();
     let x = e.clientX - surfaceRect.left + surface.scrollLeft;
     let y = e.clientY - surfaceRect.top + surface.scrollTop;
@@ -1987,10 +2044,11 @@ module drawn {
     return {c: "query-selector-wrapper", children: [
       leftToolbar(actions, disabled),
       {c: "query-selector-body", click: clearSelectedItems, children: [
-        {c: "query-selector-filter", children: [
-          searching ? {c: "searching-for", children: [
+        {c: "spaced-row query-selector-filter", children: [
+          searching ? {c: "spaced-row searching-for", children: [
             {text: `Searching for`},
-            {c: "search-text", text: localState.searchingFor}
+            {c: "search-text", text: localState.searchingFor},
+            {c: "ion-close", clearSearch: true, click: stopSearching}
           ]} : undefined,
           queries.length === totalCount ? {c: "showing", text: `Showing all ${totalCount} items`} : {c: "showing", text: `found ${queries.length} of ${totalCount} items.`},
         ]},
@@ -2092,7 +2150,7 @@ module drawn {
                 description: "Open Eve's settings panel"})
 
     return {c: "left-side-container", children: [
-      {c: "query-tools", children: tools},
+      {c: "left-toolbar", children: tools},
       querySearcher()
     ]};
   }
@@ -2346,7 +2404,7 @@ module drawn {
         [
           {t: "input", type: "file", change: updateCsvFile},
           {c: "flex-row spaced-row", children: [
-            {text: "Treat first row as header"}
+            {text: "Treat first row as header"},
             {t: "input", type: "checkbox", change: updateCsvHasHeader}
           ]},
           {t: "button", text: "import", click: importFromCsv}
@@ -2402,11 +2460,11 @@ module drawn {
     if(viewDescription) {
       description = viewDescription["view description: description"];
     }
-    return {c: "query query-editor", children: [
+    return {c: "workspace query-workspace", children: [
       localState.drawnUiActiveId !== "itemSelector" ? queryTools(view, entityInfo) : undefined,
       {c: "container", children: [
         {c: "surface", children: [
-          {c: "query-workspace", children: [
+          {c: "query-editor", children: [
             {c: "query-name-input", contentEditable: true, blur: rename, renameId: viewId, text: code.name(viewId)},
             {c: "query-description-input", contentEditable: true, blur: setQueryDescription, viewId, text: description},
             queryCanvas(view, entityInfo),
@@ -2452,12 +2510,13 @@ module drawn {
     }
     // the minimum width and height of the canvas is based on the bottom, right of the
     // bounding box of all the nodes in the query
-    let boundingWidth = queryBoundingBox.right + 50;
-    let boundingHeight = queryBoundingBox.bottom + 50;
+    let boundingWidth = queryBoundingBox.right + 200;
+    let boundingHeight = queryBoundingBox.bottom + 200;
     return {c: "canvas", mousedown: startBoxSelection, mousemove: continueBoxSelection, mouseup: endBoxSelection, dragover: preventDefault, children: [
       {c: "selection", svg: true, width: boundingWidth, height: boundingHeight, t: "svg", children: [selection]},
       {c: "links", svg: true, width: boundingWidth, height: boundingHeight, t: "svg", children: linkItems},
-      {c: "nodes", width: boundingWidth, height: boundingHeight, children: items}
+      {c: "nodes", width: boundingWidth, height: boundingHeight, children: items},
+      peek(viewId, entityInfo),
     ]};
   }
 
@@ -2642,7 +2701,7 @@ module drawn {
 
   function setNodePosition(e, elem) {
     if(e.clientX === 0 && e.clientY === 0) return;
-    let surface:any = document.getElementsByClassName("query-workspace")[0];
+    let surface:any = document.getElementsByClassName("query-editor")[0];
     let surfaceRect = surface.getBoundingClientRect();
     let x = e.clientX - surfaceRect.left - api.localState.dragOffsetX + surface.scrollLeft;
     let y = e.clientY - surfaceRect.top - api.localState.dragOffsetY + surface.scrollTop;
@@ -2768,6 +2827,7 @@ module drawn {
       "Search": {func: startSearching, text: "Search", description: "Find sources to add to your query"},
       // These may get changed below depending on what's selected and the
       // current state.
+      "remove": {func: removeSelection, text: "Remove"},
       "join": {func: joinSelection, text: "Join"},
       "select": {func: selectAttribute, text: "Show"},
       "filter": {func: addFilter, text: "Filter"},
@@ -2797,10 +2857,12 @@ module drawn {
         "ordinal": "ordinal doesn't apply to error nodes",
         "negate": "negate doesn't apply to error nodes",
       }
+      actions["remove"].func = removeErrorSelection;
 
     // no selection
     } else if(!selectedNodes.length) {
       disabled = {
+        "remove": "remove only applies to sources",
         "join": "join only applies to attributes",
         "select": "select only applies to attributes",
         "filter": "filter only applies to attributes",
@@ -2815,6 +2877,7 @@ module drawn {
     } else if(selectedNodes.length === 1) {
       let node = selectedNodes[0];
       if(node.type === "attribute") {
+        disabled["remove"] = "remove only applies to sources";
         disabled["sort"] = "sort only applies to sources";
         disabled["chunk"] = "chunk only applies to sources";
         disabled["ordinal"] = "ordinal only applies to sources";
@@ -2887,6 +2950,9 @@ module drawn {
       if(selectedNodes.some((node) => node.type !== "attribute")) {
         disabled["join"] = "join only applies to attributes";
         disabled["select"] = "select only applies to attributes";
+        if(selectedNodes.some((node) => node.type !== "source")) {
+          disabled["remove"] = "remove only applies to sources";
+        }
       } else {
         // whether or not we are showing or hiding is based on the state of the first node
         // in the selection
@@ -2968,6 +3034,14 @@ module drawn {
   }
   function selectAttribute(e, elem) {
     dispatch("addSelectToQuery", {viewId: elem.viewId, variableId: elem.node.variable, name: elem.node.name});
+  }
+
+  function removeSelection(e, elem) {
+    dispatch("removeSelection", {nodes: localState.selectedNodes});
+  }
+
+  function removeErrorSelection(e, elem) {
+    dispatch("removeErrorSelection", {nodes: localState.selectedNodes});
   }
 
   //---------------------------------------------------------
@@ -3070,8 +3144,10 @@ module drawn {
   }
 
   function scrollToTheBottomOnChange(node, elem) {
+    console.log("scroll", node, elem);
     if(!node.searchValue || node.searchValue !== elem.value) {
-      node.scrollTop = Number.MAX_VALUE;
+      console.log("scrolling");
+      node.scrollTop = 2147483647; // 2^31 - 1, because Number.MAX_VALUE and Number.MAX_SAFE_INTEGER are too large and do nothing in FF...
       node.searchValue = elem.value;
     }
   }
@@ -3085,7 +3161,7 @@ module drawn {
   }
 
   function stopSearching(e, elem) {
-    dispatch("stopSearching", {});
+    dispatch("stopSearching", {clear: elem.clearSearch});
   }
 
   function updateSearch(e, elem) {
@@ -3096,28 +3172,38 @@ module drawn {
   // Query results component
   //---------------------------------------------------------
 
-  function queryResults(viewId, entityInfo) {
-    let resultViewId = viewId;
+  function peek(viewId, entityInfo) {
     let selectedNodeIds = Object.keys(localState.selectedNodes);
-    let peek;
+    let maxRenderedEntries = 100;
     if(selectedNodeIds.length === 1 && localState.selectedNodes[selectedNodeIds[0]].type === "relationship") {
       let peekViewId = localState.selectedNodes[selectedNodeIds[0]].source["source: source view"];
       let numFields = ixer.select("field", {view: peekViewId}).length;
       let rect = nodesToRectangle(entityInfo.nodes);
+      let selectionRect = nodesToRectangle(selectedNodeIds.map((nodeId) => entityInfo.nodeLookup[nodeId]));
       let peekViewSize = ixer.select(peekViewId, {}).length;
-      peek = {c: "peek-results", width: numFields * 100, left: rect.right + 50, top: (rect.top + rect.height /2) - 75, children: [
-        {c: "result-size", text: `${peekViewSize} rows`},
-        tableEditor.tableForView(peekViewId, 100),
-
+      let sizeText = `${peekViewSize} entries`;
+      if(peekViewSize > maxRenderedEntries) {
+        sizeText = `${maxRenderedEntries} of ` + sizeText;
+      }
+      return {c: "peek-results", width: numFields * 100, left: rect.right + 50, top: (selectionRect.top + selectionRect.height /2) - 75, children: [
+        {c: "result-size", text: sizeText},
+        tableEditor.tableForView(peekViewId, maxRenderedEntries),
       ]};
     }
+    return undefined;
+  }
+
+  function queryResults(viewId, entityInfo) {
+    let resultViewId = viewId;
+    let maxRenderedEntries = 100;
     let resultViewSize = getViewSize(resultViewId);
-    return {c: "query-results", children: [
-      peek,
-      {c: "query-results-container", children: [
-        {c: "result-size", text: `${resultViewSize} results`},
-        tableEditor.tableForView(resultViewId, 100, {onSelect: selectFieldNode, onHeaderSelect: selectFieldNode})
-      ]}
+    let sizeText = `${resultViewSize} results`;
+    if(resultViewSize > maxRenderedEntries) {
+      sizeText = `${maxRenderedEntries} of ` + sizeText;
+    }
+    return {id: `${viewId}-results`, c: "query-results", children: [
+      {c: "result-size", text: sizeText},
+      tableEditor.tableForView(resultViewId, 100, {onSelect: selectFieldNode, onHeaderSelect: selectFieldNode})
     ]};
   }
 
@@ -3166,6 +3252,7 @@ module drawn {
     var view = ixer.selectOne("view", {view: tableId});
     if(!view) return;
 
+    let maxRenderedEntries = 100;
     let actions = {
       "back": {text: "Back", func: navigateBack, description: "Return to the item selection page"},
       "new": {text: "New", func: newTableEntry, description: "Create a new entry"},
@@ -3174,23 +3261,23 @@ module drawn {
       "remove field": {text: "-Field", func: removeFieldFromTable, description: "Remove the active field from the card"}
     };
     let resultViewSize = getViewSize(tableId);
-    return {c: "query table-editor", children: [
+    let sizeText = `${resultViewSize} entries`;
+    if(resultViewSize > maxRenderedEntries) {
+      sizeText = `${maxRenderedEntries} of ` + sizeText;
+    }
+    return {c: "workspace table-workspace", children: [
       leftToolbar(actions),
       {c: "container", children: [
         {c: "surface", children: [
-          {c: "table-workspace", children: [
-            tableFormEditor(tableId, localState.tableEntry, 1, 0),
-          ]},
+          tableFormEditor(tableId, localState.tableEntry, 1, 0),
           queryErrors(view),
         ]},
         {id: `${tableId}-results`, c: "query-results", children: [
-          {c: "query-results-container", children: [
-            {c: "result-size", text: `${resultViewSize} entries`},
-            tableEditor.tableForView(tableId, 100, {
-              onSelect: selectTableEntry,
-              activeRow: localState.selectedTableEntry || localState.tableEntry,
-            })
-         ]},
+          {c: "result-size", text: sizeText},
+          tableEditor.tableForView(tableId, maxRenderedEntries, {
+            onSelect: selectTableEntry,
+            activeRow: localState.selectedTableEntry || localState.tableEntry,
+          })
         ]},
       ]},
     ]};
@@ -3199,7 +3286,7 @@ module drawn {
   function tableFormEditor(tableId, row = null, rowNum = 0, rowTotal = 0) {
     let fields = ixer.getFields(tableId).map((fieldId, ix) => {
       let value = row ? row[fieldId] : "";
-      let entryField = {c: "entry-field", fieldId, postRender: maybeFocusFormField, text: value, contentEditable: true, keydown: keyboardSubmitTableEntry, input: setTableEntryField, blur: clearActiveTableEntryField, focus: activeTableEntryField, key: JSON.stringify(row) + ix + localState.focusedTableEntryField};
+      let entryField = {c: "entry-field", fieldId, postRender: maybeFocusFormField, value, contentEditable: true, keydown: keyboardSubmitTableEntry, blur: setTableEntryField, focus: activeTableEntryField, key: JSON.stringify(row) + ix + localState.focusedTableEntryField};
       return {c: "field-item", children: [
         {c: "label", tabindex:-1, contentEditable: true, blur: rename, renameId: fieldId, text: code.name(fieldId)},
         entryField,
@@ -3261,9 +3348,9 @@ module drawn {
     return {c: `form-repeat`, transform: `rotate(${Math.random() * 3 * topDir + 1}deg)`, top: offset * topDir, left: offset * leftDir};
   }
 
-  function maybeFocusFormField(e, elem) {
+  function maybeFocusFormField(node, elem) {
     if(elem.fieldId === localState.focusedTableEntryField) {
-      e.focus();
+      node.focus();
       dispatch("focusTableEntryField", {});
     }
   }
@@ -3275,6 +3362,7 @@ module drawn {
 
   function keyboardSubmitTableEntry(e, elem) {
     if(e.keyCode === api.KEYS.ENTER) {
+      dispatch("setTableEntryField", {fieldId: elem.fieldId, value: coerceInput(e.currentTarget.textContent), clear: false});
       dispatch("submitTableEntry", {});
       e.preventDefault();
     }
@@ -3284,16 +3372,12 @@ module drawn {
     dispatch("submitTableEntry", {});
   }
 
-  function clearActiveTableEntryField(e, elem) {
-    dispatch("clearActiveTableEntryField", {fieldId: elem.fieldId});
-  }
-
   function activeTableEntryField(e, elem) {
     dispatch("activeTableEntryField", {fieldId: elem.fieldId});
   }
 
   function setTableEntryField(e, elem) {
-    dispatch("setTableEntryField", {fieldId: elem.fieldId, value: coerceInput(e.currentTarget.textContent)});
+    dispatch("setTableEntryField", {fieldId: elem.fieldId, value: coerceInput(e.currentTarget.textContent), clear: true});
   }
 
   function newTableEntry(e, elem) {
@@ -3337,7 +3421,7 @@ module drawn {
 
     //remove
     if(e.keyCode === KEYS.BACKSPACE) {
-      dispatch("removeSelection", null);
+      dispatch("removeSelection", {nodes: localState.selectedNodes});
       e.preventDefault();
     }
 
