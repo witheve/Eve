@@ -424,6 +424,7 @@ module drawn {
       api.remove("source", {source: sourceId}),
       api.remove("chunked source", {source: sourceId}),
       api.remove("sorted field", {source: sourceId}),
+      api.remove("grouped field", {source: sourceId}),
       api.remove("binding", {source: sourceId})
     ]
     let bindings = ixer.select("binding", {source: sourceId});
@@ -469,9 +470,12 @@ module drawn {
   function removeView(viewId) {
     let diffs = [
       // removing the view will automatically remove the fields
-      api.remove("view", {view: viewId}),
-      api.remove("source", {view: viewId}),
+      api.remove("view", {view: viewId})
     ];
+    for(let source of ixer.select("source", {view: viewId})) {
+      let sourceId = source["source: source"];
+      diffs.push.apply(diffs, removeSource(sourceId));
+    }
     // go through and remove everything associated to variables
     for(let variable of ixer.select("variable", {view: viewId})) {
       diffs.push.apply(diffs, removeVariable(variable["variable: variable"]));
