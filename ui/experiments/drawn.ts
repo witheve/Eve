@@ -2506,12 +2506,13 @@ module drawn {
     }
     // the minimum width and height of the canvas is based on the bottom, right of the
     // bounding box of all the nodes in the query
-    let boundingWidth = queryBoundingBox.right + 50;
-    let boundingHeight = queryBoundingBox.bottom + 50;
+    let boundingWidth = queryBoundingBox.right + 200;
+    let boundingHeight = queryBoundingBox.bottom + 200;
     return {c: "canvas", mousedown: startBoxSelection, mousemove: continueBoxSelection, mouseup: endBoxSelection, dragover: preventDefault, children: [
       {c: "selection", svg: true, width: boundingWidth, height: boundingHeight, t: "svg", children: [selection]},
       {c: "links", svg: true, width: boundingWidth, height: boundingHeight, t: "svg", children: linkItems},
-      {c: "nodes", width: boundingWidth, height: boundingHeight, children: items}
+      {c: "nodes", width: boundingWidth, height: boundingHeight, children: items},
+      peek(viewId, entityInfo),
     ]};
   }
 
@@ -3167,32 +3168,36 @@ module drawn {
   // Query results component
   //---------------------------------------------------------
 
-  function queryResults(viewId, entityInfo) {
-    let resultViewId = viewId;
+  function peek(viewId, entityInfo) {
     let selectedNodeIds = Object.keys(localState.selectedNodes);
-    let peek;
     let maxRenderedEntries = 100;
     if(selectedNodeIds.length === 1 && localState.selectedNodes[selectedNodeIds[0]].type === "relationship") {
       let peekViewId = localState.selectedNodes[selectedNodeIds[0]].source["source: source view"];
       let numFields = ixer.select("field", {view: peekViewId}).length;
       let rect = nodesToRectangle(entityInfo.nodes);
+      let selectionRect = nodesToRectangle(selectedNodeIds.map((nodeId) => entityInfo.nodeLookup[nodeId]));
       let peekViewSize = ixer.select(peekViewId, {}).length;
       let sizeText = `${peekViewSize} entries`;
       if(peekViewSize > maxRenderedEntries) {
         sizeText = `${maxRenderedEntries} of ` + sizeText;
       }
-      peek = {c: "peek-results", width: numFields * 100, left: rect.right + 50, top: (rect.top + rect.height /2) - 75, children: [
+      return {c: "peek-results", width: numFields * 100, left: rect.right + 50, top: (selectionRect.top + selectionRect.height /2) - 75, children: [
         {c: "result-size", text: sizeText},
         tableEditor.tableForView(peekViewId, maxRenderedEntries),
       ]};
     }
+    return undefined;
+  }
+
+  function queryResults(viewId, entityInfo) {
+    let resultViewId = viewId;
+    let maxRenderedEntries = 100;
     let resultViewSize = getViewSize(resultViewId);
     let sizeText = `${resultViewSize} results`;
     if(resultViewSize > maxRenderedEntries) {
       sizeText = `${maxRenderedEntries} of ` + sizeText;
     }
     return {c: "query-results", children: [
-      peek,
       {c: "query-results-container", children: [
         {c: "result-size", text: sizeText},
         tableEditor.tableForView(resultViewId, 100, {onSelect: selectFieldNode, onHeaderSelect: selectFieldNode})
