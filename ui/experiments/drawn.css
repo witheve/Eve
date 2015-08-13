@@ -38,7 +38,7 @@ body * { display: flex; flex-direction:column; box-sizing: border-box; outline:n
 .query-selector { flex: 1; flex-direction:row; flex-wrap:wrap; position:relative; align-items:flex-start; justify-content:flex-start; margin-left:10px; }
 .query-selector-body {overflow: auto;}
 .query-item { margin: 10px; }
-.query-item .query { border:1px solid #404040; width:300px; height:300px; border-radius:5px; box-shadow:0 0 8px #000; background: #404040; padding:25px; padding-top:50px; }
+.query-item .query { border:1px solid #404040; width:300px; height:300px; border-radius:3px; box-shadow:0 0 8px #000; background: #404040; padding:25px; padding-top:50px; }
 .query-item .surface { overflow:visible; transform-origin: 0 0; pointer-events: none; }
 .query-item .query-name { position:absolute; top:15px; left:15px; padding:10px; font-size:14pt; z-index:2; }
 .query-item .query-name-input { display:none; }
@@ -51,7 +51,7 @@ body * { display: flex; flex-direction:column; box-sizing: border-box; outline:n
 
 .form-container { width: 300px; position:relative; margin:10px; }
 .form-container .form-sub-container { flex: none; position:relative; }
-.form-container .form { border:1px solid #404040; max-height:50vh; flex: 1; position:relative; box-shadow: 0 0 8px #000; border-radius:3px; background: #404040; margin-bottom:10px; z-index: 2; /* Certain cards can cause form-repeats to appear in front of the form for unknown reasons. */}
+.form-container .form { border:1px solid #404040; max-height:50vh; flex: 1; position:relative; box-shadow: 0 0 8px #000; border-radius:3px; background: #404040; z-index: 2; /* Certain cards can cause form-repeats to appear in front of the form for unknown reasons. */}
 .form-container .form-repeat { transform-origin: center center; width: 300px; height:100%; position:absolute; left: 4px; top:4px; background:#404040; box-shadow: 0 0 8px #000; border-radius:2px; }
 .form-container .field-item { max-width:300px; border-radius:3px; flex:none; margin:0 15px 12px 15px; }
 .form-container .form-name { font-size: 14pt; margin-bottom:3px; flex:none; padding:0 15px; margin-top:15px; }

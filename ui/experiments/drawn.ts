@@ -3253,6 +3253,7 @@ module drawn {
     if(!view) return;
 
     let maxRenderedEntries = 100;
+    let disabled = {};
     let actions = {
       "back": {text: "Back", func: navigateBack, description: "Return to the item selection page"},
       "new": {text: "New", func: newTableEntry, description: "Create a new entry"},
@@ -3263,13 +3264,19 @@ module drawn {
       // through
       "remove field": {text: "-Field", func: removeFieldFromTable, description: "Remove the active field from the card", useMousedown: true}
     };
+    if(!localState.selectedTableEntry) {
+      disabled["delete"] = " no entry is selected";
+    }
+    if(!localState.activeTableEntryField) {
+      disabled["remove field"] = " the field to remove must be active";
+    }
     let resultViewSize = getViewSize(tableId);
     let sizeText = `${resultViewSize} entries`;
     if(resultViewSize > maxRenderedEntries) {
       sizeText = `${maxRenderedEntries} of ` + sizeText;
     }
     return {c: "workspace table-workspace", children: [
-      leftToolbar(actions),
+      leftToolbar(actions, disabled),
       {c: "container", children: [
         {c: "surface", children: [
           tableFormEditor(tableId, localState.tableEntry, 1, 0),
