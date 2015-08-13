@@ -35,9 +35,9 @@ module graphLayout {
   export function srand() {
     return (seed = (a * seed + c) % m) / m;
   }
-  
+
   /**
-   * Clone the given object, slicing all contained arrays. 
+   * Clone the given object, slicing all contained arrays.
    */
   function clone<T extends Object>(obj:T):T {
     let res = {};
@@ -52,7 +52,7 @@ module graphLayout {
     }
     return <T>res;
   }
-  
+
   /**
    * Given a list of [x, y] pairs, return the bounding box which contains them.
    */
@@ -72,7 +72,7 @@ module graphLayout {
     }
     return bb;
   }
-  
+
   /**
    * Given two bounding boxes, return their geometric union.
    */
@@ -84,7 +84,7 @@ module graphLayout {
       right: (a.right > b.right) ? a.right : b.right,
     }
   }
-  
+
   /**
    * Given two bounding boxes, return true if they intersect.
    */
@@ -95,7 +95,7 @@ module graphLayout {
     if(a.bottom < b.top) { return false; }
     return true;
   }
-  
+
   /**
    * Given two bounding boxes, mutate the first to geometrically contain the second.
    */
@@ -110,12 +110,12 @@ module graphLayout {
   export class Graph {
     protected sourceToTarget:IdToIdsMap
     protected targetToSources:IdToIdsMap
-    
+
     public sourcesById:{[id:string]: Node}
     public attributesById:{[id:string]: Node}
-    
+
     constructor(public sources:Node[] = [], public attributes:Node[] = [], public edges:Edge[] = [], public minimumSize?:[number, number]) {}
-    
+
     /**
      * Attempt to stochastically place nodes to minimize edge intersections, node overlaps, and node spread.
      * @param {number} [maxSamples] The total number of unique layouts to test.
@@ -139,7 +139,7 @@ module graphLayout {
       for(let edge of this.edges) {
         if(!this.sourcesById[edge.source]) { throw new Error("No matching source for edge:" + JSON.stringify(edge)); }
         if(!this.attributesById[edge.target]) { throw new Error("No matching target for edge:" + JSON.stringify(edge)); }
-        
+
         if(!sourceToTarget[edge.source]) { sourceToTarget[edge.source] = []; }
         sourceToTarget[edge.source].push(edge.target);
         if(!targetToSources[edge.target]) { targetToSources[edge.target] = []; }
@@ -147,7 +147,7 @@ module graphLayout {
       }
       this.sourceToTarget = sourceToTarget;
       this.targetToSources = targetToSources;
-      
+
       // Prune fixed sources and calculate the connectedness of active ones.
       let connectedness:{[id:string]: number} = {};
       let activeSources:Node[] = [];
@@ -161,14 +161,14 @@ module graphLayout {
           fixedSources.push(node);
         }
       }
-      
+
       // Sort sources by their connectedness to give them first pick when alloting space.
       activeSources.sort(function(a, b) {
        if(connectedness[a.id] > connectedness[b.id]) { return 1; }
        if(connectedness[a.id] < connectedness[b.id]) { return -1; }
        return 0;
       });
-      
+
       // Prune fixed attributes and segregate single-sourced (unjoined) attributes into sourceGroups.
       // Note: Only joined attributes will remain in the activeAttributes array.
       let activeAttributes:Node[] = [];
@@ -189,7 +189,7 @@ module graphLayout {
           fixedAttributes.push(node);
         }
       }
-      
+
       // Pre-compute layout for all fixed nodes.
       let fixedNodes = fixedSources.concat(fixedAttributes);
       let fixedLayout:Layout = {bounds: {top: 0, left: 0, bottom: 0, right: 0}, positions:{}, subBounds: []};
@@ -201,7 +201,7 @@ module graphLayout {
         fixedLayout.subBounds.push(nodeBounds);
         fixedLayout.positions[node.id] = [node.x, node.y];
       }
-      
+
       // Pre-compute the layouts for source groups so we can focus on placements.
       let sourceLayouts = {};
       let neueWidth = 0;
@@ -222,14 +222,14 @@ module graphLayout {
         maxNeueWidth = maxNeueWidth > node.width ? maxNeueWidth : node.width;
         maxNeueHeight = maxNeueHeight > node.height ? maxNeueHeight : node.height;
       }
-      
+
       // Calculate a window that should be able to contain the new content.
       let width, height;
       let totalUsedWidth = fixedLayout.bounds.right - fixedLayout.bounds.left;
       let totalUsedHeight = fixedLayout.bounds.bottom - fixedLayout.bounds.top;
       if(totalUsedWidth < totalUsedHeight) {
         width = totalUsedWidth + neueWidth + 20;
-        height = Math.max(totalUsedHeight, maxNeueHeight) + 20;  
+        height = Math.max(totalUsedHeight, maxNeueHeight) + 20;
       } else {
         width = Math.max(totalUsedWidth, maxNeueWidth) + 20;
         height = totalUsedHeight + neueHeight + 20;
@@ -238,18 +238,17 @@ module graphLayout {
         width = (width > this.minimumSize[0]) ? width : this.minimumSize[0];
         height = (height > this.minimumSize[1]) ? height : this.minimumSize[1];
       }
-      
+
       // Try [maxSamples] layouts, measuring the error of each and keeping the best.
       let minError = Infinity;
       let bestLayout:Layout = fixedLayout;
       let bestSample:number = 0;
       for(let sample = 0; sample < maxSamples; sample++) {
         let currentLayout:Layout = {positions: clone(fixedLayout.positions), bounds: {left: 0, top: 0, right: width, bottom: height}, subBounds: fixedLayout.subBounds.slice(), misfits: 0};
-
         for(let source of activeSources) {
           this.placeInLayout(clone(sourceLayouts[source.id].bounds), clone(sourceLayouts[source.id].positions), currentLayout, maxGroupPlacements);
         }
-        
+
         for(let attr of activeAttributes) {
           let hw = attr.width / 2;
           let hh = attr.height / 2;
@@ -258,7 +257,7 @@ module graphLayout {
           positions[attr.id] = [0, 0];
           this.placeInLayout(bounds, positions, currentLayout, maxJoinPlacements);
         }
-      
+
         let err = this.measureError(currentLayout, minError);
         if(err < minError) {
           minError = err;
@@ -266,16 +265,15 @@ module graphLayout {
           bestSample = sample;
         }
       }
-      
+
       // Pack the node sizes into an id -> sizes lookup for ease of use for clients.
       bestLayout.sizes = {};
       for(let node of this.sources.concat(this.attributes)) {
         bestLayout.sizes[node.id] = [node.width, node.height];
       }
-      
       return bestLayout;
     }
-    
+
     /**
      * Given a source and its dependents, lay them out into a radial group.
      */
@@ -283,27 +281,27 @@ module graphLayout {
       let hw = source.width / 2;
       let hh = source.height / 2;
       let bounds = {left: -hw, right: hw, top: -hh, bottom: hh};
-      
+
       let positions:NodePositions = {};
       positions[source.id] = [0, 0];
 
       // This source has no group, so place it singly.
       if(!group || !group.length) { return {positions:positions, bounds: bounds}; }
-      
-      let maxTargetWidth = 0;            
+
+      let maxTargetWidth = 0;
       for(let target of group) {
         if(target.width > maxTargetWidth) {
           maxTargetWidth = target.width;
         }
       }
-      
+
       // If this source is associated with a group, build a layout for the group and attempt to insert the entire group at once.
       let startAngle = srand() * Math.PI;
       let offsetAngle = 2 * Math.PI / group.length;
-      
+
       // @NOTE: The algorithm for calculating group diameter is optimized for awesome.
       let diameter = (source.width + maxTargetWidth) / 2 + 10;
-      
+
       // Calculate relative coords of attributes around their source and the group's bounding box..
       for(let ix = 0; ix < group.length; ix++) {
         let attr = group[ix];
@@ -313,16 +311,16 @@ module graphLayout {
         let x = diameter * Math.cos(startAngle + offsetAngle * ix);
         let y = diameter * Math.sin(startAngle + offsetAngle * ix);
         positions[attr.id] = [x, y];
-        
+
         if(x - hw < bounds.left) { bounds.left = x - hw; }
         if(y - hh < bounds.top) { bounds.top = y - hh; }
         if(x + hw > bounds.right) { bounds.right = x + hw; }
         if(y + hh > bounds.bottom) { bounds.bottom = y + hh; }
       }
-      
+
       return {positions:positions, bounds: bounds};
     }
-    
+
     /**
      * Attempt to place the given bounding box into the existing layout without collision a maximum of [tries] times.
      * Either way, insert the given nodes and bounding box into the layout when complete.
@@ -347,12 +345,12 @@ module graphLayout {
       while(tries-- > 0) {
         x = x0 + srand() * width;
         y = y0 + srand() * height;
-        
+
         let left = x + bounds.left;
         let top = y + bounds.top;
         let right = x + bounds.right;
         let bottom = y + bounds.bottom;
-        
+
         fits = true;
         // Test for intersection with existing bounds.
         for(let bb of layout.subBounds || []) {
@@ -368,9 +366,9 @@ module graphLayout {
         }
       }
       if(!fits) { layout.misfits += nodeCount; }
-      
+
       // Suck placement as close to the center as possible without colliding.
-      if(layout.subBounds.length < 100) { 
+      if(layout.subBounds.length < 100) {
         let layoutWidth = layout.bounds.right - layout.bounds.left;
         let layoutHeight = layout.bounds.bottom - layout.bounds.top;
         let deltaX = layout.bounds.left + layoutWidth / 2 - x;
@@ -380,12 +378,12 @@ module graphLayout {
         for(var i = 6; i > 1; i--) {
           let curX = x + deltaX / i;
           let curY = y + deltaY / i;
-   
+
           let left = curX + bounds.left;
           let top = curY + bounds.top;
           let right = curX + bounds.right;
           let bottom = curY + bounds.bottom;
-          
+
           fits = true;
           // Test for intersection with existing bounds.
           for(let bb of layout.subBounds || []) {
@@ -406,27 +404,27 @@ module graphLayout {
         x = lastX;
         y = lastY;
       }
-      
+
       // Add node absolute node positions.
       for(let nodeId in nodes) {
         nodes[nodeId][0] += x;
         nodes[nodeId][1] += y;
         layout.positions[nodeId] = nodes[nodeId];
       }
-      
+
       // Make bounds absolute.
       bounds.left += x;
       bounds.right += x;
       bounds.top += y;
       bounds.bottom += y;
       layout.subBounds.push(bounds);
-      
+
       // Update layout bounds if necessary.
       mergeIntoBB(layout.bounds, bounds);
-      
+
       return tries;
     }
-    
+
     /**
      * Approximate the distance between the given layout and a reasonable user-created layout.
      */
@@ -434,39 +432,39 @@ module graphLayout {
       let error = 0;
       let layoutWidth = (layout.bounds.right - layout.bounds.left);
       let layoutHeight = (layout.bounds.bottom - layout.bounds.top);
-      
+
       // Prefer more compact layouts.
       let graphSize =  Math.sqrt((layout.bounds.right - layout.bounds.left) + (layout.bounds.bottom - layout.bounds.top));
       error += graphSize;
-      
+
       // Prefer layouts without overlaps.
       let misfitScore = layout.misfits * 150;
       error += misfitScore;
 
-      // Prefer shorter edges
-      let edgeLengths = 0;
-      let minEdge = Infinity;
-      let maxEdge = 0;
-      for(let edge of this.edges) {
-        let src = layout.positions[edge.source];
-        let dest = layout.positions[edge.target];
-        if(!src || !dest) { console.error("Faulty edge", edge, "sources", this.sources.map((node) => node.id), "attrs", this.attributes.map((node) => node.id), "layout nodes", layout.positions); }
-        let length = Math.sqrt(Math.pow(dest[0] - src[0], 2) + Math.pow(dest[1] - src[1], 2));
-        edgeLengths += length;
-        if(length < minEdge) { minEdge = length; }
-        if(length > maxEdge) { maxEdge = length; }
-      }
-      edgeLengths /= this.edges.length;
-      let edgeLengthScore = edgeLengths / graphSize * 15;
-      error += edgeLengthScore;
+      if(this.edges.length > 0) {
+        // Prefer shorter edges
+        let edgeLengths = 0;
+        let minEdge = Infinity;
+        let maxEdge = 0;
+        for(let edge of this.edges) {
+          let src = layout.positions[edge.source];
+          let dest = layout.positions[edge.target];
+          if(!src || !dest) { console.error("Faulty edge", edge, "sources", this.sources.map((node) => node.id), "attrs", this.attributes.map((node) => node.id), "layout nodes", layout.positions); }
+          let length = Math.sqrt(Math.pow(dest[0] - src[0], 2) + Math.pow(dest[1] - src[1], 2));
+          edgeLengths += length;
+          if(length < minEdge) { minEdge = length; }
+          if(length > maxEdge) { maxEdge = length; }
+        }
+        edgeLengths /= this.edges.length;
+        let edgeLengthScore = edgeLengths / graphSize * 15;
+        error += edgeLengthScore;
 
-      // Prefer edges of equal length.
-      if(minEdge !== Infinity) {
+        // Prefer edges of equal length.
         let edgeDisparityScore = (maxEdge - minEdge) / edgeLengths * 40;
         error += edgeDisparityScore;
       }
 
-      // Before executing slow tests, check if this layout is already too unfit for them to matter.      
+      // Before executing slow tests, check if this layout is already too unfit for them to matter.
       if(error > threshold) { return error; }
 
       // Prefer layouts without edge intersections.
@@ -474,12 +472,12 @@ module graphLayout {
       let edgeCount = this.edges.length;
       for(let ix = 0; ix < edgeCount; ix++) {
         let edge = this.edges[ix];
-        
+
         if(this.sourcesById[edge.source].fixed && this.attributesById[edge.target].fixed) { continue; }
         let a1 = layout.positions[edge.source];
         let a2 = layout.positions[edge.target];
         let abb = pointsToBB(a1, a2);
-        
+
         for(let otherIx = ix; otherIx < edgeCount; otherIx++) {
           let other = this.edges[otherIx];
           if(edge.source === other.source || edge.target === other.target) { continue; }
