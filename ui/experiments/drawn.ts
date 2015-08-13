@@ -2146,7 +2146,7 @@ module drawn {
                 description: "Open Eve's settings panel"})
 
     return {c: "left-side-container", children: [
-      {c: "query-tools", children: tools},
+      {c: "left-toolbar", children: tools},
       querySearcher()
     ]};
   }

@@ -68,11 +68,11 @@ body { font-family:"Lato"; overflow:hidden; height: 100vh; }
 ---------------------------------------------------------*/
 
 .left-side-container { flex: 0 0 auto; }
-.query-tools { flex:1; padding:0px 5px; z-index:10; border-right:1px solid #333; width:100px; }
-.query-tools .tool { align-items: center; justify-content:center;  padding: 10px 15px; border: 0px solid rgba(255,255,255, 0.1); }
-.query-tools .tool + .tool, .query-tools .flex-spacer + .tool { border-top:1px solid #333; }
-.query-tools .tool:hover { background: rgba(255, 255, 255, 0.08); }
-.query-tools .tool.disabled { color: #666; background: transparent; }
+.left-toolbar { flex:1; padding:0px 5px; z-index:10; border-right:1px solid #333; width:100px; }
+.left-toolbar .tool { align-items: center; justify-content:center;  padding: 10px 15px; border: 0px solid rgba(255,255,255, 0.1); }
+.left-toolbar .tool + .tool, .left-toolbar .flex-spacer + .tool { border-top:1px solid #333; }
+.left-toolbar .tool:hover { background: rgba(255, 255, 255, 0.08); }
+.left-toolbar .tool.disabled { color: #666; background: transparent; }
 
 /*---------------------------------------------------------
 - Query workspace
@@ -99,10 +99,10 @@ body { font-family:"Lato"; overflow:hidden; height: 100vh; }
 .canvas .attribute-filter { flex-direction:row; align-items: center; justify-content: center; min-width: 40px; min-height: 20px; background:rgba(230,230,255,1); border: 1px solid rgba(194, 186, 242, 1); padding: 3px 10px; color:#555; border-radius:10px; margin-left:-15px; padding-left:15px; z-index:1; }
 .canvas .attribute-filter .value { margin-left: 5px;  }
 .canvas .filter-editor { min-width:20px; outline:none; }
-.canvas .item, .view-selector .item { flex:none; position: absolute; align-items: center; justify-content: center; min-width: 40px; min-height: 20px; padding: 3px 10px; border-radius:2px; rx: 5px; ry:5px; }
+.canvas .item { flex:none; position: absolute; align-items: center; justify-content: center; min-width: 40px; min-height: 20px; padding: 3px 10px; border-radius:2px; rx: 5px; ry:5px; }
 .canvas .item.uiSelected { border-color: black; }
 .canvas .item.overlapped { background: #999; color: #222; }
-.canvas .relationship, .view-selector .relationship { background: rgba(205,205,205,1); color: #555; padding:3px; font-size:9pt; border-radius:50px; }
+.canvas .relationship { background: rgba(205,205,205,1); color: #555; padding:3px; font-size:9pt; border-radius:50px; }
 .canvas .primitive { background: rgba(105,105,205,1); color: white; padding:3px; font-size:9pt; border-radius:50px; }
 .canvas .attribute { background:white; border: 1px dashed rgba(205,205,205,1); padding: 3px 10px; color:#555; border-radius:10px; }
 .canvas .attribute-relationship { background: rgba(205,205,205,1); color: #555; padding:3px; font-size:9pt; border-radius:50px; }
