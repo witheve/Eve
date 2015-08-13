@@ -114,26 +114,25 @@ module api {
   export var ixer = new Indexing.Indexer();
 
   export var newPrimitiveDefaults = {
-    "<": {"<: in A": 0, "<: in B": 0},
-    "<=": {"<=: in A": 0, "<=: in B": 0},
-    "!=": {"!=: in A": 0, "!=: in B": 0},
-    "+": {"+: in A": 0, "+: in B": 0},
-    "*": {"*: in A": 0, "*: in B": 0},
-    "-": {"-: in A": 0, "-: in B": 0},
-    "/": {"/: in A": 0, "/: in B": 0},
-    remainder: {"remainder: in A": 0, "remainder: in B": 0},
-    round: {"round: in A": 0, "round: in B": 0},
-    contains: {"contains: inner": " ", "contains: outer": ""},
-    count: {"count: in": []},
-    empty: {"empty: in": []},
-    mean: {"mean: in": []},
+    "<": {"<: A": 0, "<: B": 0},
+    "<=": {"<=: A": 0, "<=: B": 0},
+    "!=": {"!=: A": 0, "!=: B": 0},
+    "+": {"+: A": 0, "+: B": 0},
+    "*": {"*: A": 0, "*: B": 0},
+    "-": {"-: A": 0, "-: B": 0},
+    "/": {"/: A": 0, "/: B": 0},
+    remainder: {"remainder: A": 0, "remainder: B": 0},
+    round: {"round: A": 0, "round: B": 0},
+    contains: {"contains:ner": " ", "contains: outer": ""},
+    count: {"count: A": []},
+    mean: {"mean: A": []},
     split: {"split: split": " ", "split: string": ""},
-    concat: {"concat: a": "", "concat: b": ""},
-    "as number": {"as number: a": "0"},
-    "as text": {"as text: a": ""},
-    "standard deviation": {"standard deviation: in": []},
+    concat: {"concat: A": "", "concat: B": ""},
+    "as number": {"as number: A": "0"},
+    "as text": {"as text: A": ""},
+    "standard deviation": {"standard deviation: A": []},
 
-    sum: {"sum: in": []}
+    sum: {"sum: A": []}
   }
 
   // This index needs to be hardcoded for code.ix to work.
