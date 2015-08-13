@@ -48,7 +48,7 @@ body { font-family:"Lato"; overflow:hidden; height: 100vh; }
 
 .form-container { width: 300px; position:relative; margin:10px; }
 .form-container .form-sub-container { flex: none; position:relative; }
-.form-container .form { border:2px solid #404040; max-height:50vh; flex: 1; position:relative; box-shadow: 0 0 8px #000; border-radius:3px; background: #404040; margin-bottom:10px; }
+.form-container .form { border:2px solid #404040; max-height:50vh; flex: 1; position:relative; box-shadow: 0 0 8px #000; border-radius:3px; background: #404040; margin-bottom:10px; z-index: 2; /* Certain cards can cause form-repeats to appear in front of the form for unknown reasons. */}
 .form-container .form-repeat { transform-origin: center center; width: 300px; height:100%; position:absolute; left: 4px; top:4px; background:#404040; box-shadow: 0 0 8px #000; border-radius:2px; }
 .form-container .field-item { max-width:300px; border-radius:3px; flex:none; margin:0 15px 12px 15px; }
 .form-container .form-name { font-size: 14pt; margin-bottom:3px; flex:none; padding:0 15px; margin-top:15px; }
@@ -295,7 +295,7 @@ body { font-family:"Lato"; overflow:hidden; height: 100vh; }
 .dark .table-container .table .header { background: none; }
 
 /*---------------------------------------------------------
-- Misc
+- miscellaneous
 ---------------------------------------------------------*/
 
 /* clear pixel is used to replace the ghost images created by the HTML5 drag drop api */
@@ -303,3 +303,14 @@ body { font-family:"Lato"; overflow:hidden; height: 100vh; }
 
 /* banner that shows up when the connection to the server goes down */
 .dead-server-banner { position:absolute; top:0; left: 0; right:0; padding: 20px; background: red; color: black; z-index:10000; }
+
+/*---------------------------------------------------------
+- browser hacks for sad people
+---------------------------------------------------------*/
+
+@-moz-document url-prefix() {
+  [contenteditable="true"]:empty {
+    background-color: red !important;
+    content: " ";
+  }
+}
