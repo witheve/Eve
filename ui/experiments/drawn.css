@@ -208,11 +208,11 @@ body * { display: flex; flex-direction:column; box-sizing: border-box; outline:n
 - Peek
 ---------------------------------------------------------*/
 
-.peek-results { position:absolute; flex: 1; top: 20px; right: 20px; height: 150px; font-size: 10pt; color: #0ba; }
+.peek-results { position:absolute; flex: 1; top: 20px; right: 20px; height: 150px; font-size: 10pt; color: #0ba; z-index:10; }
 .peek-results .result-size { padding-left: 2px; margin-bottom:2px;}
 .peek-results .table-container { border:1px solid #00443f; }
 .peek-results .table-container .table .headers { background: #00443f; border-color: #00443f; }
-.dark .peek-results .table-container .table .header { width: 100px; background: #00443f; color: #0ba; }
+.peek-results .table-container .table .header { width: 100px; background: #00443f; color: #0ba; }
 .peek-results .table-container .table .field { width: 100px; color: #0ba; }
 
 /*---------------------------------------------------------

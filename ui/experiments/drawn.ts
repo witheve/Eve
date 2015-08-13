@@ -3185,7 +3185,7 @@ module drawn {
       if(peekViewSize > maxRenderedEntries) {
         sizeText = `${maxRenderedEntries} of ` + sizeText;
       }
-      return {c: "peek-results", width: numFields * 100, left: rect.right + 50, top: (selectionRect.top + selectionRect.height /2) - 75, children: [
+      return {c: "peek-results", mousedown: stopPropagation, width: numFields * 100, left: rect.right + 50, top: (selectionRect.top + selectionRect.height /2) - 75, children: [
         {c: "result-size", text: sizeText},
         tableEditor.tableForView(peekViewId, maxRenderedEntries),
       ]};
