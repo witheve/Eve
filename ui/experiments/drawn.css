@@ -65,6 +65,7 @@ body * { display: flex; flex-direction:column; box-sizing: border-box; outline:n
 .query-selector-filter { padding:0px 24px; margin-top:10px; height:20px; flex:none; font-size:10pt; color: #999; flex-direction: row; align-items:center;  }
 .query-selector-filter .searching-for { flex-direction: row; align-items: center; }
 .query-selector-filter .searching-for .search-text { padding:3px 5px; background: #444; margin:0 3px; border-radius:2px; }
+.query-selector-filter .showing { margin-right: 10px; }
 
 /*---------------------------------------------------------
 - Left toolbar
@@ -126,7 +127,7 @@ body * { display: flex; flex-direction:column; box-sizing: border-box; outline:n
 - Query results
 ---------------------------------------------------------*/
 
-.query-results { flex: 0.5; padding: 10px;   }
+.query-results { flex: 0.5; padding: 10px; margin-top:20px; }
 .query-results .result-size { padding-left: 0px; margin-bottom:5px; font-size:10pt; }
 
 /*---------------------------------------------------------
@@ -291,6 +292,11 @@ body * { display: flex; flex-direction:column; box-sizing: border-box; outline:n
 .light .searcher .search-results .group-type { background:rgba(0,0,0,0.05); }
 .light .searcher .search-results .search-result-group + .search-result-group .search-result-items { border-left: 1px solid rgba(0,0,0,0.1); }
 .light .searcher .search-results .search-result-group + .search-result-group .group-type { border-left: 1px solid rgba(0,0,0,0.1); }
+.light .searcher .search-results .result-description { color: #777; }
+
+.light .query-selector-filter { color: #777; }
+.light .query-selector-filter .searching-for .search-text { background: #fff; }
+.light .query-selector-filter .clear-search { color: #966; }
 
 .light .query-item .query { background: #fff; border-color: #fff; box-shadow: 0 2px 2px #ccc; color: #444; }
 .light .form { background: #fff; border-color: #fff; box-shadow: 0 2px 2px #ccc; }
@@ -306,8 +312,7 @@ body * { display: flex; flex-direction:column; box-sizing: border-box; outline:n
 .light .peek-results .table-container .header { background: rgb(222, 244, 255); color: rgb(33, 164, 222); border:none; }
 .light .peek-results .table-container .field { color: rgb(33, 164, 222); }
 
-.light .query-selector-filter { color: #777; }
-.light .query-selector-filter .searching-for .search-text { background: #fff; }
+
 
 .light .query-results .table-container .headers { background: rgba(0,0,0,0.1); }
 
