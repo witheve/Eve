@@ -424,6 +424,7 @@ module drawn {
       api.remove("source", {source: sourceId}),
       api.remove("chunked source", {source: sourceId}),
       api.remove("sorted field", {source: sourceId}),
+      api.remove("grouped field", {source: sourceId}),
       api.remove("binding", {source: sourceId})
     ]
     let bindings = ixer.select("binding", {source: sourceId});
@@ -469,9 +470,12 @@ module drawn {
   function removeView(viewId) {
     let diffs = [
       // removing the view will automatically remove the fields
-      api.remove("view", {view: viewId}),
-      api.remove("source", {view: viewId}),
+      api.remove("view", {view: viewId})
     ];
+    for(let source of ixer.select("source", {view: viewId})) {
+      let sourceId = source["source: source"];
+      diffs.push.apply(diffs, removeSource(sourceId));
+    }
     // go through and remove everything associated to variables
     for(let variable of ixer.select("variable", {view: viewId})) {
       diffs.push.apply(diffs, removeVariable(variable["variable: variable"]));
@@ -1289,6 +1293,9 @@ module drawn {
         localState.focusedTableEntryField = false;
       break;
       case "submitTableEntry":
+        if(info.fieldId) {
+          diffs.push.apply(diffs, dispatch("setTableEntryField", info, true));
+        }
         var tableId = localState.drawnUiActiveId;
         var row = localState.tableEntry;
         if(!row || Object.keys(row).length !== ixer.getFields(tableId, true).length) { return; }
@@ -1303,13 +1310,7 @@ module drawn {
       case "setTableEntryField":
         localState.tableEntry[info.fieldId] = info.value;
         if(info.clear) {
-          // @HACK: because blur happens before a click on remove would get registered,
-          // we have to wait to clear activeTableEntry to give the click time to go through
-          setTimeout(function() {
-            if(localState.activeTableEntryField === info.fieldId) {
-              dispatch("forceClearActiveTableEntryField", info, true);
-            }
-          }, 10);
+          dispatch("forceClearActiveTableEntryField", info, true);
         }
       break;
 
@@ -2130,7 +2131,10 @@ module drawn {
         tool[extraKey] = extraKeys[extraKey];
       }
       if(!disabled[actionName]) {
-        tool["click"] = action.func;
+        // due to event ordering issues, sometimes you need this to take effect on mousedown instead of
+        // waiting for the click timeout to happen
+        let event = action.useMousedown ? "mousedown" : "click";
+        tool[event] = action.func;
       } else {
         tool["c"] += " disabled";
         tool["disabledMessage"] = disabled[actionName];
@@ -2146,7 +2150,7 @@ module drawn {
                 description: "Open Eve's settings panel"})
 
     return {c: "left-side-container", children: [
-      {c: "query-tools", children: tools},
+      {c: "left-toolbar", children: tools},
       querySearcher()
     ]};
   }
@@ -3181,7 +3185,7 @@ module drawn {
       if(peekViewSize > maxRenderedEntries) {
         sizeText = `${maxRenderedEntries} of ` + sizeText;
       }
-      return {c: "peek-results", width: numFields * 100, left: rect.right + 50, top: (selectionRect.top + selectionRect.height /2) - 75, children: [
+      return {c: "peek-results", mousedown: stopPropagation, width: numFields * 100, left: rect.right + 50, top: (selectionRect.top + selectionRect.height /2) - 75, children: [
         {c: "result-size", text: sizeText},
         tableEditor.tableForView(peekViewId, maxRenderedEntries),
       ]};
@@ -3249,20 +3253,30 @@ module drawn {
     if(!view) return;
 
     let maxRenderedEntries = 100;
+    let disabled = {};
     let actions = {
       "back": {text: "Back", func: navigateBack, description: "Return to the item selection page"},
       "new": {text: "New", func: newTableEntry, description: "Create a new entry"},
       "delete": {text: "Delete", func: deleteTableEntry, description: "Delete the current entry"},
       "add field": {text: "+Field", func: addFieldToTable, description: "Add a field to the card"},
-      "remove field": {text: "-Field", func: removeFieldFromTable, description: "Remove the active field from the card"}
+      // remove field needs to set the useMousedown flag because we need to know what field was active when
+      // the button is pressed. If we use click, the field will have been blurred by the time the event goes
+      // through
+      "remove field": {text: "-Field", func: removeFieldFromTable, description: "Remove the active field from the card", useMousedown: true}
     };
+    if(!localState.selectedTableEntry) {
+      disabled["delete"] = " no entry is selected";
+    }
+    if(!localState.activeTableEntryField) {
+      disabled["remove field"] = " the field to remove must be active";
+    }
     let resultViewSize = getViewSize(tableId);
     let sizeText = `${resultViewSize} entries`;
     if(resultViewSize > maxRenderedEntries) {
       sizeText = `${maxRenderedEntries} of ` + sizeText;
     }
     return {c: "workspace table-workspace", children: [
-      leftToolbar(actions),
+      leftToolbar(actions, disabled),
       {c: "container", children: [
         {c: "surface", children: [
           tableFormEditor(tableId, localState.tableEntry, 1, 0),
@@ -3282,7 +3296,7 @@ module drawn {
   function tableFormEditor(tableId, row = null, rowNum = 0, rowTotal = 0) {
     let fields = ixer.getFields(tableId).map((fieldId, ix) => {
       let value = row ? row[fieldId] : "";
-      let entryField = {c: "entry-field", fieldId, postRender: maybeFocusFormField, value, contentEditable: true, keydown: keyboardSubmitTableEntry, blur: setTableEntryField, focus: activeTableEntryField, key: JSON.stringify(row) + ix + localState.focusedTableEntryField};
+      let entryField = {c: "entry-field", fieldId, postRender: maybeFocusFormField, text: value, contentEditable: true, keydown: keyboardSubmitTableEntry, blur: setTableEntryField, focus: activeTableEntryField, key: JSON.stringify(row) + ix + localState.focusedTableEntryField};
       return {c: "field-item", children: [
         {c: "label", tabindex:-1, contentEditable: true, blur: rename, renameId: fieldId, text: code.name(fieldId)},
         entryField,
@@ -3358,8 +3372,12 @@ module drawn {
 
   function keyboardSubmitTableEntry(e, elem) {
     if(e.keyCode === api.KEYS.ENTER) {
-      dispatch("setTableEntryField", {fieldId: elem.fieldId, value: coerceInput(e.currentTarget.textContent), clear: false});
-      dispatch("submitTableEntry", {});
+      dispatch("submitTableEntry", {fieldId: elem.fieldId, value: coerceInput(e.currentTarget.textContent)});
+      // @HACK: because we can't use the input event to track changes on contentEditable (Friefox resets cursor position
+      // to the beginning of the line if you do), we won't ever see the value of this element change. When we submit,
+      // we intend for the value in this input to be cleared, so we have to clear it manually as microReact just sees an
+      // unchanged textContent.
+      e.currentTarget.textContent = "";
       e.preventDefault();
     }
   }
