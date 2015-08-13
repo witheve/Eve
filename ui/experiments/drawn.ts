@@ -1282,15 +1282,6 @@ module drawn {
         // this tracks the focus state of form fields for removal
         localState.activeTableEntryField = info.fieldId;
       break;
-      case "clearActiveTableEntryField":
-        // @HACK: because blur happens before a click on remove would get registered,
-        // we have to wait to clear activeTableEntry to give the click time to go through
-        setTimeout(function() {
-          if(localState.activeTableEntryField === info.fieldId) {
-            dispatch("forceClearActiveTableEntryField", info, true);
-          }
-        }, 150);
-      break;
       case "forceClearActiveTableEntryField":
         localState.activeTableEntryField = false;
       break;
@@ -1311,6 +1302,15 @@ module drawn {
       break;
       case "setTableEntryField":
         localState.tableEntry[info.fieldId] = info.value;
+        if(info.clear) {
+          // @HACK: because blur happens before a click on remove would get registered,
+          // we have to wait to clear activeTableEntry to give the click time to go through
+          setTimeout(function() {
+            if(localState.activeTableEntryField === info.fieldId) {
+              dispatch("forceClearActiveTableEntryField", info, true);
+            }
+          }, 10);
+        }
       break;
 
       //---------------------------------------------------------
@@ -3282,7 +3282,7 @@ module drawn {
   function tableFormEditor(tableId, row = null, rowNum = 0, rowTotal = 0) {
     let fields = ixer.getFields(tableId).map((fieldId, ix) => {
       let value = row ? row[fieldId] : "";
-      let entryField = {c: "entry-field", fieldId, postRender: maybeFocusFormField, text: value, contentEditable: true, keydown: keyboardSubmitTableEntry, input: setTableEntryField, blur: clearActiveTableEntryField, focus: activeTableEntryField, key: JSON.stringify(row) + ix + localState.focusedTableEntryField};
+      let entryField = {c: "entry-field", fieldId, postRender: maybeFocusFormField, value, contentEditable: true, keydown: keyboardSubmitTableEntry, blur: setTableEntryField, focus: activeTableEntryField, key: JSON.stringify(row) + ix + localState.focusedTableEntryField};
       return {c: "field-item", children: [
         {c: "label", tabindex:-1, contentEditable: true, blur: rename, renameId: fieldId, text: code.name(fieldId)},
         entryField,
@@ -3344,9 +3344,9 @@ module drawn {
     return {c: `form-repeat`, transform: `rotate(${Math.random() * 3 * topDir + 1}deg)`, top: offset * topDir, left: offset * leftDir};
   }
 
-  function maybeFocusFormField(e, elem) {
+  function maybeFocusFormField(node, elem) {
     if(elem.fieldId === localState.focusedTableEntryField) {
-      e.focus();
+      node.focus();
       dispatch("focusTableEntryField", {});
     }
   }
@@ -3358,6 +3358,7 @@ module drawn {
 
   function keyboardSubmitTableEntry(e, elem) {
     if(e.keyCode === api.KEYS.ENTER) {
+      dispatch("setTableEntryField", {fieldId: elem.fieldId, value: coerceInput(e.currentTarget.textContent), clear: false});
       dispatch("submitTableEntry", {});
       e.preventDefault();
     }
@@ -3367,16 +3368,12 @@ module drawn {
     dispatch("submitTableEntry", {});
   }
 
-  function clearActiveTableEntryField(e, elem) {
-    dispatch("clearActiveTableEntryField", {fieldId: elem.fieldId});
-  }
-
   function activeTableEntryField(e, elem) {
     dispatch("activeTableEntryField", {fieldId: elem.fieldId});
   }
 
   function setTableEntryField(e, elem) {
-    dispatch("setTableEntryField", {fieldId: elem.fieldId, value: coerceInput(e.currentTarget.textContent)});
+    dispatch("setTableEntryField", {fieldId: elem.fieldId, value: coerceInput(e.currentTarget.textContent), clear: true});
   }
 
   function newTableEntry(e, elem) {
