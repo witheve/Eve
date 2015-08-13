@@ -1968,7 +1968,7 @@ module drawn {
   }
 
   function surfaceRelativeCoords(e) {
-    let surface:any = document.getElementsByClassName("query-workspace")[0];
+    let surface:any = document.getElementsByClassName("query-editor")[0];
     let surfaceRect = surface.getBoundingClientRect();
     let x = e.clientX - surfaceRect.left + surface.scrollLeft;
     let y = e.clientY - surfaceRect.top + surface.scrollTop;
@@ -2400,7 +2400,7 @@ module drawn {
         [
           {t: "input", type: "file", change: updateCsvFile},
           {c: "flex-row spaced-row", children: [
-            {text: "Treat first row as header"}
+            {text: "Treat first row as header"},
             {t: "input", type: "checkbox", change: updateCsvHasHeader}
           ]},
           {t: "button", text: "import", click: importFromCsv}
@@ -2456,11 +2456,11 @@ module drawn {
     if(viewDescription) {
       description = viewDescription["view description: description"];
     }
-    return {c: "query query-editor", children: [
+    return {c: "workspace query-workspace", children: [
       localState.drawnUiActiveId !== "itemSelector" ? queryTools(view, entityInfo) : undefined,
       {c: "container", children: [
         {c: "surface", children: [
-          {c: "query-workspace", children: [
+          {c: "query-editor", children: [
             {c: "query-name-input", contentEditable: true, blur: rename, renameId: viewId, text: code.name(viewId)},
             {c: "query-description-input", contentEditable: true, blur: setQueryDescription, viewId, text: description},
             queryCanvas(view, entityInfo),
@@ -2697,7 +2697,7 @@ module drawn {
 
   function setNodePosition(e, elem) {
     if(e.clientX === 0 && e.clientY === 0) return;
-    let surface:any = document.getElementsByClassName("query-workspace")[0];
+    let surface:any = document.getElementsByClassName("query-editor")[0];
     let surfaceRect = surface.getBoundingClientRect();
     let x = e.clientX - surfaceRect.left - api.localState.dragOffsetX + surface.scrollLeft;
     let y = e.clientY - surfaceRect.top - api.localState.dragOffsetY + surface.scrollTop;
@@ -3197,11 +3197,9 @@ module drawn {
     if(resultViewSize > maxRenderedEntries) {
       sizeText = `${maxRenderedEntries} of ` + sizeText;
     }
-    return {c: "query-results", children: [
-      {c: "query-results-container", children: [
-        {c: "result-size", text: sizeText},
-        tableEditor.tableForView(resultViewId, 100, {onSelect: selectFieldNode, onHeaderSelect: selectFieldNode})
-      ]}
+    return {id: `${viewId}-results`, c: "query-results", children: [
+      {c: "result-size", text: sizeText},
+      tableEditor.tableForView(resultViewId, 100, {onSelect: selectFieldNode, onHeaderSelect: selectFieldNode})
     ]};
   }
 
@@ -3263,23 +3261,19 @@ module drawn {
     if(resultViewSize > maxRenderedEntries) {
       sizeText = `${maxRenderedEntries} of ` + sizeText;
     }
-    return {c: "query table-editor", children: [
+    return {c: "workspace table-workspace", children: [
       leftToolbar(actions),
       {c: "container", children: [
         {c: "surface", children: [
-          {c: "table-workspace", children: [
-            tableFormEditor(tableId, localState.tableEntry, 1, 0),
-          ]},
+          tableFormEditor(tableId, localState.tableEntry, 1, 0),
           queryErrors(view),
         ]},
         {id: `${tableId}-results`, c: "query-results", children: [
-          {c: "query-results-container", children: [
-            {c: "result-size", text: sizeText},
-            tableEditor.tableForView(tableId, maxRenderedEntries, {
-              onSelect: selectTableEntry,
-              activeRow: localState.selectedTableEntry || localState.tableEntry,
-            })
-         ]},
+          {c: "result-size", text: sizeText},
+          tableEditor.tableForView(tableId, maxRenderedEntries, {
+            onSelect: selectTableEntry,
+            activeRow: localState.selectedTableEntry || localState.tableEntry,
+          })
         ]},
       ]},
     ]};
