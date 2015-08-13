@@ -401,8 +401,8 @@ module drawn {
       for(let variableBinding of allVariableBindings) {
          if(variableBinding === binding) continue;
          let fieldId = variableBinding["binding: field"];
-         let kind = ixer.selectOne("field", {field: fieldId})["field: kind"];
-         if(kind === "output") {
+         let field = ixer.selectOne("field", {field: fieldId});
+         if(!field || field["field: kind"] === "output") {
            needsConstant = false;
            break;
          } else {
@@ -1015,12 +1015,19 @@ module drawn {
         diffs.push.apply(diffs, dispatch("clearSelection", {}, true));
       break;
       case "removeErrorBinding":
-        for(let binding of ixer.select("binding", {variable: info.variableId})) {
+        var totalRemoved = 0
+        var bindings = ixer.select("binding", {variable: info.variableId});
+        for(let binding of bindings) {
           let fieldId = binding["binding: field"];
           let sourceId = binding["binding: source"];
           if(!ixer.selectOne("field", {field: fieldId})) {
+            totalRemoved++;
             diffs.push.apply(diffs, removeBinding(binding));
           }
+        }
+        // if we removed all the bindings, then we need to remove the variable
+        if(totalRemoved === bindings.length) {
+          diffs.push.apply(diffs, removeVariable(info.variableId));
         }
       break;
       case "removeErrorSource":
