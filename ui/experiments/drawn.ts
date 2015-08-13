@@ -1293,6 +1293,9 @@ module drawn {
         localState.focusedTableEntryField = false;
       break;
       case "submitTableEntry":
+        if(info.fieldId) {
+          diffs.push.apply(diffs, dispatch("setTableEntryField", info, true));
+        }
         var tableId = localState.drawnUiActiveId;
         var row = localState.tableEntry;
         if(!row || Object.keys(row).length !== ixer.getFields(tableId, true).length) { return; }
@@ -1307,13 +1310,7 @@ module drawn {
       case "setTableEntryField":
         localState.tableEntry[info.fieldId] = info.value;
         if(info.clear) {
-          // @HACK: because blur happens before a click on remove would get registered,
-          // we have to wait to clear activeTableEntry to give the click time to go through
-          setTimeout(function() {
-            if(localState.activeTableEntryField === info.fieldId) {
-              dispatch("forceClearActiveTableEntryField", info, true);
-            }
-          }, 10);
+          dispatch("forceClearActiveTableEntryField", info, true);
         }
       break;
 
@@ -2134,7 +2131,10 @@ module drawn {
         tool[extraKey] = extraKeys[extraKey];
       }
       if(!disabled[actionName]) {
-        tool["click"] = action.func;
+        // due to event ordering issues, sometimes you need this to take effect on mousedown instead of
+        // waiting for the click timeout to happen
+        let event = action.useMousedown ? "mousedown" : "click";
+        tool[event] = action.func;
       } else {
         tool["c"] += " disabled";
         tool["disabledMessage"] = disabled[actionName];
@@ -3258,7 +3258,10 @@ module drawn {
       "new": {text: "New", func: newTableEntry, description: "Create a new entry"},
       "delete": {text: "Delete", func: deleteTableEntry, description: "Delete the current entry"},
       "add field": {text: "+Field", func: addFieldToTable, description: "Add a field to the card"},
-      "remove field": {text: "-Field", func: removeFieldFromTable, description: "Remove the active field from the card"}
+      // remove field needs to set the useMousedown flag because we need to know what field was active when
+      // the button is pressed. If we use click, the field will have been blurred by the time the event goes
+      // through
+      "remove field": {text: "-Field", func: removeFieldFromTable, description: "Remove the active field from the card", useMousedown: true}
     };
     let resultViewSize = getViewSize(tableId);
     let sizeText = `${resultViewSize} entries`;
@@ -3362,8 +3365,12 @@ module drawn {
 
   function keyboardSubmitTableEntry(e, elem) {
     if(e.keyCode === api.KEYS.ENTER) {
-      dispatch("setTableEntryField", {fieldId: elem.fieldId, value: coerceInput(e.currentTarget.textContent), clear: false});
-      dispatch("submitTableEntry", {});
+      dispatch("submitTableEntry", {fieldId: elem.fieldId, value: coerceInput(e.currentTarget.textContent)});
+      // @HACK: because we can't use the input event to track changes on contentEditable (Friefox resets cursor position
+      // to the beginning of the line if you do), we won't ever see the value of this element change. When we submit,
+      // we intend for the value in this input to be cleared, so we have to clear it manually as microReact just sees an
+      // unchanged textContent.
+      e.currentTarget.textContent = "";
       e.preventDefault();
     }
   }
