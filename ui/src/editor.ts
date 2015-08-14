@@ -2671,6 +2671,15 @@ module drawn {
         selection = {svg: true, c: "selection-rectangle", t: "rect", x: left - 10, y: top - 10, width: width + 20, height: height + 20};
       }
     }
+
+    // if there are no items to show on the canvas, add a call to action
+    if(!items.length) {
+      items.push({c: "no-nodes flex-row spaced-row", click: startSearching, children: [
+        {c: "icon ion-ios-search-strong"},
+        {text: "Search to add a new source"}
+      ]})
+    }
+
     // the minimum width and height of the canvas is based on the bottom, right of the
     // bounding box of all the nodes in the query
     let boundingWidth = queryBoundingBox.right + 200;
