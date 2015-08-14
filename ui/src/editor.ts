@@ -3475,8 +3475,8 @@ module drawn {
     let disabled = {};
     let actions = {
       "back": {text: "Back", func: navigateBack, description: "Return to the item selection page"},
-      "new": {text: "New", func: newTableEntry, description: "Create a new entry"},
-      "delete": {text: "Delete", func: deleteTableEntry, description: "Delete the current entry"},
+      "new": {text: "+Entry", func: newTableEntry, description: "Create a new entry"},
+      "delete": {text: "-Entry", func: deleteTableEntry, description: "Remove the current entry"},
       "add field": {text: "+Field", func: addFieldToTable, description: "Add a field to the card"},
       // remove field needs to set the useMousedown flag because we need to know what field was active when
       // the button is pressed. If we use click, the field will have been blurred by the time the event goes
