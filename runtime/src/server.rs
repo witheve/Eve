@@ -269,7 +269,7 @@ pub fn handle_event(server: &mut Server, event: Event, event_json: Json) {
                     vec!["events got".to_owned(), id.to_owned(), events_string]
                     ]);
             }
-            ["set events", events_string] => {
+            ["set events", id, events_string] => {
                 write_file("./autosave", events_string);
                 server.flow = Flow::new();
                 load(&mut server.flow, "./bootstrap");
