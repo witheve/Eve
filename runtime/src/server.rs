@@ -252,6 +252,9 @@ pub fn handle_event(server: &mut Server, event: Event, event_json: Json) {
                 load(&mut server.flow, "./bootstrap");
                 load(&mut server.flow, filename);
                 save(&server.flow, "./autosave");
+                send_event(server, &vec![], &vec![
+                    vec!["loaded".to_owned(), filename.to_owned()]
+                    ]);
             }
             ["save", filename] => {
                 save(&server.flow, filename);
@@ -273,7 +276,7 @@ pub fn handle_event(server: &mut Server, event: Event, event_json: Json) {
     }
 
     let changes = &server.flow.changes_from(old_flow);
-    send_event(server, changes, &event.commands.clone())
+    send_event(server, changes, &vec![]);
 }
 
 pub fn run() {
