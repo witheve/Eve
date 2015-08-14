@@ -948,8 +948,15 @@ module drawn {
         );
       break;
       case "removeOrdinal":
-        var sourceId = info.node.source["source: source"];
-        var variableId = ixer.selectOne("ordinal binding", {source: sourceId})["ordinal binding: variable"];
+        var variableId;
+        if(info.node.source) {
+          let sourceId = info.node.source["source: source"];
+          variableId = ixer.selectOne("ordinal binding", {source: sourceId})["ordinal binding: variable"];
+        } else if(info.node.variable) {
+          variableId = info.node.variable;
+          // if we're doing this by a variable, it must be selected, so we have to clear the selection
+          diffs.push.apply(diffs, dispatch("clearSelection", {}, true));
+        }
         diffs = removeVariable(variableId);
       break;
       case "groupAttribute":
@@ -3004,7 +3011,7 @@ module drawn {
         disabled["remove"] = "remove only applies to sources";
         disabled["sort"] = "sort only applies to sources";
         disabled["chunk"] = "chunk only applies to sources";
-        disabled["ordinal"] = "ordinal only applies to sources";
+
         disabled["negate"] = "negate only applies to sources";
         if(!node.mergedAttributes) {
           // you can't select a node if the source is negated and it's not joined with anything else
@@ -3014,6 +3021,12 @@ module drawn {
           disabled["join"] = "multiple attributes aren't joined together on this node.";
         } else {
           actions["join"] = {func: unjoinNodes, text: "Unjoin"};
+        }
+
+        if(ixer.selectOne("ordinal binding", {variable: node.variable})) {
+          actions["ordinal"] = {func: removeOrdinal, text: "Unordinal"};
+        } else {
+          disabled["ordinal"] = "ordinal only applies to sources or ordinal nodes";
         }
 
         if(ixer.selectOne("select", {variable: node.variable})) {
@@ -3067,7 +3080,7 @@ module drawn {
         "group": "group only applies to single attributes",
         "sort": "sort only applies to single sources",
         "chunk": "chunk only applies to single sources",
-        "ordinal": "ordinal only applies to single sources",
+        "ordinal": "ordinal only applies to single sources or ordinal nodes",
         "negate": "negate only applies to single sources",
       }
 
