@@ -45,7 +45,7 @@ By default, every view is owned by the server. Views tagged "editor" are owned b
 
 Messages contain a list of changes to tables and a list of commands.
 
-``` json
+``` js
 {
     "changes":[
         [
