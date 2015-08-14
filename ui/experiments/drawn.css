@@ -30,6 +30,8 @@ body * { display: flex; flex-direction:column; box-sizing: border-box; outline:n
 
 .workspace { height: 100%; width: 100%; position:relative; flex-direction:row; }
 
+input[type="text"], textarea { font-family: "Lato"; }
+
 /*---------------------------------------------------------
 - Item selector
 ---------------------------------------------------------*/
@@ -179,7 +181,7 @@ body * { display: flex; flex-direction:column; box-sizing: border-box; outline:n
 .searcher-container { position:absolute; top:0; bottom:0; left:0; right: 0; z-index: 10; }
 .searcher-shade { position:absolute; top:0; bottom:0; left:0; right:0; }
 .searcher { position:absolute; z-index: 10; bottom:0; left:0; background:#444; box-shadow:0 0 8px #000; }
-.searcher .search-box { outline: none; height:150px; padding:10px; }
+.searcher .search-box { outline: none; height: 64px; padding: 10px; background: transparent; border: none; vertical-align: top; }
 .searcher .search-results { flex-direction: row; }
 .searcher .search-results .search-result-group { max-height:290px; width: 300px; margin-top:10px; }
 .searcher .search-results .search-result-group + .search-result-group .search-result-items { border-left: 1px solid rgba(255,255,255,0.1); }
@@ -358,6 +360,7 @@ body * { display: flex; flex-direction:column; box-sizing: border-box; outline:n
 ---------------------------------------------------------*/
 
 .dark { background: #222; color: #ccc; }
+.dark input[type="text"], .dark textarea { color: #ccc; }
 
 .dark .left-toolbar { border-color: transparent; }
 .dark .left-toolbar .tool { border-color: transparent; }
@@ -397,14 +400,3 @@ body * { display: flex; flex-direction:column; box-sizing: border-box; outline:n
 
 /* banner that shows up when the connection to the server goes down */
 .dead-server-banner { position:absolute; top:0; left: 0; right:0; padding: 20px; background: red; color: black; z-index:10000; }
-
-/*---------------------------------------------------------
-- browser hacks for sad people
----------------------------------------------------------*/
-
-@-moz-document url-prefix() {
-  [contenteditable="true"]:empty {
-    background-color: red !important;
-    content: " ";
-  }
-}

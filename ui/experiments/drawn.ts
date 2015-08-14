@@ -3142,15 +3142,13 @@ module drawn {
       {c: "searcher-shade", click: stopSearching},
       {c: "searcher", children: [
         {c: "search-results", children: resultGroups},
-        {c: "search-box", contentEditable: true, postRender: focusOnce, text: localState.searchingFor, input: updateSearch, keydown: handleSearchKey}
+        {t: "textarea", c: "search-box", postRender: focusOnce, value: localState.searchingFor, input: updateSearch, keydown: handleSearchKey}
       ]}
     ]};
   }
 
   function scrollToTheBottomOnChange(node, elem) {
-    console.log("scroll", node, elem);
     if(!node.searchValue || node.searchValue !== elem.value) {
-      console.log("scrolling");
       node.scrollTop = 2147483647; // 2^31 - 1, because Number.MAX_VALUE and Number.MAX_SAFE_INTEGER are too large and do nothing in FF...
       node.searchValue = elem.value;
     }
@@ -3169,7 +3167,8 @@ module drawn {
   }
 
   function updateSearch(e, elem) {
-    dispatch("updateSearch", {value: e.currentTarget.textContent});
+    console.log(e.currentTarget.value);
+    dispatch("updateSearch", {value: e.currentTarget.value});
   }
 
   //---------------------------------------------------------
@@ -3424,7 +3423,8 @@ module drawn {
     var target: any = e.target;
     if(e.defaultPrevented
        || target.nodeName === "INPUT"
-       || target.getAttribute("contentEditable")) {
+       || target.getAttribute("contentEditable")
+       || target.nodeName === "TEXTAREA") {
       return;
     }
 
