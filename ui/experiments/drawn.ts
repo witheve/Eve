@@ -1476,7 +1476,7 @@ module drawn {
         localState.selectedSave = info.save;
       break;
       case "loadSave":
-        var save:string = localState.selectedSave;
+        var save:string = info.save;
         if(save.substr(-4) !== ".eve") {
           save += ".eve";
         }
@@ -1489,7 +1489,7 @@ module drawn {
         diffs = dispatch("hideTooltip", {}, true);
       break;
       case "overwriteSave":
-        var save:string = localState.selectedSave;
+        var save:string = info.save;
         if(save.substr(-4) !== ".eve") {
           save += ".eve";
         }
@@ -1500,6 +1500,24 @@ module drawn {
         localStorage.setItem("lastSave", save);
         commands.push(["save", save]);
         diffs = dispatch("hideTooltip", {}, true);
+      break;
+      case "saveToGist":
+        var save:string = info.save;
+        commands.push["get events", save];
+        localState.saving = "gist";
+      break;
+      case "gotEvents":
+        console.log("hi", info);
+        if(localState.saving === "gist") {
+          api.saveToGist(localState.selectedSave, info.events, (err, url) => err ? dispatch("setNotice", {content: err.toString(), kind: "error", duration: 0}) : dispatch("remoteSaveComplete", {save: localState.selectedSave, url}));
+        }
+      break;
+      case "remoteSaveComplete":
+        console.log("URL", info.url);
+        diffs = dispatch("setNotice", {
+          content: {children: [{text: info.name}, {text: "saved to"}, {t: "a", href: info.url, text: info.url}]},
+          duration: 0}, true);
+        localState.saving = false;
       break;
       case "toggleHidden":
         var hidden = localStorage["showHidden"];
@@ -2196,6 +2214,7 @@ module drawn {
         let saves = localState.saves || [];
         let selected = localState.selectedSave;
         return [
+
           (saves.length ? {children: [
             {t: "h3", text: "Recent"},
             {c: "saves", children: saves.map((save) => { return {
@@ -2206,8 +2225,8 @@ module drawn {
               dblclick: overwriteSave
             }})}
           ]} : undefined),
-
-          {c: "flex-row spaced-row", children: [{t: "input", input: setSaveLocation}, {t: "button", text: "Save", click: overwriteSave}]}
+          {c: "flex-row spaced-row", children: [{text: "name"}, {t: "input", input: setSaveLocation}]},
+          {c: "flex-row", children: [{t: "button", text: "Save to gist (remote)", click: saveToGist}, {t: "button", text: "Save to file (local)", click: overwriteSave}]}
         ];
       }
     },
@@ -2291,11 +2310,15 @@ module drawn {
   }
 
   function overwriteSave(evt, elem) {
-    dispatch("overwriteSave", {});
+    dispatch("overwriteSave", {save: localState.selectedSave});
+  }
+
+  function saveToGist(evt, elem) {
+    dispatch("saveToGist", {save: localState.selectedSave})
   }
 
   function loadSave(evt, elem) {
-    dispatch("loadSave", {});
+    dispatch("loadSave", {save: localState.selectedSave});
   }
 
   //---------------------------------------------------------
