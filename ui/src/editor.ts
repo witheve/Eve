@@ -620,6 +620,11 @@ module drawn {
       //---------------------------------------------------------
       case "openItem":
         var currentItem = localState.drawnUiActiveId;
+        var kind = ixer.selectOne("view", {view: info.itemId})["view: kind"];
+        // if we try to go to a primitive view, bail out
+        if(kind === "primitive") {
+          break;
+        }
         // if we're already there, just clear the selection.
         if(currentItem === info.itemId) {
           diffs = dispatch("clearSelection", {}, true);
@@ -638,7 +643,6 @@ module drawn {
           localState.selectorSearchResults = localState.searchResults;
         }
         // if this item is a table, we should setup the initial table entry
-        var kind = ixer.selectOne("view", {view: info.itemId})["view: kind"];
         if(kind === "table") {
           diffs.push.apply(diffs, dispatch("newTableEntry", {}, true));
         }
@@ -1787,8 +1791,9 @@ module drawn {
       }
     }
     matchingViews.sort(sortByScore);
+    let currentView = ixer.selectOne("view", {view: localState.drawnUiActiveId});
     return {kind: "Sources", results: matchingViews, onSelect: (e, elem) => {
-      if(localState.drawnUiActiveId !== "itemSelector") {
+      if(localState.drawnUiActiveId !== "itemSelector" && currentView["view: kind"] === "join") {
         dispatch("addViewAndMaybeJoin", {viewId: elem.result.viewId});
       } else {
         dispatch("openItem", {itemId: elem.result.viewId})
@@ -2050,7 +2055,7 @@ module drawn {
       // @Hack: Height is fixed but width is not, we need some way of sampling it.
       sourceNodes.push({id: "placeholder 1", type: "placeholder", width: 256, height: 64, x: 5, y: 5});
 
-      let graph = new graphLayout.Graph(sourceNodes, attributeNodes, edges, [640, 480]);
+      let graph = new graphLayout.Graph(sourceNodes, attributeNodes, edges, [480, 360]);
       let layout = graph.layout();
       let nodesToInitialize = [];
       for(let node of nodes) {
