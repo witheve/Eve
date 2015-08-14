@@ -2883,21 +2883,20 @@ module drawn {
   }
 
   function storeDragOffset(e, elem) {
-    document.addEventListener("mousemove", firefoxDragMoveHandler, true);
     var rect = e.currentTarget.getBoundingClientRect();
     e.dataTransfer.setDragImage(document.getElementById("clear-pixel"),0,0);
+    e.dataTransfer.setData("text", "god damn it firefox.");
     dispatch("setDragOffset", {x: e.clientX - rect.left, y: e.clientY - rect.top});
   }
 
   function finalNodePosition(e, elem) {
-    document.removeEventListener("mousemove", firefoxDragMoveHandler);
+    __firefoxMouseX = __firefoxMouseY = undefined;
     dispatch("finalNodePosition", {node: elem.node});
   }
 
   function setNodePosition(e, elem) {
-    let mx = e.clientX || __firefoxMouseX;
-    let my = e.clientY || __firefoxMouseY;
-    console.log("hi FF", mx, my);
+    let mx = e.clientX || __firefoxMouseX || 0;
+    let my = e.clientY || __firefoxMouseY || 0;
     if(mx === 0 && my === 0) return;
     let surface:any = document.getElementsByClassName("query-editor")[0];
     let surfaceRect = surface.getBoundingClientRect();
@@ -3677,11 +3676,14 @@ module drawn {
     e.preventDefault();
   });
   
+  // @HACK: Because FF is a browser full of sadness...
   var __firefoxMouseX, __firefoxMouseY;
-  
   function firefoxDragMoveHandler(evt) {
     __firefoxMouseX = evt.clientX;
     __firefoxMouseY = evt.clientY;
+  }
+  if(navigator.userAgent.indexOf("Firefox") !== -1) {
+    document.body.addEventListener("dragover", firefoxDragMoveHandler, false);
   }
 
   //---------------------------------------------------------
