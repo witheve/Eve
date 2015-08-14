@@ -2004,7 +2004,7 @@ module drawn {
     } else {
       page = itemSelector();
     }
-    return {id: "root", c: localStorage["theme"] || "dark", children: [tooltipUi(), notice(), page]};
+    return {id: "root", c: localStorage["theme"] || "light", children: [tooltipUi(), notice(), page]};
   }
 
   //---------------------------------------------------------
