@@ -30,7 +30,7 @@ body * { display: flex; flex-direction:column; box-sizing: border-box; outline:n
 
 .workspace { height: 100%; width: 100%; position:relative; flex-direction:row; }
 
-input[type="text"], textarea { font-family: "Lato"; }
+input[type="text"], textarea { font-family: "Lato"; font-size: 16px; }
 
 /*---------------------------------------------------------
 - Item selector
