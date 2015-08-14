@@ -528,6 +528,11 @@ module drawn {
         for(let variable of ixer.select("variable", {view: localState.drawnUiActiveId})) {
           let variableId = variable["variable: variable"];
           let bindings = ixer.select("binding", {variable: variableId});
+
+          // check if this is an ordinal field, if so it's in use or has been removed already
+          let ordinal = ixer.selectOne("ordinal binding", {variable: variableId});
+          if(ordinal) continue;
+
           let shouldRemove = true;
           for(let binding of bindings) {
             if(!removedSources[binding["binding: source"]]) {
@@ -746,9 +751,11 @@ module drawn {
           diffs.push(api.insert("binding", {variable: variableId, source: sourceId, field: fieldId}));
         }
         // check for an ordinal binding and move it over if it exists
-        var ordinalBinding = ixer.selectOne("ordinal binding", {variable: variableIdToRemove});
-        if(ordinalBinding) {
-          diffs.push(api.insert("ordinal binding", {variable: variableId, source: ordinalBinding["ordinal binding: source"]}));
+        var ordinalBindings = ixer.select("ordinal binding", {variable: variableIdToRemove});
+        if(ordinalBindings.length) {
+          for(let ordinalBinding of ordinalBindings) {
+            diffs.push(api.insert("ordinal binding", {variable: variableId, source: ordinalBinding["ordinal binding: source"]}));
+          }
         }
 
         // remove the old variable
@@ -802,20 +809,28 @@ module drawn {
           diffs.push(api.remove("binding", {variable: variableIdToRemove, source: sourceId, field: fieldId}));
         }
         // check for an ordinal binding and create a new variable for it if it exists
-        var ordinalBinding = ixer.selectOne("ordinal binding", {variable: variableIdToRemove});
-        if(ordinalBinding) {
-          diffs.push.apply(diffs, addSourceFieldVariable(itemId, null, ordinalBinding["ordinal binding: source"], "ordinal"));
-          diffs.push(api.remove("ordinal binding", {variable: variableIdToRemove}));
+        var ordinalBindings = ixer.select("ordinal binding", {variable: variableIdToRemove});
+        if(ordinalBindings.length) {
+          for(let ordinalBinding of ordinalBindings) {
+            diffs.push.apply(diffs, addSourceFieldVariable(itemId, null, ordinalBinding["ordinal binding: source"], "ordinal"));
+            diffs.push(api.remove("ordinal binding", {variable: variableIdToRemove}));
+          }
         }
         // we have to check to make sure that if the original binding represents an input it gets a default
         // added to it to prevent the server from crashing
-        var fieldId = oldBindings[0]["binding: field"];
-        var kind = ixer.selectOne("field", {field: fieldId})["field: kind"];
-        if(kind !== "output") {
-          let sourceViewId = ixer.selectOne("source", {source: oldBindings[0]["binding: source"]})["source: source view"];
-          diffs.push(api.insert("constant binding", {variable: variableIdToRemove, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
+        if(oldBindings[0]) {
+          var fieldId = oldBindings[0]["binding: field"];
+          var kind = ixer.selectOne("field", {field: fieldId})["field: kind"];
+          if(kind !== "output") {
+            let sourceViewId = ixer.selectOne("source", {source: oldBindings[0]["binding: source"]})["source: source view"];
+            diffs.push(api.insert("constant binding", {variable: variableIdToRemove, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
+          }
+        } else {
+          // if there aren't any bindings, then this variable is unused, which can happen
+          // if the only things that were joined here were ordinals.
+          diffs.push.apply(diffs, removeVariable(variableIdToRemove));
         }
-
+        diffs.push.apply(diffs, dispatch("clearSelection", {}, true));
       break;
       case "removeSelectFromQuery":
         var selects = ixer.select("select", {variable: info.variableId}) || [];
@@ -952,16 +967,41 @@ module drawn {
         );
       break;
       case "removeOrdinal":
-        var variableId;
+        var variableId, sourceId;
         if(info.node.source) {
-          let sourceId = info.node.source["source: source"];
+          sourceId = info.node.source["source: source"];
           variableId = ixer.selectOne("ordinal binding", {source: sourceId})["ordinal binding: variable"];
         } else if(info.node.variable) {
           variableId = info.node.variable;
           // if we're doing this by a variable, it must be selected, so we have to clear the selection
           diffs.push.apply(diffs, dispatch("clearSelection", {}, true));
         }
-        diffs = removeVariable(variableId);
+        // at the very least remove the ordinal binding
+        diffs.push(api.remove("ordinal binding", {variable: variableId, source: sourceId}));
+        // if there are no other bindings to this variable, go ahead and remove it
+        let bindings = ixer.select("binding", {variable: variableId});
+        if(!bindings.length) {
+          diffs = removeVariable(variableId);
+        } else {
+          // otherwise we have to check if there's now a loose input field that needs a constant
+          let needsConstant = true;
+          let inputBinding;
+          for(let binding of bindings) {
+            var fieldId = bindings[0]["binding: field"];
+            var kind = ixer.selectOne("field", {field: fieldId})["field: kind"];
+            if(kind == "output") {
+              needsConstant = false;
+              break;
+            } else {
+              inputBinding = binding;
+            }
+          }
+          if(needsConstant) {
+            let fieldId = inputBinding["binding: field"];
+            let sourceViewId = ixer.selectOne("source", {source: inputBinding["binding: source"]})["source: source view"];
+            diffs.push(api.insert("constant binding", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
+          }
+        }
       break;
       case "groupAttribute":
         var variableId = info.variableId;
@@ -1889,9 +1929,9 @@ module drawn {
         let name = "";
         let singleBinding = bindings.length === 1;
 
-        // check if an ordinal is bound here.
-        if(ordinals.length) {
-          let sourceNode = nodeLookup[ordinals[0]["ordinal binding: source"]];
+        // create any ordinal links as necessary
+        for(let ordinal of ordinals) {
+          let sourceNode = nodeLookup[ordinal["ordinal binding: source"]];
           if(sourceNode) {
             let link: any = {left: attribute, right: sourceNode, name: "ordinal"};
             links.push(link);
@@ -1976,10 +2016,13 @@ module drawn {
         attribute.isOrdinal = true;
         attribute.name = "ordinal";
         attribute.select = ixer.selectOne("select", {variable: variableId});
-        let sourceNode = nodeLookup[ordinals[0]["ordinal binding: source"]];
-        if(sourceNode) {
-          let link: any = {left: attribute, right: sourceNode, name: "ordinal"};
-          links.push(link);
+        attribute.mergedAttributes = ordinals.length > 1 ? ordinals : undefined;
+        for(let ordinal of ordinals) {
+          let sourceNode = nodeLookup[ordinal["ordinal binding: source"]];
+          if(sourceNode) {
+            let link: any = {left: attribute, right: sourceNode, name: "ordinal"};
+            links.push(link);
+          }
         }
       } else {
         attribute.name = "unknown variable";
@@ -2452,7 +2495,6 @@ module drawn {
     let noticeItems = [];
     for(let noticeId in localState.notices) {
       let notice = localState.notices[noticeId];
-      console.log(noticeId, notice);
       noticeItems.push({c: `flex-row spaced-row notice ${notice.type} ${notice.fading ? "fade" : ""}`, time: notice.time, children: [
         (typeof notice.content === "function") ? notice.content() :
           {text: notice.content},
@@ -3331,7 +3373,6 @@ module drawn {
   }
 
   function updateSearch(e, elem) {
-    console.log(e.currentTarget.value);
     dispatch("updateSearch", {value: e.currentTarget.value});
   }
 
