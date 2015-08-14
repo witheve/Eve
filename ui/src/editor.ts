@@ -979,7 +979,7 @@ module drawn {
         // at the very least remove the ordinal binding
         diffs.push(api.remove("ordinal binding", {variable: variableId, source: sourceId}));
         // if there are no other bindings to this variable, go ahead and remove it
-        let bindings = ixer.select("binding", {variable: variableId});
+        var bindings = ixer.select("binding", {variable: variableId});
         if(!bindings.length) {
           diffs = removeVariable(variableId);
         } else {
@@ -1013,7 +1013,6 @@ module drawn {
         } else if(bindings.length > 1) {
           //we do this as a normal dispatch as we want to bail out in the error case.
           return dispatch("setError", {errorText: "Cannot group an attribute that has multiple bindings, not sure what to do."});
-          return;
         } else {
           sourceId = bindings[0]["binding: source"];
           fieldId = bindings[0]["binding: field"];
@@ -1043,7 +1042,6 @@ module drawn {
         } else if(bindings.length > 1) {
           //we do this as a normal dispatch as we want to bail out in the error case.
           return dispatch("setError", {errorText: "Cannot group an attribute that has multiple bindings, not sure what to do."});
-          return;
         } else {
           sourceId = bindings[0]["binding: source"];
           fieldId = bindings[0]["binding: field"];
@@ -1133,7 +1131,7 @@ module drawn {
           let viewId = localState.drawnUiActiveId;
           let ix = 0;
           fieldIds.forEach((fieldId) => {
-            if(ixer.selectOne("grouped field", {source: sourceId, field: fieldId})) return;
+            if(ixer.selectOne("grouped field", {source: sourceId, field: fieldId})) { return; }
             diffs.push(api.insert("sorted field", {source: sourceId, ix, field: fieldId, direction: "ascending"}));
             ix++;
           })
@@ -2885,21 +2883,26 @@ module drawn {
   }
 
   function storeDragOffset(e, elem) {
+    document.addEventListener("mousemove", firefoxDragMoveHandler, true);
     var rect = e.currentTarget.getBoundingClientRect();
     e.dataTransfer.setDragImage(document.getElementById("clear-pixel"),0,0);
     dispatch("setDragOffset", {x: e.clientX - rect.left, y: e.clientY - rect.top});
   }
 
   function finalNodePosition(e, elem) {
+    document.removeEventListener("mousemove", firefoxDragMoveHandler);
     dispatch("finalNodePosition", {node: elem.node});
   }
 
   function setNodePosition(e, elem) {
-    if(e.clientX === 0 && e.clientY === 0) return;
+    let mx = e.clientX || __firefoxMouseX;
+    let my = e.clientY || __firefoxMouseY;
+    console.log("hi FF", mx, my);
+    if(mx === 0 && my === 0) return;
     let surface:any = document.getElementsByClassName("query-editor")[0];
     let surfaceRect = surface.getBoundingClientRect();
-    let x = e.clientX - surfaceRect.left - api.localState.dragOffsetX + surface.scrollLeft;
-    let y = e.clientY - surfaceRect.top - api.localState.dragOffsetY + surface.scrollTop;
+    let x = mx - surfaceRect.left - api.localState.dragOffsetX + surface.scrollLeft;
+    let y = my - surfaceRect.top - api.localState.dragOffsetY + surface.scrollTop;
     dispatch("setNodePosition", {
       node: elem.node,
       pos: {left: x, top: y}
@@ -3630,7 +3633,7 @@ module drawn {
   }
 
   //---------------------------------------------------------
-  // keyboard handling
+  // input handling
   //---------------------------------------------------------
 
   document.addEventListener("keydown", function(e) {
@@ -3673,6 +3676,13 @@ module drawn {
     }
     e.preventDefault();
   });
+  
+  var __firefoxMouseX, __firefoxMouseY;
+  
+  function firefoxDragMoveHandler(evt) {
+    __firefoxMouseX = evt.clientX;
+    __firefoxMouseY = evt.clientY;
+  }
 
   //---------------------------------------------------------
   // Update notice
