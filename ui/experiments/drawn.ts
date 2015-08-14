@@ -1474,19 +1474,18 @@ module drawn {
       break;
       case "selectSave":
         localState.selectedSave = info.save;
+        localState.saveFile = info.file;
       break;
       case "loadSave":
-        var save:string = info.save;
-        if(save.substr(-4) !== ".eve") {
-          save += ".eve";
+        var saveFile:File = info.file;
+        if(!saveFile) {
+          diffs = dispatch("setNotice", {content: "Must select an eve file to load.", kind: "warn"}, true);
+          break;
         }
-        if(localState.saves.indexOf(save) === -1) {
-          localState.saves.push(save);
-          localStorage.setItem("saves", JSON.stringify(localState.saves));
-        }
-        localStorage.setItem("lastSave", save);
-        commands.push(["load", save]);
-        diffs = dispatch("hideTooltip", {}, true);
+        var reader = new FileReader();
+        reader.onload = (evt) => dispatch("writeEvents", {events: evt.target["result"]});
+        reader.readAsText(saveFile);
+        localState.loading = "local";
       break;
       case "overwriteSave":
         var save:string = info.save;
@@ -1517,6 +1516,7 @@ module drawn {
         diffs = dispatch("setNotice", {
           content: {c: "spaced-row flex-row", children: [{text: info.save}, {text: "saved to"}, {t: "a", href: info.url, text: info.url}]},
           duration: 0}, true);
+        diffs.push.apply(diffs, dispatch("hideTooltip", {}, true));
         localState.saving = false;
       break;
       case "loadFromGist":
@@ -1532,10 +1532,14 @@ module drawn {
 
         api.readFromGist(url, (err, events) => err ?
           dispatch("setNotice", {content: `Failed to load ${info.url} due to ${err.toString()}`, kind: "error", duration: 0})
-          : dispatch("writeRemoteEvents", {events}));
+          : dispatch("writeEvents", {events}));
+          
+        localState.loading = "gist";
       break;
-      case "writeRemoteEvents":
+      case "writeEvents":
         commands.push(["set events", info.events]);
+        diffs = dispatch("hideTooltip", {}, true);
+        localState.loading = false;
       break;
       case "toggleHidden":
         var hidden = localStorage["showHidden"];
@@ -2255,18 +2259,8 @@ module drawn {
         let saves = localState.saves || [];
         let selected = localState.selectedSave;
         return [
-          (saves.length ? {children: [
-            {t: "h3", text: "Recent"},
-            {c: "saves", children: saves.map((save) => { return {
-              c: (save === selected) ? "selected" : "",
-              text: save,
-              save: save,
-              click: selectSave,
-              dblclick: loadSave
-            }})}
-          ]} : undefined),
-          {c: "flex-row spaced-row", children: [{text: "name"}, {t: "input", input: setSaveLocation}]},
-          {c: "flex-row", children: [{t: "button", text: "Load from gist (remote)", click: loadFromGist}, {t: "button", text: "Load from file (local)", click: loadSave}]}
+          {c: "flex-row spaced-row", children: [{text: "url"}, {t: "input", input: setSaveLocation}, {t: "button", text: "Load from gist (remote)", click: loadFromGist}]},
+          {c: "flex-row", children: [{t: "input", type: "file", change: setSaveFile}, {t: "button", text: "Load from file (local)", click: loadSave}]}
         ]
       }
     },
@@ -2328,13 +2322,18 @@ module drawn {
   function setSaveLocation(evt, elem) {
     dispatch("selectSave", {save: evt.currentTarget.value});
   }
+  
+  function setSaveFile(evt, elem) {
+    console.log(evt.target.files[0]);
+    dispatch("selectSave", {file: evt.target.files[0]});
+  }
 
   function overwriteSave(evt, elem) {
     dispatch("overwriteSave", {save: localState.selectedSave});
   }
 
   function loadSave(evt, elem) {
-    dispatch("loadSave", {save: localState.selectedSave});
+    dispatch("loadSave", {file: localState.saveFile});
   }
 
   function saveToGist(evt, elem) {
