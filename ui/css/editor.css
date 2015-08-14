@@ -37,7 +37,7 @@ input[type="text"], textarea { font-family: "Lato"; }
 ---------------------------------------------------------*/
 
 .query-selector-wrapper { flex-direction: row; flex:1; -webkit-user-select:none; }
-.query-selector { flex: 1; flex-direction:row; flex-wrap:wrap; position:relative; align-items:flex-start; justify-content:flex-start; margin-left:10px; }
+.query-selector { flex: 1; flex-direction:row; flex-wrap:wrap; position:relative; align-items:flex-start; justify-content:flex-start; align-content: flex-start; margin-left:10px; }
 .query-selector-body {overflow: auto;}
 .query-item { margin: 10px; position:relative; }
 .query-item .query { border:1px solid #404040; width:300px; height:300px; border-radius:3px; box-shadow:0 0 8px #000; background: #404040; padding:25px; padding-top:50px; }
