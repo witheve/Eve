@@ -26,7 +26,7 @@ body * { display: flex; flex-direction:column; box-sizing: border-box; outline:n
 .flex-spacer { flex: 1; }
 .full-flex { flex: 1; }
 .container { flex: 1; position:relative; }
-.button { z-index: 10; padding:5px 10px; background: rgba(0,0,0,0.03); }
+.button { z-index: 10; padding:5px 10px; background: rgba(0,0,0,0.03); cursor:default; }
 
 .workspace { height: 100%; width: 100%; position:relative; flex-direction:row; }
 
@@ -113,6 +113,8 @@ input[type="text"], textarea { font-family: "Lato"; }
 .canvas .attribute { background:white; border: 1px dashed rgba(205,205,205,1); padding: 3px 10px; color:#555; border-radius:10px; }
 .canvas .attribute-relationship { background: rgba(205,205,205,1); color: #555; padding:3px; font-size:9pt; border-radius:50px; }
 .canvas .entity { background: rgba(187,85,85,1); color: white; border-color: rgba(187,85,85,1); }
+
+.canvas .item-wrapper .item.chunked.error:before { border:none; }
 
 /*---------------------------------------------------------
 - Table workspace
@@ -260,6 +262,9 @@ input[type="text"], textarea { font-family: "Lato"; }
 .editor-warnings .error-heading { color:  rgb(229, 197, 69); border-color: rgba(229, 197, 69, 0.4); }
 .editor-warnings.fade { width: 0; }
 
+.canvas .error-description { width: 150px; font-size: 10pt; border:1px solid rgba(187,85,85,1); z-index:10; background: rgb(123, 63, 63); padding:10px; margin-left:5px; border-radius:5px; align-items: flex-start; }
+.canvas .error-description .button { margin-top:5px; background: rgba(255,255,255,0.2); border-radius:3px;  }
+
 /*---------------------------------------------------------
 - notices
 ---------------------------------------------------------*/
@@ -341,11 +346,19 @@ input[type="text"], textarea { font-family: "Lato"; }
 .light .canvas .column.uiSelected:before { border-color:rgb(33, 164, 222); }
 .light .canvas .negated { background:#F98B8A; color: #222; }
 .light .canvas .item.overlapped { background: #bbb; color: #222; }
-.light .canvas .item.error { border-color:rgba(187,85,85,1); background: rgb(123, 63, 63); }
-.light .canvas .relationship.error { color: #ccc; }
-.light .canvas .error-description { width: 150px; font-size: 10pt; border:1px solid rgba(187,85,85,1); z-index:10; background: rgb(123, 63, 63); padding:10px 10px; margin-left:-15px; border-radius:10px; }
+.light .canvas .item.error { border-color:rgba(134, 0, 0, 0.2); background: rgb(255, 221, 221); }
+.light .canvas .relationship.error { }
+.light .canvas .error-description { border:1px solid rgba(134, 0, 0, 0.2); background: rgb(255, 221, 221); }
 .light .table-container .headers { background: rgba(255,255,255,0.1); }
 .light .table-container .header { background: none; }
+
+.light .error-count { background: rgb(255, 221, 221); color: rgb(134, 0, 0); }
+.light .error-group { background: rgb(255, 221, 221); color: #333; }
+.light .error-heading { border-bottom: 1px solid rgba(134, 0, 0, 0.2); color: rgb(134, 0, 0); }
+.light .error-items > *:hover { background: rgba(255,255,255,0.2);}
+.light .editor-warnings { background: rgb(255, 227, 132); color: #555; }
+.light .editor-warnings .error-heading { color:  rgb(140, 112, 2); border-color: rgba(177, 142, 1, 0.4); }
+.light .canvas .error-description .button { margin-top:5px; background: rgb(249, 186, 186); }
 
 .light .sorter .field { background: rgba(0,0,0,0.05); }
 .light .sorter .field.grouped { background: rgba(0,0,0,0.2); }
@@ -387,7 +400,7 @@ input[type="text"], textarea { font-family: "Lato"; }
 .dark .canvas .item.overlapped { background: #bbb; color: #222; }
 .dark .canvas .item.error { border-color:rgba(187,85,85,1); background: rgb(123, 63, 63); }
 .dark .canvas .relationship.error { color: #ccc; }
-.dark .canvas .error-description { width: 150px; font-size: 10pt; border:1px solid rgba(187,85,85,1); z-index:10; background: rgb(123, 63, 63); padding:10px 10px; margin-left:-15px; border-radius:10px; }
+.dark .canvas .error-description {  border:1px solid rgba(187,85,85,1); z-index:10; background: rgb(123, 63, 63); }
 .dark .table-container .headers { background: rgba(255,255,255,0.1); }
 .dark .table-container .header { background: none; }
 
