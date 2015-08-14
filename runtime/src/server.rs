@@ -29,7 +29,6 @@ pub struct Event {
     pub changes: Changes,
     pub session: String,
     // commands that affect the whole program state have to go through this side-channel rather than being added to a view
-    // supported commands: ["load", filename], ["save", filename]
     pub commands: Vec<Vec<String>>,
 }
 
@@ -252,17 +251,22 @@ pub fn handle_event(server: &mut Server, event: Event, event_json: Json) {
                 load(&mut server.flow, "./bootstrap");
                 load(&mut server.flow, filename);
                 save(&server.flow, "./autosave");
+                let current_dir = ::std::env::current_dir().unwrap().to_str().unwrap().to_owned();
                 send_event(server, &vec![], &vec![
-                    vec!["loaded".to_owned(), filename.to_owned()]
+                    vec!["loaded".to_owned(), current_dir, filename.to_owned()]
                     ]);
             }
             ["save", filename] => {
                 save(&server.flow, filename);
+                let current_dir = ::std::env::current_dir().unwrap().to_str().unwrap().to_owned();
+                send_event(server, &vec![], &vec![
+                    vec!["saved".to_owned(), current_dir, filename.to_owned()]
+                    ]);
             }
             ["get events", id] => {
                 let events_string = read_file("./autosave");
                 send_event(server, &vec![], &vec![
-                    vec!["got events".to_owned(), id.to_owned(), events_string]
+                    vec!["events got".to_owned(), id.to_owned(), events_string]
                     ]);
             }
             ["set events", events_string] => {
@@ -270,6 +274,9 @@ pub fn handle_event(server: &mut Server, event: Event, event_json: Json) {
                 server.flow = Flow::new();
                 load(&mut server.flow, "./bootstrap");
                 load(&mut server.flow, "./autosave");
+                send_event(server, &vec![], &vec![
+                    vec!["events set".to_owned(), id.to_owned()]
+                    ]);
             }
             other => panic!("Unknown command: {:?}", other),
         }
