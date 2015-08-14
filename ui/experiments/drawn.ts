@@ -2038,6 +2038,7 @@ module drawn {
     let actions = {
       "search": {func: startSearching, text: "Search", description: "Search for items to open by name."},
       "new": {func: startCreating, text: "New", description: "Add a new query or set of data."},
+      "import": {func: openImporter, text: "Import"},
       "delete": {func: removeSelectedItems, text: "Delete", description: "Delete an item from the database."},
     };
     let disabled = {};
@@ -2048,13 +2049,13 @@ module drawn {
     return {c: "query-selector-wrapper", children: [
       leftToolbar(actions, disabled),
       {c: "query-selector-body", click: clearSelectedItems, children: [
-        {c: "spaced-row query-selector-filter", children: [
-          searching ? {c: "spaced-row searching-for", children: [
+        {c: "query-selector-filter", children: [
+          searching ? {c: "searching-for", children: [
             {text: `Searching for`},
             {c: "search-text", text: localState.searchingFor},
-            {c: "ion-close", clearSearch: true, click: stopSearching}
           ]} : undefined,
           queries.length === totalCount ? {c: "showing", text: `Showing all ${totalCount} items`} : {c: "showing", text: `found ${queries.length} of ${totalCount} items.`},
+          searching ? {c: "clear-search ion-close", clearSearch: true, click: stopSearching} : undefined,
         ]},
         {c: "query-selector", children: queries}
       ]}
@@ -2369,10 +2370,6 @@ module drawn {
         {c: "type-container", children: [
           {c: "type", text: "Data", click: createNewItem, kind: "table", newName: "New table!"},
           {text: glossary.lookup["Data"].description}
-        ]},
-        {c: "type-container", children: [
-          {c: "type", text: "Import", click: openImporter, kind: "table"},
-          {text: glossary.lookup["Import"].description}
         ]},
         {c: "type-container", children: [
           {c: "type", text: "Query", click: createNewItem, kind: "join", newName: "New query!"},
@@ -3145,15 +3142,13 @@ module drawn {
       {c: "searcher-shade", click: stopSearching},
       {c: "searcher", children: [
         {c: "search-results", children: resultGroups},
-        {c: "search-box", contentEditable: true, postRender: focusOnce, text: localState.searchingFor, input: updateSearch, keydown: handleSearchKey}
+        {t: "textarea", c: "search-box", postRender: focusOnce, value: localState.searchingFor, input: updateSearch, keydown: handleSearchKey}
       ]}
     ]};
   }
 
   function scrollToTheBottomOnChange(node, elem) {
-    console.log("scroll", node, elem);
     if(!node.searchValue || node.searchValue !== elem.value) {
-      console.log("scrolling");
       node.scrollTop = 2147483647; // 2^31 - 1, because Number.MAX_VALUE and Number.MAX_SAFE_INTEGER are too large and do nothing in FF...
       node.searchValue = elem.value;
     }
@@ -3172,7 +3167,8 @@ module drawn {
   }
 
   function updateSearch(e, elem) {
-    dispatch("updateSearch", {value: e.currentTarget.textContent});
+    console.log(e.currentTarget.value);
+    dispatch("updateSearch", {value: e.currentTarget.value});
   }
 
   //---------------------------------------------------------
@@ -3427,7 +3423,8 @@ module drawn {
     var target: any = e.target;
     if(e.defaultPrevented
        || target.nodeName === "INPUT"
-       || target.getAttribute("contentEditable")) {
+       || target.getAttribute("contentEditable")
+       || target.nodeName === "TEXTAREA") {
       return;
     }
 
