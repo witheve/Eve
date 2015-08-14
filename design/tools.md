@@ -40,7 +40,7 @@ The bottom panel shows the results of the join. The field names are editable. TO
 
 ## Errors
 
-Compiler errors, editor errors and runtime errors are all displayed in a red bubble in the top-right corner. Clicking on an error navigates to the culprit. For common compiler errors (such as deleting a field that is in use elsewhere) the error is also highlighted with options for automatically fixing it (eg remove this use of the field). (Roadmap: better info from compiler, readable messages for more errors)
+Compiler errors, editor errors and runtime errors are all displayed in a red bubble in the top-right corner. Clicking on an error navigates to the culprit. For common compiler errors (such as deleting a field that is in use elsewhere) the error is also highlighted with options for automatically fixing it (eg remove this use of the field). (Roadmap: better info from compiler, readable messages for more errors, refactoring tool)
 
 Views which produce compiler errors are frozen until they are fixed. Currently not all errors are viewable in the view finder. (Roadmap: highlight disable views)
 
