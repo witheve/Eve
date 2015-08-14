@@ -63,6 +63,7 @@ impl Primitive {
             }
             (Divide, [ref a, ref b]) => {
                 match (a.parse_as_f64(), b.parse_as_f64()) {
+                    (Some(_), Some(0f64)) => type_error(),
                     (Some(a), Some(b)) => vec![vec![Float(a/b)]],
                     _ => type_error(),
                 }
@@ -101,8 +102,12 @@ impl Primitive {
             (Sum, [ref a]) => {
                 match a.parse_as_f64_vec() {
                     Some(a) => {
-                        let sum = a.iter().fold(0f64, |acc, value| { acc + value });
-                        vec![vec![Float(sum)]]
+                        if a.len() == 0 {
+                            vec![vec![Float(0f64)]]
+                        } else {
+                            let sum = a.iter().fold(0f64, |acc, value| { acc + value });
+                            vec![vec![Float(sum)]]
+                        }
                     }
                     None => type_error(),
                 }
@@ -110,9 +115,13 @@ impl Primitive {
             (Mean, [ref a]) => {
                 match a.parse_as_f64_vec() {
                     Some(a) => {
-                        let sum = a.iter().fold(0f64, |acc, value| { acc + value });
-                        let mean = sum / (a.len() as f64);
-                        vec![vec![Float(mean)]]
+                        if a.len() == 0 {
+                            vec![vec![Float(0f64)]]
+                        } else {
+                            let sum = a.iter().fold(0f64, |acc, value| { acc + value });
+                            let mean = sum / (a.len() as f64);
+                            vec![vec![Float(mean)]]
+                        }
                     }
                     None => type_error(),
                 }
@@ -120,10 +129,14 @@ impl Primitive {
             (StandardDeviation, [ref a]) => {
                 match a.parse_as_f64_vec() {
                     Some(a) => {
-                        let sum = a.iter().fold(0f64, |acc, value| { acc + value });
-                        let sum_squares = a.iter().fold(0f64, |acc, value| { acc + value.powi(2) });
-                        let standard_deviation = ((sum_squares - sum.powi(2)) / (a.len() as f64)).sqrt();
-                        vec![vec![Float(standard_deviation)]]
+                        if a.len() == 0 {
+                            vec![vec![Float(0f64)]]
+                        } else {
+                            let sum = a.iter().fold(0f64, |acc, value| { acc + value });
+                            let sum_squares = a.iter().fold(0f64, |acc, value| { acc + value.powi(2) });
+                            let standard_deviation = ((sum_squares - sum.powi(2)) / (a.len() as f64)).sqrt();
+                            vec![vec![Float(standard_deviation)]]
+                        }
                     }
                     None => type_error(),
                 }

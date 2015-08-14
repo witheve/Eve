@@ -2048,13 +2048,13 @@ module drawn {
     return {c: "query-selector-wrapper", children: [
       leftToolbar(actions, disabled),
       {c: "query-selector-body", click: clearSelectedItems, children: [
-        {c: "spaced-row query-selector-filter", children: [
-          searching ? {c: "spaced-row searching-for", children: [
+        {c: "query-selector-filter", children: [
+          searching ? {c: "searching-for", children: [
             {text: `Searching for`},
             {c: "search-text", text: localState.searchingFor},
-            {c: "ion-close", clearSearch: true, click: stopSearching}
           ]} : undefined,
           queries.length === totalCount ? {c: "showing", text: `Showing all ${totalCount} items`} : {c: "showing", text: `found ${queries.length} of ${totalCount} items.`},
+          searching ? {c: "clear-search ion-close", clearSearch: true, click: stopSearching} : undefined,
         ]},
         {c: "query-selector", children: queries}
       ]}
