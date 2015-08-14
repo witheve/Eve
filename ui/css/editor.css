@@ -368,6 +368,9 @@ input[type="text"], textarea { font-family: "Lato"; }
 .light .tabbed-box .preferences .toggle { background:rgba(0,0,0,0.1); }
 .light .tabbed-box .preferences .toggle:hover { background: rgba(0,0,0,0.2); }
 
+.light .table-container .table .header .icon { color: rgba(0,0,0,0.3); }
+.light .table-container .table .header .icon.active { display:flex; color: rgba(0,0,0,0.6); }
+
 .light a { color: rgb(33, 164, 222); }
 
 /*---------------------------------------------------------
