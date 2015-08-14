@@ -337,7 +337,7 @@ input[type="text"], textarea { font-family: "Lato"; }
 .light .canvas .attribute { background: #eee; color: #555; border-color: #ccc; }
 .light .canvas .relationship { background: #ccc; color: #222; }
 .light .canvas .entity { background:rgba(165, 85, 187, 1); color: rgba(255,255,255,0.8); border-color: #ccc; }
-.light .canvas .attribute-filter { background:rgb(222, 244, 255); border: 1px solid rgba(121, 167, 171, 1); color:rgba(255,255,255,0.8); }
+.light .canvas .attribute-filter { background:rgb(222, 244, 255); border: 1px solid rgb(33, 164, 222); color:#555; }
 .light .canvas .item.uiSelected { border-color: rgb(33, 164, 222); border-width: 1px; }
 .light .canvas .projected { border-style: solid; }
 .light .canvas .chunked:before { content: " "; position: absolute; z-index: -1; top: -2px; left: -2px; right: -2px; bottom: -2px; border:1px solid #ccc;  border-radius: 20px; }
@@ -367,6 +367,9 @@ input[type="text"], textarea { font-family: "Lato"; }
 .light .tabbed-box .tabs > .tab.active { border-color: rgba(0,0,0,0.2); }
 .light .tabbed-box .preferences .toggle { background:rgba(0,0,0,0.1); }
 .light .tabbed-box .preferences .toggle:hover { background: rgba(0,0,0,0.2); }
+
+.light .table-container .table .header .icon { color: rgba(0,0,0,0.3); }
+.light .table-container .table .header .icon.active { display:flex; color: rgba(0,0,0,0.6); }
 
 .light a { color: rgb(33, 164, 222); }
 

@@ -68,7 +68,7 @@ module tableEditor {
         sortClass += " active";
       }
       return {c: "header", children: [
-        {c: "input", contentEditable: true, fieldId, renameId: fieldId, blur: drawn.rename, click: opts.onHeaderSelect, text: name},
+        {c: "input", contentEditable: true, fieldId, renameId: fieldId, blur: drawn.renameField, keydown: drawn.maybeSubmitRenameField, click: opts.onHeaderSelect, text: name},
         { c: sortClass, click: setTableSort, tableId: id, fieldId}
       ]};
     });

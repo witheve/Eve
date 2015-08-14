@@ -620,6 +620,11 @@ module drawn {
       //---------------------------------------------------------
       case "openItem":
         var currentItem = localState.drawnUiActiveId;
+        var kind = ixer.selectOne("view", {view: info.itemId})["view: kind"];
+        // if we try to go to a primitive view, bail out
+        if(kind === "primitive") {
+          break;
+        }
         // if we're already there, just clear the selection.
         if(currentItem === info.itemId) {
           diffs = dispatch("clearSelection", {}, true);
@@ -638,7 +643,6 @@ module drawn {
           localState.selectorSearchResults = localState.searchResults;
         }
         // if this item is a table, we should setup the initial table entry
-        var kind = ixer.selectOne("view", {view: info.itemId})["view: kind"];
         if(kind === "table") {
           diffs.push.apply(diffs, dispatch("newTableEntry", {}, true));
         }
@@ -854,9 +858,29 @@ module drawn {
         }
       break;
       case "rename":
-        if(info.value === ixer.selectOne("display name", {id: info.renameId})["display name: name"]) return;
+        var prevName = ixer.selectOne("display name", {id: info.renameId});
+        if(prevName && info.value === prevName["display name: name"]) return;
         diffs.push(api.insert("display name", {id: info.renameId, name: info.value}),
                    api.remove("display name", {id: info.renameId}));
+      break;
+      case "renameField":
+        // check if there's a variable this field is being selected from, if so name it as well.
+        var select = ixer.selectOne("select", {field: info.renameId});
+        if(select) {
+          diffs.push.apply(diffs, dispatch("rename", {renameId: select["select: variable"], value: info.value}, true));
+        }
+        diffs.push.apply(diffs, dispatch("rename", info, true));
+      break;
+      case "startRenamingNode":
+        localState.renamingNodeId = info.nodeId;
+      break;
+      case "stopRenamingNode":
+        localState.renamingNodeId = false;
+        var select = ixer.selectOne("select", {variable: info.nodeId});
+        if(select) {
+          diffs.push.apply(diffs, dispatch("rename", {renameId: select["select: field"], value: info.value}, true));
+        }
+        diffs.push.apply(diffs, dispatch("rename", info, true));
       break;
       case "setQueryDescription":
         var prevDescription = ixer.selectOne("view description", {view: info.viewId});
@@ -928,8 +952,15 @@ module drawn {
         );
       break;
       case "removeOrdinal":
-        var sourceId = info.node.source["source: source"];
-        var variableId = ixer.selectOne("ordinal binding", {source: sourceId})["ordinal binding: variable"];
+        var variableId;
+        if(info.node.source) {
+          let sourceId = info.node.source["source: source"];
+          variableId = ixer.selectOne("ordinal binding", {source: sourceId})["ordinal binding: variable"];
+        } else if(info.node.variable) {
+          variableId = info.node.variable;
+          // if we're doing this by a variable, it must be selected, so we have to clear the selection
+          diffs.push.apply(diffs, dispatch("clearSelection", {}, true));
+        }
         diffs = removeVariable(variableId);
       break;
       case "groupAttribute":
@@ -1760,8 +1791,9 @@ module drawn {
       }
     }
     matchingViews.sort(sortByScore);
+    let currentView = ixer.selectOne("view", {view: localState.drawnUiActiveId});
     return {kind: "Sources", results: matchingViews, onSelect: (e, elem) => {
-      if(localState.drawnUiActiveId !== "itemSelector") {
+      if(localState.drawnUiActiveId !== "itemSelector" && currentView["view: kind"] === "join") {
         dispatch("addViewAndMaybeJoin", {viewId: elem.result.viewId});
       } else {
         dispatch("openItem", {itemId: elem.result.viewId})
@@ -1867,6 +1899,12 @@ module drawn {
           name = "ordinal";
         }
 
+        // see if this variable has been selected
+        let select = ixer.selectOne("select", {variable: variableId});
+
+        // check if this variable has been given a name
+        let variableName = code.name(variableId);
+
         // run through the bindings once to determine if it's an entity, what it's name is,
         // and all the other properties of this node.
         for(let binding of bindings) {
@@ -1904,8 +1942,9 @@ module drawn {
         }
 
 
-        // the final name of the node is either the entity name or whichever other name we found
-        name = entity || name;
+        // the final name of the node is either the variable's name, the name of the entity represented,
+        // or the first bound name we found
+        name = variableName || entity || name;
         // now that it's been named, go through the bindings again and create links to their sources
         for(let binding of bindings) {
           let sourceId = binding["binding: source"];
@@ -1924,7 +1963,7 @@ module drawn {
         attribute.name = name;
         attribute.mergedAttributes = bindings.length + ordinals.length > 1 ? bindings : undefined;
         attribute.entity = entity;
-        attribute.select = ixer.selectOne("select", {variable: variableId});
+        attribute.select = select;
         for(var constant of constants) {
           attribute.filter = {operation: "=", value: constant["constant binding: value"]};
         }
@@ -2738,12 +2777,42 @@ module drawn {
                 mousedown: selectNode, draggable: true, dragstart: storeDragOffset,
                 drag: setNodePosition, dragend: finalNodePosition, node: curNode, text};
 
+    // if it's an attribute, it can be renamed by doubleClicking
+    if(curNode.type === "attribute") {
+      elem["dblclick"] = startRenamingNode;
+    }
+
+    // if we are renaming this node, set it to contentEditable
+    if(localState.renamingNodeId === curNode.id) {
+      elem["c"] += " editing";
+      elem["contentEditable"] = true;
+      elem["renameId"] = curNode.variable;
+      elem["keydown"] = maybeStopRenamingNode;
+      elem["blur"] = stopRenamingNode;
+      elem["postRender"] = focusOnce;
+    }
+
     // if this is a relationship and not an error, then we can navigate into it
     if(curNode.type === "relationship" && !curNode.error) {
       elem["dblclick"] = openNode;
     }
     content.unshift(elem);
     return {c: "item-wrapper", top: top, left: left, size: {width, height}, node: curNode, selected: uiSelected, children: content};
+  }
+
+  function startRenamingNode(e, elem) {
+    dispatch("startRenamingNode", {nodeId: elem.node.id});
+  }
+
+  function maybeStopRenamingNode(e, elem) {
+    if(e.keyCode === api.KEYS.ENTER) {
+      stopRenamingNode(e, elem);
+      e.preventDefault();
+    }
+  }
+
+  function stopRenamingNode(e, elem) {
+    dispatch("stopRenamingNode", {renameId: elem.renameId, nodeId: elem.node.id, value: e.currentTarget.textContent});
   }
 
   function selectNode(e, elem) {
@@ -2895,6 +2964,7 @@ module drawn {
       "Search": {func: startSearching, text: "Search", description: "Find sources to add to your query"},
       // These may get changed below depending on what's selected and the
       // current state.
+      "rename": {func: startRenamingSelection, text: "Rename"},
       "remove": {func: removeSelection, text: "Remove"},
       "join": {func: joinSelection, text: "Join"},
       "select": {func: selectAttribute, text: "Show"},
@@ -2916,6 +2986,7 @@ module drawn {
     // if the selection contains error nodes, we can't do anything
     if(selectionContainsErrors) {
       disabled = {
+        "rename": "rename doesn't apply to error nodes",
         "join": "join doesn't apply to error nodes",
         "select": "select doesn't apply to error nodes",
         "filter": "filter doesn't apply to error nodes",
@@ -2930,6 +3001,7 @@ module drawn {
     // no selection
     } else if(!selectedNodes.length) {
       disabled = {
+        "rename": "an attribute has to be selected",
         "remove": "remove only applies to sources",
         "join": "join only applies to attributes",
         "select": "select only applies to attributes",
@@ -2948,7 +3020,7 @@ module drawn {
         disabled["remove"] = "remove only applies to sources";
         disabled["sort"] = "sort only applies to sources";
         disabled["chunk"] = "chunk only applies to sources";
-        disabled["ordinal"] = "ordinal only applies to sources";
+
         disabled["negate"] = "negate only applies to sources";
         if(!node.mergedAttributes) {
           // you can't select a node if the source is negated and it's not joined with anything else
@@ -2958,6 +3030,12 @@ module drawn {
           disabled["join"] = "multiple attributes aren't joined together on this node.";
         } else {
           actions["join"] = {func: unjoinNodes, text: "Unjoin"};
+        }
+
+        if(ixer.selectOne("ordinal binding", {variable: node.variable})) {
+          actions["ordinal"] = {func: removeOrdinal, text: "Unordinal"};
+        } else {
+          disabled["ordinal"] = "ordinal only applies to sources or ordinal nodes";
         }
 
         if(ixer.selectOne("select", {variable: node.variable})) {
@@ -2975,6 +3053,7 @@ module drawn {
           disabled["group"] = "To group an attribute, the source must either have an ordinal or be chunked";
         }
       } else if(node.type === "relationship") {
+        disabled["rename"] = "rename only applies to attributes";
         disabled["select"] = "select only applies to attributes.";
         disabled["filter"] = "filter only applies to attributes.";
         disabled["group"] = "group only applies to attributes.";
@@ -3005,11 +3084,12 @@ module drawn {
     //multi-selection
     } else {
       disabled = {
+        "rename": "rename only applies to single attributes",
         "filter": "filter only applies to single attributes",
         "group": "group only applies to single attributes",
         "sort": "sort only applies to single sources",
         "chunk": "chunk only applies to single sources",
-        "ordinal": "ordinal only applies to single sources",
+        "ordinal": "ordinal only applies to single sources or ordinal nodes",
         "negate": "negate only applies to single sources",
       }
 
@@ -3042,6 +3122,10 @@ module drawn {
 
   function joinSelection(e, elem) {
     dispatch("joinSelection", {});
+  }
+
+  function startRenamingSelection(e, elem) {
+    dispatch("startRenamingNode", {nodeId: elem.node.id});
   }
 
   function selectSelection(e, elem) {
@@ -3289,6 +3373,17 @@ module drawn {
 
   export function rename(e, elem) {
     dispatch("rename", {renameId: elem.renameId, value: e.currentTarget.textContent});
+  }
+
+  export function renameField(e, elem) {
+    dispatch("renameField", {renameId: elem.renameId, value: e.currentTarget.textContent});
+  }
+
+  export function maybeSubmitRenameField(e, elem) {
+    if(e.keyCode === api.KEYS.ENTER) {
+      renameField(e, elem);
+      e.preventDefault();
+    }
   }
 
   function setQueryDescription(e, elem) {
