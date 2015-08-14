@@ -50,10 +50,11 @@ input[type="text"], textarea { font-family: "Lato"; }
 .query-selector .selected .form { border: 1px solid #0ba; }
 
 .query-selector .form-container { height:300px; }
+.query-selector .form-container .form { height: 300px; flex: none; }
 
 .form-container { width: 300px; position:relative; margin:10px; }
 .form-container .form-sub-container { flex: none; position:relative; }
-.form-container .form { border:1px solid #404040; max-height:50vh; flex: 1; position:relative; box-shadow: 0 0 8px #000; border-radius:3px; background: #404040; z-index: 2; /* Certain cards can cause form-repeats to appear in front of the form for unknown reasons. */}
+.form-container .form { border:1px solid #404040; flex: 1; position:relative; box-shadow: 0 0 8px #000; border-radius:3px; background: #404040; z-index: 2; /* Certain cards can cause form-repeats to appear in front of the form for unknown reasons. */}
 .form-container .form-repeat { transform-origin: center center; width: 300px; height:100%; position:absolute; left: 4px; top:4px; background:#404040; box-shadow: 0 0 8px #000; border-radius:2px; }
 .form-container .field-item { max-width:300px; border-radius:3px; flex:none; margin:0 15px 12px 15px; }
 .form-container .form-name { font-size: 14pt; margin-bottom:3px; flex:none; padding:0 15px; margin-top:15px; }
