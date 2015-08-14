@@ -1,19 +1,8 @@
-#![feature(slice_patterns)]
-#![feature(path_ext)]
-extern crate eve;
-extern crate hyper;
-extern crate cookie;
-extern crate mime;
-extern crate url;
-extern crate websocket;
-extern crate rustc_serialize;
-extern crate conduit_mime_types;
-extern crate cbor;
-
 use std::io::Read;
 use std::io::Write;
 use std::fs::File;
 use std::error::Error;
+use hyper;
 use hyper::net::Fresh;
 use hyper::server::{Server, Request, Response};
 use hyper::uri::RequestUri;
@@ -31,12 +20,13 @@ use std::str::FromStr;
 use std::env;
 use websocket::{client,Client,stream,Message,Sender,Receiver};
 use std::thread;
+use cbor;
 use cbor::ToCbor;
 
-use eve::value::Value;
-use eve::server::Event;
-use eve::relation::Change;
-use eve::server;
+use value::Value;
+use server::Event;
+use relation::Change;
+use server;
 
 // The (increasingly misnamed) login server is responsible for:
 // * handling authentication via authrocket
@@ -86,7 +76,7 @@ struct Credential {
     object: String,
 }
 
-fn main() {
+pub fn run() {
     // TODO high thread-count is a workaround for https://github.com/hyperium/hyper/issues/368
     Server::http("0.0.0.0:8080").unwrap().handle_threads(login, 100).unwrap();
 }
