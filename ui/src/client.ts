@@ -144,8 +144,8 @@ module client {
       if (time > 5) {
         console.log("slow parse (> 5ms):", time);
       }
-      
-      
+
+
       var initializing = !server.initialized;
       server.initialized = true;
       if(data.commands) {
@@ -153,6 +153,9 @@ module client {
           // If we are loading in this event, we should ignore tags and accept all diffs.
           if(command === "load") {
             initializing = true;
+          }
+          if(command === "got events") {
+            dispatcher.dispatch("gotEvents", {name: args[0], events: args[1]});
           }
         }
       }
