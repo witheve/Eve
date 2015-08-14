@@ -1503,21 +1503,39 @@ module drawn {
       break;
       case "saveToGist":
         var save:string = info.save;
-        commands.push["get events", save];
+        commands.push(["get events", save]);
         localState.saving = "gist";
       break;
       case "gotEvents":
-        console.log("hi", info);
         if(localState.saving === "gist") {
-          api.saveToGist(localState.selectedSave, info.events, (err, url) => err ? dispatch("setNotice", {content: err.toString(), kind: "error", duration: 0}) : dispatch("remoteSaveComplete", {save: localState.selectedSave, url}));
+          api.writeToGist(info.save, info.events, (err, url) => err ?
+            dispatch("setNotice", {content: `Failed to save ${info.save} due to ${err.toString()}`, kind: "error", duration: 0})
+            : dispatch("remoteSaveComplete", {save: info.save, url}));
         }
       break;
       case "remoteSaveComplete":
-        console.log("URL", info.url);
         diffs = dispatch("setNotice", {
-          content: {children: [{text: info.name}, {text: "saved to"}, {t: "a", href: info.url, text: info.url}]},
+          content: {c: "spaced-row flex-row", children: [{text: info.save}, {text: "saved to"}, {t: "a", href: info.url, text: info.url}]},
           duration: 0}, true);
         localState.saving = false;
+      break;
+      case "loadFromGist":
+        let url:string = info.url;
+        url = url.replace("gist.github.com/", "gist.githubusercontent.com/");
+        if(url.indexOf("gist.githubusercontent.com/") === -1) {
+          diffs = dispatch("setNotice", {content: "Load from gist requires a valid gist URL.", kind: "warn"});
+          break;
+        }
+        if(url.indexOf("/raw/") === -1) {
+          url += "/raw/";
+        }
+
+        api.readFromGist(url, (err, events) => err ?
+          dispatch("setNotice", {content: `Failed to load ${info.url} due to ${err.toString()}`, kind: "error", duration: 0})
+          : dispatch("writeRemoteEvents", {events}));
+      break;
+      case "writeRemoteEvents":
+        commands.push(["set events", info.events]);
       break;
       case "toggleHidden":
         var hidden = localStorage["showHidden"];
@@ -2247,7 +2265,8 @@ module drawn {
               dblclick: loadSave
             }})}
           ]} : undefined),
-          {c: "flex-row spaced-row", children: [{t: "input", input: setSaveLocation}, {t: "button", text: "Load", click: loadSave}]}
+          {c: "flex-row spaced-row", children: [{text: "name"}, {t: "input", input: setSaveLocation}]},
+          {c: "flex-row", children: [{t: "button", text: "Load from gist (remote)", click: loadFromGist}, {t: "button", text: "Load from file (local)", click: loadSave}]}
         ]
       }
     },
@@ -2314,12 +2333,16 @@ module drawn {
     dispatch("overwriteSave", {save: localState.selectedSave});
   }
 
+  function loadSave(evt, elem) {
+    dispatch("loadSave", {save: localState.selectedSave});
+  }
+
   function saveToGist(evt, elem) {
     dispatch("saveToGist", {save: localState.selectedSave})
   }
 
-  function loadSave(evt, elem) {
-    dispatch("loadSave", {save: localState.selectedSave});
+  function loadFromGist(evt, elem) {
+    dispatch("loadFromGist", {url: localState.selectedSave})
   }
 
   //---------------------------------------------------------
@@ -3496,7 +3519,7 @@ module drawn {
   //---------------------------------------------------------
   // Go!
   //---------------------------------------------------------
-
+  client.setDispatch(dispatch);
   client.afterInit(() => {
     api.checkVersion(maybeShowUpdate);
     loadPositions();

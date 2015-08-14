@@ -107,7 +107,7 @@ module api {
     request.send();
   }
 
-  export function saveToGist(name:string, content:string, callback:(error, url?:string) => void) {
+  export function writeToGist(name:string, content:string, callback:(error:Error, url?:string) => void) {
     let request = new XMLHttpRequest();
     request.onreadystatechange = function() {
       if(request.readyState === 4) {
@@ -130,6 +130,21 @@ module api {
     console.log("P", payload);
     request.open("POST", "https://api.github.com/gists");
     request.send(JSON.stringify(payload));
+  }
+
+  export function readFromGist(url:string, callback:(error:Error, content?:string) => void) {
+    let request = new XMLHttpRequest();
+    request.onreadystatechange = function() {
+      if(request.readyState === 4) {
+        if(request.status !== 200) {
+          return callback(new Error(`HTTP Response: ${request.status}`));
+        }
+
+        callback(undefined, request.responseText);
+      }
+    }
+    request.open("GET", url);
+    request.send();
   }
 
   //---------------------------------------------------------
