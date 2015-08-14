@@ -98,7 +98,7 @@ input[type="text"], textarea { font-family: "Lato"; }
 .links text { text-anchor: middle; font-size:10pt; fill: #999; }
 .links tspan { text-anchor: middle; }
 
-.nodes { position:absolute; left: 0; right:0; top:0; bottom:0; min-width:100%; min-height: 100%; }
+.nodes { position:absolute; left: 0; right:0; top:0; bottom:0; min-width:100%; min-height: 100%; align-items: center; justify-content: center; }
 
 .canvas .item-wrapper { position:absolute; flex-direction:row; }
 .canvas .item-wrapper .item { position: static; z-index:2; }
@@ -115,6 +115,9 @@ input[type="text"], textarea { font-family: "Lato"; }
 .canvas .entity { background: rgba(187,85,85,1); color: white; border-color: rgba(187,85,85,1); }
 
 .canvas .item-wrapper .item.chunked.error:before { border:none; }
+
+.canvas .no-nodes { padding: 10px 15px; border-radius:3px; cursor:default; }
+.canvas .no-nodes:hover { background: rgba(255,255,255,0.1);  }
 
 /*---------------------------------------------------------
 - Table workspace
@@ -349,6 +352,9 @@ input[type="text"], textarea { font-family: "Lato"; }
 .light .canvas .item.error { border-color:rgba(134, 0, 0, 0.2); background: rgb(255, 221, 221); }
 .light .canvas .relationship.error { }
 .light .canvas .error-description { border:1px solid rgba(134, 0, 0, 0.2); background: rgb(255, 221, 221); }
+
+.light .canvas .no-nodes:hover { background: rgb(230,230,230); }
+
 .light .table-container .headers { background: rgba(255,255,255,0.1); }
 .light .table-container .header { background: none; }
 
