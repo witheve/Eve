@@ -1504,6 +1504,10 @@ module drawn {
       break;
       case "overwriteSave":
         var save:string = info.save;
+        if(!save) {
+          diffs = dispatch("setNotice", {content: "Must specify save file name.", kind: "warn"}, true);
+          break;
+        }
         if(save.substr(-4) !== ".eve") {
           save += ".eve";
         }
@@ -1516,7 +1520,7 @@ module drawn {
         diffs = dispatch("hideTooltip", {}, true);
       break;
       case "saveToGist":
-        var save:string = info.save;
+        var save:string = info.save || "unnamed.eve";
         commands.push(["get events", save]);
         localState.saving = "gist";
       break;
