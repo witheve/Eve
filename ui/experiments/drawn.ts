@@ -2038,6 +2038,7 @@ module drawn {
     let actions = {
       "search": {func: startSearching, text: "Search", description: "Search for items to open by name."},
       "new": {func: startCreating, text: "New", description: "Add a new query or set of data."},
+      "import": {func: openImporter, text: "Import"},
       "delete": {func: removeSelectedItems, text: "Delete", description: "Delete an item from the database."},
     };
     let disabled = {};
@@ -2369,10 +2370,6 @@ module drawn {
         {c: "type-container", children: [
           {c: "type", text: "Data", click: createNewItem, kind: "table", newName: "New table!"},
           {text: glossary.lookup["Data"].description}
-        ]},
-        {c: "type-container", children: [
-          {c: "type", text: "Import", click: openImporter, kind: "table"},
-          {text: glossary.lookup["Import"].description}
         ]},
         {c: "type-container", children: [
           {c: "type", text: "Query", click: createNewItem, kind: "join", newName: "New query!"},
