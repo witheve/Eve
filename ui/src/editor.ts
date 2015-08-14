@@ -979,7 +979,7 @@ module drawn {
         // at the very least remove the ordinal binding
         diffs.push(api.remove("ordinal binding", {variable: variableId, source: sourceId}));
         // if there are no other bindings to this variable, go ahead and remove it
-        let bindings = ixer.select("binding", {variable: variableId});
+        var bindings = ixer.select("binding", {variable: variableId});
         if(!bindings.length) {
           diffs = removeVariable(variableId);
         } else {
