@@ -266,7 +266,7 @@ pub fn handle_event(server: &mut Server, event: Event, event_json: Json) {
             ["get events", id] => {
                 let events_string = read_file("./autosave");
                 send_event(server, &vec![], &vec![
-                    vec!["got events".to_owned(), id.to_owned(), events_string]
+                    vec!["events got".to_owned(), id.to_owned(), events_string]
                     ]);
             }
             ["set events", events_string] => {
@@ -274,6 +274,9 @@ pub fn handle_event(server: &mut Server, event: Event, event_json: Json) {
                 server.flow = Flow::new();
                 load(&mut server.flow, "./bootstrap");
                 load(&mut server.flow, "./autosave");
+                send_event(server, &vec![], &vec![
+                    vec!["events set".to_owned(), id.to_owned()]
+                    ]);
             }
             other => panic!("Unknown command: {:?}", other),
         }
