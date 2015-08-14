@@ -2134,7 +2134,7 @@ module drawn {
       }
     });
     let actions = {
-      "search": {func: startSearching, text: "Search", description: "Search for items to open by name."},
+      "search": {func: startSearching, text: "Search", icon: "ion-ios-search-strong", description: "Search for items to open by name.", postSpacer: true},
       "new": {func: startCreating, text: "New", description: "Add a new query or set of data."},
       "import": {func: openImporter, text: "Import"},
       "delete": {func: removeSelectedItems, text: "Delete", description: "Delete an item from the database."},
@@ -2226,6 +2226,7 @@ module drawn {
 
   function leftToolbar(actions, disabled = {}, extraKeys = {}) {
     var tools = [];
+    let postSpacer = [];
     for(let actionName in actions) {
       let action = actions[actionName];
       let description = action.description;
@@ -2233,6 +2234,11 @@ module drawn {
         description = glossary.lookup[action.text].description;
       }
       let tool = {c: "tool", text: action.text, mouseover: showButtonTooltip, mouseout: hideButtonTooltip, description};
+      if(action["icon"]) {
+        tool.text = undefined;
+        tool["title"] = action.text;
+        tool.c = `${tool.c} ${action["icon"]}`;
+      }
       for(var extraKey in extraKeys) {
         tool[extraKey] = extraKeys[extraKey];
       }
@@ -2245,10 +2251,20 @@ module drawn {
         tool["c"] += " disabled";
         tool["disabledMessage"] = disabled[actionName];
       }
+      if(action["postSpacer"]) {
+        postSpacer.push(tool);
+      } else {
+        tools.push(tool);
+      }
+    }
+    // add a spacer to push the rest of the tools to bottom
+    tools.push({c: "flex-spacer"})
+    // append all the post spacer tools
+    for(let tool of postSpacer) {
       tools.push(tool);
     }
-    tools.push({c: "flex-spacer"},
-               {c: "tool ion-gear-b",
+    // add the settings at the very end
+    tools.push({c: "tool ion-gear-b",
                 title: "Settings",
                 mouseover: showButtonTooltip,
                 mouseout: hideButtonTooltip,
@@ -2961,7 +2977,7 @@ module drawn {
       // no matter what though you should be able to go back to the
       // query selector and search.
       "Back": {func: navigateBack, text: "Back", description: "Return to the item selection page"},
-      "Search": {func: startSearching, text: "Search", description: "Find sources to add to your query"},
+      "Search": {func: startSearching, icon: "ion-ios-search-strong", text: "Search", description: "Find sources to add to your query", postSpacer: true},
       // These may get changed below depending on what's selected and the
       // current state.
       "rename": {func: startRenamingSelection, text: "Rename"},
