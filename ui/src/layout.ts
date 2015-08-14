@@ -122,7 +122,7 @@ module graphLayout {
      * @param {number} [maxGroupPlacements] The number of attempts to make per group to find a placement with no collisions.
      * @param {number} [maxJoinPlacements] The number of attempts to make per join node to find a placement with no collisions.
      */
-    layout(maxSamples:number = 750, maxGroupPlacements = 100, maxJoinPlacements = 50) {
+    layout(maxSamples:number = 1250, maxGroupPlacements = 100, maxJoinPlacements = 50) {
       // Build id -> node lookups.
       this.sourcesById = {};
       this.attributesById = {};
@@ -456,7 +456,7 @@ module graphLayout {
           if(length > maxEdge) { maxEdge = length; }
         }
         edgeLengths /= this.edges.length;
-        let edgeLengthScore = edgeLengths / graphSize * 15;
+        let edgeLengthScore = edgeLengths / graphSize * 20;
         error += edgeLengthScore;
 
         // Prefer edges of equal length.
