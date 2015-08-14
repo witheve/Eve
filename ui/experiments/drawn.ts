@@ -1517,7 +1517,7 @@ module drawn {
         } else if(theme === "light") {
           localStorage["theme"] = "dark";
         } else {
-          localStorage["theme"] = "light";
+          localStorage["theme"] = "dark";
         }
       break;
       //---------------------------------------------------------
@@ -2243,10 +2243,10 @@ module drawn {
         }
         let theme;
         let curTheme = localStorage["theme"];
-        if(curTheme === "light") {
-          theme = {c: `toggle ${curTheme}`, click: toggleTheme, text: "Dark"};
-        } else {
+        if(curTheme === "dark") {
           theme = {c: `toggle ${curTheme}`, click: toggleTheme, text: "Light"};
+        } else {
+          theme = {c: `toggle ${curTheme}`, click: toggleTheme, text: "Dark"};
         }
         return [
           {c: "preferences", children: [
