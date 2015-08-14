@@ -1025,7 +1025,6 @@ module drawn {
         } else if(bindings.length > 1) {
           //we do this as a normal dispatch as we want to bail out in the error case.
           return dispatch("setError", {errorText: "Cannot group an attribute that has multiple bindings, not sure what to do."});
-          return;
         } else {
           sourceId = bindings[0]["binding: source"];
           fieldId = bindings[0]["binding: field"];
@@ -1055,7 +1054,6 @@ module drawn {
         } else if(bindings.length > 1) {
           //we do this as a normal dispatch as we want to bail out in the error case.
           return dispatch("setError", {errorText: "Cannot group an attribute that has multiple bindings, not sure what to do."});
-          return;
         } else {
           sourceId = bindings[0]["binding: source"];
           fieldId = bindings[0]["binding: field"];
@@ -1145,7 +1143,7 @@ module drawn {
           let viewId = localState.drawnUiActiveId;
           let ix = 0;
           fieldIds.forEach((fieldId) => {
-            if(ixer.selectOne("grouped field", {source: sourceId, field: fieldId})) return;
+            if(ixer.selectOne("grouped field", {source: sourceId, field: fieldId})) { return; }
             diffs.push(api.insert("sorted field", {source: sourceId, ix, field: fieldId, direction: "ascending"}));
             ix++;
           })
@@ -2908,19 +2906,23 @@ module drawn {
   function storeDragOffset(e, elem) {
     var rect = e.currentTarget.getBoundingClientRect();
     e.dataTransfer.setDragImage(document.getElementById("clear-pixel"),0,0);
+    e.dataTransfer.setData("text", "god damn it firefox.");
     dispatch("setDragOffset", {x: e.clientX - rect.left, y: e.clientY - rect.top});
   }
 
   function finalNodePosition(e, elem) {
+    __firefoxMouseX = __firefoxMouseY = undefined;
     dispatch("finalNodePosition", {node: elem.node});
   }
 
   function setNodePosition(e, elem) {
-    if(e.clientX === 0 && e.clientY === 0) return;
+    let mx = e.clientX || __firefoxMouseX || 0;
+    let my = e.clientY || __firefoxMouseY || 0;
+    if(mx === 0 && my === 0) return;
     let surface:any = document.getElementsByClassName("query-editor")[0];
     let surfaceRect = surface.getBoundingClientRect();
-    let x = e.clientX - surfaceRect.left - api.localState.dragOffsetX + surface.scrollLeft;
-    let y = e.clientY - surfaceRect.top - api.localState.dragOffsetY + surface.scrollTop;
+    let x = mx - surfaceRect.left - api.localState.dragOffsetX + surface.scrollLeft;
+    let y = my - surfaceRect.top - api.localState.dragOffsetY + surface.scrollTop;
     dispatch("setNodePosition", {
       node: elem.node,
       pos: {left: x, top: y}
@@ -3651,7 +3653,7 @@ module drawn {
   }
 
   //---------------------------------------------------------
-  // keyboard handling
+  // input handling
   //---------------------------------------------------------
 
   document.addEventListener("keydown", function(e) {
@@ -3694,6 +3696,16 @@ module drawn {
     }
     e.preventDefault();
   });
+  
+  // @HACK: Because FF is a browser full of sadness...
+  var __firefoxMouseX, __firefoxMouseY;
+  function firefoxDragMoveHandler(evt) {
+    __firefoxMouseX = evt.clientX;
+    __firefoxMouseY = evt.clientY;
+  }
+  if(navigator.userAgent.indexOf("Firefox") !== -1) {
+    document.body.addEventListener("dragover", firefoxDragMoveHandler, false);
+  }
 
   //---------------------------------------------------------
   // Update notice
