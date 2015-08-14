@@ -152,10 +152,11 @@ module client {
       if(data.commands) {
         for(let [command, ...args] of data.commands) {
           // If we are loading in this event, we should ignore tags and accept all diffs.
-          if(command === "load" || command === "set events") {
+          if(command === "loaded" || command === "events set") {
             initializing = true;
+            // @FIXME: Send filename + path to dispatcher.
           }
-          if(command === "got events") {
+          if(command === "events got") {
             dispatch("gotEvents", {save: args[0], events: args[1]});
           }
         }
