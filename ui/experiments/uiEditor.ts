@@ -1,5 +1,5 @@
 /// <reference path="../src/tableEditor.ts" />
-/// <reference path="./drawn.ts" />
+/// <reference path="../src/editor.ts" />
 /// <reference path="../src/api.ts" />
 module uiEditor {
   declare var jQuery;
