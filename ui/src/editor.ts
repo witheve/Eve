@@ -2489,7 +2489,7 @@ module drawn {
       }
       if(tooltip.persistent) {
         return {id: "tooltip-container", c: "tooltip-container", children: [
-          {c: "tooltip-shade", click: tooltip.stopPersisting},
+          {c: "tooltip-shade", mousedown: tooltip.stopPersisting},
           elem,
         ]};
       }
@@ -3368,7 +3368,7 @@ module drawn {
       });
     }
     return {c: "searcher-container", children: [
-      {c: "searcher-shade", click: stopSearching},
+      {c: "searcher-shade", mousedown: stopSearching},
       {c: "searcher", children: [
         {c: "search-results", children: resultGroups},
         {t: "textarea", c: "search-box", postRender: focusOnce, value: localState.searchingFor, input: updateSearch, keydown: handleSearchKey}
@@ -3696,7 +3696,7 @@ module drawn {
     }
     e.preventDefault();
   });
-  
+
   // @HACK: Because FF is a browser full of sadness...
   var __firefoxMouseX, __firefoxMouseY;
   function firefoxDragMoveHandler(evt) {
