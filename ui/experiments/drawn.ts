@@ -1489,22 +1489,21 @@ module drawn {
       break;
       case "selectSave":
         localState.selectedSave = info.save;
+        localState.saveFile = info.file;
       break;
       case "loadSave":
-        var save:string = localState.selectedSave;
-        if(save.substr(-4) !== ".eve") {
-          save += ".eve";
+        var saveFile:File = info.file;
+        if(!saveFile) {
+          diffs = dispatch("setNotice", {content: "Must select an eve file to load.", kind: "warn"}, true);
+          break;
         }
-        if(localState.saves.indexOf(save) === -1) {
-          localState.saves.push(save);
-          localStorage.setItem("saves", JSON.stringify(localState.saves));
-        }
-        localStorage.setItem("lastSave", save);
-        commands.push(["load", save]);
-        diffs = dispatch("hideTooltip", {}, true);
+        var reader = new FileReader();
+        reader.onload = (evt) => dispatch("writeEvents", {events: evt.target["result"]});
+        reader.readAsText(saveFile);
+        localState.loading = "local";
       break;
       case "overwriteSave":
-        var save:string = localState.selectedSave;
+        var save:string = info.save;
         if(save.substr(-4) !== ".eve") {
           save += ".eve";
         }
@@ -1515,6 +1514,47 @@ module drawn {
         localStorage.setItem("lastSave", save);
         commands.push(["save", save]);
         diffs = dispatch("hideTooltip", {}, true);
+      break;
+      case "saveToGist":
+        var save:string = info.save;
+        commands.push(["get events", save]);
+        localState.saving = "gist";
+      break;
+      case "gotEvents":
+        if(localState.saving === "gist") {
+          api.writeToGist(info.save, info.events, (err, url) => err ?
+            dispatch("setNotice", {content: `Failed to save ${info.save} due to ${err.toString()}`, kind: "error", duration: 0})
+            : dispatch("remoteSaveComplete", {save: info.save, url}));
+        }
+      break;
+      case "remoteSaveComplete":
+        diffs = dispatch("setNotice", {
+          content: {c: "spaced-row flex-row", children: [{text: info.save}, {text: "saved to"}, {t: "a", href: info.url, text: info.url}]},
+          duration: 0}, true);
+        diffs.push.apply(diffs, dispatch("hideTooltip", {}, true));
+        localState.saving = false;
+      break;
+      case "loadFromGist":
+        let url:string = info.url;
+        url = url.replace("gist.github.com/", "gist.githubusercontent.com/");
+        if(url.indexOf("gist.githubusercontent.com/") === -1) {
+          diffs = dispatch("setNotice", {content: "Load from gist requires a valid gist URL.", kind: "warn"});
+          break;
+        }
+        if(url.indexOf("/raw/") === -1) {
+          url += "/raw/";
+        }
+
+        api.readFromGist(url, (err, events) => err ?
+          dispatch("setNotice", {content: `Failed to load ${info.url} due to ${err.toString()}`, kind: "error", duration: 0})
+          : dispatch("writeEvents", {events}));
+          
+        localState.loading = "gist";
+      break;
+      case "writeEvents":
+        commands.push(["set events", info.events]);
+        diffs = dispatch("hideTooltip", {}, true);
+        localState.loading = false;
       break;
       case "toggleHidden":
         var hidden = localStorage["showHidden"];
@@ -2212,6 +2252,7 @@ module drawn {
         let saves = localState.saves || [];
         let selected = localState.selectedSave;
         return [
+
           (saves.length ? {children: [
             {t: "h3", text: "Recent"},
             {c: "saves", children: saves.map((save) => { return {
@@ -2222,8 +2263,8 @@ module drawn {
               dblclick: overwriteSave
             }})}
           ]} : undefined),
-
-          {c: "flex-row spaced-row", children: [{t: "input", input: setSaveLocation}, {t: "button", text: "Save", click: overwriteSave}]}
+          {c: "flex-row spaced-row", children: [{text: "name"}, {t: "input", input: setSaveLocation}]},
+          {c: "flex-row", children: [{t: "button", text: "Save to gist (remote)", click: saveToGist}, {t: "button", text: "Save to file (local)", click: overwriteSave}]}
         ];
       }
     },
@@ -2233,17 +2274,8 @@ module drawn {
         let saves = localState.saves || [];
         let selected = localState.selectedSave;
         return [
-          (saves.length ? {children: [
-            {t: "h3", text: "Recent"},
-            {c: "saves", children: saves.map((save) => { return {
-              c: (save === selected) ? "selected" : "",
-              text: save,
-              save: save,
-              click: selectSave,
-              dblclick: loadSave
-            }})}
-          ]} : undefined),
-          {c: "flex-row spaced-row", children: [{t: "input", input: setSaveLocation}, {t: "button", text: "Load", click: loadSave}]}
+          {c: "flex-row spaced-row", children: [{text: "url"}, {t: "input", input: setSaveLocation}, {t: "button", text: "Load from gist (remote)", click: loadFromGist}]},
+          {c: "flex-row", children: [{t: "input", type: "file", change: setSaveFile}, {t: "button", text: "Load from file (local)", click: loadSave}]}
         ]
       }
     },
@@ -2305,13 +2337,26 @@ module drawn {
   function setSaveLocation(evt, elem) {
     dispatch("selectSave", {save: evt.currentTarget.value});
   }
+  
+  function setSaveFile(evt, elem) {
+    console.log(evt.target.files[0]);
+    dispatch("selectSave", {file: evt.target.files[0]});
+  }
 
   function overwriteSave(evt, elem) {
-    dispatch("overwriteSave", {});
+    dispatch("overwriteSave", {save: localState.selectedSave});
   }
 
   function loadSave(evt, elem) {
-    dispatch("loadSave", {});
+    dispatch("loadSave", {file: localState.saveFile});
+  }
+
+  function saveToGist(evt, elem) {
+    dispatch("saveToGist", {save: localState.selectedSave})
+  }
+
+  function loadFromGist(evt, elem) {
+    dispatch("loadFromGist", {url: localState.selectedSave})
   }
 
   //---------------------------------------------------------
@@ -3488,7 +3533,7 @@ module drawn {
   //---------------------------------------------------------
   // Go!
   //---------------------------------------------------------
-
+  client.setDispatch(dispatch);
   client.afterInit(() => {
     api.checkVersion(maybeShowUpdate);
     loadPositions();

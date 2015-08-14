@@ -8,6 +8,7 @@ module client {
 
   var ixer = api.ixer;
   var zip = api.zip;
+  var dispatch = (event, info) => undefined;
 
   function now() {
     if (window.performance) {
@@ -144,15 +145,18 @@ module client {
       if (time > 5) {
         console.log("slow parse (> 5ms):", time);
       }
-      
-      
+
+
       var initializing = !server.initialized;
       server.initialized = true;
       if(data.commands) {
         for(let [command, ...args] of data.commands) {
           // If we are loading in this event, we should ignore tags and accept all diffs.
-          if(command === "load") {
+          if(command === "load" || command === "set events") {
             initializing = true;
+          }
+          if(command === "got events") {
+            dispatch("gotEvents", {save: args[0], events: args[1]});
           }
         }
       }
@@ -342,4 +346,9 @@ module client {
   document.addEventListener("DOMContentLoaded", function() {
     connectToServer();
   });
+
+  export function setDispatch(dispatchFn) {
+    dispatch = dispatchFn;
+  }
+
 }

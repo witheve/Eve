@@ -124,11 +124,20 @@ impl FromJson for Event {
 
 // --- persistence ---
 
+pub fn read_file(filename: &str) -> String {
+    let mut file = OpenOptions::new().create(true).open(filename).unwrap();
+    let mut contents = String::new();
+    file.read_to_string(&mut contents).unwrap();
+    contents
+}
+
+pub fn write_file(filename: &str, contents: &str) {
+    let mut file = OpenOptions::new().create(true).truncate(true).write(true).open(filename).unwrap();
+    file.write_all(contents.as_bytes()).unwrap();
+}
+
 pub fn load(flow: &mut Flow, filename: &str) {
-    let mut events = OpenOptions::new().create(true).open(filename).unwrap();
-    let mut old_events = String::new();
-    events.read_to_string(&mut old_events).unwrap();
-    for line in old_events.lines() {
+    for line in read_file(filename).lines() {
         let json = Json::from_str(&line).unwrap();
         let event: Event = FromJson::from_json(&json);
         flow.quiesce(event.changes);
@@ -139,11 +148,22 @@ pub fn load(flow: &mut Flow, filename: &str) {
 pub fn save(flow: &Flow, filename: &str) {
     let changes = flow.as_changes();
     let text = format!("{}", Event{changes: changes, session: "".to_owned(), commands: vec![]}.to_json());
-    let mut events = OpenOptions::new().create(true).truncate(true).write(true).open(filename).unwrap();
-    events.write_all(text.as_bytes()).unwrap();
+    write_file(filename, &text[..]);
 }
 
 // --- server ---
+
+pub fn send_event(server: &mut Server, changes: &Changes, commands: &Vec<Vec<String>>) {
+    for sender in server.senders.iter_mut() {
+        let session_id = format!("{}", sender.get_mut().peer_addr().unwrap());
+        let event = Event{changes: changes.clone(), session: session_id, commands: commands.clone()};
+        let text = format!("{}", event.to_json());
+        match sender.send_message(Message::Text(text)) {
+            Ok(_) => (),
+            Err(error) => println!("Send error: {}", error),
+        };
+    }
+}
 
 pub fn get_user_id(cookies: Option<&Cookie>) -> Option<String> {
     match cookies {
@@ -210,10 +230,12 @@ pub fn server_events() -> mpsc::Receiver<ServerEvent> {
 
 pub fn handle_event(server: &mut Server, event: Event, event_json: Json) {
     // save the event
-    let mut autosave = OpenOptions::new().write(true).append(true).open("./autosave").unwrap();
-    autosave.write_all(format!("{}", event_json).as_bytes()).unwrap();
-    autosave.write_all("\n".as_bytes()).unwrap();
-    autosave.flush().unwrap();
+    {
+        let mut autosave = OpenOptions::new().write(true).append(true).open("./autosave").unwrap();
+        autosave.write_all(format!("{}", event_json).as_bytes()).unwrap();
+        autosave.write_all("\n".as_bytes()).unwrap();
+        autosave.flush().unwrap();
+    }
 
     // copy the old flow so we can compare to the new flow for changes
     let old_flow = server.flow.clone();
@@ -230,25 +252,31 @@ pub fn handle_event(server: &mut Server, event: Event, event_json: Json) {
                 load(&mut server.flow, "./bootstrap");
                 load(&mut server.flow, filename);
                 save(&server.flow, "./autosave");
+                send_event(server, &vec![], &vec![
+                    vec!["loaded".to_owned(), filename.to_owned()]
+                    ]);
             }
             ["save", filename] => {
                 save(&server.flow, filename);
+            }
+            ["get events", id] => {
+                let events_string = read_file("./autosave");
+                send_event(server, &vec![], &vec![
+                    vec!["got events".to_owned(), id.to_owned(), events_string]
+                    ]);
+            }
+            ["set events", events_string] => {
+                write_file("./autosave", events_string);
+                server.flow = Flow::new();
+                load(&mut server.flow, "./bootstrap");
+                load(&mut server.flow, "./autosave");
             }
             other => panic!("Unknown command: {:?}", other),
         }
     }
 
-
-    let changes = server.flow.changes_from(old_flow);
-    for sender in server.senders.iter_mut() {
-        let session_id = format!("{}", sender.get_mut().peer_addr().unwrap());
-        let event = Event{changes: changes.clone(), session: session_id, commands: event.commands.clone()};
-        let text = format!("{}", event.to_json());
-        match sender.send_message(Message::Text(text)) {
-            Ok(_) => (),
-            Err(error) => println!("Send error: {}", error),
-        };
-    }
+    let changes = &server.flow.changes_from(old_flow);
+    send_event(server, changes, &vec![]);
 }
 
 pub fn run() {

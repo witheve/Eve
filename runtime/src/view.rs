@@ -222,7 +222,9 @@ impl View {
                             source.prepare(upstream[input_ix].index.iter().map(|row| row.clone()).collect())
                         }
                     }).collect::<Vec<_>>();
-                join_step(join, 0, &inputs[..], &mut state, &mut output.index, errors);
+                if inputs.len() > 0 {
+                    join_step(join, 0, &inputs[..], &mut state, &mut output.index, errors);
+                }
                 Some(output)
             }
             View::Disabled => None,
