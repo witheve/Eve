@@ -36,7 +36,7 @@ input[type="text"], textarea { font-family: "Lato"; }
 - Item selector
 ---------------------------------------------------------*/
 
-.query-selector-wrapper { flex-direction: row; height:100vh; -webkit-user-select:none; }
+.query-selector-wrapper { flex-direction: row; flex:1; -webkit-user-select:none; }
 .query-selector { flex: 1; flex-direction:row; flex-wrap:wrap; position:relative; align-items:flex-start; justify-content:flex-start; margin-left:10px; }
 .query-selector-body {overflow: auto;}
 .query-item { margin: 10px; position:relative; }
@@ -368,6 +368,8 @@ input[type="text"], textarea { font-family: "Lato"; }
 .light .tabbed-box .preferences .toggle { background:rgba(0,0,0,0.1); }
 .light .tabbed-box .preferences .toggle:hover { background: rgba(0,0,0,0.2); }
 
+.light a { color: rgb(33, 164, 222); }
+
 /*---------------------------------------------------------
 - dark theme
 ---------------------------------------------------------*/
@@ -403,6 +405,8 @@ input[type="text"], textarea { font-family: "Lato"; }
 .dark .canvas .error-description {  border:1px solid rgba(187,85,85,1); z-index:10; background: rgb(123, 63, 63); }
 .dark .table-container .headers { background: rgba(255,255,255,0.1); }
 .dark .table-container .header { background: none; }
+
+.dark a { color: #0ba; }
 
 /*---------------------------------------------------------
 - miscellaneous
