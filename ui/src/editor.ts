@@ -358,9 +358,21 @@ module drawn {
       }
     }
 
+    // We need to find the lowest priority to make sure that we come before it. We can't use
+    // length here because fields can be added and removed out of order.
+    let minFieldPriority = Infinity;
+    for(let field of fields) {
+      var order = ixer.selectOne("display order", {id: field["field: field"]});
+      if(!order) continue;
+      minFieldPriority = Math.min(order["display order: priority"], minFieldPriority);
+      console.log(order["display order: priority"]);
+    }
+    // if we didn't find one, we default to -1, otherwise we take one less than the min
+    let fieldPriority = minFieldPriority === Infinity ? -1 : minFieldPriority - 1;
+
     var neueField = api.insert("field", {view: viewId, kind: "output", dependents: {
       "display name": {name: name},
-      "display order": {priority: -fields.length - offset}
+      "display order": {priority: fieldPriority - offset}
     }});
     var fieldId = neueField.content.field;
     diffs.push(neueField);
