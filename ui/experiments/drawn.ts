@@ -888,8 +888,10 @@ module drawn {
         diffs.push(api.insert("chunked source", {source: sourceId}));
         // we need to group any fields that are joined to ensure the join continues to do what you'd expect
         for(let binding of joinedBindingsFromSource(sourceId)) {
+          let variableId = binding["binding: variable"];
+          let sourceId = binding["binding: source"];
           let fieldId = binding["binding: field"];
-          diffs.push(api.insert("grouped field", {source: sourceId, field: fieldId}));
+          diffs.push.apply(diffs, dispatch("groupAttribute", {variableId, sourceId, fieldId}));
         }
       break;
       case "unchunkSource":
@@ -899,6 +901,7 @@ module drawn {
         for(let binding of joinedBindingsFromSource(sourceId)) {
           let fieldId = binding["binding: field"];
           let variableId = binding["binding: variable"];
+          let sourceId = binding["binding: source"];
           // We have to check for an aggregate binding, as unchunking will cause the
           // vector binding to error out. If there is an aggregate binding, then we have to bail
           // out of unchunking.
@@ -908,7 +911,7 @@ module drawn {
               return dispatch("setError", {errorText: "Cannot unchunk this source because it's bound to an aggregate, which requires a column."});
             }
           }
-          diffs.push(api.remove("grouped field", {source: sourceId, field: fieldId}));
+          diffs.push.apply(diffs, dispatch("ungroupAttribute", {variableId, sourceId, fieldId}));
         }
       break;
       case "addOrdinal":
@@ -930,15 +933,21 @@ module drawn {
         diffs = removeVariable(variableId);
       break;
       case "groupAttribute":
-        var variableId = info.node.variable;
+        var variableId = info.variableId;
         var bindings = ixer.select("binding", {variable: variableId});
-        if(bindings.length > 1) {
+        var sourceId, fieldId;
+        if(info.sourceId) {
+          sourceId = info.sourceId;
+          fieldId = info.fieldId;
+        } else if(bindings.length > 1) {
           //we do this as a normal dispatch as we want to bail out in the error case.
           return dispatch("setError", {errorText: "Cannot group an attribute that has multiple bindings, not sure what to do."});
           return;
+        } else {
+          sourceId = bindings[0]["binding: source"];
+          fieldId = bindings[0]["binding: field"];
         }
-        var sourceId = bindings[0]["binding: source"];
-        var fieldId = bindings[0]["binding: field"];
+
         diffs.push(api.insert("grouped field", {source: sourceId, field: fieldId}));
         // when grouping, we have to remove the sorted field for this if there is one, which requires
         // re-indexing all the other sorted fields
@@ -954,14 +963,20 @@ module drawn {
         }
       break;
       case "ungroupAttribute":
-        var variableId = info.node.variable;
+        var variableId = info.variableId;
         var bindings = ixer.select("binding", {variable: variableId});
-        if(bindings.length > 1) {
+        var sourceId, fieldId;
+        if(info.sourceId) {
+          sourceId = info.sourceId;
+          fieldId = info.fieldId;
+        } else if(bindings.length > 1) {
           //we do this as a normal dispatch as we want to bail out in the error case.
           return dispatch("setError", {errorText: "Cannot group an attribute that has multiple bindings, not sure what to do."});
+          return;
+        } else {
+          sourceId = bindings[0]["binding: source"];
+          fieldId = bindings[0]["binding: field"];
         }
-        var sourceId = bindings[0]["binding: source"];
-        var fieldId = bindings[0]["binding: field"];
         diffs.push(api.remove("grouped field", {source: sourceId, field: fieldId}));
         // add a sorted field back in for this attribute, which requires removing all the old sorts
         // and shifting this one on to the front
@@ -2989,11 +3004,11 @@ module drawn {
   }
 
   function groupAttribute(e, elem) {
-    dispatch("groupAttribute", {node: elem.node, viewId: elem.viewId});
+    dispatch("groupAttribute", {variableId: elem.node.variable, viewId: elem.viewId});
   }
 
   function ungroupAttribute(e,elem) {
-    dispatch("ungroupAttribute", {node: elem.node, viewId: elem.viewId});
+    dispatch("ungroupAttribute", {variableId: elem.node.variable, viewId: elem.viewId});
   }
 
   function negateSource(e, elem) {
