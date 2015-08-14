@@ -456,7 +456,7 @@ module graphLayout {
           if(length > maxEdge) { maxEdge = length; }
         }
         edgeLengths /= this.edges.length;
-        let edgeLengthScore = edgeLengths / graphSize * 15;
+        let edgeLengthScore = edgeLengths / graphSize * 20;
         error += edgeLengthScore;
 
         // Prefer edges of equal length.
