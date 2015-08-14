@@ -1494,7 +1494,7 @@ module drawn {
       case "loadSave":
         var saveFile:File = info.file;
         if(!saveFile) {
-          diffs = dispatch("setNotice", {content: "Must select an eve file to load.", kind: "warn"}, true);
+          diffs = dispatch("setNotice", {content: "Must select an eve file to load.", type: "warn"}, true);
           break;
         }
         var reader = new FileReader();
@@ -1505,7 +1505,7 @@ module drawn {
       case "overwriteSave":
         var save:string = info.save;
         if(!save) {
-          diffs = dispatch("setNotice", {content: "Must specify save file name.", kind: "warn"}, true);
+          diffs = dispatch("setNotice", {content: "Must specify save file name.", type: "warn"}, true);
           break;
         }
         if(save.substr(-4) !== ".eve") {
@@ -1527,13 +1527,13 @@ module drawn {
       case "gotEvents":
         if(localState.saving === "gist") {
           api.writeToGist(info.save, info.events, (err, url) => err ?
-            dispatch("setNotice", {content: `Failed to save ${info.save} due to ${err.toString()}`, kind: "error", duration: 0})
+            dispatch("setNotice", {content: `Failed to save ${info.save} due to ${err.toString()}`, type: "error", duration: 0})
             : dispatch("remoteSaveComplete", {save: info.save, url}));
         }
       break;
       case "remoteSaveComplete":
         diffs = dispatch("setNotice", {
-          content: {c: "spaced-row flex-row", children: [{text: info.save}, {text: "saved to"}, {t: "a", href: info.url, text: info.url}]},
+          content: () => {return {c: "spaced-row flex-row", children: [{text: info.save}, {text: "saved to"}, {t: "a", href: info.url, text: info.url}]}},
           duration: 0}, true);
         diffs.push.apply(diffs, dispatch("hideTooltip", {}, true));
         localState.saving = false;
@@ -1542,7 +1542,7 @@ module drawn {
         let url:string = info.url;
         url = url.replace("gist.github.com/", "gist.githubusercontent.com/");
         if(url.indexOf("gist.githubusercontent.com/") === -1) {
-          diffs = dispatch("setNotice", {content: "Load from gist requires a valid gist URL.", kind: "warn"});
+          diffs = dispatch("setNotice", {content: "Load from gist requires a valid gist URL.", type: "warn"});
           break;
         }
         if(url.indexOf("/raw/") === -1) {
@@ -1550,7 +1550,7 @@ module drawn {
         }
 
         api.readFromGist(url, (err, events) => err ?
-          dispatch("setNotice", {content: `Failed to load ${info.url} due to ${err.toString()}`, kind: "error", duration: 0})
+          dispatch("setNotice", {content: `Failed to load ${info.url} due to ${err.toString()}`, type: "error", duration: 0})
           : dispatch("writeEvents", {events}));
 
         localState.loading = "gist";
@@ -2267,7 +2267,7 @@ module drawn {
               dblclick: overwriteSave
             }})}
           ]} : undefined),
-          {c: "flex-row spaced-row", children: [{text: "name"}, {t: "input", input: setSaveLocation}]},
+          {c: "flex-row spaced-row", children: [{text: "name"}, {t: "input", input: setSaveLocation, value: localState.selectedSave}]},
           {c: "flex-row", children: [{t: "button", text: "Save to gist (remote)", click: saveToGist}, {t: "button", text: "Save to file (local)", click: overwriteSave}]}
         ];
       }
@@ -2278,7 +2278,7 @@ module drawn {
         let saves = localState.saves || [];
         let selected = localState.selectedSave;
         return [
-          {c: "flex-row spaced-row", children: [{text: "url"}, {t: "input", input: setSaveLocation}, {t: "button", text: "Load from gist (remote)", click: loadFromGist}]},
+          {c: "flex-row spaced-row", children: [{text: "url"}, {t: "input", input: setSaveLocation, value: localState.selectedSave}, {t: "button", text: "Load from gist (remote)", click: loadFromGist}]},
           {c: "flex-row", children: [{t: "input", type: "file", change: setSaveFile}, {t: "button", text: "Load from file (local)", click: loadSave}]}
         ]
       }
@@ -2343,7 +2343,6 @@ module drawn {
   }
 
   function setSaveFile(evt, elem) {
-    console.log(evt.target.files[0]);
     dispatch("selectSave", {file: evt.target.files[0]});
   }
 
@@ -2398,9 +2397,10 @@ module drawn {
     let noticeItems = [];
     for(let noticeId in localState.notices) {
       let notice = localState.notices[noticeId];
+      console.log(noticeId, notice);
       noticeItems.push({c: `flex-row spaced-row notice ${notice.type} ${notice.fading ? "fade" : ""}`, time: notice.time, children: [
         (typeof notice.content === "function") ? notice.content() :
-          (typeof notice.content === "string") ? {text: notice.content} : notice.content,
+          {text: notice.content},
           {c: "flex-spacer", height: 0},
           {c: "btn ion-close", noticeId: noticeId, click: closeNotice}
       ]});
@@ -3530,7 +3530,7 @@ module drawn {
     if(error) {
       return dispatch("setNotice", {content: "Could not reach github to check for updates at this time", type: "warn"});
     } else if(newVersionExists) {
-      return dispatch("setNotice", {content: {c: "flex-row spaced-row", children: [{text: "A new version of Eve is available! Check it out on"}, {t: "a", href: "https://github.com/Kodowa/Eve.", text: "Github"}]}, duration: 0});
+      return dispatch("setNotice", {content: () => {return {c: "flex-row spaced-row", children: [{text: "A new version of Eve is available! Check it out on"}, {t: "a", href: "https://github.com/Kodowa/Eve", text: "Github"}]}}, duration: 0});
     }
   }
 
