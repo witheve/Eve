@@ -27,9 +27,9 @@ In version 0, Eve includes a database server, a language compiler, a form-based 
 * No security
 * It's slow
 
-This list will get small over time, some of which should disappear quickly, but this is definitely an early version and it's meant more for people to play around with than it is anything else at this point.
+This list will get smaller over time and some of it should disappear quickly, but this is definitely an early version and it's meant more for people to play around with than it is anything else at this point. It is going to continue to change pretty dramatically, but it's at a point where it's at least interesting to poke around in.
 
-**DO NOT TRY TO BUILD PRODUCTION SOFTWARE WITH THIS** - It's full of dragons and other things that will eat your lunch, laundry, and any other l*'s you have lying around.
+**DO NOT TRY TO BUILD PRODUCTION SOFTWARE WITH THIS** - It's full of dragons and other things that will eat your lunch, laundry, and any other l.*'s you have lying around.
 
 ## How to contribute
 
