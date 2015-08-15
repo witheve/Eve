@@ -68,7 +68,7 @@ module tableEditor {
         sortClass += " active";
       }
       return {c: "header", children: [
-        {c: "input", contentEditable: true, fieldId, renameId: fieldId, blur: drawn.rename, click: opts.onHeaderSelect, text: name},
+        {c: "input", contentEditable: true, fieldId, renameId: fieldId, blur: drawn.renameField, keydown: drawn.maybeSubmitRenameField, click: opts.onHeaderSelect, text: name},
         { c: sortClass, click: setTableSort, tableId: id, fieldId}
       ]};
     });
@@ -131,10 +131,5 @@ module tableEditor {
       dir = -sort.dir;
     }
     dispatch("setTableSort", {table: elem.tableId, field: elem.fieldId, dir: dir});
-  }
-
-  export function storeInitialInput(e, elem) {
-    localState.initialKey = elem.key;
-    localState.initialValue = elem.text;
   }
 }

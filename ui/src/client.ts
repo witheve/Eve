@@ -1,4 +1,4 @@
-/// <reference path="uiEditorRenderer.ts" />
+/// <reference path="../experiments/uiEditorRenderer.ts" />
 /// <reference path="api.ts" />
 module client {
   declare var dispatcher;
@@ -8,6 +8,7 @@ module client {
 
   var ixer = api.ixer;
   var zip = api.zip;
+  var dispatch = (event, info) => undefined;
 
   function now() {
     if (window.performance) {
@@ -144,15 +145,19 @@ module client {
       if (time > 5) {
         console.log("slow parse (> 5ms):", time);
       }
-      
-      
+
+
       var initializing = !server.initialized;
       server.initialized = true;
       if(data.commands) {
         for(let [command, ...args] of data.commands) {
           // If we are loading in this event, we should ignore tags and accept all diffs.
-          if(command === "load") {
+          if(command === "loaded" || command === "events set") {
             initializing = true;
+            // @FIXME: Send filename + path to dispatcher.
+          }
+          if(command === "events got") {
+            dispatch("gotEvents", {save: args[0], events: args[1]});
           }
         }
       }
@@ -342,4 +347,9 @@ module client {
   document.addEventListener("DOMContentLoaded", function() {
     connectToServer();
   });
+
+  export function setDispatch(dispatchFn) {
+    dispatch = dispatchFn;
+  }
+
 }

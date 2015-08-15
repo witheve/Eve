@@ -58,7 +58,7 @@ The graph of dependencies between views may contain cycles. Views can even depen
 
 ## Time and state
 
-The language described so far is surprisingly powerful. Addition and recursion are sufficient to implement a Turing machine. [Edelweiss](http://db.cs.berkeley.edu/papers/vldb14-edelweiss.pdf) demonstrates that it is possible to write entire programs in this style - where inputs are appended to a table and the outputs are computed as pure views over the inputs.
+The language described so far is surprisingly powerful. Addition, recursion and aggregates are enough to implement a Turing machine. [Edelweiss](http://db.cs.berkeley.edu/papers/vldb14-edelweiss.pdf) demonstrates that it is possible to write entire programs in this style - where inputs are appended to a table and the outputs are computed as pure views over the inputs.
 
 Nethertheless, there are cases where we have found mutable state to be useful:
 

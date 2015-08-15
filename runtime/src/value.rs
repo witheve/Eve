@@ -42,7 +42,7 @@ pub type Id = String; // TODO we will eventually add a UUID type
 
 impl Ord for Value {
     fn cmp(&self, other: &Value) -> Ordering {
-        self.partial_cmp(other).unwrap() // TODO this will panic on NaN - maybe NaN should go through error pathway instead?
+        self.partial_cmp(other).expect("Found a NaN") // TODO this will panic on NaN - maybe NaN should go through error pathway instead?
     }
 }
 

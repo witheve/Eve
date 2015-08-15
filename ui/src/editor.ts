@@ -1,9 +1,9 @@
-/// <reference path="../src/microReact.ts" />
-/// <reference path="../src/api.ts" />
-/// <reference path="../src/client.ts" />
-/// <reference path="../src/tableEditor.ts" />
-/// <reference path="../src/glossary.ts" />
-/// <reference path="../experiments/layout.ts" />
+/// <reference path="microReact.ts" />
+/// <reference path="api.ts" />
+/// <reference path="client.ts" />
+/// <reference path="tableEditor.ts" />
+/// <reference path="glossary.ts" />
+/// <reference path="layout.ts" />
 module eveEditor {
   var localState = api.localState;
   var ixer = api.ixer;
@@ -358,9 +358,21 @@ module drawn {
       }
     }
 
+    // We need to find the lowest priority to make sure that we come before it. We can't use
+    // length here because fields can be added and removed out of order.
+    let minFieldPriority = Infinity;
+    for(let field of fields) {
+      var order = ixer.selectOne("display order", {id: field["field: field"]});
+      if(!order) continue;
+      minFieldPriority = Math.min(order["display order: priority"], minFieldPriority);
+      console.log(order["display order: priority"]);
+    }
+    // if we didn't find one, we default to -1, otherwise we take one less than the min
+    let fieldPriority = minFieldPriority === Infinity ? -1 : minFieldPriority - 1;
+
     var neueField = api.insert("field", {view: viewId, kind: "output", dependents: {
       "display name": {name: name},
-      "display order": {priority: -fields.length - offset}
+      "display order": {priority: fieldPriority - offset}
     }});
     var fieldId = neueField.content.field;
     diffs.push(neueField);
@@ -401,8 +413,8 @@ module drawn {
       for(let variableBinding of allVariableBindings) {
          if(variableBinding === binding) continue;
          let fieldId = variableBinding["binding: field"];
-         let kind = ixer.selectOne("field", {field: fieldId})["field: kind"];
-         if(kind === "output") {
+         let field = ixer.selectOne("field", {field: fieldId});
+         if(!field || field["field: kind"] === "output") {
            needsConstant = false;
            break;
          } else {
@@ -528,6 +540,11 @@ module drawn {
         for(let variable of ixer.select("variable", {view: localState.drawnUiActiveId})) {
           let variableId = variable["variable: variable"];
           let bindings = ixer.select("binding", {variable: variableId});
+
+          // check if this is an ordinal field, if so it's in use or has been removed already
+          let ordinal = ixer.selectOne("ordinal binding", {variable: variableId});
+          if(ordinal) continue;
+
           let shouldRemove = true;
           for(let binding of bindings) {
             if(!removedSources[binding["binding: source"]]) {
@@ -620,6 +637,11 @@ module drawn {
       //---------------------------------------------------------
       case "openItem":
         var currentItem = localState.drawnUiActiveId;
+        var kind = ixer.selectOne("view", {view: info.itemId})["view: kind"];
+        // if we try to go to a primitive view, bail out
+        if(kind === "primitive") {
+          break;
+        }
         // if we're already there, just clear the selection.
         if(currentItem === info.itemId) {
           diffs = dispatch("clearSelection", {}, true);
@@ -638,7 +660,6 @@ module drawn {
           localState.selectorSearchResults = localState.searchResults;
         }
         // if this item is a table, we should setup the initial table entry
-        var kind = ixer.selectOne("view", {view: info.itemId})["view: kind"];
         if(kind === "table") {
           diffs.push.apply(diffs, dispatch("newTableEntry", {}, true));
         }
@@ -742,9 +763,11 @@ module drawn {
           diffs.push(api.insert("binding", {variable: variableId, source: sourceId, field: fieldId}));
         }
         // check for an ordinal binding and move it over if it exists
-        var ordinalBinding = ixer.selectOne("ordinal binding", {variable: variableIdToRemove});
-        if(ordinalBinding) {
-          diffs.push(api.insert("ordinal binding", {variable: variableId, source: ordinalBinding["ordinal binding: source"]}));
+        var ordinalBindings = ixer.select("ordinal binding", {variable: variableIdToRemove});
+        if(ordinalBindings.length) {
+          for(let ordinalBinding of ordinalBindings) {
+            diffs.push(api.insert("ordinal binding", {variable: variableId, source: ordinalBinding["ordinal binding: source"]}));
+          }
         }
 
         // remove the old variable
@@ -798,20 +821,28 @@ module drawn {
           diffs.push(api.remove("binding", {variable: variableIdToRemove, source: sourceId, field: fieldId}));
         }
         // check for an ordinal binding and create a new variable for it if it exists
-        var ordinalBinding = ixer.selectOne("ordinal binding", {variable: variableIdToRemove});
-        if(ordinalBinding) {
-          diffs.push.apply(diffs, addSourceFieldVariable(itemId, null, ordinalBinding["ordinal binding: source"], "ordinal"));
-          diffs.push(api.remove("ordinal binding", {variable: variableIdToRemove}));
+        var ordinalBindings = ixer.select("ordinal binding", {variable: variableIdToRemove});
+        if(ordinalBindings.length) {
+          for(let ordinalBinding of ordinalBindings) {
+            diffs.push.apply(diffs, addSourceFieldVariable(itemId, null, ordinalBinding["ordinal binding: source"], "ordinal"));
+            diffs.push(api.remove("ordinal binding", {variable: variableIdToRemove}));
+          }
         }
         // we have to check to make sure that if the original binding represents an input it gets a default
         // added to it to prevent the server from crashing
-        var fieldId = oldBindings[0]["binding: field"];
-        var kind = ixer.selectOne("field", {field: fieldId})["field: kind"];
-        if(kind !== "output") {
-          let sourceViewId = ixer.selectOne("source", {source: oldBindings[0]["binding: source"]})["source: source view"];
-          diffs.push(api.insert("constant binding", {variable: variableIdToRemove, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
+        if(oldBindings[0]) {
+          var fieldId = oldBindings[0]["binding: field"];
+          var kind = ixer.selectOne("field", {field: fieldId})["field: kind"];
+          if(kind !== "output") {
+            let sourceViewId = ixer.selectOne("source", {source: oldBindings[0]["binding: source"]})["source: source view"];
+            diffs.push(api.insert("constant binding", {variable: variableIdToRemove, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
+          }
+        } else {
+          // if there aren't any bindings, then this variable is unused, which can happen
+          // if the only things that were joined here were ordinals.
+          diffs.push.apply(diffs, removeVariable(variableIdToRemove));
         }
-
+        diffs.push.apply(diffs, dispatch("clearSelection", {}, true));
       break;
       case "removeSelectFromQuery":
         var selects = ixer.select("select", {variable: info.variableId}) || [];
@@ -854,9 +885,29 @@ module drawn {
         }
       break;
       case "rename":
-        if(info.value === ixer.selectOne("display name", {id: info.renameId})["display name: name"]) return;
+        var prevName = ixer.selectOne("display name", {id: info.renameId});
+        if(prevName && info.value === prevName["display name: name"]) return;
         diffs.push(api.insert("display name", {id: info.renameId, name: info.value}),
                    api.remove("display name", {id: info.renameId}));
+      break;
+      case "renameField":
+        // check if there's a variable this field is being selected from, if so name it as well.
+        var select = ixer.selectOne("select", {field: info.renameId});
+        if(select) {
+          diffs.push.apply(diffs, dispatch("rename", {renameId: select["select: variable"], value: info.value}, true));
+        }
+        diffs.push.apply(diffs, dispatch("rename", info, true));
+      break;
+      case "startRenamingNode":
+        localState.renamingNodeId = info.nodeId;
+      break;
+      case "stopRenamingNode":
+        localState.renamingNodeId = false;
+        var select = ixer.selectOne("select", {variable: info.nodeId});
+        if(select) {
+          diffs.push.apply(diffs, dispatch("rename", {renameId: select["select: field"], value: info.value}, true));
+        }
+        diffs.push.apply(diffs, dispatch("rename", info, true));
       break;
       case "setQueryDescription":
         var prevDescription = ixer.selectOne("view description", {view: info.viewId});
@@ -888,8 +939,10 @@ module drawn {
         diffs.push(api.insert("chunked source", {source: sourceId}));
         // we need to group any fields that are joined to ensure the join continues to do what you'd expect
         for(let binding of joinedBindingsFromSource(sourceId)) {
+          let variableId = binding["binding: variable"];
+          let sourceId = binding["binding: source"];
           let fieldId = binding["binding: field"];
-          diffs.push(api.insert("grouped field", {source: sourceId, field: fieldId}));
+          diffs.push.apply(diffs, dispatch("groupAttribute", {variableId, sourceId, fieldId}));
         }
       break;
       case "unchunkSource":
@@ -899,6 +952,7 @@ module drawn {
         for(let binding of joinedBindingsFromSource(sourceId)) {
           let fieldId = binding["binding: field"];
           let variableId = binding["binding: variable"];
+          let sourceId = binding["binding: source"];
           // We have to check for an aggregate binding, as unchunking will cause the
           // vector binding to error out. If there is an aggregate binding, then we have to bail
           // out of unchunking.
@@ -908,7 +962,7 @@ module drawn {
               return dispatch("setError", {errorText: "Cannot unchunk this source because it's bound to an aggregate, which requires a column."});
             }
           }
-          diffs.push(api.remove("grouped field", {source: sourceId, field: fieldId}));
+          diffs.push.apply(diffs, dispatch("ungroupAttribute", {variableId, sourceId, fieldId}));
         }
       break;
       case "addOrdinal":
@@ -925,20 +979,57 @@ module drawn {
         );
       break;
       case "removeOrdinal":
-        var sourceId = info.node.source["source: source"];
-        var variableId = ixer.selectOne("ordinal binding", {source: sourceId})["ordinal binding: variable"];
-        diffs = removeVariable(variableId);
+        var variableId, sourceId;
+        if(info.node.source) {
+          sourceId = info.node.source["source: source"];
+          variableId = ixer.selectOne("ordinal binding", {source: sourceId})["ordinal binding: variable"];
+        } else if(info.node.variable) {
+          variableId = info.node.variable;
+          // if we're doing this by a variable, it must be selected, so we have to clear the selection
+          diffs.push.apply(diffs, dispatch("clearSelection", {}, true));
+        }
+        // at the very least remove the ordinal binding
+        diffs.push(api.remove("ordinal binding", {variable: variableId, source: sourceId}));
+        // if there are no other bindings to this variable, go ahead and remove it
+        var bindings = ixer.select("binding", {variable: variableId});
+        if(!bindings.length) {
+          diffs = removeVariable(variableId);
+        } else {
+          // otherwise we have to check if there's now a loose input field that needs a constant
+          let needsConstant = true;
+          let inputBinding;
+          for(let binding of bindings) {
+            var fieldId = bindings[0]["binding: field"];
+            var kind = ixer.selectOne("field", {field: fieldId})["field: kind"];
+            if(kind == "output") {
+              needsConstant = false;
+              break;
+            } else {
+              inputBinding = binding;
+            }
+          }
+          if(needsConstant) {
+            let fieldId = inputBinding["binding: field"];
+            let sourceViewId = ixer.selectOne("source", {source: inputBinding["binding: source"]})["source: source view"];
+            diffs.push(api.insert("constant binding", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
+          }
+        }
       break;
       case "groupAttribute":
-        var variableId = info.node.variable;
+        var variableId = info.variableId;
         var bindings = ixer.select("binding", {variable: variableId});
-        if(bindings.length > 1) {
+        var sourceId, fieldId;
+        if(info.sourceId) {
+          sourceId = info.sourceId;
+          fieldId = info.fieldId;
+        } else if(bindings.length > 1) {
           //we do this as a normal dispatch as we want to bail out in the error case.
           return dispatch("setError", {errorText: "Cannot group an attribute that has multiple bindings, not sure what to do."});
-          return;
+        } else {
+          sourceId = bindings[0]["binding: source"];
+          fieldId = bindings[0]["binding: field"];
         }
-        var sourceId = bindings[0]["binding: source"];
-        var fieldId = bindings[0]["binding: field"];
+
         diffs.push(api.insert("grouped field", {source: sourceId, field: fieldId}));
         // when grouping, we have to remove the sorted field for this if there is one, which requires
         // re-indexing all the other sorted fields
@@ -954,14 +1045,19 @@ module drawn {
         }
       break;
       case "ungroupAttribute":
-        var variableId = info.node.variable;
+        var variableId = info.variableId;
         var bindings = ixer.select("binding", {variable: variableId});
-        if(bindings.length > 1) {
+        var sourceId, fieldId;
+        if(info.sourceId) {
+          sourceId = info.sourceId;
+          fieldId = info.fieldId;
+        } else if(bindings.length > 1) {
           //we do this as a normal dispatch as we want to bail out in the error case.
           return dispatch("setError", {errorText: "Cannot group an attribute that has multiple bindings, not sure what to do."});
+        } else {
+          sourceId = bindings[0]["binding: source"];
+          fieldId = bindings[0]["binding: field"];
         }
-        var sourceId = bindings[0]["binding: source"];
-        var fieldId = bindings[0]["binding: field"];
         diffs.push(api.remove("grouped field", {source: sourceId, field: fieldId}));
         // add a sorted field back in for this attribute, which requires removing all the old sorts
         // and shifting this one on to the front
@@ -1015,12 +1111,19 @@ module drawn {
         diffs.push.apply(diffs, dispatch("clearSelection", {}, true));
       break;
       case "removeErrorBinding":
-        for(let binding of ixer.select("binding", {variable: info.variableId})) {
+        var totalRemoved = 0
+        var bindings = ixer.select("binding", {variable: info.variableId});
+        for(let binding of bindings) {
           let fieldId = binding["binding: field"];
           let sourceId = binding["binding: source"];
           if(!ixer.selectOne("field", {field: fieldId})) {
+            totalRemoved++;
             diffs.push.apply(diffs, removeBinding(binding));
           }
+        }
+        // if we removed all the bindings, then we need to remove the variable
+        if(totalRemoved === bindings.length) {
+          diffs.push.apply(diffs, removeVariable(info.variableId));
         }
       break;
       case "removeErrorSource":
@@ -1040,7 +1143,7 @@ module drawn {
           let viewId = localState.drawnUiActiveId;
           let ix = 0;
           fieldIds.forEach((fieldId) => {
-            if(ixer.selectOne("grouped field", {source: sourceId, field: fieldId})) return;
+            if(ixer.selectOne("grouped field", {source: sourceId, field: fieldId})) { return; }
             diffs.push(api.insert("sorted field", {source: sourceId, ix, field: fieldId, direction: "ascending"}));
             ix++;
           })
@@ -1293,6 +1396,9 @@ module drawn {
         localState.focusedTableEntryField = false;
       break;
       case "submitTableEntry":
+        if(info.fieldId) {
+          diffs.push.apply(diffs, dispatch("setTableEntryField", info, true));
+        }
         var tableId = localState.drawnUiActiveId;
         var row = localState.tableEntry;
         if(!row || Object.keys(row).length !== ixer.getFields(tableId, true).length) { return; }
@@ -1307,13 +1413,7 @@ module drawn {
       case "setTableEntryField":
         localState.tableEntry[info.fieldId] = info.value;
         if(info.clear) {
-          // @HACK: because blur happens before a click on remove would get registered,
-          // we have to wait to clear activeTableEntry to give the click time to go through
-          setTimeout(function() {
-            if(localState.activeTableEntryField === info.fieldId) {
-              dispatch("forceClearActiveTableEntryField", info, true);
-            }
-          }, 10);
+          dispatch("forceClearActiveTableEntryField", info, true);
         }
       break;
 
@@ -1470,22 +1570,25 @@ module drawn {
       break;
       case "selectSave":
         localState.selectedSave = info.save;
+        localState.saveFile = info.file;
       break;
       case "loadSave":
-        var save:string = localState.selectedSave;
-        if(save.substr(-4) !== ".eve") {
-          save += ".eve";
+        var saveFile:File = info.file;
+        if(!saveFile) {
+          diffs = dispatch("setNotice", {content: "Must select an eve file to load.", type: "warn"}, true);
+          break;
         }
-        if(localState.saves.indexOf(save) === -1) {
-          localState.saves.push(save);
-          localStorage.setItem("saves", JSON.stringify(localState.saves));
-        }
-        localStorage.setItem("lastSave", save);
-        commands.push(["load", save]);
-        diffs = dispatch("hideTooltip", {}, true);
+        var reader = new FileReader();
+        reader.onload = (evt) => dispatch("writeEvents", {events: evt.target["result"]});
+        reader.readAsText(saveFile);
+        localState.loading = "local";
       break;
       case "overwriteSave":
-        var save:string = localState.selectedSave;
+        var save:string = info.save;
+        if(!save) {
+          diffs = dispatch("setNotice", {content: "Must specify save file name.", type: "warn"}, true);
+          break;
+        }
         if(save.substr(-4) !== ".eve") {
           save += ".eve";
         }
@@ -1496,6 +1599,48 @@ module drawn {
         localStorage.setItem("lastSave", save);
         commands.push(["save", save]);
         diffs = dispatch("hideTooltip", {}, true);
+      break;
+      case "saveToGist":
+        var save:string = info.save || "unnamed.eve";
+        commands.push(["get events", save]);
+        localState.saving = "gist";
+      break;
+      case "gotEvents":
+        if(localState.saving === "gist") {
+          api.writeToGist(info.save, info.events, (err, url) => err ?
+            dispatch("setNotice", {content: `Failed to save ${info.save} due to ${err.toString()}`, type: "error", duration: 0})
+            : dispatch("remoteSaveComplete", {save: info.save, url}));
+        }
+      break;
+      case "remoteSaveComplete":
+        diffs = dispatch("setNotice", {
+          content: () => {return {c: "spaced-row flex-row", children: [{text: info.save}, {text: "saved to"}, {t: "a", href: info.url, text: info.url}]}},
+          duration: 0}, true);
+        diffs.push.apply(diffs, dispatch("hideTooltip", {}, true));
+        localState.saving = false;
+      break;
+      case "loadFromGist":
+        let url:string = info.url;
+        if(!url) break;
+        url = url.replace("gist.github.com/", "gist.githubusercontent.com/");
+        if(url.indexOf("gist.githubusercontent.com/") === -1) {
+          diffs = dispatch("setNotice", {content: "Load from gist requires a valid gist URL.", type: "warn"});
+          break;
+        }
+        if(url.indexOf("/raw/") === -1) {
+          url += "/raw/";
+        }
+
+        api.readFromGist(url, (err, events) => err ?
+          dispatch("setNotice", {content: `Failed to load ${info.url} due to ${err.toString()}`, type: "error", duration: 0})
+          : dispatch("writeEvents", {events}));
+
+        localState.loading = "gist";
+      break;
+      case "writeEvents":
+        commands.push(["set events", info.events]);
+        diffs = dispatch("hideTooltip", {}, true);
+        localState.loading = false;
       break;
       case "toggleHidden":
         var hidden = localStorage["showHidden"];
@@ -1513,7 +1658,7 @@ module drawn {
         } else if(theme === "light") {
           localStorage["theme"] = "dark";
         } else {
-          localStorage["theme"] = "light";
+          localStorage["theme"] = "dark";
         }
       break;
       //---------------------------------------------------------
@@ -1697,8 +1842,9 @@ module drawn {
       }
     }
     matchingViews.sort(sortByScore);
+    let currentView = ixer.selectOne("view", {view: localState.drawnUiActiveId});
     return {kind: "Sources", results: matchingViews, onSelect: (e, elem) => {
-      if(localState.drawnUiActiveId !== "itemSelector") {
+      if(localState.drawnUiActiveId !== "itemSelector" && currentView["view: kind"] === "join") {
         dispatch("addViewAndMaybeJoin", {viewId: elem.result.viewId});
       } else {
         dispatch("openItem", {itemId: elem.result.viewId})
@@ -1794,15 +1940,21 @@ module drawn {
         let name = "";
         let singleBinding = bindings.length === 1;
 
-        // check if an ordinal is bound here.
-        if(ordinals.length) {
-          let sourceNode = nodeLookup[ordinals[0]["ordinal binding: source"]];
+        // create any ordinal links as necessary
+        for(let ordinal of ordinals) {
+          let sourceNode = nodeLookup[ordinal["ordinal binding: source"]];
           if(sourceNode) {
             let link: any = {left: attribute, right: sourceNode, name: "ordinal"};
             links.push(link);
           }
           name = "ordinal";
         }
+
+        // see if this variable has been selected
+        let select = ixer.selectOne("select", {variable: variableId});
+
+        // check if this variable has been given a name
+        let variableName = code.name(variableId);
 
         // run through the bindings once to determine if it's an entity, what it's name is,
         // and all the other properties of this node.
@@ -1841,8 +1993,9 @@ module drawn {
         }
 
 
-        // the final name of the node is either the entity name or whichever other name we found
-        name = entity || name;
+        // the final name of the node is either the variable's name, the name of the entity represented,
+        // or the first bound name we found
+        name = variableName || entity || name;
         // now that it's been named, go through the bindings again and create links to their sources
         for(let binding of bindings) {
           let sourceId = binding["binding: source"];
@@ -1861,7 +2014,7 @@ module drawn {
         attribute.name = name;
         attribute.mergedAttributes = bindings.length + ordinals.length > 1 ? bindings : undefined;
         attribute.entity = entity;
-        attribute.select = ixer.selectOne("select", {variable: variableId});
+        attribute.select = select;
         for(var constant of constants) {
           attribute.filter = {operation: "=", value: constant["constant binding: value"]};
         }
@@ -1874,10 +2027,13 @@ module drawn {
         attribute.isOrdinal = true;
         attribute.name = "ordinal";
         attribute.select = ixer.selectOne("select", {variable: variableId});
-        let sourceNode = nodeLookup[ordinals[0]["ordinal binding: source"]];
-        if(sourceNode) {
-          let link: any = {left: attribute, right: sourceNode, name: "ordinal"};
-          links.push(link);
+        attribute.mergedAttributes = ordinals.length > 1 ? ordinals : undefined;
+        for(let ordinal of ordinals) {
+          let sourceNode = nodeLookup[ordinal["ordinal binding: source"]];
+          if(sourceNode) {
+            let link: any = {left: attribute, right: sourceNode, name: "ordinal"};
+            links.push(link);
+          }
         }
       } else {
         attribute.name = "unknown variable";
@@ -1953,7 +2109,7 @@ module drawn {
       // @Hack: Height is fixed but width is not, we need some way of sampling it.
       sourceNodes.push({id: "placeholder 1", type: "placeholder", width: 256, height: 64, x: 5, y: 5});
 
-      let graph = new graphLayout.Graph(sourceNodes, attributeNodes, edges, [640, 480]);
+      let graph = new graphLayout.Graph(sourceNodes, attributeNodes, edges, [480, 360]);
       let layout = graph.layout();
       let nodesToInitialize = [];
       for(let node of nodes) {
@@ -2000,7 +2156,7 @@ module drawn {
     } else {
       page = itemSelector();
     }
-    return {id: "root", c: localStorage["theme"] || "dark", children: [tooltipUi(), notice(), page]};
+    return {id: "root", c: localStorage["theme"] || "light", children: [tooltipUi(), notice(), page]};
   }
 
   //---------------------------------------------------------
@@ -2032,8 +2188,9 @@ module drawn {
       }
     });
     let actions = {
-      "search": {func: startSearching, text: "Search", description: "Search for items to open by name."},
+      "search": {func: startSearching, text: "Search", icon: "ion-ios-search-strong", description: "Search for items to open by name.", postSpacer: true},
       "new": {func: startCreating, text: "New", description: "Add a new query or set of data."},
+      "import": {func: openImporter, text: "Import"},
       "delete": {func: removeSelectedItems, text: "Delete", description: "Delete an item from the database."},
     };
     let disabled = {};
@@ -2044,13 +2201,13 @@ module drawn {
     return {c: "query-selector-wrapper", children: [
       leftToolbar(actions, disabled),
       {c: "query-selector-body", click: clearSelectedItems, children: [
-        {c: "spaced-row query-selector-filter", children: [
-          searching ? {c: "spaced-row searching-for", children: [
+        {c: "query-selector-filter", children: [
+          searching ? {c: "searching-for", children: [
             {text: `Searching for`},
             {c: "search-text", text: localState.searchingFor},
-            {c: "ion-close", clearSearch: true, click: stopSearching}
           ]} : undefined,
           queries.length === totalCount ? {c: "showing", text: `Showing all ${totalCount} items`} : {c: "showing", text: `found ${queries.length} of ${totalCount} items.`},
+          searching ? {c: "clear-search ion-close", clearSearch: true, click: stopSearching} : undefined,
         ]},
         {c: "query-selector", children: queries}
       ]}
@@ -2123,6 +2280,7 @@ module drawn {
 
   function leftToolbar(actions, disabled = {}, extraKeys = {}) {
     var tools = [];
+    let postSpacer = [];
     for(let actionName in actions) {
       let action = actions[actionName];
       let description = action.description;
@@ -2130,19 +2288,37 @@ module drawn {
         description = glossary.lookup[action.text].description;
       }
       let tool = {c: "tool", text: action.text, mouseover: showButtonTooltip, mouseout: hideButtonTooltip, description};
+      if(action["icon"]) {
+        tool.text = undefined;
+        tool["title"] = action.text;
+        tool.c = `${tool.c} ${action["icon"]}`;
+      }
       for(var extraKey in extraKeys) {
         tool[extraKey] = extraKeys[extraKey];
       }
       if(!disabled[actionName]) {
-        tool["click"] = action.func;
+        // due to event ordering issues, sometimes you need this to take effect on mousedown instead of
+        // waiting for the click timeout to happen
+        let event = action.useMousedown ? "mousedown" : "click";
+        tool[event] = action.func;
       } else {
         tool["c"] += " disabled";
         tool["disabledMessage"] = disabled[actionName];
       }
+      if(action["postSpacer"]) {
+        postSpacer.push(tool);
+      } else {
+        tools.push(tool);
+      }
+    }
+    // add a spacer to push the rest of the tools to bottom
+    tools.push({c: "flex-spacer"})
+    // append all the post spacer tools
+    for(let tool of postSpacer) {
       tools.push(tool);
     }
-    tools.push({c: "flex-spacer"},
-               {c: "tool ion-gear-b",
+    // add the settings at the very end
+    tools.push({c: "tool ion-gear-b",
                 title: "Settings",
                 mouseover: showButtonTooltip,
                 mouseout: hideButtonTooltip,
@@ -2189,6 +2365,7 @@ module drawn {
         let saves = localState.saves || [];
         let selected = localState.selectedSave;
         return [
+
           (saves.length ? {children: [
             {t: "h3", text: "Recent"},
             {c: "saves", children: saves.map((save) => { return {
@@ -2199,8 +2376,8 @@ module drawn {
               dblclick: overwriteSave
             }})}
           ]} : undefined),
-
-          {c: "flex-row spaced-row", children: [{t: "input", input: setSaveLocation}, {t: "button", text: "Save", click: overwriteSave}]}
+          {c: "flex-row spaced-row", children: [{text: "name"}, {t: "input", input: setSaveLocation, value: localState.selectedSave}]},
+          {c: "flex-row", children: [{t: "button", text: "Save to gist (remote)", click: saveToGist}, {t: "button", text: "Save to file (local)", click: overwriteSave}]}
         ];
       }
     },
@@ -2210,17 +2387,8 @@ module drawn {
         let saves = localState.saves || [];
         let selected = localState.selectedSave;
         return [
-          (saves.length ? {children: [
-            {t: "h3", text: "Recent"},
-            {c: "saves", children: saves.map((save) => { return {
-              c: (save === selected) ? "selected" : "",
-              text: save,
-              save: save,
-              click: selectSave,
-              dblclick: loadSave
-            }})}
-          ]} : undefined),
-          {c: "flex-row spaced-row", children: [{t: "input", input: setSaveLocation}, {t: "button", text: "Load", click: loadSave}]}
+          {c: "flex-row spaced-row", children: [{text: "url"}, {t: "input", input: setSaveLocation, value: localState.selectedSave}, {t: "button", text: "Load from gist (remote)", click: loadFromGist}]},
+          {c: "flex-row", children: [{t: "input", type: "file", change: setSaveFile}, {t: "button", text: "Load from file (local)", click: loadSave}]}
         ]
       }
     },
@@ -2235,10 +2403,10 @@ module drawn {
         }
         let theme;
         let curTheme = localStorage["theme"];
-        if(curTheme === "light") {
-          theme = {c: `toggle ${curTheme}`, click: toggleTheme, text: "Dark"};
-        } else {
+        if(curTheme === "dark") {
           theme = {c: `toggle ${curTheme}`, click: toggleTheme, text: "Light"};
+        } else {
+          theme = {c: `toggle ${curTheme}`, click: toggleTheme, text: "Dark"};
         }
         return [
           {c: "preferences", children: [
@@ -2283,12 +2451,24 @@ module drawn {
     dispatch("selectSave", {save: evt.currentTarget.value});
   }
 
+  function setSaveFile(evt, elem) {
+    dispatch("selectSave", {file: evt.target.files[0]});
+  }
+
   function overwriteSave(evt, elem) {
-    dispatch("overwriteSave", {});
+    dispatch("overwriteSave", {save: localState.selectedSave});
   }
 
   function loadSave(evt, elem) {
-    dispatch("loadSave", {});
+    dispatch("loadSave", {file: localState.saveFile});
+  }
+
+  function saveToGist(evt, elem) {
+    dispatch("saveToGist", {save: localState.selectedSave})
+  }
+
+  function loadFromGist(evt, elem) {
+    dispatch("loadFromGist", {url: localState.selectedSave})
   }
 
   //---------------------------------------------------------
@@ -2310,7 +2490,7 @@ module drawn {
       }
       if(tooltip.persistent) {
         return {id: "tooltip-container", c: "tooltip-container", children: [
-          {c: "tooltip-shade", click: tooltip.stopPersisting},
+          {c: "tooltip-shade", mousedown: tooltip.stopPersisting},
           elem,
         ]};
       }
@@ -2328,7 +2508,7 @@ module drawn {
       let notice = localState.notices[noticeId];
       noticeItems.push({c: `flex-row spaced-row notice ${notice.type} ${notice.fading ? "fade" : ""}`, time: notice.time, children: [
         (typeof notice.content === "function") ? notice.content() :
-          (typeof notice.content === "string") ? {text: notice.content} : notice.content,
+          {text: notice.content},
           {c: "flex-spacer", height: 0},
           {c: "btn ion-close", noticeId: noticeId, click: closeNotice}
       ]});
@@ -2362,10 +2542,6 @@ module drawn {
         {c: "type-container", children: [
           {c: "type", text: "Data", click: createNewItem, kind: "table", newName: "New table!"},
           {text: glossary.lookup["Data"].description}
-        ]},
-        {c: "type-container", children: [
-          {c: "type", text: "Import", click: openImporter, kind: "table"},
-          {text: glossary.lookup["Import"].description}
         ]},
         {c: "type-container", children: [
           {c: "type", text: "Query", click: createNewItem, kind: "join", newName: "New query!"},
@@ -2508,6 +2684,15 @@ module drawn {
         selection = {svg: true, c: "selection-rectangle", t: "rect", x: left - 10, y: top - 10, width: width + 20, height: height + 20};
       }
     }
+
+    // if there are no items to show on the canvas, add a call to action
+    if(!items.length) {
+      items.push({c: "no-nodes flex-row spaced-row", click: startSearching, children: [
+        {c: "icon ion-ios-search-strong"},
+        {text: "Search to add a new source"}
+      ]})
+    }
+
     // the minimum width and height of the canvas is based on the bottom, right of the
     // bounding box of all the nodes in the query
     let boundingWidth = queryBoundingBox.right + 200;
@@ -2670,12 +2855,42 @@ module drawn {
                 mousedown: selectNode, draggable: true, dragstart: storeDragOffset,
                 drag: setNodePosition, dragend: finalNodePosition, node: curNode, text};
 
+    // if it's an attribute, it can be renamed by doubleClicking
+    if(curNode.type === "attribute") {
+      elem["dblclick"] = startRenamingNode;
+    }
+
+    // if we are renaming this node, set it to contentEditable
+    if(localState.renamingNodeId === curNode.id) {
+      elem["c"] += " editing";
+      elem["contentEditable"] = true;
+      elem["renameId"] = curNode.variable;
+      elem["keydown"] = maybeStopRenamingNode;
+      elem["blur"] = stopRenamingNode;
+      elem["postRender"] = focusOnce;
+    }
+
     // if this is a relationship and not an error, then we can navigate into it
     if(curNode.type === "relationship" && !curNode.error) {
       elem["dblclick"] = openNode;
     }
     content.unshift(elem);
     return {c: "item-wrapper", top: top, left: left, size: {width, height}, node: curNode, selected: uiSelected, children: content};
+  }
+
+  function startRenamingNode(e, elem) {
+    dispatch("startRenamingNode", {nodeId: elem.node.id});
+  }
+
+  function maybeStopRenamingNode(e, elem) {
+    if(e.keyCode === api.KEYS.ENTER) {
+      stopRenamingNode(e, elem);
+      e.preventDefault();
+    }
+  }
+
+  function stopRenamingNode(e, elem) {
+    dispatch("stopRenamingNode", {renameId: elem.renameId, nodeId: elem.node.id, value: e.currentTarget.textContent});
   }
 
   function selectNode(e, elem) {
@@ -2692,19 +2907,23 @@ module drawn {
   function storeDragOffset(e, elem) {
     var rect = e.currentTarget.getBoundingClientRect();
     e.dataTransfer.setDragImage(document.getElementById("clear-pixel"),0,0);
+    e.dataTransfer.setData("text", "god damn it firefox.");
     dispatch("setDragOffset", {x: e.clientX - rect.left, y: e.clientY - rect.top});
   }
 
   function finalNodePosition(e, elem) {
+    __firefoxMouseX = __firefoxMouseY = undefined;
     dispatch("finalNodePosition", {node: elem.node});
   }
 
   function setNodePosition(e, elem) {
-    if(e.clientX === 0 && e.clientY === 0) return;
+    let mx = e.clientX || __firefoxMouseX || 0;
+    let my = e.clientY || __firefoxMouseY || 0;
+    if(mx === 0 && my === 0) return;
     let surface:any = document.getElementsByClassName("query-editor")[0];
     let surfaceRect = surface.getBoundingClientRect();
-    let x = e.clientX - surfaceRect.left - api.localState.dragOffsetX + surface.scrollLeft;
-    let y = e.clientY - surfaceRect.top - api.localState.dragOffsetY + surface.scrollTop;
+    let x = mx - surfaceRect.left - api.localState.dragOffsetX + surface.scrollLeft;
+    let y = my - surfaceRect.top - api.localState.dragOffsetY + surface.scrollTop;
     dispatch("setNodePosition", {
       node: elem.node,
       pos: {left: x, top: y}
@@ -2824,9 +3043,10 @@ module drawn {
       // no matter what though you should be able to go back to the
       // query selector and search.
       "Back": {func: navigateBack, text: "Back", description: "Return to the item selection page"},
-      "Search": {func: startSearching, text: "Search", description: "Find sources to add to your query"},
+      "Search": {func: startSearching, icon: "ion-ios-search-strong", text: "Search", description: "Find sources to add to your query", postSpacer: true},
       // These may get changed below depending on what's selected and the
       // current state.
+      "rename": {func: startRenamingSelection, text: "Rename"},
       "remove": {func: removeSelection, text: "Remove"},
       "join": {func: joinSelection, text: "Join"},
       "select": {func: selectAttribute, text: "Show"},
@@ -2848,6 +3068,7 @@ module drawn {
     // if the selection contains error nodes, we can't do anything
     if(selectionContainsErrors) {
       disabled = {
+        "rename": "rename doesn't apply to error nodes",
         "join": "join doesn't apply to error nodes",
         "select": "select doesn't apply to error nodes",
         "filter": "filter doesn't apply to error nodes",
@@ -2862,6 +3083,7 @@ module drawn {
     // no selection
     } else if(!selectedNodes.length) {
       disabled = {
+        "rename": "an attribute has to be selected",
         "remove": "remove only applies to sources",
         "join": "join only applies to attributes",
         "select": "select only applies to attributes",
@@ -2880,7 +3102,7 @@ module drawn {
         disabled["remove"] = "remove only applies to sources";
         disabled["sort"] = "sort only applies to sources";
         disabled["chunk"] = "chunk only applies to sources";
-        disabled["ordinal"] = "ordinal only applies to sources";
+
         disabled["negate"] = "negate only applies to sources";
         if(!node.mergedAttributes) {
           // you can't select a node if the source is negated and it's not joined with anything else
@@ -2890,6 +3112,12 @@ module drawn {
           disabled["join"] = "multiple attributes aren't joined together on this node.";
         } else {
           actions["join"] = {func: unjoinNodes, text: "Unjoin"};
+        }
+
+        if(ixer.selectOne("ordinal binding", {variable: node.variable})) {
+          actions["ordinal"] = {func: removeOrdinal, text: "Unordinal"};
+        } else {
+          disabled["ordinal"] = "ordinal only applies to sources or ordinal nodes";
         }
 
         if(ixer.selectOne("select", {variable: node.variable})) {
@@ -2907,6 +3135,7 @@ module drawn {
           disabled["group"] = "To group an attribute, the source must either have an ordinal or be chunked";
         }
       } else if(node.type === "relationship") {
+        disabled["rename"] = "rename only applies to attributes";
         disabled["select"] = "select only applies to attributes.";
         disabled["filter"] = "filter only applies to attributes.";
         disabled["group"] = "group only applies to attributes.";
@@ -2937,11 +3166,12 @@ module drawn {
     //multi-selection
     } else {
       disabled = {
+        "rename": "rename only applies to single attributes",
         "filter": "filter only applies to single attributes",
         "group": "group only applies to single attributes",
         "sort": "sort only applies to single sources",
         "chunk": "chunk only applies to single sources",
-        "ordinal": "ordinal only applies to single sources",
+        "ordinal": "ordinal only applies to single sources or ordinal nodes",
         "negate": "negate only applies to single sources",
       }
 
@@ -2976,6 +3206,10 @@ module drawn {
     dispatch("joinSelection", {});
   }
 
+  function startRenamingSelection(e, elem) {
+    dispatch("startRenamingNode", {nodeId: elem.node.id});
+  }
+
   function selectSelection(e, elem) {
     dispatch("selectSelection", {});
   }
@@ -2985,11 +3219,11 @@ module drawn {
   }
 
   function groupAttribute(e, elem) {
-    dispatch("groupAttribute", {node: elem.node, viewId: elem.viewId});
+    dispatch("groupAttribute", {variableId: elem.node.variable, viewId: elem.viewId});
   }
 
   function ungroupAttribute(e,elem) {
-    dispatch("ungroupAttribute", {node: elem.node, viewId: elem.viewId});
+    dispatch("ungroupAttribute", {variableId: elem.node.variable, viewId: elem.viewId});
   }
 
   function negateSource(e, elem) {
@@ -3135,18 +3369,16 @@ module drawn {
       });
     }
     return {c: "searcher-container", children: [
-      {c: "searcher-shade", click: stopSearching},
+      {c: "searcher-shade", mousedown: stopSearching},
       {c: "searcher", children: [
         {c: "search-results", children: resultGroups},
-        {c: "search-box", contentEditable: true, postRender: focusOnce, text: localState.searchingFor, input: updateSearch, keydown: handleSearchKey}
+        {t: "textarea", c: "search-box", postRender: focusOnce, value: localState.searchingFor, input: updateSearch, keydown: handleSearchKey}
       ]}
     ]};
   }
 
   function scrollToTheBottomOnChange(node, elem) {
-    console.log("scroll", node, elem);
     if(!node.searchValue || node.searchValue !== elem.value) {
-      console.log("scrolling");
       node.scrollTop = 2147483647; // 2^31 - 1, because Number.MAX_VALUE and Number.MAX_SAFE_INTEGER are too large and do nothing in FF...
       node.searchValue = elem.value;
     }
@@ -3165,7 +3397,7 @@ module drawn {
   }
 
   function updateSearch(e, elem) {
-    dispatch("updateSearch", {value: e.currentTarget.textContent});
+    dispatch("updateSearch", {value: e.currentTarget.value});
   }
 
   //---------------------------------------------------------
@@ -3185,7 +3417,7 @@ module drawn {
       if(peekViewSize > maxRenderedEntries) {
         sizeText = `${maxRenderedEntries} of ` + sizeText;
       }
-      return {c: "peek-results", width: numFields * 100, left: rect.right + 50, top: (selectionRect.top + selectionRect.height /2) - 75, children: [
+      return {c: "peek-results", mousedown: stopPropagation, width: numFields * 100, left: rect.right + 50, top: (selectionRect.top + selectionRect.height /2) - 75, children: [
         {c: "result-size", text: sizeText},
         tableEditor.tableForView(peekViewId, maxRenderedEntries),
       ]};
@@ -3224,6 +3456,17 @@ module drawn {
     dispatch("rename", {renameId: elem.renameId, value: e.currentTarget.textContent});
   }
 
+  export function renameField(e, elem) {
+    dispatch("renameField", {renameId: elem.renameId, value: e.currentTarget.textContent});
+  }
+
+  export function maybeSubmitRenameField(e, elem) {
+    if(e.keyCode === api.KEYS.ENTER) {
+      renameField(e, elem);
+      e.preventDefault();
+    }
+  }
+
   function setQueryDescription(e, elem) {
     dispatch("setQueryDescription", {viewId: elem.viewId, value: e.currentTarget.textContent});
   }
@@ -3253,20 +3496,30 @@ module drawn {
     if(!view) return;
 
     let maxRenderedEntries = 100;
+    let disabled = {};
     let actions = {
       "back": {text: "Back", func: navigateBack, description: "Return to the item selection page"},
-      "new": {text: "New", func: newTableEntry, description: "Create a new entry"},
-      "delete": {text: "Delete", func: deleteTableEntry, description: "Delete the current entry"},
+      "new": {text: "+Entry", func: newTableEntry, description: "Create a new entry"},
+      "delete": {text: "-Entry", func: deleteTableEntry, description: "Remove the current entry"},
       "add field": {text: "+Field", func: addFieldToTable, description: "Add a field to the card"},
-      "remove field": {text: "-Field", func: removeFieldFromTable, description: "Remove the active field from the card"}
+      // remove field needs to set the useMousedown flag because we need to know what field was active when
+      // the button is pressed. If we use click, the field will have been blurred by the time the event goes
+      // through
+      "remove field": {text: "-Field", func: removeFieldFromTable, description: "Remove the active field from the card", useMousedown: true}
     };
+    if(!localState.selectedTableEntry) {
+      disabled["delete"] = " no entry is selected";
+    }
+    if(!localState.activeTableEntryField) {
+      disabled["remove field"] = " the field to remove must be active";
+    }
     let resultViewSize = getViewSize(tableId);
     let sizeText = `${resultViewSize} entries`;
     if(resultViewSize > maxRenderedEntries) {
       sizeText = `${maxRenderedEntries} of ` + sizeText;
     }
     return {c: "workspace table-workspace", children: [
-      leftToolbar(actions),
+      leftToolbar(actions, disabled),
       {c: "container", children: [
         {c: "surface", children: [
           tableFormEditor(tableId, localState.tableEntry, 1, 0),
@@ -3286,7 +3539,7 @@ module drawn {
   function tableFormEditor(tableId, row = null, rowNum = 0, rowTotal = 0) {
     let fields = ixer.getFields(tableId).map((fieldId, ix) => {
       let value = row ? row[fieldId] : "";
-      let entryField = {c: "entry-field", fieldId, postRender: maybeFocusFormField, value, contentEditable: true, keydown: keyboardSubmitTableEntry, blur: setTableEntryField, focus: activeTableEntryField, key: JSON.stringify(row) + ix + localState.focusedTableEntryField};
+      let entryField = {c: "entry-field", fieldId, postRender: maybeFocusFormField, text: value, contentEditable: true, keydown: keyboardSubmitTableEntry, blur: setTableEntryField, focus: activeTableEntryField, key: JSON.stringify(row) + ix + localState.focusedTableEntryField};
       return {c: "field-item", children: [
         {c: "label", tabindex:-1, contentEditable: true, blur: rename, renameId: fieldId, text: code.name(fieldId)},
         entryField,
@@ -3362,8 +3615,12 @@ module drawn {
 
   function keyboardSubmitTableEntry(e, elem) {
     if(e.keyCode === api.KEYS.ENTER) {
-      dispatch("setTableEntryField", {fieldId: elem.fieldId, value: coerceInput(e.currentTarget.textContent), clear: false});
-      dispatch("submitTableEntry", {});
+      dispatch("submitTableEntry", {fieldId: elem.fieldId, value: coerceInput(e.currentTarget.textContent)});
+      // @HACK: because we can't use the input event to track changes on contentEditable (Friefox resets cursor position
+      // to the beginning of the line if you do), we won't ever see the value of this element change. When we submit,
+      // we intend for the value in this input to be cleared, so we have to clear it manually as microReact just sees an
+      // unchanged textContent.
+      e.currentTarget.textContent = "";
       e.preventDefault();
     }
   }
@@ -3397,7 +3654,7 @@ module drawn {
   }
 
   //---------------------------------------------------------
-  // keyboard handling
+  // input handling
   //---------------------------------------------------------
 
   document.addEventListener("keydown", function(e) {
@@ -3406,7 +3663,8 @@ module drawn {
     var target: any = e.target;
     if(e.defaultPrevented
        || target.nodeName === "INPUT"
-       || target.getAttribute("contentEditable")) {
+       || target.getAttribute("contentEditable")
+       || target.nodeName === "TEXTAREA") {
       return;
     }
 
@@ -3440,6 +3698,16 @@ module drawn {
     e.preventDefault();
   });
 
+  // @HACK: Because FF is a browser full of sadness...
+  var __firefoxMouseX, __firefoxMouseY;
+  function firefoxDragMoveHandler(evt) {
+    __firefoxMouseX = evt.clientX;
+    __firefoxMouseY = evt.clientY;
+  }
+  if(navigator.userAgent.indexOf("Firefox") !== -1) {
+    document.body.addEventListener("dragover", firefoxDragMoveHandler, false);
+  }
+
   //---------------------------------------------------------
   // Update notice
   //---------------------------------------------------------
@@ -3448,14 +3716,14 @@ module drawn {
     if(error) {
       return dispatch("setNotice", {content: "Could not reach github to check for updates at this time", type: "warn"});
     } else if(newVersionExists) {
-      return dispatch("setNotice", {content: {c: "flex-row spaced-row", children: [{text: "A new version of Eve is available! Check it out on"}, {t: "a", href: "https://github.com/Kodowa/Eve.", text: "Github"}]}, duration: 0});
+      return dispatch("setNotice", {content: () => {return {c: "flex-row spaced-row", children: [{text: "A new version of Eve is available! Check it out on"}, {t: "a", href: "https://github.com/Kodowa/Eve", text: "Github"}]}}, duration: 0});
     }
   }
 
   //---------------------------------------------------------
   // Go!
   //---------------------------------------------------------
-
+  client.setDispatch(dispatch);
   client.afterInit(() => {
     api.checkVersion(maybeShowUpdate);
     loadPositions();
