@@ -1,0 +1,53 @@
+<!doctype html5>
+<html>
+    <head>
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <meta http-equiv="Content-type" content="text/html; charset=utf-8" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <!-- Run in full-screen mode. -->
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+
+        <!-- Make the status bar black with white text. -->
+        <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+
+        <!-- Customize home screen title. -->
+        <meta name="apple-mobile-web-app-title" content="Web App" />
+
+        <!-- Disable phone number detection. -->
+        <meta name="format-detection" content="telephone=no" />
+
+        <link href="css/reset.css" rel="stylesheet" type="text/css"></link>
+        <link href="vendor/ionicons.css" rel="stylesheet" type="text/css"></link>
+        <link href="css/editor.css" rel="stylesheet" type="text/css"></link>
+    </head>
+<body class="light waiting-room">
+    <div>
+        <h3>Waiting for server...</h3>
+        <p>
+            Please wait while the server (re)compiles and starts up. This can take anywhere from seconds to 15 minutes depending on whether or not the server needs to compile and fetch dependencies. This page will automatically refresh when the server is ready. 
+        </p>
+        <p>
+            Now may be a good time for a tea break?
+        </p>
+    </div>
+    
+
+    <script type="text/javascript" style="display: none">
+        // Nothing fancy here.
+        var editorUrl = "http://localhost:8080/editor";
+        var iframe;
+        setInterval(function() {
+            if(iframe) { document.body.removeChild(iframe); }
+            iframe = document.createElement("iframe");
+            iframe.style.display = "none";
+            iframe.src = editorUrl;
+            iframe.onload = iframeLoaded;
+            document.body.appendChild(iframe);
+    	}, 4000);
+            
+       function iframeLoaded() {
+           window.location = editorUrl;
+       }
+    </script>    
+</body>
+</html>
