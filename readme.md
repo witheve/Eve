@@ -53,6 +53,8 @@ When filing a bug on GitHub, please help us help you by including the following:
 
 If you manage to bring down the server, you can use one of the tools below to create a test and then submit it as a pull request.
 
+If you just have questions, shoot those to the [mailing list](https://groups.google.com/forum/#!forum/eve-talk)!
+
 ### Internal tools
 
 There are also a few simple internal tools that we've created to help create tests when things are broken.
