@@ -123,11 +123,9 @@ module client {
     server.ws = ws;
 
     ws.onerror = ws.onclose = function(error) {
-      server.dead = true;
-      var error_banner = document.createElement("div");
-      error_banner.innerHTML = `Error: Eve Server is Dead! ${error ? `Reason: ${error}` : ""}`;
-      error_banner.setAttribute("class","dead-server-banner");
-      document.body.appendChild(error_banner);
+      server.connected = false;
+      reconnect();
+      dispatch("setNotice", {content: `Error: Eve Server is Dead! ${error.toString() + (error.message || "")}`, type: "error", id: "server dead", duration: 0});
     }
 
     ws.onopen = function() {
@@ -344,12 +342,26 @@ module client {
     afterInitFuncs.push(func);
   }
 
-  document.addEventListener("DOMContentLoaded", function() {
+  // Try to reconnect to the server every 10 seconds.
+  let checkReconnectInterval;
+  function reconnect() {
+    if(checkReconnectInterval) { return; }
+    checkReconnectInterval = setInterval(() => {
+      if(server.connected) {
+        clearInterval(checkReconnectInterval);
+        checkReconnectInterval = undefined;
+        dispatch("fadeNotice", {noticeId: "server dead"});
+        dispatch("setNotice", {content: "Connected to server!"});
+      } else {
+        connectToServer();
+      }
+    }, 10000);
     connectToServer();
-  });
+  }
+
+  document.addEventListener("DOMContentLoaded", reconnect);
 
   export function setDispatch(dispatchFn) {
     dispatch = dispatchFn;
   }
-
 }

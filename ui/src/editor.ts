@@ -1228,6 +1228,7 @@ module drawn {
       case "fadeError":
         var errorId = info.errorId;
         var currentError = localState.errors[errorId];
+        if(!currentError) { break; }
         currentError.fading = true;
         currentError.errorTimeout = setTimeout(() => dispatch("clearError", {errorId: info.errorId}), 200);
       break;
@@ -1245,6 +1246,7 @@ module drawn {
       case "fadeNotice":
         var noticeId = info.noticeId;
         var notice = localState.notices[noticeId];
+        if(!notice) { break; }
         notice.fading = true;
         notice.timeout = setTimeout(() => dispatch("clearNotice", {noticeId}), info.duration || 1000);
       break;
