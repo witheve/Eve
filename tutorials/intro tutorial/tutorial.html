@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title></title>
+</head>
+<body>
+
+	<h1>Eve Tutorial</h1>
+	<h2>Introduction</h2>
+	<p>
+	Hello and welcome to Eve! In this tutorial, we are going to walk you through the features of Eve by way of a guided example. By the time you are finished reading this document, you should be familiar with the concepts behind Eve and have the ability to perform basic data operations within the Eve interface. If you haven't already installed Eve, you should first follow the <a href="#">installation guide</a>.
+	</p>
+
+	<h2>Interface</h2>
+	<p>
+	Eve lives in your web browser. We suggest using Google Chrome (we've been testing against Chrome while developing Eve, so it will work the best) but feel free to try other browsers. You'll probably find bugs, and when you do, feel free to <a href="#">report them to us</a> (or if you're feeling adventuous, go ahead and <a href="">contribute a fix</a>). To start using Eve, simply double click on the Eve icon. Your default browser will open up a new tab that looks something like this:
+	</p>
+
+	<img src="images/interface.png" />
+
+	<p>Let's point out the basic interface elements of Eve. On the left hand side is the command bar. This is where all your available commands live. At the bottom on the screen, a gear icon idicates the settings menu. This is where you can save and load Eve programs, as well as set preferences and access advanced options.</p>
+
+	<p>Depending on what you have selected, some options in the command bar will be enabled, indicated by white text; while others will be disabled, indicated by gray text. For instance, right now <span class="command">Search</span> and <span class="command">New</span> are enabled, while <span class="command">Delete</span> is disabled. Why is <span class="command">Delete</span> disabled? Well, just go ahead and hover your mouse to find out.</p>
+
+	<img src="images/tooltip.png" />
+
+	<p>When you hover over the <span class="command">Delete</span> command, a tooltip pops up telling you what the command does, and if it is disabled, why that is the case and what you need to do to enable it. In this case, the tooltip is telling you to select a card. What is a card? We'll get to that in the next section. In general, hovering over almost any item in Eve will reveal a tooltip to help you out. Try hovering over the <span class="command">Search</span> and <span class="command">New</span> commands to learn what they do.</p>
+
+	<h2>Your First Table</h2>
+
+	<p>Things look pretty sparse right now, so let's go ahead and create your first card. Click on the <span class="command">New</span> command and you will see the following options for new things to create. </p>
+
+	<img src="images/new.png" />
+
+	<p>We will get into the other options later, but for now just click on <span class="command">Data</span>. As the tooltip suggests, this will create a new data card that you can use to input data into Eve. Data cards have a name, a description, and one or more fields. The interface is broken into two sections: The top half of the page is a form you use to enter data into the card's data table, while the bottom half of the page displays all the rows in the data table. Our goal now is to make a table containing the details of a person.</p>
+
+	<img src="images/newtable.png" />
+
+	<p>If you take a look at the command bar, you can see some new commands are now available. Hover over each of them to see what they do. The general process for creating a card is to give it a name and description, then create one field for each type of data in your data table. Our person card will contain the following fields: First Name, Last Name, Birthday, Phone, and E-Mail. Follow along with the video to see how this data card is configured.
+	</p>
+
+	<video width="1140" height="724" controls>
+   		<source src="videos/createtable.mp4" type="video/mp4">
+ 		Your browser does not support the video tag.
+	</video> 
+
+	<p>You can add as many rows to your data table as you like by simply filling out the form and clicking the submit button. If you want to modify a row, simply click on it. The form will be filled in with the row's data, which you can then modify. Selecting a row and clicking on the <span class="command">Delete</span> command will remove that row from your table.</p>
+
+	<p>Now that you've created your first card, click on the back button to go to the Eve home screen. Now you'll see a preview of the card you just created displayed on the canvas. Remember that disabled <span class="command">Delete</span> command? Single click on your new People card to select it, and you will see the <span class="command">Delete</span> command is now active, which allows you to remove the card you just created. To add new rows to your card's data table, or to modify the fields, double click on the card.</p>
+
+	<img src="images/firstcard.png" />
+
+	<h2>Search</h2>
+
+	<img src="images/search.png" />
+
+	<p>A key feature of Eve is universal search, which allows you to search the entire Eve system for keywords. Search can be accessed by clicking on the <span class="command">Search</span> command, or by the keybaord shortcut ctrl+F. The search panel consists of three sections. On the left is a list of built in functions as well as any cards you've added. On the right is a glossary of terms used in Eve. On the bottom is the input area, where you can enter keywords to search for. If you go ahead and search for "People" you will see as you type, the results are filtered down and finally include the card you just created. Clicking on search result will bring you to the card editing view for the People card.
+	</p>
+
+	<h2>Your First Query</h2>
+
+	<h3>Importing Data</h3>
+
+	<p>
+	The real power of Eve comes in answering questions about data. Let's say you have some data about computer ownership and internet usage by city in the United States, and you want to find out what the average is by state. As it turns out, we have just this data, located in the 'example data' folder in your Eve installation directory. We can import this data into Eve. On the Eve home screen, click on <span class="command">New</span>, then <span class="command">Import</span>.  Click <span class="command">Choose File</span> and browse to the 'example data' folder in your Eve installation directory. CHoose the file 'computer_ownership.csv' and then click <span class="command">Import</span>. The following video demonstrates this process.
+	</p>
+
+	<video width="1140" height="724" controls>
+   		<source src="videos/importtable.mp4" type="video/mp4">
+ 		Your browser does not support the video tag.
+	</video> 
+
+	<p>You have just imported a CSV (comma separated value) file into Eve. You'll see that once it is imported, a new data card is created with the name of the CSV file, as well as a form for entering new data according to the fields detected in the CSV file. In this file, we have fields relating to 'City', 'State', 'Percent of households with a computer' and 'Percent of households with high speed internet'.</p>
+
+	<h3>The Query Builder</h3>
+
+	<p>Now let's take a look at the query builder interface. As the word name suggests, the query builder allows us to answer questions about our data. The general idea is to pull in all relevent data we need to answer the question, and then use the tools within Eve to find the answer. Let's start by creating a new query and pulling in the computer usage statistics we just imported</p>
+
+	<p>From the Eve home screen, click <span class="command">New</span> and then <span class="command">Query</span>. Before we explain the new page, click on <span class="command">Search</span> and find the data card of your newly imported CSV (which if you didn't change the name should be called 'computer_ownership.csv'). Click on the search result, and you should see something like this:</p>
+
+	<img src="images/newquery.png" />
+
+	<p>You've just pulled in data from the computer table. On the left is the familiar command bar, but with some new commands that relate directly to the query builder. On the right, you can think of this as the "question" on the top, and the "answer" on the bottom. The "question" is formed not in words, but by a graph. The "answer" on the bottom is just the output of that graph. Right now the "answer" is just the data in the computer_ownership table. The "answer" is a graph, where the central oval is called a "source", and each of its spoke ovals is called an "attribute". So the key to using Eve is learning how to translate a question into the apprpriate graph structure to display the correct answer.</p>
+
+	<p>Let's start by asking a simple question, and we'll show you how to find the answer.</p>
+
+	<h3>What is the average computer ownership by state?</h3>
+
+	<p>We have data about average computer ownership by city. But what about at the state level? At the conceptual level we have 381 cities, each with a corresponding state. All we need to do is group all the cities with the same state together, then take their corresponding percentages of computer ownership, and average them together. Easy right? To answer this question, we need to use the concepts of <span class="command">Chunk</span>, <span class="command">Group</span>, and <span class="command">Aggregate</span>.</p>
+
+	<h4>Chunk</h4>
+
+	<p>The <span class="command">Chunk</span> command turns multiple rows into a single row. For instance, the result of this query has 381 results. If you click on the computer_ownership source and then click on the <span class="command">Chunk</span> command, you'll see only a single row in the results. Also you should notice the attributes of computer_ownership now have a double outline, indicating they are chunked.</p>
+
+	<img src="images/chunked.png" />
+
+	<h4>Group</h4>
+
+	<p>We said before we wanted to group by state. The <span class="command">Group</span> command does exactly this for the attribute of your choice. Select the State attribute, and then click on the <span class="command">Group</span> command. In the results, you'll see we now have 51 results, corresponding to the 50 United States plus the District of Columbia. The other columns contain all the cities in those states, as well as their corresponding computer usage statistics.</p>
+
+	<img src="images/grouped.png" />
+
+	<h4>Aggregates</h4>	
+
+	<p> We're close to finding our answer. All we need now is to average the percentages using something called an aggregat. Aggregates are a way of reducing a set of values to a single value. Common examples of aggregates include <span class="command">Mean</span> and <span class="command">Count</span>. Mean is exactly the aggregate we need in this case. To use mean, open the search console, and search for "mean". Click on the result and you'll see a new source has been added to the question area.
+	</p>
+
+	<img src="images/newaggregate.png" />
+
+	<p>This new source is an aggregate, and it has two attributes: "A", which is the input to the aggregate; and "result", which is the output of the aggregate. You'll also notice in the answer section, "result" has been added as a new column to the table. This is telling us that the mean aggregate produces a value for each row in our answer table. All we need to do now is specify the correct input to the aggregate. This is done by clicking on A, and then dragging it on top of the appropriate attribute in the computer_ownership graph. In this case, the attribute that answers our question is "percent of households with a computer". Follow along with the video to see how this is done.</p>
+
+	<video width="1140" height="724" controls>
+   		<source src="videos/meanaggregate.mp4" type="video/mp4">
+ 		Your browser does not support the video tag.
+	</video>
+
+	<p>What you've just down is "Joined" the attribute with the aggregate input, essentially meaning they are one and the same now. We will talk more about joining later on. If you want to undo what you just did, select the newly combined attribute and then click the 
+
+	<p>Now the chunked column is gone, and we have new values in the result column. By clicking on the column's name in the results table, you can rename it to reflect its contents.</p>
+
+	<p>Now we've answered our question! Let's clean up the results table by hiding all the information we don't want to see. Click on the "City" attribute and then the <span class="command">Hide</span> command. You'll notice this column is now absent from the results table. Do the same for the "Percent of households with high-speed internet". As a final step, give the query a name and a description, just as you did with your data table. The following video demonstrates the process we just described.</p>
+
+	<video width="1140" height="724" controls>
+   		<source src="videos/meanquery.mp4" type="video/mp4">
+ 		Your browser does not support the video tag.
+	</video>
+
+	<p>To test your understanding, try to answer the question: <b>What is the average percent of households with high speed internet by state?</b>.</p>
+
+	<h3>What are the top 10 states by computer ownership?</h3>
+
+	<p>Now we want to find the states with the highest computer ownership. To answer this question, we need to introduce the <span class="command">Sort</span>, <span class="command">Ordinal</span>, and <span class="command"><</span> (pronounced "Less Than") commands. Start by creating a new query as you did in the previous section. This time, we want to pull in the query we just built. Click <span class="command">Search</span>, and then type in whatever you named this query. I called it "Percent of households with a computer by state", but typing in "Pe" was enough to narrow down the results. You should see something like this:</p>
+
+	<img src="images/query2.png" />
+
+	<h4>Sort</h4>
+
+	<p>We have all the data to answer the question. At a conceptual level we need to sort by percentage and take only the top 10 results. The <span class="command">Sort</span> command is currently disabled, and if you hover over it, the tooltip will tell you that you need to select a sorce. Click on the source we just added, and then <span class="command">Sort</span> command will activate. Click on the <span class="command">Sort</span> command and you should see the following window:</p>
+
+	<img src="images/sort.png" />
+
+	<p>This window indicates the current sorting is first by State, and then by Percent of households with a computer. The upward pointing triangles indicate the sort ordering is from A to Z in the case of letters, and smallest to largest in the case of numbers. We want to order by percent of households with a computer, so click on that field and drag it in front of State. We also want to sort from largest to smallest, so click on the corresponding triangle and it will point downward.</p>
+
+	<video width="1140" height="724" controls>
+   		<source src="videos/sort.mp4" type="video/mp4">
+ 		Your browser does not support the video tag.
+	</video>
+
+	<p>You've changed the sorting, but nothing happened in the results. That's okay, we'll see the result of what you just did using the <span class="command">Ordinal</span> command.</p>
+
+	<h4>Ordinal</h4>
+
+	<p>Ordinals are a way of assinging a number to a row. By default in Eve, rows have no number associated with them, so the concept of "the first row" has no real meaning. In fact, the results table is just there for you to see the data; the order of this table has no bearing on other Eve queries. In order to apply an ordering to the rows, we can use the <span class="command">Ordinal</span> command. This command uses the sorting we just applied to decide which is row 1, 2, 3, and so on. Select the source to enable the <span class="command">Ordinal</span> command, and then click on it. You'll see a new "ordinal" attribute has been added to the source. </p>
+
+	<img src="images/sort.png" />
+
+	<p>Now we can start to see the answer to our question: Utah has the highest computer ownership, followed by New Hampshire, Arkansas, and so on. But the results table has 51 results, and we only want the top 10. Let's see how we can fix this.</p>
+
+	<h4>Comparisons</h4>
+
+	<p>Comparisons are part of a group of functions called "primitives", named as such because they are a basic and core component of Eve. This group includes functions for mathematical operations, comparing data, and manipulating text. In this case, <span class="command"><=</span>, takes two values A and B as inputs, and displays the row only if A is less than or equal to B. Knowing this, we can see how to get the top 10 results: compare the row's ordinal to the number 10. This means any row with an ordinal greater than 10 will not be included in the result table, which is exactly what we want.</p>
+
+	<p>To use <span class="command"><=</span>, open the search window and type "<=". Click on the result and you'll see a new source with two attributes, A and B, added to the query. These attributes are a little different though; there is a bubble protruding from the side of each with the number 0 inside. This is a place holder for the value you want to compare. Again the formula is A <= B, and we want to find all ordinals where Ordinal <= 10. So we map A to Ordinal and B to 10. How? Just join A and Ordinal (remember how to join? You did it before with the mean aggregate. Just drag the Ordinal on top of A). Now we will do something new for B. Double click on the next to B '0' and you can enter any value you like. In this case, type 10 and hit enter. In the results table, you will see only 10 entries, representing the top 10 states by computer ownership.</p>
+
+	<p>The following video demonstrates the process we just describes.</p> 
+
+	<video width="1140" height="724" controls>
+   		<source src="videos/sortquery.mp4" type="video/mp4">
+ 		Your browser does not support the video tag.
+	</video>
+
+	<p>To test your understanding, try to answer the question: <b>Which states have the most households without high-speed internet?</b>.</p>
+
+
+
+</body>
+</html>

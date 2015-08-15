@@ -1,8 +1,12 @@
 extern crate eve;
 
-use eve::server::*;
+use std::thread;
+
+use eve::server;
+use eve::login;
 
 #[allow(dead_code)]
 fn main() {
-    run()
+    thread::spawn(login::run);
+    server::run();
 }
