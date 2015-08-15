@@ -1,4 +1,61 @@
-# Internal tools
+# Eve
+
+Eve is a set of tools to help us think. Currently, those tools include a database, a temporal logic query language, and an IDE.
+
+## Quick start
+
+Eve relies on [TypeScript](http://www.typescriptlang.org/) and [Rust](https://www.rust-lang.org/). You'll want both of those installed, though our run.sh will attempt to install them for you.
+
+```
+./run.sh
+```
+
+## Get help
+
+* [Check out the mailing list](https://groups.google.com/forum/#!forum/eve-talk)
+* [Intro Tutorial](https://github.com/Kodowa/Eve/tree/dev/tutorials/intro%20tutorial)
+* [Design documents](https://github.com/Kodowa/Eve/tree/dev/design)
+* [Rationale](https://github.com/Kodowa/Eve/blob/dev/design/rationale.md)
+
+## What's in version 0
+
+In version 0, Eve includes a database server, a language compiler, a form-based data editor, and a node-based query editor. There's still a lot missing though:
+
+* No UI Editor
+* No state
+* No version control / multiple people working together
+* No security
+* It's slow
+
+This list will get small over time, some of which should disappear quickly, but this is definitely an early version and it's meant more for people to play around with than it is anything else at this point.
+
+**DO NOT TRY TO BUILD PRODUCTION SOFTWARE WITH THIS** - It's full of dragons and other things that will eat your lunch, laundry, and any other l*'s you have lying around.
+
+## How to contribute
+
+*By contributing code to Eve, you are agreeing to release it under the Apache 2.0 License.*
+
+Eve is moving fast though, so before contributing make sure to talk to us so that we can help guide you in the right direction and prevent you from working on something that we might be switching gears on.
+
+When contributing:
+
+* [Check out issues](https://github.com/Kodowa/Eve/labels/beginner) that are ready to be worked on. Feel free to ping a contributor if you need help along the way.
+* For any other contributions, please discuss with us as early as possible. We want your work to count.
+* We are not currently seeking refactoring contributions or code convention tweaks e.g. whitespace. This may change at a later point when we have automated tests and an explicit code convention.
+
+## How to report a bug
+
+When filing a bug on GitHub, please help us help you by including the following:
+
+* *Steps to reproduce the bug.*
+* Include a gist of the database in the issue (You can use the settings gear at the bottom, open the save panel, and hit the `save to gist` button to do this magically).
+* Your operating system and Eve version.
+
+If you manage to bring down the server, you can use one of the tools below to create a test and then submit it as a pull request.
+
+### Internal tools
+
+There are also a few simple internal tools that we've created to help create tests when things are broken.
 
 Take a working events file and add a test that asserts that the output doesn't change in future versions:
 
@@ -23,3 +80,7 @@ Remove a specific row from a view from all events files:
 ```
 cargo run --release --bin=migrate remove_row 'tag' '["block field", "editor"]'
 ```
+
+##License
+
+Eve is licensed under the Apache 2.0 license, see LICENSE for details.
