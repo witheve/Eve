@@ -431,7 +431,8 @@ input[type="text"], textarea { font-family: "Lato"; font-size: 16px; }
 /*---------------------------------------------------------
 - waiting room
 ---------------------------------------------------------*/
-.waiting-room { display: flex; flex-direction: column; align-items: center; justify-content: center; }
-.waiting-room > div { width: 60%; max-width: 640px; padding: 15px; background: white; box-shadow: 0 0 8px rgba(0,0,0,0.5); border-radius: 3px; }
-.waiting-room h3 { font-size: 3em; text-align: center; margin: 15px; }
-.waiting-room p+p { margin-top: 15px; }
+.waiting-room { display: flex; font-family: Lato, Arial, Helvetica, sans-serif; flex-direction: column; align-items: center; justify-content: center; }
+.waiting-room > div { width: 50%; max-width: 640px; padding: 25px; background: white; box-shadow: 0 2px 2px #aaa; border-radius: 3px; }
+.waiting-room h3 { font-size: 18pt; text-align: center; margin-bottom:25px; }
+.waiting-room p { line-height: 20px; }
+.waiting-room p+p { margin-top: 25px; }

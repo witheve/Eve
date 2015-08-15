@@ -29,21 +29,21 @@
     <div>
         <h3>Waiting for server...</h3>
         <p>
-            Please wait while the server (re)compiles and starts up. This can take anywhere from seconds to 15 minutes depending on whether or not the server needs to compile and fetch dependencies. This page will automatically refresh when the server is ready. 
+            Please wait while the server (re)compiles and starts up. This can take anywhere from seconds to 15 minutes since rust compile times are pretty gnarly. This page will automatically take you to the editor when the server is ready.
         </p>
         <p>
-            Now may be a good time for a tea break?
+            Maybe it's a good time for a tea break?
         </p>
     </div>
-    
+
 
     <script type="text/javascript" style="display: none">
         // Nothing fancy here.
         window["dispatcher"] = {render: function() {}};
         var editorUrl = "http://localhost:8080/editor";
         client.afterInit(function() {
-           window.location = editorUrl;              
+           window.location = editorUrl;
         })
-    </script>    
+    </script>
 </body>
 </html>
