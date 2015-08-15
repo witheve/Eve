@@ -132,9 +132,4 @@ module tableEditor {
     }
     dispatch("setTableSort", {table: elem.tableId, field: elem.fieldId, dir: dir});
   }
-
-  export function storeInitialInput(e, elem) {
-    localState.initialKey = elem.key;
-    localState.initialValue = elem.text;
-  }
 }

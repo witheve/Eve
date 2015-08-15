@@ -1621,6 +1621,7 @@ module drawn {
       break;
       case "loadFromGist":
         let url:string = info.url;
+        if(!url) break;
         url = url.replace("gist.github.com/", "gist.githubusercontent.com/");
         if(url.indexOf("gist.githubusercontent.com/") === -1) {
           diffs = dispatch("setNotice", {content: "Load from gist requires a valid gist URL.", type: "warn"});
