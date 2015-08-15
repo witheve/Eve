@@ -163,7 +163,7 @@ module api {
     "/": {"/: A": 0, "/: B": 0},
     remainder: {"remainder: A": 0, "remainder: B": 0},
     round: {"round: A": 0, "round: B": 0},
-    contains: {"contains:ner": " ", "contains: outer": ""},
+    contains: {"contains: inner": " ", "contains: outer": ""},
     count: {"count: A": []},
     mean: {"mean: A": []},
     split: {"split: split": " ", "split: string": ""},

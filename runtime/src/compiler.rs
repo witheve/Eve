@@ -123,6 +123,7 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // when a variable is bound to multiple fields from the same source we must arbitrarily decide to make
     // one an assignment and the others constraints
     ("constrained binding", vec!["variable", "source", "field"]),
+    ("constrained ordinal binding", vec!["variable", "source"]),
 
     // index layout determines the order in which fields are stored in the view index
     ("compiler index layout", vec!["view", "ix", "field", "name"]),
@@ -799,8 +800,10 @@ fn plan(flow: &Flow) {
     let mut variable_schedule_table = flow.overwrite_output("variable schedule");
     ordinal_by(&*variable_schedule_pre_table, &mut *variable_schedule_table, &["view"]);
 
+    // TODO find a nicer way to calculate constrained/free bindings
+
     let mut constrained_binding_table = flow.overwrite_output("constrained binding");
-    find!(variable_table, [view, variable], {
+    find!(variable_table, [_, variable], {
         find!(constant_binding_table, [(= variable), _], {
             find!(binding_table, [(= variable), source, field], {
                 insert!(constrained_binding_table, [variable, source, field]);
@@ -816,6 +819,41 @@ fn plan(flow: &Flow) {
                         // arbitrary field ordering, just to have to pick one to be the unconstrained binding
                         || (other_source_ix == source_ix && other_field < field) {
                             insert!(constrained_binding_table, [variable, source, field]);
+                        }
+                    });
+                });
+            });
+        });
+    });
+
+    let mut constrained_ordinal_binding_table = flow.overwrite_output("constrained ordinal binding");
+    find!(variable_table, [_, variable], {
+        find!(constant_binding_table, [(= variable), _], {
+            find!(ordinal_binding_table, [(= variable), source], {
+                insert!(constrained_ordinal_binding_table, [variable, source]);
+            });
+        });
+    });
+    find!(variable_table, [view, variable], {
+        find!(ordinal_binding_table, [(= variable), source], {
+            find!(binding_table, [(= variable), other_source, _], {
+                find!(source_schedule_table, [(= view), source_ix, _, (= source)], {
+                    find!(source_schedule_table, [(= view), other_source_ix, _, (= other_source)], {
+                        if other_source_ix <= source_ix {
+                            insert!(constrained_ordinal_binding_table, [variable, source]);
+                        }
+                    });
+                });
+            });
+        });
+    });
+    find!(variable_table, [view, variable], {
+        find!(ordinal_binding_table, [(= variable), source], {
+            find!(ordinal_binding_table, [(= variable), other_source], {
+                find!(source_schedule_table, [(= view), source_ix, _, (= source)], {
+                    find!(source_schedule_table, [(= view), other_source_ix, _, (= other_source)], {
+                        if other_source_ix < source_ix {
+                            insert!(constrained_ordinal_binding_table, [variable, source]);
                         }
                     });
                 });
@@ -1030,7 +1068,12 @@ fn plan(flow: &Flow) {
                 find!(source_schedule_table, [(= view), source_ix, _, (= source)], {
                     find!(source_table, [(= view), (= source), source_view], {
                         find!(number_of_fields_table, [(= source_view), number_of_fields], {
-                            insert!(binding_layout_table, [view_ix, source_ix, number_of_fields, variable_ix, string!("output")]);
+                            let unconstrained = dont_find!(constrained_ordinal_binding_table, [(= variable), (= source)]);
+                            let kind = match unconstrained {
+                                false => string!("constraint"),
+                                true => string!("output"),
+                            };
+                            insert!(binding_layout_table, [view_ix, source_ix, number_of_fields, variable_ix, kind]);
                         });
                     });
                 });

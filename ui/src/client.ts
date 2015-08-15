@@ -1,4 +1,4 @@
-/// <reference path="uiEditorRenderer.ts" />
+/// <reference path="../experiments/uiEditorRenderer.ts" />
 /// <reference path="api.ts" />
 module client {
   declare var dispatcher;
