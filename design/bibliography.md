@@ -2,7 +2,7 @@
 
 ## Highlights
 
-### Specification
+#### Specification
 
 [Out Of The Tarpit](https://github.com/papers-we-love/papers-we-love/blob/master/design/out-of-the-tar-pit.pdf)
 
@@ -12,7 +12,7 @@
 
 [Logic and Lattices for Distributed Programming](http://www.neilconway.org/docs/socc2012_bloom_lattices.pdf)
 
-### Performance
+#### Performance
 
 [OctopusDB: Towards a One Size Fits All Database Architecture](https://infosys.uni-saarland.de/publications/DJ11.pdf)
 
@@ -24,7 +24,7 @@
 
 [Evita Raced: Metacompilation for Declarative Networks](http://p2.berkeley.intel-research.net/papers/EvitaRacedVLDB2008.pdf)
 
-### Understanding
+#### Understanding
 
 [Debugging Reinvented: Asking and Answering Why and Why Not Questions about Program Behavior](http://repository.cmu.edu/cgi/viewcontent.cgi?article=1165&context=hcii)
 
@@ -32,21 +32,21 @@
 
 [Personifying Programming Tool Feedback Improves Novice Programmers Learning](http://faculty.washington.edu/ajko/papers/Lee2011Gidget.pdf)
 
-### Correctness
+#### Correctness
 
 [BloomUnit: Declarative Testing for Distributed Programs](http://db.cs.berkeley.edu/papers/dbtest12-bloom.pdf)
 
 [Opis: Reliable Distributed Systems in OCaml](http://icwww.epfl.ch/~kuncak/papers/DagandETAL08Opis.pdf)
 
-### UI
+#### UI
 
 [Compiling Mockups to Flexible UI](https://4d75d27f-a-62cb3a1a-s-sites.googlegroups.com/site/sinhnish/documents/fluidLayouts.pdf?attachauth=ANoY7crdYgssu75ccg3Gc6sSDm-dxh2rWHL5jLVh7LkNKtUgFpv2GDqK8AVzr1IJ53Dg6eM5StLasOQk-SDN4KWaCi-phlQK30GSum-hbWOzT5VVSiNRJ7U3F_FJ8pBMndIjR60O9bYSSzxu1TJmR6kX4dlEuCL16pituZTrEFj7BNnX-SRU3JajEKY4f9s_mYqR3uTF4GW5Jm2EkHgpEUfSZtCrUJOZVPO4NGg7nc59490937x_VW4%3D&attredirects=0)
 
 [Constraint Solvers for User Interface Layout](http://arxiv.org/pdf/1401.1031v1.pdf)
 
-## Papers
+## Full list
 
-### Design / usability
+#### Design / usability
 
 [Exploring the Design Space for Adaptive Graphical User Interfaces](http://research.microsoft.com/pubs/64306/avi2006-adaptiveui.pdf)
 Exploring the effectiveness of adaptive interfaces. General conclusion is that you never want to move things, just provide helpful ways to do them faster (they call this a split interface where you leave buttons in their normal place, but place copies in a sort of quick-bar thing)
@@ -108,7 +108,7 @@ Scaling Up (The problems that have to be overcome in order for visual programmin
 https://pchiusano.github.io/2013-05-22/future-of-software.html
 The future of software, the end of apps, and why UX designers should care about type theory
 
-### UI
+#### UI
 
 [Constraint cascading style sheets for the web](http://citeseer.ist.psu.edu/viewdoc/summary?doi=10.1.1.101.4819)
 Cassowary for web layout
@@ -152,7 +152,7 @@ Bricolage: using machine learning to apply a chosen style to a web page. E.g. I 
 https://news.ycombinator.com/item?id=9843289
 Constraint propagation for UI
 
-### Systems
+#### Systems
 
 [Maintaining views incrementally](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.89.8660&rep=rep1&type=pdf)
 Referenced in the incremental leapfrog triejoin paper when they introduce counting
