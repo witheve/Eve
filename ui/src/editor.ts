@@ -2907,7 +2907,7 @@ module drawn {
   function storeDragOffset(e, elem) {
     var rect = e.currentTarget.getBoundingClientRect();
     e.dataTransfer.setDragImage(document.getElementById("clear-pixel"),0,0);
-    e.dataTransfer.setData("text", "god damn it firefox.");
+    e.dataTransfer.setData("text", "fix for firefox");
     dispatch("setDragOffset", {x: e.clientX - rect.left, y: e.clientY - rect.top});
   }
 
