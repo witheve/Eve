@@ -4,10 +4,10 @@
 - translate ui editor facts into views that generate
 - uiRenderedFactors
 -------------------------------------------------------*/
-/// <reference path="indexer.ts" />
-/// <reference path="client.ts" />
-/// <reference path="microReact.ts" />
-/// <reference path="api.ts" />
+/// <reference path="../src/indexer.ts" />
+/// <reference path="../src/client.ts" />
+/// <reference path="../src/microReact.ts" />
+/// <reference path="../src/api.ts" />
 module uiEditorRenderer {
   declare var google;
   declare var dispatcher;
@@ -24,7 +24,7 @@ module uiEditorRenderer {
   ixer.addIndex("active page", ids["active page"], Indexing.create.lookup([ids.session, ids.page]));
 
   export var session = "me";
-    
+
   export function setSessionId(id) {
     session = id;
   }
@@ -34,10 +34,10 @@ module uiEditorRenderer {
     container: {},
     marker: {}
   };
-  
+
   export function refreshMaps() {
     for(var mapId in mapCache.map) {
-      var map = mapCache.map[mapId];     
+      var map = mapCache.map[mapId];
       google.maps.event.trigger(map, "resize");
       var lat = (ixer.selectOne("uiMapAttr", {map: mapId, property: "lat"}) || {"uiMapAttr: value": 0})["uiMapAttr: value"];
       var lng = (ixer.selectOne("uiMapAttr", {map: mapId, property: "lng"}) || {"uiMapAttr: value": 0})["uiMapAttr: value"];
@@ -45,7 +45,7 @@ module uiEditorRenderer {
     }
   }
 
-  
+
   /*-------------------------------------------------------
   - Renderer
   -------------------------------------------------------*/
@@ -104,7 +104,7 @@ module uiEditorRenderer {
       return JSON.stringify;
     }
   }
-  
+
   function getBoundRows(binding, key?) {
     var sessionIx;
     var keys = [];
@@ -113,14 +113,14 @@ module uiEditorRenderer {
           keys.push(fieldId);
       }
       if(code.name(fieldId) === "session") {
-        sessionIx = ix; 
-      } 
+        sessionIx = ix;
+      }
     });
     var query = {};
     if(sessionIx !== undefined) {
       query["session"] = session;
     }
-    
+
     // If key is singular we can short circuit this filter for speed improvements at selection time.
     var filterByKey = false;
     if(key !== undefined && keys.length === 1) {
@@ -185,7 +185,7 @@ module uiEditorRenderer {
 
     return {c: klass, id: layerId + (key ? "::" + key : ""), top: offset.top, left: offset.left, zIndex:layerIx, children: layerChildren};
   }
-  
+
   function reverseOffsetBoundingBox(box, offset) {
     if(!box || !offset) { return box; }
     let result = {top: box.top + offset.top, left: box.left + offset.left, width: box.width, height: box.height, bottom: box.bottom, right: box.right};
@@ -253,7 +253,7 @@ module uiEditorRenderer {
         mapContainer.style.height = node.style.height || document.body.offsetHeight;
         if(!mapInstance) {
           mapInstance = new google.maps.Map(mapContainer);
-          mapCache.map[mapId] = mapInstance;          
+          mapCache.map[mapId] = mapInstance;
         }
         var lat = (ixer.selectOne("uiMapAttr", {map: mapId, property: "lat"}) || {"uiMapAttr: value": 0})["uiMapAttr: value"];
         var lng = (ixer.selectOne("uiMapAttr", {map: mapId, property: "lng"}) || {"uiMapAttr: value": 0})["uiMapAttr: value"];
@@ -265,7 +265,7 @@ module uiEditorRenderer {
         if(mapInstance.getZoom() !== zoom) {
           mapInstance.setZoom(zoom);
         }
-        
+
         var mapAttrs = ixer.select("uiMapAttr", {map: mapId}) || [];
         var opts = {};
         for(var mapAttr of mapAttrs) {
@@ -275,14 +275,14 @@ module uiEditorRenderer {
           opts[mapAttr["uiMapAttr: property"]] = mapAttr["uiMapAttr: value"];
         }
         mapInstance.setOptions(opts);
-        
+
         if(!node.rendered) {
           node.appendChild(mapContainer);
         }
-        node.rendered = true;  
+        node.rendered = true;
       }
     }
-    
+
     var attrsIndex = ixer.index("uiStyleToAttrs", true);
     var stylesIndex = ixer.index("uiElementToStyles", true);
     var attrBindingsIndex = ixer.index("elementAttrBindings", true);
@@ -321,8 +321,8 @@ module uiEditorRenderer {
       elem.keyup = handleKeyUpEvent;
       if(elem.text !== undefined) {
         elem.value = elem.text;
-        elem.text = undefined;  
-      } 
+        elem.text = undefined;
+      }
     } else if(type === "link") {
     } else if(type === "map") {
     } else {
@@ -342,7 +342,7 @@ module uiEditorRenderer {
   export function setEventId(value) {
     eventId = value;
   }
-  
+
   export function nextEventId() {
     return ++eventId;
   }

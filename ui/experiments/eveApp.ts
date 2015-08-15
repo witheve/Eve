@@ -2,8 +2,8 @@
 - Infrastructure for running an eve app standalone
 ---------------------------------------------------------*/
 /// <reference path="uiEditorRenderer.ts" />
-/// <reference path="api.ts" />
-/// <reference path="client.ts" />
+/// <reference path="../src/api.ts" />
+/// <reference path="../src/client.ts" />
 module eveApp {
   var renderer = uiEditorRenderer;
   var ixer = api.ixer;
