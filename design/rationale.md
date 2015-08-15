@@ -1,18 +1,23 @@
-computer revolution
-knowledge workers, tools for thinking
-why not spreadsheets (sync model of time, no versioning)
-why not sql
-safe
-interactive
-simple
-effective
-easy
-sharing
-communicating
-versioning (code and data)
-pit of success
-data-centric
-direct
-concrete
-encourage tests / checks
-intent
+Ask a mathematician to solve a problem, an engineer to design a complex structure or a politician to compose a speech, and they will reach for a pad of paper. Take away their ability to write and suddenly there are problems they cannot solve, insights they cannot reach and thoughts they cannot think. Writing is not just a record of thought but a [medium for thought](https://books.google.com/books?id=1cgwUvk3OiIC&lpg=PR25&ots=54woRKJCQd&pg=PR26#v=onepage&q&f=false) - a tool that quite literally makes the wielder more intelligent.
+
+Computing has the potential to be the same kind of tool, but pieces are missing. In the old world anyone could follow a paper-trail, edit a blueprint, debug mistakes, combine information and invent new processes. Today if your calendar forgets dates or your company website has missing pages your only resort is to call the village scribe for help.
+
+Just as modern uses of writing look nothing like the day-to-day jobs of medieval scribes, we don't expect that a computer-literate civilization would spend their time building web servers and parsing json. We focus instead on the underlying tasks that people care about: communicating, sharing information and ideas, modelling systems, automating processes.
+
+Current programming tools are clearly not fit for this purpose. Despite the clear benefits and the wealth of resources and course, most people who try to learn to program fail to reach the point where their skills are useful in their own life.
+
+Most programmers have very strong opinions on what is wrong with programming today - not enough types, too many types, not using the right methodology, wrong kind of people etc. We adopted the unconventional policy of actually reading research and conducting tests. From the outside, it's pretty clear that there are much more fundamental problems than how we organise our unit tests or whether we use factories. Programming today is:
+
+__Complicated__. Specifically, there is a huge gulf between the abstractions presented and the [actual tasks](https://books.google.com/books?id=0drDRT370eoC&lpg=PA66&ots=eFiY0jPxjz&dq=small%20matter%20of%20programming%20control%20flow&pg=PA59#v=onepage&q=task-specific&f=false) that most people want to accomplish. Something as simple as checking whether an email inbox is empty in todays popular languages requires learning about control flow, variable scoping, data structures, classes and objects, command lines, IMAP, exception handling etc. Even for professional programmers, for the vast majority of tasks our existing tools operate at a level of abstraction far below our actual concerns.
+
+__Unhelpful__. We use tools that [provide no support for the most basic interactions](http://www.cs.cmu.edu/~NatProg/papers/MyersICPC2013NatProg.pdf). Simple common questions like 'how did this variable get set to null' can only be answered by [tedious manual effort](http://scattered-thoughts.net/blog/2014/05/17/pain-we-forgot/). Simple changes require recompiling, rerunning and repeating interactions just to get back to the same state. Good practices like using version control require additional effort and knowledge rather than being automatic.
+
+__Excessively stateful__. Designing and simulating time-varying processes is an [incredibly difficult skill](https://books.google.com/books?id=0drDRT370eoC&lpg=PA66&ots=eFiY0jPxjz&dq=small%20matter%20of%20programming%20control%20flow&pg=PA47#v=snippet&q=control&f=false) that takes years to master. Making control-flow the fundamental building block of programming means that this cost has to be paid all the time, even though most problems [are relatively static](http://shaffner.us/cs/papers/tarpit.pdf).
+
+__Indirect and invisible__. Humans cope well with complex systems when they can be mapped to concrete, physical metaphors which can be directly manipulated - folders full of files, grids of numbers, boxes and arrows etc. In contrast, most programming languages are built on metaphors like classes and functions that can only be explored and manipulated at a distance. In contrast to almost every other interface the average person encounters, almost all programming languages and tools tell you nothing unless you explicitly ask for it, and keep nothing unless you explicitly store it. The result is that it's incredibly hard to form a mental model of what is actually happening.
+
+__Entangled with the machine__. Much of programming consists of managing and traversing data structures. Subsequent code is entangled with these decisions such that changing the physical representation of data requires changing all the code that interacts with it, even though [data independence](https://en.wikipedia.org/wiki/Data_independence) has been practical [since the 70s](https://en.wikipedia.org/wiki/IBM_System_R).
+
+We note that most widely-used tools for non-professional programmers (eg Excel, SQL, Labview) emphasise data-flow over control-flow, have tools for direct exploration and manipulation of data and avoid exposing details of the underlying machine (eg data-structures, order of execution).
+
+The relational model is well tested and is the most compelling example of data independence in practice. [BOOM](http://boom.cs.berkeley.edu/) demonstrated that a relational data-flow language is suitable even for complex distributed systems. We have demonstrated that it is easy to build interactive GUI applications the same way. At this point we are confident that this is the right foundation to build on but there is still plenty more problems to solve on the way to building effective tools for thinking.

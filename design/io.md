@@ -75,7 +75,7 @@ Commands are used only for side-effects that cannot yet be handled by watchers -
 
 ## Authentication and identity
 
-There is some experimental support for authentication using [AuthRocket](https://authrocket.com/). The [login process] handles the exchange with authrocket and inserts auth data into tables on the server. This data is then available to the program when deciding what data to render. (Roadmap: friendly interface to auth)
+There is some experimental support for authentication using [AuthRocket](https://authrocket.com/). The [login process](../runtime/src/login.rs) handles the exchange with authrocket and inserts auth data into tables on the server. This data is then available to the program when deciding what data to render. (Roadmap: friendly interface to auth)
 
 Currently, the communication between clients and the server is totally unprotected and clients have access to all data in the system. (Roadmap: whitelist client access on a row by row basis)
 

@@ -6,7 +6,41 @@ Eve currently consists of a runtime written in Rust and a UI written in TypeScri
 
 The runtime contains a database, a compiler, and a query interpreter all written in Rust.
 
-More explanation on how the runtime is layed out will be coming. One interesting feature of the code if you end up poking around is that the compiler is written in the style that Eve-code is written in. This is done through the use of a set of macros and is the setup for completely bootstrapping the compiler in the near future.
+### value.rs
+
+Deals with individual Eve values and coercions between different types.
+
+### relation.rs
+
+True [relations](https://en.wikipedia.org/wiki/Relation_%28database%29) - unordered sets of tuples with unordered fields. By varying the order in which fields and rows are stored these will also act as indexes, although the current join algorithm doesn't make use of ordering.
+
+### map.rs
+
+An experimental perstent set, intended to eventually replace BTreeSet in relation.rs.
+
+### primitive.rs
+
+Handles primitive Eve views such as addition. Currently primitives are run row-at-a-time and return sets of results. Errors are handled by returning an empty set and appending a message to the error table.
+
+### view.rs
+
+Calculates the value of views. Joins are implemented using a naive backtracking search. Unions simply append source relations into a single output relation.
+
+### flow.rs
+
+Manages the dataflow graph that ties views together. Tracks changes to individual views and ensures that downstream views are up to date. Also tracks total changes since previous versions so we can send diffs between different Eve processes.
+
+### compiler.rs
+
+Responsible for building a new flow whenever the underlying code changes and for preserving as much state as possible across compiles. Most of the decision making is intended to be bootstrapped and is currently written using a set of macros that mimic Eve joins.
+
+### login.rs
+
+Experimental support for authentication using [AuthRocket](https://authrocket.com/). Also serves static files used by the editor, since some browsers have restricted access to the filesystem.
+
+### server.rs
+
+Manages the [sync protocol](./io.md#communication) by which Eve processes communicate with each other and with the editor.
 
 ## UI
 
