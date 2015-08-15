@@ -1638,7 +1638,7 @@ module drawn {
         localState.loading = "gist";
       break;
       case "writeEvents":
-        commands.push(["set events", info.events]);
+        commands.push(["set events", info.save || "unnamed.eve", info.events]);
         diffs = dispatch("hideTooltip", {}, true);
         localState.loading = false;
       break;
