@@ -365,7 +365,6 @@ module drawn {
       var order = ixer.selectOne("display order", {id: field["field: field"]});
       if(!order) continue;
       minFieldPriority = Math.min(order["display order: priority"], minFieldPriority);
-      console.log(order["display order: priority"]);
     }
     // if we didn't find one, we default to -1, otherwise we take one less than the min
     let fieldPriority = minFieldPriority === Infinity ? -1 : minFieldPriority - 1;
