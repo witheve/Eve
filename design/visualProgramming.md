@@ -27,9 +27,7 @@ GROUP BY
     employee.department
  ```
 
- Here it is in Eve:
-
- ![employee query](./images/employeeQuery.png)
+![employee query](./images/employeeQuery.png)
 
 **Find all the triangles of friends, i.e. a group of three friends where A is friends with B, B is friends with C, and C is friends with A.**
 
