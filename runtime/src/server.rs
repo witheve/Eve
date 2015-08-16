@@ -243,6 +243,7 @@ pub fn handle_event(server: &mut Server, event: Event, event_json: Json) {
     server.flow.quiesce(event.changes);
 
     // handle commands
+    let mut response_commands = vec![];
     for command in event.commands.iter() {
         let borrowed_words = command.iter().map(|word| &word[..]).collect::<Vec<_>>();
         match &borrowed_words[..] {
@@ -252,38 +253,30 @@ pub fn handle_event(server: &mut Server, event: Event, event_json: Json) {
                 load(&mut server.flow, filename);
                 save(&server.flow, "./autosave");
                 let current_dir = ::std::env::current_dir().unwrap().to_str().unwrap().to_owned();
-                send_event(server, &vec![], &vec![
-                    vec!["loaded".to_owned(), current_dir, filename.to_owned()]
-                    ]);
+                response_commands.push(vec!["loaded".to_owned(), current_dir, filename.to_owned()]);
             }
             ["save", filename] => {
                 save(&server.flow, filename);
                 let current_dir = ::std::env::current_dir().unwrap().to_str().unwrap().to_owned();
-                send_event(server, &vec![], &vec![
-                    vec!["saved".to_owned(), current_dir, filename.to_owned()]
-                    ]);
+                response_commands.push(vec!["saved".to_owned(), current_dir, filename.to_owned()]);
             }
             ["get events", id] => {
                 let events_string = read_file("./autosave");
-                send_event(server, &vec![], &vec![
-                    vec!["events got".to_owned(), id.to_owned(), events_string]
-                    ]);
+                response_commands.push(vec!["events got".to_owned(), id.to_owned(), events_string]);
             }
             ["set events", id, events_string] => {
                 write_file("./autosave", events_string);
                 server.flow = Flow::new();
                 load(&mut server.flow, "./bootstrap");
                 load(&mut server.flow, "./autosave");
-                send_event(server, &vec![], &vec![
-                    vec!["events set".to_owned(), id.to_owned()]
-                    ]);
+                response_commands.push(vec!["events set".to_owned(), id.to_owned()]);
             }
             other => panic!("Unknown command: {:?}", other),
         }
     }
 
     let changes = &server.flow.changes_from(old_flow);
-    send_event(server, changes, &vec![]);
+    send_event(server, changes, &response_commands);
 }
 
 pub fn run() {
