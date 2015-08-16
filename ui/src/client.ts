@@ -160,7 +160,7 @@ module client {
         }
       }
 
-      // For an explanation of what changes are synced, check: <https://github.com/Kodowa/Eve/blob/master/design/sync.md>
+      // For an explanation of what changes are synced, check: <https://github.com/witheve/Eve/blob/master/design/sync.md>
       var changes = [];
       for(let change of data.changes) {
         let [view, fields, inserts, removes] = change;

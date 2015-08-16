@@ -3735,7 +3735,7 @@ module drawn {
     if(error) {
       return dispatch("setNotice", {content: "Could not reach github to check for updates at this time", type: "warn"});
     } else if(newVersionExists) {
-      return dispatch("setNotice", {content: () => {return {c: "flex-row spaced-row", children: [{text: "A new version of Eve is available! Check it out on"}, {t: "a", href: "https://github.com/Kodowa/Eve", text: "Github"}]}}, duration: 0});
+      return dispatch("setNotice", {content: () => {return {c: "flex-row spaced-row", children: [{text: "A new version of Eve is available! Check it out on"}, {t: "a", href: "https://github.com/witheve/Eve", text: "Github"}]}}, duration: 0});
     }
   }
 
