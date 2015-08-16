@@ -2,7 +2,7 @@
 
 We know that the tendency will be for people to dismiss Eve as just another boxes and arrows attempt at visual programming. Visual programming carries a lot of historical baggage with it and for the most part, it's only found success in a few niches despite having been touted as a sort of silver bullet for the accessibility of programming. It's gotten a bad rap from overpromising and underdelivering. Part of that is that there are a set of fundamental problems in the space that people tend to ignore, the other part is that most visual languages try to take the same programming model and just turn it into pictures. With Eve we approached the editor very carefully, deliberately trying to ensure we didn't fall into the same traps.
 
-We've had numerous strategies for the UI so far, everything from a plain textual interface, to a pure spreadsheet-like interface, to mathematica-like notebooks and everthing in between. In each, we learned more and more about the essential nature of writing "programs" in the language that Eve presents. As an example, one of the more interesting editors we had presented code to you as when/do blocks with madlibs:
+We've had numerous strategies for the UI so far, from a plain textual interface, to a pure spreadsheet-like interface, to mathematica-like notebooks and everthing in between. In each, we learned more and more about the essential nature of writing "programs" in the language that Eve presents. As an example, one of the more interesting editors we had presented code to you as when/do blocks with madlibs:
 
 ![madlib editor](http://incidentalcomplexity.com/images/5.png)
 
@@ -14,7 +14,7 @@ It was with this one that we really came to understand what we were missing in a
 
 The most natural way to communicate a small to medium size graph is to draw it. When trying to show queries to eachother in the office we actually drew them as diagrams, but it took us a while to make the leap that writing them that way would work. Part of that is the inherent leariness we had of visual programming. Some of the early prototypes of Eve were visual dataflow languages and we found that they quickly ended up a mess, but queries are different - they don't express a sequence or a set of actions, merely a structure. It's been really interesting to see how much better people have been able to approach seeing and manipulating that structure directly as opposed to specifying it in text. Here are a few simple examples showing an SQL query and then what that looks like in Eve:
 
-**Get the total salary of all employees then find out what percentage each department represents of that.**
+**Get the total salary of all employees then find out what percentage each department represents.**
 
 ```
 SELECT
@@ -75,13 +75,15 @@ WHERE
 
 While someone may not know what all the symbols mean, most people are able to guess roughly what is going on in all of those graphs given a short explanation of querying, whereas most shut down on the first SQL query. This is not to say that, to someone who knows SQL, Eve's graphs are immediately more intuitive or easier to read (for some they are, for others they may not be). But they're at least no worse than the equivalent SQL, and they impart information that you otherwise have to try to extract and rebuild from the text. There's certainly room for improvement here, and it may turn out we find something else, but so far this has been much more pleasant to work with than our previous incarnations. And while we think that visual graphs are a [natural mapping](https://en.wikipedia.org/wiki/Natural_mapping_(interface_design)) for queries, that doesn't magically absolve us from the issues visual languages have traditionally faced.
 
+####Scaling Visual Programming Languages
+
 One of the seminal papers on the problems with visual programming languages (VPLs) is [Scaling Up Visual Programming Languages](http://web.engr.oregonstate.edu/~burnett/Scaling/ScalingUp.html) by Burnett et al. In it, Dr. Burnett breaks the issues with VPLs down into two main categories, representation issues and programming language issues. Let's go through them for Eve:
 
 ####Representation issues
 
 **Static representation**
 
-Some languages (e.g. programming by example languages) don't have a natural static representation, which can make dissemination difficult. Our query graphs are static, though we can make use of dynamism in lots of interesting ways, so this isn't an issue for us. The internet also made this less of an issue overall - we're not passing programs around in magazines much anymore.
+Some languages (e.g. programming by example languages) don't have a natural static representation, which can make dissemination difficult. Our query graphs are static, so this isn't a problem for us. The internet also made static representation less of an issue overall - we're not passing programs around in magazines much anymore.
 
 **Screen real estate**
 
@@ -113,13 +115,13 @@ We're a database!
 
 **Efficiency**
 
-Version 0 is fairly dumb and doesn't try to be incremental, but we've had versions that were and we intend to be entirely incremental as the runtime is matures. With that and the magic of whole program query optimization, we should be able to produce something that is at least as fast as your favorite scripting language. Having such a small language also makes it much easier for us to optimize.
+Version 0 is fairly dumb and doesn't try to be incremental, but we've had versions that were and we intend to be entirely incremental as the runtime matures. With that and the magic of whole program query optimization, we should be able to produce something that is at least as fast as your favorite scripting language. Having such a small language also makes it much easier for us to optimize.
 
 Another aspect of efficiency Dr. Burnett didn't mention is how difficult it is to read and write the given representation. There's still a lot we can do to improve in both regards, but in most cases you can create a query as fast as you can type it and it doesn't take long for the graphs to become natural to read. One thing we definitely want to do here is replace our individual functions nodes with a formula node. This will help cut down on the size of the graph as well as make it more efficient to do more complex math/processing.
 
 #### Beyond coding
 
-One of the biggest problems with visual programming languages is how you deal with debugging them as the system grows. Queries provide us a nice small unit of "work" to deal with, but when queries start relying on other queries, we start to need ways to understand how all the pieces fit together. This is a place where Eve can really shine. Given that everything in the system is a view, we have complete provenance information. In other words, we know where every piece of data comes from and how it comes to be what it is later on. This enables us to do "why? debugging," where you could click on a value and ask "why is this what it is?" We can then show you the values that went into producing whatever you selected and the exact path they took through all the queries to get there. You can even then start to ask questions about that path, e.g. when did this value get greater than 10? With the ability to ask that kind of question, debugging goes from being a hunting and pecking excercise full of printlns to a couple of clicks.
+One of the biggest problems with visual programming languages is how you deal with debugging them as the system grows. Queries provide us a nice small unit of "work" to deal with, but when queries start relying on other queries, we start to need ways to understand how all the pieces fit together. This is a place where Eve can really shine. Given that everything in the system is a view, we have complete provenance information. In other words, we know where every piece of data comes from and how it comes to be what it is later on. This enables us to do "why? debugging," where you could click on a value and ask "why is this what it is?" We can then show you the values that went into producing whatever you selected and the exact path they took through all the queries to get there. You can even then start to ask questions about that path, e.g. when did this value become greater than 10? With the ability to ask that kind of question, debugging goes from being a hunting and pecking excercise full of printlns to a couple of clicks.
 
 #### Scaling Eve up
 

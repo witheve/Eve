@@ -387,6 +387,7 @@ input[type="text"], textarea { font-family: "Lato"; font-size: 16px; }
 
 .light .table-container .table .header .icon { color: rgba(0,0,0,0.3); }
 .light .table-container .table .header .icon.active { display:flex; color: rgba(0,0,0,0.6); }
+.light .table-container .table .row.active { background: rgb(202, 237, 255); color: rgb(33, 164, 222); }
 
 .light a { color: rgb(33, 164, 222); }
 
