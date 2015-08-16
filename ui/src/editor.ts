@@ -2352,7 +2352,7 @@ module drawn {
 
   function openSettings(evt, elem:Element) {
     let tooltip:any = {
-      c: "centered-modal settings-modal",
+      c: "centered-modal settings-modal tabbed-modal",
       content: settingsPanel,
       persistent: true,
       stopPersisting: closeTooltip
@@ -2382,8 +2382,14 @@ module drawn {
               dblclick: overwriteSave
             }})}
           ]} : undefined),
-          {c: "flex-row spaced-row", children: [{text: "name"}, {t: "input", input: setSaveLocation, value: localState.selectedSave}]},
-          {c: "flex-row", children: [{t: "button", text: "Save to gist (remote)", click: saveToGist}, {t: "button", text: "Save to file (local)", click: overwriteSave}]}
+          {c: "input-row", children: [
+            {c: "label", text: "name"},
+            {t: "input", type: "text", input: setSaveLocation, value: localState.selectedSave},
+          ]},
+          {c: "flex-row", children: [
+            {c: "button", text: "Save to gist (remote)", click: saveToGist},
+            {c: "button", text: "Save to file (local)", click: overwriteSave},
+          ]}
         ];
       }
     },
@@ -2393,8 +2399,15 @@ module drawn {
         let saves = localState.saves || [];
         let selected = localState.selectedSave;
         return [
-          {c: "flex-row spaced-row", children: [{text: "url"}, {t: "input", input: setSaveLocation, value: localState.selectedSave}, {t: "button", text: "Load from gist (remote)", click: loadFromGist}]},
-          {c: "flex-row", children: [{t: "input", type: "file", change: setSaveFile}, {t: "button", text: "Load from file (local)", click: loadSave}]}
+          {c: "input-row", children: [
+            {c: "label", text: "url"},
+            {t: "input", type: "text", input: setSaveLocation, value: localState.selectedSave},
+            {c: "button", text: "Load from gist (remote)", click: loadFromGist}
+          ]},
+          {c: "input-row", children: [
+            {t: "input", type: "file", change: setSaveFile},
+            {c: "button", text: "Load from file (local)", click: loadSave},
+          ]}
         ]
       }
     },
@@ -2403,16 +2416,16 @@ module drawn {
       content: () =>  {
         let showHidden;
         if(localStorage["showHidden"]) {
-          showHidden = {c: "toggle", click: toggleHidden, text: "Hide hidden"};
+          showHidden = {c: "button", click: toggleHidden, text: "Hide hidden"};
         } else {
-          showHidden = {c: "toggle", click: toggleHidden, text: "Show hidden"};
+          showHidden = {c: "button", click: toggleHidden, text: "Show hidden"};
         }
         let theme;
         let curTheme = localStorage["theme"];
         if(curTheme === "dark") {
-          theme = {c: `toggle ${curTheme}`, click: toggleTheme, text: "Light"};
+          theme = {c: `button ${curTheme}`, click: toggleTheme, text: "Light"};
         } else {
-          theme = {c: `toggle ${curTheme}`, click: toggleTheme, text: "Dark"};
+          theme = {c: `button ${curTheme}`, click: toggleTheme, text: "Dark"};
         }
         return [
           {c: "preferences", children: [
@@ -2567,7 +2580,7 @@ module drawn {
 
   function openImporter(evt, elem) {
     let tooltip:any = {
-      c: "centered-modal importer-modal",
+      c: "centered-modal importer-modal tabbed-modal",
       content: importPanel,
       persistent: true,
       stopPersisting: closeTooltip
@@ -2589,7 +2602,7 @@ module drawn {
             {text: "Treat first row as header"},
             {t: "input", type: "checkbox", change: updateCsvHasHeader}
           ]},
-          {t: "button", text: "import", click: importFromCsv}
+          {c: "button", text: "import", click: importFromCsv}
         ]
       }
     ]};

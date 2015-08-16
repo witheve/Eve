@@ -29,6 +29,7 @@ body * { display: flex; flex-direction:column; box-sizing: border-box; outline:n
 .button { z-index: 10; padding:5px 10px; background: rgba(0,0,0,0.03); cursor:default; }
 
 .workspace { height: 100%; width: 100%; position:relative; flex-direction:row; }
+.label { margin-bottom: 3px; font-size:10pt; color: #0ba; font-weight: normal; }
 
 input[type="text"], textarea { font-family: "Lato"; font-size: 16px; }
 
@@ -60,7 +61,6 @@ input[type="text"], textarea { font-family: "Lato"; font-size: 16px; }
 .form-container .form-name { font-size: 14pt; margin-bottom:3px; flex:none; padding:0 15px; margin-top:15px; }
 .form-container .form-description { padding:0 15px; margin-bottom:20px; flex:none; line-height:1.25; min-width:50px; max-width:300px; outline:none; font-size: 10pt; color: #aaa; }
 .form-container .form-fields { flex: 1; overflow:auto; margin-bottom:20px; }
-.form-container .label { margin-bottom: 3px; font-size:10pt; color: #0ba; font-weight: normal; }
 .form-container .entry-field { border-bottom:1px solid #555; min-height:25px; padding:5px 0; }
 .form-container .size { align-items: flex-end; font-size: 10pt; flex:none; color: #999; padding: 0 15px 15px 0; }
 .form-container .submit-button { margin: 0 0 15px 15px; }
@@ -148,16 +148,24 @@ input[type="text"], textarea { font-family: "Lato"; font-size: 16px; }
 .settings-modal .pane { max-height: 90vh; min-height: 10vh; padding-top: 10px; }
 .settings-modal .h3 { text-align: left; align-self: stretch; }
 .settings-modal .saves > * { padding: 10px; align-self: stretch; min-width: 208px; }
-.tabbed-box .tabs { flex-direction: row; margin-bottom: -1px; }
-.tabbed-box .tabs > .tab { padding: 10px 15px; font-size: 16px; }
-.tabbed-box .tabs > .tab.active { padding: 10px 15px; border-bottom: 1px solid #333; border-top-left-radius: 3px; border-top-right-radius: 3px; }
-.tabbed-box .pane { flex-grow: 1; justify-content: center; align-items: center; padding: 5px; overflow-y: auto; border-bottom-left-radius: 3px; border-bottom-right-radius: 3px; }
-.tabbed-box .preferences { flex-direction: row; }
-.tabbed-box .preferences .toggle { padding:8px 10px; background:#666; border-radius:3px; cursor:default; }
-.tabbed-box .preferences .toggle:hover { background: #777; }
-.tabbed-box .preferences .toggle + .toggle { margin-left:5px; }
 
-.import-panel .pane > * { padding: 10px 15px; align-self: stretch;}
+.tabbed-modal { padding: 0 !important; }
+
+.tabbed-box .tabs { flex-direction: row; margin-bottom: -1px; background: #404040; border-top:1px solid #3c3c3c; border-radius:3px 3px 0 0; }
+.tabbed-box .tabs > .tab { padding: 8px 15px; font-size: 16px; cursor: default; }
+.tabbed-box .tabs > .tab.active { background: #555; border-bottom: 0px solid #777; border-top-left-radius: 3px; border-top-right-radius: 3px; }
+.tabbed-box .pane { flex-grow: 1; justify-content: center; padding: 15px; overflow-y: auto; border-bottom-left-radius: 3px; border-bottom-right-radius: 3px; }
+.tabbed-box .preferences { flex-direction: row; }
+.tabbed-box .button { padding:8px 10px; background:#666; border-radius:3px; cursor:default; }
+.tabbed-box .button:hover { background: #777; }
+.tabbed-box .button + .button { margin-left:5px; }
+.tabbed-box input[type="text"] { border:none; background:none; border-bottom:1px solid #777; min-height:25px; padding:5px 0; }
+
+.tabbed-box .input-row { margin:10px 0; }
+.tabbed-box .input-row .button { margin-top: 10px; }
+
+.import-panel .pane > * { margin-top:10px; }
+.import-panel .flex-row { align-items: center; }
 
 /*---------------------------------------------------------
 - Sorter
@@ -317,7 +325,7 @@ input[type="text"], textarea { font-family: "Lato"; font-size: 16px; }
 .light .form { background: #fff; border-color: #fff; box-shadow: 0 2px 2px #ccc; }
 .light .form-repeat { display:none; background: #fff; box-shadow: 0 2px 4px #ccc; }
 .light .entry-field { background: rgba(0,0,0,0.00); padding:5px 0; border-bottom:1px solid #eee; border-radius:0; }
-.light .form .label { color: rgb(33, 164, 222); }
+.light .label { color: rgb(33, 164, 222); }
 .light .form-description { color: #777; }
 .light .form .size { color: #777; }
 
@@ -371,9 +379,11 @@ input[type="text"], textarea { font-family: "Lato"; font-size: 16px; }
 .light .sorter .field.grouped { background: rgba(0,0,0,0.2); }
 .light .sorter .sort-direction { color: #aaa; }
 
-.light .tabbed-box .tabs > .tab.active { border-color: rgba(0,0,0,0.2); }
-.light .tabbed-box .preferences .toggle { background:rgba(0,0,0,0.1); }
-.light .tabbed-box .preferences .toggle:hover { background: rgba(0,0,0,0.2); }
+.light .tabbed-box .tabs { background: rgb(240,240,240); border-color: rgb(230,230,230); }
+.light .tabbed-box .tabs > .tab.active { background: #fff; }
+.light .tabbed-box input[type="text"] { border-color: #eee; }
+.light .tabbed-box .button { background:rgba(0,0,0,0.1); }
+.light .tabbed-box .button:hover { background: rgba(0,0,0,0.2); }
 
 .light .table-container .table .header .icon { color: rgba(0,0,0,0.3); }
 .light .table-container .table .header .icon.active { display:flex; color: rgba(0,0,0,0.6); }
