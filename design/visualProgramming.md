@@ -14,7 +14,7 @@ It was with this one that we really came to understand what we were missing in a
 
 The most natural way to communicate a small to medium size graph is to draw it. When trying to show queries to eachother in the office we actually drew them as diagrams, but it took us a while to make the leap that writing them that way would work. Part of that is the inherent leariness we had of visual programming. Some of the early prototypes of Eve were visual dataflow languages and we found that they quickly ended up a mess, but queries are different - they don't express a sequence or a set of actions, merely a structure. It's been really interesting to see how much better people have been able to approach seeing and manipulating that structure directly as opposed to specifying it in text. Here are a few simple examples showing a SQL query and then what that looks like in Eve:
 
-**Get the total salary of all employees then found out what percentage each department represents of that.**
+**Get the total salary of all employees then find out what percentage each department represents of that.**
 
 ```
 SELECT
