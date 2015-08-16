@@ -4,13 +4,20 @@ body {
 	height: 100%;
 	font-family: sans-serif;
 	font-size: 16px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
 }
 
 #content {
- 	max-width: 1024px;
- 	min-width: 400px;
-    margin: 50px auto 40px auto;
+ 	max-width: 600px;
+ 	min-width: 300px;
+    margin: 50px 0;
     line-height: 23px;
+    display:flex;
+    flex-direction: column;
+    align-items: center;
+    color: #333;
 }
 
 #logo {
@@ -22,19 +29,19 @@ body {
 }
 
 .screenshot {
-	border: 1px solid #FFF;
-	box-shadow: 0px 0px 3px #BBB;
-	margin: 30px auto 30px auto;
+    max-width: 600px;
+	box-shadow: 0px 2px 2px #aaa;
+	margin: 30px 0;
 	display: block;
+    border-radius:3px;
 }
 
-.screencast {
-	border: 1px solid #FFF;
-	box-shadow: 0px 0px 3px #BBB;
-	margin: 30px auto 30px auto;
+iframe {
+    border-radius:3px;
+	box-shadow: 0px 2px 2px #aaa;
+	margin: 30px 0;
 	display: block;
-	width: 828px;
-	height: 566px;
+	max-width: 600px;
 }
 
 .command {
@@ -48,6 +55,10 @@ body {
 	position: relative;
 	margin-right: 2px;
 	letter-spacing: 1px;
+}
+
+h1, h2, h3, h4 {
+    width: 100%;
 }
 
 h1 {
