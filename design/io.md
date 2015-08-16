@@ -1,6 +1,6 @@
 ## Persistence
 
-Eve uses [event sourcing](http://www.confluent.io/blog/making-sense-of-stream-processing/) for persistence. Every change event received from the editor or clients is appended to eve/runtime/autosave. Eve is completely deterministic so it can recover from crashes by simple rerunning the file.
+Eve uses [event sourcing](http://www.confluent.io/blog/making-sense-of-stream-processing/) for persistence. Every change event received from the editor or clients is appended to eve/runtime/autosave. Eve is completely deterministic so it can recover from crashes by simply rerunning the file.
 
 Code is currently also stored in the events file. (Roadmap: [version control](http://incidentalcomplexity.com/2015/04/22/version-control/))
 
@@ -15,7 +15,7 @@ Eve programs are pure functions of their input tables. To handle I/O we add __wa
 * Remove ["my_awesome_file.txt", "14:07.369"] from the 'files being opened' table
 * Add ["my_awesome_file.txt", "14:07.369", "14:07.780", "my awesome contents..."] to the 'files opened' table
 
-This barrier between pure views and watchers has a lot of benefits. We can easily disable/pause I/O while editing or mock I/O for testing. Untrusted programs can be sandboxed easily in normal code just by filtering their output views. We can replay any part of history by feeding in recorded results in place of real I/O. All of this is _possible_ in other languages but by exposing it easily we hope to make it more commonly used.
+This barrier between pure views and watchers has a lot of benefits. We can easily disable/pause I/O while editing or mock I/O for testing. Untrusted programs can be sandboxed easily in normal code just by filtering their output views. We can replay any part of history by feeding in recorded results in place of real I/O. All of this is _possible_ in other languages, but by exposing it easily we hope to make it more commonly used.
 
 ## UI
 
@@ -39,7 +39,7 @@ In the current setup an Eve system consists of one server, one editor and zero o
 
 After each tick on the client/editor, clients/editors send a list of changes to their own state to the server. After each tick on the server, the server sends a list of all changes it has seen to all other processes. Processes ignore changes reported for data that they own, since it may be less recent than their own state.
 
-By default, every view is owned by the server. Views tagged "editor" are owned by the editor. Views tagged "client" are partitioned by session id - each client owns only the rows corresponding to it's own session id. If a view is tagged "client" then it must have a field tagged "session". These tags must be set when a view is created and never changed.
+By default, every view is owned by the server. Views tagged "editor" are owned by the editor. Views tagged "client" are partitioned by session ID - each client owns only the rows corresponding to it's own session ID. If a view is tagged "client" then it must have a field tagged "session". These tags must be set when a view is created and never changed.
 
 ## Protocol
 
