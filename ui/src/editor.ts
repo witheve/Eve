@@ -754,6 +754,11 @@ module drawn {
         var variableId = node.variable;
         var variableIdToRemove = target.variable;
 
+        // check if we need to transfer the name
+        if(code.name(variableIdToRemove) && !code.name(variableId)) {
+          diffs.push.apply(diffs, dispatch("rename", {renameId: variableId, value: code.name(variableIdToRemove)}, true));
+        }
+
         // transfer all the bindings to the new variable
         var oldBindings = ixer.select("binding", {variable: variableIdToRemove});
         for(let binding of oldBindings) {
