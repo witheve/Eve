@@ -97,7 +97,7 @@ A number of VPLs suffer from having virtually no documentation facilities or wor
 
 **Procedural abstraction**
 
-Queries are our primary unit of abstraction. You can use queries inside of other queries and with unions, you can bring lots of queries together into an open unit. E.g. I might define a top performers union and then have various department provide their own queries to determine who their top performers are. So far this has been sufficient for us to build things, though what reuse looks like for us is still an open question.
+Queries are our primary unit of abstraction. You can use queries inside of other queries and unions allow you to merge multiple queries together into an open unit. E.g. I might define a top performers union and then have various departments provide their own queries to determine who their top performers are. So far this has been sufficient for us to build numerous examples, including a clone of Foursquare. One thing that is definitely still an open question for us though, is exactly what form code reuse will take. There's a lot more work to be done there.
 
 **Interactive visual data abstraction**
 
@@ -113,7 +113,7 @@ We're a database!
 
 **Efficiency**
 
-Version 0 is fairly dumb and doesn't try to be incremental, but we've had versions that were and we intend to be entirely incremental once the runtime matures. With that and the magic of whole program query optimization, we should be able to produce something that is at least as fast your favorite scripting language. Having such a small language also makes it much easier for us to optimize.
+Version 0 is fairly dumb and doesn't try to be incremental, but we've had versions that were and we intend to be entirely incremental once the runtime matures. With that and the magic of whole program query optimization, we should be able to produce something that is at least as fast as your favorite scripting language. Having such a small language also makes it much easier for us to optimize.
 
 Another aspect of efficiency she didn't mention is how difficult it is to read and write the given representation. There's still a lot we can do to improve in both regards, but in most cases you can create a query as fast as you can type it and it doesn't take long for the graphs to become natural to read. One thing we definitely want to do here is replace our individual functions nodes with a formula node. This will help cut down on the size of the graph as well as make it more efficient to do more complex math/processing.
 
