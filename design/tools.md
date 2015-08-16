@@ -54,7 +54,7 @@ Both of these are temporary solutions. (Roadmap: [version control](http://incide
 
 ## Debugging
 
-The editor can show the current state of any view. The join editor also shows 'peek' views when a source is selected. Making temporary joins is fairly effective for answering [specific questions](http://www.cs.cmu.edu/~NatProg/papers/MyersICPC2013NatProg.pdf) (eg are there any accounts that are not shown in the final report?).
+The editor can show the current state of any view. The join editor also shows 'peek' views when a source is selected. Making temporary joins is fairly effective for answering [specific questions](http://www.cs.cmu.edu/~NatProg/papers/MyersICPC2013NatProg.pdf) about the current state (eg are there any accounts that are not shown in the final report?).
 
 The program itself and the internal state of the compiler are stored in tables which can be seen by checking 'show hidden' in the settings menu. These are useful for debugging internal errors or for understanding scheduling decisions.
 
