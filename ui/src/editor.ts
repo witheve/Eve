@@ -1446,6 +1446,7 @@ module drawn {
         localState.importing = true;
         // @NOTE: In order to load from a file, we *have* to parse asynchronously.
         Papa.parse(file, {
+          dynamicTyping: true,
           complete: (result) => dispatch("importCsvContents", {name, result, hasHeader: info.hasHeader}),
           error: (err) => dispatch("setError", {errorText: err.message})
         });
