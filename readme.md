@@ -13,9 +13,10 @@ Eve relies on [TypeScript](http://www.typescriptlang.org/) and [Rust](https://ww
 ## Get help
 
 * [Check out the mailing list](https://groups.google.com/forum/#!forum/eve-talk)
-* [Intro Tutorial](https://github.com/Kodowa/Eve/tree/dev/tutorials/intro%20tutorial)
-* [Design documents](https://github.com/Kodowa/Eve/tree/dev/design)
+* [Intro Tutorial](http://kodowa.github.io/Eve/tutorials/intro%20tutorial/tutorial.html)
+* [Architecture overview and design documents](https://github.com/Kodowa/Eve/tree/dev/design)
 * [Rationale](https://github.com/Kodowa/Eve/blob/dev/design/rationale.md)
+* [A note on visual programming](https://github.com/Kodowa/Eve/tree/dev/design)
 
 ## What's in version 0
 

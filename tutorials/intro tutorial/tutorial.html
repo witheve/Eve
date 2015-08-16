@@ -41,10 +41,7 @@
 	<p>If you take a look at the command bar, you can see some new commands are now available. Hover over each of them to see what they do. The general process for creating a card is to give it a name and description, then add one field for each type of data in your data table. Our person card will contain the following fields: First Name, Last Name, Birthday, Phone, and E-Mail. Follow along with the video to see how this data card is configured.
 	</p>
 
-	<video class="screencast" controls>
-   		<source src="videos/newdatacard.mp4" type="video/mp4">
- 		Your browser does not support the video tag.
-	</video> 
+	<iframe width="640" height="480" src="https://www.youtube.com/embed/0FbSIKXkl5Y" frameborder="0" allowfullscreen></iframe>
 
 	<p>You can add as many rows to your data table as you like by simply filling out the form and clicking the submit button. If you want to modify a row, click it and the form will be filled in with the row's data, which you can then modify. Selecting a row and clicking on the <span class="command">-Entry</span> command will remove that row from your table.</p>
 
@@ -64,7 +61,7 @@
 	<h3>Importing Data</h3>
 
 	<p>
-	The real power of Eve comes in answering questions about data. Let's say you have some data about computer ownership and internet usage by city in the United States, and you want to find out what the average is by state. As it turns out, we have just this data, located in the 'example data' folder in your Eve installation directory. We can import this data into Eve. On the Eve home screen, click on <span class="command">Import</span>. Then, click <span class="command">Choose File</span> and browse to the 'example data' folder in your Eve installation directory. Choose the file 'computer_ownership.csv', and make sure the 'Treat first row as header' check box is selected. Finally, click <span class="command">Import</span>. 
+	The real power of Eve comes in answering questions about data. Let's say you have some data about computer ownership and internet usage by city in the United States, and you want to find out what the average is by state. As it turns out, we have just this data, located in the 'example data' folder in your Eve installation directory. We can import this data into Eve. On the Eve home screen, click on <span class="command">Import</span>. Then, click <span class="command">Choose File</span> and browse to the 'example data' folder in your Eve installation directory. Choose the file 'computer_ownership.csv', and make sure the 'Treat first row as header' check box is selected. Finally, click <span class="command">Import</span>.
 
 	<p>You have just imported a CSV (comma separated value) file into Eve. You'll see that once it is imported, a new data card is created with the name of the CSV file, as well as a form for entering new data according to the fields detected in the CSV file. In this file, we have fields relating to 'City', 'State', 'Percent of households with a computer' and 'Percent of households with high speed internet'.</p>
 
@@ -96,17 +93,14 @@
 
 	<img class="screenshot" src="images/grouped.png" />
 
-	<h4>Aggregates</h4>	
+	<h4>Aggregates</h4>
 
 	<p> We're close to finding our answer. All we need now is to average the percentages using something called an aggregate. Aggregates are a way of reducing a set of values to a single value. Common examples of aggregates include <span class="command">Mean</span> and <span class="command">Count</span>. Mean is exactly the aggregate we need in this case. To use <span class="command">Mean</span>, open the search console, and search for "mean". Click on the result and you'll see a new source has been added to the question area.
 	</p>
 
 	<p>This new source is an aggregate, and it has two attributes: "A", which is the input to the aggregate; and "result", which is the output of the aggregate. You'll also notice in the answer section, "result" has been added as a new column to the answer table. This is telling us that the mean aggregate produces a value for each row in our answer table. All we need to do now is specify the correct input to the aggregate. This is done by clicking on the "A" attribute, and then dragging it on top of the appropriate attribute in the computer_ownership graph. In this case, the attribute that answers our question is "percent of households with a computer". Follow along with the video to see how this is done.</p>
 
-	<video class="screencast" controls>
-   		<source src="videos/joinaggregate.mp4" type="video/mp4">
- 		Your browser does not support the video tag.
-	</video>
+    <iframe width="640" height="480" src="https://www.youtube.com/embed/yQp9FX3GJCA" frameborder="0" allowfullscreen></iframe>
 
 	<p>What you've just done is "Joined" the attribute with the aggregate input, essentially meaning they are one and the same now. We will talk more about joining later on. If you want to undo what you just did, select the newly combined attribute and then click <span class="command">Unjoin</span></p>
 
@@ -114,10 +108,7 @@
 
 	<p>We've answered our question! The answer table now contains a list of states and their corresponding average computer ownership. Let's clean up the results table by hiding all the information we don't want to see. Click on the "City" attribute and then the <span class="command">Hide</span> command. You'll notice this column is now absent from the results table. Do the same for the "Percent of households with high-speed internet". As a final step, give the query a name and a description, just as you did with your data table. The following video demonstrates the process we just described.</p>
 
-	<video class="screencast" controls>
-   		<source src="videos/meanquery.mp4" type="video/mp4">
- 		Your browser does not support the video tag.
-	</video>
+    <iframe width="640" height="480" src="https://www.youtube.com/embed/iDyMZZZ2GU4" frameborder="0" allowfullscreen></iframe>
 
 	<p>To test your understanding, try to answer the question: <b>What is the average percent of households with high speed internet by state?</b>. Let's move on to a new question.</p>
 
@@ -133,10 +124,7 @@
 
 	<p>This window indicates the current sorting is first by "State", and then by "Mean Computer Ownership". The upward pointing triangles indicate the sort ordering is from A to Z in the case of letters, and smallest to largest in the case of numbers. We want to order by percent of households with a computer, so click on that field and drag it in front of State. We also want to sort from largest to smallest, so click on the corresponding triangle and it will point downward.</p>
 
-	<video class="screencast" controls>
-   		<source src="videos/sort.mp4" type="video/mp4">
- 		Your browser does not support the video tag.
-	</video>
+	<iframe width="640" height="480" src="https://www.youtube.com/embed/H-A5RtyYsUM" frameborder="0" allowfullscreen></iframe>
 
 	<p>You've changed the sorting, but nothing happened in the results. That's okay; we'll see the result of what you just did using the <span class="command">Ordinal</span> command.</p>
 
@@ -154,12 +142,9 @@
 
 	<p>To use <span class="command"><=</span>, open the search window and type "<=". Click on the result and you'll see a new source with two attributes, "A" and "B", added to the query. These attributes are a little different though; there is a bubble protruding from the side of each with the number 0 inside. This is a place holder for the value you want to compare. Again the formula is "A" <= "B", and we want to find all ordinals where Ordinal <= 10. We need to join "A" to "Ordinal" and "B" to 10. How? Just join A and Ordinal (remember how to join? You did it before with the mean aggregate. Just drag "Ordinal" on top of "A"). Now we will do something new for ""B". Double click on the "0" next to "B" and you can enter any value you like. In this case, type the number 10 and hit enter. In the results table, you will see only 10 entries, representing the top 10 states by computer ownership.</p>
 
-	<p>The following video demonstrates the process we just describes.</p> 
+	<p>The following video demonstrates the process we just describes.</p>
 
-	<video class="screencast" controls>
-   		<source src="videos/sortquery.mp4" type="video/mp4">
- 		Your browser does not support the video tag.
-	</video>
+	<iframe width="640" height="480" src="https://www.youtube.com/embed/Fhi9dZAws10" frameborder="0" allowfullscreen></iframe>
 
 	<p>To test your understanding, try to answer the question: <b>Which states have the most households without high-speed internet?</b>.</p>
 
@@ -175,10 +160,7 @@
 
 	<p>We need to do the same thing for 2014. Pull in another 'Artist Names' source and join artist ID with 2014, just as you did with 2013. Now just hide 2013 and 2014 from the answer, and rename the artist name attributes to match the years. There you have it: the names of the top 100 artists for 2014 and 2013. The following video shows this process in action:</p>
 
-	<video class="screencast" controls>
-   		<source src="videos/topartists.mp4" type="video/mp4">
- 		Your browser does not support the video tag.
-	</video>
+	<iframe width="640" height="480" src="https://www.youtube.com/embed/dz1iWKQQyDg" frameborder="0" allowfullscreen></iframe>
 
 	<h3>Who were the biggest movers between 2013 and 2014?</h3>
 
@@ -192,10 +174,7 @@
 
 	<p>The following video demonstrates this process from start to finish:</p>
 
-	<video class="screencast" controls>
-   		<source src="videos/topmovers.mp4" type="video/mp4">
- 		Your browser does not support the video tag.
-	</video>
+	<iframe width="640" height="480" src="https://www.youtube.com/embed/2Ji09pKEIU4" frameborder="0" allowfullscreen></iframe>
 
 	<h3>Which artists were new to the charts in 2014?</h3>
 
@@ -205,10 +184,7 @@
 
 	<p>The following video demonstrates this process from start to finish:</p>
 
-	<video class="screencast" controls>
-   		<source src="videos/negate.mp4" type="video/mp4">
- 		Your browser does not support the video tag.
-	</video>
+    <iframe width="640" height="480" src="https://www.youtube.com/embed/K7I4hmImSZc" frameborder="0" allowfullscreen></iframe>
 
 	<h2>Closing Remarks</h2>
 
