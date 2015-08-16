@@ -2,7 +2,7 @@
 
 We know that the tendency will be for people to dismiss Eve as just another boxes and arrows attempt at visual programming. Visual programming carries a lot of historical baggage with it and for the most part, it's only found success in a few niches despite having been touted as a sort of silver bullet for the accessibility of programming. It's gotten a bad rap from overpromising and underdelivering. Part of that is that there are a set of fundamental problems in the space that people tend to ignore, the other part is that most visual languages try to take the same programming model and just turn it into pictures. With Eve we approached the editor very carefully, deliberately trying to ensure we didn't fall into the same traps.
 
-We've had numerous strategies for the UI so far, everything from a plain textual interface, to a pure spreadsheet-like interface, to mathematica-like notebooks and everthing in between. In each, we learned more and more about the essential nature of writing "programs" in the language that Eve presents. As an example, one of the more interesting editors we had presented code to you as when/do blocks with madlibs:
+We've had numerous strategies for the UI so far, from a plain textual interface, to a pure spreadsheet-like interface, to mathematica-like notebooks and everthing in between. In each, we learned more and more about the essential nature of writing "programs" in the language that Eve presents. As an example, one of the more interesting editors we had presented code to you as when/do blocks with madlibs:
 
 ![madlib editor](http://incidentalcomplexity.com/images/5.png)
 
