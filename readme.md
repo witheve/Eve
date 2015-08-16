@@ -35,7 +35,7 @@ This list will get smaller over time and some of it should disappear quickly, bu
 
 *By contributing code to Eve, you are agreeing to release it under the Apache 2.0 License.*
 
-Eve is moving fast though, so before contributing make sure to talk to us so that we can help guide you in the right direction and prevent you from working on something that we might be switching gears on.
+Eve is moving fast, so before contributing make sure to talk to us so that we can help guide you in the right direction and prevent you from working on something that we might be switching gears on.
 
 When contributing:
 
