@@ -1,37 +1,35 @@
-## View finder
+## Item selector
 
-The view finder shows all views in the system along with a snapshot of their internal logic. The left panel allows searching for existing views, creating/importing new views or deleting views. Clicking on a view selects it. Double-clicking on a view opens it.
+The item selector shows all views in the system along with a snapshot of their internal logic. The toolbar allows searching for existing views, creating/importing new views or deleting views. Clicking on a view selects it. Double-clicking on a view opens it.
 
-TODO explain search options
+Clicking the magnifying glass brings up Eve's universal search, allowing you to filter and search for individual items by name. Clicking on a result in the search will open it, or pressing enter will open the bottom-most result. The search also contains two different filters at the moment: `[field: *]` and `[tag: *]` which will limit the search to items that either contain a specific field or tag. For example: `[field: place]` will show me all views that have a `place` field or `[tag: editor] [tag: hidden]` will show me all the views that are tagged as both hidden and editor.
 
-Search works well when you know what you are looking for. Exploring larger programs would benefit from some structure. (Roadmap: view tagging, dependency graph)
+Search works well when you know what you are looking for. Exploring larger programs would benefit from structure though. (Roadmap: view tagging, dependency graph)
 
-* __Ctrl-f__ search
+* __Ctrl-f/Cmd-f__ search
+
+## Data editor
+
+The toolbar has buttons for adding and removing entries and fields. The main panel has a form for adding/editing entries. Pressing enter while in a field will submit the entry. You can also modify the name of this data set, the description, or any of the field names by clicking on them. Clicking on an entry in the table at the bottom will select it and allow you to modify or delete it.
+
+While we could have removed the top panel and allowed directly editing the table, Eve tables are unordered sets whereas our testers expected grid-like interfaces to preserve ordering and allow duplicates. The separation of grid and editor and the use of highlighting during data entry is intended to draw attention to this potentially counter-intuitive behaviour. We also found that people really liked having a nice form to insert entries with. (Roadmap: more sophisticated form fields (e.g. image entry, maps, etc), multi-entry editing)
+
+* __Ctrl-f/Cmd-f__ search
 * __Backspace__ delete
+* __Enter__ submit entry
+* __Tab__ goto next field
 
-## Table editor
+## Query editor
 
-The left panel allows adding and removing rows and fields. The top panel shows the currently selected rows. The bottom panel shows all rows in the table.
+The query editor represents queries as graphs.
 
-TODO explain selection, data entry etc
+The top panel is the main workspace. The title and description at the top are editable. Use the universal search to pull existing views into the graph as sources. Dragging fields on top of eachother will join them. If you click on a source, we show a 'peek' of the contents of that view, which allows you to quickly see the bits of data that are being worked with. Double-clicking on a view navigates into it. You can Shift-click and drag-click to select groups of nodes.
 
-We could have removed the top panel and allowed directly editing the table. Unforturnately, Eve tables are unordered sets whereas our testers expected grid-like interfaces to preserve ordering and allow duplicates. The separation of grid and editor and the use of highlighting during data entry is intended to draw attention to this potentially counter-intuitive behaviour.
+All other actions are triggered from the toolbar. The tooltip on each button explains what it does and if it's disabled why it cannot be used with the given selection.
 
-* __Ctrl-f__ search
-* __Backspace__ delete
-* TODO enter? tab?
+The bottom panel shows the results of the query in a table. The field names of the table are editable and mirror the names of the nodes they represent on the canvas.
 
-## Join editor
-
-The join editor represents joins as graphs.
-
-The top panel is the main workspace. The title and description at the top are editable. Use the search bar to pull existing queries into the graph. Dragging fields together will join them. Clicking on a view selects it and shows a peek at the contents of that node. Double-clicking on a view opens that view. Shift-click and drag-click selecting groups of nodes.
-
-All other actions are triggered from the sidebar. The tooltip on each button explains the action and why they cannot be used. Buttons are grayed out when they don't make sense for the selected node(s) - the tooltip will explain the reason.
-
-The bottom panel shows the results of the join. The field names are editable. TODO explain selection
-
-* __Ctrl-f__ search
+* __Ctrl-f/Cmd-f__ search
 * __Backspace__ delete
 
 ## Union editor
