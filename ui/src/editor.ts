@@ -2216,7 +2216,14 @@ module drawn {
           queries.length === totalCount ? {c: "showing", text: `Showing all ${totalCount} items`} : {c: "showing", text: `found ${queries.length} of ${totalCount} items.`},
           searching ? {c: "clear-search ion-close", clearSearch: true, click: stopSearching} : undefined,
         ]},
-        {c: "query-selector", children: queries}
+        (totalCount > 0) ?
+          {c: "query-selector", children: queries}          
+          : {c: "full-flex flex-center", children: [
+            {c: "flex-row spaced-row", children: [
+              {text: "Click"}, {t: "button", c: "button", text: "New", click: startCreating}, {text: "or"},
+              {t: "button", c: "button", text: "Import", click: openImporter}, {text: "to begin working with Eve"}
+            ]}
+          ]}
       ]}
     ]};
   }
