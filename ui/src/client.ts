@@ -126,7 +126,7 @@ module client {
       server.connected = false;
       server.dead = true;
       reconnect();
-      dispatch("setNotice", {content: `Error: Eve Server is Dead! ${error.toString() + (error.message || "")}`, type: "error", id: "server dead", duration: 0});
+      dispatch("setNotice", {content: `Error: Eve Server is Dead!`, type: "error", id: "server dead", duration: 0});
     }
 
     ws.onopen = function() {
