@@ -1,5 +1,5 @@
-use std::io::Read;
-use std::io::Write;
+use std::io::{Read, Write};
+use std::io;
 use std::fs::File;
 use std::error::Error;
 use hyper;
@@ -93,7 +93,7 @@ fn file_exists(path: &str) -> bool {
     path_obj.is_file() && path_obj.exists()
 }
 
-fn serve_local_or_file(mut res: Response<Fresh>, path: &Vec<String>, default_file: &str) {
+fn serve_local_or_file(mut res: Response<Fresh>, path: &Vec<String>, default_file: &str) -> io::Result<()> {
     let mime_types = Types::new().unwrap();
     let local_path = path[1..].iter().fold("../ui".to_owned(), |end, cur| end + "/" + cur);
     let file;
@@ -115,9 +115,10 @@ fn serve_local_or_file(mut res: Response<Fresh>, path: &Vec<String>, default_fil
     }
     let mime: Mime = Mime::from_str(mime_types.mime_for_path(Path::new(&file_path))).unwrap();
     res.headers_mut().set(ContentType(mime));
-    let mut res = res.start().unwrap();
-    res.write_all(&file).unwrap();
-    res.end().unwrap();
+    let mut res = try!(res.start());
+    try!(res.write_all(&file));
+    try!(res.end());
+    Ok(())
 }
 
 fn login(req: Request, mut res: Response<Fresh>) {
@@ -158,10 +159,16 @@ fn login(req: Request, mut res: Response<Fresh>) {
             // Handle login
             match &*requested_file {
                 "app.html" | "app" => {
-                    serve_local_or_file(res, &path_info.path, "../ui/app.html");
+                    let result = serve_local_or_file(res, &path_info.path, "../ui/app.html");
+                    if let Err(error) = result {
+                        println!("Warning: serve error {:?}", error);
+                    }
                 },
                 "editor.html" | "editor" => {
-                    serve_local_or_file(res, &path_info.path, "../ui/editor.html");
+                    let result = serve_local_or_file(res, &path_info.path, "../ui/editor.html");
+                    if let Err(error) = result {
+                        println!("Warning: serve error {:?}", error);
+                    }
                 },
                 "login.html" => {
                     println!("Authenticating User");
