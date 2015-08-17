@@ -22,11 +22,13 @@ body * { display: flex; flex-direction:column; box-sizing: border-box; outline:n
 ---------------------------------------------------------*/
 
 .spaced-row > * + * { margin-left: 5px; }
-.flex-row { flex-direction: row; }
+.flex-row { flex-direction: row; align-items: center; }
 .flex-spacer { flex: 1; }
 .full-flex { flex: 1; }
+.flex-center { align-self: stretch; justify-content: center; align-items: center; }
 .container { flex: 1; position:relative; }
-.button { z-index: 10; padding:5px 10px; background: rgba(0,0,0,0.03); cursor:default; }
+.button { z-index: 10; padding:5px 10px; background: rgba(0,0,0,0.03); cursor:default; outline: none; border: none; font-family: "Lato"; font-size: 1em; }
+.button:hover { background: rgba(255,255,255,0.1); }
 
 .workspace { height: 100%; width: 100%; position:relative; flex-direction:row; }
 .label { margin-bottom: 3px; font-size:10pt; color: #0ba; font-weight: normal; }
@@ -37,9 +39,9 @@ input[type="text"], textarea { font-family: "Lato"; font-size: 16px; }
 - Item selector
 ---------------------------------------------------------*/
 
-.query-selector-wrapper { flex-direction: row; flex:1; -webkit-user-select:none; }
+.query-selector-wrapper { flex-direction: row; flex:1; max-height: 100%; -webkit-user-select:none; }
 .query-selector { flex: 1; flex-direction:row; flex-wrap:wrap; position:relative; align-items:flex-start; justify-content:flex-start; align-content: flex-start; margin-left:10px; }
-.query-selector-body {overflow: auto;}
+.query-selector-body { flex: 1; overflow: auto; }
 .query-item { margin: 10px; position:relative; }
 .query-item .query { border:1px solid #404040; width:300px; height:300px; border-radius:3px; box-shadow:0 0 8px #000; background: #404040; padding:25px; padding-top:50px; }
 .query-item .surface { overflow:visible; transform-origin: 0 0; pointer-events: none; }
@@ -397,6 +399,7 @@ input[type="text"], textarea { font-family: "Lato"; font-size: 16px; }
 
 .dark { background: #222; color: #ccc; }
 .dark input[type="text"], .dark textarea { color: #ccc; }
+.dark .button { color: #ccc; }
 
 .dark .left-toolbar { border-color: transparent; }
 .dark .left-toolbar .tool { border-color: transparent; }
