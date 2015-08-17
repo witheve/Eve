@@ -157,6 +157,7 @@ fn test_examples() {
     }
 }
 
+#[allow(dead_code)]
 fn main() {
     let args = env::args().collect::<Vec<String>>();
     let borrowed_args = args.iter().map(|s| &s[..]).collect::<Vec<&str>>();
