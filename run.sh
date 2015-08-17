@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 waitUrl="`pwd`/ui/waiting-room.html";
 
