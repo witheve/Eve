@@ -18,7 +18,8 @@ pushd .
   echo "* Compiling Editor..."
   cd ui
 
-  if tsc; then
+  tsc
+  if [ $? -ne 0 ]; then
    echo "Failed to compile editor, bailing."
    popd
    exit
