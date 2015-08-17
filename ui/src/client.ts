@@ -123,15 +123,19 @@ module client {
     server.ws = ws;
 
     ws.onerror = ws.onclose = function(error) {
+      server.connected = false;
       server.dead = true;
-      var error_banner = document.createElement("div");
-      error_banner.innerHTML = `Error: Eve Server is Dead! ${error ? `Reason: ${error}` : ""}`;
-      error_banner.setAttribute("class","dead-server-banner");
-      document.body.appendChild(error_banner);
+      reconnect();
+      dispatch("setNotice", {content: `Error: Eve Server is Dead! ${error.toString() + (error.message || "")}`, type: "error", id: "server dead", duration: 0});
     }
 
     ws.onopen = function() {
       server.connected = true;
+      if(server.dead) {
+        server.dead = false;
+        dispatch("fadeNotice", {noticeId: "server dead"});
+        dispatch("setNotice", {content: "Reconnected to server!"});
+      }
       for (var i = 0, len = queue.length; i < len; i++) {
         sendToServer(queue[i], false);
       }
@@ -162,7 +166,7 @@ module client {
         }
       }
 
-      // For an explanation of what changes are synced, check: <https://github.com/Kodowa/Eve/blob/master/design/sync.md>
+      // For an explanation of what changes are synced, check: <https://github.com/witheve/Eve/blob/master/design/sync.md>
       var changes = [];
       for(let change of data.changes) {
         let [view, fields, inserts, removes] = change;
@@ -344,12 +348,24 @@ module client {
     afterInitFuncs.push(func);
   }
 
-  document.addEventListener("DOMContentLoaded", function() {
+  // Try to reconnect to the server every 10 seconds.
+  let checkReconnectInterval;
+  function reconnect() {
+    if(checkReconnectInterval) { return; }
+    checkReconnectInterval = setInterval(() => {
+      if(server.connected) {
+        clearInterval(checkReconnectInterval);
+        checkReconnectInterval = undefined;
+      } else {
+        connectToServer();
+      }
+    }, 10000);
     connectToServer();
-  });
+  }
+
+  document.addEventListener("DOMContentLoaded", reconnect);
 
   export function setDispatch(dispatchFn) {
     dispatch = dispatchFn;
   }
-
 }

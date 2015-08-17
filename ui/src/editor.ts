@@ -365,7 +365,6 @@ module drawn {
       var order = ixer.selectOne("display order", {id: field["field: field"]});
       if(!order) continue;
       minFieldPriority = Math.min(order["display order: priority"], minFieldPriority);
-      console.log(order["display order: priority"]);
     }
     // if we didn't find one, we default to -1, otherwise we take one less than the min
     let fieldPriority = minFieldPriority === Infinity ? -1 : minFieldPriority - 1;
@@ -754,6 +753,11 @@ module drawn {
         if(!node || !target) throw new Error("Trying to join at least one non-existent node");
         var variableId = node.variable;
         var variableIdToRemove = target.variable;
+
+        // check if we need to transfer the name
+        if(code.name(variableIdToRemove) && !code.name(variableId)) {
+          diffs.push.apply(diffs, dispatch("rename", {renameId: variableId, value: code.name(variableIdToRemove)}, true));
+        }
 
         // transfer all the bindings to the new variable
         var oldBindings = ixer.select("binding", {variable: variableIdToRemove});
@@ -1228,6 +1232,7 @@ module drawn {
       case "fadeError":
         var errorId = info.errorId;
         var currentError = localState.errors[errorId];
+        if(!currentError) { break; }
         currentError.fading = true;
         currentError.errorTimeout = setTimeout(() => dispatch("clearError", {errorId: info.errorId}), 200);
       break;
@@ -1245,6 +1250,7 @@ module drawn {
       case "fadeNotice":
         var noticeId = info.noticeId;
         var notice = localState.notices[noticeId];
+        if(!notice) { break; }
         notice.fading = true;
         notice.timeout = setTimeout(() => dispatch("clearNotice", {noticeId}), info.duration || 1000);
       break;
@@ -1440,6 +1446,7 @@ module drawn {
         localState.importing = true;
         // @NOTE: In order to load from a file, we *have* to parse asynchronously.
         Papa.parse(file, {
+          dynamicTyping: true,
           complete: (result) => dispatch("importCsvContents", {name, result, hasHeader: info.hasHeader}),
           error: (err) => dispatch("setError", {errorText: err.message})
         });
@@ -1638,7 +1645,7 @@ module drawn {
         localState.loading = "gist";
       break;
       case "writeEvents":
-        commands.push(["set events", info.events]);
+        commands.push(["set events", info.save || "unnamed.eve", info.events]);
         diffs = dispatch("hideTooltip", {}, true);
         localState.loading = false;
       break;
@@ -2346,7 +2353,7 @@ module drawn {
 
   function openSettings(evt, elem:Element) {
     let tooltip:any = {
-      c: "centered-modal settings-modal",
+      c: "centered-modal settings-modal tabbed-modal",
       content: settingsPanel,
       persistent: true,
       stopPersisting: closeTooltip
@@ -2376,8 +2383,14 @@ module drawn {
               dblclick: overwriteSave
             }})}
           ]} : undefined),
-          {c: "flex-row spaced-row", children: [{text: "name"}, {t: "input", input: setSaveLocation, value: localState.selectedSave}]},
-          {c: "flex-row", children: [{t: "button", text: "Save to gist (remote)", click: saveToGist}, {t: "button", text: "Save to file (local)", click: overwriteSave}]}
+          {c: "input-row", children: [
+            {c: "label", text: "name"},
+            {t: "input", type: "text", input: setSaveLocation, value: localState.selectedSave},
+          ]},
+          {c: "flex-row", children: [
+            {c: "button", text: "Save to gist (remote)", click: saveToGist},
+            {c: "button", text: "Save to file (local)", click: overwriteSave},
+          ]}
         ];
       }
     },
@@ -2387,8 +2400,15 @@ module drawn {
         let saves = localState.saves || [];
         let selected = localState.selectedSave;
         return [
-          {c: "flex-row spaced-row", children: [{text: "url"}, {t: "input", input: setSaveLocation, value: localState.selectedSave}, {t: "button", text: "Load from gist (remote)", click: loadFromGist}]},
-          {c: "flex-row", children: [{t: "input", type: "file", change: setSaveFile}, {t: "button", text: "Load from file (local)", click: loadSave}]}
+          {c: "input-row", children: [
+            {c: "label", text: "url"},
+            {t: "input", type: "text", input: setSaveLocation, value: localState.selectedSave},
+            {c: "button", text: "Load from gist (remote)", click: loadFromGist}
+          ]},
+          {c: "input-row", children: [
+            {t: "input", type: "file", change: setSaveFile},
+            {c: "button", text: "Load from file (local)", click: loadSave},
+          ]}
         ]
       }
     },
@@ -2397,16 +2417,16 @@ module drawn {
       content: () =>  {
         let showHidden;
         if(localStorage["showHidden"]) {
-          showHidden = {c: "toggle", click: toggleHidden, text: "Hide hidden"};
+          showHidden = {c: "button", click: toggleHidden, text: "Hide hidden"};
         } else {
-          showHidden = {c: "toggle", click: toggleHidden, text: "Show hidden"};
+          showHidden = {c: "button", click: toggleHidden, text: "Show hidden"};
         }
         let theme;
         let curTheme = localStorage["theme"];
         if(curTheme === "dark") {
-          theme = {c: `toggle ${curTheme}`, click: toggleTheme, text: "Light"};
+          theme = {c: `button ${curTheme}`, click: toggleTheme, text: "Light"};
         } else {
-          theme = {c: `toggle ${curTheme}`, click: toggleTheme, text: "Dark"};
+          theme = {c: `button ${curTheme}`, click: toggleTheme, text: "Dark"};
         }
         return [
           {c: "preferences", children: [
@@ -2561,7 +2581,7 @@ module drawn {
 
   function openImporter(evt, elem) {
     let tooltip:any = {
-      c: "centered-modal importer-modal",
+      c: "centered-modal importer-modal tabbed-modal",
       content: importPanel,
       persistent: true,
       stopPersisting: closeTooltip
@@ -2583,7 +2603,7 @@ module drawn {
             {text: "Treat first row as header"},
             {t: "input", type: "checkbox", change: updateCsvHasHeader}
           ]},
-          {t: "button", text: "import", click: importFromCsv}
+          {c: "button", text: "import", click: importFromCsv}
         ]
       }
     ]};
@@ -2907,7 +2927,7 @@ module drawn {
   function storeDragOffset(e, elem) {
     var rect = e.currentTarget.getBoundingClientRect();
     e.dataTransfer.setDragImage(document.getElementById("clear-pixel"),0,0);
-    e.dataTransfer.setData("text", "god damn it firefox.");
+    e.dataTransfer.setData("text", "fix for firefox");
     dispatch("setDragOffset", {x: e.clientX - rect.left, y: e.clientY - rect.top});
   }
 
@@ -3716,7 +3736,7 @@ module drawn {
     if(error) {
       return dispatch("setNotice", {content: "Could not reach github to check for updates at this time", type: "warn"});
     } else if(newVersionExists) {
-      return dispatch("setNotice", {content: () => {return {c: "flex-row spaced-row", children: [{text: "A new version of Eve is available! Check it out on"}, {t: "a", href: "https://github.com/Kodowa/Eve", text: "Github"}]}}, duration: 0});
+      return dispatch("setNotice", {content: () => {return {c: "flex-row spaced-row", children: [{text: "A new version of Eve is available! Check it out on"}, {t: "a", href: "https://github.com/witheve/Eve", text: "Github"}]}}, duration: 0});
     }
   }
 

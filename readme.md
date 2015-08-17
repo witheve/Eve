@@ -10,12 +10,17 @@ Eve relies on [TypeScript](http://www.typescriptlang.org/) and [Rust](https://ww
 ./run.sh
 ```
 
-## Get help
+## Learn more
 
-* [Check out the mailing list](https://groups.google.com/forum/#!forum/eve-talk)
-* [Intro Tutorial](https://github.com/Kodowa/Eve/tree/dev/tutorials/intro%20tutorial)
-* [Design documents](https://github.com/Kodowa/Eve/tree/dev/design)
-* [Rationale](https://github.com/Kodowa/Eve/blob/dev/design/rationale.md)
+* [Intro Tutorial](http://witheve.github.io/Eve/tutorials/intro%20tutorial/tutorial.html)
+* [Architecture overview and design documents](https://github.com/witheve/Eve/tree/dev/design)
+* [Rationale](https://github.com/witheve/Eve/blob/dev/design/rationale.md)
+* [A note on visual programming](https://github.com/witheve/Eve/tree/dev/design)
+
+## Reach out
+
+* [Mailing list](https://groups.google.com/forum/#!forum/eve-talk)
+* [Twitter](https://twitter.com/with_eve)
 
 ## What's in version 0
 
@@ -35,11 +40,11 @@ This list will get smaller over time and some of it should disappear quickly, bu
 
 *By contributing code to Eve, you are agreeing to release it under the Apache 2.0 License.*
 
-Eve is moving fast though, so before contributing make sure to talk to us so that we can help guide you in the right direction and prevent you from working on something that we might be switching gears on.
+Eve is moving fast, so before contributing make sure to talk to us so that we can help guide you in the right direction and prevent you from working on something that we might be switching gears on.
 
 When contributing:
 
-* [Check out issues](https://github.com/Kodowa/Eve/labels/beginner) that are ready to be worked on. Feel free to ping a contributor if you need help along the way.
+* [Check out issues](https://github.com/witheve/Eve/labels/beginner) that are ready to be worked on. Feel free to ping a contributor if you need help along the way.
 * For any other contributions, please discuss with us as early as possible. We want your work to count.
 * We are not currently seeking refactoring contributions or code convention tweaks e.g. whitespace. This may change at a later point when we have automated tests and an explicit code convention.
 

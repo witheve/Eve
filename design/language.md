@@ -14,7 +14,7 @@ There are several types of views:
 
 * __Primitives__ represent built-in functions such as addition.
 
-The websocket protocol described in [I/O] allows other programs (including the Eve editor) to make changes to tables and to read data from any view. Whenever a view is changed, all the views that depend on it are updated, just like a spreadsheet.
+The websocket protocol described in [IO](./io.md#communication) allows other programs (including the Eve editor) to make changes to tables and to read data from any view. Whenever a view is changed, all the views that depend on it are updated, just like a spreadsheet.
 
 ## Data
 

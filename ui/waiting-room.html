@@ -19,35 +19,31 @@
         <link href="css/reset.css" rel="stylesheet" type="text/css"></link>
         <link href="vendor/ionicons.css" rel="stylesheet" type="text/css"></link>
         <link href="css/editor.css" rel="stylesheet" type="text/css"></link>
+        <script src="bin/src/indexer.js" type="text/javascript"></script>
+        <script src="bin/src/api.js" type="text/javascript"></script>
+        <script src="bin/src/microReact.js" type="text/javascript"></script>
+        <script src="bin/src/uiEditorRenderer.js" type="text/javascript"></script>
+        <script src="bin/src/client.js" type="text/javascript"></script>
     </head>
 <body class="light waiting-room">
     <div>
         <h3>Waiting for server...</h3>
         <p>
-            Please wait while the server (re)compiles and starts up. This can take anywhere from seconds to 15 minutes depending on whether or not the server needs to compile and fetch dependencies. This page will automatically refresh when the server is ready. 
+            Please wait while the server (re)compiles and starts up. This can take anywhere from seconds to 15 minutes since rust compile times are pretty gnarly. This page will automatically take you to the editor when the server is ready.
         </p>
         <p>
-            Now may be a good time for a tea break?
+            Maybe it's a good time for a tea break?
         </p>
     </div>
-    
+
 
     <script type="text/javascript" style="display: none">
         // Nothing fancy here.
+        window["dispatcher"] = {render: function() {}};
         var editorUrl = "http://localhost:8080/editor";
-        var iframe;
-        setInterval(function() {
-            if(iframe) { document.body.removeChild(iframe); }
-            iframe = document.createElement("iframe");
-            iframe.style.display = "none";
-            iframe.src = editorUrl;
-            iframe.onload = iframeLoaded;
-            document.body.appendChild(iframe);
-    	}, 4000);
-            
-       function iframeLoaded() {
+        client.afterInit(function() {
            window.location = editorUrl;
-       }
-    </script>    
+        })
+    </script>
 </body>
 </html>

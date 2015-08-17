@@ -274,6 +274,22 @@ module graphLayout {
       return bestLayout;
     }
 
+    protected placeInCircle(node:Node, radius:number, angle:number, positions:NodePositions, bounds:Bounds[]) {
+      let hw = node.width / 2;
+      let hh = node.height / 2;
+      let x = radius * Math.cos(angle);
+      let y = radius * Math.sin(angle);
+      let myBounds = {left: x - hw, top: y - hh, right: x + hw, bottom: y + hh};
+      positions[node.id] = [x, y];
+      bounds.push(myBounds);
+      for(let other of bounds) {
+        if(other !== myBounds && intersectsBB(myBounds, other)) {
+          return false;
+        }
+      }
+      return true;
+    }
+
     /**
      * Given a source and its dependents, lay them out into a radial group.
      */
@@ -288,29 +304,47 @@ module graphLayout {
       // This source has no group, so place it singly.
       if(!group || !group.length) { return {positions:positions, bounds: bounds}; }
 
-      let maxTargetWidth = 0;
-      for(let target of group) {
-        if(target.width > maxTargetWidth) {
-          maxTargetWidth = target.width;
+      // Sort group by width, so we can minimize edge length by placing nodes intelligently.
+      group.sort((a, b) => b.width - a.width);
+
+      // @NOTE: The algorithm for calculating group diameter is optimized for awesome.
+      let maxWidth = (group[group.length - 2] || group[group.length - 1]).width;
+      let maxHeight = 0;
+      let avgWidth = 0;
+      for(let node of group) {
+        maxHeight = (node.height > maxHeight) ? node.height : maxHeight;
+        avgWidth += node.width;
+      }
+      avgWidth /= group.length;
+
+      let radius = (source.width + maxWidth) / 2 + 10;
+      let startAngle = Math.asin(maxHeight / radius);
+      let offsetAngle = Math.PI / group.length;
+
+      // Calculate relative coords of attributes around their source and the group's bounding box. 4 way
+      let subBounds = [];
+      let tries = 3;
+      for(let ix = 0, length = group.length; ix < length; ix += 2) {
+        let angle = startAngle + offsetAngle * ix;
+        let node = group[ix];
+        let failed = !this.placeInCircle(group[ix], radius, angle, positions, subBounds);
+        if(group[ix + 1]) {
+          failed = !this.placeInCircle(group[ix + 1], radius, angle + Math.PI, positions, subBounds) || failed;
+        }
+
+        if(failed && tries-- > 0) {
+          subBounds = [];
+          radius += avgWidth / 3;
+          ix = -2;
+          continue;
         }
       }
 
-      // If this source is associated with a group, build a layout for the group and attempt to insert the entire group at once.
-      let startAngle = srand() * Math.PI;
-      let offsetAngle = 2 * Math.PI / group.length;
 
-      // @NOTE: The algorithm for calculating group diameter is optimized for awesome.
-      let diameter = (source.width + maxTargetWidth) / 2 + 10;
-
-      // Calculate relative coords of attributes around their source and the group's bounding box..
-      for(let ix = 0; ix < group.length; ix++) {
-        let attr = group[ix];
-        let hw = attr.width / 2;
-        let hh = attr.height / 2;
-
-        let x = diameter * Math.cos(startAngle + offsetAngle * ix);
-        let y = diameter * Math.sin(startAngle + offsetAngle * ix);
-        positions[attr.id] = [x, y];
+      for(let node of group) {
+        let [x, y] = positions[node.id];
+        let hw = node.width / 2;
+        let hh = node.height / 2;
 
         if(x - hw < bounds.left) { bounds.left = x - hw; }
         if(y - hh < bounds.top) { bounds.top = y - hh; }

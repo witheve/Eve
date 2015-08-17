@@ -23,6 +23,6 @@ If it's your first time contributing, we'd love to have you :). Eve is moving fa
 
 When contributing:
 
-* [Check out issues](https://github.com/Kodowa/Eve/labels/beginner) that are ready to be worked on. Feel free to ping a contributor if you need help along the way.
+* [Check out issues](https://github.com/witheve/Eve/labels/beginner) that are ready to be worked on. Feel free to ping a contributor if you need help along the way.
 * For any other contributions, please discuss with us as early as possible. We want your hard work to count.
 * We are not currently seeking refactoring contributions or code convention tweaks e.g. whitespace. This may change at a later point when we have automated tests and an explicit code convention.
