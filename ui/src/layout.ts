@@ -274,6 +274,22 @@ module graphLayout {
       return bestLayout;
     }
 
+    protected placeInCircle(node:Node, radius:number, angle:number, positions:NodePositions, bounds:Bounds[]) {
+      let hw = node.width / 2;
+      let hh = node.height / 2;
+      let x = radius * Math.cos(angle);
+      let y = radius * Math.sin(angle);
+      let myBounds = {left: x - hw, top: y - hh, right: x + hw, bottom: y + hh};
+      positions[node.id] = [x, y];
+      bounds.push(myBounds);
+      for(let other of bounds) {
+        if(other !== myBounds && intersectsBB(myBounds, other)) {
+          return false;
+        }
+      }
+      return true;
+    }
+
     /**
      * Given a source and its dependents, lay them out into a radial group.
      */
@@ -301,24 +317,29 @@ module graphLayout {
       }
       avgWidth /= group.length;
 
-      let radius = (source.width + maxWidth + avgWidth) / 3 + 10;
+      let radius = (source.width + maxWidth) / 2 + 10;
       let startAngle = Math.asin(maxHeight / radius);
       let offsetAngle = Math.PI / group.length;
 
-      // Calculate relative coords of attributes around their source and the group's bounding box.
-      for(let ix = 0, half = Math.ceil(group.length / 2); ix < half; ix++) {
+      // Calculate relative coords of attributes around their source and the group's bounding box. 4 way
+      let subBounds = [];
+      let tries = 3;
+      for(let ix = 0, length = group.length; ix < length; ix += 2) {
+        let angle = startAngle + offsetAngle * ix;
         let node = group[ix];
-        let x1 = radius * Math.cos(startAngle + offsetAngle * ix);
-        let y1 = radius * Math.sin(startAngle + offsetAngle * ix);
-        positions[node.id] = [x1, y1];
+        let failed = !this.placeInCircle(group[ix], radius, angle, positions, subBounds);
+        if(group[ix + 1]) {
+          failed = !this.placeInCircle(group[ix + 1], radius, angle + Math.PI, positions, subBounds) || failed;
+        }
 
-        if(ix + half < group.length) {
-          let node2 = group[ix + half];
-          let x2 = radius * Math.cos(Math.PI + startAngle + offsetAngle * ix);
-          let y2 = radius * Math.sin(Math.PI + startAngle + offsetAngle * ix);
-          positions[node2.id] = [x2, y2];
+        if(failed && tries-- > 0) {
+          subBounds = [];
+          radius += avgWidth / 3;
+          ix = -2;
+          continue;
         }
       }
+
 
       for(let node of group) {
         let [x, y] = positions[node.id];
