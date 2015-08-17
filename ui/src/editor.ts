@@ -694,6 +694,7 @@ module drawn {
       case "removeSelectedItems":
         for(let selectedItem in localState.selectedItems) {
           diffs.push.apply(diffs, removeView(selectedItem));
+          delete localState.selectedItems[selectedItem];
         }
       break;
       //---------------------------------------------------------
