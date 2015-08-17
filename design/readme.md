@@ -16,7 +16,7 @@ True [relations](https://en.wikipedia.org/wiki/Relation_%28database%29) - unorde
 
 ### map.rs
 
-An experimental perstent set, intended to eventually replace BTreeSet in relation.rs.
+An experimental persistent set, intended to eventually replace BTreeSet in relation.rs.
 
 ### primitive.rs
 
@@ -48,7 +48,7 @@ The UI is a browser-based IDE that talks to the runtime over a websocket. The ma
 
 ### microReact.ts
 
-The UI is written using a very simple virtual-dom library called microReact, which evolved out of performance and debugging issues we had with React coupled with the fact that our data is stored in normalized tables, which makes using things like `shouldComponentUpdate` very unnatural. In microReact, we us regular JS objects to represent DOM nodes, which look like so:
+The UI is written using a very simple virtual-dom library called microReact, which evolved out of performance and debugging issues we had with React coupled with the fact that our data is stored in normalized tables, which makes using things like `shouldComponentUpdate` very unnatural. In microReact, we use regular JS objects to represent DOM nodes, which look like so:
 
 ```javascript
 {
