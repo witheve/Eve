@@ -288,29 +288,42 @@ module graphLayout {
       // This source has no group, so place it singly.
       if(!group || !group.length) { return {positions:positions, bounds: bounds}; }
 
-      let maxTargetWidth = 0;
-      for(let target of group) {
-        if(target.width > maxTargetWidth) {
-          maxTargetWidth = target.width;
+      // Sort group by width, so we can minimize edge length by placing nodes intelligently.
+      group.sort((a, b) => b.width - a.width);
+
+      // @NOTE: The algorithm for calculating group diameter is optimized for awesome.
+      let maxWidth = (group[group.length - 2] || group[group.length - 1]).width;
+      let maxHeight = 0;
+      let avgWidth = 0;
+      for(let node of group) {
+        maxHeight = (node.height > maxHeight) ? node.height : maxHeight;
+        avgWidth += node.width;
+      }
+      avgWidth /= group.length;
+
+      let radius = (source.width + maxWidth + avgWidth) / 3 + 10;
+      let startAngle = Math.asin(maxHeight / radius);
+      let offsetAngle = Math.PI / group.length;
+
+      // Calculate relative coords of attributes around their source and the group's bounding box.
+      for(let ix = 0, half = Math.ceil(group.length / 2); ix < half; ix++) {
+        let node = group[ix];
+        let x1 = radius * Math.cos(startAngle + offsetAngle * ix);
+        let y1 = radius * Math.sin(startAngle + offsetAngle * ix);
+        positions[node.id] = [x1, y1];
+
+        if(ix + half < group.length) {
+          let node2 = group[ix + half];
+          let x2 = radius * Math.cos(Math.PI + startAngle + offsetAngle * ix);
+          let y2 = radius * Math.sin(Math.PI + startAngle + offsetAngle * ix);
+          positions[node2.id] = [x2, y2];
         }
       }
 
-      // If this source is associated with a group, build a layout for the group and attempt to insert the entire group at once.
-      let startAngle = srand() * Math.PI;
-      let offsetAngle = 2 * Math.PI / group.length;
-
-      // @NOTE: The algorithm for calculating group diameter is optimized for awesome.
-      let diameter = (source.width + maxTargetWidth) / 2 + 10;
-
-      // Calculate relative coords of attributes around their source and the group's bounding box..
-      for(let ix = 0; ix < group.length; ix++) {
-        let attr = group[ix];
-        let hw = attr.width / 2;
-        let hh = attr.height / 2;
-
-        let x = diameter * Math.cos(startAngle + offsetAngle * ix);
-        let y = diameter * Math.sin(startAngle + offsetAngle * ix);
-        positions[attr.id] = [x, y];
+      for(let node of group) {
+        let [x, y] = positions[node.id];
+        let hw = node.width / 2;
+        let hh = node.height / 2;
 
         if(x - hw < bounds.left) { bounds.left = x - hw; }
         if(y - hh < bounds.top) { bounds.top = y - hh; }
