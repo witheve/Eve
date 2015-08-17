@@ -16,9 +16,9 @@ popd
 # If we aren't restarting, open the editor in the user's preferred browser
 if [[ "x$1" != "x--restart" ]]; then
   if [[ "$OSTYPE" == "darwin"* ]]; then
-    open "$waitUrl"
+    open "$waitUrl" &
   else
-    xdg-open "$waitUrl"
+    xdg-open "$waitUrl" &
   fi
 fi
 
