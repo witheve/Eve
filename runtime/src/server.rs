@@ -4,13 +4,10 @@ use websocket;
 use websocket::{Message, Sender, Receiver};
 use websocket::server::sender;
 use websocket::stream::WebSocketStream;
-use websocket::message::CloseData;
 use std::io::prelude::*;
 use std::fs::{OpenOptions};
-use std::net::Shutdown;
 use rustc_serialize::json::{Json, ToJson};
 use cbor;
-use hyper::header::Cookie;
 
 use value::Value;
 use relation::Change;
@@ -27,15 +24,13 @@ pub struct Server {
 #[derive(Debug, Clone)]
 pub struct Event {
     pub changes: Changes,
-    pub session: String,
     // commands that affect the whole program state have to go through this side-channel rather than being added to a view
     pub commands: Vec<Vec<String>>,
 }
 
 pub enum ServerEvent {
     Change(Vec<u8>),
-    Sync((sender::Sender<WebSocketStream>, Option<String>)),
-    Terminate(Option<CloseData>),
+    Sync(sender::Sender<WebSocketStream>),
 }
 
 // --- json encodings ---
@@ -96,8 +91,8 @@ impl ToJson for Event {
                 }).collect()
                 )
             ),
-            ("session".to_string(), self.session.to_json()),
             ("commands".to_string(), self.commands.to_json()),
+            ("session".to_string(), "super unique session id!".to_json()), // TODO restore session handling
         ].into_iter().collect())
     }
 }
@@ -115,7 +110,6 @@ impl FromJson for Event {
                 let remove = FromJson::from_json(&change[3]);
                 (view_id, Change{fields:fields, insert: insert, remove: remove})
             }).collect(),
-            session: "".to_string(),
             commands: FromJson::from_json(json.as_object().unwrap().get("commands").unwrap_or(&Json::Array(vec![]))),
         }
     }
@@ -146,33 +140,23 @@ pub fn load(flow: &mut Flow, filename: &str) {
 // TODO should probably just save changes, not the whole event
 pub fn save(flow: &Flow, filename: &str) {
     let changes = flow.as_changes();
-    let text = format!("{}", Event{changes: changes, session: "".to_owned(), commands: vec![]}.to_json());
+    let text = format!("{}", Event{changes: changes, commands: vec![]}.to_json());
     write_file(filename, &text[..]);
 }
 
 // --- server ---
 
 pub fn send_event(server: &mut Server, changes: &Changes, commands: &Vec<Vec<String>>) {
-    for sender in server.senders.iter_mut() {
-        let session_id = format!("{}", sender.get_mut().peer_addr().unwrap());
-        let event = Event{changes: changes.clone(), session: session_id, commands: commands.clone()};
+    for sender_ix in (0..server.senders.len()).rev() {
+        let event = Event{changes: changes.clone(), commands: commands.clone()};
         let text = format!("{}", event.to_json());
-        match sender.send_message(Message::Text(text)) {
+        match server.senders[sender_ix].send_message(Message::Text(text)) {
             Ok(_) => (),
-            Err(error) => println!("Send error: {}", error),
-        };
-    }
-}
-
-pub fn get_user_id(cookies: Option<&Cookie>) -> Option<String> {
-    match cookies {
-        Some(cookies) => {
-            match cookies.iter().find(|cookie| cookie.name == "userid") {
-                Some(user_id) => Some(user_id.value.clone()),
-                None => None,
+            Err(error) => {
+                println!("Send error on event: {}", error);
+                server.senders.swap_remove(sender_ix);
             }
-        },
-        None => None,
+        };
     }
 }
 
@@ -188,19 +172,11 @@ pub fn server_events() -> mpsc::Receiver<ServerEvent> {
                 // accept request
                 let request = connection.unwrap().read_request().unwrap();
                 request.validate().unwrap();
-
-                // get the User ID from a cookie in the headers
-                let user_id = get_user_id(request.headers.get::<Cookie>());
-
                 let response = request.accept();
-                let (mut sender, mut receiver) = response.send().unwrap().split();
-
-                let ip = sender.get_mut().peer_addr().unwrap();
-                println!("Connection from {}", ip);
-                ::std::io::stdout().flush().unwrap(); // TODO is this actually necessary?
+                let (sender, mut receiver) = response.send().unwrap().split();
 
                 // hand over the sender
-                event_sender.send(ServerEvent::Sync((sender,user_id))).unwrap();
+                event_sender.send(ServerEvent::Sync(sender)).unwrap();
 
                 // handle messages
                 for message in receiver.incoming_messages() {
@@ -212,12 +188,7 @@ pub fn server_events() -> mpsc::Receiver<ServerEvent> {
                         Message::Binary(bytes) => {
                             event_sender.send(ServerEvent::Change(bytes)).unwrap();
                         }
-                        Message::Close(_) => {
-                            let ip_addr = format!("{}", ip);
-                            println!("Received close message from {}.",ip_addr);
-                            let close_message = CloseData{status_code: 0, reason: ip_addr};
-                            event_sender.send(ServerEvent::Terminate(Some(close_message))).unwrap();
-                        }
+                        Message::Close(_) => (), // the sender will get dropped next time we try to send
                         _ => println!("Unknown message: {:?}", message)
                     }
                 }
@@ -294,42 +265,14 @@ pub fn run() {
         match server_event {
 
             // a new client has connected and needs to sync its state
-            ServerEvent::Sync((mut sender, user_id)) => {
-                let mut changes = vec![];
-
-                // add a session to the session table
-                let session_id = format!("{}", sender.get_mut().peer_addr().unwrap());
-                changes.push(("sessions".to_owned(),
-                    Change{
-                        fields: vec!["sessions: id".to_owned(), "sessions: status".to_owned()],
-                        insert: vec![vec![Value::String(session_id.clone()), Value::Float(1f64)]],
-                        remove: vec![],
-                    }));
-
-                // if we have a user ID, add a mapping from the session ID to the user ID
-                if let Some(user_id) = user_id {
-                    changes.push(("session id to user id".to_owned(),
-                        Change{
-                            fields: vec!["session id to user id: session id".to_owned(), "session id to user id: user id".to_owned()],
-                            insert: vec![vec![Value::String(session_id.clone()), Value::String(user_id)]],
-                            remove: vec![]
-                        }));
-                }
-
-                // handle the session change
-                let event = Event{changes: changes, session: session_id.clone(), commands: vec![]};
-                let json = event.to_json();
-                handle_event(&mut server, event, json);
-
-                // sync the new client
+            ServerEvent::Sync(mut sender) => {
                 let changes = server.flow.as_changes();
-                let event = Event{changes: changes, session: session_id, commands: vec![]};
+                let event = Event{changes: changes, commands: vec![]};
                 let text = format!("{}", event.to_json());
                 match sender.send_message(Message::Text(text)) {
-                    Ok(_) => (),
-                    Err(error) => println!("Send error: {}", error),
+                    Ok(_) => server.senders.push(sender),
+                    Err(error) => println!("Send error on sync: {}", error),
                 };
-                server.senders.push(sender)
             }
 
             // an existing client has sent a new message
@@ -340,52 +283,6 @@ pub fn run() {
                 let json = cbor.to_json();
                 let event = FromJson::from_json(&json);
                 handle_event(&mut server, event, json);
-            }
-
-            ServerEvent::Terminate(m) => {
-                let terminate_ip = m.unwrap().reason;
-                println!("Closing connection from {}...",terminate_ip);
-
-                // find the index of the connection's sender
-                let ip_ix = server.senders.iter_mut().position(|mut sender| {
-                    let ip = format!("{}",sender.get_mut().peer_addr().unwrap());
-                    ip == terminate_ip
-                });
-
-                match ip_ix {
-                    Some(ix) => {
-                        // close the connection
-                        let _ = server.senders[ix].send_message(Message::Close(None));
-                        match server.senders[ix].get_mut().shutdown(Shutdown::Both) {
-                            Ok(_) => println!("Connection from {} has closed successfully.",terminate_ip),
-                            Err(e) => println!("Connection from {} failed to shut down properly: {}",terminate_ip,e),
-                        }
-                        server.senders.remove(ix);
-
-                        // update the session table
-                        let sessions = server.flow.get_output("sessions").clone();
-                        let ip_string = Value::String(terminate_ip.clone());
-
-                        // change the session status to 0
-                        for row in sessions.find(vec![&ip_string, &Value::Null]) {
-                            match row {
-                                [_, ref status] => {
-                                    let change = Change {
-                                        fields: sessions.fields.clone(),
-                                        insert: vec![vec![ip_string.clone(), Value::Float(0f64)]],
-                                        remove: vec![vec![ip_string.clone(), status.clone()]],
-                                    };
-                                    let event = Event{changes: vec![("sessions".to_string(),change)], session: "".to_string(), commands: vec![]};
-                                    let json = event.to_json();
-                                    handle_event(&mut server, event, json);
-                                }
-                                _ => unreachable!(),
-                            }
-                        }
-
-                    },
-                    None => panic!("IP address {} is not connected",terminate_ip),
-                }
             }
         }
     }
