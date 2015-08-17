@@ -15,9 +15,9 @@ bash run.sh
 ## Learn more
 
 * [Intro Tutorial](http://witheve.github.io/Eve/tutorials/intro%20tutorial/tutorial.html)
-* [Architecture overview and design documents](https://github.com/witheve/Eve/tree/dev/design)
-* [Rationale](https://github.com/witheve/Eve/blob/dev/design/rationale.md)
-* [A note on visual programming](https://github.com/witheve/Eve/tree/dev/design)
+* [Architecture overview and design documents](https://github.com/witheve/Eve/blob/master/design)
+* [Rationale](https://github.com/witheve/Eve/blob/master/design/rationale.md)
+* [A note on visual programming](https://github.com/witheve/Eve/blob/master/design/visualProgramming.md)
 
 ## Reach out
 
