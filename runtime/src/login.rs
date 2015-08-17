@@ -8,6 +8,7 @@ use hyper::server::{Server, Request, Response};
 use hyper::uri::RequestUri;
 use hyper::Url;
 use hyper::header::{Headers,ContentType,Location,SetCookie};
+use hyper::header;
 use cookie::Cookie;
 use mime::Mime;
 use url::SchemeData::Relative;
@@ -26,7 +27,6 @@ use cbor::ToCbor;
 use value::Value;
 use server::Event;
 use relation::Change;
-use server;
 
 // The (increasingly misnamed) login server is responsible for:
 // * handling authentication via authrocket
@@ -119,6 +119,18 @@ fn serve_local_or_file(mut res: Response<Fresh>, path: &Vec<String>, default_fil
     try!(res.write_all(&file));
     try!(res.end());
     Ok(())
+}
+
+pub fn get_user_id(cookies: Option<&header::Cookie>) -> Option<String> {
+    match cookies {
+        Some(cookies) => {
+            match cookies.iter().find(|cookie| cookie.name == "userid") {
+                Some(user_id) => Some(user_id.value.clone()),
+                None => None,
+            }
+        },
+        None => None,
+    }
 }
 
 fn login(req: Request, mut res: Response<Fresh>) {
@@ -236,7 +248,7 @@ fn login(req: Request, mut res: Response<Fresh>) {
                                                     ]],
                                                     remove: vec![],
                                                 });
-                                            let event = Event{changes: vec![change], session: "".to_owned(), commands: vec![]};
+                                            let event = Event{changes: vec![change], commands: vec![]};
                                             send_event(event, &mut sender);
                                             let _ = sender.send_message(Message::Close(None));
                                         }
@@ -264,7 +276,7 @@ fn login(req: Request, mut res: Response<Fresh>) {
                 },
                 "logout.html" => {
                     println!("Logging out...");
-                    let user_id = server::get_user_id(req.headers.get::<hyper::header::Cookie>());
+                    let user_id = get_user_id(req.headers.get::<hyper::header::Cookie>());
                     println!("{:?}",user_id);
                 },
                 "favicon.ico" => (),

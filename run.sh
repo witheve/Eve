@@ -1,34 +1,55 @@
-#!/bin/sh
+#!/bin/bash
 
 waitUrl="`pwd`/ui/waiting-room.html";
 
+# Ensure dependencies are installed.
+echo "* Checking dependencies..."
+hash tsc 2>/dev/null
+if [ $? -ne 0 ]; then
+  echo "Please install the typescript compiler with ('sudo npm install -g typescript') before continuing."
+  exit
+fi
+hash multirust 2>/dev/null
+if [ $? -ne 0 ]; then
+  echo "Please install multirust with ('./install-multirust') before continuing."
+  exit
+fi
+
 pushd .
-  # Ensure typescript compiler is present and compile UI
+  # Try using the typescript compiler (tsc) to compile UI
+  echo "* Compiling Editor..."
   cd ui
-  if hash tsc 2>/dev/null; then
-    tsc
-  else
-    npm install -g typescript
-    tsc
+
+  tsc
+  if [ $? -ne 0 ]; then
+   echo "Failed to compile editor, bailing."
+   popd
+   exit
   fi
 popd
 
 # If we aren't restarting, open the editor in the user's preferred browser
 if [[ "x$1" != "x--restart" ]]; then
+  echo "* Opening $waitUrl"
   if [[ "$OSTYPE" == "darwin"* ]]; then
-    open "$waitUrl"
+    open "$waitUrl" &
   else
-    xdg-open "$waitUrl"
+    xdg-open "$waitUrl" &
   fi
 fi
 
 pushd .
-  # Ensure rustc is updated and compile backend
+  # Ensure rustc is updated
+  echo "* Updating rust if necessary..."
   cd runtime
   multirust override nightly-2015-08-10
-  if [[ "x$1" == "x--debug" ]]; then
-    RUST_BACKTRACE=1 cargo run --bin=server
-  else
-    RUST_BACKTRACE=1 cargo run --bin=server --release
+
+  # Compile runtime server
+  echo "* Compiling server... (This takes a while)"
+  rustFlags="--release"
+  if [[ "x$1" != "x--debug" ]]; then
+    rustFlags=""
   fi
+
+  RUST_BACKTRACE=1 cargo run --bin=server $rustFlags
 popd
