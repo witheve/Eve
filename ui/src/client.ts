@@ -124,12 +124,18 @@ module client {
 
     ws.onerror = ws.onclose = function(error) {
       server.connected = false;
+      server.dead = true;
       reconnect();
       dispatch("setNotice", {content: `Error: Eve Server is Dead! ${error.toString() + (error.message || "")}`, type: "error", id: "server dead", duration: 0});
     }
 
     ws.onopen = function() {
       server.connected = true;
+      if(server.dead) {
+        server.dead = false;
+        dispatch("fadeNotice", {noticeId: "server dead"});
+        dispatch("setNotice", {content: "Reconnected to server!"});
+      }
       for (var i = 0, len = queue.length; i < len; i++) {
         sendToServer(queue[i], false);
       }
@@ -350,8 +356,6 @@ module client {
       if(server.connected) {
         clearInterval(checkReconnectInterval);
         checkReconnectInterval = undefined;
-        dispatch("fadeNotice", {noticeId: "server dead"});
-        dispatch("setNotice", {content: "Connected to server!"});
       } else {
         connectToServer();
       }
