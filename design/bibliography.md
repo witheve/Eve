@@ -16,7 +16,7 @@
 
 [OctopusDB: Towards a One Size Fits All Database Architecture](https://infosys.uni-saarland.de/publications/DJ11.pdf)
 
-[Lightweight Modular Staging and Embedded Compilers: Abstraction Without Regret for High-Level High-Performance Programming](http://lampwww.epfl.ch/~rompf/thesis_120716.pdf)
+[Lightweight Modular Staging and Embedded Compilers: Abstraction Without Regret for High-Level High-Performance Programming](http://infoscience.epfl.ch/record/180642/files/EPFL_TH5456.pdf)
 
 [Edelweiss: Automatic Storage Reclamation for Distributed Programming](http://db.cs.berkeley.edu/papers/vldb14-edelweiss.pdf)
 
