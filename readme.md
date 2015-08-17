@@ -4,7 +4,7 @@ Eve is a set of tools to help us think. Currently, those tools include a databas
 
 ## Quick start
 
-Eve relies on [TypeScript](http://www.typescriptlang.org/), [Rust](https://www.rust-lang.org/), and [multirust](https://github.com/brson/multirust). You'll want these installed, though our run.sh will attempt to install them for you.
+Eve relies on [TypeScript](http://www.typescriptlang.org/), [Rust Nightly](https://www.rust-lang.org/), and [multirust](https://github.com/brson/multirust). You'll want these installed, though our run.sh will attempt to install them for you.
 
 ```
 bash run.sh

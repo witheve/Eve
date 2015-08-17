@@ -1,3 +1,5 @@
+#!/bin/sh
+
 waitUrl="`pwd`/ui/waiting-room.html";
 
 # Ensure dependencies are installed.
