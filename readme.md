@@ -10,13 +10,17 @@ Eve relies on [TypeScript](http://www.typescriptlang.org/) and [Rust](https://ww
 ./run.sh
 ```
 
-## Get help
+## Learn more
 
-* [Check out the mailing list](https://groups.google.com/forum/#!forum/eve-talk)
 * [Intro Tutorial](http://witheve.github.io/Eve/tutorials/intro%20tutorial/tutorial.html)
 * [Architecture overview and design documents](https://github.com/witheve/Eve/tree/dev/design)
 * [Rationale](https://github.com/witheve/Eve/blob/dev/design/rationale.md)
 * [A note on visual programming](https://github.com/witheve/Eve/tree/dev/design)
+
+## Reach out
+
+* [Mailing list](https://groups.google.com/forum/#!forum/eve-talk)
+* [Twitter](https://twitter.com/with_eve)
 
 ## What's in version 0
 
