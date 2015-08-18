@@ -3582,7 +3582,9 @@ module drawn {
         {c: "form-description", contentEditable: true, blur: setQueryDescription, viewId: tableId, text: getDescription(tableId)},
         {c: "form-fields", children: fields},
         sizeUi,
-        {c: "submit-button", click: submitTableEntry, text: "submit"}
+        {c: "submit-button-container", children: [
+          {c: "button", click: submitTableEntry, text: "Submit"}
+        ]}
       ]},
     ]};
   }

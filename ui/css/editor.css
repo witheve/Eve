@@ -36,6 +36,15 @@ body * { display: flex; flex-direction:column; box-sizing: border-box; outline:n
 input[type="text"], textarea { font-family: "Lato"; font-size: 16px; }
 
 /*---------------------------------------------------------
+- Buttons on lighter backgrounds
+---------------------------------------------------------*/
+
+.tabbed-box .button, .form .button { padding:8px 10px; background:#666; border-radius:3px; cursor:default; }
+.tabbed-box .button:hover, .form .button:hover { background: #777; }
+.tabbed-box .button + .button, .form .button + button { margin-left:5px; }
+.tabbed-box input[type="text"], .form input[type="text"] { border:none; background:none; border-bottom:1px solid #777; min-height:25px; padding:5px 0; }
+
+/*---------------------------------------------------------
 - Item selector
 ---------------------------------------------------------*/
 
@@ -65,7 +74,7 @@ input[type="text"], textarea { font-family: "Lato"; font-size: 16px; }
 .form-container .form-fields { flex: 1; overflow:auto; margin-bottom:20px; }
 .form-container .entry-field { border-bottom:1px solid #555; min-height:25px; padding:5px 0; }
 .form-container .size { align-items: flex-end; font-size: 10pt; flex:none; color: #999; padding: 0 15px 15px 0; }
-.form-container .submit-button { margin: 0 0 15px 15px; }
+.form-container .submit-button-container { margin: 0 0 15px 15px; flex-direction: row; }
 
 .query-selector-filter { padding:0px 24px; margin-top:10px; height:20px; flex:none; font-size:10pt; color: #999; flex-direction: row; align-items:center;  }
 .query-selector-filter .searching-for { flex-direction: row; align-items: center; }
@@ -158,10 +167,6 @@ input[type="text"], textarea { font-family: "Lato"; font-size: 16px; }
 .tabbed-box .tabs > .tab.active { background: #555; border-bottom: 0px solid #777; border-top-left-radius: 3px; border-top-right-radius: 3px; }
 .tabbed-box .pane { flex-grow: 1; justify-content: center; padding: 15px; overflow-y: auto; border-bottom-left-radius: 3px; border-bottom-right-radius: 3px; }
 .tabbed-box .preferences { flex-direction: row; }
-.tabbed-box .button { padding:8px 10px; background:#666; border-radius:3px; cursor:default; }
-.tabbed-box .button:hover { background: #777; }
-.tabbed-box .button + .button { margin-left:5px; }
-.tabbed-box input[type="text"] { border:none; background:none; border-bottom:1px solid #777; min-height:25px; padding:5px 0; }
 
 .tabbed-box .input-row { margin:10px 0; }
 .tabbed-box .input-row .button { margin-top: 10px; }
@@ -384,8 +389,8 @@ input[type="text"], textarea { font-family: "Lato"; font-size: 16px; }
 .light .tabbed-box .tabs { background: rgb(240,240,240); border-color: rgb(230,230,230); }
 .light .tabbed-box .tabs > .tab.active { background: #fff; }
 .light .tabbed-box input[type="text"] { border-color: #eee; }
-.light .tabbed-box .button { background:rgba(0,0,0,0.1); }
-.light .tabbed-box .button:hover { background: rgba(0,0,0,0.2); }
+.light .tabbed-box .button, .light .form .button { background:rgba(0,0,0,0.1); }
+.light .tabbed-box .button:hover, .light .form .button:hover { background: rgba(0,0,0,0.2); }
 
 .light .table-container .table .header .icon { color: rgba(0,0,0,0.3); }
 .light .table-container .table .header .icon.active { display:flex; color: rgba(0,0,0,0.6); }
