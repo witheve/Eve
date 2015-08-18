@@ -176,7 +176,7 @@ fn login(req: Request, mut res: Response<Fresh>) {
                         println!("Warning: serve error {:?}", error);
                     }
                 },
-                "editor.html" | "editor" => {
+                "editor.html" | "editor" | "" => {
                     let result = serve_local_or_file(res, &path_info.path, "../ui/editor.html");
                     if let Err(error) = result {
                         println!("Warning: serve error {:?}", error);
@@ -257,7 +257,6 @@ fn login(req: Request, mut res: Response<Fresh>) {
                                             println!("ERROR: Had trouble connecting to the Eve runtime: {}. Is the server running?",e);
                                             *res.status_mut() = hyper::status::StatusCode::NotFound;
                                             panic!("Oh no!");
-                                            //serve_file("404.html",res);
                                         }
                                     }
 
@@ -271,7 +270,13 @@ fn login(req: Request, mut res: Response<Fresh>) {
                                 }
                             };
                         },
-                        _ => panic!("Oh no!"), //serve_file("404.html",res),
+                        _ => {
+                        	*res.status_mut() = hyper::status::StatusCode::NotFound;
+                        	let result = serve_local_or_file(res, &path_info.path, "../ui/404.html");
+                        	if let Err(error) = result {
+                        		println!("Warning: serve error {:?}", error);
+                        	}
+                        },
                     }
                 },
                 "logout.html" => {
@@ -280,7 +285,13 @@ fn login(req: Request, mut res: Response<Fresh>) {
                     println!("{:?}",user_id);
                 },
                 "favicon.ico" => (),
-                other => panic!("Cannot serve {}",other), //serve_file(&*requested_file,res),
+                _ => {
+					*res.status_mut() = hyper::status::StatusCode::NotFound;
+					let result = serve_local_or_file(res, &path_info.path, "../ui/404.html");
+					if let Err(error) = result {
+						println!("Warning: serve error {:?}", error);
+					}
+                }
             };
         }
         _ => panic!("Oh no!"),
