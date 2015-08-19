@@ -74,7 +74,7 @@ input[type="text"], textarea { font-family: "Lato"; font-size: 16px; }
 .form-container .form-fields { flex: 1; overflow:auto; margin-bottom:20px; }
 .form-container .entry-field { border-bottom:1px solid #555; min-height:25px; padding:5px 0; }
 .form-container .size { align-items: flex-end; font-size: 10pt; flex:none; color: #999; padding: 0 15px 15px 0; }
-.form-container .submit-button-container { margin: 0 0 15px 15px; flex-direction: row; }
+.form-container .button { margin: 0 0 15px 15px; align-self: flex-start; }
 
 .query-selector-filter { padding:0px 24px; margin-top:10px; height:20px; flex:none; font-size:10pt; color: #999; flex-direction: row; align-items:center;  }
 .query-selector-filter .searching-for { flex-direction: row; align-items: center; }
