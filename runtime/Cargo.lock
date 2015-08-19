@@ -6,6 +6,7 @@ dependencies = [
  "cbor 0.3.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "conduit-mime-types 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "cookie 0.1.21 (registry+https://github.com/rust-lang/crates.io-index)",
+ "getopts 0.2.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "hyper 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "mime 0.0.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -82,6 +83,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "advapi32-sys 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "winapi 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "getopts"
+version = "0.2.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "log 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

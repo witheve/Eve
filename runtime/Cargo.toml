@@ -19,6 +19,7 @@ cbor = "*"
 conduit-mime-types = "*"
 websocket = "*"
 bit-set = "*"
+getopts = "*"
 
 [profile.release]
 debug = true
