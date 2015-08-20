@@ -24,6 +24,7 @@ fn main() {
 	// define the command line arguments
 	let mut opts = Options::new();
     opts.optopt("f", "faddress", "specify a socket address for the static file server. Defaults to 0.0.0.0:8080","SOCKET ADDRESS");
+    opts.optopt("s", "autosave", "specify the location to save/load the autosave file.","PATH");
     opts.optflag("h", "help", "prints all options and usage");
 
     // parse raw input arguments into options
@@ -39,20 +40,27 @@ fn main() {
     }
 
     // parse static file server address
-    let default_addr= SocketAddr::from_str("0.0.0.0:8080").unwrap();
+    let default_addr = SocketAddr::from_str("0.0.0.0:8080").unwrap();
     let addr = match matches.opt_str("f") {
-	    		Some(ip) => {
-					match SocketAddr::from_str(&*ip) {
-						Ok(addr) => addr,
-						Err(_) => {
-							println!("WARNING: Could not parse static file server address.\nDefaulting to {:?}",default_addr);
-							default_addr
-						}
-					}
-	    		},
-	    		None => default_addr,
-	  		};
+		Some(ip) => {
+			match SocketAddr::from_str(&*ip) {
+				Ok(addr) => addr,
+				Err(_) => {
+					println!("WARNING: Could not parse static file server address.\nDefaulting to {:?}",default_addr);
+					default_addr
+				}
+			}
+		},
+		None => default_addr,
+	};
+
+	// parse the autosave file location
+    let default_autosave = "./autosave".to_owned();
+    let autosave = match matches.opt_str("s") {
+		Some(path) => path,
+		None => default_autosave,
+	};
 
 	thread::spawn(move || login::run(addr.clone()));
-    server::run();
+    server::run(&*autosave);
 }
