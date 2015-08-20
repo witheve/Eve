@@ -86,7 +86,7 @@ module tableEditor {
         if(typeA === "undefined") { return -1; }
         if(typeB === "undefined") { return 1; }
         if(a.constructor === Array) { return JSON.stringify(a).localeCompare(JSON.stringify(b)); }
-        return a.localeCompare(b);
+        return a.toString().localeCompare(b.toString());
       });
     }
     rows.forEach(function(cur, rowIx) {
