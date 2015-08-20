@@ -55,10 +55,11 @@ fn main() {
 	};
 
 	// parse the autosave file location
-    let default_autosave = "../saves/".to_owned();
+
+    let default_saves_dir = "../saves/".to_owned();
     let autosave = match matches.opt_str("s") {
 		Some(path) => path,
-		None => default_autosave,
+		None => default_saves_dir,
 	};
 
 	thread::spawn(move || login::run(addr.clone()));
