@@ -8,6 +8,7 @@ use std::io::prelude::*;
 use std::fs::{OpenOptions};
 use rustc_serialize::json::{Json, ToJson};
 use cbor;
+use std::env;
 
 use value::Value;
 use relation::Change;
@@ -225,11 +226,21 @@ pub fn handle_event(server: &mut Server, event: Event, event_json: Json, saves_d
                 load(&mut server.flow, "./bootstrap");
                 load(&mut server.flow, filename);
                 save(&server.flow, &*autosave_path);
-                response_commands.push(vec!["loaded".to_owned(), saves_dir.to_owned(), filename.to_owned()]);
+
+                // Is there an easier way to get absolute path from a relative path?
+                let current_dir = env::current_dir().unwrap();
+                env::set_current_dir(saves_dir).unwrap();
+                let absolute_saves_dir = env::current_dir();
+                env::set_current_dir(current_dir).unwrap();
+                response_commands.push(vec!["loaded".to_owned(), absolute_saves_dir.unwrap().to_str().unwrap().to_owned(), filename.to_owned()]);
             }
             ["save", filename] => {
                 save(&server.flow, filename);
-                response_commands.push(vec!["saved".to_owned(), saves_dir.to_owned(), filename.to_owned()]);
+                let current_dir = env::current_dir().unwrap();
+                env::set_current_dir(saves_dir).unwrap();
+                let absolute_saves_dir = env::current_dir();
+                env::set_current_dir(current_dir).unwrap();
+                response_commands.push(vec!["saved".to_owned(), absolute_saves_dir.unwrap().to_str().unwrap().to_owned(), filename.to_owned()]);
             }
             ["get events", id] => {
                 let events_string = read_file(&*autosave_path);
