@@ -198,10 +198,12 @@ pub fn server_events() -> mpsc::Receiver<ServerEvent> {
     event_receiver
 }
 
-pub fn handle_event(server: &mut Server, event: Event, event_json: Json, autosave: &str) {
+pub fn handle_event(server: &mut Server, event: Event, event_json: Json, saves_dir: &str) {
+    let autosave_path = saves_dir.to_owned() + "autosave";
+
     // save the event
     {
-        let mut autosave = OpenOptions::new().write(true).append(true).open(autosave).unwrap();
+        let mut autosave = OpenOptions::new().write(true).append(true).open(&*autosave_path).unwrap();
         autosave.write_all(format!("{}", event_json).as_bytes()).unwrap();
         autosave.write_all("\n".as_bytes()).unwrap();
         autosave.flush().unwrap();
@@ -222,24 +224,22 @@ pub fn handle_event(server: &mut Server, event: Event, event_json: Json, autosav
                 server.flow = Flow::new();
                 load(&mut server.flow, "./bootstrap");
                 load(&mut server.flow, filename);
-                save(&server.flow, autosave);
-                let current_dir = ::std::env::current_dir().unwrap().to_str().unwrap().to_owned();
-                response_commands.push(vec!["loaded".to_owned(), current_dir, filename.to_owned()]);
+                save(&server.flow, &*autosave_path);
+                response_commands.push(vec!["loaded".to_owned(), saves_dir.to_owned(), filename.to_owned()]);
             }
             ["save", filename] => {
                 save(&server.flow, filename);
-                let current_dir = ::std::env::current_dir().unwrap().to_str().unwrap().to_owned();
-                response_commands.push(vec!["saved".to_owned(), current_dir, filename.to_owned()]);
+                response_commands.push(vec!["saved".to_owned(), saves_dir.to_owned(), filename.to_owned()]);
             }
             ["get events", id] => {
-                let events_string = read_file(autosave);
+                let events_string = read_file(&*autosave_path);
                 response_commands.push(vec!["events got".to_owned(), id.to_owned(), events_string]);
             }
             ["set events", id, events_string] => {
-                write_file(autosave, events_string);
+                write_file(&*autosave_path, events_string);
                 server.flow = Flow::new();
                 load(&mut server.flow, "./bootstrap");
-                load(&mut server.flow, autosave);
+                load(&mut server.flow, &*autosave_path);
                 response_commands.push(vec!["events set".to_owned(), id.to_owned()]);
             }
             other => panic!("Unknown command: {:?}", other),
@@ -250,11 +250,14 @@ pub fn handle_event(server: &mut Server, event: Event, event_json: Json, autosav
     send_event(server, changes, &response_commands);
 }
 
-pub fn run(autosave: &str) {
+pub fn run(saves_dir: &str) {
+
+    let autosave_path = saves_dir.to_owned() + "autosave";
+
     let mut flow = Flow::new();
     time!("reading saved state", {
         load(&mut flow, "./bootstrap");
-        load(&mut flow, autosave);
+        load(&mut flow, &*autosave_path);
     });
 
     let senders: Vec<sender::Sender<WebSocketStream>> = Vec::new();
@@ -282,7 +285,7 @@ pub fn run(autosave: &str) {
                 let cbor = decoder.items().next().unwrap().unwrap();
                 let json = cbor.to_json();
                 let event = FromJson::from_json(&json);
-                handle_event(&mut server, event, json, autosave);
+                handle_event(&mut server, event, json, saves_dir);
             }
         }
     }
