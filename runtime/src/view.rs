@@ -175,7 +175,7 @@ fn join_step(join: &Join, ix: usize, inputs: &[Vec<Vec<Value>>], state: &mut Vec
                     }
                     // check equality for variables which were bound by a previous source
                     let satisfies_constraints = source.constraint_bindings.iter().all(|&(field_ix, variable_ix)|
-                        state[variable_ix] == row[field_ix]
+                        state[variable_ix] == row[field_ix - input_len]
                         );
                     if satisfies_constraints {
                         // continue
