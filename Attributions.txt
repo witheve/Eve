@@ -1,8 +1,8 @@
 Eve is built using the following technologies generously supplied by their attributed authors in accordance with the following licenses. If you recognize anything in this list as incorrect, please email us and we will correct it.
 
-------------------
-Frontend licenses:
-------------------
+----------------------
+Frontend Attributions:
+----------------------
 
 CBOR.js (MIT License)
 Copyright (c) 2014 Patrick Gansterer <paroga@paroga.com>
@@ -48,9 +48,9 @@ This Font Software is licensed under the SIL Open Font License, Version 1.1.
 This license is available with a FAQ at: http://scripts.sil.org/OFL
 https://www.google.com/fonts/specimen/Lato
 
------------------
-Backend Licenses:
------------------
+---------------------
+Backend Attributions:
+---------------------
 
 rust-websocket 0.12.2 (MIT License)
 Copyright (c) 2014-2015 Cyderize
@@ -91,3 +91,7 @@ https://github.com/rust-lang/time
 rand 0.3.9 (MIT License)
 Copyright (c) 2014 The Rust Project Developers
 https://github.com/rust-lang/rand
+
+getopts 0.2.12 (MIT License)
+Copyright (c) 2014 The Rust Project Developers
+https://github.com/rust-lang/getopts

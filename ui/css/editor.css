@@ -199,7 +199,7 @@ input[type="text"], textarea { font-family: "Lato"; font-size: 16px; }
 - Searcher
 ---------------------------------------------------------*/
 
-.searcher-container { position:absolute; top:0; bottom:0; left:0; right: 0; z-index: 10; }
+.searcher-container { position:absolute; top:0; bottom:0; left:0; right: 0; z-index: 20; }
 .searcher-shade { position:absolute; top:0; bottom:0; left:0; right:0; }
 .searcher { position:absolute; z-index: 10; bottom:0; left:0; background:#444; box-shadow:0 0 8px #000; }
 .searcher .search-box { outline: none; height: 64px; padding: 10px; background: transparent; border: none; vertical-align: top; }

@@ -13,6 +13,7 @@ extern crate url;
 extern crate mime;
 extern crate bit_set;
 extern crate conduit_mime_types;
+extern crate getopts;
 
 macro_rules! time {
     ($name:expr, $expr:expr) => {{

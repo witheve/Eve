@@ -133,8 +133,9 @@ impl Primitive {
                             vec![vec![Float(0f64)]]
                         } else {
                             let sum = a.iter().fold(0f64, |acc, value| { acc + value });
+                            let mean = sum / (a.len() as f64);
                             let sum_squares = a.iter().fold(0f64, |acc, value| { acc + value.powi(2) });
-                            let standard_deviation = ((sum_squares - sum.powi(2)) / (a.len() as f64)).sqrt();
+                            let standard_deviation = ((sum_squares / (a.len() as f64)) - mean.powi(2)).sqrt();
                             vec![vec![Float(standard_deviation)]]
                         }
                     }
