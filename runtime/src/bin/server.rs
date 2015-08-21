@@ -24,7 +24,7 @@ fn main() {
 	// define the command line arguments
 	let mut opts = Options::new();
     opts.optopt("f", "faddress", "specify a socket address for the static file server. Defaults to 0.0.0.0:8080","SOCKET ADDRESS");
-    opts.optopt("s", "autosave", "specify the location to save/load the autosave file.","PATH");
+    opts.optopt("s", "saves", "specify the location of the saves directory","PATH");
     opts.optflag("h", "help", "prints all options and usage");
 
     // parse raw input arguments into options
@@ -55,10 +55,10 @@ fn main() {
 	};
 
 	// parse the autosave file location
-    let default_autosave = "./autosave".to_owned();
+    let default_saves_dir = "../saves/".to_owned();
     let autosave = match matches.opt_str("s") {
 		Some(path) => path,
-		None => default_autosave,
+		None => default_saves_dir,
 	};
 
 	thread::spawn(move || login::run(addr.clone()));

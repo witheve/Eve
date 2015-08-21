@@ -7,6 +7,18 @@ module microReact {
     return (new Date()).getTime();
   }
 
+  function shallowEquals(a, b) {
+    if(a === b) return true;
+    if(!a || !b) return false;
+    for(var k in a) {
+      if(a[k] !== b[k]) return false;
+    }
+    for(var k in b) {
+      if(b[k] !== a[k]) return false;
+    }
+    return true;
+  }
+
   export class Renderer {
     content: HTMLElement;
     elementCache: {};
@@ -112,6 +124,8 @@ module microReact {
         if(cur.height !== prev.height) style.height = cur.height === undefined ? "auto" : cur.height;
         if(cur.width !== prev.width)  style.width = cur.width === undefined ? "auto" : cur.width;
         if(cur.zIndex !== prev.zIndex) style.zIndex = cur.zIndex;
+        if(cur.semantic !== prev.semantic) div.setAttribute("data-semantic", cur.semantic);
+        if(cur.debug !== prev.debug) div.setAttribute("data-debug", cur.debug);
 
         if(cur.svg) {
           if(cur.fill !== prev.fill) div.setAttributeNS(null, "fill", cur.fill);
@@ -248,6 +262,8 @@ module microReact {
            && curA.fontSize === curB.fontSize
            && curA.textAlign === curB.textAlign
            && curA.verticalAlign === curB.verticalAlign
+           && curA.semantic === curB.semantic
+           && curA.debug === curB.debug
            && (curB.svg === undefined || (
                curA.x === curB.x
                && curA.y === curB.y
