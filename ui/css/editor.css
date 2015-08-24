@@ -27,8 +27,8 @@ body * { display: flex; flex-direction:column; box-sizing: border-box; outline:n
 .full-flex { flex: 1; }
 .flex-center { align-self: stretch; justify-content: center; align-items: center; }
 .container { flex: 1; position:relative; }
-.button { z-index: 10; padding:5px 10px; background: rgba(0,0,0,0.03); cursor:default; outline: none; border: none; font-family: "Lato"; font-size: 1em; }
-.button:hover { background: rgba(255,255,255,0.1); }
+.button { z-index: 10; padding:5px 10px; background: rgb(64,160,221); color: #FFF; border: 1px solid rgb(0,121,177); border-radius: 4px; cursor:default; outline: none; font-family: "Lato"; font-size: 1em; font-weight: bold; }
+.button:hover { background: rgb(91,89,164); border: 1px solid rgb(74,64,136); }
 
 .workspace { height: 100%; width: 100%; position:relative; flex-direction:row; }
 .label { margin-bottom: 3px; font-size:10pt; color: #0ba; font-weight: normal; }
@@ -391,8 +391,8 @@ input[type="text"], textarea { font-family: "Lato"; font-size: 16px; }
 .light .tabbed-box .tabs { background: rgb(240,240,240); border-color: rgb(230,230,230); }
 .light .tabbed-box .tabs > .tab.active { background: #fff; }
 .light .tabbed-box input[type="text"] { border-color: #eee; }
-.light .tabbed-box .button, .light .form .button { background:rgba(0,0,0,0.1); }
-.light .tabbed-box .button:hover, .light .form .button:hover { background: rgba(0,0,0,0.2); }
+.light .tabbed-box .button, .light .form .button { font-weight: bold; color: #FFF; background: rgb(64,160,221); }
+.light .tabbed-box .button:hover, .light .form .button:hover { background: rgb(91,89,164); }
 
 .light .table-container .table .header .icon { color: rgba(0,0,0,0.3); }
 .light .table-container .table .header .icon.active { display:flex; color: rgba(0,0,0,0.6); }
