@@ -2196,7 +2196,6 @@ module drawn {
       }
     });
     let actions = {
-      "search": {func: startSearching, text: "Search", icon: "ion-ios-search-strong", description: "Search for items to open by name.", postSpacer: true},
       "new": {func: startCreating, text: "New", description: "Add a new query or set of data."},
       "import": {func: openImporter, text: "Import"},
       "delete": {func: removeSelectedItems, text: "Delete", description: "Delete an item from the database."},
@@ -2218,7 +2217,7 @@ module drawn {
           searching ? {c: "clear-search ion-close", clearSearch: true, click: stopSearching} : undefined,
         ]},
         (totalCount > 0) ?
-          {c: "query-selector", children: queries}          
+          {c: "query-selector", children: queries}
           : {c: "full-flex flex-center", children: [
             {c: "flex-row spaced-row", children: [
               {text: "Click"}, {t: "button", c: "button", text: "New", click: startCreating}, {text: "or"},
@@ -2332,6 +2331,15 @@ module drawn {
     for(let tool of postSpacer) {
       tools.push(tool);
     }
+
+    // add the search button
+    tools.push({c: "tool ion-ios-search-strong",
+                title: "Search",
+                mouseover: showButtonTooltip,
+                mouseout: hideButtonTooltip,
+                click: startSearching,
+                description: "Search for items to open by name."})
+
     // add the settings at the very end
     tools.push({c: "tool ion-gear-b",
                 title: "Settings",
@@ -3071,7 +3079,6 @@ module drawn {
       // no matter what though you should be able to go back to the
       // query selector and search.
       "Back": {func: navigateBack, text: "Back", description: "Return to the item selection page"},
-      "Search": {func: startSearching, icon: "ion-ios-search-strong", text: "Search", description: "Find sources to add to your query", postSpacer: true},
       // These may get changed below depending on what's selected and the
       // current state.
       "rename": {func: startRenamingSelection, text: "Rename"},
