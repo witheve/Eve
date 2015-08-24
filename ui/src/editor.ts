@@ -2400,7 +2400,7 @@ module drawn {
             }})}
           ]} : undefined),
           {c: "input-row", children: [
-            {c: "label", text: "name"},
+            {c: "label", text: "File name"},
             {t: "input", type: "text", input: setSaveLocation, value: localState.selectedSave},
           ]},
           {c: "flex-row", children: [
