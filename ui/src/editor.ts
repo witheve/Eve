@@ -1504,7 +1504,7 @@ module drawn {
           }
           var factMap = {};
           for(var fieldIx = 0; fieldIx < info.mapping.length; fieldIx++) {
-            factMap[info.mapping[fieldIx]] = row[fieldIx] || "";
+            factMap[info.mapping[fieldIx]] = (row[fieldIx] === undefined) ? "" : row[fieldIx];
           }
           facts.push(factMap);
         }
