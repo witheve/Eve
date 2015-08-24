@@ -159,6 +159,7 @@ input[type="text"], textarea { font-family: "Lato"; font-size: 16px; }
 .settings-modal .pane { max-height: 90vh; min-height: 10vh; padding-top: 10px; }
 .settings-modal .h3 { text-align: left; align-self: stretch; }
 .settings-modal .saves > * { padding: 10px; align-self: stretch; min-width: 208px; }
+.settings-modal .input-row > .button { align-self: flex-start; }
 
 .tabbed-modal { padding: 0 !important; }
 
@@ -173,6 +174,7 @@ input[type="text"], textarea { font-family: "Lato"; font-size: 16px; }
 
 .import-panel .pane > * { margin-top:10px; }
 .import-panel .flex-row { align-items: center; }
+.import-panel .button { align-self: flex-start; }
 
 /*---------------------------------------------------------
 - Sorter

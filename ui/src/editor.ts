@@ -2611,7 +2611,7 @@ module drawn {
             {text: "Treat first row as header"},
             {t: "input", type: "checkbox", change: updateCsvHasHeader}
           ]},
-          {c: "button", text: "import", click: importFromCsv}
+          {c: "button", text: "Import", click: importFromCsv}
         ]
       }
     ]};
