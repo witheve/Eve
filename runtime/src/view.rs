@@ -16,9 +16,15 @@ pub enum View {
 }
 
 #[derive(Clone, Debug)]
+pub struct Member {
+    pub input_ix: usize,
+    pub mapping: Vec<usize>,
+    pub negated: bool,
+}
+
+#[derive(Clone, Debug)]
 pub struct Union {
-    pub constants: Vec<Value>,
-    pub mappings: Vec<Vec<(usize, usize)>>,
+    pub members: Vec<Member>,
 }
 
 #[derive(Clone, Debug, Copy)]
@@ -197,15 +203,15 @@ impl View {
         match *self {
             View::Table => None,
             View::Union(ref union) => {
-                assert_eq!(union.mappings.len(), upstream.len());
-                // for each mapping, grab the corresponding input and insert mapped rows
-                for (mapping, input) in union.mappings.iter().zip(upstream.iter()) {
-                    for old_row in input.index.iter() {
-                        let mut new_row = union.constants.clone();
-                        for &(new_ix, old_ix) in mapping.iter() {
-                            new_row[new_ix] = old_row[old_ix].clone();
+                assert_eq!(union.members.len(), upstream.len());
+                for member in union.members.iter() {
+                    for old_row in upstream[member.input_ix].index.iter() {
+                        let new_row = member.mapping.iter().map(|ix| old_row[*ix].clone()).collect();
+                        if member.negated {
+                            output.index.remove(&new_row);
+                        } else {
+                            output.index.insert(new_row);
                         }
-                        output.index.insert(new_row);
                     }
                 }
                 Some(output)
