@@ -6,7 +6,7 @@ use bit_set::BitSet;
 
 use value::Value;
 use relation::{Relation, mapping, with_mapping};
-use view::{View, Join, Input, Source, Direction};
+use view::{View, Join, Input, Source, Direction, Member, Union};
 use flow::{Node, Flow};
 use primitive;
 use primitive::Primitive;
@@ -72,14 +72,13 @@ pub fn code_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // every bound field of a negated source is treated as an input field
     ("negated source", vec!["source"]),
 
-    // unions are fed data from zero or more member views
-    ("member", vec!["view", "member", "member view"]),
+    // unions are constructed data from zero or more member views in order
+    ("member", vec!["view", "ix", "member", "member view"]),
 
     // member fields are mapped to union fields
     ("mapping", vec!["view field", "member", "member field"]),
-    ("constant mapping", vec!["view field", "member", "value"]),
 
-    // if a member is negated, it's rows are subtracted from the union
+    // if a member is negated, it's rows are removed from the union instead of inserted
     ("negated member", vec!["member"]),
 
     // tags are used to organise all kinds of things
@@ -150,6 +149,8 @@ pub fn compiler_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("grouped field layout", vec!["view ix", "source ix", "field ix"]),
     ("sorted field layout", vec!["view ix", "source ix", "ix", "field ix", "direction"]),
     ("non-sorted field layout", vec!["view ix", "source ix", "ix", "field ix"]),
+    ("member layout", vec!["view ix", "member ix", "input ix", "negated"]),
+    ("mapping layout", vec!["view ix", "member ix", "view field ix", "member field ix"]),
     ]
 }
 
@@ -446,16 +447,16 @@ fn check_enum(warning_table: &mut Relation, relation: &Relation, field: &str, va
     }
 }
 
-fn check_view_kind(warning_table: &mut Relation, relation: &Relation, field: &str, view_table: &Relation, kind: &str) {
+fn check_view_kind(warning_table: &mut Relation, relation: &Relation, field: &str, view_table: &Relation, kinds: &[&str]) {
     let ix = relation.names.iter().position(|name| name == field).unwrap();
     for row in relation.index.iter() {
         let view = &row[ix];
         find!(view_table, [(= view), view_kind], {
-            if view_kind.as_str() != kind {
+            if kinds.iter().all(|&kind| kind != view_kind.as_str()) {
                 warning_table.index.insert(vec![
                     Value::String(relation.view.to_owned()),
                     Value::Column(row.clone()),
-                    string!("This {:?} is attached to a non-{} view of kind: {:?}", &relation.view, kind, view_kind),
+                    string!("This {:?} is attached to a non-{} view of kind: {:?}", &relation.view, kinds.join("/"), view_kind),
                     ]);
             }
         });
@@ -489,12 +490,12 @@ fn plan(flow: &Flow) {
     check_unique_key(&mut *warning_table, &*source_table, &["source"]);
     check_foreign_key(&mut *warning_table, &*source_table, &["view"], &*view_table, &["view"]);
     check_foreign_key(&mut *warning_table, &*source_table, &["source view"], &*view_table, &["view"]);
-    check_view_kind(&mut *warning_table, &*source_table, "view", &*view_table, "join");
+    check_view_kind(&mut *warning_table, &*source_table, "view", &*view_table, &["join"]);
 
     let variable_table = flow.get_output("variable");
     check_unique_key(&mut *warning_table, &*variable_table, &["variable"]);
     check_foreign_key(&mut *warning_table, &*variable_table, &["view"], &*view_table, &["view"]);
-    check_view_kind(&mut *warning_table, &*variable_table, "view", &*view_table, "join");
+    check_view_kind(&mut *warning_table, &*variable_table, "view", &*view_table, &["join"]);
 
     let binding_table = flow.get_output("binding");
     check_unique_key(&mut *warning_table, &*binding_table, &["source", "field"]);
@@ -576,7 +577,8 @@ fn plan(flow: &Flow) {
     check_unique_key(&mut *warning_table, &*member_table, &["member"]);
     check_foreign_key(&mut *warning_table, &*member_table, &["view"], &*view_table, &["view"]);
     check_foreign_key(&mut *warning_table, &*member_table, &["member view"], &*view_table, &["view"]);
-    check_view_kind(&mut *warning_table, &*member_table, "view", &*view_table, "union");
+    check_view_kind(&mut *warning_table, &*member_table, "view", &*view_table, &["union"]);
+    check_view_kind(&mut *warning_table, &*member_table, "member view", &*view_table, &["table", "join", "union"]);
 
     let mapping_table = flow.get_output("mapping");
     check_unique_key(&mut *warning_table, &*mapping_table, &["view field", "member"]);
@@ -592,16 +594,6 @@ fn plan(flow: &Flow) {
         &*mapping_table, "member field", "member",
         &*field_table, "field", "view",
         &*member_table, "member", "member view",
-        );
-
-    let constant_mapping_table = flow.get_output("constant mapping");
-    check_unique_key(&mut *warning_table, &*constant_mapping_table, &["view field", "member"]);
-    check_foreign_key(&mut *warning_table, &*constant_mapping_table, &["view field"], &*field_table, &["field"]);
-    check_foreign_key(&mut *warning_table, &*constant_mapping_table, &["member"], &*member_table, &["member"]);
-    check_triangle_key(&mut *warning_table,
-        &*constant_mapping_table, "view field", "member",
-        &*field_table, "field", "view",
-        &*member_table, "member", "view",
         );
 
     let negated_member_table = flow.get_output("negated member");
@@ -625,14 +617,13 @@ fn plan(flow: &Flow) {
         if view_kind.as_str() == "union" {
             find!(field_table, [(= view), field, field_kind], {
                 find!(member_table, [(= view), member, _], {
-                    if dont_find!(mapping_table, [(= field), (= member), _])
-                    && dont_find!(constant_mapping_table, [(= field), (= member), _]) {
+                    dont_find!(mapping_table, [(= field), (= member), _], {
                         warning_table.index.insert(vec![
                             string!("field"),
                             Column(vec![view.clone(), field.clone(), field_kind.clone()]),
                             string!("This field has no mapping in member {:?}", member),
                             ]);
-                    }
+                    });
                 });
             });
         }
@@ -681,6 +672,13 @@ fn plan(flow: &Flow) {
                 }
             })
         })
+    });
+    find!(view_table, [view, _], {
+        find!(member_table, [(= view), _, member, member_view], {
+            find!(view_table, [(= member_view), _], {
+                insert!(view_dependency_pre_table, [view, member, member_view]);
+            });
+        });
     });
 
     let mut view_dependency_table = flow.overwrite_output("view dependency");
@@ -1130,6 +1128,29 @@ fn plan(flow: &Flow) {
             });
         });
     });
+
+    let mut member_layout_table = flow.overwrite_output("member layout");
+    find!(member_table, [view, member_ix, member, member_view], {
+        find!(enabled_view_table, [view_ix, (= view), _], {
+            find!(view_dependency_table, [(= view), input_ix, (= member), (= member_view)], {
+                let negated = !dont_find!(negated_member_table, [(= member)]);
+                insert!(member_layout_table, [view_ix, member_ix, input_ix, Bool(negated)]);
+            });
+        });
+    });
+
+    let mut mapping_layout_table = flow.overwrite_output("mapping layout");
+    find!(mapping_table, [view_field, member, member_field], {
+        find!(member_table, [view, member_ix, (= member), member_view], {
+            find!(enabled_view_table, [view_ix, (= view), _], {
+                find!(index_layout_table, [(= view), view_field_ix, (= view_field), _], {
+                    find!(index_layout_table, [(= member_view), member_field_ix, (= member_field), _], {
+                        insert!(mapping_layout_table, [view_ix, member_ix, view_field_ix, member_field_ix]);
+                    });
+                });
+            });
+        });
+    });
 }
 
 fn push_at<T>(items: &mut Vec<T>, ix: &Value, item: T) {
@@ -1151,10 +1172,9 @@ fn create(flow: &Flow) -> Flow {
             id: view.as_str().to_owned(),
             view: match kind.as_str() {
                 "table" => View::Table,
-                "union" => {
-                    println!("Warning: unions are not finished - making a dummy table for view {:?}", view);
-                    View::Table
-                }
+                "union" => View::Union(Union{
+                    members: vec![],
+                }),
                 "join" => View::Join(Join{
                     constants: vec![],
                     sources: vec![],
@@ -1283,6 +1303,28 @@ fn create(flow: &Flow) -> Flow {
                 join.sources[source_ix.as_usize()].sorted_fields.push((field_ix.as_usize(), direction));
             }
             other => panic!("Sorted fields given for non-join view {:?} {:?}", view_ix, other),
+        }
+    });
+
+    find!(flow.get_output("member layout"), [view_ix, member_ix, input_ix, negated], {
+        match &mut nodes[view_ix.as_usize()].view {
+            &mut View::Union(ref mut union) => {
+                push_at(&mut union.members, member_ix, Member{
+                    input_ix: input_ix.as_usize(),
+                    mapping: vec![],
+                    negated: negated.as_bool(),
+                });
+            }
+            other => panic!("Member given for non-union view {:?} {:?}", view_ix, other),
+        }
+    });
+
+    find!(flow.get_output("mapping layout"), [view_ix, member_ix, view_field_ix, member_field_ix], {
+        match &mut nodes[view_ix.as_usize()].view {
+            &mut View::Union(ref mut union) => {
+                push_at(&mut union.members[member_ix.as_usize()].mapping, view_field_ix, member_field_ix.as_usize());
+            }
+            other => panic!("Mapping given for non-union view {:?} {:?}", view_ix, other),
         }
     });
 
