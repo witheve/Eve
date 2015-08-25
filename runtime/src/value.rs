@@ -10,31 +10,42 @@ pub enum Value {
     String(String),
     Float(f64),
     Column(Vec<Value>),
+    Row{ // planning to replace this with a much smaller representation
+        view_id: String,
+        field_ids: Vec<String>,
+        values: Vec<Value>,
+    }
 }
 
 impl ::std::fmt::Debug for Value {
     fn fmt(&self, formatter: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error> {
         match *self {
-            Value::Null => formatter.write_str("null").unwrap(),
-            Value::Bool(bool) => bool.fmt(formatter).unwrap(),
-            Value::String(ref string) => string.fmt(formatter).unwrap(),
-            Value::Float(float) => float.fmt(formatter).unwrap(),
-            Value::Column(ref column) => column.fmt(formatter).unwrap(),
-        };
-        Ok(())
+            Value::Null => formatter.write_str("null"),
+            Value::Bool(bool) => bool.fmt(formatter),
+            Value::String(ref string) => string.fmt(formatter),
+            Value::Float(float) => float.fmt(formatter),
+            Value::Column(ref column) => column.fmt(formatter),
+            Value::Row{ref view_id, ref field_ids, ref values} => {
+                let mut debug_struct = formatter.debug_struct(view_id);
+                for (field_id, value) in field_ids.iter().zip(values.iter()) {
+                    debug_struct.field(field_id, value);
+                }
+                debug_struct.finish()
+            }
+        }
     }
 }
 
 impl ::std::fmt::Display for Value {
     fn fmt(&self, formatter: &mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error> {
         match *self {
-            Value::Null => formatter.write_str("null").unwrap(),
-            Value::Bool(bool) => bool.fmt(formatter).unwrap(),
-            Value::String(ref string) => string.fmt(formatter).unwrap(),
-            Value::Float(float) => float.fmt(formatter).unwrap(),
-            Value::Column(ref column) => formatter.debug_list().entries(column.iter()).finish().unwrap(),
-        };
-        Ok(())
+            Value::Null => formatter.write_str("null"),
+            Value::Bool(bool) => bool.fmt(formatter),
+            Value::String(ref string) => string.fmt(formatter),
+            Value::Float(float) => float.fmt(formatter),
+            Value::Column(ref column) => formatter.debug_list().entries(column.iter()).finish(),
+            Value::Row{..} => ::std::fmt::Debug::fmt(self, formatter), // TODO how should we coerce rows to string?
+        }
     }
 }
 

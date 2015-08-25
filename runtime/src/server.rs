@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::thread;
 use std::sync::mpsc;
 use websocket;
@@ -48,6 +49,13 @@ impl ToJson for Value {
             Value::String(ref string) => Json::String(string.clone()),
             Value::Float(float) => Json::F64(float),
             Value::Column(ref column) => Json::Array(column.iter().map(|v| v.to_json()).collect()),
+            Value::Row{ref view_id, ref field_ids, ref values} => {
+                let keys = field_ids.iter().map(|field_id| field_id.to_owned());
+                let vals = values.iter().map(ToJson::to_json);
+                let mut object = keys.zip(vals).collect::<BTreeMap<_, _>>();
+                object.insert("view id".to_owned(), view_id.to_json());
+                Json::Object(object)
+            }
         }
     }
 }
@@ -61,6 +69,13 @@ impl FromJson for Value {
             Json::I64(int) => Value::Float(int as f64),
             Json::U64(uint) => Value::Float(uint as f64),
             Json::Array(ref array) => Value::Column(array.iter().map(FromJson::from_json).collect()),
+            Json::Object(ref object) => {
+                let view_id = object["view id"].as_string().unwrap().to_owned();
+                let (keys, vals): (Vec<_>, Vec<_>) = object.iter().filter(|&(field_id, _)| field_id != "view id").unzip();
+                let field_ids = keys.into_iter().map(|key| key.to_owned()).collect();
+                let values = vals.into_iter().map(|val| FromJson::from_json(val)).collect();
+                Value::Row{view_id: view_id, field_ids: field_ids, values: values}
+            }
             _ => panic!("Cannot decode {:?} as Value", json),
         }
     }

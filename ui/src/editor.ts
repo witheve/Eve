@@ -1504,7 +1504,7 @@ module drawn {
           }
           var factMap = {};
           for(var fieldIx = 0; fieldIx < info.mapping.length; fieldIx++) {
-            factMap[info.mapping[fieldIx]] = row[fieldIx] || "";
+            factMap[info.mapping[fieldIx]] = (row[fieldIx] === undefined) ? "" : row[fieldIx];
           }
           facts.push(factMap);
         }
@@ -2196,7 +2196,6 @@ module drawn {
       }
     });
     let actions = {
-      "search": {func: startSearching, text: "Search", semantic: "action::search", icon: "ion-ios-search-strong", description: "Search for items to open by name.", postSpacer: true},
       "new": {func: startCreating, text: "New", semantic: "action::addItem", description: "Add a new query or set of data."},
       "import": {func: openImporter, text: "Import", semantic: "action::importItem"},
       "delete": {func: removeSelectedItems, text: "Delete", semantic: "action::removeItem", description: "Delete an item from the database."},
@@ -2206,7 +2205,7 @@ module drawn {
     if(!Object.keys(localState.selectedItems).length) {
       disabled["delete"] = "no items are selected to be removed. Click on one of the cards to select it.";
     }
-    return {c: "query-selector-wrapper", children: [
+    return {c: "query-selector-wrapper", semantic: "pane::itemSelector", children: [
       leftToolbar(actions, disabled),
       {c: "query-selector-body", click: clearSelectedItems, children: [
         {c: "query-selector-filter", children: [
@@ -2267,7 +2266,7 @@ module drawn {
       scale = 0.7;
     }
     let selected = localState.selectedItems[viewId] ? "selected" : "";
-    return {c: `query-item ${selected}`, id: viewId, itemId: viewId, click: selectItem, dblclick: openItem, children:[
+    return {c: `query-item ${selected}`, semantic: "item::query", id: viewId, itemId: viewId, click: selectItem, dblclick: openItem, children:[
       {c: "query-name", text: code.name(viewId)},
       // {c: "query-description", text: getDescription(viewId)},
       {c: "query", children: [
@@ -2334,6 +2333,16 @@ module drawn {
     for(let tool of postSpacer) {
       tools.push(tool);
     }
+
+    // add the search button
+    tools.push({c: "tool ion-ios-search-strong",
+                title: "Search",
+                semantic: "action::search",
+                mouseover: showButtonTooltip,
+                mouseout: hideButtonTooltip,
+                click: startSearching,
+                description: "Search for items to open by name."})
+
     // add the settings at the very end
     tools.push({c: "tool ion-gear-b",
                 title: "Settings",
@@ -2565,16 +2574,16 @@ module drawn {
   }
 
   function creator() {
-    return {c: "creator", children: [
+    return {c: "creator", semantic: "pane::addItem", children: [
       {c: "header", text: "New"},
       {c: "description", text: "Select a kind of item to create."},
       {c: "types", children: [
         {c: "type-container", children: [
-          {c: "type", text: "Data", click: createNewItem, kind: "table", newName: "New table!"},
+          {c: "type", text: "Data", semantic: "action::addDataItem", click: createNewItem, kind: "table", newName: "New table!"},
           {text: glossary.lookup["Data"].description}
         ]},
         {c: "type-container", children: [
-          {c: "type", text: "Query", click: createNewItem, kind: "join", newName: "New query!"},
+          {c: "type", text: "Query", semantic: "action::addQueryItem", click: createNewItem, kind: "join", newName: "New query!"},
           {text: glossary.lookup["Query"].description}
         ]},
         // {c: "type-container", children: [
@@ -2613,7 +2622,7 @@ module drawn {
             {text: "Treat first row as header"},
             {t: "input", type: "checkbox", change: updateCsvHasHeader}
           ]},
-          {c: "button", text: "import", click: importFromCsv}
+          {c: "button", text: "Import", click: importFromCsv}
         ]
       }
     ]};
@@ -2666,7 +2675,7 @@ module drawn {
     if(viewDescription) {
       description = viewDescription["view description: description"];
     }
-    return {c: "workspace query-workspace", children: [
+    return {c: "workspace query-workspace", semantic: "pane::queryEditor", children: [
       localState.drawnUiActiveId !== "itemSelector" ? queryTools(view, entityInfo) : undefined,
       {c: "container", children: [
         {c: "surface", children: [
@@ -3073,14 +3082,13 @@ module drawn {
       // no matter what though you should be able to go back to the
       // query selector and search.
       "Back": {func: navigateBack, text: "Back", semantic: "action::back", description: "Return to the item selection page"},
-      "Search": {func: startSearching, icon: "ion-ios-search-strong", text: "Search", semantic: "action::search", description: "Find sources to add to your query", postSpacer: true},
       // These may get changed below depending on what's selected and the
       // current state.
       "rename": {func: startRenamingSelection, text: "Rename", semantic: "action::rename"},
       "remove": {func: removeSelection, text: "Remove", semantic: "action::remove"},
       "join": {func: joinSelection, text: "Join", semantic: "action::toggleJoin"},
       "select": {func: selectAttribute, text: "Show", semantic: "action::togleShow"},
-      "filter": {func: addFilter, text: "Filter", semantic: "action::filter"},
+      "filter": {func: addFilter, text: "Filter", semantic: "action::toggleFilter"},
       "group": {func: groupAttribute, text: "Group", semantic: "action::toggleGroup"},
       "sort": {func: startSort, text: "Sort", semantic: "action::sort"},
       "chunk": {func: chunkSource, text: "Chunk", semantic: "action::toggleChunk"},
@@ -3141,25 +3149,25 @@ module drawn {
           }
           disabled["join"] = "multiple attributes aren't joined together on this node.";
         } else {
-          actions["join"] = {func: unjoinNodes, text: "Unjoin"};
+          actions["join"] = {func: unjoinNodes, text: "Unjoin", semantic: "action::toggleJoin"};
         }
 
         if(ixer.selectOne("ordinal binding", {variable: node.variable})) {
-          actions["ordinal"] = {func: removeOrdinal, text: "Unordinal"};
+          actions["ordinal"] = {func: removeOrdinal, text: "Unordinal", semantic: "action::toggleOrdinal"};
         } else {
           disabled["ordinal"] = "ordinal only applies to sources or ordinal nodes";
         }
 
         if(ixer.selectOne("select", {variable: node.variable})) {
-          actions["select"] = {func: unselectAttribute, text: "Hide"};
+          actions["select"] = {func: unselectAttribute, text: "Hide", semantic: "action::toggleSelect"};
         }
         if(node.filter) {
-          actions["filter"] = {func: removeFilter, text: "Unfilter"};
+          actions["filter"] = {func: removeFilter, text: "Unfilter", semantic: "action::toggleFilter"};
         }
         // if this node's source is chunked or there's an ordinal binding, we can group
         if(node.sourceChunked || node.sourceHasOrdinal) {
           if(node.grouped) {
-            actions["group"] = {func: ungroupAttribute, text: "Ungroup"};
+            actions["group"] = {func: ungroupAttribute, text: "Ungroup", semantic: "action::toggleGroup"};
           }
         } else {
           disabled["group"] = "To group an attribute, the source must either have an ordinal or be chunked";
@@ -3171,13 +3179,13 @@ module drawn {
         disabled["group"] = "group only applies to attributes.";
         disabled["join"] = "join only applies to attributes.";
         if(node.chunked) {
-          actions["chunk"] = {func: unchunkSource, text: "Unchunk"};
+          actions["chunk"] = {func: unchunkSource, text: "Unchunk", semantic: "action::toggleChunk"};
         }
         if(node.isNegated) {
-          actions["negate"] = {func: unnegateSource, text: "Unnegate"};
+          actions["negate"] = {func: unnegateSource, text: "Unnegate", semantic: "action::toggleNegate"};
         }
         if(node.hasOrdinal) {
-          actions["ordinal"] = {func: removeOrdinal, text: "Unordinal"};
+          actions["ordinal"] = {func: removeOrdinal, text: "Unordinal", semantic: "action::toggleOrdinal"};
         }
 
       } else if(node.type === "primitive") {
@@ -3218,9 +3226,9 @@ module drawn {
         // in the selection
         let root = selectedNodes[0];
         if(ixer.selectOne("select", {variable: root.variable})) {
-          actions["select"] = {func: unselectSelection, text: "Hide"};
+          actions["select"] = {func: unselectSelection, text: "Hide", semantic: "action::toggleSelect"};
         } else {
-          actions["select"] = {func: selectSelection, text: "Show"};
+          actions["select"] = {func: selectSelection, text: "Show", semantic: "action::toggleSelect"};
         }
       }
     }
@@ -3516,7 +3524,7 @@ module drawn {
 
    function tableItem(tableId) {
      let selected = localState.selectedItems[tableId] ? "selected" : "";
-    return {c: `table-item ${selected}`, itemId: tableId, click: selectItem, dblclick: openItem, children: [
+    return {c: `table-item ${selected}`, semantic: "item::data", itemId: tableId, click: selectItem, dblclick: openItem, children: [
       tableForm(tableId)
     ]};
   }
@@ -3548,7 +3556,7 @@ module drawn {
     if(resultViewSize > maxRenderedEntries) {
       sizeText = `${maxRenderedEntries} of ` + sizeText;
     }
-    return {c: "workspace table-workspace", children: [
+    return {c: "workspace table-workspace", semantic: "pane::dataEditor", children: [
       leftToolbar(actions, disabled),
       {c: "container", children: [
         {c: "surface", children: [
