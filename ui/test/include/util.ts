@@ -15,14 +15,6 @@ module Test {
   if(casper.cli.options.disableCapture) {
     console.log("Disabling capture due to --disableCapture.");
     casper.capture = function() { return this; }
-  } else {
-    casper.capture = function capture(targetFilepath, clipRect?, opts?) {
-      opts = opts || {};
-      opts.format = opts.format || 'jpg';
-      opts.quality = opts.quality || 75;
-      console.log('saving screenshot ' + targetFilepath + '.' + opts.format);
-      return _capture(casper.cli.options.output + '/' + targetFilepath + '.' + opts.format, clipRect, opts);
-    };
   }
 
   casper.__env = {
