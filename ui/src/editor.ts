@@ -2196,16 +2196,16 @@ module drawn {
       }
     });
     let actions = {
-      "new": {func: startCreating, text: "New", description: "Add a new query or set of data."},
-      "import": {func: openImporter, text: "Import"},
-      "delete": {func: removeSelectedItems, text: "Delete", description: "Delete an item from the database."},
+      "new": {func: startCreating, text: "New", semantic: "action::addItem", description: "Add a new query or set of data."},
+      "import": {func: openImporter, text: "Import", semantic: "action::importItem"},
+      "delete": {func: removeSelectedItems, text: "Delete", semantic: "action::removeItem", description: "Delete an item from the database."},
     };
     let disabled = {};
     // if nothing is selected, then remove needs to be disabled
     if(!Object.keys(localState.selectedItems).length) {
       disabled["delete"] = "no items are selected to be removed. Click on one of the cards to select it.";
     }
-    return {c: "query-selector-wrapper", children: [
+    return {c: "query-selector-wrapper", semantic: "pane::itemSelector", children: [
       leftToolbar(actions, disabled),
       {c: "query-selector-body", click: clearSelectedItems, children: [
         {c: "query-selector-filter", children: [
@@ -2266,7 +2266,7 @@ module drawn {
       scale = 0.7;
     }
     let selected = localState.selectedItems[viewId] ? "selected" : "";
-    return {c: `query-item ${selected}`, id: viewId, itemId: viewId, click: selectItem, dblclick: openItem, children:[
+    return {c: `query-item ${selected}`, semantic: "item::query", id: viewId, itemId: viewId, click: selectItem, dblclick: openItem, children:[
       {c: "query-name", text: code.name(viewId)},
       // {c: "query-description", text: getDescription(viewId)},
       {c: "query", children: [
@@ -2301,7 +2301,9 @@ module drawn {
       if(glossary.lookup[action.text]) {
         description = glossary.lookup[action.text].description;
       }
-      let tool = {c: "tool", text: action.text, mouseover: showButtonTooltip, mouseout: hideButtonTooltip, description};
+
+      if(!action.semantic) { throw new Error("action:" + JSON.stringify(action) + " needs a semantic attribute."); }
+      let tool = {c: "tool", text: action.text, semantic: action.semantic, mouseover: showButtonTooltip, mouseout: hideButtonTooltip, description};
       if(action["icon"]) {
         tool.text = undefined;
         tool["title"] = action.text;
@@ -2335,6 +2337,7 @@ module drawn {
     // add the search button
     tools.push({c: "tool ion-ios-search-strong",
                 title: "Search",
+                semantic: "action::search",
                 mouseover: showButtonTooltip,
                 mouseout: hideButtonTooltip,
                 click: startSearching,
@@ -2400,7 +2403,7 @@ module drawn {
             }})}
           ]} : undefined),
           {c: "input-row", children: [
-            {c: "label", text: "name"},
+            {c: "label", text: "File name"},
             {t: "input", type: "text", input: setSaveLocation, value: localState.selectedSave},
           ]},
           {c: "flex-row", children: [
@@ -2571,16 +2574,16 @@ module drawn {
   }
 
   function creator() {
-    return {c: "creator", children: [
+    return {c: "creator", semantic: "pane::addItem", children: [
       {c: "header", text: "New"},
       {c: "description", text: "Select a kind of item to create."},
       {c: "types", children: [
         {c: "type-container", children: [
-          {c: "type", text: "Data", click: createNewItem, kind: "table", newName: "New table!"},
+          {c: "type", text: "Data", semantic: "action::addDataItem", click: createNewItem, kind: "table", newName: "New table!"},
           {text: glossary.lookup["Data"].description}
         ]},
         {c: "type-container", children: [
-          {c: "type", text: "Query", click: createNewItem, kind: "join", newName: "New query!"},
+          {c: "type", text: "Query", semantic: "action::addQueryItem", click: createNewItem, kind: "join", newName: "New query!"},
           {text: glossary.lookup["Query"].description}
         ]},
         // {c: "type-container", children: [
@@ -2672,7 +2675,7 @@ module drawn {
     if(viewDescription) {
       description = viewDescription["view description: description"];
     }
-    return {c: "workspace query-workspace", children: [
+    return {c: "workspace query-workspace", semantic: "pane::queryEditor", children: [
       localState.drawnUiActiveId !== "itemSelector" ? queryTools(view, entityInfo) : undefined,
       {c: "container", children: [
         {c: "surface", children: [
@@ -3078,19 +3081,19 @@ module drawn {
       // What tools are available depends on what is selected.
       // no matter what though you should be able to go back to the
       // query selector and search.
-      "Back": {func: navigateBack, text: "Back", description: "Return to the item selection page"},
+      "Back": {func: navigateBack, text: "Back", semantic: "action::back", description: "Return to the item selection page"},
       // These may get changed below depending on what's selected and the
       // current state.
-      "rename": {func: startRenamingSelection, text: "Rename"},
-      "remove": {func: removeSelection, text: "Remove"},
-      "join": {func: joinSelection, text: "Join"},
-      "select": {func: selectAttribute, text: "Show"},
-      "filter": {func: addFilter, text: "Filter"},
-      "group": {func: groupAttribute, text: "Group"},
-      "sort": {func: startSort, text: "Sort"},
-      "chunk": {func: chunkSource, text: "Chunk"},
-      "ordinal": {func: addOrdinal, text: "Ordinal"},
-      "negate": {func: negateSource, text: "Negate"},
+      "rename": {func: startRenamingSelection, text: "Rename", semantic: "action::rename"},
+      "remove": {func: removeSelection, text: "Remove", semantic: "action::remove"},
+      "join": {func: joinSelection, text: "Join", semantic: "action::toggleJoin"},
+      "select": {func: selectAttribute, text: "Show", semantic: "action::togleShow"},
+      "filter": {func: addFilter, text: "Filter", semantic: "action::toggleFilter"},
+      "group": {func: groupAttribute, text: "Group", semantic: "action::toggleGroup"},
+      "sort": {func: startSort, text: "Sort", semantic: "action::sort"},
+      "chunk": {func: chunkSource, text: "Chunk", semantic: "action::toggleChunk"},
+      "ordinal": {func: addOrdinal, text: "Ordinal", semantic: "action::toggleOrdinal"},
+      "negate": {func: negateSource, text: "Negate", semantic: "action::toggleNegate"},
     }
 
     let selectionContainsErrors = false;
@@ -3146,25 +3149,25 @@ module drawn {
           }
           disabled["join"] = "multiple attributes aren't joined together on this node.";
         } else {
-          actions["join"] = {func: unjoinNodes, text: "Unjoin"};
+          actions["join"] = {func: unjoinNodes, text: "Unjoin", semantic: "action::toggleJoin"};
         }
 
         if(ixer.selectOne("ordinal binding", {variable: node.variable})) {
-          actions["ordinal"] = {func: removeOrdinal, text: "Unordinal"};
+          actions["ordinal"] = {func: removeOrdinal, text: "Unordinal", semantic: "action::toggleOrdinal"};
         } else {
           disabled["ordinal"] = "ordinal only applies to sources or ordinal nodes";
         }
 
         if(ixer.selectOne("select", {variable: node.variable})) {
-          actions["select"] = {func: unselectAttribute, text: "Hide"};
+          actions["select"] = {func: unselectAttribute, text: "Hide", semantic: "action::toggleSelect"};
         }
         if(node.filter) {
-          actions["filter"] = {func: removeFilter, text: "Unfilter"};
+          actions["filter"] = {func: removeFilter, text: "Unfilter", semantic: "action::toggleFilter"};
         }
         // if this node's source is chunked or there's an ordinal binding, we can group
         if(node.sourceChunked || node.sourceHasOrdinal) {
           if(node.grouped) {
-            actions["group"] = {func: ungroupAttribute, text: "Ungroup"};
+            actions["group"] = {func: ungroupAttribute, text: "Ungroup", semantic: "action::toggleGroup"};
           }
         } else {
           disabled["group"] = "To group an attribute, the source must either have an ordinal or be chunked";
@@ -3176,13 +3179,13 @@ module drawn {
         disabled["group"] = "group only applies to attributes.";
         disabled["join"] = "join only applies to attributes.";
         if(node.chunked) {
-          actions["chunk"] = {func: unchunkSource, text: "Unchunk"};
+          actions["chunk"] = {func: unchunkSource, text: "Unchunk", semantic: "action::toggleChunk"};
         }
         if(node.isNegated) {
-          actions["negate"] = {func: unnegateSource, text: "Unnegate"};
+          actions["negate"] = {func: unnegateSource, text: "Unnegate", semantic: "action::toggleNegate"};
         }
         if(node.hasOrdinal) {
-          actions["ordinal"] = {func: removeOrdinal, text: "Unordinal"};
+          actions["ordinal"] = {func: removeOrdinal, text: "Unordinal", semantic: "action::toggleOrdinal"};
         }
 
       } else if(node.type === "primitive") {
@@ -3223,9 +3226,9 @@ module drawn {
         // in the selection
         let root = selectedNodes[0];
         if(ixer.selectOne("select", {variable: root.variable})) {
-          actions["select"] = {func: unselectSelection, text: "Hide"};
+          actions["select"] = {func: unselectSelection, text: "Hide", semantic: "action::toggleSelect"};
         } else {
-          actions["select"] = {func: selectSelection, text: "Show"};
+          actions["select"] = {func: selectSelection, text: "Show", semantic: "action::toggleSelect"};
         }
       }
     }
@@ -3521,7 +3524,7 @@ module drawn {
 
    function tableItem(tableId) {
      let selected = localState.selectedItems[tableId] ? "selected" : "";
-    return {c: `table-item ${selected}`, itemId: tableId, click: selectItem, dblclick: openItem, children: [
+    return {c: `table-item ${selected}`, semantic: "item::data", itemId: tableId, click: selectItem, dblclick: openItem, children: [
       tableForm(tableId)
     ]};
   }
@@ -3533,14 +3536,14 @@ module drawn {
     let maxRenderedEntries = 100;
     let disabled = {};
     let actions = {
-      "back": {text: "Back", func: navigateBack, description: "Return to the item selection page"},
-      "new": {text: "+Entry", func: newTableEntry, description: "Create a new entry"},
-      "delete": {text: "-Entry", func: deleteTableEntry, description: "Remove the current entry"},
-      "add field": {text: "+Field", func: addFieldToTable, description: "Add a field to the card"},
+      "back": {text: "Back", semantic: "action::back", func: navigateBack, description: "Return to the item selection page"},
+      "new": {text: "+Entry", semantic: "action::addEntry", func: newTableEntry, description: "Create a new entry"},
+      "delete": {text: "-Entry", semantic: "action::removeEntry", func: deleteTableEntry, description: "Remove the current entry"},
+      "add field": {text: "+Field", semantic: "action::addField", func: addFieldToTable, description: "Add a field to the card"},
       // remove field needs to set the useMousedown flag because we need to know what field was active when
       // the button is pressed. If we use click, the field will have been blurred by the time the event goes
       // through
-      "remove field": {text: "-Field", func: removeFieldFromTable, description: "Remove the active field from the card", useMousedown: true}
+      "remove field": {text: "-Field", semantic: "action::removeField", func: removeFieldFromTable, description: "Remove the active field from the card", useMousedown: true}
     };
     if(!localState.selectedTableEntry) {
       disabled["delete"] = " no entry is selected";
@@ -3553,7 +3556,7 @@ module drawn {
     if(resultViewSize > maxRenderedEntries) {
       sizeText = `${maxRenderedEntries} of ` + sizeText;
     }
-    return {c: "workspace table-workspace", children: [
+    return {c: "workspace table-workspace", semantic: "pane::dataEditor", children: [
       leftToolbar(actions, disabled),
       {c: "container", children: [
         {c: "surface", children: [

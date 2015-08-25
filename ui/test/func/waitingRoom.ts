@@ -1,7 +1,7 @@
 "use strict";
-/// <reference path="../include/env.ts" />
+/// <reference path="../include/util.ts" />
 module Test {
-  declare var casper:CasperEnv;
+  declare var casper:CasperUtil;
   let waitingRoomUrl = `${casper.__env.basePath}/ui/waiting-room.html`;
   let editorUrl = `${casper.__env.baseUrl}/editor`;
 
@@ -13,7 +13,7 @@ module Test {
         .then(() => casper.waitForUrl(editorUrl, undefined, undefined, 12000))
         .then(() => test.assertHttpStatus(200))
         .then(() => casper.capture("waiting-room/post-redirect", undefined))
-        .run(() => test.done())
+        .run(() => test.done());
     });
   }
 }

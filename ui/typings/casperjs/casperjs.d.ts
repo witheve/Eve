@@ -23,6 +23,8 @@ interface Casper extends EventEmitter {
 	options: CasperOptions;
 	// Properties
 	__utils__: ClientUtils;
+	page:any;
+	cli:{options:any, args:any[]};
 
 	// Methods
 	back(): Casper;
@@ -42,6 +44,7 @@ interface Casper extends EventEmitter {
 	die(message: string, status?: number): Casper;
 	download(url: string, target?: string, method?: string, data?: any): Casper;
     each<T>(array: T[], fn: (self: Casper, item: T, index: number) => void): Casper;
+	eachThen<T>(array: T[], fn: (response: {data: T}, index: number) => void): Casper;
 	echo(message: string, style?: string): Casper;
     evaluate<T>(fn: () => T, ...args: any[]): T
     evaluateOrDie(fn: () => any, message?: string, status?: number): Casper;
@@ -55,11 +58,11 @@ interface Casper extends EventEmitter {
 	fillXPath(selector: string, values: any, submit?: boolean): void;
 	getCurrentUrl(): string;
 	getElementAttribute(selector: string, attribute: string): string;
-	getElementsAttribute(selector: string, attribute: string): string;
+	getElementsAttribute(selector: string, attribute: string): string[];
 	getElementBounds(selector: string): ElementBounds;
 	getElementsBounds(selector: string): ElementBounds[];
 	getElementInfo(selector: string): ElementInfo;
-	getElementsInfo(selector: string): ElementInfo;
+	getElementsInfo(selector: string): ElementInfo[];
 	getFormValues(selector: string): any;
 	getGlobal(name: string): any;
 	getHTML(selector?: string, outer?: boolean): string;

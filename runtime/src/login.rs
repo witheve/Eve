@@ -254,20 +254,17 @@ fn login(req: Request, mut res: Response<Fresh>) {
                                             let _ = sender.send_message(Message::Close(None));
                                         }
                                         // Otherwise, throw an error... maybe redirect to a special page.
-                                        Err(e) => {
-                                            println!("ERROR: Had trouble connecting to the Eve runtime: {}. Is the server running?",e);
-                                            *res.status_mut() = hyper::status::StatusCode::NotFound;
-                                            panic!("Oh no!");
-                                        }
+                                        Err(e) => panic!("ERROR: Had trouble connecting to the Eve runtime: {}. Is the server running?",e),
                                     }
-
                                     println!("Login complete.");
                                 }
                                 _ => {
                                     println!("ERROR: Could not authenticate user with token {}",token);
                                     *res.status_mut() = hyper::status::StatusCode::Forbidden;
-                                    panic!("Oh no!");
-                                    //serve_file("404.html",res);
+                                    let result = serve_local_or_file(res, &path_info.path, "../ui/403.html");
+                                    if let Err(error) = result {
+                                        println!("Warning: serve error {:?}", error);
+                                    }
                                 }
                             };
                         },
@@ -295,7 +292,7 @@ fn login(req: Request, mut res: Response<Fresh>) {
                 }
             };
         }
-        _ => panic!("Oh no!"),
+        _ => panic!("Unsupported HTTP Method."),
     }
 }
 
