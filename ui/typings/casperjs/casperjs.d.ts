@@ -58,11 +58,11 @@ interface Casper extends EventEmitter {
 	fillXPath(selector: string, values: any, submit?: boolean): void;
 	getCurrentUrl(): string;
 	getElementAttribute(selector: string, attribute: string): string;
-	getElementsAttribute(selector: string, attribute: string): string;
+	getElementsAttribute(selector: string, attribute: string): string[];
 	getElementBounds(selector: string): ElementBounds;
 	getElementsBounds(selector: string): ElementBounds[];
 	getElementInfo(selector: string): ElementInfo;
-	getElementsInfo(selector: string): ElementInfo;
+	getElementsInfo(selector: string): ElementInfo[];
 	getFormValues(selector: string): any;
 	getGlobal(name: string): any;
 	getHTML(selector?: string, outer?: boolean): string;
