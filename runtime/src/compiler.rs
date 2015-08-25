@@ -596,16 +596,6 @@ fn plan(flow: &Flow) {
         &*member_table, "member", "member view",
         );
 
-    let constant_mapping_table = flow.get_output("constant mapping");
-    check_unique_key(&mut *warning_table, &*constant_mapping_table, &["view field", "member"]);
-    check_foreign_key(&mut *warning_table, &*constant_mapping_table, &["view field"], &*field_table, &["field"]);
-    check_foreign_key(&mut *warning_table, &*constant_mapping_table, &["member"], &*member_table, &["member"]);
-    check_triangle_key(&mut *warning_table,
-        &*constant_mapping_table, "view field", "member",
-        &*field_table, "field", "view",
-        &*member_table, "member", "view",
-        );
-
     let negated_member_table = flow.get_output("negated member");
     check_foreign_key(&mut *warning_table, &*negated_member_table, &["member"], &*member_table, &["member"]);
 
@@ -627,14 +617,13 @@ fn plan(flow: &Flow) {
         if view_kind.as_str() == "union" {
             find!(field_table, [(= view), field, field_kind], {
                 find!(member_table, [(= view), member, _], {
-                    if dont_find!(mapping_table, [(= field), (= member), _])
-                    && dont_find!(constant_mapping_table, [(= field), (= member), _]) {
+                    dont_find!(mapping_table, [(= field), (= member), _], {
                         warning_table.index.insert(vec![
                             string!("field"),
                             Column(vec![view.clone(), field.clone(), field_kind.clone()]),
                             string!("This field has no mapping in member {:?}", member),
                             ]);
-                    }
+                    });
                 });
             });
         }
