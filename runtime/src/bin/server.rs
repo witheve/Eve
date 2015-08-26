@@ -23,7 +23,7 @@ fn main() {
 
 	// define the command line arguments
 	let mut opts = Options::new();
-    opts.optopt("f", "faddress", "specify a socket address for the static file server. Defaults to 0.0.0.0:8080","SOCKET ADDRESS");
+    opts.optopt("f", "file-server-address", "specify a socket address for the static file server. Defaults to 0.0.0.0:8080","SOCKET ADDRESS");
     opts.optopt("s", "saves", "specify the location of the saves directory","PATH");
     opts.optflag("h", "help", "prints all options and usage");
 
