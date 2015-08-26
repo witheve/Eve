@@ -2142,7 +2142,7 @@ module drawn {
   // root component
   //---------------------------------------------------------
 
-  function root() {
+  export function root() {
     var page:any;
     let viewId = localState.drawnUiActiveId;
     if(viewId !== "itemSelector") {
@@ -3694,6 +3694,7 @@ module drawn {
   // input handling
   //---------------------------------------------------------
 
+  var __firefoxMouseX, __firefoxMouseY;
   function initInputHandling() {
     document.addEventListener("keydown", function(e) {
       var KEYS = api.KEYS;
@@ -3737,7 +3738,6 @@ module drawn {
     });
 
     // @HACK: Because FF is a browser full of sadness...
-    var __firefoxMouseX, __firefoxMouseY;
     function firefoxDragMoveHandler(evt) {
       __firefoxMouseX = evt.clientX;
       __firefoxMouseY = evt.clientY;
