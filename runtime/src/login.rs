@@ -284,21 +284,15 @@ fn login(req: Request, mut res: Response<Fresh>) {
                 },
                 "favicon.ico" => (),
                 _ => {
-    				*res.status_mut() = hyper::status::StatusCode::NotFound;
-    				let result = serve_local_or_file(res, &path_info.path, "../ui/404.html");
-    				if let Err(error) = result {
-    					println!("Warning: serve error {:?}", error);
-    				}
+					*res.status_mut() = hyper::status::StatusCode::NotFound;
+					let result = serve_local_or_file(res, &path_info.path, "../ui/404.html");
+					if let Err(error) = result {
+						println!("Warning: serve error {:?}", error);
+					}
                 }
             };
         }
-        _ => {
-            *res.status_mut() = hyper::status::StatusCode::NotFound;
-            let result = serve_local_or_file(res, &path_info.path, "../ui/404.html");
-            if let Err(error) = result {
-                println!("Warning: serve error {:?}", error);
-            }
-        }
+        _ => panic!("Unsupported HTTP Method."),
     }
 }
 
