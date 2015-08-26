@@ -8,7 +8,11 @@ body {
 
 a {
 	text-decoration: none;
-	color: rgb(27,66,95);
+	color: rgb(0,158,224);
+}
+
+a:hover {
+	color: rgb(91,89,164);
 }
 
 #content {
@@ -22,12 +26,14 @@ a {
     margin: auto;
 }
 
-#logo {
+.logo {
+	display: block;
 	margin-left: auto;
 	margin-right: auto;
 	margin-top: 20px;
-	margin-bottom: 00px;
-	width: 156px;
+	margin-bottom: 40px;
+	width: 200px;
+	height:;
 	padding: 20px;
 }
 
@@ -95,6 +101,10 @@ input:focus, select:focus, textarea:focus
 	color: rgb(27,66,95);
 	background: rgb(64,160,221);
 	text-align: center;
+}
+
+.button a {
+	color: rgb(27,66,95);
 }
 
 .button:hover {
