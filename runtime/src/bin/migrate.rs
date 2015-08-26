@@ -43,7 +43,7 @@ fn all_paths() -> Vec<PathBuf> {
     for entry in walk_dir("./test-outputs").unwrap() {
         filenames.push(entry.unwrap().path());
     }
-    for entry in walk_dir("../example data").unwrap() {
+    for entry in walk_dir("../example-data").unwrap() {
         let path = entry.unwrap().path();
         if path.extension().unwrap().to_str().unwrap() == "eve" {
             filenames.push(path);
@@ -153,7 +153,7 @@ fn test_regressions() {
 
 #[test]
 fn test_examples() {
-    for entry in walk_dir("../example data").unwrap() {
+    for entry in walk_dir("../example-data").unwrap() {
         let path = entry.unwrap().path();
         if path.extension().unwrap().to_str().unwrap() == "eve" {
             let mut flow = Flow::new();
