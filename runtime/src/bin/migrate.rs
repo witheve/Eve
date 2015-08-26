@@ -42,6 +42,12 @@ fn all_filenames() -> Vec<String> {
     for entry in walk_dir("./test-outputs").unwrap() {
         filenames.push(entry.unwrap().path().to_str().unwrap().to_owned());
     }
+    for entry in walk_dir("../example data").unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().unwrap().to_str().unwrap() == "eve" {
+            filenames.push(path.to_str().unwrap().to_owned());
+        }
+    }
     filenames
 }
 
