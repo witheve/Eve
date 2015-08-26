@@ -9,7 +9,6 @@ use std::fs::{OpenOptions};
 use std::path::Path;
 use rustc_serialize::json::{Json, ToJson};
 use cbor;
-use std::env;
 
 use value::Value;
 use relation::Change;
