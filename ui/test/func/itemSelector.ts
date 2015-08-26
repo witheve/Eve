@@ -18,7 +18,6 @@ module Test {
 
       return casper.start(editorUrl)
         .then(() => casper.viewport(960, 1200))
-        .then(() => casper.capture("item-selector/no-selection", undefined))
         .then(() => util.assertActions(actions, enabled, test))
         .run(() => test.done());
     });
@@ -54,6 +53,7 @@ module Test {
       return casper.start(editorUrl)
         .then(() => casper.viewport(960, 1200))
         .waitForSelector(util.pane.select("itemSelector"))
+        .then(() => casper.capture("item-selector/no-selection", undefined))
         .then(() => test.assert(util.item.count() === 2, `Should contain 2 items, currently contains: ${util.item.count()}`))
         .thenClick(util.item.select("data"))
         .waitFor(() => util.item.selectionCount() === 1)
