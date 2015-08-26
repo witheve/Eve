@@ -142,7 +142,7 @@ module drawn {
       setTimeout(function() {
       // requestAnimationFrame(function() {
         var start = performance.now();
-        var tree = root();
+        var tree = window["drawn"].root();
         var total = performance.now() - start;
         if(total > 10) {
           console.log("Slow root: " + total);
