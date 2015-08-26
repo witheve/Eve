@@ -127,9 +127,14 @@ module drawn {
   // Renderer
   //---------------------------------------------------------
 
-  export var renderer = new microReact.Renderer();
-  document.body.appendChild(renderer.content);
-  renderer.queued = false;
+  export var renderer;
+  function initRenderer() {
+    renderer = new microReact.Renderer();
+    document.body.appendChild(renderer.content);
+    renderer.queued = false;
+    window.addEventListener("resize", render);
+  }
+
   export function render() {
    if(renderer.queued === false) {
       renderer.queued = true;
@@ -148,33 +153,24 @@ module drawn {
     }
   }
 
-  window.addEventListener("resize", render);
-
   //---------------------------------------------------------
   // localState
   //---------------------------------------------------------
 
-  localState.selectedNodes = {};
-  localState.overlappingNodes = {};
-  localState.drawnUiActiveId = "itemSelector";
-  localState.errors = {};
-  localState.notices = {};
-  localState.selectedItems = {};
-  localState.tableEntry = {};
-  localState.saves = JSON.parse(localStorage.getItem("saves") || "[]");
-  localState.navigationHistory = [];
-
-  var fieldToEntity = {}
-
-  export var entities = [];
-  for(var field in fieldToEntity) {
-    var ent = fieldToEntity[field];
-    if (entities.indexOf(ent) === -1) {
-      entities.push(ent);
-    }
+  function initLocalstate() {
+    localState.selectedNodes = {};
+    localState.overlappingNodes = {};
+    localState.drawnUiActiveId = "itemSelector";
+    localState.errors = {};
+    localState.notices = {};
+    localState.selectedItems = {};
+    localState.tableEntry = {};
+    localState.saves = JSON.parse(localStorage.getItem("saves") || "[]");
+    localState.navigationHistory = [];
+    positions = {};
   }
 
-  export var positions = {}
+  export var positions;
 
   function loadPositions() {
     var loadedPositions = ixer.select("editor node position", {});
@@ -1978,7 +1974,6 @@ module drawn {
             continue;
           }
           let fieldKind = field["field: kind"];
-          if(!entity) entity = fieldToEntity[fieldId];
           // we don't really want to use input field names as they aren't descriptive.
           // so we set the name only if this is an output or there isn't a name yet
           if(fieldKind === "output" || !name) {
@@ -2890,9 +2885,13 @@ module drawn {
       }
       content.push(filterUi);
     }
-    var elem = {c: "item " + klass, selected: uiSelected, width, height,
+
+    let elemChildren = [];
+    elemChildren.push({text: "yo"});
+
+    var elem = {c: "madlib " + klass, selected: uiSelected, width, height,
                 mousedown: selectNode, draggable: true, dragstart: storeDragOffset,
-                drag: setNodePosition, dragend: finalNodePosition, node: curNode, text};
+                drag: setNodePosition, dragend: finalNodePosition, node: curNode, children: elemChildren};
 
     // if it's an attribute, it can be renamed by doubleClicking
     if(curNode.type === "attribute") {
@@ -3695,55 +3694,57 @@ module drawn {
   // input handling
   //---------------------------------------------------------
 
-  document.addEventListener("keydown", function(e) {
-    var KEYS = api.KEYS;
-    //Don't capture keys if we're focused on an input of some kind
-    var target: any = e.target;
-    if(e.defaultPrevented
-       || target.nodeName === "INPUT"
-       || target.getAttribute("contentEditable")
-       || target.nodeName === "TEXTAREA") {
-      return;
-    }
+  function initInputHandling() {
+    document.addEventListener("keydown", function(e) {
+      var KEYS = api.KEYS;
+      //Don't capture keys if we're focused on an input of some kind
+      var target: any = e.target;
+      if(e.defaultPrevented
+         || target.nodeName === "INPUT"
+         || target.getAttribute("contentEditable")
+         || target.nodeName === "TEXTAREA") {
+        return;
+      }
 
-    //undo + redo
-    if((e.metaKey || e.ctrlKey) && e.shiftKey && e.keyCode === KEYS.Z) {
-      dispatch("redo", null);
+      //undo + redo
+      if((e.metaKey || e.ctrlKey) && e.shiftKey && e.keyCode === KEYS.Z) {
+        dispatch("redo", null);
+        e.preventDefault();
+      } else if((e.metaKey || e.ctrlKey) && e.keyCode === KEYS.Z) {
+        dispatch("undo", null);
+        e.preventDefault();
+      }
+
+      //remove
+      if(e.keyCode === KEYS.BACKSPACE) {
+        dispatch("removeSelection", {nodes: localState.selectedNodes});
+        e.preventDefault();
+      }
+
+      if((e.ctrlKey || e.metaKey) && e.keyCode === KEYS.F) {
+        dispatch("startSearching", {value: ""});
+        e.preventDefault();
+      }
+    });
+
+    document.addEventListener("dragover", (e) => e.preventDefault());
+    document.addEventListener("drop", function(e) {
+      let files = e.dataTransfer.files;
+      if(files.length) {
+        dispatch("importFiles", {files: files});
+      }
       e.preventDefault();
-    } else if((e.metaKey || e.ctrlKey) && e.keyCode === KEYS.Z) {
-      dispatch("undo", null);
-      e.preventDefault();
-    }
+    });
 
-    //remove
-    if(e.keyCode === KEYS.BACKSPACE) {
-      dispatch("removeSelection", {nodes: localState.selectedNodes});
-      e.preventDefault();
+    // @HACK: Because FF is a browser full of sadness...
+    var __firefoxMouseX, __firefoxMouseY;
+    function firefoxDragMoveHandler(evt) {
+      __firefoxMouseX = evt.clientX;
+      __firefoxMouseY = evt.clientY;
     }
-
-    if((e.ctrlKey || e.metaKey) && e.keyCode === KEYS.F) {
-      dispatch("startSearching", {value: ""});
-      e.preventDefault();
+    if(navigator.userAgent.indexOf("Firefox") !== -1) {
+      document.body.addEventListener("dragover", firefoxDragMoveHandler, false);
     }
-  });
-
-  document.addEventListener("dragover", (e) => e.preventDefault());
-  document.addEventListener("drop", function(e) {
-    let files = e.dataTransfer.files;
-    if(files.length) {
-      dispatch("importFiles", {files: files});
-    }
-    e.preventDefault();
-  });
-
-  // @HACK: Because FF is a browser full of sadness...
-  var __firefoxMouseX, __firefoxMouseY;
-  function firefoxDragMoveHandler(evt) {
-    __firefoxMouseX = evt.clientX;
-    __firefoxMouseY = evt.clientY;
-  }
-  if(navigator.userAgent.indexOf("Firefox") !== -1) {
-    document.body.addEventListener("dragover", firefoxDragMoveHandler, false);
   }
 
   //---------------------------------------------------------
@@ -3763,6 +3764,9 @@ module drawn {
   //---------------------------------------------------------
   client.setDispatch(dispatch);
   client.afterInit(() => {
+    initRenderer();
+    initLocalstate();
+    initInputHandling();
     api.checkVersion(maybeShowUpdate);
     loadPositions();
     render();
