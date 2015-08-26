@@ -36,7 +36,6 @@ fn write_events(filename: &str, events: &[Event]) {
 
 fn all_filenames() -> Vec<String> {
     let mut filenames = vec![];
-    filenames.push("./bootstrap".to_owned());
     for entry in walk_dir("./test-inputs").unwrap() {
         filenames.push(entry.unwrap().path().to_str().unwrap().to_owned());
     }
@@ -85,10 +84,8 @@ fn reset_internal_views() {
 }
 
 fn compact(filename: &str) {
-    let bootstrap_events = read_events("./bootstrap");
-    let events = read_events(&filename[..]);
     let mut flow = Flow::new();
-    for event in bootstrap_events.into_iter().chain(events.into_iter()) {
+    for event in read_events(&filename[..]).into_iter() {
         flow.quiesce(event.changes);
     }
     // TODO session is blank which doesn't seem to matter because it is never used
@@ -105,10 +102,8 @@ fn make_bug_test() {
 }
 
 fn make_regression_test() {
-    let bootstrap_events = read_events("./bootstrap");
-    let events = read_events("./autosave");
     let mut flow = Flow::new();
-    for event in bootstrap_events.into_iter().chain(events.into_iter()) {
+    for event in read_events("./autosave").into_iter() {
         flow.quiesce(event.changes);
     }
     let time = time::get_time().sec;
@@ -128,16 +123,13 @@ fn test_examples() {
         let output_filename = output_entry.unwrap().path().to_str().unwrap().to_owned();
         println!("Testing {:?} against {:?}", input_filename, output_filename);
 
-        let bootstrap_events = read_events("./bootstrap");
-        let input_events = read_events(&input_filename[..]);
         let mut input_flow = Flow::new();
-        for event in bootstrap_events.into_iter().chain(input_events.into_iter()) {
+        for event in read_events(&input_filename[..]).into_iter() {
             input_flow.quiesce(event.changes);
         }
 
-        let output_events = read_events(&output_filename[..]);
         let mut output_flow = Flow::new();
-        for event in output_events.into_iter() {
+        for event in read_events(&output_filename[..]).into_iter() {
             output_flow.change(event.changes);
         }
 
