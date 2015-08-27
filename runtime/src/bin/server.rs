@@ -1,4 +1,5 @@
  #![feature(core)]
+ #![feature(path_ext)]
 extern crate eve;
 extern crate getopts;
 extern crate url;
@@ -6,9 +7,8 @@ extern crate core;
 
 use std::thread;
 use std::env;
-
+use std::fs::PathExt;
 use getopts::Options;
-
 use std::net::SocketAddr;
 use core::str::FromStr;
 
@@ -23,7 +23,7 @@ fn main() {
 
 	// define the command line arguments
 	let mut opts = Options::new();
-    opts.optopt("f", "faddress", "specify a socket address for the static file server. Defaults to 0.0.0.0:8080","SOCKET ADDRESS");
+    opts.optopt("f", "file-server-address", "specify a socket address for the static file server. Defaults to 0.0.0.0:8080","SOCKET ADDRESS");
     opts.optopt("s", "saves", "specify the location of the saves directory","PATH");
     opts.optflag("h", "help", "prints all options and usage");
 
@@ -56,11 +56,12 @@ fn main() {
 
 	// parse the autosave file location
     let default_saves_dir = "../saves/".to_owned();
-    let autosave = match matches.opt_str("s") {
-		Some(path) => path,
+    let saves_dir = match matches.opt_str("s") {
+		Some(saves_dir) => saves_dir,
 		None => default_saves_dir,
 	};
+    let absolute_saves_dir = env::current_dir().unwrap().join(saves_dir).canonicalize().unwrap();
 
 	thread::spawn(move || login::run(addr.clone()));
-    server::run(&*autosave);
+    server::run(absolute_saves_dir.as_path());
 }
