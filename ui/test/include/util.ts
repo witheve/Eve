@@ -63,30 +63,37 @@ module Test {
       }
     },
     item: {
-      select(kind?:string, ix?:number):Selector {
-        let semantic = kind ? `[data-semantic="item::${kind}"]` : `[data-semantic^="item"]`;
+      select(kind?:string|string[], ix?:number, within?:string):Selector {
+        let kinds:string[] = (typeof kind === "string") ? [kind] : kind;
+        let semantic = (kinds && kinds.length) ? `[data-semantic^="item::${kinds.join("::")}"]` : `[data-semantic^="item"]`;
         let nthChild = (ix !== undefined) ? `:nth-child(${ix})` : "";
-        return semantic + nthChild;
+        return (within ? within + " " : "") + semantic + nthChild;
       },
-      count(kind?:string):number {
-        let sel = util.item.select(kind);
+      count(kind?:string, within?:string):number {
+        let sel = util.item.select(kind, undefined, within);
         if(!casper.exists(sel)) { return 0; }
         let elems = casper.getElementsBounds(sel);
         return elems.length;
       },
-      selection(kind?:string, ix?:number):Selector {
-        return util.item.select(kind, ix) + ".selected";
+      selection(kind?:string, ix?:number, within?:string):Selector {
+        return util.item.select(kind, ix, within) + ".selected";
       },
-      selectionCount(kind?:string):number {
-        let sel = util.item.selection(kind);
+      selectionCount(kind?:string, within?:string):number {
+        let sel = util.item.selection(kind, undefined, within);
+        if(!casper.exists(sel)) { return 0; }
+        let elems = casper.getElementsAttribute(sel, "class");
+        return elems.length;
+      },
+      selected(kind?:string, ix?:number, within?:string):boolean {
+        let sel = util.item.select(kind, ix, within);
+        if(!casper.exists(sel)) { throw new Error(`Item ${kind} ${ix} does not exist, cannot be selected.`); }
         let classes = casper.getElementsAttribute(sel, "class");
-        let count = 0;
         for(let klass of classes) {
-          if(klass.indexOf("selected") !== -1) {
-            count++;
+          if(klass.indexOf("selected") === -1) {
+            return false;
           }
         }
-        return count;
+        return true;
       }
     },
 
