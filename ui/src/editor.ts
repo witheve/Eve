@@ -2886,7 +2886,7 @@ module drawn {
       content.push(filterUi);
     }
 
-    var elem = {c: "madlib " + klass, selected: uiSelected, width, height,
+    var elem = {c: "item " + klass, selected: uiSelected, width, height,
                 mousedown: selectNode, draggable: true, dragstart: storeDragOffset,
                 drag: setNodePosition, dragend: finalNodePosition, node: curNode, text};
 
