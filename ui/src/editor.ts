@@ -2287,7 +2287,7 @@ module drawn {
   // Left toolbar component
   //---------------------------------------------------------
 
-  function leftToolbar(actions, disabled = {}, extraKeys = {}) {
+  export function leftToolbar(actions, disabled = {}, extraKeys = {}) {
     var tools = [];
     let postSpacer = [];
     for(let actionName in actions) {
@@ -2509,7 +2509,7 @@ module drawn {
   // Tooltip component
   //---------------------------------------------------------
 
-  function tooltipUi(): any {
+  export function tooltipUi(): any {
     let tooltip = localState.tooltip;
     if(tooltip) {
       let viewHeight = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
@@ -2536,7 +2536,7 @@ module drawn {
   // Notice component
   //---------------------------------------------------------
 
-  function notice() {
+  export function notice() {
     let noticeItems = [];
     for(let noticeId in localState.notices) {
       let notice = localState.notices[noticeId];
@@ -2886,12 +2886,9 @@ module drawn {
       content.push(filterUi);
     }
 
-    let elemChildren = [];
-    elemChildren.push({text: "yo"});
-
     var elem = {c: "madlib " + klass, selected: uiSelected, width, height,
                 mousedown: selectNode, draggable: true, dragstart: storeDragOffset,
-                drag: setNodePosition, dragend: finalNodePosition, node: curNode, children: elemChildren};
+                drag: setNodePosition, dragend: finalNodePosition, node: curNode, text};
 
     // if it's an attribute, it can be renamed by doubleClicking
     if(curNode.type === "attribute") {
