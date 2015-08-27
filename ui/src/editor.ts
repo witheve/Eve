@@ -2346,6 +2346,7 @@ module drawn {
     // add the settings at the very end
     tools.push({c: "tool ion-gear-b",
                 title: "Settings",
+                semantic: "action::settings",
                 mouseover: showButtonTooltip,
                 mouseout: hideButtonTooltip,
                 click: openSettings,
@@ -2390,7 +2391,7 @@ module drawn {
       content: function() {
         let saves = localState.saves || [];
         let selected = localState.selectedSave;
-        return [
+        return {semantic: "pane::save", children: [
 
           (saves.length ? {children: [
             {t: "h3", text: "Recent"},
@@ -2410,7 +2411,7 @@ module drawn {
             {c: "button", text: "Save to gist (remote)", click: saveToGist},
             {c: "button", text: "Save to file (local)", click: overwriteSave},
           ]}
-        ];
+        ]};
       }
     },
     "load": {
@@ -2418,7 +2419,7 @@ module drawn {
       content: function() {
         let saves = localState.saves || [];
         let selected = localState.selectedSave;
-        return [
+        return {semantic: "pane::load", children: [
           {c: "input-row", children: [
             {c: "label", text: "url"},
             {t: "input", type: "text", input: setSaveLocation, value: localState.selectedSave},
@@ -2428,7 +2429,7 @@ module drawn {
             {t: "input", type: "file", change: setSaveFile},
             {c: "button", text: "Load from file (local)", click: loadSave},
           ]}
-        ]
+        ]};
       }
     },
     "preferences": {
@@ -2447,12 +2448,10 @@ module drawn {
         } else {
           theme = {c: `button ${curTheme}`, click: toggleTheme, text: "Dark"};
         }
-        return [
-          {c: "preferences", children: [
-            theme,
-            showHidden,
-          ]}
-        ];
+        return {c: "preferences", semantic: "pane::preferences", children: [
+          theme,
+          showHidden,
+        ]};
       }
     }
   };
@@ -2469,12 +2468,12 @@ module drawn {
     let current = settingsPanes[localState.currentTab] ? localState.currentTab : "preferences";
     let tabs = [];
     for(let tab in settingsPanes) {
-      tabs.push({c: (tab === current) ? "tab active" : "tab", tab, text: settingsPanes[tab].title, click: switchTab});
+      tabs.push({c: (tab === current) ? "tab selected" : "tab", tab, text: settingsPanes[tab].title, click: switchTab});
     }
 
-    return {c: "settings-panel tabbed-box", children: [
+    return {c: "settings-panel tabbed-box", semantic: "pane::settings", children: [
       {c: "tabs", children: tabs.concat({c: "flex-spacer"}, {c: "ion-close tab", click: closeTooltip})},
-      {c: "pane", children: settingsPanes[current].content()}
+      {c: "pane", children: [settingsPanes[current].content()]}
     ]};
   }
 
@@ -2610,9 +2609,9 @@ module drawn {
 
   function importPanel() {
     let current = "csv";
-    return {c: "import-panel tabbed-box", children: [
+    return {c: "import-panel tabbed-box", semantic: "pane::import", children: [
       {c: "tabs", children: [
-        {c:  ("csv" === current) ? "tab active" : "tab", text: "CSV"},
+        {c:  ("csv" === current) ? "tab selected" : "tab", text: "CSV"},
         {c: "flex-spacer"}, {c: "ion-close tab", click: closeTooltip}]},
       {c: "pane", children: (localState.importing) ?
         [{text: "importing..."}] :

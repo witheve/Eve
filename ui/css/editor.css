@@ -165,7 +165,7 @@ input[type="text"], textarea { font-family: "Lato"; font-size: 16px; }
 
 .tabbed-box .tabs { flex-direction: row; margin-bottom: -1px; background: #404040; border-top:1px solid #3c3c3c; border-radius:3px 3px 0 0; }
 .tabbed-box .tabs > .tab { padding: 8px 15px; font-size: 16px; cursor: default; }
-.tabbed-box .tabs > .tab.active { background: #555; border-bottom: 0px solid #777; border-top-left-radius: 3px; border-top-right-radius: 3px; }
+.tabbed-box .tabs > .tab.selected { background: #555; border-bottom: 0px solid #777; border-top-left-radius: 3px; border-top-right-radius: 3px; }
 .tabbed-box .pane { flex-grow: 1; justify-content: center; padding: 15px; overflow-y: auto; border-bottom-left-radius: 3px; border-bottom-right-radius: 3px; }
 .tabbed-box .preferences { flex-direction: row; }
 
@@ -389,7 +389,7 @@ input[type="text"], textarea { font-family: "Lato"; font-size: 16px; }
 .light .sorter .sort-direction { color: #aaa; }
 
 .light .tabbed-box .tabs { background: rgb(240,240,240); border-color: rgb(230,230,230); }
-.light .tabbed-box .tabs > .tab.active { background: #fff; }
+.light .tabbed-box .tabs > .tab.selected { background: #fff; }
 .light .tabbed-box input[type="text"] { border-color: #eee; }
 .light .tabbed-box .button, .light .form .button { font-weight: bold; color: #FFF; background: rgb(64,160,221); }
 .light .tabbed-box .button:hover, .light .form .button:hover { background: rgb(91,89,164); }
