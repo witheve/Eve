@@ -13,7 +13,7 @@ use std::net::SocketAddr;
 use core::str::FromStr;
 
 use eve::server;
-use eve::login;
+use eve::static_server;
 
 #[allow(dead_code)]
 fn main() {
@@ -54,7 +54,7 @@ fn main() {
 		None => default_addr,
 	};
 
-	// parse the autosave file location
+	// parse the saves directory
     let default_saves_dir = "../saves/".to_owned();
     let saves_dir = match matches.opt_str("s") {
 		Some(saves_dir) => saves_dir,
@@ -62,6 +62,6 @@ fn main() {
 	};
     let absolute_saves_dir = env::current_dir().unwrap().join(saves_dir).canonicalize().unwrap();
 
-	thread::spawn(move || login::run(addr.clone()));
+	thread::spawn(move || static_server::run(addr.clone()));
     server::run(absolute_saves_dir.as_path());
 }
