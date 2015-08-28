@@ -2599,24 +2599,23 @@ module drawn {
     dispatch("showTooltip", tooltip);
   }
 
+  let importPanes:ui.Pane[] = [
+    {id: "csv", title: "CSV", content: function() {
+      return {semantic: "pane::csv", children: [
+        {t: "input", type: "file", change: updateCsvFile},
+        {c: "flex-row spaced-row", children: [
+          {text: "Treat first row as header"},
+          {t: "input", type: "checkbox", change: updateCsvHasHeader}
+        ]},
+        {c: "button", text: "Import", click: importFromCsv}
+      ]};
+    }}
+  ];
+
   function importPanel() {
-    let current = "csv";
-    return {c: "import-panel tabbed-box", semantic: "pane::import", children: [
-      {c: "tabs", children: [
-        {c:  ("csv" === current) ? "tab selected" : "tab", text: "CSV"},
-        {c: "flex-spacer"}, {c: "ion-close tab", click: closeTooltip}]},
-      {c: "pane", children: (localState.importing) ?
-        [{text: "importing..."}] :
-        [
-          {t: "input", type: "file", change: updateCsvFile},
-          {c: "flex-row spaced-row", children: [
-            {text: "Treat first row as header"},
-            {t: "input", type: "checkbox", change: updateCsvHasHeader}
-          ]},
-          {c: "button", text: "Import", click: importFromCsv}
-        ]
-      }
-    ]};
+    return ui.tabbedBox(
+      {id: "import-pane", semantic: "pane::import", defaultTab: "csv", panes: importPanes, controls: [{c: "ion-close tab", click: closeTooltip}]}
+    );
   }
 
   function updateCsvFile(evt, elem) {
