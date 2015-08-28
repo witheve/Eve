@@ -1,4 +1,103 @@
 module microReact {
+  export interface Handler<T extends Event> {
+    (evt:T, elem:Element): void
+  }
+  export interface RenderHandler {
+    (node:HTMLElement, elem:Element): void
+  }
+
+  export interface Element {
+    t?:string
+    c?:string
+    id?:string
+    parent?:string
+    children?:Element[]
+    ix?:number
+    key?:string
+    semantic?:string
+    debug?:any
+
+    // Content
+    contentEditable?:boolean
+    checked?:boolean
+    draggable?:boolean
+    href?:string
+    placeholder?:string
+    selected?:boolean
+    tabindex?:number
+    text?:string
+    type?:string
+    value?:string
+
+    // Styles (Structure)
+    left?:number|string
+    top?:number|string
+    width?:number|string
+    height?:number|string
+    textAlign?:string
+    transform?:string
+    verticalAlign?:string
+    zIndex?:number
+
+    // Styles (Aesthetic)
+    backgroundColor?:string
+    backgroundImage?:string
+    border?:string
+    borderColor?:string
+    borderWidth?:number|string
+    borderRadius?:number|string
+    color?:string
+    colspan?:number
+    fontFamily?:string
+    fontSize?:string
+    opacity?:number
+
+    // Svg
+    svg?:boolean
+    x?:number|string
+    y?:number|string
+    dx?:number|string
+    dy?:number|string
+    cx?:number|string
+    cy?:number|string
+    r?:number|string
+    d?:number|string
+    fill?:string
+    stroke?:string
+    strokeWidth?:string
+    startOffset?:number|string
+    textAnchor?:string
+    viewBox?:string
+    xlinkhref?:string
+
+    // Events
+    dblclick?:Handler<MouseEvent>
+    click?:Handler<MouseEvent>
+    contextmenu?:Handler<MouseEvent>
+    mousedown?:Handler<MouseEvent>
+    mousemove?:Handler<MouseEvent>
+    mouseup?:Handler<MouseEvent>
+    mouseover?:Handler<MouseEvent>
+    mouseout?:Handler<MouseEvent>
+    mouseleave?:Handler<MouseEvent>
+    mousewheel?:Handler<MouseEvent>
+    dragover?:Handler<MouseEvent>
+    dragstart?:Handler<MouseEvent>
+    dragend?:Handler<MouseEvent>
+    drag?:Handler<MouseEvent>
+    drop?:Handler<MouseEvent>
+    scroll?:Handler<MouseEvent>
+    focus?:Handler<FocusEvent>
+    blur?:Handler<FocusEvent>
+    input?:Handler<Event>
+    change?:Handler<Event>
+    keyup?:Handler<KeyboardEvent>
+    keydown?:Handler<KeyboardEvent>
+
+    postRender?:RenderHandler
+
+    [attr:string]: any
+  }
 
   function now() {
     if(window.performance) {
@@ -21,10 +120,10 @@ module microReact {
 
   export class Renderer {
     content: HTMLElement;
-    elementCache: {};
-    prevTree: {};
-    tree: {};
-    postRenders: string[];
+    elementCache: {[id:string]: HTMLElement};
+    prevTree:{[id:string]: Element};
+    tree:{[id:string]: Element};
+    postRenders: Element[];
     lastDiff: {adds: string[], updates: {}};
     queued: boolean;
     handleEvent: (any);
@@ -37,8 +136,8 @@ module microReact {
       this.postRenders = [];
       this.lastDiff = {adds: [], updates: {}};
       var self = this;
-      this.handleEvent = function handleEvent(e: any) {
-        var id = (e.currentTarget || e.target)._id;
+      this.handleEvent = function handleEvent(e: Event) {
+        var id = (e.currentTarget || e.target)["_id"];
         var elem = self.tree[id];
         if (!elem) return;
         var handler = elem[e.type];
@@ -52,7 +151,7 @@ module microReact {
     }
 
     domify() {
-      var fakePrev = {}; //create an empty object once instead of every instance of the loop
+      var fakePrev:Element = {}; //create an empty object once instead of every instance of the loop
       var elements = this.tree;
       var prevElements = this.prevTree;
       var diff = this.lastDiff;
@@ -241,6 +340,8 @@ module microReact {
            && curA.href === curB.href
            && curA.placeholder === curB.placeholder
            && curA.selected === curB.selected
+           && curA.draggable === curB.draggable
+           && curA.contentEditable === curB.contentEditable
            && curA.value === curB.value
            && curA.type === curB.type
            && curA.checked === curB.checked
@@ -254,6 +355,7 @@ module microReact {
            && curA.backgroundImage === curB.backgroundImage
            && curA.color === curB.color
            && curA.colspan === curB.colspan
+           && curA.border === curB.border
            && curA.borderColor === curB.borderColor
            && curA.borderWidth === curB.borderWidth
            && curA.borderRadius === curB.borderRadius
@@ -261,6 +363,7 @@ module microReact {
            && curA.fontFamily === curB.fontFamily
            && curA.fontSize === curB.fontSize
            && curA.textAlign === curB.textAlign
+           && curA.transform === curB.transform
            && curA.verticalAlign === curB.verticalAlign
            && curA.semantic === curB.semantic
            && curA.debug === curB.debug
@@ -276,7 +379,10 @@ module microReact {
                && curA.fill === curB.fill
                && curA.stroke === curB.stroke
                && curA.strokeWidth === curB.strokeWidth
-               && curA.xlinkhref !== curB.xlinkhref
+               && curA.startOffset === curB.startOffset
+               && curA.textAnchor === curB.textAnchor
+               && curA.viewBox === curB.viewBox
+               && curA.xlinkhref === curB.xlinkhref
                ))) {
           continue;
         }
@@ -295,11 +401,11 @@ module microReact {
       return this.lastDiff;
     }
 
-    prepare(root) {
+    prepare(root:Element) {
       var elemLen = 1;
       var tree = this.tree;
       var elements = [root];
-      var elem: any;
+      var elem:Element;
       for(var elemIx = 0; elemIx < elemLen; elemIx++) {
         elem = elements[elemIx];
         if(elem.parent === undefined) elem.parent = "__root";
@@ -328,7 +434,7 @@ module microReact {
       var diff = this.lastDiff.updates;
       var elementCache = this.elementCache;
       for(var i = 0, len = postRenders.length; i < len; i++) {
-        var elem: any = postRenders[i];
+        var elem = postRenders[i];
         var id = elem.id;
         if(diff[id] === "updated" || diff[id] === "added") {
           elem.postRender(elementCache[elem.id], elem);
