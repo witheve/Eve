@@ -1,4 +1,5 @@
 /// <reference path="microReact.ts" />
+/// <reference path="ui.ts" />
 /// <reference path="api.ts" />
 /// <reference path="client.ts" />
 /// <reference path="tableEditor.ts" />
@@ -2380,8 +2381,9 @@ module drawn {
     dispatch("hideTooltip", {});
   }
 
-  let settingsPanes = {
-    "save": {
+  let settingsPanes:ui.Pane[] = [
+    {
+      id: "save",
       title: "Save",
       content: function() {
         let saves = localState.saves || [];
@@ -2409,7 +2411,8 @@ module drawn {
         ]};
       }
     },
-    "load": {
+    {
+      id: "load",
       title: "Load",
       content: function() {
         let saves = localState.saves || [];
@@ -2427,9 +2430,10 @@ module drawn {
         ]};
       }
     },
-    "preferences": {
+    {
+      id: "preferences",
       title: "Preferences",
-      content: () =>  {
+      content: () => {
         let showHidden;
         if(localStorage["showHidden"]) {
           showHidden = {c: "button", click: toggleHidden, text: "Hide hidden"};
@@ -2449,7 +2453,7 @@ module drawn {
         ]};
       }
     }
-  };
+  ];
 
   function toggleHidden(e, elem) {
     dispatch("toggleHidden", {});
@@ -2460,16 +2464,9 @@ module drawn {
   }
 
   function settingsPanel() {
-    let current = settingsPanes[localState.currentTab] ? localState.currentTab : "preferences";
-    let tabs = [];
-    for(let tab in settingsPanes) {
-      tabs.push({c: (tab === current) ? "tab selected" : "tab", tab, text: settingsPanes[tab].title, click: switchTab});
-    }
-
-    return {c: "settings-panel tabbed-box", semantic: "pane::settings", children: [
-      {c: "tabs", children: tabs.concat({c: "flex-spacer"}, {c: "ion-close tab", click: closeTooltip})},
-      {c: "pane", children: [settingsPanes[current].content()]}
-    ]};
+    return ui.tabbedBox(
+      {id: "settings-pane", semantic: "pane::settings", defaultTab: "preferences", panes: settingsPanes, controls: [{c: "ion-close tab", click: closeTooltip}]}
+    );
   }
 
   function switchTab(evt, elem) {
@@ -3763,6 +3760,7 @@ module drawn {
     initRenderer();
     initLocalstate();
     initInputHandling();
+    ui.init(localState, render);
     api.checkVersion(maybeShowUpdate);
     loadPositions();
     render();
