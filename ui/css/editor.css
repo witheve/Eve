@@ -22,7 +22,9 @@ body * { display: flex; flex-direction:column; box-sizing: border-box; outline:n
 ---------------------------------------------------------*/
 
 .spaced-row > * + * { margin-left: 5px; }
-.flex-row { flex-direction: row; align-items: center; }
+.flex-row { display: flex; flex-direction: row; }
+.flex-column { display: flex; flex-direction: column; }
+.flex-row > *, .flex-column > * { display: flex; }
 .flex-spacer { flex: 1; }
 .full-flex { flex: 1; }
 .flex-center { align-self: stretch; justify-content: center; align-items: center; }

@@ -93,7 +93,7 @@ module ui {
 
     for(let pane of panes) {
       let isSelected = (pane.id === selected);
-      tabs.push(inject({c: isSelected ? "tab selected" : "tab", tab: pane.id, tabbedBox: id, semantic: "item::tab::" + pane.id, click: _switchTab}, pane.title));
+      tabs.push(inject({c: isSelected ? "tab selected" : "tab", tab: pane.id, tabbedBox: id, semantic: "item::tab::" + pane.id, click: switchTab}, pane.title));
       if(isSelected) {
         currentPane = pane;
       }
@@ -106,8 +106,18 @@ module ui {
     return elem;
   }
 
-  function _switchTab(evt, elem) {
+  function switchTab(evt, elem) {
     dispatch("switchTab", {tabbedBox: elem.tabbedBox, tab: elem.tab});
+  }
+
+  export function horizontal(elem:Element):Element {
+    elem.c = (elem.c) ? "flex-row " + elem.c : "flex-row";
+    return elem;
+  }
+
+  export function vertical(elem:Element):Element {
+    elem.c = (elem.c) ? "flex " + elem.c : "flex";
+    return elem;
   }
 
   //---------------------------------------------------------
@@ -116,6 +126,28 @@ module ui {
   export function button(elem:Element):Element {
     elem.c = (elem.c) ? "button " + elem.c : "button";
     elem.t = "button";
+    return elem;
+  }
+
+  interface TextInputElement extends Element {
+    multiline?:boolean
+  }
+  export function input(elem:TextInputElement) {
+    let {multiline} = elem;
+    if(multiline) {
+      elem.t = "textarea";
+    } else {
+      elem.t = "input";
+      elem.type = "text";
+    }
+    return elem;
+  }
+
+  //---------------------------------------------------------
+  // Components
+  //---------------------------------------------------------
+  export function spacer(elem:Element = {}):Element {
+    elem.c = (elem.c) ? "flex-spacer " + elem.c : "flex-spacer";
     return elem;
   }
 }
