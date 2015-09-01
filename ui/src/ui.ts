@@ -38,7 +38,6 @@ module ui {
     return elem;
   }
 
-
   //---------------------------------------------------------
   // Dispatcher
   //---------------------------------------------------------
@@ -109,5 +108,14 @@ module ui {
 
   function _switchTab(evt, elem) {
     dispatch("switchTab", {tabbedBox: elem.tabbedBox, tab: elem.tab});
+  }
+
+  //---------------------------------------------------------
+  // Inputs
+  //---------------------------------------------------------
+  export function button(elem:Element):Element {
+    elem.c = (elem.c) ? "button " + elem.c : "button";
+    elem.t = "button";
+    return elem;
   }
 }
