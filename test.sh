@@ -74,7 +74,7 @@ if [[ $mode == "server" ]]; then
 fi
 
 echo "* Checking if runtime server is up..."
-ps aux | grep [t]arget/debug/server
+ps aux | grep '[t]arget/\(debug\|release\)/server'
 if [ $? -ne 0 ]; then
   echo "Please run the runtime server separately and rerun the test suite after it has fully started."
   exit
