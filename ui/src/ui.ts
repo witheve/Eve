@@ -29,7 +29,7 @@ module ui {
   //---------------------------------------------------------
   // Utilities
   //---------------------------------------------------------
-  function injectContent(elem:Element, content:Content):Element {
+  function inject(elem:Element, content:Content):Element {
     if(typeof content === "string") {
       elem.text = content;
     } else if(typeof content === "function") {
@@ -94,7 +94,7 @@ module ui {
 
     for(let pane of panes) {
       let isSelected = (pane.id === selected);
-      tabs.push(injectContent({c: isSelected ? "tab selected" : "tab", tab: pane.id, tabbedBox: id, click: _switchTab}, pane.title));
+      tabs.push(inject({c: isSelected ? "tab selected" : "tab", tab: pane.id, tabbedBox: id, semantic: "item::tab::" + pane.id, click: _switchTab}, pane.title));
       if(isSelected) {
         currentPane = pane;
       }
@@ -102,7 +102,7 @@ module ui {
     elem.c = "tabbed-box" + (elem.c ? " " + elem.c : "");
     elem.children = [
       {c: "tabs", children: tabs.concat({c: "flex-spacer"}).concat(controls)},
-      injectContent({c: "pane"}, currentPane.content)
+      inject({c: "pane"}, currentPane.content)
     ];
     return elem;
   }
