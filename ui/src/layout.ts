@@ -6,6 +6,7 @@ module graphLayout {
     y?: number
     width?: number
     height?: number
+    [attr:string]: any
   }
 
   export interface Edge { source: string, target: string }
