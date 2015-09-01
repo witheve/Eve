@@ -64,13 +64,14 @@ module uiEditorRenderer {
     }
   }
 
-  function rendererRoot() {
+  function rendererRoot():microReact.Element {
+    let componentId:string;
     if(dispatcher.isApp) {
       //in an app we check the active page
-      var componentId = ixer.index("active page")[session];
+      componentId = <string>ixer.index("active page")[session];
     } else {
       //we're in the editor, so we render based on what the active item is
-      var componentId = <any>code.activeItemId();
+      componentId = <string>code.activeItemId();
     }
     var parentLayerIndex = ixer.index("parentLayerToLayers");
     var layers = parentLayerIndex[componentId];
