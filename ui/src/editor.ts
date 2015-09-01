@@ -2216,8 +2216,8 @@ module drawn {
           {c: "query-selector", children: queries}
           : {c: "full-flex flex-center", children: [
             {c: "flex-row spaced-row", children: [
-              {text: "Click"}, {t: "button", c: "button", text: "New", click: startCreating}, {text: "or"},
-              {t: "button", c: "button", text: "Import", click: openImporter}, {text: "to begin working with Eve"}
+              {text: "Click"}, ui.button({text: "New", click: startCreating}), {text: "or"},
+              ui.button({text: "Import", click: openImporter}), {text: "to begin working with Eve"}
             ]}
           ]}
       ]}
@@ -2405,8 +2405,8 @@ module drawn {
             {t: "input", type: "text", input: setSaveLocation, value: localState.selectedSave},
           ]},
           {c: "flex-row", children: [
-            {c: "button", text: "Save to gist (remote)", click: saveToGist},
-            {c: "button", text: "Save to file (local)", click: overwriteSave},
+            ui.button({text: "Save to gist (remote)", click: saveToGist}),
+            ui.button({text: "Save to file (local)", click: overwriteSave}),
           ]}
         ]};
       }
@@ -2421,11 +2421,11 @@ module drawn {
           {c: "input-row", children: [
             {c: "label", text: "url"},
             {t: "input", type: "text", input: setSaveLocation, value: localState.selectedSave},
-            {c: "button", text: "Load from gist (remote)", click: loadFromGist}
+            ui.button({text: "Load from gist (remote)", click: loadFromGist})
           ]},
           {c: "input-row", children: [
             {t: "input", type: "file", change: setSaveFile},
-            {c: "button", text: "Load from file (local)", click: loadSave},
+            ui.button({text: "Load from file (local)", click: loadSave}),
           ]}
         ]};
       }
@@ -2436,9 +2436,9 @@ module drawn {
       content: () => {
         let showHidden;
         if(localStorage["showHidden"]) {
-          showHidden = {c: "button", click: toggleHidden, text: "Hide hidden"};
+          showHidden = ui.button({click: toggleHidden, text: "Hide hidden"});
         } else {
-          showHidden = {c: "button", click: toggleHidden, text: "Show hidden"};
+          showHidden = ui.button({click: toggleHidden, text: "Show hidden"});
         }
         let theme;
         let curTheme = localStorage["theme"];
@@ -2607,7 +2607,7 @@ module drawn {
           {text: "Treat first row as header"},
           {t: "input", type: "checkbox", change: updateCsvHasHeader}
         ]},
-        {c: "button", text: "Import", click: importFromCsv}
+        ui.button({text: "Import", click: importFromCsv})
       ]};
     }}
   ];
@@ -2849,7 +2849,7 @@ module drawn {
         }
         content.push({c: "error-description", children: [
           {text: curNode.error},
-          {c: "button", node: curNode, text: "remove", click: action},
+          ui.button({node: curNode, text: "remove", click: action}),
         ]});
       }
     }
@@ -3583,7 +3583,7 @@ module drawn {
         {c: "form-description", contentEditable: true, blur: setQueryDescription, viewId: tableId, text: getDescription(tableId)},
         {c: "form-fields", children: fields},
         sizeUi,
-        {c: "button", click: submitTableEntry, text: "Submit"}
+        ui.button({click: submitTableEntry, text: "Submit"})
       ]},
     ]};
   }
