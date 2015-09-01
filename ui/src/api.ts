@@ -360,7 +360,7 @@ module api {
     return query;
   }
 
-  export function process(type:string, params, context?:Context, useIds = false): Write<any> {
+  export function process(type:string, params, context:Context = {}, useIds = false): Write<any> {
     if(!params) { return; }
     if(params instanceof Array) {
       var write = {type: type, content: [], context: []};
@@ -372,9 +372,8 @@ module api {
       return write;
     }
 
-    var schema = schemas[type] || {};
+    var schema:Schema = schemas[type] || {};
     if(!params) { throw new Error("Invalid params specified for type " + type + " with params " + JSON.stringify(params)); }
-    if(!context) { context = {}; } // @NOTE: Should we clone this? If so, should we clone params as well?
 
     // Link foreign keys from context if missing.
     if(schema.foreign) {
@@ -421,9 +420,8 @@ module api {
     return {type: type, content: params, context: context};
   }
 
-  export function retrieve(type:string, query:{[key:string]:string}, context?, useIds = false) {
-    context = context || {};
-    var schema = schemas[type] || {};
+  export function retrieve(type:string, query:{[key:string]:string}, context:Context = {}, useIds = false) {
+    var schema:Schema = schemas[type] || {};
     var keys:string[] = (schema.key instanceof Array) ? <string[]>schema.key : (schema.key) ? [<string>schema.key] : [];
     var facts = useIds ? ixer.select(type, query, useIds) : ixer.selectPretty(type, query);
 
