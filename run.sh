@@ -2,6 +2,7 @@
 
 waitUrl="$(pwd)/ui/waiting-room.html"
 rustVersion="nightly-2015-08-10"
+tscVersion="1.6.0-dev.20150731"
 tscBin="`pwd`/ui/node_modules/typescript/bin/tsc"
 debugFlag=false
 noBrowserFlag=false
@@ -40,15 +41,25 @@ printf "* Checking dependencies..."
 deps="multirust $tscBin"
 for dep in $deps; do
   if ! which "$dep" &> /dev/null; then
-    printf "\n  x Please install %s: " "$dep"
+    printf "\n  x Please install $dep:\n"
     if [ "$dep" = "$tscBin" ]; then
-      echo "cd ui && npm install && cd .."
+      echo "    cd ui && npm install && cd .."
     elif [ "$dep" = "multirust" ]; then
-      echo "./install-multirust"
+      echo "    ./install-multirust"
     fi
     exit 1
   fi
 done
+
+# Check tsc version
+version=$($tscBin --version)
+if [[ "$version" != *"Version $tscVersion"* ]]; then
+  echo ""
+  echo "  x Eve requires tsc version \"$tscVersion\" but \"$version\" is installed. Please reinstall using:"
+  echo "    cd ui && npm install && cd .. before continuing."
+  exit 1
+fi
+
 echo "done."
 
 # Try using the TypeScript compiler (tsc) to compile UI.
