@@ -232,7 +232,7 @@ module api {
         fields[ix] = [ixer.index("display order")[fieldId], fieldId];
       }
       fields.sort(function(a, b) {
-        var delta = b[0] - a[0];
+        var delta = a[0] - b[0];
         if(delta) { return delta; }
         else { return a[1].localeCompare(b[1]); }
       });
