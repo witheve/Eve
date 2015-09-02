@@ -52,6 +52,7 @@ module madlib {
       case "submitSearch":
         if(info.selected === NO_SELECTION) {
           // TODO: create a madlib
+          diffs = madlibFactsFromString(info.value);
         } else {
           console.log("do something with: ", info.completions[info.selected]);
         }
@@ -75,6 +76,32 @@ module madlib {
       }
       render();
     }
+    return diffs;
+  }
+
+  function madlibFactsFromString(str, viewKind = "table") {
+    let diffs = [];
+    let parts = str.split("_");
+    let viewId = uuid();
+    diffs.push(api.insert("view", {view: viewId, kind: viewKind}))
+    parts.forEach((part, ix) => {
+      let cleanedPart = part.trim();
+      // Empty strings occur when there's a blank at the beginning of the string,
+      // at the end of the string, or spaces in between blanks. In any of these
+      // cases we don't want a madlib string.
+      if(cleanedPart !== "") {
+        diffs.push(api.insert("madlib descriptor", {view: viewId, ix, content: cleanedPart}));
+      }
+      // if we're not looking at the last thing, then we have a field in between
+      // this and the next string
+      if(ix + 1 < parts.length) {
+        var neueField = api.insert("field", {view: viewId, kind: "output", dependents: {
+          "display name": {name: "blank"},
+          "display order": {priority: ix + 0.5},
+        }});
+        diffs.push(neueField);
+      }
+    });
     return diffs;
   }
 
@@ -144,21 +171,14 @@ module madlib {
     let completions = localState.search.completions;
     let selected = completions[localState.search.selected];
     let focus = false;
-    let currentMadlib;
-    if(localState.search.selected === NO_SELECTION) {
-      currentMadlib =  {t: "table", c: "madlib-table", children: [
-        {t: "tr", c: "madlib", children: [
-          {t: "td", c: "madlib-blank", children: [
-            {c: "madlib-text", postRender: drawn.focusOnce, contentEditable: true, text: searchValue, input: setMadlibSearch, keydown: cellKeyDown},
-          ]}
+    let currentMadlib =  {t: "table", c: "madlib-table", children: [
+      {t: "tr", c: "madlib", children: [
+        {t: "td", c: "madlib-blank", children: [
+          {c: "madlib-text", postRender: drawn.focusOnce, contentEditable: true, text: searchValue, input: setMadlibSearch, keydown: cellKeyDown},
         ]}
-      ]};
-    } else if(selected) {
-      currentMadlib = madlibForView(selected.viewId);
-      focus = true;
-    }
-    return {c: "madlib-searcher", key: localState.search.selected, postRender: focus ? (node) => {console.log("here"); node.focus()} : undefined,
-            tabindex: -1, keydown: cellKeyDown, children: [
+      ]}
+    ]};
+    return {c: "madlib-searcher", children: [
       currentMadlib,
       completionList(completions),
     ]};
@@ -179,7 +199,7 @@ module madlib {
       dispatch("searchSelect", {direction: -1});
       e.preventDefault();
     } else if(e.keyCode === api.KEYS.ENTER) {
-      dispatch("submitSearch", {selected: localState.search.selected, completions: localState.search.completions});
+      dispatch("submitSearch", {value: localState.search.value, selected: localState.search.selected, completions: localState.search.completions});
       e.preventDefault();
     }
     e.stopPropagation();
