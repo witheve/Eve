@@ -5,6 +5,5 @@ dependencies:
     - multirust default nightly-2015-08-10
 test:
   post:
-    - tsc --version
-    - pushd ui && tsc && popd
-    - pushd runtime && RUST_BACKTRACE=1 cargo test && popd
+    - cd ui && tsc
+    - cd runtime && RUST_BACKTRACE=1 cargo test
