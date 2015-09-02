@@ -1433,7 +1433,7 @@ pub fn bootstrap(flow: &mut Flow) {
                 field_table.index.insert(vec![string!("{}", view), string!("{}: {}", view, name), string!("output")]);
                 display_name_table.index.insert(vec![string!("{}: {}", view, name), string!("{}", name)]);
                 display_order_table.index.insert(vec![string!("{}: {}", view, name), Value::Float(ix as f64)]);
-                ix -= 1;
+                ix += 1;
             }
         }
 
@@ -1445,19 +1445,19 @@ pub fn bootstrap(flow: &mut Flow) {
                 field_table.index.insert(vec![string!("{}", primitive), string!("{}: {}", primitive, name), string!("scalar input")]);
                 display_name_table.index.insert(vec![string!("{}: {}", primitive, name), string!("{}", name)]);
                 display_order_table.index.insert(vec![string!("{}: {}", primitive, name), Value::Float(ix as f64)]);
-                ix -= 1;
+                ix += 1;
             }
             for name in vector_inputs.into_iter() {
                 field_table.index.insert(vec![string!("{}", primitive), string!("{}: {}", primitive, name), string!("vector input")]);
                 display_name_table.index.insert(vec![string!("{}: {}", primitive, name), string!("{}", name)]);
                 display_order_table.index.insert(vec![string!("{}: {}", primitive, name), Value::Float(ix as f64)]);
-                ix -= 1;
+                ix += 1;
             }
             for name in outputs.into_iter() {
                 field_table.index.insert(vec![string!("{}", primitive), string!("{}: {}", primitive, name), string!("output")]);
                 display_name_table.index.insert(vec![string!("{}: {}", primitive, name), string!("{}", name)]);
                 display_order_table.index.insert(vec![string!("{}: {}", primitive, name), Value::Float(ix as f64)]);
-                ix -= 1;
+                ix += 1;
             }
             view_description_table.index.insert(vec![string!("{}", primitive), string!("{}", description)]);
         }

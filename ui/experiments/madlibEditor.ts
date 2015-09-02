@@ -257,7 +257,7 @@ module madlib {
     madlibBlanks.sort((a, b) => {
       var aIx = a["madlib descriptor: ix"] || ixer.selectOne("display order", {id: a["field: field"]})["display order: priority"];
       var bIx = b["madlib descriptor: ix"] || ixer.selectOne("display order", {id: b["field: field"]})["display order: priority"];
-      return bIx - aIx;
+      return aIx - bIx;
     });
 
     let focused = false;
