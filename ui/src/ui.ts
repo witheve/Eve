@@ -1,5 +1,7 @@
 /// <reference path="./microReact.ts" />
 module ui {
+   declare var c3;
+  
   //---------------------------------------------------------
   // Types
   //---------------------------------------------------------
@@ -157,4 +159,16 @@ module ui {
     elem.c = (elem.c) ? "flex-spacer " + elem.c : "flex-spacer";
     return elem;
   }
+  
+  export function chart(elem:Element = {}):Element {
+    elem.postRender = function(chartNode,elem) {
+      let chartData = ['data2', 30, 200, 100, 400, 150, 250];
+      let chart = c3.generate({bindto: chartNode,data:{columns:[]}});
+      chart.load({columns:[chartData]})
+    }
+    
+    return elem;
+  }
+  
+  
 }
