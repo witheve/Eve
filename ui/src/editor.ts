@@ -3755,12 +3755,15 @@ module drawn {
   // Go!
   //---------------------------------------------------------
   client.setDispatch(dispatch);
+  if(!window["eveInitialized"]) {
+    initLocalstate();
+    window["eveInitialized"] = true;
+    api.checkVersion(maybeShowUpdate);
+  }
   client.afterInit(() => {
     initRenderer();
-    initLocalstate();
     initInputHandling();
     ui.init(localState, render);
-    api.checkVersion(maybeShowUpdate);
     loadPositions();
     render();
   });
