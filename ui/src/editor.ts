@@ -109,14 +109,14 @@ module drawn {
         e.preventDefault();
     }
 
-    function focusOnce(node, elem) {
+    export function focusOnce(node, elem) {
         if (!node.__focused) {
             node.focus();
             node.__focused = true;
-            if(elem.contentEditable && node.firstChild) {
+            if(elem.contentEditable) {
               let range = document.createRange();
-              range.setStart(node.firstChild, node.textContent.length);
-              range.setEnd(node.firstChild, node.textContent.length);
+              range.selectNodeContents(node);
+              range.collapse(false);
               let sel = window.getSelection();
               sel.removeAllRanges();
               sel.addRange(range);

@@ -36,6 +36,7 @@ module api {
   }
 
   export var KEYS = {
+    TAB: 9,
     BACKSPACE: 8,
     UP: 38,
     DOWN: 40,

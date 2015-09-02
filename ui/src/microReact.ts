@@ -214,7 +214,7 @@ module microReact {
         if(cur.value !== prev.value) div.value = cur.value;
         if(cur.t === "input" && cur.type !== prev.type) div.type = cur.type;
         if(cur.t === "input" && cur.checked !== prev.checked) div.checked = cur.checked;
-        if(cur.text !== prev.text) div.textContent = cur.text === undefined ? "" : cur.text;
+        if(cur.text !== prev.text && div.textContent !== cur.text) div.textContent = cur.text === undefined ? "" : cur.text;
         if(cur.tabindex !== prev.tabindex) div.setAttribute("tabindex", cur.tabindex);
         if(cur.href !== prev.href) div.setAttribute("href", cur.href);
 
