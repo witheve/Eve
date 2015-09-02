@@ -1,12 +1,12 @@
 machine:
   post:
-    - ./install-multirust.sh
+    - curl https://raw.githubusercontent.com/witheve/Eve/master/install-multirust.sh | sh
     - multirust default nightly-2015-08-10
 
 dependencies:
   post:
     - npm install -g typescript@next
-    
+
 test:
   post:
     - cd ui && tsc
