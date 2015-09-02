@@ -100,7 +100,7 @@ module ui {
     }
     elem.c = "tabbed-box" + (elem.c ? " " + elem.c : "");
     elem.children = [
-      {c: "tabs", children: tabs.concat({c: "flex-spacer"}).concat(controls)},
+      {c: "tabs", children: tabs.concat(ui.spacer()).concat(controls)},
       inject({c: "pane"}, currentPane.content)
     ];
     return elem;
@@ -116,7 +116,7 @@ module ui {
   }
 
   export function vertical(elem:Element):Element {
-    elem.c = (elem.c) ? "flex " + elem.c : "flex";
+    elem.c = (elem.c) ? "flex-column " + elem.c : "flex-column";
     return elem;
   }
 
