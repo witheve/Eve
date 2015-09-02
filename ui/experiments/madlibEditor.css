@@ -1,0 +1,45 @@
+.workspace .canvas { flex: 1; position:static; overflow:auto; font-size:10pt; }
+.canvas .item { position:static; padding: 20px 10px; align-items:flex-start; border-bottom:1px solid #333; }
+
+.madlib-table { display:table; }
+.madlib-table + .madlib-table { margin-top:3px; }
+.madlib { display:table-row; flex-direction:row; align-items:flex-start; }
+.madlib > * { margin:0 0px;  }
+.madlib:first-child > *:first-child > * { border-top-left-radius:3px; }
+.madlib:first-child > *:last-child > * { border-top-right-radius:3px; }
+.madlib:last-child > *:first-child > * { border-bottom-left-radius:3px; }
+.madlib:last-child > *:last-child > * { border-bottom-right-radius:3px; }
+.madlib .madlib-blank {vertical-align:top; display:table-cell; position:relative; padding-bottom:1px; padding-left:2px; }
+.madlib .madlib-text { color: #ccc; width:100%; padding: 3px 8px; border:0px solid #444; background: #303030; }
+/* .madlib > * + * { margin-left: 2px; } */
+.madlib .label { display:none; text-align:center; color:  rgb(0,184,241); padding: 2px 3px 0 3px; }
+.madlib .value { width:100%; color: #ccc; border:0px solid #555; display:inline-block; background: rgb(0,77,113); background:#444; padding:3px 8px; text-align:left; white-space: nowrap; max-width: 150px; overflow:hidden; text-overflow:ellipsis; }
+
+.multi-input { flex-direction: row; }
+.multi-input .switcher-value { padding: 5px; border: 0px solid #444; border-right:none; border-radius:3px 0 0 3px; }
+.switcher .options { display:none; }
+.madlib-searcher { align-items:flex-start; padding: 2px 0 0 0; }
+.madlib-searcher > .madlib-table { margin-bottom:8px; }
+.madlib-searcher .search-field { color: #ccc; padding: 3px 8px; border:0px solid #444; background: #303030; }
+.completions { max-height: 150px; overflow: auto;}
+.completions .selected { background: red; }
+
+.light { background: white; }
+.light .madlib { color: #555; }
+.light .madlib-text { background: rgba(0,0,0,0.08); }
+.light .madlib .value { background: rgba(0,0,0,0.15); color: #555; }
+
+.madlib .blue .value { background: rgba(0,184,241, 0.5); border-color: transparent; }
+.madlib .green .value { background: rgba(0, 241, 125, 0.5); border-color: transparent;}
+.madlib .red .value { background: rgba(241, 0, 116, 0.5); border-color: transparent;}
+.madlib .purple .value { background: rgba(216, 101, 249, 0.5); border-color: transparent;}
+.madlib .orange .value { background: rgba(255, 168, 60, 0.57); border-color: transparent;}
+.madlib .teal .value { background: rgba(44, 255, 232, 0.5); border-color: transparent;}
+
+
+.light .madlib .blue .value { background: rgba(0,184,241, 1); border-color: transparent; }
+.light .madlib .green .value { background: rgba(0, 241, 125, 1); border-color: transparent;}
+.light .madlib .red .value { background: rgba(241, 0, 116, 1); border-color: transparent;}
+.light .madlib .purple .value { background: rgba(216, 101, 249, 1); border-color: transparent;}
+.light .madlib .orange .value { background: rgba(255, 168, 60, 0.57); border-color: transparent;}
+.light .madlib .teal .value { background: rgba(44, 255, 232, 0.5); border-color: transparent;}

@@ -109,19 +109,27 @@ module drawn {
         e.preventDefault();
     }
 
-    function focusOnce(node, elem) {
+    export function focusOnce(node, elem) {
         if (!node.__focused) {
             node.focus();
             node.__focused = true;
-            if(elem.contentEditable && node.firstChild) {
+            if(elem.contentEditable) {
               let range = document.createRange();
-              range.setStart(node.firstChild, node.textContent.length);
-              range.setEnd(node.firstChild, node.textContent.length);
+              range.selectNodeContents(node);
+              range.collapse(false);
               let sel = window.getSelection();
               sel.removeAllRanges();
               sel.addRange(range);
             }
         }
+    }
+
+    // Move the node vertically to ensure it doesn't run off the bottom on the screen.
+    function ensureOnscreen(node, elem) {
+      let maxTop = Math.max(document.documentElement.clientHeight, window.innerHeight || 0) - node.offsetHeight;
+      if(node.offsetTop > maxTop) {
+        node.style.top = maxTop;
+      }
     }
 
 	//---------------------------------------------------------
@@ -1539,7 +1547,8 @@ module drawn {
             info.disabledMessage ? {c: "disabled-message", text: "Disabled because " + info.disabledMessage} : undefined,
           ]},
           x: info.x + 5,
-          y: info.y
+          y: info.y,
+          postRender: ensureOnscreen
         };
         if(!localState.tooltip) {
           localState.tooltipTimeout = setTimeout(function() {
@@ -2508,8 +2517,6 @@ module drawn {
   export function tooltipUi(): any {
     let tooltip = localState.tooltip;
     if(tooltip) {
-      let viewHeight = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
-       // @FIXME: We need to get the actual element size here.
       let elem:any = {c: "tooltip" + (tooltip.c ? " " + tooltip.c : ""), left: tooltip.x, top: tooltip.y};
       if(typeof tooltip.content === "string") {
         elem["text"] = tooltip.content;
@@ -2517,6 +2524,9 @@ module drawn {
         elem["children"] = [tooltip.content()];
       } else {
         elem["children"] = [tooltip.content];
+      }
+      if(tooltip.postRender) {
+        elem["postRender"] = tooltip.postRender;
       }
       if(tooltip.persistent) {
         return {id: "tooltip-container", c: "tooltip-container", children: [
@@ -2605,7 +2615,7 @@ module drawn {
         {t: "input", type: "file", change: updateCsvFile},
         {c: "flex-row spaced-row", children: [
           {text: "Treat first row as header"},
-          {t: "input", type: "checkbox", change: updateCsvHasHeader}
+          ui.checkbox({change: updateCsvHasHeader})
         ]},
         ui.button({text: "Import", click: importFromCsv})
       ]};

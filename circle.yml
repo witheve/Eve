@@ -1,6 +1,13 @@
-test:
+machine:
   pre:
-    - ./install-multirust.sh
+    - curl https://raw.githubusercontent.com/witheve/Eve/master/install-multirust.sh | sh
     - multirust default nightly-2015-08-10
+
+dependencies:
   post:
-    - pushd runtime && RUST_BACKTRACE=1 cargo test && popd
+    - npm install -g typescript@next
+
+test:
+  post:
+    - cd ui && tsc
+    - cd runtime && RUST_BACKTRACE=1 cargo test

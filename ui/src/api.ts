@@ -36,6 +36,7 @@ module api {
   }
 
   export var KEYS = {
+    TAB: 9,
     BACKSPACE: 8,
     UP: 38,
     DOWN: 40,
@@ -57,7 +58,7 @@ module api {
   export function displaySort(idA:string, idB:string): number {
     var orderA = ixer.index("display order")[idA];
     var orderB = ixer.index("display order")[idB];
-    if(orderB - orderA) { return orderB - orderA; }
+    if(orderA - orderB) { return orderA - orderB; }
     else { return idA.localeCompare(idB); }
   }
 
@@ -231,7 +232,7 @@ module api {
         fields[ix] = [ixer.index("display order")[fieldId], fieldId];
       }
       fields.sort(function(a, b) {
-        var delta = b[0] - a[0];
+        var delta = a[0] - b[0];
         if(delta) { return delta; }
         else { return a[1].localeCompare(b[1]); }
       });

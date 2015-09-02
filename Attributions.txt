@@ -60,6 +60,16 @@ Copyright (c) 2010-2015 Ariya Hidayat
 https://github.com/ariya/phantomjs/
 http://phantomjs.org/
 
+D3JS (BSD License)
+Copyright (c) 2010-2015 Michael Bostock
+https://github.com/mbostock/d3
+http://d3js.org/
+
+C3JS (MIT License)
+Copyright (c) 2013 Masayuki Tanaka
+https://github.com/masayuki0812/c3
+http://c3js.org/
+
 ---------------------
 Backend Attributions:
 ---------------------
@@ -137,6 +147,7 @@ THE SOFTWARE.
 ------------
 BSD License:
 ------------
+
 Permission is hereby granted, free of charge, to any person obtaining a copy 
 of this software and associated documentation files (the "Software"), to deal 
 in the Software without restriction, including without limitation the rights 
@@ -157,6 +168,7 @@ OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ----------
 Unlicense:
 ----------
+
 This is free and unencumbered software released into the public domain.
 
 Anyone is free to copy, modify, publish, use, compile, sell, or
