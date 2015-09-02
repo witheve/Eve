@@ -209,9 +209,9 @@ module Indexing {
       var fieldIds = fields.map((field) => field["field: field"]);
       if(unsorted) { return fieldIds; }
       fieldIds.sort(function(a, b) {
-        var delta = orders[b] - orders[a];
+        var delta = orders[a] - orders[b];
         if(delta) { return delta; }
-        else { return b.localeCompare(a); }
+        else { return a.localeCompare(b); }
       });
       return fieldIds;
     }

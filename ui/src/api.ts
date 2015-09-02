@@ -58,7 +58,7 @@ module api {
   export function displaySort(idA:string, idB:string): number {
     var orderA = ixer.index("display order")[idA];
     var orderB = ixer.index("display order")[idB];
-    if(orderB - orderA) { return orderB - orderA; }
+    if(orderA - orderB) { return orderA - orderB; }
     else { return idA.localeCompare(idB); }
   }
 
