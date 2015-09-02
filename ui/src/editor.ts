@@ -2605,7 +2605,7 @@ module drawn {
         {t: "input", type: "file", change: updateCsvFile},
         {c: "flex-row spaced-row", children: [
           {text: "Treat first row as header"},
-          {t: "input", type: "checkbox", change: updateCsvHasHeader}
+          ui.checkbox({change: updateCsvHasHeader})
         ]},
         ui.button({text: "Import", click: importFromCsv})
       ]};

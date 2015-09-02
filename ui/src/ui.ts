@@ -142,6 +142,13 @@ module ui {
     }
     return elem;
   }
+  
+  export function checkbox(elem:Element):Element {
+    elem.c = (elem.c) ? "checkbox" + elem.c : "checkbox";
+    elem.t = "input";
+    elem.type = "checkbox"
+    return elem;
+  }
 
   //---------------------------------------------------------
   // Components
