@@ -1,6 +1,8 @@
 test:
   pre:
+    - npm install -g typescript@next
     - ./install-multirust.sh
     - multirust default nightly-2015-08-10
   post:
+    - pushd ui && tsc && popd
     - pushd runtime && RUST_BACKTRACE=1 cargo test && popd
