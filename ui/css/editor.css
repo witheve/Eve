@@ -453,9 +453,6 @@ input[type="text"], textarea { font-family: "Lato"; font-size: 16px; }
 /* clear pixel is used to replace the ghost images created by the HTML5 drag drop api */
 #clear-pixel { position:absolute; pointer-events: none; }
 
-/* banner that shows up when the connection to the server goes down */
-.dead-server-banner { position:absolute; top:0; left: 0; right:0; padding: 20px; background: red; color: black; z-index:10000; }
-
 /*---------------------------------------------------------
 - waiting room
 ---------------------------------------------------------*/
