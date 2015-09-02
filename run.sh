@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
-waitUrl="$(pwd)/ui/waiting-room.html";
+waitUrl="$(pwd)/ui/waiting-room.html"
 rustVersion="nightly-2015-08-10"
+tscBin="./ui/node_modules/typescript/bin/tsc"
 debugFlag=false
 noBrowserFlag=false
 
@@ -36,12 +37,12 @@ done
 
 # Ensure that dependencies are installed.
 printf "* Checking dependencies..."
-deps="tsc multirust"
+deps="multirust $tscBin"
 for dep in $deps; do
   if ! which "$dep" &> /dev/null; then
     printf "\n  x Please install %s: " "$dep"
-    if [ "$dep" = "tsc" ]; then
-      echo "sudo npm install -g typescript"
+    if [ "$dep" = "$tscBin" ]; then
+      echo "cd ui && npm install && cd .."
     elif [ "$dep" = "multirust" ]; then
       echo "./install-multirust"
     fi
@@ -51,26 +52,23 @@ done
 echo "done."
 
 # Try using the TypeScript compiler (tsc) to compile UI.
-pushd . &> /dev/null
-  printf "* Compiling editor..."
-  cd ui
-  tscError=$(tsc)
-  if [ $? -ne 0 ]; then
-    printf "\n  x %s\n" "$tscError"
-    popd &> /dev/null
-    exit 1
-  else
-    echo "done."
-  fi
-popd &> /dev/null
+printf "* Compiling editor..."
+tscError=$($tscBin)
+if [ $? -ne 0 ]; then
+  printf "\n  x %s\n" "$tscError"
+  popd &> /dev/null
+  exit 1
+else
+  echo "done."
+fi
 
 # If noBrowserFlag is false open the editor in the user's preferred browser.
 if ! $noBrowserFlag; then
   echo "* Opening editor: $waitUrl"
   if [[ "$OSTYPE" == "darwin"* ]]; then
-    open "$waitUrl" &
+    open "$waitUrl" &> /dev/null
   else
-    xdg-open "$waitUrl" &
+    xdg-open "$waitUrl" &> /dev/null
   fi
 fi
 
