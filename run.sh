@@ -2,7 +2,7 @@
 
 waitUrl="$(pwd)/ui/waiting-room.html"
 rustVersion="nightly-2015-08-10"
-tscBin="./ui/node_modules/typescript/bin/tsc"
+tscBin="`pwd`/ui/node_modules/typescript/bin/tsc"
 debugFlag=false
 noBrowserFlag=false
 
@@ -53,14 +53,17 @@ echo "done."
 
 # Try using the TypeScript compiler (tsc) to compile UI.
 printf "* Compiling editor..."
-tscError=$($tscBin)
-if [ $? -ne 0 ]; then
-  printf "\n  x %s\n" "$tscError"
-  popd &> /dev/null
-  exit 1
-else
-  echo "done."
-fi
+pushd . &> /dev/null
+  cd "ui";
+  tscError=$($tscBin)
+  if [ $? -ne 0 ]; then
+    printf "\n  x %s\n" "$tscError"
+    popd &> /dev/null
+    exit 1
+  else
+    echo "done."
+  fi
+popd &> /dev/null
 
 # If noBrowserFlag is false open the editor in the user's preferred browser.
 if ! $noBrowserFlag; then
