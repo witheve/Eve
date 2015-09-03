@@ -121,6 +121,26 @@ module ui {
     elem.c = (elem.c) ? "flex-column " + elem.c : "flex-column";
     return elem;
   }
+  
+  interface dropdownElment extends Element {
+    options: string[]
+    size?: number
+    multiple?: boolean
+    defaultOption?: number
+  }
+  export function dropdown(elem:Element):Element {
+    let {defaultOption, options = [], size, multiple} = elem;
+    
+    // Build the option elements
+    let optionElements:Element[] = [];
+    for(let option of options) {
+      optionElements.push({t: "option", value: option, text: option});
+    }
+    elem.c = (elem.c) ? "dropdown " + elem.c : "dropdown";
+    elem.t = "select";
+    elem.children = optionElements;
+    return elem;
+  }
 
   //---------------------------------------------------------
   // Inputs
