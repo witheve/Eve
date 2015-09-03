@@ -156,6 +156,11 @@ module ui {
   //---------------------------------------------------------
   // Components
   //---------------------------------------------------------
+  export function image(elem: Element): Element {
+    elem.c = (elem.c) ? "image " + elem.c : "image";
+    return elem;
+  }
+  
   export function spacer(elem:Element = {}):Element {
     elem.c = (elem.c) ? "flex-spacer " + elem.c : "flex-spacer";
     return elem;

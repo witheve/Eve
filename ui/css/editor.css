@@ -31,6 +31,7 @@ body * { display: flex; flex-direction:column; box-sizing: border-box; outline:n
 .container { flex: 1; position:relative; }
 .button { z-index: 10; padding:5px 10px; background: rgb(64,160,221); color: #FFF; border: 1px solid rgb(0,121,177); border-radius: 4px; cursor:default; outline: none; font-family: "Lato"; font-size: 1em; font-weight: bold; }
 .button:hover { background: rgb(91,89,164); border: 1px solid rgb(74,64,136); }
+.image {background-repeat: no-repeat; background-size: contain;}
 
 .workspace { height: 100%; width: 100%; position:relative; flex-direction:row; }
 .label { margin-bottom: 3px; font-size:10pt; color: #0ba; font-weight: normal; }
