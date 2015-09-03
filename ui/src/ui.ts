@@ -148,7 +148,8 @@ module ui {
   export function checkbox(elem:Element):Element {
     elem.c = (elem.c) ? "checkbox " + elem.c : "checkbox";
     elem.t = "input";
-    elem.type = "checkbox"
+    elem.type = "checkbox";
+    elem.checked = (elem.checked) ? elem.checked : false;
     return elem;
   }
 
