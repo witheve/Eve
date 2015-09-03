@@ -160,10 +160,20 @@ module ui {
     return elem;
   }
   
-  export function chart(elem:Element = {}):Element {
+  interface ChartElement extends Element {
+    chartData: (string|number)
+    chartType: string
+  }
+  export function chart(elem:Element):Element {
+    let {chartType,chartData} = elem;
     elem.postRender = function(chartNode,elem) {
-      let chartData = ['data2', 30, 200, 100, 400, 150, 250];
-      let chart = c3.generate({bindto: chartNode,data:{columns:[]}});
+      let chart = c3.generate({
+        bindto: chartNode,
+        data:{
+          columns:[],
+          type: chartType, 
+        },
+      });
       chart.load({columns:[chartData]})
     }
     
