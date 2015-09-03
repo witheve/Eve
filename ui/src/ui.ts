@@ -163,6 +163,9 @@ module ui {
   export enum chartType {
     BAR,
     LINE,
+    SPLINE,
+    AREA,
+    AREASPLINE,
   }
   
   interface ChartElement extends Element {
@@ -179,6 +182,12 @@ module ui {
         break;
       case ui.chartType.LINE:
         chartTypeString = "line";
+        break;
+      case ui.chartType.AREA:
+        chartTypeString = "area";
+        break;
+      case ui.chartType.AREASPLINE:
+        chartTypeString = "area-spline";
         break;
       default:
         console.log("unrecognized chart type");
