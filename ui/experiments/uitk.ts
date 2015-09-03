@@ -92,7 +92,7 @@ module uitk {
       {text: "This is just some text"},
       ui.button({text: "Button 1"}),
       ui.checkbox({change: null}),
-      ui.chart({chartData: ['my data', 30, 200, 100, 400, 150, 250, 30], chartType: "spline"}),
+      ui.chart({chartData: [['my data', 30, 200, 100, 400, 150, 250, 30],['my data2', 130, 100, 140, 200, 150, 50]], chartType: ui.chartType.BAR}),
       ui.tabbedBox({id: "example-pane", semantic: "pane::example", defaultTab: "pane1", panes: settingsPanes, controls: [{c: "ion-close tab", click: null},{c: "ion-search tab", click: null}]}),
       ui.input({multiline: false}),
       ui.input({multiline: true}),

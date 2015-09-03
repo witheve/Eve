@@ -160,21 +160,40 @@ module ui {
     return elem;
   }
   
+  export enum chartType {
+    BAR,
+    LINE,
+  }
+  
   interface ChartElement extends Element {
-    chartData: (string|number)
-    chartType: string
+    chartData: [(string|number)]
+    chartType: chartType
   }
   export function chart(elem:Element):Element {
-    let {chartType,chartData} = elem;
+    let {chartData,chartType} = elem;
+    
+    let chartTypeString: string;
+    switch(chartType) {
+      case ui.chartType.BAR:
+        chartTypeString = "bar";
+        break;
+      case ui.chartType.LINE:
+        chartTypeString = "line";
+        break;
+      default:
+        console.log("unrecognized chart type");
+        chartTypeString = "line";     
+    }
+    
     elem.postRender = function(chartNode,elem) {
       let chart = c3.generate({
         bindto: chartNode,
         data:{
           columns:[],
-          type: chartType, 
+          type: chartTypeString, 
         },
       });
-      chart.load({columns:[chartData]})
+      chart.load({columns:chartData})
     }
     
     return elem;
