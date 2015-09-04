@@ -1,6 +1,7 @@
 /// <reference path="./microReact.ts" />
 module ui {
    declare var c3;
+   declare var d3;
 
   //---------------------------------------------------------
   // Types
@@ -122,14 +123,14 @@ module ui {
     return elem;
   }
 
-  interface dropdownElment extends Element {
+  interface DropdownElement extends Element {
     options: string[]
     size?: number
     multiple?: boolean
     defaultOption?: number
   }
-  export function dropdown(elem:Element):Element {
-    let {defaultOption, options = [], size, multiple} = elem;
+  export function dropdown(elem:DropdownElement):Element {
+    let {defaultOption, options, size, multiple} = elem;
 
     // Build the option elements
     let optionElements:Element[] = [];
@@ -142,13 +143,12 @@ module ui {
     return elem;
   }
 
-  interface tableElement extends Element {
+  interface TableElement extends Element {
     tableHeaders: string[]
     tableData: any[]
   }
-  export function table(elem:Element):Element {
-
-    let {data = [], columns = []} = elem;
+  export function table(elem:TableElement):Element {
+    let {tableData:data = [], tableHeaders:columns = []} = elem;
 
     elem.postRender = function(tableNode,elem) {
 
