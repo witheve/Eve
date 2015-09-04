@@ -122,6 +122,71 @@ module ui {
     return elem;
   }
 
+  interface dropdownElment extends Element {
+    options: string[]
+    size?: number
+    multiple?: boolean
+    defaultOption?: number
+  }
+  export function dropdown(elem:Element):Element {
+    let {defaultOption, options = [], size, multiple} = elem;
+
+    // Build the option elements
+    let optionElements:Element[] = [];
+    for(let option of options) {
+      optionElements.push({t: "option", value: option, text: option});
+    }
+    elem.c = (elem.c) ? "dropdown " + elem.c : "dropdown";
+    elem.t = "select";
+    elem.children = optionElements;
+    return elem;
+  }
+
+  interface tableElement extends Element {
+    tableHeaders: string[]
+    tableData: any[]
+  }
+  export function table(elem:Element):Element {
+
+    let {data = [], columns = []} = elem;
+
+    elem.postRender = function(tableNode,elem) {
+
+      // create table elements
+      let table = d3.select(tableNode).append("table"),
+          tableHead = table.append("thead"),
+          tableBody = table.append("tbody");
+
+
+      // create the table header
+      tableHead.append("tr")
+               .selectAll("th")
+               .data(columns)
+               .enter()
+               .append("th")
+               .text(function(column) { return column; });
+
+      // create a table row for each row in the data
+      var rows = tableBody.selectAll("tr")
+                          .data(data)
+                          .enter()
+                          .append("tr");
+
+      // create cells in each row
+      var cells = rows.selectAll("td")
+                      .data(function(row) {
+                          return columns.map(function(column) {
+                              return {column: column, value: row[column]};
+                          });
+                      })
+                      .enter()
+                      .append("td")
+                      .text(function(d) { return d.value; });
+    }
+
+    return elem;
+  }
+
   //---------------------------------------------------------
   // Inputs
   //---------------------------------------------------------
@@ -179,6 +244,11 @@ module ui {
   //---------------------------------------------------------
   // Components
   //---------------------------------------------------------
+  export function image(elem: Element): Element {
+    elem.c = (elem.c) ? "image " + elem.c : "image";
+    return elem;
+  }
+
   export function spacer(elem:Element = {}):Element {
     elem.c = `flex-spacer ${elem.c || ""}`;
     return elem;
