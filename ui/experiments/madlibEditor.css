@@ -1,6 +1,11 @@
-.workspace .canvas { flex: 1; position:static; overflow:auto; font-size:10pt; }
-.canvas .item { position:static; padding: 20px 10px; align-items:flex-start; border-bottom:1px solid #333; }
+.dark { background: #111;}
+.workspace .canvas { flex: 1; position:static; overflow:auto; font-size:10pt; align-items:flex-start; padding-bottom:90vh; padding-top:20px; }
+.canvas .item { position:static; padding: 10px 10px; padding-right:30px; margin:10px 0; align-items:flex-start; border-left:3px solid #333; border-radius:3px; border-top:1px solid transparent; border-bottom:1px solid transparent; }
+/* .canvas .item.active, .canvas .item:hover { background: none; border-top:0px solid #333; border-bottom:0px solid #333; } */
 
+.canvas .item.active, .canvas .item:hover { background: #1c1c1c; }
+
+.madlib-container { max-height:150px; overflow:auto; }
 .madlib-table { display:table; }
 .madlib-table + .madlib-table { margin-top:3px; }
 .madlib { display:table-row; flex-direction:row; align-items:flex-start; }
@@ -10,10 +15,12 @@
 .madlib:last-child > *:first-child > * { border-bottom-left-radius:3px; }
 .madlib:last-child > *:last-child > * { border-bottom-right-radius:3px; }
 .madlib .madlib-blank {vertical-align:top; display:table-cell; position:relative; padding-bottom:1px; padding-left:2px; }
-.madlib .madlib-text { color: #ccc; width:100%; padding: 3px 8px; border:0px solid #444; background: #303030; }
+.madlib .selected .value { border: 1px solid red; }
+.madlib .madlib-text { color: #ccc; width:100%; padding: 2px 8px; border:1px solid transparent; background: #303030; }
 /* .madlib > * + * { margin-left: 2px; } */
 .madlib .label { display:none; text-align:center; color:  rgb(0,184,241); padding: 2px 3px 0 3px; }
-.madlib .value { width:100%; color: #ccc; border:0px solid #555; display:inline-block; background: rgb(0,77,113); background:#444; padding:3px 8px; text-align:left; white-space: nowrap; max-width: 150px; overflow:hidden; text-overflow:ellipsis; }
+.madlib .value { min-height:19px; min-width:25px; width:100%; color: #ccc; border:1px solid transparent; display:inline-block; background: rgb(0,77,113); background:#444; padding:2px 8px; text-align:left; white-space: nowrap; max-width: 150px; overflow:hidden; text-overflow:ellipsis; }
+.madlib .filtered .value:after { vertical-align:middle; content: "\f200"; font-family: "Ionicons"; font-size:10px; margin-left:6px; height:11px; display:inline-block; }
 
 .multi-input { flex-direction: row; }
 .multi-input .switcher-value { padding: 5px; border: 0px solid #444; border-right:none; border-radius:3px 0 0 3px; }
@@ -29,17 +36,17 @@
 .light .madlib-text { background: rgba(0,0,0,0.08); }
 .light .madlib .value { background: rgba(0,0,0,0.15); color: #555; }
 
-.madlib .blue .value { background: rgba(0,184,241, 0.5); border-color: transparent; }
-.madlib .green .value { background: rgba(0, 241, 125, 0.5); border-color: transparent;}
-.madlib .red .value { background: rgba(241, 0, 116, 0.5); border-color: transparent;}
-.madlib .purple .value { background: rgba(216, 101, 249, 0.5); border-color: transparent;}
-.madlib .orange .value { background: rgba(255, 168, 60, 0.57); border-color: transparent;}
-.madlib .teal .value { background: rgba(44, 255, 232, 0.5); border-color: transparent;}
+.madlib .blue .value { background: rgba(0,184,241, 0.5); }
+.madlib .green .value { background: rgba(0, 241, 125, 0.5); }
+.madlib .red .value { background: rgba(241, 0, 116, 0.5); }
+.madlib .purple .value { background: rgba(216, 101, 249, 0.5); }
+.madlib .orange .value { background: rgba(255, 168, 60, 0.57); }
+.madlib .teal .value { background: rgba(44, 255, 232, 0.5); }
 
 
-.light .madlib .blue .value { background: rgba(0,184,241, 1); border-color: transparent; }
-.light .madlib .green .value { background: rgba(0, 241, 125, 1); border-color: transparent;}
-.light .madlib .red .value { background: rgba(241, 0, 116, 1); border-color: transparent;}
-.light .madlib .purple .value { background: rgba(216, 101, 249, 1); border-color: transparent;}
-.light .madlib .orange .value { background: rgba(255, 168, 60, 0.57); border-color: transparent;}
-.light .madlib .teal .value { background: rgba(44, 255, 232, 0.5); border-color: transparent;}
+.light .madlib .blue .value { background: rgba(0,184,241, 1);  }
+.light .madlib .green .value { background: rgba(0, 241, 125, 1); }
+.light .madlib .red .value { background: rgba(241, 0, 116, 1); }
+.light .madlib .purple .value { background: rgba(216, 101, 249, 1); }
+.light .madlib .orange .value { background: rgba(255, 168, 60, 0.57); }
+.light .madlib .teal .value { background: rgba(44, 255, 232, 0.5); }

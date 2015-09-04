@@ -183,6 +183,15 @@ pub fn editor_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // the non-field portions of a madlib
     ("madlib descriptor", vec!["view", "ix", "content"]),
 
+    // cells in a notebook
+    // `kind` is one of "query", "add", "remove"
+    ("notebook cell", vec!["cell", "kind"]),
+    // order of cells in a notebook
+    ("related notebook cell", vec!["cell", "cell2"]),
+    ("related notebook cell order", vec!["cell", "cell2", "ix"]),
+    // "query", "add", and "remove" cells all have views associated to them
+    ("notebook cell view", vec!["cell", "view"]),
+
     // descriptions for views in the editor
     ("view description", vec!["view", "description"]),
 
