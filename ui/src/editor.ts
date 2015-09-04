@@ -124,6 +124,14 @@ module drawn {
         }
     }
 
+    // Move the node vertically to ensure it doesn't run off the bottom on the screen.
+    function ensureOnscreen(node, elem) {
+      let maxTop = Math.max(document.documentElement.clientHeight, window.innerHeight || 0) - node.offsetHeight;
+      if(node.offsetTop > maxTop) {
+        node.style.top = maxTop;
+      }
+    }
+
 	//---------------------------------------------------------
   // Renderer
   //---------------------------------------------------------
@@ -392,7 +400,7 @@ module drawn {
     return {fieldId, diffs};
   }
 
-  export function removeBinding(binding) {
+  function removeBinding(binding) {
     let diffs = [];
     let variableId = binding["binding: variable"];
     // determine if this is the only binding for this variable
@@ -446,7 +454,7 @@ module drawn {
     return diffs;
   }
 
-  export function addSourceFieldVariable(itemId, sourceViewId, sourceId, fieldId, selectAll = false) {
+  export function addSourceFieldVariable(itemId, sourceViewId, sourceId, fieldId) {
     let diffs = [];
     let kind;
     // check if we're adding an ordinal
@@ -471,9 +479,6 @@ module drawn {
     } else {
       // otherwise we're an input field and we need to add a default constant value
       diffs.push(api.insert("constant binding", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
-      if(selectAll) {
-        diffs.push.apply(diffs, dispatch("addSelectToQuery", {viewId: itemId, variableId: variableId, name: code.name(fieldId) || fieldId}, true));
-      }
     }
     return diffs;
   }
@@ -1542,7 +1547,8 @@ module drawn {
             info.disabledMessage ? {c: "disabled-message", text: "Disabled because " + info.disabledMessage} : undefined,
           ]},
           x: info.x + 5,
-          y: info.y
+          y: info.y,
+          postRender: ensureOnscreen
         };
         if(!localState.tooltip) {
           localState.tooltipTimeout = setTimeout(function() {
@@ -2511,8 +2517,6 @@ module drawn {
   export function tooltipUi(): any {
     let tooltip = localState.tooltip;
     if(tooltip) {
-      let viewHeight = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
-       // @FIXME: We need to get the actual element size here.
       let elem:any = {c: "tooltip" + (tooltip.c ? " " + tooltip.c : ""), left: tooltip.x, top: tooltip.y};
       if(typeof tooltip.content === "string") {
         elem["text"] = tooltip.content;
@@ -2520,6 +2524,9 @@ module drawn {
         elem["children"] = [tooltip.content()];
       } else {
         elem["children"] = [tooltip.content];
+      }
+      if(tooltip.postRender) {
+        elem["postRender"] = tooltip.postRender;
       }
       if(tooltip.persistent) {
         return {id: "tooltip-container", c: "tooltip-container", children: [
@@ -3758,12 +3765,15 @@ module drawn {
   // Go!
   //---------------------------------------------------------
   client.setDispatch(dispatch);
+  if(!window["eveInitialized"]) {
+    initLocalstate();
+    window["eveInitialized"] = true;
+    api.checkVersion(maybeShowUpdate);
+  }
   client.afterInit(() => {
     initRenderer();
-    initLocalstate();
     initInputHandling();
     ui.init(localState, render);
-    api.checkVersion(maybeShowUpdate);
     loadPositions();
     render();
   });
