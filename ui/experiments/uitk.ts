@@ -104,7 +104,7 @@ module uitk {
       ui.button({text: "Button 1"}),
       ui.checkbox({change: null}),
       ui.checkbox({change: null, checked: true}),
-      ui.chart({chartData: [['my data', 30, 200, 100, 400, 150, 250, 30],['my data2', 130, 100, 140, 200, 150, 50]], chartType: ui.chartType.AREASPLINE}),
+      ui.chart({chartData: [['my data', 30, 200, 100, 400, 150, 250, 30],['my data2', 130, 100, 140, 200, 150, 50]], chartType: ui.ChartType.AREASPLINE}),
       ui.tabbedBox({id: "example-pane", semantic: "pane::example", defaultTab: "pane1", panes: settingsPanes, controls: [{c: "ion-close tab", click: null},{c: "ion-search tab", click: null}]}),
       ui.input({multiline: false}),
       ui.input({multiline: true}),
