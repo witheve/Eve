@@ -2411,7 +2411,7 @@ module drawn {
           ]} : undefined),
           {c: "input-row", children: [
             {c: "label", text: "File name"},
-            {t: "input", type: "text", input: setSaveLocation, value: localState.selectedSave},
+            ui.input({input: setSaveLocation, value: localState.selectedSave}),
           ]},
           {c: "flex-row", children: [
             ui.button({text: "Save to gist (remote)", click: saveToGist}),
@@ -2429,7 +2429,7 @@ module drawn {
         return {semantic: "pane::load", children: [
           {c: "input-row", children: [
             {c: "label", text: "url"},
-            {t: "input", type: "text", input: setSaveLocation, value: localState.selectedSave},
+            ui.input({input: setSaveLocation, value: localState.selectedSave}),
             ui.button({text: "Load from gist (remote)", click: loadFromGist})
           ]},
           {c: "input-row", children: [
@@ -2487,7 +2487,7 @@ module drawn {
   }
 
   function setSaveLocation(evt, elem) {
-    dispatch("selectSave", {save: evt.currentTarget.value});
+    dispatch("selectSave", {save: evt.currentTarget.textContent});
   }
 
   function setSaveFile(evt, elem) {
@@ -2680,8 +2680,8 @@ module drawn {
       {c: "container", children: [
         {c: "surface", children: [
           {c: "query-editor", children: [
-            {c: "query-name-input", contentEditable: true, blur: rename, renameId: viewId, text: code.name(viewId)},
-            {c: "query-description-input", contentEditable: true, blur: setQueryDescription, viewId, text: description},
+            ui.input({c: "query-name-input", blur: rename, renameId: viewId, text: code.name(viewId)}),
+            ui.input({c: "query-description-input", blur: setQueryDescription, viewId, text: description}),
             queryCanvas(view, entityInfo),
           ]},
           queryErrors(view),
@@ -3411,7 +3411,7 @@ module drawn {
       {c: "searcher-shade", mousedown: stopSearching},
       {c: "searcher", children: [
         {c: "search-results", children: resultGroups},
-        {t: "textarea", c: "search-box", postRender: focusOnce, value: localState.searchingFor, input: updateSearch, keydown: handleSearchKey}
+        ui.input({c: "search-box", multiline: true, postRender: focusOnce, text: localState.searchingFor, input: updateSearch, keydown: handleSearchKey})
       ]}
     ]};
   }
@@ -3436,7 +3436,7 @@ module drawn {
   }
 
   function updateSearch(e, elem) {
-    dispatch("updateSearch", {value: e.currentTarget.value});
+    dispatch("updateSearch", {value: e.currentTarget.textContent});
   }
 
   //---------------------------------------------------------
