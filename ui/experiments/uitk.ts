@@ -21,7 +21,7 @@ module uitk {
     var commands = [];
     var storeEvent = true;
 
-    switch(event) {   
+    switch(event) {
       case "":
 
         break;
@@ -97,8 +97,8 @@ module uitk {
     ];
 
     var columns = ["name","title"];
-    
-    
+
+
     return {c: "canvas", children: [
       {text: "This is just some text"},
       ui.button({text: "Button 1"}),
@@ -110,7 +110,7 @@ module uitk {
       ui.input({multiline: true}),
       ui.image({backgroundImage: "http://witheve.com/logo.png", height: "100", width: "100"}),
       ui.dropdown({options: ["one","two","three"]}),
-      ui.table({data: data, columns: columns}),
+      ui.table({tableData: data, tableHeaders: columns}),
     ]};
   }
 
