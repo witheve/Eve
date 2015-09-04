@@ -277,6 +277,9 @@ module ui {
       case ui.chartType.LINE:
         chartTypeString = "line";
         break;
+      case ui.chartType.SPLINE:
+        chartTypeString = "spline";
+        break;
       case ui.chartType.AREA:
         chartTypeString = "area";
         break;
