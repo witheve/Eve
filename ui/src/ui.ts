@@ -1,7 +1,7 @@
 /// <reference path="./microReact.ts" />
 module ui {
    declare var c3;
-  
+
   //---------------------------------------------------------
   // Types
   //---------------------------------------------------------
@@ -100,7 +100,7 @@ module ui {
         currentPane = pane;
       }
     }
-    elem.c = "tabbed-box" + (elem.c ? " " + elem.c : "");
+    elem.c = `tabbed-box ${elem.c || ""}`;
     elem.children = [
       {c: "tabs", children: tabs.concat(ui.spacer()).concat(controls)},
       inject({c: "pane"}, currentPane.content)
@@ -113,12 +113,12 @@ module ui {
   }
 
   export function horizontal(elem:Element):Element {
-    elem.c = (elem.c) ? "flex-row " + elem.c : "flex-row";
+    elem.c = `flex-row ${elem.c || ""}`;
     return elem;
   }
 
   export function vertical(elem:Element):Element {
-    elem.c = (elem.c) ? "flex-column " + elem.c : "flex-column";
+    elem.c = `flex-column ${elem.c || ""}`;
     return elem;
   }
 
@@ -126,27 +126,50 @@ module ui {
   // Inputs
   //---------------------------------------------------------
   export function button(elem:Element):Element {
-    elem.c = (elem.c) ? "button " + elem.c : "button";
+    elem.c = `button ${elem.c || ""}`;
     elem.t = "button";
     return elem;
   }
 
   interface TextInputElement extends Element {
     multiline?:boolean
+    normalize?:boolean
   }
   export function input(elem:TextInputElement) {
-    let {multiline} = elem;
-    if(multiline) {
-      elem.t = "textarea";
-    } else {
-      elem.t = "input";
-      elem.type = "text";
+    let {multiline, normalize = true} = elem;
+    if(!elem.placeholder) { elem.placeholder === " "; }
+    elem.c = `input ${elem.c || ""}`;
+    elem.contentEditable = true;
+    if(!multiline) {
+      let oldKeydown = elem.keydown;
+      elem.keydown = function(evt, elem) {
+        let target = <HTMLElement> evt.target;
+        if(evt.keyCode === api.KEYS.ENTER) {
+          evt.preventDefault();
+          target.blur();
+        } else if(oldKeydown) {
+          oldKeydown(evt, elem);
+        }
+      };
     }
+    if(normalize) {
+      let oldKeyup = elem.keyup;
+      elem.keyup = function(evt, elem) {
+        let target = <HTMLElement> evt.target;
+        if(target.textContent === "") {
+          target.innerHTML = "";
+        }
+        if(oldKeyup) {
+          oldKeyup(evt, elem);
+        }
+      }
+    }
+
     return elem;
   }
-  
+
   export function checkbox(elem:Element):Element {
-    elem.c = (elem.c) ? "checkbox " + elem.c : "checkbox";
+    elem.c = `checkbox ${elem.c || ""}`;
     elem.t = "input";
     elem.type = "checkbox";
     elem.checked = (elem.checked) ? elem.checked : false;
@@ -157,10 +180,10 @@ module ui {
   // Components
   //---------------------------------------------------------
   export function spacer(elem:Element = {}):Element {
-    elem.c = (elem.c) ? "flex-spacer " + elem.c : "flex-spacer";
+    elem.c = `flex-spacer ${elem.c || ""}`;
     return elem;
   }
-  
+
   export enum chartType {
     BAR,
     LINE,
@@ -168,14 +191,14 @@ module ui {
     AREA,
     AREASPLINE,
   }
-  
+
   interface ChartElement extends Element {
     chartData: [(string|number)]
     chartType: chartType
   }
   export function chart(elem:Element):Element {
     let {chartData,chartType} = elem;
-    
+
     let chartTypeString: string;
     switch(chartType) {
       case ui.chartType.BAR:
@@ -192,22 +215,22 @@ module ui {
         break;
       default:
         console.log("unrecognized chart type");
-        chartTypeString = "line";     
+        chartTypeString = "line";
     }
-    
+
     elem.postRender = function(chartNode,elem) {
       let chart = c3.generate({
         bindto: chartNode,
         data:{
           columns:[],
-          type: chartTypeString, 
+          type: chartTypeString,
         },
       });
       chart.load({columns:chartData})
     }
-    
+
     return elem;
   }
-  
-  
+
+
 }
