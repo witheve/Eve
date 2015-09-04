@@ -3,5 +3,6 @@
     {
         "sourceMap": true,
         "outDir": "bin"
-    }
+    },
+    "exclude": [ "node_modules" ]
 }

@@ -37,6 +37,15 @@ body * { display: flex; flex-direction:column; box-sizing: border-box; outline:n
 .label { margin-bottom: 3px; font-size:10pt; color: #0ba; font-weight: normal; }
 
 input[type="text"], textarea { font-family: "Lato"; font-size: 16px; }
+[contenteditable="true"].input { flex:none; min-width:50px; padding:10px; z-index: 10; }
+
+[contenteditable="true"].input { flex:none; line-height:1.25; min-height: 1.25em; min-width:50px; padding: 2px; z-index: 5; outline:none; font-size: 10pt; color: #aaa; }
+/* top: -$padTop - 3px; */
+@-moz-document url-prefix() {
+  [contenteditable="true"].input:empty { box-sizing: content-box; position: relative; top: -5px; }
+}
+[contenteditable="true"].input:empty:before { content: attr(placeholder); display: block; /* For Firefox */ }
+
 
 /*---------------------------------------------------------
 - Buttons on lighter backgrounds

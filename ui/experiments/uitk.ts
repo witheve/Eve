@@ -88,14 +88,29 @@ module uitk {
   ];
 
   function workspaceCanvas() {
+    var data = [
+                {name: "Corey", title: "Lead Roboticist"},
+                {name: "Rob", title: "COO"},
+                {name: "Chris", title: "CEO"},
+                {name: "Josh", title: "Man of Distinction"},
+                {name: "Jamie", title: "CTO"}
+    ];
+
+    var columns = ["name","title"];
+    
+    
     return {c: "canvas", children: [
       {text: "This is just some text"},
       ui.button({text: "Button 1"}),
       ui.checkbox({change: null}),
+      ui.checkbox({change: null, checked: true}),
       ui.chart({chartData: [['my data', 30, 200, 100, 400, 150, 250, 30],['my data2', 130, 100, 140, 200, 150, 50]], chartType: ui.chartType.AREASPLINE}),
       ui.tabbedBox({id: "example-pane", semantic: "pane::example", defaultTab: "pane1", panes: settingsPanes, controls: [{c: "ion-close tab", click: null},{c: "ion-search tab", click: null}]}),
       ui.input({multiline: false}),
       ui.input({multiline: true}),
+      ui.image({backgroundImage: "http://witheve.com/logo.png", height: "100", width: "100"}),
+      ui.dropdown({options: ["one","two","three"]}),
+      ui.table({data: data, columns: columns}),
     ]};
   }
 
