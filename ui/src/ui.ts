@@ -254,7 +254,7 @@ module ui {
     return elem;
   }
 
-  export enum chartType {
+  export enum ChartType {
     BAR,
     LINE,
     SPLINE,
@@ -264,26 +264,26 @@ module ui {
 
   interface ChartElement extends Element {
     chartData: [(string|number)]
-    chartType: chartType
+    chartType: ChartType
   }
   export function chart(elem:Element):Element {
     let {chartData,chartType} = elem;
 
     let chartTypeString: string;
     switch(chartType) {
-      case ui.chartType.BAR:
+      case ui.ChartType.BAR:
         chartTypeString = "bar";
         break;
-      case ui.chartType.LINE:
+      case ui.ChartType.LINE:
         chartTypeString = "line";
         break;
-      case ui.chartType.SPLINE:
+      case ui.ChartType.SPLINE:
         chartTypeString = "spline";
         break;
-      case ui.chartType.AREA:
+      case ui.ChartType.AREA:
         chartTypeString = "area";
         break;
-      case ui.chartType.AREASPLINE:
+      case ui.ChartType.AREASPLINE:
         chartTypeString = "area-spline";
         break;
       default:
