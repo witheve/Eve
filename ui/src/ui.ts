@@ -1,6 +1,7 @@
 /// <reference path="./microReact.ts" />
 module ui {
    declare var c3;
+   declare var d3;
   
   //---------------------------------------------------------
   // Types
@@ -139,6 +140,51 @@ module ui {
     elem.c = (elem.c) ? "dropdown " + elem.c : "dropdown";
     elem.t = "select";
     elem.children = optionElements;
+    return elem;
+  }
+  
+  interface tableElement extends Element {
+    tableHeaders: string[]
+    tableData: any[]
+  }
+  export function table(elem:Element):Element {
+    
+    let {data = [], columns = []} = elem;
+    
+    elem.postRender = function(tableNode,elem) {
+      
+      // create table elements
+      let table = d3.select(tableNode).append("table"),
+          tableHead = table.append("thead"),
+          tableBody = table.append("tbody");
+      
+      
+      // create the table header
+      tableHead.append("tr")
+               .selectAll("th")
+               .data(columns)
+               .enter()
+               .append("th")
+               .text(function(column) { return column; });
+            
+      // create a table row for each row in the data
+      var rows = tableBody.selectAll("tr")
+                          .data(data)
+                          .enter()
+                          .append("tr");
+      
+      // create cells in each row
+      var cells = rows.selectAll("td")
+                      .data(function(row) {
+                          return columns.map(function(column) {
+                              return {column: column, value: row[column]};
+                          });
+                      })
+                      .enter()
+                      .append("td")
+                      .text(function(d) { return d.value; });
+    }
+    
     return elem;
   }
 
