@@ -1,4 +1,5 @@
 module microReact {
+
   export interface Handler<T extends Event> {
     (evt:T, elem:Element): void
   }
@@ -334,6 +335,7 @@ module microReact {
           updated[id] = "moved";
           continue;
         }
+
         if(curA.c === curB.c
            && curA.key === curB.key
            && curA.tabindex === curB.tabindex
@@ -382,8 +384,8 @@ module microReact {
                && curA.startOffset === curB.startOffset
                && curA.textAnchor === curB.textAnchor
                && curA.viewBox === curB.viewBox
-               && curA.xlinkhref === curB.xlinkhref
-               ))) {
+               && curA.xlinkhref === curB.xlinkhref))
+               ) {
           continue;
         }
         updated[id] = "updated";
