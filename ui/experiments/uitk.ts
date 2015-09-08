@@ -98,13 +98,15 @@ module uitk {
 
     var columns = ["name","title"];
 
+    let data1: ui.ChartData = {label: "data1", data: [30, 200, 100, 400, 150, 250, 30]};
+    let data2: ui.ChartData = {label: "data2", data: [130, 100, 140, 200, 150, 50,70]};
 
     return {c: "canvas", children: [
       {text: "This is just some text"},
       ui.button({text: "Button 1"}),
       ui.checkbox({change: null}),
       ui.checkbox({change: null, checked: true}),
-      ui.chart({chartData: [['my data', 30, 200, 100, 400, 150, 250, 30],['my data2', 130, 100, 140, 200, 150, 50]], chartType: ui.ChartType.AREASPLINE}),
+      ui.chart({chartData: [data1,data2], chartType: ui.ChartType.AREASPLINE}),
       ui.tabbedBox({id: "example-pane", semantic: "pane::example", defaultTab: "pane1", panes: settingsPanes, controls: [{c: "ion-close tab", click: null},{c: "ion-search tab", click: null}]}),
       ui.input({multiline: false}),
       ui.input({multiline: true}),
@@ -118,5 +120,3 @@ module uitk {
 
   client.afterInit(() => {});
 }
-
-
