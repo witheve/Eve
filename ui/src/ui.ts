@@ -260,46 +260,92 @@ module ui {
     SPLINE,
     AREA,
     AREASPLINE,
+    PIE,
   }
-
+ 
+  export interface ChartData {
+    label: string
+    data: number[]
+  }
+ 
   interface ChartElement extends Element {
-    chartData: [(string|number)]
+    chartData: ChartData[]
     chartType: ChartType
   }
-  export function chart(elem:Element):Element {
+  
+  export class BarChartElement implements ChartElement {
+    // @NOTE key added to satisfy TS type checker
+    [key: string]: any;
+    chartType = ChartType.BAR;
+    constructor(public chartData: ChartData[]) {}
+  }
+  
+  export class LineChartElement implements ChartElement {
+    // @NOTE key added to satisfy TS type checker
+    [key: string]: any;
+    chartType = ChartType.LINE;
+    constructor(public chartData: ChartData[]) {}
+  }
+  
+  export class PieChartElement implements ChartElement {
+    // @NOTE key added to satisfy TS type checker
+    [key: string]: any;
+    chartType = ChartType.PIE;
+    constructor(public chartData: ChartData[]) {
+      // check to make sure each data has only a single point
+      for(let d of chartData) {
+        console.log(d.data.length)
+        if(d.data.length !== 1) {
+          throw new Error("Pie charts can only have a single datum per row.");
+        }
+      }
+    }
+  }
+  
+  export function chart(elem:ChartElement):Element {
     let {chartData,chartType} = elem;
 
+    // stringify the chart type
     let chartTypeString: string;
     switch(chartType) {
-      case ui.ChartType.BAR:
+      case ChartType.BAR:
         chartTypeString = "bar";
         break;
-      case ui.ChartType.LINE:
+      case ChartType.LINE:
         chartTypeString = "line";
         break;
-      case ui.ChartType.SPLINE:
+      case ChartType.SPLINE:
         chartTypeString = "spline";
         break;
-      case ui.ChartType.AREA:
+      case ChartType.AREA:
         chartTypeString = "area";
         break;
-      case ui.ChartType.AREASPLINE:
+      case ChartType.AREASPLINE:
         chartTypeString = "area-spline";
         break;
+      case ChartType.PIE:
+        chartTypeString = "pie";
+        break;
       default:
-        console.log("unrecognized chart type");
-        chartTypeString = "line";
+        Error("unrecognized chart type");
+    }
+    
+    // get the labels and data into the right format for c3
+    let formattedData = [];
+    for(let d of chartData) {
+      let labelAndData: (string|number)[] = d.data;
+      labelAndData.unshift(d.label);
+      formattedData.push(labelAndData);
     }
 
     elem.postRender = function(chartNode,elem) {
       let chart = c3.generate({
         bindto: chartNode,
         data:{
-          columns:[],
+          columns:formattedData,
           type: chartTypeString,
         },
       });
-      chart.load({columns:chartData})
     }
 
     return elem;
