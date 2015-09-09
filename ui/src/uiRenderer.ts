@@ -77,12 +77,14 @@ module uiRenderer {
           for(let row of boundRows) {
             let childKey = rowToKey(row);
             boundRows[childKey] = row;
+            let rowElem = {parent: elemId, ix: rowIx, children: []};
+            children.push(rowElem);
             for(let childTemplateId of childrenIds) {
               let childId = `${childTemplateId}.${rowIx}`;
               let childElem = {parent: elemId, debug: `${elemId} - ${childId}`};
               compiledKeys[childId] = childKey;
               compiledElements[childId] = childElem;
-              children.push(childElem);
+              rowElem.children.push(childElem);
               stack.push(childId);
             }
             rowIx++;
