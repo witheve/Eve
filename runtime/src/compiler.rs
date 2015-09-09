@@ -195,16 +195,16 @@ pub fn editor_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // descriptions for views in the editor
     ("view description", vec!["view", "description"]),
 
+    // dynamic ui elements
+    ("uiElement", vec!["element", "tag", "parent"]),
+    ("uiAttribute", vec!["element", "property", "value"]),
+    ("uiElementBinding", vec!["element", "view"]),
+    ("uiAttributeBinding", vec!["element", "property", "field"]),
+
     // TODO what are this?
     ("primitive", vec!["view", "kind"]),
 
     // TODO what are this?
-    ("uiComponentElement", vec!["tx", "id", "component", "layer", "control", "left", "top", "right", "bottom", "zindex"]),
-    ("uiComponentLayer", vec!["tx", "id", "component", "layer", "locked", "hidden", "parentLayer"]),
-    ("uiComponentAttribute", vec!["tx", "id", "property", "value"]),
-    ("uiStyle", vec!["tx", "id", "type", "element", "shared"]),
-    ("uiGroupBinding", vec!["group", "view"]),
-    ("uiAttrBinding", vec!["elementId", "attr", "field"]),
     ("uiKeyCapture", vec!["elementId", "key"]),
     ("uiMap", vec!["tx", "map", "element"]),
     ("uiMapAttr", vec!["tx", "map", "property", "value"]),

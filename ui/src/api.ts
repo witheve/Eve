@@ -185,27 +185,6 @@ module api {
   // editor
   ixer.addIndex("eveusers id to username", "eveusers", Indexing.create.lookup(["eveusers: id", "eveusers: username"]));
 
-  // ui
-  ixer.addIndex("uiComponentElement", "uiComponentElement", Indexing.create.lookup(["uiComponentElement: id", false]));
-  ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector(["uiComponentElement: component"]));
-  ixer.addIndex("uiComponentLayer", "uiComponentLayer", Indexing.create.lookup(["uiComponentLayer: id", false]));
-  ixer.addIndex("parentLayerToLayers", "uiComponentLayer", Indexing.create.collector(["uiComponentLayer: parentLayer"]));
-  ixer.addIndex("uiComponentToLayers", "uiComponentLayer", Indexing.create.collector(["uiComponentLayer: component"]));
-  ixer.addIndex("uiLayerToElements", "uiComponentElement", Indexing.create.collector(["uiComponentElement: layer"]));
-  ixer.addIndex("uiStyles", "uiStyle", Indexing.create.collector(["uiStyle: id"]));
-  ixer.addIndex("uiStyle", "uiStyle", Indexing.create.lookup(["uiStyle: id", false]));
-  ixer.addIndex("uiElementToStyle", "uiStyle", Indexing.create.lookup(["uiStyle: element", "uiStyle: type", false]));
-  ixer.addIndex("uiElementToStyles", "uiStyle", Indexing.create.collector(["uiStyle: element"]));
-  ixer.addIndex("stylesBySharedAndType", "uiStyle", Indexing.create.collector(["uiStyle: shared", "uiStyle: type", "uiStyle: id"]));
-  ixer.addIndex("uiStyleToAttr", "uiComponentAttribute", Indexing.create.lookup(["uiComponentAttribute: id", "uiComponentAttribute: property", false]));
-  ixer.addIndex("uiStyleToAttrs", "uiComponentAttribute", Indexing.create.collector(["uiComponentAttribute: id"]));
-  ixer.addIndex("groupToBinding", "uiGroupBinding", Indexing.create.lookup(["uiGroupBinding: group", "uiGroupBinding: view"]));
-  ixer.addIndex("elementAttrToBinding", "uiAttrBinding", Indexing.create.lookup(["uiAttrBinding: elementId", "uiAttrBinding: attr", "uiAttrBinding: field"]));
-  ixer.addIndex("elementAttrBindings", "uiAttrBinding", Indexing.create.collector(["uiAttrBinding: elementId"]));
-
-  ixer.addIndex("uiElementToMap", "uiMap", Indexing.create.lookup(["uiMap: element", false]));
-  ixer.addIndex("uiMapAttr", "uiMapAttr", Indexing.create.lookup(["uiMapAttr: map","uiMapAttr: property", "uiMapAttr: value"]));
-
 
   //---------------------------------------------------------
   // Data interaction code
