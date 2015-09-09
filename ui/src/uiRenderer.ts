@@ -5,9 +5,9 @@ module uiRenderer {
   type Id = string;
   type RowTokeyFn = (row:{[key:string]: any}) => string;
 
-  api.ixer.addIndex("uiParentToElements", "uiComponentElement", Indexing.create.collector(["uiComponentElement: component"]));
-  api.ixer.addIndex("uiElementToAttributes", "uiComponentAttribute", Indexing.create.collector(["uiComponentAttribute: id"]));
-  api.ixer.addIndex("uiElementToAttrBindings", "uiAttrBinding", Indexing.create.collector(["uiAttrBinding: elementId"]));
+  api.ixer.addIndex("ui parent to elements", "uiElement", Indexing.create.collector(["uiElement: parent"]));
+  api.ixer.addIndex("ui element to attributes", "uiAttribute", Indexing.create.collector(["uiAttribute: element"]));
+  api.ixer.addIndex("ui element to attribute bindings", "uiAttributeBinding", Indexing.create.collector(["uiAttributeBinding: element"]));
 
   export class uiRenderer {
     constructor(public renderer:microReact.Renderer) {
@@ -18,9 +18,9 @@ module uiRenderer {
     // instead of being a noop, specifying a child of a root as another root results in undefined behavior.
     // If this becomes a problem, it can be changed in the loop that initially populates compiledElements.
     compile(roots:Id[]):microReact.Element[] {
-      let elementToChildren = api.ixer.index("uiParentToElements");
-      let elementToAttrs = api.ixer.index("uiElementToAttributes");
-      let elementToAttrBindings = api.ixer.index("uiElementToAttrBindings");
+      let elementToChildren = api.ixer.index("ui parent to elements");
+      let elementToAttrs = api.ixer.index("ui element to attributes");
+      let elementToAttrBindings = api.ixer.index("ui element to attribute bindings");
 
       let compiledElements:{[id:string]: microReact.Element} = {};
       let compiledKeys:{[id:string]: string} = {};
@@ -32,22 +32,19 @@ module uiRenderer {
       let stack = roots.slice();
       while(stack.length > 0) {
         let elemId = stack.shift();
+        let elemTemplateId = elemId.split(".")[0]; // If this element is being repeated, we need the id of it's template to get its properties.
         let elem = compiledElements[elemId];
         let key = compiledKeys[elemId];
 
-        // Handle denormalized properties. @FIXME: Position has to get normalized for flow to work.
-        let fact = api.ixer.selectOne("uiComponentElement", {id: elemId});
-        let {
-          "uiComponentElement: left": left,
-          "uiComponentElement: top": top,
-          "uiComponentElement: right": right,
-          "uiComponentElement: bottom": bottom
-        } = fact;
+        // Handle meta properties.
+        let fact = api.ixer.selectOne("uiElement", {element: elemTemplateId});
+        elem.id = elemId;
+        elem.t = fact["uiElement: tag"];
 
         // Handle normalized properties.
-        let attrs = elementToAttrs[elemId];
+        let attrs = elementToAttrs[elemTemplateId];
         for(let attr of attrs) {
-          let {"uiComponentAttribute: property":prop, "uiComponentAttribute: value":val} = attr;
+          let {"uiAttribute: property": prop, "uiAttribute: value": val} = attr;
           // Handle any unique properties here.
           let propertyCompiler = propertyCompilers[prop];
           if(propertyCompiler) {
@@ -58,22 +55,22 @@ module uiRenderer {
         }
 
         // Handle bound properties.
-        let boundAttrs = elementToAttrBindings[elemId];
+        let boundAttrs = elementToAttrBindings[elemTemplateId];
         if(boundAttrs) {
           let row = boundRows[key];
           for(let attr of boundAttrs) {
-            let {"uiAttrBinding: attr":prop, "uiAttrBinding: field":field} = attr;
+            let {"uiAttributeBinding: property": prop, "uiAttributeBinding: field": field} = attr;
             elem[prop] = row[field];
           }
         }
 
         // Prep children and add them to the stack.
-        let childrenIds = elementToChildren[elemId];
+        let childrenIds = elementToChildren[elemTemplateId];
         let children = elem.children = [];
-        let binding = api.ixer.selectOne("uiGroupBinding", {group: elemId});
+        let binding = api.ixer.selectOne("uiElementBinding", {element: elemTemplateId});
         if(binding) {
           // If the element is bound, the children must be repeated for each row.
-          let boundView = binding["uiGroupBinding: view"];
+          let boundView = binding["uiElementBinding: view"];
           let rowToKey = this.generateRowToKeyFn(boundView);
           let boundRows = this.getBoundRows(boundView, key);
           let rowIx = 0;
@@ -142,11 +139,20 @@ module uiRenderer {
 
   export type PropertyCompiler = (elem:microReact.Element, val:any, prop:string) => void;
   export var propertyCompilers:{[property:string]:PropertyCompiler} = {};
-
   export function addPropertyCompiler(prop:string, compiler:PropertyCompiler) {
     if(propertyCompilers[prop]) {
       throw new Error(`Refusing to overwrite existing compiler for property: "${prop}"`);
     }
     propertyCompilers[prop] = compiler;
   }
+
+  export type ElementCompiler = (elem:microReact.Element) => microReact.Element;
+  export var elementCompilers:{[tag:string]: ElementCompiler} = {};
+  export function addElementCompiler(tag:string, compiler:ElementCompiler) {
+    if(elementCompilers[tag]) {
+      throw new Error(`Refusing to overwrite existing compilfer for tag: "${tag}"`);
+    }
+    elementCompilers[tag] = compiler;
+  }
+
 }
