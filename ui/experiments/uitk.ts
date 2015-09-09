@@ -4,6 +4,7 @@
 /// <reference path="../src/tableEditor.ts" />
 /// <reference path="../src/glossary.ts" />
 /// <reference path="../src/layout.ts" />
+/// <reference path="../src/uiRenderer.ts" />
 
 module uitk {
 
@@ -13,6 +14,8 @@ module uitk {
   const ixer = api.ixer;
   const code = api.code;
   const render = drawn.render;
+
+  let renderer = new uiRenderer.UiRenderer(drawn.renderer);
 
   function initLocalstate() {}
 
@@ -101,6 +104,8 @@ module uitk {
     let data1: ui.ChartData = {label: "data1", data: [30, 200, 100, 400, 150, 250, 30]};
     let data2: ui.ChartData = {label: "data2", data: [130, 100, 140, 200, 150, 50,70]};
 
+    console.log(renderer.compile(["A"]));
+
     return {c: "canvas", children: [
       {text: "This is just some text"},
       ui.button({text: "Button 1"}),
@@ -113,6 +118,7 @@ module uitk {
       ui.image({backgroundImage: "http://witheve.com/logo.png", height: "100", width: "100"}),
       ui.dropdown({options: ["one","two","three"]}),
       ui.table({tableData: data, tableHeaders: columns}),
+      {c: "renderer", children: renderer.compile(["A"])}
     ]};
   }
 
