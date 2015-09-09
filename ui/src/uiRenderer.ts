@@ -18,6 +18,10 @@ module uiRenderer {
 
     }
 
+    render() {
+      throw new Error("@TODO: implement side channel for elements to inject");
+    }
+
     // @NOTE: In the interests of performance, roots will not be checked for ancestry --
     // instead of being a noop, specifying a child of a root as another root results in undefined behavior.
     // If this becomes a problem, it can be changed in the loop that initially populates compiledElements.
@@ -31,7 +35,7 @@ module uiRenderer {
       let compiledKeys:{[id:string]: string} = {};
       let keyToRow:{[key:string]: any} = {};
       for(let root of roots) {
-        let elem = {__elemId: root, id: root};
+        let elem = {__elemId: root, id: root, debug: root};
         compiledElements[root] = elem;
         stack.push(elem);
       }
@@ -41,9 +45,10 @@ module uiRenderer {
         let elemId = elem.__elemId;
 
         let fact = api.ixer.selectOne("uiElement", {element: elemId});
+        if(!fact) { continue; }
         let attrs = elementToAttrs[elemId];
         let boundAttrs = elementToAttrBindings[elemId];
-        let childrenIds = elementToChildren[elemId];
+        let children = elementToChildren[elemId];
 
         // Handle meta properties.
         elem.t = fact["uiElement: tag"];
@@ -59,7 +64,9 @@ module uiRenderer {
           elems = [];
           let ix = 0;
           for(let row of boundRows) {
-            elems.push({t: elem.t, parent: elem.id, id: `${elem.id}.${ix}`, __elemId: elemId}); // We need an id unique per row for bound elements.
+             // We need an id unique per row for bound elements.
+            elems.push({t: elem.t, parent: elem.id, id: `${elem.id}.${ix}`, __elemId: elemId, debug: `${elem.id}.${ix}`});
+            keyToRow[rowToKey(row)] = row;
             ix++;
           }
         }
@@ -106,12 +113,13 @@ module uiRenderer {
           // }
 
           // Prep children and add them to the stack.
-          if(childrenIds) {
-            let children = elem.children = [];
-            for(let childId of childrenIds) {
+          if(children) {
+            elem.children = [];
+            for(let child of children) {
+              let childId = child["uiElement: element"];
               let childElem = {parent: elem.id, __elemId: childId, id: `${elem.id}.${childId}`, debug: `${elem.id}.${childId}`};
               compiledKeys[childElem.id] = key;
-              children.push(childElem);
+              elem.children.push(childElem);
               stack.push(childElem);
             }
           }
