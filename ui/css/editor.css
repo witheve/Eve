@@ -184,6 +184,9 @@ input[type="text"], textarea { font-family: "Lato"; font-size: 16px; }
 .tabbed-box .input-row { margin:10px 0; }
 .tabbed-box .input-row .button { margin-top: 10px; }
 
+.accordion > .tab { font-size: 16px; cursor: default; }
+.accordion > .tab.selected { color: rgb(74,64,136); font-weight: bold}
+
 .import-panel .pane > * { margin-top:10px; }
 .import-panel .flex-row { align-items: center; }
 .import-panel .button { align-self: flex-start; }

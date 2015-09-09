@@ -27,6 +27,7 @@ module ui {
 
   export interface UiState {
     tabbedBox: {[id:string]: string}
+    accordion: {[id:string]: string}
   }
 
   //---------------------------------------------------------
@@ -46,7 +47,8 @@ module ui {
   //---------------------------------------------------------
   export var onChange = () => undefined;
   export var uiState:UiState = {
-    tabbedBox: {}
+    tabbedBox: {},
+    accordion: {},
   };
 
   export function init(localState:any, changeHandler:() => void) {
@@ -62,7 +64,11 @@ module ui {
     switchTab: ({tab, tabbedBox}:{tab:string, tabbedBox:string}) => {
       uiState.tabbedBox[tabbedBox] = tab;
       return true;
-    }
+    },
+    switchAccordion: ({pane, accordion}:{pane:string, accordion:string}) => {
+      uiState.accordion[accordion] = pane;
+      return true;
+    },
   };
   export function dispatch(evt:string, info:any) {
     if(!dispatches[evt]) {
@@ -111,6 +117,38 @@ module ui {
 
   function switchTab(evt, elem) {
     dispatch("switchTab", {tabbedBox: elem.tabbedBox, tab: elem.tab});
+  }
+
+  export interface AccordionElement extends Element {
+    panes: Pane[]
+    defaultPane?:string
+    horizontal?:boolean
+  }
+  export function accordion(elem:AccordionElement):Element {
+    let {id, defaultPane, panes = [], horizontal} = elem;
+    if(panes.length < 1) { return; }
+    let tabs = [];
+    let currentPane;
+    
+    // manage the default selected pane if none is supplied
+    let selected = uiState.accordion[id];
+    if(selected === undefined) {
+      selected = uiState.tabbedBox[id] = (defaultPane !== undefined) ? defaultPane : panes[0].id;
+    }
+ 
+    elem.c = `accordion ${elem.c || ""}`;
+    elem.children = [];
+    // for each pane, inject the title, and if the pane is selected its content
+    for(let p of panes) {
+      let isSelected = (p.id === selected);      
+      elem.children.push(inject({c: isSelected ? "tab selected" : "tab", accordion: id, pane: p.id, click: switchAccordion}, p.title));
+      if(isSelected) { elem.children.push(inject({c: "pane"}, p.content)) }; 
+    }
+    return elem;
+  } 
+  
+  function switchAccordion(evt,elem) {
+    dispatch("switchAccordion", {accordion: elem.accordion, pane: elem.pane});
   }
 
   export function horizontal(elem:Element):Element {
@@ -186,7 +224,7 @@ module ui {
 
     return elem;
   }
-
+  
   //---------------------------------------------------------
   // Inputs
   //---------------------------------------------------------
@@ -244,8 +282,8 @@ module ui {
   //---------------------------------------------------------
   // Components
   //---------------------------------------------------------
-  export function image(elem: Element): Element {
-    elem.c = (elem.c) ? "image " + elem.c : "image";
+  export function image(elem:Element): Element {
+    elem.c = `image ${elem.c || ""}`;
     return elem;
   }
 
@@ -296,7 +334,7 @@ module ui {
       for(let d of chartData) {
         console.log(d.data.length)
         if(d.data.length !== 1) {
-          throw new Error("Pie charts can only have a single datum per row.");
+          throw new Error("Pie charts can only have a single datum per column.");
         }
       }
     }

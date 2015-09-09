@@ -68,21 +68,21 @@ module uitk {
       id: "pane1",
       title: "Pane 1",
       content: function() {
-        return {text: "Pane 1"}
+        return {text: "This is Pane 1"}
       }
     },
     {
       id: "pane2",
       title: "Pane 2",
       content: function() {
-        return {text: "Pane 2"}
+        return {text: "This is Pane 2"}
       }
     },
     {
       id: "pane3",
       title: "Pane 3",
       content: function() {
-        return {children:[{text: "Pane 3"},ui.button({text: "Button!"})]}
+        return {children:[{text: "This is Pane 3"},ui.button({text: "Button!"})]}
       }
     }
   ];
@@ -106,13 +106,14 @@ module uitk {
       ui.button({text: "Button 1"}),
       ui.checkbox({change: null}),
       ui.checkbox({change: null, checked: true}),
-      ui.chart({chartData: [data1,data2], chartType: ui.ChartType.AREASPLINE}),
-      ui.tabbedBox({id: "example-pane", semantic: "pane::example", defaultTab: "pane1", panes: settingsPanes, controls: [{c: "ion-close tab", click: null},{c: "ion-search tab", click: null}]}),
+      ui.chart({chartData: [data1,data2], chartType: ui.ChartType.BAR}),
+      ui.tabbedBox({id: "settings-pane", semantic: "pane::example", defaultTab: "pane1", panes: settingsPanes, controls: [{c: "ion-close tab", click: null},{c: "ion-search tab", click: null}]}),
       ui.input({multiline: false}),
       ui.input({multiline: true}),
       ui.image({backgroundImage: "http://witheve.com/logo.png", height: "100", width: "100"}),
       ui.dropdown({options: ["one","two","three"]}),
       ui.table({tableData: data, tableHeaders: columns}),
+      ui.accordion({id:"example-accordion", panes: settingsPanes}),
     ]};
   }
 
