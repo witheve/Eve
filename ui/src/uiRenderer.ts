@@ -5,11 +5,15 @@ module uiRenderer {
   type Id = string;
   type RowTokeyFn = (row:{[key:string]: any}) => string;
 
+  interface Element extends microReact.Element {
+    __elemId:string
+  }
+
   api.ixer.addIndex("ui parent to elements", "uiElement", Indexing.create.collector(["uiElement: parent"]));
   api.ixer.addIndex("ui element to attributes", "uiAttribute", Indexing.create.collector(["uiAttribute: element"]));
   api.ixer.addIndex("ui element to attribute bindings", "uiAttributeBinding", Indexing.create.collector(["uiAttributeBinding: element"]));
 
-  export class uiRenderer {
+  export class UiRenderer {
     constructor(public renderer:microReact.Renderer) {
 
     }
@@ -18,91 +22,112 @@ module uiRenderer {
     // instead of being a noop, specifying a child of a root as another root results in undefined behavior.
     // If this becomes a problem, it can be changed in the loop that initially populates compiledElements.
     compile(roots:Id[]):microReact.Element[] {
-      let elementToChildren = api.ixer.index("ui parent to elements");
-      let elementToAttrs = api.ixer.index("ui element to attributes");
-      let elementToAttrBindings = api.ixer.index("ui element to attribute bindings");
+      let elementToChildren = api.ixer.index("ui parent to elements", true);
+      let elementToAttrs = api.ixer.index("ui element to attributes", true);
+      let elementToAttrBindings = api.ixer.index("ui element to attribute bindings", true);
 
+      let stack:Element[] = [];
       let compiledElements:{[id:string]: microReact.Element} = {};
       let compiledKeys:{[id:string]: string} = {};
-      let boundRows:{[key:string]: any} = {};
+      let keyToRow:{[key:string]: any} = {};
       for(let root of roots) {
-        compiledElements[root] = {};
+        let elem = {__elemId: root, id: root};
+        compiledElements[root] = elem;
+        stack.push(elem);
       }
 
-      let stack = roots.slice();
       while(stack.length > 0) {
-        let elemId = stack.shift();
-        let elemTemplateId = elemId.split(".")[0]; // If this element is being repeated, we need the id of it's template to get its properties.
-        let elem = compiledElements[elemId];
-        let key = compiledKeys[elemId];
+        let elem = stack.shift();
+        let elemId = elem.__elemId;
+
+        let fact = api.ixer.selectOne("uiElement", {element: elemId});
+        let attrs = elementToAttrs[elemId];
+        let boundAttrs = elementToAttrBindings[elemId];
+        let childrenIds = elementToChildren[elemId];
 
         // Handle meta properties.
-        let fact = api.ixer.selectOne("uiElement", {element: elemTemplateId});
-        elem.id = elemId;
         elem.t = fact["uiElement: tag"];
 
-        // Handle normalized properties.
-        let attrs = elementToAttrs[elemTemplateId];
-        for(let attr of attrs) {
-          let {"uiAttribute: property": prop, "uiAttribute: value": val} = attr;
-          // Handle any unique properties here.
-          let propertyCompiler = propertyCompilers[prop];
-          if(propertyCompiler) {
-            propertyCompiler(elem, val, prop);
-          } else {
-            elem[prop] = val;
-          }
-        }
-
-        // Handle bound properties.
-        let boundAttrs = elementToAttrBindings[elemTemplateId];
-        if(boundAttrs) {
-          let row = boundRows[key];
-          for(let attr of boundAttrs) {
-            let {"uiAttributeBinding: property": prop, "uiAttributeBinding: field": field} = attr;
-            elem[prop] = row[field];
-          }
-        }
-
-        // Prep children and add them to the stack.
-        let childrenIds = elementToChildren[elemTemplateId];
-        let children = elem.children = [];
-        let binding = api.ixer.selectOne("uiElementBinding", {element: elemTemplateId});
+        let elems = [elem];
+        let binding = api.ixer.selectOne("uiElementBinding", {element: elemId});
         if(binding) {
           // If the element is bound, the children must be repeated for each row.
-          let boundView = binding["uiElementBinding: view"];
-          let rowToKey = this.generateRowToKeyFn(boundView);
-          let boundRows = this.getBoundRows(boundView, key);
-          let rowIx = 0;
+          var boundView = binding["uiElementBinding: view"];
+          var rowToKey = this.generateRowToKeyFn(boundView);
+          let key = compiledKeys[elem.id];
+          var boundRows = this.getBoundRows(boundView, key);
+          elems = [];
+          let ix = 0;
           for(let row of boundRows) {
-            let childKey = rowToKey(row);
-            boundRows[childKey] = row;
-            let rowElem = {parent: elemId, ix: rowIx, children: []};
-            children.push(rowElem);
-            for(let childTemplateId of childrenIds) {
-              let childId = `${childTemplateId}.${rowIx}`;
-              let childElem = {parent: elemId, debug: `${elemId} - ${childId}`};
-              compiledKeys[childId] = childKey;
-              compiledElements[childId] = childElem;
-              rowElem.children.push(childElem);
-              stack.push(childId);
-            }
-            rowIx++;
-          }
-        } else {
-          // Otherwise insert them with their parents key to enable intermediate nesting.
-          let key = compiledKeys[elemId];
-          for(let childId of childrenIds) {
-            let childElem = {parent: elemId, debug: `${elemId} - ${childId}`};
-            compiledKeys[childId] = key;
-            compiledElements[childId] = childElem;
-            children.push(childElem);
-            stack.push(childId);
+            elems.push({t: elem.t, parent: elem.id, id: `${elem.id}.${ix}`, __elemId: elemId}); // We need an id unique per row for bound elements.
+            ix++;
           }
         }
 
-        // Run elements through elementCompilers based on tag.
-        // Match UITK components up to unique tags.
+        let rowIx = 0;
+        for(let elem of elems) {
+          // Get bound key and rows if applicable.
+          let row, key;
+          if(binding) {
+            row = boundRows[rowIx];
+            key = rowToKey(row);
+          } else {
+            key = compiledKeys[elem.id];
+            row = keyToRow[key];
+          }
+
+          // Handle static properties.
+          let properties = [];
+          if(attrs) {
+            for(let attr of attrs) {
+              let {"uiAttribute: property": prop, "uiAttribute: value": val} = attr;
+              properties.push(prop);
+              elem[prop] = val;
+            }
+          }
+
+          // Handle bound properties.
+          if(boundAttrs) {
+            for(let attr of boundAttrs) {
+              let {"uiAttributeBinding: property": prop, "uiAttributeBinding: field": field} = attr;
+              properties.push(prop);
+              elem[prop] = row[field];
+            }
+          }
+
+          // Handle any compiled properties here.
+          // @NOTE: Disabled because custom element compilation probably covers all the use cases much more efficiently.
+          // @NOTE: if this is a perf issue, isolating compiled properties can be hoisted out of the loop.
+          // for(let prop of properties) {
+          //   let propertyCompiler = propertyCompilers[prop];
+          //   if(propertyCompiler) {
+          //     propertyCompiler(elem, elem[prop], prop);
+          //   }
+          // }
+
+          // Prep children and add them to the stack.
+          if(childrenIds) {
+            let children = elem.children = [];
+            for(let childId of childrenIds) {
+              let childElem = {parent: elem.id, __elemId: childId, id: `${elem.id}.${childId}`, debug: `${elem.id}.${childId}`};
+              compiledKeys[childElem.id] = key;
+              children.push(childElem);
+              stack.push(childElem);
+            }
+          }
+
+          // Handle compiled element tags.
+          let elementCompiler = elementCompilers[elem.t];
+          if(elementCompiler) {
+            elementCompiler(elem);
+          }
+
+          rowIx++;
+        }
+
+        if(binding) {
+          elem.children = elems;
+        }
       }
 
       return roots.map((root) => compiledElements[root]);
@@ -148,7 +173,7 @@ module uiRenderer {
     propertyCompilers[prop] = compiler;
   }
 
-  export type ElementCompiler = (elem:microReact.Element) => microReact.Element;
+  export type ElementCompiler = (elem:microReact.Element) => void;
   export var elementCompilers:{[tag:string]: ElementCompiler} = {};
   export function addElementCompiler(tag:string, compiler:ElementCompiler) {
     if(elementCompilers[tag]) {
