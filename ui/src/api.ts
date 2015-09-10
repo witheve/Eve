@@ -322,14 +322,28 @@ module api {
   /***************************************************************************\
    * Read/Write primitives.
   \***************************************************************************/
-  function fillForeignKeys(type, query, context, silentThrow?) {
+  function fillForeignKeys(type, query, context, useIds = false, silentThrow?) {
     var schema = schemas[type];
     if(!schema) { throw new Error("Attempted to process unknown type " + type + " with query " + JSON.stringify(query)); }
     var foreignKeys = schema.foreign;
     if(!foreignKeys) { return query; }
 
+      if(useIds) {
+        let foreignIdKeys:{[field: string]: string} = {};
+        let fieldIds = ixer.getFields(type);
+        let nameToId = {};
+        for(let id of fieldIds) {
+          nameToId[code.name(id)] = id;
+        }
+        for(let foreignKey in foreignKeys) {
+          foreignIdKeys[foreignKey] = nameToId[foreignKeys[foreignKey]];
+        }
+        foreignKeys = foreignIdKeys;
+      }
+
     for(var contextKey in foreignKeys) {
       var foreignKey = foreignKeys[contextKey];
+
       if(!foreignKeys.hasOwnProperty(contextKey)) { continue; }
       if(query[foreignKey] !== undefined) { continue; }
       if(context[contextKey] === undefined && !silentThrow) {
@@ -357,7 +371,7 @@ module api {
 
     // Link foreign keys from context if missing.
     if(schema.foreign) {
-      var params = fillForeignKeys(type, params, context);
+      var params = fillForeignKeys(type, params, context, useIds);
     }
 
     // Fill primary keys if missing.
@@ -423,7 +437,7 @@ module api {
           var depSchema = schemas[dependent];
 
           //debugger;
-          var q = <{[key:string]:string}>fillForeignKeys(dependent, {}, factContext, true);
+          var q = <{[key:string]:string}>fillForeignKeys(dependent, {}, factContext, useIds, true);
 
           var results = retrieve(dependent, q, clone(factContext));
           if(results && results.length) {
