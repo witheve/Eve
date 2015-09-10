@@ -303,10 +303,12 @@ module microReact {
 
         if(type === "added" || type === "replaced" || type === "moved") {
           var parentEl = elementCache[cur.parent];
-          if(cur.ix >= parentEl.children.length) {
-            parentEl.appendChild(div);
-          } else {
-            parentEl.insertBefore(div, parentEl.children[cur.ix]);
+          if(parentEl) {
+            if(cur.ix >= parentEl.children.length) {
+              parentEl.appendChild(div);
+            } else {
+              parentEl.insertBefore(div, parentEl.children[cur.ix]);
+            }
           }
         }
       }
@@ -444,23 +446,30 @@ module microReact {
       }
     }
 
-    render(elem) {
-      var start = now();
-      this.reset();
-      var post = this.prepare(elem);
-      var prepare = now();
-      var d = this.diff();
-      var diff = now();
+    render(elems:Element[]) {
+        this.reset();
+      // We sort elements by depth to allow them to be self referential.
+      elems.sort((a, b) => (a.id ? a.id.split(".").length : 0) - (b.id ? b.id.split(".").length : 0));
+      let start = now();
+      for(let elem of elems) {
+        let post = this.prepare(elem);
+
+      }
+      let prepare = now();
+      let d = this.diff();
+      let diff = now();
       this.domify();
-      var domify = now();
+      let domify = now();
       this.postDomify();
-      var postDomify = now();
-      var time = now() - start;
+      let postDomify = now();
+      let time = now() - start;
       if(time > 5) {
-                console.log("slow render (> 5ms): ", time, {prepare: prepare - start,
-                                                            diff: diff - prepare,
-                                                            domify: domify - diff,
-                                                            postDomify: postDomify - domify});
+        console.log("slow render (> 5ms): ", time, {
+          prepare: prepare - start,
+          diff: diff - prepare,
+          domify: domify - diff,
+          postDomify: postDomify - domify
+        });
       }
     }
   }

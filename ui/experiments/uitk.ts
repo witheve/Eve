@@ -4,18 +4,14 @@
 /// <reference path="../src/tableEditor.ts" />
 /// <reference path="../src/glossary.ts" />
 /// <reference path="../src/layout.ts" />
-/// <reference path="../src/uiRenderer.ts" />
 
 module uitk {
-
   declare var Papa;
   declare var uuid;
   const localState = api.localState;
   const ixer = api.ixer;
   const code = api.code;
   const render = drawn.render;
-
-  let renderer = new uiRenderer.UiRenderer(drawn.renderer);
 
   function initLocalstate() {}
 
@@ -104,6 +100,7 @@ module uitk {
     let data1: ui.ChartData = {label: "data1", data: [30, 200, 100, 400, 150, 250, 30]};
     let data2: ui.ChartData = {label: "data2", data: [130, 100, 140, 200, 150, 50,70]};
 
+    const renderer = drawn.renderer;
     console.log(renderer.compile(["A", "B", "F"]));
 
     return {c: "canvas", children: [
@@ -119,7 +116,7 @@ module uitk {
       ui.dropdown({options: ["one","two","three"]}),
       ui.table({tableData: data, tableHeaders: columns}),
       ui.accordion({id:"example-accordion", panes: settingsPanes}),
-      {c: "renderer", children: renderer.compile(["A", "B"])}
+      {id: "ui-renderer-example", children: renderer.compile(["A", "B"])}
     ]};
   }
 

@@ -1,7 +1,10 @@
-/// <reference path="microReact.ts" />
-/// <reference path="ui.ts" />
 /// <reference path="api.ts" />
 /// <reference path="client.ts" />
+
+/// <reference path="microReact.ts" />
+/// <reference path="ui.ts" />
+/// <reference path="../src/uiRenderer.ts" />
+
 /// <reference path="tableEditor.ts" />
 /// <reference path="glossary.ts" />
 /// <reference path="layout.ts" />
@@ -135,29 +138,36 @@ module drawn {
 	//---------------------------------------------------------
   // Renderer
   //---------------------------------------------------------
-
-  export var renderer;
+  export var renderer:uiRenderer.UiRenderer;
   function initRenderer() {
-    renderer = new microReact.Renderer();
-    document.body.appendChild(renderer.content);
-    renderer.queued = false;
+    let raw = new microReact.Renderer();
+    renderer = new uiRenderer.UiRenderer(raw);
+    document.body.appendChild(raw.content);
+    raw.queued = false;
     window.addEventListener("resize", render);
   }
 
   export function render() {
-   if(renderer.queued === false) {
-      renderer.queued = true;
+    let raw = renderer.renderer;
+   if(raw.queued === false) {
+      raw.queued = true;
       // @FIXME: why does using request animation frame cause events to stack up and the renderer to get behind?
       setTimeout(function() {
       // requestAnimationFrame(function() {
         var start = performance.now();
         var tree = window["drawn"].root();
+        let editorElemIds = (ixer.select("tag", {tag: "editor-ui"}) || []).map((tag) => tag["tag: view"]);
         var total = performance.now() - start;
         if(total > 10) {
           console.log("Slow root: " + total);
         }
-        renderer.render(tree);
-        renderer.queued = false;
+        editorElemIds.unshift(tree);
+        renderer.render(editorElemIds);
+
+        // Render bootstrapped ui elements.
+
+        renderer.render(editorElemIds);
+        raw.queued = false;
       }, 16);
     }
   }

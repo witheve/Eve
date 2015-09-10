@@ -18,26 +18,35 @@ module uiRenderer {
 
     }
 
-    render() {
-      throw new Error("@TODO: implement side channel for elements to inject");
+    render(roots:(Id|Element)[]) {
+      let elems = this.compile(roots);
+      this.renderer.render(elems);
     }
 
     // @NOTE: In the interests of performance, roots will not be checked for ancestry --
     // instead of being a noop, specifying a child of a root as another root results in undefined behavior.
     // If this becomes a problem, it can be changed in the loop that initially populates compiledElements.
-    compile(roots:Id[]):microReact.Element[] {
+    compile(roots:(Id|Element)[]):microReact.Element[] {
       let elementToChildren = api.ixer.index("ui parent to elements", true);
       let elementToAttrs = api.ixer.index("ui element to attributes", true);
       let elementToAttrBindings = api.ixer.index("ui element to attribute bindings", true);
 
       let stack:Element[] = [];
-      let compiledElements:{[id:string]: microReact.Element} = {};
+      let compiledElements:microReact.Element[] = [];
       let compiledKeys:{[id:string]: string} = {};
       let keyToRow:{[key:string]: any} = {};
       for(let root of roots) {
-        let elem = {__elemId: root, id: root, debug: root};
-        compiledElements[root] = elem;
-        stack.push(elem);
+        if(typeof root === "object") {
+          compiledElements.push(<Element>root);
+        } else if(typeof root === "string") {
+          let fact = api.ixer.selectOne("uiElement", {element: root});
+          let elem:Element = {__elemId: root, id: root};
+          if(fact && fact["uiElement: parent"]) {
+            elem.parent = fact["uiElement: parent"];
+          }
+          compiledElements.push(elem);
+          stack.push(elem);
+        }
       }
 
       while(stack.length > 0) {
@@ -56,7 +65,7 @@ module uiRenderer {
         let elems = [elem];
         let binding = api.ixer.selectOne("uiElementBinding", {element: elemId});
         if(binding) {
-          // If the element is bound, the children must be repeated for each row.
+          // If the element is bound, it must be repeated for each row.
           var boundView = binding["uiElementBinding: view"];
           var rowToKey = this.generateRowToKeyFn(boundView);
           let key = compiledKeys[elem.id];
@@ -65,7 +74,7 @@ module uiRenderer {
           let ix = 0;
           for(let row of boundRows) {
              // We need an id unique per row for bound elements.
-            elems.push({t: elem.t, parent: elem.id, id: `${elem.id}.${ix}`, __elemId: elemId, debug: `${elem.id}.${ix}`});
+            elems.push({t: elem.t, parent: elem.id, id: `${elem.id}.${ix}`, __elemId: elemId});
             keyToRow[rowToKey(row)] = row;
             ix++;
           }
@@ -102,22 +111,12 @@ module uiRenderer {
             }
           }
 
-          // Handle any compiled properties here.
-          // @NOTE: Disabled because custom element compilation probably covers all the use cases much more efficiently.
-          // @NOTE: if this is a perf issue, isolating compiled properties can be hoisted out of the loop.
-          // for(let prop of properties) {
-          //   let propertyCompiler = propertyCompilers[prop];
-          //   if(propertyCompiler) {
-          //     propertyCompiler(elem, elem[prop], prop);
-          //   }
-          // }
-
           // Prep children and add them to the stack.
           if(children) {
             elem.children = [];
             for(let child of children) {
               let childId = child["uiElement: element"];
-              let childElem = {parent: elem.id, __elemId: childId, id: `${elem.id}.${childId}`, debug: `${elem.id}.${childId}`};
+              let childElem = {__elemId: childId, id: `${elem.id}.${childId}`};
               compiledKeys[childElem.id] = key;
               elem.children.push(childElem);
               stack.push(childElem);
@@ -138,20 +137,19 @@ module uiRenderer {
         }
       }
 
-      return roots.map((root) => compiledElements[root]);
+      return compiledElements;
     }
 
     // Generate a unique key for the given row based on the structure of the given view.
     generateRowToKeyFn(viewId:Id):RowTokeyFn {
       var keys = api.ixer.getKeys(viewId);
-
       if(keys.length > 1) {
         return (row:{}) => {
-          return `${viewId}: ${row[keys[0]]}`;
-        }
+          return `${viewId}: ${keys.map((key) => row[key]).join(",")}`;
+        };
       } else if(keys.length > 0) {
         return (row:{}) => {
-          return `${viewId}: ${keys.map((key) => row[key]).join(",")}`;
+          return `${viewId}: ${row[keys[0]]}`;
         }
       } else {
         return (row:{}) => `${viewId}: ${JSON.stringify(row)}`;
@@ -172,15 +170,6 @@ module uiRenderer {
     }
   }
 
-  export type PropertyCompiler = (elem:microReact.Element, val:any, prop:string) => void;
-  export var propertyCompilers:{[property:string]:PropertyCompiler} = {};
-  export function addPropertyCompiler(prop:string, compiler:PropertyCompiler) {
-    if(propertyCompilers[prop]) {
-      throw new Error(`Refusing to overwrite existing compiler for property: "${prop}"`);
-    }
-    propertyCompilers[prop] = compiler;
-  }
-
   export type ElementCompiler = (elem:microReact.Element) => void;
   export var elementCompilers:{[tag:string]: ElementCompiler} = {};
   export function addElementCompiler(tag:string, compiler:ElementCompiler) {
@@ -189,5 +178,4 @@ module uiRenderer {
     }
     elementCompilers[tag] = compiler;
   }
-
 }
