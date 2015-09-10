@@ -300,46 +300,17 @@ module ui {
     AREASPLINE,
     PIE,
   }
- 
+   
   export interface ChartData {
     label: string
-    data: number[]
+    data: number[] 
   }
- 
+   
   interface ChartElement extends Element {
     chartData: ChartData[]
     chartType: ChartType
   }
-  
-  export class BarChartElement implements ChartElement {
-    // @NOTE key added to satisfy TS type checker
-    [key: string]: any;
-    chartType = ChartType.BAR;
-    constructor(public chartData: ChartData[]) {}
-  }
-  
-  export class LineChartElement implements ChartElement {
-    // @NOTE key added to satisfy TS type checker
-    [key: string]: any;
-    chartType = ChartType.LINE;
-    constructor(public chartData: ChartData[]) {}
-  }
-  
-  export class PieChartElement implements ChartElement {
-    // @NOTE key added to satisfy TS type checker
-    [key: string]: any;
-    chartType = ChartType.PIE;
-    constructor(public chartData: ChartData[]) {
-      // check to make sure each data has only a single point
-      for(let d of chartData) {
-        console.log(d.data.length)
-        if(d.data.length !== 1) {
-          throw new Error("Pie charts can only have a single datum per column.");
-        }
-      }
-    }
-  }
-  
+    
   export function chart(elem:ChartElement):Element {
     let {chartData,chartType} = elem;
 
@@ -363,9 +334,15 @@ module ui {
         break;
       case ChartType.PIE:
         chartTypeString = "pie";
+        // check to make sure each column has only a single point
+        for(let d of chartData) {
+          if(d.data.length !== 1) {
+            throw new Error("Pie charts can only have a single datum per column.");
+          }
+        }
         break;
       default:
-        Error("unrecognized chart type");
+        throw new Error("Undefined chart type");
     }
     
     // get the labels and data into the right format for c3
