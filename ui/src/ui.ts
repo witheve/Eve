@@ -355,7 +355,7 @@ module ui {
     xdata: number[][]
   }
 
-  interface ChartElement extends Element {
+  export interface ChartElement extends Element {
     chartData: ChartData
     chartType: ChartType
   }
@@ -426,13 +426,13 @@ module ui {
     let formattedData = [];
     if(!(chartData.labels.length === chartData.ydata.length && (chartData.xdata.length === 0 ||
                                                                 chartData.labels.length === chartData.xdata.length))) {
-        throw new Error("Charts expect labels, xdata, and ydata to have the same number of elements.");        
+        throw new Error("Charts expect labels, xdata, and ydata to have the same number of elements.");
     }
     let formatedData = [];
     for(let i in chartData.labels) {
       let formatted = {};
       formatted["label"] = chartData.labels[i];
-      formatted["ydata"] = chartData.ydata[i]; 
+      formatted["ydata"] = chartData.ydata[i];
       let xdata = chartData.xdata[i];
       if(xdata !== undefined && xdata.length > 0) {
         formatted["xdata"] = chartData.xdata[i];
