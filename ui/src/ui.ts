@@ -431,11 +431,11 @@ module ui {
     let formattedData = [];
     let xdataBindings = [];
     for(let d of chartData) {
-      let labelAndData: (string|number)[] = d.ydata;
+      let labelAndData: (string|number)[] = d.ydata.slice(0);
       labelAndData.unshift(d.label);
       formattedData.push(labelAndData);
       if(d.xdata !== undefined) {
-        let labelAndData: (string|number)[] = d.xdata;
+        let labelAndData: (string|number)[] = d.xdata.slice(0);
         let xlabel = d.label + "_x";
         labelAndData.unshift(xlabel);
         formattedData.push(labelAndData);

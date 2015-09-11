@@ -4,7 +4,8 @@
   "description": "Better tools for thought.",
   "main": "./ui/editor.html",
   "dependencies": {
-    "typescript": "1.6.0-dev.20150731"
+    "typescript": "1.6.0-dev.20150731",
+    "codemirror": "*"
   },
   "devDependencies": {},
   "scripts": {

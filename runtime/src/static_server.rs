@@ -88,6 +88,11 @@ fn serve(req: Request, mut res: Response<Fresh>) {
                         println!("Warning: serve error {:?}", error);
                     }
                 },
+                "madlib" => {
+                    if let Err(error) = serve_file(res, Path::new("../ui/experiments/madlibEditor.html")) {
+                        println!("Warning: serve error {:?}", error);
+                    }
+                },
                 _ => {
     				if let Err(error) = serve_file(res, relative_path) {
     					println!("Warning: serve error {:?}", error);

@@ -180,8 +180,14 @@ pub fn editor_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // positions for nodes in the graphical editor
     ("editor node position", vec!["node", "x", "y"]),
 
+    // the full text of a madlib
+    ("madlib", vec!["view", "madlib"]),
     // the non-field portions of a madlib
     ("madlib descriptor", vec!["view", "ix", "content"]),
+    // position of source madlibs within a query
+    ("source madlib index", vec!["source", "ix"]),
+    // facts added to a cell
+    ("cell fact row", vec!["cell", "source view", "row", "ix"]),
 
     // cells in a notebook
     // `kind` is one of "query", "add", "remove"

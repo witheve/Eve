@@ -83,7 +83,7 @@ module uitk {
 
   function workspaceCanvas() {
     const renderer = drawn.renderer;
-    var data = [
+    var tabledata = [
       {name: "Corey", title: "Lead Roboticist"},
       {name: "Rob", title: "COO"},
       {name: "Chris", title: "CEO"},
@@ -91,10 +91,18 @@ module uitk {
       {name: "Jamie", title: "CTO"}
     ];
 
-    var columns = ["name","title"];
-    let data1: ui.ChartData = {label: "data1", ydata: [130]};
-    let data2: ui.ChartData = {label: "data2", ydata: [130]};
-    let data3: ui.ChartData = {label: "data3", ydata: [270]};
+    let linedata1: ui.ChartData = {label: "data1", ydata: [30, 200, 100, 400, 150], xdata: [10,20,30,40,50]};
+    let linedata2: ui.ChartData = {label: "data2", ydata: [50, 20, 10, 40, 15], xdata: [10,20,30,40,50]};
+    let linedata3: ui.ChartData = {label: "data3", ydata: [130, 150, 200, 300, 200], xdata: [10,20,30,40,50]};
+    
+    let scatterdata1: ui.ChartData = {label: "data1", ydata: [0.2, 0.2, 0.2, 0.2, 0.2, 0.4, 0.3, 0.2, 0.2, 0.1, 0.2, 0.2, 0.1, 0.1, 0.2, 0.4, 0.4, 0.3, 0.3, 0.3, 0.2, 0.4, 0.2, 0.5, 0.2, 0.2, 0.4, 0.2, 0.2, 0.2, 0.2, 0.4, 0.1, 0.2, 0.2, 0.2, 0.2, 0.1, 0.2, 0.2, 0.3, 0.3, 0.2, 0.6, 0.4, 0.3, 0.2],
+                                                      xdata: [3.5, 3.0, 3.2, 3.1, 3.6, 3.9, 3.4, 3.4, 2.9, 3.1, 3.7, 3.4, 3.0, 3.0, 4.0, 4.4, 3.9, 3.5, 3.8, 3.8, 3.4, 3.7, 3.6, 3.3, 3.4, 3.0, 3.4, 3.5, 3.4, 3.2, 3.1, 3.4, 4.1, 4.2, 3.1, 3.2, 3.5, 3.6, 3.0, 3.4, 3.5, 2.3, 3.2, 3.5, 3.8, 3.0, 3.8]};
+    let scatterdata2: ui.ChartData = {label: "data2", ydata: [1.4, 1.5, 1.5, 1.3, 1.5, 1.3, 1.6, 1.0, 1.3, 1.4, 1.0, 1.5, 1.0, 1.4, 1.3, 1.4, 1.5, 1.0, 1.5, 1.1, 1.8, 1.3, 1.5, 1.2, 1.3, 1.4, 1.4, 1.7, 1.5, 1.0, 1.1, 1.0, 1.2, 1.6, 1.5, 1.6, 1.5, 1.3, 1.3, 1.3, 1.2, 1.4, 1.2, 1.0, 1.3, 1.2, 1.3],
+                                                      xdata: [3.2, 3.2, 3.1, 2.3, 2.8, 2.8, 3.3, 2.4, 2.9, 2.7, 2.0, 3.0, 2.2, 2.9, 2.9, 3.1, 3.0, 2.7, 2.2, 2.5, 3.2, 2.8, 2.5, 2.8, 2.9, 3.0, 2.8, 3.0, 2.9, 2.6, 2.4, 2.4, 2.7, 2.7, 3.0, 3.4, 3.1, 2.3, 3.0, 2.5, 2.6, 3.0, 2.6, 2.3, 2.7, 3.0, 2.9]};  
+    let piedata1: ui.ChartData = {label: "data1", ydata: [130]};
+    let piedata2: ui.ChartData = {label: "data2", ydata: [532]};
+    let piedata3: ui.ChartData = {label: "data3", ydata: [270]};
+    let gaugedata: ui.ChartData = {label: "data1", ydata: [150]};
 
     let uiElements = (ixer.select("uiElement", {}) || []).map(function(fact) {
       let {"uiElement: element": id, "uiElement: parent": parent} = fact;
@@ -148,17 +156,25 @@ module uitk {
         {text: "Multiline"},
         ui.input({multiline: true}),
       ]},
-
+      
       {t: "h1", text: "Components"},
       {c: "group components", children: [
         {t: "h2", text: "ui.chart({...})"},
-        ui.chart({chartData: [data1], chartType: ui.ChartType.GAUGE}),
+        ui.chart({chartData: [linedata1,linedata2,linedata3], chartType: ui.ChartType.LINE}),
+        ui.chart({chartData: [linedata1,linedata2,linedata3], chartType: ui.ChartType.SPLINE}),
+        ui.chart({chartData: [linedata1,linedata2,linedata3], chartType: ui.ChartType.AREA}),
+        ui.chart({chartData: [linedata1,linedata2,linedata3], chartType: ui.ChartType.AREASPLINE}),
+        ui.chart({chartData: [linedata1,linedata2,linedata3], chartType: ui.ChartType.BAR}),
+        ui.chart({chartData: [scatterdata1,scatterdata2], chartType: ui.ChartType.SCATTER}),
+        ui.chart({chartData: [piedata1,piedata2,piedata3], chartType: ui.ChartType.PIE}),
+        ui.chart({chartData: [piedata1,piedata2,piedata3], chartType: ui.ChartType.DONUT}),
+        ui.chart({chartData: [gaugedata], chartType: ui.ChartType.GAUGE, gauge: {min: 0, max: 200}}),
         {t: "h2", text: "ui.image({backgroundImage:string})"},
         ui.image({backgroundImage: "http://witheve.com/logo.png", height: "100", width: "100"}),
         {t: "h2", text: "ui.table({...})"},
-        ui.table({data: data}),
+        ui.table({data: tabledata}),
         {t: "h2"},
-        ui.table({data: data, headers: ["name"]}),
+        ui.table({data: tabledata, headers: ["name"]}),
         {t: "h2"},
         ui.table({data: [[1, 2, 3], ["a", "b", "c"], ["A", "B", "C"]]}),
         {t: "h2"},
