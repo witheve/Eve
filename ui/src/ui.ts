@@ -298,12 +298,16 @@ module ui {
     SPLINE,
     AREA,
     AREASPLINE,
+    SCATTER,
     PIE,
+    DONUT,
+    GAUGE,
   }
 
   export interface ChartData {
     label: string
-    data: number[]
+    ydata: number[]
+    xdata?: number[]
   }
 
   interface ChartElement extends Element {
@@ -312,58 +316,136 @@ module ui {
   }
 
   export function chart(elem:ChartElement):Element {
-    let {chartData,chartType} = elem;
+    let {chartData,chartType,line,area,bar,pie,donut,gauge,groups} = elem;
 
-    // stringify the chart type
+    // Set the data spec baesd on chart type
     let chartTypeString: string;
+    let dataSpec: ChartDataSpec = {};
+    let linespec, areaspec, barspec, piespec, donutspec, gaugespec = {};
     switch(chartType) {
       case ChartType.BAR:
+        dataSpec.xeqy = true;
         chartTypeString = "bar";
+        barspec = bar;
         break;
       case ChartType.LINE:
+        dataSpec.xeqy = true;
         chartTypeString = "line";
+        linespec = line;
         break;
       case ChartType.SPLINE:
+        dataSpec.xeqy = true;
         chartTypeString = "spline";
+        linespec = line;
         break;
       case ChartType.AREA:
+        dataSpec.xeqy = true;
         chartTypeString = "area";
+        areaspec = area;
         break;
       case ChartType.AREASPLINE:
+        dataSpec.xeqy = true;
         chartTypeString = "area-spline";
+        areaspec = area;
+        linespec = line;
         break;
       case ChartType.PIE:
+        dataSpec.nox = true;
+        dataSpec.singleydata = true;
         chartTypeString = "pie";
-        // check to make sure each column has only a single point
-        for(let d of chartData) {
-          if(d.data.length !== 1) {
-            throw new Error("Pie charts can only have a single datum per column.");
-          }
-        }
+        piespec = pie;
+        break;
+      case ChartType.DONUT:
+        dataSpec.nox = true;
+        dataSpec.singleydata = true;
+        chartTypeString = "donut";
+        donutspec = donut;
+        break;
+      case ChartType.SCATTER:
+        dataSpec.reqx = true;
+        dataSpec.xeqy = true;
+        chartTypeString = "scatter";
+        break;
+      case ChartType.GAUGE:
+        dataSpec.nox = true;
+        dataSpec.singleydata = true;
+        dataSpec.singledata = true;
+        chartTypeString = "gauge";
+        gaugespec = gauge;
         break;
       default:
         throw new Error("Undefined chart type");
     }
 
+    // verify data matches the format expected by the chart type
+    if(!checkData(chartData,dataSpec)) {
+      throw new Error("Could not render chart: " + elem);
+    }
+
     // get the labels and data into the right format for c3
     let formattedData = [];
+    let xdataBindings = [];
     for(let d of chartData) {
-      let labelAndData: (string|number)[] = d.data;
+      let labelAndData: (string|number)[] = d.ydata;
       labelAndData.unshift(d.label);
       formattedData.push(labelAndData);
+      if(d.xdata !== undefined) {
+        let labelAndData: (string|number)[] = d.xdata;
+        let xlabel = d.label + "_x";
+        labelAndData.unshift(xlabel);
+        formattedData.push(labelAndData);
+        xdataBindings[d.label] = xlabel;
+      }
     }
 
     elem.postRender = function(chartNode,elem) {
       let chart = c3.generate({
         bindto: chartNode,
         data:{
+          xs: xdataBindings,
           columns:formattedData,
           type: chartTypeString,
+          groups: groups,
         },
+        line: linespec,
+        area: areaspec,
+        bar: barspec,
+        pie: piespec,
+        donut: donutspec,
+        gauge: gaugespec,
       });
     }
 
     return elem;
+  }
+
+  interface ChartDataSpec {
+    singledata?: boolean
+    singleydata?: boolean
+    nox?: boolean
+    reqx?: boolean
+    xeqy?: boolean
+  }
+  function checkData(chartData: ChartData[], dataSpec: ChartDataSpec):boolean {
+    if(dataSpec.singledata && chartData.length > 1) {
+      throw new Error("Chart accepts only a single chartData element.");
+    }
+    for(let d of chartData) {
+      if(dataSpec.singleydata && d.ydata.length !== 1) {
+        throw new Error("Chart accepts only a single ydata per chartData element");
+      }
+      if(dataSpec.nox && d.xdata !== undefined) {
+        throw new Error("Chart cannot have xdata.");
+      }
+      if(dataSpec.reqx && d.xdata === undefined) {
+        throw new Error("xdata required");
+      }
+      if(dataSpec.xeqy && d.xdata !== undefined && d.ydata.length !== d.xdata.length) {
+        throw new Error("xdata and ydata need to be equal length");
+      }
+    }
+
+    return true;
   }
 
 
