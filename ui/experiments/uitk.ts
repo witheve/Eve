@@ -83,7 +83,7 @@ module uitk {
 
   function workspaceCanvas() {
     const renderer = drawn.renderer;
-    var data = [
+    var tabledata = [
       {name: "Corey", title: "Lead Roboticist"},
       {name: "Rob", title: "COO"},
       {name: "Chris", title: "CEO"},
@@ -91,7 +91,6 @@ module uitk {
       {name: "Jamie", title: "CTO"}
     ];
 
-    var columns = ["name","title"];
     let linedata1: ui.ChartData = {label: "data1", ydata: [30, 200, 100, 400, 150], xdata: [10,20,30,40,50]};
     let linedata2: ui.ChartData = {label: "data2", ydata: [50, 20, 10, 40, 15], xdata: [10,20,30,40,50]};
     let linedata3: ui.ChartData = {label: "data3", ydata: [130, 150, 200, 300, 200], xdata: [10,20,30,40,50]};
@@ -173,9 +172,9 @@ module uitk {
         {t: "h2", text: "ui.image({backgroundImage:string})"},
         ui.image({backgroundImage: "http://witheve.com/logo.png", height: "100", width: "100"}),
         {t: "h2", text: "ui.table({...})"},
-        ui.table({data: data}),
+        ui.table({data: tabledata}),
         {t: "h2"},
-        ui.table({data: data, headers: ["name"]}),
+        ui.table({data: tabledata, headers: ["name"]}),
         {t: "h2"},
         ui.table({data: [[1, 2, 3], ["a", "b", "c"], ["A", "B", "C"]]}),
         {t: "h2"},
