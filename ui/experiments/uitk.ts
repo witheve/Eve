@@ -13,7 +13,20 @@ module uitk {
   const code = api.code;
   const onChange = drawn.render;
 
+  localState.example = {
+    uiElements: {}
+  };
+
   var dispatches:{[evt:string]: (info:{}) => boolean} = {
+    toggleRenderElement({elementId}:{elementId: string}) {
+      let rendering = localState.example.uiElements[elementId];
+      if(rendering) {
+        delete localState.example.uiElements[elementId];
+      } else {
+        localState.example.uiElements[elementId] = true;
+      }
+      return true;
+    }
   };
 
   export function dispatch(evt:string, info:any) {
@@ -64,6 +77,10 @@ module uitk {
     ];
   }
 
+  function toggleElementRendering(evt, elem) {
+    dispatch("toggleRenderElement", {elementId: elem.element});
+  }
+
   function workspaceCanvas() {
     const renderer = drawn.renderer;
     var data = [
@@ -79,6 +96,18 @@ module uitk {
     let data2: ui.ChartData = {label: "data2", ydata: [130]};
     let data3: ui.ChartData = {label: "data3", ydata: [270]};
 
+    let uiElements = (ixer.select("uiElement", {}) || []).map(function(fact) {
+      let {"uiElement: element": id, "uiElement: parent": parent} = fact;
+      if(parent) {
+        return {c: "list-item disabled", text: `${id} < ${parent}`, hasParent: 1};
+      } else {
+        return ui.row({c: "spaced-row list-item", hasParent: 0, children: [
+          ui.checkbox({change: toggleElementRendering, element: id}),
+          {text: id}
+        ]})
+      }
+    });
+    uiElements.sort((a, b) => a["hasParent"] - b["hasParent"]);
 
     return {c: "wrapper", children: [{c: "canvas", children: [
       {t: "h1", text: "Containers"},
@@ -131,13 +160,18 @@ module uitk {
       ]},
 
       {t: "h1", text: "Dynamic Rendering"},
-      {text: "The uiRenderer renders declaratively using the contents of the uiElement, uiAttribute, uiBoundElement, and uiBoundAttribute tables."},
-      {text: "Add uiElements with the ids 'A' or 'B' to see rendered content."},
-      {id: "ui-renderer-example", c: "group renderer", children: renderer.compile(["A", "B"])}
+      {c: "group", children: [
+        {text: "The uiRenderer renders declaratively using the contents of the uiElement, uiAttribute, uiBoundElement, and uiBoundAttribute tables."},
+        {t: "h2"},
+        ui.row({height: 480, children: [
+          {flex: 2, children: uiElements || [{text: "Add entries in uiElement to render."}]},
+          {flex: 8, id: "ui-renderer-example", c: "renderer", children: renderer.compile(Object.keys(localState.example.uiElements))}
+        ]})
+      ]}
     ]}]};
   }
 
-  
+
   window["drawn"].root = root;
   client.afterInit(() => {});
 }
