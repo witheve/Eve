@@ -1,4 +1,4 @@
-/// <reference path="microReact.ts" />
+//// <reference path="microReact.ts" />
 /// <reference path="ui.ts" />
 /// <reference path="api.ts" />
 /// <reference path="client.ts" />
@@ -137,12 +137,19 @@ module drawn {
   //---------------------------------------------------------
 
   export var renderer;
+  var perfStats;
   function initRenderer() {
     renderer = new microReact.Renderer();
     document.body.appendChild(renderer.content);
     renderer.queued = false;
     window.addEventListener("resize", render);
+    perfStats = document.createElement("div");
+    perfStats.id = "perfStats";
+//     document.body.appendChild(perfStats);
   }
+
+  var performance = window["performance"] || {now: () => (new Date()).getTime()}
+
 
   export function render() {
    if(renderer.queued === false) {
@@ -150,13 +157,19 @@ module drawn {
       // @FIXME: why does using request animation frame cause events to stack up and the renderer to get behind?
       setTimeout(function() {
       // requestAnimationFrame(function() {
+
         var start = performance.now();
         var tree = window["drawn"].root();
         var total = performance.now() - start;
         if(total > 10) {
           console.log("Slow root: " + total);
         }
+        perfStats.textContent = "";
+        perfStats.textContent += `root: ${total.toFixed(2)}`;
+        var start = performance.now();
         renderer.render(tree);
+        var total = performance.now() - start;
+        perfStats.textContent += ` | render: ${total.toFixed(2)}`;
         renderer.queued = false;
       }, 16);
     }
@@ -454,14 +467,15 @@ module drawn {
     return diffs;
   }
 
-  export function addSourceFieldVariable(itemId, sourceViewId, sourceId, fieldId) {
+  export function addSourceFieldVariable(itemId, sourceViewId, sourceId, fieldId, selectAll = false, constantValue?) {
     let diffs = [];
     let kind;
     // check if we're adding an ordinal
     if(fieldId === "ordinal") {
       kind = "ordinal";
     } else {
-      kind = ixer.selectOne("field", {field: fieldId})["field: kind"];
+      let field = ixer.selectOne("field", {field: fieldId});
+      kind = field ? field["field: kind"] : "output";
     }
     // add a variable
     let variableId = uuid();
@@ -473,17 +487,21 @@ module drawn {
       // bind the field to it
       diffs.push(api.insert("binding", {variable: variableId, source: sourceId, field: fieldId}));
     }
-    if(kind === "output" || kind === "ordinal") {
+    if(kind === "output" || kind === "ordinal" || selectAll) {
       // select the field
       diffs.push.apply(diffs, dispatch("addSelectToQuery", {viewId: itemId, variableId: variableId, name: code.name(fieldId) || fieldId}, true));
-    } else {
+    }
+    if(kind !== "output" && kind !== "ordinal" && constantValue === undefined) {
       // otherwise we're an input field and we need to add a default constant value
       diffs.push(api.insert("constant binding", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
+
+    } else if(constantValue !== undefined) {
+      diffs.push(api.insert("constant binding", {variable: variableId, value: constantValue}));
     }
     return diffs;
   }
 
-  function removeView(viewId) {
+  export function removeView(viewId) {
     let diffs = [
       // removing the view will automatically remove the fields
       api.remove("view", {view: viewId})

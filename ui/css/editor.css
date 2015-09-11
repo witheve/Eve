@@ -15,7 +15,7 @@ body { font-family:"Lato"; overflow:hidden; height: 100vh; }
 .__root, .__root > div { height: 100%; }
 
 /* we want everything to be flex and to use a sane box-sizing model */
-body * { display: flex; flex-direction:column; box-sizing: border-box; outline:none; }
+body * { display: flex; display: -webkit-flex; flex-direction:column; -webkit-direction-flex: column; box-sizing: border-box; outline:none; }
 
 /*---------------------------------------------------------
 - Shared

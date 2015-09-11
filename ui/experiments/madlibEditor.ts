@@ -8,6 +8,7 @@
 module madlib {
 
   declare var Papa;
+  declare var CodeMirror;
   declare var uuid;
   const localState = api.localState;
   const ixer = api.ixer;
@@ -29,6 +30,7 @@ module madlib {
     localState.notebook = {activeCellId: 0, containerCell: "root"};
     localState.selection = {type: SelectionType.none, size: SelectionSize.none, items: []};
     localState.focus = {type: FocusType.none};
+    localState.input = {value: "", messageNumber: 0};
     localState.intermediateFacts = {};
   }
 
@@ -58,8 +60,11 @@ module madlib {
         break;
       case "setActiveCell":
         localState.notebook.activeCellId = info.cellId;
+        localState.input.value = cellToString(info.cellId);
         break;
-
+      case "trackChatInput":
+        localState.input.value = info.value;
+        break;
       case "searchSelect":
         let size = Math.min(MAX_COMPLETIONS, localState.search.completions.length)
         localState.search.selected += info.direction;
@@ -74,52 +79,53 @@ module madlib {
         localState.search.selected = NO_SELECTION;
         localState.search.completions = [];
         break;
-      case "submitSearch":
-        var viewId;
-        // if there's no selection and we try to submit an empty search
-        // we're getting out of the current cell
-        if(info.selected === NO_SELECTION && info.value === "") {
-          localState.notebook.activeCellId = 0;
-          break;
-          // if we are selecting the very last thing, we are doing an add of a new
-          // madlib
-        } if(info.selected === info.completions.length || info.selected === MAX_COMPLETIONS) {
-          let result = madlibFactsFromString(info.value);
-          diffs = result.diffs;
-          viewId = result.viewId;
-          // otherwise, complete to the current selection
-        } else {
-          viewId = info.completions[info.selected].viewId;
+      case "submitQuery":
+        var activeCellId = localState.notebook.activeCellId;
+        if(!activeCellId && info.value === "") break;
+        if(activeCellId && info.value === "") {
+          return dispatch("removeCell", {cellId: activeCellId});
         }
-        if(info.mode === MultiInputMode.query) {
-          let activeCellId = localState.notebook.activeCellId;
-          let activeCell = ixer.selectOne("notebook cell", {cell: activeCellId});
-          let queryId;
-          //if the current cell is not a join cell
-          if(!activeCell || activeCell["notebook cell: kind"] !== "query") {
-            queryId = uuid();
-            diffs.push(api.insert("view", {view: queryId, kind: "join"}));
-            let cell = createCell(localState.notebook.containerCell, "query", queryId);
-            diffs.push.apply(diffs, cell.diffs);
-            //set the active cell
-            localState.notebook.activeCellId = cell.cellId;
-          } else {
-            queryId = ixer.selectOne("notebook cell view", {cell: activeCellId})["notebook cell view: view"];
+        var items = parseMadlibsFromString(info.value);
+        let activeCell = ixer.selectOne("notebook cell", {cell: activeCellId});
+        // we always create a new query regardless of if it's an edit or an add
+        // this means that we'll need to patch up any references to the previous
+        // query, but it makes our changes much safer in the long run.
+        let queryId = uuid();
+        // @TODO: we really only need a view if there is a query in this cell,
+        // in the case where it's just adds, we could get away without it.
+        diffs.push(api.insert("view", {view: queryId, kind: "join"}));
+        //if the current cell is not a join cell
+        if(!activeCell || activeCell["notebook cell: kind"] !== "query") {
+          let parentCellId = localState.notebook.containerCell;
+          let cellOrders = orderedRelatedCells(parentCellId);
+          let order = 0;
+          if(cellOrders[0]) {
+            order = cellOrders[0]["related notebook cell order: ix"] + 1;
           }
-          //add this as a source
-          diffs.push.apply(diffs, addSource(queryId, viewId))
-          // @TODO: sources need a stable order
-        } else if(info.mode === MultiInputMode.add || info.mode === MultiInputMode.remove) {
-          let type = info.mode === MultiInputMode.add ? "add" : "remove";
-          //create a cell that is adding to this view
-          let cell = createCell(localState.notebook.containerCell, type, viewId);
+          let cell = createCell(parentCellId, "query", order, queryId);
+          activeCellId = cell.cellId;
           diffs.push.apply(diffs, cell.diffs);
-          //set the active cell
-          localState.notebook.activeCellId = cell.cellId;
+        } else {
+          // we need to point our cell to the new view
+          diffs.push(api.remove("notebook cell view", {cell: activeCellId}));
+          diffs.push(api.insert("notebook cell view", {cell: activeCellId, view: queryId}));
+          // in the case where we're modifying a previous cell, we may eventually want to
+          // remove the old view as it could cause us problems, but for now we'll leave it.
+          // We do, however, need to remove any previous facts associated to this cell.
+          diffs.push.apply(diffs, removeCellFacts(activeCellId));
+          // @TODO: should we remove the associated view if it's safe?
         }
-        diffs.push.apply(diffs, dispatch("clearSearch", {}, true));
+        diffs.push.apply(diffs, madlibParseItemsToDiffs(activeCellId, queryId, items));
+        localState.input.value = "";
+        // if this isn't an edit of a previous cell, we need to increment the
+        // messengerNumber, which is used primarily to scroll the window to the
+        // bottom in the case of submitting something new.
+        if(!activeCell) {
+          localState.input.messageNumber += 1;
+        }
+        // we're now done with whatever cell was active
+        localState.notebook.activeCellId = 0;
         break;
-
       case "updateAdderRow":
         var {viewId, fieldId, row, value} = info;
         if(!localState.intermediateFacts[viewId]) {
@@ -151,8 +157,8 @@ module madlib {
           break;
         }
         // check if we're adding to an already existing selection
-        if(shiftKey && selection.type !== SelectionType.none) {
-          if(type !== SelectionType.blank) {
+        if(selection.type !== SelectionType.none) {
+          if(type !== selection.type) {
             selection.type = SelectionType.heterogenous;
           }
           selection.size = SelectionSize.multi;
@@ -195,44 +201,46 @@ module madlib {
           }
           diffs.push.apply(diffs, drawn.dispatch("joinNodes", nodeInfo, true));
         }
+        // this was most likely the reason we made the selection in the first place,
+        // and now we're done with it.
+        diffs.push.apply(diffs, dispatch("clearSelection", {}, true));
+        break;
+      case "removeCell":
+        var {cellId} = info;
+        diffs = removeCell(cellId);
+        diffs.push.apply(diffs, removeCellFacts(cellId));
+        break;
+      case "moveCellCursor":
+        var activeCellId = localState.notebook.activeCellId;
+        var orderedCells = orderedRelatedCells(localState.notebook.containerCell);
+        if(!orderedCells.length) {
+          break;
+        } else if(activeCellId === 0 && info.dir === -1) {
+          activeCellId = orderedCells[0]["related notebook cell order: cell2"];
+        } else {
+          let prevId = 0;
+          let ix = 0;
+          for(let cell of orderedCells) {
+            let cellId = cell["related notebook cell order: cell2"];
+            if(cellId === activeCellId) {
+              if(info.dir === 1) {
+                activeCellId = prevId;
+                break;
+              } else {
+                let next = orderedCells[ix+1];
+                let nextId = next ? next["related notebook cell order: cell2"] : activeCellId;
+                activeCellId = nextId;
+                break;
+              }
+            }
+            ix++;
+            prevId = cellId;
+          }
+        }
+        diffs = dispatch("setActiveCell", {cellId: activeCellId});
         break;
       case "unjoinBlanks":
 
-        break;
-      case "updateFilter":
-        var {variableId, value} = info;
-        diffs.push(api.remove("constant binding", {variable: variableId}));
-        diffs.push(api.insert("constant binding", {variable: variableId, value}));
-        break;
-      case "unfilterBlanks":
-        var selection = localState.selection;
-        if(selection.size !== SelectionSize.single) {
-          throw new Error("You can only remove a filter on a single blank");
-        }
-
-        for(let blank of info.blanks) {
-          let variableInfo = blankToVariable(blank);
-          diffs.push(api.remove("constant binding", {variable: variableInfo.variable}));
-        }
-        break;
-      case "filterBlanks":
-        var selection = localState.selection;
-        if(selection.size !== SelectionSize.single) {
-          throw new Error("You can only add a filter on a single blank");
-        }
-
-        for(let blank of info.blanks) {
-          let variableInfo = blankToVariable(blank);
-          // @TODO: when you can scroll through results, we can't just always take
-          // the first row. We should filter based on whatever the visible value of
-          // the blank currently is.
-          let row = ixer.selectOne(variableInfo.viewId, {});
-          let value = "";
-          if(row && row[variableInfo.fieldId] !== undefined) {
-            value = row[variableInfo.fieldId];
-          }
-          diffs.push(api.insert("constant binding", {variable: variableInfo.variable, value}));
-        }
         break;
       default:
         return drawn.dispatch(event, info, rentrant);
@@ -258,38 +266,140 @@ module madlib {
     return getVariableInfo(variableId);
   }
 
-  function addSource(queryId, sourceViewId) {
-    let sourceId = uuid();
-    let diffs = [
-      api.insert("source", {view: queryId, source: sourceId, "source view": sourceViewId})
-    ];
-    // add variables for all the fields of this view
-    ixer.select("field", {view: sourceViewId}).forEach(function(field) {
-      let fieldId = field["field: field"];
-      let name = code.name(fieldId);
-      // check if we should try to join this field to one of the potential join nodes
-      // otherwise we need to create a variable for this field
-      diffs.push.apply(diffs, drawn.addSourceFieldVariable(queryId, sourceViewId, sourceId, fieldId));
+  function orderedRelatedCells(parentCellId) {
+    let cellOrders = ixer.select("related notebook cell order", {cell: parentCellId});
+    cellOrders.sort((a, b) => {
+      return b["related notebook cell order: ix"] - a["related notebook cell order: ix"];
     });
+    return cellOrders;
+  }
+
+  function removeCellFacts(cellId) {
+    let diffs = [];
+    // remove any fact rows related to this cell
+    diffs.push(api.remove("cell fact row", {cell: cellId}));
+    for(let factRow of ixer.select("cell fact row", {cell: cellId})) {
+      let viewId = factRow["cell fact row: source view"];
+      let row = JSON.parse(factRow["cell fact row: row"]);
+      diffs.push(api.remove(viewId, row, null, true));
+    }
     return diffs;
   }
 
-  function createCell(parent, cellType, viewId?) {
+  function removeCell(cellId) {
+    let diffs = [];
+    diffs.push(api.remove("notebook cell", {cell: cellId}));
+    diffs.push(api.remove("related notebook cell", {cell: cellId}));
+    diffs.push(api.remove("related notebook cell", {cell2: cellId}));
+    // @TODO: should we really always remove the dependents? this means every
+    // related cell will be deleted and could cause scary cascading deletes.
+    // remove depedents
+    for(let related of ixer.select("related notebook cell", {cell: cellId})) {
+      let cell2 = related["related notebook cell: cell2"];
+      diffs.push.apply(removeCell(cell2));
+    }
+    diffs.push(api.remove("related notebook cell order", {cell: cellId}));
+    diffs.push(api.remove("related notebook cell order", {cell2: cellId}));
+    diffs.push(api.remove("notebook cell view", {cell: cellId}));
+    for(let cellView of ixer.select("notebook cell view", {cell: cellId})) {
+      let viewId = cellView["notebook cell view: view"];
+      diffs.push.apply(drawn.removeView(viewId));
+    }
+    return diffs;
+  }
+
+  function createCell(parent, cellType, ix, viewId?) {
     let diffs = [];
     let cellId = uuid();
     diffs.push(api.insert("notebook cell", {cell: cellId, kind: cellType}));
     diffs.push(api.insert("related notebook cell", {cell: parent, cell2: cellId}));
-    // @TODO: notebook cell order
+    diffs.push(api.insert("related notebook cell order", {cell: parent, cell2: cellId, ix}));
     if(viewId) {
       diffs.push(api.insert("notebook cell view", {cell: cellId, view: viewId}));
     }
     return {diffs, cellId};
   }
 
+  function cellToString(cellId) {
+    let final = "";
+    let facts = ixer.select("cell fact row", {cell: cellId});
+    facts.sort((a, b) => {
+      let aIx = a["cell fact row: ix"];
+      let bIx = b["cell fact row: ix"];
+      return aIx - bIx;
+    });
+    for(let fact of facts) {
+      let viewId = fact["cell fact row: source view"];
+      let row = JSON.parse(fact["cell fact row: row"]);
+      let madlibText = ixer.selectOne("madlib", {view: viewId})["madlib: madlib"];
+      let madlibParts = madlibText.split(/(\?)/);
+      let fields = ixer.getFields(viewId);
+      let fieldIx = 0;
+      for(let part of madlibParts) {
+        if(part === "?") {
+          final += row[fields[fieldIx]];
+          fieldIx++;
+        } else {
+          final += part;
+        }
+      }
+      final += "\n";
+    }
+    let view = ixer.selectOne("notebook cell view", {cell: cellId});
+    if(view) {
+      let viewId = view["notebook cell view: view"];
+      let joinInfo = getJoinInfo(viewId);
+      let sources = ixer.select("source", {view: viewId});
+      sources.sort((a, b) => {
+        let aId = a["source: source"];
+        let bId = b["source: source"];
+        let aIx = ixer.selectOne("source madlib index", {source: aId})["source madlib index: ix"];
+        let bIx = ixer.selectOne("source madlib index", {source: bId})["source madlib index: ix"];
+        return aIx - bIx;
+      });
+      for(let source of sources) {
+        let sourceId = source["source: source"];
+        let sourceViewId = source["source: source view"];
+        let sourceInfo = joinInfo[sourceId];
+        let madlibText = ixer.selectOne("madlib", {view: sourceViewId})["madlib: madlib"];
+        let madlibParts = madlibText.split(/(\?)/);
+        let fields = ixer.getFields(sourceViewId);
+        let fieldIx = 0;
+        if(sourceInfo.negated) {
+          final += "! ";
+        }
+        for(let part of madlibParts) {
+          let fieldId = fields[fieldIx];
+          let fieldInfo = sourceInfo.fields[fieldId];
+          if(part === "?") {
+            if(fieldInfo.filtered) {
+              final += fieldInfo.constantValue;
+            } else {
+              final += part;
+            }
+            if(fieldInfo.column) {
+              final += "?";
+            }
+            if(fieldInfo.color) {
+              final += `${fieldInfo.color}`;
+            }
+            fieldIx++;
+          } else {
+            final += part;
+          }
+        }
+        final += "\n";
+      }
+    }
+    return final.trim();
+  }
+
   function madlibFactsFromString(str, viewKind = "table") {
     let diffs = [];
-    let parts = str.split("_");
+    let fields = [];
+    let parts = str.split(/\?/);
     let viewId = uuid();
+    diffs.push(api.insert("madlib", {view: viewId, madlib: str}));
     diffs.push(api.insert("view", {view: viewId, kind: viewKind}))
     parts.forEach((part, ix) => {
       let cleanedPart = part.trim();
@@ -306,10 +416,221 @@ module madlib {
           "display name": {name: "blank"},
           "display order": {priority: ix + 0.5},
         }});
+        fields.push(neueField.content.field);
         diffs.push(neueField);
       }
     });
-    return {diffs, viewId};
+    return {diffs, viewId, fields};
+  }
+
+  function parseMadlibBlanks(blanks, fieldIds = []) {
+    // by default we have an add
+    let chunked = false;
+    let type = "add";
+    let fields = {};
+    let values = {};
+    var ix = 0;
+    for(let blank of blanks) {
+      let fieldId = fieldIds[ix] || ix;
+      let cleanedBlank = blank.trim();
+      let fieldInfo:any = {};
+      // if we find a blank then we're dealing with a query
+      if(cleanedBlank[0] === "?" && cleanedBlank.length > 1) {
+        type = "query";
+        let variable = cleanedBlank.substring(1);
+        if(cleanedBlank[1] === "?") {
+          // we are chunked
+          chunked = true;
+          variable = variable.substring(1);
+          fieldInfo.column = true;
+        }
+        if(variable) {
+          fieldInfo.variable = variable;
+        }
+      } else if (cleanedBlank === "?" || cleanedBlank === "blank") {
+        type = "query";
+        fieldInfo.scalar = true;
+      } else {
+        // store the values of each field in case we need them for adding filters
+        // or for an add.
+        fieldInfo.constantValue = cleanedBlank;
+        fieldInfo.filtered = true;
+        values[fieldId] = drawn.coerceInput(cleanedBlank);
+      }
+      fields[fieldId] = fieldInfo;
+      ix++;
+    }
+    return {chunked, fields, type, values};
+  }
+
+  let madlibRegexCache = {};
+  export function parseMadlibsFromString(str) {
+    let madlibs = ixer.select("madlib", {});
+    let results = [];
+    //break the string into lines
+    let lines = str.toLowerCase().split("\n");
+    let lineNum = -1;
+    for(let line of lines) {
+      lineNum++;
+      let found = false;
+      let negated = false;
+      let chunked = false;
+
+      let cleanedLine = line.trim();
+      if(cleanedLine[0] === "!") {
+        negated = true;
+        cleanedLine = cleanedLine.substring(1).trim();
+      }
+
+      // go through each madlib it could possibly be
+      // @TODO: if this ends up being slow, we could probably use a trie here
+      for(let madlib of madlibs) {
+        let madlibView = madlib["madlib: view"];
+        let madlibRegex = madlibRegexCache[madlibView];
+        if(!madlibRegex) {
+          let madlibText = madlib["madlib: madlib"];
+          let regexStr = madlibText.replace(/\?/gi, "(.+)");
+          madlibRegex = madlibRegexCache[madlibView] = new RegExp(regexStr);
+        }
+        // check if this line matches the madlib's regex
+        console.log(cleanedLine, madlibRegex.toString())
+        var matches = cleanedLine.match(madlibRegex);
+        if(matches) {
+          // by default we have an add
+          let fields = ixer.getFields(madlibView);
+          matches.shift();
+          let result:any = parseMadlibBlanks(matches, fields);
+          result.viewId = madlibView;
+          result.ix = lineNum;
+          result.negated = negated;
+          results.push(result);
+          found = true;
+          break;
+        }
+      }
+      if(!found) {
+        // if we get here, it means we didn't find a match. So we need to add a create for this line.
+        cleanedLine = cleanedLine.replace(/blank/gi, "?");
+        let matches = cleanedLine.match(/(\?[^\s]*)/gi);
+        let result:any = parseMadlibBlanks(matches);
+        result.type = "create";
+        result.madlib = cleanedLine.replace(/(\?[^\s]*)/gi, "?");
+        result.ix = lineNum;
+        result.negated = negated;
+        results.push(result);
+      }
+    }
+    return results;
+  }
+
+  export function addSourceFieldVariable(itemId, sourceViewId, sourceId, fieldId, fieldInfo, sourceItemInfo) {
+    let diffs = [];
+    let kind;
+    // check if we're adding an ordinal
+    if(fieldId === "ordinal") {
+      kind = "ordinal";
+    } else {
+      let field = ixer.selectOne("field", {field: fieldId});
+      kind = field ? field["field: kind"] : "output";
+    }
+    // add a variable
+    let variableId = uuid();
+    diffs.push(api.insert("variable", {view: itemId, variable: variableId}));
+    if(kind === "ordinal") {
+      // create an ordinal binding
+      diffs.push(api.insert("ordinal binding", {variable: variableId, source: sourceId}));
+    } else {
+      // bind the field to it
+      diffs.push(api.insert("binding", {variable: variableId, source: sourceId, field: fieldId}));
+    }
+    // select the field
+    diffs.push.apply(diffs, drawn.dispatch("addSelectToQuery", {viewId: itemId, variableId: variableId, name: code.name(fieldId) || fieldId}, true));
+
+    if(kind !== "output" && kind !== "ordinal" && fieldInfo.constantValue === undefined) {
+      // otherwise we're an input field and we need to add a default constant value
+      diffs.push(api.insert("constant binding", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
+
+    } else if(fieldInfo.constantValue !== undefined) {
+      diffs.push(api.insert("constant binding", {variable: variableId, value: fieldInfo.constantValue}));
+    }
+
+    // if the source is chunked, and we're not a column, we need to group
+    if(sourceItemInfo.chunked && !fieldInfo.column) {
+      diffs.push(api.insert("grouped field", {source: sourceId, field: fieldId}));
+    } else if(sourceItemInfo.chunked) {
+      // we to make sure that sorting is set
+      // @TODO: how do we expose sort order here?
+      diffs.push(api.insert("sorted field", {source: sourceId, field: fieldId, ix: fieldInfo.sortIx, direction: "ascending"}))
+    }
+
+    return {diffs, variableId};
+  }
+
+  function madlibParseItemsToDiffs(cellId, queryId, items) {
+    let queryVariables = {};
+    let diffs = [];
+    for(var item of items) {
+      if(item.type === "add") {
+        diffs.push(api.insert("cell fact row", {cell: cellId, "source view": item.viewId, row: JSON.stringify(item.values), ix: item.ix}));
+        diffs.push(api.insert(item.viewId, item.values, undefined, true));
+      } else {
+        var viewId = item.viewId;
+        var fields;
+        // this means we're querying and may or may not need to create a madlib
+        if(item.type === "create") {
+          // create a madlib for this guy
+          let created = madlibFactsFromString(item.madlib);
+          diffs.push.apply(diffs, created.diffs);
+          viewId = created.viewId;
+          fields = created.fields;
+          // now that we have fieldIds map the previously indexed field
+          // information to those ids.
+          for(let ix = 0; ix < fields.length; ix++) {
+            let fieldId = fields[ix];
+            item.fields[fieldId] = item.fields[ix];
+          }
+        } else {
+          fields = ixer.getFields(viewId);
+        }
+        //add this as a source
+        var sourceId = uuid();
+        diffs.push(api.insert("source", {view: queryId, source: sourceId, "source view": viewId}));
+        diffs.push(api.insert("source madlib index", {source: sourceId, ix: item.ix}));
+        // check if this source is chunked
+        if(item.chunked) {
+          diffs.push(api.insert("chunked source", {source: sourceId}));
+        }
+        // check if this source is negated
+        if(item.negated) {
+          diffs.push(api.insert("negated source", {source: sourceId}));
+        }
+        // add variables for all the fields of this view
+        var sortIx = 0;
+        fields.forEach(function(fieldId, ix) {
+          let fieldInfo = item.fields[fieldId];
+          if(fieldInfo.column) {
+            fieldInfo.sortIx = sortIx;
+            sortIx++;
+          }
+          let namedVariable = fieldInfo.variable;
+          let variableId;
+          if(namedVariable && queryVariables[namedVariable]) {
+            // if we already have a variable for this one, then we only need a binding
+            // from this field to the already created variable
+            diffs.push(api.insert("binding", {variable: queryVariables[namedVariable], source: sourceId, field: fieldId}));
+          } else {
+            // we need to create a variable for this field
+            let variableInfo = addSourceFieldVariable(queryId, viewId, sourceId, fieldId, fieldInfo, item);
+            variableId = variableInfo.variableId;
+            diffs.push.apply(diffs, variableInfo.diffs);
+            if(namedVariable) {
+              queryVariables[namedVariable] = variableId;
+            }
+          }
+        });
+      }
+    }
+    return diffs;
   }
 
   export function root() {
@@ -320,26 +641,71 @@ module madlib {
       {c: "workspace", children: [
         workspaceTools(),
         workspaceCanvas(),
+        chatInput(),
       ]}
     ]};
+  }
+
+  function CodeMirrorElement(node, elem) {
+    let cm = node.editor;
+    if(!cm) {
+      cm = node.editor = new CodeMirror(node);
+      if(elem.input) {
+        cm.on("inputread", elem.input)
+      }
+      if(elem.keydown) {
+        cm.on("keydown", elem.keydown);
+      }
+    }
+    if(cm.getValue() !== elem.value) {
+      cm.setValue(elem.value);
+    }
+  }
+
+  function chatInput() {
+    let numLines = localState.input.value.split("\n").length;
+    let height = Math.max(21, numLines * 21);
+    let submitActionText = "add";
+    if(localState.notebook.activeCellId) {
+      if(localState.input.value) {
+        submitActionText = "edit"
+      } else {
+        submitActionText = "remove";
+      }
+    }
+    return {c: "chat-input-container", children: [
+      {t: "textarea", c: "chat-input", height, keydown: chatInputKey, input: trackChatInput, placeholder: "Enter a message...", value: localState.input.value},
+      {c: "submit", mousedown: submitQuery, text: submitActionText},
+    ]}
+  }
+
+  function trackChatInput(e, elem) {
+    dispatch("trackChatInput", {value: e.currentTarget.value});
+  }
+
+  function submitQuery(e, elem) {
+    dispatch("submitQuery", {value: localState.input.value});
+  }
+
+  function chatInputKey(e, elem) {
+    if(e.keyCode === api.KEYS.ENTER && (e.metaKey || e.ctrlKey)) {
+      dispatch("submitQuery", {value: e.currentTarget.value});
+      e.preventDefault();
+    } else if(e.keyCode === api.KEYS.UP && e.ctrlKey) {
+      dispatch("moveCellCursor", {dir: -1});
+      e.preventDefault();
+    } else if(e.keyCode === api.KEYS.DOWN && e.ctrlKey) {
+      dispatch("moveCellCursor", {dir: 1});
+      e.preventDefault();
+    }
   }
 
   function workspaceTools() {
     let actions = {
       "join": {func: joinBlanks, text: "Link", description: "Link the blanks", semantic: "action::join"},
-      "unfilter": {func: unfilterBlanks, text: "Unfilter", semantic: "action::unfilter"},
-      "filter": {func: filterBlanks, text: "Filter", semantic: "action::filter"},
     };
     let disabled = {};
     return drawn.leftToolbar(actions, disabled);
-  }
-
-  function filterBlanks(e, elem) {
-    dispatch("filterBlanks", {blanks: localState.selection.items});
-  }
-
-  function unfilterBlanks(e, elem) {
-    dispatch("unfilterBlanks", {blanks: localState.selection.items});
   }
 
   function joinBlanks(e, elem) {
@@ -348,35 +714,46 @@ module madlib {
 
   function workspaceCanvas() {
     let activeCellId = localState.notebook.activeCellId;
-    let cells = ixer.select("related notebook cell", {cell: localState.notebook.containerCell}).map((related) => {
+    let cellItems = []
+    let parentCell = localState.notebook.containerCell;
+    let cells = ixer.select("related notebook cell", {cell: localState.notebook.containerCell});
+    cells.sort((a, b) => {
+      let aOrder = ixer.selectOne("related notebook cell order", {cell: parentCell, cell2: a["related notebook cell: cell2"]});
+      let bOrder = ixer.selectOne("related notebook cell order", {cell: parentCell, cell2: b["related notebook cell: cell2"]});
+      return aOrder["related notebook cell order: ix"] - bOrder["related notebook cell order: ix"];
+    });
+    for(let related of cells) {
       let cellId = related["related notebook cell: cell2"];
       let cell = ixer.selectOne("notebook cell", {cell: cellId});
       let kind = cell["notebook cell: kind"];
       let item;
-      if(kind === "add" || kind === "remove") {
+      if(kind === "query") {
         let viewId = ixer.selectOne("notebook cell view", {cell: cellId})["notebook cell view: view"];
-        item = tableItem(viewId);
-      } else if(kind === "query") {
-        let viewId = ixer.selectOne("notebook cell view", {cell: cellId})["notebook cell view: view"];
-        item = joinItem(viewId);
+        item = joinItem(viewId, cellId);
       }
       if(cellId === activeCellId) {
         item.c += " active";
-        item.children.push(multiInput());
       }
       item.click = setActiveCell;
       item.cellId = cellId;
-      return item;
-    });
-    if(activeCellId === 0) {
-      cells.push(multiInput());
+      cellItems.push(item);
     }
-    return {c: "canvas", mousedown: maybeClearSelection, children: cells};
+    return {c: "canvas", key: localState.input.messageNumber, postRender: scrollToBottom, mousedown: maybeClearSelection, children: cellItems};
+  }
+
+  function scrollToBottom(node, elem) {
+    if(node.lastMessageNumber !== localState.input.messageNumber) {
+      node.scrollTop = 2147483647; // 2^31 - 1, because Number.MAX_VALUE and Number.MAX_SAFE_INTEGER are too large and do nothing in FF...
+      node.lastMessageNumber = localState.input.messageNumber;
+    }
   }
 
   function maybeClearSelection(e, elem) {
     if(!e.target.classList.contains("value") && !e.shiftKey) {
       dispatch("clearSelection", {});
+    }
+    if(e.target.classList.contains("canvas")) {
+      dispatch("setActiveCell", {cellId: 0});
     }
   }
 
@@ -402,23 +779,96 @@ module madlib {
     return result;
   }
 
-  function joinItem(viewId) {
+  function joinItem(viewId, cellId) {
     let results = ixer.select(viewId, {});
     let joinInfo = getJoinInfo(viewId);
-    let sources = ixer.select("source", {view: viewId}).map((source) => {
+    let sourceItems = [];
+    let filledSources = [];
+    let sources = ixer.select("source", {view: viewId});
+    let factRows = ixer.select("cell fact row", {cell: cellId});
+    factRows.sort((a, b) => {
+      let aIx = a["cell fact row: ix"];
+      let bIx = b["cell fact row: ix"];
+      return aIx - bIx;
+    });
+    for(let fact of factRows) {
+      let sourceView = fact["cell fact row: source view"];
+      let row = JSON.parse(fact["cell fact row: row"]);
+      sourceItems.push(madlibForView(sourceView, {
+        rows: [row],
+        selectable: false
+      }));
+    }
+
+    // if there aren't any sources, this is just a fact block.
+    if(!sources.length) {
+      return {c: "item", children: [
+      {c: "button remove ion-trash-b", cellId, click: removeCellItem},
+      {c: "message-container user-message", children: [
+        {c: "message", children: sourceItems},
+        {c: "sender", text: "Me"},
+      ]},
+      {c: "message-container eve-response", children: [
+        {c: "message", children: [
+          {c: "message-text", text: `${sourceItems.length} facts added`},
+        ]},
+        {c: "sender", text: "Eve"},
+      ]}
+    ]};
+    }
+
+    sources.sort((a, b) => {
+      let aId = a["source: source"];
+      let bId = b["source: source"];
+      let aIx = ixer.selectOne("source madlib index", {source: aId})["source madlib index: ix"];
+      let bIx = ixer.selectOne("source madlib index", {source: bId})["source madlib index: ix"];
+      return aIx - bIx;
+    });
+    for(let source of sources) {
       let sourceId = source["source: source"];
       let sourceView = source["source: source view"];
       let sourceRow = extractSourceValuesFromResultRow(results[0], sourceId);
-      return madlibForView(sourceView, {
-        rows: [sourceRow],
-        joinInfo: joinInfo[sourceId],
+      sourceItems.push(madlibForView(sourceView, {
+        rows: [],
+        joinInfo: joinInfo[sourceId].fields,
         selectable: true,
         onSelect: selectBlank,
         sourceId,
-      });
-    });
-    sources.push({text: `${results.length} results`})
-    return {c: "item", children: sources};
+      }));
+      filledSources.push(madlibForView(sourceView, {
+        rows: [sourceRow],
+        joinInfo: joinInfo[sourceId].fields,
+        selectable: true,
+        onSelect: selectBlank,
+        sourceId,
+      }));
+    }
+    let message = `1 of ${results.length} matches`;
+    let resultMadlibs = {c: "results", children: filledSources};
+    if(results.length === 0) {
+      message = "0 matches";
+      resultMadlibs = undefined;
+    } else if (results.length === 1) {
+      message = `1 match`;
+    }
+    return {c: "item", children: [
+      {c: "button remove ion-trash-b", cellId, click: removeCellItem},
+      {c: "message-container user-message", children: [
+        {c: "message", children: sourceItems},
+        {c: "sender", text: "Me"},
+      ]},
+      {c: "message-container eve-response", children: [
+        {c: "message", children: [
+          resultMadlibs,
+          {c: "message-text", text: message},
+        ]},
+        {c: "sender", text: "Eve"},
+      ]}
+    ]};
+  }
+
+  function removeCellItem(e, elem) {
+    dispatch("removeCell", {cellId: elem.cellId});
   }
 
   function selectBlank(e, elem) {
@@ -431,70 +881,6 @@ module madlib {
       }
     });
     //e.preventDefault();
-  }
-
-  function tableItem(viewId) {
-    return {c: "item", children: [
-      madlibForView(viewId, {
-        rows: ixer.select(viewId, {}),
-        editable: true
-
-      })
-    ]};
-  }
-
-
-  function multiInput() {
-    let mode = localState.search.mode;
-    return {c: "multi-input", children: [
-      {c: "switcher", children: [
-        {c: "switcher-value", text: mode === MultiInputMode.query ? "?" : "+"},
-        {c: "options", children: [
-          {text: "add"},
-          {text: "find"},
-        ]}
-      ]},
-      madlibEditor(),
-    ]}
-  }
-
-  function madlibEditor() {
-    let searchValue = localState.search.value;
-    let completions = localState.search.completions;
-    let selected = completions[localState.search.selected];
-    let focus = false;
-    let currentMadlib =  {t: "table", c: "madlib-table", children: [
-      {t: "tr", c: "madlib", children: [
-        {t: "td", c: "madlib-blank", children: [
-          {c: "madlib-text", postRender: drawn.focusOnce, contentEditable: true, text: searchValue || "", input: setMadlibSearch, keydown: cellKeyDown},
-        ]}
-      ]}
-    ]};
-    return {c: "madlib-searcher", children: [
-      currentMadlib,
-      completionList(completions),
-    ]};
-  }
-
-  function setMadlibSearch(e, elem) {
-    dispatch("setMadlibSearch", {value: e.currentTarget.textContent});
-  }
-
-  function cellKeyDown(e, elem) {
-    if(e.keyCode === api.KEYS.TAB) {
-      dispatch("cellTab", {});
-      e.preventDefault();
-    } else if(e.keyCode === api.KEYS.DOWN) {
-      dispatch("searchSelect", {direction: 1});
-      e.preventDefault();
-    } else if(e.keyCode === api.KEYS.UP) {
-      dispatch("searchSelect", {direction: -1});
-      e.preventDefault();
-    } else if(e.keyCode === api.KEYS.ENTER) {
-      dispatch("submitSearch", {shift: e.shiftKey, mode: localState.search.mode, value: localState.search.value, selected: localState.search.selected, completions: localState.search.completions});
-      e.preventDefault();
-    }
-    e.stopPropagation();
   }
 
   function getCompletions(searchValue) {
@@ -556,21 +942,22 @@ module madlib {
   }
 
   function submitCompletion(e, elem) {
-    dispatch("submitSearch", {selected: elem.selectedIndex, completions: localState.search.completions})
+    // @TODO
   }
 
   function madlibRow(viewId, madlibBlanks, row, opts) {
     let {joinInfo = {}, editable = false, focus = false, selectable = false} = opts;
     let focused = false;
-    let items = madlibBlanks.map((descriptor) => {
+    let items = [];
+    for(let descriptor of madlibBlanks) {
       if(descriptor["madlib descriptor: content"]) {
-        return {t: "td", c: "madlib-blank", children: [
+        items.push({t: "td", c: "madlib-blank", children: [
           {c: "madlib-text", text: descriptor["madlib descriptor: content"]}
-        ]};
+        ]});
       } else {
         let fieldId = descriptor["field: field"];
         let name = code.name(fieldId);
-        let value = row[fieldId] !== undefined ? row[fieldId] : "";
+        let value = row[fieldId] !== undefined ? row[fieldId] : "?";
         let field:any = {c: "value", contentEditable: editable, row, fieldId, viewId, opts,
                          input: opts.onInput, keydown: opts.onKeydown, mousedown: opts.onSelect, text: value};
         let blankClass = "madlib-blank";
@@ -588,24 +975,24 @@ module madlib {
           if(fieldInfo.constantValue !== undefined) {
             blankClass += " filtered";
             field.text = fieldInfo.constantValue;
-            field.contentEditable = true;
-            field.keydown = updateFilter;
             field.variable = fieldInfo;
           }
+          if(row[fieldId] === undefined && fieldInfo.column) {
+            blankClass += " column";
+          }
         }
-        return {t: "td", c: blankClass, children: [
+        items.push({ts: "td", c: blankClass, children: [
           field,
-        ]}
+        ]});
       }
-    });
-    return {t: "tr", c: "madlib", children: items};
+    }
+    return {ts: "tr", c: "madlib", children: items};
   }
 
-  function updateFilter(e, elem) {
-    if(e.keyCode === api.KEYS.ENTER) {
-      dispatch("updateFilter", {value: drawn.coerceInput(e.currentTarget.textContent), variableId: elem.variable.variable});
-      e.preventDefault();
-    }
+  function sortBlanks(a, b) {
+    var aIx = a["madlib descriptor: ix"] || ixer.selectOne("display order", {id: a["field: field"]})["display order: priority"];
+    var bIx = b["madlib descriptor: ix"] || ixer.selectOne("display order", {id: b["field: field"]})["display order: priority"];
+    return aIx - bIx;
   }
 
   function madlibForView(viewId, opts:any = {}): any {
@@ -619,11 +1006,7 @@ module madlib {
     // ordered against eachother
     let descriptors = ixer.select("madlib descriptor", {view: viewId});
     let madlibBlanks = ixer.select("field", {view: viewId}).concat(descriptors);
-    madlibBlanks.sort((a, b) => {
-      var aIx = a["madlib descriptor: ix"] || ixer.selectOne("display order", {id: a["field: field"]})["display order: priority"];
-      var bIx = b["madlib descriptor: ix"] || ixer.selectOne("display order", {id: b["field: field"]})["display order: priority"];
-      return aIx - bIx;
-    });
+    madlibBlanks.sort(sortBlanks);
     if(!descriptors.length) {
       madlibBlanks.unshift({"madlib descriptor: content": code.name(viewId)});
     }
@@ -669,7 +1052,7 @@ module madlib {
 
     // the final madlib is a table of all the madlib items
     return {c: "madlib-container", children: [
-      {t: "table", c: "madlib-table", debug: viewId, children: rowItems}
+      {ts: "table", c: "madlib-table", debug: viewId, children: rowItems}
     ]};
   }
 
@@ -734,10 +1117,21 @@ module madlib {
       for(let binding of variableInfo.bindings) {
         let sourceId = binding["binding: source"];
         let fieldId = binding["binding: field"];
-        if(!sourceFieldToVariable[sourceId]) {
-          sourceFieldToVariable[sourceId] = {};
+        let sourceInfo = sourceFieldToVariable[sourceId];
+        if(!sourceInfo) {
+          sourceInfo = sourceFieldToVariable[sourceId] = {fields: {}};
+          if(ixer.selectOne("chunked source", {source: sourceId})) {
+            sourceInfo["chunked"] = true;
+          }
+          if(ixer.selectOne("negated source", {source: sourceId})) {
+            sourceInfo["negated"] = true;
+          }
         }
-        sourceFieldToVariable[sourceId][fieldId] = variableInfo;
+
+        if(sourceInfo["chunked"] && !ixer.selectOne("grouped field", {source: sourceId, field: fieldId})) {
+          variableInfo.column = true;
+        }
+        sourceFieldToVariable[sourceId].fields[fieldId] = variableInfo;
       }
     }
     return sourceFieldToVariable;
