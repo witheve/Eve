@@ -59,7 +59,7 @@ module uiEditorRenderer {
       renderer.queued = true;
       requestAnimationFrame(function() {
         renderer.queued = false;
-        renderer.render(rendererRoot());
+        renderer.render([rendererRoot()]);
       });
     }
   }
