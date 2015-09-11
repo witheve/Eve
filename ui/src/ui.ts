@@ -7,7 +7,7 @@ module ui {
   // Types
   //---------------------------------------------------------
   type Element = microReact.Element;
-  type Content = (() => Element)|string;
+  type Content = (() => Element)|(() => Element[])|string|Element|Element[];
   type Handler = microReact.Handler<Event>;
 
   export interface ElemOpts {
@@ -27,17 +27,35 @@ module ui {
 
   export interface UiState {
     tabbedBox: {[id:string]: string}
+    accordion: {[id:string]: string}
   }
 
   //---------------------------------------------------------
   // Utilities
   //---------------------------------------------------------
-  function inject(elem:Element, content:Content):Element {
+  function inject(elem:Element, content:Content, noClone:boolean = false):Element {
+    let res:Element|Element[];
     if(typeof content === "string") {
-      elem.text = content;
+      res = {text: content};
     } else if(typeof content === "function") {
-      elem.children = [content()];
+      res = (<Function>content)();
+    } else if(typeof content === "object") {
+      if(noClone) {
+        res = content;
+      } else {
+        // @NOTE: This is a slow path and should be avoided in tight loops.
+        res = api.clone(content);
+      }
     }
+
+    if(!elem.children) { elem.children = []; }
+
+    if(res instanceof Array) {
+      elem.children.push.apply(elem.children, res);
+    } else {
+      elem.children.push(res);
+    }
+
     return elem;
   }
 
@@ -46,7 +64,8 @@ module ui {
   //---------------------------------------------------------
   export var onChange = () => undefined;
   export var uiState:UiState = {
-    tabbedBox: {}
+    tabbedBox: {},
+    accordion: {},
   };
 
   export function init(localState:any, changeHandler:() => void) {
@@ -62,7 +81,11 @@ module ui {
     switchTab: ({tab, tabbedBox}:{tab:string, tabbedBox:string}) => {
       uiState.tabbedBox[tabbedBox] = tab;
       return true;
-    }
+    },
+    switchAccordion: ({pane, accordion}:{pane:string, accordion:string}) => {
+      uiState.accordion[accordion] = pane;
+      return true;
+    },
   };
   export function dispatch(evt:string, info:any) {
     if(!dispatches[evt]) {
@@ -113,12 +136,44 @@ module ui {
     dispatch("switchTab", {tabbedBox: elem.tabbedBox, tab: elem.tab});
   }
 
-  export function horizontal(elem:Element):Element {
+  export interface AccordionElement extends Element {
+    panes: Pane[]
+    defaultPane?:string
+    horizontal?:boolean
+  }
+  export function accordion(elem:AccordionElement):Element {
+    let {id, defaultPane, panes = [], horizontal} = elem;
+    if(panes.length < 1) { return; }
+    let tabs = [];
+    let currentPane;
+
+    // manage the default selected pane if none is supplied
+    let selected = uiState.accordion[id];
+    if(selected === undefined) {
+      selected = uiState.tabbedBox[id] = (defaultPane !== undefined) ? defaultPane : panes[0].id;
+    }
+
+    elem.c = `accordion ${elem.c || ""}`;
+    elem.children = [];
+    // for each pane, inject the title, and if the pane is selected its content
+    for(let p of panes) {
+      let isSelected = (p.id === selected);
+      elem.children.push(inject({c: isSelected ? "tab selected" : "tab", accordion: id, pane: p.id, click: switchAccordion}, p.title));
+      if(isSelected) { elem.children.push(inject({c: "pane"}, p.content)) };
+    }
+    return elem;
+  }
+
+  function switchAccordion(evt,elem) {
+    dispatch("switchAccordion", {accordion: elem.accordion, pane: elem.pane});
+  }
+
+  export function row(elem:Element):Element {
     elem.c = `flex-row ${elem.c || ""}`;
     return elem;
   }
 
-  export function vertical(elem:Element):Element {
+  export function column(elem:Element):Element {
     elem.c = `flex-column ${elem.c || ""}`;
     return elem;
   }
@@ -144,46 +199,74 @@ module ui {
   }
 
   interface TableElement extends Element {
-    tableHeaders: string[]
-    tableData: any[]
+    headerControls?: Content[]
+    headerClick?: microReact.Handler<MouseEvent>
+    rowClick?: microReact.Handler<MouseEvent>
+    cellClick?: microReact.Handler<MouseEvent>
+
+    data: (any[][]|{}[])
+    headers?: string[]
+    heterogenous?: boolean
   }
+
   export function table(elem:TableElement):Element {
-    let {tableData:data = [], tableHeaders:columns = []} = elem;
+    // Get a consistent list of headers and rows.
+    var data:any[][];
+    var headers:string[] = elem.headers || [];
+    if(elem.data.length === 0) {
+      data = [];
+    } else if(elem.data[0] instanceof Array) {
+      data = <any[][]> elem.data;
+    } else {
+      if(!elem.headers) {
+        if(!elem.heterogenous) {
+          headers = Object.keys(elem.data[0]);
+        } else {
+          let headerFields = {};
+          for(let row of <{}[]>elem.data) {
+            for(let field in row) {
+              headerFields[field] = true;
+            }
+          }
+          headers = Object.keys(headerFields);
+        }
+      }
 
-    elem.postRender = function(tableNode,elem) {
-
-      // create table elements
-      let table = d3.select(tableNode).append("table"),
-          tableHead = table.append("thead"),
-          tableBody = table.append("tbody");
-
-
-      // create the table header
-      tableHead.append("tr")
-               .selectAll("th")
-               .data(columns)
-               .enter()
-               .append("th")
-               .text(function(column) { return column; });
-
-      // create a table row for each row in the data
-      var rows = tableBody.selectAll("tr")
-                          .data(data)
-                          .enter()
-                          .append("tr");
-
-      // create cells in each row
-      var cells = rows.selectAll("td")
-                      .data(function(row) {
-                          return columns.map(function(column) {
-                              return {column: column, value: row[column]};
-                          });
-                      })
-                      .enter()
-                      .append("td")
-                      .text(function(d) { return d.value; });
+      data = [];
+      for(let row of <{}[]>elem.data) {
+        let entry = [];
+        for(let field of headers) {
+          entry.push(row[field]);
+        }
+        data.push(entry);
+      }
     }
 
+    elem.children = [];
+    let headerControls = elem.headerControls || [];
+    let headerRow = [];
+    for(let header of headers) {
+      headerRow.push(inject({t: "th", c: "header", click: elem.headerClick, header, children: [<Element>{text: header}]}, headerControls));
+    }
+    elem.children.push({t: "thead", children: [
+      {t: "tr", c: "header-row", children: headerRow}
+    ]});
+
+    let rowIx = 0;
+    let bodyRows = [];
+    for(let row of data) {
+      let entryRow = [];
+      let ix = 0;
+      for(let cell of row) {
+        entryRow.push({t: "td", c: "cell", click: elem.cellClick, header: headers[ix], text: (cell instanceof Array) ? cell.join(", ") : cell});
+        ix++;
+      }
+      bodyRows.push({t: "tr", c: "row", children: entryRow, row: rowIx, click: elem.rowClick});
+      rowIx++;
+    }
+    elem.children.push({t: "tbody", children: bodyRows});
+
+    elem.t = "table";
     return elem;
   }
 
@@ -244,8 +327,8 @@ module ui {
   //---------------------------------------------------------
   // Components
   //---------------------------------------------------------
-  export function image(elem: Element): Element {
-    elem.c = (elem.c) ? "image " + elem.c : "image";
+  export function image(elem:Element): Element {
+    elem.c = `image ${elem.c || ""}`;
     return elem;
   }
 
@@ -260,49 +343,154 @@ module ui {
     SPLINE,
     AREA,
     AREASPLINE,
+    SCATTER,
+    PIE,
+    DONUT,
+    GAUGE,
+  }
+
+  export interface ChartData {
+    label: string
+    ydata: number[]
+    xdata?: number[]
   }
 
   interface ChartElement extends Element {
-    chartData: [(string|number)]
+    chartData: ChartData[]
     chartType: ChartType
   }
-  export function chart(elem:Element):Element {
-    let {chartData,chartType} = elem;
 
+  export function chart(elem:ChartElement):Element {
+    let {chartData,chartType,line,area,bar,pie,donut,gauge,groups} = elem;
+
+    // Set the data spec baesd on chart type
     let chartTypeString: string;
+    let dataSpec: ChartDataSpec = {};
+    let linespec, areaspec, barspec, piespec, donutspec, gaugespec = {};
     switch(chartType) {
-      case ui.ChartType.BAR:
+      case ChartType.BAR:
+        dataSpec.xeqy = true;
         chartTypeString = "bar";
+        barspec = bar;
         break;
-      case ui.ChartType.LINE:
+      case ChartType.LINE:
+        dataSpec.xeqy = true;
         chartTypeString = "line";
+        linespec = line;
         break;
-      case ui.ChartType.SPLINE:
+      case ChartType.SPLINE:
+        dataSpec.xeqy = true;
         chartTypeString = "spline";
+        linespec = line;
         break;
-      case ui.ChartType.AREA:
+      case ChartType.AREA:
+        dataSpec.xeqy = true;
         chartTypeString = "area";
+        areaspec = area;
         break;
-      case ui.ChartType.AREASPLINE:
+      case ChartType.AREASPLINE:
+        dataSpec.xeqy = true;
         chartTypeString = "area-spline";
+        areaspec = area;
+        linespec = line;
+        break;
+      case ChartType.PIE:
+        dataSpec.nox = true;
+        dataSpec.singleydata = true;
+        chartTypeString = "pie";
+        piespec = pie;
+        break;
+      case ChartType.DONUT:
+        dataSpec.nox = true;
+        dataSpec.singleydata = true;
+        chartTypeString = "donut";
+        donutspec = donut;
+        break;
+      case ChartType.SCATTER:
+        dataSpec.reqx = true;
+        dataSpec.xeqy = true;
+        chartTypeString = "scatter";
+        break;
+      case ChartType.GAUGE:
+        dataSpec.nox = true;
+        dataSpec.singleydata = true;
+        dataSpec.singledata = true;
+        chartTypeString = "gauge";
+        gaugespec = gauge;
         break;
       default:
-        console.log("unrecognized chart type");
-        chartTypeString = "line";
+        throw new Error("Undefined chart type");
+    }
+
+    // verify data matches the format expected by the chart type
+    if(!checkData(chartData,dataSpec)) {
+      throw new Error("Could not render chart: " + elem);
+    }
+
+    // get the labels and data into the right format for c3
+    let formattedData = [];
+    let xdataBindings = [];
+    for(let d of chartData) {
+      let labelAndData: (string|number)[] = d.ydata.slice(0);
+      labelAndData.unshift(d.label);
+      formattedData.push(labelAndData);
+      if(d.xdata !== undefined) {
+        let labelAndData: (string|number)[] = d.xdata.slice(0);
+        let xlabel = d.label + "_x";
+        labelAndData.unshift(xlabel);
+        formattedData.push(labelAndData);
+        xdataBindings[d.label] = xlabel;
+      }
     }
 
     elem.postRender = function(chartNode,elem) {
       let chart = c3.generate({
         bindto: chartNode,
         data:{
-          columns:[],
+          xs: xdataBindings,
+          columns:formattedData,
           type: chartTypeString,
+          groups: groups,
         },
+        line: linespec,
+        area: areaspec,
+        bar: barspec,
+        pie: piespec,
+        donut: donutspec,
+        gauge: gaugespec,
       });
-      chart.load({columns:chartData})
     }
 
     return elem;
+  }
+
+  interface ChartDataSpec {
+    singledata?: boolean
+    singleydata?: boolean
+    nox?: boolean
+    reqx?: boolean
+    xeqy?: boolean
+  }
+  function checkData(chartData: ChartData[], dataSpec: ChartDataSpec):boolean {
+    if(dataSpec.singledata && chartData.length > 1) {
+      throw new Error("Chart accepts only a single chartData element.");
+    }
+    for(let d of chartData) {
+      if(dataSpec.singleydata && d.ydata.length !== 1) {
+        throw new Error("Chart accepts only a single ydata per chartData element");
+      }
+      if(dataSpec.nox && d.xdata !== undefined) {
+        throw new Error("Chart cannot have xdata.");
+      }
+      if(dataSpec.reqx && d.xdata === undefined) {
+        throw new Error("xdata required");
+      }
+      if(dataSpec.xeqy && d.xdata !== undefined && d.ydata.length !== d.xdata.length) {
+        throw new Error("xdata and ydata need to be equal length");
+      }
+    }
+
+    return true;
   }
 
 

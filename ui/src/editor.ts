@@ -1,7 +1,10 @@
-//// <reference path="microReact.ts" />
-/// <reference path="ui.ts" />
 /// <reference path="api.ts" />
 /// <reference path="client.ts" />
+
+/// <reference path="microReact.ts" />
+/// <reference path="ui.ts" />
+/// <reference path="../src/uiRenderer.ts" />
+
 /// <reference path="tableEditor.ts" />
 /// <reference path="glossary.ts" />
 /// <reference path="layout.ts" />
@@ -135,13 +138,13 @@ module drawn {
 	//---------------------------------------------------------
   // Renderer
   //---------------------------------------------------------
-
-  export var renderer;
   var perfStats;
+  export var renderer:uiRenderer.UiRenderer;
   function initRenderer() {
-    renderer = new microReact.Renderer();
-    document.body.appendChild(renderer.content);
-    renderer.queued = false;
+    let raw = new microReact.Renderer();
+    renderer = new uiRenderer.UiRenderer(raw);
+    document.body.appendChild(raw.content);
+    raw.queued = false;
     window.addEventListener("resize", render);
     perfStats = document.createElement("div");
     perfStats.id = "perfStats";
@@ -152,18 +155,21 @@ module drawn {
 
 
   export function render() {
-   if(renderer.queued === false) {
-      renderer.queued = true;
+    let raw = renderer.renderer;
+   if(raw.queued === false) {
+      raw.queued = true;
       // @FIXME: why does using request animation frame cause events to stack up and the renderer to get behind?
       setTimeout(function() {
       // requestAnimationFrame(function() {
 
         var start = performance.now();
         var tree = window["drawn"].root();
+        let editorElemIds = (ixer.select("tag", {tag: "editor-ui"}) || []).map((tag) => tag["tag: view"]);
         var total = performance.now() - start;
         if(total > 10) {
           console.log("Slow root: " + total);
         }
+<<<<<<< HEAD
         perfStats.textContent = "";
         perfStats.textContent += `root: ${total.toFixed(2)}`;
         var start = performance.now();
@@ -171,6 +177,15 @@ module drawn {
         var total = performance.now() - start;
         perfStats.textContent += ` | render: ${total.toFixed(2)}`;
         renderer.queued = false;
+=======
+        editorElemIds.unshift(tree);
+        renderer.render(editorElemIds);
+
+        // Render bootstrapped ui elements.
+
+        renderer.render(editorElemIds);
+        raw.queued = false;
+>>>>>>> 3abdbd6c5484b1bcd10b651077a3d0a9f6e9cd8e
       }, 16);
     }
   }

@@ -1363,13 +1363,13 @@ module uiEditor {
   adjustableShade.className = "adjustable-shade";
   adjustableShade.addEventListener("mousemove", function(e) {
     if (adjusterInfo) {
-      adjusterInfo.handler(e, drawn.renderer.tree[adjusterInfo.elem.id]);
+      adjusterInfo.handler(e, drawn.renderer.renderer.tree[adjusterInfo.elem.id]);
     }
   })
 
   adjustableShade.addEventListener("mouseup", function(e) {
     if (adjusterInfo.elem.finalizer) {
-      adjusterInfo.elem.finalizer(e, drawn.renderer.tree[adjusterInfo.elem.id]);
+      adjusterInfo.elem.finalizer(e, drawn.renderer.renderer.tree[adjusterInfo.elem.id]);
     }
     adjusterInfo = false;
     document.body.removeChild(adjustableShade);
@@ -1814,7 +1814,7 @@ module uiEditor {
       opacity: false,
       onCommit: function($elm) {
         var div = $elm.get(0);
-        var eveElem = drawn.renderer.tree[div._id] || drawn.renderer.prevTree[div._id];
+        var eveElem:any = drawn.renderer.renderer.tree[div._id] || drawn.renderer.renderer.prevTree[div._id];
         if (eveElem && eveElem.commit) {
           eveElem.commit({ currentTarget: div }, eveElem);
         }
@@ -1822,11 +1822,11 @@ module uiEditor {
       renderCallback: function($elm, toggled) {
         if (toggled === false) return;
         var div = $elm.get(0);
-        var eveElem = drawn.renderer.tree[div._id];
+        var eveElem = drawn.renderer.renderer.tree[div._id];
         if (eveElem && eveElem.change) {
           div.type = "color";
           div.value = this.color.colors.HEX;
-          eveElem.change({ currentTarget: div }, eveElem);
+          eveElem.change(<Event>{ currentTarget: div }, eveElem);
         }
       }
     });

@@ -185,27 +185,6 @@ module api {
   // editor
   ixer.addIndex("eveusers id to username", "eveusers", Indexing.create.lookup(["eveusers: id", "eveusers: username"]));
 
-  // ui
-  ixer.addIndex("uiComponentElement", "uiComponentElement", Indexing.create.lookup(["uiComponentElement: id", false]));
-  ixer.addIndex("uiComponentToElements", "uiComponentElement", Indexing.create.collector(["uiComponentElement: component"]));
-  ixer.addIndex("uiComponentLayer", "uiComponentLayer", Indexing.create.lookup(["uiComponentLayer: id", false]));
-  ixer.addIndex("parentLayerToLayers", "uiComponentLayer", Indexing.create.collector(["uiComponentLayer: parentLayer"]));
-  ixer.addIndex("uiComponentToLayers", "uiComponentLayer", Indexing.create.collector(["uiComponentLayer: component"]));
-  ixer.addIndex("uiLayerToElements", "uiComponentElement", Indexing.create.collector(["uiComponentElement: layer"]));
-  ixer.addIndex("uiStyles", "uiStyle", Indexing.create.collector(["uiStyle: id"]));
-  ixer.addIndex("uiStyle", "uiStyle", Indexing.create.lookup(["uiStyle: id", false]));
-  ixer.addIndex("uiElementToStyle", "uiStyle", Indexing.create.lookup(["uiStyle: element", "uiStyle: type", false]));
-  ixer.addIndex("uiElementToStyles", "uiStyle", Indexing.create.collector(["uiStyle: element"]));
-  ixer.addIndex("stylesBySharedAndType", "uiStyle", Indexing.create.collector(["uiStyle: shared", "uiStyle: type", "uiStyle: id"]));
-  ixer.addIndex("uiStyleToAttr", "uiComponentAttribute", Indexing.create.lookup(["uiComponentAttribute: id", "uiComponentAttribute: property", false]));
-  ixer.addIndex("uiStyleToAttrs", "uiComponentAttribute", Indexing.create.collector(["uiComponentAttribute: id"]));
-  ixer.addIndex("groupToBinding", "uiGroupBinding", Indexing.create.lookup(["uiGroupBinding: group", "uiGroupBinding: view"]));
-  ixer.addIndex("elementAttrToBinding", "uiAttrBinding", Indexing.create.lookup(["uiAttrBinding: elementId", "uiAttrBinding: attr", "uiAttrBinding: field"]));
-  ixer.addIndex("elementAttrBindings", "uiAttrBinding", Indexing.create.collector(["uiAttrBinding: elementId"]));
-
-  ixer.addIndex("uiElementToMap", "uiMap", Indexing.create.lookup(["uiMap: element", false]));
-  ixer.addIndex("uiMapAttr", "uiMapAttr", Indexing.create.lookup(["uiMapAttr: map","uiMapAttr: property", "uiMapAttr: value"]));
-
 
   //---------------------------------------------------------
   // Data interaction code
@@ -343,14 +322,28 @@ module api {
   /***************************************************************************\
    * Read/Write primitives.
   \***************************************************************************/
-  function fillForeignKeys(type, query, context, silentThrow?) {
+  function fillForeignKeys(type, query, context, useIds = false, silentThrow?) {
     var schema = schemas[type];
     if(!schema) { throw new Error("Attempted to process unknown type " + type + " with query " + JSON.stringify(query)); }
     var foreignKeys = schema.foreign;
     if(!foreignKeys) { return query; }
 
+      if(useIds) {
+        let foreignIdKeys:{[field: string]: string} = {};
+        let fieldIds = ixer.getFields(type);
+        let nameToId = {};
+        for(let id of fieldIds) {
+          nameToId[code.name(id)] = id;
+        }
+        for(let foreignKey in foreignKeys) {
+          foreignIdKeys[foreignKey] = nameToId[foreignKeys[foreignKey]];
+        }
+        foreignKeys = foreignIdKeys;
+      }
+
     for(var contextKey in foreignKeys) {
       var foreignKey = foreignKeys[contextKey];
+
       if(!foreignKeys.hasOwnProperty(contextKey)) { continue; }
       if(query[foreignKey] !== undefined) { continue; }
       if(context[contextKey] === undefined && !silentThrow) {
@@ -378,7 +371,7 @@ module api {
 
     // Link foreign keys from context if missing.
     if(schema.foreign) {
-      var params = fillForeignKeys(type, params, context);
+      var params = fillForeignKeys(type, params, context, useIds);
     }
 
     // Fill primary keys if missing.
@@ -444,7 +437,7 @@ module api {
           var depSchema = schemas[dependent];
 
           //debugger;
-          var q = <{[key:string]:string}>fillForeignKeys(dependent, {}, factContext, true);
+          var q = <{[key:string]:string}>fillForeignKeys(dependent, {}, factContext, useIds, true);
 
           var results = retrieve(dependent, q, clone(factContext));
           if(results && results.length) {

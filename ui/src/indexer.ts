@@ -215,6 +215,16 @@ module Indexing {
       });
       return fieldIds;
     }
+    getKeys(table:Id):Id[] {
+      var fieldIds = api.ixer.getFields(table) || [];
+      var keys = [];
+      for(let fieldId of fieldIds) {
+        if(api.code.hasTag(fieldId, "key")) {
+          keys.push(fieldId);
+        }
+      }
+      return keys;
+    }
     handleDiff(table: Id, fields:Id[], adds: MapFact[] = [], removes: MapFact[] = []) {
       var dedupedAdds = adds;
       var dedupedRemoves = removes;
