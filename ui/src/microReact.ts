@@ -31,6 +31,7 @@ module microReact {
     value?:string
 
     // Styles (Structure)
+    flex?:number|string
     left?:number|string
     top?:number|string
     width?:number|string
@@ -219,6 +220,7 @@ module microReact {
         if(cur.tabindex !== prev.tabindex) div.setAttribute("tabindex", cur.tabindex);
         if(cur.href !== prev.href) div.setAttribute("href", cur.href);
 
+        if(cur.flex !== prev.flex)  style.flex = cur.flex === undefined ? "" : cur.flex;
         if(cur.left !== prev.left)  style.left = cur.left === undefined ? "" : cur.left;
         if(cur.top !== prev.top) style.top = cur.top === undefined ? "" : cur.top;
         if(cur.height !== prev.height) style.height = cur.height === undefined ? "auto" : cur.height;
@@ -351,6 +353,7 @@ module microReact {
            && curA.checked === curB.checked
            && curA.text === curB.text
            && curA.top === curB.top
+           && curA.flex === curB.flex
            && curA.left === curB.left
            && curA.width === curB.width
            && curA.height === curB.height
