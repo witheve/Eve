@@ -129,34 +129,34 @@ module ui {
     if(panes.length < 1) { return; }
     let tabs = [];
     let currentPane;
-    
+
     // manage the default selected pane if none is supplied
     let selected = uiState.accordion[id];
     if(selected === undefined) {
       selected = uiState.tabbedBox[id] = (defaultPane !== undefined) ? defaultPane : panes[0].id;
     }
- 
+
     elem.c = `accordion ${elem.c || ""}`;
     elem.children = [];
     // for each pane, inject the title, and if the pane is selected its content
     for(let p of panes) {
-      let isSelected = (p.id === selected);      
+      let isSelected = (p.id === selected);
       elem.children.push(inject({c: isSelected ? "tab selected" : "tab", accordion: id, pane: p.id, click: switchAccordion}, p.title));
-      if(isSelected) { elem.children.push(inject({c: "pane"}, p.content)) }; 
+      if(isSelected) { elem.children.push(inject({c: "pane"}, p.content)) };
     }
     return elem;
-  } 
-  
+  }
+
   function switchAccordion(evt,elem) {
     dispatch("switchAccordion", {accordion: elem.accordion, pane: elem.pane});
   }
 
-  export function horizontal(elem:Element):Element {
+  export function row(elem:Element):Element {
     elem.c = `flex-row ${elem.c || ""}`;
     return elem;
   }
 
-  export function vertical(elem:Element):Element {
+  export function column(elem:Element):Element {
     elem.c = `flex-column ${elem.c || ""}`;
     return elem;
   }
@@ -224,7 +224,7 @@ module ui {
 
     return elem;
   }
-  
+
   //---------------------------------------------------------
   // Inputs
   //---------------------------------------------------------
@@ -300,17 +300,17 @@ module ui {
     AREASPLINE,
     PIE,
   }
-   
+
   export interface ChartData {
     label: string
-    data: number[] 
+    data: number[]
   }
-   
+
   interface ChartElement extends Element {
     chartData: ChartData[]
     chartType: ChartType
   }
-    
+
   export function chart(elem:ChartElement):Element {
     let {chartData,chartType} = elem;
 
@@ -344,7 +344,7 @@ module ui {
       default:
         throw new Error("Undefined chart type");
     }
-    
+
     // get the labels and data into the right format for c3
     let formattedData = [];
     for(let d of chartData) {
