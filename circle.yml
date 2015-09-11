@@ -5,9 +5,9 @@ machine:
 
 dependencies:
   post:
-    - npm install -g typescript@next
+    - cd ui && npm install
 
 test:
   post:
-    - cd ui && tsc
+    - cd ui && node_modules/typescript/bin/tsc
     - cd runtime && RUST_BACKTRACE=1 cargo test
