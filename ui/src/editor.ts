@@ -169,23 +169,18 @@ module drawn {
         if(total > 10) {
           console.log("Slow root: " + total);
         }
-<<<<<<< HEAD
         perfStats.textContent = "";
         perfStats.textContent += `root: ${total.toFixed(2)}`;
         var start = performance.now();
-        renderer.render(tree);
-        var total = performance.now() - start;
-        perfStats.textContent += ` | render: ${total.toFixed(2)}`;
-        renderer.queued = false;
-=======
         editorElemIds.unshift(tree);
         renderer.render(editorElemIds);
 
         // Render bootstrapped ui elements.
 
         renderer.render(editorElemIds);
+        var total = performance.now() - start;
+        perfStats.textContent += ` | render: ${total.toFixed(2)}`;
         raw.queued = false;
->>>>>>> 3abdbd6c5484b1bcd10b651077a3d0a9f6e9cd8e
       }, 16);
     }
   }
