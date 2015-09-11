@@ -18,15 +18,13 @@ module madlib {
   const MAX_COMPLETIONS = 4;
   const NO_SELECTION = 0;
 
-  enum SelectionType { blank, madlib, cell, heterogenous, none }
+  enum SelectionType { field, blank, madlib, cell, heterogenous, none }
   enum SelectionSize { single, multi, none }
 
-  enum MultiInputMode { query, add, remove }
-
-  enum FocusType { adderRow, blank, multiInput, none }
+  enum FocusType { adderRow, blank, none }
 
   function initLocalstate() {
-    localState.search = {mode: MultiInputMode.query, value: false, selected: NO_SELECTION, completions: []};
+    localState.search = {value: false, selected: NO_SELECTION, completions: []};
     localState.notebook = {activeCellId: 0, containerCell: "root"};
     localState.selection = {type: SelectionType.none, size: SelectionSize.none, items: []};
     localState.focus = {type: FocusType.none};
@@ -149,8 +147,7 @@ module madlib {
         break;
       case "extendSelection":
         var selection = localState.selection;
-        var {type, shiftKey, selectionInfo} = info;
-        selectionInfo["type"] = type;
+        var {selectionInfo} = info;
         // check if this is already selected
         if(isSelected(selectionInfo)) {
           // @TODO: this should deselect if shiftKey is true
@@ -158,13 +155,13 @@ module madlib {
         }
         // check if we're adding to an already existing selection
         if(selection.type !== SelectionType.none) {
-          if(type !== selection.type) {
+          if(selectionInfo.type !== selection.type) {
             selection.type = SelectionType.heterogenous;
           }
           selection.size = SelectionSize.multi;
           // otherwise we nuke whatever is there and move on
         } else {
-          selection.type = type;
+          selection.type = selectionInfo.type;
           selection.size = SelectionSize.single;
           selection.items = [];
         }
@@ -832,13 +829,14 @@ module madlib {
         rows: [],
         joinInfo: joinInfo[sourceId].fields,
         selectable: true,
-        onSelect: selectBlank,
+        toSelection: blankSelection,
         sourceId,
       }));
       filledSources.push(madlibForView(sourceView, {
         rows: [sourceRow],
         joinInfo: joinInfo[sourceId].fields,
         selectable: true,
+        toSelection: fieldSelection,
         onSelect: selectBlank,
         sourceId,
       }));
@@ -871,15 +869,24 @@ module madlib {
     dispatch("removeCell", {cellId: elem.cellId});
   }
 
-  function selectBlank(e, elem) {
-    dispatch("extendSelection", {
-      shiftKey: e.shiftKey,
+  function blankSelection(fieldId, fieldInfo, opts) {
+    return {
       type: SelectionType.blank,
-      selectionInfo: {
-        fieldId: elem.fieldId,
-        sourceId: elem.opts.sourceId
-      }
-    });
+      fieldId,
+      sourceId: opts.sourceId
+    };
+  }
+  function fieldSelection(fieldId, fieldInfo, opts) {
+    return {
+      type: SelectionType.field,
+      fieldId: fieldInfo.fieldId,
+    };
+  }
+
+  function selectBlank(e, elem) {
+    if(elem.selectionInfo) {
+      dispatch("extendSelection", {selectionInfo: elem.selectionInfo});
+    }
     //e.preventDefault();
   }
 
@@ -956,20 +963,26 @@ module madlib {
         ]});
       } else {
         let fieldId = descriptor["field: field"];
-        let name = code.name(fieldId);
+        let fieldInfo = joinInfo[fieldId];
+        let selectionInfo;
+        if(opts.toSelection) {
+          selectionInfo = opts.toSelection(fieldId, fieldInfo, opts)
+        }
         let value = row[fieldId] !== undefined ? row[fieldId] : "?";
-        let field:any = {c: "value", contentEditable: editable, row, fieldId, viewId, opts,
-                         input: opts.onInput, keydown: opts.onKeydown, mousedown: opts.onSelect, text: value};
+        let field:any = {c: "value", contentEditable: editable, row, fieldId, viewId, opts, fieldInfo, selectionInfo,
+                         input: opts.onInput, keydown: opts.onKeydown, text: value};
         let blankClass = "madlib-blank";
+        if(opts.selectable) {
+          field.mousedown = selectBlank;
+        }
         // @TODO: make focusing work
         if(focus && !focused) {
           field.postRender = drawn.focusOnce;
           focused = true;
         }
-        if(selectable && isSelected({type: SelectionType.blank, fieldId, sourceId: opts.sourceId})) {
+        if(selectionInfo && isSelected(selectionInfo)) {
           blankClass += " selected";
         }
-        let fieldInfo = joinInfo[fieldId];
         if(fieldInfo) {
           blankClass += ` ${fieldInfo.color}`;
           if(fieldInfo.constantValue !== undefined) {
