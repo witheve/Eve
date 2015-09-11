@@ -349,19 +349,15 @@ module ui {
     GAUGE,
   }
 
-  export interface ChartData {
+  export interface ChartElement extends Element {    
     labels: string[]
     ydata: number[][]
     xdata: number[][]
-  }
-
-  interface ChartElement extends Element {
-    chartData: ChartData
     chartType: ChartType
   }
 
   export function chart(elem:ChartElement):Element {
-    let {chartData,chartType,line,area,bar,pie,donut,gauge,groups} = elem;
+    let {labels,ydata,xdata,chartType,line,area,bar,pie,donut,gauge,groups} = elem;
 
     // Set the data spec based on chart type
     let chartTypeString: string;
@@ -424,18 +420,17 @@ module ui {
 
     // convert chartData into a nice format for chart type checking
     let formattedData = [];
-    if(!(chartData.labels.length === chartData.ydata.length && (chartData.xdata.length === 0 ||
-                                                                chartData.labels.length === chartData.xdata.length))) {
+    if(!(labels.length === ydata.length && (xdata.length === 0 ||
+                                            labels.length === xdata.length))) {
         throw new Error("Charts expect labels, xdata, and ydata to have the same number of elements.");        
     }
     let formatedData = [];
-    for(let i in chartData.labels) {
+    for(let i in labels) {
       let formatted = {};
-      formatted["label"] = chartData.labels[i];
-      formatted["ydata"] = chartData.ydata[i]; 
-      let xdata = chartData.xdata[i];
-      if(xdata !== undefined && xdata.length > 0) {
-        formatted["xdata"] = chartData.xdata[i];
+      formatted["label"] = labels[i];
+      formatted["ydata"] = ydata[i]; 
+      if(xdata[i] !== undefined && xdata[i].length > 0) {
+        formatted["xdata"] = xdata[i];
       }
       formattedData.push(formatted);
     }
@@ -489,7 +484,7 @@ module ui {
     reqx?: boolean
     xeqy?: boolean
   }
-  function checkData(chartData: ChartData[], dataSpec: ChartDataSpec):boolean {
+  function checkData(chartData: any[], dataSpec: ChartDataSpec):boolean {
     if(dataSpec.singledata && chartData.length > 1) {
       throw new Error("Chart accepts only a single chartData element.");
     }
