@@ -350,20 +350,20 @@ module ui {
   }
 
   export interface ChartData {
-    label: string
-    ydata: number[]
-    xdata?: number[]
+    labels: string[]
+    ydata: number[][]
+    xdata: number[][]
   }
 
   interface ChartElement extends Element {
-    chartData: ChartData[]
+    chartData: ChartData
     chartType: ChartType
   }
 
   export function chart(elem:ChartElement):Element {
     let {chartData,chartType,line,area,bar,pie,donut,gauge,groups} = elem;
 
-    // Set the data spec baesd on chart type
+    // Set the data spec based on chart type
     let chartTypeString: string;
     let dataSpec: ChartDataSpec = {};
     let linespec, areaspec, barspec, piespec, donutspec, gaugespec = {};
@@ -422,23 +422,41 @@ module ui {
         throw new Error("Undefined chart type");
     }
 
+    // convert chartData into a nice format for chart type checking
+    let formattedData = [];
+    if(!(chartData.labels.length === chartData.ydata.length && (chartData.xdata.length === 0 ||
+                                                                chartData.labels.length === chartData.xdata.length))) {
+        throw new Error("Charts expect labels, xdata, and ydata to have the same number of elements.");        
+    }
+    let formatedData = [];
+    for(let i in chartData.labels) {
+      let formatted = {};
+      formatted["label"] = chartData.labels[i];
+      formatted["ydata"] = chartData.ydata[i]; 
+      let xdata = chartData.xdata[i];
+      if(xdata !== undefined && xdata.length > 0) {
+        formatted["xdata"] = chartData.xdata[i];
+      }
+      formattedData.push(formatted);
+    }
+
     // verify data matches the format expected by the chart type
-    if(!checkData(chartData,dataSpec)) {
+    if(!checkData(formattedData,dataSpec)) {
       throw new Error("Could not render chart: " + elem);
     }
 
     // get the labels and data into the right format for c3
-    let formattedData = [];
+    let formattedC3Data = [];
     let xdataBindings = [];
-    for(let d of chartData) {
+    for(let d of formattedData) {
       let labelAndData: (string|number)[] = d.ydata.slice(0);
       labelAndData.unshift(d.label);
-      formattedData.push(labelAndData);
+      formattedC3Data.push(labelAndData);
       if(d.xdata !== undefined) {
         let labelAndData: (string|number)[] = d.xdata.slice(0);
         let xlabel = d.label + "_x";
         labelAndData.unshift(xlabel);
-        formattedData.push(labelAndData);
+        formattedC3Data.push(labelAndData);
         xdataBindings[d.label] = xlabel;
       }
     }
@@ -448,7 +466,7 @@ module ui {
         bindto: chartNode,
         data:{
           xs: xdataBindings,
-          columns:formattedData,
+          columns:formattedC3Data,
           type: chartTypeString,
           groups: groups,
         },
