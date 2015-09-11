@@ -97,8 +97,9 @@ module uitk {
 
     var columns = ["name","title"];
 
-    let data1: ui.ChartData = {label: "data1", data: [30, 200, 100, 400, 150, 250, 30]};
-    let data2: ui.ChartData = {label: "data2", data: [130, 100, 140, 200, 150, 50,70]};
+    let data1: ui.ChartData = {label: "data1", ydata: [130]};
+    let data2: ui.ChartData = {label: "data2", ydata: [130]};
+    let data3: ui.ChartData = {label: "data3", ydata: [270]};
 
     const renderer = drawn.renderer;
     console.log(renderer.compile(["A", "B", "F"]));
@@ -108,8 +109,8 @@ module uitk {
       ui.button({text: "Button 1"}),
       ui.checkbox({change: null}),
       ui.checkbox({change: null, checked: true}),
-      ui.chart({chartData: [data1,data2], chartType: ui.ChartType.BAR}),
-      ui.tabbedBox({id: "settings-pane", semantic: "pane::example", defaultTab: "pane1", panes: settingsPanes, controls: [{c: "ion-close tab", click: null},{c: "ion-search tab", click: null}]}),
+      ui.chart({chartData: [data1], chartType: ui.ChartType.GAUGE}),
+      ui.tabbedBox({id: "foo-pane", semantic: "pane::example", defaultTab: "pane1", panes: settingsPanes, controls: [{c: "ion-close tab", click: null},{c: "ion-search tab", click: null}]}),
       ui.input({multiline: false}),
       ui.input({multiline: true}),
       ui.image({backgroundImage: "http://witheve.com/logo.png", height: "100", width: "100"}),
