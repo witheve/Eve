@@ -7,7 +7,7 @@ module ui {
   // Types
   //---------------------------------------------------------
   type Element = microReact.Element;
-  type Content = (() => Element)|string;
+  type Content = (() => Element)|(() => Element[])|string|Element|Element[];
   type Handler = microReact.Handler<Event>;
 
   export interface ElemOpts {
@@ -33,12 +33,29 @@ module ui {
   //---------------------------------------------------------
   // Utilities
   //---------------------------------------------------------
-  function inject(elem:Element, content:Content):Element {
+  function inject(elem:Element, content:Content, noClone:boolean = false):Element {
+    let res:Element|Element[];
     if(typeof content === "string") {
-      elem.text = content;
+      res = {text: content};
     } else if(typeof content === "function") {
-      elem.children = [content()];
+      res = (<Function>content)();
+    } else if(typeof content === "object") {
+      if(noClone) {
+        res = content;
+      } else {
+        // @NOTE: This is a slow path and should be avoided in tight loops.
+        res = api.clone(content);
+      }
     }
+
+    if(!elem.children) { elem.children = []; }
+
+    if(res instanceof Array) {
+      elem.children.push.apply(elem.children, res);
+    } else {
+      elem.children.push(res);
+    }
+
     return elem;
   }
 
@@ -182,46 +199,74 @@ module ui {
   }
 
   interface TableElement extends Element {
-    tableHeaders: string[]
-    tableData: any[]
+    headerControls?: Content[]
+    headerClick?: microReact.Handler<MouseEvent>
+    rowClick?: microReact.Handler<MouseEvent>
+    cellClick?: microReact.Handler<MouseEvent>
+
+    data: (any[][]|{}[])
+    headers?: string[]
+    heterogenous?: boolean
   }
+
   export function table(elem:TableElement):Element {
-    let {tableData:data = [], tableHeaders:columns = []} = elem;
+    // Get a consistent list of headers and rows.
+    var data:any[][];
+    var headers:string[] = elem.headers || [];
+    if(elem.data.length === 0) {
+      data = [];
+    } else if(elem.data[0] instanceof Array) {
+      data = <any[][]> elem.data;
+    } else {
+      if(!elem.headers) {
+        if(!elem.heterogenous) {
+          headers = Object.keys(elem.data[0]);
+        } else {
+          let headerFields = {};
+          for(let row of <{}[]>elem.data) {
+            for(let field in row) {
+              headerFields[field] = true;
+            }
+          }
+          headers = Object.keys(headerFields);
+        }
+      }
 
-    elem.postRender = function(tableNode,elem) {
-
-      // create table elements
-      let table = d3.select(tableNode).append("table"),
-          tableHead = table.append("thead"),
-          tableBody = table.append("tbody");
-
-
-      // create the table header
-      tableHead.append("tr")
-               .selectAll("th")
-               .data(columns)
-               .enter()
-               .append("th")
-               .text(function(column) { return column; });
-
-      // create a table row for each row in the data
-      var rows = tableBody.selectAll("tr")
-                          .data(data)
-                          .enter()
-                          .append("tr");
-
-      // create cells in each row
-      var cells = rows.selectAll("td")
-                      .data(function(row) {
-                          return columns.map(function(column) {
-                              return {column: column, value: row[column]};
-                          });
-                      })
-                      .enter()
-                      .append("td")
-                      .text(function(d) { return d.value; });
+      data = [];
+      for(let row of <{}[]>elem.data) {
+        let entry = [];
+        for(let field of headers) {
+          entry.push(row[field]);
+        }
+        data.push(entry);
+      }
     }
 
+    elem.children = [];
+    let headerControls = elem.headerControls || [];
+    let headerRow = [];
+    for(let header of headers) {
+      headerRow.push(inject({t: "th", c: "header", click: elem.headerClick, header, children: [<Element>{text: header}]}, headerControls));
+    }
+    elem.children.push({t: "thead", children: [
+      {t: "tr", c: "header-row", children: headerRow}
+    ]});
+
+    let rowIx = 0;
+    let bodyRows = [];
+    for(let row of data) {
+      let entryRow = [];
+      let ix = 0;
+      for(let cell of row) {
+        entryRow.push({t: "td", c: "cell", click: elem.cellClick, header: headers[ix], text: (cell instanceof Array) ? cell.join(", ") : cell});
+        ix++;
+      }
+      bodyRows.push({t: "tr", c: "row", children: entryRow, row: rowIx, click: elem.rowClick});
+      rowIx++;
+    }
+    elem.children.push({t: "tbody", children: bodyRows});
+
+    elem.t = "table";
     return elem;
   }
 

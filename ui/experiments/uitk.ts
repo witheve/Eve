@@ -156,7 +156,13 @@ module uitk {
         {t: "h2", text: "ui.image({backgroundImage:string})"},
         ui.image({backgroundImage: "http://witheve.com/logo.png", height: "100", width: "100"}),
         {t: "h2", text: "ui.table({...})"},
-        ui.table({tableData: data, tableHeaders: columns})
+        ui.table({data: data}),
+        {t: "h2"},
+        ui.table({data: data, headers: ["name"]}),
+        {t: "h2"},
+        ui.table({data: [[1, 2, 3], ["a", "b", "c"], ["A", "B", "C"]]}),
+        {t: "h2"},
+        ui.table({headers: ["Field A", "Field B", "Field C"], data: [[1, 2, 3], ["a", "b", "c"], ["A", "B", "C"]]})
       ]},
 
       {t: "h1", text: "Dynamic Rendering"},

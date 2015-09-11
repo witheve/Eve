@@ -46,6 +46,13 @@ input[type="text"], textarea { font-family: "Lato"; font-size: 16px; }
 }
 [contenteditable="true"].input:empty:before { content: attr(placeholder); display: block; /* For Firefox */ }
 
+body table { display: table; color: inherit; }
+body table * { flex: none; }
+body table thead { display: table-header-group; }
+body table tbody { display: table-row-group; }
+body table tr { display: table-row; }
+body table th, body table td { display: table-cell; }
+
 
 /*---------------------------------------------------------
 - Buttons on lighter backgrounds
