@@ -59,9 +59,6 @@ module uiRenderer {
         let boundAttrs = elementToAttrBindings[elemId];
         let children = elementToChildren[elemId];
 
-        // Handle meta properties.
-        elem.t = fact["uiElement: tag"];
-
         let elems = [elem];
         let binding = api.ixer.selectOne("uiElementBinding", {element: elemId});
         if(binding) {
@@ -91,6 +88,9 @@ module uiRenderer {
             key = compiledKeys[elem.id];
             row = keyToRow[key];
           }
+
+          // Handle meta properties.
+          elem.t = fact["uiElement: tag"];
 
           // Handle static properties.
           let properties = [];
@@ -171,7 +171,9 @@ module uiRenderer {
   }
 
   export type ElementCompiler = (elem:microReact.Element) => void;
-  export var elementCompilers:{[tag:string]: ElementCompiler} = {};
+  export var elementCompilers:{[tag:string]: ElementCompiler} = {
+    chart: ui.chart
+  };
   export function addElementCompiler(tag:string, compiler:ElementCompiler) {
     if(elementCompilers[tag]) {
       throw new Error(`Refusing to overwrite existing compilfer for tag: "${tag}"`);
