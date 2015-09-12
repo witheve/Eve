@@ -173,10 +173,10 @@ module uiRenderer {
   export type ElementCompiler = (elem:microReact.Element) => void;
   export var elementCompilers:{[tag:string]: ElementCompiler} = {
     chart: (elem:ui.ChartElement) => {
+      elem.pointLabels = (elem.pointLabels) ? [<any>elem.pointLabels] : [];
       elem.ydata = (elem.ydata) ? [<any>elem.ydata] : [];
       elem.xdata = (elem.xdata) ? [<any>elem.xdata] : elem.xdata;
-      console.log("INIT", elem);
-      console.log("CHART", ui.chart(elem));
+      ui.chart(elem);
     }
   };
   export function addElementCompiler(tag:string, compiler:ElementCompiler) {
