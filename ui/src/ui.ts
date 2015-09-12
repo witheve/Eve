@@ -488,7 +488,6 @@ module ui {
 
     elem.postRender = api.debounce(200,function(chartNode,elem) {
       if(chartNode.chart) {
-        chartNode.chart.unload();
         chartNode.chart.load({
           xs: xdataBindings,
           columns:formattedC3Data,
@@ -496,7 +495,8 @@ module ui {
           groups: groups,
           labels: {
             format: c3PointLabels
-          }
+          },
+          unload: chartNode.chart.columns
         });
       } else {
         chartNode.chart = c3.generate({
