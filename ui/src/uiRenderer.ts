@@ -173,9 +173,11 @@ module uiRenderer {
   export type ElementCompiler = (elem:microReact.Element) => void;
   export var elementCompilers:{[tag:string]: ElementCompiler} = {
     chart: (elem:ui.ChartElement) => {
-      elem.ydata = (elem.ydata) ? [elem.ydata] : [[]];
-      elem.xdata = (elem.xdata) ? [elem.xdata] : [[]];
-      ui.chart(elem);
+      elem.labels = (elem.labels) ? [<any>elem.labels] : [];
+      elem.ydata = (elem.ydata) ? [<any>elem.ydata] : [];
+      elem.xdata = (elem.xdata) ? [<any>elem.xdata] : [];
+      console.log("INIT", elem);
+      console.log("CHART", ui.chart(elem));
     }
   };
   export function addElementCompiler(tag:string, compiler:ElementCompiler) {

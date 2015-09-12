@@ -349,7 +349,7 @@ module ui {
     GAUGE,
   }
 
-  export interface ChartElement extends Element {    
+  export interface ChartElement extends Element {
     labels?: string[]
     ydata: number[][]
     xdata?: number[][]
@@ -367,7 +367,7 @@ module ui {
         labels.push('data' + i);
       }
     }
-    
+
     // Set the data spec based on chart type
     let chartTypeString: string;
     let dataSpec: ChartDataSpec = {};
@@ -429,19 +429,19 @@ module ui {
 
     // check array lengths
     let formattedData = [];
-    if(!(ydata.length === labels.length && 
+   if(!(ydata.length === labels.length &&
          (xdata === undefined || ydata.length === xdata.length) &&
          (pointLabels === undefined || ydata.length === pointLabels.length)
       )) {
-        throw new Error("ChartElement arrays must have the same number of elements");        
-    }
-    
+        throw new Error("ChartElement arrays must have the same number of elements");
+   }
+
     // convert input data into nice format for type checking
     let formatedData = [];
     for(let i in labels) {
       let formatted = {};
       formatted["label"] = labels[i];
-      formatted["ydata"] = ydata[i]; 
+      formatted["ydata"] = ydata[i];
       if(xdata !== undefined && xdata[i].length > 0) {
         formatted["xdata"] = xdata[i];
       }
