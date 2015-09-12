@@ -469,6 +469,17 @@ module ui {
       }
     }
 
+    let c3PointLabels = {};
+    if(pointLabels !== undefined) {
+      c3PointLabels = 
+        function(v,id,i,j) {
+          if(id === undefined) {
+            return;
+          }
+          return pointLabels[j][i];
+        };
+    }
+
     elem.postRender = function(chartNode,elem) {
       let chart = c3.generate({
         bindto: chartNode,
@@ -478,12 +489,7 @@ module ui {
           type: chartTypeString,
           groups: groups,
           labels: {
-            format: function(v,id,i,j) {
-              if(id === undefined) {
-                return;
-              }
-              return pointLabels[j][i];
-            }
+            format: c3PointLabels
           }
         },
         line: linespec,
