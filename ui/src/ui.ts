@@ -471,7 +471,7 @@ module ui {
 
     let c3PointLabels = {};
     if(pointLabels !== undefined) {
-      c3PointLabels = 
+      c3PointLabels =
         function(v,id,i,j) {
           if(id === undefined) {
             return;
@@ -480,10 +480,10 @@ module ui {
         };
     }
 
-    elem.postRender = function(chartNode,elem) {
-      let chart = c3.generate({
-        bindto: chartNode,
-        data:{
+    elem.postRender = api.debounce(200,function(chartNode,elem) {
+      if(chartNode.chart) {
+        chartNode.chart.unload();
+        chartNode.chart.load({
           xs: xdataBindings,
           columns:formattedC3Data,
           type: chartTypeString,
@@ -491,15 +491,28 @@ module ui {
           labels: {
             format: c3PointLabels
           }
-        },
-        line: linespec,
-        area: areaspec,
-        bar: barspec,
-        pie: piespec,
-        donut: donutspec,
-        gauge: gaugespec,
-      });
-    }
+        });
+      } else {
+        chartNode.chart = c3.generate({
+          bindto: chartNode,
+          data:{
+            xs: xdataBindings,
+            columns:formattedC3Data,
+            type: chartTypeString,
+            groups: groups,
+            labels: {
+              format: c3PointLabels
+            }
+          },
+          line: linespec,
+          area: areaspec,
+          bar: barspec,
+          pie: piespec,
+          donut: donutspec,
+          gauge: gaugespec,
+        })
+      }
+    });
 
     return elem;
   }

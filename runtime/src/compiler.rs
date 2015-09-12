@@ -197,6 +197,8 @@ pub fn editor_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("related notebook cell order", vec!["cell", "cell2", "ix"]),
     // "query", "add", and "remove" cells all have views associated to them
     ("notebook cell view", vec!["cell", "view"]),
+    // "query", "add", and "remove" cells all have views associated to them
+    ("notebook cell uiElement", vec!["cell", "element"]),
 
     // descriptions for views in the editor
     ("view description", vec!["view", "description"]),

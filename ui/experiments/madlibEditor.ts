@@ -1,9 +1,8 @@
 /// <reference path="../src/microReact.ts" />
 /// <reference path="../src/api.ts" />
 /// <reference path="../src/client.ts" />
-/// <reference path="../src/tableEditor.ts" />
 /// <reference path="../src/glossary.ts" />
-/// <reference path="../src/layout.ts" />
+/// <reference path="../src/ui.ts" />
 
 module madlib {
 
@@ -95,11 +94,7 @@ module madlib {
         //if the current cell is not a join cell
         if(!activeCell || activeCell["notebook cell: kind"] !== "query") {
           let parentCellId = localState.notebook.containerCell;
-          let cellOrders = orderedRelatedCells(parentCellId);
-          let order = 0;
-          if(cellOrders[0]) {
-            order = cellOrders[0]["related notebook cell order: ix"] + 1;
-          }
+          let order = relatedCellNextIndex(parentCellId);
           let cell = createCell(parentCellId, "query", order, queryId);
           activeCellId = cell.cellId;
           diffs.push.apply(diffs, cell.diffs);
@@ -147,14 +142,14 @@ module madlib {
         break;
       case "extendSelection":
         var selection = localState.selection;
-        var {selectionInfo} = info;
+        var {selectionInfo, shiftKey} = info;
         // check if this is already selected
         if(isSelected(selectionInfo)) {
           // @TODO: this should deselect if shiftKey is true
           break;
         }
         // check if we're adding to an already existing selection
-        if(selection.type !== SelectionType.none) {
+        if(shiftKey && selection.type !== SelectionType.none) {
           if(selectionInfo.type !== selection.type) {
             selection.type = SelectionType.heterogenous;
           }
@@ -236,6 +231,18 @@ module madlib {
         }
         diffs = dispatch("setActiveCell", {cellId: activeCellId});
         break;
+      case "addResultChart":
+        var ix = relatedCellNextIndex(info.cellId);
+        var {diffs, cellId} = createChartCell(ui.ChartType.BAR, info.cellId, ix, info.viewId);
+        break;
+      case "bindAttribute":
+        var {selection, elementId, property} = info;
+        if(selection.type === SelectionType.field) {
+          let fieldId = selection.items[0].fieldId;
+          diffs.push(api.remove("uiAttributeBinding", {element: elementId, property}));
+          diffs.push(api.insert("uiAttributeBinding", {element: elementId, property, field: fieldId}));
+        }
+        break;
       case "unjoinBlanks":
 
         break;
@@ -315,6 +322,27 @@ module madlib {
       diffs.push(api.insert("notebook cell view", {cell: cellId, view: viewId}));
     }
     return {diffs, cellId};
+  }
+
+  function createChartCell(chartType, parentCellId, ix, viewId) {
+    let {diffs, cellId} = createCell(parentCellId, "chart", ix);
+    //we have to create a chart Element
+    let elementId = uuid();
+    let parentElementId = uuid();
+    diffs.push(api.insert("notebook cell uiElement", {cell: cellId, element: elementId}));
+    diffs.push(api.insert("uiElement", {element: elementId, parent: parentElementId, tag: "chart"}));
+    diffs.push(api.insert("uiElementBinding", {element: elementId, view: viewId}));
+    diffs.push(api.insert("uiAttribute", {element: elementId, property: "chartType", value: chartType}));
+    return {diffs, cellId};
+  }
+
+  function relatedCellNextIndex(parentCellId) {
+    let cellOrders = orderedRelatedCells(parentCellId);
+    let index = 0;
+    if(cellOrders[0]) {
+      index = cellOrders[0]["related notebook cell order: ix"] + 1;
+    }
+    return index;
   }
 
   function cellToString(cellId) {
@@ -849,6 +877,20 @@ module madlib {
     } else if (results.length === 1) {
       message = `1 match`;
     }
+    let related;
+    let relatedCells = ixer.select("related notebook cell", {cell: cellId});
+    if(relatedCells.length) {
+      let children = [];
+      for(let related of relatedCells) {
+        let relatedId = related["related notebook cell: cell2"];
+        let cell = ixer.selectOne("notebook cell", {cell: relatedId});
+        let kind = cell["notebook cell: kind"];
+        if(kind === "chart") {
+          children.push(drawChartCell(relatedId))
+        }
+      }
+      related = {children};
+    }
     return {c: "item", children: [
       {c: "button remove ion-trash-b", cellId, click: removeCellItem},
       {c: "message-container user-message", children: [
@@ -858,11 +900,66 @@ module madlib {
       {c: "message-container eve-response", children: [
         {c: "message", children: [
           resultMadlibs,
+          related,
+          {c: "button", click: addResultChart, viewId, cellId, text: "chart!"},
           {c: "message-text", text: message},
         ]},
         {c: "sender", text: "Eve"},
-      ]}
+      ]},
     ]};
+  }
+
+  function addResultChart(e, elem) {
+    dispatch("addResultChart", {viewId: elem.viewId, cellId: elem.cellId});
+  }
+
+  function bindAttribute(e, elem) {
+    dispatch("bindAttribute", {selection: localState.selection, elementId: elem.elementId, property: elem.property});
+  }
+
+  function uiAttributeBindingBlank(label, elementId, property) {
+    return {c: "blank", children: [
+      {text: label},
+      {elementId, property, dragover: (e) => {e.preventDefault();}, drop: bindAttribute, text: "drop here"},
+    ]};
+  }
+
+  function drawChartCell(cellId) {
+    var uiElementId = ixer.selectOne("notebook cell uiElement", {cell: cellId})["notebook cell uiElement: element"];
+    var parentElement = ixer.selectOne("uiElement", {element: uiElementId})["uiElement: parent"];
+    //based on the type of chart we need different binding controls
+    let leftControls = [];
+    let bottomControls = [];
+    let type = ixer.selectOne("uiAttribute", {element: uiElementId, property: "chartType"})["uiAttribute: value"];
+    if(type === ui.ChartType.LINE || type === ui.ChartType.BAR || type === ui.ChartType.SCATTER) {
+      //xs, ys, labels
+      leftControls.push(uiAttributeBindingBlank("ys!", uiElementId, "ydata"));
+      bottomControls.push(uiAttributeBindingBlank("xs!", uiElementId, "xdata"));
+      bottomControls.push(uiAttributeBindingBlank("labels!", uiElementId, "pointLabels"));
+    } else if(type === ui.ChartType.PIE) {
+      //ys, labels
+      leftControls.push({text: "values!"});
+      leftControls.push({text: "labels!"});
+    } else if(type === ui.ChartType.GAUGE) {
+      //value
+      bottomControls.push({text: "value!"});
+    }
+    // @TODO: we're generating all the charts, which is unnecessary
+    var charts = drawn.renderer.compile([uiElementId])[0];
+    // @TODO: for now we're only ever showing the first result, but once we can scroll
+    // through them, this will no longer be just the first.
+    var curChart = charts.children[0];
+    curChart.parent = undefined;
+    curChart.dirty = true;
+    console.log(curChart);
+//     let curChart = {text: "chart goes here"};
+    return {c: "cell chart", children:[
+      {c: "left-controls", children: leftControls},
+      {c: "column", children: [
+        {c: "chart-container", children: [curChart]},
+        {c: "bottom-controls", children: bottomControls},
+      ]},
+    ]}
   }
 
   function removeCellItem(e, elem) {
@@ -932,7 +1029,6 @@ module madlib {
           rows: [ixer.selectOne(viewId, {})]
         });
         madlib.selectedIndex = ix;
-        madlib.click = submitCompletion;
         madlib.score = score;
         if(ix === searchSelected) {
           madlib.c += " selected";
@@ -948,8 +1044,8 @@ module madlib {
     }
   }
 
-  function submitCompletion(e, elem) {
-    // @TODO
+  function startDrag(e, elem) {
+    e.dataTransfer.setData("text", "foo");
   }
 
   function madlibRow(viewId, madlibBlanks, row, opts) {
@@ -969,7 +1065,9 @@ module madlib {
           selectionInfo = opts.toSelection(fieldId, fieldInfo, opts)
         }
         let value = row[fieldId] !== undefined ? row[fieldId] : "?";
-        let field:any = {c: "value", contentEditable: editable, row, fieldId, viewId, opts, fieldInfo, selectionInfo,
+        let field:any = {c: "value", draggable:true, dragover: (e) => { e.preventDefault(); },
+                         contentEditable: editable, row, fieldId, viewId, opts, fieldInfo, dragstart: startDrag,
+                         selectionInfo, drop:()=> {console.log("dropped!");}, dragend: () => {console.log("done dragging");},
                          input: opts.onInput, keydown: opts.onKeydown, text: value};
         let blankClass = "madlib-blank";
         if(opts.selectable) {

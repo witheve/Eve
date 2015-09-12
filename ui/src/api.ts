@@ -24,6 +24,23 @@ module api {
     return (new Date()).getTime();
   }
 
+  export function debounce(wait, func) {
+    var timer;
+    var args;
+    var runner = function() {
+      timer = false;
+      return func.apply(null, args);
+    }
+    return function() {
+      args = arguments;
+      if(timer) {
+        clearTimeout(timer);
+      }
+      timer = setTimeout(runner, wait);
+      return timer;
+    }
+  }
+
   export var arraysIdentical:(a:any[], b:any[])=>boolean = Indexing.arraysIdentical;
   export var zip:(keys:string[], rows:any[][])=>any[] = Indexing.zip;
   export var clone:<T>(item:T)=>T = Indexing.clone;

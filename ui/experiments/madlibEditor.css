@@ -65,6 +65,13 @@ body div { display:-webkit-flex; -webkit-flex-direction:column; }
 .submit { cursor:default; justify-content:center; -webkit-justify-content:center; border-radius:3px; padding:0 15px; background: rgba(255,255,255,0.1); font-size:10pt; }
 .submit:hover { background:rgba(255,255,255,0.2); }
 
+.cell.chart { flex-direction:row; align-items:center; }
+.cell.chart .column { flex: 1; align-items:center; }
+.cell.chart .chart-container {  }
+chart { fill: #ccc; }
+.c3-ygrid-line line { stroke: #ccc; }
+.c3-axis line { stroke: #ccc; }
+
 .light { background: white; }
 .light .madlib { color: #555; }
 .light .madlib-text { color: #777; }

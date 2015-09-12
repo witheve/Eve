@@ -108,7 +108,7 @@ module drawn {
         e.stopPropagation();
     }
 
-    function preventDefault(e) {
+    export function preventDefault(e) {
         e.preventDefault();
     }
 
@@ -148,7 +148,7 @@ module drawn {
     window.addEventListener("resize", render);
     perfStats = document.createElement("div");
     perfStats.id = "perfStats";
-//     document.body.appendChild(perfStats);
+    document.body.appendChild(perfStats);
   }
 
   var performance = window["performance"] || {now: () => (new Date()).getTime()}
