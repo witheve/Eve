@@ -91,11 +91,12 @@ module uitk {
       {name: "Jamie", title: "CTO"}
     ];
 
-    let lineData: ui.ChartElement = {labels: ["data1","data2","data3"], 
-                                     ydata: [[30, 200, 100, 400, 150],
-                                             [50, 20, 10, 40, 15],
-                                             [130, 150, 200, 300, 200]], 
-                                     xdata: [],
+    let lineData: ui.ChartElement = {ydata: [[30, 200, 100, 400],
+                                             [50, 20, 10, 40]], 
+                                     pointLabels: [
+                                                    ["one","two","three","four"],
+                                                    ["five","six","seven","eight"],
+                                                  ],
                                      chartType: ui.ChartType.LINE,
                                     };
     
@@ -116,16 +117,14 @@ module uitk {
                                         chartType: ui.ChartType.SCATTER,
                                        };                                             
 
-    
     let pieData: ui.ChartElement = {labels: ["data1","data2","data3"], 
                                     ydata: [[130],[532],[270]],
-                                    xdata: [],
                                     chartType: ui.ChartType.PIE,
                                    };
     let donutData = api.clone(pieData);
     donutData["chartType"] = ui.ChartType.DONUT;
     
-    let gaugeData: ui.ChartElement = {labels: ["data1"], ydata: [[150]], xdata: [], chartType: ui.ChartType.GAUGE, gauge: {min: 0, max: 200}};
+    let gaugeData: ui.ChartElement = {labels: ["data1"], ydata: [[150]], chartType: ui.ChartType.GAUGE, gauge: {min: 0, max: 200}};
     
     let uiElements = (ixer.select("uiElement", {}) || []).map(function(fact) {
       let {"uiElement: element": id, "uiElement: parent": parent} = fact;
@@ -192,7 +191,6 @@ module uitk {
         ui.chart(pieData),
         ui.chart(donutData),
         ui.chart(gaugeData),
-        
         {t: "h2", text: "ui.image({backgroundImage:string})"},
         ui.image({backgroundImage: "http://witheve.com/logo.png", height: "100", width: "100"}),
         {t: "h2", text: "ui.table({...})"},

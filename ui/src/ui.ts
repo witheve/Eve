@@ -350,15 +350,24 @@ module ui {
   }
 
   export interface ChartElement extends Element {    
-    labels: string[]
+    labels?: string[]
     ydata: number[][]
-    xdata: number[][]
+    xdata?: number[][]
+    pointLabels?: string[][]
     chartType: ChartType
   }
 
   export function chart(elem:ChartElement):Element {
-    let {labels,ydata,xdata,chartType,line,area,bar,pie,donut,gauge,groups} = elem;
+    let {labels,ydata,xdata,pointLabels,chartType,line,area,bar,pie,donut,gauge,groups} = elem;
 
+    // If no labels are provided, we need some default labels
+    if(labels === undefined) {
+      labels = [];
+      for(let i in ydata) {
+        labels.push('data' + i);
+      }
+    }
+    
     // Set the data spec based on chart type
     let chartTypeString: string;
     let dataSpec: ChartDataSpec = {};
@@ -418,18 +427,22 @@ module ui {
         throw new Error("Undefined chart type");
     }
 
-    // convert chartData into a nice format for chart type checking
+    // check array lengths
     let formattedData = [];
-    if(!(labels.length === ydata.length && (xdata.length === 0 ||
-                                            labels.length === xdata.length))) {
-        throw new Error("Charts expect labels, xdata, and ydata to have the same number of elements.");        
+    if(!(ydata.length === labels.length && 
+         (xdata === undefined || ydata.length === xdata.length) &&
+         (pointLabels === undefined || ydata.length === pointLabels.length)
+      )) {
+        throw new Error("ChartElement arrays must have the same number of elements");        
     }
+    
+    // convert input data into nice format for type checking
     let formatedData = [];
     for(let i in labels) {
       let formatted = {};
       formatted["label"] = labels[i];
       formatted["ydata"] = ydata[i]; 
-      if(xdata[i] !== undefined && xdata[i].length > 0) {
+      if(xdata !== undefined && xdata[i].length > 0) {
         formatted["xdata"] = xdata[i];
       }
       formattedData.push(formatted);
@@ -464,6 +477,14 @@ module ui {
           columns:formattedC3Data,
           type: chartTypeString,
           groups: groups,
+          labels: {
+            format: function(v,id,i,j) {
+              if(id === undefined) {
+                return;
+              }
+              return pointLabels[j][i];
+            }
+          }
         },
         line: linespec,
         area: areaspec,
