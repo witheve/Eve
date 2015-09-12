@@ -918,9 +918,8 @@ module madlib {
   }
 
   function uiAttributeBindingBlank(label, elementId, property) {
-    return {c: "blank", children: [
-      {text: label},
-      {elementId, property, dragover: (e) => {e.preventDefault();}, drop: bindAttribute, text: "drop here"},
+    return {c: "attribute-blank", children: [
+      {elementId, property, dragover: (e) => {e.preventDefault();}, drop: bindAttribute, text: label},
     ]};
   }
 
@@ -933,9 +932,9 @@ module madlib {
     let type = ixer.selectOne("uiAttribute", {element: uiElementId, property: "chartType"})["uiAttribute: value"];
     if(type === ui.ChartType.LINE || type === ui.ChartType.BAR || type === ui.ChartType.SCATTER) {
       //xs, ys, labels
-      leftControls.push(uiAttributeBindingBlank("ys!", uiElementId, "ydata"));
-      bottomControls.push(uiAttributeBindingBlank("xs!", uiElementId, "xdata"));
-      bottomControls.push(uiAttributeBindingBlank("labels!", uiElementId, "pointLabels"));
+      leftControls.push(uiAttributeBindingBlank("y", uiElementId, "ydata"));
+      bottomControls.push(uiAttributeBindingBlank("x", uiElementId, "xdata"));
+      bottomControls.push(uiAttributeBindingBlank("labels", uiElementId, "pointLabels"));
     } else if(type === ui.ChartType.PIE) {
       //ys, labels
       leftControls.push({text: "values!"});
