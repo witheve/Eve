@@ -15,6 +15,7 @@ module microReact {
     children?:Element[]
     ix?:number
     key?:string
+    dirty?:boolean
     semantic?:string
     debug?:any
 
@@ -340,7 +341,8 @@ module microReact {
           continue;
         }
 
-        if(curA.c === curB.c
+        if(!curB.dirty
+           && curA.c === curB.c
            && curA.key === curB.key
            && curA.tabindex === curB.tabindex
            && curA.href === curB.href
@@ -443,7 +445,7 @@ module microReact {
       for(var i = 0, len = postRenders.length; i < len; i++) {
         var elem = postRenders[i];
         var id = elem.id;
-        if(diff[id] === "updated" || diff[id] === "added") {
+        if(diff[id] === "updated" || diff[id] === "added" || elem.dirty) {
           elem.postRender(elementCache[elem.id], elem);
         }
       }
