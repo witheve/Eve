@@ -358,6 +358,8 @@ module ui {
   }
 
   export function chart(elem:ChartElement):Element {
+    elem.dirty = true;
+
     let {labels,ydata,xdata,pointLabels,chartType,line,area,bar,pie,donut,gauge,groups} = elem;
 
     // If no labels are provided, we need some default labels
