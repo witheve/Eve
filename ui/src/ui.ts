@@ -358,9 +358,12 @@ module ui {
   }
 
   export function chart(elem:ChartElement):Element {
-    elem.dirty = true;
-
     let {labels,ydata,xdata,pointLabels,chartType,line,area,bar,pie,donut,gauge,groups} = elem;
+    elem.key = `${elem.key + " " || ""}${chartType}
+                ${labels ? `::labels[${labels.join(",")}]` : ""}
+                ${pointLabels ? `::pointLabels[${pointLabels.join(",")}]` : ""}
+                ${xdata ? `::xs[${xdata.join(",")}]` : ""}
+                ${ydata ? `::ys[${ydata.join(",")}]` : ""}`;
 
     // If no labels are provided, we need some default labels
     if(labels === undefined) {
@@ -428,6 +431,7 @@ module ui {
       default:
         throw new Error("Undefined chart type");
     }
+    console.log("BS", barspec);
 
     // check array lengths
     let formattedData = [];
