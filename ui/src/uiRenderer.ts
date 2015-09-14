@@ -116,7 +116,7 @@ module uiRenderer {
             elem.children = [];
             for(let child of children) {
               let childId = child["uiElement: element"];
-              let childElem = {__elemId: childId, id: `${elem.id}.${childId}`};
+              let childElem = {__elemId: childId, id: `${elem.id}__${childId}`};
               compiledKeys[childElem.id] = key;
               elem.children.push(childElem);
               stack.push(childElem);

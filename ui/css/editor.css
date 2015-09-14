@@ -52,6 +52,8 @@ body table thead { display: table-header-group; }
 body table tbody { display: table-row-group; }
 body table tr { display: table-row; }
 body table th, body table td { display: table-cell; }
+body table th { text-align: left; }
+body table th * { display: inline-block; }
 
 
 /*---------------------------------------------------------

@@ -28,6 +28,7 @@ module ui {
   export interface UiState {
     tabbedBox: {[id:string]: string}
     accordion: {[id:string]: string}
+    sort: {[id:string]: {field: string, direction: number}}
   }
 
   //---------------------------------------------------------
@@ -66,6 +67,7 @@ module ui {
   export var uiState:UiState = {
     tabbedBox: {},
     accordion: {},
+    sort: {}
   };
 
   export function init(localState:any, changeHandler:() => void) {
@@ -86,6 +88,10 @@ module ui {
       uiState.accordion[accordion] = pane;
       return true;
     },
+    setSort: ({forId, fieldId, direction}:{forId:string, fieldId: string, direction:number}) => {
+      uiState.sort[forId] = {field: fieldId, direction};
+      return true;
+    }
   };
   export function dispatch(evt:string, info:any) {
     if(!dispatches[evt]) {
@@ -198,6 +204,22 @@ module ui {
     return elem;
   }
 
+  interface SortToggleElement extends Element {
+    for: string
+    field: string
+    direction?: number
+    active?: boolean
+  }
+  export function sortToggle(elem:SortToggleElement) {
+    let {"for":forId, field:fieldId, direction = 1, active = false} = elem;
+
+    var sortClass = `icon ${(direction === 1 || !active) ? "ion-android-arrow-dropdown" : "ion-android-arrow-dropup"} ${active ? "active" : ""}`;
+    return {c: sortClass, click: setSort, forId, fieldId, direction};
+  }
+  function setSort(evt, elem) {
+    dispatch("setSort", {forId: elem.forId, fieldId: elem.fieldId, direction: elem.direction === 1 ? -1 : 1});
+  }
+
   interface TableElement extends Element {
     headerControls?: Content[]
     headerClick?: microReact.Handler<MouseEvent>
@@ -207,12 +229,19 @@ module ui {
     data: (any[][]|{}[])
     headers?: string[]
     heterogenous?: boolean
+
+    autosort? : boolean
+    sortable?: boolean
+    staticHeaders?: boolean
   }
 
   export function table(elem:TableElement):Element {
     // Get a consistent list of headers and rows.
     var data:any[][];
     var headers:string[] = elem.headers || [];
+    if(elem.headers && !elem.staticHeaders) {
+      headers.sort(api.displaySort);
+    }
     if(elem.data.length === 0) {
       data = [];
     } else if(elem.data[0] instanceof Array) {
@@ -230,6 +259,9 @@ module ui {
           }
           headers = Object.keys(headerFields);
         }
+        if(elem.headers && !elem.staticHeaders) {
+          headers.sort(api.displaySort);
+        }
       }
 
       data = [];
@@ -242,11 +274,26 @@ module ui {
       }
     }
 
+    let {autosort = true, sortable} = elem;
+    if(autosort && elem.id && uiState.sort[elem.id]) {
+      let {field: sortField, direction: sortDirection} = uiState.sort[elem.id];
+      let sortIx = headers.indexOf(sortField);
+      if(sortIx !== -1) {
+        api.sortRows(data, sortIx, sortDirection);
+      }
+    }
+
     elem.children = [];
     let headerControls = elem.headerControls || [];
     let headerRow = [];
     for(let header of headers) {
-      headerRow.push(inject({t: "th", c: "header", click: elem.headerClick, header, children: [<Element>{text: header}]}, headerControls));
+      let {field: activeField, direction: dir} = uiState.sort[elem.id] || {field: undefined, direction: undefined};
+      let active = (activeField === header);
+      headerRow.push(
+        inject({t: "th", c: "spaced-row header", click: elem.headerClick, header, children: [
+          <Element>{text: (elem.staticHeaders ? header : api.code.name(header))},
+          (sortable ? ui.sortToggle({"for": elem.id, field: header, direction: active ? dir : 1, active}) : undefined)
+        ]}, headerControls));
     }
     elem.children.push({t: "thead", children: [
       {t: "tr", c: "header-row", children: headerRow}
