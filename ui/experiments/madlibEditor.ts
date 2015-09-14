@@ -237,10 +237,12 @@ module madlib {
         break;
       case "bindAttribute":
         var {selection, elementId, property} = info;
+        console.log(selection, elementId, property);
         if(selection.type === SelectionType.field) {
           let fieldId = selection.items[0].fieldId;
           diffs.push(api.remove("uiAttributeBinding", {element: elementId, property}));
           diffs.push(api.insert("uiAttributeBinding", {element: elementId, property, field: fieldId}));
+          console.log("added attribute binding");
         }
         break;
       case "unjoinBlanks":
@@ -518,7 +520,6 @@ module madlib {
           madlibRegex = madlibRegexCache[madlibView] = new RegExp(regexStr);
         }
         // check if this line matches the madlib's regex
-        console.log(cleanedLine, madlibRegex.toString())
         var matches = cleanedLine.match(madlibRegex);
         if(matches) {
           // by default we have an add
@@ -666,7 +667,6 @@ module madlib {
       {c: "workspace", children: [
         workspaceTools(),
         workspaceCanvas(),
-        chatInput(),
       ]}
     ]};
   }
@@ -676,7 +676,7 @@ module madlib {
     if(!cm) {
       cm = node.editor = new CodeMirror(node);
       if(elem.input) {
-        cm.on("inputread", elem.input)
+        cm.on("input", elem.input)
       }
       if(elem.keydown) {
         cm.on("keydown", elem.keydown);
@@ -687,7 +687,7 @@ module madlib {
     }
   }
 
-  function chatInput() {
+  function chatInput(cellId) {
     let numLines = localState.input.value.split("\n").length;
     let height = Math.max(21, numLines * 21);
     let submitActionText = "add";
@@ -698,14 +698,14 @@ module madlib {
         submitActionText = "remove";
       }
     }
-    return {c: "chat-input-container", children: [
-      {t: "textarea", c: "chat-input", height, keydown: chatInputKey, input: trackChatInput, placeholder: "Enter a message...", value: localState.input.value},
+    return {id: `chat-input ${cellId}`, c: "chat-input-container", children: [
+      {c: "chat-input", postRender:CodeMirrorElement, keydown: chatInputKey, input: trackChatInput, placeholder: "Enter a message...", value: localState.input.value},
       {c: "submit", mousedown: submitQuery, text: submitActionText},
     ]}
   }
 
   function trackChatInput(e, elem) {
-    dispatch("trackChatInput", {value: e.currentTarget.value});
+    dispatch("trackChatInput", {value: e.currentTarget.editor.getValue()});
   }
 
   function submitQuery(e, elem) {
@@ -714,7 +714,7 @@ module madlib {
 
   function chatInputKey(e, elem) {
     if(e.keyCode === api.KEYS.ENTER && (e.metaKey || e.ctrlKey)) {
-      dispatch("submitQuery", {value: e.currentTarget.value});
+      dispatch("submitQuery", {value: e.currentTarget.editor.getValue()});
       e.preventDefault();
     } else if(e.keyCode === api.KEYS.UP && e.ctrlKey) {
       dispatch("moveCellCursor", {dir: -1});
@@ -759,10 +759,15 @@ module madlib {
       if(cellId === activeCellId) {
         item.c += " active";
       }
-      item.click = setActiveCell;
       item.cellId = cellId;
       cellItems.push(item);
     }
+    cellItems.push({c: "item", children: [
+      {c: "message-container user-message", children: [
+        {c: "message", children: [chatInput(0)]},
+        {c: "sender", text: "Me"},
+      ]},
+    ]});
     return {c: "canvas", key: localState.input.messageNumber, postRender: scrollToBottom, mousedown: maybeClearSelection, children: cellItems};
   }
 
@@ -783,6 +788,7 @@ module madlib {
   }
 
   function setActiveCell(e, elem) {
+    console.log("setActiveCell", elem.cellId);
     dispatch("setActiveCell", {cellId: elem.cellId});
   }
 
@@ -825,23 +831,6 @@ module madlib {
       }));
     }
 
-    // if there aren't any sources, this is just a fact block.
-    if(!sources.length) {
-      return {c: "item", children: [
-      {c: "button remove ion-trash-b", cellId, click: removeCellItem},
-      {c: "message-container user-message", children: [
-        {c: "message", children: sourceItems},
-        {c: "sender", text: "Me"},
-      ]},
-      {c: "message-container eve-response", children: [
-        {c: "message", children: [
-          {c: "message-text", text: `${sourceItems.length} facts added`},
-        ]},
-        {c: "sender", text: "Eve"},
-      ]}
-    ]};
-    }
-
     sources.sort((a, b) => {
       let aId = a["source: source"];
       let bId = b["source: source"];
@@ -869,6 +858,31 @@ module madlib {
         sourceId,
       }));
     }
+
+    if(cellId === localState.notebook.activeCellId) {
+      sourceItems = [chatInput(cellId)];
+    }
+    let result = queryResult(results, factRows, filledSources, cellId, viewId);
+    return {id: `cell-${cellId}`, c: "item", click: setActiveCell, cellId, children: [
+      {c: "button remove ion-trash-b", cellId, click: removeCellItem},
+      {c: "message-container user-message", children: [
+        {c: "message", children: sourceItems},
+        {c: "sender", text: "Me"},
+      ]},
+      result,
+    ]};
+  }
+
+  function queryResult(results, factRows, filledSources, cellId, viewId) {
+    // if there aren't any sources, this is just a fact block.
+    if(!filledSources.length) {
+      return {c: "message-container eve-response", children: [
+        {c: "message", children: [
+          {c: "message-text", text: `${factRows.length} facts added`},
+        ]},
+        {c: "sender", text: "Eve"},
+      ]};
+    }
     let message = `1 of ${results.length} matches`;
     let resultMadlibs = {c: "results", children: filledSources};
     if(results.length === 0) {
@@ -891,13 +905,7 @@ module madlib {
       }
       related = {children};
     }
-    return {c: "item", children: [
-      {c: "button remove ion-trash-b", cellId, click: removeCellItem},
-      {c: "message-container user-message", children: [
-        {c: "message", children: sourceItems},
-        {c: "sender", text: "Me"},
-      ]},
-      {c: "message-container eve-response", children: [
+    return {c: "message-container eve-response", children: [
         {c: "message", children: [
           resultMadlibs,
           related,
@@ -905,8 +913,7 @@ module madlib {
           {c: "message-text", text: message},
         ]},
         {c: "sender", text: "Eve"},
-      ]},
-    ]};
+      ]};
   }
 
   function addResultChart(e, elem) {
@@ -941,7 +948,7 @@ module madlib {
       leftControls.push({text: "labels!"});
     } else if(type === ui.ChartType.GAUGE) {
       //value
-      bottomControls.push({text: "value!"});
+      bottomControls.push(uiAttributeBindingBlank("value", uiElementId, "ydata"));
     }
     // @TODO: we're generating all the charts, which is unnecessary
     var charts = drawn.renderer.compile([uiElementId])[0];
@@ -949,9 +956,6 @@ module madlib {
     // through them, this will no longer be just the first.
     var curChart = charts.children[0];
     curChart.parent = undefined;
-    curChart.dirty = true;
-    console.log(curChart);
-//     let curChart = {text: "chart goes here"};
     return {c: "cell chart", children:[
       {c: "left-controls", children: leftControls},
       {c: "column", children: [
@@ -981,7 +985,7 @@ module madlib {
 
   function selectBlank(e, elem) {
     if(elem.selectionInfo) {
-      dispatch("extendSelection", {selectionInfo: elem.selectionInfo});
+      dispatch("extendSelection", {selectionInfo: elem.selectionInfo}, true);
     }
     //e.preventDefault();
   }
@@ -1066,7 +1070,7 @@ module madlib {
         let value = row[fieldId] !== undefined ? row[fieldId] : "?";
         let field:any = {c: "value", draggable:true, dragover: (e) => { e.preventDefault(); },
                          contentEditable: editable, row, fieldId, viewId, opts, fieldInfo, dragstart: startDrag,
-                         selectionInfo, drop:()=> {console.log("dropped!");}, dragend: () => {console.log("done dragging");},
+                         selectionInfo, drop:()=> {console.log("dropped!");},
                          input: opts.onInput, keydown: opts.onKeydown, text: value};
         let blankClass = "madlib-blank";
         if(opts.selectable) {

@@ -359,7 +359,7 @@ module ui {
 
   export function chart(elem:ChartElement):Element {
     let {labels,ydata,xdata,pointLabels,chartType,line,area,bar,pie,donut,gauge,groups} = elem;
-    elem.key = `${elem.key + " " || ""}${chartType}
+    elem.key = `${elem.key || ""} ${chartType}
                 ${labels ? `::labels[${labels.join(",")}]` : ""}
                 ${pointLabels ? `::pointLabels[${pointLabels.join(",")}]` : ""}
                 ${xdata ? `::xs[${xdata.join(",")}]` : ""}
@@ -431,7 +431,6 @@ module ui {
       default:
         throw new Error("Undefined chart type");
     }
-    console.log("BS", barspec);
 
     // check array lengths
     let formattedData = [];
