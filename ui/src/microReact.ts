@@ -454,7 +454,7 @@ module microReact {
     render(elems:Element[]) {
         this.reset();
       // We sort elements by depth to allow them to be self referential.
-      elems.sort((a, b) => (a.id ? a.id.split(".").length : 0) - (b.id ? b.id.split(".").length : 0));
+      elems.sort((a, b) => (a.parent ? a.parent.split("__").length : 0) - (b.parent ? b.parent.split("__").length : 0));
       let start = now();
       for(let elem of elems) {
         let post = this.prepare(elem);
