@@ -192,7 +192,7 @@ module uitk {
           {id: "pie", title: "pie", content: () => ui.chart(pieData)},
           {id: "donut", title: "donut", content: () => ui.chart(donutData)},
           {id: "gauge", title: "gauge", content: () => ui.chart(gaugeData)},
-        ]})
+        ]}),
 
         {t: "h2", text: "ui.image({backgroundImage:string})"},
         ui.image({backgroundImage: "http://witheve.com/logo.png", height: "100", width: "100"}),
@@ -203,11 +203,10 @@ module uitk {
         {t: "h2"},
         ui.table({data: [[1, 2, 3], ["a", "b", "c"], ["A", "B", "C"]]}),
         {t: "h2"},
-        ui.table({headers: ["Field A", "Field B", "Field C"], data: [[1, 2, 3], ["a", "b", "c"], ["A", "B", "C"]]})
+        ui.table({headers: ["Field A", "Field B", "Field C"], data: [[1, 2, 3], ["a", "b", "c"], ["A", "B", "C"]]}),
         {t: "h2"},
         {text: "With sort toggles in headers"},
         ui.table({id: "my-tag-table", data: api.ixer.facts("tag", true), sortable: true}),
-
       ]},
 
       {t: "h1", text: "Dynamic Rendering"},
