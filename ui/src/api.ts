@@ -88,6 +88,24 @@ module api {
     return res;
   }
 
+  // @NOTE Rows array will be mutated in place. Please slice in advance if source cannot be mutated.
+  export function sortRows(rows:any[], field:string|number, direction:number) {
+    rows.sort(function sort(a, b) {
+      a = a[field];
+      b = b[field];
+      if(direction < 0) { [a, b] = [b, a]; }
+      var typeA = typeof a;
+      var typeB = typeof b;
+      if(typeA === typeB && typeA === "number") { return a - b; }
+      if(typeA === "number") { return -1; }
+      if(typeB === "number") { return 1; }
+      if(typeA === "undefined") { return -1; }
+      if(typeB === "undefined") { return 1; }
+      if(a.constructor === Array) { return JSON.stringify(a).localeCompare(JSON.stringify(b)); }
+      return a.toString().localeCompare(b);
+    });
+  }
+
   export var alphabet = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
                   "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"];
   export var alphabetLower = alphabet.map(function(char) {
