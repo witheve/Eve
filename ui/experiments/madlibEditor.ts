@@ -237,12 +237,10 @@ module madlib {
         break;
       case "bindAttribute":
         var {selection, elementId, property} = info;
-        console.log(selection, elementId, property);
         if(selection.type === SelectionType.field) {
           let fieldId = selection.items[0].fieldId;
           diffs.push(api.remove("uiAttributeBinding", {element: elementId, property}));
           diffs.push(api.insert("uiAttributeBinding", {element: elementId, property, field: fieldId}));
-          console.log("added attribute binding");
         }
         break;
       case "unjoinBlanks":
@@ -788,7 +786,6 @@ module madlib {
   }
 
   function setActiveCell(e, elem) {
-    console.log("setActiveCell", elem.cellId);
     dispatch("setActiveCell", {cellId: elem.cellId});
   }
 
