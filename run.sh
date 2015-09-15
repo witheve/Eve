@@ -147,16 +147,18 @@ pushd . &> /dev/null
     fi
   fi
 
-  if [[ "$mode" == "build" ]]; then
-    exit 0
-  fi
-
   # Compile and run server.
-  echo "* Compiling and running server. This takes a while..."
   rustFlags="--release"
   if $debugFlag; then
     rustFlags=""
   fi
 
-  RUST_BACKTRACE=1 cargo run --bin=server $rustFlags
+  if [[ "$mode" == "build" ]]; then
+    echo "* Compiling server. This takes a while..."
+    RUST_BACKTRACE=1 cargo build --bin=server $rustFlags
+  else
+    echo "* Compiling and running server. This takes a while..."
+    RUST_BACKTRACE=1 cargo run --bin=server $rustFlags
+  fi
+
 popd &> /dev/null
