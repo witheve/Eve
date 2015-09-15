@@ -409,11 +409,14 @@ module ui {
 
   export function chart(elem:ChartElement):Element {
     let {labels,ydata,xdata,pointLabels,chartType,gaugeMin,gaugeMax,width} = elem;
+    
     elem.key = `${elem.key + " " || ""}${chartType}
                 ${labels ? `::labels[${labels.join(",")}]` : ""}
                 ${pointLabels ? `::pointLabels[${pointLabels.join(",")}]` : ""}
                 ${xdata ? `::xs[${xdata.join(",")}]` : ""}
                 ${ydata ? `::ys[${ydata.join(",")}]` : ""}`;
+                
+     
 
     // If no labels are provided, we need some default labels
     if(labels === undefined) {
@@ -430,7 +433,7 @@ module ui {
     switch(chartType) {
       case ChartType.BAR:
         dataSpec.xeqy = true;
-        barspec['width'] = width;
+        if(width !== undefined) {barspec['width'] = width;}
         chartTypeString = "bar";
         break;
       case ChartType.LINE:
@@ -457,7 +460,7 @@ module ui {
       case ChartType.DONUT:
         dataSpec.nox = true;
         dataSpec.singleydata = true;
-        donutspec['width'] = width;
+        if(width !== undefined) {donutspec['width'] = width;}
         chartTypeString = "donut";
         break;
       case ChartType.SCATTER:
@@ -469,9 +472,9 @@ module ui {
         dataSpec.nox = true;
         dataSpec.singleydata = true;
         dataSpec.singledata = true;
-        gaugespec["min"] = gaugeMin;
-        gaugespec["max"] = gaugeMax;
-        gaugespec["width"] = width;
+        if(gaugeMin !== undefined) {gaugespec['min'] = gaugeMin;}
+        if(gaugeMax !== undefined) {gaugespec['max'] = gaugeMax;}
+        if(width !== undefined) {gaugespec['width'] = width;}
         chartTypeString = "gauge";
         break;
       default:

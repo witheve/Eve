@@ -182,8 +182,6 @@ pub fn editor_schema() -> Vec<(&'static str, Vec<&'static str>)> {
 
     // the full text of a madlib
     ("madlib", vec!["view", "madlib"]),
-    // the non-field portions of a madlib
-    ("madlib descriptor", vec!["view", "ix", "content"]),
     // position of source madlibs within a query
     ("source madlib index", vec!["source", "ix"]),
     // facts added to a cell
@@ -1411,7 +1409,7 @@ pub fn bootstrap(flow: &mut Flow) {
         let mut display_name_table = flow.overwrite_output("display name");
         let mut display_order_table = flow.overwrite_output("display order");
         let mut editor_item_table = flow.overwrite_output("editor item");
-        let mut view_description_table = flow.overwrite_output("view description");
+        let mut madlib_table = flow.overwrite_output("madlib");
 
         for (view, _) in code_schema().into_iter() {
             tag_table.index.insert(vec![string!("{}", view), string!("editor")]);
@@ -1454,7 +1452,7 @@ pub fn bootstrap(flow: &mut Flow) {
             }
         }
 
-        for (primitive, scalar_inputs, vector_inputs, outputs, description) in primitive::primitives().into_iter() {
+        for (primitive, scalar_inputs, vector_inputs, outputs, madlib) in primitive::primitives().into_iter() {
             let mut ix = 0;
             view_table.index.insert(vec![string!("{}", primitive), string!("primitive")]);
             display_name_table.index.insert(vec![string!("{}", primitive), string!("{}", primitive)]);
@@ -1476,7 +1474,7 @@ pub fn bootstrap(flow: &mut Flow) {
                 display_order_table.index.insert(vec![string!("{}: {}", primitive, name), Value::Float(ix as f64)]);
                 ix += 1;
             }
-            view_description_table.index.insert(vec![string!("{}", primitive), string!("{}", description)]);
+            madlib_table.index.insert(vec![string!("{}", primitive), string!("{}", madlib)]);
         }
     }
 
