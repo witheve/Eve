@@ -10,7 +10,7 @@ dependencies:
     - npm i -g phantomjs
     - npm i -g casperjs@1.1.0-beta3
     - npm i -g spook
-    - ./run.sh --no-browser
+    - ./run.sh --no-browser:
       background: true
     - sleep 10
 
