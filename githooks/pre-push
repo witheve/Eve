@@ -24,13 +24,28 @@ remote="$1"
 url="$2"
 
 echo "Attempting build to verify changes compile (stashing your uncomitted changes, they will be reapplied at the end of this hook)..."
-git stash
+
+# First, stash index and work dir, keeping only the
+# to-be-committed changes in the working directory.
+old_stash=$(git rev-parse -q --verify refs/stash)
+git stash save -q --keep-index
+new_stash=$(git rev-parse -q --verify refs/stash)
+
+if [ "$old_stash" = "$new_stash" ]; then
+  echo "No changes to test, exiting."
+  sleep 1
+  exit 0
+fi
+
 ./run.sh build
 result=$?
-git stash apply
 if [ "$result" -eq "0" ]; then
   echo "Build successful!"
 else
   echo "Build failed. Please fix build errors and try again."
 fi
+
+# Restore changes
+git reset --hard -q && git stash apply --index -q && git stash drop -q
+
 exit $result
