@@ -86,8 +86,11 @@ module madlib {
           // in the case where we're modifying a previous cell, we may eventually want to
           // remove the old view as it could cause us problems, but for now we'll leave it.
           // We do, however, need to remove any previous facts associated to this cell.
-          diffs.push.apply(diffs, removeCellFacts(activeCellId));
           // @TODO: should we remove the associated view if it's safe?
+          diffs.push.apply(diffs, removeCellFacts(activeCellId));
+          // in the case where there are related cells, we need to adjust their bindings
+          // if there are any.
+          // @TODO: adjust bindings for charts
         }
         diffs.push.apply(diffs, madlibParseItemsToDiffs(activeCellId, queryId, items));
         localState.input.value = "";
@@ -505,7 +508,6 @@ module madlib {
         let madlibRegex = madlibRegexCache[madlibView];
         if(!madlibRegex) {
           let madlibText = madlib["madlib: madlib"].replace(/([\*\+\(\)\[\]])/, "\\$1");
-          console.log(madlibText);
           let regexStr = madlibText.replace(/\?/gi, "(.+)");
           madlibRegex = madlibRegexCache[madlibView] = new RegExp(regexStr);
         }
