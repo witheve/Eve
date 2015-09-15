@@ -273,6 +273,7 @@ module madlib {
 
   function removeCell(cellId) {
     let diffs = [];
+    let cellKind = ixer.selectOne("notebook cell", {cell: cellId})["notebook cell: kind"];
     diffs.push(api.remove("notebook cell", {cell: cellId}));
     diffs.push(api.remove("related notebook cell", {cell: cellId}));
     diffs.push(api.remove("related notebook cell", {cell2: cellId}));
@@ -281,14 +282,22 @@ module madlib {
     // remove depedents
     for(let related of ixer.select("related notebook cell", {cell: cellId})) {
       let cell2 = related["related notebook cell: cell2"];
-      diffs.push.apply(removeCell(cell2));
+      diffs.push.apply(diffs, removeCell(cell2));
     }
     diffs.push(api.remove("related notebook cell order", {cell: cellId}));
     diffs.push(api.remove("related notebook cell order", {cell2: cellId}));
-    diffs.push(api.remove("notebook cell view", {cell: cellId}));
-    for(let cellView of ixer.select("notebook cell view", {cell: cellId})) {
-      let viewId = cellView["notebook cell view: view"];
-      diffs.push.apply(drawn.removeView(viewId));
+    if(cellKind === "query") {
+      diffs.push(api.remove("notebook cell view", {cell: cellId}));
+      for(let cellView of ixer.select("notebook cell view", {cell: cellId})) {
+        let viewId = cellView["notebook cell view: view"];
+        diffs.push.apply(diffs, drawn.removeView(viewId));
+      }
+    } else if(cellKind === "chart") {
+      let elementId = ixer.selectOne("notebook cell uiElement", {cell: cellId})["notebook cell uiElement: element"];
+      diffs.push(api.remove("notebook cell uiElement", {cell: cellId}));
+      diffs.push(api.remove("uiElement", {element: elementId}));
+      diffs.push(api.remove("uiElementBinding", {element: elementId}));
+      diffs.push(api.remove("uiAttribute", {element: elementId}));
     }
     return diffs;
   }
@@ -935,6 +944,7 @@ module madlib {
     }
     // @TODO: we're generating all the charts, which is unnecessary
     var charts = drawn.renderer.compile([uiElementId])[0];
+    if(!charts.children.length) return;
     // @TODO: for now we're only ever showing the first result, but once we can scroll
     // through them, this will no longer be just the first.
     var curChart = charts.children[0];
