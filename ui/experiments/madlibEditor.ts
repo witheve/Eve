@@ -662,6 +662,7 @@ module madlib {
       if(elem.keydown) {
         cm.on("keydown", elem.keydown);
       }
+      cm.focus();
     }
     if(cm.getValue() !== elem.value) {
       cm.setValue(elem.value);
@@ -672,7 +673,9 @@ module madlib {
     let numLines = localState.input.value.split("\n").length;
     let height = Math.max(21, numLines * 21);
     let submitActionText = "add";
-    if(localState.notebook.activeCellId) {
+    let value = "";
+    if(cellId && localState.notebook.activeCellId === cellId) {
+      value = localState.input.value;
       if(localState.input.value) {
         submitActionText = "edit"
       } else {
@@ -680,7 +683,7 @@ module madlib {
       }
     }
     return {id: `chat-input ${cellId}`, c: "chat-input-container", children: [
-      {c: "chat-input", postRender:CodeMirrorElement, keydown: chatInputKey, input: trackChatInput, placeholder: "Enter a message...", value: localState.input.value},
+      {c: "chat-input", postRender:CodeMirrorElement, keydown: chatInputKey, input: trackChatInput, placeholder: "Enter a message...", value},
       {c: "submit", mousedown: submitQuery, text: submitActionText},
     ]}
   }
@@ -843,7 +846,7 @@ module madlib {
       sourceItems = [chatInput(cellId)];
     }
     let result = queryResult(results, factRows, filledSources, cellId, viewId);
-    return {id: `cell-${cellId}`, c: "item", click: setActiveCell, cellId, children: [
+    return {id: `cell-${cellId}`, c: "item", dblclick: setActiveCell, cellId, children: [
       {c: "button remove ion-trash-b", cellId, click: removeCellItem},
       {c: "message-container user-message", children: [
         {c: "message", children: sourceItems},
