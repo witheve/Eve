@@ -124,7 +124,7 @@ module uitk {
     let donutData = api.clone(pieData);
     donutData["chartType"] = ui.ChartType.DONUT;
 
-    let gaugeData: ui.ChartElement = {labels: ["data1"], ydata: [[150]], chartType: ui.ChartType.GAUGE, gauge: {min: 0, max: 200}};
+    let gaugeData: ui.ChartElement = {labels: ["data1"], ydata: [[150]], chartType: ui.ChartType.GAUGE, gaugeMin: 0, gaugeMax: 200};
 
     let uiElements = (ixer.select("uiElement", {}) || []).map(function(fact) {
       let {"uiElement: element": id, "uiElement: parent": parent} = fact;
