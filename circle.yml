@@ -9,6 +9,7 @@ dependencies:
     - npm i -g slimerjs
     - npm i -g phantomjs
     - npm i -g casperjs@1.1.0-beta3
+    - npm i -g spook
 
 test:
   post:
