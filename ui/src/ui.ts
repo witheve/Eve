@@ -402,11 +402,14 @@ module ui {
     xdata?: number[][]
     pointLabels?: string[][]
     chartType: ChartType
+    gaugeMin?: number
+    gaugeMax?: number
+    width?: number
   }
 
   export function chart(elem:ChartElement):Element {
-    let {labels,ydata,xdata,pointLabels,chartType,line,area,bar,pie,donut,gauge,groups} = elem;
-    elem.key = `${elem.key || ""} ${chartType}
+    let {labels,ydata,xdata,pointLabels,chartType,gaugeMin,gaugeMax,width} = elem;
+    elem.key = `${elem.key + " " || ""}${chartType}
                 ${labels ? `::labels[${labels.join(",")}]` : ""}
                 ${pointLabels ? `::pointLabels[${pointLabels.join(",")}]` : ""}
                 ${xdata ? `::xs[${xdata.join(",")}]` : ""}
@@ -427,41 +430,35 @@ module ui {
     switch(chartType) {
       case ChartType.BAR:
         dataSpec.xeqy = true;
+        barspec['width'] = width;
         chartTypeString = "bar";
-        barspec = bar;
         break;
       case ChartType.LINE:
         dataSpec.xeqy = true;
         chartTypeString = "line";
-        linespec = line;
         break;
       case ChartType.SPLINE:
         dataSpec.xeqy = true;
         chartTypeString = "spline";
-        linespec = line;
         break;
       case ChartType.AREA:
         dataSpec.xeqy = true;
         chartTypeString = "area";
-        areaspec = area;
         break;
       case ChartType.AREASPLINE:
         dataSpec.xeqy = true;
         chartTypeString = "area-spline";
-        areaspec = area;
-        linespec = line;
         break;
       case ChartType.PIE:
         dataSpec.nox = true;
         dataSpec.singleydata = true;
         chartTypeString = "pie";
-        piespec = pie;
         break;
       case ChartType.DONUT:
         dataSpec.nox = true;
         dataSpec.singleydata = true;
+        donutspec['width'] = width;
         chartTypeString = "donut";
-        donutspec = donut;
         break;
       case ChartType.SCATTER:
         dataSpec.reqx = true;
@@ -472,8 +469,10 @@ module ui {
         dataSpec.nox = true;
         dataSpec.singleydata = true;
         dataSpec.singledata = true;
+        gaugespec["min"] = gaugeMin;
+        gaugespec["max"] = gaugeMax;
+        gaugespec["width"] = width;
         chartTypeString = "gauge";
-        gaugespec = gauge;
         break;
       default:
         throw new Error("Undefined chart type");
@@ -538,7 +537,6 @@ module ui {
           xs: xdataBindings,
           columns:formattedC3Data,
           type: chartTypeString,
-          groups: groups,
           labels: {
             format: c3PointLabels
           },
@@ -551,7 +549,6 @@ module ui {
             xs: xdataBindings,
             columns:formattedC3Data,
             type: chartTypeString,
-            groups: groups,
             labels: {
               format: c3PointLabels
             }
