@@ -51,10 +51,6 @@ module madlib {
     var storeEvent = true;
 
     switch(event) {
-      case "setMadlibSearch":
-        localState.search.value = info.value;
-        localState.search.completions = getCompletions(info.value);
-        break;
       case "setActiveCell":
         localState.notebook.activeCellId = info.cellId;
         localState.input.value = cellToString(info.cellId);
