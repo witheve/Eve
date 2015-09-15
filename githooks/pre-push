@@ -42,7 +42,6 @@ fi
 
 # Restore changes
 if [ "$old_stash" = "$new_stash" ]; then
-  echo "No changes to test, exiting."
   git reset --hard -q && git stash apply --index -q && git stash drop -q
   sleep 1
 fi
