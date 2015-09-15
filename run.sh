@@ -51,7 +51,14 @@ if [[ "$mode" == "test" ]]; then
   exit $?
 fi
 
-
+# Install githooks
+printf "* Installing commit hooks..."
+for hook in "$(ls ./githooks/)"; do
+  if [[ "x$hook" != "x" ]]; then
+    cp "./githooks/$hook" "./.git/hooks/$hook"
+  fi
+done
+echo "done."
 
 # Ensure that dependencies are installed.
 deps="npm multirust $tscBin"
