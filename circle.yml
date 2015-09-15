@@ -11,7 +11,7 @@ dependencies:
     - npm i -g casperjs@1.1.0-beta3
     - npm i -g spook
     - ./run.sh --no-browser:
-      background: true
+          background: true
     - sleep 10
 
 test:
