@@ -41,7 +41,7 @@ else
 fi
 
 # Restore changes
-if [ "$old_stash" = "$new_stash" ]; then
+if [[ "$old_stash" != "$new_stash" ]]; then
   git reset --hard -q && git stash apply --index -q && git stash drop -q
   sleep 1
 fi
