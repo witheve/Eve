@@ -2229,7 +2229,7 @@ module drawn {
       }
     });
     let actions = {
-      "new": {func: startCreating, text: "New", semantic: "action::addItem", description: "Add a new query or set of data."},
+      "new": {func: startCreating, text: "New", semantic: "action::addItem***BROKEN***", description: "Add a new query or set of data."},
       "import": {func: openImporter, text: "Import", semantic: "action::importItem"},
       "delete": {func: removeSelectedItems, text: "Delete", semantic: "action::removeItem", description: "Delete an item from the database."},
     };
