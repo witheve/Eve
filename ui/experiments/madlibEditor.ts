@@ -23,7 +23,6 @@ module madlib {
   enum FocusType { adderRow, blank, none }
 
   function initLocalstate() {
-    localState.search = {value: false, selected: NO_SELECTION, completions: []};
     localState.notebook = {activeCellId: 0, containerCell: "root"};
     localState.selection = {type: SelectionType.none, size: SelectionSize.none, items: []};
     localState.focus = {type: FocusType.none};
@@ -57,20 +56,6 @@ module madlib {
         break;
       case "trackChatInput":
         localState.input.value = info.value;
-        break;
-      case "searchSelect":
-        let size = Math.min(MAX_COMPLETIONS, localState.search.completions.length)
-        localState.search.selected += info.direction;
-        if(localState.search.selected < NO_SELECTION) {
-          localState.search.selected = size;
-        } else if(localState.search.selected > size) {
-          localState.search.selected = NO_SELECTION;
-        }
-        break;
-      case "clearSearch":
-        localState.search.value = "";
-        localState.search.selected = NO_SELECTION;
-        localState.search.completions = [];
         break;
       case "submitQuery":
         var activeCellId = localState.notebook.activeCellId;
