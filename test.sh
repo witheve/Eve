@@ -49,35 +49,35 @@ echo "* Checking dependencies..."
 hash slimerjs 2>/dev/null
 if [ $? -ne 0 ]; then
   echo "Please install slimerjs with ('npm install -g slimerjs') before continuing."
-  exit
+  exit 1
 fi
 hash casperjs 2>/dev/null
 if [ $? -ne 0 ]; then
   echo "Please install casperjs with ('npm install -g casperjs@1.1.0-beta3') before continuing."
-  exit
+  exit 1
 fi
 hash spook 2>/dev/null
 if [ $? -ne 0 ]; then
   echo "Please install spook with ('npm install -g spook') before continuing."
-  exit
+  exit 1
 fi
 
 hash gm 2>/dev/null
 if [ $? -ne 0 ]; then
   echo "Please install GraphicsMagick with ('brew install GraphicsMagick' on mac, or from your dist's repo) before continuing."
-  exit
+  exit 1
 fi
 
 if [[ $mode == "server" ]]; then
-  spook --server $spookFlags --out "$outDir" --dbd "$taskDir" -- $casperFlags
-  exit
+  result="$(spook --server $spookFlags --out "$outDir" --dbd "$taskDir" -- $casperFlags)"
+  exit $result
 fi
 
 echo "* Checking if runtime server is up..."
 ps aux | grep '[t]arget/\(debug\|release\)/server'
 if [ $? -ne 0 ]; then
   echo "Please run the runtime server separately and rerun the test suite after it has fully started."
-  exit
+  exit 2
 fi
 
 echo "* Running integration tests..."
