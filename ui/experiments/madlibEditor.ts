@@ -23,7 +23,6 @@ module madlib {
   enum FocusType { adderRow, blank, none }
 
   function initLocalstate() {
-    localState.search = {value: false, selected: NO_SELECTION, completions: []};
     localState.notebook = {activeCellId: 0, containerCell: "root"};
     localState.selection = {type: SelectionType.none, size: SelectionSize.none, items: []};
     localState.focus = {type: FocusType.none};
@@ -51,30 +50,12 @@ module madlib {
     var storeEvent = true;
 
     switch(event) {
-      case "setMadlibSearch":
-        localState.search.value = info.value;
-        localState.search.completions = getCompletions(info.value);
-        break;
       case "setActiveCell":
         localState.notebook.activeCellId = info.cellId;
         localState.input.value = cellToString(info.cellId);
         break;
       case "trackChatInput":
         localState.input.value = info.value;
-        break;
-      case "searchSelect":
-        let size = Math.min(MAX_COMPLETIONS, localState.search.completions.length)
-        localState.search.selected += info.direction;
-        if(localState.search.selected < NO_SELECTION) {
-          localState.search.selected = size;
-        } else if(localState.search.selected > size) {
-          localState.search.selected = NO_SELECTION;
-        }
-        break;
-      case "clearSearch":
-        localState.search.value = "";
-        localState.search.selected = NO_SELECTION;
-        localState.search.completions = [];
         break;
       case "submitQuery":
         var activeCellId = localState.notebook.activeCellId;
@@ -681,6 +662,7 @@ module madlib {
       if(elem.keydown) {
         cm.on("keydown", elem.keydown);
       }
+      cm.focus();
     }
     if(cm.getValue() !== elem.value) {
       cm.setValue(elem.value);
@@ -691,7 +673,9 @@ module madlib {
     let numLines = localState.input.value.split("\n").length;
     let height = Math.max(21, numLines * 21);
     let submitActionText = "add";
-    if(localState.notebook.activeCellId) {
+    let value = "";
+    if(cellId && localState.notebook.activeCellId === cellId) {
+      value = localState.input.value;
       if(localState.input.value) {
         submitActionText = "edit"
       } else {
@@ -699,7 +683,7 @@ module madlib {
       }
     }
     return {id: `chat-input ${cellId}`, c: "chat-input-container", children: [
-      {c: "chat-input", postRender:CodeMirrorElement, keydown: chatInputKey, input: trackChatInput, placeholder: "Enter a message...", value: localState.input.value},
+      {c: "chat-input", postRender:CodeMirrorElement, keydown: chatInputKey, input: trackChatInput, placeholder: "Enter a message...", value},
       {c: "submit", mousedown: submitQuery, text: submitActionText},
     ]}
   }
@@ -862,7 +846,7 @@ module madlib {
       sourceItems = [chatInput(cellId)];
     }
     let result = queryResult(results, factRows, filledSources, cellId, viewId);
-    return {id: `cell-${cellId}`, c: "item", click: setActiveCell, cellId, children: [
+    return {id: `cell-${cellId}`, c: "item", dblclick: setActiveCell, cellId, children: [
       {c: "button remove ion-trash-b", cellId, click: removeCellItem},
       {c: "message-container user-message", children: [
         {c: "message", children: sourceItems},

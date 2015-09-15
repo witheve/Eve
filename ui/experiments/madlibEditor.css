@@ -56,9 +56,10 @@ body div { display:-webkit-flex; -webkit-flex-direction:column; }
 .sender.eve { color: rgba(216, 101, 249, 1.5); }
 
 .chat-input-container { -webkit-flex:none; flex:none; -webkit-flex-direction:row; flex-direction:row; padding:0px; }
-.chat-input { display:inline-block; -webkit-flex:1; flex: 1; color: #ccc; margin:10px 10px; font-size:16px; font-weight:300; font-family:"Helvetica Neue"; display:inline-block; background:none; border:none; }
+.chat-input { display:inline-block; -webkit-flex:1; flex: 1; color: #ccc; font-size:16px; font-weight:300; font-family:"Helvetica Neue"; display:inline-block; background:none; border:none; }
 .chat-input::-webkit-input-placeholder { color: #777; }
 .CodeMirror div { display:block; -webkit-flex-direction:row; -webkit-flex:none; }
+.CodeMirror { line-height: 1.5em; font-family:"Helvetica Neue"; font-size:16px; }
 .chat-input .CodeMirror { display:block; height:auto; background:none; color: #ccc; font-size:10pt; font-family: "Helvetica Neue";  }
 .chat-input .CodeMirror-scroll { height:auto; }
 
