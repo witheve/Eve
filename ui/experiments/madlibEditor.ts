@@ -419,24 +419,25 @@ module madlib {
     return final.trim();
   }
 
+  var madlibToPartsCache = {};
+  function splitMadlibIntoParts(str) {
+    let cached = madlibToPartsCache[str];
+    if(cached) return cached;
+    let split = str.split(/(\?)/);
+    madlibToPartsCache[str] = split;
+    return split;
+  }
+
   function madlibFactsFromString(str, viewKind = "table") {
     let diffs = [];
     let fields = [];
-    let parts = str.split(/\?/);
+    let parts = splitMadlibIntoParts(str);
     let viewId = uuid();
     diffs.push(api.insert("madlib", {view: viewId, madlib: str}));
     diffs.push(api.insert("view", {view: viewId, kind: viewKind}))
     parts.forEach((part, ix) => {
       let cleanedPart = part.trim();
-      // Empty strings occur when there's a blank at the beginning of the string,
-      // at the end of the string, or spaces in between blanks. In any of these
-      // cases we don't want a madlib string.
-      if(cleanedPart !== "") {
-        diffs.push(api.insert("madlib descriptor", {view: viewId, ix, content: cleanedPart}));
-      }
-      // if we're not looking at the last thing, then we have a field in between
-      // this and the next string
-      if(ix + 1 < parts.length) {
+      if(part === "?") {
         var neueField = api.insert("field", {view: viewId, kind: "output", dependents: {
           "display name": {name: "blank"},
           "display order": {priority: ix + 0.5},
@@ -513,12 +514,12 @@ module madlib {
         let madlibView = madlib["madlib: view"];
         let madlibRegex = madlibRegexCache[madlibView];
         if(!madlibRegex) {
-          let madlibText = madlib["madlib: madlib"];
+          let madlibText = madlib["madlib: madlib"].replace(/([\*\+\(\)\[\]])/, "\\$1");
+          console.log(madlibText);
           let regexStr = madlibText.replace(/\?/gi, "(.+)");
           madlibRegex = madlibRegexCache[madlibView] = new RegExp(regexStr);
         }
         // check if this line matches the madlib's regex
-        console.log(cleanedLine, madlibRegex.toString())
         var matches = cleanedLine.match(madlibRegex);
         if(matches) {
           // by default we have an add
@@ -666,7 +667,6 @@ module madlib {
       {c: "workspace", children: [
         workspaceTools(),
         workspaceCanvas(),
-        chatInput(),
       ]}
     ]};
   }
@@ -676,7 +676,7 @@ module madlib {
     if(!cm) {
       cm = node.editor = new CodeMirror(node);
       if(elem.input) {
-        cm.on("inputread", elem.input)
+        cm.on("input", elem.input)
       }
       if(elem.keydown) {
         cm.on("keydown", elem.keydown);
@@ -687,7 +687,7 @@ module madlib {
     }
   }
 
-  function chatInput() {
+  function chatInput(cellId) {
     let numLines = localState.input.value.split("\n").length;
     let height = Math.max(21, numLines * 21);
     let submitActionText = "add";
@@ -698,14 +698,14 @@ module madlib {
         submitActionText = "remove";
       }
     }
-    return {c: "chat-input-container", children: [
-      {t: "textarea", c: "chat-input", height, keydown: chatInputKey, input: trackChatInput, placeholder: "Enter a message...", value: localState.input.value},
+    return {id: `chat-input ${cellId}`, c: "chat-input-container", children: [
+      {c: "chat-input", postRender:CodeMirrorElement, keydown: chatInputKey, input: trackChatInput, placeholder: "Enter a message...", value: localState.input.value},
       {c: "submit", mousedown: submitQuery, text: submitActionText},
     ]}
   }
 
   function trackChatInput(e, elem) {
-    dispatch("trackChatInput", {value: e.currentTarget.value});
+    dispatch("trackChatInput", {value: e.currentTarget.editor.getValue()});
   }
 
   function submitQuery(e, elem) {
@@ -714,7 +714,7 @@ module madlib {
 
   function chatInputKey(e, elem) {
     if(e.keyCode === api.KEYS.ENTER && (e.metaKey || e.ctrlKey)) {
-      dispatch("submitQuery", {value: e.currentTarget.value});
+      dispatch("submitQuery", {value: e.currentTarget.editor.getValue()});
       e.preventDefault();
     } else if(e.keyCode === api.KEYS.UP && e.ctrlKey) {
       dispatch("moveCellCursor", {dir: -1});
@@ -759,10 +759,15 @@ module madlib {
       if(cellId === activeCellId) {
         item.c += " active";
       }
-      item.click = setActiveCell;
       item.cellId = cellId;
       cellItems.push(item);
     }
+    cellItems.push({c: "item", children: [
+      {c: "message-container user-message", children: [
+        {c: "message", children: [chatInput(0)]},
+        {c: "sender", text: "Me"},
+      ]},
+    ]});
     return {c: "canvas", key: localState.input.messageNumber, postRender: scrollToBottom, mousedown: maybeClearSelection, children: cellItems};
   }
 
@@ -825,23 +830,6 @@ module madlib {
       }));
     }
 
-    // if there aren't any sources, this is just a fact block.
-    if(!sources.length) {
-      return {c: "item", children: [
-      {c: "button remove ion-trash-b", cellId, click: removeCellItem},
-      {c: "message-container user-message", children: [
-        {c: "message", children: sourceItems},
-        {c: "sender", text: "Me"},
-      ]},
-      {c: "message-container eve-response", children: [
-        {c: "message", children: [
-          {c: "message-text", text: `${sourceItems.length} facts added`},
-        ]},
-        {c: "sender", text: "Eve"},
-      ]}
-    ]};
-    }
-
     sources.sort((a, b) => {
       let aId = a["source: source"];
       let bId = b["source: source"];
@@ -869,6 +857,31 @@ module madlib {
         sourceId,
       }));
     }
+
+    if(cellId === localState.notebook.activeCellId) {
+      sourceItems = [chatInput(cellId)];
+    }
+    let result = queryResult(results, factRows, filledSources, cellId, viewId);
+    return {id: `cell-${cellId}`, c: "item", click: setActiveCell, cellId, children: [
+      {c: "button remove ion-trash-b", cellId, click: removeCellItem},
+      {c: "message-container user-message", children: [
+        {c: "message", children: sourceItems},
+        {c: "sender", text: "Me"},
+      ]},
+      result,
+    ]};
+  }
+
+  function queryResult(results, factRows, filledSources, cellId, viewId) {
+    // if there aren't any sources, this is just a fact block.
+    if(!filledSources.length) {
+      return {c: "message-container eve-response", children: [
+        {c: "message", children: [
+          {c: "message-text", text: `${factRows.length} facts added`},
+        ]},
+        {c: "sender", text: "Eve"},
+      ]};
+    }
     let message = `1 of ${results.length} matches`;
     let resultMadlibs = {c: "results", children: filledSources};
     if(results.length === 0) {
@@ -891,13 +904,7 @@ module madlib {
       }
       related = {children};
     }
-    return {c: "item", children: [
-      {c: "button remove ion-trash-b", cellId, click: removeCellItem},
-      {c: "message-container user-message", children: [
-        {c: "message", children: sourceItems},
-        {c: "sender", text: "Me"},
-      ]},
-      {c: "message-container eve-response", children: [
+    return {c: "message-container eve-response", children: [
         {c: "message", children: [
           resultMadlibs,
           related,
@@ -905,8 +912,7 @@ module madlib {
           {c: "message-text", text: message},
         ]},
         {c: "sender", text: "Eve"},
-      ]},
-    ]};
+      ]};
   }
 
   function addResultChart(e, elem) {
@@ -941,7 +947,7 @@ module madlib {
       leftControls.push({text: "labels!"});
     } else if(type === ui.ChartType.GAUGE) {
       //value
-      bottomControls.push({text: "value!"});
+      bottomControls.push(uiAttributeBindingBlank("value", uiElementId, "ydata"));
     }
     // @TODO: we're generating all the charts, which is unnecessary
     var charts = drawn.renderer.compile([uiElementId])[0];
@@ -949,9 +955,6 @@ module madlib {
     // through them, this will no longer be just the first.
     var curChart = charts.children[0];
     curChart.parent = undefined;
-    curChart.dirty = true;
-    console.log(curChart);
-//     let curChart = {text: "chart goes here"};
     return {c: "cell chart", children:[
       {c: "left-controls", children: leftControls},
       {c: "column", children: [
@@ -981,83 +984,28 @@ module madlib {
 
   function selectBlank(e, elem) {
     if(elem.selectionInfo) {
-      dispatch("extendSelection", {selectionInfo: elem.selectionInfo});
+      dispatch("extendSelection", {selectionInfo: elem.selectionInfo}, true);
     }
     //e.preventDefault();
-  }
-
-  function getCompletions(searchValue) {
-    // find all the madlibs that match
-    let results = [];
-    if(searchValue !== false) {
-      let searchWords = searchValue.trim().split(" ");
-      // since we have views without madlibs at the moment, search
-      // view names as well
-      let views = ixer.select("view", {});
-      for(let view of views) {
-        let score = 0;
-        let viewId = view["view: view"];
-        let descriptors = ixer.select("madlib descriptor", {view: viewId}).map((desc) => desc["madlib descriptor: content"]);
-        let viewName = code.name(viewId) + " " + descriptors.join(" ");
-        for(let word of searchWords) {
-          let wordIx = viewName.indexOf(word);
-          if(wordIx > -1) {
-            if(viewName[wordIx - 1] === " " || viewName[wordIx + 1 + word.length] === " ") {
-              score += 1;
-            }
-            score += 1;
-          }
-        }
-        if(score > 0) {
-          results.push({viewId, score});
-        }
-      }
-      results.sort((a, b) => {
-        return b.score - a.score;
-      });
-    }
-    return results;
-  }
-
-  function completionList(results) {
-    if(results && results.length) {
-      let searchSelected = localState.search.selected;
-      let displayResults = results.slice(0, MAX_COMPLETIONS).map((result, ix) => {
-        let {viewId, score} = result;
-        let madlib = madlibForView(viewId, {
-          rows: [ixer.selectOne(viewId, {})]
-        });
-        madlib.selectedIndex = ix;
-        madlib.score = score;
-        if(ix === searchSelected) {
-          madlib.c += " selected";
-        }
-        return madlib;
-      });
-      // if the selected index is the size of the results, then we've selected the very
-      // last thing, which is the add option
-      let isAddSelected = searchSelected === displayResults.length;
-      let addClass = isAddSelected ? "selected" : "";
-      displayResults.push({c: addClass, text: "Add new fact type"});
-      return {c: "completions", children: displayResults}
-    }
   }
 
   function startDrag(e, elem) {
     e.dataTransfer.setData("text", "foo");
   }
 
-  function madlibRow(viewId, madlibBlanks, row, opts) {
+  function madlibRow(viewId, madlibParts, row, opts) {
     let {joinInfo = {}, editable = false, focus = false, selectable = false} = opts;
     let focused = false;
     let items = [];
-    for(let descriptor of madlibBlanks) {
-      if(descriptor["madlib descriptor: content"]) {
+    let ix = 0;
+    let fields = ixer.getFields(viewId);
+    for(let part of madlibParts) {
+      if(part !== "?") {
         items.push({t: "td", c: "madlib-blank", children: [
-          {c: "madlib-text", text: descriptor["madlib descriptor: content"]}
+          {c: "madlib-text", text: part}
         ]});
       } else {
-        let fieldId = descriptor["field: field"];
+        let fieldId = fields[ix];
         let fieldInfo = joinInfo[fieldId];
         let selectionInfo;
         if(opts.toSelection) {
@@ -1066,7 +1014,7 @@ module madlib {
         let value = row[fieldId] !== undefined ? row[fieldId] : "?";
         let field:any = {c: "value", draggable:true, dragover: (e) => { e.preventDefault(); },
                          contentEditable: editable, row, fieldId, viewId, opts, fieldInfo, dragstart: startDrag,
-                         selectionInfo, drop:()=> {console.log("dropped!");}, dragend: () => {console.log("done dragging");},
+                         selectionInfo, drop:()=> {console.log("dropped!");},
                          input: opts.onInput, keydown: opts.onKeydown, text: value};
         let blankClass = "madlib-blank";
         if(opts.selectable) {
@@ -1094,15 +1042,10 @@ module madlib {
         items.push({ts: "td", c: blankClass, children: [
           field,
         ]});
+        ix++;
       }
     }
     return {ts: "tr", c: "madlib", children: items};
-  }
-
-  function sortBlanks(a, b) {
-    var aIx = a["madlib descriptor: ix"] || ixer.selectOne("display order", {id: a["field: field"]})["display order: priority"];
-    var bIx = b["madlib descriptor: ix"] || ixer.selectOne("display order", {id: b["field: field"]})["display order: priority"];
-    return aIx - bIx;
   }
 
   function madlibForView(viewId, opts:any = {}): any {
@@ -1112,14 +1055,10 @@ module madlib {
       rows = [{}];
     }
 
-    // we draw a madlib based on a combination of descriptors and fields, which are
-    // ordered against eachother
-    let descriptors = ixer.select("madlib descriptor", {view: viewId});
-    let madlibBlanks = ixer.select("field", {view: viewId}).concat(descriptors);
-    madlibBlanks.sort(sortBlanks);
-    if(!descriptors.length) {
-      madlibBlanks.unshift({"madlib descriptor: content": code.name(viewId)});
-    }
+    let madlib = ixer.selectOne("madlib", {view: viewId});
+    if(!madlib) return;
+
+    let parts = splitMadlibIntoParts(madlib["madlib: madlib"]);
 
     var sort = {
       field: ixer.getFields(viewId)[0],
@@ -1144,39 +1083,13 @@ module madlib {
 
     // for each row we're supposed to render, draw the madlib
     let rowItems = rows.map((row) => {
-      return madlibRow(viewId, madlibBlanks, row, opts);
+      return madlibRow(viewId, parts, row, opts);
     });
-
-    if(editable) {
-      let focus = localState.focus;
-      let isFocused = focus.type === FocusType.adderRow && focus.viewId === viewId;
-      rowItems.push(madlibRow(viewId, madlibBlanks, {}, {
-        editable: true,
-        focus: isFocused,
-        joinInfo: joinInfo,
-        sourceId: opts.sourceId,
-        onInput: adderRowUpdate,
-        onKeydown: adderRowKey,
-      }));
-    }
 
     // the final madlib is a table of all the madlib items
     return {c: "madlib-container", children: [
       {ts: "table", c: "madlib-table", debug: viewId, children: rowItems}
     ]};
-  }
-
-  function adderRowUpdate(e, elem) {
-    dispatch("updateAdderRow", {viewId: elem.viewId, fieldId: elem.fieldId, row: elem.row,
-                                value: drawn.coerceInput(e.currentTarget.textContent)});
-  }
-
-  function adderRowKey(e, elem) {
-    if(e.keyCode === api.KEYS.ENTER) {
-      dispatch("submitAdderRow", {viewId: elem.viewId, fieldId: elem.fieldId, row: elem.row,
-                                  value: drawn.coerceInput(e.currentTarget.textContent)});
-      e.preventDefault();
-    }
   }
 
   window["drawn"].root = root;
