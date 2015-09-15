@@ -10,4 +10,5 @@ dependencies:
 test:
   post:
     - cd ui && node_modules/typescript/bin/tsc
+    - ./run.sh test
     - cd runtime && RUST_BACKTRACE=1 cargo test
