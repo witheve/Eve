@@ -91,12 +91,10 @@ module uitk {
       {name: "Jamie", title: "CTO"}
     ];
 
-    let lineData: ui.ChartElement = {ydata: [[30, 200, 100, 400],
-                                             [50, 20, 10, 40]],
-                                     pointLabels: [
-                                                    ["one","two","three","four"],
-                                                    ["five","six","seven","eight"],
-                                                  ],
+    let lineData: ui.ChartElement = {ydata: [[30, 200, 100, 400, 150, 250],
+                                             [20, 180, 240, 100, 190]],
+                                     xdata: [[10, 20, 30, 40, 50, 60],
+                                             [10, 20, 30, 40, 50]],
                                      chartType: ui.ChartType.LINE,
                                     };
 
@@ -108,6 +106,8 @@ module uitk {
     areaData["chartType"] = ui.ChartType.AREA;
     let areaSplineData = api.clone(lineData);
     areaSplineData["chartType"] = ui.ChartType.AREASPLINE;
+    let errorData = api.clone(lineData);
+    errorData["chartType"] = ui.ChartType.PIE;
 
     let scatterData: ui.ChartElement = {labels: ["data1","data2"],
                                         ydata: [[0.2, 0.2, 0.2, 0.2, 0.2, 0.4, 0.3, 0.2, 0.2, 0.1, 0.2, 0.2, 0.1, 0.1, 0.2, 0.4, 0.4, 0.3, 0.3, 0.3, 0.2, 0.4, 0.2, 0.5, 0.2, 0.2, 0.4, 0.2, 0.2, 0.2, 0.2, 0.4, 0.1, 0.2, 0.2, 0.2, 0.2, 0.1, 0.2, 0.2, 0.3, 0.3, 0.2, 0.6, 0.4, 0.3, 0.2],
@@ -192,6 +192,7 @@ module uitk {
           {id: "pie", title: "pie", content: () => ui.chart(pieData)},
           {id: "donut", title: "donut", content: () => ui.chart(donutData)},
           {id: "gauge", title: "gauge", content: () => ui.chart(gaugeData)},
+          {id: "chartError", title: "error", content: () => ui.chart(errorData)},
         ]}),
 
         {t: "h2", text: "ui.image({backgroundImage:string})"},
