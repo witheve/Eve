@@ -193,8 +193,10 @@ body table th * { display: inline-block; }
 .tabbed-box .input-row { margin:10px 0; }
 .tabbed-box .input-row .button { margin-top: 10px; }
 
-.accordion > .tab { font-size: 16px; cursor: default; }
+.accordion > .tab { font-size: 16px; cursor: default;}
 .accordion > .tab.selected { color: rgb(74,64,136); font-weight: bold}
+.accordion > .pane {height: 0px; overflow: hidden;}
+.accordion > .pane.selected {height: auto;}
 
 .import-panel .pane > * { margin-top:10px; }
 .import-panel .flex-row { align-items: center; }
@@ -328,6 +330,7 @@ body table th * { display: inline-block; }
 ---------------------------------------------------------*/
 
 .light { background: rgb(240,240,240); color: rgb(90,90,90); }
+.light h2 {color: rgb(90,90,90)}
 
 .light .notices { border-color: rgba(0,0,0,0.1); background: #fff; }
 

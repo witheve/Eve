@@ -165,7 +165,7 @@ module ui {
     for(let p of panes) {
       let isSelected = (p.id === selected);
       elem.children.push(inject({c: isSelected ? "tab selected" : "tab", accordion: id, pane: p.id, click: switchAccordion}, p.title));
-      if(isSelected) { elem.children.push(inject({c: "pane"}, p.content)) };
+      elem.children.push(inject({c: isSelected ? "pane selected" : "pane"}, p.content));
     }
     return elem;
   }
@@ -416,8 +416,6 @@ module ui {
                 ${xdata ? `::xs[${xdata.join(",")}]` : ""}
                 ${ydata ? `::ys[${ydata.join(",")}]` : ""}`;
                 
-     
-
     // If no labels are provided, we need some default labels
     if(labels === undefined) {
       labels = [];
