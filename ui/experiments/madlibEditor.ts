@@ -227,7 +227,13 @@ module madlib {
         break;
       case "addResultChart":
         var ix = relatedCellNextIndex(info.cellId);
-        var {diffs, cellId} = createChartCell(ui.ChartType.GAUGE, info.cellId, ix, info.viewId);
+        var {diffs, cellId} = createChartCell(ui.ChartType.BAR, info.cellId, ix, info.viewId);
+        break;
+      case "setChartType":
+        var {cellId, type} = info;
+        var elementId = ixer.selectOne("notebook cell uiElement", {cell: cellId})["notebook cell uiElement: element"];
+        diffs.push(api.remove("uiAttribute", {element: elementId, property: "chartType"}));
+        diffs.push(api.insert("uiAttribute", {element: elementId, property: "chartType", value: type}));
         break;
       case "bindAttribute":
         var {selection, elementId, property} = info;
@@ -1021,7 +1027,7 @@ module madlib {
     let leftControls = [];
     let bottomControls = [];
     let type = ixer.selectOne("uiAttribute", {element: uiElementId, property: "chartType"})["uiAttribute: value"];
-    if(type === ui.ChartType.LINE || type === ui.ChartType.BAR || type === ui.ChartType.SCATTER) {
+    if(type === ui.ChartType.LINE || type === ui.ChartType.BAR || type === ui.ChartType.SCATTER || type === ui.ChartType.AREA) {
       //xs, ys, labels
       leftControls.push(uiAttributeBindingBlank("y", uiElementId, "ydata"));
       bottomControls.push(uiAttributeBindingBlank("x", uiElementId, "xdata"));
@@ -1042,12 +1048,20 @@ module madlib {
     var curChart = charts.children[0];
     curChart.parent = undefined;
     return {c: "cell chart", children:[
+      ui.dropdown({cellId, defaultOption: ui.ChartType[type].toLowerCase(), options: ["bar", "line", "area", "scatter", "pie", "gauge"], change: selectChartType}),
       {c: "left-controls", children: leftControls},
       {c: "column", children: [
         {c: "chart-container", children: [curChart]},
         {c: "bottom-controls", children: bottomControls},
       ]},
     ]}
+  }
+
+  function selectChartType(e, elem) {
+    let type = ui.ChartType[e.currentTarget.value.toUpperCase()];
+    if(type !== undefined) {
+      dispatch("setChartType", {cellId: elem.cellId, type});
+    }
   }
 
   function removeCellItem(e, elem) {

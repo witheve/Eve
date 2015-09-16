@@ -188,7 +188,7 @@ module ui {
     options: string[]
     size?: number
     multiple?: boolean
-    defaultOption?: number
+    defaultOption?: string
   }
   export function dropdown(elem:DropdownElement):Element {
     let {defaultOption, options, size, multiple} = elem;
@@ -196,7 +196,11 @@ module ui {
     // Build the option elements
     let optionElements:Element[] = [];
     for(let option of options) {
-      optionElements.push({t: "option", value: option, text: option});
+      let item:Element = {t: "option", value: option, text: option};
+      if(option === defaultOption) {
+        item["selected"] = true;
+      }
+      optionElements.push(item);
     }
     elem.c = (elem.c) ? "dropdown " + elem.c : "dropdown";
     elem.t = "select";
@@ -494,7 +498,7 @@ module ui {
       let formatted = {};
       formatted["label"] = labels[i];
       formatted["ydata"] = ydata[i];
-      if(xdata !== undefined && xdata[i].length > 0) {
+      if(xdata !== undefined && xdata[i] !== undefined && xdata[i].length > 0) {
         formatted["xdata"] = xdata[i];
       }
       formattedData.push(formatted);
