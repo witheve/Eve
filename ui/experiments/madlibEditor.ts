@@ -1100,7 +1100,7 @@ module madlib {
         let value = row[fieldId] !== undefined ? row[fieldId] : "?";
         let field:any = {c: "value", draggable:true, dragover: (e) => { e.preventDefault(); },
                          contentEditable: editable, row, fieldId, viewId, opts, fieldInfo, dragstart: startDrag,
-                         selectionInfo, drop:()=> {console.log("dropped!");},
+                         selectionInfo, drop: dropJoin,
                          input: opts.onInput, keydown: opts.onKeydown, text: value};
         let blankClass = "madlib-blank";
         if(opts.selectable) {
@@ -1132,6 +1132,12 @@ module madlib {
       }
     }
     return {ts: "tr", c: "madlib", children: items};
+  }
+
+  function dropJoin(e, elem) {
+    let blanks = localState.selection.items.slice();
+    blanks.push(elem.selectionInfo);
+    dispatch("joinBlanks", {blanks});
   }
 
   function madlibForView(viewId, opts:any = {}): any {
