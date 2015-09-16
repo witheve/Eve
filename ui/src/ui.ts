@@ -409,14 +409,14 @@ module ui {
 
   export function chart(elem:ChartElement):Element {
     let {labels,ydata,xdata,pointLabels,chartType,gaugeMin,gaugeMax,width} = elem;
-    
+
     elem.key = `${elem.key + " " || ""}${chartType}
                 ${labels ? `::labels[${labels.join(",")}]` : ""}
                 ${pointLabels ? `::pointLabels[${pointLabels.join(",")}]` : ""}
                 ${xdata ? `::xs[${xdata.join(",")}]` : ""}
                 ${ydata ? `::ys[${ydata.join(",")}]` : ""}`;
-                
-     
+
+
 
     // If no labels are provided, we need some default labels
     if(labels === undefined) {
@@ -511,7 +511,12 @@ module ui {
     let formattedC3Data = [];
     let xdataBindings = [];
     for(let d of formattedData) {
-      let labelAndData: (string|number)[] = d.ydata.slice(0);
+      let labelAndData: (string|number)[];
+      if(d.ydata instanceof Array) {
+        labelAndData = d.ydata.slice(0);
+      } else {
+        labelAndData = [d.ydata];
+      }
       labelAndData.unshift(d.label);
       formattedC3Data.push(labelAndData);
       if(d.xdata !== undefined) {
@@ -581,7 +586,7 @@ module ui {
       throw new Error("Chart accepts only a single chartData element.");
     }
     for(let d of chartData) {
-      if(dataSpec.singleydata && d.ydata.length !== 1) {
+      if(dataSpec.singleydata && d.ydata.length) {
         throw new Error("Chart accepts only a single ydata per chartData element");
       }
       if(dataSpec.nox && d.xdata !== undefined) {

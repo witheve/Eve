@@ -88,11 +88,21 @@ module madlib {
           // We do, however, need to remove any previous facts associated to this cell.
           // @TODO: should we remove the associated view if it's safe?
           diffs.push.apply(diffs, removeCellFacts(activeCellId));
+        }
+        diffs.push.apply(diffs, madlibParseItemsToDiffs(activeCellId, queryId, items));
+        var originalView = ixer.selectOne("notebook cell view", {cell: activeCellId});
+        if(originalView) {
+          let originalViewId = originalView["notebook cell view: view"];
           // in the case where there are related cells, we need to adjust their bindings
           // if there are any.
           // @TODO: adjust bindings for charts
+          let fieldMapping = itemFieldMapping(originalViewId, items);
+          let relatedCells = ixer.select("related notebook cell", {cell: activeCellId});
+          for(let relatedCell of relatedCells) {
+            diffs.push.apply(diffs, remapRelatedCell(relatedCell, queryId, fieldMapping));
+          }
         }
-        diffs.push.apply(diffs, madlibParseItemsToDiffs(activeCellId, queryId, items));
+
         localState.input.value = "";
         // if this isn't an edit of a previous cell, we need to increment the
         // messengerNumber, which is used primarily to scroll the window to the
@@ -217,7 +227,7 @@ module madlib {
         break;
       case "addResultChart":
         var ix = relatedCellNextIndex(info.cellId);
-        var {diffs, cellId} = createChartCell(ui.ChartType.BAR, info.cellId, ix, info.viewId);
+        var {diffs, cellId} = createChartCell(ui.ChartType.GAUGE, info.cellId, ix, info.viewId);
         break;
       case "bindAttribute":
         var {selection, elementId, property} = info;
@@ -412,6 +422,73 @@ module madlib {
     return final.trim();
   }
 
+  function itemFieldMapping(originalViewId, items) {
+    let joinInfo = getJoinInfo(originalViewId);
+    let mapping = {};
+    let seenSourceViews = {};
+    let duplicatedSourceViews = [];
+    for(let sourceId in joinInfo) {
+      let sourceInfo = joinInfo[sourceId];
+      let sourceViewId = sourceInfo.viewId;
+      if(seenSourceViews[sourceViewId]) {
+        duplicatedSourceViews.push(sourceViewId);
+      }
+      seenSourceViews[sourceViewId] = true;
+    }
+    //if there are multiple sources with the same sourceView we have
+    //to do something more complicated.
+    if(duplicatedSourceViews.length) {
+      // @TODO: figure out how we deal with mapping in this case
+    }
+    //Otherwise, we can map things from oldVars[sourceView.field] to
+    //newVars[sourceView.field]
+    else {
+      let newFields = {};
+      for(let item of items) {
+        let viewId = item.viewId;
+        for(let fieldId in item.fields) {
+          let field = item.fields[fieldId];
+          let selectFieldId = field.fieldId;
+          newFields[`${viewId}.${fieldId}`] = selectFieldId;
+        }
+      }
+      for(let sourceId in joinInfo) {
+        let sourceInfo = joinInfo[sourceId];
+        let sourceViewId = sourceInfo.viewId;
+        for(let fieldId in sourceInfo.fields) {
+          let field = sourceInfo.fields[fieldId];
+          let selectFieldId = field.fieldId;
+          mapping[selectFieldId] = newFields[`${sourceViewId}.${fieldId}`];
+        }
+      }
+    }
+    return mapping;
+  }
+
+  function remapRelatedCell(relatedCell, newViewId, fieldMapping) {
+    let diffs = [];
+    let cellId = relatedCell["related notebook cell: cell"];
+    let relatedCellId = relatedCell["related notebook cell: cell2"];
+    let relatedKind = ixer.selectOne("notebook cell", {cell: relatedCellId})["notebook cell: kind"];
+    if(relatedKind === "chart") {
+      let elementId = ixer.selectOne("notebook cell uiElement", {cell: relatedCellId})["notebook cell uiElement: element"];
+      // update uiElement binding
+      diffs.push(api.remove("uiElementBinding", {element: elementId}));
+      diffs.push(api.insert("uiElementBinding", {element: elementId, view: newViewId}));
+      // update bindings
+      diffs.push(api.remove("uiAttributeBinding", {element: elementId}));
+      for(let attrBinding of ixer.select("uiAttributeBinding", {element: elementId})) {
+        let newFieldId = fieldMapping[attrBinding["uiAttributeBinding: field"]];
+        // if there's a field mapping for this binding, rebind it to the new field
+        if(newFieldId) {
+          let property = attrBinding["uiAttributeBinding: property"];
+          diffs.push(api.insert("uiAttributeBinding", {element: elementId, property, field: newFieldId}));
+        }
+      }
+    }
+    return diffs;
+  }
+
   var madlibToPartsCache = {};
   function splitMadlibIntoParts(str) {
     let cached = madlibToPartsCache[str];
@@ -562,7 +639,13 @@ module madlib {
       diffs.push(api.insert("binding", {variable: variableId, source: sourceId, field: fieldId}));
     }
     // select the field
-    diffs.push.apply(diffs, drawn.dispatch("addSelectToQuery", {viewId: itemId, variableId: variableId, name: code.name(fieldId) || fieldId}, true));
+    let selectFieldId = uuid();
+    diffs.push(api.insert("field", {field: selectFieldId, view: itemId, kind: "output", dependents: {
+      "display name": {name: code.name(fieldId) || fieldId},
+      "display order": {priority: fieldInfo.fieldIx},
+    }}));
+    diffs.push(api.insert("select", {field: selectFieldId, variable: variableId}));
+    fieldInfo.fieldId = selectFieldId;
 
     if(kind !== "output" && kind !== "ordinal" && fieldInfo.constantValue === undefined) {
       // otherwise we're an input field and we need to add a default constant value
@@ -581,7 +664,7 @@ module madlib {
       diffs.push(api.insert("sorted field", {source: sourceId, field: fieldId, ix: fieldInfo.sortIx, direction: "ascending"}))
     }
 
-    return {diffs, variableId};
+    return {diffs, variableId, selectFieldId};
   }
 
   function madlibParseItemsToDiffs(cellId, queryId, items) {
@@ -624,8 +707,11 @@ module madlib {
         }
         // add variables for all the fields of this view
         var sortIx = 0;
+        var fieldIx = 0;
         fields.forEach(function(fieldId, ix) {
           let fieldInfo = item.fields[fieldId];
+          fieldInfo.fieldIx = fieldIx;
+          fieldIx++;
           if(fieldInfo.column) {
             fieldInfo.sortIx = sortIx;
             sortIx++;
@@ -633,16 +719,20 @@ module madlib {
           let namedVariable = fieldInfo.variable;
           let variableId;
           if(namedVariable && queryVariables[namedVariable]) {
+            let variableInfo = queryVariables[namedVariable];
             // if we already have a variable for this one, then we only need a binding
             // from this field to the already created variable
-            diffs.push(api.insert("binding", {variable: queryVariables[namedVariable], source: sourceId, field: fieldId}));
+            diffs.push(api.insert("binding", {variable: variableInfo.variableId, source: sourceId, field: fieldId}));
+            fieldInfo.variableId = variableInfo.variableId;
+            fieldInfo.fieldId = variableInfo.selectFieldId;
           } else {
             // we need to create a variable for this field
             let variableInfo = addSourceFieldVariable(queryId, viewId, sourceId, fieldId, fieldInfo, item);
             variableId = variableInfo.variableId;
+            fieldInfo.variableId = variableId;
             diffs.push.apply(diffs, variableInfo.diffs);
             if(namedVariable) {
-              queryVariables[namedVariable] = variableId;
+              queryVariables[namedVariable] = variableInfo;
             }
           }
         });
@@ -903,7 +993,7 @@ module madlib {
         {c: "message", children: [
           resultMadlibs,
           related,
-          {c: "button", click: addResultChart, viewId, cellId, text: "chart!"},
+          {c: "button ion-pie-graph", click: addResultChart, viewId, cellId},
           {c: "message-text", text: message},
         ]},
         {c: "sender", text: "Eve"},
@@ -1135,10 +1225,11 @@ module madlib {
       }
       for(let binding of variableInfo.bindings) {
         let sourceId = binding["binding: source"];
+        let source = ixer.selectOne("source", {source: sourceId});
         let fieldId = binding["binding: field"];
         let sourceInfo = sourceFieldToVariable[sourceId];
         if(!sourceInfo) {
-          sourceInfo = sourceFieldToVariable[sourceId] = {fields: {}};
+          sourceInfo = sourceFieldToVariable[sourceId] = {fields: {}, viewId: source["source: source view"]};
           if(ixer.selectOne("chunked source", {source: sourceId})) {
             sourceInfo["chunked"] = true;
           }
