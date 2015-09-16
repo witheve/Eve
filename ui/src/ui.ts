@@ -378,6 +378,16 @@ module ui {
   //---------------------------------------------------------
   // Components
   //---------------------------------------------------------
+  interface ErrorElement extends Element {
+    message: string
+    element: Element
+  }
+  export function uiError(elem: ErrorElement):Element {
+    elem.c = `ui-error ${elem.c || ""}`;
+    elem.text = elem.message;
+    return elem;
+  }
+
   export function image(elem:Element): Element {
     elem.c = `image ${elem.c || ""}`;
     return elem;
@@ -504,7 +514,7 @@ module ui {
       formattedData.push(formatted);
     }
 
-    // verify data matches the format expected by the chart type  
+    // verify data matches the format expected by the chart type
     if(!checkData(formattedData,dataSpec)) {
       throw new Error("Could not render chart");
     }
