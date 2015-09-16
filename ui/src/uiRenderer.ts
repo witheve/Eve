@@ -9,18 +9,29 @@ module uiRenderer {
     __elemId:string
   }
 
+  interface UiWarning {
+    element: string
+    row: any[]
+    warning: string
+  }
+
   api.ixer.addIndex("ui parent to elements", "uiElement", Indexing.create.collector(["uiElement: parent"]));
   api.ixer.addIndex("ui element to attributes", "uiAttribute", Indexing.create.collector(["uiAttribute: element"]));
   api.ixer.addIndex("ui element to attribute bindings", "uiAttributeBinding", Indexing.create.collector(["uiAttributeBinding: element"]));
 
   export class UiRenderer {
+    public warnings:UiWarning[] = [];
+
     constructor(public renderer:microReact.Renderer) {
 
     }
 
-    render(roots:(Id|Element)[]) {
+    render(roots:(Id|Element)[]):UiWarning[] {
       let elems = this.compile(roots);
       this.renderer.render(elems);
+      let warnings = this.warnings;
+      this.warnings = [];
+      return warnings;
     }
 
     // @NOTE: In the interests of performance, roots will not be checked for ancestry --
@@ -126,7 +137,17 @@ module uiRenderer {
           // Handle compiled element tags.
           let elementCompiler = elementCompilers[elem.t];
           if(elementCompiler) {
-            elementCompiler(elem);
+            try {
+              elementCompiler(elem);
+            } catch(err) {
+              let warning = {element: elem.id, row, warning: err.message};
+              if(!api.ixer.selectOne("uiWarning", warning)) {
+                this.warnings.push(warning);
+              }
+              elem["message"] = warning.warning;
+              elem["element"] = warning.element;
+              ui.uiError(<any> elem);
+            }
           }
 
           rowIx++;
@@ -175,7 +196,7 @@ module uiRenderer {
     chart: (elem:ui.ChartElement) => {
       elem.pointLabels = (elem.pointLabels) ? [<any>elem.pointLabels] : elem.pointLabels;
       elem.ydata = (elem.ydata) ? [<any>elem.ydata] : [];
-      elem.xdata = (elem.xdata) ? [<any>elem.xdata] : [];
+      elem.xdata = (elem.xdata) ? [<any>elem.xdata] : elem.xdata;
       ui.chart(elem);
     }
   };

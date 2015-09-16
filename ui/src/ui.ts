@@ -60,17 +60,6 @@ module ui {
     return elem;
   }
 
-  
-  interface errorElement extends Element {
-    message: string
-    element: Element
-  }
-  function uierror(elem: errorElement):Element {
-    elem.c = `uierror ${elem.c || ""}`;
-    elem.text = "Error: Could not render element. Error Message: " + elem.message;
-    return elem;
-  }
-
   //---------------------------------------------------------
   // Dispatcher
   //---------------------------------------------------------
@@ -389,6 +378,16 @@ module ui {
   //---------------------------------------------------------
   // Components
   //---------------------------------------------------------
+  interface ErrorElement extends Element {
+    message: string
+    element: Element
+  }
+  export function uiError(elem: ErrorElement):Element {
+    elem.c = `ui-error ${elem.c || ""}`;
+    elem.text = elem.message;
+    return elem;
+  }
+
   export function image(elem:Element): Element {
     elem.c = `image ${elem.c || ""}`;
     return elem;
@@ -491,8 +490,7 @@ module ui {
         chartTypeString = "gauge";
         break;
       default:
-        return uierror({message: "Unknown chart type", element: elem});
-        
+        throw new Error("Unknown chart type");
     }
 
     // check array lengths
@@ -501,7 +499,7 @@ module ui {
          (xdata === undefined || ydata.length === xdata.length) &&
          (pointLabels === undefined || ydata.length === pointLabels.length)
       )) {
-        return uierror({message: "ChartElement arrays must have the same number of elements", element: elem});
+        throw new Error("ChartElement arrays must have the same number of elements");
    }
 
     // convert input data into nice format for type checking
@@ -517,9 +515,8 @@ module ui {
     }
 
     // verify data matches the format expected by the chart type
-    let dataCheckMessage = checkData(formattedData,dataSpec) 
-    if(dataCheckMessage !== "") {
-      return uierror({message: dataCheckMessage, element: elem});
+    if(!checkData(formattedData,dataSpec)) {
+      throw new Error("Could not render chart");
     }
 
     // get the labels and data into the right format for c3
@@ -596,26 +593,26 @@ module ui {
     reqx?: boolean
     xeqy?: boolean
   }
-  function checkData(chartData: any[], dataSpec: ChartDataSpec):string {
+  function checkData(chartData: any[], dataSpec: ChartDataSpec):boolean {
     if(dataSpec.singledata && chartData.length > 1) {
-      return "Chart accepts only a single data series.";
+      throw new Error("Chart accepts only a single data series.");
     }
     for(let d of chartData) {
       if(dataSpec.singleydata && d.ydata.length > 1) {
-        return "Each ydata may only contain a single value";
+        throw new Error("Each ydata may only contain a single value");
       }
       if(dataSpec.nox && d.xdata !== undefined) {
-        return "Chart cannot have xdata.";
+        throw new Error("Chart cannot have xdata.");
       }
       if(dataSpec.reqx && d.xdata === undefined) {
-        return "xdata required";
+        throw new Error("xdata required");
       }
       if(dataSpec.xeqy && d.xdata !== undefined && d.ydata.length !== d.xdata.length) {
-        return "xdata and ydata need to be of equal length: ydata: " + d.ydata +  "xdata:" + d.xdata;
+        throw new Error("xdata and ydata need to be of equal length: ydata: " + d.ydata +  "xdata:" + d.xdata);
       }
     }
 
-    return "";
+    return true;
   }
 
 

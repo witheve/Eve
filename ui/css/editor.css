@@ -55,6 +55,13 @@ body table th, body table td { display: table-cell; }
 body table th { text-align: left; }
 body table th * { display: inline-block; }
 
+@-webkit-keyframes horrifyingly-organic-pulsation {
+  0% { box-shadow: 0 0 7px -1px rgba(192, 32, 24, 0.1); }
+  100% { box-shadow: 0 0 4px 2px rgba(192, 32, 24, 0.8); }
+}
+
+.ui-error { border-radius: 2px; color: #fff; text-shadow: 0 1px 1px rgba(0, 0, 0, 1); padding: 5px 10px; border: 1px solid #FF4422; background: repeating-linear-gradient(45deg, rgba(92, 16, 0, 0.6) 0, rgba(92, 16, 0, 0.6) 5px, rgba(140, 32, 16, 0.6) 5px, rgba(140, 32, 16, 0.6) 10px); animation: horrifyingly-organic-pulsation 1s infinite; animation-direction: alternate; }
+
 
 /*---------------------------------------------------------
 - Buttons on lighter backgrounds

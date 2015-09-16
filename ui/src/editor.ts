@@ -156,28 +156,34 @@ module drawn {
 
   export function render() {
     let raw = renderer.renderer;
-   if(raw.queued === false) {
+    if(raw.queued === false) {
       raw.queued = true;
       // @FIXME: why does using request animation frame cause events to stack up and the renderer to get behind?
       setTimeout(function() {
       // requestAnimationFrame(function() {
 
         var start = performance.now();
-        var tree = window["drawn"].root();
-        let editorElemIds = (ixer.select("tag", {tag: "editor-ui"}) || []).map((tag) => tag["tag: view"]);
-        var total = performance.now() - start;
-        if(total > 10) {
-          console.log("Slow root: " + total);
-        }
-        perfStats.textContent = "";
-        perfStats.textContent += `root: ${total.toFixed(2)}`;
-        var start = performance.now();
-        editorElemIds.unshift(tree);
-        renderer.render(editorElemIds);
+        api.ixer.clearTable("uiWarning");
+        let warnings;
+        do {
+          var tree = window["drawn"].root();
+          let editorElemIds = (ixer.select("tag", {tag: "editor-ui"}) || []).map((tag) => tag["tag: view"]);
+          var total = performance.now() - start;
+          if(total > 10) {
+            console.log("Slow root: " + total);
+          }
+          perfStats.textContent = "";
+          perfStats.textContent += `root: ${total.toFixed(2)}`;
+          var start = performance.now();
+          editorElemIds.unshift(tree);
+          warnings = renderer.render(editorElemIds);
+          if(warnings.length) {
+            api.ixer.handleDiffs(api.toDiffs(
+              api.insert("uiWarning", warnings)
+            ))
+          }
+        } while(warnings.length > 0);
 
-        // Render bootstrapped ui elements.
-
-        renderer.render(editorElemIds);
         var total = performance.now() - start;
         perfStats.textContent += ` | render: ${total.toFixed(2)}`;
         raw.queued = false;
