@@ -188,15 +188,17 @@ pub fn editor_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("cell fact row", vec!["cell", "source view", "row", "ix"]),
 
     // cells in a notebook
-    // `kind` is one of "query", "add", "remove"
+    // `kind` is one of "query", "union", "chart"
     ("notebook cell", vec!["cell", "kind"]),
     // order of cells in a notebook
     ("related notebook cell", vec!["cell", "cell2"]),
     ("related notebook cell order", vec!["cell", "cell2", "ix"]),
-    // "query", "add", and "remove" cells all have views associated to them
+    // "query" and "union" cells have views associated to them
     ("notebook cell view", vec!["cell", "view"]),
-    // "query", "add", and "remove" cells all have views associated to them
+    // "chart" cells have UI associated to them
     ("notebook cell uiElement", vec!["cell", "element"]),
+    // madlib unions have manual entry tables associated to them
+    ("madlib union to table", vec!["union", "table"]),
 
     // descriptions for views in the editor
     ("view description", vec!["view", "description"]),
@@ -634,7 +636,7 @@ fn plan(flow: &Flow) {
     find!(view_table, [view, view_kind], {
         if view_kind.as_str() == "union" {
             find!(field_table, [(= view), field, field_kind], {
-                find!(member_table, [(= view), member, _], {
+                find!(member_table, [(= view), _, member, _], {
                     dont_find!(mapping_table, [(= field), (= member), _], {
                         warning_table.index.insert(vec![
                             string!("field"),
@@ -954,7 +956,7 @@ fn plan(flow: &Flow) {
             });
         };
         let disable_member = |member: &Value| {
-            find!(member_table, [view, (= member), _], {
+            find!(member_table, [view, (= member), _, _], {
                 insert!(disabled_view_table.borrow_mut(), [view, warning_view, warning_row, warning]);
             });
         };
@@ -1156,6 +1158,7 @@ fn plan(flow: &Flow) {
             });
         });
     });
+
 
     let mut mapping_layout_table = flow.overwrite_output("mapping layout");
     find!(mapping_table, [view_field, member, member_field], {

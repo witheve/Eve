@@ -285,7 +285,8 @@ module madlib {
     for(let factRow of ixer.select("cell fact row", {cell: cellId})) {
       let viewId = factRow["cell fact row: source view"];
       let row = JSON.parse(factRow["cell fact row: row"]);
-      diffs.push(api.remove(viewId, row, null, true));
+      let {tableId, mapped} = mapUnionFieldsToTable(viewId, row);
+      diffs.push(api.remove(tableId, mapped, null, true));
     }
     return diffs;
   }
@@ -504,25 +505,50 @@ module madlib {
     return split;
   }
 
-  function madlibFactsFromString(str, viewKind = "table") {
+  function madlibUnionFromString(str) {
     let diffs = [];
     let fields = [];
     let parts = splitMadlibIntoParts(str);
     let viewId = uuid();
     diffs.push(api.insert("madlib", {view: viewId, madlib: str}));
-    diffs.push(api.insert("view", {view: viewId, kind: viewKind}))
+    diffs.push(api.insert("view", {view: viewId, kind: "union"}));
+    // we also need to create a view for manual additions to the union
+    let tableId = uuid();
+    let tableMemberId = uuid();
+    diffs.push(api.insert("view", {view: tableId, kind: "table"}));
+    diffs.push(api.insert("member", {view: viewId, ix: 0, member: tableMemberId, "member view": tableId}));
+    diffs.push(api.insert("madlib union to table", {union: viewId, table: tableId}));
     parts.forEach((part, ix) => {
       let cleanedPart = part.trim();
       if(part === "?") {
-        var neueField = api.insert("field", {view: viewId, kind: "output", dependents: {
+        // add a field to the union
+        let fieldId = uuid();
+        diffs.push(api.insert("field", {field: fieldId, view: viewId, kind: "output", dependents: {
           "display name": {name: "blank"},
-          "display order": {priority: ix + 0.5},
-        }});
-        fields.push(neueField.content.field);
-        diffs.push(neueField);
+          "display order": {priority: ix},
+        }}));
+        fields.push(fieldId);
+        // we have to create fields for the manual table too
+        let tableFieldId = uuid();
+        diffs.push(api.insert("field", {field: tableFieldId, view: tableId, kind: "output", dependents: {
+          "display name": {name: "blank"},
+          "display order": {priority: ix},
+        }}));
+        diffs.push(api.insert("mapping", {"view field": fieldId, member: tableMemberId, "member field": tableFieldId}));
       }
     });
     return {diffs, viewId, fields};
+  }
+
+  function mapUnionFieldsToTable(unionId, fields) {
+    let tableId = ixer.selectOne("madlib union to table", {union: unionId})["madlib union to table: table"];
+    let tableMemberId = ixer.selectOne("member", {view: unionId, "member view": tableId})["member: member"];
+    let mapped = {};
+    for(let fieldId in fields) {
+      let mappedFieldId = ixer.selectOne("mapping", {"view field": fieldId, member: tableMemberId})["mapping: member field"];
+      mapped[mappedFieldId] = fields[fieldId];
+    }
+    return {tableId, mapped};
   }
 
   function parseMadlibBlanks(blanks, fieldIds = []) {
@@ -570,7 +596,7 @@ module madlib {
     let madlibs = ixer.select("madlib", {});
     let results = [];
     //break the string into lines
-    let lines = str.toLowerCase().split("\n");
+    let lines = str.trim().toLowerCase().split("\n");
     let lineNum = -1;
     for(let line of lines) {
       lineNum++;
@@ -678,15 +704,16 @@ module madlib {
     let diffs = [];
     for(var item of items) {
       if(item.type === "add") {
+        let {tableId, mapped} = mapUnionFieldsToTable(item.viewId, item.values);
         diffs.push(api.insert("cell fact row", {cell: cellId, "source view": item.viewId, row: JSON.stringify(item.values), ix: item.ix}));
-        diffs.push(api.insert(item.viewId, item.values, undefined, true));
+        diffs.push(api.insert(tableId, mapped, undefined, true));
       } else {
         var viewId = item.viewId;
         var fields;
         // this means we're querying and may or may not need to create a madlib
         if(item.type === "create") {
           // create a madlib for this guy
-          let created = madlibFactsFromString(item.madlib);
+          let created = madlibUnionFromString(item.madlib);
           diffs.push.apply(diffs, created.diffs);
           viewId = created.viewId;
           fields = created.fields;
@@ -1034,8 +1061,8 @@ module madlib {
       bottomControls.push(uiAttributeBindingBlank("labels", uiElementId, "pointLabels"));
     } else if(type === ui.ChartType.PIE) {
       //ys, labels
-      leftControls.push({text: "values!"});
-      leftControls.push({text: "labels!"});
+      leftControls.push(uiAttributeBindingBlank("x", uiElementId, "xdata"));
+      leftControls.push(uiAttributeBindingBlank("labels", uiElementId, "pointLabels"));
     } else if(type === ui.ChartType.GAUGE) {
       //value
       bottomControls.push(uiAttributeBindingBlank("value", uiElementId, "ydata"));
