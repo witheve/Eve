@@ -29,3 +29,4 @@ saves/
 ui/bin
 electron/
 .settings/
+.vscode/
