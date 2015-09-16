@@ -144,6 +144,9 @@ module uiRenderer {
               if(!api.ixer.selectOne("uiWarning", warning)) {
                 this.warnings.push(warning);
               }
+              elem["message"] = warning.warning;
+              elem["element"] = warning.element;
+              ui.uiError(<any> elem);
             }
           }
 
@@ -193,7 +196,7 @@ module uiRenderer {
     chart: (elem:ui.ChartElement) => {
       elem.pointLabels = (elem.pointLabels) ? [<any>elem.pointLabels] : elem.pointLabels;
       elem.ydata = (elem.ydata) ? [<any>elem.ydata] : [];
-      elem.xdata = (elem.xdata) ? [<any>elem.xdata] : [];
+      elem.xdata = (elem.xdata) ? [<any>elem.xdata] : elem.xdata;
       ui.chart(elem);
     }
   };
