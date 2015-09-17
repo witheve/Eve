@@ -485,6 +485,8 @@ body table th * { display: inline-block; }
 /* clear pixel is used to replace the ghost images created by the HTML5 drag drop api */
 #clear-pixel { position:absolute; pointer-events: none; }
 
+#perfStats { margin-right: 24px; }
+
 /*---------------------------------------------------------
 - waiting room
 ---------------------------------------------------------*/

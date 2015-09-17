@@ -28,6 +28,8 @@ module madlib {
     localState.focus = {type: FocusType.none};
     localState.input = {value: "", messageNumber: 0};
     localState.intermediateFacts = {};
+    localState.notices = {};
+    localState.errors = {};
   }
 
   function isSelected(selectionInfo) {
@@ -862,6 +864,7 @@ module madlib {
     return {id: "root", c: localStorage["theme"] || "light", children: [
       drawn.tooltipUi(),
       drawn.notice(),
+      compilerErrors(),
       {c: "workspace", children: [
         workspaceTools(),
         workspaceCanvas(),
@@ -1436,6 +1439,68 @@ module madlib {
       }
     }
     return sourceFieldToVariable;
+  }
+
+  function compilerErrors() {
+    let editorWarningItems = [];
+    for(let errorId in localState.errors) {
+      let error = localState.errors[errorId];
+      let klass = "error";
+      if(error.fading) {
+        klass += " fade";
+      }
+      editorWarningItems.push({c: klass, text: error.text, time: error.time});
+    }
+    editorWarningItems.sort((a, b) => b.time - a.time);
+    let editorWarnings;
+    if(editorWarningItems.length) {
+      editorWarnings = {c: "editor-warnings error-group", children: [
+          {c: "error-heading", text: `editor warnings (${editorWarningItems.length})`},
+          {c: "error-items", children: editorWarningItems},
+      ]};;
+    }
+    let warnings = ixer.select("warning", {}).map((warning) => {
+      let text = warning["warning: warning"];
+
+      // Special case error message for bindings to help the user figure out what needs changed.
+      if(warning["warning: view"] === "binding" && text.indexOf("Foreign key") === 0) {
+        let binding = api.factToMap("binding", warning["warning: row"]);
+        let fieldId = binding["field"];
+        let source = ixer.selectOne("source", {source: binding["source"]});
+        if(source) {
+          let viewId = source["source: view"];
+          let sourceViewId = source["source: source view"];
+          text = `Missing field "${code.name(fieldId) || fieldId}" in "${code.name(sourceViewId) || sourceViewId}" for query "${code.name(viewId) || viewId}"`;
+        }
+      }
+      return {c: "warning", warning, text};
+    });
+    let warningGroup;
+    if(warnings.length) {
+      warningGroup = {c: "error-group", children: [
+          {c: "error-heading", text: `code errors (${warnings.length})`},
+          {c: "error-items", children: warnings},
+      ]};
+    }
+    let errorItems = ixer.select("error", {}).map((error) => {
+      return {error, text: error["error: error"]};
+    });
+    let errorGroup;
+    if(errorItems.length) {
+      errorGroup = {c: "error-group", children: [
+          {c: "error-heading", text: `execution errors (${errorItems.length})`},
+          {c: "error-items", children: errorItems},
+      ]};
+    }
+    let totalErrors = warnings.length + errorItems.length;
+    return {c: "query-errors", children: [
+      totalErrors ? {c: "error-count", text: totalErrors} : undefined,
+      editorWarnings,
+      totalErrors ? {c: "error-list", children: [
+        warningGroup,
+        errorGroup,
+      ]}: undefined,
+    ]};
   }
 
   client.afterInit(() => {
