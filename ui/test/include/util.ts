@@ -10,6 +10,8 @@ module Test {
   export type Selector = string;
 
   declare var casper:CasperUtil;
+  casper.options.waitTimeout = 1000;
+
   // https://github.com/creativelive/spook/#saving-screenshots
   let _capture = casper.capture.bind(casper);
   if(casper.cli.options.disableCapture) {
