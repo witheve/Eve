@@ -445,45 +445,54 @@ module ui {
     switch(chartType) {
       case ChartType.BAR:
         dataSpec.xeqy = true;
+        dataSpec.ynumeric = true;
         if(width !== undefined) {barspec['width'] = width;}
         chartTypeString = "bar";
         break;
       case ChartType.LINE:
         dataSpec.xeqy = true;
+        dataSpec.ynumeric = true;
         chartTypeString = "line";
         break;
       case ChartType.SPLINE:
         dataSpec.xeqy = true;
+        dataSpec.ynumeric = true;
         chartTypeString = "spline";
         break;
       case ChartType.AREA:
         dataSpec.xeqy = true;
+        dataSpec.ynumeric = true;
         chartTypeString = "area";
         break;
       case ChartType.AREASPLINE:
         dataSpec.xeqy = true;
+        dataSpec.ynumeric = true;
         chartTypeString = "area-spline";
         break;
       case ChartType.PIE:
         dataSpec.nox = true;
         dataSpec.singleydata = true;
+        dataSpec.ynumeric = true;
         chartTypeString = "pie";
         break;
       case ChartType.DONUT:
         dataSpec.nox = true;
         dataSpec.singleydata = true;
+        dataSpec.ynumeric = true;
         if(width !== undefined) {donutspec['width'] = width;}
         chartTypeString = "donut";
         break;
       case ChartType.SCATTER:
         dataSpec.reqx = true;
         dataSpec.xeqy = true;
+        dataSpec.ynumeric = true;
         chartTypeString = "scatter";
         break;
       case ChartType.GAUGE:
         dataSpec.nox = true;
         dataSpec.singleydata = true;
         dataSpec.singledata = true;
+        dataSpec.ynumeric = true;
         if(gaugeMin !== undefined) {gaugespec['min'] = gaugeMin;}
         if(gaugeMax !== undefined) {gaugespec['max'] = gaugeMax;}
         if(width !== undefined) {gaugespec['width'] = width;}
@@ -589,6 +598,7 @@ module ui {
   interface ChartDataSpec {
     singledata?: boolean
     singleydata?: boolean
+    ynumeric?: boolean
     nox?: boolean
     reqx?: boolean
     xeqy?: boolean
@@ -598,21 +608,43 @@ module ui {
       throw new Error("Chart accepts only a single data series.");
     }
     for(let d of chartData) {
+      if(dataSpec.ynumeric && !isNumeric(d.ydata)) {
+        throw new Error("Each ydata point must be numeric.");
+      }
       if(dataSpec.singleydata && d.ydata.length > 1) {
-        throw new Error("Each ydata may only contain a single value");
+        throw new Error("Each ydata may only contain a single value. This ydata contains " + d.ydata.length + " values.");
       }
       if(dataSpec.nox && d.xdata !== undefined) {
         throw new Error("Chart cannot have xdata.");
       }
       if(dataSpec.reqx && d.xdata === undefined) {
-        throw new Error("xdata required");
+        throw new Error("xdata required, but none supplied.");
       }
       if(dataSpec.xeqy && d.xdata !== undefined && d.ydata.length !== d.xdata.length) {
-        throw new Error("xdata and ydata need to be of equal length: ydata: " + d.ydata +  "xdata:" + d.xdata);
+        throw new Error("xdata and ydata need to be of equal length: \r\n ydata has length " + d.ydata +  ", but xdata has length " + d.xdata);
       }
     }
 
     return true;
+  }
+
+  function isNumeric(testValue: any):boolean {
+    
+    let testArray = [];
+    if(!(testValue instanceof Array)) {
+      testArray = [testValue];     
+    } else {
+      testArray = testValue;
+    }
+    
+    for(let t of testArray) {
+      if(!((t - parseFloat(t) + 1) >= 0)) {
+        return false
+      }
+    }
+    
+    return true;
+    
   }
 
 
