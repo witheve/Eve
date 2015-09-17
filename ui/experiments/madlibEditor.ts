@@ -1172,11 +1172,13 @@ module madlib {
   }
 
   function addUnionMapping(e, elem) {
-    if(localState.selection.type === SelectionType.field) {
+    if(localState.selection.type === SelectionType.field && !isSelected(elem.selectionInfo)) {
       let memberFieldId = localState.selection.items[0].fieldId;
       let unionFieldId = elem.selectionInfo.fieldId;
       dispatch("addUnionMapping", {memberId: elem.opts.memberId, unionFieldId, memberFieldId})
     }
+    e.stopPropagation();
+    e.preventDefault();
   }
 
   function addResultChart(e, elem) {
@@ -1185,6 +1187,8 @@ module madlib {
 
   function bindAttribute(e, elem) {
     dispatch("bindAttribute", {selection: localState.selection, elementId: elem.elementId, property: elem.property});
+    e.stopPropagation();
+    e.preventDefault();
   }
 
   function uiAttributeBindingBlank(label, elementId, property) {
@@ -1322,11 +1326,13 @@ module madlib {
   }
 
   function dropJoin(e, elem) {
-    if(localState.selection.type === SelectionType.blank) {
+    if(localState.selection.type === SelectionType.blank && !isSelected(elem.selectionInfo)) {
       let blanks = localState.selection.items.slice();
       blanks.push(elem.selectionInfo);
       dispatch("joinBlanks", {blanks});
     }
+    e.stopPropagation();
+    e.preventDefault();
   }
 
   function madlibForView(viewId, opts:any = {}): any {
