@@ -510,7 +510,7 @@ module ui {
          throw new Error("ChartElement arrays must have the same number of elements. \r\n ydata has length " + ydata.length + ", but " + arrayNames[i] + " has length " + arrays[i].length);
       }
     }
-    
+
     // convert input data into nice format for type checking
     let formattedData = [];
     for(let i in labels) {
@@ -648,4 +648,12 @@ module ui {
   }
 
 
+  interface SearcherElement extends Element {
+
+  }
+  export function searcher(elem:SearcherElement):Element {
+    
+
+    return elem;
+  }
 }
