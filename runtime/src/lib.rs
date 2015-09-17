@@ -1,5 +1,4 @@
 #![feature(slice_patterns)]
-#![feature(rc_unique)]
 #![feature(drain)]
 #![feature(path_ext)]
 

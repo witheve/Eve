@@ -474,6 +474,15 @@ module ui {
         dataSpec.singleydata = true;
         dataSpec.ynumeric = true;
         chartTypeString = "pie";
+        // @HACK here we take each element in ydata and turn it into its own array
+        // this is to work around the fact we can't bind multiple data series yet.
+        // When we can, this should be removed.
+        var newydata = [];
+        for(let d of ydata[0]) {
+          newydata.push([d]);
+        }
+        ydata = newydata;
+        xdata = undefined;
         break;
       case ChartType.DONUT:
         dataSpec.nox = true;
@@ -481,6 +490,15 @@ module ui {
         dataSpec.ynumeric = true;
         if(width !== undefined) {donutspec['width'] = width;}
         chartTypeString = "donut";
+        // @HACK here we take each element in ydata and turn it into its own array
+        // this is to work around the fact we can't bind multiple data series yet.
+        // When we can, this should be removed.
+        var newydata = [];
+        for(let d of ydata[0]) {
+          newydata.push([d]);
+        }
+        ydata = newydata;
+        xdata = undefined;
         break;
       case ChartType.SCATTER:
         dataSpec.reqx = true;
@@ -502,6 +520,7 @@ module ui {
         throw new Error("Unknown chart type");
     }
 
+    
     // check array lengths
     let arrayNames = ["ydata","xdata","labels","pointLabels"];
     let arrays = [ydata,xdata,labels,pointLabels];

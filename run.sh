@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 waitUrl="$(pwd)/ui/waiting-room.html"
-rustVersion="nightly-2015-08-10"
+rustVersion="nightly-2015-09-17"
 tscVersion="1.6.0-dev.20150731"
 tscBin="$(pwd)/ui/node_modules/typescript/bin/tsc"
 mode="run"

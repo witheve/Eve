@@ -91,10 +91,7 @@ module uitk {
       {name: "Jamie", title: "CTO"}
     ];
 
-    let lineData: ui.ChartElement = {ydata: [[30, 200, 100, 400, 150, 250],
-                                             [20, 180, 240, 100, 190]],
-                                     xdata: [[10, 20, 30, 40, 50, 60],
-                                             [10, 20, 30, 40, 50]],
+    let lineData: ui.ChartElement = {ydata: [[30, 200, 100, 400, 150, 250]],
                                      chartType: ui.ChartType.LINE,
                                     };
 
@@ -116,7 +113,7 @@ module uitk {
                                        };
 
     let pieData: ui.ChartElement = {labels: ["data1","data2","data3"],
-                                    ydata: [[130],[532],[270]],
+                                    ydata: [[130,532,270]],
                                     chartType: ui.ChartType.PIE,
                                    };
     let donutData = api.clone(pieData);
