@@ -482,6 +482,7 @@ module ui {
           newydata.push([d]);
         }
         ydata = newydata;
+        xdata = undefined;
         break;
       case ChartType.DONUT:
         dataSpec.nox = true;
@@ -497,6 +498,7 @@ module ui {
           newydata.push([d]);
         }
         ydata = newydata;
+        xdata = undefined;
         break;
       case ChartType.SCATTER:
         dataSpec.reqx = true;
