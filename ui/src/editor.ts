@@ -394,18 +394,18 @@ module drawn {
 
     // We need to find the lowest priority to make sure that we come before it. We can't use
     // length here because fields can be added and removed out of order.
-    let minFieldPriority = Infinity;
+    let maxFieldPriority = -Infinity;
     for(let field of fields) {
       var order = ixer.selectOne("display order", {id: field["field: field"]});
       if(!order) continue;
-      minFieldPriority = Math.min(order["display order: priority"], minFieldPriority);
+      maxFieldPriority = Math.max(order["display order: priority"], maxFieldPriority);
     }
     // if we didn't find one, we default to -1, otherwise we take one less than the min
-    let fieldPriority = minFieldPriority === Infinity ? -1 : minFieldPriority - 1;
+    let fieldPriority = maxFieldPriority === -Infinity ? 0 : maxFieldPriority + 1;
 
     var neueField = api.insert("field", {view: viewId, kind: "output", dependents: {
       "display name": {name: name},
-      "display order": {priority: fieldPriority - offset}
+      "display order": {priority: fieldPriority + offset}
     }});
     var fieldId = neueField.content.field;
     diffs.push(neueField);
@@ -1521,16 +1521,25 @@ module drawn {
         }
 
         // Map record index to fieldId and create new CSV fields.
+        let madlib = name + ":";
         var mapping = [];
         for(var ix = 0; ix < columns; ix++) {
           var {fieldId, diffs: fieldDiffs} = addField(tableId, names[ix], ix);
           mapping[ix] = fieldId;
           diffs.push.apply(diffs, fieldDiffs);
+          madlib += " ?,";
         }
+        madlib = madlib.substring(0, madlib.length-1);
+        diffs.push(api.insert("madlib", {view: tableId, madlib: madlib}));
 
         // @HACK: We need to wait until the new fields have been processed and old fields removed to add the data.
         setTimeout(function() {
           dispatch("importCsvData", {tableId, data, mapping});
+          // if we're using the madlib experiment, we need to also dispatch to add a new
+          // cell with a source for this guy in there.
+          if(window["madlib"]) {
+            window["madlib"].dispatch("createCellOnImport", {viewId: tableId, madlib});
+          }
         }, 0);
       break;
       case "importCsvData":

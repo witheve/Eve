@@ -44,7 +44,7 @@ module madlib {
     return false;
   }
 
-  function dispatch(event, info, rentrant = false) {
+  export function dispatch(event, info, rentrant = false) {
     var diffs = [];
     var commands = [];
     var storeEvent = true;
@@ -310,6 +310,10 @@ module madlib {
       case "addUnionMapping":
         diffs.push(api.remove("mapping", {member: info.memberId, "view field": info.unionFieldId}));
         diffs.push(api.insert("mapping", {member: info.memberId, "member field": info.memberFieldId, "view field": info.unionFieldId}));
+        break;
+      case "createCellOnImport":
+        localState.notebook.activeCellId = 0;
+        diffs = dispatch("submitQuery", {value: info.madlib});
         break;
       default:
         return drawn.dispatch(event, info, rentrant);
