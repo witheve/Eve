@@ -1,7 +1,7 @@
 machine:
   pre:
     - curl https://raw.githubusercontent.com/witheve/Eve/master/install-multirust.sh | sh
-    - multirust default nightly-2015-08-10
+    - multirust default nightly-2015-09-17
 
 dependencies:
   post:

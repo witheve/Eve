@@ -58,7 +58,7 @@ impl<K: Ord + Default + Clone, V: Eq + Default + Clone> Map<K,V> {
             if self.chunks[i].len() >= self.chunks[i-1].len() {
                 let mut new = self.chunks.remove(i);
                 let mut old = self.chunks.remove(i-1);
-                let merged = merge(old.make_unique(), new.make_unique());
+                let merged = merge(Rc::make_mut(&mut old), Rc::make_mut(&mut new));
                 self.chunks.insert(i-1, Rc::new(merged));
             } else {
                 break;
