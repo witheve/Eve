@@ -873,8 +873,8 @@ module madlib {
     let cm = node.editor;
     if(!cm) {
       cm = node.editor = new CodeMirror(node);
-      if(elem.input) {
-        cm.on("input", elem.input)
+      if(elem.onInput) {
+        cm.on("change", elem.onInput)
       }
       if(elem.keydown) {
         cm.on("keydown", elem.keydown);
@@ -900,13 +900,13 @@ module madlib {
       }
     }
     return {id: `chat-input ${cellId}`, c: "chat-input-container", children: [
-      {c: "chat-input", onSubmit, cellId, postRender:CodeMirrorElement, keydown: chatInputKey, input: trackChatInput, placeholder: "Enter a message...", value},
+      {c: "chat-input", onSubmit, cellId, postRender:CodeMirrorElement, keydown: chatInputKey, onInput: trackChatInput, placeholder: "Enter a message...", value},
       {c: "submit", cellId, mousedown: onSubmit, text: submitActionText},
     ]}
   }
 
-  function trackChatInput(e, elem) {
-    dispatch("trackChatInput", {value: e.currentTarget.editor.getValue()});
+  function trackChatInput(cm, changes) {
+    dispatch("trackChatInput", {value: cm.getValue()});
   }
 
   function submitQuery(e, elem) {
