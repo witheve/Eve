@@ -46,7 +46,7 @@ module madlib {
     return false;
   }
 
-  function dispatch(event, info, rentrant = false) {
+  export function dispatch(event, info, rentrant = false) {
     var diffs = [];
     var commands = [];
     var storeEvent = true;
@@ -312,6 +312,10 @@ module madlib {
       case "addUnionMapping":
         diffs.push(api.remove("mapping", {member: info.memberId, "view field": info.unionFieldId}));
         diffs.push(api.insert("mapping", {member: info.memberId, "member field": info.memberFieldId, "view field": info.unionFieldId}));
+        break;
+      case "createCellOnImport":
+        localState.notebook.activeCellId = 0;
+        diffs = dispatch("submitQuery", {value: info.madlib});
         break;
       default:
         return drawn.dispatch(event, info, rentrant);
@@ -876,8 +880,8 @@ module madlib {
     let cm = node.editor;
     if(!cm) {
       cm = node.editor = new CodeMirror(node);
-      if(elem.input) {
-        cm.on("input", elem.input)
+      if(elem.onInput) {
+        cm.on("change", elem.onInput)
       }
       if(elem.keydown) {
         cm.on("keydown", elem.keydown);
@@ -903,13 +907,13 @@ module madlib {
       }
     }
     return {id: `chat-input ${cellId}`, c: "chat-input-container", children: [
-      {c: "chat-input", onSubmit, cellId, postRender:CodeMirrorElement, keydown: chatInputKey, input: trackChatInput, placeholder: "Enter a message...", value},
+      {c: "chat-input", onSubmit, cellId, postRender:CodeMirrorElement, keydown: chatInputKey, onInput: trackChatInput, placeholder: "Enter a message...", value},
       {c: "submit", cellId, mousedown: onSubmit, text: submitActionText},
     ]}
   }
 
-  function trackChatInput(e, elem) {
-    dispatch("trackChatInput", {value: e.currentTarget.editor.getValue()});
+  function trackChatInput(cm, changes) {
+    dispatch("trackChatInput", {value: cm.getValue()});
   }
 
   function submitQuery(e, elem) {
@@ -1131,7 +1135,7 @@ module madlib {
     dispatch("submitUnionCell", {value: localState.input.value, cellId: elem.cellId});
   }
 
-  function drawUnionCell(cellId, parentCellId, parentViewId) {
+  function drawUnionCell(cellId, parentCellId, parentViewId): microReact.Element {
     if(localState.notebook.activeCellId === cellId) {
       return {c: "cell union", children:[
         chatInput(cellId, submitUnionCell),
@@ -1171,11 +1175,13 @@ module madlib {
   }
 
   function addUnionMapping(e, elem) {
-    if(localState.selection.type === SelectionType.field) {
+    if(localState.selection.type === SelectionType.field && !isSelected(elem.selectionInfo)) {
       let memberFieldId = localState.selection.items[0].fieldId;
       let unionFieldId = elem.selectionInfo.fieldId;
       dispatch("addUnionMapping", {memberId: elem.opts.memberId, unionFieldId, memberFieldId})
     }
+    e.stopPropagation();
+    e.preventDefault();
   }
 
   function addResultChart(e, elem) {
@@ -1184,11 +1190,13 @@ module madlib {
 
   function bindAttribute(e, elem) {
     dispatch("bindAttribute", {selection: localState.selection, elementId: elem.elementId, property: elem.property});
+    e.stopPropagation();
+    e.preventDefault();
   }
 
   function uiAttributeBindingBlank(label, elementId, property) {
-    return {c: "attribute-blank", children: [
-      {elementId, property, dragover: (e) => {e.preventDefault();}, drop: bindAttribute, text: label},
+    return {c: "attribute-blank", elementId, property, dragover: (e) => { e.preventDefault();}, drop: bindAttribute, children: [
+      {text: label},
     ]};
   }
 
@@ -1206,7 +1214,7 @@ module madlib {
       bottomControls.push(uiAttributeBindingBlank("labels", uiElementId, "pointLabels"));
     } else if(type === ui.ChartType.PIE) {
       //ys, labels
-      leftControls.push(uiAttributeBindingBlank("x", uiElementId, "xdata"));
+      leftControls.push(uiAttributeBindingBlank("slices", uiElementId, "ydata"));
       leftControls.push(uiAttributeBindingBlank("labels", uiElementId, "pointLabels"));
     } else if(type === ui.ChartType.GAUGE) {
       //value
@@ -1256,7 +1264,7 @@ module madlib {
 
   function selectBlank(e, elem) {
     if(elem.selectionInfo) {
-      dispatch("extendSelection", {selectionInfo: elem.selectionInfo}, true);
+      dispatch("extendSelection", {selectionInfo: elem.selectionInfo});
     }
     //e.preventDefault();
   }
@@ -1321,11 +1329,13 @@ module madlib {
   }
 
   function dropJoin(e, elem) {
-    if(localState.selection.type === SelectionType.blank) {
+    if(localState.selection.type === SelectionType.blank && !isSelected(elem.selectionInfo)) {
       let blanks = localState.selection.items.slice();
       blanks.push(elem.selectionInfo);
       dispatch("joinBlanks", {blanks});
     }
+    e.stopPropagation();
+    e.preventDefault();
   }
 
   function madlibForView(viewId, opts:any = {}): any {
