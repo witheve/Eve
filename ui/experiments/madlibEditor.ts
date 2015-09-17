@@ -1128,7 +1128,7 @@ module madlib {
     dispatch("submitUnionCell", {value: localState.input.value, cellId: elem.cellId});
   }
 
-  function drawUnionCell(cellId, parentCellId, parentViewId) {
+  function drawUnionCell(cellId, parentCellId, parentViewId): microReact.Element {
     if(localState.notebook.activeCellId === cellId) {
       return {c: "cell union", children:[
         chatInput(cellId, submitUnionCell),
