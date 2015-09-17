@@ -494,16 +494,16 @@ module ui {
     }
 
     // check array lengths
-    let formattedData = [];
-   if(!(ydata.length === labels.length &&
-         (xdata === undefined || ydata.length === xdata.length) &&
-         (pointLabels === undefined || ydata.length === pointLabels.length)
-      )) {
-        throw new Error("ChartElement arrays must have the same number of elements");
-   }
-
+    let arrayNames = ["ydata","xdata","labels","pointLabels"];
+    let arrays = [ydata,xdata,labels,pointLabels];
+    for(let i in arrays) {
+      if(arrays[i] !== undefined && arrays[i].length != ydata.length) {
+         throw new Error("ChartElement arrays must have the same number of elements. \r\n ydata has length " + ydata.length + ", but " + arrayNames[i] + " has length " + arrays[i].length);
+      }
+    }
+    
     // convert input data into nice format for type checking
-    let formatedData = [];
+    let formattedData = [];
     for(let i in labels) {
       let formatted = {};
       formatted["label"] = labels[i];
