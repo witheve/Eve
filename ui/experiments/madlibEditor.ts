@@ -1207,7 +1207,7 @@ module madlib {
       bottomControls.push(uiAttributeBindingBlank("labels", uiElementId, "pointLabels"));
     } else if(type === ui.ChartType.PIE) {
       //ys, labels
-      leftControls.push(uiAttributeBindingBlank("x", uiElementId, "xdata"));
+      leftControls.push(uiAttributeBindingBlank("slices", uiElementId, "ydata"));
       leftControls.push(uiAttributeBindingBlank("labels", uiElementId, "pointLabels"));
     } else if(type === ui.ChartType.GAUGE) {
       //value
