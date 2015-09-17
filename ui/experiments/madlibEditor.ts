@@ -1192,8 +1192,8 @@ module madlib {
   }
 
   function uiAttributeBindingBlank(label, elementId, property) {
-    return {c: "attribute-blank", children: [
-      {elementId, property, dragover: (e) => {e.preventDefault();}, drop: bindAttribute, text: label},
+    return {c: "attribute-blank", elementId, property, dragover: (e) => { e.preventDefault();}, drop: bindAttribute, children: [
+      {text: label},
     ]};
   }
 
@@ -1261,7 +1261,7 @@ module madlib {
 
   function selectBlank(e, elem) {
     if(elem.selectionInfo) {
-      dispatch("extendSelection", {selectionInfo: elem.selectionInfo}, true);
+      dispatch("extendSelection", {selectionInfo: elem.selectionInfo});
     }
     //e.preventDefault();
   }
