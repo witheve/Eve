@@ -1116,15 +1116,17 @@ module madlib {
       related = {children};
     }
     return {c: "message-container eve-response", children: [
-        {c: "message", children: [
-          resultMadlibs,
-          related,
-          {c: "button ion-pie-graph", click: addResultChart, viewId, cellId},
-          {c: "button", text: "new madlib", click: addUnionActionCell, viewId, cellId},
-          {c: "message-text", text: message},
-        ]},
-        {c: "sender", text: "Eve"},
-      ]};
+      {c: "controls", children: [
+        {c: "button ion-pie-graph", click: addResultChart, viewId, cellId},
+        {c: "button", text: "new madlib", click: addUnionActionCell, viewId, cellId}
+      ]},
+      {c: "message", children: [
+        resultMadlibs,
+        related,
+        {c: "message-text", text: message},
+      ]},
+      {c: "sender", text: "Eve"},
+    ]};
   }
 
   function addUnionActionCell(e, elem) {

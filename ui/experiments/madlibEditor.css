@@ -48,7 +48,9 @@ body div { display:-webkit-flex; -webkit-flex-direction:column; }
 .user-message {   }
 /* .eve-response { align-self: flex-end; -webkit-align-self: flex-end; } */
 .eve-response { margin-bottom:0px; background: rgba(0,184,241, 0.18); border-top:1px solid rgba(0,184,241, 0.3); border-radius:0 0 3px 3px;}
+.eve-response > .controls { flex-direction: row; justify-content: flex-end; }
 .eve-response > .message { padding:5px; background:none; }
+.eve-response > .message > * + * { border-top: 1px solid rgba(0, 184, 241, 0.1); }
 .eve-response .message-text {  padding:5px 10px; border-radius:0 0 3px 3px; font-size:10pt; color: rgba(255,255,255, 0.45); }
 .eve-response .results { padding: 5px 10px; padding-top:8px; }
 .eve-response .sender { text-align:right; }
