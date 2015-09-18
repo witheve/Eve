@@ -612,7 +612,6 @@ module ui {
           labels: {
             format: c3PointLabels
           },
-          unload: node.chart.columns
         });
       } else {
         node.chart = c3.generate({
