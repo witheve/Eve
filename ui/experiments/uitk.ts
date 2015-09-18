@@ -202,6 +202,8 @@ module uitk {
         {t: "h2"},
         {text: "With sort toggles in headers"},
         ui.table({id: "my-tag-table", data: api.ixer.facts("tag", true), sortable: true}),
+        {text: "Populated directly from view"},
+        ui.factTable({id: "my-view-table", view: "view", sortable: true}),
       ]},
 
       {t: "h1", text: "Dynamic Rendering"},

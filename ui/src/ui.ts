@@ -321,6 +321,15 @@ module ui {
     return elem;
   }
 
+  interface FactTable extends Element {
+    view: string
+  }
+  export function factTable(elem:FactTable):Element {
+    let facts = api.ixer.facts(elem.view, true);
+    elem["data"] = facts;
+    return table(<any>elem);
+  }
+
   //---------------------------------------------------------
   // Inputs
   //---------------------------------------------------------
