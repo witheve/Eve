@@ -233,6 +233,8 @@ module ui {
     data: (any[][]|{}[])
     headers?: string[]
     heterogenous?: boolean
+    skip?: number
+    limit?: number
 
     autosort? : boolean
     sortable?: boolean
@@ -305,7 +307,15 @@ module ui {
 
     let rowIx = 0;
     let bodyRows = [];
+    let {skip = 0, limit} = elem;
     for(let row of data) {
+      if(skip > rowIx) {
+        rowIx++;
+        continue;
+      }
+      if(limit !== undefined && skip + limit < rowIx) {
+        break;
+      }
       let entryRow = [];
       let ix = 0;
       for(let cell of row) {
