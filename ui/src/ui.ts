@@ -383,6 +383,7 @@ module ui {
     element: Element
   }
   export function uiError(elem: ErrorElement):Element {
+    elem.t = "ui-error";
     elem.c = `ui-error ${elem.c || ""}`;
     elem.text = elem.message;
     return elem;
@@ -420,15 +421,19 @@ module ui {
     gaugeMax?: number
     width?: number
   }
+  interface ChartNode extends HTMLElement {
+    chart: any
+  }
 
   export function chart(elem:ChartElement):Element {
     let {labels,ydata,xdata,pointLabels,chartType,gaugeMin,gaugeMax,width} = elem;
 
-    elem.key = `${elem.key + " " || ""}${chartType}
-                ${labels ? `::labels[${labels.join(",")}]` : ""}
-                ${pointLabels ? `::pointLabels[${pointLabels.join(",")}]` : ""}
-                ${xdata ? `::xs[${xdata.join(",")}]` : ""}
-                ${ydata ? `::ys[${ydata.join(",")}]` : ""}`;
+    elem.key = `${elem.key ? `key=${elem.key}` : ""}
+                type=${chartType}
+                ${labels ? `labels=[${labels.join(",")}]` : ""}
+                ${pointLabels ? `pointLabels=[${pointLabels.join(",")}]` : ""}
+                ${xdata ? `xs=[${xdata.join(",")}]` : ""}
+                ${ydata ? `ys=[${ydata.join(",")}]` : ""}`;
 
     // If no labels are provided, we need some default labels
     if(labels === undefined) {
@@ -520,7 +525,7 @@ module ui {
         throw new Error("Unknown chart type");
     }
 
-    
+
     // check array lengths
     let arrayNames = ["ydata","xdata","labels","pointLabels"];
     let arrays = [ydata,xdata,labels,pointLabels];
@@ -579,20 +584,20 @@ module ui {
         };
     }
 
-    elem.postRender = api.debounce(200,function(chartNode,elem) {
-      if(chartNode.chart) {
-        chartNode.chart.load({
+    elem.postRender = function(node:ChartNode, elem) {
+      if(node.chart) {
+        node.chart.load({
           xs: xdataBindings,
           columns:formattedC3Data,
           type: chartTypeString,
           labels: {
             format: c3PointLabels
           },
-          unload: chartNode.chart.columns
+          unload: node.chart.columns
         });
       } else {
-        chartNode.chart = c3.generate({
-          bindto: chartNode,
+        node.chart = c3.generate({
+          bindto: node,
           data:{
             xs: xdataBindings,
             columns:formattedC3Data,
@@ -609,7 +614,7 @@ module ui {
           gauge: gaugespec,
         })
       }
-    });
+    };
 
     return elem;
   }
@@ -648,22 +653,22 @@ module ui {
   }
 
   function isNumeric(testValue: any):boolean {
-    
+
     let testArray = [];
     if(!(testValue instanceof Array)) {
-      testArray = [testValue];     
+      testArray = [testValue];
     } else {
       testArray = testValue;
     }
-    
+
     for(let t of testArray) {
       if(!((t - parseFloat(t) + 1) >= 0)) {
         return false
       }
     }
-    
+
     return true;
-    
+
   }
 
 
@@ -671,7 +676,7 @@ module ui {
 
   }
   export function searcher(elem:SearcherElement):Element {
-    
+
 
     return elem;
   }

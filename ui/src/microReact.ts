@@ -445,7 +445,7 @@ module microReact {
       for(var i = 0, len = postRenders.length; i < len; i++) {
         var elem = postRenders[i];
         var id = elem.id;
-        if(diff[id] === "updated" || diff[id] === "added" || elem.dirty) {
+        if(diff[id] === "updated" || diff[id] === "added" || diff[id] === "replaced" || elem.dirty) {
           elem.postRender(elementCache[elem.id], elem);
         }
       }
