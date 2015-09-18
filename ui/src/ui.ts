@@ -442,6 +442,7 @@ module ui {
   }
   interface ChartNode extends HTMLElement {
     chart: any
+    labels: string[]
   }
 
   export function chart(elem:ChartElement):Element {
@@ -611,6 +612,7 @@ module ui {
           labels: {
             format: c3PointLabels
           },
+          unload: node.labels
         });
       } else {
         node.chart = c3.generate({
@@ -631,6 +633,7 @@ module ui {
           gauge: gaugespec,
         })
       }
+      node.labels = labels;
     };
 
     return elem;
