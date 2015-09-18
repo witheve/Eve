@@ -454,14 +454,6 @@ module ui {
                 ${xdata ? `xs=[${xdata.join(",")}]` : ""}
                 ${ydata ? `ys=[${ydata.join(",")}]` : ""}`;
 
-    // If no labels are provided, we need some default labels
-    if(labels === undefined) {
-      labels = [];
-      for(let i in ydata) {
-        labels.push('data' + i);
-      }
-    }
-
     // Set the data spec based on chart type
     let chartTypeString: string;
     let dataSpec: ChartDataSpec = {};
@@ -544,6 +536,13 @@ module ui {
         throw new Error("Unknown chart type");
     }
 
+    // If no labels are provided, we need some default labels
+    if(labels === undefined) {
+      labels = [];
+      for(let i in ydata) {
+        labels.push('data' + i);
+      }
+    }
 
     // check array lengths
     let arrayNames = ["ydata","xdata","labels","pointLabels"];
