@@ -676,7 +676,7 @@ module madlib {
         let madlibRegex = madlibRegexCache[madlibView];
         if(!madlibRegex) {
           let madlibText = madlib["madlib: madlib"].replace(/([\*\+\(\)\[\]])/, "\\$1");
-          let regexStr = madlibText.replace(/\?/gi, "(.+)");
+          let regexStr = "^" + madlibText.replace(/\?/gi, "(.+)") + "$";
           madlibRegex = madlibRegexCache[madlibView] = new RegExp(regexStr);
         }
         // check if this line matches the madlib's regex
@@ -1208,7 +1208,7 @@ module madlib {
     } else if(type === ui.ChartType.PIE) {
       //ys, labels
       leftControls.push(uiAttributeBindingBlank("slices", uiElementId, "ydata", propertyToColor(bindingInfo, "ydata")));
-      leftControls.push(uiAttributeBindingBlank("labels", uiElementId, "pointLabels", propertyToColor(bindingInfo, "pointLabels")));
+      leftControls.push(uiAttributeBindingBlank("labels", uiElementId, "labels", propertyToColor(bindingInfo, "labels")));
     } else if(type === ui.ChartType.GAUGE) {
       //value
       bottomControls.push(uiAttributeBindingBlank("value", uiElementId, "ydata", propertyToColor(bindingInfo, "ydata")));
