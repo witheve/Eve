@@ -3778,6 +3778,7 @@ module drawn {
       let files = e.dataTransfer.files;
       if(files.length) {
         dispatch("importFiles", {files: files});
+        e.stopPropagation();
       }
       e.preventDefault();
     });

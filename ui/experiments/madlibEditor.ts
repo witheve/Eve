@@ -249,66 +249,6 @@ module madlib {
           diffs.push(api.insert("uiAttributeBinding", {element: elementId, property, field: fieldId}));
         }
         break;
-      case "addUnionActionCell":
-        var ix = relatedCellNextIndex(info.cellId);
-        var {diffs, cellId} = createCell(info.cellId, "union", ix, info.viewId);
-        break;
-      case "submitUnionCell":
-        var activeCellId = info.cellId;
-        if(activeCellId && info.value === "") {
-          return dispatch("removeCell", {cellId: activeCellId});
-        }
-        var unionId;
-        // @TODO: we currently only allow one mapping in here and we're discarding
-        // anything else that's added. This is probably the right thing to do, but
-        // we need some affordance in the UI for it.
-        var item = parseMadlibsFromString(info.value)[0];
-        // if it's a create, then create the madlib
-        if(item.type === "create") {
-          let created = madlibUnionFromString(item.madlib);
-          diffs.push.apply(diffs, created.diffs);
-          unionId = created.viewId;
-        }
-        // otherwise the item's view is the union we'll be pusing into
-        else if(item.type === "query") {
-          unionId = item.viewId;
-        }
-        var parentCellId = ixer.selectOne("related notebook cell", {cell2: activeCellId})["related notebook cell: cell"];
-        var parentCellViewId = ixer.selectOne("notebook cell view", {cell: parentCellId})["notebook cell view: view"];
-        // if we had a view already mapped to this cell, then we may need to rebind
-        // everything to a new union.
-        var originalView = ixer.selectOne("notebook cell view", {cell: activeCellId});
-        if(originalView) {
-          let originalViewId = originalView["notebook cell view: view"];
-          if(originalViewId !== unionId) {
-            diffs.push(api.remove("notebook cell view", {cell: activeCellId}));
-            diffs.push(api.insert("notebook cell view", {cell: activeCellId, view: unionId}));
-            let memberId = uuid();
-            // @TODO: get the next memberIx;
-            let memberIx = nextMemberIx(unionId);
-          console.log("memberIx", memberIx);
-            diffs.push(api.insert("member", {view: unionId, ix: memberIx, member: memberId, "member view": parentCellViewId}));
-            // clean up the old member / mappings
-            let originalMemberId = ixer.selectOne("member", {view: parentCellViewId, "member view": originalViewId})["member: member"];
-            diffs.push(api.remove("member", {member: originalMemberId}));
-            diffs.push(api.remove("mapping", {member: originalMemberId}));
-          }
-        }
-        // otherwise point our cell to the union
-        else {
-          diffs.push(api.insert("notebook cell view", {cell: activeCellId, view: unionId}));
-          // add a member to the parentCellView
-          let memberId = uuid();
-          // @TODO: get the next memberIx;
-          let memberIx = nextMemberIx(unionId);
-          console.log("memberIx", memberIx);
-          diffs.push(api.insert("member", {view: unionId, ix: memberIx, member: memberId, "member view": parentCellViewId}));
-        }
-
-        localState.input.value = "";
-        // we're now done with whatever cell was active
-        localState.notebook.activeCellId = 0;
-        break;
       case "addUnionMapping":
         diffs.push(api.remove("mapping", {member: info.memberId, "view field": info.unionFieldId}));
         diffs.push(api.insert("mapping", {member: info.memberId, "member field": info.memberFieldId, "view field": info.unionFieldId}));
@@ -390,6 +330,12 @@ module madlib {
       for(let cellView of ixer.select("notebook cell view", {cell: cellId})) {
         let viewId = cellView["notebook cell view: view"];
         diffs.push.apply(diffs, drawn.removeView(viewId));
+        //remove any related members for that view
+        diffs.push(api.remove("member", {"member view": viewId}));
+        for(let member of ixer.select("member", {"member view": viewId})) {
+          let memberId = member["member: member"];
+          diffs.push(api.remove("mapping", {member: memberId}));
+        }
       }
     } else if(cellKind === "chart") {
       let elementId = ixer.selectOne("notebook cell uiElement", {cell: cellId})["notebook cell uiElement: element"];
@@ -397,16 +343,6 @@ module madlib {
       diffs.push(api.remove("uiElement", {element: elementId}));
       diffs.push(api.remove("uiElementBinding", {element: elementId}));
       diffs.push(api.remove("uiAttribute", {element: elementId}));
-    } else if(cellKind === "union") {
-      let cellView = ixer.selectOne("notebook cell view", {cell: cellId});
-      if(cellView) {
-        let parentCellId = ixer.selectOne("related notebook cell", {cell2: cellId})["related notebook cell: cell"];
-        let parentCellViewId = ixer.selectOne("notebook cell view", {cell: parentCellId})["notebook cell view: view"];
-        let unionId = cellView["notebook cell view: view"];
-        let memberId = ixer.selectOne("member", {view: unionId, "member view": parentCellViewId})["member: member"];
-        diffs.push(api.remove("member", {member: memberId}));
-        diffs.push(api.remove("mapping", {member: memberId}));
-      }
     }
     return diffs;
   }
@@ -514,6 +450,36 @@ module madlib {
         }
         final += "\n";
       }
+      for(let member of ixer.select("member", {"member view": viewId})) {
+        let sourceViewId = member["member: view"];
+        let sourceInfo = joinInfo[member["member: member"]];
+        let madlibText = ixer.selectOne("madlib", {view: sourceViewId})["madlib: madlib"];
+        let madlibParts = madlibText.split(/(\?)/);
+        let fields = ixer.getFields(sourceViewId);
+        let fieldIx = 0;
+        final += "+ ";
+        for(let part of madlibParts) {
+          let fieldId = fields[fieldIx];
+          let fieldInfo = sourceInfo.fields[fieldId];
+          if(part === "?") {
+            if(fieldInfo.filtered) {
+              final += fieldInfo.constantValue;
+            } else {
+              final += part;
+            }
+            if(fieldInfo.column) {
+              final += "?";
+            }
+            if(fieldInfo.color) {
+              final += `${fieldInfo.color}`;
+            }
+            fieldIx++;
+          } else {
+            final += part;
+          }
+        }
+        final += "\n";
+      }
     }
     return final.trim();
   }
@@ -589,7 +555,7 @@ module madlib {
   function splitMadlibIntoParts(str) {
     let cached = madlibToPartsCache[str];
     if(cached) return cached;
-    let split = str.split(/(\?)/);
+    let split = str.split(/(\?)/).filter((item) => item);
     madlibToPartsCache[str] = split;
     return split;
   }
@@ -643,7 +609,7 @@ module madlib {
   function parseMadlibBlanks(blanks, fieldIds = []) {
     // by default we have an add
     let chunked = false;
-    let type = "add";
+    let type = "fact";
     let fields = {};
     let values = {};
     var ix = 0;
@@ -692,10 +658,14 @@ module madlib {
       let found = false;
       let negated = false;
       let chunked = false;
+      let action = "source";
 
       let cleanedLine = line.trim();
       if(cleanedLine[0] === "!") {
         negated = true;
+        cleanedLine = cleanedLine.substring(1).trim();
+      } else if(cleanedLine[0] === "+") {
+        action = "add";
         cleanedLine = cleanedLine.substring(1).trim();
       }
 
@@ -716,6 +686,7 @@ module madlib {
           let fields = ixer.getFields(madlibView);
           matches.shift();
           let result:any = parseMadlibBlanks(matches, fields);
+          result.action = action;
           result.viewId = madlibView;
           result.ix = lineNum;
           result.negated = negated;
@@ -730,6 +701,7 @@ module madlib {
         let matches = cleanedLine.match(/(\?[^\s]*)/gi);
         let result:any = parseMadlibBlanks(matches);
         result.type = "create";
+        result.action = action;
         result.madlib = cleanedLine.replace(/(\?[^\s]*)/gi, "?");
         result.ix = lineNum;
         result.negated = negated;
@@ -792,7 +764,7 @@ module madlib {
     let queryVariables = {};
     let diffs = [];
     for(var item of items) {
-      if(item.type === "add") {
+      if(item.type === "fact") {
         let {tableId, mapped} = mapUnionFieldsToTable(item.viewId, item.values);
         diffs.push(api.insert("cell fact row", {cell: cellId, "source view": item.viewId, row: JSON.stringify(item.values), ix: item.ix}));
         diffs.push(api.insert(tableId, mapped, undefined, true));
@@ -815,49 +787,84 @@ module madlib {
         } else {
           fields = ixer.getFields(viewId);
         }
-        //add this as a source
-        var sourceId = uuid();
-        diffs.push(api.insert("source", {view: queryId, source: sourceId, "source view": viewId}));
-        diffs.push(api.insert("source madlib index", {source: sourceId, ix: item.ix}));
-        // check if this source is chunked
-        if(item.chunked) {
-          diffs.push(api.insert("chunked source", {source: sourceId}));
-        }
-        // check if this source is negated
-        if(item.negated) {
-          diffs.push(api.insert("negated source", {source: sourceId}));
-        }
-        // add variables for all the fields of this view
-        var sortIx = 0;
-        var fieldIx = 0;
-        fields.forEach(function(fieldId, ix) {
-          let fieldInfo = item.fields[fieldId];
-          fieldInfo.fieldIx = fieldIx;
-          fieldIx++;
-          if(fieldInfo.column) {
-            fieldInfo.sortIx = sortIx;
-            sortIx++;
-          }
-          let namedVariable = fieldInfo.variable;
-          let variableId;
-          if(namedVariable && queryVariables[namedVariable]) {
-            let variableInfo = queryVariables[namedVariable];
-            // if we already have a variable for this one, then we only need a binding
-            // from this field to the already created variable
-            diffs.push(api.insert("binding", {variable: variableInfo.variableId, source: sourceId, field: fieldId}));
-            fieldInfo.variableId = variableInfo.variableId;
-            fieldInfo.fieldId = variableInfo.selectFieldId;
-          } else {
-            // we need to create a variable for this field
-            let variableInfo = addSourceFieldVariable(queryId, viewId, sourceId, fieldId, fieldInfo, item);
-            variableId = variableInfo.variableId;
-            fieldInfo.variableId = variableId;
-            diffs.push.apply(diffs, variableInfo.diffs);
-            if(namedVariable) {
-              queryVariables[namedVariable] = variableInfo;
+
+        // if the action is an add, we need to create a member/mapping for the
+        // given union
+        if (item.action === "add") {
+          let unionId = viewId;
+          var originalView = ixer.selectOne("notebook cell view", {cell: cellId});
+          let memberIx = nextMemberIx(unionId);
+          if(originalView) {
+            let originalViewId = originalView["notebook cell view: view"];
+            // if there was a previous member for this union
+            let originalMember = ixer.selectOne("member", {view: unionId, "member view": originalViewId});
+            if(originalMember) {
+              // we want to use the same ix
+              memberIx = originalMember["member: ix"];
+              // clean up the old member / mappings
+              let originalMemberId = originalMember["member: member"];
+              diffs.push(api.remove("member", {member: originalMemberId}));
+              diffs.push(api.remove("mapping", {member: originalMemberId}));
             }
           }
-        });
+          var memberId = uuid();
+          diffs.push(api.insert("member", {view: unionId, ix: memberIx, member: memberId, "member view": queryId}));
+          fields.forEach(function(fieldId, ix) {
+            let fieldInfo = item.fields[fieldId];
+            let namedVariable = fieldInfo.variable;
+            let variableId;
+            if(namedVariable && queryVariables[namedVariable]) {
+              let variableInfo = queryVariables[namedVariable];
+              diffs.push(api.insert("mapping", {"view field": fieldId, member: memberId, "member field": variableInfo.selectFieldId}));
+              fieldInfo.fieldId = variableInfo.selectFieldId;
+            }
+          });
+        }
+        //add this as a source
+        else if(item.action === "source") {
+          var sourceId = uuid();
+          diffs.push(api.insert("source", {view: queryId, source: sourceId, "source view": viewId}));
+          diffs.push(api.insert("source madlib index", {source: sourceId, ix: item.ix}));
+          // check if this source is chunked
+          if(item.chunked) {
+            diffs.push(api.insert("chunked source", {source: sourceId}));
+          }
+          // check if this source is negated
+          if(item.negated) {
+            diffs.push(api.insert("negated source", {source: sourceId}));
+          }
+          // add variables for all the fields of this view
+          var sortIx = 0;
+          var fieldIx = 0;
+          fields.forEach(function(fieldId, ix) {
+            let fieldInfo = item.fields[fieldId];
+            fieldInfo.fieldIx = fieldIx;
+            fieldIx++;
+            if(fieldInfo.column) {
+              fieldInfo.sortIx = sortIx;
+              sortIx++;
+            }
+            let namedVariable = fieldInfo.variable;
+            let variableId;
+            if(namedVariable && queryVariables[namedVariable]) {
+              let variableInfo = queryVariables[namedVariable];
+              // if we already have a variable for this one, then we only need a binding
+              // from this field to the already created variable
+              diffs.push(api.insert("binding", {variable: variableInfo.variableId, source: sourceId, field: fieldId}));
+              fieldInfo.variableId = variableInfo.variableId;
+              fieldInfo.fieldId = variableInfo.selectFieldId;
+            } else {
+              // we need to create a variable for this field
+              let variableInfo = addSourceFieldVariable(queryId, viewId, sourceId, fieldId, fieldInfo, item);
+              variableId = variableInfo.variableId;
+              fieldInfo.variableId = variableId;
+              diffs.push.apply(diffs, variableInfo.diffs);
+              if(namedVariable) {
+                queryVariables[namedVariable] = variableInfo;
+              }
+            }
+          });
+        }
       }
     }
     return diffs;
@@ -948,6 +955,7 @@ module madlib {
   function workspaceCanvas() {
     let activeCellId = localState.notebook.activeCellId;
     let cellItems = []
+    let resultItems = [];
     let parentCell = localState.notebook.containerCell;
     let cells = ixer.select("related notebook cell", {cell: localState.notebook.containerCell});
     cells.sort((a, b) => {
@@ -968,15 +976,21 @@ module madlib {
         item.c += " active";
       }
       item.cellId = cellId;
+      let result = item.children.pop();
       cellItems.push(item);
+      resultItems.push(result);
     }
     cellItems.push({c: "item", children: [
       {c: "message-container user-message", children: [
         {c: "message", children: [chatInput(0)]},
-        {c: "sender", text: "Me"},
       ]},
     ]});
-    return {c: "canvas", key: localState.input.messageNumber, postRender: scrollToBottom, mousedown: maybeClearSelection, children: cellItems};
+    return {c: "canvas", key: localState.input.messageNumber, postRender: scrollToBottom, mousedown: maybeClearSelection, children: [
+      ui.row({c: "no-overflow", children: [
+        {c: "flex scroll", children: cellItems},
+        {c: "flex scroll double-size", children: resultItems},
+      ]}),
+    ]};
   }
 
   function scrollToBottom(node, elem) {
@@ -1067,29 +1081,43 @@ module madlib {
       }));
     }
 
+    for(let member of ixer.select("member", {"member view": viewId})) {
+      let memberId = member["member: member"];
+      let unionId = member["member: view"];
+      let madlib = madlibForView(unionId, {
+        rows: [],
+        joinInfo: joinInfo[memberId].fields,
+        selectable: true,
+        toSelection: unionFieldSelection,
+        onDrop: addUnionMapping,
+        memberId,
+      });
+      madlib.children.unshift({c: "action-prefix", text: "+"});
+      sourceItems.push(madlib);
+    }
+
     if(cellId === localState.notebook.activeCellId) {
       sourceItems = [chatInput(cellId)];
     }
-    let result = queryResult(results, factRows, filledSources, cellId, viewId);
+    let result = queryResult(results, factRows, filledSources, cellId, viewId, joinInfo);
     return {id: `cell-${cellId}`, c: "item", children: [
       {c: "button remove ion-trash-b", cellId, click: removeCellItem},
       {c: "message-container user-message", dblclick: setActiveCell, cellId, children: [
         {c: "message", children: sourceItems},
-        {c: "sender", text: "Me"},
       ]},
       result,
     ]};
   }
 
-  function queryResult(results, factRows, filledSources, cellId, viewId) {
+  function queryResult(results, factRows, filledSources, cellId, viewId, joinInfo) {
     // if there aren't any sources, this is just a fact block.
     if(!filledSources.length) {
-      return {c: "message-container eve-response", children: [
-        {c: "message", children: [
-          {c: "message-text", text: `${factRows.length} facts added`},
-        ]},
-        {c: "sender", text: "Eve"},
-      ]};
+//       return {c: "message-container eve-response", children: [
+//         {c: "message", children: [
+//           {c: "message-text", text: `${factRows.length} facts added`},
+//         ]},
+//       ]};
+      return undefined;
     }
     let message = `1 of ${results.length} matches`;
     let resultMadlibs = {c: "results", children: filledSources};
@@ -1108,9 +1136,7 @@ module madlib {
         let cell = ixer.selectOne("notebook cell", {cell: relatedId});
         let kind = cell["notebook cell: kind"];
         if(kind === "chart") {
-          children.push(drawChartCell(relatedId))
-        } else if(kind === "union") {
-          children.push(drawUnionCell(relatedId, cellId, viewId));
+          children.push(drawChartCell(relatedId, joinInfo));
         }
       }
       related = {children};
@@ -1118,50 +1144,12 @@ module madlib {
     return {c: "message-container eve-response", children: [
       {c: "controls", children: [
         {c: "button ion-pie-graph", click: addResultChart, viewId, cellId},
-        {c: "button", text: "new madlib", click: addUnionActionCell, viewId, cellId}
       ]},
       {c: "message", children: [
         resultMadlibs,
         related,
         {c: "message-text", text: message},
       ]},
-      {c: "sender", text: "Eve"},
-    ]};
-  }
-
-  function addUnionActionCell(e, elem) {
-    dispatch("addUnionActionCell", {view: elem.viewId, cellId: elem.cellId});
-  }
-
-  function submitUnionCell(e, elem) {
-    dispatch("submitUnionCell", {value: localState.input.value, cellId: elem.cellId});
-  }
-
-  function drawUnionCell(cellId, parentCellId, parentViewId): microReact.Element {
-    if(localState.notebook.activeCellId === cellId) {
-      return {c: "cell union", children:[
-        chatInput(cellId, submitUnionCell),
-      ]}
-    }
-    let cellViewId;
-    let memberId;
-    let cellView = ixer.selectOne("notebook cell view", {cell: cellId});
-    if(cellView) {
-      cellViewId = cellView["notebook cell view: view"];
-      memberId = ixer.selectOne("member", {view: cellViewId, "member view": parentViewId})["member: member"];
-    }
-
-    return {c: "cell union", cellId, unionId: cellViewId, dblclick: setActiveUnionCell, children:[
-      {text: "For each result add:"},
-      madlibForView(cellViewId, {
-        rows: [],
-        onDrop: addUnionMapping,
-//         joinInfo: joinInfo[sourceId].fields,
-//         selectable: true,
-        toSelection: unionFieldSelection,
-//         sourceId,
-        memberId,
-      })
     ]};
   }
 
@@ -1172,13 +1160,9 @@ module madlib {
     };
   }
 
-  function setActiveUnionCell(e, elem) {
-    dispatch("setActiveUnionCell", {unionId: elem.unionId, cellId: elem.cellId});
-  }
-
   function addUnionMapping(e, elem) {
-    if(localState.selection.type === SelectionType.field && !isSelected(elem.selectionInfo)) {
-      let memberFieldId = localState.selection.items[0].fieldId;
+    if(localState.selection.type === SelectionType.blank && !isSelected(elem.selectionInfo)) {
+      let memberFieldId = localState.selection.items[0].selectFieldId;
       let unionFieldId = elem.selectionInfo.fieldId;
       dispatch("addUnionMapping", {memberId: elem.opts.memberId, unionFieldId, memberFieldId})
     }
@@ -1196,14 +1180,21 @@ module madlib {
     e.preventDefault();
   }
 
-  function uiAttributeBindingBlank(label, elementId, property) {
-    return {c: "attribute-blank", elementId, property, dragover: (e) => { e.preventDefault();}, drop: bindAttribute, children: [
+  function uiAttributeBindingBlank(label, elementId, property, klass = "") {
+    return {c: `attribute-blank ${klass}`, elementId, property, dragover: (e) => { e.preventDefault();}, drop: bindAttribute, children: [
       {text: label},
     ]};
   }
 
-  function drawChartCell(cellId) {
+  function propertyToColor(bindingInfo, property) {
+    if(bindingInfo.properties && bindingInfo.properties[property]) {
+      return bindingInfo.properties[property].color;
+    }
+  }
+
+  function drawChartCell(cellId, joinInfo) {
     var uiElementId = ixer.selectOne("notebook cell uiElement", {cell: cellId})["notebook cell uiElement: element"];
+    let bindingInfo = joinInfo[uiElementId] || {};
     var parentElement = ixer.selectOne("uiElement", {element: uiElementId})["uiElement: parent"];
     //based on the type of chart we need different binding controls
     let leftControls = [];
@@ -1211,16 +1202,16 @@ module madlib {
     let type = ixer.selectOne("uiAttribute", {element: uiElementId, property: "chartType"})["uiAttribute: value"];
     if(type === ui.ChartType.LINE || type === ui.ChartType.BAR || type === ui.ChartType.SCATTER || type === ui.ChartType.AREA) {
       //xs, ys, labels
-      leftControls.push(uiAttributeBindingBlank("y", uiElementId, "ydata"));
-      bottomControls.push(uiAttributeBindingBlank("x", uiElementId, "xdata"));
-      bottomControls.push(uiAttributeBindingBlank("labels", uiElementId, "pointLabels"));
+      leftControls.push(uiAttributeBindingBlank("y", uiElementId, "ydata", propertyToColor(bindingInfo, "ydata")));
+      bottomControls.push(uiAttributeBindingBlank("x", uiElementId, "xdata", propertyToColor(bindingInfo, "xdata")));
+      bottomControls.push(uiAttributeBindingBlank("labels", uiElementId, "pointLabels", propertyToColor(bindingInfo, "pointLabels")));
     } else if(type === ui.ChartType.PIE) {
       //ys, labels
-      leftControls.push(uiAttributeBindingBlank("slices", uiElementId, "ydata"));
-      leftControls.push(uiAttributeBindingBlank("labels", uiElementId, "pointLabels"));
+      leftControls.push(uiAttributeBindingBlank("slices", uiElementId, "ydata", propertyToColor(bindingInfo, "ydata")));
+      leftControls.push(uiAttributeBindingBlank("labels", uiElementId, "pointLabels", propertyToColor(bindingInfo, "pointLabels")));
     } else if(type === ui.ChartType.GAUGE) {
       //value
-      bottomControls.push(uiAttributeBindingBlank("value", uiElementId, "ydata"));
+      bottomControls.push(uiAttributeBindingBlank("value", uiElementId, "ydata", propertyToColor(bindingInfo, "ydata")));
     }
     // @TODO: we're generating all the charts, which is unnecessary
     var charts = drawn.renderer.compile([uiElementId])[0];
@@ -1254,7 +1245,8 @@ module madlib {
     return {
       type: SelectionType.blank,
       fieldId,
-      sourceId: opts.sourceId
+      sourceId: opts.sourceId,
+      selectFieldId: fieldInfo.fieldId,
     };
   }
   function fieldSelection(fieldId, fieldInfo, opts) {
@@ -1293,7 +1285,7 @@ module madlib {
         if(opts.toSelection) {
           selectionInfo = opts.toSelection(fieldId, fieldInfo, opts)
         }
-        let value = row[fieldId] !== undefined ? row[fieldId] : "?";
+        let value = row[fieldId] !== undefined ? row[fieldId] : "";
         let field:any = {c: "value", draggable:true, dragover: (e) => { e.preventDefault(); },
                          contentEditable: editable, row, fieldId, viewId, opts, fieldInfo, dragstart: startDrag,
                          selectionInfo, drop: opts.onDrop,
@@ -1421,6 +1413,7 @@ module madlib {
   function getJoinInfo(joinId) {
     // This translates our normalized AST into a set of denomralized graphical nodes.
     var colors = ["blue", "purple", "green", "orange", "teal", "red"];
+    var selectFieldToVariable = {};
     var sourceFieldToVariable = {};
     let variables = ixer.select("variable", {view: joinId});
     for(let variableRow of variables) {
@@ -1447,8 +1440,43 @@ module madlib {
         if(sourceInfo["chunked"] && !ixer.selectOne("grouped field", {source: sourceId, field: fieldId})) {
           variableInfo.column = true;
         }
+        selectFieldToVariable[variableInfo.fieldId] = variableInfo;
         sourceFieldToVariable[sourceId].fields[fieldId] = variableInfo;
       }
+    }
+    for(let member of ixer.select("member", {"member view": joinId})) {
+      let memberId = member["member: member"];
+      let unionId = member["member: view"];
+      let fields = ixer.getFields(unionId);
+      let memberInfo = {memberId, unionId, fields: {}};
+      for(let fieldId of fields) {
+        let mapping = ixer.selectOne("mapping", {member: memberId, "view field": fieldId});
+        let variableInfo:any = {error: true};
+        if(mapping) {
+          let memberFieldId = mapping["mapping: member field"];
+          variableInfo = selectFieldToVariable[memberFieldId];
+          if(!variableInfo.color) {
+            variableInfo.color = colors.shift();
+          }
+        }
+        memberInfo.fields[fieldId] = variableInfo;
+      }
+      sourceFieldToVariable[memberId] = memberInfo;
+    }
+    for(let elemBinding of ixer.select("uiElementBinding", {view: joinId})) {
+      let elementId = elemBinding["uiElementBinding: element"];
+      let elementInfo = {elementId, properties: {}, fields: {}};
+      for(let attrBinding of ixer.select("uiAttributeBinding", {element: elementId})) {
+        let fieldId = attrBinding["uiAttributeBinding: field"];
+        let property = attrBinding["uiAttributeBinding: property"];
+        let variableInfo = selectFieldToVariable[fieldId];
+        if(!variableInfo.color) {
+          variableInfo.color = colors.shift();
+        }
+        elementInfo.fields[fieldId] = variableInfo;
+        elementInfo.properties[property] = variableInfo;
+      }
+      sourceFieldToVariable[elementId] = elementInfo;
     }
     return sourceFieldToVariable;
   }
