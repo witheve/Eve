@@ -630,7 +630,9 @@ module ui {
           pie: piespec,
           donut: donutspec,
           gauge: gaugespec,
-
+          color: {
+            pattern: ['#0079B0','#5B59A4','#59a2a4','#59a45b','#00B8F1','#4A4088','#407e88','#40884a','#009EE0','#6B67AD'] 
+          }
         })
       }
 
