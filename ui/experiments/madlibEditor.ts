@@ -740,7 +740,7 @@ module madlib {
     diffs.push(api.insert("select", {field: selectFieldId, variable: variableId}));
     fieldInfo.fieldId = selectFieldId;
 
-    if(kind !== "output" && kind !== "ordinal" && fieldInfo.constantValue === undefined) {
+    if(kind !== "output" && kind !== "ordinal" && fieldInfo.constantValue === undefined && !fieldInfo.grounded) {
       // otherwise we're an input field and we need to add a default constant value
       diffs.push(api.insert("constant binding", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
 
@@ -1141,13 +1141,13 @@ module madlib {
       related = {children};
     }
     return {c: "message-container eve-response", children: [
-      {c: "controls", children: [
-        {c: "button ion-pie-graph", click: addResultChart, viewId, cellId},
-      ]},
       {c: "message", children: [
         resultMadlibs,
         related,
         {c: "message-text", text: message},
+      ]},
+      {c: "controls", children: [
+        {c: "button ion-pie-graph", click: addResultChart, viewId, cellId},
       ]},
     ]};
   }
@@ -1403,6 +1403,8 @@ module madlib {
       let field = ixer.selectOne("field", {field: fieldId});
       if(field["field: kind"] !== "output") {
         variable.isInput = true;
+      } else {
+        variable.grounded = true;
       }
     }
     return variable;

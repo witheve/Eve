@@ -48,9 +48,9 @@ body div { display:-webkit-flex; -webkit-flex-direction:column; }
 .message-container > .message { flex:1; padding: 10px 15px; border-radius:3px 0 0 3px; background:rgba(255,255,255,0.14); }
 .user-message {   }
 /* .eve-response { align-self: flex-end; -webkit-align-self: flex-end; } */
-.eve-response { margin-bottom:0px; background: rgba(0,184,241, 0.18); border-left:1px solid rgba(0,184,241, 0.3); border-radius:0 3px 3px 0; }
+.eve-response { flex:1.5; margin-bottom:0px; background: rgba(0,184,241, 0.18); border-left:1px solid rgba(0,184,241, 0.3); border-radius:0 3px 3px 0; }
 .eve-response > .controls { flex-direction: row; justify-content: flex-end; }
-.eve-response > .message { padding:5px; background:none; }
+.eve-response > .message { padding:3px 5px; background:none; }
 .eve-response > .message > * + * { border-top: 1px solid rgba(0, 184, 241, 0.3); }
 .eve-response .message-text {  padding:5px 10px; border-radius:0 0 3px 3px; font-size:10pt; color: rgba(255,255,255, 0.45); }
 .eve-response .results { padding: 5px 10px; padding-top:8px; }
@@ -85,17 +85,32 @@ chart { fill: #ccc; }
 .light .madlib .value { color: #333; border-bottom-color:#999; }
 .light .completions .selected { background: rgba(0,0,0, 0.1); }
 
-.madlib .blue .value { border-botztom-color: rgba(0,184,241, 1.5); background: rgba(0,184,241, 0.35); }
-.madlib .green .value { border-botztom-color: rgba(0, 241, 125, 1.5); background: rgba(0, 241, 125, 0.35); }
-.madlib .red .value { border-bottomz-color: rgba(241, 0, 116, 1.5); background: rgba(241, 0, 116, 0.35); }
-.madlib .purple .value { border-bottzom-color: rgba(216, 101, 249, 1.5); background: rgba(216, 101, 249, 0.35); }
-.madlib .orange .value { border-bottozm-color: rgba(255, 168, 60, 1.57); background: rgba(255, 168, 60,0.27); }
-.madlib .teal .value { border-bottom-color: rgba(44, 255, 232, 1.5); background: rgba(44, 255, 232, 0.25); }
+.madlib .blue .value,
+.madlib .blue.column:before,
+.madlib .blue.column:after,
+.attribute-blank.blue {  background: rgb(44, 108, 128); }
 
-.attribute-blank.blue { border-botztom-color: rgba(0,184,241, 1.5); background: rgba(0,184,241, 0.35); }
-.attribute-blank.green { border-botztom-color: rgba(0, 241, 125, 1.5); background: rgba(0, 241, 125, 0.35); }
-.attribute-blank.red { border-bottomz-color: rgba(241, 0, 116, 1.5); background: rgba(241, 0, 116, 0.35); }
-.attribute-blank.purple { border-bottzom-color: rgba(216, 101, 249, 1.5); background: rgba(216, 101, 249, 0.35); }
-.attribute-blank.orange { border-bottozm-color: rgba(255, 168, 60, 1.57); background: rgba(255, 168, 60,0.27); }
-.attribute-blank.teal { border-bottom-color: rgba(44, 255, 232, 1.5); background: rgba(44, 255, 232, 0.25); }
+.madlib .green .value,
+.madlib .green.column:before,
+.madlib .green.column:after,
+.attribute-blank.green {  background: hsl(136, 36%, 43%) }
 
+.madlib .red .value,
+.madlib .red.column:before,
+.madlib .red.column:after,
+.attribute-blank.red {  background: hsl(349, 60%, 42%); }
+
+.madlib .purple .value,
+.madlib .purple.column:before,
+.madlib .purple.column:after,
+.attribute-blank.purple {  background: rgb(124, 49, 146); }
+
+.madlib .orange .value,
+.madlib .orange.column:before,
+.madlib .orange.column:after,
+.attribute-blank.orange {  background: hsl(30, 82%, 35%); }
+
+.madlib .teal .value,
+.madlib .teal.column:before,
+.madlib .teal.column:after,
+.attribute-blank.teal {  background: hsl(177, 93%, 28%); }
