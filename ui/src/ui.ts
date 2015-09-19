@@ -604,7 +604,7 @@ module ui {
           if(id === undefined) {
             return;
           }
-          return pointLabels[j][i];
+          return pointLabels[j][i].toString();
         };
     }
  
