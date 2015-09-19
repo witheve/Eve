@@ -432,7 +432,7 @@ module ui {
 
   export interface ChartElement extends Element {
     labels?: string[]
-    ydata: number[][] //| number[] | number
+    ydata: number[][]
     xdata?: number[][]
     pointLabels?: string[][]
     chartType: ChartType
@@ -443,9 +443,11 @@ module ui {
   interface ChartNode extends HTMLElement {
     chart: any
     labels: string[]
+    chartType: ChartType;
   }
 
   export function chart(elem:ChartElement):Element {
+   
     let {labels,ydata,xdata,pointLabels,chartType,gaugeMin,gaugeMax,width} = elem;
 
     elem.key = `${elem.key ? `key=${elem.key}` : ""}
@@ -570,7 +572,7 @@ module ui {
     if(!checkData(formattedData,dataSpec)) {
       throw new Error("Could not render chart");
     }
-
+ 
     // get the labels and data into the right format for c3
     let formattedC3Data = [];
     let xdataBindings = [];
@@ -602,20 +604,11 @@ module ui {
           return pointLabels[j][i];
         };
     }
-
+ 
     elem.postRender = function(node:ChartNode, elem) {
-      if(node.chart) {
-        node.chart.load({
-          xs: xdataBindings,
-          columns:formattedC3Data,
-          type: chartTypeString,
-          labels: {
-            format: c3PointLabels
-          },
-          unload: node.labels
-        });
-      } else {
-        node.chart = c3.generate({
+        
+      let chartFromScratch = function() {
+        return c3.generate({
           bindto: node,
           data:{
             xs: xdataBindings,
@@ -633,10 +626,38 @@ module ui {
           gauge: gaugespec,
         })
       }
+
+      if(node.chart) {        
+        // if the chart type changed, just do a transform
+        if(node.chartType != chartType) {
+          node.chart.transform(chartTypeString);
+        }
+        // @HACK If we are going to or from a pie/donut chart, we need to start over
+        // because of the way we handle pie charts. When we can support multiple
+        // line charts, this probably won't be needed
+        if(node.chartType === ChartType.PIE || chartType === ChartType.PIE ||
+            node.chartType === ChartType.DONUT || chartType === ChartType.DONUT) {
+          node.chart = chartFromScratch();
+        } else { 
+          node.chart.load({
+            xs: xdataBindings,
+            columns:formattedC3Data,
+            labels: {
+              format: c3PointLabels
+            },
+            unload: node.labels
+          }); 
+        }
+      } else {
+        node.chart = chartFromScratch();
+      }
+      // Save some data in the node for comparison during a chart update
       node.labels = labels;
+      node.chartType = chartType;
     };
 
     return elem;
+    
   }
 
   interface ChartDataSpec {
@@ -673,22 +694,18 @@ module ui {
   }
 
   function isNumeric(testValue: any):boolean {
-
     let testArray = [];
     if(!(testValue instanceof Array)) {
       testArray = [testValue];
     } else {
       testArray = testValue;
     }
-
     for(let t of testArray) {
       if(!((t - parseFloat(t) + 1) >= 0)) {
         return false
       }
     }
-
     return true;
-
   }
 
 
@@ -696,7 +713,6 @@ module ui {
 
   }
   export function searcher(elem:SearcherElement):Element {
-
 
     return elem;
   }
