@@ -21,7 +21,7 @@ body div { display:-webkit-flex; -webkit-flex-direction:column; }
 
 .canvas .item.active, .canvas .item:hover { border-left-color: rgb(0,184,241); }
 
-.canvas .item { align-items:stretch; justify-content:stretch; width:100%; }
+.canvas .item { flex-direction:row; align-items:stretch; justify-content:stretch; width:100%; }
 .item .remove { display:none; position:absolute; right:12px; top:2px; background:none; border:none; color: #777; }
 .item:hover .remove { display: flex; }
 
@@ -44,11 +44,11 @@ body div { display:-webkit-flex; -webkit-flex-direction:column; }
 
 .action-prefix { margin:0 5px;  }
 
-.message-container { margin:0px 0; }
-.message-container > .message { padding: 10px 15px; border-radius:3px 3px 0 0; background:rgba(255,255,255,0.14); }
+.message-container { flex:1; margin:0px 0; }
+.message-container > .message { flex:1; padding: 10px 15px; border-radius:3px 0 0 3px; background:rgba(255,255,255,0.14); }
 .user-message {   }
 /* .eve-response { align-self: flex-end; -webkit-align-self: flex-end; } */
-.eve-response { margin-bottom:0px; background: rgba(0,184,241, 0.18); border-top:1px solid rgba(0,184,241, 0.0); border-radius:0 0 3px 3px; margin-bottom:3px; }
+.eve-response { margin-bottom:0px; background: rgba(0,184,241, 0.18); border-left:1px solid rgba(0,184,241, 0.3); border-radius:0 3px 3px 0; }
 .eve-response > .controls { flex-direction: row; justify-content: flex-end; }
 .eve-response > .message { padding:5px; background:none; }
 .eve-response > .message > * + * { border-top: 1px solid rgba(0, 184, 241, 0.3); }
