@@ -461,6 +461,7 @@ module ui {
     let chartTypeString: string;
     let dataSpec: ChartDataSpec = {};
     let linespec, areaspec, barspec, piespec, donutspec, gaugespec = {};
+    let showLegend = false;
     switch(chartType) {
       case ChartType.BAR:
         dataSpec.xeqy = true;
@@ -493,6 +494,7 @@ module ui {
         dataSpec.singleydata = true;
         dataSpec.ynumeric = true;
         chartTypeString = "pie";
+        showLegend = true;
         // @HACK here we take each element in ydata and turn it into its own array
         // this is to work around the fact we can't bind multiple data series yet.
         // When we can, this should be removed.
@@ -509,6 +511,7 @@ module ui {
         dataSpec.ynumeric = true;
         if(width !== undefined) {donutspec['width'] = width;}
         chartTypeString = "donut";
+        showLegend = true;
         // @HACK here we take each element in ydata and turn it into its own array
         // this is to work around the fact we can't bind multiple data series yet.
         // When we can, this should be removed.
@@ -618,12 +621,16 @@ module ui {
               format: c3PointLabels
             }
           },
+          legend: {
+            show: showLegend
+          },
           line: linespec,
           area: areaspec,
           bar: barspec,
           pie: piespec,
           donut: donutspec,
           gauge: gaugespec,
+
         })
       }
 
