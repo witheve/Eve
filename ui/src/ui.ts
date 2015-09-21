@@ -10,13 +10,6 @@ module ui {
   type Content = (() => Element)|(() => Element[])|string|Element|Element[];
   type Handler = microReact.Handler<Event>;
 
-  export interface ElemOpts {
-    c?:string
-    semantic?:string
-    key?:string
-    debug?:string
-  }
-
   type Control = Element;
 
   export interface Pane {
@@ -34,7 +27,7 @@ module ui {
   //---------------------------------------------------------
   // Utilities
   //---------------------------------------------------------
-  function inject(elem:Element, content:Content, noClone:boolean = false):Element {
+  export function inject(elem:Element, content:Content, noClone:boolean = false):Element {
     let res:Element|Element[];
     if(typeof content === "string") {
       res = {text: content};
@@ -224,7 +217,7 @@ module ui {
     dispatch("setSort", {forId: elem.forId, fieldId: elem.fieldId, direction: elem.direction === 1 ? -1 : 1});
   }
 
-  interface TableElement extends Element {
+  export interface TableElement extends Element {
     headerControls?: Content[]
     headerClick?: microReact.Handler<MouseEvent>
     rowClick?: microReact.Handler<MouseEvent>
@@ -447,7 +440,7 @@ module ui {
   }
 
   export function chart(elem:ChartElement):Element {
-   
+
     let {labels,ydata,xdata,pointLabels,chartType,gaugeMin,gaugeMax,width} = elem;
 
     elem.key = `${elem.key ? `key=${elem.key}` : ""}
@@ -502,6 +495,8 @@ module ui {
         for(let d of ydata[0]) {
           newydata.push([d]);
         }
+        labels = pointLabels[0];
+        pointLabels = undefined;
         ydata = newydata;
         xdata = undefined;
         break;
@@ -575,7 +570,7 @@ module ui {
     if(!checkData(formattedData,dataSpec)) {
       throw new Error("Could not render chart");
     }
- 
+
     // get the labels and data into the right format for c3
     let formattedC3Data = [];
     let xdataBindings = [];
@@ -607,9 +602,9 @@ module ui {
           return pointLabels[j][i].toString();
         };
     }
- 
+
     elem.postRender = function(node:ChartNode, elem) {
-        
+
       let chartFromScratch = function() {
         return c3.generate({
           bindto: node,
@@ -631,7 +626,7 @@ module ui {
           donut: donutspec,
           gauge: gaugespec,
           color: {
-            pattern: ['#0079B0','#5B59A4','#59a2a4','#59a45b','#00B8F1','#4A4088','#407e88','#40884a','#009EE0','#6B67AD'] 
+            pattern: ['#0079B0','#5B59A4','#59a2a4','#59a45b','#00B8F1','#4A4088','#407e88','#40884a','#009EE0','#6B67AD']
           },
           padding: {
             top: 20,
@@ -642,7 +637,7 @@ module ui {
         })
       }
 
-      if(node.chart) {        
+      if(node.chart) {
         // if the chart type changed, just do a transform
         if(node.chartType != chartType) {
           node.chart.transform(chartTypeString);
@@ -654,7 +649,7 @@ module ui {
             node.chartType === ChartType.DONUT || chartType === ChartType.DONUT ||
             node.chartType === ChartType.GAUGE || chartType === ChartType.GAUGE) {
           node.chart = chartFromScratch();
-        } else { 
+        } else {
           node.chart.load({
             xs: xdataBindings,
             columns:formattedC3Data,
@@ -662,7 +657,7 @@ module ui {
               format: c3PointLabels
             },
             unload: node.labels
-          }); 
+          });
         }
       } else {
         node.chart = chartFromScratch();
@@ -673,7 +668,7 @@ module ui {
     };
 
     return elem;
-    
+
   }
 
   interface ChartDataSpec {

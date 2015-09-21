@@ -1,4 +1,4 @@
-body { max-width:650px; background: #000; height:100vh; font-family: "Helvetica Neue"; font-weight: 300;  width:100%; }
+body { max-width:1024px; background: #000; height:100vh; font-family: "Helvetica Neue"; font-weight: 300;  width:100%; }
 body div { display:-webkit-flex; -webkit-flex-direction:column; }
 
 .flex { flex: 1; }
