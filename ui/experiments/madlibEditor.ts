@@ -636,7 +636,7 @@ module madlib {
       } else {
         // store the values of each field in case we need them for adding filters
         // or for an add.
-        fieldInfo.constantValue = cleanedBlank;
+        fieldInfo.constantValue = drawn.coerceInput(cleanedBlank);
         fieldInfo.filtered = true;
         values[fieldId] = drawn.coerceInput(cleanedBlank);
       }
