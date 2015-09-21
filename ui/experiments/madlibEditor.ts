@@ -89,11 +89,14 @@ module madlib {
           // we need to point our cell to the new view
           diffs.push(api.remove("notebook cell view", {cell: activeCellId}));
           diffs.push(api.insert("notebook cell view", {cell: activeCellId, view: queryId}));
-          // in the case where we're modifying a previous cell, we may eventually want to
-          // remove the old view as it could cause us problems, but for now we'll leave it.
           // We do, however, need to remove any previous facts associated to this cell.
-          // @TODO: should we remove the associated view if it's safe?
           diffs.push.apply(diffs, removeCellFacts(activeCellId));
+          // We know that removing the previous view is safe, since we will remap everything
+          // to the new one and the only way for information to escape a view is through a union.
+          for(let cellView of ixer.select("notebook cell view", {cell: activeCellId})) {
+            let cellViewId = cellView["notebook cell view: view"];
+            diffs.push.apply(diffs, removeViewAndMembers(cellViewId));
+          }
         }
         diffs.push.apply(diffs, madlibParseItemsToDiffs(activeCellId, queryId, items));
         var originalView = ixer.selectOne("notebook cell view", {cell: activeCellId});
@@ -310,6 +313,18 @@ module madlib {
     return diffs;
   }
 
+  function removeViewAndMembers(viewId) {
+    let diffs = [];
+    diffs.push.apply(diffs, drawn.removeView(viewId));
+    //remove any related members for that view
+    diffs.push(api.remove("member", {"member view": viewId}));
+    for(let member of ixer.select("member", {"member view": viewId})) {
+      let memberId = member["member: member"];
+      diffs.push(api.remove("mapping", {member: memberId}));
+    }
+    return diffs;
+  }
+
   function removeCell(cellId) {
     let diffs = [];
     let cellKind = ixer.selectOne("notebook cell", {cell: cellId})["notebook cell: kind"];
@@ -329,13 +344,7 @@ module madlib {
       diffs.push(api.remove("notebook cell view", {cell: cellId}));
       for(let cellView of ixer.select("notebook cell view", {cell: cellId})) {
         let viewId = cellView["notebook cell view: view"];
-        diffs.push.apply(diffs, drawn.removeView(viewId));
-        //remove any related members for that view
-        diffs.push(api.remove("member", {"member view": viewId}));
-        for(let member of ixer.select("member", {"member view": viewId})) {
-          let memberId = member["member: member"];
-          diffs.push(api.remove("mapping", {member: memberId}));
-        }
+        diffs.push.apply(diffs, removeViewAndMembers(viewId));
       }
     } else if(cellKind === "chart") {
       let elementId = ixer.selectOne("notebook cell uiElement", {cell: cellId})["notebook cell uiElement: element"];
