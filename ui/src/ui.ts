@@ -495,8 +495,10 @@ module ui {
         for(let d of ydata[0]) {
           newydata.push([d]);
         }
-        labels = pointLabels[0];
-        pointLabels = undefined;
+        if(pointLabels !== undefined) {
+          labels = pointLabels[0];
+          pointLabels = undefined;
+        }
         ydata = newydata;
         xdata = undefined;
         break;
@@ -513,6 +515,10 @@ module ui {
         var newydata = [];
         for(let d of ydata[0]) {
           newydata.push([d]);
+        }
+        if(pointLabels !== undefined) {
+          labels = pointLabels[0];
+          pointLabels = undefined;
         }
         ydata = newydata;
         xdata = undefined;
