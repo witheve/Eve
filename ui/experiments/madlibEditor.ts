@@ -660,7 +660,7 @@ module madlib {
     let madlibs = ixer.select("madlib", {});
     let results = [];
     //break the string into lines
-    let lines = str.trim().toLowerCase().split("\n");
+    let lines = str.trim().split("\n");
     let lineNum = -1;
     for(let line of lines) {
       lineNum++;
@@ -686,7 +686,7 @@ module madlib {
         if(!madlibRegex) {
           let madlibText = madlib["madlib: madlib"].replace(/([\*\+\(\)\[\]])/, "\\$1");
           let regexStr = "^" + madlibText.replace(/\?/gi, "(.+)") + "$";
-          madlibRegex = madlibRegexCache[madlibView] = new RegExp(regexStr);
+          madlibRegex = madlibRegexCache[madlibView] = new RegExp(regexStr, "i");
         }
         // check if this line matches the madlib's regex
         var matches = cleanedLine.match(madlibRegex);
