@@ -10,13 +10,6 @@ module ui {
   type Content = (() => Element)|(() => Element[])|string|Element|Element[];
   type Handler = microReact.Handler<Event>;
 
-  export interface ElemOpts {
-    c?:string
-    semantic?:string
-    key?:string
-    debug?:string
-  }
-
   type Control = Element;
 
   export interface Pane {
@@ -34,7 +27,7 @@ module ui {
   //---------------------------------------------------------
   // Utilities
   //---------------------------------------------------------
-  function inject(elem:Element, content:Content, noClone:boolean = false):Element {
+  export function inject(elem:Element, content:Content, noClone:boolean = false):Element {
     let res:Element|Element[];
     if(typeof content === "string") {
       res = {text: content};
@@ -224,7 +217,7 @@ module ui {
     dispatch("setSort", {forId: elem.forId, fieldId: elem.fieldId, direction: elem.direction === 1 ? -1 : 1});
   }
 
-  interface TableElement extends Element {
+  export interface TableElement extends Element {
     headerControls?: Content[]
     headerClick?: microReact.Handler<MouseEvent>
     rowClick?: microReact.Handler<MouseEvent>
