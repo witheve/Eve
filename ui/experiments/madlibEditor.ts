@@ -1216,7 +1216,7 @@ module madlib {
     } else if(type === ui.ChartType.PIE) {
       //ys, labels
       leftControls.push(uiAttributeBindingBlank("slices", uiElementId, "ydata", propertyToColor(bindingInfo, "ydata")));
-      leftControls.push(uiAttributeBindingBlank("labels", uiElementId, "pointLabels", propertyToColor(bindingInfo, "pointLabels")));
+      leftControls.push(uiAttributeBindingBlank("labels", uiElementId, "labels", propertyToColor(bindingInfo, "labels")));
     } else if(type === ui.ChartType.GAUGE) {
       //value
       bottomControls.push(uiAttributeBindingBlank("value", uiElementId, "ydata", propertyToColor(bindingInfo, "ydata")));
@@ -1230,11 +1230,13 @@ module madlib {
     curChart.parent = undefined;
     return {c: "cell chart", children:[
       ui.dropdown({cellId, defaultOption: ui.ChartType[type].toLowerCase(), options: ["bar", "line", "area", "scatter", "pie", "gauge"], change: selectChartType}),
-      {c: "left-controls", children: leftControls},
-      {c: "column", children: [
-        {c: "chart-container", children: [curChart]},
-        {c: "bottom-controls", children: bottomControls},
-      ]},
+      ui.row({c: "center", children: [
+        {c: "left-controls", children: leftControls},
+        {c: "column", children: [
+          {c: "chart-container", children: [curChart]},
+          {c: "bottom-controls", children: bottomControls},
+        ]},
+      ]}),
     ]}
   }
 
