@@ -6,7 +6,8 @@ module uiRenderer {
   type RowTokeyFn = (row:{[key:string]: any}) => string;
 
   interface Element extends microReact.Element {
-    __elemId:string
+    __template:string // The id of the uiElement that spawned this element. This relationship may be many to one when bound.
+    __binding?:string // The key which matches this element to it's source row and view if bound.
   }
 
   interface UiWarning {
@@ -44,46 +45,47 @@ module uiRenderer {
 
       let stack:Element[] = [];
       let compiledElements:microReact.Element[] = [];
-      let compiledKeys:{[id:string]: string} = {};
       let keyToRow:{[key:string]: any} = {};
       for(let root of roots) {
         if(typeof root === "object") {
           compiledElements.push(<Element>root);
-        } else if(typeof root === "string") {
-          let fact = api.ixer.selectOne("uiElement", {element: root});
-          let elem:Element = {__elemId: root, id: root};
-          if(fact && fact["uiElement: parent"]) {
-            elem.parent = fact["uiElement: parent"];
-          }
-          compiledElements.push(elem);
-          stack.push(elem);
+          continue;
         }
+
+        let fact = api.ixer.selectOne("uiElement", {element: root});
+        let elem:Element = {id: <string>root, __template: <string>root};
+        if(fact && fact["uiElement: parent"]) {
+          elem.parent = fact["uiElement: parent"];
+        }
+        compiledElements.push(elem);
+        stack.push(elem);
       }
 
       while(stack.length > 0) {
         let elem = stack.shift();
-        let elemId = elem.__elemId;
+        let templateId = elem.__template;
 
-        let fact = api.ixer.selectOne("uiElement", {element: elemId});
+        let fact = api.ixer.selectOne("uiElement", {element: templateId});
         if(!fact) { continue; }
-        let attrs = elementToAttrs[elemId];
-        let boundAttrs = elementToAttrBindings[elemId];
-        let children = elementToChildren[elemId];
+        let attrs = elementToAttrs[templateId];
+        let boundAttrs = elementToAttrBindings[templateId];
+        let children = elementToChildren[templateId];
 
         let elems = [elem];
-        let binding = api.ixer.selectOne("uiElementBinding", {element: elemId});
+        let binding = api.ixer.selectOne("uiElementBinding", {element: templateId});
         if(binding) {
           // If the element is bound, it must be repeated for each row.
           var boundView = binding["uiElementBinding: view"];
           var rowToKey = this.generateRowToKeyFn(boundView);
-          let key = compiledKeys[elem.id];
+          let key = elem.__binding;
           var boundRows = this.getBoundRows(boundView, key);
           elems = [];
           let ix = 0;
           for(let row of boundRows) {
              // We need an id unique per row for bound elements.
-            elems.push({t: elem.t, parent: elem.id, id: `${elem.id}.${ix}`, __elemId: elemId});
-            keyToRow[rowToKey(row)] = row;
+             let key = rowToKey(row);
+            elems.push({t: elem.t, parent: elem.id, id: `${elem.id}.${ix}`, __template: templateId, __binding: key});
+            keyToRow[key] = row;
             ix++;
           }
         }
@@ -96,7 +98,7 @@ module uiRenderer {
             row = boundRows[rowIx];
             key = rowToKey(row);
           } else {
-            key = compiledKeys[elem.id];
+            key = elem.__binding;
             row = keyToRow[key];
           }
 
@@ -127,8 +129,7 @@ module uiRenderer {
             elem.children = [];
             for(let child of children) {
               let childId = child["uiElement: element"];
-              let childElem = {__elemId: childId, id: `${elem.id}__${childId}`};
-              compiledKeys[childElem.id] = key;
+              let childElem = {id: `${elem.id}__${childId}`, __template: childId, __binding: key};
               elem.children.push(childElem);
               stack.push(childElem);
             }
@@ -147,6 +148,7 @@ module uiRenderer {
               elem["message"] = warning.warning;
               elem["element"] = warning.element;
               ui.uiError(<any> elem);
+              console.warn("Invalid element:", elem);
             }
           }
 
@@ -175,6 +177,10 @@ module uiRenderer {
       } else {
         return (row:{}) => `${viewId}: ${JSON.stringify(row)}`;
       }
+    }
+
+    getViewForKey(key:string):string {
+      return key.slice(0, key.indexOf(":"));
     }
 
     // Get only the rows of view matching the key (if specified) or all rows from the view if not.
