@@ -740,7 +740,7 @@ module madlib {
     diffs.push(api.insert("select", {field: selectFieldId, variable: variableId}));
     fieldInfo.fieldId = selectFieldId;
 
-    if(kind !== "output" && kind !== "ordinal" && fieldInfo.constantValue === undefined) {
+    if(kind !== "output" && kind !== "ordinal" && fieldInfo.constantValue === undefined && !fieldInfo.grounded) {
       // otherwise we're an input field and we need to add a default constant value
       diffs.push(api.insert("constant binding", {variable: variableId, value: api.newPrimitiveDefaults[sourceViewId][fieldId]}));
 
@@ -976,9 +976,9 @@ module madlib {
         item.c += " active";
       }
       item.cellId = cellId;
-      let result = item.children.pop();
+//       let result = item.children.pop();
       cellItems.push(item);
-      resultItems.push(result);
+//       resultItems.push(result);
     }
     cellItems.push({c: "item", children: [
       {c: "message-container user-message", children: [
@@ -988,7 +988,7 @@ module madlib {
     return {c: "canvas", key: localState.input.messageNumber, postRender: scrollToBottom, mousedown: maybeClearSelection, children: [
       ui.row({c: "no-overflow", children: [
         {c: "flex scroll", children: cellItems},
-        {c: "flex scroll double-size", children: resultItems},
+//         {c: "flex scroll double-size", children: resultItems},
       ]}),
     ]};
   }
@@ -1112,12 +1112,11 @@ module madlib {
   function queryResult(results, factRows, filledSources, cellId, viewId, joinInfo) {
     // if there aren't any sources, this is just a fact block.
     if(!filledSources.length) {
-//       return {c: "message-container eve-response", children: [
-//         {c: "message", children: [
-//           {c: "message-text", text: `${factRows.length} facts added`},
-//         ]},
-//       ]};
-      return undefined;
+      return {c: "message-container eve-response", children: [
+        {c: "message", children: [
+          {c: "message-text", text: `${factRows.length} facts added`},
+        ]},
+      ]};
     }
     let message = `1 of ${results.length} matches`;
     let resultMadlibs = {c: "results", children: filledSources};
@@ -1142,13 +1141,13 @@ module madlib {
       related = {children};
     }
     return {c: "message-container eve-response", children: [
-      {c: "controls", children: [
-        {c: "button ion-pie-graph", click: addResultChart, viewId, cellId},
-      ]},
       {c: "message", children: [
         resultMadlibs,
         related,
         {c: "message-text", text: message},
+      ]},
+      {c: "controls", children: [
+        {c: "button ion-pie-graph", click: addResultChart, viewId, cellId},
       ]},
     ]};
   }
@@ -1404,6 +1403,8 @@ module madlib {
       let field = ixer.selectOne("field", {field: fieldId});
       if(field["field: kind"] !== "output") {
         variable.isInput = true;
+      } else {
+        variable.grounded = true;
       }
     }
     return variable;
