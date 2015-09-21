@@ -632,6 +632,12 @@ module ui {
           gauge: gaugespec,
           color: {
             pattern: ['#0079B0','#5B59A4','#59a2a4','#59a45b','#00B8F1','#4A4088','#407e88','#40884a','#009EE0','#6B67AD'] 
+          },
+          padding: {
+            top: 20,
+            right: 20,
+            bottom: 20,
+            left: 20,
           }
         })
       }
@@ -645,7 +651,8 @@ module ui {
         // because of the way we handle pie charts. When we can support multiple
         // line charts, this probably won't be needed
         if(node.chartType === ChartType.PIE || chartType === ChartType.PIE ||
-            node.chartType === ChartType.DONUT || chartType === ChartType.DONUT) {
+            node.chartType === ChartType.DONUT || chartType === ChartType.DONUT ||
+            node.chartType === ChartType.GAUGE || chartType === ChartType.GAUGE) {
           node.chart = chartFromScratch();
         } else { 
           node.chart.load({
