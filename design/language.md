@@ -72,7 +72,7 @@ The currently released version does not expose any mutable state. (Roadmap: hist
 
 ## Error handling
 
-Primitive views can cause errors (eg 1 + "foo", 1 / 0). Since we treat we treat primitive functions as relations, bad inputs simply don't have a corresponding output and don't produce a result. In practice though, bad inputs probably indicate user error so we additionally record the error in a special view which is displayed in the editor. The error view can be queried like any other view - we can use this to experiment with different strategies for reacting to runtime errors in larger applications.
+Primitive views can cause errors (eg 1 + "foo", 1 / 0). Since we treat primitive functions as relations, bad inputs simply don't have a corresponding output and don't produce a result. In practice though, bad inputs probably indicate user error so we additionally record the error in a special view which is displayed in the editor. The error view can be queried like any other view - we can use this to experiment with different strategies for reacting to runtime errors in larger applications.
 
 ## Code
 
