@@ -9,6 +9,7 @@ module ui {
   type Element = microReact.Element;
   type Content = (() => Element)|(() => Element[])|string|Element|Element[];
   type Handler = microReact.Handler<Event>;
+  type Renderer = (elem:Element) => Element;
 
   type Control = Element;
 
@@ -28,6 +29,8 @@ module ui {
   // Utilities
   //---------------------------------------------------------
   export function inject(elem:Element, content:Content, noClone:boolean = false):Element {
+    if(content === undefined) { return elem; }
+
     let res:Element|Element[];
     if(typeof content === "string") {
       res = {text: content};
@@ -223,6 +226,9 @@ module ui {
     rowClick?: microReact.Handler<MouseEvent>
     cellClick?: microReact.Handler<MouseEvent>
 
+    headerRenderer?: Renderer
+    cellRenderer?: Renderer
+
     data: (any[][]|{}[])
     headers?: string[]
     heterogenous?: boolean
@@ -235,45 +241,46 @@ module ui {
   }
 
   export function table(elem:TableElement):Element {
-    // Get a consistent list of headers and rows.
-    var data:any[][];
-    var headers:string[] = elem.headers || [];
-    if(elem.headers && !elem.staticHeaders) {
-      headers.sort(api.displaySort);
-    }
-    if(elem.data.length === 0) {
-      data = [];
-    } else if(elem.data[0] instanceof Array) {
-      data = <any[][]> elem.data;
+    let {headerControls, headerClick, rowClick, cellClick, headerRenderer, cellRenderer,
+      data, headers = [], heterogenous, skip = 0, limit,
+      autosort = true, sortable, staticHeaders} = elem;
+
+    let rows:any[][];
+    if(elem.data[0] instanceof Array) {
+      rows = <any[][]> elem.data;
+      if(elem.headers && !staticHeaders) {
+        headers.sort(api.displaySort);
+      }
     } else {
       if(!elem.headers) {
-        if(!elem.heterogenous) {
+        if(!heterogenous) {
           headers = Object.keys(elem.data[0]);
         } else {
           let headerFields = {};
-          for(let row of <{}[]>elem.data) {
+          for(let row of <{}[]>data) {
             for(let field in row) {
               headerFields[field] = true;
             }
           }
           headers = Object.keys(headerFields);
         }
-        if(elem.headers && !elem.staticHeaders) {
-          headers.sort(api.displaySort);
-        }
       }
 
-      data = [];
+      // Get a consistent list of headers and rows.
+      if(elem.headers && !staticHeaders) {
+        headers.sort(api.displaySort);
+      }
+
+      rows = [];
       for(let row of <{}[]>elem.data) {
         let entry = [];
         for(let field of headers) {
           entry.push(row[field]);
         }
-        data.push(entry);
+        rows.push(entry);
       }
     }
 
-    let {autosort = true, sortable} = elem;
     if(autosort && elem.id && uiState.sort[elem.id]) {
       let {field: sortField, direction: sortDirection} = uiState.sort[elem.id];
       let sortIx = headers.indexOf(sortField);
@@ -283,16 +290,15 @@ module ui {
     }
 
     elem.children = [];
-    let headerControls = elem.headerControls || [];
     let headerRow = [];
     for(let header of headers) {
       let {field: activeField, direction: dir} = uiState.sort[elem.id] || {field: undefined, direction: undefined};
       let active = (activeField === header);
-      headerRow.push(
-        inject({t: "th", c: "spaced-row header", click: elem.headerClick, header, children: [
-          <Element>{text: (elem.staticHeaders ? header : api.code.name(header))},
-          (sortable ? ui.sortToggle({"for": elem.id, field: header, direction: active ? dir : 1, active}) : undefined)
-        ]}, headerControls));
+      let headerElem = inject({t: "th", c: "spaced-row header", click: headerClick, header, children: [
+        <Element>{text: (staticHeaders ? header : api.code.name(header))},
+        (sortable ? ui.sortToggle({"for": elem.id, field: header, direction: active ? dir : 1, active}) : undefined)
+      ]}, headerControls);
+      headerRow.push(headerRenderer ? headerRenderer(headerElem) : headerElem);
     }
     elem.children.push({t: "thead", children: [
       {t: "tr", c: "header-row", children: headerRow}
@@ -300,8 +306,7 @@ module ui {
 
     let rowIx = 0;
     let bodyRows = [];
-    let {skip = 0, limit} = elem;
-    for(let row of data) {
+    for(let row of rows) {
       if(skip > rowIx) {
         rowIx++;
         continue;
@@ -312,7 +317,8 @@ module ui {
       let entryRow = [];
       let ix = 0;
       for(let cell of row) {
-        entryRow.push({t: "td", c: "cell", click: elem.cellClick, header: headers[ix], text: (cell instanceof Array) ? cell.join(", ") : cell});
+        let cellElem = {t: "td", c: "cell", click: elem.cellClick, header: headers[ix], text: (cell instanceof Array) ? cell.join(", ") : cell};
+        entryRow.push(cellRenderer ? cellRenderer(cellElem) : cellElem);
         ix++;
       }
       bodyRows.push({t: "tr", c: "row", children: entryRow, row: rowIx, click: elem.rowClick});
