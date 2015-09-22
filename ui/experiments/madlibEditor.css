@@ -40,8 +40,8 @@ body div { display:-webkit-flex; -webkit-flex-direction:column; }
 .madlib .value { min-height:19px; min-width:20px; box-shadow:0 2px 2px #1a1a1a; width:100%; color: #ccc; border:1px solid transparent; display:inline-block; background: rgb(0,77,113); background:#444; padding:2px 3px; text-align:left; white-space: nowrap; max-width: 150px; overflow:hidden; text-overflow:ellipsis; border-bottom:1px solid transparent; border-top-left-radius: 2px; border-top-right-radius:2px; border-radius:3px; text-align:center; }
 /* .madlib .filtered .value:after { vertical-align:middle; content: "\f200"; font-family: "Ionicons"; font-size:10px; margin-left:6px; height:11px; display:inline-block; } */
 .canvas .madlib .column .value { position:relative; z-index:5; box-shadow:0 0px 2px #000; }
-.canvas .madlib .column:before { content: " "; border:none; border-radius:3px; z-index:1; position:absolute; top:0px; left:3px; transform:rotate(4deg); -webkit-transform:rotate(4deg); background:#444; bottom:0px; right:2px; box-shadow: 0 0 2px #000; }
-.canvas .madlib .column:after { content: " "; border:none; border-radius:3px; z-index:0; position:absolute; top:-2px; left:-2px; transform:rotate(-8deg); -webkit-transform:rotate(-8deg);  background:#444; bottom:2px; right:5px; }
+.canvas .madlib .column:before { content: " "; border:none; border-radius:3px; z-index:1; position:absolute; top:3px; left:3px; transform:rotate(4deg); -webkit-transform:rotate(0deg); background:#444; bottom:-2px; right:3px; box-shadow: 0 0 2px #000; }
+.canvas .madlib .column:after { content: " "; border:none; border-radius:3px; z-index:0; position:absolute; top:5px; left:5px; transform:rotate(-8deg); -webkit-transform:rotate(0deg);  background:#444; bottom:-4px; right:1px; }
 
 .action-prefix { margin:0 5px;  }
 
@@ -115,6 +115,9 @@ chart { fill: #ccc; }
 .light .madlib .value { background: #eee; box-shadow:none; border:1px solid #ccc; }
 .light .madlib-text { color: #666; }
 .light .madlib .value { color: #333; }
+.light .madlib .column .value { box-shadow:none; }
+.light .madlib .column:after { background: #eee; box-shadow:none; border:1px solid #ccc; }
+.light .madlib .column:before { background: #eee; box-shadow:none; border:1px solid #ccc; }
 .light .remove { color: #ccc; }
 .light .remove:hover { color: #555; }
 .light .user-message { border:none; border-radius:3px 0 0 3px; }
@@ -132,32 +135,32 @@ chart { fill: #ccc; }
 .light .madlib .blue .value,
 .light .madlib .blue.column:before,
 .light .madlib .blue.column:after,
-.light .attribute-blank.blue {  border-color: rgb(0, 194, 255); background: rgba(0, 194, 255, 0.1); }
+.light .attribute-blank.blue {  border-color: rgb(0, 194, 255); background: rgb(230, 249, 255); }
 
 .light .madlib .green .value,
 .light .madlib .green.column:before,
 .light .madlib .green.column:after,
-.light .attribute-blank.green {  border-color: rgb(3, 195, 15); }
+.light .attribute-blank.green {  border-color: rgb(3, 195, 15); background:  rgb(230, 249, 231); }
 
 .light .madlib .red .value,
 .light .madlib .red.column:before,
 .light .madlib .red.column:after,
-.light .attribute-blank.red {  border-color: rgb(195, 3, 59); }
+.light .attribute-blank.red {  border-color: rgb(195, 3, 59); background: rgb(249, 230, 235); }
 
 .light .madlib .purple .value,
 .light .madlib .purple.column:before,
 .light .madlib .purple.column:after,
-.light .attribute-blank.purple {  border-color: rgb(197, 0, 255);  background: rgba(197, 0, 255, 0.1); }
+.light .attribute-blank.purple {  border-color: rgb(197, 0, 255);  background: rgb(250, 230, 255); }
 
 .light .madlib .orange .value,
 .light .madlib .orange.column:before,
 .light .madlib .orange.column:after,
-.light .attribute-blank.orange {  border-color: rgb(255, 161, 0); }
+.light .attribute-blank.orange {  border-color: rgb(255, 161, 0); background: rgb(255, 246, 230); }
 
 .light .madlib .teal .value,
 .light .madlib .teal.column:before,
 .light .madlib .teal.column:after,
-.light .attribute-blank.teal {  border-color: rgb(0, 177, 183); }
+.light .attribute-blank.teal {  border-color: rgb(0, 177, 183); background: rgb(230, 247, 248); }
 
 
 
