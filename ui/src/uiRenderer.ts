@@ -204,7 +204,8 @@ module uiRenderer {
       elem.ydata = (elem.ydata) ? [<any>elem.ydata] : [];
       elem.xdata = (elem.xdata) ? [<any>elem.xdata] : elem.xdata;
       ui.chart(elem);
-    }
+    },
+    "table-editor": uiEditor.table
   };
   export function addElementCompiler(tag:string, compiler:ElementCompiler) {
     if(elementCompilers[tag]) {
