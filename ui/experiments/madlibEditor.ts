@@ -122,27 +122,6 @@ module madlib {
         // we're now done with whatever cell was active
         localState.notebook.activeCellId = 0;
         break;
-      case "updateAdderRow":
-        var {viewId, fieldId, row, value} = info;
-        if(!localState.intermediateFacts[viewId]) {
-          let curRow = {};
-          // @TODO: account for field types.
-          ixer.getFields(viewId).forEach((fieldId) => {
-            curRow[fieldId] = "";
-          });
-          localState.intermediateFacts[viewId] = curRow;
-        }
-        localState.intermediateFacts[viewId][fieldId] = value;
-        break;
-      case "submitAdderRow":
-        var {viewId, fieldId, row, value} = info;
-        var currentFact = localState.intermediateFacts[viewId];
-        if(currentFact) {
-          diffs.push(api.insert(viewId, currentFact, undefined, true));
-          localState.intermediateFacts[viewId] = null;
-          localState.focus = {type: FocusType.adderRow, viewId};
-        }
-        break;
       case "extendSelection":
         var selection = localState.selection;
         var {selectionInfo, shiftKey} = info;
@@ -902,11 +881,11 @@ module madlib {
       if(elem.keydown) {
         cm.on("keydown", elem.keydown);
       }
-      cm.focus();
     }
     if(cm.getValue() !== elem.value) {
       cm.setValue(elem.value);
     }
+    cm.focus();
   }
 
   function chatInput(cellId, onSubmit = submitQuery) {
@@ -914,16 +893,21 @@ module madlib {
     let height = Math.max(21, numLines * 21);
     let submitActionText = "add";
     let value = "";
-    if(cellId && localState.notebook.activeCellId === cellId) {
+    let dirty;
+    let isActive = localState.notebook.activeCellId === cellId;
+    if(isActive) {
       value = localState.input.value;
-      if(localState.input.value) {
-        submitActionText = "edit"
-      } else {
-        submitActionText = "remove";
+      if(cellId) {
+        if(localState.input.value) {
+          submitActionText = "edit"
+        } else {
+          submitActionText = "remove";
+        }
       }
     }
+    if(cellId === 0) dirty = isActive;
     return {id: `chat-input ${cellId}`, c: "chat-input-container", children: [
-      {c: "chat-input", onSubmit, cellId, postRender:CodeMirrorElement, keydown: chatInputKey, onInput: trackChatInput, placeholder: "Enter a message...", value},
+      {c: "chat-input", onSubmit, cellId, dirty, postRender:CodeMirrorElement, keydown: chatInputKey, onInput: trackChatInput, placeholder: "Enter a message...", value},
       {c: "submit", cellId, mousedown: onSubmit, text: submitActionText},
     ]}
   }
