@@ -89,11 +89,14 @@ module madlib {
           // we need to point our cell to the new view
           diffs.push(api.remove("notebook cell view", {cell: activeCellId}));
           diffs.push(api.insert("notebook cell view", {cell: activeCellId, view: queryId}));
-          // in the case where we're modifying a previous cell, we may eventually want to
-          // remove the old view as it could cause us problems, but for now we'll leave it.
           // We do, however, need to remove any previous facts associated to this cell.
-          // @TODO: should we remove the associated view if it's safe?
           diffs.push.apply(diffs, removeCellFacts(activeCellId));
+          // We know that removing the previous view is safe, since we will remap everything
+          // to the new one and the only way for information to escape a view is through a union.
+          for(let cellView of ixer.select("notebook cell view", {cell: activeCellId})) {
+            let cellViewId = cellView["notebook cell view: view"];
+            diffs.push.apply(diffs, removeViewAndMembers(cellViewId));
+          }
         }
         diffs.push.apply(diffs, madlibParseItemsToDiffs(activeCellId, queryId, items));
         var originalView = ixer.selectOne("notebook cell view", {cell: activeCellId});
@@ -118,27 +121,6 @@ module madlib {
         }
         // we're now done with whatever cell was active
         localState.notebook.activeCellId = 0;
-        break;
-      case "updateAdderRow":
-        var {viewId, fieldId, row, value} = info;
-        if(!localState.intermediateFacts[viewId]) {
-          let curRow = {};
-          // @TODO: account for field types.
-          ixer.getFields(viewId).forEach((fieldId) => {
-            curRow[fieldId] = "";
-          });
-          localState.intermediateFacts[viewId] = curRow;
-        }
-        localState.intermediateFacts[viewId][fieldId] = value;
-        break;
-      case "submitAdderRow":
-        var {viewId, fieldId, row, value} = info;
-        var currentFact = localState.intermediateFacts[viewId];
-        if(currentFact) {
-          diffs.push(api.insert(viewId, currentFact, undefined, true));
-          localState.intermediateFacts[viewId] = null;
-          localState.focus = {type: FocusType.adderRow, viewId};
-        }
         break;
       case "extendSelection":
         var selection = localState.selection;
@@ -314,6 +296,18 @@ module madlib {
     return diffs;
   }
 
+  function removeViewAndMembers(viewId) {
+    let diffs = [];
+    diffs.push.apply(diffs, drawn.removeView(viewId));
+    //remove any related members for that view
+    diffs.push(api.remove("member", {"member view": viewId}));
+    for(let member of ixer.select("member", {"member view": viewId})) {
+      let memberId = member["member: member"];
+      diffs.push(api.remove("mapping", {member: memberId}));
+    }
+    return diffs;
+  }
+
   function removeCell(cellId) {
     let diffs = [];
     let cellKind = ixer.selectOne("notebook cell", {cell: cellId})["notebook cell: kind"];
@@ -333,13 +327,7 @@ module madlib {
       diffs.push(api.remove("notebook cell view", {cell: cellId}));
       for(let cellView of ixer.select("notebook cell view", {cell: cellId})) {
         let viewId = cellView["notebook cell view: view"];
-        diffs.push.apply(diffs, drawn.removeView(viewId));
-        //remove any related members for that view
-        diffs.push(api.remove("member", {"member view": viewId}));
-        for(let member of ixer.select("member", {"member view": viewId})) {
-          let memberId = member["member: member"];
-          diffs.push(api.remove("mapping", {member: memberId}));
-        }
+        diffs.push.apply(diffs, removeViewAndMembers(viewId));
       }
     } else if(cellKind === "chart") {
       let elementId = ixer.selectOne("notebook cell uiElement", {cell: cellId})["notebook cell uiElement: element"];
@@ -666,7 +654,7 @@ module madlib {
     let madlibs = ixer.select("madlib", {});
     let results = [];
     //break the string into lines
-    let lines = str.trim().toLowerCase().split("\n");
+    let lines = str.trim().split("\n");
     let lineNum = -1;
     for(let line of lines) {
       lineNum++;
@@ -692,7 +680,7 @@ module madlib {
         if(!madlibRegex) {
           let madlibText = madlib["madlib: madlib"].replace(/([\*\+\(\)\[\]])/, "\\$1");
           let regexStr = "^" + madlibText.replace(/\?/gi, "(.+)") + "$";
-          madlibRegex = madlibRegexCache[madlibView] = new RegExp(regexStr);
+          madlibRegex = madlibRegexCache[madlibView] = new RegExp(regexStr, "i");
         }
         // check if this line matches the madlib's regex
         var matches = cleanedLine.match(madlibRegex);
@@ -892,7 +880,7 @@ module madlib {
       drawn.notice(),
       compilerErrors(),
       {c: "workspace", children: [
-        workspaceTools(),
+//         workspaceTools(),
         workspaceCanvas(),
       ]}
     ]};
@@ -908,11 +896,11 @@ module madlib {
       if(elem.keydown) {
         cm.on("keydown", elem.keydown);
       }
-      cm.focus();
     }
     if(cm.getValue() !== elem.value) {
       cm.setValue(elem.value);
     }
+    cm.focus();
   }
 
   function chatInput(cellId, onSubmit = submitQuery) {
@@ -920,16 +908,21 @@ module madlib {
     let height = Math.max(21, numLines * 21);
     let submitActionText = "add";
     let value = "";
-    if(cellId && localState.notebook.activeCellId === cellId) {
+    let dirty;
+    let isActive = localState.notebook.activeCellId === cellId;
+    if(isActive) {
       value = localState.input.value;
-      if(localState.input.value) {
-        submitActionText = "edit"
-      } else {
-        submitActionText = "remove";
+      if(cellId) {
+        if(localState.input.value) {
+          submitActionText = "edit"
+        } else {
+          submitActionText = "remove";
+        }
       }
     }
+    if(cellId === 0) dirty = isActive;
     return {id: `chat-input ${cellId}`, c: "chat-input-container", children: [
-      {c: "chat-input", onSubmit, cellId, postRender:CodeMirrorElement, keydown: chatInputKey, onInput: trackChatInput, placeholder: "Enter a message...", value},
+      {c: "chat-input", onSubmit, cellId, dirty, postRender:CodeMirrorElement, keydown: chatInputKey, onInput: trackChatInput, placeholder: "Enter a message...", value},
       {c: "submit", cellId, mousedown: onSubmit, text: submitActionText},
     ]}
   }
@@ -957,10 +950,10 @@ module madlib {
 
   function workspaceTools() {
     let actions = {
-      "join": {func: joinBlanks, text: "Link", description: "Link the blanks", semantic: "action::join"},
     };
     let disabled = {};
-    return drawn.leftToolbar(actions, disabled);
+    let toolbar = drawn.leftToolbar(actions, disabled);
+    return toolbar;
   }
 
   function joinBlanks(e, elem) {
@@ -1001,8 +994,8 @@ module madlib {
       ]},
     ]});
     return {c: "canvas", key: localState.input.messageNumber, postRender: scrollToBottom, mousedown: maybeClearSelection, children: [
-      ui.row({c: "no-overflow", children: [
-        {c: "flex scroll", children: cellItems},
+      ui.row({c: "", children: [
+        {c: "flex", children: cellItems},
 //         {c: "flex scroll double-size", children: resultItems},
       ]}),
     ]};
@@ -1010,7 +1003,7 @@ module madlib {
 
   function scrollToBottom(node, elem) {
     if(node.lastMessageNumber !== localState.input.messageNumber) {
-      node.scrollTop = 2147483647; // 2^31 - 1, because Number.MAX_VALUE and Number.MAX_SAFE_INTEGER are too large and do nothing in FF...
+      node.parentNode.scrollTop = 2147483647; // 2^31 - 1, because Number.MAX_VALUE and Number.MAX_SAFE_INTEGER are too large and do nothing in FF...
       node.lastMessageNumber = localState.input.messageNumber;
     }
   }
@@ -1137,7 +1130,7 @@ module madlib {
     let resultMadlibs = {c: "results", children: filledSources};
     if(results.length === 0) {
       message = "0 matches";
-//       resultMadlibs = undefined;
+      resultMadlibs = undefined;
     } else if (results.length === 1) {
       message = `1 match`;
     }
@@ -1233,7 +1226,7 @@ module madlib {
     } else if(type === ui.ChartType.PIE) {
       //ys, labels
       leftControls.push(uiAttributeBindingBlank("slices", uiElementId, "ydata", propertyToColor(bindingInfo, "ydata")));
-      leftControls.push(uiAttributeBindingBlank("labels", uiElementId, "pointLabels", propertyToColor(bindingInfo, "pointLabels")));
+      leftControls.push(uiAttributeBindingBlank("labels", uiElementId, "labels", propertyToColor(bindingInfo, "labels")));
     } else if(type === ui.ChartType.GAUGE) {
       //value
       bottomControls.push(uiAttributeBindingBlank("value", uiElementId, "ydata", propertyToColor(bindingInfo, "ydata")));
@@ -1247,11 +1240,13 @@ module madlib {
     curChart.parent = undefined;
     return {c: "cell chart", children:[
       ui.dropdown({cellId, defaultOption: ui.ChartType[type].toLowerCase(), options: ["bar", "line", "area", "scatter", "pie", "gauge"], change: selectChartType}),
-      {c: "left-controls", children: leftControls},
-      {c: "column", children: [
-        {c: "chart-container", children: [curChart]},
-        {c: "bottom-controls", children: bottomControls},
-      ]},
+      ui.row({c: "center", children: [
+        {c: "left-controls", children: leftControls},
+        {c: "column", children: [
+          {c: "chart-container", children: [curChart]},
+          {c: "bottom-controls", children: bottomControls},
+        ]},
+      ]}),
     ]}
   }
 
