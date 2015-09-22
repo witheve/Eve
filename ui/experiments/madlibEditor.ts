@@ -886,7 +886,7 @@ module madlib {
       drawn.notice(),
       compilerErrors(),
       {c: "workspace", children: [
-        workspaceTools(),
+//         workspaceTools(),
         workspaceCanvas(),
       ]}
     ]};
@@ -954,7 +954,6 @@ module madlib {
     };
     let disabled = {};
     let toolbar = drawn.leftToolbar(actions, disabled);
-    toolbar.children[0].children.splice(1,1);
     return toolbar;
   }
 
@@ -996,8 +995,8 @@ module madlib {
       ]},
     ]});
     return {c: "canvas", key: localState.input.messageNumber, postRender: scrollToBottom, mousedown: maybeClearSelection, children: [
-      ui.row({c: "no-overflow", children: [
-        {c: "flex scroll", children: cellItems},
+      ui.row({c: "", children: [
+        {c: "flex", children: cellItems},
 //         {c: "flex scroll double-size", children: resultItems},
       ]}),
     ]};
@@ -1005,7 +1004,7 @@ module madlib {
 
   function scrollToBottom(node, elem) {
     if(node.lastMessageNumber !== localState.input.messageNumber) {
-      node.scrollTop = 2147483647; // 2^31 - 1, because Number.MAX_VALUE and Number.MAX_SAFE_INTEGER are too large and do nothing in FF...
+      node.parentNode.scrollTop = 2147483647; // 2^31 - 1, because Number.MAX_VALUE and Number.MAX_SAFE_INTEGER are too large and do nothing in FF...
       node.lastMessageNumber = localState.input.messageNumber;
     }
   }

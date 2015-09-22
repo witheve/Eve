@@ -10,7 +10,7 @@ body div { display:-webkit-flex; -webkit-flex-direction:column; }
 #perfStats { position:absolute; top:10px; right:10px; color: #ccc; }
 
 .dark { background: #000;}
-.workspace { max-width: 650px; flex-direction:column; width:100%; -webkit-flex-direction:column; }
+.workspace { max-width: 800px; flex-direction:column; width:100%; -webkit-flex-direction:column; overflow:auto; padding:30px 20px; }
 .workspace .left-side-container { -webkit-flex:none; }
 .workspace .left-side-container .left-toolbar { flex-direction:row; -webkit-flex-direction:row; }
 .workspace .left-side-container .left-toolbar > * { -webkit-flex:none; flex:none; }
