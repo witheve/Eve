@@ -141,7 +141,7 @@ module uiRenderer {
             try {
               elementCompiler(elem);
             } catch(err) {
-              let warning = {element: elem.id, row, warning: err.message};
+              let warning = {element: elem.id, row: row || "", warning: err.message};
               if(!api.ixer.selectOne("uiWarning", warning)) {
                 this.warnings.push(warning);
               }
@@ -204,7 +204,8 @@ module uiRenderer {
       elem.ydata = (elem.ydata) ? [<any>elem.ydata] : [];
       elem.xdata = (elem.xdata) ? [<any>elem.xdata] : elem.xdata;
       ui.chart(elem);
-    }
+    },
+    "table-editor": uiEditor.table
   };
   export function addElementCompiler(tag:string, compiler:ElementCompiler) {
     if(elementCompilers[tag]) {

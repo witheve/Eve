@@ -216,8 +216,8 @@ module client {
       // If we haven't initialized the client yet, do so after we've handled the initial payload, so it can be accessed via the indexer.
       if (initializing) {
         var eventId = (ixer.facts("client event") || []).length; // Ensure eids are monotonic across sessions.
-        uiEditorRenderer.setEventId(eventId);
-        uiEditorRenderer.setSessionId(data.session); // Store server-assigned session id for use in client-controlled tables.
+        //uiEditorRenderer.setEventId(eventId);
+        //uiEditorRenderer.setSessionId(data.session); // Store server-assigned session id for use in client-controlled tables.
         // @NOTE: Is this the right behavior? Or should we GC the previous environment and initialize a new one?
         if(!server.initialized) {
           for(var initFunc of afterInitFuncs) {

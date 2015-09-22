@@ -3818,6 +3818,7 @@ module drawn {
     initRenderer();
     initInputHandling();
     ui.init(localState, render);
+    uiEditor.init(localState, render);
     loadPositions();
     render();
   });
