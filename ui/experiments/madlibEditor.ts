@@ -885,7 +885,9 @@ module madlib {
     if(cm.getValue() !== elem.value) {
       cm.setValue(elem.value);
     }
-    cm.focus();
+    if(elem.key === true) {
+      cm.focus();
+    }
   }
 
   function chatInput(cellId, onSubmit = submitQuery) {
@@ -893,7 +895,6 @@ module madlib {
     let height = Math.max(21, numLines * 21);
     let submitActionText = "add";
     let value = "";
-    let dirty;
     let isActive = localState.notebook.activeCellId === cellId;
     if(isActive) {
       value = localState.input.value;
@@ -905,9 +906,8 @@ module madlib {
         }
       }
     }
-    if(cellId === 0) dirty = isActive;
     return {id: `chat-input ${cellId}`, c: "chat-input-container", children: [
-      {c: "chat-input", onSubmit, cellId, dirty, postRender:CodeMirrorElement, keydown: chatInputKey, onInput: trackChatInput, placeholder: "Enter a message...", value},
+      {c: "chat-input", onSubmit, cellId, key: isActive, postRender:CodeMirrorElement, keydown: chatInputKey, onInput: trackChatInput, placeholder: "Enter a message...", value},
       {c: "submit", cellId, mousedown: onSubmit, text: submitActionText},
     ]}
   }
