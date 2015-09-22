@@ -303,7 +303,7 @@ module api {
 
   export type Diff = any[];
   interface Context {[key:string]: Id}
-  interface Write<T> {type: string, content: T|T[], context?: Context|Context[], mode?: string, originalKeys?: string[], useIds?: boolean}
+  export interface Change<T> {type: string, content: T|T[], context?: Context|Context[], mode?: string, originalKeys?: string[], useIds?: boolean}
 
   interface Schema {
     key?: string|string[]
@@ -389,7 +389,7 @@ module api {
     return query;
   }
 
-  export function process(type:string, params, context:Context = {}, useIds = false): Write<any> {
+  export function process(type:string, params, context:Context = {}, useIds = false): Change<any> {
     if(!params) { return; }
     if(params instanceof Array) {
       var write = {type: type, content: [], context: []};
@@ -524,7 +524,7 @@ module api {
     return map;
   }
 
-  export function insert(type:string, params, context?:Context, useIds = false):Write<any> {
+  export function insert(type:string, params, context?:Context, useIds = false):Change<any> {
     if(arguments.length < 2) { throw new Error("Must specify type and parameters for insert."); }
     var write = process(type, params, context, useIds);
     write.mode = "inserted";
@@ -558,7 +558,7 @@ module api {
     return dest;
   }
 
-  export function change(type:string, params, changes, upsert:boolean = false, context?:Context, useIds = false):Write<any> {
+  export function change(type:string, params, changes, upsert:boolean = false, context?:Context, useIds = false):Change<any> {
     if(arguments.length < 3) { throw new Error("Must specify type and query and changes for change."); }
     // When useIds is set, retrieve will return undefined for an empty result
     var read = retrieve(type, params, context, useIds) || [];
@@ -572,13 +572,13 @@ module api {
     return {type: type, content: write, context: context, mode: "changed", originalKeys: clone(params), useIds};
   }
 
-  export function remove(type:string, params, context?:Context, useIds = false):Write<any> {
+  export function remove(type:string, params, context?:Context, useIds = false):Change<any> {
     if(arguments.length < 2) { throw new Error("Must specify type and query for remove."); }
     var read = retrieve(type, params, context, useIds);
     return {type: type, content: read, context: context, mode: "removed", useIds};
   }
 
-  export function toDiffs(writes:Write<any>|Write<any>[]):Diff[] {
+  export function toDiffs(writes:Change<any>|Change<any>[]):Diff[] {
     var diffs = [];
     if(writes instanceof Array) {
       for(var write of writes) {
@@ -590,7 +590,7 @@ module api {
       }
       return diffs;
     } else {
-      var write:Write<any> = <Write<any>>writes;
+      var write:Change<any> = <Change<any>>writes;
       if(write.content === undefined) { return diffs; }
     }
 
