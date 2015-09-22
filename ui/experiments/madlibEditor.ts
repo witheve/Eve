@@ -17,7 +17,7 @@ module madlib {
   const MAX_COMPLETIONS = 4;
   const NO_SELECTION = 0;
 
-  enum SelectionType { field, blank, madlib, cell, heterogenous, none }
+  export enum SelectionType { field, blank, madlib, cell, heterogenous, none }
   enum SelectionSize { single, multi, none }
 
   enum FocusType { adderRow, blank, none }
@@ -231,6 +231,10 @@ module madlib {
         }
         diffs = dispatch("setActiveCell", {cellId: activeCellId});
         break;
+      case "addResultTable":
+        var ix = relatedCellNextIndex(info.cellId);
+        var {diffs, cellId} = createTableCell(info.cellId, ix, info.viewId);
+        break;
       case "addResultChart":
         var ix = relatedCellNextIndex(info.cellId);
         var {diffs, cellId} = createChartCell(ui.ChartType.BAR, info.cellId, ix, info.viewId);
@@ -356,6 +360,17 @@ module madlib {
     if(viewId) {
       diffs.push(api.insert("notebook cell view", {cell: cellId, view: viewId}));
     }
+    return {diffs, cellId};
+  }
+
+  function createTableCell(parentCellId, ix, viewId) {
+    let {diffs, cellId} = createCell(parentCellId, "tableEditor", ix);
+    //we have to create a chart Element
+    let elementId = uuid();
+    let parentElementId = uuid();
+    diffs.push(api.insert("notebook cell uiElement", {cell: cellId, element: elementId}));
+    diffs.push(api.insert("uiElement", {element: elementId, parent: "", tag: "table-editor"}));
+    diffs.push(api.insert("uiAttribute", {element: elementId, property: "view", value: viewId}));
     return {diffs, cellId};
   }
 
@@ -1136,6 +1151,13 @@ module madlib {
         let kind = cell["notebook cell: kind"];
         if(kind === "chart") {
           children.push(drawChartCell(relatedId, joinInfo));
+        } else {
+          let uiElementId = ixer.selectOne("notebook cell uiElement", {cell: relatedId})["notebook cell uiElement: element"];
+          let results = drawn.renderer.compile([uiElementId]);
+
+          let bindingInfo = joinInfo[uiElementId] || {};
+          let parentElement = ixer.selectOne("uiElement", {element: uiElementId})["uiElement: parent"];
+          children.push({id: parentElement, children: results});
         }
       }
       related = {children};
@@ -1148,6 +1170,7 @@ module madlib {
       ]},
       {c: "controls", children: [
         {c: "button ion-pie-graph", click: addResultChart, viewId, cellId},
+        {c: "button ion-ios-grid-view", click: addResultTable, viewId, cellId}
       ]},
     ]};
   }
@@ -1171,6 +1194,9 @@ module madlib {
 
   function addResultChart(e, elem) {
     dispatch("addResultChart", {viewId: elem.viewId, cellId: elem.cellId});
+  }
+  function addResultTable(e, elem) {
+    dispatch("addResultTable", {viewId: elem.viewId, cellId: elem.cellId});
   }
 
   function bindAttribute(e, elem) {
