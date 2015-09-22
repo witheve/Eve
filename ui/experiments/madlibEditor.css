@@ -150,7 +150,7 @@ chart { fill: #ccc; }
 .light .madlib .purple .value,
 .light .madlib .purple.column:before,
 .light .madlib .purple.column:after,
-.light .attribute-blank.purple {  border-color: rgb(197, 0, 255);  background: rgb(250, 230, 255); }
+.light .attribute-blank.purple {  border-color: rgb(165, 0, 255);  background: rgb(248, 235, 255); }
 
 .light .madlib .orange .value,
 .light .madlib .orange.column:before,
