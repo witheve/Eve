@@ -951,10 +951,11 @@ module madlib {
 
   function workspaceTools() {
     let actions = {
-      "join": {func: joinBlanks, text: "Link", description: "Link the blanks", semantic: "action::join"},
     };
     let disabled = {};
-    return drawn.leftToolbar(actions, disabled);
+    let toolbar = drawn.leftToolbar(actions, disabled);
+    toolbar.children[0].children.splice(1,1);
+    return toolbar;
   }
 
   function joinBlanks(e, elem) {
@@ -1131,7 +1132,7 @@ module madlib {
     let resultMadlibs = {c: "results", children: filledSources};
     if(results.length === 0) {
       message = "0 matches";
-//       resultMadlibs = undefined;
+      resultMadlibs = undefined;
     } else if (results.length === 1) {
       message = `1 match`;
     }
