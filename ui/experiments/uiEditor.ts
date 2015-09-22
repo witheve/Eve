@@ -1,7 +1,7 @@
 /// <reference path="../src/tableEditor.ts" />
 /// <reference path="../src/editor.ts" />
 /// <reference path="../src/api.ts" />
-module uiEditor {
+module uiEditorOld {
   declare var jQuery;
   declare var uuid;
   declare var uiEditorRenderer;
