@@ -163,7 +163,6 @@ module api {
       files: {}
     }
     payload.files[name] = {content: content};
-    console.log("P", payload);
     request.open("POST", "https://api.github.com/gists");
     request.send(JSON.stringify(payload));
   }
