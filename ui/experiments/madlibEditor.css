@@ -131,6 +131,8 @@ chart { fill: #ccc; }
 .light .controls .button:hover { color:#555; }
 .light .attribute-blank { background: none; border:1px solid #ccc; }
 .light .item { background: #fff; border:none; box-shadow: 0 2px 2px #999; margin-bottom:10px; }
+.light chart { fill: #777; }
+.light .c3-axis line, .light .c3-axis path { stroke: #ccc; }
 
 .light .madlib .blue .value,
 .light .madlib .blue.column:before,
@@ -161,7 +163,6 @@ chart { fill: #ccc; }
 .light .madlib .teal.column:before,
 .light .madlib .teal.column:after,
 .light .attribute-blank.teal {  border-color: rgb(0, 177, 183); background: rgb(230, 247, 248); }
-
 
 
 
