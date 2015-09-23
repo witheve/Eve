@@ -106,11 +106,28 @@ module uiEditor {
   }
   export function table(elem:TableEditorElement) {
     let fieldIds = editorState.tableFields[elem.id] || [];
+    let fieldColors = {};
+
+    var colors = ["blue", "purple", "green", "orange", "teal", "red"];
+    for(let fieldId of fieldIds) {
+      let select = api.ixer.selectOne("select", {field: fieldId});
+      let variableId = select["select: variable"];
+      let variableBindings = api.ixer.select("binding", {variable: variableId});
+      if(variableBindings.length > 1) {
+        fieldColors[fieldId] = colors.shift();
+      }
+    }
+
+    function headerRenderer(header) {
+      header.c += " attribute-blank " + fieldColors[header.header];
+      return header;
+    }
+
     elem.c = `table-editor ${elem.c || ""}`;
     elem.dragover = preventDefault;
     elem.drop = addFieldToTable;
     elem.children = [
-      ui.factTable({id: `${elem.id}-inner`, view: elem.view, headers: fieldIds}),
+      ui.factTable({id: `${elem.id}-inner`, view: elem.view, headers: fieldIds, headerRenderer}),
       (fieldIds.length < 1 ? {text: "Drop fields onto the table to show them"} : undefined)
     ];
     return elem;
