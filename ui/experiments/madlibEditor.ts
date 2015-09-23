@@ -535,8 +535,8 @@ module madlib {
     let cellId = relatedCell["related notebook cell: cell"];
     let relatedCellId = relatedCell["related notebook cell: cell2"];
     let relatedKind = ixer.selectOne("notebook cell", {cell: relatedCellId})["notebook cell: kind"];
+    let elementId = ixer.selectOne("notebook cell uiElement", {cell: relatedCellId})["notebook cell uiElement: element"];
     if(relatedKind === "chart") {
-      let elementId = ixer.selectOne("notebook cell uiElement", {cell: relatedCellId})["notebook cell uiElement: element"];
       // update uiElement binding
       diffs.push(api.remove("uiElementBinding", {element: elementId}));
       diffs.push(api.insert("uiElementBinding", {element: elementId, view: newViewId}));
@@ -550,6 +550,13 @@ module madlib {
           diffs.push(api.insert("uiAttributeBinding", {element: elementId, property, field: newFieldId}));
         }
       }
+    } else if(relatedKind === "tableEditor") {
+      // Nuke bindings for tables
+      delete uiEditor.editorState.tableFields[elementId];
+      diffs.push(
+        api.remove("uiAttribute", {element: elementId, property: "view"}),
+        api.insert("uiAttribute", {element: elementId, property: "view", value: newViewId})
+      );
     }
     return diffs;
   }
@@ -582,14 +589,14 @@ module madlib {
         // add a field to the union
         let fieldId = uuid();
         diffs.push(api.insert("field", {field: fieldId, view: viewId, kind: "output", dependents: {
-          "display name": {name: "blank"},
+          "display name": {name: ""},
           "display order": {priority: ix},
         }}));
         fields.push(fieldId);
         // we have to create fields for the manual table too
         let tableFieldId = uuid();
         diffs.push(api.insert("field", {field: tableFieldId, view: tableId, kind: "output", dependents: {
-          "display name": {name: "blank"},
+          "display name": {name: ""},
           "display order": {priority: ix},
         }}));
         diffs.push(api.insert("mapping", {"view field": fieldId, member: tableMemberId, "member field": tableFieldId}));
@@ -737,7 +744,7 @@ module madlib {
     // select the field
     let selectFieldId = uuid();
     diffs.push(api.insert("field", {field: selectFieldId, view: itemId, kind: "output", dependents: {
-      "display name": {name: code.name(fieldId) || fieldId},
+      "display name": {name: code.name(fieldId) || ""},
       "display order": {priority: fieldInfo.fieldIx},
     }}));
     diffs.push(api.insert("select", {field: selectFieldId, variable: variableId}));
@@ -1149,8 +1156,7 @@ module madlib {
           let results = drawn.renderer.compile([uiElementId]);
 
           let bindingInfo = joinInfo[uiElementId] || {};
-          let parentElement = ixer.selectOne("uiElement", {element: uiElementId})["uiElement: parent"];
-          children.push({id: parentElement, children: results});
+          children.push({children: results});
         }
       }
       related = {children};
