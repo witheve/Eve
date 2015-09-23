@@ -30,6 +30,7 @@ module madlib {
     localState.intermediateFacts = {};
     localState.notices = {};
     localState.errors = {};
+    localState.peekResults = {};
   }
 
   function isSelected(selectionInfo) {
@@ -242,6 +243,10 @@ module madlib {
       case "createCellOnImport":
         localState.notebook.activeCellId = 0;
         diffs = dispatch("submitQuery", {value: info.madlib});
+        break;
+      case "peekResult":
+        var {cellId, ix}:{cellId:any, ix:number} = info;
+        localState.peekResults[cellId] = ix; // This'll get wrapped to the valid result range next time it's computed.
         break;
       default:
         return drawn.dispatch(event, info, rentrant);
@@ -1048,6 +1053,12 @@ module madlib {
 
   function joinItem(viewId, cellId) {
     let results = ixer.select(viewId, {});
+    let peekResult = localState.peekResults[cellId] || 0;
+    if(peekResult >= results.length) {
+      localState.peekResults[cellId] = peekResult = 0;
+    } else if(peekResult < 0) {
+      localState.peekResults[cellId] = peekResult = results.length - 1;
+    }
     let joinInfo = getJoinInfo(viewId);
     let sourceItems = [];
     let filledSources = [];
@@ -1077,7 +1088,7 @@ module madlib {
     for(let source of sources) {
       let sourceId = source["source: source"];
       let sourceView = source["source: source view"];
-      let sourceRow = extractSourceValuesFromResultRow(results[0], sourceId);
+      let sourceRow = extractSourceValuesFromResultRow(results[peekResult], sourceId);
       sourceItems.push(madlibForView(sourceView, {
         rows: [],
         joinInfo: joinInfo[sourceId].fields,
@@ -1114,7 +1125,7 @@ module madlib {
     if(cellId === localState.notebook.activeCellId) {
       sourceItems = [chatInput(cellId)];
     }
-    let result = queryResult(results, factRows, filledSources, cellId, viewId, joinInfo);
+    let result = queryResult(results, factRows, peekResult, filledSources, cellId, viewId, joinInfo);
     return {id: `cell-${cellId}`, c: "item", children: [
       {c: "button remove ion-trash-b", cellId, click: removeCellItem},
       {c: "message-container user-message", dblclick: setActiveCell, cellId, children: [
@@ -1124,7 +1135,7 @@ module madlib {
     ]};
   }
 
-  function queryResult(results, factRows, filledSources, cellId, viewId, joinInfo) {
+  function queryResult(results, factRows, peekResult, filledSources, cellId, viewId, joinInfo) {
     // if there aren't any sources, this is just a fact block.
     if(!filledSources.length) {
       return {c: "message-container eve-response", children: [
@@ -1133,13 +1144,16 @@ module madlib {
         ]},
       ]};
     }
-    let message = `1 of ${results.length} matches`;
+    let message = `match ${peekResult + 1} of ${results.length}`;
+    let multi = true;
     let resultMadlibs = {c: "results", children: filledSources};
     if(results.length === 0) {
       message = "0 matches";
       resultMadlibs = undefined;
+      multi = false;
     } else if (results.length === 1) {
       message = `1 match`;
+      multi = false;
     }
     let related;
     let relatedCells = ixer.select("related notebook cell", {cell: cellId});
@@ -1165,13 +1179,24 @@ module madlib {
       {c: "message", children: [
         resultMadlibs,
         related,
-        {c: "message-text", text: message},
+        {c: "message-text flex-row spaced-row", children: [
+         {text: message},
+         (multi ? {c: "ion-ios-arrow-back", cellId, click: prevPeekResult} : undefined),
+         (multi ? {c: "ion-ios-arrow-forward", cellId, click: nextPeekResult} : undefined)
+        ]}
       ]},
       {c: "controls", children: [
         {c: "button ion-pie-graph", click: addResultChart, viewId, cellId},
         {c: "button ion-ios-grid-view", click: addResultTable, viewId, cellId}
       ]},
     ]};
+  }
+
+  function nextPeekResult(evt, elem) {
+    dispatch("peekResult", {cellId: elem.cellId, ix: (localState.peekResults[elem.cellId] || 0) + 1});
+  }
+  function prevPeekResult(evt, elem) {
+    dispatch("peekResult", {cellId: elem.cellId, ix: (localState.peekResults[elem.cellId] || 0) - 1});
   }
 
   function unionFieldSelection(fieldId, fieldInfo, opts) {
