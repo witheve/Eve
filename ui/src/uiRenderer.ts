@@ -24,6 +24,7 @@ module uiRenderer {
 
   export class UiRenderer {
     public warnings:UiWarning[] = [];
+    public compiled:number = 0;
 
     constructor(public renderer:microReact.Renderer) {
 
@@ -48,7 +49,7 @@ module uiRenderer {
       let stack:Element[] = [];
       let compiledElements:microReact.Element[] = [];
       let keyToRow:{[key:string]: any} = {};
-      let keyToAncestor:{[key:string]: string} = {};
+      let boundAncestors:{[id:string]: Element} = {};
       for(let root of roots) {
         if(typeof root === "object") {
           compiledElements.push(<Element>root);
@@ -63,7 +64,7 @@ module uiRenderer {
         compiledElements.push(elem);
         stack.push(elem);
       }
-
+      let start = Date.now();
       while(stack.length > 0) {
         let elem = stack.shift();
         let templateId = elem.__template;
@@ -87,16 +88,20 @@ module uiRenderer {
           for(let row of boundRows) {
             // We need an id unique per row for bound elements.
             let key = rowToKey(row);
-            elems.push({t: elem.t, parent: elem.id, id: `${elem.id}.${ix}`, __template: templateId, __binding: key});
+            let childId = `${elem.id}.${ix}`;
+            elems.push({t: elem.t, parent: elem.id, id: childId, __template: templateId, __binding: key});
             keyToRow[key] = row;
-            keyToAncestor[key] = oldKey; // @FIMXE: Intermediate keys may be unrelated to parent keys. This loses information about which ancestor row the element stemmed from.
-            console.log(`* Linking ${key} -> ${oldKey}.`);
+            if(DEBUG.RENDERER) {
+              console.log(`* Linking ${childId} -> ${boundAncestors[elem.id] && boundAncestors[elem.id].id}.`);
+            }
+            boundAncestors[childId] = boundAncestors[elem.id];
             ix++;
           }
         }
 
         let rowIx = 0;
         for(let elem of elems) {
+          this.compiled++;
           // Handle meta properties.
           let key = elem.__binding;
           elem.t = fact["uiElement: tag"];
@@ -107,24 +112,27 @@ module uiRenderer {
               let {"uiAttribute: property": prop, "uiAttribute: value": val} = attr;
               elem[prop] = val;
               if(prop === "__binding") {
-                keyToAncestor[val] = key;
+                binding = true;
                 key = val;
               }
             }
           }
 
           // Handle bound properties.
+          // @NOTE: making __binding dynamically bindable is possible, but requires processing it as the first bound attribute to have the intended effect.
           if(boundAttrs) {
             for(let attr of boundAttrs) {
               let {"uiAttributeBinding: property": prop, "uiAttributeBinding: field": field} = attr;
-              let curKey = key;
+              let curElem = elem;
               let val;
               let scopeIx = 0;
-              while(curKey && val === undefined) {
-                let row = keyToRow[curKey];
+              while(curElem && val === undefined) {
+                let key = curElem.__binding;
+                let row = keyToRow[key];
                 val = row[field];
+
                 if(val === undefined) {
-                  curKey = keyToAncestor[curKey];
+                  curElem = boundAncestors[curElem.id];
                   if(scopeIx > 100) {
                     console.error(`Recursion detected in bound attribute resolution for key '${key}'.`);
                     break;
@@ -135,10 +143,9 @@ module uiRenderer {
               elem[prop] = val;
               if(DEBUG.RENDERER) {
                 console.log(`
-                * Binding ${elem.id}['${prop}']' to ${field} (${val})
-                   leaf key: ${key}
-                   cur  key: ${curKey}
-                   row: ${JSON.stringify(keyToRow[curKey])}
+                * Binding ${elem.id}['${prop}'] to ${field} (${val})
+                   source elem: ${curElem && curElem.id}
+                   row: ${curElem && JSON.stringify(keyToRow[curElem.__binding])}
                 `);
               }
             }
@@ -146,10 +153,16 @@ module uiRenderer {
 
           // Prep children and add them to the stack.
           if(children) {
+            let boundAncestor = boundAncestors[elem.id];
+            if(binding) {
+              boundAncestor = elem;
+            }
             elem.children = [];
             for(let child of children) {
-              let childId = child["uiElement: element"];
-              let childElem = {id: `${elem.id}__${childId}`, __template: childId, __binding: key};
+              let childTemplateId = child["uiElement: element"];
+              let childId = `${elem.id}__${childTemplateId}`;
+              boundAncestors[childId] = boundAncestor;
+              let childElem = {id: childId, __template: childTemplateId, __binding: key};
               elem.children.push(childElem);
               stack.push(childElem);
             }
@@ -184,7 +197,9 @@ module uiRenderer {
           elem.children = elems;
         }
       }
-
+      if(DEBUG.RENDER_TIME) {
+        console.log(Date.now() - start);
+      }
       return compiledElements;
     }
 

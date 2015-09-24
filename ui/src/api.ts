@@ -50,6 +50,7 @@ module api {
                     SEND: 0,
                     INDEXER: 0,
                     RENDERER: false,
+                    RENDER_TIME: false,
                     TABLE_CELL_LOOKUP: true};
   }
 
