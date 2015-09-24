@@ -1144,7 +1144,13 @@ module madlib {
         ]},
       ]};
     }
-    let message = `match ${peekResult + 1} of ${results.length}`;
+    // If you have more than 5 digits worth of results then only God can help you.
+    let paddingLength = Math.min(results.length.toString().length - (peekResult + 1).toString().length, 5);
+    let padding = "";
+    for(let ix = 0; ix < paddingLength; ix++) {
+      padding += "\xa0\xa0"; // NBSP, I am a monster. Also non-monospaced fonts are the worst.
+    }
+    let message = `match ${padding}${peekResult + 1} of ${results.length}`;
     let multi = true;
     let resultMadlibs = {c: "results", children: filledSources};
     if(results.length === 0) {
