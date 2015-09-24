@@ -49,6 +49,7 @@ module api {
     window.DEBUG = {RECEIVE: 0,
                     SEND: 0,
                     INDEXER: 0,
+                    RENDERER: false,
                     TABLE_CELL_LOOKUP: true};
   }
 
