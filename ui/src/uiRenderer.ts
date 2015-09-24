@@ -2,6 +2,8 @@
 /// <reference path="./indexer.ts" />
 /// <reference path="./api.ts" />
 module uiRenderer {
+  declare var DEBUG;
+
   type Id = string;
   type RowTokeyFn = (row:{[key:string]: any}) => string;
 
@@ -46,6 +48,7 @@ module uiRenderer {
       let stack:Element[] = [];
       let compiledElements:microReact.Element[] = [];
       let keyToRow:{[key:string]: any} = {};
+      let keyToAncestor:{[key:string]: string} = {};
       for(let root of roots) {
         if(typeof root === "object") {
           compiledElements.push(<Element>root);
@@ -77,41 +80,36 @@ module uiRenderer {
           // If the element is bound, it must be repeated for each row.
           var boundView = binding["uiElementBinding: view"];
           var rowToKey = this.generateRowToKeyFn(boundView);
-          let key = elem.__binding;
-          var boundRows = this.getBoundRows(boundView, key);
+          let oldKey = elem.__binding;
+          var boundRows = this.getBoundRows(boundView, oldKey);
           elems = [];
           let ix = 0;
           for(let row of boundRows) {
-             // We need an id unique per row for bound elements.
-             let key = rowToKey(row);
+            // We need an id unique per row for bound elements.
+            let key = rowToKey(row);
             elems.push({t: elem.t, parent: elem.id, id: `${elem.id}.${ix}`, __template: templateId, __binding: key});
             keyToRow[key] = row;
+            keyToAncestor[key] = oldKey; // @FIMXE: Intermediate keys may be unrelated to parent keys. This loses information about which ancestor row the element stemmed from.
+            console.log(`* Linking ${key} -> ${oldKey}.`);
             ix++;
           }
         }
 
         let rowIx = 0;
         for(let elem of elems) {
-          // Get bound key and rows if applicable.
-          let row, key;
-          if(binding) {
-            row = boundRows[rowIx];
-            key = rowToKey(row);
-          } else {
-            key = elem.__binding;
-            row = keyToRow[key];
-          }
-
           // Handle meta properties.
+          let key = elem.__binding;
           elem.t = fact["uiElement: tag"];
 
           // Handle static properties.
-          let properties = [];
           if(attrs) {
             for(let attr of attrs) {
               let {"uiAttribute: property": prop, "uiAttribute: value": val} = attr;
-              properties.push(prop);
               elem[prop] = val;
+              if(prop === "__binding") {
+                keyToAncestor[val] = key;
+                key = val;
+              }
             }
           }
 
@@ -119,8 +117,30 @@ module uiRenderer {
           if(boundAttrs) {
             for(let attr of boundAttrs) {
               let {"uiAttributeBinding: property": prop, "uiAttributeBinding: field": field} = attr;
-              properties.push(prop);
-              elem[prop] = row[field];
+              let curKey = key;
+              let val;
+              let scopeIx = 0;
+              while(curKey && val === undefined) {
+                let row = keyToRow[curKey];
+                val = row[field];
+                if(val === undefined) {
+                  curKey = keyToAncestor[curKey];
+                  if(scopeIx > 100) {
+                    console.error(`Recursion detected in bound attribute resolution for key '${key}'.`);
+                    break;
+                  }
+                  scopeIx++;
+                }
+              }
+              elem[prop] = val;
+              if(DEBUG.RENDERER) {
+                console.log(`
+                * Binding ${elem.id}['${prop}']' to ${field} (${val})
+                   leaf key: ${key}
+                   cur  key: ${curKey}
+                   row: ${JSON.stringify(keyToRow[curKey])}
+                `);
+              }
             }
           }
 
@@ -141,6 +161,7 @@ module uiRenderer {
             try {
               elementCompiler(elem);
             } catch(err) {
+              let row = keyToRow[key];
               let warning = {element: elem.id, row: row || "", warning: err.message};
               if(!api.ixer.selectOne("uiWarning", warning)) {
                 this.warnings.push(warning);
@@ -150,6 +171,10 @@ module uiRenderer {
               ui.uiError(<any> elem);
               console.warn("Invalid element:", elem);
             }
+          }
+
+          if(DEBUG.RENDERER) {
+            elem.debug = elem.id;
           }
 
           rowIx++;
