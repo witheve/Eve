@@ -1170,7 +1170,7 @@ module madlib {
         let cell = ixer.selectOne("notebook cell", {cell: relatedId});
         let kind = cell["notebook cell: kind"];
         if(kind === "chart") {
-          children.push(drawChartCell(relatedId, joinInfo));
+          children.push(drawChartCell(relatedId, joinInfo, peekResult));
         } else {
           let uiElementId = ixer.selectOne("notebook cell uiElement", {cell: relatedId})["notebook cell uiElement: element"];
           let results = drawn.renderer.compile([uiElementId]);
@@ -1247,7 +1247,7 @@ module madlib {
     }
   }
 
-  function drawChartCell(cellId, joinInfo) {
+  function drawChartCell(cellId, joinInfo, chartIx) {
     var uiElementId = ixer.selectOne("notebook cell uiElement", {cell: cellId})["notebook cell uiElement: element"];
     let bindingInfo = joinInfo[uiElementId] || {};
     var parentElement = ixer.selectOne("uiElement", {element: uiElementId})["uiElement: parent"];
@@ -1271,9 +1271,7 @@ module madlib {
     // @TODO: we're generating all the charts, which is unnecessary
     var charts = drawn.renderer.compile([uiElementId])[0];
     if(!charts.children.length) return;
-    // @TODO: for now we're only ever showing the first result, but once we can scroll
-    // through them, this will no longer be just the first.
-    var curChart = charts.children[0];
+    var curChart = charts.children[chartIx];
     curChart.parent = undefined;
     return {c: "cell chart", children:[
       ui.dropdown({cellId, defaultOption: ui.ChartType[type].toLowerCase(), options: ["bar", "line", "area", "scatter", "pie", "gauge"], change: selectChartType}),
