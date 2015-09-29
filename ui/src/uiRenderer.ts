@@ -23,18 +23,55 @@ module uiRenderer {
   api.ixer.addIndex("ui element to attribute bindings", "uiAttributeBinding", Indexing.create.collector(["uiAttributeBinding: element"]));
 
   export class UiRenderer {
-    public warnings:UiWarning[] = [];
-    public compiled:number = 0;
+    public refreshRate:number = 16;   // Duration of a frame in ms.
+    public queued:boolean = false;    // Whether the model is dirty and requires rerendering.
+    public warnings:UiWarning[] = []; // Warnings from the previous render (or all previous compilations).
+    public compiled:number = 0;       // # of elements compiled since last render.
 
     constructor(public renderer:microReact.Renderer) {
 
     }
 
+    // Mark the renderer dirty so it will rerender next frame.
+    queue(root) {
+      if(this.queued === false) {
+        this.queued = true;
+        // @FIXME: why does using request animation frame cause events to stack up and the renderer to get behind?
+        let self = this;
+        setTimeout(function() {
+          var start = performance.now();
+          api.ixer.clearTable("uiWarning");
+          let warnings;
+          // Rerender until all generated warnings have been committed to the indexer.
+          do {
+            var tree = root();
+            let elements = (api.ixer.select("tag", {tag: "editor-ui"}) || []).map((tag) => tag["tag: view"]);
+            start = performance.now();
+            elements.unshift(tree);
+            warnings = self.render(elements);
+            if(warnings.length) {
+              api.ixer.handleDiffs(api.toDiffs(
+                api.insert("uiWarning", warnings)
+              ))
+            }
+          } while(warnings.length > 0);
+
+          var total = performance.now() - start;
+          if(total > 10) {
+            console.log("Slow render: " + total);
+          }
+          self.queued = false;
+        }, this.refreshRate);
+      }
+    }
+
+    // Render the given list of elements to the builtin microreact renderer.
     render(roots:(Id|Element)[]):UiWarning[] {
+      this.compiled = 0;
+      this.warnings = [];
       let elems = this.compile(roots);
       this.renderer.render(elems);
       let warnings = this.warnings;
-      this.warnings = [];
       return warnings;
     }
 

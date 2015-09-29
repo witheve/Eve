@@ -52,17 +52,8 @@ module uiEditorRenderer {
 
   var renderer = new microReact.Renderer();
   renderer.content.classList.add("rendered-program");
+  export var render = drawn.render;
 
-  renderer.queued = false;
-  export function render() {
-    if(renderer.queued === false) {
-      renderer.queued = true;
-      requestAnimationFrame(function() {
-        renderer.queued = false;
-        renderer.render([rendererRoot()]);
-      });
-    }
-  }
 
   function rendererRoot():microReact.Element {
     let componentId:string;

@@ -128,7 +128,6 @@ module microReact {
     tree:{[id:string]: Element};
     postRenders: Element[];
     lastDiff: {adds: string[], updates: {}};
-    queued: boolean;
     handleEvent: (any);
     constructor() {
       this.content = document.createElement("div");
