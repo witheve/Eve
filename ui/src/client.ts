@@ -372,4 +372,8 @@ module client {
   export function setDispatch(dispatchFn) {
     dispatch = dispatchFn;
   }
+  //This is hacky, but we want to preserve backwards compatibility for now.
+  export function setRenderer(renderFn) {
+    dispatcher = {render: renderFn};
+  }
 }
