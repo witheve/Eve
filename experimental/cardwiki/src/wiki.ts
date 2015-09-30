@@ -11,7 +11,7 @@ module wiki {
   
   app.state = {
     articles: {
-      "foo": "[pixar] moves:\n[up]\n[toy story]",
+      "foo": "[pixar] movies:\n[up]\n[toy story]",
       "pixar": "[Pixar] is an animation studio owned by disney"
     },
     activeArticle: "foo",
