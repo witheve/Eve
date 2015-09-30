@@ -100,9 +100,9 @@ document.body.appendChild(editorContainer);
 var docs = {
   "editor.js": new CodeMirror.Doc(fs.readFileSync("editor.js").toString(), "javascript"),
   "editor.css": new CodeMirror.Doc(fs.readFileSync("editor.css").toString(), "css"),
-  "../experimental/cardwiki/src/wiki.ts": new CodeMirror.Doc(fs.readFileSync("../experimental/cardwiki/src/wiki.ts").toString(), "application/typescript"),
-  "../experimental/cardwiki/css/editor.css": new CodeMirror.Doc(fs.readFileSync("../experimental/cardwiki/css/editor.css").toString(), "css"),
-  "../ui/src/editor.ts": new CodeMirror.Doc(fs.readFileSync("../ui/src/editor.ts").toString(), "application/typescript"),
+  "../cardwiki/src/wiki.ts": new CodeMirror.Doc(fs.readFileSync("../cardwiki/src/wiki.ts").toString(), "application/typescript"),
+  "../cardwiki/css/editor.css": new CodeMirror.Doc(fs.readFileSync("../cardwiki/css/editor.css").toString(), "css"),
+  "../../ui/src/editor.ts": new CodeMirror.Doc(fs.readFileSync("../../ui/src/editor.ts").toString(), "application/typescript"),
 }
 
 var editor = new CodeMirror(editorContainer, {
@@ -206,7 +206,7 @@ document.addEventListener("keydown", (e) => {
   } else if(e.keyCode === keycode("4")) {
     loadDoc("../experimental/cardwiki/css/editor.css");
   } else if(e.keyCode === keycode("5")) {
-    loadDoc("../ui/src/editor.ts");
+    loadDoc("../../ui/src/editor.ts");
   } else if(e.keyCode === keycode("R")) {
     if(!e.shiftKey) {
       webView.reload();
@@ -230,7 +230,7 @@ document.addEventListener("keydown", (e) => {
 
 var webView = document.createElement("webView");
 webView.setAttribute("preload", "./editorInjection.js");
-webView.setAttribute("src", "../experimental/cardwiki/editor.html");
+webView.setAttribute("src", "../cardwiki/editor.html");
 webView.addEventListener("ipc-message", (event) => {
   handleConsoleEvent(event);
 });
