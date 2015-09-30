@@ -1,0 +1,37 @@
+/*---------------------------------------------------------
+- fonts
+---------------------------------------------------------*/
+
+@font-face {
+  font-family: 'Lato';
+  src: url('../fonts/Lato/Lato-Light.ttf'); /* IE9 Compat Modes */
+}
+
+/*---------------------------------------------------------
+- Root
+---------------------------------------------------------*/
+
+body { font-family:"Lato"; overflow:hidden; height: 100vh; display:flex; }
+
+/* we want everything to be flex and to use a sane box-sizing model */
+body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-direction-flex: column; box-sizing: border-box; outline:none; }
+
+.__root { flex: 1; }
+.root { background: #f0f0f0; flex: 1; align-items: center; justify-content: center; flex-direction: row; }
+
+#perfStats { position:absolute; top: 10px; right:10px; }
+
+/*---------------------------------------------------------
+- Article Editor
+---------------------------------------------------------*/
+.article { background: white; padding:20px; max-width: 600px; min-height: 300px; min-width: 300px; border-radius:3px; box-shadow: 0 2px 2px #bbb; }
+.article pre { display:block; white-space: pre-wrap; }
+.article span { display:inline-block; }
+.article .link { border-bottom: 2px solid #f88; cursor:default; }
+.article .link.found { border-bottom: 2px solid #88f; }
+
+.CodeMirror div { display:block; }
+.CodeMirror.cm-s-default { font-family: "Lato"; font-size: 12pt; height: auto;}
+.CodeMirror .Codemirror-scroll { height:auto; }
+
+.history-stack { margin-left: 10px; }
