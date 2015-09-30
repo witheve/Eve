@@ -202,9 +202,9 @@ document.addEventListener("keydown", (e) => {
   } else if(e.keyCode === keycode("2")) {
     loadDoc("editor.css");
   } else if(e.keyCode === keycode("3")) {
-    loadDoc("../experimental/cardwiki/src/wiki.ts");
+    loadDoc("../cardwiki/src/wiki.ts");
   } else if(e.keyCode === keycode("4")) {
-    loadDoc("../experimental/cardwiki/css/editor.css");
+    loadDoc("../cardwiki/css/editor.css");
   } else if(e.keyCode === keycode("5")) {
     loadDoc("../../ui/src/editor.ts");
   } else if(e.keyCode === keycode("R")) {
