@@ -2,13 +2,13 @@
 /// <reference path="microReact.ts" />
 
 module wiki {
-  
+
   declare var CodeMirror;
-  
+
   //---------------------------------------------------------
   // App state
   //---------------------------------------------------------
-  
+
   app.state = {
     articles: {
       "foo": "[pixar] movies:\n[up]\n[toy story]",
@@ -18,11 +18,11 @@ module wiki {
     historyStack: [],
   }
   var state:any = app.state;
-  
+
   //---------------------------------------------------------
   // Article
   //---------------------------------------------------------
-  
+
   function articleToHTML(article) {
     let children = [];
     let lines = article.split(/\n/);
@@ -46,11 +46,11 @@ module wiki {
     console.log(children);
     return children;
   }
-  
+
   function followLink(e, elem) {
     app.dispatch("followLink", {link: elem.linkText}).commit();
   }
-  
+
   function CodeMirrorElement(node, elem) {
     let cm = node.editor;
     if(!cm) {
@@ -70,40 +70,38 @@ module wiki {
         cm.on("keydown", elem.keydown);
       }
       if(elem.blur) {
-        cm.on("blur", elem.blur);  
+        cm.on("blur", elem.blur);
       }
+      cm.focus();
     }
     if(cm.getValue() !== elem.value) {
       cm.setValue(elem.value);
     }
-    if(elem.key === true) {
-      cm.focus();
-    }
   }
-  
+
   //---------------------------------------------------------
   // Wiki
   //---------------------------------------------------------
-  
+
   app.handle("updateArticle", (result, info) => {
     state.articles[state.activeArticle] = info.value;
   });
-  
+
   app.handle("followLink", (result, info) => {
     if(state.historyStack.indexOf(state.activeArticle) === -1) {
-      state.historyStack.push(state.activeArticle);  
+      state.historyStack.push(state.activeArticle);
     }
     state.activeArticle = info.link;
   });
-  
+
   app.handle("startEditingArticle", (result, info) => {
     state.editing = true;
   });
-  
+
   app.handle("stopEditingArticle", (result, info) => {
     state.editing = false;
   });
-  
+
   export function root() {
     let article = state.articles[state.activeArticle] || "";
     let articleView;
@@ -117,31 +115,31 @@ module wiki {
       historyStack(),
     ]};
   }
-  
+
   function commitArticle(e, elem) {
     app.dispatch("stopEditingArticle").commit();
   }
-  
+
   function editArticle(e, elem) {
     app.dispatch("startEditingArticle").commit();
     e.preventDefault();
   }
-  
+
   function historyStack() {
     let stack = state.historyStack.map((link) => {
       return {c: "link", text: link, linkText: link, click: followLink};
     });
     return {c: "history-stack", children: stack};
   }
-  
+
   function updateArticle(cm) {
     app.dispatch("updateArticle", {value: cm.getValue()}).commit();
   }
-  
+
   //---------------------------------------------------------
   // Go
   //---------------------------------------------------------
-  
+
   app.renderRoots["wiki"] = root;
 
 }
