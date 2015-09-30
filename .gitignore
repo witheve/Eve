@@ -27,6 +27,5 @@ stylus/*.map
 build/
 saves/
 ui/bin
-electron/
 .settings/
 .vscode/
