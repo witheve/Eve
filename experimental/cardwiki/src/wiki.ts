@@ -233,6 +233,249 @@ module wiki {
   }
 
   //---------------------------------------------------------
+  // Runtime
+  //---------------------------------------------------------
+
+  function objectsIdentical(a:{[key:string]: any}, b:{[key:string]: any}):boolean {
+    var aKeys = Object.keys(a);
+    for(var key of aKeys) {
+      //TODO: handle non-scalar values
+      if(a[key] !== b[key]) return false;
+    }
+    return true;
+  }
+
+  function indexOfFact(haystack, needle, equals = objectsIdentical) {
+    let ix = 0;
+    for(let fact of haystack) {
+      if(equals(fact, needle)) {
+        return ix;
+      }
+      ix++;
+    }
+    return -1;
+  }
+
+  function removeFact(haystack, needle, equals?) {
+    let ix = indexOfFact(haystack, needle, equals);
+    if(ix > -1) haystack.splice(ix, 1);
+    return haystack;
+  }
+
+  function generateEqualityFn(keys:string[]) {
+    return new Function("a", "b",  `return ${keys.map(function(key, ix) {
+      return `a["${key}"] === b["${key}"]`;
+    }).join(" && ")};`);
+  }
+
+  function generateCollector(keys:string[]) {
+    let code = "";
+    let ix = 0;
+    let checks = "";
+    let removes = "var cur = index";
+    for(let key of keys) {
+      removes += `[remove['${key}']]`;
+    }
+    removes += ";\nremoveFact(cur, remove, equals);";
+    for(let key of keys) {
+      ix++;
+      checks += `value = add['${key}']\n`;
+      let path = `cursor[value]`;
+      checks += `if(!${path}) ${path} = `;
+      if(ix === keys.length) {
+        checks += "[]\n";
+      } else {
+        checks += "{}\n";
+      }
+      checks += `cursor = ${path}\n`;
+    }
+    code += `
+for(var remove of removes) {
+  ${removes}
+}
+for(var add of adds) {
+  var cursor = index;
+  var value;
+  ${checks}  cursor.push(add);
+}
+return index;`
+    return new Function("index", "adds", "removes", "equals", code);
+  }
+
+  class Diff {
+    tables;
+    constructor() {
+      this.tables = {};
+    }
+    add(table, obj) {
+      let tableDiff = this.tables[table];
+      if(!tableDiff) {
+        tableDiff = this.tables[table] = {adds: [], removes: []};
+      }
+      tableDiff.adds.push(obj);
+    }
+    remove(table, obj) {
+      let tableDiff = this.tables[table];
+      if(!tableDiff) {
+        tableDiff = this.tables[table] = {adds: [], removes: []};
+      }
+      tableDiff.removes.push(obj);
+    }
+    removeFound(table, query) {
+      let tableDiff = this.tables[table];
+      if(!tableDiff) {
+        tableDiff = this.tables[table] = {adds: [], removes: []};
+      }
+      tableDiff.removes.push.apply(tableDiff.removes, ixer.find(table, query));
+    }
+  }
+
+  class Indexer {
+    tables;
+    constructor() {
+      this.tables = {};
+    }
+    addTable(name, keys) {
+      let table = this.tables[name] = {table: [], factHash: {}, indexes: {}, joins: {}, fields: keys, equals: generateEqualityFn(keys)};
+      return table;
+    }
+    updateTable(tableId, adds, removes) {
+      let table = this.tables[tableId];
+      if(!table) {
+        let example = adds[0] || removes[0];
+        table = this.addTable(tableId, Object.keys(example));
+      }
+      let facts = table.table;
+      let factHash = table.factHash;
+      let localHash = {};
+      for(let add of adds) {
+        let hash = JSON.stringify(add);
+        if(localHash[hash] === undefined) {
+          localHash[hash] = [add, 1];
+        } else {
+          localHash[hash][1]++;
+        }
+      }
+      for(let remove of removes) {
+        let hash = JSON.stringify(remove);
+        if(localHash[hash] === undefined) {
+          localHash[hash] = [remove, -1];
+        } else {
+          localHash[hash][1]--;
+        }
+      }
+      let realAdds = [];
+      let realRemoves = [];
+      for(let hash in localHash) {
+        let [fact, count] = localHash[hash];
+        if(count > 0 && !factHash[hash]) {
+          realAdds.push(fact);
+          facts.push(fact);
+          factHash[hash] = true;
+        } else if(count < 0 && factHash[hash]) {
+          realRemoves.push(fact);
+          removeFact(facts, fact, table.equals);
+          factHash[hash] = undefined;
+        }
+      }
+      return {adds:realAdds, removes:realRemoves};
+    }
+    applyDiff(diff:Diff) {
+      for(let tableId in diff.tables) {
+        let tableDiff = diff.tables[tableId];
+        let realDiff = this.updateTable(tableId, tableDiff.adds, tableDiff.removes);
+      }
+    }
+    collector(keys) {
+      return {
+        index: {},
+        collect: generateCollector(keys),
+      }
+    }
+    findIndex(tableId, keys) {
+
+    }
+    factToIndex(table, fact) {
+      let keys = Object.keys(fact);
+      keys.sort();
+      let indexName = keys.join("|");
+      let index = table.indexes[indexName];
+      if(!index) {
+        index = table.indexes[indexName] = this.collector(keys);
+        index.collect(index.index, table.table, [], table.equals);
+      }
+      let cursor = index.index;
+      for(let key of keys) {
+        cursor = cursor[fact[key]];
+        if(!cursor) return [];
+      }
+      return cursor;
+    }
+    find(tableId, query?) {
+      let table = this.tables[tableId];
+      if(!table) {
+        return [];
+      } else if(!query) {
+        return table.table;
+      } else {
+        return this.factToIndex(table, query);
+      }
+    }
+  }
+
+  function join(table1, table2, mappings) {
+    let rows = ixer.find(table1);
+    let results = [];
+    for(let row of rows) {
+      let query = {};
+      for(let field in mappings) {
+        let mapped = mappings[field];
+        query[mapped] = row[field];
+      }
+      results.push([row, ixer.find(table2, query)]);
+    }
+    return results;
+  }
+
+//   var ixer = new Indexer();
+//   let diff = new Diff();
+//   diff.add("foo", {bar: "look", lol: "1"});
+//   diff.add("foo", {bar: "look", lol: "2"});
+//   diff.add("foo", {bar: "cool", lol: "3"});
+//   diff.add("foo", {bar: "meh", lol: "4"});
+//   diff.add("bar", {baz: "look"});
+//   diff.add("bar", {baz: "cool"});
+//   ixer.applyDiff(diff);
+
+//   function setup(size) {
+//     console.time("create");
+//     for(var i = 0; i < size; i++) {
+//       diff.add("foo", {bar: i, lol: i * 2});
+//     }
+//     for(var i = 0; i < size / 10; i++) {
+//       diff.add("bar", {baz: i + 1});
+//     }
+//     ixer.applyDiff(diff);
+//     console.timeEnd("create");
+//     console.time("index");
+//     ixer.find("foo", {bar: 0});
+//     ixer.find("bar", {baz: 3});
+//     console.timeEnd("index");
+//   }
+
+//   function bench(times) {
+//     console.time("join");
+//     for(var i = 0; i < times; i++) {
+//       var result = join("bar", "foo", {"baz": "bar"})
+//     }
+//     console.timeEnd("join");
+//     return result;
+//   }
+
+//   setup(100000);
+//   bench(10)
+
+  //---------------------------------------------------------
   // Go
   //---------------------------------------------------------
 
