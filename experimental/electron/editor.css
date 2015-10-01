@@ -16,7 +16,7 @@ webview { position:absolute; top:0; bottom:0; left: 0; right:0; z-index:0; }
 .editor-container { display:flex; flex-direction:column; position:absolute; width: 45%; top:0px; right:10px; bottom:0; transition:width 0.08s ease-in-out; z-index: 2; }
 .editor-container.hidden { width:0; }
 
-.CodeMirror { font-family: "Inconsolata"; font-size: 10pt; line-height:1.25; flex:1; height:100%; }
+.CodeMirror { font-family: "Inconsolata"; font-size: 12pt; line-height:1.25; flex:1; height:100%; }
 .CodeMirror.cm-s-pastel-on-dark { background: rgba(32,32,32,0.8); }
 .CodeMirror.cm-s-material { background: rgba(32,32,32,0.8);  }
 
