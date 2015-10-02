@@ -1,4 +1,4 @@
-module microReact {
+module MicroReact {
 
   export interface Handler<T extends Event> {
     (evt:T, elem:Element): void

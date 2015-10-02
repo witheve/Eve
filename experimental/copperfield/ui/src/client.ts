@@ -1,4 +1,3 @@
-/// <reference path="../experiments/uiEditorRenderer.ts" />
 /// <reference path="api.ts" />
 module client {
   declare var dispatcher;
@@ -6,16 +5,13 @@ module client {
   declare var CBOR;
   declare var uuid;
 
-  var ixer = api.ixer;
-  var zip = api.zip;
-  var dispatch = (event, info) => undefined;
+  var ixer = Api.ixer;
 
-  function now() {
-    if (window.performance) {
-      return window.performance.now();
-    }
-    return (new Date()).getTime();
-  }
+  // Override these values to integrate with app.
+  type OnReceive = (changed:string[], commands:any[][]) => void;
+  export var onReceive:OnReceive = () => undefined;
+  export var showNotice = (notice) => undefined;
+  export var hideNotice = (notice) => undefined;
 
   function isUndefined(val) {
     return val === undefined;
@@ -23,9 +19,9 @@ module client {
 
   /* Integrated Debugging Tooling */
   export function nukeTable(viewId) { // from orbit
-    var fieldIds = api.code.sortedViewFields(viewId);
-    var toRemove = api.ixer.facts(viewId);
-    sendToServer({ changes: [[viewId, fieldIds, [], toRemove]]}, true);
+    var fieldIds = Api.ixer.getFields(viewId);
+    var toRemove = Api.ixer.facts(viewId);
+    sendToServer({changes: [[viewId, fieldIds, [], toRemove]]}, true);
   }
 
   function formatTime(time?) {
@@ -126,15 +122,15 @@ module client {
       server.connected = false;
       server.dead = true;
       reconnect();
-      dispatch("setNotice", {content: `Error: Cannot communicate with Eve Server!`, type: "error", id: "server dead", duration: 0});
+      showNotice({content: `Error: Cannot communicate with Eve Server!`, type: "error", id: "server dead", duration: 0});
     }
 
     ws.onopen = function() {
       server.connected = true;
       if(server.dead) {
         server.dead = false;
-        dispatch("fadeNotice", {noticeId: "server dead"});
-        dispatch("setNotice", {content: "Reconnected to server!"});
+        hideNotice({noticeId: "server dead"});
+        showNotice({content: "Reconnected to server!"});
       }
       for (var i = 0, len = queue.length; i < len; i++) {
         sendToServer(queue[i], false);
@@ -142,14 +138,13 @@ module client {
     }
 
     ws.onmessage = function(e) {
-      var start = now();
+      var start = Api.now();
       var time:number;
-      var data = JSON.parse(e.data);
-      var time = now() - start;
+      var data:Indexing.Payload = JSON.parse(e.data);
+      var time = Api.now() - start;
       if (time > 5) {
         console.log("slow parse (> 5ms):", time);
       }
-
 
       var initializing = !server.initialized;
       if(data.commands) {
@@ -159,32 +154,31 @@ module client {
             initializing = true;
             // @FIXME: Send filename + path to dispatcher.
           }
-          if(command === "events got") {
-            dispatch("gotEvents", {save: args[0], events: args[1]});
-          }
         }
       }
 
       // For an explanation of what changes are synced, check: <https://github.com/witheve/Eve/blob/master/design/sync.md>
-      var changes = [];
+      var changes:Indexing.PayloadChange[] = [];
+      var changedViews:string[] = [];
       for(let change of data.changes) {
         let [view, fields, inserts, removes] = change;
-        if(!initializing && api.code.hasTag(view, "client")) {
+        if(!initializing && Api.code.hasTag(view, "client")) {
           // If view is client-controlled, discard any changes originating from our session.
           var sessionFieldIx:number;
           for(let fieldIx = 0; fieldIx < fields.length; fieldIx++) {
-            if(api.code.hasTag(fields[fieldIx], "session")) {
+            if(Api.code.hasTag(fields[fieldIx], "session")) {
               sessionFieldIx = fieldIx;
               break;
             }
           }
 
+          changedViews.push(view);
           changes.push([view,
                         fields,
                         filterFactsBySession(inserts, sessionFieldIx, data.session),
                         filterFactsBySession(removes, sessionFieldIx, data.session)]);
 
-        } else if (!initializing && api.code.hasTag(view, "editor")) {
+        } else if (!initializing && Api.code.hasTag(view, "editor")) {
           // If view is editor controlled, we discard all changes.
           continue;
         } else {
@@ -194,7 +188,7 @@ module client {
       }
 
       if (DEBUG.RECEIVE) {
-        var stats = getDataStats({changes: changes});
+        var stats = getDataStats({session: data.session, changes: changes, commands: data.commands});
         if (stats.adds || stats.removes) {
           var header = `[client:received][+${stats.adds}/-${stats.removes}]`;
           console.groupCollapsed(pad(header, formatTime()));
@@ -208,7 +202,7 @@ module client {
           console.groupEnd();
         }
 
-        start = now();
+        start = Api.now();
       }
 
       ixer.handleMapDiffs(changes);
@@ -216,49 +210,23 @@ module client {
       // If we haven't initialized the client yet, do so after we've handled the initial payload, so it can be accessed via the indexer.
       if (initializing) {
         var eventId = (ixer.facts("client event") || []).length; // Ensure eids are monotonic across sessions.
-        //uiEditorRenderer.setEventId(eventId);
-        //uiEditorRenderer.setSessionId(data.session); // Store server-assigned session id for use in client-controlled tables.
         // @NOTE: Is this the right behavior? Or should we GC the previous environment and initialize a new one?
         if(!server.initialized) {
           for(var initFunc of afterInitFuncs) {
             initFunc();
           }
         }
-
         server.initialized = true;
       }
 
-      time = now() - start;
+      time = Api.now() - start;
       if(DEBUG.RECEIVE) {
         if (time > 5) {
           console.log("slow handleDiffs (> 5ms):", time);
         }
       }
 
-      dispatcher.render();
-
-      // Get the user ID from a cookie
-      var name = "userid" + "=";
-      var cookie = document.cookie.split(';');
-      var userid = "";
-      if (cookie[0].indexOf(name) == 0)
-        userid = cookie[0].substring(name.length, cookie[0].length);
-
-      // Check if the user ID is found. If not, redirect the user to log in.
-      if (userid == "") {
-        // TODO Handle a user who isn't logged in.
-        console.log("Session has not been authenticated.");
-      } else {
-        var eveusers = api.ixer.index("eveusers id to username");
-        var username = eveusers[userid];
-        if (typeof username == 'undefined') {
-          // TODO Handle a user who is not in the eveuser table
-          console.log("Session cookie does not identify an eveuser.");
-        } else {
-          // TODO Handle a user who is logged in
-          console.log("You are logged in as " + username);
-        }
-      }
+      onReceive(changedViews, data.commands);
     };
   }
 
@@ -303,7 +271,7 @@ module client {
     outer: for(var ix = diffs.length - 1; ix >= 0; ix--) {
       var diff = diffs[ix];
       for(var needleIx = deduped.length - 1; needleIx >= 0; needleIx--) {
-        if(api.arraysIdentical(diff[2], deduped[needleIx][2]) && diff[0] === deduped[needleIx][0]) {
+        if(Api.arraysIdentical(diff[2], deduped[needleIx][2]) && diff[0] === deduped[needleIx][0]) {
           continue outer;
         }
       }
@@ -339,7 +307,7 @@ module client {
     var changes = [];
     for (var table in final) {
       if(!final[table]) continue;
-      var fieldIds = api.ixer.getFields(table) || [];
+      var fieldIds = Api.ixer.getFields(table) || [];
       fieldIds = fieldIds.concat(neueFields[table] || []);
 
       changes.push([table, fieldIds, final[table].inserted, final[table].removed]);
@@ -352,28 +320,24 @@ module client {
     afterInitFuncs.push(func);
   }
 
-  // Try to reconnect to the server every 10 seconds.
-  let checkReconnectInterval;
+  // Try to reconnect to the server with linear falloff.
+  let checkReconnectTimeout;
+  let checkReconnectDelay = 0;
   function reconnect() {
-    if(checkReconnectInterval) { return; }
-    checkReconnectInterval = setInterval(() => {
-      if(server.connected) {
-        clearInterval(checkReconnectInterval);
-        checkReconnectInterval = undefined;
-      } else {
-        connectToServer();
-      }
-    }, 10000);
+    if(checkReconnectTimeout) { return; }
+    checkReconnectTimeout = setTimeout(tryConnect, 2000 + checkReconnectDelay++ * 2000);
     connectToServer();
   }
 
-  document.addEventListener("DOMContentLoaded", reconnect);
+  function tryConnect() {
+    checkReconnectTimeout = undefined;
+    if(server.connected) {
+      checkReconnectDelay = 0;
+      //@FIXME: Need to resync here.
+    } else {
+      reconnect();
+    }
+  }
 
-  export function setDispatch(dispatchFn) {
-    dispatch = dispatchFn;
-  }
-  //This is hacky, but we want to preserve backwards compatibility for now.
-  export function setRenderer(renderFn) {
-    dispatcher = {render: renderFn};
-  }
+  document.addEventListener("DOMContentLoaded", reconnect);
 }

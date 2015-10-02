@@ -144,7 +144,6 @@ module drawn {
     let raw = new microReact.Renderer();
     renderer = new uiRenderer.UiRenderer(raw);
     document.body.appendChild(raw.content);
-    raw.queued = false;
     window.addEventListener("resize", render);
     perfStats = document.createElement("div");
     perfStats.id = "perfStats";
@@ -155,9 +154,8 @@ module drawn {
 
 
   export function render() {
-    let raw = renderer.renderer;
-    if(raw.queued === false) {
-      raw.queued = true;
+    if(renderer.queued === false) {
+      renderer.queued = true;
       // @FIXME: why does using request animation frame cause events to stack up and the renderer to get behind?
       setTimeout(function() {
       // requestAnimationFrame(function() {
@@ -186,7 +184,7 @@ module drawn {
 
         var total = performance.now() - start;
         perfStats.textContent += ` | render: ${total.toFixed(2)}`;
-        raw.queued = false;
+        renderer.queued = false;
       }, 16);
     }
   }
