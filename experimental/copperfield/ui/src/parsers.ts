@@ -2,6 +2,8 @@ module Parsers {
   //---------------------------------------------------------------------------
   // Utilities
   //---------------------------------------------------------------------------
+  const PUNCTUATION = [".", ",", ";", ":"];
+
   interface ParseError {
     (msg:string, token?:any): Error
     tokenToChar: (token:any, line:string) => number
@@ -66,12 +68,9 @@ module Parsers {
 
   export function fingerprintSource(structure) {
     let fingerprint = "";
-    let multi = false;
     for(let token of structure) {
       //console.log(token);
-      if(multi) fingerprint += " ";
        fingerprint += token.type ? "?" : token;
-       multi = true;
     }
     return fingerprint;
   }
@@ -80,14 +79,14 @@ module Parsers {
   // Query Parser
   //---------------------------------------------------------------------------
   interface QueryStructureAST extends String { type: void }
-  interface QueryFieldAST { type: string, grouped?: boolean, alias?: string, value?: string, constant?: string, tokenIx?: number }
+  interface QueryFieldAST { type: string, grouped?: boolean, alias?: string, value?: string, tokenIx?: number }
   interface QuerySourceAST { negated?: boolean, structure: (QueryFieldAST|QueryStructureAST)[], lineIx?: number }
   interface QueryActionAST { action: string, params: any, lineIx?: number }
   interface QueryAST { sources: QuerySourceAST[], actions: QueryActionAST[] }
 
   type SourceFieldPair = [string, string];
   interface SourceFieldLookup {[sourceId: string]: {[fieldId: string]: string}};
-  interface ReifiedQueryField { field: string, grouped?: boolean, alias?: string, value?: string, constant?: string }
+  interface ReifiedQueryField { field: string, grouped?: boolean, alias?: string, value?: string }
   interface ReifiedQuerySource { negated?: boolean, source: string, view: string, fields: ReifiedQueryField[] }
   interface ReifiedQuery {
     sources: ReifiedQuerySource[]
@@ -130,38 +129,30 @@ module Parsers {
   }
 
   query.tokenize = makeTokenizer(query.TOKENS);
-  query.tokenToChar = function(token, line) {
-    if(token.tokenIx) {
-      return query.tokenize(line).slice(0, token.tokenIx - 1).join("").length;
-    }
-    return 0;
-  }
+  query.tokenToChar = (token, line) => (token.tokenIx !== undefined) ? query.tokenize(line).slice(0, token.tokenIx - 1).join("").length : 0;
   query.tokenToString = function(token) {
     if(token.type === "field") return `?${token.grouped ? "?" : ""}${token.alias || ""}`;
-    if(token.type === "constant") return `$$${token.constant|| ""}`;
     if(token.type === "literal") return `\`${token.value || ""}\``;
     return token;
   }
 
   // Parsing
   query.parse = function(raw) {
+    let ast:QueryAST = {sources: [], actions: []};
     let lines = raw.split("\n");
     for(let ix = 0; ix < lines.length; ix++) {
       lines[ix] = lines[ix].trim();
     }
-    ParseError.lines = lines.slice();
+    ParseError.lines = lines;
     ParseError.tokenToChar = query.tokenToChar;
     ParseError.tokenToString = query.tokenToString;
-
-    let ast:QueryAST = {sources: [], actions: []};
 
     let lineIx = 0;
     for(let line of lines) {
       ParseError.lineIx = lineIx;
-
       let tokens = query.tokenize(line);
       while(tokens[0] === " " || tokens[0] === "\t") tokens = tokens.slice(1);
-      if(tokens.length < 1) {
+      if(tokens.length === 0) {
         lineIx++;
         continue;
       }
@@ -192,19 +183,24 @@ module Parsers {
     while(line.length) {
       let token = line.shift();
       let tokenIx = lineLength - line.length + offset;
-      if(token === " ") continue;
+      if(token === " ") {
+        ast.structure.push(<any>token);
+        continue;
+      }
 
       let field:QueryFieldAST = {type: undefined, tokenIx};
       // Token is a blank field.
       if(token === "?") {
         field.type = "field";
-        let alias = line.shift();
+        let alias = line[0];
         if(alias === "?") { // Field is grouped.
+          line.shift();
           field.grouped = true;
-          alias = line.shift();
+          alias = line[0];
         }
-        if(alias !== " " && alias !== undefined) {
+        if(alias && alias !== " " && PUNCTUATION.indexOf(alias) === -1) { // Field is aliased.
           field.alias = alias;
+          line.shift();
         }
         ast.structure.push(field);
         continue;
@@ -220,15 +216,6 @@ module Parsers {
           if(next === undefined) throw ParseError("Unterminated quoted literal.", field);
           field.value += next;
         }
-        ast.structure.push(field);
-        continue;
-      }
-
-      // Token is a constant.
-      if(token === "$$") {
-        field.type = "constant";
-        field.constant = line.shift();
-        if(field.constant === undefined) throw ParseError("Constant requires a name.", field);
         ast.structure.push(field);
         continue;
       }
@@ -253,14 +240,11 @@ module Parsers {
   // Reification
   query.reify = function(ast:QueryAST):ReifiedQuery {
     let reified:ReifiedQuery = {sources: [], aliases: {}, variables: {}, constants: {}, views: {}, actions: []};
-    let anonVar = 0;
-    let literals = 0;
     for(let sourceAST of ast.sources) {
-      let sourceId = reified.sources.length;
       let source = query.reifySource(sourceAST);
       for(let field of source.fields) {
         let varId = reified.aliases[field.alias] || Api.uuid();
-        if(!reified.variables[varId]) reified.variables[varId] = {selected: true, bindings: [], constant: field.constant};
+        if(!reified.variables[varId]) reified.variables[varId] = {selected: true, bindings: []};
         reified.variables[varId].bindings.push([source.source, field.field]);
         if(field.value !== undefined) {
           let constantId = Api.uuid();
@@ -297,7 +281,7 @@ module Parsers {
       if(queryTokenIsField(token)) {
         let {"fingerprint field: field":field} = fieldIxes.shift() || {};
         if(!field && !allowMissing) throw ParseError(`Fingerprint '${fingerprint}' is missing a field for blank '${query.tokenToString(token)}'.`);
-        source.fields.push({field, grouped: token.grouped, alias: token.alias, value: token.value, constant: token.constant});
+        source.fields.push({field, grouped: token.grouped, alias: token.alias, value: token.value});
       }
     }
 
