@@ -170,12 +170,12 @@ module Ui {
   }
 
   export function row(elem:Element):Element {
-    elem.c = `flex-row ${elem.c || ""}`;
+    elem.c = `ui-row ${elem.c || ""}`;
     return elem;
   }
 
   export function column(elem:Element):Element {
-    elem.c = `flex-column ${elem.c || ""}`;
+    elem.c = `ui-column ${elem.c || ""}`;
     return elem;
   }
 
@@ -293,7 +293,7 @@ module Ui {
     for(let header of headers) {
       let {field: activeField, direction: dir} = uiState.sort[elem.id] || {field: undefined, direction: undefined};
       let active = (activeField === header);
-      let headerElem = inject({t: "th", c: "spaced-row header", click: headerClick, header, children: [
+      let headerElem = inject({t: "th", c: "ui-spaced-row header", click: headerClick, header, children: [
         <Element>{text: (staticHeaders ? header : Api.code.name(header))},
         (sortable ? sortToggle({"for": elem.id, field: header, direction: active ? dir : 1, active}) : undefined)
       ]}, headerControls);
@@ -412,7 +412,7 @@ module Ui {
   }
 
   export function spacer(elem:Element = {}):Element {
-    elem.c = `flex-spacer ${elem.c || ""}`;
+    elem.c = `ui-spacer ${elem.c || ""}`;
     return elem;
   }
 
