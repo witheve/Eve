@@ -442,16 +442,22 @@ return index;`
   }
 
   function compileJoin(tables, mappings, ix = 0) {
+    let needsMapping = false;
     let mappingCode = `\nvar query${ix} = {\n`;
     for(let key in mappings[ix]) {
-      let [tableIx, value] = mappings[ix][key];
-      mappingCode += `'${key}': row${tableIx}['${value}'], `;
+      needsMapping = true;
+      let mapping = mappings[ix][key];
+      if(mapping.constructor === Array) {
+        let [tableIx, value] = mapping;
+        mappingCode += `'${key}': row${tableIx}['${value}'], `;
+      } else {
+        mappingCode += `'${key}': ${JSON.stringify(mapping)}, `;
+      }
     }
     mappingCode += "\n};";
     let code = "";
-    if(ix === 0) {
+    if(!needsMapping) {
       code += `
-var results = [];
 var rows${ix} = ixer.find('${tables[ix]}');
 `
     } else {
@@ -474,7 +480,11 @@ ${compileJoin(tables, mappings, ix+1)}`;
     }
     code += "\n}";
       if(ix === 0) {
-        code += "\nreturn results;";
+
+        code = `var results = [];
+${code}
+return results;
+`;
               console.log(code);
          return new Function(`return function(ixer) { ${code} }`)();
         return;
