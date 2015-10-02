@@ -12,7 +12,6 @@ module Parsers {
   var ParseError:ParseError = <any>function(msg, token?:any) {
     let {lines = [], lineIx} = ParseError;
     let line = lines[lineIx] || ""
-    console.log(lines, lineIx);
     let charIx = token !== undefined ? ParseError.tokenToChar(token, line) : 0;
     let length = token !== undefined ? (ParseError.tokenToString(token, line) || "").length : line.length - charIx;
     msg += `\nOn line ${lineIx}:${charIx}`;
@@ -158,7 +157,7 @@ module Parsers {
 
     let lineIx = 0;
     for(let line of lines) {
-      ParseError.lineIx = lineIx + 1;
+      ParseError.lineIx = lineIx;
 
       let tokens = query.tokenize(line);
       while(tokens[0] === " " || tokens[0] === "\t") tokens = tokens.slice(1);
@@ -218,7 +217,7 @@ module Parsers {
         while(true) {
           let next = line.shift();
           if(next === "`") break;
-          if(next === undefined) throw ParseError("Parse Error: Unterminated quoted literal.", field);
+          if(next === undefined) throw ParseError("Unterminated quoted literal.", field);
           field.value += next;
         }
         ast.structure.push(field);
@@ -229,7 +228,7 @@ module Parsers {
       if(token === "$$") {
         field.type = "constant";
         field.constant = line.shift();
-        if(field.constant === undefined) throw ParseError("Parse Error: Constant requires a name.", field);
+        if(field.constant === undefined) throw ParseError("Constant requires a name.", field);
         ast.structure.push(field);
         continue;
       }
