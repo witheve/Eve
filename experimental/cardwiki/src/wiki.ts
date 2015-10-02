@@ -269,6 +269,15 @@ module wiki {
     }).join(" && ")};`);
   }
 
+  function generateStringFn(keys:string[]) {
+    let keyString = `a['${keys[0]}']`;
+    keys.shift();
+    for(let key of keys) {
+      keyString += ` + "|" + a['${key}']`;
+    }
+    return new Function("a",  `return ${keyString};`);
+  }
+
   function generateCollector(keys:string[]) {
     let code = "";
     let ix = 0;
@@ -291,10 +300,12 @@ module wiki {
       checks += `cursor = ${path}\n`;
     }
     code += `
-for(var remove of removes) {
+for(var ix = 0, len = removes.length; ix < len; ix++) {
+  var remove = removes[ix];
   ${removes}
 }
-for(var add of adds) {
+for(var ix = 0, len = adds.length; ix < len; ix++) {
+  var add = adds[ix];
   var cursor = index;
   var value;
   ${checks}  cursor.push(add);
@@ -337,7 +348,7 @@ return index;`
       this.tables = {};
     }
     addTable(name, keys) {
-      let table = this.tables[name] = {table: [], factHash: {}, indexes: {}, joins: {}, fields: keys, equals: generateEqualityFn(keys)};
+      let table = this.tables[name] = {table: [], factHash: {}, indexes: {}, joins: {}, fields: keys, stringify: generateStringFn(keys), equals: generateEqualityFn(keys)};
       return table;
     }
     updateTable(tableId, adds, removes) {
@@ -346,34 +357,43 @@ return index;`
         let example = adds[0] || removes[0];
         table = this.addTable(tableId, Object.keys(example));
       }
+      let stringify = table.stringify;
       let facts = table.table;
       let factHash = table.factHash;
       let localHash = {};
+      let hashToFact = {};
+      let hashes = [];
       for(let add of adds) {
-        let hash = JSON.stringify(add);
+        let hash = stringify(add);
         if(localHash[hash] === undefined) {
-          localHash[hash] = [add, 1];
+          localHash[hash] = 1;
+          hashToFact[hash] = add;
+          hashes.push(hash);
         } else {
-          localHash[hash][1]++;
+          localHash[hash]++;
         }
       }
       for(let remove of removes) {
-        let hash = JSON.stringify(remove);
+        let hash = stringify(remove);
         if(localHash[hash] === undefined) {
-          localHash[hash] = [remove, -1];
+          localHash[hash] = -1;
+          hashToFact[hash] = remove;
+          hashes.push(hash);
         } else {
-          localHash[hash][1]--;
+          localHash[hash]--;
         }
       }
       let realAdds = [];
       let realRemoves = [];
-      for(let hash in localHash) {
-        let [fact, count] = localHash[hash];
+      for(let hash of hashes) {
+        let count = localHash[hash];
         if(count > 0 && !factHash[hash]) {
+          let fact = hashToFact[hash];
           realAdds.push(fact);
           facts.push(fact);
           factHash[hash] = true;
         } else if(count < 0 && factHash[hash]) {
+          let fact = hashToFact[hash];
           realRemoves.push(fact);
           removeFact(facts, fact, table.equals);
           factHash[hash] = undefined;
@@ -426,7 +446,6 @@ return index;`
     for(let key in mappings[ix]) {
       let [tableIx, value] = mappings[ix][key];
       mappingCode += `'${key}': row${tableIx}['${value}'], `;
-            console.log("mappingCode", key, );
     }
     mappingCode += "\n};";
     let code = "";
@@ -440,13 +459,15 @@ var rows${ix} = ixer.find('${tables[ix]}');
 var rows${ix} = ixer.factToIndex(ixer.tables['${tables[ix]}'], query${ix});
 `
     }
-    code += `for( row${ix} of rows${ix}) {`
+    code += `for(var rowIx${ix} = 0, len${ix} = rows${ix}.length; rowIx${ix} < len${ix}; rowIx${ix}++) {
+var row${ix} = rows${ix}[rowIx${ix}];
+`
     if(ix + 1 === tables.length) {
-      code += "\nresults.push([row0";
+      code += "\nresults.push(row0";
       for(let rowIx = 1; rowIx <= ix; rowIx++) {
         code += `, row${rowIx}`
       }
-      code += `]);`
+      code += `);`
     } else {
       code += `
 ${compileJoin(tables, mappings, ix+1)}`;
@@ -461,59 +482,6 @@ ${compileJoin(tables, mappings, ix+1)}`;
 
     return code;
   }
-
-    export var compiledJoins = {};
-
-    function join(table1, table2, mappings) {
-      let rows = ixer.find(table1);
-      let results = [];
-      for(let row of rows) {
-        let query = {};
-        for(let field in mappings) {
-          let mapped = mappings[field];
-          query[mapped] = row[field];
-        }
-        let table2Rows = ixer.find(table2, query);
-        for(let row2 of table2Rows) {
-          results.push([row, row2]);
-        }
-      }
-      return results;
-    }
-
-    function genericJoin(tables, mappings) {
-      let rows = ixer.find(tables[0]);
-      let results = [];
-      for(var row of rows) {
-        genericJoinRecurse(tables, mappings, results, [row], 1);
-      }
-      return results;
-    }
-
-    function genericJoinRecurse(tables, mappings, results, curRow, ix) {
-      let query = {};
-      let mapping = mappings[ix];
-      for(let field in mapping) {
-        let [row, mapped] = mapping[field];
-        query[mapped] = curRow[row][field];
-      }
-      let rows = ixer.find(tables[ix], query);
-      if(ix + 1 === tables.length) {
-        for(let row of rows) {
-          var newRow = curRow.slice();
-          newRow.push(row);
-          results.push(newRow);
-        }
-      } else {
-        for(let row of rows) {
-          var newRow = curRow.slice();
-          newRow.push(row);
-          genericJoinRecurse(tables, mappings, results, newRow, ix + 1);
-        }
-      }
-    }
-
-
 
   var ixer = new Indexer();
   let diff = new Diff();
@@ -546,50 +514,21 @@ ${compileJoin(tables, mappings, ix+1)}`;
     console.time("compile");
     var compiled = compileJoin(["foo", "bar"], [{}, {baz: [0, "bar"]}]);
     console.timeEnd("compile");
-    for(var i = 0; i < times; i++) {
-      var result = compiled(ixer);
-    }
     console.time("compile join");
     for(var i = 0; i < times; i++) {
       var result = compiled(ixer);
     }
     console.timeEnd("compile join");
-    console.time("join");
-    for(var i = 0; i < times; i++) {
-      var result = join("foo", "bar", {bar: "baz"});
-    }
-    console.timeEnd("join");
-        console.time("manualCompile");
-    for(var i = 0; i < times; i++) {
-      var result = manualCompile(ixer);
-    }
-    console.timeEnd("manualCompile");
-
-    console.time("genericJoin");
-    for(var i = 0; i < times; i++) {
-      var result = genericJoin(["foo", "bar"], [{}, {baz: [0, "bar"]}]);
-    }
-    console.timeEnd("genericJoin");
+//     console.time("genericJoin");
+//     for(var i = 0; i < times; i++) {
+//       var result = genericJoin(["foo", "bar"], [{}, {baz: [0, "bar"]}]);
+//     }
+//     console.timeEnd("genericJoin");
     return result;
   }
 
-    function manualCompile(ixer) {
-      var results = [];
-      var rows0 = ixer.find('foo');
-      for( row0 of rows0) {
-        var query1 = {
-          'baz': row0['bar'],
-        };
-        var rows1 = ixer.factToIndex(ixer.tables['bar'], query1);
-        for( row1 of rows1) {
-          results.push([row0, row1]);
-        }
-      }
-      return results;
-    }
-
   setup(1000);
-  bench(10);
+  var res = bench(1);
 
   //---------------------------------------------------------
   // Go
