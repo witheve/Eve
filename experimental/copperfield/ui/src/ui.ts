@@ -74,7 +74,7 @@ module Ui {
     }
   }
 
-  var dispatches:{[evt:string]: (info:{}) => boolean} = {
+  export var dispatches:{[evt:string]: (info:{}) => boolean} = {
     switchTab: ({tab, tabbedBox}:{tab:string, tabbedBox:string}) => {
       uiState.tabbedBox[tabbedBox] = tab;
       return true;
@@ -88,6 +88,7 @@ module Ui {
       return true;
     }
   };
+
   export function dispatch(evt:string, info:any) {
     if(!dispatches[evt]) {
       console.error("Unknown dispatch:", event, info);
@@ -107,9 +108,10 @@ module Ui {
     panes: Pane[]
     controls?:Control[]
     defaultTab?:string
+    direction?:string
   }
   export function tabbedBox(elem:TabbedBoxElement):Element {
-    let {id, defaultTab, panes = [], controls = []} = elem;
+    let {id, defaultTab, panes = [], controls = [], direction = "column"} = elem;
     if(panes.length < 1) { return; }
     let tabs = [];
     let currentPane;
@@ -126,8 +128,11 @@ module Ui {
       }
     }
     elem.c = `tabbed-box ${elem.c || ""}`;
+    if(elem.c.indexOf("ui-row") !== -1) { direction = "row"; }
+    else if(direction === "row") { elem.c += " ui-row"; }
+
     elem.children = [
-      {c: "tabs", children: tabs.concat(spacer()).concat(controls)},
+      {c: `tabs ${direction === "column" ? "ui-row ui-spaced-row" : ""}`, children: tabs.concat(spacer()).concat(controls)},
       inject({c: "pane"}, currentPane.content)
     ];
     return elem;
