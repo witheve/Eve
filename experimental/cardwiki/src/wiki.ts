@@ -1,5 +1,6 @@
-/// <reference path="app.ts" />
+//// <reference path="app.ts" />
 /// <reference path="microReact.ts" />
+"use strict"
 
 module wiki {
 
@@ -392,9 +393,6 @@ return index;`
         collect: generateCollector(keys),
       }
     }
-    findIndex(tableId, keys) {
-
-    }
     factToIndex(table, fact) {
       let keys = Object.keys(fact);
       keys.sort();
@@ -423,22 +421,103 @@ return index;`
     }
   }
 
-  function join(table1, table2, mappings) {
-    let rows = ixer.find(table1);
-    let results = [];
-    for(let row of rows) {
-      let query = {};
-      for(let field in mappings) {
-        let mapped = mappings[field];
-        query[mapped] = row[field];
-      }
-      results.push([row, ixer.find(table2, query)]);
+  function compileJoin(tables, mappings, ix = 0) {
+    let mappingCode = `\nvar query${ix} = {\n`;
+    for(let key in mappings[ix]) {
+      let [tableIx, value] = mappings[ix][key];
+      mappingCode += `'${key}': row${tableIx}['${value}'], `;
+            console.log("mappingCode", key, );
     }
-    return results;
+    mappingCode += "\n};";
+    let code = "";
+    if(ix === 0) {
+      code += `
+var results = [];
+var rows${ix} = ixer.find('${tables[ix]}');
+`
+    } else {
+      code += `${mappingCode}
+var rows${ix} = ixer.factToIndex(ixer.tables['${tables[ix]}'], query${ix});
+`
+    }
+    code += `for( row${ix} of rows${ix}) {`
+    if(ix + 1 === tables.length) {
+      code += "\nresults.push([row0";
+      for(let rowIx = 1; rowIx <= ix; rowIx++) {
+        code += `, row${rowIx}`
+      }
+      code += `]);`
+    } else {
+      code += `
+${compileJoin(tables, mappings, ix+1)}`;
+    }
+    code += "\n}";
+      if(ix === 0) {
+        code += "\nreturn results;";
+              console.log(code);
+         return new Function(`return function(ixer) { ${code} }`)();
+        return;
+      }
+
+    return code;
   }
 
-//   var ixer = new Indexer();
-//   let diff = new Diff();
+    export var compiledJoins = {};
+
+    function join(table1, table2, mappings) {
+      let rows = ixer.find(table1);
+      let results = [];
+      for(let row of rows) {
+        let query = {};
+        for(let field in mappings) {
+          let mapped = mappings[field];
+          query[mapped] = row[field];
+        }
+        let table2Rows = ixer.find(table2, query);
+        for(let row2 of table2Rows) {
+          results.push([row, row2]);
+        }
+      }
+      return results;
+    }
+
+    function genericJoin(tables, mappings) {
+      let rows = ixer.find(tables[0]);
+      let results = [];
+      for(var row of rows) {
+        genericJoinRecurse(tables, mappings, results, [row], 1);
+      }
+      return results;
+    }
+
+    function genericJoinRecurse(tables, mappings, results, curRow, ix) {
+      let query = {};
+      let mapping = mappings[ix];
+      for(let field in mapping) {
+        let [row, mapped] = mapping[field];
+        query[mapped] = curRow[row][field];
+      }
+      let rows = ixer.find(tables[ix], query);
+      if(ix + 1 === tables.length) {
+        for(let row of rows) {
+          var newRow = curRow.slice();
+          newRow.push(row);
+          results.push(newRow);
+        }
+      } else {
+        for(let row of rows) {
+          var newRow = curRow.slice();
+          newRow.push(row);
+          genericJoinRecurse(tables, mappings, results, newRow, ix + 1);
+        }
+      }
+    }
+
+
+
+  var ixer = new Indexer();
+  let diff = new Diff();
+
 //   diff.add("foo", {bar: "look", lol: "1"});
 //   diff.add("foo", {bar: "look", lol: "2"});
 //   diff.add("foo", {bar: "cool", lol: "3"});
@@ -447,33 +526,70 @@ return index;`
 //   diff.add("bar", {baz: "cool"});
 //   ixer.applyDiff(diff);
 
-//   function setup(size) {
-//     console.time("create");
-//     for(var i = 0; i < size; i++) {
-//       diff.add("foo", {bar: i, lol: i * 2});
-//     }
-//     for(var i = 0; i < size / 10; i++) {
-//       diff.add("bar", {baz: i + 1});
-//     }
-//     ixer.applyDiff(diff);
-//     console.timeEnd("create");
-//     console.time("index");
-//     ixer.find("foo", {bar: 0});
-//     ixer.find("bar", {baz: 3});
-//     console.timeEnd("index");
-//   }
+  function setup(size) {
+    console.time("create");
+    for(var i = 0; i < size; i++) {
+      diff.add("foo", {bar: i, lol: i * 2});
+    }
+    for(var i = 0; i < size / 1; i++) {
+      diff.add("bar", {baz: i + 1});
+    }
+    ixer.applyDiff(diff);
+    console.timeEnd("create");
+    console.time("index");
+    ixer.find("foo", {bar: 0});
+    ixer.find("bar", {baz: 3});
+    console.timeEnd("index");
+  }
 
-//   function bench(times) {
-//     console.time("join");
-//     for(var i = 0; i < times; i++) {
-//       var result = join("bar", "foo", {"baz": "bar"})
-//     }
-//     console.timeEnd("join");
-//     return result;
-//   }
+  function bench(times) {
+    console.time("compile");
+    var compiled = compileJoin(["foo", "bar"], [{}, {baz: [0, "bar"]}]);
+    console.timeEnd("compile");
+    for(var i = 0; i < times; i++) {
+      var result = compiled(ixer);
+    }
+    console.time("compile join");
+    for(var i = 0; i < times; i++) {
+      var result = compiled(ixer);
+    }
+    console.timeEnd("compile join");
+    console.time("join");
+    for(var i = 0; i < times; i++) {
+      var result = join("foo", "bar", {bar: "baz"});
+    }
+    console.timeEnd("join");
+        console.time("manualCompile");
+    for(var i = 0; i < times; i++) {
+      var result = manualCompile(ixer);
+    }
+    console.timeEnd("manualCompile");
 
-//   setup(100000);
-//   bench(10)
+    console.time("genericJoin");
+    for(var i = 0; i < times; i++) {
+      var result = genericJoin(["foo", "bar"], [{}, {baz: [0, "bar"]}]);
+    }
+    console.timeEnd("genericJoin");
+    return result;
+  }
+
+    function manualCompile(ixer) {
+      var results = [];
+      var rows0 = ixer.find('foo');
+      for( row0 of rows0) {
+        var query1 = {
+          'baz': row0['bar'],
+        };
+        var rows1 = ixer.factToIndex(ixer.tables['bar'], query1);
+        for( row1 of rows1) {
+          results.push([row0, row1]);
+        }
+      }
+      return results;
+    }
+
+  setup(1000);
+  bench(10);
 
   //---------------------------------------------------------
   // Go
