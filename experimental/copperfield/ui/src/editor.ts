@@ -31,6 +31,12 @@ module Editor {
       return this;
     }
   }
+
+  var __handlers:{[evt:string]: MicroReact.Handler<Event> } = {};
+  function dispatchOnEvent(evt) {
+    return __handlers[name] || (__handlers[name] = (evt, elem) => dispatch(name, elem).done());
+  }
+
   var dispatches:{[evt:string]: (info:{}) => DispatchEffect} = {
     createView: function({}) {
       let effect = DispatchEffect.from(this);
@@ -62,16 +68,16 @@ module Editor {
   }
 
   let script =
-  //`
-  //  view ?view is a \`union\`
-  //  view ?view is tagged ?
-  //  + union tag ?tag.
-  //`;
   `
-    I've had it with these motherfucking ?a on this motherfucking ?vehicle.
-    A(n) ?vehicle should *never* contain \`snakes\`
-    + Too many ?a are on the ?vehicle
-`;
+   view ?view is a \`union\`
+   view ?view is tagged ??tag
+   + union tag ?tag.
+  `;
+  // `
+  //   I've had it with these motherfucking ?a on this motherfucking ?vehicle.
+  //   A(n) ?vehicle should *never* contain \`snakes\`
+  //   + Too many ?a are on the ?vehicle
+  // `;
 
   function root():Element {
     let parsed;
@@ -89,15 +95,35 @@ module Editor {
       }
     }
 
-    return {children: [
-      {text: "hello there, I am groot"},
-      {t: "pre", text: script},
-      {text: "==>"},
-      {t: "pre", c: "err", text: msg},
-      {t: "pre", c: "ast", text: parsed},
-      {t: "pre", c: "reified", text: reified}
+    let resultPanes:Ui.Pane[] = [
+      {
+        title: "AST",
+        id: "result-ast",
+        content: {t: "pre", c: "ast", text: parsed}
+      },
+      {
+        title: "Reified",
+        id: "result-reified",
+        content: {t: "pre", c: "reified", text: reified}
+      }
+    ];
 
+    return {children: [
+      {text: "Copperfield"},
+      Ui.row({children: [
+        Ui.column({flex: 1, children: [
+          Ui.button({text: "compile", click: recompile}),
+          Ui.input({t: "pre", c: "code", flex: 1, text: script}),
+          {t: "pre", c: "err", text: msg}
+        ]}),
+        Ui.tabbedBox({flex: 1, panes: resultPanes, defaultTab: "result-reified"})
+      ]})
     ]};
+  }
+
+  function recompile(evt, elem) {
+    script = document.querySelector(".code").textContent;
+    render();
   }
 
   //---------------------------------------------------------------------------
@@ -118,6 +144,7 @@ module Editor {
       Client.onReceive = function(changed, commands) {
         render();
       }
+      Ui.onChange = render;
     } else {
       localState = Api.localState;
     }
