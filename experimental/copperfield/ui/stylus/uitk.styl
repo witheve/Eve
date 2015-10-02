@@ -1,0 +1,28 @@
+//-----------------------------------------------------------------------------
+// Container styling
+//-----------------------------------------------------------------------------
+.ui-spaced-row > * + * {
+  margin-left: 5px;
+}
+.ui-spaced-column > * + * {
+  margin-left: 5px;
+}
+.ui-row {
+  display: flex;
+  flex-direction: row;
+}
+.ui-column {
+  display: flex;
+  flex-direction: column;
+}
+.ui-row > *, .ui-column > * {
+  display: flex;
+}
+.ui-spacer {
+  flex: 1;
+}
+.ui-centered {
+  align-self: stretch;
+  justify-content: center;
+  align-items: center;
+}

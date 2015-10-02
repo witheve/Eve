@@ -1,0 +1,31 @@
+{
+  "name": "eve",
+  "version": "0.0.0",
+  "description": "Better tools for thought.",
+  "main": "./ui/editor.html",
+  "dependencies": {
+    "codemirror": "*",
+    "stylus": "^0.52.4",
+    "typescript": "1.6.0-dev.20150731"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "./test.sh"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/witheve/Eve.git"
+  },
+  "keywords": [
+    "Eve",
+    "relational",
+    "programming",
+    "language"
+  ],
+  "author": "Kodowa Team",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/witheve/Eve/issues"
+  },
+  "homepage": "https://github.com/witheve/Eve#readme"
+}
