@@ -1,0 +1,32 @@
+/*---------------------------------------------------------
+- Root
+---------------------------------------------------------*/
+
+body { background: #222; font-family:"Lato"; overflow:hidden; height: 100vh; display:flex; }
+
+/* we want everything to be flex and to use a sane box-sizing model */
+body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-direction-flex: column; box-sizing: border-box; outline:none; }
+
+.__root { flex: 1; }
+.root { max-width:800px; background: #222; color: #ccc; flex: 1; align-items: center; justify-content: center; flex-direction: row; }
+
+#perfStats { position:absolute; top: 10px; right:10px; }
+
+/*---------------------------------------------------------
+- Article Editor
+---------------------------------------------------------*/
+.article { background: #333; padding:20px; max-width: 600px; min-height: 300px; min-width: 300px; border-radius:3px; box-shadow: 0 2px 2px #111; }
+.article pre { display:block; white-space: pre-wrap; }
+.article span { display:inline-block; }
+.article .link { color: #f88; cursor:default; border-bottom:1px solid transparent;  }
+.article .link.found { color: #99f; }
+.link:hover { border-bottom-color:#f88; }
+.link.found:hover { border-bottom-color:#99f; }
+
+
+.CodeMirror div { display:block; }
+.CodeMirror.cm-s-default { font-family: "Lato"; font-size: 12pt; height: auto; background: transparent; color: #ccc; }
+.CodeMirror .Codemirror-scroll { height:auto; }
+.cm-s-default .CodeMirror-cursor { border-color: #999; }
+
+.history-stack { margin-left: 10px; }
