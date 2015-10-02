@@ -479,16 +479,14 @@ var row${ix} = rows${ix}[rowIx${ix}];
 ${compileJoin(tables, mappings, ix+1)}`;
     }
     code += "\n}";
-      if(ix === 0) {
+    if(ix === 0) {
 
-        code = `var results = [];
+      code = `var results = [];
 ${code}
 return results;
 `;
-              console.log(code);
-         return new Function(`return function(ixer) { ${code} }`)();
-        return;
-      }
+      return new Function(`return function(ixer) { ${code} }`)();
+    }
 
     return code;
   }
