@@ -223,6 +223,11 @@ pub fn editor_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("geocoding request", vec!["formatted address"]),
     ("geocoding response status", vec!["formatted address","status"]),
     ("geocoding response data", vec!["formatted address","lat","lng"]),
+
+
+    // Copperfield tables
+    ("view fingerprint", vec!["view", "fingerprint"]),
+    ("fingerprint field", vec!["fingerprint", "field", "ix"]),
     ]
 }
 
