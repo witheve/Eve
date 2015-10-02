@@ -1,5 +1,5 @@
 /// <reference path="api.ts" />
-module client {
+module Client {
   declare var dispatcher;
   declare var DEBUG;
   declare var CBOR;
