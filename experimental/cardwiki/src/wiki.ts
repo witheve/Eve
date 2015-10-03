@@ -1,4 +1,4 @@
-//// <reference path="app.ts" />
+/// <reference path="app.ts" />
 /// <reference path="microReact.ts" />
 "use strict"
 
@@ -269,6 +269,15 @@ module wiki {
     }).join(" && ")};`);
   }
 
+  function generateStringFn(keys:string[]) {
+    let keyString = `a['${keys[0]}']`;
+    keys.shift();
+    for(let key of keys) {
+      keyString += ` + "|" + a['${key}']`;
+    }
+    return new Function("a",  `return ${keyString};`);
+  }
+
   function generateCollector(keys:string[]) {
     let code = "";
     let ix = 0;
@@ -291,10 +300,12 @@ module wiki {
       checks += `cursor = ${path}\n`;
     }
     code += `
-for(var remove of removes) {
+for(var ix = 0, len = removes.length; ix < len; ix++) {
+  var remove = removes[ix];
   ${removes}
 }
-for(var add of adds) {
+for(var ix = 0, len = adds.length; ix < len; ix++) {
+  var add = adds[ix];
   var cursor = index;
   var value;
   ${checks}  cursor.push(add);
@@ -337,7 +348,7 @@ return index;`
       this.tables = {};
     }
     addTable(name, keys) {
-      let table = this.tables[name] = {table: [], factHash: {}, indexes: {}, joins: {}, fields: keys, equals: generateEqualityFn(keys)};
+      let table = this.tables[name] = {table: [], factHash: {}, indexes: {}, joins: {}, fields: keys, stringify: generateStringFn(keys), equals: generateEqualityFn(keys)};
       return table;
     }
     updateTable(tableId, adds, removes) {
@@ -346,34 +357,43 @@ return index;`
         let example = adds[0] || removes[0];
         table = this.addTable(tableId, Object.keys(example));
       }
+      let stringify = table.stringify;
       let facts = table.table;
       let factHash = table.factHash;
       let localHash = {};
+      let hashToFact = {};
+      let hashes = [];
       for(let add of adds) {
-        let hash = JSON.stringify(add);
+        let hash = stringify(add);
         if(localHash[hash] === undefined) {
-          localHash[hash] = [add, 1];
+          localHash[hash] = 1;
+          hashToFact[hash] = add;
+          hashes.push(hash);
         } else {
-          localHash[hash][1]++;
+          localHash[hash]++;
         }
       }
       for(let remove of removes) {
-        let hash = JSON.stringify(remove);
+        let hash = stringify(remove);
         if(localHash[hash] === undefined) {
-          localHash[hash] = [remove, -1];
+          localHash[hash] = -1;
+          hashToFact[hash] = remove;
+          hashes.push(hash);
         } else {
-          localHash[hash][1]--;
+          localHash[hash]--;
         }
       }
       let realAdds = [];
       let realRemoves = [];
-      for(let hash in localHash) {
-        let [fact, count] = localHash[hash];
+      for(let hash of hashes) {
+        let count = localHash[hash];
         if(count > 0 && !factHash[hash]) {
+          let fact = hashToFact[hash];
           realAdds.push(fact);
           facts.push(fact);
           factHash[hash] = true;
         } else if(count < 0 && factHash[hash]) {
+          let fact = hashToFact[hash];
           realRemoves.push(fact);
           removeFact(facts, fact, table.equals);
           factHash[hash] = undefined;
@@ -421,102 +441,277 @@ return index;`
     }
   }
 
-  function compileJoin(tables, mappings, ix = 0) {
-    let mappingCode = `\nvar query${ix} = {\n`;
-    for(let key in mappings[ix]) {
-      let [tableIx, value] = mappings[ix][key];
-      mappingCode += `'${key}': row${tableIx}['${value}'], `;
-            console.log("mappingCode", key, );
-    }
-    mappingCode += "\n};";
-    let code = "";
-    if(ix === 0) {
-      code += `
-var results = [];
-var rows${ix} = ixer.find('${tables[ix]}');
-`
-    } else {
-      code += `${mappingCode}
-var rows${ix} = ixer.factToIndex(ixer.tables['${tables[ix]}'], query${ix});
-`
-    }
-    code += `for( row${ix} of rows${ix}) {`
-    if(ix + 1 === tables.length) {
-      code += "\nresults.push([row0";
-      for(let rowIx = 1; rowIx <= ix; rowIx++) {
-        code += `, row${rowIx}`
-      }
-      code += `]);`
-    } else {
-      code += `
-${compileJoin(tables, mappings, ix+1)}`;
-    }
-    code += "\n}";
-      if(ix === 0) {
-        code += "\nreturn results;";
-              console.log(code);
-         return new Function(`return function(ixer) { ${code} }`)();
-        return;
-      }
-
-    return code;
+  export var QueryFunctions = {}
+  var STRIP_COMMENTS = /((\/\/.*$)|(\/\*[\s\S]*?\*\/))/mg;
+  var ARGUMENT_NAMES = /([^\s,]+)/g;
+  function getParamNames(func) {
+    var fnStr = func.toString().replace(STRIP_COMMENTS, '');
+    var result = fnStr.slice(fnStr.indexOf('(')+1, fnStr.indexOf(')')).match(ARGUMENT_NAMES);
+    if(result === null)
+      result = [];
+    return result;
+  }
+  function define(name, opts, func) {
+    let params = getParamNames(func);
+    opts.name = name;
+    opts.params = params;
+    opts.func = func;
+    QueryFunctions[name] = opts;
   }
 
-    export var compiledJoins = {};
-
-    function join(table1, table2, mappings) {
-      let rows = ixer.find(table1);
-      let results = [];
-      for(let row of rows) {
-        let query = {};
-        for(let field in mappings) {
-          let mapped = mappings[field];
-          query[mapped] = row[field];
-        }
-        let table2Rows = ixer.find(table2, query);
-        for(let row2 of table2Rows) {
-          results.push([row, row2]);
+  class Query {
+    tables;
+    joins;
+    dirty;
+    compiled;
+    ixer;
+    aliases;
+    funcs;
+    funcArgs;
+    constructor(ixer) {
+      this.ixer = ixer;
+      this.dirty = false;
+      this.tables = [];
+      this.joins = [];
+      this.aliases = {};
+      this.funcs = [];
+      this.funcArgs = [];
+    }
+    select(table, join, as?) {
+      this.dirty = true;
+      if(as) {
+        this.aliases[as] = this.tables.length;
+      }
+      this.tables.push(table);
+      this.joins.push(join);
+      return this;
+    }
+    calculate(funcName, args, as?) {
+      this.dirty = true;
+      if(as) {
+        this.aliases[as] = `result${this.funcs.length}`;
+      }
+      this.funcs.push(funcName);
+      this.funcArgs.push(args);
+      return this;
+    }
+    applyAliases(joins) {
+      for(let joinMap of joins) {
+        for(let field in joinMap) {
+          let joinInfo = joinMap[field];
+          if(joinInfo.constructor !== Array) continue;
+          let joinTable = joinInfo[0];
+          if(this.aliases[joinTable] !== undefined) {
+            joinInfo[0] = this.aliases[joinTable];
+          } else if(this.tables[joinTable] === undefined) {
+            throw new Error("Invalid alias used: " + joinTable);
+          }
         }
       }
+      return joins;
+    }
+    toAST() {
+      this.applyAliases(this.joins);
+      this.applyAliases(this.funcArgs);
+      let cursor = {type: "query",
+                    children: []};
+      let root = cursor;
+      let results = [];
+      let tableIx = 0;
+      for(let table of this.tables) {
+        let cur = {
+          type: "select",
+          table,
+          ix: tableIx,
+          children: [],
+          join: false,
+        };
+        // we only want to eat the cost of dealing with indexes
+        // if we are actually joining on something
+        let join = this.joins[tableIx];
+        if(Object.keys(join).length !== 0) {
+          root.children.unshift({type: "declaration", var: `query${tableIx}`, value: "{}"});
+          cur.join = join;
+        }
+        cursor.children.push(cur);
+        results.push({type: "select", ix: tableIx});
+        cursor = cur;
+        tableIx++;
+      }
+      let funcIx = 0;
+      for(let func of this.funcs) {
+        let args = this.funcArgs[funcIx];
+        let funcInfo = QueryFunctions[func];
+        root.children.unshift({type: "functionDeclaration", ix: funcIx, info: funcInfo});
+        if(funcInfo.multi || funcInfo.filter) {
+          let node = {type: "functionCallMultiReturn", ix: funcIx, args, info: funcInfo, children: []};
+          cursor.children.push(node);
+          cursor = node;
+        } else {
+          cursor.children.push({type: "functionCall", ix: funcIx, args, info: funcInfo, children: []});
+        }
+        if(!funcInfo.noReturn && !funcInfo.filter) {
+          results.push({type: "function", ix: funcIx});
+        }
+        funcIx++;
+      }
+      cursor.children.push({type: "result", results});
+      root.children.unshift({type: "declaration", var: "results", value: "[]"});
+      root.children.push({type: "return", var: "results"});
+      return root;
+    }
+    compileParamString(funcInfo, args) {
+      let code = "";
+      for(let param of funcInfo.params) {
+        let arg = args[param];
+        let argCode;
+        if(arg.constructor === Array) {
+          if(this.tables[arg[0]] === undefined) {
+            argCode = `${arg[0]}['${arg[1]}']`;
+          } else {
+            argCode = `row${arg[0]}['${arg[1]}']`;
+          }
+        } else {
+          argCode = arg;
+        }
+        code += `${argCode}, `;
+      }
+      return code.substring(0,code.length - 2);
+    }
+    compileAST(root) {
+      let code = "";
+      let type = root.type;
+      switch(type) {
+        case "query":
+          for(var child of root.children) {
+            code += this.compileAST(child);
+          }
+          break;
+        case "declaration":
+          code += `var ${root.var} = ${root.value};\n`;
+          break;
+        case "functionDeclaration":
+          code += `var func${root.ix} = QueryFunctions['${root.info.name}'].func;\n`;
+          break;
+        case "functionCall":
+          var ix = root.ix;
+          code += `var result${ix} = func${ix}(${this.compileParamString(root.info, root.args)});\n`;
+          break;
+        case "functionCallMultiReturn":
+          var ix = root.ix;
+          code += `var results${ix} = func${ix}(${this.compileParamString(root.info, root.args)});\n`;
+          code += `for(var funcResultIx${ix} = 0, funcLen${ix} = results${ix}.length; funcResultIx${ix} < funcLen${ix}; funcResultIx${ix}++) {\n`
+          code += `var result${ix} = results${ix}[funcResultIx${ix}];\n`;
+          for(var child of root.children) {
+            code += this.compileAST(child);
+          }
+          code += "}\n";
+          break;
+        case "select":
+          var ix = root.ix;
+          if(root.join) {
+            for(let key in root.join) {
+              let mapping = root.join[key];
+              if(mapping.constructor === Array) {
+                let [tableIx, value] = mapping;
+                code += `query${ix}['${key}'] = row${tableIx}['${value}'];\n`;
+              } else {
+                code += `query${ix}['${key}'] = ${JSON.stringify(mapping)};\n`;
+              }
+            }
+            code += `var rows${ix} = ixer.factToIndex(ixer.tables['${root.table}'], query${ix});\n`;
+          } else {
+            code += `var rows${ix} = ixer.tables['${root.table}'].table;\n`;
+          }
+          code += `for(var rowIx${ix} = 0, rowsLen${ix} = rows${ix}.length; rowIx${ix} < rowsLen${ix}; rowIx${ix}++) {\n`
+          code += `var row${ix} = rows${ix}[rowIx${ix}];\n`;
+          for(var child of root.children) {
+            code += this.compileAST(child);
+          }
+          code += "}\n";
+          break;
+        case "result":
+          var results = [];
+          for(var result of root.results) {
+            let ix = result.ix;
+            if(result.type === "select") {
+              results.push(`row${ix}`);
+            } else if(result.type === "function") {
+              results.push(`result${ix}`);
+            }
+          }
+          code += `results.push(${results.join(", ")})`;
+          break;
+        case "return":
+          code += `return ${root.var};`;
+          break;
+      }
+      return code;
+    }
+    compile() {
+      let ast = this.toAST();
+      let code = this.compileAST(ast);
+      this.compiled = new Function("ixer", "QueryFunctions", code);
+      return this;
+    }
+    exec() {
+      if(this.dirty) {
+        this.compile();
+      }
+      return this.compiled(this.ixer, wiki.QueryFunctions);
+    }
+    debug() {
+      console.log(this.compileAST(this.toAST()));
+      var results = this.exec();
+      console.log(results);
       return results;
     }
+  }
 
-    function genericJoin(tables, mappings) {
-      let rows = ixer.find(tables[0]);
-      let results = [];
-      for(var row of rows) {
-        genericJoinRecurse(tables, mappings, results, [row], 1);
-      }
-      return results;
+  define("add", {}, function(a, b) {
+    return a + b;
+  });
+
+  const SUCCEED = [true];
+  const FAIL = [];
+
+  define("foo", {filter: true}, function(a) {
+    if(a.length > 10) {
+      return SUCCEED;
     }
+    return FAIL;
+  });
 
-    function genericJoinRecurse(tables, mappings, results, curRow, ix) {
-      let query = {};
-      let mapping = mappings[ix];
-      for(let field in mapping) {
-        let [row, mapped] = mapping[field];
-        query[mapped] = curRow[row][field];
-      }
-      let rows = ixer.find(tables[ix], query);
-      if(ix + 1 === tables.length) {
-        for(let row of rows) {
-          var newRow = curRow.slice();
-          newRow.push(row);
-          results.push(newRow);
-        }
-      } else {
-        for(let row of rows) {
-          var newRow = curRow.slice();
-          newRow.push(row);
-          genericJoinRecurse(tables, mappings, results, newRow, ix + 1);
-        }
-      }
-    }
+  define("articleToGraph", {multi:true}, function(article) {
+    let outbound =    articleToGraph(article).outbound;
+    console.log(outbound);
+    return outbound;
+  });
 
+  function query(ixer: Indexer): Query {
+    return new Query(ixer);
+  }
 
-
-  var ixer = new Indexer();
+  export var ixer = new Indexer();
   let diff = new Diff();
+  diff.add("rel", {from: "modern family", to: "MF episode 1", type: "episode"});
+  diff.add("rel", {from: "modern family", to: "MF episode 2", type: "episode"});
+  diff.add("rel", {from: "modern family", to: "MF episode 3", type: "episode"});
+  diff.add("rel", {from: "MF episode 2", to: "Edward Norton", type: "cast member"});
+  diff.add("rel", {from: "MF episode 3", to: "Someone", type: "cast member"});
+  diff.add("rel", {from: "MF episode 3", to: "Edward Norton", type: "cast member"});
+  diff.add("page", {id: "pixar", text: "[up] is a [pixar] movie [no wai]"});
+  ixer.applyDiff(diff);
+//   query(ixer)
+//     .select("rel", {from: "modern family", type: "episode"}, "mf")
+//     .select("rel", {from: ["mf", "to"], to: "Edward Norton"})
+//     .calculate("add", {a: ["mf", "to"], b: ["mf", "from"]})
+//     .calculate("foo", {a: ["mf", "from"]})
+//     .debug();
+query(ixer)
+    .select("page", {}, "page")
+    .calculate("articleToGraph", {article: ["page", "text"]})
+    .debug();
 
 //   diff.add("foo", {bar: "look", lol: "1"});
 //   diff.add("foo", {bar: "look", lol: "2"});
@@ -544,52 +739,18 @@ ${compileJoin(tables, mappings, ix+1)}`;
 
   function bench(times) {
     console.time("compile");
-    var compiled = compileJoin(["foo", "bar"], [{}, {baz: [0, "bar"]}]);
+    var compiled = query(ixer).select("foo", {}, "foo").select("bar", {baz: ["foo", "bar"]}).compile();
     console.timeEnd("compile");
-    for(var i = 0; i < times; i++) {
-      var result = compiled(ixer);
-    }
     console.time("compile join");
     for(var i = 0; i < times; i++) {
-      var result = compiled(ixer);
+      var result = compiled.compiled(ixer, QueryFunctions);
     }
     console.timeEnd("compile join");
-    console.time("join");
-    for(var i = 0; i < times; i++) {
-      var result = join("foo", "bar", {bar: "baz"});
-    }
-    console.timeEnd("join");
-        console.time("manualCompile");
-    for(var i = 0; i < times; i++) {
-      var result = manualCompile(ixer);
-    }
-    console.timeEnd("manualCompile");
-
-    console.time("genericJoin");
-    for(var i = 0; i < times; i++) {
-      var result = genericJoin(["foo", "bar"], [{}, {baz: [0, "bar"]}]);
-    }
-    console.timeEnd("genericJoin");
     return result;
   }
 
-    function manualCompile(ixer) {
-      var results = [];
-      var rows0 = ixer.find('foo');
-      for( row0 of rows0) {
-        var query1 = {
-          'baz': row0['bar'],
-        };
-        var rows1 = ixer.factToIndex(ixer.tables['bar'], query1);
-        for( row1 of rows1) {
-          results.push([row0, row1]);
-        }
-      }
-      return results;
-    }
-
-  setup(1000);
-  bench(10);
+//   setup(1000);
+//   var res = bench(1);
 
   //---------------------------------------------------------
   // Go
