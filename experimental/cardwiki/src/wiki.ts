@@ -672,11 +672,20 @@ return index;`
     return a + b;
   });
 
+  const SUCCEED = [true];
+  const FAIL = [];
+
   define("foo", {filter: true}, function(a) {
     if(a.length > 10) {
-      return [a];
+      return SUCCEED;
     }
-    return [];
+    return FAIL;
+  });
+
+  define("articleToGraph", {multi:true}, function(article) {
+    let outbound =    articleToGraph(article).outbound;
+    console.log(outbound);
+    return outbound;
   });
 
   function query(ixer: Indexer): Query {
@@ -691,12 +700,17 @@ return index;`
   diff.add("rel", {from: "MF episode 2", to: "Edward Norton", type: "cast member"});
   diff.add("rel", {from: "MF episode 3", to: "Someone", type: "cast member"});
   diff.add("rel", {from: "MF episode 3", to: "Edward Norton", type: "cast member"});
+  diff.add("page", {id: "pixar", text: "[up] is a [pixar] movie [no wai]"});
   ixer.applyDiff(diff);
-  query(ixer)
-    .select("rel", {from: "modern family", type: "episode"}, "mf")
-    .select("rel", {from: ["mf", "to"], to: "Edward Norton"})
-    .calculate("add", {a: ["mf", "to"], b: ["mf", "from"]})
-    .calculate("foo", {a: ["mf", "from"]})
+//   query(ixer)
+//     .select("rel", {from: "modern family", type: "episode"}, "mf")
+//     .select("rel", {from: ["mf", "to"], to: "Edward Norton"})
+//     .calculate("add", {a: ["mf", "to"], b: ["mf", "from"]})
+//     .calculate("foo", {a: ["mf", "from"]})
+//     .debug();
+query(ixer)
+    .select("page", {}, "page")
+    .calculate("articleToGraph", {article: ["page", "text"]})
     .debug();
 
 //   diff.add("foo", {bar: "look", lol: "1"});
