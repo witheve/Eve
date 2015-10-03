@@ -244,25 +244,39 @@ module Api {
     singular?: boolean
   }
 
-  var pkDependents = ["display order", "tag"];
+  var pkDependents = ["display order", "tag", "display name"];
   var schemas:{[id:string]: Schema} = {
-    "display name": {foreign: {$last: "id"},
-                     singular: true},
-    "display order": {foreign: {$last: "id"},
-                      singular: true},
+    "display name": {foreign: {$last: "id"}, singular: true},
+    "display order": {foreign: {$last: "id"}, singular: true},
     tag: {foreign: {$last: "view"}},
 
-    view: {key: "view",
-           dependents: pkDependents.concat(
-             ["field"])},
-    source: {key: "source",
-             foreign: {view: "view"},
-             dependents: []},
-    field: {key: "field",
-            foreign: {view: "view"},
-            dependents: pkDependents,
-            },
-     "editor node position": {key: "node"},
+    view: {key: "view", dependents: pkDependents.concat(["field"])},
+    source: {
+      key: "source",
+      foreign: {view: "view"},
+      dependents: ["binding", "ordinal binding", "grouped field", "sorted field", "chunked source", "negated source"]
+    },
+    field: {
+      key: "field",
+      foreign: {view: "view"},
+      dependents: pkDependents.concat(["select"]),
+    },
+    variable: {
+      key: "variable",
+      foreign: {view: "view"},
+      dependents: pkDependents.concat(["select", "binding", "constant binding", "ordinal binding"])
+    },
+    select: {foreign: {variable: "variable", field: "field"}, singular: true},
+    binding: {foreign: {variable: "variable", source: "source"}},
+    "ordinal binding": {foreign: {variable: "variable", source: "source"}, singular: true},
+    "constant binding": {foreign: {variable: "variable"}, singular: true},
+
+    "grouped field": {foreign: {source: "source"}},
+    "sorted field": {foreign: {source: "source"}},
+    "chunked source": {foreign: {source: "source"}},
+    "negated source": {foreign: {source: "source"}},
+
+    "editor node position": {key: "node"},
   };
 
   /***************************************************************************\
