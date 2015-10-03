@@ -86,13 +86,17 @@ module Parsers {
 
   type SourceFieldPair = [string, string];
   interface SourceFieldLookup {[sourceId: string]: {[fieldId: string]: string}};
-  interface ReifiedQueryField { field: string, grouped?: boolean, alias?: string, value?: string }
-  interface ReifiedQuerySource { negated?: boolean, source: string, view: string, fields: ReifiedQueryField[] }
-  interface ReifiedQuery {
+  interface ReifiedQueryField { field: string, grouped?: boolean, alias?: string, value?: string, ordinal?: boolean }
+  interface ReifiedQuerySource {
+    negated?: boolean
+    source: string
+    sourceView: string
+    fields: ReifiedQueryField[]
+  }
+  export interface ReifiedQuery {
     sources: ReifiedQuerySource[]
     aliases: {[alias:string]: string}
-    variables: {[id:string]: {selected: boolean, constant?: string, bindings: SourceFieldPair[]}}
-    constants: {[constant: string]: any}
+    variables: {[id:string]: {selected: boolean, value?: any, ordinal?: string, bindings: SourceFieldPair[]}}
     views: {[view: string]: {fields: string[], kind: string, tags: string[]}}
     actions: any[]
   }
@@ -113,7 +117,7 @@ module Parsers {
     parseAction(line:string[]):QueryActionAST
 
     // Reification
-    reify(ast:QueryAST, lines?:string[]): ReifiedQuery
+    reify(ast:QueryAST, prev?:ReifiedQuery): ReifiedQuery
     reifySource(ast:QuerySourceAST, allowMissing?:boolean):ReifiedQuerySource
     reifyAction(ast:QueryActionAST)
   }
@@ -238,19 +242,15 @@ module Parsers {
   };
 
   // Reification
-  query.reify = function(ast:QueryAST):ReifiedQuery {
-    let reified:ReifiedQuery = {sources: [], aliases: {}, variables: {}, constants: {}, views: {}, actions: []};
+  query.reify = function(ast:QueryAST, prev?):ReifiedQuery {
+    let reified:ReifiedQuery = {sources: [], aliases: {}, variables: {}, views: {}, actions: []};
     for(let sourceAST of ast.sources) {
       let source = query.reifySource(sourceAST);
       for(let field of source.fields) {
-        let varId = reified.aliases[field.alias] || Api.uuid();
-        if(!reified.variables[varId]) reified.variables[varId] = {selected: true, bindings: []};
-        reified.variables[varId].bindings.push([source.source, field.field]);
-        if(field.value !== undefined) {
-          let constantId = Api.uuid();
-          reified.variables[varId].constant = constantId;
-          reified.constants[constantId] = field.value;
-        }
+        let variable = reified.variables[reified.aliases[field.alias]];
+        if(!variable) variable = reified.variables[Api.uuid()] = {selected: true, bindings: []};
+        if(field.value !== undefined) variable.value = field.value;
+        variable.bindings.push([source.source, field.field]);
       }
       reified.sources.push(source);
     }
@@ -268,7 +268,7 @@ module Parsers {
     let {"view fingerprint: view":view} = Api.ixer.selectOne("view fingerprint", {fingerprint}) || {};
     if(!view && !allowMissing) throw ParseError(`Fingerprint '${fingerprint}' matches no known views.`); //@NOTE: Should this create a union..?
 
-    let source:ReifiedQuerySource = {negated: ast.negated, source: Api.uuid(), view: view, fields: []};
+    let source:ReifiedQuerySource = {negated: ast.negated, source: Api.uuid(), sourceView: view, fields: []};
     let fieldIxes = Api.ixer.select("fingerprint field", {fingerprint});
     if(fieldIxes) {
       fieldIxes = fieldIxes.slice();
