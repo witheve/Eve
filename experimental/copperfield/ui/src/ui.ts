@@ -1,4 +1,5 @@
 module Ui {
+  declare var CodeMirror;
    declare var c3;
    declare var d3;
 
@@ -359,7 +360,7 @@ module Ui {
   export function input(elem:TextInputElement) {
     let {multiline, normalize = true} = elem;
     if(!elem.placeholder) { elem.placeholder === " "; }
-    elem.c = `input ${elem.c || ""}`;
+    elem.c = `ui-input ${elem.c || ""}`;
     elem.contentEditable = true;
     if(!multiline) {
       let oldKeydown = elem.keydown;
@@ -380,6 +381,17 @@ module Ui {
         if(target.textContent === "") {
           target.innerHTML = "";
         }
+        if(target.children.length) { // contenteditable has decided to add a node instead of text for some reason. Yay.
+          console.log(target["selectionStart"]);
+          let text = "";
+          let child:Node;
+          for(child of <Array<Node>><any>target.childNodes) {
+            if(child.nodeType === child.TEXT_NODE) text += child.textContent;
+            else if(child.nodeName === "span") text += " " + child.textContent;
+            else text += "\n" + child.textContent;
+          }
+          target.textContent = text;
+        }
         if(oldKeyup) {
           oldKeyup(evt, elem);
         }
@@ -394,6 +406,41 @@ module Ui {
     elem.t = "input";
     elem.type = "checkbox";
     elem.checked = (elem.checked) ? elem.checked : false;
+    return elem;
+  }
+
+  interface CMElement extends Element {
+    autofocus?: boolean
+    submit?: Handler
+    _cmChange?: Handler
+  }
+  function cmPostRender(node, elem:CMElement) {
+    let cm = node.editor;
+    if(!cm) {
+      cm = node.editor = new CodeMirror(node, {
+        mode: "markdown",
+        //lineWrapping: true,
+        lineNumbers: true,
+        extraKeys: {
+          "Cmd-Enter": () => {
+            if(elem.submit) elem.submit(cm, elem);
+          }
+        }
+      });
+      if(elem._cmChange) cm.on("change", elem._cmChange);
+      if(elem.keydown) cm.on("keydown", elem.keydown);
+      if(elem.blur) cm.on("blur", elem.blur);
+      if(elem.autofocus) cm.focus();
+    }
+    if(cm.getValue() !== elem.value) cm.setValue(elem.value);
+  }
+  export function codeMirrorElement(elem:CMElement):Element {
+    elem.t = "codemirror";
+    if(elem.change) {
+      elem._cmChange = elem.change;
+      delete elem.change;
+    }
+    elem.postRender = cmPostRender;
     return elem;
   }
 
