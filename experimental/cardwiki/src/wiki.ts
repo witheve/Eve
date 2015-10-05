@@ -191,7 +191,7 @@ module wiki {
   }
 
   export function root() {
-    let article = state.articles[state.activeArticle] || {text: ""};
+    let article = state.articles[state.activeArticle] || {text: "", inbound: []};
     let articleView;
     if(!state.editing) {
       articleView = {c: "article", children: articleToHTML(article.text), dblclick: editArticle};
@@ -662,7 +662,9 @@ return index;`
     }
     debug() {
       console.log(this.compileAST(this.toAST()));
+      console.time("exec");
       var results = this.exec();
+      console.timeEnd("exec");
       console.log(results);
       return results;
     }
@@ -683,8 +685,7 @@ return index;`
   });
 
   define("articleToGraph", {multi:true}, function(article) {
-    let outbound =    articleToGraph(article).outbound;
-    console.log(outbound);
+    let outbound = articleToGraph(article).outbound;
     return outbound;
   });
 
@@ -700,7 +701,9 @@ return index;`
   diff.add("rel", {from: "MF episode 2", to: "Edward Norton", type: "cast member"});
   diff.add("rel", {from: "MF episode 3", to: "Someone", type: "cast member"});
   diff.add("rel", {from: "MF episode 3", to: "Edward Norton", type: "cast member"});
-  diff.add("page", {id: "pixar", text: "[up] is a [pixar] movie [no wai]"});
+  for(var ix = 0; ix < 10000; ix++) {
+    diff.add("page", {id: "pixar", text: "[up] is a [pixar] movie [no wai]" + ix});
+  }
   ixer.applyDiff(diff);
 //   query(ixer)
 //     .select("rel", {from: "modern family", type: "episode"}, "mf")
