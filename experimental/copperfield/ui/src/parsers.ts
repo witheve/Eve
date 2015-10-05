@@ -4,6 +4,8 @@ module Parsers {
   //---------------------------------------------------------------------------
   const PUNCTUATION = [".", ",", ";", ":"];
 
+  interface Token { type: string, tokenIx?: number, lineIx?: number }
+
   interface ParseError {
     (msg:string, token?:any): Error
     tokenToChar: (token:any, line:string) => number
@@ -69,8 +71,7 @@ module Parsers {
   export function fingerprintSource(structure) {
     let fingerprint = "";
     for(let token of structure) {
-      //console.log(token);
-       fingerprint += token.type ? "?" : token;
+      fingerprint +=  tokenIsField(token) ? "?" : query.tokenToString(token);
     }
     return fingerprint;
   }
@@ -78,14 +79,15 @@ module Parsers {
   //---------------------------------------------------------------------------
   // Query Parser
   //---------------------------------------------------------------------------
-  interface QueryStructureAST extends String { type: void }
-  interface QueryFieldAST { type: string, grouped?: boolean, alias?: string, value?: string, tokenIx?: number }
-  interface QuerySourceAST { negated?: boolean, structure: (QueryFieldAST|QueryStructureAST)[], lineIx?: number }
-  interface QueryActionAST { action: string, params: any, lineIx?: number }
-  interface QueryAST { sources: QuerySourceAST[], actions: QueryActionAST[] }
+  interface QueryStructureAST extends Token { text: string }
+  interface QueryFieldAST extends Token { grouped?: boolean, alias?: string, value?: string }
+  interface QuerySourceAST extends Token { negated?: boolean, chunks: (QueryFieldAST|QueryStructureAST)[] }
+  interface QuerySortAST extends Token { direction: string, chunks: (QueryFieldAST|QueryStructureAST)[] }
+  interface QueryActionAST extends Token { action: string, params: any }
+  interface QueryAST { chunks:(QuerySourceAST|QuerySortAST|QueryActionAST)[] }
 
   type SourceFieldPair = [string, string];
-  interface SourceFieldLookup {[sourceId: string]: {[fieldId: string]: string}};
+  //interface SourceFieldLookup {[sourceId: string]: {[fieldId: string]: string}};
   interface ReifiedQueryField { field: string, grouped?: boolean, alias?: string, value?: string, ordinal?: boolean }
   interface ReifiedQuerySource {
     negated?: boolean
@@ -113,8 +115,11 @@ module Parsers {
 
     // Parsing
     parse(raw:string): QueryAST
-    parseSource(line:string[], offset?:number):QuerySourceAST
-    parseAction(line:string[]):QueryActionAST
+    parseStructure(tokens:string[], tokenIx?:number):QueryStructureAST
+    parseField(tokens:string[], tokenIx?:number):QueryFieldAST
+    parseSort(tokens:string[]):QuerySortAST
+    parseSource(tokens:string[], offset?:number):QuerySourceAST
+    parseAction(tokens:string[]):QueryActionAST
 
     // Reification
     reify(ast:QueryAST, prev?:ReifiedQuery): ReifiedQuery
@@ -128,21 +133,36 @@ module Parsers {
   // Utilities
   query.ACTION_TOKENS = ["+"];
   query.TOKENS = ["`", " ", "\t", "?", "$$", "\"", "!"].concat(query.ACTION_TOKENS);
-  function queryTokenIsField(token:QueryStructureAST|QueryFieldAST): token is QueryFieldAST {
-    return !!token.type;
+  function tokenIsField(token:Token): token is QueryFieldAST {
+    return token.type === "field";
+  }
+  function tokenIsSource(token:Token): token is QuerySourceAST {
+    return token.type === "source";
+  }
+  function tokenIsSort(token:Token): token is QuerySortAST {
+    return token.type === "sort";
   }
 
   query.tokenize = makeTokenizer(query.TOKENS);
   query.tokenToChar = (token, line) => (token.tokenIx !== undefined) ? query.tokenize(line).slice(0, token.tokenIx - 1).join("").length : 0;
   query.tokenToString = function(token) {
-    if(token.type === "field") return `?${token.grouped ? "?" : ""}${token.alias || ""}`;
-    if(token.type === "literal") return `\`${token.value || ""}\``;
-    return token;
+    if(tokenIsField(token)) {
+      if(token.value !== undefined) return `\`${token.value || ""}\``;
+      return `?${token.grouped ? "?" : ""}${token.alias || ""}`;
+    } else if(tokenIsSource(token) || tokenIsSort(token)) {
+      let res = "";
+      for(let chunk of token.chunks) {
+        res += query.tokenToString(chunk);
+      }
+      return res;
+    }
+
+    return token.text;
   }
 
   // Parsing
   query.parse = function(raw) {
-    let ast:QueryAST = {sources: [], actions: []};
+    let ast:QueryAST = {chunks: []};
     let lines = raw.split("\n");
     for(let ix = 0; ix < lines.length; ix++) {
       lines[ix] = lines[ix].trim();
@@ -165,7 +185,13 @@ module Parsers {
       if(query.ACTION_TOKENS.indexOf(tokens[0]) !== -1) {
         let action = query.parseAction(tokens);
         action.lineIx = lineIx;
-        ast.actions.push(action);
+        ast.chunks.push(action);
+      }
+
+      if(tokens[0] === "sort" && tokens[2] === "by") {
+        let sort = query.parseSort(tokens);
+        sort.lineIx = lineIx;
+        ast.chunks.push(sort);
       }
 
       // Line is a source.
@@ -174,68 +200,115 @@ module Parsers {
       if(source) {
         source.lineIx = lineIx;
         if(negated) source.negated = true;
-        ast.sources.push(source);
+        ast.chunks.push(source);
       }
 
       lineIx++;
     }
     return ast;
   };
-  query.parseSource = function(line, offset = 0) {
-    let ast:QuerySourceAST = {structure: []};
-    let lineLength = line.length;
-    while(line.length) {
-      let token = line.shift();
-      let tokenIx = lineLength - line.length + offset;
-      if(token === " ") {
-        ast.structure.push(<any>token);
-        continue;
-      }
 
-      let field:QueryFieldAST = {type: undefined, tokenIx};
-      // Token is a blank field.
-      if(token === "?") {
-        field.type = "field";
-        let alias = line[0];
-        if(alias === "?") { // Field is grouped.
-          line.shift();
-          field.grouped = true;
-          alias = line[0];
-        }
-        if(alias && alias !== " " && PUNCTUATION.indexOf(alias) === -1) { // Field is aliased.
-          field.alias = alias;
-          line.shift();
-        }
-        ast.structure.push(field);
-        continue;
+  query.parseField = function(tokens, tokenIx = 0) {
+    let field:QueryFieldAST = {type: "field", tokenIx};
+    let head = tokens[0];
+    if(head === "?") {
+      tokens.shift();
+      head = tokens[0];
+      if(head === "?") {
+        field.grouped = true;
+        tokens.shift();
+        head = tokens[0];
       }
-
-      // Token is a quoted literal.
-      if(token === "`") {
-        field.type = "literal";
-        field.value = "";
-        while(true) {
-          let next = line.shift();
-          if(next === "`") break;
-          if(next === undefined) throw ParseError("Unterminated quoted literal.", field);
-          field.value += next;
-        }
-        ast.structure.push(field);
-        continue;
+      if(head && head !== " " && PUNCTUATION.indexOf(head) === -1) {
+        field.alias = head;
+        tokens.shift();
       }
-
-      // Token is purely structural.
-      ast.structure.push(<any>token);
+      return field;
+    } else if(head === "`") {
+      field.value = "";
+      tokens.shift();
+      while(true) {
+        head = tokens.shift();
+        if(head === "`") break;
+        if(head === undefined) throw ParseError("Unterminated quoted literal.", field);
+        field.value += head;
+      }
+      return field;
     }
-    return ast.structure.length ? ast : undefined;
+  };
+  query.parseStructure = function(tokens, tokenIx = 0) {
+    let struct:QueryStructureAST = {type: "structure", text: "", tokenIx};
+    while(true) {
+      let head = tokens[0];
+      if(head === undefined) break;
+      if(head === "?" || head === "`") break;
+      struct.text += head;
+      tokens.shift();
+    }
+    if(struct.text) {
+      return struct;
+    }
+  };
+
+  query.parseSort = function(tokens) {
+    let ast:QuerySortAST = {type: "sort", direction: "", chunks: []};
+    let tokensLength = tokens.length;
+    tokens.shift();
+    tokens.shift();
+    tokens.shift();
+    if(tokens.length < 2) throw ParseError("Sort by requires at least one field and a direction ('ascending' or 'descending') to function.");
+
+    ast.direction = tokens.pop();
+    if(ast.direction === "asc" || ast.direction === "ascending") ast.direction = "ascending";
+    else if(ast.direction === "desc" || ast.direction === "descending") ast.direction = "descending";
+    else throw ParseError("Sort by requires a direction as its last value (descending to count down, ascending to count up).", {type: "unknown", tokenIx: tokensLength + 1});
+
+    while(tokens.length) {
+      let tokenIx = tokensLength - tokens.length;
+      var text = tokens[0];
+      if(text === " ") {
+        ast.chunks.push({type: "structure", text: text, tokenIx});
+        tokens.shift();
+        continue;
+      }
+      let token:QueryFieldAST = query.parseField(tokens, tokenIx);
+      if(!token) throw ParseError("Sort by requires a list of aliases (starting with '?').", token);
+      if(!token.alias) throw ParseError("Sort fields must be aliased to have any effect.", token);
+      ast.chunks.push(token);
+    }
+
+//       let ix = ordering.indexOf(alias);
+//       if(ix >= minIx) {
+//         minIx = ix + 1;
+//       }
+//       else if(ix !== -1 && ix < minIx) { // Sort conflict.
+//         throw ParseError("The ordering of this sort conflicts with that of previous sorts.", token);
+//       } else {
+//         ordering.push(alias);
+//       }
+
+    return ast;
+  };
+
+  query.parseSource = function(tokens, offset = 0) {
+    let ast:QuerySourceAST = {type: "source", chunks: []};
+    let tokensLength = tokens.length;
+    while(tokens.length) {
+      let tokenIx = tokensLength - tokens.length + offset;
+      let token = query.parseField(tokens, tokenIx)
+        || query.parseStructure(tokens, tokenIx);
+      ast.chunks.push(token);
+    }
+    return ast.chunks.length ? ast : undefined;
   };
   query.parseAction = function(line) {
-    let ast = {action: line.shift(), params: undefined};
+    let ast = {type: "action", action: line.shift(), params: undefined};
+    if(!line.length) throw ParseError("Action requires parameters.");
     // Action is add to union.
     if(ast.action === "+") {
-      ast.params = query.parseSource(line, 1).structure;
+      ast.params = query.parseSource(line, 1).chunks;
       for(let token of ast.params) {
-        if(token.type === "field" && token.alias === undefined) throw ParseError("All fields in a '+' action must be joined.", token);
+        if(tokenIsField(token) && token.alias === undefined) throw ParseError("All fields in a '+' action must be joined.", token);
       }
     }
     return ast;
@@ -244,27 +317,30 @@ module Parsers {
   // Reification
   query.reify = function(ast:QueryAST, prev?):ReifiedQuery {
     let reified:ReifiedQuery = {sources: [], aliases: {}, variables: {}, views: {}, actions: []};
-    for(let sourceAST of ast.sources) {
-      let source = query.reifySource(sourceAST);
-      for(let field of source.fields) {
-        let variable = reified.variables[reified.aliases[field.alias]];
-        if(!variable) variable = reified.variables[Api.uuid()] = {selected: true, bindings: []};
-        if(field.value !== undefined) variable.value = field.value;
-        variable.bindings.push([source.source, field.field]);
+    let sort = [];
+    for(let chunk of ast.chunks) {
+      if(chunk.type === "source") {
+        let source = query.reifySource(<QuerySourceAST>chunk);
+        for(let field of source.fields) {
+          let variable = reified.variables[reified.aliases[field.alias]];
+          if(!variable) variable = reified.variables[Api.uuid()] = {selected: true, bindings: []};
+          if(field.value !== undefined) variable.value = field.value;
+          variable.bindings.push([source.source, field.field]);
+        }
+        reified.sources.push(source);
+      } else if(chunk.type === "action") {
+        let action = query.reifyAction(<QueryActionAST>chunk);
+        reified.actions.push(action);
+      } else if(chunk.type === "sort") {
+        console.log("@TODO: sort chunk", chunk);
       }
-      reified.sources.push(source);
     }
-    //throw new Error("@TODO: reify actions");
-    for(let actionAST of ast.actions) {
-      let action = query.reifyAction(actionAST);
 
-      reified.actions.push(action);
-    }
     return reified;
   };
   query.reifySource = function(ast, allowMissing = false) {
     ParseError.lineIx = ast.lineIx;
-    let fingerprint = fingerprintSource(ast.structure);
+    let fingerprint = fingerprintSource(ast.chunks);
     let {"view fingerprint: view":view} = Api.ixer.selectOne("view fingerprint", {fingerprint}) || {};
     if(!view && !allowMissing) throw ParseError(`Fingerprint '${fingerprint}' matches no known views.`); //@NOTE: Should this create a union..?
 
@@ -277,8 +353,8 @@ module Parsers {
       fieldIxes = fieldIxes ? fieldIxes.slice() : [];
     }
 
-    for(let token of ast.structure) {
-      if(queryTokenIsField(token)) {
+    for(let token of ast.chunks) {
+      if(tokenIsField(token)) {
         let {"fingerprint field: field":field} = fieldIxes.shift() || {};
         if(!field && !allowMissing) throw ParseError(`Fingerprint '${fingerprint}' is missing a field for blank '${query.tokenToString(token)}'.`);
         source.fields.push({field, grouped: token.grouped, alias: token.alias, value: token.value});
@@ -290,7 +366,7 @@ module Parsers {
   query.reifyAction = function(ast) {
     let action = {action: ast.action, view: Api.uuid(), fields: []};
     if(ast.action === "+") {
-      let source = query.reifySource({structure: ast.params}, true);
+      let source = query.reifySource({type: "source", chunks: ast.params}, true);
       for(let field of source.fields) {
         field.field = Api.uuid();
         action.fields.push(field);
