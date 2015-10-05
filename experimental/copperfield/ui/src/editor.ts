@@ -172,7 +172,7 @@ module Editor {
       Ui.row({children: [
         Ui.column({flex: 1, children: [
           Ui.button({text: "compile", click: dispatchOnEvent("createViewFromQuery", "elem.query = localState.reified")}),
-          Ui.input({t: "pre", c: "code", text: script, input: dispatchOnEvent("parse", "elem.query = evt.target.textContent")}),
+          Ui.codeMirrorElement({c: "code", value: script, change: dispatchOnEvent("parse", "elem.query = evt.getValue()")}),
           {t: "pre", c: "err", text: localState.msg},
           localState.view ? {t: "pre", text: JSON.stringify(Api.ixer.facts(localState.view), null, 2)} : undefined
         ]}),
