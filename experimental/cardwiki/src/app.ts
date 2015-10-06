@@ -1,4 +1,5 @@
 /// <reference path="microReact.ts" />
+/// <reference path="runtime.ts" />
 
 module app {
 	
@@ -7,6 +8,7 @@ module app {
   //---------------------------------------------------------
   
   var perfStats;
+  var updateStat = 0;
   export var renderer;
   function initRenderer() {
     renderer = new microReact.Renderer();
@@ -40,6 +42,7 @@ module app {
       renderer.render(trees);
       var total = performance.now() - start;
       perfStats.textContent += ` | render: ${total.toFixed(2) }`;
+      perfStats.textContent += ` | update: ${updateStat.toFixed(2) }`;
       renderer.queued = false;
     }, 16);
   }
@@ -58,18 +61,25 @@ module app {
   }
 
   export function dispatch(event: string, info?: { [key: string]: any }, dispatchInfo?) {
-    let result = dispatchInfo || { diffs: [], render: true, store: true };
+    let result = dispatchInfo;
+    if (!result) {
+      result = eve.diff();
+      result.meta.render = true;
+      result.meta.store = true;
+    }
     result.dispatch = (event, info) => {
         return dispatch(event, info, result);
     };
     result.commit = () => {
-      console.log("TODO: do diffs");
-      if (result.render) {
+      var start = performance.now();
+      eve.applyDiff(result);
+      if (result.meta.render) {
         render();
       }
-      if (result.store) {
-        console.log("TODO: Store diffs");
+      if (result.meta.store) {
+        // console.log("TODO: Store diffs");
       }
+      updateStat = performance.now() - start;
     }
     let func = dispatches[event];
     if (!func) {
@@ -84,7 +94,7 @@ module app {
   // State
   //---------------------------------------------------------
   
-  export var state = {};
+  export var eve = runtime.indexer();
   
   //---------------------------------------------------------
   // Go
