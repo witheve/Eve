@@ -5,7 +5,9 @@ module Client {
   declare var CBOR;
   declare var uuid;
 
-  var ixer = Api.ixer;
+  type Id = string;
+  export type PayloadChange = [Id, Id[], Api.Fact[], Api.Fact[]];
+  export interface Payload { session?: string, changes?: PayloadChange[], commands: Api.Fact[] };
 
   // Override these values to integrate with app.
   type OnReceive = (changed:string[], commands:any[][]) => void;
@@ -19,8 +21,8 @@ module Client {
 
   /* Integrated Debugging Tooling */
   export function nukeTable(viewId) { // from orbit
-    var fieldIds = Api.ixer.getFields(viewId);
-    var toRemove = Api.ixer.facts(viewId);
+    var fieldIds = Api.get.fields(viewId);
+    var toRemove = Api.get.facts(viewId);
     sendToServer({changes: [[viewId, fieldIds, [], toRemove]]}, true);
   }
 
@@ -67,7 +69,7 @@ module Client {
   }
 
   // Generate debugging information on incoming or outgoing payloads.
-  function getDataStats(data:Indexing.Payload) {
+  function getDataStats(data:Payload) {
     var totalAdds = 0;
     var totalRemoves = 0;
     var malformedDiffs:string[] = [];
@@ -140,7 +142,7 @@ module Client {
     ws.onmessage = function(e) {
       var start = Api.now();
       var time:number;
-      var data:Indexing.Payload = JSON.parse(e.data);
+      var data:Payload = JSON.parse(e.data);
       var time = Api.now() - start;
       if (time > 5) {
         console.log("slow parse (> 5ms):", time);
@@ -158,15 +160,15 @@ module Client {
       }
 
       // For an explanation of what changes are synced, check: <https://github.com/witheve/Eve/blob/master/design/sync.md>
-      var changes:Indexing.PayloadChange[] = [];
+      var changes:PayloadChange[] = [];
       var changedViews:string[] = [];
       for(let change of data.changes) {
         let [view, fields, inserts, removes] = change;
-        if(!initializing && Api.code.hasTag(view, "client")) {
+        if(!initializing && Api.get.hasTag(view, "client")) {
           // If view is client-controlled, discard any changes originating from our session.
           var sessionFieldIx:number;
           for(let fieldIx = 0; fieldIx < fields.length; fieldIx++) {
-            if(Api.code.hasTag(fields[fieldIx], "session")) {
+            if(Api.get.hasTag(fields[fieldIx], "session")) {
               sessionFieldIx = fieldIx;
               break;
             }
@@ -178,7 +180,7 @@ module Client {
                         filterFactsBySession(inserts, sessionFieldIx, data.session),
                         filterFactsBySession(removes, sessionFieldIx, data.session)]);
 
-        } else if (!initializing && Api.code.hasTag(view, "editor")) {
+        } else if (!initializing && Api.get.hasTag(view, "editor")) {
           // If view is editor controlled, we discard all changes.
           continue;
         } else {
@@ -204,12 +206,31 @@ module Client {
 
         start = Api.now();
       }
-
-      ixer.handleMapDiffs(changes);
+      if(changes.length) {
+        let changeSet = Api.ixer.changeSet();
+        for(let [table, fields, adds, removes] of changes) {
+          let mapAdds = [];
+          let ix = 0;
+          for(let add of adds) {
+            mapAdds[ix] = Api.factToMap(table, add, fields);
+            ix++;
+          }
+          let mapRemoves = [];
+          ix = 0;
+          for(let remove of removes) {
+            mapAdds[ix] = Api.factToMap(table, remove, fields);
+            ix++;
+          }
+          console.log(table, mapAdds, mapRemoves);
+          changeSet.addFacts(table, mapAdds);
+          changeSet.removeFacts(table, mapRemoves);
+        }
+        Api.ixer.applyChangeSet(changeSet);
+      }
 
       // If we haven't initialized the client yet, do so after we've handled the initial payload, so it can be accessed via the indexer.
       if (initializing) {
-        var eventId = (ixer.facts("client event") || []).length; // Ensure eids are monotonic across sessions.
+        var eventId = (Api.get.facts("client event") || []).length; // Ensure eids are monotonic across sessions.
         // @NOTE: Is this the right behavior? Or should we GC the previous environment and initialize a new one?
         if(!server.initialized) {
           for(var initFunc of afterInitFuncs) {
@@ -300,14 +321,14 @@ module Client {
       var field = final.field.inserted[fieldIx];
       var fieldViewId = field[0];
       var fieldId = field[1];
-      if (!neueFields[fieldViewId]) { neueFields[fieldViewId] = (ixer.index("view to fields")[fieldViewId] || []).slice(); }
+      if (!neueFields[fieldViewId]) { neueFields[fieldViewId] = (Api.get.fields(fieldViewId) || []).slice(); }
       neueFields[fieldViewId].push(fieldId);
     }
 
     var changes = [];
     for (var table in final) {
       if(!final[table]) continue;
-      var fieldIds = Api.ixer.getFields(table) || [];
+      var fieldIds = Api.get.fields(table) || [];
       fieldIds = fieldIds.concat(neueFields[table] || []);
 
       changes.push([table, fieldIds, final[table].inserted, final[table].removed]);

@@ -300,7 +300,7 @@ module Ui {
       let {field: activeField, direction: dir} = uiState.sort[elem.id] || {field: undefined, direction: undefined};
       let active = (activeField === header);
       let headerElem = inject({t: "th", c: "ui-spaced-row header", click: headerClick, header, children: [
-        <Element>{text: (staticHeaders ? header : Api.code.name(header))},
+        <Element>{text: (staticHeaders ? header : Api.get.name(header))},
         (sortable ? sortToggle({"for": elem.id, field: header, direction: active ? dir : 1, active}) : undefined)
       ]}, headerControls);
       headerRow.push(headerRenderer ? headerRenderer(headerElem) : headerElem);
@@ -339,7 +339,7 @@ module Ui {
     view: string
   }
   export function factTable(elem:FactTable):Element {
-    let facts = Api.ixer.facts(elem.view, true);
+    let facts = Api.get.facts(elem.view);
     elem["data"] = facts;
     return table(<any>elem);
   }
