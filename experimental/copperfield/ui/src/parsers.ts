@@ -129,7 +129,7 @@ module Parsers {
   export interface ReifiedQuery {
     sources: ReifiedQuerySource[]
     aliases: {[alias:string]: string}
-    variables: {[id:string]: {selected: boolean, value?: any, ordinal?: string, bindings: [string, string][]}}
+    variables: {[id:string]: {selected: boolean, alias?:string, value?: any, ordinal?: string, bindings: [string, string][]}}
     views: {[view: string]: {fields: string[], kind: string, tags: string[]}}
     actions: any[]
   }
@@ -327,7 +327,7 @@ module Parsers {
         for(let field of source.fields) {
           let varId = reified.aliases[field.alias] || Api.uuid();
           let variable = reified.variables[varId];
-          if(!variable) variable = reified.variables[varId] = {selected: !!field.alias, bindings: []};
+          if(!variable) variable = reified.variables[varId] = {selected: !!field.alias, alias: field.alias, bindings: []};
           if(field.alias) reified.aliases[field.alias] = varId;
           if(field.value !== undefined) variable.value = field.value;
           variable.bindings.push([source.source, field.field]);
@@ -338,7 +338,7 @@ module Parsers {
         source.ordinal = line.alias || true;
         let varId = reified.aliases[line.alias] || Api.uuid();
         let variable = reified.variables[varId];
-        if(!variable) variable = reified.variables[varId] = {selected: true, bindings: []};
+        if(!variable) variable = reified.variables[varId] = {selected: true, alias: line.alias, bindings: []};
         variable.ordinal = source.source;
         if(line.alias) reified.aliases[line.alias] = varId;
         source.sort = [];
