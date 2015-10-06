@@ -259,7 +259,7 @@ module Ui {
     } else {
       if(!elem.headers) {
         if(!heterogenous) {
-          headers = Object.keys(elem.data[0]);
+          headers = Object.keys(elem.data[0] || {});
         } else {
           let headerFields = {};
           for(let row of <{}[]>data) {
