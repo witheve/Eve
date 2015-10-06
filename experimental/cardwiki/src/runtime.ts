@@ -142,8 +142,15 @@ return index;`
     constructor() {
       this.tables = {};
     }
-    addTable(name, keys) {
-      let table = this.tables[name] = {table: [], factHash: {}, indexes: {}, triggers: {}, fields: keys, stringify: generateStringFn(keys), equals: generateEqualityFn(keys)};
+    addTable(name, keys = []) {
+      let table = this.tables[name];
+      if(table && keys.length) {
+        table.fields = keys;
+        table.stringify = generateStringFn(keys);
+        table.equals = generateEqualityFn(keys);
+      } else {
+        table = this.tables[name] = {table: [], factHash: {}, indexes: {}, triggers: {}, fields: keys, stringify: generateStringFn(keys), equals: generateEqualityFn(keys)};  
+      }
       return table;
     }
     clearTable(name) {
@@ -230,11 +237,11 @@ return index;`
       return cursor;
     }
     execTrigger(trigger) {
-      let {results, projected} = trigger.exec();
-      if(projected) {
+      let {results} = trigger.exec();
+      if(results) {
         let diff = new Diff(this);
         this.clearTable(trigger.name);
-        diff.addMany(trigger.name, projected);
+        diff.addMany(trigger.name, results);
         this.applyDiff(diff);
       }
     }
@@ -266,6 +273,11 @@ return index;`
         let trigger = triggers[triggerName];
         this.execTrigger(trigger);
       }
+    }
+    table(tableId) {
+      let table = this.tables[tableId];
+      if(table) return table;
+      return this.addTable(tableId);
     }
     find(tableId, query?) {
       let table = this.tables[tableId];
@@ -418,15 +430,15 @@ return index;`
         }
         funcIx++;
       }
-      let returns = ["results"];
+      let returns = ["unprojected"];
       if(this.projectionMap) {
         this.applyAliases([this.projectionMap]);
-        root.children.unshift({type: "declaration", var: "projected", value: "[]"});
+        root.children.unshift({type: "declaration", var: "results", value: "[]"});
         cursor.children.push({type: "projection", projectionMap: this.projectionMap});
-        returns.push("projected");
+        returns.push("results");
       }
       cursor.children.push({type: "result", results});
-      root.children.unshift({type: "declaration", var: "results", value: "[]"});
+      root.children.unshift({type: "declaration", var: "unprojected", value: "[]"});
       root.children.push({type: "return", vars: returns});
       return root;
     }
@@ -489,9 +501,9 @@ return index;`
                 code += `query${ix}['${key}'] = ${JSON.stringify(mapping)};\n`;
               }
             }
-            code += `var rows${ix} = ixer.factToIndex(ixer.tables['${root.table}'], query${ix});\n`;
+            code += `var rows${ix} = ixer.factToIndex(ixer.table('${root.table}'), query${ix});\n`;
           } else {
-            code += `var rows${ix} = ixer.tables['${root.table}'].table;\n`;
+            code += `var rows${ix} = ixer.table('${root.table}').table;\n`;
           }
           code += `for(var rowIx${ix} = 0, rowsLen${ix} = rows${ix}.length; rowIx${ix} < rowsLen${ix}; rowIx${ix}++) {\n`
           code += `var row${ix} = rows${ix}[rowIx${ix}];\n`;
@@ -510,7 +522,7 @@ return index;`
               results.push(`result${ix}`);
             }
           }
-          code += `results.push(${results.join(", ")})`;
+          code += `unprojected.push(${results.join(", ")})`;
           break;
         case "projection":
           var projectedVars = [];
@@ -531,7 +543,7 @@ return index;`
             }
             projectedVars.push(`'${newField}': ${value}`);
           }
-          code += `projected.push({ ${projectedVars.join(", ")} });\n`;
+          code += `results.push({ ${projectedVars.join(", ")} });\n`;
           break;
         case "return":
           code += `return {${root.vars.join(", ")}};`;
@@ -660,7 +672,7 @@ return index;`
             }
             mappingItems.push(`'${key}': ${value}`)
           }
-          code += `var sourceRows${ix} = ixer.tables['${root.table}'].table;\n`;
+          code += `var sourceRows${ix} = ixer.table('${root.table}').table;\n`;
           code += `for(var rowIx${ix} = 0, rowsLen${ix} = sourceRows${ix}.length; rowIx${ix} < rowsLen${ix}; rowIx${ix}++) {\n`
           code += `var sourceRow${ix} = sourceRows${ix}[rowIx${ix}];\n`;
           code += `var mappedRow${ix} = {${mappingItems.join(", ")}};\n`

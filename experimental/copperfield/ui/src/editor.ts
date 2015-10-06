@@ -19,10 +19,12 @@ module Editor {
 
     public done():DispatchEffect {
       DispatchEffect.inProgress--;
-      let diffs = Api.toDiffs(this.changes);
-      if(diffs.length) Api.ixer.handleDiffs(diffs);
-      if(diffs.length || this.commands.length) {
-        Client.sendToServer(diffs);
+
+      if(this.changes.length) {
+        Api.ixer.applyChangeSet(Api.toChangeSet(this.changes));
+      }
+      if(this.changes.length || this.commands.length) {
+        Client.sendToServer(Api.toDiffs(this.changes));
       }
 
       if(this.rerender) {
@@ -54,7 +56,22 @@ module Editor {
       let effect = DispatchEffect.from(this);
       let sources = [];
       for(let source of query.sources) {
-        sources.push({source: source.source, "source view": source.sourceView});
+        let sorted;
+        if(source.sort) {
+          let fieldIds = Api.get.fields(source.sourceView);
+          sorted = [];
+          let ix = 0;
+          for(let [field, direction = "ascending"] of source.sort) {
+            sorted.push({ix: ix++, field, direction});
+            fieldIds.splice(fieldIds.indexOf(field), 1);
+          }
+          for(let field of fieldIds) {
+            sorted.push({ix: ix++, field, direction: "ascending"});
+          }
+        }
+        sources.push({source: source.source, "source view": source.sourceView, dependents: {
+          "sorted field": sorted
+        }});
       }
       let variables = [];
       let fields = [];
@@ -70,19 +87,20 @@ module Editor {
         if(variable.ordinal) params.dependents["ordinal binding"] = {source: variable.ordinal};
         if(variable.selected) {
           fields.push({kind: "output", dependents: {
+            "display name": {name: variable.alias},
             select: {variable: varId}
           }});
         }
       }
 
       let viewChange = Api.insert("view", {
-        kind: "join",
+        "view: kind": "join",
         dependents: {
           source: sources,
           variable: variables,
           field: fields
         }
-      });
+      }, undefined, false);
       localState.view = viewChange.context["view"];
       effect.changes.push(
         viewChange
@@ -143,10 +161,16 @@ module Editor {
 
   let script =
   `
-   view ?view is a \`union\`
-   view ?view is tagged ??tag
-   + union tag ?tag.
+   view ?view is a ?
+   ?view is named ?name
+   # ?ord by ?name descending
+   ?ord < \`10\`
   `;
+  //`
+  // view ?view is a \`union\`
+  // view ?view is tagged ??tag
+  // # ? by ?view desc
+  //`;
   // `
   //   I've had it with these motherfucking ?a on this motherfucking ?vehicle.
   //   A(n) ?vehicle should *never* contain \`snakes\`
@@ -172,9 +196,9 @@ module Editor {
       Ui.row({children: [
         Ui.column({flex: 1, children: [
           Ui.button({text: "compile", click: dispatchOnEvent("createViewFromQuery", "elem.query = localState.reified")}),
-          Ui.input({t: "pre", c: "code", text: script, input: dispatchOnEvent("parse", "elem.query = evt.target.textContent")}),
+          Ui.codeMirrorElement({c: "code", value: script, change: dispatchOnEvent("parse", "elem.query = evt.getValue()")}),
           {t: "pre", c: "err", text: localState.msg},
-          localState.view ? {t: "pre", text: JSON.stringify(Api.ixer.facts(localState.view), null, 2)} : undefined
+          localState.view ? Ui.factTable({view: localState.view}) : undefined
         ]}),
         Ui.tabbedBox({flex: 1, panes: resultPanes, defaultTab: "result-reified"})
       ]})

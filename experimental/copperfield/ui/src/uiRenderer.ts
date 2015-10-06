@@ -10,14 +10,21 @@ module UiRenderer {
   }
 
   interface UiWarning {
-    element: string
-    row: any[]
-    warning: string
+    "uiWarning: element": string
+    "uiWarning: row": any[]
+    "uiWarning: warning": string
   }
 
-  Api.ixer.addIndex("ui parent to elements", "uiElement", Indexing.create.collector(["uiElement: parent"]));
-  Api.ixer.addIndex("ui element to attributes", "uiAttribute", Indexing.create.collector(["uiAttribute: element"]));
-  Api.ixer.addIndex("ui element to attribute bindings", "uiAttributeBinding", Indexing.create.collector(["uiAttributeBinding: element"]));
+  function getKeys(table:Id):Id[] {
+    var fieldIds = Api.get.fields(table) || [];
+    var keys = [];
+    for(let fieldId of fieldIds) {
+      if(Api.get.hasTag(fieldId, "key")) {
+        keys.push(fieldId);
+      }
+    }
+    return keys;
+  }
 
   export class UiRenderer {
     public refreshRate:number = 16;   // Duration of a frame in ms.
@@ -42,13 +49,13 @@ module UiRenderer {
           // Rerender until all generated warnings have been committed to the indexer.
           do {
             var tree = root();
-            let elements = (Api.ixer.select("tag", {tag: "editor-ui"}) || []).map((tag) => tag["tag: view"]);
+            let elements = (Api.ixer.find("tag", {"tag: tag": "editor-ui"}) || []).map((tag) => tag["tag: view"]);
             start = performance.now();
             elements.unshift(tree);
             warnings = self.render(elements);
             if(warnings.length) {
-              Api.ixer.handleDiffs(Api.toDiffs(
-                Api.insert("uiWarning", warnings)
+              Api.ixer.applyChangeSet(Api.toChangeSet(
+                Api.insert("uiWarning", warnings, undefined, true)
               ))
             }
           } while(warnings.length > 0);
@@ -76,9 +83,9 @@ module UiRenderer {
     // instead of being a noop, specifying a child of a root as another root results in undefined behavior.
     // If this becomes a problem, it can be changed in the loop that initially populates compiledElements.
     compile(roots:(Id|Element)[]):MicroReact.Element[] {
-      let elementToChildren = Api.ixer.index("ui parent to elements", true);
-      let elementToAttrs = Api.ixer.index("ui element to attributes", true);
-      let elementToAttrBindings = Api.ixer.index("ui element to attribute bindings", true);
+      let elementToChildren = Api.ixer.index("ui parent to elements", ["uiElement: parent"]);
+      let elementToAttrs = Api.ixer.index("ui element to attributes", ["uiAttribute: element"]);
+      let elementToAttrBindings = Api.ixer.index("ui element to attribute bindings", ["uiAttributeBinding: element"]);
 
       let stack:Element[] = [];
       let compiledElements:MicroReact.Element[] = [];
@@ -90,7 +97,7 @@ module UiRenderer {
           continue;
         }
 
-        let fact = Api.ixer.selectOne("uiElement", {element: root});
+        let fact = Api.ixer.findOne("uiElement", {"uiElement: element": root});
         let elem:Element = {id: <string>root, __template: <string>root};
         if(fact && fact["uiElement: parent"]) {
           elem.parent = fact["uiElement: parent"];
@@ -103,14 +110,14 @@ module UiRenderer {
         let elem = stack.shift();
         let templateId = elem.__template;
 
-        let fact = Api.ixer.selectOne("uiElement", {element: templateId});
+        let fact = Api.ixer.findOne("uiElement", {"uiElement: element": templateId});
         if(!fact) { continue; }
         let attrs = elementToAttrs[templateId];
         let boundAttrs = elementToAttrBindings[templateId];
         let children = elementToChildren[templateId];
 
         let elems = [elem];
-        let binding = Api.ixer.selectOne("uiElementBinding", {element: templateId});
+        let binding = Api.ixer.findOne("uiElementBinding", {"uiElementBinding: element": templateId});
         if(binding) {
           // If the element is bound, it must be repeated for each row.
           var boundView = binding["uiElementBinding: view"];
@@ -209,12 +216,12 @@ module UiRenderer {
               elementCompiler(elem);
             } catch(err) {
               let row = keyToRow[key];
-              let warning = {element: elem.id, row: row || "", warning: err.message};
-              if(!Api.ixer.selectOne("uiWarning", warning)) {
+              let warning = {"uiWarning: element": elem.id, "uiWarning: row": row || "", "uiWarning: warning": err.message};
+              if(!Api.ixer.findOne("uiWarning", warning)) {
                 this.warnings.push(warning);
               }
-              elem["message"] = warning.warning;
-              elem["element"] = warning.element;
+              elem["message"] = warning["uiWarning: warning"];
+              elem["element"] = warning["uiWarning: element"];
               Ui.uiError(<any> elem);
               console.warn("Invalid element:", elem);
             }
@@ -239,7 +246,7 @@ module UiRenderer {
 
     // Generate a unique key for the given row based on the structure of the given view.
     generateRowToKeyFn(viewId:Id):RowTokeyFn {
-      var keys = Api.ixer.getKeys(viewId);
+      var keys = getKeys(viewId);
       if(keys.length > 1) {
         return (row:{}) => {
           return `${viewId}: ${keys.map((key) => row[key]).join(",")}`;
@@ -259,14 +266,14 @@ module UiRenderer {
 
     // Get only the rows of view matching the key (if specified) or all rows from the view if not.
     getBoundRows(viewId:Id, key?:any): any[] {
-      var keys = Api.ixer.getKeys(viewId);
+      var keys = getKeys(viewId);
       if(key && keys.length === 1) {
-        return Api.ixer.select(viewId, {[Api.code.name(keys[0])]: key});
+        return Api.ixer.find(viewId, {[Api.get.name(keys[0])]: key});
       } else if(key && keys.length > 0) {
         let rowToKey = this.generateRowToKeyFn(viewId);
-        return Api.ixer.select(viewId, {}).filter((row) => rowToKey(row) === key);
+        return Api.ixer.find(viewId, {}).filter((row) => rowToKey(row) === key);
       } else {
-        return Api.ixer.select(viewId, {});
+        return Api.ixer.find(viewId, {});
       }
     }
   }

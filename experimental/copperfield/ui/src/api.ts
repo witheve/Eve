@@ -6,7 +6,8 @@ module Api {
   export var version = 0;
 
   type Id = string;
-  type Fact = any[];
+  export type Fact = any[];
+  type PopulatedFact = {[key:string]: any, dependents?: {[type: string]: PopulatedFact}}
 
   if(!window.DEBUG) {
     window.DEBUG = {
@@ -40,8 +41,31 @@ module Api {
   //---------------------------------------------------------------------------
   // Utilities
   //---------------------------------------------------------------------------
-  export var arraysIdentical:(a:any[], b:any[])=>boolean = Indexing.arraysIdentical;
-  export var clone:<T>(item:T)=>T = Indexing.clone;
+  export var arraysIdentical = Indexer.arraysIdentical;
+
+  export function clone<T>(item:T): T;
+  export function clone(item:Object): Object;
+  export function clone(item:any[]): any[];
+  export function clone(item:any): any {
+    if (!item) { return item; }
+    if(item.constructor === Array) {
+      let result = [];
+      let ix = 0;
+      for(let child of item) {
+        result[ix++] = clone(child);
+      }
+      return result;
+    }
+    if(typeof item == "object") {
+      let result = {};
+      for (var key in item) {
+        result[key] = clone(item[key]);
+      }
+      return result;
+    } else { //it's a primitive
+      return item;
+    }
+  }
 
   export function now() {
     if (window.performance) {
@@ -76,13 +100,13 @@ module Api {
   }
 
   export function displaySort(idA:string, idB:string): number {
-    var orderA = ixer.index("display order")[idA];
-    var orderB = ixer.index("display order")[idB];
+    var orderA = (ixer.findOne("display order", {"display order: id": idA}) || {})["display order: priority"];
+    var orderB = (ixer.findOne("display order", {"display order: id": idB}) || {})["display order: priority"];
     if(orderA - orderB) { return orderA - orderB; }
     else { return idA.localeCompare(idB); }
   }
 
-  export function invert(obj:Object): Object {
+  export function invert(obj:Object): {} {
     var res = {};
     for(var key in obj) {
       if(!obj.hasOwnProperty(key)) { continue; }
@@ -177,7 +201,7 @@ module Api {
   //---------------------------------------------------------
   // Data
   //---------------------------------------------------------
-  export var ixer = new Indexing.Indexer();
+  export var ixer = new Indexer.Indexer();
   export var newPrimitiveDefaults = {
     "<": {"<: A": 0, "<: B": 0},
     "<=": {"<=: A": 0, "<=: B": 0},
@@ -200,40 +224,54 @@ module Api {
     sum: {"sum: A": []}
   }
 
-  // This index needs to be hardcoded for code fns and indexer to work.
-  ixer.addIndex("id to tags", "tag", Indexing.create.collector(["tag: view"]));
-  ixer.addIndex("display name", "display name", Indexing.create.lookup(["display name: id", "display name: name"]));
-  ixer.addIndex("display order", "display order", Indexing.create.lookup(["display order: id", "display order: priority"]));
-  ixer.addIndex("view to fields", "field", Indexing.create.collector(["field: view"]));
-
   //---------------------------------------------------------
   // Data interaction code
   //---------------------------------------------------------
 
-  export var code = {
-    name: (id:Id) => <string>ixer.index("display name", true)[id] || "",
-    order: (id:Id) => <number>ixer.index("display order", true)[id] || 0,
+  export var get = {
+    name: (id:Id) => <string>ixer.findOne("display name", ({"display name: id": id}) || {})["display name: name"] || "",
+    order: (id:Id) => <number>ixer.findOne("display order", ({"display order: id": id}) || {})["display order: priority"] || 0,
+    tags: (id:Id) => {
+      let tagNames:string[] = [];
+      for(let tag of ixer.find("tag", {"tag: view": id})) tagNames.push(tag["tag: tag"]);
+      return tagNames;
+    },
     hasTag: function(id:Id, tag:string): boolean {
-      let tags = ixer.index("id to tags", true)[id] || [];
+      let tags = ixer.find("tag", {"tag: view": id});
       for(let cur of tags) {
         if(cur["tag: tag"] === tag) { return true; }
       }
       return false;
     },
     nextOrder: function(ids:Id[]): number {
-      let order = ixer.index("display order");
       let max = 0;
       for(let id of ids) {
-        if(order[id] >= max) { max = order[id] + 1; }
+        let priority = get.order(id);
+        if(priority >= max) { max = priority + 1; }
       }
       return max;
+    },
+    fields(table: Id):Id[] {
+      var fields = ixer.find("field", {view: table});
+      if(!fields || !fields.length) { return []; }
+      var fieldIds = fields.map((field) => field["field: field"]);
+      fieldIds.sort(displaySort);
+      return fieldIds;
+    },
+    facts(table: Id):Fact[] {
+      let factMaps = ixer.find(table);
+      let facts = [];
+      for(let map of factMaps) {
+        facts.push(mapToFact(table, map, true));
+      }
+      return facts;
     }
   };
 
   export var localState: any = {
   };
 
-  export type Diff = any[];
+  export type Diff = [string, string,  Fact];
   interface Context {[key:string]: Id}
   export interface Change<T> {type: string, content: T|T[], context?: Context|Context[], mode?: string, originalKeys?: string[], useIds?: boolean}
 
@@ -290,10 +328,10 @@ module Api {
 
     if(useIds) {
       let foreignIdKeys:{[field: string]: string} = {};
-      let fieldIds = ixer.getFields(type);
+      let fieldIds = get.fields(type);
       let nameToId = {};
       for(let id of fieldIds) {
-        nameToId[code.name(id)] = id;
+        nameToId[get.name(id)] = id;
       }
       for(let foreignKey in foreignKeys) {
         foreignIdKeys[foreignKey] = nameToId[foreignKeys[foreignKey]];
@@ -347,9 +385,9 @@ module Api {
     }
 
     // Ensure remaining fields exist and contain something.
-    var fieldIds = ixer.getFields(type);
+    var fieldIds = get.fields(type);
     for(var fieldId of fieldIds) {
-      var fieldName = useIds ? fieldId : code.name(fieldId);
+      var fieldName = useIds ? fieldId : get.name(fieldId);
       if(params[fieldName] === undefined || params[fieldName] === null) {
         throw new Error("Missing value for field " + fieldName + " on type " + type);
       }
@@ -374,10 +412,11 @@ module Api {
     return {type: type, content: params, context: context};
   }
 
-  export function retrieve(type:string, query:{[key:string]:string}, context:Context = {}, useIds = false) {
+  export function retrieve(type:string, query:{[key:string]:string}, context:Context = {}, useIds) {
+    if(useIds === false) throw new Error("Must update to IDs.");
     var schema:Schema = schemas[type] || {};
     var keys:string[] = (schema.key instanceof Array) ? <string[]>schema.key : (schema.key) ? [<string>schema.key] : [];
-    var facts = useIds ? ixer.select(type, query, useIds) : ixer.selectPretty(type, query);
+    var facts = <PopulatedFact[]>ixer.find(type, query);
 
     if(!facts.length) { return; }
     for(var fact of facts) {
@@ -390,14 +429,14 @@ module Api {
         factContext["$last"] = fact[keys[0]];
       }
 
-      var dependents = {};
+      var dependents:{[type:string]: PopulatedFact} = {};
       var hasDependents = false;
       if(schema.dependents) {
         for(var dependent of schema.dependents) {
           var depSchema = schemas[dependent];
           var q = <{[key:string]:string}>fillForeignKeys(dependent, {}, factContext, useIds, true);
 
-          var results = retrieve(dependent, q, clone(factContext));
+          var results = retrieve(dependent, q, clone(factContext), useIds);
           if(results && results.length) {
             if(depSchema.singular) {
               dependents[dependent] = results[0];
@@ -419,13 +458,14 @@ module Api {
   /***************************************************************************\
    * Read/Write API
   \***************************************************************************/
-   export function mapToFact(viewId:Id, props, useIds = false) {
+   export function mapToFact(viewId:Id, props, useIds) {
+     if(!useIds) throw new Error("Update to useIds");
     if(arguments.length < 2) { throw new Error("Must specify viewId and map to convert to fact."); }
-    var fieldIds = ixer.getFields(viewId); // @FIXME: We need to cache these horribly badly.
+    var fieldIds = get.fields(viewId); // @FIXME: We need to cache these horribly badly.
     var length = fieldIds.length;
     var fact = new Array(length);
     for(var ix = 0; ix < length; ix++) {
-      var name = useIds ? fieldIds[ix] : code.name(fieldIds[ix]);
+      var name = fieldIds[ix];
       var val = props[name];
       if(val === undefined || val === null) {
         throw new Error("Malformed value in " + viewId + " for field " + name + " of fact " + JSON.stringify(props));
@@ -435,14 +475,12 @@ module Api {
     return fact;
   }
 
-  export function factToMap(viewId:Id, fact:Fact) {
+  export function factToMap(viewId:Id, fact:Fact, fieldIds:string[] = get.fields(viewId)) {
     if(arguments.length < 2) { throw new Error("Must specify viewId and fact to convert to map."); }
-    var fieldIds = ixer.getFields(viewId); // @FIXME: We need to cache these horribly badly.
     var length = fieldIds.length;
     var map = {};
     for(var ix = 0; ix < length; ix++) {
-      var name = code.name(fieldIds[ix]);
-      map[name] = fact[ix];
+      map[fieldIds[ix]] = fact[ix];
     }
     return map;
   }
@@ -481,24 +519,24 @@ module Api {
     return dest;
   }
 
-  export function change(type:string, params, changes, upsert:boolean = false, context?:Context, useIds = false):Change<any> {
+  export function change(type:string, params, changes, upsert:boolean = false, context?:Context):Change<any> {
     if(arguments.length < 3) { throw new Error("Must specify type and query and changes for change."); }
     // When useIds is set, retrieve will return undefined for an empty result
-    var read = retrieve(type, params, context, useIds) || [];
+    var read = retrieve(type, params, context, true) || [];
     var write = read.map(function(item) {
       return writeInto(item, changes);
     });
     if(!write.length && upsert) {
       var insertParams = writeInto(writeInto({}, params), changes);
-      return insert(type, insertParams, {}, useIds);
+      return insert(type, insertParams, {}, true);
     }
-    return {type: type, content: write, context: context, mode: "changed", originalKeys: clone(params), useIds};
+    return {type: type, content: write, context: context, mode: "changed", originalKeys: clone(params), useIds: true};
   }
 
-  export function remove(type:string, params, context?:Context, useIds = false):Change<any> {
+  export function remove(type:string, params, context?:Context):Change<any> {
     if(arguments.length < 2) { throw new Error("Must specify type and query for remove."); }
-    var read = retrieve(type, params, context, useIds);
-    return {type: type, content: read, context: context, mode: "removed", useIds};
+    var read = retrieve(type, params, context, true);
+    return {type: type, content: read, context: context, mode: "removed", useIds: true};
   }
 
   export function toDiffs(writes:Change<any>|Change<any>[]):Diff[] {
@@ -550,5 +588,19 @@ module Api {
       diffs = diffs.concat(toDiffs({type: key, content: dependents[key], context: write.context, mode: mode}));
     }
     return diffs;
+  }
+
+  export function toChangeSet(changes:Change<any>|Change<any>[], ixer:Indexer.Indexer = Api.ixer) {
+    let diffs = Api.toDiffs(changes);
+    let changeSet = ixer.changeSet();
+    // @FIXME: Dear god batch this.
+    for(let [table, mode, fact] of diffs) {
+      if(mode === "inserted") {
+        changeSet.add(table, fact);
+      } else {
+        changeSet.removeFacts(table, [fact]);
+      }
+    }
+    return changeSet;
   }
 }
