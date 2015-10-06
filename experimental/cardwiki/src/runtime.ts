@@ -283,6 +283,9 @@ return index;`
     query(name) {
       return new Query(this, name);
     }
+    union(name) {
+      return new Union(this, name);
+    }
     asView(query:Query) {
       let name = query.name;
       for(let tableName of query.tables) {
@@ -556,6 +559,159 @@ return index;`
       console.log(results);
       return results;
     }
+  }
+  
+  class Union {
+    name;
+    tables;
+    sources;
+    isStateful;
+    hasher;
+    dirty;
+    prev;
+    compiled;
+    ixer;
+    constructor(ixer, name = "unknown") {
+      this.name = name;
+      this.ixer = ixer;
+      this.tables = [];
+      this.sources = [];
+      this.isStateful = false;
+      this.prev = {results: [], hashes: {}};
+    }
+    stateful() {
+      this.dirty = true;
+      this.isStateful = true;
+      return this;
+    }
+    ensureHasher(mapping) {
+      if(!this.hasher) {
+        this.hasher = generateStringFn(Object.keys(mapping));
+      }
+    }
+    union(tableName, mapping) {
+      this.dirty = true;
+      this.ensureHasher(mapping);
+      this.tables.push(tableName);
+      this.sources.push({type: "+", table: tableName, mapping});
+      return this;
+    }
+    ununion(tableName, mapping) {
+      this.dirty = true;
+      this.ensureHasher(mapping);
+      this.tables.push(tableName);
+      this.sources.push({type: "-", table: tableName, mapping});
+      return this;
+    }
+    toAST() {
+      let root = {type: "union", children: []};
+      root.children.push({type: "declaration", var: "results", value: "[]"});
+      
+      let hashesValue = "{}";
+      if(this.isStateful) {
+         hashesValue = "prevHashes";  
+      }
+      root.children.push({type: "declaration", var: "hashes", value: hashesValue});
+
+      let ix = 0;
+      for(let source of this.sources) {
+        let action;
+        if(source.type === "+") {
+          action = {type: "result", ix};
+        } else {
+          action = {type: "removeResult", ix};
+        }
+        root.children.push({
+          type: "source",
+          ix, 
+          table: source.table, 
+          mapping: source.mapping,
+          children: [action],
+        });
+        ix++;
+      }
+      root.children.push({type: "hashesToResults"});
+      root.children.push({type: "return", vars: ["results", "hashes"]});
+      return root;
+    }
+    compileAST(root) {
+      let code = "";
+      let type = root.type;
+      switch(type) {
+        case "union":
+          for(var child of root.children) {
+            code += this.compileAST(child);
+          }
+          break;
+        case "declaration":
+          code += `var ${root.var} = ${root.value};\n`;
+          break;
+        case "source":
+          var ix = root.ix;
+          let mappingItems = [];
+          for(let key in root.mapping) {
+            let mapping = root.mapping[key];
+            let value;
+            if(mapping.constructor === Array) {
+              let [field] = mapping;
+              value = `sourceRow${ix}['${field}']`;
+            } else {
+              value = JSON.stringify(mapping);
+            }
+            mappingItems.push(`'${key}': ${value}`)
+          }
+          code += `var sourceRows${ix} = ixer.tables['${root.table}'].table;\n`;
+          code += `for(var rowIx${ix} = 0, rowsLen${ix} = sourceRows${ix}.length; rowIx${ix} < rowsLen${ix}; rowIx${ix}++) {\n`
+          code += `var sourceRow${ix} = sourceRows${ix}[rowIx${ix}];\n`;
+          code += `var mappedRow${ix} = {${mappingItems.join(", ")}};\n`
+          for(var child of root.children) {
+            code += this.compileAST(child);
+          }
+          code += "}\n";
+          break;
+        case "result":
+          var ix = root.ix;
+          code += `hashes[hasher(mappedRow${ix})] = mappedRow${ix};\n`;
+          break;  
+        case "removeResult":
+          var ix = root.ix;
+          code += `hashes[hasher(mappedRow${ix})] = false;\n`;
+          break;
+        case "hashesToResults":
+          code += "var hashKeys = Object.keys(hashes);\n";
+          code += "for(var hashKeyIx = 0, hashKeyLen = hashKeys.length; hashKeyIx < hashKeyLen; hashKeyIx++) {\n";
+          code += "var value = hashes[hashKeys[hashKeyIx]];\n";
+          code += "if(value !== false) {\n";
+          code += "results.push(value);\n"
+          code += "}\n"
+          code += "}\n"
+          break;
+        case "return":
+          code += `return {${root.vars.join(", ")}};`;
+          break;
+      }
+      return code;
+    }
+    compile() {
+      let ast = this.toAST();
+      let code = this.compileAST(ast);
+      this.compiled = new Function("ixer", "hasher", "prevHashes", code);
+      return this;
+    }
+    debug() {
+      let code = this.compileAST(this.toAST());
+      console.log(code);
+      return code;
+    }
+    exec() {
+      if(this.dirty) {
+        this.compile();
+      }
+      let results = this.compiled(this.ixer, this.hasher, this.prev.hashes);
+      this.prev = results; 
+      return results;
+    }
+    
   }
   
   //---------------------------------------------------------
