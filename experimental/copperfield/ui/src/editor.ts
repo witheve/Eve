@@ -85,6 +85,7 @@ module Editor {
         if(variable.ordinal) params.dependents["ordinal binding"] = {source: variable.ordinal};
         if(variable.selected) {
           fields.push({kind: "output", dependents: {
+            "display name": {name: variable.alias},
             select: {variable: varId}
           }});
         }
@@ -195,7 +196,7 @@ module Editor {
           Ui.button({text: "compile", click: dispatchOnEvent("createViewFromQuery", "elem.query = localState.reified")}),
           Ui.codeMirrorElement({c: "code", value: script, change: dispatchOnEvent("parse", "elem.query = evt.getValue()")}),
           {t: "pre", c: "err", text: localState.msg},
-          localState.view ? {t: "pre", text: JSON.stringify(Api.ixer.facts(localState.view), null, 2)} : undefined
+          localState.view ? Ui.factTable({view: localState.view}) : undefined
         ]}),
         Ui.tabbedBox({flex: 1, panes: resultPanes, defaultTab: "result-reified"})
       ]})
