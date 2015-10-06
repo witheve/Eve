@@ -418,8 +418,8 @@ module Ui {
     let cm = node.editor;
     if(!cm) {
       cm = node.editor = new CodeMirror(node, {
-        mode: "markdown",
-        //lineWrapping: true,
+        mode: "text",
+        lineWrapping: true,
         lineNumbers: true,
         extraKeys: {
           "Cmd-Enter": () => {
