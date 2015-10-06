@@ -30,12 +30,12 @@ module wiki {
   eve.asView(eve.query("page links")
              .select("page", {}, "page")
              .calculate("page to graph", {text: ["page", "text"]}, "links")
-             .project({page: ["page", "page"], link: ["links"]}));
+             .project({page: ["page", "page"], link: ["links", "link"], type: ["links", "type"]}));
 
   eve.asView(eve.query("active page incoming")
              .select("active page", {}, "active")
              .select("page links", {link: ["active", "page"]}, "links")
-             .project({page: ["links", "page"], link: ["links", "link"]}));
+             .project({page: ["links", "page"], link: ["links", "link"], type: ["links", "type"]}));
 
   //---------------------------------------------------------
   // Article
@@ -68,16 +68,11 @@ module wiki {
 
   function articleToGraph(article) {
     let outbound = [];
-    let lines = article.split(/\n/);
-    for (let line of lines) {
-      let lineChildren = [];
-      let parts = line.split(/(\[.*?\])/);
-      for (var part of parts) {
-        if (part[0] === "[") {
-          let linkText = part.substring(1, part.length - 1).toLowerCase();
-          outbound.push(linkText);
-        }
-      }
+    let regex = /\[(.*?)\](?:\((.*?)\))?/g;
+    let match = regex.exec(article);
+    while(match) {
+      outbound.push({link: match[1], type: match[2] || "unknown"});
+      match = regex.exec(article);
     }
     return {outbound};
   }
