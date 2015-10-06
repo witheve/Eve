@@ -91,6 +91,22 @@ module Parsers {
     return fingerprint;
   }
 
+  export function coerceInput(input) {
+    if (input.match(/^-?[\d]+$/gim)) {
+        return parseInt(input);
+    }
+    else if (input.match(/^-?[\d]+\.[\d]+$/gim)) {
+        return parseFloat(input);
+    }
+    else if (input === "true") {
+        return true;
+    }
+    else if (input === "false") {
+        return false;
+    }
+    return input;
+  }
+
   //---------------------------------------------------------------------------
   // Query Parser
   //---------------------------------------------------------------------------
@@ -99,22 +115,21 @@ module Parsers {
   interface QueryAST extends LineAST {}
 
   interface QuerySourceAST extends LineAST { negated?: boolean }
-  interface QuerySortAST extends LineAST { direction: string }
+  interface QueryOrdinalAST extends LineAST { alias: string, directions: string[] }
 
-  type SourceFieldPair = [string, string];
   interface ReifiedQueryField { field: string, grouped?: boolean, alias?: string, value?: string, ordinal?: boolean }
   interface ReifiedQuerySource {
     negated?: boolean
     source: string
     sourceView: string
     fields: ReifiedQueryField[]
-    sort?: string[] // fields
-    ordinal?: string //alias
+    sort?: [string, string][] // fields
+    ordinal?: string|boolean //alias
   }
   export interface ReifiedQuery {
     sources: ReifiedQuerySource[]
     aliases: {[alias:string]: string}
-    variables: {[id:string]: {selected: boolean, value?: any, ordinal?: string, bindings: SourceFieldPair[]}}
+    variables: {[id:string]: {selected: boolean, value?: any, ordinal?: string, bindings: [string, string][]}}
     views: {[view: string]: {fields: string[], kind: string, tags: string[]}}
     actions: any[]
   }
@@ -145,7 +160,7 @@ module Parsers {
   function tokenIsField(token:Token): token is QueryFieldAST { return token.type === "field"; }
   function tokenIsLine(token:Token): token is LineAST { return !!token["chunks"]; }
   function tokenIsSource(token:Token): token is QuerySourceAST {return token.type === "source"; }
-  function tokenIsSort(token:Token): token is QuerySortAST { return token.type === "sort"; }
+  function tokenIsOrdinal(token:Token): token is QueryOrdinalAST { return token.type === "ordinal"; }
   function tokenIsAction(token:Token): token is LineAST { return token.type === "action"; }
 
   export var query:Query = <any>function(raw:string) {
@@ -154,7 +169,7 @@ module Parsers {
 
   // Utilities
   query.ACTION_TOKENS = ["+"];
-  query.TOKENS = ["`", " ", "\t", "?", "$$", "\"", "!"].concat(query.ACTION_TOKENS);
+  query.TOKENS = ["`", " ", "\t", "?", "$$", "\"", "!"].concat(query.ACTION_TOKENS).concat(PUNCTUATION);
   query.tokenize = makeTokenizer(query.TOKENS);
   query.tokenToChar = (token, line) => (token.tokenIx !== undefined) ? query.tokenize(line).slice(0, token.tokenIx - 1).join("").length : 0;
   query.tokenToString = function(token) {
@@ -201,7 +216,7 @@ module Parsers {
             break;
           }
         }
-        if(!parsedLine.type && text.indexOf("sort by") === 0) parsedLine.type = "sort";
+        if(!parsedLine.type && text.indexOf("#") === 0) parsedLine.type = "ordinal";
       }
       if(!parsedLine.type) parsedLine.type = "source";
 
@@ -211,20 +226,29 @@ module Parsers {
           if(tokenIsField(token) && !token.alias) throw ParseError("All action fields must be aliased to a query field.", token);
         }
 
-      } else if(tokenIsSort(parsedLine)) {
+      } else if(tokenIsOrdinal(parsedLine)) {
         let prevChunk = ast.chunks[ast.chunks.length - 1];
-        if(!prevChunk || !tokenIsSource(prevChunk)) throw ParseError("Sort by must immediately follow a source.");
-        if(parsedLine.chunks.length < 2) throw ParseError("Sort by requires at least one field to sort on.")
-        for(let token of parsedLine.chunks) {
-          if(tokenIsField(token) && !token.alias) throw ParseError("Sort by fields must be aliased to a query field.", token);
+        if(!prevChunk || !tokenIsSource(prevChunk)) throw ParseError("Ordinal must immediately follow a source.");
+        if(parsedLine.chunks.length < 2 || !tokenIsField(parsedLine.chunks[1]))
+          throw ParseError("Ordinal requires a field to bind to ('?' or '?foo').", parsedLine.chunks[1]);
+        if(parsedLine.chunks.length > 2 && parsedLine.chunks[2]["text"].indexOf("by") !== 1)
+          throw ParseError("Ordinals are formatted as '# ? by ?... <dir>'", parsedLine.chunks[2]);
+
+        parsedLine.alias = parsedLine.chunks[1]["alias"];
+        parsedLine.directions = [];
+        let sortFieldCount = 0;
+        for(let tokenIx = 3, chunkCount = parsedLine.chunks.length; tokenIx < chunkCount; tokenIx++) {
+          let token = parsedLine.chunks[tokenIx];
+          if(tokenIsField(token)) {
+            if(!token.alias) throw ParseError("Ordinal sorting fields must be aliased to a query field.", token);
+            sortFieldCount++;
+          } else if(tokenIsStructure(token) && sortFieldCount > 0) {
+            let text = token.text.trim().toLowerCase();
+            if(text.indexOf("ascending") === 0) parsedLine.directions[sortFieldCount - 1] = "ascending";
+            else if(text.indexOf("descending") === 0) parsedLine.directions[sortFieldCount - 1] = "descending";
+          }
         }
-        let dirToken = parsedLine.chunks[parsedLine.chunks.length - 1];
-        if(tokenIsStructure(dirToken)) {
-          let dir = dirToken.text.trim();
-          if(dir === "asc" || dir === "ascending") parsedLine.direction = "ascending";
-          else if(dir === "desc" || dir === "descending") parsedLine.direction = "descending";
-        }
-        if(!parsedLine.direction) throw ParseError("Sort by requires a direction as its last value ('descending' to count down, 'ascending' to count up).", {type: "", tokenIx: tokensLength + 1});
+        if(sortFieldCount === 0) throw ParseError("Ordinal requires at least one sorting field.");
 
       } else if(tokenIsSource(parsedLine)) {
         if(tokenIsStructure(head)) {
@@ -239,6 +263,18 @@ module Parsers {
 
     ParseError.reset();
     return ast;
+  };
+  query.parseLine = function(tokens, lineIx = 0) {
+    let ast:LineAST = {type: "", chunks: [], lineIx};
+    let tokensLength = tokens.length;
+    while(tokens.length) {
+      let tokenIx = tokensLength - tokens.length + 1;
+      let token = query.parseField(tokens, tokenIx)
+        || query.parseStructure(tokens, tokenIx);
+      if(!token) throw ParseError("Unrecognized token sequence.", {type: "", text: tokens.join(""), tokenIx});
+      ast.chunks.push(token);
+    }
+    return ast.chunks.length ? ast : undefined;
   };
   query.parseField = function(tokens, tokenIx = 0) {
     let field:QueryFieldAST = {type: "field", tokenIx};
@@ -265,6 +301,7 @@ module Parsers {
         if(head === undefined) throw ParseError("Unterminated quoted literal.", field);
         field.value += head;
       }
+      field.value = coerceInput(field.value);
       return field;
     }
   };
@@ -279,38 +316,45 @@ module Parsers {
       return struct;
     }
   };
-  query.parseLine = function(tokens, lineIx = 0) {
-    let ast:LineAST = {type: "", chunks: [], lineIx};
-    let tokensLength = tokens.length;
-    while(tokens.length) {
-      let tokenIx = tokensLength - tokens.length + 1;
-      let token = query.parseField(tokens, tokenIx)
-        || query.parseStructure(tokens, tokenIx);
-      if(!token) throw ParseError("Unrecognized token sequence.", {type: "", text: tokens.join(""), tokenIx});
-      ast.chunks.push(token);
-    }
-    return ast.chunks.length ? ast : undefined;
-  };
 
   // Reification
   query.reify = function(ast:QueryAST, prev?):ReifiedQuery {
     let reified:ReifiedQuery = {sources: [], aliases: {}, variables: {}, views: {}, actions: []};
     let sort = [];
-    for(let chunk of ast.chunks) {
-      if(tokenIsSource(chunk)) {
-        let source = query.reifySource(<QuerySourceAST>chunk);
+    for(let line of ast.chunks) {
+      if(tokenIsSource(line)) {
+        let source = query.reifySource(<QuerySourceAST>line);
         for(let field of source.fields) {
-          let variable = reified.variables[reified.aliases[field.alias]];
-          if(!variable) variable = reified.variables[Api.uuid()] = {selected: true, bindings: []};
+          let varId = reified.aliases[field.alias] || Api.uuid();
+          let variable = reified.variables[varId];
+          if(!variable) variable = reified.variables[varId] = {selected: !!field.alias, bindings: []};
+          if(field.alias) reified.aliases[field.alias] = varId;
           if(field.value !== undefined) variable.value = field.value;
           variable.bindings.push([source.source, field.field]);
         }
         reified.sources.push(source);
-      } else if(tokenIsAction(chunk)) {
-        let action = query.reifyAction(chunk);
+      } else if(tokenIsOrdinal(line)) {
+        let source = reified.sources[reified.sources.length - 1];
+        source.ordinal = line.alias || true;
+        let varId = reified.aliases[line.alias] || Api.uuid();
+        let variable = reified.variables[varId];
+        if(!variable) variable = reified.variables[varId] = {selected: true, bindings: []};
+        variable.ordinal = source.source;
+        if(line.alias) reified.aliases[line.alias] = varId;
+        source.sort = [];
+        let sortFieldIx = 0;
+        for(let tokenIx = 3, chunkCount = line.chunks.length; tokenIx < chunkCount; tokenIx++) {
+          let chunk = line.chunks[tokenIx];
+          if(tokenIsField(chunk)) {
+            for(let field of source.fields) {
+              if(field.alias === chunk.alias) source.sort.push([field.field, line.directions[sortFieldIx++]]);
+            }
+          }
+        }
+
+      } else if(tokenIsAction(line)) {
+        let action = query.reifyAction(line);
         reified.actions.push(action);
-      } else if(tokenIsSort(chunk)) {
-        console.log("@TODO: sort chunk", chunk);
       }
     }
 

@@ -54,7 +54,22 @@ module Editor {
       let effect = DispatchEffect.from(this);
       let sources = [];
       for(let source of query.sources) {
-        sources.push({source: source.source, "source view": source.sourceView});
+        let sorted;
+        if(source.sort) {
+          let fieldIds = Api.ixer.getFields(source.sourceView);
+          sorted = [];
+          let ix = 0;
+          for(let [field, direction = "ascending"] of source.sort) {
+            sorted.push({ix: ix++, field, direction});
+            fieldIds.splice(fieldIds.indexOf(field), 1);
+          }
+          for(let field of fieldIds) {
+            sorted.push({ix: ix++, field, direction: "ascending"});
+          }
+        }
+        sources.push({source: source.source, "source view": source.sourceView, dependents: {
+          "sorted field": sorted
+        }});
       }
       let variables = [];
       let fields = [];
@@ -143,10 +158,16 @@ module Editor {
 
   let script =
   `
-   view ?view is a \`union\`
-   view ?view is tagged ??tag
-   + union tag ?tag.
+   view ?view is a ?
+   ?view is named ?name
+   # ?ord by ?name descending
+   ?ord < \`10\`
   `;
+  //`
+  // view ?view is a \`union\`
+  // view ?view is tagged ??tag
+  // # ? by ?view desc
+  //`;
   // `
   //   I've had it with these motherfucking ?a on this motherfucking ?vehicle.
   //   A(n) ?vehicle should *never* contain \`snakes\`
