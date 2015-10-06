@@ -6,7 +6,7 @@
   "dependencies": {
     "codemirror": "*",
     "stylus": "^0.52.4",
-    "typescript": "1.6.0-dev.20150731"
+    "typescript": "1.6.2"
   },
   "devDependencies": {},
   "scripts": {
