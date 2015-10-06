@@ -363,11 +363,11 @@ module Parsers {
   query.reifySource = function(ast, allowMissing = false) {
     ParseError.lineIx = ast.lineIx;
     let fingerprint = fingerprintSource(ast);
-    let {"view fingerprint: view":view} = Api.ixer.selectOne("view fingerprint", {fingerprint}) || {};
+    let {"view fingerprint: view":view} = Api.ixer.findOne("view fingerprint", {"view fingerprint: fingerprint": fingerprint}) || {};
     if(!view && !allowMissing) throw ParseError(`Fingerprint '${fingerprint}' matches no known views.`); //@NOTE: Should this create a union..?
 
     let source:ReifiedQuerySource = {negated: ast.negated, source: Api.uuid(), sourceView: view, fields: []};
-    let fieldIxes = Api.ixer.select("fingerprint field", {fingerprint});
+    let fieldIxes = Api.ixer.find("fingerprint field", {"fingerprint field: fingerprint": fingerprint});
     if(fieldIxes) {
       fieldIxes = fieldIxes.slice();
       fieldIxes.sort((a, b) => a["fingerprint field: ix"] - b["fingerprint field: ix"]);

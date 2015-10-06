@@ -19,10 +19,12 @@ module Editor {
 
     public done():DispatchEffect {
       DispatchEffect.inProgress--;
-      let diffs = Api.toDiffs(this.changes);
-      if(diffs.length) Api.ixer.handleDiffs(diffs);
-      if(diffs.length || this.commands.length) {
-        Client.sendToServer(diffs);
+
+      if(this.changes.length) {
+        Api.ixer.applyChangeSet(Api.toChangeSet(this.changes));
+      }
+      if(this.changes.length || this.commands.length) {
+        Client.sendToServer(Api.toDiffs(this.changes));
       }
 
       if(this.rerender) {
@@ -56,7 +58,7 @@ module Editor {
       for(let source of query.sources) {
         let sorted;
         if(source.sort) {
-          let fieldIds = Api.ixer.getFields(source.sourceView);
+          let fieldIds = Api.get.fields(source.sourceView);
           sorted = [];
           let ix = 0;
           for(let [field, direction = "ascending"] of source.sort) {
@@ -92,13 +94,13 @@ module Editor {
       }
 
       let viewChange = Api.insert("view", {
-        kind: "join",
+        "view: kind": "join",
         dependents: {
           source: sources,
           variable: variables,
           field: fields
         }
-      });
+      }, undefined, false);
       localState.view = viewChange.context["view"];
       effect.changes.push(
         viewChange
