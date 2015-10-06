@@ -165,7 +165,7 @@ return index;`
     }
     updateTable(tableId, adds, removes) {
       let table = this.tables[tableId];
-      if(!table) {
+      if(!table || !table.fields.length) {
         let example = adds[0] || removes[0];
         table = this.addTable(tableId, Object.keys(example));
       }
@@ -301,7 +301,7 @@ return index;`
     asView(query:Query) {
       let name = query.name;
       for(let tableName of query.tables) {
-        let table = this.tables[tableName];
+        let table = this.table(tableName);
         table.triggers[name] = query;
       }
       this.execTrigger(query);

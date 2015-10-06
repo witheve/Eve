@@ -38,6 +38,7 @@ module wiki {
              .project({page: ["links", "page"], link: ["links", "link"], type: ["links", "type"]}));
 
   eve.asView(eve.union("deck pages")
+             .union("history stack", {page: ["page"], deck: "history"})
              .union("page links", {page: ["page"], deck: ["type"]}));
 
   //---------------------------------------------------------
@@ -141,7 +142,7 @@ module wiki {
     let page = eve.findOne("active page")["page"];
     if(!eve.findOne("history stack", {page})) {
       let stack = eve.find("history stack");
-      result.add("history stack", {page: page, pos: stack.length});
+      result.add("history stack", {page, pos: stack.length});
     }
     result.add("active page", {page: info.link});
     result.remove("active page");
