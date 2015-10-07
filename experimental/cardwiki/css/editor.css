@@ -16,7 +16,7 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 - Article Editor
 ---------------------------------------------------------*/
 .article { background: #333; padding:20px; max-width: 600px; min-height: 300px; min-width: 300px; border-radius:3px; box-shadow: 0 2px 2px #111; }
-.article pre { display:block; white-space: pre-wrap; }
+.article pre { display:block; white-space: pre-wrap; min-height:10px; }
 .article span { display:inline-block; }
 .article .link { color: #f88; cursor:default; border-bottom:1px solid transparent;  }
 .article .link.found { color: #99f; }

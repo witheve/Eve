@@ -39,7 +39,11 @@ module wiki {
 
   eve.asView(eve.union("deck pages")
              .union("history stack", {page: ["page"], deck: "history"})
-             .union("page links", {page: ["page"], deck: ["type"]}));
+             .union("page links", {page: ["link"], deck: ["type"]}));
+
+  eve.asView(eve.query("deck")
+             .select("deck pages", {}, "decks")
+             .project({deck: ["decks", "deck"]}));
 
   //---------------------------------------------------------
   // Article
@@ -50,7 +54,7 @@ module wiki {
     let lines = article.split(/\n/);
     for (let line of lines) {
       let lineChildren = [];
-      let parts = line.split(/(\[.*?\])/);
+      let parts = line.split(/(\[.*?\])(?:\(.*?\))?/);
       for (var part of parts) {
         if (part[0] === "[") {
           let linkText = part.substring(1, part.length - 1).toLowerCase();
@@ -75,7 +79,7 @@ module wiki {
     let regex = /\[(.*?)\](?:\((.*?)\))?/g;
     let match = regex.exec(article);
     while(match) {
-      outbound.push({link: match[1], type: match[2] || "unknown"});
+      outbound.push({link: match[1].toLowerCase(), type: (match[2] || "unknown").toLowerCase()});
       match = regex.exec(article);
     }
     return {outbound};
@@ -169,6 +173,7 @@ module wiki {
       articleView = {id: "article editor", c: "article editor", postRender: CodeMirrorElement, value: article.content, blur: commitArticle};
     }
     return {id: "root", c: "root", children: [
+      decks(),
       articleView,
       relatedItems(article),
       historyStack(),
@@ -181,6 +186,17 @@ module wiki {
       items.push({text: inbound["page"], linkText: inbound["page"], click: followLink});
     }
     return {children: items};
+  }
+
+  function decks(article) {
+    let items = [];
+    for(let deck of eve.find("deck")) {
+      items.push({text: deck["deck"]});
+    }
+    return {c: "decks", children: [
+      {text: "decks:"},
+      {children: items}
+    ]};
   }
 
   function commitArticle(cm) {
