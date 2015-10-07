@@ -16,6 +16,7 @@ module Indexer {
   }
   interface Table<T> {
     facts: T[]
+    diff?: Diff<T> // Most recent diff, for incremental triggers.
     factHash: {[hash:string]: boolean}
     indexes: {[key:string]: CollectorIndex<T>}
     triggers: {[name:string]: Trigger}
@@ -27,6 +28,14 @@ module Indexer {
   interface EqualityFn<T> { (a:T, b:T): boolean }
   interface StringFn<T> { (a:T): string }
   interface CollectorFn<T> { (index:Index<T>, adds:T[], removes:T[], equals:EqualityFn<T>): Index<T> }
+  export interface MappingFn {
+    (a:Dict): Dict
+    (a:Dict[]): Dict[]
+  }
+  export interface MappingArrayFn {
+    (a:Dict): any[]
+    (a:Dict[]): any[][]
+  }
 
 
   //---------------------------------------------------------------------------
@@ -97,6 +106,41 @@ for(var ix = 0, len = adds.length; ix < len; ix++) {
 }
 return index;`
     return <CollectorFn<T>>new Function("index", "adds", "removes", "equals", code);
+  }
+
+  export function generateMappingFn(fromKeys:string[]):MappingArrayFn
+  export function generateMappingFn(fromKeys:string[], toKeys:string[]):MappingFn
+  export function generateMappingFn(fromKeys:string[], toKeys?:string[]):(a:any) => any {
+    let mapping;
+    if(!toKeys) { // Map to an array
+      mapping = "[";
+      for(let from of fromKeys) mapping += `fact["${from}"], `;
+      mapping += "]";
+    } else { // Map to an object
+      mapping = "{";
+      let ix = 0;
+      let toCounts = {};
+      for(let from of fromKeys) {
+        let to = toKeys[ix++] || from;
+        toCounts[to] = (toCounts[to] || 0) + 1;
+        if(toCounts[to] > 1) to += ` (${toCounts[to]})`;
+        mapping += `"${to}": fact["${from}"], `;
+      }
+      mapping += "}";
+    }
+    return <MappingFn>new Function("factOrFacts", `
+      if(!factOrFacts) return factOrFacts;
+      if(factOrFacts instanceof Array) {
+        var res = [];
+        for(var ix = 0, len = factOrFacts.length; ix < len; ix++) {
+          var fact = factOrFacts[ix];
+          res[res.length] = ${mapping};
+        }
+        return res;
+      }
+      var fact = factOrFacts;
+      return ${mapping};
+    `);
   }
 
   //---------------------------------------------------------------------------
@@ -336,6 +380,7 @@ return index;`
         let realDiff = this.updateTable(tableId, tableDiff.adds, tableDiff.removes);
         // go through all the indexes and update them.
         let table = this.tables[tableId];
+        table.diff = realDiff;
         for(let indexName in table.indexes) {
           let index = table.indexes[indexName];
           index.collect(index.index, realDiff.adds, realDiff.removes, table.equals);
