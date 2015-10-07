@@ -104,6 +104,16 @@ module Client {
     return { adds: totalAdds, removes: totalRemoves, malformedDiffs: malformedDiffs, badValues: badValues };
   }
 
+  export function factToMap(viewId:Id, fact:Fact, fieldIds:string[] = Api.get.fields(viewId)) {
+    if(arguments.length < 2) { throw new Error("Must specify viewId and fact to convert to map."); }
+    var length = fieldIds.length;
+    var map = {};
+    for(var ix = 0; ix < length; ix++) {
+      map[fieldIds[ix]] = fact[ix];
+    }
+    return map;
+  }
+
   function filterFactsBySession<T>(facts:T[], sessionFieldIx:number, session:string) {
     var neue:T[] = [];
     for(let fact of facts) {
@@ -216,13 +226,13 @@ module Client {
           let mapAdds = [];
           let ix = 0;
           for(let add of adds) {
-            mapAdds[ix] = Api.factToMap(table, add, fields);
+            mapAdds[ix] = factToMap(table, add, fields);
             ix++;
           }
           let mapRemoves = [];
           ix = 0;
           for(let remove of removes) {
-            mapAdds[ix] = Api.factToMap(table, remove, fields);
+            mapAdds[ix] = factToMap(table, remove, fields);
             ix++;
           }
           changeSet.addFacts(table, mapAdds);

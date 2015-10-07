@@ -187,14 +187,7 @@ module Api {
       fieldIds.sort(displaySort);
       return fieldIds;
     },
-    facts(table: Id):Client.Fact[] {
-      let factMaps = ixer.find(table);
-      let facts = [];
-      for(let map of factMaps) {
-        facts.push(mapToFact(table, map));
-      }
-      return facts;
-    }
+    facts: (table: Id):Client.Fact[] => pack(table, ixer.find(table))
   };
 
   export var localState: any = {
@@ -203,27 +196,65 @@ module Api {
   //---------------------------------------------------------------------------
   // Read/Write
   //---------------------------------------------------------------------------
-   export function mapToFact(viewId:Id, props:Dict, fieldIds:string[] = get.fields(viewId)):Client.Fact {
-    if(arguments.length < 2) { throw new Error("Must specify viewId and map to convert to fact."); }
-    let length = fieldIds.length;
-    let fact = new Array(length);
-    for(let ix = 0; ix < length; ix++) {
-      let name = fieldIds[ix];
-      let val = props[name];
-      if(val === undefined || val === null) throw new Error(`Malformed value in ${viewId} for field ${name} of fact ${JSON.stringify(props)}`);
-      fact[ix] = val;
+  var mappings:{[viewId:string]: {humanize: Indexer.MappingFn, resolve: Indexer.MappingFn, pack: Indexer.MappingArrayFn}} = {};
+  function generateMappings(ixer:Indexer.Indexer = Api.ixer) {
+    let changedViews = {};
+    let nameDiff = ixer.table("display name").diff;
+    for(let fact of nameDiff.adds || []) {
+      let field = ixer.findOne("field", {"field: field": fact["display name: id"]});
+      if(field) changedViews[field["field: view"]] = true;
     }
-    return fact;
-  }
+    for(let fact of nameDiff.removes || []) {
+      let field = ixer.findOne("field", {"field: field": fact["display name: id"]});
+      if(field) changedViews[field["field: view"]] = true;
+    }
 
-  export function factToMap(viewId:Id, fact:Client.Fact, fieldIds:string[] = get.fields(viewId)) {
-    if(arguments.length < 2) { throw new Error("Must specify viewId and fact to convert to map."); }
-    var length = fieldIds.length;
-    var map = {};
-    for(var ix = 0; ix < length; ix++) {
-      map[fieldIds[ix]] = fact[ix];
+    let orderDiff = ixer.table("display order").diff;
+    for(let fact of nameDiff.adds || []) {
+      let field = ixer.findOne("field", {"field: field": fact["display order: id"]});
+      if(field) changedViews[field["field: view"]] = true;
     }
-    return map;
+    for(let fact of nameDiff.removes || []) {
+      let field = ixer.findOne("field", {"field: field": fact["display order: id"]});
+      if(field) changedViews[field["field: view"]] = true;
+    }
+
+    for(let viewId of Object.keys(changedViews)) {
+      let fieldIds = get.fields(viewId);
+      let names = [];
+      for(let fieldId of fieldIds) names.push(get.name(fieldId));
+      if(!mappings[viewId]) mappings[viewId] = {humanize: undefined, resolve: undefined, pack: undefined};
+      mappings[viewId].humanize = Indexer.generateMappingFn(fieldIds, names);
+      mappings[viewId].resolve = Indexer.generateMappingFn(names, fieldIds);
+      mappings[viewId].pack = Indexer.generateMappingFn(fieldIds);
+    }
+  }
+  ixer.trigger("generate mappings", ["display name", "display order"], generateMappings);
+
+  function identity<T>(x:T):T { return x; }
+  export function resolve(viewId:string, factOrFacts:Dict):Dict
+  export function resolve(viewId:string, factOrFacts:Dict[]):Dict[]
+  export function resolve(viewId:string, factOrFacts:any):any {
+    if(arguments.length < 2) throw new Error("Resolve requires a viewId as the first argument.");
+    if(!factOrFacts) return factOrFacts;
+    if(mappings[viewId]) return mappings[viewId].resolve(factOrFacts);
+    return identity(factOrFacts);
+  }
+  export function humanize(viewId:string, factOrFacts:Dict):Dict
+  export function humanize(viewId:string, factOrFacts:Dict[]):Dict[]
+  export function humanize(viewId:string, factOrFacts:any):any {
+    if(arguments.length < 2) throw new Error("Humanize requires a viewId as the first argument.");
+    if(!factOrFacts) return factOrFacts;
+    if(mappings[viewId]) return mappings[viewId].humanize(factOrFacts);
+    return identity(factOrFacts);
+  }
+  export function pack(viewId:string, factOrFacts:Dict):Client.Fact
+  export function pack(viewId:string, factOrFacts:Dict[]):Client.Fact[]
+  export function pack(viewId:string, factOrFacts:any):any {
+    if(arguments.length < 2) throw new Error("Pack requires a viewId as the first argument.");
+    if(!factOrFacts) return factOrFacts;
+    if(mappings[viewId]) return mappings[viewId].pack(factOrFacts);
+    return identity(factOrFacts);
   }
 
   interface Schema {
@@ -255,7 +286,7 @@ module Api {
   export var schemas:{[view:string]: Schema} = {};
 
   export function generateSchemas(ixer:Indexer.Indexer = Api.ixer) {
-    let schemas:{[view:string]: Schema} = {};
+    schemas = {};
     let editorViews = ixer.find("tag", {"tag: tag": "editor"}) || [];
     let names:{[name:string]: [Id, Id][]} = {};
     let keys:{[name:string]: [Id, Id]} = {};
@@ -315,12 +346,8 @@ module Api {
       if(!schema.foreign) schema.foreign = {};
       schema.foreign[foreignFieldId] = "$$LAST_PKEY";
     }
-
-    return schemas;
   }
-  ixer.trigger("generate schemas", "field", function(ixer) {
-    schemas = generateSchemas(ixer);
-  });
+  ixer.trigger("generate schemas", "field", generateSchemas);
 
   export class StructuredChange {
     public context:Dict = {};
@@ -427,16 +454,8 @@ module Api {
   export function toDiffs(changeSet: Indexer.ChangeSet):Client.MapDiffs {
     let diffs:Client.MapDiffs = [];
     for(let tableId in changeSet.tables) {
-      let fields = get.fields(tableId);
-      let diff:Client.MapDiff = [tableId, fields, [], []];
-      diffs.push(diff);
-
-      for(let add of changeSet.tables[tableId].adds) {
-        diff[2][diff[2].length] = mapToFact(tableId, add, fields);
-      }
-      for(let remove of changeSet.tables[tableId].removes) {
-        diff[3][diff[3].length] = mapToFact(tableId, remove, fields);
-      }
+      let diff = changeSet.tables[tableId];
+      diffs.push([tableId, get.fields(tableId), pack(tableId, diff.adds), pack(tableId, diff.removes)]);
     }
     return diffs;
   }
