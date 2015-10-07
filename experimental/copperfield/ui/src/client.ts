@@ -5,9 +5,13 @@ module Client {
   declare var CBOR;
   declare var uuid;
 
-  type Id = string;
-  export type PayloadChange = [Id, Id[], Api.Fact[], Api.Fact[]];
-  export interface Payload { session?: string, changes?: PayloadChange[], commands: Api.Fact[] };
+  type Id = string
+  export type Fact = any[]
+  export type MapDiff = [string, string[], Fact[], Fact[]]
+  export type MapDiffs = MapDiff[]
+  export type PayloadChange = [Id, Id[], Fact[], Fact[]]
+  export interface Payload { session?: string, changes?: PayloadChange[], commands: Fact[] }
+
 
   // Override these values to integrate with app.
   type OnReceive = (changed:string[], commands:any[][]) => void;
@@ -20,10 +24,10 @@ module Client {
   }
 
   /* Integrated Debugging Tooling */
-  export function nukeTable(viewId) { // from orbit
+  export function nukeTable(viewId:string) { // from orbit
     var fieldIds = Api.get.fields(viewId);
     var toRemove = Api.get.facts(viewId);
-    sendToServer({changes: [[viewId, fieldIds, [], toRemove]]}, true);
+    sendToServer([[viewId, fieldIds, [], toRemove]]);
   }
 
   function formatTime(time?) {
@@ -135,7 +139,7 @@ module Client {
         showNotice({content: "Reconnected to server!"});
       }
       for (var i = 0, len = queue.length; i < len; i++) {
-        sendToServer(queue[i], false);
+        sendToServer(queue[i]);
       }
     }
 
@@ -221,7 +225,6 @@ module Client {
             mapAdds[ix] = Api.factToMap(table, remove, fields);
             ix++;
           }
-          console.log(table, mapAdds, mapRemoves);
           changeSet.addFacts(table, mapAdds);
           changeSet.removeFacts(table, mapRemoves);
         }
@@ -251,89 +254,36 @@ module Client {
     };
   }
 
-  export function sendToServer(message, formatted?, commands?) {
+  export function sendToServer(changes?:MapDiffs, commands?) {
     if (!server.connected) {
-      console.warn("Not connected to server, adding message to queue.");
-      server.queue.push(message);
-    } else {
-      if (!formatted) {
-        message = toMapDiffs(message);
-      }
-      var payload = message;
-      if(commands) {
-        payload.commands = commands;
-      }
+      console.warn("Not connected to server, adding changes to queue.");
+      server.queue.push(changes);
+      return;
+    }
 
-      if (DEBUG.SEND) {
-        var stats = getDataStats(payload);
-        if (stats.adds || stats.removes) {
-          var header = `[client:sent][+${stats.adds}/-${stats.removes}]`;
-          console.groupCollapsed(pad(header, formatTime()));
-          if (stats.malformedDiffs.length) {
-            console.warn("The following views have malformed diffs:", stats.malformedDiffs);
-          }
-          if (stats.badValues.length) {
-            console.warn("The following views have bad values:", stats.badValues);
-          }
-          writeDataToConsole(payload, DEBUG.SEND);
-          console.groupEnd();
+    var payload:Payload = {changes: undefined, commands: undefined};
+    if(changes) payload.changes = changes;
+    if(commands) payload.commands = commands;
+
+    if (DEBUG.SEND) {
+      var stats = getDataStats(payload);
+      if (stats.adds || stats.removes) {
+        var header = `[client:sent][+${stats.adds}/-${stats.removes}]`;
+        console.groupCollapsed(pad(header, formatTime()));
+        if (stats.malformedDiffs.length) {
+          console.warn("The following views have malformed diffs:", stats.malformedDiffs);
         }
-      }
-
-      if (payload.changes.length || payload.commands && payload.commands.length) {
-        server.ws.send(CBOR.encode(payload));
-      }
-    }
-  }
-
-  export function toMapDiffs(diffs) {
-    // Deduplicate diffs prior to sending with last write wins.
-    var deduped = [];
-    outer: for(var ix = diffs.length - 1; ix >= 0; ix--) {
-      var diff = diffs[ix];
-      for(var needleIx = deduped.length - 1; needleIx >= 0; needleIx--) {
-        if(Api.arraysIdentical(diff[2], deduped[needleIx][2]) && diff[0] === deduped[needleIx][0]) {
-          continue outer;
+        if (stats.badValues.length) {
+          console.warn("The following views have bad values:", stats.badValues);
         }
+        writeDataToConsole(payload, DEBUG.SEND);
+        console.groupEnd();
       }
-      deduped.push(diff);
-    }
-    diffs = deduped;
-
-    var final = { field: null };
-    for (var i = 0, len = diffs.length; i < len; i++) {
-      var cur = diffs[i];
-      var table = cur[0];
-      var action = cur[1];
-      var fact = cur[2];
-      if (!final[table]) {
-        final[table] = { inserted: [], removed: [] };
-      }
-      final[table][action].push(fact);
     }
 
-    // If fields are added to a view at the same time as new data is, our local fields list will be out of sync.
-    // neueFields will contain any additional fields we need to include in the mapping we send to the server.
-    var neueFields = {};
-    for (var fieldIx = 0; final.field && fieldIx < final.field.inserted.length; fieldIx++) {
-      // @FIXME: These must be inserted in order to work.
-      // @FIXME: Does not account for removed fields, only appended fields.
-      var field = final.field.inserted[fieldIx];
-      var fieldViewId = field[0];
-      var fieldId = field[1];
-      if (!neueFields[fieldViewId]) { neueFields[fieldViewId] = (Api.get.fields(fieldViewId) || []).slice(); }
-      neueFields[fieldViewId].push(fieldId);
+    if (payload.changes.length || payload.commands && payload.commands.length) {
+      server.ws.send(CBOR.encode(payload));
     }
-
-    var changes = [];
-    for (var table in final) {
-      if(!final[table]) continue;
-      var fieldIds = Api.get.fields(table) || [];
-      fieldIds = fieldIds.concat(neueFields[table] || []);
-
-      changes.push([table, fieldIds, final[table].inserted, final[table].removed]);
-    }
-    return { changes: changes };
   }
 
   var afterInitFuncs: Function[] = [];

@@ -1,15 +1,18 @@
 module Indexer {
-  type Dict = {[key:string]: any}|{[key:number]: any}
+  export type Dict = {[key:string]: any}|{[key:number]: any}
   interface Diff<T> { adds: T[], removes: T[] }
+  type Diffs<T> = {[viewId:string]: Diff<T>}
   type Index<T> = IndexPath<T>|T[]
   interface IndexPath<T> { [key:string]: Index<T> }
   interface CollectorIndex<T> {
     index: Index<T>
     collect: CollectorFn<T>
   }
+  type TriggerExec = (ixer:Indexer) => void
   interface Trigger {
     name: string
-    exec: () => void
+    tables: string[]
+    exec: TriggerExec
   }
   interface Table<T> {
     facts: T[]
@@ -112,7 +115,7 @@ return index;`
     return true;
   }
 
-  export function objectsIdentical(a:{}, b:{}): boolean {
+  export function identical(a:Dict, b:Dict): boolean {
     if(typeof a !== typeof b) { return false; }
     if(typeof a !== "object") { return a === b; }
     var aKeys = Object.keys(a);
@@ -120,12 +123,12 @@ return index;`
     for(var key of aKeys) {
       if(typeof a[key] !== "object" && a[key] !== b[key]) { return false; }
       else if(a[key].constructor === Array) { console.log(a[key], b[key], arraysIdentical(a[key], b[key])); return arraysIdentical(a[key], b[key]); }
-      else if(!objectsIdentical(a[key], b[key])) { return false; }
+      else if(!identical(a[key], b[key])) { return false; }
     }
     return true;
   }
 
-  function indexOfFact<T>(haystack:T[], needle:T, equals:EqualityFn<Dict> = objectsIdentical) {
+  function indexOfFact<T>(haystack:T[], needle:T, equals:EqualityFn<Dict> = identical) {
     let ix = 0;
     for(let fact of haystack) {
       if(equals(fact, needle)) {
@@ -145,7 +148,7 @@ return index;`
   //---------------------------------------------------------------------------
   // ChangeSet
   //---------------------------------------------------------------------------
-  class ChangeSet {
+  export class ChangeSet {
     tables:{[id:string]: Diff<Dict>} = {};
     length: number = 0;
     meta = {};
@@ -161,26 +164,39 @@ return index;`
       }
       return tableDiff;
     }
-    add(table:string, obj) {
+    add(table:string, obj):ChangeSet {
       let tableDiff = this.ensureTable(table);
       this.length++;
       tableDiff.adds.push(obj);
+      return this;
     }
-    remove(table:string, query) {
+    remove(table:string, query):ChangeSet {
       let tableDiff = this.ensureTable(table);
       let found = this.ixer.find(table, query);
       this.length += found.length;
       tableDiff.removes.push.apply(tableDiff.removes, found);
+      return this;
     }
-    addFacts(table:string, objs) {
+    addFacts(table:string, objs):ChangeSet {
       let tableDiff = this.ensureTable(table);
       this.length += objs.length;
       tableDiff.adds.push.apply(tableDiff.adds, objs);
+      return this;
     }
-    removeFacts(table:string, objs) {
+    removeFacts(table:string, objs):ChangeSet {
       let tableDiff = this.ensureTable(table);
       this.length += objs.length;
       tableDiff.removes.push(tableDiff.removes, objs);
+      return this;
+    }
+    reverse():ChangeSet {
+      for(let tableId in this.tables) {
+        let table = this.tables[tableId];
+        let {removes:adds, adds:removes} = table;
+        table.adds = adds;
+        table.removes = removes;
+      }
+      return this;
     }
   }
 
@@ -188,12 +204,17 @@ return index;`
   // Indexer
   //---------------------------------------------------------------------------
   export class Indexer {
-    tables:{[table:string]: Table<Dict>};
-    constructor() {
-      this.tables = {};
-    }
-    addTable(name:string, keys:Keys) {
-      let table = this.tables[name] = {facts: [], factHash: {}, indexes: {}, triggers: {}, fields: keys, stringify: generateStringFn(keys), equals: generateEqualityFn(keys)};
+    tables:{[table:string]: Table<Dict>} = {};
+
+    addTable(name:string, keys:Keys = []) {
+      let table = this.tables[name];
+      if(table && keys.length) {
+        table.fields = keys;
+        table.stringify = generateStringFn(keys);
+        table.equals = generateEqualityFn(keys);
+      } else {
+        table = this.tables[name] = {facts: [], factHash: {}, indexes: {}, triggers: {}, fields: keys, stringify: generateStringFn(keys), equals: generateEqualityFn(keys)};
+      }
       return table;
     }
     clearTable(name:string) {
@@ -208,7 +229,7 @@ return index;`
     }
     updateTable<T>(tableId:string, adds:T[], removes:T[]) {
       let table = this.tables[tableId];
-      if(!table) {
+      if(!table || !table.fields.length) {
         let example = adds[0] || removes[0];
         table = this.addTable(tableId, Object.keys(example));
       }
@@ -254,7 +275,7 @@ return index;`
           factHash[hash] = undefined;
         }
       }
-      return {adds:realAdds, removes:realRemoves};
+      return {adds: realAdds, removes: realRemoves};
     }
 
     collector(keys:Keys) {
@@ -262,20 +283,6 @@ return index;`
         index: {},
         collect: generateCollector(keys),
       }
-    }
-    index(tableId:string, keys:Keys) {
-      let table = this.tables[tableId];
-      if(!table) {
-        table = this.addTable(tableId, keys);
-      }
-      keys.sort();
-      let indexName = keys.join("|");
-      let index = table.indexes[indexName];
-      if(!index) {
-        index = table.indexes[indexName] = <any>this.collector(keys);
-        index.collect(index.index, table.facts, [], table.equals);
-      }
-      return index.index;
     }
     factToIndex<T>(table:Table<T>, fact:T):T[] {
       let keys = Object.keys(fact);
@@ -293,20 +300,33 @@ return index;`
       }
       return <T[]>cursor;
     }
-    execTrigger(trigger) {
-      let {results, projected} = trigger.exec();
-      if(projected) {
-        let changeSet = new ChangeSet(this);
-        this.clearTable(trigger.name);
-        changeSet.addFacts(trigger.name, projected);
-        this.applyChangeSet(changeSet);
-      }
+    execTrigger(trigger:Trigger) {
+      trigger.exec(this);
     }
     //---------------------------------------------------------
     // Indexer Public API
     //---------------------------------------------------------
     changeSet() {
       return new ChangeSet(this);
+    }
+    table(tableId:string) {
+      let table = this.tables[tableId];
+      if(table) return table;
+      return this.addTable(tableId);
+    }
+    index(tableId:string, keys:Keys) {
+      let table = this.table(tableId);
+      if(!table) {
+        table = this.addTable(tableId);
+      }
+      keys.sort();
+      let indexName = keys.join("|");
+      let index = table.indexes[indexName];
+      if(!index) {
+        index = table.indexes[indexName] = <any>this.collector(keys);
+        if(table.fields.length) index.collect(index.index, table.facts, [], table.equals);
+      }
+      return index.index;
     }
     applyChangeSet(changeSet:ChangeSet) {
       let triggers = {};
@@ -331,6 +351,17 @@ return index;`
         this.execTrigger(trigger);
       }
     }
+    trigger(name:string, table:string|string[], exec:TriggerExec) {
+      let tables = (typeof table === "string") ? [table] : table;
+      let trigger = {name, tables, exec};
+      let dirty = false;
+      for(let tableId of tables) {
+        let table = this.table(tableId);
+        table.triggers[name] = trigger;
+        if(table.fields.length) dirty = true;
+      }
+      if(dirty) this.execTrigger(trigger);
+    }
     find<T>(tableId:string, query?:T|Dict):(T|Dict)[] {
       let table = this.tables[tableId];
       if(!table) {
@@ -344,5 +375,6 @@ return index;`
     findOne(tableId, query?) {
       return this.find(tableId, query)[0];
     }
+
   }
 }

@@ -3,22 +3,21 @@ module Api {
   declare var window;
   export var uuid:()=>string = window.uuid;
 
-  export var version = 0;
-
+  export type Dict = Indexer.Dict;
   type Id = string;
-  export type Fact = any[];
   type PopulatedFact = {[key:string]: any, dependents?: {[type: string]: PopulatedFact}}
 
-  if(!window.DEBUG) {
-    window.DEBUG = {
-      RECEIVE: 0,
-      SEND: 0,
-      INDEXER: 0,
-      RENDERER: false,
-      RENDER_TIME: false,
-      TABLE_CELL_LOOKUP: true
-    };
-  }
+  export var DEBUG = {
+    RECEIVE: 0,
+    SEND: 0,
+    STRUCTURED_CHANGE: false,
+    RENDERER: false,
+    RENDER_TIME: false,
+    TABLE_CELL_LOOKUP: true
+  };
+
+  if(!window.DEBUG) window.DEBUG = DEBUG;
+  else DEBUG = window.DEBUG;
 
   export const KEYS = {
     TAB: 9,
@@ -42,6 +41,11 @@ module Api {
   // Utilities
   //---------------------------------------------------------------------------
   export var arraysIdentical = Indexer.arraysIdentical;
+  export var identical = Indexer.identical;
+
+  function isDict(val:any): val is Dict {
+    return val && typeof val === "object" && val.constructor !== Array;
+  };
 
   export function clone<T>(item:T): T;
   export function clone(item:Object): Object;
@@ -62,15 +66,12 @@ module Api {
         result[key] = clone(item[key]);
       }
       return result;
-    } else { //it's a primitive
-      return item;
     }
+    return item;
   }
 
   export function now() {
-    if (window.performance) {
-      return window.performance.now();
-    }
+    if (window.performance) return window.performance.now();
     return (new Date()).getTime();
   }
 
@@ -106,21 +107,13 @@ module Api {
     else { return idA.localeCompare(idB); }
   }
 
-  export function invert(obj:Object): {} {
-    var res = {};
-    for(var key in obj) {
-      if(!obj.hasOwnProperty(key)) { continue; }
-      res[obj[key]] = key;
-    }
-    return res;
-  }
-
   // @NOTE Rows array will be mutated in place. Please slice in advance if source cannot be mutated.
   export function sortRows(rows:any[], field:string|number, direction:number) {
-    rows.sort(function sort(a, b) {
-      a = a[field];
-      b = b[field];
-      if(direction < 0) { [a, b] = [b, a]; }
+    rows.sort(function sort(factA:Dict, factB:Dict) {
+      var a, b;
+      if(direction >= 0) [a, b] = [factA[field], factB[field]];
+      else [b, a] = [factA[field], factB[field]];
+
       var typeA = typeof a;
       var typeB = typeof b;
       if(typeA === typeB && typeA === "number") { return a - b; }
@@ -131,71 +124,6 @@ module Api {
       if(a.constructor === Array) { return JSON.stringify(a).localeCompare(JSON.stringify(b)); }
       return a.toString().localeCompare(b);
     });
-  }
-
-  export function reverseDiff(diffs) {
-    let neue = [];
-    for(let diff of diffs) {
-      var copy = diff.slice();
-      neue.push(copy);
-      copy[1] = (copy[1] === "inserted")  ? "removed" : "inserted";
-    }
-    return neue;
-  }
-
-  export function checkVersion(callback:(error:Error, newVersionExists?:boolean) => void) {
-    let request = new XMLHttpRequest();
-    request.onreadystatechange = function() {
-      if(request.readyState === 4) {
-        if(request.status !== 200) {
-          return callback(new Error(`HTTP Response: ${request.status}`));
-        }
-
-        callback(undefined, +request.responseText > +version);
-      }
-    }
-    //request.open("GET", "https://gist.githubusercontent.com/joshuafcole/117ec93af90c054bac23/raw/1350f2aae121e19129e561678b107ec042a6cbd2/version");
-    request.open("GET", "https://raw.githubusercontent.com/witheve/Eve/master/version");
-    request.send();
-  }
-
-  export function writeToGist(name:string, content:string, callback:(error:Error, url?:string) => void) {
-    let request = new XMLHttpRequest();
-    request.onreadystatechange = function() {
-      if(request.readyState === 4) {
-        if(request.status !== 201) {
-          return callback(new Error(`HTTP Response: ${request.status}`));
-        }
-        let response:any = JSON.parse(request.responseText);
-        let file = response.files[name];
-        let url = file.raw_url.split("/raw/")[0];
-        let err = (file.truncated) ? new Error("File to large: Maximum gist size is 10mb") : undefined;
-        callback(err, url);
-      }
-    };
-    let payload = {
-      public: true,
-      description: "",
-      files: {}
-    }
-    payload.files[name] = {content: content};
-    request.open("POST", "https://api.github.com/gists");
-    request.send(JSON.stringify(payload));
-  }
-
-  export function readFromGist(url:string, callback:(error:Error, content?:string) => void) {
-    let request = new XMLHttpRequest();
-    request.onreadystatechange = function() {
-      if(request.readyState === 4) {
-        if(request.status !== 200) {
-          return callback(new Error(`HTTP Response: ${request.status}`));
-        }
-
-        callback(undefined, request.responseText);
-      }
-    }
-    request.open("GET", url);
-    request.send();
   }
 
   //---------------------------------------------------------
@@ -252,17 +180,18 @@ module Api {
       return max;
     },
     fields(table: Id):Id[] {
-      var fields = ixer.find("field", {view: table});
+      var fields = ixer.find("field", {"field: view": table});
       if(!fields || !fields.length) { return []; }
-      var fieldIds = fields.map((field) => field["field: field"]);
+      var fieldIds = [];
+      for(let field of fields) fieldIds[fieldIds.length] = field["field: field"];
       fieldIds.sort(displaySort);
       return fieldIds;
     },
-    facts(table: Id):Fact[] {
+    facts(table: Id):Client.Fact[] {
       let factMaps = ixer.find(table);
       let facts = [];
       for(let map of factMaps) {
-        facts.push(mapToFact(table, map, true));
+        facts.push(mapToFact(table, map));
       }
       return facts;
     }
@@ -271,211 +200,23 @@ module Api {
   export var localState: any = {
   };
 
-  export type Diff = [string, string,  Fact];
-  interface Context {[key:string]: Id}
-  export interface Change<T> {type: string, content: T|T[], context?: Context|Context[], mode?: string, originalKeys?: string[], useIds?: boolean}
-
-  interface Schema {
-    key?: string|string[]
-    dependents?: Id[]
-    foreign?: {[field:string]: string}
-    singular?: boolean
-  }
-
-  var pkDependents = ["display order", "tag", "display name"];
-  var schemas:{[id:string]: Schema} = {
-    "display name": {foreign: {$last: "id"}, singular: true},
-    "display order": {foreign: {$last: "id"}, singular: true},
-    tag: {foreign: {$last: "view"}},
-
-    view: {key: "view", dependents: pkDependents.concat(["field"])},
-    source: {
-      key: "source",
-      foreign: {view: "view"},
-      dependents: ["binding", "ordinal binding", "grouped field", "sorted field", "chunked source", "negated source"]
-    },
-    field: {
-      key: "field",
-      foreign: {view: "view"},
-      dependents: pkDependents.concat(["select"]),
-    },
-    variable: {
-      key: "variable",
-      foreign: {view: "view"},
-      dependents: pkDependents.concat(["select", "binding", "constant binding", "ordinal binding"])
-    },
-    select: {foreign: {variable: "variable", field: "field"}, singular: true},
-    binding: {foreign: {variable: "variable", source: "source"}},
-    "ordinal binding": {foreign: {variable: "variable", source: "source"}, singular: true},
-    "constant binding": {foreign: {variable: "variable"}, singular: true},
-
-    "grouped field": {foreign: {source: "source"}},
-    "sorted field": {foreign: {source: "source"}},
-    "chunked source": {foreign: {source: "source"}},
-    "negated source": {foreign: {source: "source"}},
-
-    "editor node position": {key: "node"},
-  };
-
-  /***************************************************************************\
-   * Read/Write primitives.
-  \***************************************************************************/
-  function fillForeignKeys(type, query, context, useIds = false, silentThrow?) {
-    var schema = schemas[type];
-    if(!schema) { throw new Error("Attempted to process unknown type " + type + " with query " + JSON.stringify(query)); }
-    var foreignKeys = schema.foreign;
-    if(!foreignKeys) { return query; }
-
-    if(useIds) {
-      let foreignIdKeys:{[field: string]: string} = {};
-      let fieldIds = get.fields(type);
-      let nameToId = {};
-      for(let id of fieldIds) {
-        nameToId[get.name(id)] = id;
-      }
-      for(let foreignKey in foreignKeys) {
-        foreignIdKeys[foreignKey] = nameToId[foreignKeys[foreignKey]];
-      }
-      foreignKeys = foreignIdKeys;
-    }
-
-    for(var contextKey in foreignKeys) {
-      var foreignKey = foreignKeys[contextKey];
-
-      if(!foreignKeys.hasOwnProperty(contextKey)) { continue; }
-      if(query[foreignKey] !== undefined) { continue; }
-      if(context[contextKey] === undefined && !silentThrow) {
-        throw new Error("Unspecified field " + foreignKey + " for type " + type + " with no compatible parent to link to in context " + JSON.stringify(context));
-      }
-      query[foreignKey] = context[contextKey];
-    }
-    return query;
-  }
-
-  export function process(type:string, params, context:Context = {}, useIds = false): Change<any> {
-    if(!params) { return; }
-    if(params instanceof Array) {
-      var write = {type: type, content: [], context: []};
-      for(var item of params) {
-        var result = process(type, item, clone(context), useIds);
-        write.content.push(result.content);
-        write.context.push(result.context);
-      }
-      return write;
-    }
-
-    var schema:Schema = schemas[type] || {};
-    if(!params) { throw new Error("Invalid params specified for type " + type + " with params " + JSON.stringify(params)); }
-
-    // Link foreign keys from context if missing.
-    if(schema.foreign) {
-      var params = fillForeignKeys(type, params, context, useIds);
-    }
-
-    // Fill primary keys if missing.
-    var keys:string[] = (schema.key instanceof Array) ? <string[]>schema.key : (schema.key) ? [<string>schema.key] : [];
-    for(var key of keys) {
-      if(params[key] === undefined) {
-        params[key] = uuid();
-      }
-      context[key] = params[key];
-    }
-    if(keys.length === 1) {
-      context["$last"] = params[keys[0]];
-    }
-
-    // Ensure remaining fields exist and contain something.
-    var fieldIds = get.fields(type);
-    for(var fieldId of fieldIds) {
-      var fieldName = useIds ? fieldId : get.name(fieldId);
-      if(params[fieldName] === undefined || params[fieldName] === null) {
-        throw new Error("Missing value for field " + fieldName + " on type " + type);
-      }
-    }
-
-    // Process dependents recursively.
-    if(params.dependents) {
-      var dependents = params.dependents;
-      for(var dep in dependents) {
-        if(!dependents.hasOwnProperty(dep)) { continue; }
-        if(dependents[dep] instanceof Array) {
-          for(var depItem of dependents[dep]) {
-            process(dep, depItem, context);
-          }
-        } else {
-          var result = process(dep, dependents[dep], context);
-          if(!result) { delete dependents[dep]; }
-        }
-      }
-    }
-
-    return {type: type, content: params, context: context};
-  }
-
-  export function retrieve(type:string, query:{[key:string]:string}, context:Context = {}, useIds) {
-    if(useIds === false) throw new Error("Must update to IDs.");
-    var schema:Schema = schemas[type] || {};
-    var keys:string[] = (schema.key instanceof Array) ? <string[]>schema.key : (schema.key) ? [<string>schema.key] : [];
-    var facts = <PopulatedFact[]>ixer.find(type, query);
-
-    if(!facts.length) { return; }
-    for(var fact of facts) {
-      if(!fact) { continue; }
-      var factContext = clone(context);
-      for(var key of keys) {
-        factContext[key] = fact[key];
-      }
-      if(keys.length === 1) {
-        factContext["$last"] = fact[keys[0]];
-      }
-
-      var dependents:{[type:string]: PopulatedFact} = {};
-      var hasDependents = false;
-      if(schema.dependents) {
-        for(var dependent of schema.dependents) {
-          var depSchema = schemas[dependent];
-          var q = <{[key:string]:string}>fillForeignKeys(dependent, {}, factContext, useIds, true);
-
-          var results = retrieve(dependent, q, clone(factContext), useIds);
-          if(results && results.length) {
-            if(depSchema.singular) {
-              dependents[dependent] = results[0];
-            } else {
-              dependents[dependent] = results;
-            }
-            hasDependents = true;
-          }
-        }
-      }
-      if(hasDependents) {
-        fact.dependents = dependents;
-      }
-    }
-
-    return facts;
-  }
-
-  /***************************************************************************\
-   * Read/Write API
-  \***************************************************************************/
-   export function mapToFact(viewId:Id, props, useIds) {
-     if(!useIds) throw new Error("Update to useIds");
+  //---------------------------------------------------------------------------
+  // Read/Write
+  //---------------------------------------------------------------------------
+   export function mapToFact(viewId:Id, props:Dict, fieldIds:string[] = get.fields(viewId)):Client.Fact {
     if(arguments.length < 2) { throw new Error("Must specify viewId and map to convert to fact."); }
-    var fieldIds = get.fields(viewId); // @FIXME: We need to cache these horribly badly.
-    var length = fieldIds.length;
-    var fact = new Array(length);
-    for(var ix = 0; ix < length; ix++) {
-      var name = fieldIds[ix];
-      var val = props[name];
-      if(val === undefined || val === null) {
-        throw new Error("Malformed value in " + viewId + " for field " + name + " of fact " + JSON.stringify(props));
-      }
+    let length = fieldIds.length;
+    let fact = new Array(length);
+    for(let ix = 0; ix < length; ix++) {
+      let name = fieldIds[ix];
+      let val = props[name];
+      if(val === undefined || val === null) throw new Error(`Malformed value in ${viewId} for field ${name} of fact ${JSON.stringify(props)}`);
       fact[ix] = val;
     }
     return fact;
   }
 
-  export function factToMap(viewId:Id, fact:Fact, fieldIds:string[] = get.fields(viewId)) {
+  export function factToMap(viewId:Id, fact:Client.Fact, fieldIds:string[] = get.fields(viewId)) {
     if(arguments.length < 2) { throw new Error("Must specify viewId and fact to convert to map."); }
     var length = fieldIds.length;
     var map = {};
@@ -485,122 +226,218 @@ module Api {
     return map;
   }
 
-  export function insert(type:string, params, context?:Context, useIds = false):Change<any> {
-    if(arguments.length < 2) { throw new Error("Must specify type and parameters for insert."); }
-    var write = process(type, params, context, useIds);
-    write.mode = "inserted";
-    write.useIds = useIds;
-    return write;
+  interface Schema {
+    fields: string[]
+    unboundFields: string[]
+    singular: boolean
+    key?: string
+    foreign?: {[field:string]: string}
+    dependents?: Id[]
   }
 
-  function writeInto(dest, src) {
-    if(dest.constructor === Array) {
-      return dest.map(function(item) {
-        return writeInto(item, src);
-      })
-    }
-    for(var key in src) {
-      if(src[key] === undefined) { continue; }
-      // If the source attribute is an array, append its contents to the dest key.
-      if(src[key].constructor === Array) {
-        if(dest[key].constructor !== Array) { dest[key] = [dest[key]]; }
-        dest[key] = dest[key].concat(src[key]);
-      }
-      // If it's an object, recurse.
-      // @NOTE: This will fail if the destination is dissimilarly shaped (e.g. contains a primitive here).
-      else if(typeof src[key] === "object") {
-        dest[key] = writeInto(dest[key] || {}, src[key]);
-      }
-      // If it's a primitive value, overwrite the current value.
-      else {
-        dest[key] = src[key];
-      }
-    }
-    return dest;
-  }
+  const EDITOR_PKS = {tag: ""};
+  const EDITOR_PK_DEPS = [
+    ["display name", "display name: id"],
+    ["display order", "display order: id"],
+    ["tag", "tag: view"]
+  ];
+  const EDITOR_SINGULAR = {
+    "display name": true,
+    "display order": true,
+    "select": true,
+    "ordinal binding": true,
+    "constant binding": true,
+    "chunked source": true,
+    "negated source": true,
+    "negated member": true
+  };
 
-  export function change(type:string, params, changes, upsert:boolean = false, context?:Context):Change<any> {
-    if(arguments.length < 3) { throw new Error("Must specify type and query and changes for change."); }
-    // When useIds is set, retrieve will return undefined for an empty result
-    var read = retrieve(type, params, context, true) || [];
-    var write = read.map(function(item) {
-      return writeInto(item, changes);
-    });
-    if(!write.length && upsert) {
-      var insertParams = writeInto(writeInto({}, params), changes);
-      return insert(type, insertParams, {}, true);
-    }
-    return {type: type, content: write, context: context, mode: "changed", originalKeys: clone(params), useIds: true};
-  }
+  export var schemas:{[view:string]: Schema} = {};
 
-  export function remove(type:string, params, context?:Context):Change<any> {
-    if(arguments.length < 2) { throw new Error("Must specify type and query for remove."); }
-    var read = retrieve(type, params, context, true);
-    return {type: type, content: read, context: context, mode: "removed", useIds: true};
-  }
+  export function generateSchemas(ixer:Indexer.Indexer = Api.ixer) {
+    let schemas:{[view:string]: Schema} = {};
+    let editorViews = ixer.find("tag", {"tag: tag": "editor"}) || [];
+    let names:{[name:string]: [Id, Id][]} = {};
+    let keys:{[name:string]: [Id, Id]} = {};
+    let ix = 0;
+    // Generate initial schemas and list of aliases.
+    for(let editorView of editorViews) {
+      let viewId = editorView["tag: view"];
+      let schema:Schema = schemas[viewId] = {fields: [], unboundFields: [], singular: !!EDITOR_SINGULAR[viewId]};
+      let prefix = `${viewId}: `;
+      let key = EDITOR_PKS[viewId] !== undefined ? EDITOR_PKS[viewId] : viewId;
 
-  export function toDiffs(writes:Change<any>|Change<any>[]):Diff[] {
-    var diffs = [];
-    if(writes instanceof Array) {
-      for(var write of writes) {
-        if(!write) { continue; }
-        var result = toDiffs(write);
-        if(result !== undefined) {
-          diffs = diffs.concat(result);
+      let fields = ixer.find("field", {"field: view": viewId}) || [];
+      for(let field of fields) {
+        let fieldId = field["field: field"];
+        schema.fields.push(fieldId);
+        if(fieldId.indexOf(prefix) !== 0) continue;
+        let fieldName = fieldId.slice(prefix.length);
+        if(fieldName === key) { // Field is a primary key.
+          schema.key = fieldId;
+          keys[fieldName] = [viewId, fieldId];
+        } else { // Field is either a foreign key or unbound.
+          if(!names[fieldName]) names[fieldName] = [];
+          names[fieldName].push([viewId, fieldId]);
+          schema.unboundFields.push(fieldId);
         }
       }
-      return diffs;
-    } else {
-      var write:Change<any> = <Change<any>>writes;
-      if(write.content === undefined) { return diffs; }
     }
 
-    var type = write.type;
-    var params = write.content;
-    var mode = write.mode;
+    // Map foreign keys
+    for(let name in keys) {
+      let [primaryViewId, primaryFieldId] = keys[name];
+      let primarySchema = schemas[primaryViewId];
+      primarySchema.dependents = [];
 
-    if(!params) {
-      //if we have no content, then there's nothing for us to do.
-      return;
-    }
-
-    if(mode === "changed") {
-      // Remove the existing root and all of its dependents, then swap mode to inserted to replace them.
-      if(!write.originalKeys) { throw new Error("Change specified for " + type + ", but no write.originalKeys specified."); }
-      diffs = diffs.concat(toDiffs(remove(type, write.originalKeys)));
-      mode = "inserted";
-    }
-
-    if(params instanceof Array) {
-      for(var item of params) {
-        diffs = diffs.concat(toDiffs({type: type, content: item, context: write.context, mode: mode, useIds: write.useIds}));
+      // Generic PKey foreign dependents
+      // @NOTE: Must come first to prevent $$LAST_PKEY from being overwritten by other dependents.
+      for(let [foreignViewId, foreignFieldId] of EDITOR_PK_DEPS) {
+        primarySchema.dependents.push(foreignViewId);
       }
-      return diffs;
+
+      // Direct foreign dependents
+      let foreign = names[name] || [];
+      for(let [foreignViewId, foreignFieldId] of foreign) {
+        primarySchema.dependents.push(foreignViewId);
+        let schema = schemas[foreignViewId];
+        schema.unboundFields.splice(schema.unboundFields.indexOf(foreignFieldId), 1);
+        if(!schema.foreign) schema.foreign = {};
+        schema.foreign[foreignFieldId] = primaryFieldId;
+      }
+
     }
 
-    // Process root fact.
-    diffs.push([type, mode, mapToFact(type, params, write.useIds)]);
-
-    // Process dependents.
-    var dependents = params.dependents || {};
-    for(var key in dependents) {
-      if(!dependents.hasOwnProperty(key)) { continue; }
-      diffs = diffs.concat(toDiffs({type: key, content: dependents[key], context: write.context, mode: mode}));
+    // Map generic foreign keys using $$LAST_PKEY meta key.
+    for(let [foreignViewId, foreignFieldId] of EDITOR_PK_DEPS) {
+      let schema = schemas[foreignViewId];
+      schema.unboundFields.splice(schema.unboundFields.indexOf(foreignFieldId), 1);
+      if(!schema.foreign) schema.foreign = {};
+      schema.foreign[foreignFieldId] = "$$LAST_PKEY";
     }
-    return diffs;
+
+    return schemas;
+  }
+  ixer.trigger("generate schemas", "field", function(ixer) {
+    schemas = generateSchemas(ixer);
+  });
+
+  export class StructuredChange {
+    public context:Dict = {};
+    public dependents:{[pkey: string]: {[dependent: string]: number}} = {};
+    depth:number = 0;
+
+    constructor(public changeSet:Indexer.ChangeSet) {}
+    clearContext():Dict {
+      let old = this.context;
+      this.context = {};
+      this.dependents = {};
+      return old;
+    }
+    add(viewId:string, factOrValue:Dict|any = {}):StructuredChange {
+      let schema = schemas[viewId];
+      if(!schema) throw new Error(`Unknown structured view: '${viewId}'.`);
+
+      let fact:Dict;
+      if(schema.unboundFields.length === 1 && !isDict(factOrValue)) fact = {[schema.unboundFields[0]]: factOrValue};
+      else if(isDict(factOrValue)) fact = factOrValue;
+      else throw new Error(`Invalid fact format for view '${viewId}': '${factOrValue}'`);
+
+      if(schema.foreign) { // Fill empty foreign fields from context.
+        for(let fieldId in schema.foreign) {
+          let primaryFieldId = schema.foreign[fieldId];
+          if(fact[fieldId] !== undefined || this.context[primaryFieldId] === undefined) continue;
+          fact[fieldId] = this.context[primaryFieldId];
+        }
+      }
+
+      if(schema.key) { // Generate UUID for empty pkey field.
+        if(fact[schema.key] === undefined) fact[schema.key] = uuid();
+        this.context[schema.key] = this.context["$$LAST_PKEY"] = fact[schema.key];
+      }
+
+      for(let fieldId of schema.fields) { // Ensure no fields remain empty.
+        if(fact[fieldId] === undefined) throw new Error(`Incomplete fact for view '${viewId}', missing field '${fieldId}'`);
+      }
+
+      if(schema.singular && schema.foreign) { // Ensure singular dependents don't occur more than once for a given PKey.
+        for(let fieldId in schema.foreign) {
+          let dependents = this.dependents[fact[fieldId]] || (this.dependents[fact[fieldId]] = {});
+          dependents[viewId] = (dependents[viewId] || 0) + 1;
+          if(dependents[viewId] > 1) throw new Error(`Relationship for '${viewId}' should be 1:1 but is 1:N with '${this.context[fact[fieldId]]}'`);
+        }
+      }
+
+      this.changeSet.add(viewId, fact);
+      if(DEBUG.STRUCTURED_CHANGE) console.log("+", viewId, fact);
+      return this;
+    }
+    addEach(viewId:string, factsOrValues:(Dict|any)[]):StructuredChange {
+      for(let factOrValue of factsOrValues) this.add(viewId, factOrValue);
+      return this;
+    }
+    remove(viewId:string, fact:Dict):StructuredChange {
+      let schema = schemas[viewId];
+      if(!schema) throw new Error(`Unknown structured view: '${viewId}'.`);
+
+      if(schema.foreign) { // Fill empty foreign fields from context.
+        for(let fieldId in schema.foreign) {
+          if(fact[fieldId] !== undefined) continue;
+          let primaryFieldId = schema.foreign[fieldId];
+          fact[fieldId] = this.context[primaryFieldId];
+        }
+      }
+
+      if(schema.key && fact[schema.key] !== undefined) { // Store pkey in context for removing dependents.
+        this.context[schema.key] = this.context["$$LAST_PKEY"] = fact[schema.key];
+      }
+
+      this.changeSet.remove(viewId, fact);
+      if(DEBUG.STRUCTURED_CHANGE) console.log(new Array(this.depth + 1).join("  ") + "-", viewId, fact);
+      return this;
+    }
+    removeEach(viewId:string, facts:Dict[]):StructuredChange {
+      for(let fact of facts) this.remove(viewId, fact);
+      return this;
+    }
+    removeWithDependents(viewId:string, fact:Dict, dependents?:string[]):StructuredChange {
+      let schema = schemas[viewId];
+      if(!schema) throw new Error(`Unknown structured view: '${viewId}'.`);
+      let schemaDependents = schema.dependents || [];
+      this.remove(viewId, fact);
+
+      this.depth++;
+      // User supplied dependents
+      if(dependents) {
+        for(let dependentId of dependents) {
+          if(schemaDependents.indexOf(dependentId) === -1) continue;
+          this.removeWithDependents(dependentId, {}, dependents);
+        }
+      } else {
+        for(let dependentId of schemaDependents) {
+          this.removeWithDependents(dependentId, {});
+        }
+      }
+      this.depth--;
+      return this;
+    }
   }
 
-  export function toChangeSet(changes:Change<any>|Change<any>[], ixer:Indexer.Indexer = Api.ixer) {
-    let diffs = Api.toDiffs(changes);
-    let changeSet = ixer.changeSet();
-    // @FIXME: Dear god batch this.
-    for(let [table, mode, fact] of diffs) {
-      if(mode === "inserted") {
-        changeSet.add(table, fact);
-      } else {
-        changeSet.removeFacts(table, [fact]);
+
+  export function toDiffs(changeSet: Indexer.ChangeSet):Client.MapDiffs {
+    let diffs:Client.MapDiffs = [];
+    for(let tableId in changeSet.tables) {
+      let fields = get.fields(tableId);
+      let diff:Client.MapDiff = [tableId, fields, [], []];
+      diffs.push(diff);
+
+      for(let add of changeSet.tables[tableId].adds) {
+        diff[2][diff[2].length] = mapToFact(tableId, add, fields);
+      }
+      for(let remove of changeSet.tables[tableId].removes) {
+        diff[3][diff[3].length] = mapToFact(tableId, remove, fields);
       }
     }
-    return changeSet;
+    return diffs;
   }
 }

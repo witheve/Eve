@@ -52,13 +52,15 @@ module UiRenderer {
             let elements = (Api.ixer.find("tag", {"tag: tag": "editor-ui"}) || []).map((tag) => tag["tag: view"]);
             start = performance.now();
             elements.unshift(tree);
-            warnings = self.render(elements);
-            if(warnings.length) {
-              Api.ixer.applyChangeSet(Api.toChangeSet(
-                Api.insert("uiWarning", warnings, undefined, true)
-              ))
+            self.warnings = self.render(elements);
+            if(self.warnings.length) {
+              let change = new Api.StructuredChange(Api.ixer.changeSet());
+              for(let warning of self.warnings) {
+                change.add("uiWarning", warning);
+              }
+              Api.ixer.applyChangeSet(change.changeSet);
             }
-          } while(warnings.length > 0);
+          } while(self.warnings.length > 0);
 
           var total = performance.now() - start;
           if(total > 10) {

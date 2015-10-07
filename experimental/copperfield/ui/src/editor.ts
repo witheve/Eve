@@ -13,18 +13,18 @@ module Editor {
     }
 
     public rerender: boolean = true;
-    public changes: Api.Change<any>[] = [];
-    public commands: Api.Diff[] = [];
+    public change = new Api.StructuredChange(Api.ixer.changeSet());
+    public commands: any[][] = [];
     public dispatch = dispatch;
 
     public done():DispatchEffect {
       DispatchEffect.inProgress--;
 
-      if(this.changes.length) {
-        Api.ixer.applyChangeSet(Api.toChangeSet(this.changes));
+      if(this.change.changeSet.length) {
+        Api.ixer.applyChangeSet(this.change.changeSet);
       }
-      if(this.changes.length || this.commands.length) {
-        Client.sendToServer(Api.toDiffs(this.changes));
+      if(this.change.changeSet.length || this.commands.length) {
+        Client.sendToServer(Api.toDiffs(this.change.changeSet), this.commands);
       }
 
       if(this.rerender) {
@@ -54,57 +54,37 @@ module Editor {
     },
     createViewFromQuery: function({query}:{query:Parsers.ReifiedQuery}) {
       let effect = DispatchEffect.from(this);
-      let sources = [];
-      for(let source of query.sources) {
-        let sorted;
+      effect.change.add("view", "join");
+
+      for(let source of query.sources) { // Sources
+        effect.change.add("source", {"source: source": source.source, "source: source view": source.sourceView});
+        if(source.negated) effect.change.add("negated source");
+        if(source.chunked) effect.change.add("chunked source");
         if(source.sort) {
-          let fieldIds = Api.get.fields(source.sourceView);
-          sorted = [];
           let ix = 0;
-          for(let [field, direction = "ascending"] of source.sort) {
-            sorted.push({ix: ix++, field, direction});
-            fieldIds.splice(fieldIds.indexOf(field), 1);
+          let fieldIds = Api.get.fields(source.sourceView).slice();
+          for(let [fieldId, dir = "ascending"] of source.sort) {
+            effect.change.add("sorted field", {"sorted field: ix": ix++, "sorted field: field": fieldId, "sorted field: direction": dir});
+            fieldIds.splice(fieldIds.indexOf(fieldId), 1);
           }
-          for(let field of fieldIds) {
-            sorted.push({ix: ix++, field, direction: "ascending"});
+          for(let fieldId of fieldIds) {
+            effect.change.add("sorted field", {"sorted field: ix": ix++, "sorted field: field": fieldId, "sorted field: direction": "ascending"});
           }
-        }
-        sources.push({source: source.source, "source view": source.sourceView, dependents: {
-          "sorted field": sorted
-        }});
-      }
-      let variables = [];
-      let fields = [];
-      for(let varId in query.variables) {
-        let variable = query.variables[varId];
-        let params = {variable: varId, dependents: <any>{}};
-        variables.push(params);
-        params.dependents.binding = [];
-        for(let binding of variable.bindings) {
-          params.dependents.binding.push({source: binding[0], field: binding[1]});
-        }
-        if(variable.value) params.dependents["constant binding"] = {value: variable.value};
-        if(variable.ordinal) params.dependents["ordinal binding"] = {source: variable.ordinal};
-        if(variable.selected) {
-          fields.push({kind: "output", dependents: {
-            "display name": {name: variable.alias},
-            select: {variable: varId}
-          }});
         }
       }
 
-      let viewChange = Api.insert("view", {
-        "view: kind": "join",
-        dependents: {
-          source: sources,
-          variable: variables,
-          field: fields
+      for(let varId in query.variables) { // Variables
+        let variable = query.variables[varId];
+        effect.change.add("variable");
+        for(let [sourceId, fieldId] of variable.bindings) {
+          effect.change.add("binding", {"binding: source": sourceId, "binding: field": fieldId});
         }
-      }, undefined, false);
-      localState.view = viewChange.context["view"];
-      effect.changes.push(
-        viewChange
-      );
+        if(variable.ordinal) effect.change.add("ordinal binding", {"ordinal binding: source": variable.ordinal});
+        if(variable.value !== undefined) effect.change.add("constant binding", variable.value);
+        if(variable.selected) effect.change.add("field", "output").add("display name", variable.alias || "").add("select");
+      }
+
+      localState.view = effect.change.context["view: view"];
       return effect;
     }
   };

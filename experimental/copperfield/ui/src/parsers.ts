@@ -119,10 +119,11 @@ module Parsers {
 
   interface ReifiedQueryField { field: string, grouped?: boolean, alias?: string, value?: string, ordinal?: boolean }
   interface ReifiedQuerySource {
-    negated?: boolean
     source: string
     sourceView: string
     fields: ReifiedQueryField[]
+    negated?: boolean
+    chunked?: boolean
     sort?: [string, string][] // fields
     ordinal?: string|boolean //alias
   }
@@ -328,6 +329,7 @@ module Parsers {
           let varId = reified.aliases[field.alias] || Api.uuid();
           let variable = reified.variables[varId];
           if(!variable) variable = reified.variables[varId] = {selected: !!field.alias, alias: field.alias, bindings: []};
+          if(field.grouped) source.chunked = true;
           if(field.alias) reified.aliases[field.alias] = varId;
           if(field.value !== undefined) variable.value = field.value;
           variable.bindings.push([source.source, field.field]);
