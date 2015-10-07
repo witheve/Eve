@@ -130,7 +130,7 @@ module Parsers {
   export interface ReifiedQuery {
     sources: ReifiedQuerySource[]
     aliases: {[alias:string]: string}
-    variables: {[id:string]: {selected: boolean, alias?:string, value?: any, ordinal?: string, bindings: {source: string, field: string}[]}}
+    variables: {[id:string]: {selected: boolean, alias?:string, value?: any, ordinals?: string[], bindings: {source: string, field: string}[]}}
     views: {[view: string]: {fields: string[], kind: string, tags: string[]}}
     actions: any[]
   }
@@ -344,7 +344,8 @@ module Parsers {
         let source = reified.sources[reified.sources.length - 1];
         source.ordinal = line.alias || true;
         let variable = getVariable(line.alias, reified);
-        variable.ordinal = source.source;
+        if(!variable.ordinals) variable.ordinals = [source.source];
+        else variable.ordinals.push(source.source);
         let unsorted = [];
         for(let field of source.fields) unsorted[unsorted.length] = field.field;
 

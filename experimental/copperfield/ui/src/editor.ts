@@ -54,7 +54,8 @@ module Editor {
     },
     createViewFromQuery: function({query}:{query:Parsers.ReifiedQuery}) {
       let effect = DispatchEffect.from(this);
-      effect.change.add("view", "join");
+      effect.change.add("view", "join")
+        .add("display name", "Untitled Search");
 
       for(let source of query.sources) { // Sources
         effect.change.add("source", {"source: source": source.source, "source: source view": source.sourceView});
@@ -68,7 +69,7 @@ module Editor {
         let variable = query.variables[varId];
         effect.change.add("variable")
           .addEach("binding", Api.resolve("binding", variable.bindings));
-        if(variable.ordinal) effect.change.add("ordinal binding", {"ordinal binding: source": variable.ordinal});
+        if(variable.ordinals) effect.change.addEach("ordinal binding", Api.wrap("ordinal binding: source", variable.ordinals));
         if(variable.value !== undefined) effect.change.add("constant binding", variable.value);
         if(variable.selected) effect.change.add("field", "output")
           .add("display name", variable.alias || "")
