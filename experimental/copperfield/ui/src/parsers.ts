@@ -124,13 +124,13 @@ module Parsers {
     fields: ReifiedQueryField[]
     negated?: boolean
     chunked?: boolean
-    sort?: [string, string][] // fields
+    sort?: {ix:number, field:string, direction:string}[] // fields
     ordinal?: string|boolean //alias
   }
   export interface ReifiedQuery {
     sources: ReifiedQuerySource[]
     aliases: {[alias:string]: string}
-    variables: {[id:string]: {selected: boolean, alias?:string, value?: any, ordinal?: string, bindings: [string, string][]}}
+    variables: {[id:string]: {selected: boolean, alias?:string, value?: any, ordinal?: string, bindings: {source: string, field: string}[]}}
     views: {[view: string]: {fields: string[], kind: string, tags: string[]}}
     actions: any[]
   }
@@ -319,6 +319,14 @@ module Parsers {
   };
 
   // Reification
+  function getVariable(alias, ast:ReifiedQuery) {
+    let varId = ast.aliases[alias] || Api.uuid();
+    let variable = ast.variables[varId];
+    if(!variable) variable = ast.variables[varId] = {selected: !!alias, alias: alias, bindings: []};
+    if(alias) ast.aliases[alias] = varId;
+    return variable;
+  }
+
   query.reify = function(ast:QueryAST, prev?):ReifiedQuery {
     let reified:ReifiedQuery = {sources: [], aliases: {}, variables: {}, views: {}, actions: []};
     let sort = [];
@@ -326,33 +334,39 @@ module Parsers {
       if(tokenIsSource(line)) {
         let source = query.reifySource(<QuerySourceAST>line);
         for(let field of source.fields) {
-          let varId = reified.aliases[field.alias] || Api.uuid();
-          let variable = reified.variables[varId];
-          if(!variable) variable = reified.variables[varId] = {selected: !!field.alias, alias: field.alias, bindings: []};
+          let variable = getVariable(field.alias, reified);
           if(field.grouped) source.chunked = true;
-          if(field.alias) reified.aliases[field.alias] = varId;
           if(field.value !== undefined) variable.value = field.value;
-          variable.bindings.push([source.source, field.field]);
+          variable.bindings.push({source: source.source, field: field.field});
         }
         reified.sources.push(source);
       } else if(tokenIsOrdinal(line)) {
         let source = reified.sources[reified.sources.length - 1];
         source.ordinal = line.alias || true;
-        let varId = reified.aliases[line.alias] || Api.uuid();
-        let variable = reified.variables[varId];
-        if(!variable) variable = reified.variables[varId] = {selected: true, alias: line.alias, bindings: []};
+        let variable = getVariable(line.alias, reified);
         variable.ordinal = source.source;
-        if(line.alias) reified.aliases[line.alias] = varId;
-        source.sort = [];
+        let unsorted = [];
+        for(let field of source.fields) unsorted[unsorted.length] = field.field;
+
         let sortFieldIx = 0;
+        source.sort = [];
         for(let tokenIx = 3, chunkCount = line.chunks.length; tokenIx < chunkCount; tokenIx++) {
           let chunk = line.chunks[tokenIx];
           if(tokenIsField(chunk)) {
             for(let field of source.fields) {
-              if(field.alias === chunk.alias) source.sort.push([field.field, line.directions[sortFieldIx++]]);
+              if(field.alias !== chunk.alias) continue;
+              source.sort.push({
+                ix: sortFieldIx,
+                field: field.field,
+                direction: line.directions[sortFieldIx++] || "ascending"
+              });
+              unsorted.splice(unsorted.indexOf(field.field), 1);
+              break;
             }
           }
         }
+
+        for(let fieldId of unsorted) source.sort.push({ix: sortFieldIx++, field: fieldId, direction: "ascending"});
 
       } else if(tokenIsAction(line)) {
         let action = query.reifyAction(line);
