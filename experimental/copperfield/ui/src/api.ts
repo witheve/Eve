@@ -100,6 +100,21 @@ module Api {
     return dest;
   }
 
+  export function wrap(key:string, values:any[]):Dict[] {
+    let res = [];
+    for(let value of values) {
+      res[res.length] = {[key]: value};
+    }
+    return res;
+  }
+  export function extract(key:string, objs:Dict[]):any[] {
+    let res = [];
+    for(let obj of objs) {
+      res[res.length] = obj[key];
+    }
+    return res;
+  }
+
   export function displaySort(idA:string, idB:string): number {
     var orderA = (ixer.findOne("display order", {"display order: id": idA}) || {})["display order: priority"];
     var orderB = (ixer.findOne("display order", {"display order: id": idB}) || {})["display order: priority"];
@@ -159,11 +174,7 @@ module Api {
   export var get = {
     name: (id:Id) => <string>ixer.findOne("display name", ({"display name: id": id}) || {})["display name: name"] || "",
     order: (id:Id) => <number>ixer.findOne("display order", ({"display order: id": id}) || {})["display order: priority"] || 0,
-    tags: (id:Id) => {
-      let tagNames:string[] = [];
-      for(let tag of ixer.find("tag", {"tag: view": id})) tagNames.push(tag["tag: tag"]);
-      return tagNames;
-    },
+    tags: (id:Id) => extract("tag: tag", ixer.find("tag", {"tag: view": id}) || []),
     hasTag: function(id:Id, tag:string): boolean {
       let tags = ixer.find("tag", {"tag: view": id});
       for(let cur of tags) {
@@ -179,14 +190,7 @@ module Api {
       }
       return max;
     },
-    fields(table: Id):Id[] {
-      var fields = ixer.find("field", {"field: view": table});
-      if(!fields || !fields.length) { return []; }
-      var fieldIds = [];
-      for(let field of fields) fieldIds[fieldIds.length] = field["field: field"];
-      fieldIds.sort(displaySort);
-      return fieldIds;
-    },
+    fields: (table: Id):Id[] => extract("field: field", ixer.find("field", {"field: view": table}) || []).sort(displaySort),
     facts: (table: Id):Client.Fact[] => pack(table, ixer.find(table))
   };
 
