@@ -232,25 +232,19 @@ module Api {
   ixer.trigger("generate mappings", ["display name", "display order"], generateMappings);
 
   function identity<T>(x:T):T { return x; }
-  export function resolve(viewId:string, factOrFacts:Dict):Dict
-  export function resolve(viewId:string, factOrFacts:Dict[]):Dict[]
-  export function resolve(viewId:string, factOrFacts:any):any {
+  export function resolve(viewId:string, factOrFacts:Dict|Dict[]):any {
     if(arguments.length < 2) throw new Error("Resolve requires a viewId as the first argument.");
     if(!factOrFacts) return factOrFacts;
     if(mappings[viewId]) return mappings[viewId].resolve(factOrFacts);
     return identity(factOrFacts);
   }
-  export function humanize(viewId:string, factOrFacts:Dict):Dict
-  export function humanize(viewId:string, factOrFacts:Dict[]):Dict[]
-  export function humanize(viewId:string, factOrFacts:any):any {
+  export function humanize(viewId:string, factOrFacts:Dict|Dict[]):any {
     if(arguments.length < 2) throw new Error("Humanize requires a viewId as the first argument.");
     if(!factOrFacts) return factOrFacts;
     if(mappings[viewId]) return mappings[viewId].humanize(factOrFacts);
     return identity(factOrFacts);
   }
-  export function pack(viewId:string, factOrFacts:Dict):Client.Fact
-  export function pack(viewId:string, factOrFacts:Dict[]):Client.Fact[]
-  export function pack(viewId:string, factOrFacts:any):any {
+  export function pack(viewId:string, factOrFacts:Dict|Dict[]):any {
     if(arguments.length < 2) throw new Error("Pack requires a viewId as the first argument.");
     if(!factOrFacts) return factOrFacts;
     if(mappings[viewId]) return mappings[viewId].pack(factOrFacts);
