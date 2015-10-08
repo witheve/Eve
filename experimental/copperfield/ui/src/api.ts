@@ -394,7 +394,7 @@ module Api {
       }
 
       this.changeSet.add(viewId, fact);
-      if(DEBUG.STRUCTURED_CHANGE) console.log("+", viewId, fact);
+      if(DEBUG.STRUCTURED_CHANGE) console.info("+", viewId, fact);
       return this;
     }
     addEach(viewId:string, factsOrValues:(Dict|any)[]):StructuredChange {
@@ -418,7 +418,7 @@ module Api {
       }
 
       this.changeSet.remove(viewId, fact);
-      if(DEBUG.STRUCTURED_CHANGE) console.log(new Array(this.depth + 1).join("  ") + "-", viewId, fact);
+      if(DEBUG.STRUCTURED_CHANGE) console.info(new Array(this.depth + 1).join("  ") + "-", viewId, fact);
       return this;
     }
     removeEach(viewId:string, facts:Dict[]):StructuredChange {
