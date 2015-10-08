@@ -382,7 +382,6 @@ module Ui {
           target.innerHTML = "";
         }
         if(target.children.length) { // contenteditable has decided to add a node instead of text for some reason. Yay.
-          console.log(target["selectionStart"]);
           let text = "";
           let child:Node;
           for(child of <Array<Node>><any>target.childNodes) {
@@ -427,9 +426,10 @@ module Ui {
           }
         }
       });
-      if(elem._cmChange) cm.on("change", elem._cmChange);
-      if(elem.keydown) cm.on("keydown", elem.keydown);
-      if(elem.blur) cm.on("blur", elem.blur);
+      if(elem._cmChange) cm.on("change", (evt) => elem._cmChange(evt, Editor.renderer.renderer.tree[elem.id]));
+      if(elem.keydown) cm.on("keydown", (evt) => elem.keydown(evt, Editor.renderer.renderer.tree[elem.id]));
+      if(elem.focus) cm.on("focus", (evt) => elem.focus(evt, Editor.renderer.renderer.tree[elem.id]));
+      if(elem.blur) cm.on("blur", (evt) => elem.blur(evt, Editor.renderer.renderer.tree[elem.id]));
       if(elem.autofocus) cm.focus();
     }
     if(cm.getValue() !== elem.value) cm.setValue(elem.value);
