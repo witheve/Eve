@@ -174,7 +174,7 @@ module wiki {
         lineWrapping: true,
         extraKeys: {
           "Cmd-Enter": (cm) => {
-            commitArticle(cm);
+            commitArticle(cm, elem);
           }
         }
       });
@@ -182,10 +182,10 @@ module wiki {
         cm.on("change", elem.onInput)
       }
       if(elem.keydown) {
-        cm.on("keydown", elem.keydown);
+        cm.on("keydown", (cm) => { elem.keydown(cm, elem); });
       }
       if(elem.blur) {
-        cm.on("blur", elem.blur);
+        cm.on("blur", (cm) => { elem.blur(cm, elem); });
       }
       cm.focus();
     }
@@ -206,17 +206,19 @@ module wiki {
     }
     result.add("active page", {page: info.link});
     result.remove("active page");
+    result.remove("search");
+    result.add("search", {search: info.link});
   });
 
   app.handle("startEditingArticle", (result, info) => {
-    result.add("editing", {editing: true});
+    result.add("editing", {editing: true, page: info.page});
   });
 
   app.handle("stopEditingArticle", (result, info) => {
     if(!eve.findOne("editing")) return;
     result.remove("editing");
-    let page = eve.findOne("active page")["page"];
-    result.add("page", {page, text: info.value});
+    let {page, value} = info;
+    result.add("page", {page, text: value});
     result.remove("page", {page});
   });
 
@@ -226,26 +228,33 @@ module wiki {
   });
 
   export function root() {
-    let article = eve.findOne("active page content") || {content: ""};
-    let articleView;
-    if(!eve.findOne("editing")) {
-      articleView = {c: "article", children: articleToHTML(article.content), dblclick: editArticle};
-    } else {
-      articleView = {id: "article editor", c: "article editor", postRender: CodeMirrorElement, value: article.content, blur: commitArticle};
-    }
+    let activeId = eve.findOne("active page")["page"];
+    let articleView = articleUi(activeId);
     return {id: "root", c: "root", children: [
-      articleView,
-      searchResults(),
       {children: [
-        {t: "input", type: "text", placeholder: "search", keydown: maybeSubmitSearch},
-        relatedItems(article),
+        {c: "search-input", t: "input", type: "text", placeholder: "search", keydown: maybeSubmitSearch},
+        searchResults(),
+      ]},
+      {children: [
+        relatedItems(),
         historyStack(),
         decks(),
       ]},
     ]};
   }
-;
-  function relatedItems(article) {
+
+  function articleUi(articleId) {
+    let article = eve.findOne("page", {page: articleId}) || {text: ""};
+    let articleView;
+    if(!eve.findOne("editing", {page: articleId})) {
+      articleView = {c: "article", page: articleId, children: articleToHTML(article.text), dblclick: editArticle};
+    } else {
+      articleView = {id: "article editor", c: "article editor", page: articleId, postRender: CodeMirrorElement, value: article.text, blur: commitArticle};
+    }
+    return articleView;
+  }
+
+  function relatedItems() {
     let items = [];
     for(let inbound of eve.find("active page incoming")) {
       items.push({text: inbound["page"], linkText: inbound["page"], click: followLink});
@@ -275,21 +284,21 @@ module wiki {
       let pageContent = eve.findOne("page", {page});
       let article;
       if(pageContent) {
-        article = {c: "article", children: articleToHTML(pageContent.text || page)};
+        article = articleUi(page);
       } else {
-        article = {c: "article", text: page};
+        article = articleUi(page);
       }
       steps[step].children.push(article);
     }
     return {c: "search-results", children: steps};
   }
 
-  function commitArticle(cm) {
-    app.dispatch("stopEditingArticle", {value: cm.getValue()}).commit();
+  function commitArticle(cm, elem) {
+    app.dispatch("stopEditingArticle", {page: elem.page, value: cm.getValue()}).commit();
   }
 
   function editArticle(e, elem) {
-    app.dispatch("startEditingArticle").commit();
+    app.dispatch("startEditingArticle", {page: elem.page}).commit();
     e.preventDefault();
   }
 

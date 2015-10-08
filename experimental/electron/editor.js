@@ -176,7 +176,7 @@ CodeMirror.commands.save = (cm) => {
       try {
         let compiled = tsc.transpile(value);
         webView.send("evalJS", {code: compiled, fromFile: true, file});
-        webView.send("evalJS", {code: "drawn.render()", hidden: true});
+        webView.send("evalJS", {code: "app.render()", hidden: true});
       } catch(e) {
         console.log("tsc failed:", e);
       }
