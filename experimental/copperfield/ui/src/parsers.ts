@@ -192,6 +192,7 @@ module Parsers {
       let res = "";
       for(let chunk of token.chunks) {
         res += query.tokenToString(chunk);
+        if(chunk.lineIx !== undefined) res += "\n";
       }
       return res;
     }
@@ -501,7 +502,9 @@ module Parsers {
       if(source.ordinal) {
         let line:QueryOrdinalAST = {type: "ordinal", alias: undefined, directions: [], chunks: [], lineIx: ast.chunks.length};
         ast.chunks[ast.chunks.length] = line;
+
         if(source.ordinal !== true) line.alias = <string>source.ordinal;
+        line.chunks[0] = <QueryStructureAST>{type: "structure", text: `# ?${line.alias || ""} by `};
 
         let fields = {};
         for(let field of source.fields) {
@@ -523,9 +526,5 @@ module Parsers {
     return ast;
   }
 
-  query.unparse = function(ast:QueryAST) {
-    let query = ``;
-    throw new Error("@TODO: Implement me.");
-    return query;
-  }
+  query.unparse = (ast:QueryAST) => query.tokenToString(ast);
 }
