@@ -112,7 +112,7 @@ module Parsers {
   //---------------------------------------------------------------------------
   interface QueryStructureAST extends Token { text: string }
   interface QueryFieldAST extends Token { grouped?: boolean, alias?: string, value?: string }
-  interface QueryAST extends LineAST {}
+  export interface QueryAST extends LineAST {}
 
   interface QuerySourceAST extends LineAST { negated?: boolean }
   interface QueryOrdinalAST extends LineAST { alias: string, directions: string[] }
@@ -127,11 +127,17 @@ module Parsers {
     sort?: {ix:number, field:string, direction:string}[] // fields
     ordinal?: string|boolean //alias
   }
+  interface ReifiedQueryVariable {
+    selected: boolean,
+    alias?:string,
+    value?: any,
+    ordinals?: string[],
+    bindings: {source: string, field: string}[]
+  }
   export interface ReifiedQuery {
     sources: ReifiedQuerySource[]
     aliases: {[alias:string]: string}
-    variables: {[id:string]: {selected: boolean, alias?:string, value?: any, ordinals?: string[], bindings: {source: string, field: string}[]}}
-    views: {[view: string]: {fields: string[], kind: string, tags: string[]}}
+    variables: {[id:string]: ReifiedQueryVariable}
     actions: any[]
   }
 
@@ -155,6 +161,11 @@ module Parsers {
     reify(ast:QueryAST, prev?:ReifiedQuery): ReifiedQuery
     reifySource(ast:QuerySourceAST, allowMissing?:boolean):ReifiedQuerySource
     reifyAction(ast:LineAST)
+
+    // To string
+    fromView(viewId:string, ixer?:Indexer.Indexer): ReifiedQuery
+    unreify(reified:ReifiedQuery): QueryAST
+    unparse(ast:QueryAST): string
   }
 
   function tokenIsStructure(token:Token): token is QueryStructureAST { return token.type === "structure"; }
@@ -319,8 +330,8 @@ module Parsers {
   };
 
   // Reification
-  function getVariable(alias, ast:ReifiedQuery) {
-    let varId = ast.aliases[alias] || Api.uuid();
+  function getVariable(alias, ast:ReifiedQuery, varId?:string) {
+    if(!varId) varId = ast.aliases[alias] || Api.uuid();
     let variable = ast.variables[varId];
     if(!variable) variable = ast.variables[varId] = {selected: !!alias, alias: alias, bindings: []};
     if(alias) ast.aliases[alias] = varId;
@@ -328,7 +339,7 @@ module Parsers {
   }
 
   query.reify = function(ast:QueryAST, prev?):ReifiedQuery {
-    let reified:ReifiedQuery = {sources: [], aliases: {}, variables: {}, views: {}, actions: []};
+    let reified:ReifiedQuery = {sources: [], aliases: {}, variables: {}, actions: []};
     let sort = [];
     for(let line of ast.chunks) {
       if(tokenIsSource(line)) {
@@ -412,5 +423,109 @@ module Parsers {
       }
     }
     return action;
+  }
+
+  query.fromView = function(viewId:string, ixer:Indexer.Indexer = Api.ixer) {
+    let reified:ReifiedQuery = {sources: [], aliases: {}, variables: {}, actions: []};
+    let ordinalSourceAlias:{[source:string]: string|boolean} = {};
+    let bindingFieldVariable:{[id:string]: ReifiedQueryVariable} = {};
+    for(let varId of Api.extract("variable: variable", Api.ixer.find("variable", {"variable: view": viewId}))) {
+      // {selected: boolean, alias?:string, value?: any, ordinals?: string[], bindings: {source: string, field: string}[]}
+      let fieldId = (ixer.findOne("select", {"select: variable": varId}) || {})["select: field"];
+      let alias = Api.get.name(fieldId) || undefined;
+      let variable = getVariable(alias, reified, varId);
+      variable.selected = !!fieldId;
+
+      variable.value = (ixer.findOne("constant binding", {"constant binding: variable": varId}) || {})["constant binding: value"];
+      let ordinalSources = Api.extract("ordinal binding: source", Api.ixer.find("ordinal binding", {"ordinal binding: variable": varId}));
+      if(ordinalSources.length) {
+        variable.ordinals = ordinalSources;
+        for(let sourceId of ordinalSources) ordinalSourceAlias[sourceId] = alias || true;
+      }
+      variable.bindings = Api.humanize("binding", Api.ixer.find("binding", {"binding: variable": varId}));
+      for(let binding of variable.bindings) {
+        bindingFieldVariable[binding.field] = variable;
+      }
+    }
+
+    for(let rawSource of Api.ixer.find("source", {"source: view": viewId})) {
+      let source:ReifiedQuerySource = {source: rawSource["source: source"], sourceView: rawSource["source: source view"], fields: []};
+      reified.sources[reified.sources.length] = source;
+
+      if(ordinalSourceAlias[source.source]) source.ordinal = ordinalSourceAlias[source.source];
+      if(Api.ixer.findOne("chunked source", {"chunked source: source": source.source})) source.chunked = true;
+      if(Api.ixer.findOne("negated source", {"negated source: source": source.source})) source.negated = true;
+
+      let sorted = Api.ixer.find("sorted field", {"sorted field: source": source.source});
+      if(sorted && sorted.length) source.sort = Api.humanize("sorted field", sorted);
+
+      let fieldIds = Api.get.fields(source.sourceView);
+      for(let fieldId of fieldIds) {
+        let field:ReifiedQueryField = {field: fieldId};
+        source.fields[source.fields.length] = field;
+        if(Api.ixer.findOne("grouped field", {"grouped field: field": fieldId})) field.grouped = true;
+
+        let variable = bindingFieldVariable[fieldId];
+        if(variable.alias) field.alias = variable.alias;
+        if(variable.value !== undefined) field.value = variable.value;
+        if(variable.ordinals !== undefined && variable.ordinals.indexOf(source.source) !== -1) field.ordinal = true;
+      }
+    }
+
+    return reified;
+  }
+
+  query.unreify = function(reified:ReifiedQuery) {
+    let ast:QueryAST = {type: "query", chunks: []};
+    for(let source of reified.sources) {
+      // @FIXME: This may not be the correct fingerprint, we need to look through all of them
+      // comparing field ordering. This still isn't lossless, but it's at least better.
+      let fingerprint = (Api.ixer.findOne("view fingerprint", {"view fingerprint: view": source.sourceView}) || {})["view fingerprint: fingerprint"];
+      if(!fingerprint) throw new Error(`No fingerprint found for view '${source.sourceView}'.`);
+      let structures = fingerprint.split("?");
+      let tail:string = structures.pop(); // We don't want to tack a field to the end of the fingerprint.
+      let line:QuerySourceAST = {type: "source", negated: source.negated, chunks: [], lineIx: ast.chunks.length};
+      ast.chunks[ast.chunks.length] = line;
+
+      let fieldIx = 0;
+      for(let text of structures) {
+        // Add structure token if there's any text.
+        if(text) line.chunks[line.chunks.length] = <QueryStructureAST>{type: "structure", text};
+
+        // Add field token between this structure token and the next.
+        let field:ReifiedQueryField = source.fields[fieldIx++];
+        line.chunks[line.chunks.length] = <QueryFieldAST>{type: "field", alias: field.alias, grouped: field.grouped, value: field.value};
+      }
+      if(tail) line.chunks[line.chunks.length] = <QueryStructureAST>{type: "structure", text: tail};
+
+      if(source.ordinal) {
+        let line:QueryOrdinalAST = {type: "ordinal", alias: undefined, directions: [], chunks: [], lineIx: ast.chunks.length};
+        ast.chunks[ast.chunks.length] = line;
+        if(source.ordinal !== true) line.alias = <string>source.ordinal;
+
+        let fields = {};
+        for(let field of source.fields) {
+          fields[field.field] = field;
+        }
+
+        // Super lossy, but nothing can be done about it.
+        for(let {ix, field:fieldId, direction} of source.sort) {
+          let field = fields[fieldId];
+          line.chunks[line.chunks.length] = <QueryFieldAST>{type: "field", alias: field.alias, grouped: field.grouped, value: field.value};
+          line.chunks[line.chunks.length] = <QueryStructureAST>{type: "structure", text: ` ${direction} `};
+          line.directions[line.directions.length] = direction;
+        }
+      }
+    }
+
+    if(reified.actions.length) throw new Error("@TODO Implement action unreification.");
+
+    return ast;
+  }
+
+  query.unparse = function(ast:QueryAST) {
+    let query = ``;
+    throw new Error("@TODO: Implement me.");
+    return query;
   }
 }
