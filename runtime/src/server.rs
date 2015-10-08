@@ -172,7 +172,7 @@ pub fn server_events() -> mpsc::Receiver<ServerEvent> {
             thread::spawn(move || {
                 // accept request
                 let request = connection.unwrap().read_request().unwrap();
-                request.validate().unwrap();
+
                 let response = request.accept();
                 let (sender, mut receiver) = response.send().unwrap().split();
 
