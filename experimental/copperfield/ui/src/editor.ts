@@ -54,34 +54,27 @@ module Editor {
     },
     createViewFromQuery: function({query}:{query:Parsers.ReifiedQuery}) {
       let effect = DispatchEffect.from(this);
-      effect.change.add("view", "join");
+      effect.change.add("view", "join")
+        .add("display name", "Untitled Search");
 
       for(let source of query.sources) { // Sources
         effect.change.add("source", {"source: source": source.source, "source: source view": source.sourceView});
         if(source.negated) effect.change.add("negated source");
         if(source.chunked) effect.change.add("chunked source");
-        if(source.sort) {
-          let ix = 0;
-          let fieldIds = Api.get.fields(source.sourceView).slice();
-          for(let [fieldId, dir = "ascending"] of source.sort) {
-            effect.change.add("sorted field", {"sorted field: ix": ix++, "sorted field: field": fieldId, "sorted field: direction": dir});
-            fieldIds.splice(fieldIds.indexOf(fieldId), 1);
-          }
-          for(let fieldId of fieldIds) {
-            effect.change.add("sorted field", {"sorted field: ix": ix++, "sorted field: field": fieldId, "sorted field: direction": "ascending"});
-          }
-        }
+        if(source.sort) effect.change.addEach("sorted field", Api.resolve("sorted field", source.sort));
       }
 
+      let fieldIx = 0;
       for(let varId in query.variables) { // Variables
         let variable = query.variables[varId];
-        effect.change.add("variable");
-        for(let [sourceId, fieldId] of variable.bindings) {
-          effect.change.add("binding", {"binding: source": sourceId, "binding: field": fieldId});
-        }
-        if(variable.ordinal) effect.change.add("ordinal binding", {"ordinal binding: source": variable.ordinal});
+        effect.change.add("variable")
+          .addEach("binding", Api.resolve("binding", variable.bindings));
+        if(variable.ordinals) effect.change.addEach("ordinal binding", Api.wrap("ordinal binding: source", variable.ordinals));
         if(variable.value !== undefined) effect.change.add("constant binding", variable.value);
-        if(variable.selected) effect.change.add("field", "output").add("display name", variable.alias || "").add("select");
+        if(variable.selected) effect.change.add("field", "output")
+          .add("display name", variable.alias || "")
+          .add("display order", fieldIx++)
+          .add("select");
       }
 
       localState.view = effect.change.context["view: view"];
