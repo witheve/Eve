@@ -172,9 +172,9 @@ module Api {
   //---------------------------------------------------------
 
   export var get = {
-    name: (id:Id) => <string>ixer.findOne("display name", ({"display name: id": id}) || {})["display name: name"] || "",
-    order: (id:Id) => <number>ixer.findOne("display order", ({"display order: id": id}) || {})["display order: priority"] || 0,
-    tags: (id:Id) => extract("tag: tag", ixer.find("tag", {"tag: view": id}) || []),
+    name: (id:Id):string => (ixer.findOne("display name", {"display name: id": id}) || {})["display name: name"] || "",
+    order: (id:Id):number => (ixer.findOne("display order", {"display order: id": id}) || {})["display order: priority"] || 0,
+    tags: (id:Id):string[] => extract("tag: tag", ixer.find("tag", {"tag: view": id}) || []),
     hasTag: function(id:Id, tag:string): boolean {
       let tags = ixer.find("tag", {"tag: view": id});
       for(let cur of tags) {
