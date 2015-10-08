@@ -35,14 +35,25 @@ module Editor {
   }
 
   var dispatches:{[evt:string]: (info:any) => DispatchEffect} = {
-    parse: function({query}:{query:string}) {
+    setName: function({name, id}:{name:string, id?:string}) {
       let effect = DispatchEffect.from(this);
-      localState.ast = localState.reified = localState.msg = undefined;
+      if(id) {
+        effect.change.remove("display name", {"display name: id": id})
+          .add("display name", name);
+      } else {
+        // @FIXME: Use activePage / activeComponent to determine what state to set when id is not passed in.
+        localState.query.name = name;
+      }
+      return effect;
+    },
+    parseQuery: function({query}:{query:string}) {
+      let effect = DispatchEffect.from(this);
+      localState.query.ast = localState.query.reified = localState.query.msg = undefined;
       try {
-        localState.ast =  Parsers.query.parse(query);
-        localState.reified = Parsers.query.reify(localState.ast);
+        localState.query.ast =  Parsers.query.parse(query);
+        localState.query.reified = Parsers.query.reify(localState.query.ast);
       } catch(err) {
-        if(err.name === "Parse Error") localState.msg = `${err}`;
+        if(err.name === "Parse Error") localState.query.msg = `${err}`;
         else {
           console.warn(err.stack);
           throw err;
@@ -52,12 +63,13 @@ module Editor {
       effect.rerender = true;
       return effect;
     },
-    createViewFromQuery: function({query}:{query:Parsers.ReifiedQuery}) {
+    viewFromQuery: function({query}:{query:Query}) {
       let effect = DispatchEffect.from(this);
-      effect.change.add("view", "join")
-        .add("display name", "Untitled Search");
+      let reified = query.reified;
+      effect.change.add("view", {"view: view": query.id, "view: kind": "join"})
+        .add("display name", query.name || "Untitled Search");
 
-      for(let source of query.sources) { // Sources
+      for(let source of reified.sources) { // Sources
         effect.change.add("source", {"source: source": source.source, "source: source view": source.sourceView});
         if(source.negated) effect.change.add("negated source");
         if(source.chunked) effect.change.add("chunked source");
@@ -65,8 +77,8 @@ module Editor {
       }
 
       let fieldIx = 0;
-      for(let varId in query.variables) { // Variables
-        let variable = query.variables[varId];
+      for(let varId in reified.variables) { // Variables
+        let variable = reified.variables[varId];
         effect.change.add("variable")
           .addEach("binding", Api.resolve("binding", variable.bindings));
         if(variable.ordinals) effect.change.addEach("ordinal binding", Api.wrap("ordinal binding: source", variable.ordinals));
@@ -84,7 +96,7 @@ module Editor {
   export function dispatch(evt:string, info:any, rentrant?:boolean):DispatchEffect {
     if(!dispatches[evt]) {
       console.error("Unknown dispatch:", evt, info);
-      return;
+      return new DispatchEffect();
     }
     return dispatches[evt].call(this, info);
   }
@@ -99,7 +111,9 @@ module Editor {
 
     let code = `
     var localState = Api.localState;
-    var dispatch = Editor.dispatch;\n`;
+    var dispatch = Editor.dispatch;
+    var info = Api.clone(elem);
+    info.id = undefined;\n`;
     for(let cmd of commands.split(";")) {
       code += "    " + cmd.trim() + ";\n";
     }
@@ -107,7 +121,7 @@ module Editor {
       let names = dispatches.split(/;,/);
       let multi = false;
       for(let name of names) {
-        code += multi ? "\n      ." : "\n    " + `dispatch("${name}", elem)`;
+        code += multi ? "\n      ." : "\n    " + `dispatch("${name}", info)`;
         multi = true;
       }
       code += ".done();\n";
@@ -155,12 +169,12 @@ module Editor {
       {
         title: "AST",
         id: "result-ast",
-        content: {t: "pre", c: "ast", text: JSON.stringify(localState.ast, null, 2)}
+        content: {t: "pre", c: "ast", text: JSON.stringify(localState.query.ast, null, 2)}
       },
       {
         title: "Reified",
         id: "result-reified",
-        content: {t: "pre", c: "reified", text: JSON.stringify(localState.reified, null, 2)}
+        content: {t: "pre", c: "reified", text: JSON.stringify(localState.query.reified, null, 2)}
       }
     ];
 
@@ -168,9 +182,14 @@ module Editor {
       {text: "Copperfield"},
       Ui.row({children: [
         Ui.column({flex: 1, children: [
-          Ui.button({text: "compile", click: dispatchOnEvent("createViewFromQuery", "elem.query = localState.reified")}),
-          Ui.codeMirrorElement({c: "code", value: script, change: dispatchOnEvent("parse", "elem.query = evt.getValue()")}),
-          {t: "pre", c: "err", text: localState.msg},
+          Ui.row({children: [
+            Ui.input({placeholder: "Untitled Search",
+              blur: dispatchOnEvent("setName", "info.name = evt.target.textContent;")
+            }),
+            Ui.button({text: "compile", click: dispatchOnEvent("viewFromQuery", "info.query = localState.query")}),
+          ]}),
+          Ui.codeMirrorElement({c: "code", value: script, change: dispatchOnEvent("parseQuery", "info.query = evt.getValue()")}),
+          {t: "pre", c: "err", text: localState.query.msg},
           localState.view ? Ui.factTable({view: localState.view}) : undefined
         ]}),
         Ui.tabbedBox({flex: 1, panes: resultPanes, defaultTab: "result-reified"})
@@ -181,19 +200,26 @@ module Editor {
   //---------------------------------------------------------------------------
   // Initialization
   //---------------------------------------------------------------------------
+  interface Query {
+    name?: string
+    id?: string
+    ast?: Parsers.QueryAST
+    reified?: Parsers.ReifiedQuery
+    msg?: string
+  }
   // @FIXME: This should be moved into API once completed.
   interface LocalState {
     initialized: boolean
 
     activePage?: string
     activeComponent?: string
-    ast?
-    reified?
-    msg?
+
+    query?: Query
     view?: string
   }
   export var localState:LocalState = {
-    initialized: true
+    initialized: true,
+    query: {name: "Untitled Query"}
   };
 
   export function init() {
