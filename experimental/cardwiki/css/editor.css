@@ -8,7 +8,7 @@ body { background: #222; font-family:"Lato"; overflow:hidden; height: 100vh; dis
 body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-direction-flex: column; box-sizing: border-box; outline:none; }
 
 .__root { flex: 1; }
-.root { max-width:800px; background: #222; color: #ccc; flex: 1; align-items: center; justify-content: center; flex-direction: row; }
+.root { background: #222; color: #ccc; flex: 1; overflow:auto; }
 
 #perfStats { position:absolute; top: 10px; right:10px; color: #ccc; }
 
@@ -22,6 +22,13 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .article .link.found { color: #99f; }
 .link:hover { border-bottom-color:#f88; }
 .link.found:hover { border-bottom-color:#99f; }
+
+.search-input { background: none; color: #ccc; font-family: "Lato"; font-size: 14pt; margin:20px; border:none; padding:0 10px; padding-bottom:5px; border-bottom:1px solid #666; outline:none; }
+
+.search-results { flex-direction:row; }
+.search-results .step { margin:10px; justify-content:center; }
+.search-results .article { min-width:200px; min-height:200px; margin:4px 0; }
+
 
 
 .CodeMirror div { display:block; }

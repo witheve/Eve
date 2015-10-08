@@ -298,7 +298,7 @@ return index;`
     union(name) {
       return new Union(this, name);
     }
-    asView(query:Query) {
+    asView(query:Query|Union) {
       let name = query.name;
       for(let tableName of query.tables) {
         let table = this.table(tableName);
