@@ -46,13 +46,31 @@ module Editor {
       }
       return effect;
     },
+    editQuery: function({editing}:{editing:string}) {
+      let effect = DispatchEffect.from(this);
+      localState.query.editing = editing;
+      return effect;
+    },
+    queryFromView: function({viewId}:{viewId:string}) {
+      let effect = DispatchEffect.from(this);
+      localState.query.reified = localState.query.ast = localState.query.msg = undefined;
+      localState.query.name = Api.get.name(viewId) || "Untitled Search";
+      localState.query.id = viewId;
+
+      if(viewId) {
+        localState.query.reified = Parsers.query.fromView(viewId);
+        localState.query.ast = Parsers.query.unreify(localState.query.reified);
+      }
+      return effect;
+    },
     parseQuery: function({query}:{query:string}) {
       let effect = DispatchEffect.from(this);
-      localState.query.ast = localState.query.reified = localState.query.msg = undefined;
+      localState.query.msg = undefined;
       try {
-        localState.query.ast =  Parsers.query.parse(query);
-        localState.query.reified = Parsers.query.reify(localState.query.ast);
+        localState.query.ast = Parsers.query.parse(query);
+        localState.query.reified = Parsers.query.reify(localState.query.ast, localState.query.reified);
       } catch(err) {
+        localState.query.reified = undefined;
         if(err.name === "Parse Error") localState.query.msg = `${err}`;
         else {
           console.warn(err.stack);
@@ -66,6 +84,7 @@ module Editor {
     viewFromQuery: function({query}:{query:Query}) {
       let effect = DispatchEffect.from(this);
       let reified = query.reified;
+      if(query.id) effect.change.remove("view", {"view: view": query.id})
       effect.change.add("view", {"view: view": query.id, "view: kind": "join"})
         .add("display name", query.name || "Untitled Search");
 
@@ -118,10 +137,10 @@ module Editor {
       code += "    " + cmd.trim() + ";\n";
     }
     if(dispatches.length) {
-      let names = dispatches.split(/;,/);
+      let names = dispatches.split(/[;|,]/);
       let multi = false;
       for(let name of names) {
-        code += multi ? "\n      ." : "\n    " + `dispatch("${name}", info)`;
+        code += (multi ? "\n      ." : "\n    ") + `dispatch("${name.trim()}", info)`;
         multi = true;
       }
       code += ".done();\n";
@@ -148,21 +167,10 @@ module Editor {
 
   let script =
   `
-   view ?view is a ?
    ?view is named ?name
    # ?ord by ?name descending
-   ?ord < \`10\`
+   ?ord < \`20\`
   `;
-  //`
-  // view ?view is a \`union\`
-  // view ?view is tagged ??tag
-  // # ? by ?view desc
-  //`;
-  // `
-  //   I've had it with these motherfucking ?a on this motherfucking ?vehicle.
-  //   A(n) ?vehicle should *never* contain \`snakes\`
-  //   + Too many ?a are on the ?vehicle
-  // `;
 
   function root():Element {
     let resultPanes:Ui.Pane[] = [
@@ -178,17 +186,23 @@ module Editor {
       }
     ];
 
+    let queryString = localState.query.editing || Parsers.query.unparse(localState.query.ast);
+
     return {children: [
       {text: "Copperfield"},
       Ui.row({children: [
         Ui.column({flex: 1, children: [
           Ui.row({children: [
-            Ui.input({placeholder: "Untitled Search",
+            Ui.input({placeholder: "Untitled Search", text: localState.query.name,
               blur: dispatchOnEvent("setName", "info.name = evt.target.textContent;")
             }),
             Ui.button({text: "compile", click: dispatchOnEvent("viewFromQuery", "info.query = localState.query")}),
           ]}),
-          Ui.codeMirrorElement({c: "code", value: script, change: dispatchOnEvent("parseQuery", "info.query = evt.getValue()")}),
+          Ui.codeMirrorElement({c: "code", key: queryString, value: queryString,
+            change: dispatchOnEvent("parseQuery", "info.query = evt.getValue()"),
+            focus: dispatchOnEvent("editQuery", "info.editing = elem.value"),
+            blur: dispatchOnEvent("parseQuery; editQuery", "info.query = evt.getValue(); info.editing = false"),
+          }),
           {t: "pre", c: "err", text: localState.query.msg},
           localState.view ? Ui.factTable({view: localState.view}) : undefined
         ]}),
@@ -201,6 +215,7 @@ module Editor {
   // Initialization
   //---------------------------------------------------------------------------
   interface Query {
+    editing?: string // If we're editing, store the last set value to prevent MicroReact from considering the element dirty.
     name?: string
     id?: string
     ast?: Parsers.QueryAST
@@ -233,7 +248,7 @@ module Editor {
     } else {
       localState = Api.localState;
     }
-    dispatch("parse", {query: script}).done();
+    dispatch("parseQuery", {query: script}).done();
     render();
   }
 
