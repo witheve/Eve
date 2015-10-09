@@ -268,11 +268,7 @@ module Parsers {
           if(sortFieldCount === 0) throw ParseError("Ordinal requires at least one sorting field.");
 
         } else if(tokenIsSource(parsedLine)) {
-          if(tokenIsText(head)) {
-            if(head.text.trim()[0] === "!") {
-              parsedLine.negated = true;
-            }
-          }
+          if(tokenIsText(head) && head.text.trim()[0] === "!") parsedLine.negated = true;
         }
 
         ast.chunks.push(parsedLine);
@@ -281,6 +277,7 @@ module Parsers {
       ParseError.reset();
       return ast;
     },
+
     parseLine: function(tokens, lineIx = 0) {
       let ast:LineAST = {type: "", chunks: [], lineIx};
       let tokensLength = tokens.length;
@@ -293,35 +290,33 @@ module Parsers {
       }
       return ast.chunks.length ? ast : undefined;
     },
+
     parseField: function(tokens, tokenIx = 0) {
       let field:FieldAST = {type: "field", tokenIx};
-      let head = tokens[0];
-      if(head === "?") {
-        tokens.shift();
-        head = tokens[0];
-        if(head === "?") {
+      let ix = 0;
+      if(tokens[ix] === "?") {
+        ix++;
+        if(tokens[ix] === "?") {
+          ix++;
           field.grouped = true;
-          tokens.shift();
-          head = tokens[0];
         }
-        if(head && head !== " " && PUNCTUATION.indexOf(head) === -1) {
-          field.alias = head;
-          tokens.shift();
-        }
-        return field;
-      } else if(head === "`") {
-        tokens.shift();
+        if(tokens[ix] && tokens[ix] !== " " && PUNCTUATION.indexOf(tokens[ix]) === -1) field.alias = tokens[ix++];
+
+      } else if(tokens[ix] === "`") {
         field.value = "";
         while(true) {
-          head = tokens.shift();
-          if(head === "`") break;
-          if(head === undefined) throw ParseError("Unterminated quoted literal.", field);
-          field.value += head;
+          ix++;
+          if(tokens[ix] === "`") break;
+          if(tokens[ix] === undefined) throw ParseError("Unterminated quoted literal.", field);
+          field.value += tokens[ix];
         }
+        ix++;
         field.value = coerceInput(field.value);
-        return field;
       }
+      tokens.splice(0, ix);
+      return ix > 0 ? field : undefined;
     },
+
     parseStructure: function(tokens, tokenIx = 0) {
       let struct:TextAST = {type: "text", text: "", tokenIx};
       while(true) {
@@ -329,9 +324,7 @@ module Parsers {
         if(head === undefined || head === "?" || head === "`") break;
         struct.text += tokens.shift();
       }
-      if(struct.text) {
-        return struct;
-      }
+      if(struct.text) return struct;
     },
 
     // Reification
@@ -347,7 +340,7 @@ module Parsers {
 
           for(let field of source.fields) {
             let varId = prev && prev.aliases[field.alias];
-            let variable = getVariable(field.alias, reified, varId, prev && prev.variables[varId] && prev.variables[varId].selected);
+            let variable = getVariable(field.alias, reified, varId, varId && prev.variables[varId].selected);
             if(field.grouped) source.chunked = true;
             if(field.value !== undefined) variable.value = field.value;
             variable.bindings.push({source: source.source, field: field.field});
@@ -357,7 +350,7 @@ module Parsers {
           let source = reified.sources[reified.sources.length - 1];
           source.ordinal = line.alias || true;
           let varId = prev && prev.aliases[line.alias];
-          let variable = getVariable(line.alias, reified, varId, prev && prev.variables[varId] && prev.variables[varId].selected);
+          let variable = getVariable(line.alias, reified, varId, varId && prev.variables[varId].selected);
           if(!variable.ordinals) variable.ordinals = [source.source];
           else variable.ordinals.push(source.source);
           let unsorted = [];
@@ -370,27 +363,22 @@ module Parsers {
             if(tokenIsField(chunk)) {
               for(let field of source.fields) {
                 if(field.alias !== chunk.alias) continue;
-                source.sort.push({
-                  ix: sortFieldIx,
-                  field: field.field,
-                  direction: line.directions[sortFieldIx++] || "ascending"
-                });
+                source.sort.push({ix: sortFieldIx, field: field.field, direction: line.directions[sortFieldIx++] || "ascending"});
                 unsorted.splice(unsorted.indexOf(field.field), 1);
                 break;
               }
             }
           }
-
           for(let fieldId of unsorted) source.sort.push({ix: sortFieldIx++, field: fieldId, direction: "ascending"});
 
         } else if(tokenIsAction(line)) {
-          let action = query.reifyAction(line);
-          reified.actions.push(action);
+          reified.actions.push(query.reifyAction(line));
         }
       }
 
       return reified;
     },
+
     reifySource: function(ast, allowMissing = false) {
       ParseError.lineIx = ast.lineIx;
       let fingerprint = fingerprintSource(ast);
@@ -398,13 +386,8 @@ module Parsers {
       if(!view && !allowMissing) throw ParseError(`Fingerprint '${fingerprint}' matches no known views.`); //@NOTE: Should this create a union..?
 
       let source:SourceIR = {negated: ast.negated, source: Api.uuid(), sourceView: view, fields: []};
-      let fieldIxes = Api.ixer.find("fingerprint field", {"fingerprint field: fingerprint": fingerprint});
-      if(fieldIxes) {
-        fieldIxes = fieldIxes.slice();
-        fieldIxes.sort((a, b) => a["fingerprint field: ix"] - b["fingerprint field: ix"]);
-      } else {
-        fieldIxes = fieldIxes ? fieldIxes.slice() : [];
-      }
+      let fieldIxes = Api.ixer.find("fingerprint field", {"fingerprint field: fingerprint": fingerprint}).slice()
+        .sort((a, b) => a["fingerprint field: ix"] - b["fingerprint field: ix"]);
 
       for(let token of ast.chunks) {
         if(tokenIsField(token)) {
@@ -416,6 +399,7 @@ module Parsers {
 
       return source;
     },
+
     reifyAction: function(ast) {
       let action = {action: (<TextAST>ast.chunks[0]).text, view: Api.uuid(), fields: []};
       if(action.action === "+") {
@@ -439,13 +423,14 @@ module Parsers {
         let alias = Api.get.name(fieldId) || undefined;
         let variable = getVariable(alias, reified, varId);
         variable.selected = fieldId;
-
         variable.value = (ixer.findOne("constant binding", {"constant binding: variable": varId}) || {})["constant binding: value"];
+
         let ordinalSources = Api.extract("ordinal binding: source", Api.ixer.find("ordinal binding", {"ordinal binding: variable": varId}));
         if(ordinalSources.length) {
           variable.ordinals = ordinalSources;
           for(let sourceId of ordinalSources) ordinalSourceAlias[sourceId] = alias || true;
         }
+
         variable.bindings = <any>Api.omit("variable", Api.humanize("binding", Api.ixer.find("binding", {"binding: variable": varId})));
         for(let binding of variable.bindings) {
           bindingFieldVariable[binding.field] = variable;
