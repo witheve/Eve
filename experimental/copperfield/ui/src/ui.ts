@@ -186,19 +186,23 @@ module Ui {
   }
 
   interface DropdownElement extends Element {
-    options: string[]
+    options: string[]|Api.Dict
     size?: number
     multiple?: boolean
     defaultOption?: string
   }
   export function dropdown(elem:DropdownElement):Element {
     let {defaultOption, options, size, multiple} = elem;
-
+    if(options instanceof Array) {
+      let opts = {};
+      for(let option of <string[]>options) opts[option] = option;
+      options = opts;
+    }
     // Build the option elements
     let optionElements:Element[] = [];
-    for(let option of options) {
-      let item:Element = {t: "option", value: option, text: option};
-      if(option === defaultOption) {
+    for(let value in options) {
+      let item:Element = {t: "option", value, text: options[value]};
+      if(value === defaultOption) {
         item["selected"] = true;
       }
       optionElements.push(item);
@@ -339,8 +343,9 @@ module Ui {
     view: string
   }
   export function factTable(elem:FactTable):Element {
-    let facts = Api.get.facts(elem.view);
+    let facts = Api.ixer.find(elem.view);
     elem["data"] = facts;
+    if(!facts.length) elem["headers"] = Api.get.fields(elem.view);
     return table(<any>elem);
   }
 
