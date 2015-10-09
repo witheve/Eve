@@ -10,6 +10,7 @@ module Parsers {
   interface SourceAST extends LineAST { negated?: boolean }
   interface OrdinalAST extends LineAST { alias: string, directions: string[] }
   export interface QueryAST extends LineAST {}
+  export interface UiAST extends LineAST {}
 
   interface FieldIR { field: string, grouped?: boolean, alias?: string, value?: string, ordinal?: boolean }
   interface SourceIR {
@@ -34,6 +35,9 @@ module Parsers {
     variables: {[id:string]: VariableIR}
     actions: any[]
   }
+  export interface UiIR {
+
+  }
 
   function tokenIsText(token:Token): token is TextAST { return token.type === "text"; }
   function tokenIsField(token:Token): token is FieldAST { return token.type === "field"; }
@@ -51,7 +55,6 @@ module Parsers {
     (msg:string, token?:any): Error
     reset: () => void
     tokenToChar: (token:any, line:string) => number
-    tokenToString: (token:any, line:string) => string
     lines: string[]
     lineIx: number
   }
@@ -59,7 +62,7 @@ module Parsers {
     let {lines = [], lineIx} = ParseError;
     let line = lines[lineIx] || ""
     let charIx = token !== undefined ? ParseError.tokenToChar(token, line) : 0;
-    let length = token !== undefined ? (ParseError.tokenToString(token, line) || "").length : line.length - charIx;
+    let length = token !== undefined ? (tokenToString(token) || "").length : line.length - charIx;
     msg += `\nOn line ${lineIx}:${charIx}`;
     if(line !== undefined) {
       msg += `\n${line}\n${underline(charIx, length)}`;
@@ -72,7 +75,7 @@ module Parsers {
     return err;
   }
   ParseError.reset = function() {
-    ParseError.lines = ParseError.tokenToChar = ParseError.tokenToString = ParseError.lineIx = undefined;
+    ParseError.lines = ParseError.tokenToChar = ParseError.lineIx = undefined;
   };
 
   function repeat(length, str) {
@@ -89,7 +92,7 @@ module Parsers {
     return padding + "^" + underline;
   }
 
-  function makeTokenizer(tokens:(string)[]):((string) => string[]) {
+  function makeTokenizer(tokens:(string)[]): ((line:string) => string[]) {
     return function(raw:string) {
       let results = [];
       while(raw.length) {
@@ -113,6 +116,23 @@ module Parsers {
     };
   }
 
+  function tokenToString(token:Token):string {
+    if(!token) return;
+    if(tokenIsField(token)) {
+      if(token.value !== undefined) return `\`${token.value || ""}\``;
+      return `?${token.grouped ? "?" : ""}${token.alias || ""}`;
+    } else if(tokenIsLine(token)) {
+      let res = "";
+      for(let chunk of token.chunks) {
+        res += tokenToString(chunk);
+        if(chunk.lineIx !== undefined) res += "\n";
+      }
+      return res;
+    }
+    if(tokenIsText(token)) return token.text;
+    throw new Error(`Unknown token type '${token && token.type}'`);
+  }
+
   export function fingerprintSource(ast:LineAST) {
     let fingerprint = "";
     let tokenIx = 0;
@@ -126,7 +146,7 @@ module Parsers {
     }
     for(; tokenIx < tokenCount; tokenIx++) {
       let token = ast.chunks[tokenIx];
-      fingerprint +=  tokenIsField(token) ? "?" : query.tokenToString(token);
+      fingerprint +=  tokenIsField(token) ? "?" : tokenToString(token);
     }
     return fingerprint;
   }
@@ -162,7 +182,6 @@ module Parsers {
     // Utilities
     tokenize(raw:string): string[]
     tokenToChar(token:any, line:string): number
-    tokenToString(token:any): string
 
     // Parsing
     parse(raw:string): QueryAST
@@ -182,46 +201,29 @@ module Parsers {
   }
 
   const Q_ACTION_TOKENS = ["+"];
-  const Q_TOKENS = ["`", " ", "\t", "?", "$$", "\"", "!"].concat(Q_ACTION_TOKENS).concat(PUNCTUATION);
+  const Q_TOKENS = [" ", "\t", "`", "?"].concat(Q_ACTION_TOKENS).concat(PUNCTUATION);
   export var query:Query = <any>{
     // Utilities
     tokenize: makeTokenizer(Q_TOKENS),
     tokenToChar: (token, line) => (token.tokenIx !== undefined) ? query.tokenize(line).slice(0, token.tokenIx - 1).join("").length : 0,
-    tokenToString: function(token) {
-      if(!token) return;
-      if(tokenIsField(token)) {
-        if(token.value !== undefined) return `\`${token.value || ""}\``;
-        return `?${token.grouped ? "?" : ""}${token.alias || ""}`;
-      } else if(tokenIsLine(token)) {
-        let res = "";
-        for(let chunk of token.chunks) {
-          res += query.tokenToString(chunk);
-          if(chunk.lineIx !== undefined) res += "\n";
-        }
-        return res;
-      }
-      return token.text;
-    },
 
     // Parsing
     parse: function(raw) {
       let ast:QueryAST = {type: "query", chunks: []};
       let lines = raw.split("\n");
-      for(let ix = 0; ix < lines.length; ix++) {
-        lines[ix] = lines[ix].trim();
-      }
+      for(let ix = 0; ix < lines.length; ix++) lines[ix] = lines[ix].trim();
+
       // Set up debugging metadata globally so downstream doesn't need to be aware of it.
       ParseError.lines = lines;
       ParseError.tokenToChar = query.tokenToChar;
-      ParseError.tokenToString = query.tokenToString;
 
       let lineIx = 0;
-      for(let lineIx = 0, lineCount = lines.length; lineIx < lineCount; lineIx++) {
+      for(let line of lines) {
         ParseError.lineIx = lineIx;
-        let tokens = query.tokenize(lines[lineIx]);
+        let tokens = query.tokenize(line);
         if(tokens.length === 0) continue;
         let tokensLength = tokens.length;
-        let parsedLine = query.parseLine(tokens, lineIx);
+        let parsedLine = query.parseLine(tokens, lineIx++);
 
         // Detect line type.
         let head = parsedLine.chunks[0];
@@ -273,7 +275,6 @@ module Parsers {
 
         ast.chunks.push(parsedLine);
       }
-
       ParseError.reset();
       return ast;
     },
@@ -392,7 +393,7 @@ module Parsers {
       for(let token of ast.chunks) {
         if(tokenIsField(token)) {
           let {"fingerprint field: field":field} = fieldIxes.shift() || {};
-          if(!field && !allowMissing) throw ParseError(`Fingerprint '${fingerprint}' is missing a field for blank '${query.tokenToString(token)}'.`);
+          if(!field && !allowMissing) throw ParseError(`Fingerprint '${fingerprint}' is missing a field for blank '${tokenToString(token)}'.`);
           source.fields.push({field, grouped: token.grouped, alias: token.alias, value: token.value});
         }
       }
@@ -513,7 +514,56 @@ module Parsers {
       return ast;
     },
 
-    unparse: (ast:QueryAST) => query.tokenToString(ast)
+    unparse: (ast:QueryAST) => tokenToString(ast)
   };
 
+  //---------------------------------------------------------------------------
+  // Ui Parser
+  //---------------------------------------------------------------------------
+  const U_TOKENS = [" ", "\t", "~", "-", "`", "?"];
+  export var ui = {
+   // Utilities
+    tokenize: makeTokenizer(Q_TOKENS),
+    tokenToChar: (token:Token, line:string) => (token.tokenIx !== undefined) ? ui.tokenize(line).slice(0, token.tokenIx - 1).join("").length : 0,
+
+    parse(raw:string): UiAST {
+      let ast:QueryAST = {type: "query", chunks: []};
+      let lines = raw.split("\n");
+      for(let ix = 0; ix < lines.length; ix++) lines[ix] = lines[ix].trim();
+
+      // Set up debugging metadata globally so downstream doesn't need to be aware of it.
+      ParseError.lines = lines;
+      ParseError.tokenToChar = query.tokenToChar;
+
+      let lineIx = 0;
+      for(let line of lines) {
+        ParseError.lineIx = lineIx;
+        let tokens = query.tokenize(lines[lineIx]);
+        if(tokens.length === 0) continue;
+        let tokensLength = tokens.length;
+
+        // Compare to key tokens (- is attr, ~ is view, default is element)
+        // Ensure valid ordering
+      }
+
+      ParseError.reset();
+      return ast;
+    },
+
+    reify(ast:UiAST): UiIR {
+      throw new Error("@OTOD: Implement me.");
+    },
+
+    fromElement(elemId:string):UiIR {
+      throw new Error("@OTOD: Implement me.");
+    },
+
+    unreify(reified:UiIR): UiAST {
+      throw new Error("@OTOD: Implement me.");
+    },
+
+    unparse(ast:UiAST): string {
+      throw new Error("@OTOD: Implement me.");
+    }
+  };
 }
