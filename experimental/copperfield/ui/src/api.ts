@@ -416,7 +416,7 @@ module Api {
       let fact:Dict;
       if(schema.key && !isDict(factOrPKey)) fact = {[schema.key]: factOrPKey};
       else if(isDict(factOrPKey)) fact = factOrPKey;
-      else throw new Error(`Invalid fact format for view '${viewId}': '${factOrValue}'`);
+      else throw new Error(`Invalid fact format for view '${viewId}': '${factOrPKey}'`);
       fillForeignFields(fact, schema, this.context);
 
       // Store pkey in context for convenient updates.
@@ -435,7 +435,7 @@ module Api {
       let fact:Dict;
       if(schema.key && !isDict(factOrPKey)) fact = {[schema.key]: factOrPKey};
       else if(isDict(factOrPKey)) fact = factOrPKey;
-      else throw new Error(`Invalid fact format for view '${viewId}': '${factOrValue}'`);
+      else throw new Error(`Invalid fact format for view '${viewId}': '${factOrPKey}'`);
       fillForeignFields(fact, schema, this.context);
 
       // Bail out if we don't have any relation to the parent or info of our own (otherwise we'd nuke the dependent table).
