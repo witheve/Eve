@@ -20,11 +20,12 @@ module Editor {
     public done():DispatchEffect {
       DispatchEffect.inProgress--;
 
+      let diffs;
       if(this.change.changeSet.length) {
-        Api.ixer.applyChangeSet(this.change.changeSet);
+        diffs = Api.ixer.applyChangeSet(this.change.changeSet);
       }
       if(this.change.changeSet.length || this.commands.length) {
-        Client.sendToServer(Api.toDiffs(this.change.changeSet), this.commands);
+        Client.sendToServer(Api.toDiffs(diffs || {}), this.commands);
       }
 
       if(this.rerender) {
@@ -39,11 +40,16 @@ module Editor {
       let effect = DispatchEffect.from(this);
       if(id) {
         effect.change.remove("display name", {"display name: id": id})
-          .add("display name", name);
+          .add("display name", {"display name: id": id, "display name: name": name});
       } else {
         // @FIXME: Use activePage / activeComponent to determine what state to set when id is not passed in.
         localState.query.name = name;
       }
+      return effect;
+    },
+    remove: function({type, id}:{type: string, id: string}) {
+      let effect = DispatchEffect.from(this);
+      if(id && type) effect.change.removeWithDependents(type, id);
       return effect;
     },
     editQuery: function({editing}:{editing:string}) {
@@ -55,20 +61,21 @@ module Editor {
       let effect = DispatchEffect.from(this);
       localState.query.reified = localState.query.ast = localState.query.msg = undefined;
       localState.query.name = Api.get.name(viewId) || "Untitled Search";
-      localState.query.id = viewId;
+      localState.query.id = viewId || undefined;
 
       if(viewId) {
         localState.query.reified = Parsers.query.fromView(viewId);
+        // @FIXME: Check Query AST table. If it exists and reifying it matches reified in structure use that instead.
         localState.query.ast = Parsers.query.unreify(localState.query.reified);
       }
       return effect;
     },
-    parseQuery: function({query}:{query:string}) {
+    parseQuery: function({query, prev}:{query:string, prev?:Parsers.QueryIR}) {
       let effect = DispatchEffect.from(this);
       localState.query.msg = undefined;
       try {
         localState.query.ast = Parsers.query.parse(query);
-        localState.query.reified = Parsers.query.reify(localState.query.ast, localState.query.reified);
+        localState.query.reified = Parsers.query.reify(localState.query.ast, prev);
       } catch(err) {
         localState.query.reified = undefined;
         if(err.name === "Parse Error") localState.query.msg = `${err}`;
@@ -84,7 +91,7 @@ module Editor {
     viewFromQuery: function({query}:{query:Query}) {
       let effect = DispatchEffect.from(this);
       let reified = query.reified;
-      if(query.id) effect.change.remove("view", {"view: view": query.id})
+      if(query.id) effect.change.removeWithDependents("view", {"view: view": query.id})
       effect.change.add("view", {"view: view": query.id, "view: kind": "join"})
         .add("display name", query.name || "Untitled Search");
 
@@ -98,17 +105,17 @@ module Editor {
       let fieldIx = 0;
       for(let varId in reified.variables) { // Variables
         let variable = reified.variables[varId];
-        effect.change.add("variable")
+        effect.change.add("variable", {"variable: variable": varId})
           .addEach("binding", Api.resolve("binding", variable.bindings));
         if(variable.ordinals) effect.change.addEach("ordinal binding", Api.wrap("ordinal binding: source", variable.ordinals));
         if(variable.value !== undefined) effect.change.add("constant binding", variable.value);
-        if(variable.selected) effect.change.add("field", "output")
+        if(variable.selected) effect.change.add("field", {"field: field": variable.selected, "field: kind": "output"})
           .add("display name", variable.alias || "")
           .add("display order", fieldIx++)
           .add("select");
       }
 
-      localState.view = effect.change.context["view: view"];
+      query.id = effect.change.context["view: view"];
       return effect;
     }
   };
@@ -186,25 +193,34 @@ module Editor {
       }
     ];
 
-    let queryString = localState.query.editing || Parsers.query.unparse(localState.query.ast);
+    let queryString = localState.query.editing;
+    if(queryString === undefined) queryString = Parsers.query.unparse(localState.query.ast) || "";
+    let queries = {"": "New Query"};
+    for(let viewId of Api.extract("view: view", Api.ixer.find("view"))) {
+      queries[viewId] = Api.get.name(viewId) || `<${viewId}>`;
+    }
 
     return {children: [
-      {text: "Copperfield"},
+      {text: "Copperfield - " + localState.query.id},
       Ui.row({children: [
         Ui.column({flex: 1, children: [
           Ui.row({children: [
-            Ui.input({placeholder: "Untitled Search", text: localState.query.name,
-              blur: dispatchOnEvent("setName", "info.name = evt.target.textContent;")
+            Ui.input({placeholder: "Untitled Search", text: localState.query.name, view: localState.query.id,
+              blur: dispatchOnEvent("setName", "info.name = evt.target.textContent; info.id = elem.view")
+            }),
+            Ui.dropdown({options: queries, defaultOption: <any>localState.query.id,
+              change: dispatchOnEvent("queryFromView", "info.viewId = evt.target.value")
             }),
             Ui.button({text: "compile", click: dispatchOnEvent("viewFromQuery", "info.query = localState.query")}),
+            Ui.button({c: "ion-close", view: localState.query.id, click: dispatchOnEvent("remove; queryFromView", "info.type = 'view'; info.id = elem.view")})
           ]}),
           Ui.codeMirrorElement({c: "code", key: queryString, value: queryString,
-            change: dispatchOnEvent("parseQuery", "info.query = evt.getValue()"),
+            change: dispatchOnEvent("parseQuery", "info.query = evt.getValue(); info.prev = localState.query.reified"),
             focus: dispatchOnEvent("editQuery", "info.editing = elem.value"),
-            blur: dispatchOnEvent("parseQuery; editQuery", "info.query = evt.getValue(); info.editing = false"),
+            blur: dispatchOnEvent("editQuery", "info.editing = undefined"),
           }),
           {t: "pre", c: "err", text: localState.query.msg},
-          localState.view ? Ui.factTable({view: localState.view}) : undefined
+          localState.query.id ? Ui.factTable({view: localState.query.id}) : undefined
         ]}),
         Ui.tabbedBox({flex: 1, panes: resultPanes, defaultTab: "result-reified"})
       ]})
@@ -219,7 +235,7 @@ module Editor {
     name?: string
     id?: string
     ast?: Parsers.QueryAST
-    reified?: Parsers.ReifiedQuery
+    reified?: Parsers.QueryIR
     msg?: string
   }
   // @FIXME: This should be moved into API once completed.
@@ -230,7 +246,6 @@ module Editor {
     activeComponent?: string
 
     query?: Query
-    view?: string
   }
   export var localState:LocalState = {
     initialized: true,
