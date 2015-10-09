@@ -2,14 +2,19 @@ module Parsers {
   //---------------------------------------------------------------------------
   // Types
   //---------------------------------------------------------------------------
-  interface Token { type: string, tokenIx?: number, lineIx?: number }
+  interface Token { type: string, tokenIx?: number, lineIx?: number, indent?: number }
   interface LineAST extends Token { chunks: Token[] }
 
+  interface CommentAST extends Token { text: string }
   interface TextAST extends Token { text: string }
   interface FieldAST extends Token { grouped?: boolean, alias?: string, value?: string }
   interface SourceAST extends LineAST { negated?: boolean }
   interface OrdinalAST extends LineAST { alias: string, directions: string[] }
   export interface QueryAST extends LineAST {}
+
+  interface ElementAST extends Token { tag?: string, classes?: string, name?: string }
+  interface AttributeAST extends Token { property: string, value: FieldAST, static: boolean }
+  interface BindingAST extends Token { text: string }
   export interface UiAST extends LineAST {}
 
   interface FieldIR { field: string, grouped?: boolean, alias?: string, value?: string, ordinal?: boolean }
@@ -35,16 +40,33 @@ module Parsers {
     variables: {[id:string]: VariableIR}
     actions: any[]
   }
+  interface ElementIR {
+    element: string
+    tag: string
+    name?: string
+    parent?: string
+    attributes: Api.Dict
+    boundAttributes: Api.Dict
+    boundView?: string
+    binding?: Api.Dict
+  }
   export interface UiIR {
-
+    elements: ElementIR[]
+    boundQueries: QueryIR[]
   }
 
-  function tokenIsText(token:Token): token is TextAST { return token.type === "text"; }
-  function tokenIsField(token:Token): token is FieldAST { return token.type === "field"; }
   function tokenIsLine(token:Token): token is LineAST { return !!token["chunks"]; }
+  function tokenIsText(token:Token): token is TextAST { return token["text"] !== undefined; }
+  function tokenIsComment(token:Token): token is CommentAST { return token.type === "comment"; }
+
+  function tokenIsField(token:Token): token is FieldAST { return token.type === "field"; }
   function tokenIsSource(token:Token): token is SourceAST {return token.type === "source"; }
   function tokenIsOrdinal(token:Token): token is OrdinalAST { return token.type === "ordinal"; }
   function tokenIsAction(token:Token): token is LineAST { return token.type === "action"; }
+
+  function tokenIsAttribute(token:Token): token is AttributeAST { return token.type === "attribute"; }
+  function tokenIsBinding(token:Token): token is BindingAST { return token.type === "binding"; }
+  function tokenIsElement(token:Token): token is ElementAST { return token.type === "element"; }
 
   //---------------------------------------------------------------------------
   // Utilities
@@ -118,18 +140,26 @@ module Parsers {
 
   function tokenToString(token:Token):string {
     if(!token) return;
-    if(tokenIsField(token)) {
-      if(token.value !== undefined) return `\`${token.value || ""}\``;
-      return `?${token.grouped ? "?" : ""}${token.alias || ""}`;
-    } else if(tokenIsLine(token)) {
+    let padding = token.indent ? new Array(token.indent + 1).join(" ") : "";
+    if(tokenIsLine(token)) {
       let res = "";
       for(let chunk of token.chunks) {
         res += tokenToString(chunk);
         if(chunk.lineIx !== undefined) res += "\n";
       }
       return res;
+    } else if(tokenIsField(token)) {
+      if(token.value !== undefined) return `\`${token.value || ""}\``;
+      return `?${token.grouped ? "?" : ""}${token.alias || ""}`;
+    } else if(tokenIsAttribute(token)) {
+      return `${padding}- ${token.property}: ${tokenToString(token.value)}`;
+    } else if(tokenIsElement(token)) {
+      let res = `${padding}${token.tag || ""}`;
+      if(token.classes) res += token.classes;
+      if(token.name) res += "; " + token.name;
+      return res;
     }
-    if(tokenIsText(token)) return token.text;
+    if(tokenIsText(token)) return padding + token.text;
     throw new Error(`Unknown token type '${token && token.type}'`);
   }
 
@@ -173,6 +203,41 @@ module Parsers {
     if(!variable) variable = ast.variables[varId] = {selected: fieldId || (alias ? Api.uuid() : undefined), alias: alias, bindings: []};
     if(alias) ast.aliases[alias] = varId;
     return variable;
+  }
+
+  function getPrevOfType<T extends Token>(tokens:Token[],  test:(token:Token) => token is T):T {
+    for(let ix = tokens.length; ix >= 0; ix--) {
+      let token = tokens[ix];
+      if(test(token)) return token;
+    }
+  }
+
+  function consume(needles:string[], tokens:string[], err?:Error):string {
+    let res = "";
+    while(true) {
+      let head = tokens[0];
+      if(head === undefined) {
+        if(err) throw err;
+        break;
+      }
+      if(needles.indexOf(head) === -1) break;
+      res += tokens.shift();
+    }
+    return res;
+  }
+
+  function consumeUntil(needles:string[], tokens:string[], err?:Error):string {
+    let res = "";
+    while(true) {
+      let head = tokens[0];
+      if(head === undefined) {
+        if(err) throw err;
+        break;
+      }
+      if(needles.indexOf(head) !== -1) break;
+      res += tokens.shift();
+    }
+    return res;
   }
 
   //---------------------------------------------------------------------------
@@ -275,7 +340,7 @@ module Parsers {
 
         ast.chunks.push(parsedLine);
       }
-      ParseError.reset();
+
       return ast;
     },
 
@@ -520,38 +585,106 @@ module Parsers {
   //---------------------------------------------------------------------------
   // Ui Parser
   //---------------------------------------------------------------------------
-  const U_TOKENS = [" ", "\t", "~", "-", "`", "?"];
+  const U_TOKENS = [";", "~", "-", " ", "\t", "`", "?"];
   export var ui = {
    // Utilities
     tokenize: makeTokenizer(Q_TOKENS),
     tokenToChar: (token:Token, line:string) => (token.tokenIx !== undefined) ? ui.tokenize(line).slice(0, token.tokenIx - 1).join("").length : 0,
 
     parse(raw:string): UiAST {
-      let ast:QueryAST = {type: "query", chunks: []};
+      let ast:QueryAST = {type: "ui", chunks: []};
       let lines = raw.split("\n");
-      for(let ix = 0; ix < lines.length; ix++) lines[ix] = lines[ix].trim();
 
       // Set up debugging metadata globally so downstream doesn't need to be aware of it.
       ParseError.lines = lines;
       ParseError.tokenToChar = query.tokenToChar;
 
       let lineIx = 0;
-      for(let line of lines) {
+      for(let rawLine of lines) {
         ParseError.lineIx = lineIx;
-        let tokens = query.tokenize(lines[lineIx]);
+        let tokens = ui.tokenize(rawLine);
         if(tokens.length === 0) continue;
         let tokensLength = tokens.length;
+        let consumed = consume([" ", "\t"], tokens);
+        let indent = tokensLength - tokens.length;
+        let line:Token = {type: "", lineIx, indent};
+        let head = tokens.shift();
 
-        // Compare to key tokens (- is attr, ~ is view, default is element)
-        // Ensure valid ordering
+        if(head === undefined) {
+          lineIx++;
+          continue;
+        }
+
+        if(head === ";") {
+          line.type = "comment";
+          let comment:CommentAST = <any>line;
+          comment.text = tokens.join("");
+
+        } else if(head === "-") {
+          line.type = "attribute";
+          let attribute:AttributeAST = <any>line;
+          consume([" ", "\t"], tokens);
+          attribute.property = consumeUntil([":"], tokens, ParseError("Attributes are formatted as '- <property>: <value or field>'."));
+          tokens.shift();
+          consume([" ", "\t"], tokens);
+          let field = query.parseField(tokens, tokensLength - tokens.length);
+          // @TODO we can wrap this in `` and rerun it, or skip the middleman since we know the value.
+          if(!field) throw ParseError("Value of attribute must be a field (either ' ?foo ' or ' `100` ')", {type: "text", text: tokens.join(""), tokenIx: tokensLength - tokens.length});
+          attribute.value = field;
+          attribute.static = field.value !== undefined;
+          if(tokens.length) throw ParseError("Extraneous tokens after value.", {type: "", text: tokens.join(""), tokenIx: tokensLength - tokens.length});
+
+        } else if(head === "~") {
+          line.type = "binding";
+          let binding:BindingAST = <any>line;
+          consume([" ", "\t"], tokens);
+          binding.text = tokens.join("");
+
+        } else {
+          line.type = "element";
+          let element:ElementAST = <any>line;
+          if(head) element.tag = head;
+          element.classes = consumeUntil([";"], tokens);
+          if(tokens[0] === ";") tokens.shift();
+          if(tokens.length) element.name = tokens.join("").trim();
+        }
+
+        ast.chunks[ast.chunks.length] = line;
+        lineIx++;
       }
 
-      ParseError.reset();
       return ast;
     },
 
     reify(ast:UiAST): UiIR {
-      throw new Error("@OTOD: Implement me.");
+      let reified:UiIR = {elements: [], boundQueries: []};
+      let indent = {};
+      for(let line of ast.chunks) {
+        if(tokenIsComment(line)) continue;
+
+        let prevElem:ElementIR = reified.elements[reified.elements.length - 1];
+        if(tokenIsElement(line)) {
+          let elem:ElementIR = {element: Api.uuid(), tag: line.tag, attributes: {}, boundAttributes: {}};
+          indent[elem.element] = line.indent;
+          if(prevElem && indent[prevElem.element] < line.indent) elem.parent = prevElem.element;
+          if(line.classes) elem.attributes["c"] = line.classes;
+          if(line.name) elem.name = line.name;
+          reified.elements[reified.elements.length] = elem;
+
+        } else if(tokenIsBinding(line)) {
+          throw "@TODO: IMplement binding support.";
+          if(!prevElem) throw ParseError("Attributes must follow an element.", line);
+        } else if(tokenIsAttribute(line)) {
+          if(!prevElem) throw ParseError("Attributes must follow an element.", line);
+          if(line.static) {
+            prevElem.attributes[line.property] = line.value.value;
+          } else {
+            prevElem.boundAttributes[line.property] = line.value.alias;
+          }
+
+        }
+      }
+      return reified;
     },
 
     fromElement(elemId:string):UiIR {
