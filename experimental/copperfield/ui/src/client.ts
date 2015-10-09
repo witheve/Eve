@@ -7,8 +7,8 @@ module Client {
 
   type Id = string
   export type Fact = any[]
-  export type MapDiff = [string, string[], Fact[], Fact[]]
-  export type MapDiffs = MapDiff[]
+  export type ArrayDiff = [string, string[], Fact[], Fact[]]
+  export type ArrayDiffs = ArrayDiff[]
   export type PayloadChange = [Id, Id[], Fact[], Fact[]]
   export interface Payload { session?: string, changes?: PayloadChange[], commands: Fact[] }
 
@@ -232,11 +232,11 @@ module Client {
           let mapRemoves = [];
           ix = 0;
           for(let remove of removes) {
-            mapAdds[ix] = factToMap(table, remove, fields);
+            mapRemoves[ix] = factToMap(table, remove, fields);
             ix++;
           }
-          changeSet.addFacts(table, mapAdds);
-          changeSet.removeFacts(table, mapRemoves);
+          if(mapAdds.length) changeSet.addFacts(table, mapAdds);
+          if(mapRemoves.length) changeSet.removeFacts(table, mapRemoves);
         }
         Api.ixer.applyChangeSet(changeSet);
       }
@@ -264,7 +264,7 @@ module Client {
     };
   }
 
-  export function sendToServer(changes?:MapDiffs, commands?) {
+  export function sendToServer(changes?:ArrayDiffs, commands?) {
     if (!server.connected) {
       console.warn("Not connected to server, adding changes to queue.");
       server.queue.push(changes);
