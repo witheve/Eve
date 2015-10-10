@@ -85,9 +85,9 @@ module UiRenderer {
     // instead of being a noop, specifying a child of a root as another root results in undefined behavior.
     // If this becomes a problem, it can be changed in the loop that initially populates compiledElements.
     compile(roots:(Id|Element)[]):MicroReact.Element[] {
-      let elementToChildren = Api.ixer.index("ui parent to elements", ["uiElement: parent"]);
-      let elementToAttrs = Api.ixer.index("ui element to attributes", ["uiAttribute: element"]);
-      let elementToAttrBindings = Api.ixer.index("ui element to attribute bindings", ["uiAttributeBinding: element"]);
+      let elementToChildren = Api.ixer.index("uiElement", ["uiElement: parent"]);
+      let elementToAttrs = Api.ixer.index("uiAttribute", ["uiAttribute: element"]);
+      let elementToAttrBindings = Api.ixer.index("uiAttributeBinding", ["uiAttributeBinding: element"]);
 
       let stack:Element[] = [];
       let compiledElements:MicroReact.Element[] = [];
