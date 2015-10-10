@@ -19,7 +19,7 @@ module wiki {
       var diff = eve.diff();
       diff.add("page", {page: "foo", text: "[pixar] movies:\n[up]\n[toy story]"});
       diff.add("page", {page: "pixar", text: "[Pixar] is an animation studio owned by disney"});
-      diff.add("active page", {page: "foo"});
+      diff.add("search", {search: "foo"});
       eve.applyDiff(diff);
     } else {
       eve.load(stored);
@@ -265,8 +265,6 @@ module wiki {
   });
 
   export function root() {
-    let activeId = eve.findOne("active page")["page"];
-    let articleView = articleUi(activeId);
     let search = "";
     let searchObj = eve.findOne("search");
     if(searchObj) {
@@ -344,7 +342,7 @@ module wiki {
   function maybeSubmitSearch(e, elem) {
     if(e.keyCode === 13) {
       app.dispatch("setSearch", {value: e.currentTarget.value}).commit();
-    }i
+    }
   }
 
   function historyStack() {
