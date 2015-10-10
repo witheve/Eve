@@ -270,7 +270,8 @@ module Api {
     dependents?: Id[]
   }
 
-  const EDITOR_PKS = {tag: ""};
+  const EDITOR_PKS = {tag: "", uiElement: "element"};
+  const EDITOR_FKS = {"uiElement: parent": "element"};
   const EDITOR_PK_DEPS = [
     ["display name", "display name: id"],
     ["display order", "display order: id"],
@@ -312,9 +313,17 @@ module Api {
           schema.key = fieldId;
           keys[fieldName] = [viewId, fieldId];
         } else { // Field is either a foreign key or unbound.
-          if(!names[fieldName]) names[fieldName] = [];
-          names[fieldName].push([viewId, fieldId]);
-          schema.unboundFields.push(fieldId);
+          // Field is explicitly foreign in an override.
+          let manualPrimaryFieldId = EDITOR_FKS[fieldId];
+          if(manualPrimaryFieldId) {
+            if(!schema.foreign) schema.foreign = {};
+            schema.foreign[fieldId] = manualPrimaryFieldId;
+
+          } else {
+            if(!names[fieldName]) names[fieldName] = [];
+            names[fieldName].push([viewId, fieldId]);
+            schema.unboundFields.push(fieldId);
+          }
         }
       }
     }
