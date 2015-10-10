@@ -77,7 +77,7 @@ module app {
         render();
       }
       if (result.meta.store) {
-        // console.log("TODO: Store diffs");
+        localStorage["eve"] = eve.serialize();
       }
       updateStat = performance.now() - start;
     }
@@ -95,6 +95,17 @@ module app {
   //---------------------------------------------------------
   
   export var eve = runtime.indexer();
+  export var initializers = {};
+  
+  export function init(name, func) {
+    initializers[name] = func;
+  }
+  
+  function executeInitializers() {
+    for(let initName in initializers) {
+      initializers[initName]();
+    }
+  }
   
   //---------------------------------------------------------
   // Go
@@ -102,6 +113,7 @@ module app {
   
   document.addEventListener("DOMContentLoaded", function(event) { 
     initRenderer();
+    executeInitializers();
     render();
   });
   

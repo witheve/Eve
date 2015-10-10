@@ -12,11 +12,19 @@ module wiki {
   //---------------------------------------------------------
 
   var eve = app.eve;
-  var diff = eve.diff();
-  diff.add("page", {page: "foo", text: "[pixar] movies:\n[up]\n[toy story]"});
-  diff.add("page", {page: "pixar", text: "[Pixar] is an animation studio owned by disney"});
-  diff.add("active page", {page: "foo"});
-  eve.applyDiff(diff);
+
+  function initEve() {
+    let stored = localStorage["eve"];
+    if(!stored) {
+      var diff = eve.diff();
+      diff.add("page", {page: "foo", text: "[pixar] movies:\n[up]\n[toy story]"});
+      diff.add("page", {page: "pixar", text: "[Pixar] is an animation studio owned by disney"});
+      diff.add("active page", {page: "foo"});
+      eve.applyDiff(diff);
+    } else {
+      eve.load(stored);
+    }
+  }
 
   runtime.define("page to graph", {multi: true}, function(text) {
     return articleToGraph(text).outbound;
@@ -39,7 +47,7 @@ module wiki {
   eve.asView(eve.query("search results")
              .select("search", {}, "search")
              .calculate("search string", {text: ["search", "search"]}, "results")
-             .project({page: ["results", "page"], step: ["results", "step"]}));
+             .project({page: ["results", "page"], to: ["results", "to"] step: ["results", "step"]}));
 
   eve.asView(eve.query("active page incoming")
              .select("active page", {}, "active")
@@ -66,6 +74,12 @@ module wiki {
     let children = [];
     let lines = article.split(/\n/);
     for (let line of lines) {
+      line = line.trim();
+      let header = false;
+      if(line[0] === "#") {
+        header = true;
+        line = line.substring(1).trim();
+      }
       let lineChildren = [];
       let parts = line.split(/(\[.*?\])(?:\(.*?\))?/);
       for (var part of parts) {
@@ -80,6 +94,9 @@ module wiki {
         } else {
           lineChildren.push({t: "span", text: part });
         }
+      }
+      if(header) {
+        lineChildren = [{t: "h1", children: lineChildren}];
       }
       children.push({t: "pre", children: lineChildren});
     }
@@ -128,39 +145,64 @@ module wiki {
     return results;
   }
 
+  function stringMatches(string, index) {
+    // remove all non-word non-space characters
+    let cleaned = string.replace(/[^\s\w]/gi, "").toLowerCase();
+    let words = cleaned.split(" ");
+    let front = 0;
+    let back = words.length;
+    let results = [];
+    while(front < words.length) {
+      let str = words.slice(front, back).join(" ");
+      if(index[str]) {
+        results.push(str);
+        front = back;
+        back = words.length;
+      } else if(back - 1 > front) {
+        back--;
+      } else {
+        back = words.length;
+        front++;
+      }
+    }
+    return results;
+  }
+
   function search(searchString) {
     // search the string for entities / decks
     // TODO: this is stupidly slow
     let cleaned = searchString.toLowerCase();
-    let entities = [];
-    let decks = [];
-    for(var entity of eve.find("entity")) {
-      let id = entity.entity;
-      if(cleaned.indexOf(id) > -1) {
-        entities.push(id);
-      }
-    }
-    for(var deck of eve.find("deck")) {
-      let id = deck.deck;
-      if(cleaned.indexOf(id) > -1) {
-        decks.push(id);
-      }
-    }
+    eve.find("entity", {entity: ""});
+    var index = eve.table("entity").indexes["entity"].index;
+    let entities = stringMatches(searchString, index);
+    eve.find("deck", {deck: ""});
+    var deckIndex = eve.table("deck").indexes["deck"].index;
+    let decks = stringMatches(searchString, deckIndex);
     // TODO: handle more than two entities
     //
+    if(entities.length === 0 && decks.length) {
+      let results = [];
+      for(let deck of decks) {
+        for(let page of eve.find("deck pages", {deck})) {
+            results.push({page: page["page"], step: 0});
+        }
+      }
+      return results;
+    }
     let [from, to] = entities;
     if(!from) return [];
     if(!to) return [{page: from, step: 0}];
 
     let results = [];
+    let pathIx = 0;
     for(let path of findPath(from, to)) {
       for(let ix = 0, len = path.length; ix < len; ix++) {
-        results.push({page: path[ix], step: ix})
+        results.push({to: path[ix + 1] || "", page: path[ix], step: ix})
       }
     }
     for(let path of findPath(to, from)) {
       for(let ix = 0, len = path.length; ix < len; ix++) {
-        results.push({page: path[len - ix - 1], step: ix})
+        results.push({to: path[len - ix - 2] || "", page: path[len - ix - 1], step: ix})
       }
     }
     return results;
@@ -198,18 +240,6 @@ module wiki {
   // Wiki
   //---------------------------------------------------------
 
-  app.handle("followLink", (result, info) => {
-    let page = eve.findOne("active page")["page"];
-    if(!eve.findOne("history stack", {page})) {
-      let stack = eve.find("history stack");
-      result.add("history stack", {page, pos: stack.length});
-    }
-    result.add("active page", {page: info.link});
-    result.remove("active page");
-    result.remove("search");
-    result.add("search", {search: info.link});
-  });
-
   app.handle("startEditingArticle", (result, info) => {
     result.add("editing", {editing: true, page: info.page});
   });
@@ -223,23 +253,30 @@ module wiki {
   });
 
   app.handle("setSearch", (result, info) => {
-    result.add("search", {search: info.value});
+    let search = eve.findOne("search")["search"];
+    if(search === info.value) return;
+
+    if(!eve.findOne("history stack", {page: search})) {
+      let stack = eve.find("history stack");
+      result.add("history stack", {page: search, pos: stack.length});
+    }
     result.remove("search");
+    result.add("search", {search: info.value});
   });
 
   export function root() {
     let activeId = eve.findOne("active page")["page"];
     let articleView = articleUi(activeId);
+    let search = "";
+    let searchObj = eve.findOne("search");
+    if(searchObj) {
+      search = searchObj["search"];
+    }
     return {id: "root", c: "root", children: [
-      {children: [
-        {c: "search-input", t: "input", type: "text", placeholder: "search", keydown: maybeSubmitSearch},
-        searchResults(),
-      ]},
-      {children: [
-        relatedItems(),
-        historyStack(),
-        decks(),
-      ]},
+      {c: "search-input", t: "input", type: "text", placeholder: "search", keydown: maybeSubmitSearch, value: search},
+      searchResults(),
+//       relatedItems(),
+      historyStack(),
     ]};
   }
 
@@ -262,35 +299,33 @@ module wiki {
     return {children: items};
   }
 
-  function decks() {
-    let items = [];
-    for(let deck of eve.find("deck")) {
-      items.push({text: deck["deck"]});
-    }
-    return {c: "decks", children: [
-      {text: "decks:"},
-      {children: items}
-    ]};
-  }
-
   function searchResults() {
-    let steps = [];
-    let results = eve.find("search results");
-    for(let result of results) {
-      let {step, page} = result;
-      if(!steps[step]) {
-        steps[step] = {c: "step", children: []};
+    let pathItems = [];
+    let paths = eve.find("search results", {step: 0});
+    let pathIx = 0;
+    for(let path of paths) {
+      let result = path;
+      pathItems[pathIx] = {c: "path", children: []};
+      while(result) {
+        let {step, page, to} = result;
+        let pageContent = eve.findOne("page", {page});
+        let article = articleUi(page);
+        pathItems[pathIx].children.push(article, {c: "arrow ion-ios-arrow-thin-right"});
+        result = eve.findOne("search results", {step: step + 1, page: to});
       }
-      let pageContent = eve.findOne("page", {page});
-      let article;
-      if(pageContent) {
-        article = articleUi(page);
-      } else {
-        article = articleUi(page);
-      }
-      steps[step].children.push(article);
+      pathItems[pathIx].children.pop();
+      pathIx++;
     }
-    return {c: "search-results", children: steps};
+    if(eve.find("search results").length === 1) {
+      pathItems[0].c += " singleton";
+    }
+    if(paths.length === 0) {
+      let search = eve.findOne("search") || {search: "root"};
+      paths.push({c: "path", children: [
+        articleUi(search.search)
+      ]});
+    }
+    return {c: "search-results", children: pathItems};
   }
 
   function commitArticle(cm, elem) {
@@ -303,13 +338,13 @@ module wiki {
   }
 
   function followLink(e, elem) {
-    app.dispatch("followLink", {link: elem.linkText}).commit();
+    app.dispatch("setSearch", {value: elem.linkText}).commit();
   }
 
   function maybeSubmitSearch(e, elem) {
     if(e.keyCode === 13) {
       app.dispatch("setSearch", {value: e.currentTarget.value}).commit();
-    }
+    }i
   }
 
   function historyStack() {
@@ -326,6 +361,9 @@ module wiki {
   // Go
   //---------------------------------------------------------
 
-  app.renderRoots["wiki"] = root;
+  app.init("wiki", function() {
+    initEve();
+    app.renderRoots["wiki"] = root;
+  });
 
 }

@@ -248,6 +248,22 @@ return index;`
     //---------------------------------------------------------
     // Indexer Public API
     //---------------------------------------------------------
+    serialize() {
+      let dump = {};
+      for(let tableName in this.tables) {
+        let table = this.tables[tableName];
+        dump[tableName] = table.table;
+      }
+      return JSON.stringify(dump);
+    }
+    load(serialized) {
+      let dump = JSON.parse(serialized);
+      let diff = this.diff();
+      for(let tableName in dump) {
+        diff.addMany(tableName, dump[tableName]);
+      }
+      this.applyDiff(diff);
+    }
     diff() {
       return new Diff(this);
     }
@@ -300,6 +316,8 @@ return index;`
     }
     asView(query:Query|Union) {
       let name = query.name;
+      let view = this.table(name);
+      view.isView = true;
       for(let tableName of query.tables) {
         let table = this.table(tableName);
         table.triggers[name] = query;
