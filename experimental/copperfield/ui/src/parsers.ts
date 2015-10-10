@@ -52,6 +52,7 @@ module Parsers {
   }
   export interface UiIR {
     elements: ElementIR[]
+    root: ElementIR
     boundQueries: QueryIR[]
   }
 
@@ -599,11 +600,11 @@ module Parsers {
       ParseError.lines = lines;
       ParseError.tokenToChar = query.tokenToChar;
 
-      let lineIx = 0;
+
       for(let rawLine of lines) {
+        let lineIx = ast.chunks.length;
         ParseError.lineIx = lineIx;
         let tokens = ui.tokenize(rawLine);
-        if(tokens.length === 0) continue;
         let tokensLength = tokens.length;
         let consumed = consume([" ", "\t"], tokens);
         let indent = tokensLength - tokens.length;
@@ -611,7 +612,7 @@ module Parsers {
         let head = tokens.shift();
 
         if(head === undefined) {
-          lineIx++;
+          ast.chunks.push(<TextAST>{type: "text", text: ""});
           continue;
         }
 
@@ -650,36 +651,44 @@ module Parsers {
         }
 
         ast.chunks[ast.chunks.length] = line;
-        lineIx++;
       }
 
       return ast;
     },
 
-    reify(ast:UiAST): UiIR {
-      let reified:UiIR = {elements: [], boundQueries: []};
-      let indent = {};
+    reify(ast:UiAST, prev?:UiIR): UiIR {
+      let root:ElementIR = {element: Api.uuid(), tag: "div", attributes: {}, boundAttributes: {}};
+      let reified:UiIR = {elements: [], root: root, boundQueries: []};
+      let indent = {[root.element]: -1};
+      let ancestors = [root];
       for(let line of ast.chunks) {
         if(tokenIsComment(line)) continue;
 
-        let prevElem:ElementIR = reified.elements[reified.elements.length - 1];
+        let parentElem:ElementIR = ancestors[ancestors.length - 1];
+        while(ancestors.length > 1) {
+            if(indent[parentElem.element] < line.indent) break;
+            parentElem = ancestors.pop();
+        }
+
         if(tokenIsElement(line)) {
-          let elem:ElementIR = {element: Api.uuid(), tag: line.tag, attributes: {}, boundAttributes: {}};
+          let elem:ElementIR = {element: Api.uuid(), tag: line.tag, parent: parentElem.element, attributes: {}, boundAttributes: {}};
           indent[elem.element] = line.indent;
-          if(prevElem && indent[prevElem.element] < line.indent) elem.parent = prevElem.element;
+          ancestors.push(elem);
+
           if(line.classes) elem.attributes["c"] = line.classes;
           if(line.name) elem.name = line.name;
           reified.elements[reified.elements.length] = elem;
 
         } else if(tokenIsBinding(line)) {
-          throw "@TODO: IMplement binding support.";
-          if(!prevElem) throw ParseError("Attributes must follow an element.", line);
+          throw "@TODO: Implement binding support.";
+          if(!parentElem) throw ParseError("Attributes must follow an element.", line);
+
         } else if(tokenIsAttribute(line)) {
-          if(!prevElem) throw ParseError("Attributes must follow an element.", line);
+          if(!parentElem) throw ParseError("Attributes must follow an element.", line);
           if(line.static) {
-            prevElem.attributes[line.property] = line.value.value;
+            parentElem.attributes[line.property] = line.value.value;
           } else {
-            prevElem.boundAttributes[line.property] = line.value.alias;
+            parentElem.boundAttributes[line.property] = line.value.alias;
           }
 
         }
