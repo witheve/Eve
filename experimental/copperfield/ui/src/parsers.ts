@@ -657,21 +657,25 @@ module Parsers {
     },
 
     reify(ast:UiAST, prev?:UiIR): UiIR {
-      let root:ElementIR = {element: Api.uuid(), tag: "div", attributes: {}, boundAttributes: {}};
+      let rootId = prev ? prev.root.element : Api.uuid();
+      let root:ElementIR = {element: rootId, tag: "div", attributes: {}, boundAttributes: {}};
       let reified:UiIR = {elements: [], root: root, boundQueries: []};
       let indent = {[root.element]: -1};
       let ancestors = [root];
       for(let line of ast.chunks) {
-        if(tokenIsComment(line)) continue;
+        if(tokenIsComment(line) || tokenIsText(line)) continue;
 
-        let parentElem:ElementIR = ancestors[ancestors.length - 1];
-        while(ancestors.length > 1) {
+        let parentElem:ElementIR;
+        while(ancestors.length) {
+            parentElem = ancestors[ancestors.length - 1];
             if(indent[parentElem.element] < line.indent) break;
-            parentElem = ancestors.pop();
+            ancestors.pop();
         }
 
         if(tokenIsElement(line)) {
-          let elem:ElementIR = {element: Api.uuid(), tag: line.tag, parent: parentElem.element, attributes: {}, boundAttributes: {}};
+          let prevElem = prev && prev.elements[reified.elements.length]; // This is usually not going to match up.
+          let elemId = prevElem ? prevElem.element : Api.uuid();
+          let elem:ElementIR = {element: elemId, tag: line.tag, parent: parentElem.element, attributes: {}, boundAttributes: {}};
           indent[elem.element] = line.indent;
           ancestors.push(elem);
 
@@ -685,12 +689,13 @@ module Parsers {
 
         } else if(tokenIsAttribute(line)) {
           if(!parentElem) throw ParseError("Attributes must follow an element.", line);
+
           if(line.static) {
-            parentElem.attributes[line.property] = line.value.value;
+            if(line.property === "parent") parentElem.parent = line.value.value;
+            else parentElem.attributes[line.property] = line.value.value;
           } else {
             parentElem.boundAttributes[line.property] = line.value.alias;
           }
-
         }
       }
       return reified;
