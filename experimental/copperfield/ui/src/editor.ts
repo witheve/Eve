@@ -41,10 +41,10 @@ module Editor {
       if(id) {
         effect.change.remove("display name", {"display name: id": id})
           .add("display name", {"display name: id": id, "display name: name": name});
-      } else {
-        // @FIXME: Use activePage / activeComponent to determine what state to set when id is not passed in.
-        localState.query.name = name;
       }
+
+      // @FIXME: Use activePage / activeComponent to determine what state to set when id is not passed in.
+      localState[localState.activeKind].name = name;
       return effect;
     },
     remove: function({type, id}:{type: string, id: string}) {
@@ -57,7 +57,12 @@ module Editor {
       localState.query.editing = editing;
       return effect;
     },
-    queryFromView: function({viewId}:{viewId:string}) {
+    editUi: function({editing}:{editing:string}) {
+      let effect = DispatchEffect.from(this);
+      localState.ui.editing = editing;
+      return effect;
+    },
+    loadQuery: function({viewId}:{viewId:string}) {
       let effect = DispatchEffect.from(this);
       localState.query.reified = localState.query.ast = localState.query.msg = undefined;
       localState.query.name = Api.get.name(viewId) || "Untitled Search";
@@ -88,10 +93,10 @@ module Editor {
       effect.rerender = true;
       return effect;
     },
-    viewFromQuery: function({query}:{query:Query}) {
+    compileQuery: function({query}:{query:Query}) {
       let effect = DispatchEffect.from(this);
       let reified = query.reified;
-      if(query.id) effect.change.removeWithDependents("view", {"view: view": query.id})
+      if(query.id) effect.change.removeWithDependents("view", {"view: view": query.id});
       effect.change.add("view", {"view: view": query.id, "view: kind": "join"})
         .add("display name", query.name || "Untitled Search");
 
@@ -116,6 +121,57 @@ module Editor {
       }
 
       query.id = effect.change.context["view: view"];
+      return effect;
+    },
+
+    loadUi: function({elementId:elemId}:{elementId:string}) {
+      let effect = DispatchEffect.from(this);
+      localState.ui.reified = localState.ui.ast = localState.ui.msg = undefined;
+      localState.ui.name = Api.get.name(elemId) || "Untitled Ui";
+      localState.ui.id = elemId || undefined;
+
+      if(elemId) {
+        localState.ui.reified = Parsers.ui.fromElement(elemId);
+        // @FIXME: Check ui AST table. If it exists and reifying it matches reified in structure use that instead.
+        localState.ui.ast = Parsers.ui.unreify(localState.ui.reified);
+      }
+      return effect;
+    },
+    parseUi: function({ui, prev}:{ui:string, prev?:Parsers.UiIR}) {
+      let effect = DispatchEffect.from(this);
+      localState.ui.msg = undefined;
+      try {
+        localState.ui.ast = Parsers.ui.parse(ui);
+        localState.ui.reified = Parsers.ui.reify(localState.ui.ast, prev);
+      } catch(err) {
+        localState.ui.reified = undefined;
+        if(err.name === "Parse Error") localState.ui.msg = `${err}`;
+        else {
+          console.warn(err.stack);
+          throw err;
+        }
+      }
+
+      return effect;
+    },
+    compileUi: function({ui}:{ui:Ui}) {
+      let effect = DispatchEffect.from(this);
+      let reified = ui.reified;
+
+      if(ui.id) effect.change.removeWithDependents("uiElement", ui.id);
+      if(ui.name) reified.root.name = ui.name;
+
+      for(let elem of [reified.root].concat(reified.elements)) {
+        effect.change.add("uiElement", {"uiElement: element": elem.element, "uiElement: tag": elem.tag, "uiElement: parent": elem.parent || ""});
+        if(elem.name) effect.change.add("display name", elem.name);
+        if(elem.boundView) throw new Error("@TODO: Support for bound views");
+        for(let prop in elem.attributes)
+          effect.change.add("uiAttribute", {"uiAttribute: property": prop, "uiAttribute: value": elem.attributes[prop]});
+        for(let prop in elem.boundAttributes)
+          throw new Error("@TODO: Support bound attributes");
+      }
+
+      localState.ui.id = reified.root.element;
       return effect;
     }
   };
@@ -172,27 +228,39 @@ module Editor {
     renderer.queue(root);
   }
 
-  let script =
-  `
-   ?view is named ?name
-   # ?ord by ?name descending
-   ?ord < \`20\`
-  `;
-
+  var rootPanes:Ui.Pane[] = [
+    {title: "Query", id: "root-query", content: queryEditor},
+    {title: "Ui", id: "root-ui", content: uiEditor},
+  ];
   function root():Element {
-    let resultPanes:Ui.Pane[] = [
-      {
-        title: "AST",
-        id: "result-ast",
-        content: {t: "pre", c: "ast", text: JSON.stringify(localState.query.ast, null, 2)}
-      },
-      {
-        title: "Reified",
-        id: "result-reified",
-        content: {t: "pre", c: "reified", text: JSON.stringify(localState.query.reified, null, 2)}
-      }
-    ];
+    return {children: [
+      {text: "Copperfield - " + localState.query.id},
+      Ui.tabbedBox({id: "root-workspace", panes: rootPanes, tabChange: switchEditor})
+    ]};
+  }
 
+  // @FIXME: Hack
+  function switchEditor(evt, elem) {
+    if(elem.tab === "root-query") localState.activeKind = "query";
+    else if(elem.tab === "root-ui") localState.activeKind = "ui";
+    else throw new Error(`Unknown kind: '${elem.tab}'`);
+    dispatch("HACK HACK HACK", undefined).done();
+  }
+
+  var queryInspectorPanes:Ui.Pane[] = [
+    {
+      title: "AST",
+      id: "result-ast",
+      content: () => {return {t: "pre", c: "ast", text: JSON.stringify(localState.query.ast, null, 2)}}
+    },
+    {
+      title: "Reified",
+      id: "result-reified",
+      content: () => {return {t: "pre", c: "reified", text: JSON.stringify(localState.query.reified, null, 2)}}
+    }
+  ];
+  function queryEditor():Element {
+    let queryName = localState.query.name || Api.get.name(localState.query.id);
     let queryString = localState.query.editing;
     if(queryString === undefined) queryString = Parsers.query.unparse(localState.query.ast) || "";
     let queries = {"": "New Query"};
@@ -200,31 +268,75 @@ module Editor {
       queries[viewId] = Api.get.name(viewId) || `<${viewId}>`;
     }
 
-    return {children: [
-      {text: "Copperfield - " + localState.query.id},
-      Ui.row({children: [
-        Ui.column({flex: 1, children: [
-          Ui.row({children: [
-            Ui.input({placeholder: "Untitled Search", text: localState.query.name, view: localState.query.id,
-              blur: dispatchOnEvent("setName", "info.name = evt.target.textContent; info.id = elem.view")
-            }),
-            Ui.dropdown({options: queries, defaultOption: <any>localState.query.id,
-              change: dispatchOnEvent("queryFromView", "info.viewId = evt.target.value")
-            }),
-            Ui.button({text: "compile", click: dispatchOnEvent("viewFromQuery", "info.query = localState.query")}),
-            Ui.button({c: "ion-close", view: localState.query.id, click: dispatchOnEvent("remove; queryFromView", "info.type = 'view'; info.id = elem.view")})
-          ]}),
-          Ui.codeMirrorElement({c: "code", key: queryString, value: queryString,
-            change: dispatchOnEvent("parseQuery", "info.query = evt.getValue(); info.prev = localState.query.reified"),
-            focus: dispatchOnEvent("editQuery", "info.editing = elem.value"),
-            blur: dispatchOnEvent("editQuery", "info.editing = undefined"),
+    return Ui.row({children: [
+      Ui.column({flex: 1, children: [
+        Ui.row({children: [
+          Ui.input({placeholder: "Untitled Search", text: queryName, view: localState.query.id,
+            blur: dispatchOnEvent("setName", "info.name = evt.target.textContent; info.id = elem.view")
           }),
-          {t: "pre", c: "err", text: localState.query.msg},
-          localState.query.id ? Ui.factTable({view: localState.query.id}) : undefined
+          Ui.dropdown({options: queries, defaultOption: <any>localState.query.id,
+            change: dispatchOnEvent("loadQuery", "info.viewId = evt.target.value")
+          }),
+          Ui.button({text: "compile", click: dispatchOnEvent("compileQuery", "info.query = localState.query")}),
+          Ui.button({c: "ion-close", view: localState.query.id, click: dispatchOnEvent("remove; loadQuery", "info.type = 'view'; info.id = elem.view")})
         ]}),
-        Ui.tabbedBox({flex: 1, panes: resultPanes, defaultTab: "result-reified"})
-      ]})
-    ]};
+        Ui.codeMirrorElement({c: "code", id: "query-code-editor", value: queryString,
+          change: dispatchOnEvent("parseQuery", "info.query = evt.getValue(); info.prev = localState.query.reified"),
+          focus: dispatchOnEvent("editQuery", "info.editing = elem.value"),
+          blur: dispatchOnEvent("editQuery", "info.editing = undefined"),
+        }),
+        {t: "pre", c: "err", text: localState.query.msg},
+        localState.query.id ? Ui.factTable({view: localState.query.id}) : undefined
+      ]}),
+      Ui.tabbedBox({id: "query-results", flex: 1, panes: queryInspectorPanes, defaultTab: "result-reified"})
+    ]});
+  }
+
+  var uiInspectorPanes:Ui.Pane[] = [
+    {
+      title: "AST",
+      id: "result-ast",
+      content: () => {return {t: "pre", c: "ast", text: JSON.stringify(localState.ui.ast, null, 2)}}
+    },
+    {
+      title: "Reified",
+      id: "result-reified",
+      content: () => {return {t: "pre", c: "reified", text: JSON.stringify(localState.ui.reified, null, 2)}}
+    }
+  ];
+  function uiEditor():Element {
+    let root = localState.ui.id;
+    let uiName = localState.ui.name || Api.get.name(root);
+    let uiString = localState.ui.editing;
+    if(uiString === undefined) uiString = Parsers.ui.unparse(localState.ui.ast) || "";
+
+    let elems = {"": "New Ui"};
+    for(let elemId of Api.extract("uiElement: element", Api.ixer.find("uiElement"))) {
+      elems[elemId] = Api.get.name(elemId) || `<${elemId}>`;
+    }
+
+    return Ui.row({children: [
+      Ui.column({flex: 1, children: [
+        Ui.row({children: [
+          Ui.input({placeholder: "Untitled Ui", text: uiName, elem: root, //localState.ui.id, // @FIXME: Need a way to refer to whole ui entity.
+            blur: dispatchOnEvent("setName", "info.name = evt.target.textContent; info.id = elem.elem")
+          }),
+          Ui.dropdown({options: elems, defaultOption: root,
+            change: dispatchOnEvent("loadUi", "info.elementId = evt.target.value")
+          }),
+          Ui.button({text: "compile", click: dispatchOnEvent("compileUi", "info.ui = localState.ui")}),
+          Ui.button({c: "ion-close", elem: root, click: dispatchOnEvent("remove; loadUi", "info.type = 'uiElement'; info.id = elem.elem")})
+        ]}),
+        Ui.codeMirrorElement({c: "code", id: "ui-code-editor", value: uiString,
+          change: dispatchOnEvent("parseUi", "info.ui = evt.getValue(); info.prev = localState.ui.reified"),
+          focus: dispatchOnEvent("editUi", "info.editing = elem.value"),
+          blur: dispatchOnEvent("editUi", "info.editing = undefined"),
+        }),
+        {t: "pre", c: "err", text: localState.ui.msg},
+        {c: "results", children: root ? renderer.compile([root]) : undefined}
+      ]}),
+      Ui.tabbedBox({id: "ui-results", flex: 1, panes: uiInspectorPanes, defaultTab: "result-reified"})
+    ]});
   }
 
   //---------------------------------------------------------------------------
@@ -238,18 +350,30 @@ module Editor {
     reified?: Parsers.QueryIR
     msg?: string
   }
+  interface Ui {
+    editing?: string
+    name?: string
+    id?: string
+    ast?: Parsers.UiAST
+    reified?: Parsers.UiIR
+    msg?: string
+  }
   // @FIXME: This should be moved into API once completed.
   interface LocalState {
     initialized: boolean
 
     activePage?: string
     activeComponent?: string
+    activeKind?: string //hack
 
     query?: Query
+    ui?: Ui
   }
   export var localState:LocalState = {
     initialized: true,
-    query: {name: "Untitled Query"}
+    activeKind: "query",
+    query: {},
+    ui: {}
   };
 
   export function init() {
@@ -263,7 +387,26 @@ module Editor {
     } else {
       localState = Api.localState;
     }
-    dispatch("parseQuery", {query: script}).done();
+    dispatch("parseQuery", {query: `
+?view is named ?name
+# ?ord by ?name descending
+?ord < \`20\``
+    })
+    .dispatch("parseUi", {ui: `
+div apple cherry pie
+  - debug: \`A\`
+  div spacer
+    - debug: \`B\`
+    - text: \`B\`
+  span
+    - selected: \`true\`
+    - debug: \`C\`
+    - text: \`C\`
+    span; braaap
+      - debug: \`D\`
+      - color: \`green\`
+      - text: \`sup dawg\``
+    }).done();
     render();
   }
 
