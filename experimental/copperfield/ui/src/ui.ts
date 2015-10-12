@@ -110,6 +110,8 @@ module Ui {
     controls?:Control[]
     defaultTab?:string
     direction?:string
+
+    tabChange?:Handler
   }
   export function tabbedBox(elem:TabbedBoxElement):Element {
     let {id, defaultTab, panes = [], controls = [], direction = "column"} = elem;
@@ -123,7 +125,7 @@ module Ui {
 
     for(let pane of panes) {
       let isSelected = (pane.id === selected);
-      tabs.push(inject({c: isSelected ? "tab selected" : "tab", tab: pane.id, tabbedBox: id, semantic: "item::tab::" + pane.id, click: switchTab}, pane.title));
+      tabs.push(inject({c: isSelected ? "tab selected" : "tab", tab: pane.id, tabbedBox: id, semantic: "item::tab::" + pane.id, click: switchTab, change: elem.tabChange}, pane.title));
       if(isSelected) {
         currentPane = pane;
       }
@@ -141,6 +143,7 @@ module Ui {
 
   function switchTab(evt, elem) {
     dispatch("switchTab", {tabbedBox: elem.tabbedBox, tab: elem.tab});
+    if(elem.change) elem.change(evt, elem);
   }
 
   export interface AccordionElement extends Element {
