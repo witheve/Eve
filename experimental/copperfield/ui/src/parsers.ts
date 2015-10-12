@@ -57,7 +57,7 @@ module Parsers {
   }
 
   function tokenIsLine(token:Token): token is LineAST { return !!token["chunks"]; }
-  function tokenIsText(token:Token): token is TextAST { return token["text"] !== undefined; }
+  function tokenIsText(token:Token): token is TextAST { return token.type === "text"; }
   function tokenIsComment(token:Token): token is CommentAST { return token.type === "comment"; }
 
   function tokenIsField(token:Token): token is FieldAST { return token.type === "field"; }
@@ -642,10 +642,18 @@ module Parsers {
           if(tokens.length) throw ParseError("Extraneous tokens after value.", {type: "", text: tokens.join(""), tokenIx: tokensLength - tokens.length});
 
         } else if(head === "~") {
-          line.type = "binding";
-          let binding:BindingAST = <any>line;
-          consume([" ", "\t"], tokens);
-          binding.text = tokens.join("");
+          let prevLine = ast.chunks[ast.chunks.length - 2];
+          if(!prevLine || tokenIsElement(prevLine)) {
+            line.type = "binding";
+            let binding:BindingAST = <any>line;
+            consume([" ", "\t"], tokens);
+            binding.text = tokens.join("");
+
+          } else if(tokenIsBinding(prevLine)) {
+            consume([" ", "\t"], tokens);
+            prevLine.text += "\n" + tokens.join("");
+
+          } else throw ParseError("Binding must immediately follow an element or a binding.", line);
 
         } else {
           line.type = "element";
@@ -691,7 +699,7 @@ module Parsers {
 
         } else if(tokenIsBinding(line)) {
           throw "@TODO: Implement binding support.";
-          if(!parentElem) throw ParseError("Attributes must follow an element.", line);
+          if(!parentElem) throw ParseError("Bindings must follow an element.", line);
 
         } else if(tokenIsAttribute(line)) {
           if(!parentElem) throw ParseError("Attributes must follow an element.", line);
