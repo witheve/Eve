@@ -241,6 +241,12 @@ module Parsers {
     return res;
   }
 
+  function unravel(cur:string, tangle:{[key: string]: string[]}, unraveled:string[] = []): string[] {
+    unraveled.push(cur);
+    for(let child of tangle[cur]) unraveled.push.apply(unraveled, unravel(child, tangle));
+    return unraveled;
+  }
+
   //---------------------------------------------------------------------------
   // Query Parser
   //---------------------------------------------------------------------------
@@ -659,7 +665,7 @@ module Parsers {
     reify(ast:UiAST, prev?:UiIR): UiIR {
       let rootId = prev ? prev.root.element : Api.uuid();
       let root:ElementIR = {element: rootId, tag: "div", attributes: {}, boundAttributes: {}};
-      let reified:UiIR = {elements: [], root: root, boundQueries: []};
+      let reified:UiIR = {elements: [], root, boundQueries: []};
       let indent = {[root.element]: -1};
       let ancestors = [root];
       for(let line of ast.chunks) {
@@ -701,16 +707,88 @@ module Parsers {
       return reified;
     },
 
-    fromElement(elemId:string):UiIR {
-      throw new Error("@OTOD: Implement me.");
+    fromElement(rootId:string):UiIR {
+      let root:ElementIR = Api.humanize("uiElement", Api.ixer.findOne("uiElement", {"uiElement: element": rootId}));
+      if(!root) throw new Error(`Requested element '${rootId}' does not exist.`);
+      let reified:UiIR = {elements: [], root, boundQueries: []};
+
+      let queries = [];
+      let elems = [root];
+      while(elems.length) {
+        let elem = elems.shift();
+        let elemId = elem.element;
+        elem.attributes = {};
+        elem.boundAttributes = {};
+        elem.name = Api.get.name(elemId) || undefined;
+
+        let boundView:string = (Api.ixer.findOne("uiElementBinding", {"uiElementBinding: element": elemId}) || {})["uiElementBinding: view"];
+        if(boundView) queries.push(elem.boundView = boundView);
+
+        let attrs = Api.ixer.find("uiAttribute", {"uiAttribute: element": elemId});
+        for(let {"uiAttribute: property": prop, "uiAttribute: value": val} of attrs) elem.attributes[prop] = val;
+
+        let boundAttrs = Api.ixer.find("uiAttributeBinding", {"uiAttributeBinding: element": elemId});
+        for(let {"uiAttributeBinding: property": prop, "uiAttributeBinding: field": field} of boundAttrs) elem.boundAttributes[prop] = field;
+
+        let children = Api.ixer.find("uiElement", {"uiElement: parent": elemId});
+        for(let elem of Api.humanize("uiElement", children)) elems.push(elem);
+
+        if(elem !== root) reified.elements.push(elem);
+      }
+
+      while(queries.length) throw new Error("@TODO: Handle bound elements");
+
+      return reified;
     },
 
     unreify(reified:UiIR): UiAST {
-      throw new Error("@OTOD: Implement me.");
+      let ast:QueryAST = {type: "ui", chunks: []};
+
+      // Naive dependency resolution.
+      let childMap:{[key:string]: string[]} = {[reified.root.element]: []};
+      let elemMap:{[key:string]: ElementIR} = {[reified.root.element]: reified.root};
+      for(let elem of reified.elements) {
+        if(!childMap[elem.parent]) childMap[elem.parent] = [];
+        childMap[elem.parent].push(elem.element);
+        childMap[elem.element] = [];
+        elemMap[elem.element] = elem;
+      }
+      let elems = unravel(reified.root.element, childMap);
+
+      let elemIndent = {[reified.root.element]: -2};
+      for(let elemId of elems) {
+        let elem = elemMap[elemId];
+        let indent = 0;
+        if(elem.parent) indent = elemIndent[elem.element] = elemIndent[elem.parent] + 2;
+
+        let elemAST:ElementAST = {type: "element", name: elem.name, tag: elem.tag, indent, lineIx: ast.chunks.length};
+        if(elem !== reified.root) ast.chunks[ast.chunks.length] = elemAST;
+        else {
+          indent = -2;
+          elemAST = undefined;
+        }
+
+        if(elem.boundView) throw new Error("@TODO: Support bound elements");
+        for(let property in elem.attributes) {
+          if(property === "c" && elemAST) {
+            elemAST.classes = elem.attributes[property];
+            continue;
+          }
+          let value = {type: "field", value: elem.attributes[property]};
+          let line:AttributeAST = {type: "attribute", property, value, static: true, indent: indent + 2, lineIx: ast.chunks.length};
+          ast.chunks[ast.chunks.length] = line;
+        }
+        for(let property in elem.boundAttributes) {
+          throw new Error("Value must be fieldAST by alias");
+          let value = elem.boundAttributes[property];
+          let line:AttributeAST = {type: "attribute", property, value, static: false, indent: indent + 2, lineIx: ast.chunks.length};
+          ast.chunks[ast.chunks.length] = line;
+        }
+      }
+
+      return ast;
     },
 
-    unparse(ast:UiAST): string {
-      throw new Error("@OTOD: Implement me.");
-    }
+    unparse: (ast:UiAST) => tokenToString(ast)
   };
 }
