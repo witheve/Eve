@@ -6,6 +6,7 @@
 module wiki {
 
   declare var CodeMirror;
+  declare var Pluralize;
 
   //---------------------------------------------------------
   // App state
@@ -154,7 +155,16 @@ module wiki {
     let results = [];
     while(front < words.length) {
       let str = words.slice(front, back).join(" ");
-      if(index[str]) {
+      let found = index[str];
+      if(!found) {
+        str = pluralize(str, 1);
+        found = index[str];
+        if(!found) {
+          str = pluralize(str, 12);
+          found = index[str];
+        }
+      }
+      if(found) {
         results.push(str);
         front = back;
         back = words.length;
@@ -212,7 +222,7 @@ module wiki {
     let cm = node.editor;
     if(!cm) {
       cm = node.editor = new CodeMirror(node, {
-        mode: "markdown",
+        mode: "gfm",
         lineWrapping: true,
         extraKeys: {
           "Cmd-Enter": (cm) => {

@@ -5,6 +5,7 @@
   "main": "./ui/editor.html",
   "dependencies": {
     "codemirror": "^5.7.0",
+    "pluralize": "^1.2.1",
     "typescript": "1.6.0-dev.20150731"
   },
   "devDependencies": {},
