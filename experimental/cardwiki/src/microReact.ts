@@ -1,5 +1,7 @@
 module microReact {
 
+  declare var Velocity;
+
   export interface Handler<T extends Event> {
     (evt:T, elem:Element): void
   }
@@ -17,6 +19,9 @@ module microReact {
     key?:string
     dirty?:boolean
     semantic?:string
+    animation?: any
+    enter?: any
+    leave?: any
     debug?:any
 
     // Content
@@ -122,6 +127,12 @@ module microReact {
     return true;
   }
 
+  function postAnimationRemove(elements) {
+    for(let elem of elements) {
+      if(elem.parentNode) elem.parentNode.removeChild(elem);
+    }
+  }
+
   export class Renderer {
     content: HTMLElement;
     elementCache: {[id:string]: HTMLElement};
@@ -163,6 +174,7 @@ module microReact {
       var updates = diff.updates;
       var elemKeys = Object.keys(updates);
       var elementCache = this.elementCache;
+      var tempAnimation:any = {};
 
       //Create all the new elements to ensure that they're there when they need to be
       //parented
@@ -177,6 +189,9 @@ module microReact {
         }
         div._id = id;
         elementCache[id] = div;
+        if(cur.enter) {
+          Velocity(div, cur.enter, cur.enter);
+        }
       }
 
       for(var i = 0, len = elemKeys.length; i < len; i++) {
@@ -201,7 +216,15 @@ module microReact {
           //strategy is much simpler and there's no noticable perf difference
           //we'll just do the dumb thing and remove all the children one by one.
           var me = elementCache[id]
-          if(me.parentNode) me.parentNode.removeChild(me);
+          if(prev.leave) {
+            prev.leave.complete = postAnimationRemove;
+            if(prev.leave.absolute) {
+              console.log("absolute");
+              me.style.position = "absolute";
+            }
+            Velocity(me, prev.leave, prev.leave);
+          }
+          else if(me.parentNode) me.parentNode.removeChild(me);
           elementCache[id] = null;
           continue;
         } else {
@@ -222,15 +245,89 @@ module microReact {
         if(cur.tabindex !== prev.tabindex) div.setAttribute("tabindex", cur.tabindex);
         if(cur.href !== prev.href) div.setAttribute("href", cur.href);
 
-        if(cur.flex !== prev.flex)  style.flex = cur.flex === undefined ? "" : cur.flex;
-        if(cur.left !== prev.left)  style.left = cur.left === undefined ? "" : cur.left;
-        if(cur.top !== prev.top) style.top = cur.top === undefined ? "" : cur.top;
-        if(cur.height !== prev.height) style.height = cur.height === undefined ? "auto" : cur.height;
-        if(cur.width !== prev.width)  style.width = cur.width === undefined ? "auto" : cur.width;
-        if(cur.zIndex !== prev.zIndex) style.zIndex = cur.zIndex;
+        // animateable properties
+        var animation = cur.animation || tempAnimation;
+        if(cur.flex !== prev.flex) {
+          if(animation.flex) tempAnimation.flex = cur.flex;
+          else style.flex = cur.flex === undefined ? "" : cur.flex;
+        }
+        if(cur.left !== prev.left) {
+           if(animation.left) tempAnimation.left = cur.left;
+           else style.left = cur.left === undefined ? "" : cur.left;
+        }
+        if(cur.top !== prev.top) {
+          if(animation.top) tempAnimation.top = cur.top;
+          else style.top = cur.top === undefined ? "" : cur.top;
+        }
+        if(cur.height !== prev.height) {
+          if(animation.height) tempAnimation.height = cur.height;
+          else style.height = cur.height === undefined ? "auto" : cur.height;
+        }
+        if(cur.width !== prev.width) {
+          if(animation.width) tempAnimation.width = cur.width;
+          else style.width = cur.width === undefined ? "auto" : cur.width;
+        }
+        if(cur.zIndex !== prev.zIndex) {
+          if(animation.zIndex) tempAnimation.zIndex = cur.zIndex;
+          else style.zIndex = cur.zIndex;
+        }
+        if(cur.backgroundColor !== prev.backgroundColor) {
+          if(animation.backgroundColor) tempAnimation.backgroundColor = cur.backgroundColor;
+          else style.backgroundColor = cur.backgroundColor || "transparent";
+        }
+        if(cur.borderColor !== prev.borderColor) {
+          if(animation.borderColor) tempAnimation.borderColor = cur.borderColor;
+          else style.borderColor = cur.borderColor || "none";
+        }
+        if(cur.borderWidth !== prev.borderWidth) {
+          if(animation.borderWidth) tempAnimation.borderWidth = cur.borderWidth;
+          else style.borderWidth = cur.borderWidth || 0;
+        }
+        if(cur.borderRadius !== prev.borderRadius) {
+          if(animation.borderRadius) tempAnimation.borderRadius = cur.borderRadius;
+          else style.borderRadius = (cur.borderRadius || 0) + "px";
+        }
+        if(cur.opacity !== prev.opacity) {
+          if(animation.opacity) tempAnimation.opacity = cur.opacity;
+          else style.opacity = cur.opacity === undefined ? 1 : cur.opacity;
+        }
+        if(cur.fontSize !== prev.fontSize) {
+          if(animation.fontSize) tempAnimation.fontSize = cur.fontSize;
+          else style.fontSize = cur.fontSize;
+        }
+        if(cur.color !== prev.color) {
+          if(animation.color) tempAnimation.color = cur.color;
+          else style.color = cur.color || "inherit";
+        }
+
+        let animKeys = Object.keys(tempAnimation);
+        if(animKeys.length) {
+          Velocity(div, tempAnimation, animation);
+          tempAnimation = {};
+        }
+
+        // non-animation style properties
+        if(cur.backgroundImage !== prev.backgroundImage) style.backgroundImage = `url('${cur.backgroundImage}')`;
+        if(cur.border !== prev.border) style.border = cur.border || "none";
+        if(cur.textAlign !== prev.textAlign) {
+          style.alignItems = cur.textAlign;
+          if(cur.textAlign === "center") {
+            style.textAlign = "center";
+          } else if(cur.textAlign === "flex-end") {
+            style.textAlign = "right";
+          } else {
+            style.textAlign = "left";
+          }
+        }
+        if(cur.verticalAlign !== prev.verticalAlign) style.justifyContent = cur.verticalAlign;
+        if(cur.fontFamily !== prev.fontFamily) style.fontFamily = cur.fontFamily || "inherit";
+        if(cur.transform !== prev.transform) style.transform = cur.transform || "none";
+
+        // debug/programmatic properties
         if(cur.semantic !== prev.semantic) div.setAttribute("data-semantic", cur.semantic);
         if(cur.debug !== prev.debug) div.setAttribute("data-debug", cur.debug);
 
+        // SVG properties
         if(cur.svg) {
           if(cur.fill !== prev.fill) div.setAttributeNS(null, "fill", cur.fill);
           if(cur.stroke !== prev.stroke) div.setAttributeNS(null, "stroke", cur.stroke);
@@ -254,32 +351,6 @@ module microReact {
           if(cur.draggable !== prev.draggable) div.setAttributeNS(null, "draggable", cur.draggable);
           if(cur.textAnchor !== prev.textAnchor) div.setAttributeNS(null, "text-anchor", cur.textAnchor);
         }
-
-        if(cur.backgroundColor !== prev.backgroundColor) style.backgroundColor = cur.backgroundColor || "transparent";
-        if(cur.backgroundImage !== prev.backgroundImage) {
-          style.backgroundImage = "url('" + cur.backgroundImage + "')";
-        }
-        if(cur.border !== prev.border) style.border = cur.border || "none";
-        if(cur.borderColor !== prev.borderColor) style.borderColor = cur.borderColor || "none";
-        if(cur.borderWidth !== prev.borderWidth) style.borderWidth = cur.borderWidth || 0;
-        if(cur.borderWidth !== prev.borderWidth) style.borderStyle = "solid";
-        if(cur.borderRadius !== prev.borderRadius) style.borderRadius = (cur.borderRadius || 0) + "px";
-        if(cur.opacity !== prev.opacity) style.opacity = cur.opacity === undefined ? 1 : cur.opacity;
-        if(cur.fontSize !== prev.fontSize) style.fontSize = cur.fontSize;
-        if(cur.textAlign !== prev.textAlign) {
-          style.alignItems = cur.textAlign;
-          if(cur.textAlign === "center") {
-            style.textAlign = "center";
-          } else if(cur.textAlign === "flex-end") {
-            style.textAlign = "right";
-          } else {
-            style.textAlign = "left";
-          }
-        }
-        if(cur.verticalAlign !== prev.verticalAlign) style.justifyContent = cur.verticalAlign;
-        if(cur.color !== prev.color) style.color = cur.color || "inherit";
-        if(cur.fontFamily !== prev.fontFamily) style.fontFamily = cur.fontFamily || "inherit";
-        if(cur.transform !== prev.transform) style.transform = cur.transform || "none";
 
         //events
         if(cur.dblclick !== prev.dblclick) div.ondblclick = cur.dblclick !== undefined ? this.handleEvent : undefined;
