@@ -93,3 +93,29 @@ cargo run --release --bin=migrate remove_row 'tag' '["block field", "editor"]'
 ##License
 
 Eve is licensed under the Apache 2.0 license, see LICENSE for details.
+
+## Installation FAQ
+
+### Install failes on OS X El Capitan with error: 
+
+```
+failed to run custom build command for openssl-sys v0.6.5
+src/openssl_shim.c:1:10: fatal error: 'openssl/hmac.h' file not found
+```
+
+Solution: In a terminal, run: 
+```
+brew link --force openssl
+```
+See https://github.com/sfackler/rust-openssl/issues/255 for more details
+
+### Install fails on Ubuntu with error: 
+```
+Eve requires tsc version "1.6.0-dev.20150731" but "" is installed.
+```
+
+Solution: This is not actually an error with the Typescript install, but a linking error with Node. In Ubuntu, the standard Node.js package is called nodejs, whereas on every other platform it is called node. Creating a symlink from nodejs to node solves the issues. e.g.
+```
+sudo ln -s /usr/bin/nodejs /usr/bin/node
+```
+
