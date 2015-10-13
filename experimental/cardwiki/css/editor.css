@@ -27,14 +27,14 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 
 .search-input { background: none; color: #ccc; font-family: "Lato"; font-size: 14pt; margin:20px; border:none; padding:0 10px; padding-bottom:5px; border-bottom:1px solid #666; outline:none; }
 
-.search-results { flex: 1; padding:0 10px;  }
+.search-results { flex: 1; padding:0 10px; overflow:auto;  }
 .search-results .path { flex-direction:row; }
 .search-results .path + .path { border-top: 1px solid #444; }
 .search-results .article { margin:10px; width:200px; height:200px; margin:20px 10px; }
 .search-results .singleton .article { width: 600px; height: auto; }
 .search-results .arrow { justify-content:center; font-size: 18pt; }
 
-.history-stack { flex-direction:row; padding: 20px 10px;}
+.history-stack { flex:none; flex-direction:row; padding: 20px 10px;}
 .history-stack .link { padding: 10px 20px; cursor: default; }
 .history-stack .link:hover { background: #333; border-radius:3px; box-shadow: 0 2px 2px #111; }
 

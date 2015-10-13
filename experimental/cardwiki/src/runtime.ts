@@ -355,6 +355,11 @@ return index;`
     funcArgs;
     name;
     projectionMap;
+    limitInfo;
+    groups;
+    sorts;
+    aggregates;
+    aggregateArgs;
     constructor(ixer, name = "unknown") {
       this.name = name;
       this.ixer = ixer;
@@ -388,7 +393,30 @@ return index;`
       this.projectionMap = projectionMap;
       return this;
     }
+    group(groups) {
+      this.dirty = true;
+      this.groups = groups;
+    }
+    sort(sorts) {
+      this.dirty = true;
+      this.sorts = sorts;
+    }
+    limit(limitInfo) {
+      this.dirty = true;
+      this.limitInfo = limitInfo;
+    }
+    aggregate(funcName, args, as?) {
+      this.dirty = true;
+      if(as) {
+        this.aliases[as] = `aggregate${this.aggregates.length}`;
+        this.aliases[`aggregate${this.aggregates.length}`] = `aggregate${this.aggregates.length}`;
+      }
+      this.aggregates.push(funcName);
+      this.aggregateArgs.push(args);
+      return this;
+    }
     applyAliases(joins) {
+      if(!joins) return;
       for(let joinMap of joins) {
         for(let field in joinMap) {
           let joinInfo = joinMap[field];
@@ -406,6 +434,9 @@ return index;`
     toAST() {
       this.applyAliases(this.joins);
       this.applyAliases(this.funcArgs);
+      this.applyAliases(this.aggregateArgs);
+      this.applyAliases(this.sorts);
+      this.applyAliases(this.groups);
       let cursor = {type: "query",
                     children: []};
       let root = cursor;
