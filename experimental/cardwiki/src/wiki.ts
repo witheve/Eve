@@ -169,7 +169,7 @@ module wiki {
       if(header) {
         lineChildren = [{t: "h1", children: lineChildren}];
       }
-      children.push({t: "pre", children: lineChildren});
+      children.push({t: "pre", c: `${header ? 'header' : ''}`, children: lineChildren});
     }
     return children;
   }
@@ -341,8 +341,16 @@ module wiki {
       result.add("history stack", {page: search, pos: stack.length});
     }
     result.remove("search");
-    result.add("search", {search: info.value});
+    result.add("search", {search: info.value.trim()});
   });
+
+  var test = { background: "#0000ff" };
+
+  function changeBackground() {
+    console.log("here!");
+    test.background = "#ff0000";
+    app.render();
+  }
 
   export function root() {
     let search = "";
@@ -351,22 +359,36 @@ module wiki {
       search = searchObj["search"];
     }
     return {id: "root", c: "root", children: [
+      {c: "spacer"},
+      {text: "animation test!", color: test.background, click: changeBackground, enter: {opacity: 1, duration: 2000}, animation: {color: true, duration: 200}},
       {c: "search-input", t: "input", type: "text", placeholder: "search", keydown: maybeSubmitSearch, value: search},
       searchResults(),
 //       relatedItems(),
+      {c: "spacer"},
       historyStack(),
     ]};
   }
 
-  function articleUi(articleId) {
+  function articleUi(articleId, instance:string|number = "") {
     let article = eve.findOne("page", {page: articleId}) || {text: ""};
     let articleView;
     if(!eve.findOne("editing", {page: articleId})) {
-      articleView = {c: "article", page: articleId, children: articleToHTML(article.text), dblclick: editArticle};
+      articleView = {id: `${articleId}${instance}`, c: "article", page: articleId, children: articleToHTML(article.text), dblclick: editArticle, enter: {opacity: 1, duration: 300}};
     } else {
       articleView = {id: "article editor", c: "article editor", page: articleId, postRender: CodeMirrorElement, value: article.text, blur: commitArticle};
     }
     return articleView;
+  }
+
+  function handleAnimation(node, elem) {
+    if(node._animated) return;
+    if(elem.animations.enter) {
+      setTimeout(() => {
+        node.classList.add("animation-enter");
+      }, 10);
+    }
+    node._animated = true;
+
   }
 
   function relatedItems() {
@@ -387,7 +409,7 @@ module wiki {
       while(result) {
         let {step, page, to} = result;
         let pageContent = eve.findOne("page", {page});
-        let article = articleUi(page);
+        let article = articleUi(page, pathIx);
         pathItems[pathIx].children.push(article, {c: "arrow ion-ios-arrow-thin-right"});
         result = eve.findOne("search results", {step: step + 1, page: to});
       }
@@ -430,7 +452,14 @@ module wiki {
     stack.sort((a, b) => a.pos - b.pos);
     let stackItems = stack.map((item) => {
       let link = item["page"];
-      return {c: "link", text: link, linkText: link, click: followLink};
+      let items = link.split(" ");
+      let text = "";
+      if(items.length > 1) {
+        text = items[0][0] + items[1][0];
+      } else if(items.length) {
+        text = items[0].substring(0, 2);
+      }
+      return {c: "link", text, linkText: link, click: followLink};
     });
     return {c: "history-stack", children: stackItems};
   }
