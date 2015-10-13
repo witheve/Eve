@@ -96,7 +96,7 @@ Eve is licensed under the Apache 2.0 license, see LICENSE for details.
 
 ## Installation FAQ
 
-### Install failes on OS X El Capitan with error: 
+### Install fails on OS X El Capitan with error: 
 
 ```
 failed to run custom build command for openssl-sys v0.6.5
