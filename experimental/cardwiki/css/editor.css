@@ -16,8 +16,7 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 /*---------------------------------------------------------
 - Article Editor
 ---------------------------------------------------------*/
-.article { transition:opacity 0.5s ease-in-out; opacity:0; background: #333; padding:20px; overflow:auto; max-width: 600px; min-height: 300px; min-width: 300px; border-radius:3px; box-shadow: 0 2px 2px #111; line-height: 25px; }
-.article.animation-enter  { opacity: 1; }
+.article { background: #333; padding:20px; overflow:auto; max-width: 600px; min-height: 300px; min-width: 300px; border-radius:3px; box-shadow: 0 2px 2px #111; line-height: 25px; }
 .article pre { flex:none; display:block; white-space: pre-wrap; min-height:25px; }
 .article h1 { font-size:16pt; }
 .article span { display:inline-block; }

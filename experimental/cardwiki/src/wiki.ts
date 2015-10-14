@@ -344,14 +344,6 @@ module wiki {
     result.add("search", {search: info.value.trim()});
   });
 
-  var test = { background: "#0000ff" };
-
-  function changeBackground() {
-    console.log("here!");
-    test.background = "#ff0000";
-    app.render();
-  }
-
   export function root() {
     let search = "";
     let searchObj = eve.findOne("search");
@@ -360,7 +352,6 @@ module wiki {
     }
     return {id: "root", c: "root", children: [
       {c: "spacer"},
-      {text: "animation test!", color: test.background, click: changeBackground, enter: {opacity: 1, duration: 2000}, animation: {color: true, duration: 200}},
       {c: "search-input", t: "input", type: "text", placeholder: "search", keydown: maybeSubmitSearch, value: search},
       searchResults(),
 //       relatedItems(),
@@ -373,22 +364,11 @@ module wiki {
     let article = eve.findOne("page", {page: articleId}) || {text: ""};
     let articleView;
     if(!eve.findOne("editing", {page: articleId})) {
-      articleView = {id: `${articleId}${instance}`, c: "article", page: articleId, children: articleToHTML(article.text), dblclick: editArticle, enter: {opacity: 1, duration: 300}};
+      articleView = {id: `${articleId}${instance}`, c: "article", page: articleId, children: articleToHTML(article.text), dblclick: editArticle, enter: {display: "flex", opacity: 1, duration: 300}};
     } else {
       articleView = {id: "article editor", c: "article editor", page: articleId, postRender: CodeMirrorElement, value: article.text, blur: commitArticle};
     }
     return articleView;
-  }
-
-  function handleAnimation(node, elem) {
-    if(node._animated) return;
-    if(elem.animations.enter) {
-      setTimeout(() => {
-        node.classList.add("animation-enter");
-      }, 10);
-    }
-    node._animated = true;
-
   }
 
   function relatedItems() {
