@@ -6,7 +6,7 @@ module UiRenderer {
 
   interface Element extends MicroReact.Element {
     __template:string // The id of the uiElement that spawned this element. This relationship may be many to one when bound.
-    __binding?:string // The key which matches this element to it's source row and view if bound.
+    //__key?:string // The key which matches this element to it's source row and view if bound.
   }
 
   interface UiWarning {
@@ -26,15 +26,28 @@ module UiRenderer {
     return keys;
   }
 
+  function getBoundValue(elem:Element, field:string, boundAncestors: {[id: string]: Element}, elemToRow:{[id:string]: any}, debug?:Api.Dict) {
+    let ancestor = elem;
+    let scopeIx = 0;
+    while(ancestor && scopeIx++ < 100) {
+      let row = elemToRow[ancestor.id];
+      if(debug) {
+        debug["ancestor"] = ancestor;
+        debug["row"] = row;
+      }
+      if(row && row[field] !== undefined) return row[field];
+      ancestor = boundAncestors[ancestor.id];
+    }
+    if(scopeIx === 100) console.error(`Recursion detected in bound attribute resolution for element '${elem.id}' bound to field '${field}'.`);
+  }
+
   export class UiRenderer {
     public refreshRate:number = 16;   // Duration of a frame in ms.
     public queued:boolean = false;    // Whether the model is dirty and requires rerendering.
     public warnings:UiWarning[] = []; // Warnings from the previous render (or all previous compilations).
     public compiled:number = 0;       // # of elements compiled since last render.
 
-    constructor(public renderer:MicroReact.Renderer) {
-
-    }
+    constructor(public renderer:MicroReact.Renderer) {}
 
     // Mark the renderer dirty so it will rerender next frame.
     queue(root) {
@@ -64,7 +77,7 @@ module UiRenderer {
 
           var total = performance.now() - start;
           if(total > 10) {
-            console.log("Slow render: " + total);
+            console.info("Slow render: " + total);
           }
           self.queued = false;
         }, this.refreshRate);
@@ -89,9 +102,10 @@ module UiRenderer {
       let elementToAttrs = Api.ixer.index("uiAttribute", ["uiAttribute: element"]);
       let elementToAttrBindings = Api.ixer.index("uiAttributeBinding", ["uiAttributeBinding: element"]);
 
+      let boundValueDebug = {};
       let stack:Element[] = [];
       let compiledElements:MicroReact.Element[] = [];
-      let keyToRow:{[key:string]: any} = {};
+      let elemToRow:{[id:string]: any} = {};
       let boundAncestors:{[id:string]: Element} = {};
       for(let root of roots) {
         if(typeof root === "object") {
@@ -123,22 +137,24 @@ module UiRenderer {
         if(binding) {
           // If the element is bound, it must be repeated for each row.
           var boundView = binding["uiElementBinding: view"];
-          var rowToKey = this.generateRowToKeyFn(boundView);
-          let oldKey = elem.__binding;
-          var boundRows = this.getBoundRows(boundView, oldKey);
+          let scopedBindings = Api.ixer.find("uiScopedBinding", {"uiScopedBinding: element": templateId});
+          let bindings = {};
+          let ancestor = boundAncestors[elem.id];
+          for(let {"uiScopedBinding: field": field, "uiScopedBinding: scoped field": scopedField} of scopedBindings) {
+            bindings[field] = getBoundValue(ancestor, scopedField, boundAncestors, elemToRow);
+          }
+
+          var boundRows = this.getBoundRows(boundView, bindings);
           elems = [];
           let ix = 0;
           for(let row of boundRows) {
             // We need an id unique per row for bound elements.
-            let key = rowToKey(row);
-            let childId = `${elem.id}.${ix}`;
-            elems.push({t: elem.t, parent: elem.id, id: childId, __template: templateId, __binding: key});
-            keyToRow[key] = row;
-            if(DEBUG.RENDERER) {
-              console.log(`* Linking ${childId} -> ${boundAncestors[elem.id] && boundAncestors[elem.id].id}.`);
-            }
-            boundAncestors[childId] = boundAncestors[elem.id];
-            ix++;
+            let childId = `${elem.id}.${ix++}`;
+            elems.push({t: elem.t, parent: elem.id, id: childId, __template: templateId});
+            elemToRow[childId] = row;
+            boundAncestors[childId] = boundAncestors[elem.id]; // Pass over the wrapper, it's these children which are bound.
+
+            if(DEBUG.RENDERER) console.info(`* Linking ${childId} -> ${boundAncestors[elem.id] && boundAncestors[elem.id].id}.`);
           }
         }
 
@@ -146,50 +162,24 @@ module UiRenderer {
         for(let elem of elems) {
           this.compiled++;
           // Handle meta properties.
-          let key = elem.__binding;
           elem.t = fact["uiElement: tag"];
 
           // Handle static properties.
           if(attrs) {
-            for(let attr of attrs) {
-              let {"uiAttribute: property": prop, "uiAttribute: value": val} = attr;
-              elem[prop] = val;
-              if(prop === "__binding") {
-                binding = true;
-                key = val;
-              }
-            }
+            for(let {"uiAttribute: property": prop, "uiAttribute: value": val} of attrs) elem[prop] = val;
           }
 
           // Handle bound properties.
-          // @NOTE: making __binding dynamically bindable is possible, but requires processing it as the first bound attribute to have the intended effect.
           if(boundAttrs) {
-            for(let attr of boundAttrs) {
-              let {"uiAttributeBinding: property": prop, "uiAttributeBinding: field": field} = attr;
-              let curElem = elem;
-              let val;
-              let scopeIx = 0;
-              while(curElem && val === undefined) {
-                let key = curElem.__binding;
-                let row = keyToRow[key];
-                val = row[field];
-
-                if(val === undefined) {
-                  curElem = boundAncestors[curElem.id];
-                  if(scopeIx > 100) {
-                    console.error(`Recursion detected in bound attribute resolution for key '${key}'.`);
-                    break;
-                  }
-                  scopeIx++;
-                }
-              }
+            for(let {"uiAttributeBinding: property": prop, "uiAttributeBinding: field": field} of boundAttrs) {
+              let val = getBoundValue(elem, field, boundAncestors, elemToRow, boundValueDebug);
               elem[prop] = val;
               if(DEBUG.RENDERER) {
-                console.log(`
-                * Binding ${elem.id}['${prop}'] to ${field} (${val})
-                   source elem: ${curElem && curElem.id}
-                   row: ${curElem && JSON.stringify(keyToRow[curElem.__binding])}
-                `);
+                console.info(`
+                  * Binding ${elem.id}['${prop}'] to ${field} (${val})
+                    source elem: ${boundValueDebug["ancestor"] && boundValueDebug["ancestor"].id}
+                    row: ${boundValueDebug["row"] && JSON.stringify(boundValueDebug["row"])}`
+                );
               }
             }
           }
@@ -197,15 +187,14 @@ module UiRenderer {
           // Prep children and add them to the stack.
           if(children) {
             let boundAncestor = boundAncestors[elem.id];
-            if(binding) {
-              boundAncestor = elem;
-            }
+            if(binding) boundAncestor = elem;
+
             elem.children = [];
             for(let child of children) {
               let childTemplateId = child["uiElement: element"];
               let childId = `${elem.id}__${childTemplateId}`;
               boundAncestors[childId] = boundAncestor;
-              let childElem = {id: childId, __template: childTemplateId, __binding: key};
+              let childElem = {id: childId, __template: childTemplateId};
               elem.children.push(childElem);
               stack.push(childElem);
             }
@@ -217,7 +206,7 @@ module UiRenderer {
             try {
               elementCompiler(elem);
             } catch(err) {
-              let row = keyToRow[key];
+              let row = elemToRow[elem.id];
               let warning = {"uiWarning: element": elem.id, "uiWarning: row": row || "", "uiWarning: warning": err.message};
               if(!Api.ixer.findOne("uiWarning", warning)) {
                 this.warnings.push(warning);
@@ -229,19 +218,14 @@ module UiRenderer {
             }
           }
 
-          if(DEBUG.RENDERER) {
-            elem.debug = elem.id;
-          }
-
+          if(DEBUG.RENDERER) elem.debug = elem.id;
           rowIx++;
         }
 
-        if(binding) {
-          elem.children = elems;
-        }
+        if(binding) elem.children = elems;
       }
       if(DEBUG.RENDER_TIME) {
-        console.log(Date.now() - start);
+        console.info(Date.now() - start);
       }
       return compiledElements;
     }
@@ -267,16 +251,10 @@ module UiRenderer {
     }
 
     // Get only the rows of view matching the key (if specified) or all rows from the view if not.
-    getBoundRows(viewId:Id, key?:any): any[] {
-      var keys = getKeys(viewId);
-      if(key && keys.length === 1) {
-        return Api.ixer.find(viewId, {[Api.get.name(keys[0])]: key});
-      } else if(key && keys.length > 0) {
-        let rowToKey = this.generateRowToKeyFn(viewId);
-        return Api.ixer.find(viewId, {}).filter((row) => rowToKey(row) === key);
-      } else {
-        return Api.ixer.find(viewId, {});
-      }
+    getBoundRows(viewId:Id, bindings?:Api.Dict): any[] {
+      let keys = bindings && Object.keys(bindings);
+      if(!keys || !keys.length) return Api.ixer.find(viewId, {});
+      return Api.ixer.find(viewId, bindings);
     }
   }
 
