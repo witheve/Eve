@@ -35,6 +35,7 @@ module Parsers {
     bindings: {source: string, field: string}[]
   }
   export interface QueryIR {
+    id: string
     sources: SourceIR[]
     aliases: {[alias:string]: string}
     variables: {[id:string]: VariableIR}
@@ -48,12 +49,12 @@ module Parsers {
     attributes: Api.Dict
     boundAttributes: Api.Dict
     boundView?: string
-    binding?: Api.Dict
+    bindings?: Api.Dict
   }
   export interface UiIR {
     elements: ElementIR[]
     root: ElementIR
-    boundQueries: QueryIR[]
+    boundQueries: {[id: string]: QueryIR}
   }
 
   function tokenIsLine(token:Token): token is LineAST { return !!token["chunks"]; }
@@ -83,9 +84,18 @@ module Parsers {
   }
   var ParseError:ParseError = <any>function(msg, token?:any) {
     let {lines = [], lineIx} = ParseError;
-    let line = lines[lineIx] || ""
-    let charIx = token !== undefined ? ParseError.tokenToChar(token, line) : 0;
-    let length = token !== undefined ? (tokenToString(token) || "").length : line.length - charIx;
+    let line = lines[lineIx] || "";
+    let charIx = 0;
+    let length = line.length;
+    if(token) {
+      lineIx = (token.lineIx !== undefined) ? token.lineIx : lineIx;
+      line = lines[lineIx] || "";
+      charIx = ParseError.tokenToChar(token, line);
+      let text = tokenToString(token) || "";
+      let ix = text.indexOf("\n");
+      if(ix !== -1) length = ix - charIx;
+      else length = (text.length || line.length) - charIx;
+    }
     msg += `\nOn line ${lineIx}:${charIx}`;
     if(line !== undefined) {
       msg += `\n${line}\n${underline(charIx, length)}`;
@@ -159,6 +169,9 @@ module Parsers {
       if(token.classes) res += token.classes;
       if(token.name) res += "; " + token.name;
       return res;
+    }
+    else if(tokenIsBinding(token)) {
+      return padding + "~ " + token.text.split("\n").join("\n" + padding + "~ ");
     }
     if(tokenIsText(token)) return padding + token.text;
     throw new Error(`Unknown token type '${token && token.type}'`);
@@ -245,6 +258,19 @@ module Parsers {
     unraveled.push(cur);
     for(let child of tangle[cur]) unraveled.push.apply(unraveled, unravel(child, tangle));
     return unraveled;
+  }
+
+  function getScopedBinding(alias:string, ancestors:ElementIR[], boundViews:{[id: string]: QueryIR}): string {
+    for(let ix = ancestors.length - 1; ix >= 0; ix--) {
+      let parent = ancestors[ix];
+      if(!parent.boundView) continue;
+      let scope = boundViews[parent.boundView];
+      let varId = scope.aliases[alias];
+      if(!varId) continue;
+      let variable = scope.variables[varId];
+      if(!variable.selected) throw ParseError("UI Properties can only be bound to selected aliases.");
+      return variable.selected;
+    }
   }
 
   //---------------------------------------------------------------------------
@@ -402,7 +428,7 @@ module Parsers {
 
     // Reification
     reify: function(ast:QueryAST, prev?:QueryIR):QueryIR {
-      let reified:QueryIR = {sources: [], aliases: {}, variables: {}, actions: []};
+      let reified:QueryIR = {id: (prev && prev.id) || Api.uuid(), sources: [], aliases: {}, variables: {}, actions: []};
       let sort = [];
       for(let line of ast.chunks) {
         if(tokenIsSource(line)) {
@@ -487,7 +513,7 @@ module Parsers {
 
     // Stringification
     fromView: function(viewId:string, ixer:Indexer.Indexer = Api.ixer) {
-      let reified:QueryIR = {sources: [], aliases: {}, variables: {}, actions: []};
+      let reified:QueryIR = {id: viewId, sources: [], aliases: {}, variables: {}, actions: []};
       let ordinalSourceAlias:{[source:string]: string|boolean} = {};
       let bindingFieldVariable:{[id:string]: VariableIR} = {};
       for(let varId of Api.extract("variable: variable", Api.ixer.find("variable", {"variable: view": viewId}))) {
@@ -596,7 +622,13 @@ module Parsers {
   export var ui = {
    // Utilities
     tokenize: makeTokenizer(Q_TOKENS),
-    tokenToChar: (token:Token, line:string) => (token.tokenIx !== undefined) ? ui.tokenize(line).slice(0, token.tokenIx - 1).join("").length : 0,
+    tokenToChar(token:Token, line:string) {
+      if(token.tokenIx === undefined) return 0;
+      let text = ui.tokenize(line).slice(0, token.tokenIx - 1).join("");
+      let ix = text.indexOf("\n");
+      if(ix !== -1) return ix;
+      return text.length;
+    },
 
     parse(raw:string): UiAST {
       let ast:QueryAST = {type: "ui", chunks: []};
@@ -604,8 +636,7 @@ module Parsers {
 
       // Set up debugging metadata globally so downstream doesn't need to be aware of it.
       ParseError.lines = lines;
-      ParseError.tokenToChar = query.tokenToChar;
-
+      ParseError.tokenToChar = ui.tokenToChar;
 
       for(let rawLine of lines) {
         let lineIx = ast.chunks.length;
@@ -639,10 +670,10 @@ module Parsers {
           if(!field) throw ParseError("Value of attribute must be a field (either ' ?foo ' or ' `100` ')", {type: "text", text: tokens.join(""), tokenIx: tokensLength - tokens.length});
           attribute.value = field;
           attribute.static = field.value !== undefined;
-          if(tokens.length) throw ParseError("Extraneous tokens after value.", {type: "", text: tokens.join(""), tokenIx: tokensLength - tokens.length});
+          if(tokens.length) throw ParseError("Extraneous tokens after value.", {type: "text", text: tokens.join(""), tokenIx: tokensLength - tokens.length});
 
         } else if(head === "~") {
-          let prevLine = ast.chunks[ast.chunks.length - 2];
+          let prevLine = ast.chunks[ast.chunks.length - 1];
           if(!prevLine || tokenIsElement(prevLine)) {
             line.type = "binding";
             let binding:BindingAST = <any>line;
@@ -652,6 +683,7 @@ module Parsers {
           } else if(tokenIsBinding(prevLine)) {
             consume([" ", "\t"], tokens);
             prevLine.text += "\n" + tokens.join("");
+            continue;
 
           } else throw ParseError("Binding must immediately follow an element or a binding.", line);
 
@@ -673,9 +705,10 @@ module Parsers {
     reify(ast:UiAST, prev?:UiIR): UiIR {
       let rootId = prev ? prev.root.element : Api.uuid();
       let root:ElementIR = {element: rootId, tag: "div", attributes: {}, boundAttributes: {}};
-      let reified:UiIR = {elements: [], root, boundQueries: []};
+      let reified:UiIR = {elements: [], root, boundQueries: {}};
       let indent = {[root.element]: -1};
       let ancestors = [root];
+
       for(let line of ast.chunks) {
         if(tokenIsComment(line) || tokenIsText(line)) continue;
 
@@ -698,8 +731,37 @@ module Parsers {
           reified.elements[reified.elements.length] = elem;
 
         } else if(tokenIsBinding(line)) {
-          throw "@TODO: Implement binding support.";
           if(!parentElem) throw ParseError("Bindings must follow an element.", line);
+          let queryAST = query.parse(line.text);
+          let queryIR = query.reify(queryAST);
+
+          // @TODO: Update uiRenderer to utilize uiScopedBinding instead of key system
+          // @TODO: Use prev.queries for mapping queryIRs
+          // ... Profit!
+
+          reified.boundQueries[queryIR.id] = queryIR;
+          parentElem.boundView = queryIR.id;
+
+          let debugText = [queryIR.id, ": {"];
+          for(let alias in queryIR.aliases) {
+            let variable = queryIR.variables[queryIR.aliases[alias]];
+            debugText.push(alias + ": " + variable.selected);
+          }
+          debugText.push("}");
+          console.log(debugText.join(" "));
+
+          let joinedFields = {};
+          let scopeJoined = false;
+          for(let alias in queryIR.aliases) {
+            let scopedField = getScopedBinding(alias, ancestors.slice(0, -1), reified.boundQueries);
+            let selected = queryIR.variables[queryIR.aliases[alias]].selected;
+            if(!scopedField) continue;
+            if(!selected) throw ParseError(`Cannot join nested views on unselected alias '${alias}'`);
+            joinedFields[selected] = scopedField;
+            scopeJoined = true;
+            console.log("?" + alias + " joined to ", scopedField);
+          }
+          if(scopeJoined) parentElem.bindings = joinedFields;
 
         } else if(tokenIsAttribute(line)) {
           if(!parentElem) throw ParseError("Attributes must follow an element.", line);
@@ -708,7 +770,9 @@ module Parsers {
             if(line.property === "parent") parentElem.parent = line.value.value;
             else parentElem.attributes[line.property] = line.value.value;
           } else {
-            parentElem.boundAttributes[line.property] = line.value.alias;
+            parentElem.boundAttributes[line.property] = getScopedBinding(line.value.alias, ancestors, reified.boundQueries);
+            if(!parentElem.boundAttributes[line.property])
+              throw ParseError(`Could not resolve alias '${line.value.alias}' for bound attribute '${line.property}'`);
           }
         }
       }
@@ -718,7 +782,7 @@ module Parsers {
     fromElement(rootId:string):UiIR {
       let root:ElementIR = Api.humanize("uiElement", Api.ixer.findOne("uiElement", {"uiElement: element": rootId}));
       if(!root) throw new Error(`Requested element '${rootId}' does not exist.`);
-      let reified:UiIR = {elements: [], root, boundQueries: []};
+      let reified:UiIR = {elements: [], root, boundQueries: {}};
 
       let queries = [];
       let elems = [root];
@@ -744,7 +808,7 @@ module Parsers {
         if(elem !== root) reified.elements.push(elem);
       }
 
-      while(queries.length) throw new Error("@TODO: Handle bound elements");
+      while(queries.length) throw ParseError("@TODO: Handle bound elements");
 
       return reified;
     },
@@ -776,7 +840,7 @@ module Parsers {
           elemAST = undefined;
         }
 
-        if(elem.boundView) throw new Error("@TODO: Support bound elements");
+        if(elem.boundView) throw ParseError("@TODO: Support bound elements");
         for(let property in elem.attributes) {
           if(property === "c" && elemAST) {
             elemAST.classes = elem.attributes[property];
