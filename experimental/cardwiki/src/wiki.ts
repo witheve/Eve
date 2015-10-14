@@ -141,6 +141,53 @@ module wiki {
   // Article
   //---------------------------------------------------------
 
+  var breaks = /[\[\]\|=\n#]/;
+  function tokenize(article) {
+    let line = 0;
+    let ix = 0;
+    let len = article.length;
+    let tokens = [];
+    let cur = {ix, line, text: ""};
+    for(; ix < len; ix++) {
+      let ch = article[ix];
+      if(ch.match(breaks)) {
+        if(cur.text !== "") {
+          tokens.push(cur);
+        }
+        if(ch === "\n") {
+          line++;
+          continue;
+        }
+        cur = {ix, line, text: ch};
+        tokens.push(cur);
+        while(ch === article[ix + 1]) {
+          ix++;
+          ch = article[ix];
+          cur.text += ch;
+        }
+        cur = {ix: ix+1, line, text: ""};
+      } else {
+        cur.text += ch;
+      }
+    }
+    return tokens;
+  }
+
+  function parse(tokens) {
+    let links = [];
+    let eavs = [];
+    let collections = [];
+    let state = {};
+    for(let token of tokens) {
+      if(token.text.indexOf("[") > -1) {
+
+      } else if(token.text.indexOf("]") > -1) {
+
+      }
+    }
+  }
+  console.log(tokenize("#foo is awesome [vin diesel | foo]\n[[zomg]] [age=40]"));
+
   function articleToHTML(article) {
     let children = [];
     let lines = article.split(/\n/);
