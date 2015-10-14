@@ -27,8 +27,12 @@ module wiki {
     }
   }
 
-  runtime.define("page to graph", {multi: true}, function(text) {
-    return articleToGraph(text).outbound;
+  runtime.define("page to graph", {multi: true}, function(page, text) {
+    return articleToGraph(page, text);
+  });
+
+  runtime.define("parse eavs", {multi: true}, function(page, text) {
+    return parsePage(page, text).eavs;
   });
 
   runtime.define("search string", {multi: true}, function(text) {
@@ -54,6 +58,7 @@ module wiki {
   diff.add("action", {view: "page links 2", action: "page links - links", kind: "calculate", ix: 1});
   diff.add("action source", {action: "page links - links", "source view": "page to graph"});
   diff.add("action mapping", {action: "page links - links", from: "text", "to source": "page links - page", "to field": "text"});
+  diff.add("action mapping", {action: "page links - links", from: "page", "to source": "page links - page", "to field": "page"});
   diff.add("action", {view: "page links 2", action: "page links - project", kind: "project", ix: 2});
   diff.add("action mapping", {action: "page links - project", from: "page", "to source": "page links - page", "to field": "page"});
   diff.add("action mapping", {action: "page links - project", from: "link", "to source": "page links - links", "to field": "link"});
@@ -112,7 +117,7 @@ module wiki {
 
   eve.asView(eve.query("page links")
              .select("page", {}, "page")
-             .calculate("page to graph", {text: ["page", "text"]}, "links")
+             .calculate("page to graph", {text: ["page", "text"], page: ["page", "page"]}, "links")
              .project({page: ["page", "page"], link: ["links", "link"], type: ["links", "type"]}));
 
   eve.asView(eve.query("search results")
@@ -125,13 +130,22 @@ module wiki {
              .select("page links", {link: ["active", "page"]}, "links")
              .project({page: ["links", "page"], link: ["links", "link"], type: ["links", "type"]}));
 
+  eve.asView(eve.query("collection links")
+             .select("page links", {type: "collection"}, "links")
+             .project({page: ["links", "page"], deck: ["links", "link"]}));
+
+  eve.asView(eve.query("page eavs")
+             .select("page", {}, "page")
+             .calculate("parse eavs", {page: ["page", "page"], text: ["page", "text"]}, "parsed")
+             .project({page: ["page", "page"], attribute: ["parsed", "attribute"], value: ["parsed", "value"]}));
+
   eve.asView(eve.union("deck pages")
+             .union("collection links", {page: ["page"], deck: ["deck"]})
              .union("history stack", {page: ["page"], deck: "history"})
              .union("page links", {page: ["link"], deck: ["type"]}));
 
   eve.asView(eve.union("entity")
-             .union("page", {entity: ["page"]})
-             .union("page links", {entity: ["link"]}));
+             .union("page", {entity: ["page"]}));
 
   eve.asView(eve.query("deck")
              .select("deck pages", {}, "decks")
@@ -141,35 +155,71 @@ module wiki {
   // Article
   //---------------------------------------------------------
 
+  export function coerceInput(input) {
+    if (input.match(/^-?[\d]+$/gim)) {
+      return parseInt(input);
+    }
+    else if (input.match(/^-?[\d]+\.[\d]+$/gim)) {
+      return parseFloat(input);
+    }
+    else if (input === "true") {
+      return true;
+    }
+    else if (input === "false") {
+      return false;
+    }
+    return input;
+  }
+
   var breaks = /[\[\]\|=\n#]/;
+  var types = {
+    "#": "header",
+    "[": "link open",
+    "]": "link close",
+    "[[": "collection open",
+    "]]": "collection close",
+    "|": "link separator",
+    "=": "assignment",
+  }
   function tokenize(article) {
     let line = 0;
     let ix = 0;
     let len = article.length;
     let tokens = [];
-    let cur = {ix, line, text: ""};
+    let cur = {ix, line, type: "text", text: ""};
     for(; ix < len; ix++) {
       let ch = article[ix];
       if(ch.match(breaks)) {
-        if(cur.text !== "") {
+        let type = types[ch];
+        if(ch === "\n") line++;
+        if(cur.text !== "" || cur.line !== line) {
           tokens.push(cur);
         }
         if(ch === "\n") {
-          line++;
+          cur = {ix: ix+1, line, type: "text", text: ""};
           continue;
         }
-        cur = {ix, line, text: ch};
+        cur = {ix, line, type, text: ch};
         tokens.push(cur);
         while(ch === article[ix + 1]) {
           ix++;
           ch = article[ix];
           cur.text += ch;
         }
-        cur = {ix: ix+1, line, text: ""};
+        if(types[cur.text]) {
+          cur.type = types[cur.text];
+        }
+        if(type === "header") {
+          //trim the next character if it's a space between the header indicator
+          //and the text;
+          if(article[ix+1] === " ") ix++;
+        }
+        cur = {ix: ix+1, line, type: "text", text: ""};
       } else {
         cur.text += ch;
       }
     }
+    tokens.push(cur);
     return tokens;
   }
 
@@ -177,60 +227,128 @@ module wiki {
     let links = [];
     let eavs = [];
     let collections = [];
-    let state = {};
+    let state:any = {items: []};
+    let lines = [];
+    let line;
+    let lineIx = -1;
     for(let token of tokens) {
-      if(token.text.indexOf("[") > -1) {
-
-      } else if(token.text.indexOf("]") > -1) {
-
-      }
-    }
-  }
-  console.log(tokenize("#foo is awesome [vin diesel | foo]\n[[zomg]] [age=40]"));
-
-  function articleToHTML(article) {
-    let children = [];
-    let lines = article.split(/\n/);
-    for (let line of lines) {
-      line = line.trim();
-      let header = false;
-      if(line[0] === "#") {
-        header = true;
-        line = line.substring(1).trim();
-      }
-      let lineChildren = [];
-      let parts = line.split(/(\[.*?\])(?:\(.*?\))?/);
-      for (var part of parts) {
-        if (part[0] === "[") {
-          let linkText = part.substring(1, part.length - 1).toLowerCase();
-          let page = eve.findOne("page", {page: linkText});
-          let found = "";
-          if(page && page.text) {
-            found = "found";
-          };
-          lineChildren.push({t: "span", c: `link ${found}`, text: part.substring(1, part.length -1), linkText, click: followLink });
-        } else {
-          lineChildren.push({t: "span", text: part });
+      if(token.line !== lineIx) {
+        // this accounts for blank lines.
+        while(lineIx < token.line) {
+          line = {ix: token.line, header: false, items: []};
+          lines.push(line);
+          lineIx++;
         }
       }
-      if(header) {
+      let {type} = token;
+      switch(type) {
+        case "header":
+          line.header = true;
+          break;
+        case "link open":
+          state.capturing = true;
+          state.mode = "link";
+          state.items.push(token);
+          break;
+        case "link close":
+          state.items.push(token);
+          state.type = "link";
+          if(state.mode === "assignment") {
+            state.type = "eav";
+            eavs.push(state);
+          } else {
+            links.push(state);
+          }
+          line.items.push(state);
+          state = {items: []};
+          break;
+        case "collection open":
+          state.capturing = true;
+          state.mode = "collection";
+          state.items.push(token);
+          break;
+        case "collection close":
+          state.items.push(token);
+          state.type = "collection";
+          line.items.push(state);
+          collections.push(state);
+          state = {items: []};
+          break;
+        case "link separator":
+          state.mode = "link type";
+          state.items.push(token);
+          break;
+        case "assignment":
+          state.mode = "assignment";
+          state.attribute = state.link;
+          break;
+        case "text":
+          if(!state.capturing) {
+            line.items.push(token);
+          } else if(state.mode === "link") {
+            state.link = token.text.trim();
+            state.items.push(token);
+          } else if(state.mode === "link type") {
+            state.linkType = token.text.trim();
+            state.items.push(token);
+          } else if(state.mode === "collection") {
+            state.link = token.text.trim();
+            state.items.push(token);
+          } else if(state.mode === "assignment") {
+            state.value = coerceInput(token.text.trim());
+            state.items.push(token);
+          }
+          break;
+      }
+    }
+    return {lines, links, collections, eavs};
+  }
+
+  var parseCache = {};
+  function parsePage(pageId, content) {
+    let cached = parseCache[pageId];
+    if(!cached || cached[0] !== content) {
+      cached = parseCache[pageId] = [content, parse(tokenize(content))];
+    }
+    return cached[1];
+  }
+
+  function articleToHTML(lines) {
+    let children = [];
+    for (let line of lines) {
+      let lineChildren = [];
+      let items = line.items;
+      for (var item of items) {
+        if(item.type === "text") {
+          lineChildren.push({t: "span", text: item.text});
+          continue;
+        }
+        if(item.type === "eav") {
+          lineChildren.push({t: "span", c: `${item.type}`, text: item.value});
+          continue;
+        }
+        let link = item.link.toLowerCase();
+        let found = eve.findOne("page", {page: link}) || eve.findOne("deck", {page: link});
+        lineChildren.push({t: "span", c: `${item.type} ${found ? 'found' : ""}`, text: item.link, linkText: link, click: followLink});
+      }
+      if(line.header) {
         lineChildren = [{t: "h1", children: lineChildren}];
       }
-      children.push({t: "pre", c: `${header ? 'header' : ''}`, children: lineChildren});
+      children.push({t: "pre", c: `${line.header ? 'header' : ''}`, children: lineChildren});
     }
     return children;
   }
 
-
-  function articleToGraph(article) {
-    let outbound = [];
-    let regex = /\[(.*?)\](?:\((.*?)\))?/g;
-    let match = regex.exec(article);
-    while(match) {
-      outbound.push({link: match[1].toLowerCase(), type: (match[2] || "unknown").toLowerCase()});
-      match = regex.exec(article);
+  function articleToGraph(pageId, content) {
+    let parsed = parsePage(pageId, content);
+    let links = [];
+    for(let link of parsed.links) {
+      links.push({link: link.link.toLowerCase(), type: (link.linkType || "unknown").toLowerCase()});
     }
-    return {outbound};
+    for(let collection of parsed.collections) {
+      links.push({link: collection.link.toLowerCase(), type: "collection"});
+    }
+    return links;
   }
 
   function findPath(from, to, depth = 0, seen = {}) {
@@ -411,7 +529,7 @@ module wiki {
     let article = eve.findOne("page", {page: articleId}) || {text: ""};
     let articleView;
     if(!eve.findOne("editing", {page: articleId})) {
-      articleView = {id: `${articleId}${instance}`, c: "article", page: articleId, children: articleToHTML(article.text), dblclick: editArticle, enter: {display: "flex", opacity: 1, duration: 300}};
+      articleView = {id: `${articleId}${instance}`, c: "article", page: articleId, children: articleToHTML(parsePage(articleId, article.text).lines), dblclick: editArticle, enter: {display: "flex", opacity: 1, duration: 300}};
     } else {
       articleView = {id: "article editor", c: "article editor", page: articleId, postRender: CodeMirrorElement, value: article.text, blur: commitArticle};
     }
@@ -443,12 +561,12 @@ module wiki {
       pathItems[pathIx].children.pop();
       pathIx++;
     }
-    if(eve.find("search results").length < 2) {
+    if(eve.find("search results").length === 1) {
       pathItems[0].c += " singleton";
     }
     if(paths.length === 0) {
       let search = eve.findOne("search") || {search: "root"};
-      pathItems.push({c: "path", children: [
+      pathItems.push({c: "path singleton", children: [
         articleUi(search.search)
       ]});
     }

@@ -19,9 +19,11 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .article { background: #333; padding:20px; overflow:auto; max-width: 600px; min-height: 300px; min-width: 300px; border-radius:3px; box-shadow: 0 2px 2px #111; line-height: 25px; }
 .article pre { flex:none; display:block; white-space: pre-wrap; min-height:25px; }
 .article h1 { font-size:16pt; }
-.article span { display:inline-block; }
+.article span { display:inline; }
 .article .link { color: #f88; cursor:default; border-bottom:1px solid transparent;  }
 .article .link.found { color: #99f; }
+.article .collection { color: #9f9; }
+.article .eav { color: #f9f; }
 .link:hover { border-bottom-color:#f88; }
 .link.found:hover { border-bottom-color:#99f; }
 
@@ -32,9 +34,9 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .search-results { flex:none; padding:0 10px; overflow:auto;  }
 .search-results .path { flex-direction:row; }
 .search-results pre { display:none; }
-.search-results pre.header { display:flex; }
+.search-results pre.header { display:block; }
 .search-results .article { margin:10px; min-width:100px; min-height:100px; width:auto; height:auto; margin:20px 10px; }
-.search-results .singleton pre { display: flex; }
+.search-results .singleton pre { display: block; }
 .search-results .singleton .article { width: 600px; height: auto; }
 .search-results .arrow { justify-content:center; font-size: 18pt; }
 
