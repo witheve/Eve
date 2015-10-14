@@ -19,7 +19,7 @@ module microReact {
     key?:string
     dirty?:boolean
     semantic?:string
-    animation?: any
+    tween?: any
     enter?: any
     leave?: any
     debug?:any
@@ -174,7 +174,7 @@ module microReact {
       var updates = diff.updates;
       var elemKeys = Object.keys(updates);
       var elementCache = this.elementCache;
-      var tempAnimation:any = {};
+      var tempTween:any = {};
 
       //Create all the new elements to ensure that they're there when they need to be
       //parented
@@ -219,7 +219,6 @@ module microReact {
           if(prev.leave) {
             prev.leave.complete = postAnimationRemove;
             if(prev.leave.absolute) {
-              console.log("absolute");
               me.style.position = "absolute";
             }
             Velocity(me, prev.leave, prev.leave);
@@ -246,64 +245,64 @@ module microReact {
         if(cur.href !== prev.href) div.setAttribute("href", cur.href);
 
         // animateable properties
-        var animation = cur.animation || tempAnimation;
+        var tween = cur.tween || tempTween;
         if(cur.flex !== prev.flex) {
-          if(animation.flex) tempAnimation.flex = cur.flex;
+          if(tween.flex) tempTween.flex = cur.flex;
           else style.flex = cur.flex === undefined ? "" : cur.flex;
         }
         if(cur.left !== prev.left) {
-           if(animation.left) tempAnimation.left = cur.left;
+           if(tween.left) tempTween.left = cur.left;
            else style.left = cur.left === undefined ? "" : cur.left;
         }
         if(cur.top !== prev.top) {
-          if(animation.top) tempAnimation.top = cur.top;
+          if(tween.top) tempTween.top = cur.top;
           else style.top = cur.top === undefined ? "" : cur.top;
         }
         if(cur.height !== prev.height) {
-          if(animation.height) tempAnimation.height = cur.height;
+          if(tween.height) tempTween.height = cur.height;
           else style.height = cur.height === undefined ? "auto" : cur.height;
         }
         if(cur.width !== prev.width) {
-          if(animation.width) tempAnimation.width = cur.width;
+          if(tween.width) tempTween.width = cur.width;
           else style.width = cur.width === undefined ? "auto" : cur.width;
         }
         if(cur.zIndex !== prev.zIndex) {
-          if(animation.zIndex) tempAnimation.zIndex = cur.zIndex;
+          if(tween.zIndex) tempTween.zIndex = cur.zIndex;
           else style.zIndex = cur.zIndex;
         }
         if(cur.backgroundColor !== prev.backgroundColor) {
-          if(animation.backgroundColor) tempAnimation.backgroundColor = cur.backgroundColor;
+          if(tween.backgroundColor) tempTween.backgroundColor = cur.backgroundColor;
           else style.backgroundColor = cur.backgroundColor || "transparent";
         }
         if(cur.borderColor !== prev.borderColor) {
-          if(animation.borderColor) tempAnimation.borderColor = cur.borderColor;
+          if(tween.borderColor) tempTween.borderColor = cur.borderColor;
           else style.borderColor = cur.borderColor || "none";
         }
         if(cur.borderWidth !== prev.borderWidth) {
-          if(animation.borderWidth) tempAnimation.borderWidth = cur.borderWidth;
+          if(tween.borderWidth) tempTween.borderWidth = cur.borderWidth;
           else style.borderWidth = cur.borderWidth || 0;
         }
         if(cur.borderRadius !== prev.borderRadius) {
-          if(animation.borderRadius) tempAnimation.borderRadius = cur.borderRadius;
+          if(tween.borderRadius) tempTween.borderRadius = cur.borderRadius;
           else style.borderRadius = (cur.borderRadius || 0) + "px";
         }
         if(cur.opacity !== prev.opacity) {
-          if(animation.opacity) tempAnimation.opacity = cur.opacity;
+          if(tween.opacity) tempTween.opacity = cur.opacity;
           else style.opacity = cur.opacity === undefined ? 1 : cur.opacity;
         }
         if(cur.fontSize !== prev.fontSize) {
-          if(animation.fontSize) tempAnimation.fontSize = cur.fontSize;
+          if(tween.fontSize) tempTween.fontSize = cur.fontSize;
           else style.fontSize = cur.fontSize;
         }
         if(cur.color !== prev.color) {
-          if(animation.color) tempAnimation.color = cur.color;
+          if(tween.color) tempTween.color = cur.color;
           else style.color = cur.color || "inherit";
         }
 
-        let animKeys = Object.keys(tempAnimation);
+        let animKeys = Object.keys(tempTween);
         if(animKeys.length) {
-          Velocity(div, tempAnimation, animation);
-          tempAnimation = {};
+          Velocity(div, tempTween, tween);
+          tempTween = {};
         }
 
         // non-animation style properties
