@@ -428,7 +428,7 @@ return index;`
       let table = this.tables[tableId];
       if(!table) {
         return [];
-      } else if(!query) {
+      } else if(!query || Object.keys(query).length === 0) {
         return table.facts;
       } else {
         return this.factToIndex(table, query);
