@@ -81,6 +81,8 @@ module Editor {
       try {
         localState.query.ast = Parsers.query.parse(query);
         localState.query.reified = Parsers.query.reify(localState.query.ast, prev);
+        localState.query.id = localState.query.reified.id;
+
       } catch(err) {
         localState.query.reified = undefined;
         if(err.name === "Parse Error") localState.query.msg = `${err}`;
@@ -158,17 +160,25 @@ module Editor {
       let effect = DispatchEffect.from(this);
       let reified = ui.reified;
 
+      let ix = 0;
+      for(let queryId in reified.boundQueries) {
+        let query:Query = {id: queryId, name: `${ui.name} bound view ${ix++}`, reified: reified.boundQueries[queryId]};
+        effect.dispatch("compileQuery", {query}).change.clearContext();
+      }
+
       if(ui.id) effect.change.removeWithDependents("uiElement", ui.id);
       if(ui.name) reified.root.name = ui.name;
 
       for(let elem of [reified.root].concat(reified.elements)) {
         effect.change.add("uiElement", {"uiElement: element": elem.element, "uiElement: tag": elem.tag, "uiElement: parent": elem.parent || ""});
         if(elem.name) effect.change.add("display name", elem.name);
-        if(elem.boundView) throw new Error("@TODO: Support for bound views");
+        if(elem.boundView) effect.change.add("uiElementBinding", {"uiElementBinding: view": elem.boundView});
         for(let prop in elem.attributes)
           effect.change.add("uiAttribute", {"uiAttribute: property": prop, "uiAttribute: value": elem.attributes[prop]});
         for(let prop in elem.boundAttributes)
-          throw new Error("@TODO: Support bound attributes");
+          effect.change.add("uiAttributeBinding", {"uiAttributeBinding: property": prop, "uiAttributeBinding: field": elem.boundAttributes[prop]});
+        for(let field in elem.bindings)
+          effect.change.add("uiScopedBinding", {"uiScopedBinding: field": field, "uiScopedBinding: scoped field": elem.bindings[field]});
       }
 
       localState.ui.id = reified.root.element;
@@ -393,19 +403,19 @@ module Editor {
 ?ord < \`20\``
     })
     .dispatch("parseUi", {ui: `
-div apple cherry pie
-  - debug: \`A\`
-  div spacer
-    - debug: \`B\`
-    - text: \`B\`
-  span
-    - selected: \`true\`
-    - debug: \`C\`
-    - text: \`C\`
-    span; braaap
-      - debug: \`D\`
-      - color: \`green\`
-      - text: \`sup dawg\``
+div view
+  ~ view ?view is a ?kind
+  div view-meta
+    span
+      - text: ?view
+    span
+      - text: \`is a\`
+    span
+      - text: ?kind
+  div view-name
+    ~ ?view is named ?name
+    ~ \`named \` concat ?name = ?text
+    - text: ?text`
     }).done();
     render();
   }
