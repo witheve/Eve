@@ -33,7 +33,7 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .search-results .path { flex-direction:row; }
 .search-results pre { display:none; }
 .search-results pre.header { display:flex; }
-.search-results .article { margin:10px; min-width:0; min-height:0; width:auto; height:auto; margin:20px 10px; }
+.search-results .article { margin:10px; min-width:100px; min-height:100px; width:auto; height:auto; margin:20px 10px; }
 .search-results .singleton pre { display: flex; }
 .search-results .singleton .article { width: 600px; height: auto; }
 .search-results .arrow { justify-content:center; font-size: 18pt; }

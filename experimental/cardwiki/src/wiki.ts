@@ -396,12 +396,12 @@ module wiki {
       pathItems[pathIx].children.pop();
       pathIx++;
     }
-    if(eve.find("search results").length === 1) {
+    if(eve.find("search results").length < 2) {
       pathItems[0].c += " singleton";
     }
     if(paths.length === 0) {
       let search = eve.findOne("search") || {search: "root"};
-      paths.push({c: "path", children: [
+      pathItems.push({c: "path", children: [
         articleUi(search.search)
       ]});
     }
