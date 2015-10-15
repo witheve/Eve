@@ -24,6 +24,12 @@ module wiki {
       eve.applyDiff(diff);
     } else {
       eve.load(stored);
+            eve.query("page links 3")
+             .select("page", {}, "page")
+             .calculate("page to graph", {text: ["page", "text"], page: ["page", "page"]}, "links")
+             .sort([["page", "page"], ["page", "text"]])
+//              .project({page: ["page", "page"], link: ["links", "link"], type: ["links", "type"]})
+            .debug();
     }
   }
 
@@ -114,6 +120,7 @@ module wiki {
 //   .limit({results: 5,
 //           perGroup: 5})
 //   .aggregate("sum", {}, "sum");
+
 
   eve.asView(eve.query("page links")
              .select("page", {}, "page")
