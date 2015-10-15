@@ -110,6 +110,8 @@ module Ui {
     controls?:Control[]
     defaultTab?:string
     direction?:string
+
+    tabChange?:Handler
   }
   export function tabbedBox(elem:TabbedBoxElement):Element {
     let {id, defaultTab, panes = [], controls = [], direction = "column"} = elem;
@@ -123,7 +125,7 @@ module Ui {
 
     for(let pane of panes) {
       let isSelected = (pane.id === selected);
-      tabs.push(inject({c: isSelected ? "tab selected" : "tab", tab: pane.id, tabbedBox: id, semantic: "item::tab::" + pane.id, click: switchTab}, pane.title));
+      tabs.push(inject({c: isSelected ? "tab selected" : "tab", tab: pane.id, tabbedBox: id, semantic: "item::tab::" + pane.id, click: switchTab, change: elem.tabChange}, pane.title));
       if(isSelected) {
         currentPane = pane;
       }
@@ -141,6 +143,7 @@ module Ui {
 
   function switchTab(evt, elem) {
     dispatch("switchTab", {tabbedBox: elem.tabbedBox, tab: elem.tab});
+    if(elem.change) elem.change(evt, elem);
   }
 
   export interface AccordionElement extends Element {
@@ -186,19 +189,23 @@ module Ui {
   }
 
   interface DropdownElement extends Element {
-    options: string[]
+    options: string[]|Api.Dict
     size?: number
     multiple?: boolean
     defaultOption?: string
   }
   export function dropdown(elem:DropdownElement):Element {
     let {defaultOption, options, size, multiple} = elem;
-
+    if(options instanceof Array) {
+      let opts = {};
+      for(let option of <string[]>options) opts[option] = option;
+      options = opts;
+    }
     // Build the option elements
     let optionElements:Element[] = [];
-    for(let option of options) {
-      let item:Element = {t: "option", value: option, text: option};
-      if(option === defaultOption) {
+    for(let value in options) {
+      let item:Element = {t: "option", value, text: options[value]};
+      if(value === defaultOption) {
         item["selected"] = true;
       }
       optionElements.push(item);
@@ -339,8 +346,9 @@ module Ui {
     view: string
   }
   export function factTable(elem:FactTable):Element {
-    let facts = Api.get.facts(elem.view);
+    let facts = Api.ixer.find(elem.view);
     elem["data"] = facts;
+    if(!facts.length) elem["headers"] = Api.get.fields(elem.view);
     return table(<any>elem);
   }
 
@@ -382,7 +390,6 @@ module Ui {
           target.innerHTML = "";
         }
         if(target.children.length) { // contenteditable has decided to add a node instead of text for some reason. Yay.
-          console.log(target["selectionStart"]);
           let text = "";
           let child:Node;
           for(child of <Array<Node>><any>target.childNodes) {
@@ -427,9 +434,10 @@ module Ui {
           }
         }
       });
-      if(elem._cmChange) cm.on("change", elem._cmChange);
-      if(elem.keydown) cm.on("keydown", elem.keydown);
-      if(elem.blur) cm.on("blur", elem.blur);
+      if(elem._cmChange) cm.on("change", (evt) => elem._cmChange(evt, Editor.renderer.renderer.tree[elem.id]));
+      if(elem.keydown) cm.on("keydown", (evt) => elem.keydown(evt, Editor.renderer.renderer.tree[elem.id]));
+      if(elem.focus) cm.on("focus", (evt) => elem.focus(evt, Editor.renderer.renderer.tree[elem.id]));
+      if(elem.blur) cm.on("blur", (evt) => elem.blur(evt, Editor.renderer.renderer.tree[elem.id]));
       if(elem.autofocus) cm.focus();
     }
     if(cm.getValue() !== elem.value) cm.setValue(elem.value);

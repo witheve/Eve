@@ -1,7 +1,7 @@
 module Indexer {
   export type Dict = {[key:string]: any}
   interface Diff<T> { adds: T[], removes: T[] }
-  type Diffs<T> = {[viewId:string]: Diff<T>}
+  export type Diffs<T> = {[viewId:string]: Diff<T>}
   type Index<T> = IndexPath<T>|T[]
   interface IndexPath<T> { [key:string]: Index<T> }
   interface CollectorIndex<T> {
@@ -76,7 +76,7 @@ module Indexer {
         removes += `[remove['${key}']]`;
       }
     }
-    removes += ";\nruntime.removeFact(cur, remove, equals);";
+    removes += ";\nIndexer.removeFact(cur, remove, equals);";
     for(let key of keys) {
       ix++;
       if(key.constructor === Array) {
@@ -230,7 +230,7 @@ return index;`
     removeFacts(table:string, objs):ChangeSet {
       let tableDiff = this.ensureTable(table);
       this.length += objs.length;
-      tableDiff.removes.push(tableDiff.removes, objs);
+      tableDiff.removes.push.apply(tableDiff.removes, objs);
       return this;
     }
     reverse():ChangeSet {
@@ -239,6 +239,20 @@ return index;`
         let {removes:adds, adds:removes} = table;
         table.adds = adds;
         table.removes = removes;
+      }
+      return this;
+    }
+    collapseRemoves():ChangeSet {
+      for(let tableId in this.tables) {
+        let table = this.tables[tableId];
+        let {removes} = table;
+        let orig = removes.length;
+        let ix;
+        let nextIx = 1;
+        for(let remove of removes) {
+          while((ix = removes.indexOf(remove, nextIx)) !== -1) removes.splice(ix, 1);
+          nextIx++;
+        }
       }
       return this;
     }
@@ -372,15 +386,16 @@ return index;`
       }
       return index.index;
     }
-    applyChangeSet(changeSet:ChangeSet) {
+    applyChangeSet(changeSet:ChangeSet):Diffs<Dict> {
       let triggers = {};
+      let diffs:Diffs<Dict> = {};
       for(let tableId in changeSet.tables) {
         let tableDiff = changeSet.tables[tableId];
         if(!tableDiff.adds.length && !tableDiff.removes.length) continue;
         let realDiff = this.updateTable(tableId, tableDiff.adds, tableDiff.removes);
         // go through all the indexes and update them.
         let table = this.tables[tableId];
-        table.diff = realDiff;
+        diffs[tableId] = table.diff = realDiff;
         for(let indexName in table.indexes) {
           let index = table.indexes[indexName];
           index.collect(index.index, realDiff.adds, realDiff.removes, table.equals);
@@ -395,6 +410,8 @@ return index;`
         let trigger = triggers[triggerName];
         this.execTrigger(trigger);
       }
+
+      return diffs;
     }
     trigger(name:string, table:string|string[], exec:TriggerExec) {
       let tables = (typeof table === "string") ? [table] : table;
@@ -411,7 +428,7 @@ return index;`
       let table = this.tables[tableId];
       if(!table) {
         return [];
-      } else if(!query) {
+      } else if(!query || Object.keys(query).length === 0) {
         return table.facts;
       } else {
         return this.factToIndex(table, query);

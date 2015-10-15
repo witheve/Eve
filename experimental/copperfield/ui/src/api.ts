@@ -114,6 +114,12 @@ module Api {
     }
     return res;
   }
+  export function omit(key:string, objs:Dict[]):Dict[] {
+    for(let obj of objs) {
+      delete obj[key];
+    }
+    return objs;
+  }
 
   export function displaySort(idA:string, idB:string): number {
     var orderA = (ixer.findOne("display order", {"display order: id": idA}) || {})["display order: priority"];
@@ -264,7 +270,8 @@ module Api {
     dependents?: Id[]
   }
 
-  const EDITOR_PKS = {tag: ""};
+  const EDITOR_PKS = {tag: "", uiElement: "element"};
+  const EDITOR_FKS = {"uiElement: parent": "element"};
   const EDITOR_PK_DEPS = [
     ["display name", "display name: id"],
     ["display order", "display order: id"],
@@ -306,9 +313,17 @@ module Api {
           schema.key = fieldId;
           keys[fieldName] = [viewId, fieldId];
         } else { // Field is either a foreign key or unbound.
-          if(!names[fieldName]) names[fieldName] = [];
-          names[fieldName].push([viewId, fieldId]);
-          schema.unboundFields.push(fieldId);
+          // Field is explicitly foreign in an override.
+          let manualPrimaryFieldId = EDITOR_FKS[fieldId];
+          if(manualPrimaryFieldId) {
+            if(!schema.foreign) schema.foreign = {};
+            schema.foreign[fieldId] = manualPrimaryFieldId;
+
+          } else {
+            if(!names[fieldName]) names[fieldName] = [];
+            names[fieldName].push([viewId, fieldId]);
+            schema.unboundFields.push(fieldId);
+          }
         }
       }
     }
@@ -347,6 +362,16 @@ module Api {
   }
   ixer.trigger("generate schemas", "field", generateSchemas);
 
+  function fillForeignFields(fact, schema, context) {
+    if(schema.foreign) { // Fill empty foreign fields from context.
+      for(let fieldId in schema.foreign) {
+        let primaryFieldId = schema.foreign[fieldId];
+        if(fact[fieldId] !== undefined || context[primaryFieldId] === undefined) continue;
+        fact[fieldId] = context[primaryFieldId];
+      }
+    }
+  }
+
   export class StructuredChange {
     public context:Dict = {};
     public dependents:{[pkey: string]: {[dependent: string]: number}} = {};
@@ -367,14 +392,7 @@ module Api {
       if(schema.unboundFields.length === 1 && !isDict(factOrValue)) fact = {[schema.unboundFields[0]]: factOrValue};
       else if(isDict(factOrValue)) fact = factOrValue;
       else throw new Error(`Invalid fact format for view '${viewId}': '${factOrValue}'`);
-
-      if(schema.foreign) { // Fill empty foreign fields from context.
-        for(let fieldId in schema.foreign) {
-          let primaryFieldId = schema.foreign[fieldId];
-          if(fact[fieldId] !== undefined || this.context[primaryFieldId] === undefined) continue;
-          fact[fieldId] = this.context[primaryFieldId];
-        }
-      }
+      fillForeignFields(fact, schema, this.context);
 
       if(schema.key) { // Generate UUID for empty pkey field.
         if(fact[schema.key] === undefined) fact[schema.key] = uuid();
@@ -394,67 +412,81 @@ module Api {
       }
 
       this.changeSet.add(viewId, fact);
-      if(DEBUG.STRUCTURED_CHANGE) console.log("+", viewId, fact);
+      if(DEBUG.STRUCTURED_CHANGE) console.info("+", viewId, fact);
       return this;
     }
     addEach(viewId:string, factsOrValues:(Dict|any)[]):StructuredChange {
       for(let factOrValue of factsOrValues) this.add(viewId, factOrValue);
       return this;
     }
-    remove(viewId:string, fact:Dict):StructuredChange {
+    remove(viewId:string, factOrPKey:Dict|any):StructuredChange {
       let schema = schemas[viewId];
       if(!schema) throw new Error(`Unknown structured view: '${viewId}'.`);
+      let fact:Dict;
+      if(schema.key && !isDict(factOrPKey)) fact = {[schema.key]: factOrPKey};
+      else if(isDict(factOrPKey)) fact = factOrPKey;
+      else throw new Error(`Invalid fact format for view '${viewId}': '${factOrPKey}'`);
+      fillForeignFields(fact, schema, this.context);
 
-      if(schema.foreign) { // Fill empty foreign fields from context.
-        for(let fieldId in schema.foreign) {
-          if(fact[fieldId] !== undefined) continue;
-          let primaryFieldId = schema.foreign[fieldId];
-          fact[fieldId] = this.context[primaryFieldId];
-        }
-      }
-
-      if(schema.key && fact[schema.key] !== undefined) { // Store pkey in context for removing dependents.
-        this.context[schema.key] = this.context["$$LAST_PKEY"] = fact[schema.key];
-      }
-
+      // Store pkey in context for convenient updates.
+      if(schema.key && fact[schema.key] !== undefined) this.context[schema.key] = this.context["$$LAST_PKEY"] = fact[schema.key];
       this.changeSet.remove(viewId, fact);
-      if(DEBUG.STRUCTURED_CHANGE) console.log(new Array(this.depth + 1).join("  ") + "-", viewId, fact);
+      if(DEBUG.STRUCTURED_CHANGE) console.info("-", viewId, fact);
       return this;
     }
     removeEach(viewId:string, facts:Dict[]):StructuredChange {
       for(let fact of facts) this.remove(viewId, fact);
       return this;
     }
-    removeWithDependents(viewId:string, fact:Dict, dependents?:string[]):StructuredChange {
+    removeWithDependents(viewId:string, factOrPKey:Dict|any, dependents?:string[]):StructuredChange {
       let schema = schemas[viewId];
       if(!schema) throw new Error(`Unknown structured view: '${viewId}'.`);
-      let schemaDependents = schema.dependents || [];
-      this.remove(viewId, fact);
+      let fact:Dict;
+      if(schema.key && !isDict(factOrPKey)) fact = {[schema.key]: factOrPKey};
+      else if(isDict(factOrPKey)) fact = factOrPKey;
+      else throw new Error(`Invalid fact format for view '${viewId}': '${factOrPKey}'`);
+      fillForeignFields(fact, schema, this.context);
+
+      // Bail out if we don't have any relation to the parent or info of our own (otherwise we'd nuke the dependent table).
+      let keys = Object.keys(fact);
+      let filled = false;
+      for(let key of keys) {
+        if(fact[key] !== undefined) filled = true;
+      }
+      if(!filled) return this;
+
+      let removes = this.changeSet.ixer.find(viewId, fact);
+      this.changeSet.removeFacts(viewId, removes);
+
+      if(DEBUG.STRUCTURED_CHANGE) {
+        if(this.depth === 0) console.info("-", viewId, fact);
+        for(let remove of removes) console.info(new Array(this.depth + 2).join("  ") + "|", remove);
+      }
+      if(removes.length === 0) return this;
 
       this.depth++;
-      // User supplied dependents
-      if(dependents) {
-        for(let dependentId of dependents) {
-          if(schemaDependents.indexOf(dependentId) === -1) continue;
+      for(let dependentId of schema.dependents || []) {
+        if(dependents && dependents.indexOf(dependentId) === -1) continue; // If the user supplied a whitelist, apply it.
+        if(DEBUG.STRUCTURED_CHANGE) console.info(new Array(this.depth + 1).join("  ") + "-", dependentId);
+        for(let remove of removes) {
+          // Store pkey in context for removing dependents.
+          if(schema.key) this.context[schema.key] = this.context["$$LAST_PKEY"] = remove[schema.key];
           this.removeWithDependents(dependentId, {}, dependents);
-        }
-      } else {
-        for(let dependentId of schemaDependents) {
-          this.removeWithDependents(dependentId, {});
+          if(schema.key) this.context[schema.key] = this.context["$$LAST_PKEY"] = undefined;
         }
       }
       this.depth--;
+      if(this.depth === 0) this.changeSet.collapseRemoves();
       return this;
     }
   }
 
-
-  export function toDiffs(changeSet: Indexer.ChangeSet):Client.MapDiffs {
-    let diffs:Client.MapDiffs = [];
-    for(let tableId in changeSet.tables) {
-      let diff = changeSet.tables[tableId];
-      diffs.push([tableId, get.fields(tableId), pack(tableId, diff.adds), pack(tableId, diff.removes)]);
+  export function toDiffs(diffs:Indexer.Diffs<Dict>):Client.ArrayDiffs {
+    let arrayDiffs:Client.ArrayDiffs = [];
+    for(let tableId in diffs) {
+      let diff = diffs[tableId];
+      arrayDiffs.push([tableId, get.fields(tableId), pack(tableId, diff.adds), pack(tableId, diff.removes)]);
     }
-    return diffs;
+    return arrayDiffs;
   }
 }
