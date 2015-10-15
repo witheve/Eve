@@ -204,11 +204,11 @@ pub fn editor_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("view description", vec!["view", "description"]),
 
     // dynamic ui elements
-    ("uiElement", vec!["element", "tag", "parent"]),
+    ("uiElement", vec!["element", "tag", "parent", "ix"]),
     ("uiAttribute", vec!["element", "property", "value"]),
+    ("uiAttributeBinding", vec!["element", "property", "field"]),
     ("uiElementBinding", vec!["element", "view"]),
     ("uiScopedBinding", vec!["element", "field", "scoped field"]),
-    ("uiAttributeBinding", vec!["element", "property", "field"]),
 
     // Warnings from malformed or improperly bound UI elements
     ("uiWarning", vec!["element", "row", "warning"]),
