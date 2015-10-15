@@ -26,7 +26,9 @@ module wiki {
       eve.load(stored);
             eve.query("page links 3")
              .select("page", {}, "page")
-             .deselect("page eavs", {page: ["page", "page"]}, "!page")
+             .deselect("page eavs", {page: ["page", "page"]})
+             .sort([["page", "page"]])
+             .limit({results: 1})
              .project({page: ["page", "page"]})
             .debug();
     }

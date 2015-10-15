@@ -394,6 +394,7 @@ return index;`
     groups;
     sorts;
     aggregates;
+    unprojectedSize;
     constructor(ixer, name = "unknown") {
       this.name = name;
       this.ixer = ixer;
@@ -403,23 +404,22 @@ return index;`
       this.aliases = {};
       this.funcs = [];
       this.aggregates = [];
+      this.unprojectedSize = 0;
     }
     select(table, join, as?) {
       this.dirty = true;
       if(as) {
         this.aliases[as] = Object.keys(this.aliases).length;
       }
+      this.unprojectedSize++;
       this.tables.push(table);
       this.joins.push({negated: false, table, join, as, ix: this.aliases[as]});
       return this;
     }
-    deselect(table, join, as?) {
+    deselect(table, join) {
       this.dirty = true;
-      if(as) {
-        this.aliases[as] = Object.keys(this.aliases).length;
-      }
       this.tables.push(table);
-      this.joins.push({negated: true, table, join, as, ix: this.aliases[as]});
+      this.joins.push({negated: true, table, join, ix: this.joins.length * 1000});
       return this;
     }
     calculate(funcName, args, as?) {
@@ -427,6 +427,7 @@ return index;`
       if(as) {
         this.aliases[as] = Object.keys(this.aliases).length;
       }
+      this.unprojectedSize++;
       this.funcs.push({name: funcName, args, as, ix: this.aliases[as]});
       return this;
     }
@@ -444,7 +445,7 @@ return index;`
       this.sorts = sorts;
       return this;
     }
-    limit(limitInfo) {
+    limit(limitInfo:any) {
       this.dirty = true;
       this.limitInfo = limitInfo;
       return this;
@@ -499,11 +500,10 @@ return index;`
           cur.join = joinMap;
         }
         cursor.children.push(cur);
-        let resultType = "select";
-        if(negated) {
-          resultType = "empty";
+        if(!negated) {
+          results.push({type: "select", ix});
         }
-        results.push({type: resultType, ix});
+
         cursor = cur;
       }
       // at the bottom of the joins, we calculate all the functions based on the values
@@ -549,12 +549,12 @@ return index;`
           }
         }
       }
-      var size = this.joins.length + this.funcs.length;
+      var size = this.unprojectedSize;
       if(sorts.length) {
         root.children.push({type: "sort", sorts, size, children: []});
       }
       //then we need to run through the sorted items and do the aggregate as a fold.
-      if(this.aggregates.length) {
+      if(this.aggregates.length || sorts || this.limitInfo) {
         let aggregateChildren = [];
         for(let func of this.aggregates) {
           let {args, name, ix} = func;
@@ -665,11 +665,7 @@ return index;`
           var results = [];
           for(var result of root.results) {
             let ix = result.ix;
-            if(result.type !== "empty") {
-              results.push(`row${ix}`);
-            } else {
-              results.push('undefined');
-            }
+            results.push(`row${ix}`);
           }
           code += `unprojected.push(${results.join(", ")});\n`;
           break;
@@ -709,13 +705,28 @@ return index;`
             resultsCheck = `if(resultCount === ${root.limit.results}) break;`;
           }
           let groupLimitCheck = "";
-          if(root.limit && root.limit.perGroup) {
+          if(root.limit && root.limit.perGroup && root.groups) {
             groupLimitCheck = `if(perGroupCount === ${root.limit.results}) {
-              while(!differentGroup) {
+              while(nextIx < len && !differentGroup) {
                 nextIx += ${root.size};
                 differentGroup = ${groupCheck};
               }
             }`;
+          }
+          // if there are neither aggregates to calculate nor groups to build,
+          // then we just need to worry about limiting
+          if(!this.groups && aggregateCalls.length === 0) {
+            code = `var ix = 0;
+                    var resultCount = 0;
+                    var len = unprojected.length;
+                    while(ix < len) {
+                      // do folds
+                      ${resultsCheck}
+                      ${projection}
+                      resultCount++;
+                      ix += ${root.size};
+                    }\n`;
+            break;
           }
           code = `var resultCount = 0;
                   var perGroupCount = 0;
