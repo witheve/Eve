@@ -28,7 +28,9 @@ module wiki {
              .select("page", {}, "page")
              .calculate("page to graph", {text: ["page", "text"], page: ["page", "page"]}, "links")
              .sort([["page", "page"], ["page", "text"]])
-//              .project({page: ["page", "page"], link: ["links", "link"], type: ["links", "type"]})
+             .group([["page", "page"]])
+             .aggregate("count", {}, "count")
+             .project({page: ["page", "page"], total: ["count", "count"]})
             .debug();
     }
   }
@@ -43,6 +45,14 @@ module wiki {
 
   runtime.define("search string", {multi: true}, function(text) {
     return search(text);
+  });
+
+  runtime.define("count", {}, function(prev) {
+    if(!prev.count) {
+      prev.count = 0;
+    }
+    prev.count++;
+    return prev;
   });
 
   // view: view, kind[union|query]

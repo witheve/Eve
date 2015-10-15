@@ -402,6 +402,7 @@ return index;`
       this.joins = [];
       this.aliases = {};
       this.funcs = [];
+      this.aggregates = [];
     }
     select(table, join, as?) {
       this.dirty = true;
@@ -534,21 +535,21 @@ return index;`
           }
         }
       }
+      var size = this.joins.length + this.funcs.length;
       if(sorts.length) {
-        root.children.push({type: "sort", sorts, size: this.joins.length + this.funcs.length, children: []});
+        root.children.push({type: "sort", sorts, size, children: []});
       }
       //then we need to run through the sorted items and do the aggregate as a fold.
-      if(this.aggregates) {
+      if(this.aggregates.length) {
         let aggregateChildren = [];
-        for(let func this.aggregates) {
+        for(let func of this.aggregates) {
           let {args, name, ix} = func;
           let funcInfo = QueryFunctions[name];
           this.applyAliases(args);
           root.children.unshift({type: "functionDeclaration", ix, info: funcInfo});
-          aggregateChildren.push({type: "functionCall", ix, args, info: funcInfo, unprojected: true, children: []})
-          results.push({type: "function", ix});
+          aggregateChildren.push({type: "functionCall", ix, args, info: funcInfo, unprojected: true, children: []});
         }
-        let aggregate = {type: "aggregate loop", groups: this.groups, limit: this.limitInfo, children: aggregateChildren};
+        let aggregate = {type: "aggregate loop", groups: this.groups, limit: this.limitInfo, size, children: aggregateChildren};
         root.children.push(aggregate);
         cursor = aggregate;
       }
@@ -567,7 +568,9 @@ return index;`
     }
     compileParamString(funcInfo, args, unprojected = false) {
       let code = "";
-      for(let param of funcInfo.params) {
+      let params = funcInfo.params;
+      if(unprojected) params = params.slice(1);
+      for(let param of params) {
         let arg = args[param];
         let argCode;
         if(arg.constructor === Array) {
@@ -600,7 +603,12 @@ return index;`
           break;
         case "functionCall":
           var ix = root.ix;
-          code += `var row${ix} = func${ix}(${this.compileParamString(root.info, root.args, root.unprojected)});\n`;
+          var prev = "";
+          if(root.unprojected) {
+            prev = `row${ix}`;
+            if(root.info.params.length > 1) prev += ","
+          }
+          code += `var row${ix} = func${ix}(${prev}${this.compileParamString(root.info, root.args, root.unprojected)});\n`;
           break;
         case "functionCallMultiReturn":
           var ix = root.ix;
@@ -647,35 +655,73 @@ return index;`
           code += generateUnprojectedSorterCode(root.size, root.sorts)+"\n";
           break;
         case "aggregate loop":
-// var resultCount = 0;
-// var perGroupCount = 0;
-// var ix = 0;
-// var len = unprojected.length;
-// var prevAgg = {};
-// while(ix < len) {
-// 	// do folds
-// 	prevAgg = aggFunc(prevAgg, unprojected[ix + offset]["field"]);
-// 	ix += size;
-// 	perGroupCount++
-// 	//check group
-// 	var differentGroup = (unprojected[ix - size + offset]["field"] !== unprojected[ix + offset]["field"]);
-// 	// goes away if there's groupLimit
-// 	if(perGroupCount === groupLimit) {
-// 		while(!differentGroup) {
-// 			i += size;
-// 			differentGroup = (unprojected[ix - size + offset]["field"] !== unprojected[ix + offset]["field"]);
-// 		}
-// 	}
-// 	if(ix === len || differentGroup) {
-// 		// add to the final result;
-// 	}
-// 	if(differentGroup) {
-// 		perGroupCount = 0;
-// 		resultCount++;
-// 	}
-// 	// goes away if there's no resultLimit
-// 	if(resultCount === resultLimit) break;
-// }
+          let projection = "";
+          let aggregateCalls = [];
+          let aggregateStates = [];
+          let aggregateResets = [];
+          let unprojected = {};
+          for(let agg of root.children) {
+            if(agg.type === "functionCall") {
+              unprojected[agg.ix] = true;
+              let compiled = this.compileAST(agg);
+              aggregateCalls.push(compiled);
+              aggregateStates.push(`var row${agg.ix} = {};`);
+              aggregateResets.push(`row${agg.ix} = {};`);
+            } else if(agg.type === "projection") {
+              agg.unprojected = unprojected;
+              projection = this.compileAST(agg);
+            }
+          }
+          let differentGroupChecks = [];
+          let groupCheck = `false`;
+          if(root.groups) {
+            for(let group of root.groups) {
+              let [table, field] = group;
+              differentGroupChecks.push(`unprojected[nextIx + ${table}]['${field}'] !== unprojected[ix + ${table}]['${field}']`);
+            }
+            groupCheck = `(${differentGroupChecks.join(" || ")})`;
+          }
+
+          let resultsCheck = "";
+          if(root.limit && root.limit.results) {
+            resultsCheck = `if(resultCount === ${root.limit.results}) break;`;
+          }
+          let groupLimitCheck = "";
+          if(root.limit && root.limit.perGroup) {
+            groupLimitCheck = `if(perGroupCount === ${root.limit.results}) {
+              while(!differentGroup) {
+                nextIx += ${root.size};
+                differentGroup = ${groupCheck};
+              }
+            }`;
+          }
+          code = `var resultCount = 0;
+                  var perGroupCount = 0;
+                  var ix = 0;
+                  var nextIx = 0;
+                  var len = unprojected.length;
+                  ${aggregateStates.join("\n")}
+                  while(ix < len) {
+                    // do folds
+                    ${aggregateCalls.join("")}
+                    if(ix + ${root.size} === len) {
+                      ${projection}
+                      break;
+                    }
+                    nextIx += ${root.size};
+                    perGroupCount++
+                    //check group
+                    var differentGroup = ${groupCheck};
+                    ${groupLimitCheck}
+                    if(differentGroup) {
+                      ${projection}
+                      ${aggregateResets.join("\n")}
+                      perGroupCount = 0;
+                      resultCount++;
+                    }
+                    ${resultsCheck}
+                    ix = nextIx;
+                  }\n`;
           break;
         case "projection":
           var projectedVars = [];
@@ -683,7 +729,7 @@ return index;`
             let mapping = root.projectionMap[newField];
             let value = "";
             if(mapping.constructor === Array) {
-              if(!root.unprojected) {
+              if(!root.unprojected || root.unprojected[mapping[0]]) {
                 value = `row${mapping[0]}['${mapping[1]}']`;
               } else {
                 value = `unprojected[ix + ${mapping[0]}]['${mapping[1]}']`;
@@ -696,7 +742,11 @@ return index;`
           code += `results.push({ ${projectedVars.join(", ")} });\n`;
           break;
         case "return":
-          code += `return {${root.vars.join(", ")}};`;
+          var returns = [];
+          for(let curVar of root.vars) {
+            returns.push(`${curVar}: ${curVar}`);
+          }
+          code += `return {${returns.join(", ")}};`;
           break;
       }
       return code;
