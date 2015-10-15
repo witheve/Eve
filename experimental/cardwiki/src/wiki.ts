@@ -24,6 +24,13 @@ module wiki {
       eve.applyDiff(diff);
     } else {
       eve.load(stored);
+            eve.query("page links 3")
+             .select("page", {}, "page")
+             .deselect("page eavs", {page: ["page", "page"]})
+             .sort([["page", "page"]])
+             .limit({results: 1})
+             .project({page: ["page", "page"]})
+            .debug();
     }
   }
 
@@ -37,6 +44,14 @@ module wiki {
 
   runtime.define("search string", {multi: true}, function(text) {
     return search(text);
+  });
+
+  runtime.define("count", {}, function(prev) {
+    if(!prev.count) {
+      prev.count = 0;
+    }
+    prev.count++;
+    return prev;
   });
 
   // view: view, kind[union|query]
@@ -114,6 +129,7 @@ module wiki {
 //   .limit({results: 5,
 //           perGroup: 5})
 //   .aggregate("sum", {}, "sum");
+
 
   eve.asView(eve.query("page links")
              .select("page", {}, "page")

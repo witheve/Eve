@@ -52,6 +52,42 @@ module runtime {
     return new Function("a",  `return ${final};`);
   }
 
+  function generateUnprojectedSorterCode(unprojectedSize, sorts) {
+    let conditions = [];
+    let path = [];
+    let distance = unprojectedSize;
+    for(let sort of sorts) {
+      let condition = "";
+      for(let prev of path) {
+        let [table, key] = prev;
+        condition += `unprojected[j-${distance - table}]['${key}'] === item${table}['${key}'] && `;
+      }
+      let [table, key, dir] = sort;
+      let op = ">";
+      if(dir === "descending") {
+        op = "<";
+      }
+      condition += `unprojected[j-${distance - table}]['${key}'] ${op} item${table}['${key}']`;
+      conditions.push(condition);
+      path.push(sort);
+    }
+    let items = [];
+    let repositioned = [];
+    let itemAssignments = [];
+    for(let ix = 0; ix < distance; ix++) {
+      items.push(`item${ix} = unprojected[j+${ix}]`);
+      repositioned.push(`unprojected[j+${ix}] = unprojected[j - ${distance - ix}]`);
+      itemAssignments.push((`unprojected[j+${ix}] = item${ix}`));
+    }
+    return `for (var i = 0, len = unprojected.length; i < len; i += ${distance}) {
+        var j = i, ${items.join(", ")};
+        for(; j > ${distance - 1} && (${conditions.join(" || ")}); j -= ${distance}) {
+          ${repositioned.join(";\n")}
+        }
+        ${itemAssignments.join(";\n")}
+    }`;
+  }
+
   function generateCollector(keys) {
     let code = "";
     let ix = 0;
@@ -136,7 +172,7 @@ return index;`
       tableDiff.removes.push.apply(tableDiff.removes, found);
     }
   }
-  
+
   class Indexer {
     tables;
     constructor() {
@@ -149,7 +185,7 @@ return index;`
         table.stringify = generateStringFn(keys);
         table.equals = generateEqualityFn(keys);
       } else {
-        table = this.tables[name] = {table: [], factHash: {}, indexes: {}, triggers: {}, fields: keys, stringify: generateStringFn(keys), equals: generateEqualityFn(keys)};  
+        table = this.tables[name] = {table: [], factHash: {}, indexes: {}, triggers: {}, fields: keys, stringify: generateStringFn(keys), equals: generateEqualityFn(keys)};
       }
       return table;
     }
@@ -352,14 +388,13 @@ return index;`
     ixer;
     aliases;
     funcs;
-    funcArgs;
     name;
     projectionMap;
     limitInfo;
     groups;
     sorts;
     aggregates;
-    aggregateArgs;
+    unprojectedSize;
     constructor(ixer, name = "unknown") {
       this.name = name;
       this.ixer = ixer;
@@ -368,25 +403,32 @@ return index;`
       this.joins = [];
       this.aliases = {};
       this.funcs = [];
-      this.funcArgs = [];
+      this.aggregates = [];
+      this.unprojectedSize = 0;
     }
     select(table, join, as?) {
       this.dirty = true;
       if(as) {
-        this.aliases[as] = this.tables.length;
+        this.aliases[as] = Object.keys(this.aliases).length;
       }
+      this.unprojectedSize++;
       this.tables.push(table);
-      this.joins.push(join);
+      this.joins.push({negated: false, table, join, as, ix: this.aliases[as]});
+      return this;
+    }
+    deselect(table, join) {
+      this.dirty = true;
+      this.tables.push(table);
+      this.joins.push({negated: true, table, join, ix: this.joins.length * 1000});
       return this;
     }
     calculate(funcName, args, as?) {
       this.dirty = true;
       if(as) {
-        this.aliases[as] = `result${this.funcs.length}`;
-        this.aliases[`result${this.funcs.length}`] = `result${this.funcs.length}`;
+        this.aliases[as] = Object.keys(this.aliases).length;
       }
-      this.funcs.push(funcName);
-      this.funcArgs.push(args);
+      this.unprojectedSize++;
+      this.funcs.push({name: funcName, args, as, ix: this.aliases[as]});
       return this;
     }
     project(projectionMap) {
@@ -396,111 +438,160 @@ return index;`
     group(groups) {
       this.dirty = true;
       this.groups = groups;
+      return this;
     }
     sort(sorts) {
       this.dirty = true;
       this.sorts = sorts;
+      return this;
     }
-    limit(limitInfo) {
+    limit(limitInfo:any) {
       this.dirty = true;
       this.limitInfo = limitInfo;
+      return this;
     }
     aggregate(funcName, args, as?) {
       this.dirty = true;
       if(as) {
-        this.aliases[as] = `aggregate${this.aggregates.length}`;
-        this.aliases[`aggregate${this.aggregates.length}`] = `aggregate${this.aggregates.length}`;
+        this.aliases[as] = Object.keys(this.aliases).length;
       }
-      this.aggregates.push(funcName);
-      this.aggregateArgs.push(args);
+      this.aggregates.push({name: funcName, args, as, ix: this.aliases[as]});
       return this;
     }
-    applyAliases(joins) {
-      if(!joins) return;
-      for(let joinMap of joins) {
-        for(let field in joinMap) {
-          let joinInfo = joinMap[field];
-          if(joinInfo.constructor !== Array) continue;
-          let joinTable = joinInfo[0];
-          if(this.aliases[joinTable] !== undefined) {
-            joinInfo[0] = this.aliases[joinTable];
-          } else if(this.tables[joinTable] === undefined) {
-            throw new Error("Invalid alias used: " + joinTable);
-          }
+    applyAliases(joinMap) {
+      for(let field in joinMap) {
+        let joinInfo = joinMap[field];
+        if(joinInfo.constructor !== Array || typeof joinInfo[0] === "number") continue;
+        let joinTable = joinInfo[0];
+        if(this.aliases[joinTable] !== undefined) {
+          joinInfo[0] = this.aliases[joinTable];
+        } else {
+          throw new Error("Invalid alias used: " + joinTable);
         }
       }
-      return joins;
     }
     toAST() {
-      this.applyAliases(this.joins);
-      this.applyAliases(this.funcArgs);
-      this.applyAliases(this.aggregateArgs);
-      this.applyAliases(this.sorts);
-      this.applyAliases(this.groups);
       let cursor = {type: "query",
                     children: []};
       let root = cursor;
       let results = [];
-      let tableIx = 0;
-      for(let table of this.tables) {
+
+      // we need an array to store our unprojected results
+      root.children.push({type: "declaration", var: "unprojected", value: "[]"});
+
+      // run through each table nested in the order they were given doing pairwise
+      // joins along the way.
+      for(let join of this.joins) {
+        let {table, ix, negated} = join;
         let cur = {
           type: "select",
           table,
-          ix: tableIx,
+          ix,
+          negated,
           children: [],
           join: false,
         };
         // we only want to eat the cost of dealing with indexes
         // if we are actually joining on something
-        let join = this.joins[tableIx];
-        if(Object.keys(join).length !== 0) {
-          root.children.unshift({type: "declaration", var: `query${tableIx}`, value: "{}"});
-          cur.join = join;
+        let joinMap = join.join;
+        this.applyAliases(joinMap);
+        if(Object.keys(joinMap).length !== 0) {
+          root.children.unshift({type: "declaration", var: `query${ix}`, value: "{}"});
+          cur.join = joinMap;
         }
         cursor.children.push(cur);
-        results.push({type: "select", ix: tableIx});
+        if(!negated) {
+          results.push({type: "select", ix});
+        }
+
         cursor = cur;
-        tableIx++;
       }
-      let funcIx = 0;
+      // at the bottom of the joins, we calculate all the functions based on the values
+      // collected
       for(let func of this.funcs) {
-        let args = this.funcArgs[funcIx];
-        let funcInfo = QueryFunctions[func];
-        root.children.unshift({type: "functionDeclaration", ix: funcIx, info: funcInfo});
+        let {args, name, ix} = func;
+        let funcInfo = QueryFunctions[name];
+        this.applyAliases(args);
+        root.children.unshift({type: "functionDeclaration", ix, info: funcInfo});
         if(funcInfo.multi || funcInfo.filter) {
-          let node = {type: "functionCallMultiReturn", ix: funcIx, args, info: funcInfo, children: []};
+          let node = {type: "functionCallMultiReturn", ix, args, info: funcInfo, children: []};
           cursor.children.push(node);
           cursor = node;
         } else {
-          cursor.children.push({type: "functionCall", ix: funcIx, args, info: funcInfo, children: []});
+          cursor.children.push({type: "functionCall", ix, args, info: funcInfo, children: []});
         }
         if(!funcInfo.noReturn && !funcInfo.filter) {
-          results.push({type: "function", ix: funcIx});
+          results.push({type: "function", ix});
         }
-        funcIx++;
       }
+
+      // now that we're at the bottom of the join, store the unprojected result
+      cursor.children.push({type: "result", results});
+
+      //Aggregation
+      //sort the unprojected results based on groupings and the given sorts
+      let sorts = [];
+      let alreadySorted = {};
+      if(this.groups) {
+        this.applyAliases(this.groups);
+        for(let group of this.groups) {
+          let [table, field] = group;
+          sorts.push(group);
+          alreadySorted[`${table}|${field}`] = true;
+        }
+      }
+      if(this.sorts) {
+        this.applyAliases(this.sorts);
+        for(let sort of this.sorts) {
+          let [table, field] = sort;
+          if(!alreadySorted[`${table}|${field}`]) {
+            sorts.push(sort);
+          }
+        }
+      }
+      var size = this.unprojectedSize;
+      if(sorts.length) {
+        root.children.push({type: "sort", sorts, size, children: []});
+      }
+      //then we need to run through the sorted items and do the aggregate as a fold.
+      if(this.aggregates.length || sorts || this.limitInfo) {
+        let aggregateChildren = [];
+        for(let func of this.aggregates) {
+          let {args, name, ix} = func;
+          let funcInfo = QueryFunctions[name];
+          this.applyAliases(args);
+          root.children.unshift({type: "functionDeclaration", ix, info: funcInfo});
+          aggregateChildren.push({type: "functionCall", ix, args, info: funcInfo, unprojected: true, children: []});
+        }
+        let aggregate = {type: "aggregate loop", groups: this.groups, limit: this.limitInfo, size, children: aggregateChildren};
+        root.children.push(aggregate);
+        cursor = aggregate;
+      }
+
+      // do any projections
       let returns = ["unprojected"];
       if(this.projectionMap) {
-        this.applyAliases([this.projectionMap]);
+        this.applyAliases(this.projectionMap);
         root.children.unshift({type: "declaration", var: "results", value: "[]"});
-        cursor.children.push({type: "projection", projectionMap: this.projectionMap});
+        cursor.children.push({type: "projection", projectionMap: this.projectionMap, unprojected: this.aggregates.length});
         returns.push("results");
       }
-      cursor.children.push({type: "result", results});
-      root.children.unshift({type: "declaration", var: "unprojected", value: "[]"});
+
       root.children.push({type: "return", vars: returns});
       return root;
     }
-    compileParamString(funcInfo, args) {
+    compileParamString(funcInfo, args, unprojected = false) {
       let code = "";
-      for(let param of funcInfo.params) {
+      let params = funcInfo.params;
+      if(unprojected) params = params.slice(1);
+      for(let param of params) {
         let arg = args[param];
         let argCode;
         if(arg.constructor === Array) {
-          if(this.tables[arg[0]] === undefined) {
-            argCode = `${arg[0]}['${arg[1]}']`;
-          } else {
+          if(!unprojected) {
             argCode = `row${arg[0]}['${arg[1]}']`;
+          } else {
+            argCode = `unprojected[ix + ${arg[0]}]['${arg[1]}']`;
           }
         } else {
           argCode = arg;
@@ -526,13 +617,18 @@ return index;`
           break;
         case "functionCall":
           var ix = root.ix;
-          code += `var result${ix} = func${ix}(${this.compileParamString(root.info, root.args)});\n`;
+          var prev = "";
+          if(root.unprojected) {
+            prev = `row${ix}`;
+            if(root.info.params.length > 1) prev += ","
+          }
+          code += `var row${ix} = func${ix}(${prev}${this.compileParamString(root.info, root.args, root.unprojected)});\n`;
           break;
         case "functionCallMultiReturn":
           var ix = root.ix;
-          code += `var results${ix} = func${ix}(${this.compileParamString(root.info, root.args)});\n`;
-          code += `for(var funcResultIx${ix} = 0, funcLen${ix} = results${ix}.length; funcResultIx${ix} < funcLen${ix}; funcResultIx${ix}++) {\n`
-          code += `var result${ix} = results${ix}[funcResultIx${ix}];\n`;
+          code += `var rows${ix} = func${ix}(${this.compileParamString(root.info, root.args)});\n`;
+          code += `for(var funcResultIx${ix} = 0, funcLen${ix} = rows${ix}.length; funcResultIx${ix} < funcLen${ix}; funcResultIx${ix}++) {\n`
+          code += `var row${ix} = rows${ix}[funcResultIx${ix}];\n`;
           for(var child of root.children) {
             code += this.compileAST(child);
           }
@@ -554,8 +650,12 @@ return index;`
           } else {
             code += `var rows${ix} = ixer.table('${root.table}').table;\n`;
           }
-          code += `for(var rowIx${ix} = 0, rowsLen${ix} = rows${ix}.length; rowIx${ix} < rowsLen${ix}; rowIx${ix}++) {\n`
-          code += `var row${ix} = rows${ix}[rowIx${ix}];\n`;
+          if(!root.negated) {
+            code += `for(var rowIx${ix} = 0, rowsLen${ix} = rows${ix}.length; rowIx${ix} < rowsLen${ix}; rowIx${ix}++) {\n`
+            code += `var row${ix} = rows${ix}[rowIx${ix}];\n`;
+          } else {
+            code += `if(!rows${ix}.length) {\n`
+          }
           for(var child of root.children) {
             code += this.compileAST(child);
           }
@@ -565,13 +665,93 @@ return index;`
           var results = [];
           for(var result of root.results) {
             let ix = result.ix;
-            if(result.type === "select") {
-              results.push(`row${ix}`);
-            } else if(result.type === "function") {
-              results.push(`result${ix}`);
+            results.push(`row${ix}`);
+          }
+          code += `unprojected.push(${results.join(", ")});\n`;
+          break;
+        case "sort":
+          code += generateUnprojectedSorterCode(root.size, root.sorts)+"\n";
+          break;
+        case "aggregate loop":
+          let projection = "";
+          let aggregateCalls = [];
+          let aggregateStates = [];
+          let aggregateResets = [];
+          let unprojected = {};
+          for(let agg of root.children) {
+            if(agg.type === "functionCall") {
+              unprojected[agg.ix] = true;
+              let compiled = this.compileAST(agg);
+              aggregateCalls.push(compiled);
+              aggregateStates.push(`var row${agg.ix} = {};`);
+              aggregateResets.push(`row${agg.ix} = {};`);
+            } else if(agg.type === "projection") {
+              agg.unprojected = unprojected;
+              projection = this.compileAST(agg);
             }
           }
-          code += `unprojected.push(${results.join(", ")})`;
+          let differentGroupChecks = [];
+          let groupCheck = `false`;
+          if(root.groups) {
+            for(let group of root.groups) {
+              let [table, field] = group;
+              differentGroupChecks.push(`unprojected[nextIx + ${table}]['${field}'] !== unprojected[ix + ${table}]['${field}']`);
+            }
+            groupCheck = `(${differentGroupChecks.join(" || ")})`;
+          }
+
+          let resultsCheck = "";
+          if(root.limit && root.limit.results) {
+            resultsCheck = `if(resultCount === ${root.limit.results}) break;`;
+          }
+          let groupLimitCheck = "";
+          if(root.limit && root.limit.perGroup && root.groups) {
+            groupLimitCheck = `if(perGroupCount === ${root.limit.results}) {
+              while(nextIx < len && !differentGroup) {
+                nextIx += ${root.size};
+                differentGroup = ${groupCheck};
+              }
+            }`;
+          }
+          // if there are neither aggregates to calculate nor groups to build,
+          // then we just need to worry about limiting
+          if(!this.groups && aggregateCalls.length === 0) {
+            code = `var ix = 0;
+                    var resultCount = 0;
+                    var len = unprojected.length;
+                    while(ix < len) {
+                      ${resultsCheck}
+                      ${projection}
+                      resultCount++;
+                      ix += ${root.size};
+                    }\n`;
+            break;
+          }
+          code = `var resultCount = 0;
+                  var perGroupCount = 0;
+                  var ix = 0;
+                  var nextIx = 0;
+                  var len = unprojected.length;
+                  ${aggregateStates.join("\n")}
+                  while(ix < len) {
+                    ${aggregateCalls.join("")}
+                    if(ix + ${root.size} === len) {
+                      ${projection}
+                      break;
+                    }
+                    nextIx += ${root.size};
+                    perGroupCount++
+                    var differentGroup = ${groupCheck};
+                    ${groupLimitCheck}
+                    if(differentGroup) {
+                      ${projection}
+                      ${aggregateResets.join("\n")}
+                      perGroupCount = 0;
+                      resultCount++;
+                    }
+                    ${resultsCheck}
+                    ix = nextIx;
+                  }\n`;
           break;
         case "projection":
           var projectedVars = [];
@@ -579,13 +759,10 @@ return index;`
             let mapping = root.projectionMap[newField];
             let value = "";
             if(mapping.constructor === Array) {
-              if(typeof mapping[0] === "string") {
-                value = `${mapping[0]}`;
-                if(mapping[1] !== undefined) {
-                  value += `['${mapping[1]}']`;
-                }
-              } else {
+              if(!root.unprojected || root.unprojected[mapping[0]]) {
                 value = `row${mapping[0]}['${mapping[1]}']`;
+              } else {
+                value = `unprojected[ix + ${mapping[0]}]['${mapping[1]}']`;
               }
             } else {
               value = JSON.stringify(mapping);
@@ -595,7 +772,11 @@ return index;`
           code += `results.push({ ${projectedVars.join(", ")} });\n`;
           break;
         case "return":
-          code += `return {${root.vars.join(", ")}};`;
+          var returns = [];
+          for(let curVar of root.vars) {
+            returns.push(`${curVar}: ${curVar}`);
+          }
+          code += `return {${returns.join(", ")}};`;
           break;
       }
       return code;
@@ -621,7 +802,7 @@ return index;`
       return results;
     }
   }
-  
+
   class Union {
     name;
     tables;
@@ -667,10 +848,10 @@ return index;`
     toAST() {
       let root = {type: "union", children: []};
       root.children.push({type: "declaration", var: "results", value: "[]"});
-      
+
       let hashesValue = "{}";
       if(this.isStateful) {
-         hashesValue = "prevHashes";  
+         hashesValue = "prevHashes";
       }
       root.children.push({type: "declaration", var: "hashes", value: hashesValue});
 
@@ -684,8 +865,8 @@ return index;`
         }
         root.children.push({
           type: "source",
-          ix, 
-          table: source.table, 
+          ix,
+          table: source.table,
           mapping: source.mapping,
           children: [action],
         });
@@ -733,7 +914,7 @@ return index;`
         case "result":
           var ix = root.ix;
           code += `hashes[hasher(mappedRow${ix})] = mappedRow${ix};\n`;
-          break;  
+          break;
         case "removeResult":
           var ix = root.ix;
           code += `hashes[hasher(mappedRow${ix})] = false;\n`;
@@ -769,21 +950,21 @@ return index;`
         this.compile();
       }
       let results = this.compiled(this.ixer, this.hasher, this.prev.hashes);
-      this.prev = results; 
+      this.prev = results;
       return results;
     }
-    
+
   }
-  
+
   //---------------------------------------------------------
   // Public API
   //---------------------------------------------------------
 
   export const SUCCEED = [{success: true}];
   export const FAIL = [];
-  
+
   export function indexer() {
 	 return new Indexer();
   }
-  
+
 }
