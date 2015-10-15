@@ -720,7 +720,6 @@ return index;`
                     var resultCount = 0;
                     var len = unprojected.length;
                     while(ix < len) {
-                      // do folds
                       ${resultsCheck}
                       ${projection}
                       resultCount++;
@@ -735,7 +734,6 @@ return index;`
                   var len = unprojected.length;
                   ${aggregateStates.join("\n")}
                   while(ix < len) {
-                    // do folds
                     ${aggregateCalls.join("")}
                     if(ix + ${root.size} === len) {
                       ${projection}
@@ -743,7 +741,6 @@ return index;`
                     }
                     nextIx += ${root.size};
                     perGroupCount++
-                    //check group
                     var differentGroup = ${groupCheck};
                     ${groupLimitCheck}
                     if(differentGroup) {
