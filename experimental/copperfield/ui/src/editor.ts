@@ -164,7 +164,6 @@ module Editor {
 
       if(ui.id) {
         let prev = Parsers.ui.fromElement(ui.id);
-        console.log("clearing cruft", prev.boundQueries);
         for(let viewId in prev.boundQueries) {
           effect.change.removeWithDependents("view", viewId).clearContext();
         }
@@ -182,7 +181,7 @@ module Editor {
       if(ui.name) reified.root.name = ui.name;
 
       for(let elem of [reified.root].concat(reified.elements)) {
-        effect.change.add("uiElement", {"uiElement: element": elem.element, "uiElement: tag": elem.tag, "uiElement: parent": elem.parent || ""});
+        effect.change.add("uiElement", Api.resolve("uiElement", {"element": elem.element, "tag": elem.tag, "parent": elem.parent || "", ix: elem.ix}));
         if(elem.name) effect.change.add("display name", elem.name);
         if(elem.boundView) effect.change.add("uiElementBinding", {"uiElementBinding: view": elem.boundView});
         for(let prop in elem.attributes)

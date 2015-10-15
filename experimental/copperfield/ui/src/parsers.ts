@@ -44,6 +44,7 @@ module Parsers {
   interface ElementIR {
     element: string
     tag: string
+    ix: number
     name?: string
     parent?: string
     attributes: Api.Dict
@@ -704,9 +705,10 @@ module Parsers {
 
     reify(ast:UiAST, prev?:UiIR): UiIR {
       let rootId = prev ? prev.root.element : Api.uuid();
-      let root:ElementIR = {element: rootId, tag: "div", attributes: {}, boundAttributes: {}};
+      let root:ElementIR = {element: rootId, tag: "div", ix: 0, attributes: {}, boundAttributes: {}};
       let reified:UiIR = {elements: [], root, boundQueries: {}};
       let indent = {[root.element]: -1};
+      let childCount = {[root.element]: 0};
       let ancestors = [root];
 
       for(let line of ast.chunks) {
@@ -722,8 +724,10 @@ module Parsers {
         if(tokenIsElement(line)) {
           let prevElem = prev && prev.elements[reified.elements.length]; // This is usually not going to match up.
           let elemId = prevElem ? prevElem.element : Api.uuid();
-          let elem:ElementIR = {element: elemId, tag: line.tag, parent: parentElem.element, attributes: {}, boundAttributes: {}};
+          let ix = childCount[parentElem.element]++;
+          let elem:ElementIR = {element: elemId, tag: line.tag, parent: parentElem.element, ix, attributes: {}, boundAttributes: {}};
           indent[elem.element] = line.indent;
+          childCount[elem.element] = 0;
           ancestors.push(elem);
 
           if(line.classes) elem.attributes["c"] = line.classes;
