@@ -413,6 +413,15 @@ return index;`
       this.joins.push({negated: false, table, join, as, ix: this.aliases[as]});
       return this;
     }
+    deselect(table, join, as?) {
+      this.dirty = true;
+      if(as) {
+        this.aliases[as] = Object.keys(this.aliases).length;
+      }
+      this.tables.push(table);
+      this.joins.push({negated: true, table, join, as, ix: this.aliases[as]});
+      return this;
+    }
     calculate(funcName, args, as?) {
       this.dirty = true;
       if(as) {
@@ -472,11 +481,12 @@ return index;`
       // run through each table nested in the order they were given doing pairwise
       // joins along the way.
       for(let join of this.joins) {
-        let {table, ix} = join;
+        let {table, ix, negated} = join;
         let cur = {
           type: "select",
           table,
           ix,
+          negated,
           children: [],
           join: false,
         };
@@ -489,7 +499,11 @@ return index;`
           cur.join = joinMap;
         }
         cursor.children.push(cur);
-        results.push({type: "select", ix});
+        let resultType = "select";
+        if(negated) {
+          resultType = "empty";
+        }
+        results.push({type: resultType, ix});
         cursor = cur;
       }
       // at the bottom of the joins, we calculate all the functions based on the values
@@ -636,8 +650,12 @@ return index;`
           } else {
             code += `var rows${ix} = ixer.table('${root.table}').table;\n`;
           }
-          code += `for(var rowIx${ix} = 0, rowsLen${ix} = rows${ix}.length; rowIx${ix} < rowsLen${ix}; rowIx${ix}++) {\n`
-          code += `var row${ix} = rows${ix}[rowIx${ix}];\n`;
+          if(!root.negated) {
+            code += `for(var rowIx${ix} = 0, rowsLen${ix} = rows${ix}.length; rowIx${ix} < rowsLen${ix}; rowIx${ix}++) {\n`
+            code += `var row${ix} = rows${ix}[rowIx${ix}];\n`;
+          } else {
+            code += `if(!rows${ix}.length) {\n`
+          }
           for(var child of root.children) {
             code += this.compileAST(child);
           }
@@ -647,7 +665,11 @@ return index;`
           var results = [];
           for(var result of root.results) {
             let ix = result.ix;
-            results.push(`row${ix}`);
+            if(result.type !== "empty") {
+              results.push(`row${ix}`);
+            } else {
+              results.push('undefined');
+            }
           }
           code += `unprojected.push(${results.join(", ")});\n`;
           break;

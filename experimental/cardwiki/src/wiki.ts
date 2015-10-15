@@ -26,11 +26,8 @@ module wiki {
       eve.load(stored);
             eve.query("page links 3")
              .select("page", {}, "page")
-             .calculate("page to graph", {text: ["page", "text"], page: ["page", "page"]}, "links")
-             .sort([["page", "page"], ["page", "text"]])
-             .group([["page", "page"]])
-             .aggregate("count", {}, "count")
-             .project({page: ["page", "page"], total: ["count", "count"]})
+             .deselect("page eavs", {page: ["page", "page"]}, "!page")
+             .project({page: ["page", "page"]})
             .debug();
     }
   }
