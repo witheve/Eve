@@ -210,6 +210,9 @@ pub fn editor_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("uiElementBinding", vec!["element", "view"]),
     ("uiScopedBinding", vec!["element", "field", "scoped field"]),
 
+    // Lossless ast storage
+    ("ast cache", vec!["id", "kind", "ast"]),
+
     // Warnings from malformed or improperly bound UI elements
     ("uiWarning", vec!["element", "row", "warning"]),
 

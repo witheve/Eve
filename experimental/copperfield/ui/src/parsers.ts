@@ -154,10 +154,12 @@ module Parsers {
     if(!token) return;
     let padding = token.indent ? new Array(token.indent + 1).join(" ") : "";
     if(tokenIsLine(token)) {
-      let res = "";
+      let res = padding;
+      let prev;
       for(let chunk of token.chunks) {
+        if(prev && chunk.lineIx !== prev.lineIx) res += "\n";
         res += tokenToString(chunk);
-        if(chunk.lineIx !== undefined) res += "\n";
+        prev = chunk;
       }
       return res;
     } else if(tokenIsField(token)) {
@@ -316,13 +318,15 @@ module Parsers {
       ParseError.lines = lines;
       ParseError.tokenToChar = query.tokenToChar;
 
-      let lineIx = 0;
       for(let line of lines) {
-        ParseError.lineIx = lineIx;
+        ParseError.lineIx = ast.chunks.length;
         let tokens = query.tokenize(line);
-        if(tokens.length === 0) continue;
+        if(tokens.length === 0) {
+          ast.chunks[ast.chunks.length] = <TextAST>{type: "text", text: "", lineIx: ast.chunks.length};
+          continue;
+        }
         let tokensLength = tokens.length;
-        let parsedLine = query.parseLine(tokens, lineIx++);
+        let parsedLine = query.parseLine(tokens, ast.chunks.length);
 
         // Detect line type.
         let head = parsedLine.chunks[0];
@@ -374,7 +378,6 @@ module Parsers {
 
         ast.chunks.push(parsedLine);
       }
-
       return ast;
     },
 
