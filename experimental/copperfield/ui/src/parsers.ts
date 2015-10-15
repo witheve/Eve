@@ -735,20 +735,10 @@ module Parsers {
           let queryAST = query.parse(line.text);
           let queryIR = query.reify(queryAST);
 
-          // @TODO: Update uiRenderer to utilize uiScopedBinding instead of key system
           // @TODO: Use prev.queries for mapping queryIRs
-          // ... Profit!
 
           reified.boundQueries[queryIR.id] = queryIR;
           parentElem.boundView = queryIR.id;
-
-          let debugText = [queryIR.id, ": {"];
-          for(let alias in queryIR.aliases) {
-            let variable = queryIR.variables[queryIR.aliases[alias]];
-            debugText.push(alias + ": " + variable.selected);
-          }
-          debugText.push("}");
-          console.log(debugText.join(" "));
 
           let joinedFields = {};
           let scopeJoined = false;
@@ -759,7 +749,6 @@ module Parsers {
             if(!selected) throw ParseError(`Cannot join nested views on unselected alias '${alias}'`);
             joinedFields[selected] = scopedField;
             scopeJoined = true;
-            console.log("?" + alias + " joined to ", scopedField);
           }
           if(scopeJoined) parentElem.bindings = joinedFields;
 
@@ -802,19 +791,26 @@ module Parsers {
         let boundAttrs = Api.ixer.find("uiAttributeBinding", {"uiAttributeBinding: element": elemId});
         for(let {"uiAttributeBinding: property": prop, "uiAttributeBinding: field": field} of boundAttrs) elem.boundAttributes[prop] = field;
 
+        let bindings = Api.ixer.find("uiScopedBinding", {"uiScopedBinding: element": elemId});
+        if(bindings.length) {
+          elem.bindings = {};
+          for(let {"uiScopedBinding: field": field, "uiScopedBinding: scoped field": scopedField} of bindings) elem.bindings[field] = scopedField;
+        }
+
         let children = Api.ixer.find("uiElement", {"uiElement: parent": elemId});
         for(let elem of Api.humanize("uiElement", children)) elems.push(elem);
 
         if(elem !== root) reified.elements.push(elem);
       }
 
-      while(queries.length) throw ParseError("@TODO: Handle bound elements");
+      for(let queryId of queries) reified.boundQueries[queryId] = query.fromView(queryId);
 
       return reified;
     },
 
     unreify(reified:UiIR): UiAST {
       let ast:QueryAST = {type: "ui", chunks: []};
+      let aliases:{[field:string]: string} = {};
 
       // Naive dependency resolution.
       let childMap:{[key:string]: string[]} = {[reified.root.element]: []};
@@ -840,7 +836,20 @@ module Parsers {
           elemAST = undefined;
         }
 
-        if(elem.boundView) throw ParseError("@TODO: Support bound elements");
+        if(elem.boundView) {
+          let queryAST = query.unreify(reified.boundQueries[elem.boundView]);
+          let queryString = query.unparse(queryAST).trim();
+          let line:BindingAST = {type: "binding", text: queryString, indent: indent + 2, lineIx: ast.chunks.length};
+          ast.chunks[ast.chunks.length] = line;
+
+          if(elem.bindings) {
+            for(let fieldId in elem.bindings) {
+              let scopeId = elem.bindings[fieldId];
+              aliases[fieldId] = aliases[scopeId];
+            }
+          }
+        }
+
         for(let property in elem.attributes) {
           if(property === "c" && elemAST) {
             elemAST.classes = elem.attributes[property];
@@ -851,8 +860,28 @@ module Parsers {
           ast.chunks[ast.chunks.length] = line;
         }
         for(let property in elem.boundAttributes) {
-          throw new Error("Value must be fieldAST by alias");
-          let value = elem.boundAttributes[property];
+          let fieldId = elem.boundAttributes[property];
+          let alias = aliases[fieldId];
+          if(!alias) {
+            let base = Api.get.name(fieldId);
+            if(!base) throw new Error(fieldId);
+            let ix = 0;
+
+            do {
+              var dup = false;
+              alias = base + (ix ? `-${ix}` : "");
+              for(let curFieldId in aliases) {
+                if(aliases[curFieldId] === alias) {
+                  dup = true;
+                  break;
+                }
+              }
+              ix++;
+            } while(dup);
+            aliases[fieldId] = alias;
+          }
+
+          let value:FieldAST = {type: "field", alias};
           let line:AttributeAST = {type: "attribute", property, value, static: false, indent: indent + 2, lineIx: ast.chunks.length};
           ast.chunks[ast.chunks.length] = line;
         }

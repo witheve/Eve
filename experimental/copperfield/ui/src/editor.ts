@@ -98,6 +98,7 @@ module Editor {
     compileQuery: function({query}:{query:Query}) {
       let effect = DispatchEffect.from(this);
       let reified = query.reified;
+      if(!reified) throw new Error("Cannot compile unreified query.");
       if(query.id) effect.change.removeWithDependents("view", {"view: view": query.id});
       effect.change.add("view", {"view: view": query.id, "view: kind": "join"})
         .add("display name", query.name || "Untitled Search");
@@ -159,6 +160,18 @@ module Editor {
     compileUi: function({ui}:{ui:Ui}) {
       let effect = DispatchEffect.from(this);
       let reified = ui.reified;
+      if(!reified) throw new Error("Cannot compile unreified ui.");
+
+      if(ui.id) {
+        let prev = Parsers.ui.fromElement(ui.id);
+        console.log("clearing cruft", prev.boundQueries);
+        for(let viewId in prev.boundQueries) {
+          effect.change.removeWithDependents("view", viewId).clearContext();
+        }
+        for(let elem of [prev.root].concat(prev.elements)) {
+          effect.change.removeWithDependents("uiElement", elem.element).clearContext();
+        }
+      }
 
       let ix = 0;
       for(let queryId in reified.boundQueries) {
@@ -166,7 +179,6 @@ module Editor {
         effect.dispatch("compileQuery", {query}).change.clearContext();
       }
 
-      if(ui.id) effect.change.removeWithDependents("uiElement", ui.id);
       if(ui.name) reified.root.name = ui.name;
 
       for(let elem of [reified.root].concat(reified.elements)) {
@@ -181,7 +193,7 @@ module Editor {
           effect.change.add("uiScopedBinding", {"uiScopedBinding: field": field, "uiScopedBinding: scoped field": elem.bindings[field]});
       }
 
-      localState.ui.id = reified.root.element;
+      ui.id = reified.root.element;
       return effect;
     }
   };
