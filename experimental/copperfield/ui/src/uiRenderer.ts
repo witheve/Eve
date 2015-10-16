@@ -115,8 +115,9 @@ module UiRenderer {
 
         let fact = Api.ixer.findOne("uiElement", {"uiElement: element": root});
         let elem:Element = {id: <string>root, __template: <string>root};
-        if(fact && fact["uiElement: parent"]) {
-          elem.parent = fact["uiElement: parent"];
+        if(fact) {
+          if(fact["uiElement: parent"]) elem.parent = fact["uiElement: parent"];
+          if(fact["uiElement: ix"] !== "") elem.ix = fact["uiElement: ix"];
         }
         compiledElements.push(elem);
         stack.push(elem);
@@ -194,7 +195,8 @@ module UiRenderer {
               let childTemplateId = child["uiElement: element"];
               let childId = `${elem.id}__${childTemplateId}`;
               boundAncestors[childId] = boundAncestor;
-              let childElem = {id: childId, __template: childTemplateId};
+              let childElem:Element = {id: childId, __template: childTemplateId};
+              if(child["uiElement: ix"] !== "") childElem.ix = child["uiElement: ix"];
               elem.children.push(childElem);
               stack.push(childElem);
             }

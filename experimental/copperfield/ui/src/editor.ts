@@ -70,8 +70,9 @@ module Editor {
 
       if(viewId) {
         localState.query.reified = Parsers.query.fromView(viewId);
-        // @FIXME: Check Query AST table. If it exists and reifying it matches reified in structure use that instead.
-        localState.query.ast = Parsers.query.unreify(localState.query.reified);
+        let ast = Api.ixer.findOne("ast cache", {"ast cache: id": viewId, "ast cache: kind": "query"});
+        if(ast) localState.query.ast = JSON.parse(ast["ast cache: ast"]);
+        else localState.query.ast = Parsers.query.unreify(localState.query.reified);
       }
       return effect;
     },
@@ -99,7 +100,10 @@ module Editor {
       let effect = DispatchEffect.from(this);
       let reified = query.reified;
       if(!reified) throw new Error("Cannot compile unreified query.");
-      if(query.id) effect.change.removeWithDependents("view", {"view: view": query.id});
+      if(query.id) {
+        effect.change.removeWithDependents("view", {"view: view": query.id})
+          .removeWithDependents("ast cache", {"ast cache: id": query.id});
+      }
       effect.change.add("view", {"view: view": query.id, "view: kind": "join"})
         .add("display name", query.name || "Untitled Search");
 
@@ -124,6 +128,8 @@ module Editor {
       }
 
       query.id = effect.change.context["view: view"];
+      if(query.ast)
+        effect.change.add("ast cache", {"ast cache: id": query.id, "ast cache: kind": "query", "ast cache: ast": JSON.stringify(query.ast)});
       return effect;
     },
 
@@ -135,8 +141,9 @@ module Editor {
 
       if(elemId) {
         localState.ui.reified = Parsers.ui.fromElement(elemId);
-        // @FIXME: Check ui AST table. If it exists and reifying it matches reified in structure use that instead.
-        localState.ui.ast = Parsers.ui.unreify(localState.ui.reified);
+        let ast = Api.ixer.findOne("ast cache", {"ast cache: id": elemId, "ast cache: kind": "ui"});
+        if(ast) localState.ui.ast = JSON.parse(ast["ast cache: ast"]);
+        else localState.ui.ast = Parsers.ui.unreify(localState.ui.reified);
       }
       return effect;
     },
@@ -164,12 +171,12 @@ module Editor {
 
       if(ui.id) {
         let prev = Parsers.ui.fromElement(ui.id);
-        console.log("clearing cruft", prev.boundQueries);
         for(let viewId in prev.boundQueries) {
           effect.change.removeWithDependents("view", viewId).clearContext();
         }
         for(let elem of [prev.root].concat(prev.elements)) {
-          effect.change.removeWithDependents("uiElement", elem.element).clearContext();
+          effect.change.removeWithDependents("uiElement", elem.element)
+            .removeWithDependents("ast cache", {"ast cache: id": elem.element}).clearContext();
         }
       }
 
@@ -182,7 +189,7 @@ module Editor {
       if(ui.name) reified.root.name = ui.name;
 
       for(let elem of [reified.root].concat(reified.elements)) {
-        effect.change.add("uiElement", {"uiElement: element": elem.element, "uiElement: tag": elem.tag, "uiElement: parent": elem.parent || ""});
+        effect.change.add("uiElement", Api.resolve("uiElement", {"element": elem.element, "tag": elem.tag, "parent": elem.parent || "", ix: elem.ix}));
         if(elem.name) effect.change.add("display name", elem.name);
         if(elem.boundView) effect.change.add("uiElementBinding", {"uiElementBinding: view": elem.boundView});
         for(let prop in elem.attributes)
@@ -194,6 +201,9 @@ module Editor {
       }
 
       ui.id = reified.root.element;
+      // @TODO: Better to dice this up and store sub-asts for each sub-element as well.
+      if(ui.ast)
+        effect.change.add("ast cache", {"ast cache: id": ui.id, "ast cache: kind": "ui", "ast cache: ast": JSON.stringify(ui.ast)});
       return effect;
     }
   };
@@ -207,7 +217,7 @@ module Editor {
 
 
   var __handlers:{[key:string]: MicroReact.Handler<Event> } = {};
-  function dispatchOnEvent(dispatches:string, commands?:string) {
+  function dispatchOnEvent(dispatches:string, commands?:string, debounce?:number) {
     let key = "";
     if(commands) key += commands;
     if(dispatches) key += key ? " | " + dispatches : dispatches;
@@ -230,8 +240,13 @@ module Editor {
       }
       code += ".done();\n";
     }
+    __handlers[key] = <MicroReact.Handler<Event>>new Function("evt", "elem", code);
 
-    return __handlers[key] = <MicroReact.Handler<Event>>new Function("evt", "elem", code);
+    if(debounce) {
+      __handlers[key] = Api.debounce(debounce, __handlers[key]);
+    }
+
+    return __handlers[key];
   }
 
   //---------------------------------------------------------------------------
@@ -303,7 +318,7 @@ module Editor {
           Ui.button({c: "ion-close", view: localState.query.id, click: dispatchOnEvent("remove; loadQuery", "info.type = 'view'; info.id = elem.view")})
         ]}),
         Ui.codeMirrorElement({c: "code", id: "query-code-editor", value: queryString,
-          change: dispatchOnEvent("parseQuery", "info.query = evt.getValue(); info.prev = localState.query.reified"),
+          change: dispatchOnEvent("parseQuery", "info.query = evt.getValue(); info.prev = localState.query.reified", 66),
           focus: dispatchOnEvent("editQuery", "info.editing = elem.value"),
           blur: dispatchOnEvent("editQuery", "info.editing = undefined"),
         }),
@@ -350,7 +365,7 @@ module Editor {
           Ui.button({c: "ion-close", elem: root, click: dispatchOnEvent("remove; loadUi", "info.type = 'uiElement'; info.id = elem.elem")})
         ]}),
         Ui.codeMirrorElement({c: "code", id: "ui-code-editor", value: uiString,
-          change: dispatchOnEvent("parseUi", "info.ui = evt.getValue(); info.prev = localState.ui.reified"),
+          change: dispatchOnEvent("parseUi", "info.ui = evt.getValue(); info.prev = localState.ui.reified", 66),
           focus: dispatchOnEvent("editUi", "info.editing = elem.value"),
           blur: dispatchOnEvent("editUi", "info.editing = undefined"),
         }),

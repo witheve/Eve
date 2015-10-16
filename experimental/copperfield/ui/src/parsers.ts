@@ -44,6 +44,7 @@ module Parsers {
   interface ElementIR {
     element: string
     tag: string
+    ix: number
     name?: string
     parent?: string
     attributes: Api.Dict
@@ -153,10 +154,12 @@ module Parsers {
     if(!token) return;
     let padding = token.indent ? new Array(token.indent + 1).join(" ") : "";
     if(tokenIsLine(token)) {
-      let res = "";
+      let res = padding;
+      let prev;
       for(let chunk of token.chunks) {
+        if(prev && chunk.lineIx !== prev.lineIx) res += "\n";
         res += tokenToString(chunk);
-        if(chunk.lineIx !== undefined) res += "\n";
+        prev = chunk;
       }
       return res;
     } else if(tokenIsField(token)) {
@@ -315,13 +318,15 @@ module Parsers {
       ParseError.lines = lines;
       ParseError.tokenToChar = query.tokenToChar;
 
-      let lineIx = 0;
       for(let line of lines) {
-        ParseError.lineIx = lineIx;
+        ParseError.lineIx = ast.chunks.length;
         let tokens = query.tokenize(line);
-        if(tokens.length === 0) continue;
+        if(tokens.length === 0) {
+          ast.chunks[ast.chunks.length] = <TextAST>{type: "text", text: "", lineIx: ast.chunks.length};
+          continue;
+        }
         let tokensLength = tokens.length;
-        let parsedLine = query.parseLine(tokens, lineIx++);
+        let parsedLine = query.parseLine(tokens, ast.chunks.length);
 
         // Detect line type.
         let head = parsedLine.chunks[0];
@@ -373,7 +378,6 @@ module Parsers {
 
         ast.chunks.push(parsedLine);
       }
-
       return ast;
     },
 
@@ -704,9 +708,10 @@ module Parsers {
 
     reify(ast:UiAST, prev?:UiIR): UiIR {
       let rootId = prev ? prev.root.element : Api.uuid();
-      let root:ElementIR = {element: rootId, tag: "div", attributes: {}, boundAttributes: {}};
+      let root:ElementIR = {element: rootId, tag: "div", ix: 0, attributes: {}, boundAttributes: {}};
       let reified:UiIR = {elements: [], root, boundQueries: {}};
       let indent = {[root.element]: -1};
+      let childCount = {[root.element]: 0};
       let ancestors = [root];
 
       for(let line of ast.chunks) {
@@ -722,8 +727,10 @@ module Parsers {
         if(tokenIsElement(line)) {
           let prevElem = prev && prev.elements[reified.elements.length]; // This is usually not going to match up.
           let elemId = prevElem ? prevElem.element : Api.uuid();
-          let elem:ElementIR = {element: elemId, tag: line.tag, parent: parentElem.element, attributes: {}, boundAttributes: {}};
+          let ix = childCount[parentElem.element]++;
+          let elem:ElementIR = {element: elemId, tag: line.tag, parent: parentElem.element, ix, attributes: {}, boundAttributes: {}};
           indent[elem.element] = line.indent;
+          childCount[elem.element] = 0;
           ancestors.push(elem);
 
           if(line.classes) elem.attributes["c"] = line.classes;
