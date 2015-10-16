@@ -47,6 +47,18 @@ module Editor {
       localState[localState.activeKind].name = name;
       return effect;
     },
+    setTags: function({tags, id}:{tags:string[], id?:string}) {
+      let effect = DispatchEffect.from(this);
+      if(!tags) return effect;
+      if(id) {
+        effect.change.remove("tag", {"tag: view": id})
+          .addEach("tag", tags.map((tag) => {return {"tag: view": id, "tag: tag": tag.trim()}}));
+      }
+
+      // @FIXME: Use activePage / activeComponent to determine what state to set when id is not passed in.
+      localState[localState.activeKind].tags = tags;
+      return effect;
+    },
     remove: function({type, id}:{type: string, id: string}) {
       let effect = DispatchEffect.from(this);
       if(id && type) effect.change.removeWithDependents(type, id);
@@ -65,7 +77,8 @@ module Editor {
     loadQuery: function({viewId}:{viewId:string}) {
       let effect = DispatchEffect.from(this);
       localState.query.reified = localState.query.ast = localState.query.msg = undefined;
-      localState.query.name = Api.get.name(viewId) || "Untitled Search";
+      localState.query.name = Api.get.name(viewId) || undefined;
+      localState.query.tags = Api.get.tags(viewId) || [];
       localState.query.id = viewId || undefined;
 
       if(viewId) {
@@ -103,6 +116,7 @@ module Editor {
       if(query.id) {
         effect.change.removeWithDependents("view", {"view: view": query.id})
           .removeWithDependents("ast cache", {"ast cache: id": query.id});
+        if(query.tags) effect.dispatch("setTags", {id: query.id, tags: query.tags});
       }
       effect.change.add("view", {"view: view": query.id, "view: kind": "join"})
         .add("display name", query.name || "Untitled Search");
@@ -141,7 +155,8 @@ module Editor {
     loadUi: function({elementId:elemId}:{elementId:string}) {
       let effect = DispatchEffect.from(this);
       localState.ui.reified = localState.ui.ast = localState.ui.msg = undefined;
-      localState.ui.name = Api.get.name(elemId) || "Untitled Ui";
+      localState.ui.name = Api.get.name(elemId) || undefined;
+      localState.ui.tags = Api.get.tags(elemId) || [];
       localState.ui.id = elemId || undefined;
 
       if(elemId) {
@@ -183,6 +198,8 @@ module Editor {
           effect.change.removeWithDependents("uiElement", elem.element)
             .removeWithDependents("ast cache", {"ast cache: id": elem.element}).clearContext();
         }
+
+        if(ui.tags) effect.dispatch("setTags", {id: ui.id, tags: ui.tags});
       }
 
       let ix = 0;
@@ -309,12 +326,16 @@ module Editor {
     for(let viewId of Api.extract("view: view", Api.ixer.find("view"))) {
       queries[viewId] = Api.get.name(viewId) || `<${viewId}>`;
     }
+    let tags = Api.get.tags(localState.query.id).join(", ");
 
     return Ui.row({children: [
       Ui.column({flex: 1, children: [
         Ui.row({children: [
           Ui.input({placeholder: "Untitled Search", text: queryName, view: localState.query.id,
             blur: dispatchOnEvent("setName", "info.name = evt.target.textContent; info.id = elem.view")
+          }),
+          Ui.input({placeholder: "tags", text: tags, view: localState.query.id,
+            blur: dispatchOnEvent("setTags", "info.tags = (evt.target.textContent || '').split(', '); info.id = elem.view")
           }),
           Ui.dropdown({options: queries, defaultOption: <any>localState.query.id,
             change: dispatchOnEvent("loadQuery", "info.viewId = evt.target.value")
@@ -356,12 +377,16 @@ module Editor {
     for(let elemId of Api.extract("uiElement: element", Api.ixer.find("uiElement"))) {
       elems[elemId] = Api.get.name(elemId) || `<${elemId}>`;
     }
+    let tags = Api.get.tags(localState.ui.id).join(", ");
 
     return Ui.row({children: [
       Ui.column({flex: 1, children: [
         Ui.row({children: [
           Ui.input({placeholder: "Untitled Ui", text: uiName, elem: root, //localState.ui.id, // @FIXME: Need a way to refer to whole ui entity.
             blur: dispatchOnEvent("setName", "info.name = evt.target.textContent; info.id = elem.elem")
+          }),
+          Ui.input({placeholder: "tags", text: tags, view: localState.query.id,
+            blur: dispatchOnEvent("setTags", "info.tags = (evt.target.textContent || '').split(', '); info.id = elem.view")
           }),
           Ui.dropdown({options: elems, defaultOption: root,
             change: dispatchOnEvent("loadUi", "info.elementId = evt.target.value")
@@ -387,6 +412,7 @@ module Editor {
   interface Query {
     editing?: string // If we're editing, store the last set value to prevent MicroReact from considering the element dirty.
     name?: string
+    tags?: string[]
     id?: string
     ast?: Parsers.QueryAST
     reified?: Parsers.QueryIR
@@ -395,6 +421,7 @@ module Editor {
   interface Ui {
     editing?: string
     name?: string
+    tags?: string[]
     id?: string
     ast?: Parsers.UiAST
     reified?: Parsers.UiIR
