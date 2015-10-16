@@ -47,7 +47,9 @@ module UiRenderer {
     public warnings:UiWarning[] = []; // Warnings from the previous render (or all previous compilations).
     public compiled:number = 0;       // # of elements compiled since last render.
 
-    constructor(public renderer:MicroReact.Renderer) {}
+    private _handlers:{[key:string]: MicroReact.Handler<Event>} = {};
+
+    constructor(public renderer:MicroReact.Renderer, public handleEvent:(element:string, kind: string, key?:any) => void) {}
 
     // Mark the renderer dirty so it will rerender next frame.
     queue(root) {
@@ -109,6 +111,8 @@ module UiRenderer {
       let elementToChildren = Api.ixer.index("uiElement", ["uiElement: parent"]);
       let elementToAttrs = Api.ixer.index("uiAttribute", ["uiAttribute: element"]);
       let elementToAttrBindings = Api.ixer.index("uiAttributeBinding", ["uiAttributeBinding: element"]);
+      let elementToEvents = Api.ixer.index("ui event", ["ui event: element"]);
+      let elementToEventBindings = Api.ixer.index("ui event binding", ["ui event binding: element"]);
 
       let boundValueDebug = {};
       let stack:Element[] = [];
@@ -139,6 +143,8 @@ module UiRenderer {
         if(!fact) { continue; }
         let attrs = elementToAttrs[templateId];
         let boundAttrs = elementToAttrBindings[templateId];
+        let events = elementToEvents[templateId];
+        let boundEvents = elementToEventBindings[templateId];
         let children = elementToChildren[templateId];
 
         let elems = [elem];
@@ -193,6 +199,20 @@ module UiRenderer {
             }
           }
 
+          // Attach static event handlers.
+          if(events) {
+            for(let {"ui event: kind": event} of events) {
+              elem[event] = this.generateEventHandler(elem, event);
+            }
+          }
+
+          // Attach bound event handlers.
+          if(boundEvents) {
+            for(let {"ui event binding: kind": event, "ui event binding: field": key} of boundEvents) {
+              elem[event] = this.generateEventHandler(elem, event, key, boundAncestors, elemToRow);
+            }
+          }
+
           // Prep children and add them to the stack.
           if(children) {
             let boundAncestor = boundAncestors[elem.id];
@@ -240,24 +260,17 @@ module UiRenderer {
       return compiledElements;
     }
 
-    // Generate a unique key for the given row based on the structure of the given view.
-    generateRowToKeyFn(viewId:Id):RowTokeyFn {
-      var keys = getKeys(viewId);
-      if(keys.length > 1) {
-        return (row:{}) => {
-          return `${viewId}: ${keys.map((key) => row[key]).join(",")}`;
-        };
-      } else if(keys.length > 0) {
-        return (row:{}) => {
-          return `${viewId}: ${row[keys[0]]}`;
-        }
-      } else {
-        return (row:{}) => `${viewId}: ${JSON.stringify(row)}`;
-      }
-    }
+    generateEventHandler(elem:Element, kind:string, key?:string, boundAncestors?, elemToRow?):MicroReact.Handler<Event> {
+      let memoKey = `${kind}:${key || ""}`;
+      let attrKey = `__${kind}_event_key`;
+      if(key) elem[attrKey] = getBoundValue(elem, key, boundAncestors, elemToRow);
+      if(this._handlers[memoKey]) return this._handlers[memoKey];
 
-    getViewForKey(key:string):string {
-      return key.slice(0, key.indexOf(":"));
+      let self = this;
+      // @TODO: Specialize for event families (e.g. keyboard, mouse).
+      this._handlers[memoKey] = (evt:Event, elem:Element) => self.handleEvent(elem.__template, kind, attrKey && elem[attrKey]);
+
+      return this._handlers[memoKey];
     }
 
     // Get only the rows of view matching the key (if specified) or all rows from the view if not.

@@ -284,9 +284,13 @@ module Editor {
   export var renderer:UiRenderer.UiRenderer;
   function initRenderer() {
     let raw = new MicroReact.Renderer();
-    renderer = new UiRenderer.UiRenderer(raw);
+    renderer = new UiRenderer.UiRenderer(raw, handleEvent);
     document.body.appendChild(raw.content);
     window.addEventListener("resize", render);
+  }
+
+  function handleEvent(elem:string, kind: string, key?:any) {
+    dispatch("add client event", {elem, kind, key}).done();
   }
 
   function render() {
