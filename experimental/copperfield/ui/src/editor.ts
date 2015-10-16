@@ -222,6 +222,9 @@ module Editor {
           effect.change.add("uiAttributeBinding", {"uiAttributeBinding: property": prop, "uiAttributeBinding: field": elem.boundAttributes[prop]});
         for(let field in elem.bindings)
           effect.change.add("uiScopedBinding", {"uiScopedBinding: field": field, "uiScopedBinding: scoped field": elem.bindings[field]});
+        effect.change.addEach("ui event", elem.events.map((kind) => {return {"ui event: kind": kind}}));
+        for(let event in elem.boundEvents)
+          effect.change.add("ui event binding", {"ui event binding: kind": event, "ui event binding: field": elem.boundEvents[event]});
       }
 
       ui.id = reified.root.element;
