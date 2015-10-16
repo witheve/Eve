@@ -14,159 +14,6 @@ module wiki {
 
   var eve = app.eve;
 
-  function initEve() {
-    let stored = localStorage["eve"];
-    if(!stored) {
-      var diff = eve.diff();
-      diff.add("page", {page: "foo", text: "[pixar] movies:\n[up]\n[toy story]"});
-      diff.add("page", {page: "pixar", text: "[Pixar] is an animation studio owned by disney"});
-      diff.add("search", {search: "foo"});
-      eve.applyDiff(diff);
-    } else {
-      eve.load(stored);
-            eve.query("page links 3")
-             .select("page", {}, "page")
-             .deselect("page eavs", {page: ["page", "page"]})
-             .sort([["page", "page"]])
-             .limit({results: 1})
-             .project({page: ["page", "page"]})
-            .debug();
-    }
-  }
-
-  runtime.define("page to graph", {multi: true}, function(page, text) {
-    return articleToGraph(page, text);
-  });
-
-  runtime.define("parse eavs", {multi: true}, function(page, text) {
-    return parsePage(page, text).eavs;
-  });
-
-  runtime.define("search string", {multi: true}, function(text) {
-    return search(text);
-  });
-
-  runtime.define("count", {}, function(prev) {
-    if(!prev.count) {
-      prev.count = 0;
-    }
-    prev.count++;
-    return prev;
-  });
-
-  // view: view, kind[union|query]
-  // action: view, action, kind[select|calculate|project|union|ununion|stateful], ix
-  // action source: action, source view
-  // action mapping: action, from, to source, to field
-  // action mapping constant: action, from, value
-
-  eve.addTable("view", ["view", "kind"]);
-  eve.addTable("action", ["view", "action", "kind", "ix"]);
-  eve.addTable("action source", ["action", "source view"]);
-  eve.addTable("action mapping", ["action", "from", "to source", "to field"]);
-  eve.addTable("action mapping constant", ["action", "from", "value"]);
-
-  var diff = eve.diff();
-  diff.add("view", {view: "page links 2", kind: "query"});
-  diff.add("action", {view: "page links 2", action: "page links - page", kind: "select", ix: 0});
-  diff.add("action source", {action: "page links - page", "source view": "page"});
-  diff.add("action", {view: "page links 2", action: "page links - links", kind: "calculate", ix: 1});
-  diff.add("action source", {action: "page links - links", "source view": "page to graph"});
-  diff.add("action mapping", {action: "page links - links", from: "text", "to source": "page links - page", "to field": "text"});
-  diff.add("action mapping", {action: "page links - links", from: "page", "to source": "page links - page", "to field": "page"});
-  diff.add("action", {view: "page links 2", action: "page links - project", kind: "project", ix: 2});
-  diff.add("action mapping", {action: "page links - project", from: "page", "to source": "page links - page", "to field": "page"});
-  diff.add("action mapping", {action: "page links - project", from: "link", "to source": "page links - links", "to field": "link"});
-  diff.add("action mapping", {action: "page links - project", from: "type", "to source": "page links - links", "to field": "type"});
-  eve.applyDiff(diff);
-
-  function compile(ixer, viewId) {
-    let view = ixer.findOne("view", {view: viewId});
-    if(!view) {
-      throw new Error(`No view found for ${viewId}.`);
-    }
-    let compiled = ixer[view.kind](viewId);
-    let actions = ixer.find("action", {view: viewId});
-    if(!actions) {
-      throw new Error(`View ${viewId} has no actions.`);
-    }
-    // sort actions by ix
-    actions.sort((a, b) => a.ix - b.ix);
-    for(let action of actions) {
-      let actionKind = action.kind;
-      let mappings = ixer.find("action mapping", {action: action.action});
-      let mappingObject = {};
-      for(let mapping of mappings) {
-        let source = mapping["to source"];
-        let field = mapping["to field"];
-        if(actionKind === "union" || actionKind === "ununion") {
-          mappingObject[mapping.from] = [field];
-        } else {
-          mappingObject[mapping.from] = [source, field];
-        }
-      }
-      let constants = ixer.find("action mapping constant", {action: action.action});
-      for(let constant of constants) {
-        mappingObject[constant.from] = constant.value;
-      }
-      let source = ixer.findOne("action source", {action: action.action});
-      if(!source && actionKind !== "project") {
-        throw new Error(`${actionKind} action without a source in '${viewId}'`);
-      }
-      if(actionKind !== "project") {
-        compiled[actionKind](source["source view"], mappingObject, action.action);
-      } else {
-        compiled[actionKind](mappingObject);
-      }
-    }
-    return compiled;
-  }
-
-
-//   foo
-//   .group([["", ""], ["", ""]])
-//   .sort([["", "", "ascending"], ["", "", "descending"]])
-//   .limit({results: 5,
-//           perGroup: 5})
-//   .aggregate("sum", {}, "sum");
-
-
-  eve.asView(eve.query("page links")
-             .select("page", {}, "page")
-             .calculate("page to graph", {text: ["page", "text"], page: ["page", "page"]}, "links")
-             .project({page: ["page", "page"], link: ["links", "link"], type: ["links", "type"]}));
-
-  eve.asView(eve.query("search results")
-             .select("search", {}, "search")
-             .calculate("search string", {text: ["search", "search"]}, "results")
-             .project({page: ["results", "page"], to: ["results", "to"], step: ["results", "step"]}));
-
-  eve.asView(eve.query("active page incoming")
-             .select("active page", {}, "active")
-             .select("page links", {link: ["active", "page"]}, "links")
-             .project({page: ["links", "page"], link: ["links", "link"], type: ["links", "type"]}));
-
-  eve.asView(eve.query("collection links")
-             .select("page links", {type: "collection"}, "links")
-             .project({page: ["links", "page"], deck: ["links", "link"]}));
-
-  eve.asView(eve.query("page eavs")
-             .select("page", {}, "page")
-             .calculate("parse eavs", {page: ["page", "page"], text: ["page", "text"]}, "parsed")
-             .project({page: ["page", "page"], attribute: ["parsed", "attribute"], value: ["parsed", "value"]}));
-
-  eve.asView(eve.union("deck pages")
-             .union("collection links", {page: ["page"], deck: ["deck"]})
-             .union("history stack", {page: ["page"], deck: "history"})
-             .union("page links", {page: ["link"], deck: ["type"]}));
-
-  eve.asView(eve.union("entity")
-             .union("page", {entity: ["page"]}));
-
-  eve.asView(eve.query("deck")
-             .select("deck pages", {}, "decks")
-             .project({deck: ["decks", "deck"]}));
-
   //---------------------------------------------------------
   // Article
   //---------------------------------------------------------
@@ -320,8 +167,9 @@ module wiki {
     return {lines, links, collections, eavs};
   }
 
-  var parseCache = {};
+  var parseCache;
   function parsePage(pageId, content) {
+    if(!parseCache) parseCache = {};
     let cached = parseCache[pageId];
     if(!cached || cached[0] !== content) {
       cached = parseCache[pageId] = [content, parse(tokenize(content))];
@@ -439,6 +287,10 @@ module wiki {
     eve.find("deck", {deck: ""});
     var deckIndex = eve.table("deck").indexes["deck"].index;
     let decks = stringMatches(searchString, deckIndex);
+    eve.find("page eavs", {attribute: ""});
+    var eavIndex = eve.table("page eavs").indexes["attribute"].index;
+    let eavs = stringMatches(searchString, eavIndex);
+    console.log(entities, decks, eavs);
     // TODO: handle more than two entities
     //
     if(entities.length === 0 && decks.length) {
@@ -626,8 +478,157 @@ module wiki {
   }
 
   //---------------------------------------------------------
+  // AST and compiler
+  //---------------------------------------------------------
+
+  // view: view, kind[union|query]
+  // action: view, action, kind[select|calculate|project|union|ununion|stateful], ix
+  // action source: action, source view
+  // action mapping: action, from, to source, to field
+  // action mapping constant: action, from, value
+
+  eve.addTable("view", ["view", "kind"]);
+  eve.addTable("action", ["view", "action", "kind", "ix"]);
+  eve.addTable("action source", ["action", "source view"]);
+  eve.addTable("action mapping", ["action", "from", "to source", "to field"]);
+  eve.addTable("action mapping constant", ["action", "from", "value"]);
+
+  var diff = eve.diff();
+  diff.add("view", {view: "page links 2", kind: "query"});
+  diff.add("action", {view: "page links 2", action: "page links - page", kind: "select", ix: 0});
+  diff.add("action source", {action: "page links - page", "source view": "page"});
+  diff.add("action", {view: "page links 2", action: "page links - links", kind: "calculate", ix: 1});
+  diff.add("action source", {action: "page links - links", "source view": "page to graph"});
+  diff.add("action mapping", {action: "page links - links", from: "text", "to source": "page links - page", "to field": "text"});
+  diff.add("action mapping", {action: "page links - links", from: "page", "to source": "page links - page", "to field": "page"});
+  diff.add("action", {view: "page links 2", action: "page links - project", kind: "project", ix: 2});
+  diff.add("action mapping", {action: "page links - project", from: "page", "to source": "page links - page", "to field": "page"});
+  diff.add("action mapping", {action: "page links - project", from: "link", "to source": "page links - links", "to field": "link"});
+  diff.add("action mapping", {action: "page links - project", from: "type", "to source": "page links - links", "to field": "type"});
+  eve.applyDiff(diff);
+
+  function compile(ixer, viewId) {
+    let view = ixer.findOne("view", {view: viewId});
+    if(!view) {
+      throw new Error(`No view found for ${viewId}.`);
+    }
+    let compiled = ixer[view.kind](viewId);
+    let actions = ixer.find("action", {view: viewId});
+    if(!actions) {
+      throw new Error(`View ${viewId} has no actions.`);
+    }
+    // sort actions by ix
+    actions.sort((a, b) => a.ix - b.ix);
+    for(let action of actions) {
+      let actionKind = action.kind;
+      let mappings = ixer.find("action mapping", {action: action.action});
+      let mappingObject = {};
+      for(let mapping of mappings) {
+        let source = mapping["to source"];
+        let field = mapping["to field"];
+        if(actionKind === "union" || actionKind === "ununion") {
+          mappingObject[mapping.from] = [field];
+        } else {
+          mappingObject[mapping.from] = [source, field];
+        }
+      }
+      let constants = ixer.find("action mapping constant", {action: action.action});
+      for(let constant of constants) {
+        mappingObject[constant.from] = constant.value;
+      }
+      let source = ixer.findOne("action source", {action: action.action});
+      if(!source && actionKind !== "project") {
+        throw new Error(`${actionKind} action without a source in '${viewId}'`);
+      }
+      if(actionKind !== "project") {
+        compiled[actionKind](source["source view"], mappingObject, action.action);
+      } else {
+        compiled[actionKind](mappingObject);
+      }
+    }
+    return compiled;
+  }
+
+  //---------------------------------------------------------
+  // Eve functions
+  //---------------------------------------------------------
+
+  runtime.define("page to graph", {multi: true}, function(page, text) {
+    return articleToGraph(page, text);
+  });
+
+  runtime.define("parse eavs", {multi: true}, function(page, text) {
+    return parsePage(page, text).eavs;
+  });
+
+  runtime.define("search string", {multi: true}, function(text) {
+    return search(text);
+  });
+
+  runtime.define("count", {}, function(prev) {
+    if(!prev.count) {
+      prev.count = 0;
+    }
+    prev.count++;
+    return prev;
+  });
+
+  //---------------------------------------------------------
+  // Queries
+  //---------------------------------------------------------
+
+  eve.asView(eve.query("page links")
+             .select("page", {}, "page")
+             .calculate("page to graph", {text: ["page", "text"], page: ["page", "page"]}, "links")
+             .project({page: ["page", "page"], link: ["links", "link"], type: ["links", "type"]}));
+
+  eve.asView(eve.query("search results")
+             .select("search", {}, "search")
+             .calculate("search string", {text: ["search", "search"]}, "results")
+             .project({page: ["results", "page"], to: ["results", "to"], step: ["results", "step"]}));
+
+  eve.asView(eve.query("active page incoming")
+             .select("active page", {}, "active")
+             .select("page links", {link: ["active", "page"]}, "links")
+             .project({page: ["links", "page"], link: ["links", "link"], type: ["links", "type"]}));
+
+  eve.asView(eve.query("collection links")
+             .select("page links", {type: "collection"}, "links")
+             .project({page: ["links", "page"], deck: ["links", "link"]}));
+
+  eve.asView(eve.query("page eavs")
+             .select("page", {}, "page")
+             .calculate("parse eavs", {page: ["page", "page"], text: ["page", "text"]}, "parsed")
+             .project({page: ["page", "page"], attribute: ["parsed", "attribute"], value: ["parsed", "value"]}));
+
+  eve.asView(eve.union("deck pages")
+             .union("collection links", {page: ["page"], deck: ["deck"]})
+             .union("history stack", {page: ["page"], deck: "history"})
+             .union("page links", {page: ["link"], deck: ["type"]}));
+
+  eve.asView(eve.union("entity")
+             .union("page", {entity: ["page"]}));
+
+  eve.asView(eve.query("deck")
+             .select("deck pages", {}, "decks")
+             .project({deck: ["decks", "deck"]}));
+
+  //---------------------------------------------------------
   // Go
   //---------------------------------------------------------
+
+  function initEve() {
+    let stored = localStorage["eve"];
+    if(!stored) {
+      var diff = eve.diff();
+      diff.add("page", {page: "foo", text: "[pixar] movies:\n[up]\n[toy story]"});
+      diff.add("page", {page: "pixar", text: "[Pixar] is an animation studio owned by disney"});
+      diff.add("search", {search: "foo"});
+      eve.applyDiff(diff);
+    } else {
+      eve.load(stored);
+    }
+  }
 
   app.init("wiki", function() {
     initEve();
