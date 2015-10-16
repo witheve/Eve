@@ -62,7 +62,15 @@ module UiRenderer {
           // Rerender until all generated warnings have been committed to the indexer.
           do {
             var tree = root();
-            let elements = (Api.ixer.find("tag", {"tag: tag": "editor-ui"}) || []).map((tag) => tag["tag: view"]);
+            let elements = [];
+            let rootElements:string[] = (Api.ixer.find("tag", {"tag: tag": "editor-ui"}) || []).map((tag) => tag["tag: view"]);
+            let elementToChildren = Api.ixer.index("uiElement", ["uiElement: parent"]);
+            while(rootElements.length) {
+              let elem = rootElements.shift();
+              elements.push(elem);
+              let children:string[] = elementToChildren[elem];
+              if(children && children.length) rootElements.push.apply(rootElements, children);
+            }
             start = performance.now();
             elements.unshift(tree);
             self.warnings = self.render(elements);
