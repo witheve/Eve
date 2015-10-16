@@ -167,20 +167,20 @@ module Parsers {
         prev = chunk;
       }
       return res;
-    } else if(tokenIsField(token)) {
+    }
+    if(tokenIsField(token)) {
       if(token.value !== undefined) return `\`${token.value || ""}\``;
       return `?${token.grouped ? "?" : ""}${token.alias || ""}`;
-    } else if(tokenIsAttribute(token)) {
-      return `${padding}- ${token.property}: ${tokenToString(token.value)}`;
-    } else if(tokenIsElement(token)) {
+    }
+    if(tokenIsAttribute(token)) return `${padding}- ${token.property}: ${tokenToString(token.value)}`;
+    if(tokenIsElement(token)) {
       let res = `${padding}${token.tag || ""}`;
       if(token.classes) res += token.classes;
       if(token.name) res += "; " + token.name;
       return res;
     }
-    else if(tokenIsBinding(token)) {
-      return padding + "~ " + token.text.split("\n").join("\n" + padding + "~ ");
-    }
+    else if(tokenIsBinding(token)) return padding + "~ " + token.text.split("\n").join("\n" + padding + "~ ");
+    if(tokenIsComment(token)) return padding + ";" + token.text;
     if(tokenIsText(token) || tokenIsKeyword(token)) return padding + token.text;
     throw new Error(`Unknown token type '${token && token.type}'`);
   }
@@ -287,7 +287,7 @@ module Parsers {
   //---------------------------------------------------------------------------
 
   const Q_ACTION_TOKENS = ["+"];
-  const Q_KEYWORD_TOKENS = ["!", "(", ")", "$=", "#"].concat(Q_ACTION_TOKENS);
+  const Q_KEYWORD_TOKENS = ["!", "(", ")", "$=", "#", ";"].concat(Q_ACTION_TOKENS);
   const Q_TOKENS = [" ", "\t", "`", "?"].concat(Q_KEYWORD_TOKENS, PUNCTUATION);
 
   export var query = {
@@ -315,10 +315,19 @@ module Parsers {
         let tokensLength = tokens.length;
 
         let parsedLine = query.parseLine(tokens, ast.chunks.length);
-        parsedLine = query.processAction(parsedLine)
-          || query.processOrdinal(parsedLine, ast)
-          || query.processCalculation(parsedLine)
-          || query.processSource(parsedLine);
+        if(parsedLine.chunks.length) {
+          console.log(parsedLine.chunks[0]);
+          if(tokenIsKeyword(parsedLine.chunks[0]) && parsedLine.chunks[0]["text"] === ";") {
+            parsedLine["text"] = tokenToString(parsedLine);
+            parsedLine.type = "comment";
+
+          } else {
+            parsedLine = query.processAction(parsedLine)
+              || query.processOrdinal(parsedLine, ast)
+              || query.processCalculation(parsedLine)
+              || query.processSource(parsedLine);
+          }
+        }
         ast.chunks.push(parsedLine);
       }
       return ast;
