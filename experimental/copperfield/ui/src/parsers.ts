@@ -183,7 +183,7 @@ module Parsers {
     else if(tokenIsBinding(token)) return padding + "~ " + token.text.split("\n").join("\n" + padding + "~ ");
     if(tokenIsComment(token)) return padding + ";" + token.text;
     if(tokenIsText(token) || tokenIsKeyword(token)) return padding + token.text;
-    throw new Error(`Unknown token type '${token && token.type}'`);
+    throw new Error(`Unknown token type '${token && token.type}' for token '${JSON.stringify(token)}'.`);
   }
 
   export function fingerprintSource(ast:LineAST) {
@@ -838,6 +838,13 @@ module Parsers {
 
           if(line.static) {
             if(line.property === "parent") parentElem.parent = line.value.value;
+            else if(line.property === "id") {
+              let old = parentElem.element;
+              if(childCount[old]) throw ParseError("ID must be set prior to including child elements.");
+              parentElem.element = line.value.value;
+              indent[parentElem.element] = indent[old];
+              childCount[parentElem.element] = childCount[old];
+            }
             else parentElem.attributes[line.property] = line.value.value;
           } else {
             parentElem.boundAttributes[line.property] = getScopedBinding(line.value.alias, ancestors, reified.boundQueries);
