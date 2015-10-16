@@ -110,7 +110,12 @@ module Editor {
       for(let source of reified.sources) { // Sources
         effect.change.add("source", {"source: source": source.source, "source: source view": source.sourceView});
         if(source.negated) effect.change.add("negated source");
-        if(source.chunked) effect.change.add("chunked source");
+        if(source.chunked) {
+          effect.change.add("chunked source");
+          for(let field of source.fields) {
+            if(!field.grouped) effect.change.add("grouped field", {"grouped field: field": field.field});
+          }
+        }
         if(source.sort) effect.change.addEach("sorted field", Api.resolve("sorted field", source.sort));
       }
 
