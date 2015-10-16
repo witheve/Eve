@@ -49,6 +49,7 @@ module Editor {
     },
     setTags: function({tags, id}:{tags:string[], id?:string}) {
       let effect = DispatchEffect.from(this);
+      console.log("setTags", tags, id);
       if(!tags) return effect;
       if(id) {
         effect.change.remove("tag", {"tag: view": id})
@@ -116,7 +117,6 @@ module Editor {
       if(query.id) {
         effect.change.removeWithDependents("view", {"view: view": query.id})
           .removeWithDependents("ast cache", {"ast cache: id": query.id});
-        if(query.tags) effect.dispatch("setTags", {id: query.id, tags: query.tags});
       }
       effect.change.add("view", {"view: view": query.id, "view: kind": "join"})
         .add("display name", query.name || "Untitled Search");
@@ -147,6 +147,7 @@ module Editor {
       }
 
       query.id = effect.change.context["view: view"];
+      if(query.tags) effect.dispatch("setTags", {id: query.id, tags: query.tags});
       if(query.ast)
         effect.change.add("ast cache", {"ast cache: id": query.id, "ast cache: kind": "query", "ast cache: ast": JSON.stringify(query.ast)});
       return effect;
@@ -198,8 +199,6 @@ module Editor {
           effect.change.removeWithDependents("uiElement", elem.element)
             .removeWithDependents("ast cache", {"ast cache: id": elem.element}).clearContext();
         }
-
-        if(ui.tags) effect.dispatch("setTags", {id: ui.id, tags: ui.tags});
       }
 
       let ix = 0;
@@ -223,6 +222,7 @@ module Editor {
       }
 
       ui.id = reified.root.element;
+      if(ui.tags) effect.dispatch("setTags", {id: ui.id, tags: ui.tags});
       // @TODO: Better to dice this up and store sub-asts for each sub-element as well.
       if(ui.ast)
         effect.change.add("ast cache", {"ast cache: id": ui.id, "ast cache: kind": "ui", "ast cache: ast": JSON.stringify(ui.ast)});
@@ -326,7 +326,8 @@ module Editor {
     for(let viewId of Api.extract("view: view", Api.ixer.find("view"))) {
       queries[viewId] = Api.get.name(viewId) || `<${viewId}>`;
     }
-    let tags = Api.get.tags(localState.query.id).join(", ");
+    let tags = (localState.query.tags || []).join(", ");
+    if(localState.query.id) tags = Api.get.tags(localState.query.id).join(", ");
 
     return Ui.row({children: [
       Ui.column({flex: 1, children: [
@@ -377,7 +378,8 @@ module Editor {
     for(let elemId of Api.extract("uiElement: element", Api.ixer.find("uiElement"))) {
       elems[elemId] = Api.get.name(elemId) || `<${elemId}>`;
     }
-    let tags = Api.get.tags(localState.ui.id).join(", ");
+    let tags = (localState.ui.tags || []).join(", ");
+    if(localState.ui.id) tags = Api.get.tags(localState.ui.id).join(", ");
 
     return Ui.row({children: [
       Ui.column({flex: 1, children: [
