@@ -10,6 +10,7 @@ module Api {
   export var DEBUG = {
     RECEIVE: 0,
     SEND: 0,
+    DISPATCH: false,
     STRUCTURED_CHANGE: false,
     RENDERER: false,
     RENDER_TIME: false,

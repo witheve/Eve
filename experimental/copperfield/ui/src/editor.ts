@@ -241,6 +241,9 @@ module Editor {
     }
   };
   export function dispatch(evt:string, info:any, rentrant?:boolean):DispatchEffect {
+    if(Api.DEBUG.DISPATCH) {
+      console.log(evt, info);
+    }
     if(!dispatches[evt]) {
       console.error("Unknown dispatch:", evt, info);
       return new DispatchEffect();
@@ -254,6 +257,7 @@ module Editor {
     let key = "";
     if(commands) key += commands;
     if(dispatches) key += key ? " | " + dispatches : dispatches;
+    if(debounce) key += key ? " | " + debounce : debounce;
     if(__handlers[key]) return __handlers[key];
 
     let code = `
@@ -383,8 +387,9 @@ module Editor {
           Ui.button({text: "compile", query, click: dispatchOnEvent("compileQuery")}),
           Ui.button({c: "ion-close", view: query.id, click: dispatchOnEvent("remove; loadQuery", "info.type = 'view'; info.id = elem.view")})
         ]}),
-        Ui.codeMirrorElement({c: "code", id: "query-code-editor", value: queryString, prev: query.reified,
+        Ui.codeMirrorElement({c: "code", id: "query-code-editor", value: queryString, prev: query.reified, query,
           change: dispatchOnEvent("parseQuery", "info.query = evt.getValue()", 66),
+          submit: dispatchOnEvent("compileQuery"),
           focus: dispatchOnEvent("editQuery", "info.editing = elem.value"),
           blur: dispatchOnEvent("editQuery", "info.editing = undefined"),
         }),
@@ -438,6 +443,7 @@ module Editor {
         ]}),
         Ui.codeMirrorElement({c: "code", id: "ui-code-editor", value: uiString,
           change: dispatchOnEvent("parseUi", "info.ui = evt.getValue(); info.prev = localState.ui.reified", 66),
+          submit: dispatchOnEvent("compileUi", "info.ui = localState.ui"),
           focus: dispatchOnEvent("editUi", "info.editing = elem.value"),
           blur: dispatchOnEvent("editUi", "info.editing = undefined"),
         }),
