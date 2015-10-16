@@ -7,9 +7,11 @@ module Parsers {
 
   interface CommentAST extends Token { text: string }
   interface TextAST extends Token { text: string }
+  interface KeywordAST extends TextAST {}
   interface FieldAST extends Token { grouped?: boolean, alias?: string, value?: string }
   interface SourceAST extends LineAST { negated?: boolean }
   interface OrdinalAST extends LineAST { alias: string, directions: string[] }
+  interface CalculationAST extends LineAST { partIx?: number, text?: string }
   export interface QueryAST extends LineAST {}
 
   interface ElementAST extends Token { tag?: string, classes?: string, name?: string }
@@ -62,9 +64,11 @@ module Parsers {
   function tokenIsText(token:Token): token is TextAST { return token.type === "text"; }
   function tokenIsComment(token:Token): token is CommentAST { return token.type === "comment"; }
 
+  function tokenIsKeyword(token:Token): token is TextAST { return token.type === "keyword"; }
   function tokenIsField(token:Token): token is FieldAST { return token.type === "field"; }
   function tokenIsSource(token:Token): token is SourceAST {return token.type === "source"; }
   function tokenIsOrdinal(token:Token): token is OrdinalAST { return token.type === "ordinal"; }
+  function tokenIsCalculation(token:Token): token is CalculationAST { return token.type === "calculation"; }
   function tokenIsAction(token:Token): token is LineAST { return token.type === "action"; }
 
   function tokenIsAttribute(token:Token): token is AttributeAST { return token.type === "attribute"; }
@@ -153,6 +157,7 @@ module Parsers {
   function tokenToString(token:Token):string {
     if(!token) return;
     let padding = token.indent ? new Array(token.indent + 1).join(" ") : "";
+    if(tokenIsCalculation(token) && token.text) return token.text;
     if(tokenIsLine(token)) {
       let res = padding;
       let prev;
@@ -176,7 +181,7 @@ module Parsers {
     else if(tokenIsBinding(token)) {
       return padding + "~ " + token.text.split("\n").join("\n" + padding + "~ ");
     }
-    if(tokenIsText(token)) return padding + token.text;
+    if(tokenIsText(token) || tokenIsKeyword(token)) return padding + token.text;
     throw new Error(`Unknown token type '${token && token.type}'`);
   }
 
@@ -217,7 +222,8 @@ module Parsers {
   function getVariable(alias, ast:QueryIR, varId?:string, fieldId?:string) {
     if(!varId) varId = ast.aliases[alias] || Api.uuid();
     let variable = ast.variables[varId];
-    if(!variable) variable = ast.variables[varId] = {selected: fieldId || (alias ? Api.uuid() : undefined), alias: alias, bindings: []};
+    if(!variable) variable = ast.variables[varId] = {selected: fieldId, alias: alias, bindings: []};
+    if(!variable.selected && alias && alias[0] !== "_") variable.selected = Api.uuid();
     if(alias) ast.aliases[alias] = varId;
     return variable;
   }
@@ -279,37 +285,18 @@ module Parsers {
   //---------------------------------------------------------------------------
   // Query Parser
   //---------------------------------------------------------------------------
-  interface Query {
-    // Utilities
-    tokenize(raw:string): string[]
-    tokenToChar(token:any, line:string): number
-
-    // Parsing
-    parse(raw:string): QueryAST
-    parseStructure(tokens:string[], tokenIx?:number):TextAST
-    parseField(tokens:string[], tokenIx?:number):FieldAST
-    parseLine(tokens:string[], lineIx?:number):LineAST
-
-    // Reification
-    reify(ast:QueryAST, prev?:QueryIR): QueryIR
-    reifySource(ast:SourceAST, allowMissing?:boolean):SourceIR
-    reifyAction(ast:LineAST)
-
-    // To string
-    fromView(viewId:string, ixer?:Indexer.Indexer): QueryIR
-    unreify(reified:QueryIR): QueryAST
-    unparse(ast:QueryAST): string
-  }
 
   const Q_ACTION_TOKENS = ["+"];
-  const Q_TOKENS = [" ", "\t", "`", "?"].concat(Q_ACTION_TOKENS).concat(PUNCTUATION);
-  export var query:Query = <any>{
+  const Q_KEYWORD_TOKENS = ["!", "(", ")", "$=", "#"].concat(Q_ACTION_TOKENS);
+  const Q_TOKENS = [" ", "\t", "`", "?"].concat(Q_KEYWORD_TOKENS, PUNCTUATION);
+
+  export var query = {
     // Utilities
     tokenize: makeTokenizer(Q_TOKENS),
-    tokenToChar: (token, line) => (token.tokenIx !== undefined) ? query.tokenize(line).slice(0, token.tokenIx - 1).join("").length : 0,
+    tokenToChar: (token:Token, line:string):number => (token.tokenIx !== undefined) ? query.tokenize(line).slice(0, token.tokenIx - 1).join("").length : 0,
 
     // Parsing
-    parse: function(raw) {
+    parse: function(raw:string):QueryAST {
       let ast:QueryAST = {type: "query", chunks: []};
       let lines = raw.split("\n");
       for(let ix = 0; ix < lines.length; ix++) lines[ix] = lines[ix].trim();
@@ -326,75 +313,32 @@ module Parsers {
           continue;
         }
         let tokensLength = tokens.length;
+
         let parsedLine = query.parseLine(tokens, ast.chunks.length);
-
-        // Detect line type.
-        let head = parsedLine.chunks[0];
-        if(tokenIsText(head)) {
-          let text = head.text.trim().toLowerCase();
-          for(let action of Q_ACTION_TOKENS) {
-            if(text.indexOf(action) === 0) {
-              parsedLine.type = "action";
-              break;
-            }
-          }
-          if(!parsedLine.type && text.indexOf("#") === 0) parsedLine.type = "ordinal";
-        }
-        if(!parsedLine.type) parsedLine.type = "source";
-
-        // Validate and extract information from line structure.
-        if(tokenIsAction(parsedLine)) {
-          for(let token of parsedLine.chunks) {
-            if(tokenIsField(token) && !token.alias) throw ParseError("All action fields must be aliased to a query field.", token);
-          }
-
-        } else if(tokenIsOrdinal(parsedLine)) {
-          let prevChunk = ast.chunks[ast.chunks.length - 1];
-          if(!prevChunk || !tokenIsSource(prevChunk)) throw ParseError("Ordinal must immediately follow a source.");
-          if(parsedLine.chunks.length < 2 || !tokenIsField(parsedLine.chunks[1]))
-            throw ParseError("Ordinal requires a field to bind to ('?' or '?foo').", parsedLine.chunks[1]);
-          if(parsedLine.chunks.length > 2 && parsedLine.chunks[2]["text"].indexOf("by") !== 1)
-            throw ParseError("Ordinals are formatted as '# ? by ?... <dir>'", parsedLine.chunks[2]);
-
-          parsedLine.alias = parsedLine.chunks[1]["alias"];
-          parsedLine.directions = [];
-          let sortFieldCount = 0;
-          for(let tokenIx = 3, chunkCount = parsedLine.chunks.length; tokenIx < chunkCount; tokenIx++) {
-            let token = parsedLine.chunks[tokenIx];
-            if(tokenIsField(token)) {
-              if(!token.alias) throw ParseError("Ordinal sorting fields must be aliased to a query field.", token);
-              sortFieldCount++;
-            } else if(tokenIsText(token) && sortFieldCount > 0) {
-              let text = token.text.trim().toLowerCase();
-              if(text.indexOf("ascending") === 0) parsedLine.directions[sortFieldCount - 1] = "ascending";
-              else if(text.indexOf("descending") === 0) parsedLine.directions[sortFieldCount - 1] = "descending";
-            }
-          }
-          if(sortFieldCount === 0) throw ParseError("Ordinal requires at least one sorting field.");
-
-        } else if(tokenIsSource(parsedLine)) {
-          if(tokenIsText(head) && head.text.trim()[0] === "!") parsedLine.negated = true;
-        }
-
+        parsedLine = query.processAction(parsedLine)
+          || query.processOrdinal(parsedLine, ast)
+          || query.processCalculation(parsedLine)
+          || query.processSource(parsedLine);
         ast.chunks.push(parsedLine);
       }
       return ast;
     },
 
-    parseLine: function(tokens, lineIx = 0) {
+    parseLine: function(tokens:string[], lineIx:number = 0) {
       let ast:LineAST = {type: "", chunks: [], lineIx};
       let tokensLength = tokens.length;
       while(tokens.length) {
         let tokenIx = tokensLength - tokens.length + 1;
         let token = query.parseField(tokens, tokenIx)
+          || query.parseKeyword(tokens, tokenIx)
           || query.parseStructure(tokens, tokenIx);
-        if(!token) throw ParseError("Unrecognized token sequence.", {type: "", text: tokens.join(""), tokenIx});
+        if(!token) throw ParseError("Unrecognized token sequence.", {type: "text", text: tokens.join(""), tokenIx});
         ast.chunks.push(token);
       }
       return ast.chunks.length ? ast : undefined;
     },
 
-    parseField: function(tokens, tokenIx = 0) {
+    parseField: function(tokens:string[], tokenIx:number = 0) {
       let field:FieldAST = {type: "field", tokenIx};
       let ix = 0;
       if(tokens[ix] === "?") {
@@ -420,21 +364,127 @@ module Parsers {
       return ix > 0 ? field : undefined;
     },
 
-    parseStructure: function(tokens, tokenIx = 0) {
-      let struct:TextAST = {type: "text", text: "", tokenIx};
+    parseKeyword: function(tokens:string[], tokenIx:number = 0) {
+      if(Q_KEYWORD_TOKENS.indexOf(tokens[0]) !== -1) {
+        return {type: "keyword", text: tokens.shift(), tokenIx};
+      }
+    },
+
+    parseStructure: function(tokens:string[], tokenIx:number = 0) {
+      let text = "";
       while(true) {
         let head = tokens[0];
-        if(head === undefined || head === "?" || head === "`") break;
-        struct.text += tokens.shift();
+        if(head === undefined || head === "?" || head === "`" || Q_KEYWORD_TOKENS.indexOf(head) !== -1) break;
+        text += tokens.shift();
       }
-      if(struct.text) return struct;
+      if(text) return {type: "text", text, tokenIx};
+    },
+
+    processAction: function(line:LineAST):LineAST {
+      let kw = line.chunks[0];
+      if(line.chunks.length < 1 || !tokenIsKeyword(kw) || Q_ACTION_TOKENS.indexOf(kw.text) === -1) return;
+      line.type = "action";
+      for(let token of line.chunks) {
+        if(tokenIsField(token) && !token.alias) throw ParseError("All action fields must be aliased to a query field.", token);
+      }
+
+      return line;
+    },
+
+    processCalculation: function(line:LineAST):CalculationAST {
+      let calculations:{view:string, calculation:string}[] = [];
+      let fields:{calculation:string, field:string, ix:number}[] = [];
+
+      let kw = line.chunks[2];
+      if(line.chunks.length < 3 || !tokenIsKeyword(kw) || kw.text !== "$=") return;
+      let text = tokenToString(line);
+
+      if(!tokenIsField(line.chunks[0])) throw ParseError("Calculations must be formatted as '?field $= <calculation>", line);
+      let resultField:FieldAST = line.chunks[0];
+
+      let partIx = 0;
+      let lines:CalculationAST[] = [];
+      let stack = [{type: "source", chunks: [], partIx: partIx++, lineIx: line.lineIx}];
+      for(let token of line.chunks.slice(4)) {
+        let cur = stack[stack.length - 1];
+
+        if(tokenIsKeyword(token)) {
+          if(token.text === "(") {
+            stack.push({type: "source", chunks: [], partIx: partIx++, lineIx: line.lineIx});
+            continue;
+          }
+          else if(token.text === ")") {
+            stack.pop();
+            let prev = stack[stack.length - 1];
+            if(!prev) throw ParseError("Too many close parens", line);
+            let alias = `_${resultField.alias}-${cur.partIx}`;
+            let field:FieldAST = {type: "field", alias};
+            cur.chunks.push({type: "text", text: " = "}, field);
+            prev.chunks.push(field);
+            lines.push(cur);
+            continue;
+          }
+        }
+
+        cur.chunks.push(token);
+      }
+      if(stack.length > 1) throw ParseError("Too few close parens", line);
+      if(stack.length === 0) throw ParseError("Too many close parens", line);
+      stack[0].chunks.push({type: "text", text: " = "}, resultField);
+      lines.push(stack[0]);
+
+      return {type: "calculation", chunks: lines, text};
+    },
+
+    processOrdinal: function(parsedLine:LineAST, ast:QueryAST):OrdinalAST {
+      let kw = parsedLine.chunks[0];
+      if(parsedLine.chunks.length < 1 || !tokenIsKeyword(kw) || kw.text !== "#") return;
+      parsedLine.type = "ordinal";
+
+      let prevChunk = ast.chunks[ast.chunks.length - 1];
+      if(!prevChunk || !tokenIsSource(prevChunk)) throw ParseError("Ordinal must immediately follow a source.");
+      if(parsedLine.chunks.length < 3 || !tokenIsField(parsedLine.chunks[2]))
+        throw ParseError("Ordinal requires a field to bind to ('?' or '?foo').", parsedLine.chunks[1]);
+      if(parsedLine.chunks.length > 3 && parsedLine.chunks[3]["text"].indexOf("by") !== 1)
+        throw ParseError("Ordinals are formatted as '# ? by ?... <dir>'", parsedLine.chunks[2]);
+
+      let line = <OrdinalAST>parsedLine;
+      line.alias = line.chunks[2]["alias"];
+      line.directions = [];
+      let sortFieldCount = 0;
+      for(let tokenIx = 3, chunkCount = line.chunks.length; tokenIx < chunkCount; tokenIx++) {
+        let token = line.chunks[tokenIx];
+        if(tokenIsField(token)) {
+          if(!token.alias) throw ParseError("Ordinal sorting fields must be aliased to a query field.", token);
+          sortFieldCount++;
+        } else if(tokenIsText(token) && sortFieldCount > 0) {
+          let text = token.text.trim().toLowerCase();
+          if(text.indexOf("ascending") === 0) line.directions[sortFieldCount - 1] = "ascending";
+          else if(text.indexOf("descending") === 0) line.directions[sortFieldCount - 1] = "descending";
+        }
+      }
+      if(sortFieldCount === 0) throw ParseError("Ordinal requires at least one sorting field.");
+      return line;
+    },
+
+    processSource: function(line:SourceAST):SourceAST {
+      let kw = line.chunks[0];
+      if(tokenIsText(kw) && kw.text === "!") line.negated = true;
+      line.type = "source";
+      return line;
     },
 
     // Reification
     reify: function(ast:QueryAST, prev?:QueryIR):QueryIR {
       let reified:QueryIR = {id: (prev && prev.id) || Api.uuid(), sources: [], aliases: {}, variables: {}, actions: []};
       let sort = [];
+      let chunks = [];
       for(let line of ast.chunks) {
+        if(tokenIsCalculation(line)) chunks.push.apply(chunks, line.chunks);
+        else chunks.push(line);
+      }
+
+      for(let line of chunks) {
         if(tokenIsSource(line)) {
           let source = query.reifySource(<SourceAST>line);
           let prevSource = prev && prev.sources[reified.sources.length];
@@ -482,7 +532,7 @@ module Parsers {
       return reified;
     },
 
-    reifySource: function(ast, allowMissing = false) {
+    reifySource: function(ast:SourceAST, allowMissing:boolean = false):SourceIR {
       ParseError.lineIx = ast.lineIx;
       let fingerprint = fingerprintSource(ast);
       let {"view fingerprint: view":view} = Api.ixer.findOne("view fingerprint", {"view fingerprint: fingerprint": fingerprint}) || {};
@@ -503,7 +553,7 @@ module Parsers {
       return source;
     },
 
-    reifyAction: function(ast) {
+    reifyAction: function(ast:any):any {
       let action = {action: (<TextAST>ast.chunks[0]).text, view: Api.uuid(), fields: []};
       if(action.action === "+") {
         let source = query.reifySource({type: "source", chunks: ast.chunks}, true);
@@ -516,7 +566,7 @@ module Parsers {
     },
 
     // Stringification
-    fromView: function(viewId:string, ixer:Indexer.Indexer = Api.ixer) {
+    fromView: function(viewId:string, ixer:Indexer.Indexer = Api.ixer):QueryIR {
       let reified:QueryIR = {id: viewId, sources: [], aliases: {}, variables: {}, actions: []};
       let ordinalSourceAlias:{[source:string]: string|boolean} = {};
       let bindingFieldVariable:{[id:string]: VariableIR} = {};
@@ -567,7 +617,7 @@ module Parsers {
       return reified;
     },
 
-    unreify: function(reified:QueryIR) {
+    unreify: function(reified:QueryIR):QueryAST {
       let ast:QueryAST = {type: "query", chunks: []};
       for(let source of reified.sources) {
         // @FIXME: This may not be the correct fingerprint, we need to look through all of them
@@ -616,7 +666,7 @@ module Parsers {
       return ast;
     },
 
-    unparse: (ast:QueryAST) => tokenToString(ast)
+    unparse: (ast:QueryAST):string => tokenToString(ast)
   };
 
   //---------------------------------------------------------------------------

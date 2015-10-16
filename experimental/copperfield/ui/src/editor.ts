@@ -427,7 +427,8 @@ module Editor {
     dispatch("parseQuery", {query: `
 ?view is named ?name
 # ?ord by ?name descending
-?ord < \`20\``
+?ord < \`20\`
+?foo $= (\`5\` * (\`3\` + \`1\`)) / \`2\``
     })
     .dispatch("parseUi", {ui: `
 div view
