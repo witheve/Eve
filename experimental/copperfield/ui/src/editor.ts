@@ -64,6 +64,11 @@ module Editor {
       if(id && type) effect.change.removeWithDependents(type, id);
       return effect;
     },
+    addEvent: function({elem, kind, key = ""}:{elem: string, kind: string, key: any}) {
+      let effect = DispatchEffect.from(this);
+      effect.change.add("event", {"event: event": localState.eventId++, "event: element": elem, "event: kind": kind, "event: key": key});
+      return effect;
+    },
     editQuery: function({editing}:{editing:string}) {
       let effect = DispatchEffect.from(this);
       localState.query.editing = editing;
@@ -290,7 +295,7 @@ module Editor {
   }
 
   function handleEvent(elem:string, kind: string, key?:any) {
-    dispatch("add client event", {elem, kind, key}).done();
+    dispatch("addEvent", {elem, kind, key}).done();
   }
 
   function render() {
@@ -467,6 +472,7 @@ module Editor {
   // @FIXME: This should be moved into API once completed.
   interface LocalState {
     initialized: boolean
+    eventId: number
 
     activePage?: string
     activeComponent?: string
@@ -477,6 +483,7 @@ module Editor {
   }
   export var localState:LocalState = {
     initialized: true,
+    eventId: 0,
     activeKind: "query",
     query: {},
     ui: {}
@@ -490,6 +497,9 @@ module Editor {
         render();
       }
       Ui.onChange = render;
+
+      let eids = Api.extract("event: event", Api.get.facts("event"));
+      if(eids.length) localState.eventId = Math.max.apply(Math, eids); // Ensure eids are monotonic across sessions.
     } else {
       localState = Api.localState;
     }
