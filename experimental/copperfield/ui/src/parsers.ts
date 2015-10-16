@@ -28,6 +28,7 @@ module Parsers {
     chunked?: boolean
     sort?: {ix:number, field:string, direction:string}[]
     ordinal?: string|boolean //alias
+    lineIx?: number
   }
   interface VariableIR {
     selected: string,
@@ -68,7 +69,7 @@ module Parsers {
   function tokenIsField(token:Token): token is FieldAST { return token.type === "field"; }
   function tokenIsSource(token:Token): token is SourceAST {return token.type === "source"; }
   function tokenIsOrdinal(token:Token): token is OrdinalAST { return token.type === "ordinal"; }
-  function tokenIsCalculation(token:Token): token is CalculationAST { return token.type === "calculation"; }
+  export function tokenIsCalculation(token:Token): token is CalculationAST { return token.type === "calculation"; }
   function tokenIsAction(token:Token): token is LineAST { return token.type === "action"; }
 
   function tokenIsAttribute(token:Token): token is AttributeAST { return token.type === "attribute"; }
@@ -154,7 +155,7 @@ module Parsers {
     };
   }
 
-  function tokenToString(token:Token):string {
+  export function tokenToString(token:Token):string {
     if(!token) return;
     let padding = token.indent ? new Array(token.indent + 1).join(" ") : "";
     if(tokenIsCalculation(token) && token.text) return token.text;
@@ -295,6 +296,16 @@ module Parsers {
     tokenize: makeTokenizer(Q_TOKENS),
     tokenToChar: (token:Token, line:string):number => (token.tokenIx !== undefined) ? query.tokenize(line).slice(0, token.tokenIx - 1).join("").length : 0,
 
+    getSourceIR(sourceId:string, reified:QueryIR):SourceIR {
+      for(let source of reified.sources) {
+        if(source.source === sourceId) return source;
+      }
+    },
+    getSourceAST(source:SourceIR, ast:QueryAST) {
+      if(source.lineIx === undefined) return;
+      return ast.chunks[source.lineIx];
+    },
+
     // Parsing
     parse: function(raw:string):QueryAST {
       let ast:QueryAST = {type: "query", chunks: []};
@@ -316,7 +327,6 @@ module Parsers {
 
         let parsedLine = query.parseLine(tokens, ast.chunks.length);
         if(parsedLine.chunks.length) {
-          console.log(parsedLine.chunks[0]);
           if(tokenIsKeyword(parsedLine.chunks[0]) && parsedLine.chunks[0]["text"] === ";") {
             parsedLine["text"] = tokenToString(parsedLine);
             parsedLine.type = "comment";
@@ -547,7 +557,7 @@ module Parsers {
       let {"view fingerprint: view":view} = Api.ixer.findOne("view fingerprint", {"view fingerprint: fingerprint": fingerprint}) || {};
       if(!view && !allowMissing) throw ParseError(`Fingerprint '${fingerprint}' matches no known views.`); //@NOTE: Should this create a union..?
 
-      let source:SourceIR = {negated: ast.negated, source: Api.uuid(), sourceView: view, fields: []};
+      let source:SourceIR = {negated: ast.negated, source: Api.uuid(), sourceView: view, fields: [], lineIx: ast.lineIx};
       let fieldIxes = Api.ixer.find("fingerprint field", {"fingerprint field: fingerprint": fingerprint}).slice()
         .sort((a, b) => a["fingerprint field: ix"] - b["fingerprint field: ix"]);
 
@@ -599,8 +609,13 @@ module Parsers {
         }
       }
 
-      for(let rawSource of Api.ixer.find("source", {"source: view": viewId})) {
-        let source:SourceIR = {source: rawSource["source: source"], sourceView: rawSource["source: source view"], fields: []};
+      let rawSources = {};
+      for(let rawSource of Api.ixer.find("source", {"source: view": viewId})) rawSources[rawSource["source: source"]] = rawSource;
+      let sourceIds = Object.keys(rawSources).sort(Api.displaySort);
+
+      for(let sourceId of sourceIds) {
+        let rawSource = rawSources[sourceId];
+        let source:SourceIR = {source: sourceId, sourceView: rawSource["source: source view"], fields: []};
         reified.sources[reified.sources.length] = source;
 
         if(ordinalSourceAlias[source.source]) source.ordinal = ordinalSourceAlias[source.source];

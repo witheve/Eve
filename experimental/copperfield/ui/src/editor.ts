@@ -49,7 +49,6 @@ module Editor {
     },
     setTags: function({tags, id}:{tags:string[], id?:string}) {
       let effect = DispatchEffect.from(this);
-      console.log("setTags", tags, id);
       if(!tags) return effect;
       if(id) {
         effect.change.remove("tag", {"tag: view": id})
@@ -87,6 +86,8 @@ module Editor {
         let ast = Api.ixer.findOne("ast cache", {"ast cache: id": viewId, "ast cache: kind": "query"});
         if(ast) localState.query.ast = JSON.parse(ast["ast cache: ast"]);
         else localState.query.ast = Parsers.query.unreify(localState.query.reified);
+        // @FIXME: Ugly hack, we need to send lineIx's forward until we make getSourceAST more intelligent
+        // localState.query.reified = Parsers.query.reify(localState.query.ast, localState.query.reified);
       }
       return effect;
     },
@@ -121,8 +122,10 @@ module Editor {
       effect.change.add("view", {"view: view": query.id, "view: kind": "join"})
         .add("display name", query.name || "Untitled Search");
 
+      let sourceIx = 0;
       for(let source of reified.sources) { // Sources
-        effect.change.add("source", {"source: source": source.source, "source: source view": source.sourceView});
+        effect.change.add("source", {"source: source": source.source, "source: source view": source.sourceView})
+          .add("display order", sourceIx++);
         if(source.negated) effect.change.add("negated source");
         if(source.chunked) {
           effect.change.add("chunked source");
@@ -250,10 +253,10 @@ module Editor {
     var dispatch = Editor.dispatch;
     var info = Api.clone(elem);
     info.id = undefined;\n`;
-    for(let cmd of commands.split(";")) {
-      code += "    " + cmd.trim() + ";\n";
+    if(commands) {
+      for(let cmd of commands.split(";")) code += "    " + cmd.trim() + ";\n";
     }
-    if(dispatches.length) {
+    if(dispatches) {
       let names = dispatches.split(/[;|,]/);
       let multi = false;
       for(let name of names) {
@@ -319,38 +322,63 @@ module Editor {
     }
   ];
   function queryEditor():Element {
-    let queryName = localState.query.name || Api.get.name(localState.query.id);
-    let queryString = localState.query.editing;
-    if(queryString === undefined) queryString = Parsers.query.unparse(localState.query.ast) || "";
+    let query = localState.query;
+    let queryName = query.name || Api.get.name(query.id);
+    let queryString = query.editing;
+    if(queryString === undefined) queryString = Parsers.query.unparse(query.ast) || "";
     let queries = {"": "New Query"};
     for(let viewId of Api.extract("view: view", Api.ixer.find("view"))) {
       queries[viewId] = Api.get.name(viewId) || `<${viewId}>`;
     }
-    let tags = (localState.query.tags || []).join(", ");
-    if(localState.query.id) tags = Api.get.tags(localState.query.id).join(", ");
+    let tags = (query.tags || []).join(", ");
+    if(query.id) tags = Api.get.tags(query.id).join(", ");
+
+    let warnings;
+    if(query.id) {
+      warnings = Api.ixer.find("disabled view", {"disabled view: view": query.id}).map(function(warning) {
+        let explanation;
+        let warningView = warning["disabled view: warning view"];
+        let row = Api.humanize(warningView, Client.factToMap(warningView, warning["disabled view: warning row"]));
+        if(warningView === "unschedulable source") {
+          let sourceIR = Parsers.query.getSourceIR(row.source, query.reified);
+          let sourceAST = sourceIR ? Parsers.query.getSourceAST(sourceIR, query.ast) : undefined;
+          let line = Parsers.tokenToString(sourceAST);
+          explanation = {children: [
+            {text: `Source: '${row.source}'`},
+            sourceAST ? {text: `on line ${sourceAST.lineIx + 1}:0`} : undefined,
+            sourceAST ? {text: line} : undefined
+          ]};
+        }
+        return {c: "warning-row", children: [
+          {text: warning["disabled view: warning"]},
+          explanation
+        ]};
+      });
+    }
 
     return Ui.row({children: [
       Ui.column({flex: 1, children: [
         Ui.row({children: [
-          Ui.input({placeholder: "Untitled Search", text: queryName, view: localState.query.id,
+          Ui.input({placeholder: "Untitled Search", text: queryName, view: query.id,
             blur: dispatchOnEvent("setName", "info.name = evt.target.textContent; info.id = elem.view")
           }),
-          Ui.input({placeholder: "tags", text: tags, view: localState.query.id,
+          Ui.input({placeholder: "tags", text: tags, view: query.id,
             blur: dispatchOnEvent("setTags", "info.tags = (evt.target.textContent || '').split(', '); info.id = elem.view")
           }),
-          Ui.dropdown({options: queries, defaultOption: <any>localState.query.id,
+          Ui.dropdown({options: queries, defaultOption: <any>query.id,
             change: dispatchOnEvent("loadQuery", "info.viewId = evt.target.value")
           }),
-          Ui.button({text: "compile", click: dispatchOnEvent("compileQuery", "info.query = localState.query")}),
-          Ui.button({c: "ion-close", view: localState.query.id, click: dispatchOnEvent("remove; loadQuery", "info.type = 'view'; info.id = elem.view")})
+          Ui.button({text: "compile", query, click: dispatchOnEvent("compileQuery")}),
+          Ui.button({c: "ion-close", view: query.id, click: dispatchOnEvent("remove; loadQuery", "info.type = 'view'; info.id = elem.view")})
         ]}),
-        Ui.codeMirrorElement({c: "code", id: "query-code-editor", value: queryString,
-          change: dispatchOnEvent("parseQuery", "info.query = evt.getValue(); info.prev = localState.query.reified", 66),
+        Ui.codeMirrorElement({c: "code", id: "query-code-editor", value: queryString, prev: query.reified,
+          change: dispatchOnEvent("parseQuery", "info.query = evt.getValue()", 66),
           focus: dispatchOnEvent("editQuery", "info.editing = elem.value"),
           blur: dispatchOnEvent("editQuery", "info.editing = undefined"),
         }),
-        {t: "pre", c: "err", text: localState.query.msg},
-        localState.query.id ? Ui.factTable({view: localState.query.id}) : undefined
+        {t: "pre", c: "err", text: query.msg},
+        {t: "pre", c: "warn", children: warnings},
+        query.id ? Ui.factTable({view: query.id}) : undefined
       ]}),
       Ui.tabbedBox({id: "query-results", flex: 1, panes: queryInspectorPanes, defaultTab: "result-reified"})
     ]});
