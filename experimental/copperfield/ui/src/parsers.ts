@@ -17,6 +17,7 @@ module Parsers {
   interface ElementAST extends Token { tag?: string, classes?: string, name?: string }
   interface AttributeAST extends Token { property: string, value: FieldAST, static: boolean }
   interface BindingAST extends Token { text: string }
+  interface EventAST extends Token { event: string, key?: FieldAST }
   export interface UiAST extends LineAST {}
 
   interface FieldIR { field: string, grouped?: boolean, alias?: string, value?: string, ordinal?: boolean }
@@ -52,6 +53,8 @@ module Parsers {
     parent?: string
     attributes: Api.Dict
     boundAttributes: Api.Dict
+    events: string[]
+    boundEvents: Api.Dict
     boundView?: string
     bindings?: Api.Dict
   }
@@ -74,6 +77,7 @@ module Parsers {
 
   function tokenIsAttribute(token:Token): token is AttributeAST { return token.type === "attribute"; }
   function tokenIsBinding(token:Token): token is BindingAST { return token.type === "binding"; }
+  function tokenIsEvent(token:Token): token is EventAST { return token.type === "event"; }
   function tokenIsElement(token:Token): token is ElementAST { return token.type === "element"; }
 
   //---------------------------------------------------------------------------
@@ -180,7 +184,8 @@ module Parsers {
       if(token.name) res += "; " + token.name;
       return res;
     }
-    else if(tokenIsBinding(token)) return padding + "~ " + token.text.split("\n").join("\n" + padding + "~ ");
+    if(tokenIsBinding(token)) return padding + "~ " + token.text.split("\n").join("\n" + padding + "~ ");
+    if(tokenIsEvent(token)) return padding + "@ " + token.event + (token.key ? ": " + tokenToString(token.key) : "");
     if(tokenIsComment(token)) return padding + ";" + token.text;
     if(tokenIsText(token) || tokenIsKeyword(token)) return padding + token.text;
     throw new Error(`Unknown token type '${token && token.type}' for token '${JSON.stringify(token)}'.`);
@@ -696,7 +701,7 @@ module Parsers {
   //---------------------------------------------------------------------------
   // Ui Parser
   //---------------------------------------------------------------------------
-  const U_TOKENS = [";", "~", "-", " ", "\t", "`", "?"];
+  const U_TOKENS = [";", "@", "~", "-", " ", "\t", "`", "?"];
   export var ui = {
    // Utilities
     tokenize: makeTokenizer(Q_TOKENS),
@@ -765,6 +770,22 @@ module Parsers {
 
           } else throw ParseError("Binding must immediately follow an element or a binding.", line);
 
+        } else if(head === "@") {
+          line.type = "event";
+          let event:EventAST = <any>line;
+          consume([" ", "\t"], tokens);
+          event.event = consumeUntil([":"], tokens);
+          tokens.shift();
+          consume([" ", "\t"], tokens);
+          if(tokens.length) {
+            let field = query.parseField(tokens, tokensLength - tokens.length);
+            // @TODO we can wrap this in `` and rerun it, or skip the middleman since we know the value.
+            if(!field) throw ParseError("Value of attribute must be a field (either ' ?foo ' or ' `100` ')", {type: "text", text: tokens.join(""), tokenIx: tokensLength - tokens.length});
+            if(!field.alias) throw ParseError("Event keys must be aliased to a bound field.", field);
+            event.key = field;
+          }
+          if(tokens.length) throw ParseError("Extraneous tokens after value.", {type: "text", text: tokens.join(""), tokenIx: tokensLength - tokens.length});
+
         } else {
           line.type = "element";
           let element:ElementAST = <any>line;
@@ -782,7 +803,7 @@ module Parsers {
 
     reify(ast:UiAST, prev?:UiIR): UiIR {
       let rootId = prev ? prev.root.element : Api.uuid();
-      let root:ElementIR = {element: rootId, tag: "div", ix: 0, attributes: {}, boundAttributes: {}};
+      let root:ElementIR = {element: rootId, tag: "div", ix: 0, attributes: {}, boundAttributes: {}, events: [], boundEvents: {}};
       let reified:UiIR = {elements: [], root, boundQueries: {}};
       let indent = {[root.element]: -1};
       let childCount = {[root.element]: 0};
@@ -802,7 +823,7 @@ module Parsers {
           let prevElem = prev && prev.elements[reified.elements.length]; // This is usually not going to match up.
           let elemId = prevElem ? prevElem.element : Api.uuid();
           let ix = childCount[parentElem.element]++;
-          let elem:ElementIR = {element: elemId, tag: line.tag, parent: parentElem.element, ix, attributes: {}, boundAttributes: {}};
+          let elem:ElementIR = {element: elemId, tag: line.tag, parent: parentElem.element, ix, attributes: {}, boundAttributes: {}, events: [], boundEvents: {}};
           indent[elem.element] = line.indent;
           childCount[elem.element] = 0;
           ancestors.push(elem);
@@ -850,6 +871,14 @@ module Parsers {
             parentElem.boundAttributes[line.property] = getScopedBinding(line.value.alias, ancestors, reified.boundQueries);
             if(!parentElem.boundAttributes[line.property])
               throw ParseError(`Could not resolve alias '${line.value.alias}' for bound attribute '${line.property}'`);
+          }
+        } else if(tokenIsEvent(line)) {
+          if(line.key) {
+            parentElem.boundEvents[line.event] = getScopedBinding(line.key.alias, ancestors, reified.boundQueries);
+              if(!parentElem.boundEvents[line.event])
+                throw ParseError(`Could not resolve alias '${line.key.alias}' for bound event '${line.event}'`);
+          } else {
+            parentElem.events.push(line.event);
           }
         }
       }
