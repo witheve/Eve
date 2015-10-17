@@ -245,6 +245,248 @@ module wiki {
     return results;
   }
 
+  function stringMatches2(string, type, index) {
+    // remove all non-word non-space characters
+    let cleaned = string.replace(/[^\s\w]/gi, " ").toLowerCase();
+    let words = cleaned.split(" ");
+    let front = 0;
+    let back = words.length;
+    let results = [];
+    let pos = 0;
+    while(front < words.length) {
+      let str = words.slice(front, back).join(" ");
+      let orig = str;
+      let found = index[str];
+      if(!found) {
+        str = pluralize(str, 1);
+        found = index[str];
+        if(!found) {
+          str = pluralize(str, 12);
+          found = index[str];
+        }
+      }
+      if(found) {
+        results.push({found: str, orig, pos, type});
+        front = back;
+        pos += orig.length + 1;
+        back = words.length;
+      } else if(back - 1 > front) {
+        back--;
+      } else {
+        back = words.length;
+        pos += words[front].length + 1;
+        front++;
+      }
+    }
+    return results;
+  }
+
+  var comparatives = {
+    "older": ["age", ">"],
+    "younger": ["age", "<"],
+  }
+  var modifiers = {
+    "per": "group",
+    "with": "group",
+    "each": "group",
+    "without": "deselect",
+    "not": "deselect",
+  }
+  var operations = {
+    "sum": "sum",
+    "count": "count",
+    "average": "average",
+    "mean": "average",
+    "top": "sort limit",
+    "bottom": "sort limit",
+    "highest": "sort limit",
+    "lowest": "sort limit",
+    ">": "greater",
+    "<": "lesser",
+    "=": "equal",
+    "greater": "greater",
+    "bigger": "greater",
+    "lower": "lesser",
+    "smaller": "lesser",
+    "equal": "equal",
+    "contains": "contains",
+  }
+  function newSearch(searchString) {
+    // search the string for entities / decks
+    // TODO: this is stupidly slow
+    let cleaned = searchString.toLowerCase();
+    eve.find("entity", {entity: ""});
+    var index = eve.table("entity").indexes["entity"].index;
+    let entities = stringMatches2(searchString, "entity", index);
+    eve.find("deck", {deck: ""});
+    var deckIndex = eve.table("deck").indexes["deck"].index;
+    let decks = stringMatches2(searchString, "deck", deckIndex);
+    eve.find("page eavs", {attribute: ""});
+    var eavIndex = eve.table("page eavs").indexes["attribute"].index;
+    let eavs = stringMatches2(searchString, "attribute", eavIndex);
+    let all = entities.concat(decks).concat(eavs);
+    all.sort((a, b) => a.pos - b.pos);
+    let remaining = cleaned;
+    for(let part of all) {
+      let spaces = "";
+      for(var i = 0; i < part.orig.length; i++) spaces += " ";
+      remaining = remaining.replace(part.orig, spaces);
+    }
+    let words = remaining.split(" ");
+    let ix = 0;
+    for(let word of words) {
+      if(!word) {
+        ix++;
+        continue;
+      }
+      if(comparatives[word]) {
+        all.push({type: "attribute", orig: word, comparative: comparatives[word], pos: ix});
+      } else if(modifiers[word]) {
+        all.push({type: "modifier", orig: word, modifier: modifiers[word], pos: ix});
+      } else if(operations[word]) {
+        all.push({type: "operation", orig: word, operation: operations[word], pos: ix});
+      } else if(word === "deck" || word === "decks") {
+        all.push({type: "collection", found: word, orig: word, pos: ix})
+      } else if(parseFloat(word)) {
+        all.push({type: "value", orig: word, pos: ix});
+      } else if(word[0] === "\"") {
+        // @TODO: account for multi word quotes
+        all.push({type: "value", orig: word, pos: ix});
+      }
+      ix += word.length + 1;
+    }
+    all.sort((a, b) => a.pos - b.pos);
+    // start coming up with a plan
+    let plan = [];
+    let ops = [];
+    for(let part of all) {
+      let {type} = part;
+      if(type === "operation") {
+        ops.push(part);
+      }
+
+    }
+    console.log(remaining);
+    console.log(all);
+//     console.log("paper -> author");
+//     findCollectionToCollectionRelationship("paper", "author")
+//     console.log("people -> american");
+//     findCollectionToCollectionRelationship("person", "american")
+//     findEntToAttrRelationship("engineering", "salary");
+//     findEntToAttrRelationship("chris granger", "age");
+//     findCollectionToAttrRelationship("department", "salary");
+//     findCollectionToEntRelationship("department", "chris granger");
+//     findCollectionToEntRelationship("person", "engineering");
+//     findCollectionToAttrRelationship("sales person", "sales price");
+//     findCollectionToEntRelationship("decks", "chris granger");
+    findCollectionToEntRelationship("person", "california");
+    return all;
+  }
+
+  // e.g. "salaries in engineering"
+  // e.g. "chris's age"
+  function findEntToAttrRelationship(ent, attr) {
+    // check if this ent has that attr
+    let directAttribute = eve.findOne("page eavs", {page: ent, attribute: attr});
+    if(directAttribute) {
+      console.log("Direct!", directAttribute);
+      return;
+    }
+    let relationships = eve.query(``)
+                  .select("page links", {page: ent}, "links")
+                  .select("page eavs", {page: ["links", "link"], attribute: attr}, "eav")
+                  .exec();
+    if(relationships.unprojected.length) {
+      console.log("One hop!", relationships.unprojected);
+      return;
+    }
+    let relationships2 = eve.query(``)
+                  .select("page links", {page: ent}, "links")
+                  .select("page links", {page: ["links", "link"]}, "links2")
+                  .select("page eavs", {page: ["links2", "link"], attribute: attr}, "eav")
+                  .exec();
+    if(relationships2.unprojected.length) {
+      console.log("dual hop!", relationships2.unprojected);
+      return;
+    }
+  }
+
+  // e.g. "salaries per department"
+  function findCollectionToAttrRelationship(coll, attr) {
+    let relationships = eve.query(``)
+                  .select("deck pages", {deck: coll}, "deck")
+                  .select("directionless links", {page: ["deck", "page"]}, "links")
+                  .select("page eavs", {page: ["links", "link"], attribute: attr}, "eav")
+                  .exec();
+    if(relationships.unprojected.length) {
+      console.log("Coll->Attr One hop!", relationships.unprojected);
+      return;
+    }
+    let relationships2 = eve.query(``)
+                  .select("deck pages", {deck: coll}, "deck")
+                  .select("directionless links", {page: ["deck", "page"]}, "links")
+                  .select("directionless links", {page: ["links", "link"]}, "links2")
+                  .select("page eavs", {page: ["links2", "link"], attribute: attr}, "eav")
+                  .exec();
+    if(relationships2.unprojected.length) {
+      console.log("Coll->Attr dual hop!", relationships2.unprojected);
+      return;
+    }
+  }
+
+  // e.g. "meetings john was in"
+  function findCollectionToEntRelationship(coll, ent) {
+    if(coll === "decks") {
+      console.log("Coll->Ent decks lookup", eve.find("deck pages", {page: ent}));
+      return eve.find("deck pages", {page: ent});
+    }
+    let relationships = eve.query(``)
+                  .select("deck pages", {deck: coll}, "deck")
+                  .select("directionless links", {page: ["deck", "page"], link: ent}, "links")
+                  .debug();
+    if(relationships.unprojected.length) {
+      console.log("Coll->Ent One hop!", relationships.unprojected);
+      return;
+    }
+    let relationships2 = eve.query(``)
+                  .select("deck pages", {deck: coll}, "deck")
+                  .select("directionless links", {page: ["deck", "page"]}, "links")
+                  .select("directionless links", {page: ["links", "link"], link: ent}, "links2")
+                  .exec();
+    if(relationships2.unprojected.length) {
+      console.log("Coll->Ent dual hop!", relationships2.unprojected);
+      return;
+    }
+  }
+
+  // e.g. "authors and papers"
+  function findCollectionToCollectionRelationship(coll, coll2) {
+    // are there things in both sets?
+    let intersection = eve.query(`${coll}->${coll2}`)
+                     .select("deck pages", {deck: coll}, "coll1")
+                     .select("deck pages", {deck: coll2, page: ["coll1", "page"]}, "coll2")
+                     .exec();
+    //is there a relationship between things in both sets
+    let relationships = eve.query(`relationships between ${coll} and ${coll2}`)
+                  .select("deck pages", {deck: coll}, "coll1")
+                  .select("directionless links", {page: ["coll1", "page"]}, "links")
+                  .select("deck pages", {deck: coll2, page: ["links", "link"]}, "coll2")
+                  .group([["links", "type"]])
+                  .aggregate("count", {}, "count")
+                  .project({type: ["links", "type"], count: ["count", "count"]})
+                  .exec();
+
+    let maxRel = {count: 0};
+    for(let result of relationships.results) {
+      if(result.count > maxRel.count) maxRel = result;
+    }
+
+    // we divide by two because unprojected results pack rows next to eachother
+    // and we have two selects.
+    let intersectionSize = intersection.unprojected.length / 2;
+    console.log(maxRel.count, intersectionSize);
+  }
+
   function stringMatches(string, index) {
     // remove all non-word non-space characters
     let cleaned = string.replace(/[^\s\w]/gi, "").toLowerCase();
@@ -280,6 +522,7 @@ module wiki {
   function search(searchString) {
     // search the string for entities / decks
     // TODO: this is stupidly slow
+    newSearch(searchString);
     let cleaned = searchString.toLowerCase();
     eve.find("entity", {entity: ""});
     var index = eve.table("entity").indexes["entity"].index;
@@ -290,7 +533,6 @@ module wiki {
     eve.find("page eavs", {attribute: ""});
     var eavIndex = eve.table("page eavs").indexes["attribute"].index;
     let eavs = stringMatches(searchString, eavIndex);
-    console.log(entities, decks, eavs);
     // TODO: handle more than two entities
     //
     if(entities.length === 0 && decks.length) {
@@ -412,6 +654,25 @@ module wiki {
     return {children: items};
   }
 
+  function searchDescription() {
+    let search = eve.findOne("search")["search"];
+    let parts = newSearch(search);
+    let ix = 0;
+    let children = [];
+    for(let part of parts) {
+      let {type, pos} = part;
+      if(ix < pos) {
+        children.push({c: "text", text: search.substring(ix, pos)});
+      }
+      children.push({c: type, text: search.substring(pos, pos + part.orig.length)});
+      ix = pos + part.orig.length;
+    }
+    if(ix < search.length) {
+      children.push({c: "text", text: search.substring(ix)});
+    }
+    return {c: "search-description", children};
+  }
+
   function searchResults() {
     let pathItems = [];
     let paths = eve.find("search results", {step: 0});
@@ -438,7 +699,10 @@ module wiki {
         articleUi(search.search)
       ]});
     }
-    return {c: "search-results", children: pathItems};
+    return {c: "container", children: [
+      searchDescription(),
+      {c: "search-results", children: pathItems}
+    ]};
   }
 
   function commitArticle(cm, elem) {
@@ -581,6 +845,10 @@ module wiki {
              .select("page", {}, "page")
              .calculate("page to graph", {text: ["page", "text"], page: ["page", "page"]}, "links")
              .project({page: ["page", "page"], link: ["links", "link"], type: ["links", "type"]}));
+
+  eve.asView(eve.union("directionless links")
+                .union("page links", {page: ["page"], link: ["link"], type: ["type"]})
+                .union("page links", {page: ["link"], link: ["page"], type: ["type"]}));
 
   eve.asView(eve.query("search results")
              .select("search", {}, "search")
