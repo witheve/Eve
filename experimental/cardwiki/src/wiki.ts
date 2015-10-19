@@ -320,7 +320,7 @@ module wiki {
     let entities = stringMatches2(searchString, "entity", index);
     eve.find("deck", {deck: ""});
     var deckIndex = eve.table("deck").indexes["deck"].index;
-    let decks = stringMatches2(searchString, "deck", deckIndex);
+    let decks = stringMatches2(searchString, "collection", deckIndex);
     eve.find("page eavs", {attribute: ""});
     var eavIndex = eve.table("page eavs").indexes["attribute"].index;
     let eavs = stringMatches2(searchString, "attribute", eavIndex);
@@ -340,7 +340,7 @@ module wiki {
         continue;
       }
       if(comparatives[word]) {
-        all.push({type: "attribute", orig: word, comparative: comparatives[word], pos: ix});
+        all.push({type: "attribute", found: comparatives[word][0], orig: word, comparative: comparatives[word], pos: ix});
       } else if(modifiers[word]) {
         all.push({type: "modifier", orig: word, modifier: modifiers[word], pos: ix});
       } else if(operations[word]) {
@@ -359,15 +359,54 @@ module wiki {
     // start coming up with a plan
     let plan = [];
     let ops = [];
+    let state = {prev: null, prevCollection: null};
     for(let part of all) {
       let {type} = part;
       if(type === "operation") {
         ops.push(part);
       }
-
+      let isEdible = (part.type === "attribute" || part.type === "collection" || part.type === "entity");
+      let prev = state.prev;
+      if(!prev && isEdible) {
+        state.prev = part;
+        if(part.type === "collection") {
+          state.prevCollection = part;
+        }
+      } else if(prev && isEdible) {
+        console.log("matching", prev, part);
+        if(prev.type === "entity") {
+          if(part.type === "collection") {
+            plan.push(prev, findCollectionToEntRelationship(part.found, prev.found) || "Unknown", part);
+          } else if(part.type === "entity") {
+            if(state.prevCollection) {
+              plan.push(state.prevCollection, findCollectionToEntRelationship(state.prevCollection.found, part.found) || "Unknown", part);
+            } else {
+              console.log("TODO: entity to entity");
+            }
+//             plan.push(findCollectionToCollectionRelationship(prev.found, part.found) || "Unknown");
+          } else if(part.type === "attribute") {
+            plan.push(prev, findEntToAttrRelationship(prev.found, part.found) || "Unknown", part);
+          }
+        } else if(prev.type === "collection") {
+          if(part.type === "collection") {
+            plan.push(prev, findCollectionToCollectionRelationship(prev.found, part.found) || "Unknown", part);
+          } else if(part.type === "entity") {
+            plan.push(prev, findCollectionToEntRelationship(prev.found, part.found) || "Unknown", part);
+          } else if(part.type === "attribute") {
+            plan.push(prev, findCollectionToAttrRelationship(prev.found, part.found) || "Unknown", part);
+          }
+        } else if(prev.type === "attribute") {
+          if(part.type === "collection") {
+            plan.push(part, findCollectionToAttrRelationship(part.found, prev.found) || "Unknown", prev);
+          } else if(part.type === "entity") {
+            plan.push(part, findEntToAttrRelationship(part.found, prev.found) || "Unknown", prev);
+          }
+        }
+        state.prev = part;
+      }
     }
-    console.log(remaining);
     console.log(all);
+    console.log(plan);
 //     console.log("paper -> author");
 //     findCollectionToCollectionRelationship("paper", "author")
 //     console.log("people -> american");
@@ -379,8 +418,52 @@ module wiki {
 //     findCollectionToEntRelationship("person", "engineering");
 //     findCollectionToAttrRelationship("sales person", "sales price");
 //     findCollectionToEntRelationship("decks", "chris granger");
-    findCollectionToEntRelationship("person", "california");
+//     findCollectionToEntRelationship("person", "california");
+//     console.log("common", findCommonCollections(["chris granger", "jamie brandon"]));
     return all;
+  }
+
+  function arrayIntersect(a, b) {
+    let ai = 0;
+    let bi = 0;
+    let result = [];
+    while(ai < a.length && bi < b.length){
+       if (a[ai] < b[bi] ) ai++;
+       else if (a[ai] > b[bi] ) bi++;
+       else {
+         result.push(a[ai]);
+         ai++;
+         bi++;
+       }
+    }
+    return result;
+  }
+
+  function pageToDecksArray(page) {
+    let pages = eve.find("deck pages", {page});
+    return pages.map((a) => a["deck"]);
+  }
+
+  function extractFromUnprojected(coll, ix, field, size) {
+    let results = [];
+    for(var i = 0, len = coll.length; i < len; i += size) {
+      results.push(coll[i + ix][field]);
+    }
+    return results;
+  }
+
+  function findCommonCollections(ents) {
+    let intersection = pageToDecksArray(ents[0]);
+    intersection.sort();
+    for(let entId of ents.slice(1)) {
+      let cur = pageToDecksArray(entId);
+      cur.sort();
+      arrayIntersect(intersection, cur);
+    }
+    intersection.sort((a, b) => {
+      return eve.findOne("deck", {deck: b})["count"] - eve.findOne("deck", {deck: a})["count"];
+    })
+    return intersection;
   }
 
   // e.g. "salaries in engineering"
@@ -390,15 +473,16 @@ module wiki {
     let directAttribute = eve.findOne("page eavs", {page: ent, attribute: attr});
     if(directAttribute) {
       console.log("Direct!", directAttribute);
-      return;
+      return {distance: 0};
     }
     let relationships = eve.query(``)
                   .select("page links", {page: ent}, "links")
                   .select("page eavs", {page: ["links", "link"], attribute: attr}, "eav")
                   .exec();
     if(relationships.unprojected.length) {
-      console.log("One hop!", relationships.unprojected);
-      return;
+      let pages = extractFromUnprojected(relationships.unprojected, 0, "link", 2);
+      console.log("One hop! common collections:", pages, findCommonCollections(pages));
+      return {distance: 1, nodes: [findCommonCollections(pages)]};
     }
     let relationships2 = eve.query(``)
                   .select("page links", {page: ent}, "links")
@@ -406,8 +490,10 @@ module wiki {
                   .select("page eavs", {page: ["links2", "link"], attribute: attr}, "eav")
                   .exec();
     if(relationships2.unprojected.length) {
+      let pages = extractFromUnprojected(relationships2.unprojected, 0, "link", 3);
+      let pages2 = extractFromUnprojected(relationships2.unprojected, 1, "link", 3);
       console.log("dual hop!", relationships2.unprojected);
-      return;
+      return {distance: 2, nodes: [findCommonCollections(pages), findCommonCollections(pages2)]};
     }
   }
 
@@ -419,8 +505,9 @@ module wiki {
                   .select("page eavs", {page: ["links", "link"], attribute: attr}, "eav")
                   .exec();
     if(relationships.unprojected.length) {
+      let pages = extractFromUnprojected(relationships.unprojected, 1, "link", 3);
       console.log("Coll->Attr One hop!", relationships.unprojected);
-      return;
+      return {distance: 1, nodes: [findCommonCollections(pages)]};
     }
     let relationships2 = eve.query(``)
                   .select("deck pages", {deck: coll}, "deck")
@@ -429,8 +516,10 @@ module wiki {
                   .select("page eavs", {page: ["links2", "link"], attribute: attr}, "eav")
                   .exec();
     if(relationships2.unprojected.length) {
+      let pages = extractFromUnprojected(relationships2.unprojected, 1, "link", 4);
+      let pages2 = extractFromUnprojected(relationships2.unprojected, 2, "link", 4);
       console.log("Coll->Attr dual hop!", relationships2.unprojected);
-      return;
+      return {distance: 2, nodes: [findCommonCollections(pages), findCommonCollections(pages2)]};
     }
   }
 
@@ -443,10 +532,12 @@ module wiki {
     let relationships = eve.query(``)
                   .select("deck pages", {deck: coll}, "deck")
                   .select("directionless links", {page: ["deck", "page"], link: ent}, "links")
-                  .debug();
+                  .exec();
+    console.log(relationships);
     if(relationships.unprojected.length) {
+//       let pages = extractFromUnprojected(relationships.unprojected, 1, "link", 2);
       console.log("Coll->Ent One hop!", relationships.unprojected);
-      return;
+      return {distance: 0, nodes: []};
     }
     let relationships2 = eve.query(``)
                   .select("deck pages", {deck: coll}, "deck")
@@ -454,8 +545,10 @@ module wiki {
                   .select("directionless links", {page: ["links", "link"], link: ent}, "links2")
                   .exec();
     if(relationships2.unprojected.length) {
+      let pages = extractFromUnprojected(relationships2.unprojected, 1, "link", 3);
+      let pages2 = extractFromUnprojected(relationships2.unprojected, 2, "link", 3);
       console.log("Coll->Ent dual hop!", relationships2.unprojected);
-      return;
+      return {distance: 2, nodes: [findCommonCollections(pages), findCommonCollections(pages2)]};
     }
   }
 
@@ -484,6 +577,13 @@ module wiki {
     // we divide by two because unprojected results pack rows next to eachother
     // and we have two selects.
     let intersectionSize = intersection.unprojected.length / 2;
+    if(maxRel.count > intersectionSize) {
+
+    } else if(intersectionSize > maxRel.count) {
+
+    } else {
+
+    }
     console.log(maxRel.count, intersectionSize);
   }
 
@@ -879,7 +979,9 @@ module wiki {
 
   eve.asView(eve.query("deck")
              .select("deck pages", {}, "decks")
-             .project({deck: ["decks", "deck"]}));
+             .group([["decks", "deck"]])
+             .aggregate("count", {}, "count")
+             .project({deck: ["decks", "deck"], count: ["count", "count"]}));
 
   //---------------------------------------------------------
   // Go
