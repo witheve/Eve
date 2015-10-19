@@ -61,7 +61,7 @@ module Parsers {
   export interface UiIR {
     elements: ElementIR[]
     root: ElementIR
-    boundQueries: {[id: string]: QueryIR}
+    boundQueries: {[id: string]: Query}
   }
 
   function tokenIsLine(token:Token): token is LineAST { return !!token["chunks"]; }
@@ -191,56 +191,6 @@ module Parsers {
     throw new Error(`Unknown token type '${token && token.type}' for token '${JSON.stringify(token)}'.`);
   }
 
-  export function fingerprintSource(ast:LineAST) {
-    let fingerprint = "";
-    let tokenIx = 0;
-    let tokenCount = ast.chunks.length;
-    let head = ast.chunks[0];
-    if(tokenIsText(head)) {
-      if(head.text[0] === "!" && head.text[1] === " ") {
-        tokenIx = 1;
-        fingerprint = head.text.slice(2);
-      }
-    }
-    for(; tokenIx < tokenCount; tokenIx++) {
-      let token = ast.chunks[tokenIx];
-      fingerprint +=  tokenIsField(token) ? "?" : tokenToString(token);
-    }
-    return fingerprint;
-  }
-
-  export function coerceInput(input) {
-    if (input.match(/^-?[\d]+$/gim)) {
-        return parseInt(input);
-    }
-    else if (input.match(/^-?[\d]+\.[\d]+$/gim)) {
-        return parseFloat(input);
-    }
-    else if (input === "true") {
-        return true;
-    }
-    else if (input === "false") {
-        return false;
-    }
-    return input;
-  }
-
-  function getVariable(alias, ast:QueryIR, varId?:string, fieldId?:string) {
-    if(!varId) varId = ast.aliases[alias] || Api.uuid();
-    let variable = ast.variables[varId];
-    if(!variable) variable = ast.variables[varId] = {selected: fieldId, alias: alias, bindings: []};
-    if(!variable.selected && alias && alias[0] !== "_") variable.selected = Api.uuid();
-    if(alias) ast.aliases[alias] = varId;
-    return variable;
-  }
-
-  function getPrevOfType<T extends Token>(tokens:Token[],  test:(token:Token) => token is T):T {
-    for(let ix = tokens.length; ix >= 0; ix--) {
-      let token = tokens[ix];
-      if(test(token)) return token;
-    }
-  }
-
   function consume(needles:string[], tokens:string[], err?:Error):string {
    if(needles.indexOf(tokens[0]) === -1) {
      if(err) throw err;
@@ -283,16 +233,82 @@ module Parsers {
     return unraveled;
   }
 
-  function getScopedBinding(alias:string, ancestors:ElementIR[], boundViews:{[id: string]: QueryIR}): string {
+  export function coerceInput(input) {
+    if (input.match(/^-?[\d]+$/gim)) {
+        return parseInt(input);
+    }
+    else if (input.match(/^-?[\d]+\.[\d]+$/gim)) {
+        return parseFloat(input);
+    }
+    else if (input === "true") {
+        return true;
+    }
+    else if (input === "false") {
+        return false;
+    }
+    return input;
+  }
+
+  export function fingerprintSource(ast:LineAST) {
+    let fingerprint = "";
+    let tokenIx = 0;
+    let tokenCount = ast.chunks.length;
+    let head = ast.chunks[0];
+    if(tokenIsText(head)) {
+      if(head.text[0] === "!" && head.text[1] === " ") {
+        tokenIx = 1;
+        fingerprint = head.text.slice(2);
+      }
+    }
+    for(; tokenIx < tokenCount; tokenIx++) {
+      let token = ast.chunks[tokenIx];
+      fingerprint +=  tokenIsField(token) ? "?" : tokenToString(token);
+    }
+    return fingerprint;
+  }
+
+  function getScopedBinding(alias:string, ancestors:ElementIR[], boundViews:{[id: string]: Query}): string {
     for(let ix = ancestors.length - 1; ix >= 0; ix--) {
       let parent = ancestors[ix];
       if(!parent.boundView) continue;
       let scope = boundViews[parent.boundView];
-      let varId = scope.aliases[alias];
+      let varId = scope.reified.aliases[alias];
       if(!varId) continue;
-      let variable = scope.variables[varId];
+      let variable = scope.reified.variables[varId];
       if(!variable.selected) throw ParseError("UI Properties can only be bound to selected aliases.");
       return variable.selected;
+    }
+  }
+
+  function getVariable(alias, ast:QueryIR, varId?:string, fieldId?:string) {
+    if(!varId) varId = ast.aliases[alias] || Api.uuid();
+    let variable = ast.variables[varId];
+    if(!variable) variable = ast.variables[varId] = {selected: fieldId, alias: alias, bindings: []};
+    if(!variable.selected && alias && alias[0] !== "_") variable.selected = Api.uuid();
+    if(alias) ast.aliases[alias] = varId;
+    return variable;
+  }
+
+  /** Parse a field in the form ?[?][alias] or a constant field in the form `[content]`. */
+  function parseField(tokens:string[], tokenIx:number = 0):FieldAST|Error {
+    if(consume(["?"], tokens)) {
+      let field:FieldAST = {type: "field", tokenIx};
+      if(consume(["?"], tokens)) field.grouped = true;
+      let head = tokens[0];
+      if(head && head !== " " && PUNCTUATION.indexOf(head) === -1) field.alias = tokens.shift();
+      return field;
+
+    } else if(consume(["`"], tokens)) {
+      let field:FieldAST = {type: "field", tokenIx};
+      let tokensLength = tokens.length;
+      try {
+        field.value = consumeUntil(["`"], tokens, this.parseError("Unterminated quoted literal.", field));
+      } catch (err) {
+        return err;
+      }
+      tokens.shift();
+      field.value = coerceInput(field.value);
+      return field;
     }
   }
 
@@ -325,7 +341,8 @@ module Parsers {
     /** Nicely formatted error for reporting problems during parsing or reification. */
     parseError<T extends Token>(message:string, token:T):Error {
       let lines = this.raw.split("\n");
-      if(token.lineIx === undefined) token.lineIx = this.lineIx;
+      if(token.lineIx) ParseError.lineIx = token.lineIx;
+      else ParseError.lineIx = this.lineIx;
       ParseError.lines = lines;
       ParseError.tokenToChar = Query.tokenToChar;
 
@@ -349,7 +366,7 @@ module Parsers {
       let lines = this.raw.split("\n");
       let lineIx = 0;
       for(let line of lines) {
-        let tokens = query.tokenize(line);
+        let tokens = Query.tokenize(line);
         if(tokens.length === 0) {
           this.ast.chunks.push(<TextAST>{type: "text", text: "", lineIx: lineIx++});
           continue;
@@ -392,7 +409,7 @@ module Parsers {
       this.raw = this.prev = this.reified = undefined;
       this.errors = [];
       if(!ast) return;
-      if(viewId) this.loadFromView(viewId);
+      if(viewId) this.loadFromView(viewId, true);
       this.ast = ast;
       this.raw = this.stringify(this.ast);
       this.reify();
@@ -400,7 +417,7 @@ module Parsers {
     }
 
     /** Load the given view *lossily* into this Query. */
-    loadFromView(viewId:string):Query {
+    loadFromView(viewId:string, ignoreAST:boolean = false):Query {
       this.id = viewId;
       this.name = Api.get.name(viewId);
       this.tags = Api.get.tags(viewId);
@@ -458,7 +475,7 @@ module Parsers {
         }
       }
 
-    if(this.errors.length === 0) this.unreify();
+    if(this.errors.length === 0 && !ignoreAST) this.unreify();
 
       return this;
     }
@@ -509,28 +526,7 @@ module Parsers {
       return ast.chunks.length ? ast : undefined;
     }
 
-    /** Parse a field in the form ?[?][alias] or a constant field in the form `[content]`. */
-    protected parseField(tokens:string[], tokenIx:number = 0):FieldAST|Error {
-      if(consume(["?"], tokens)) {
-        let field:FieldAST = {type: "field", tokenIx};
-        if(consume(["?"], tokens)) field.grouped = true;
-        let head = tokens[0];
-        if(head && head !== " " && PUNCTUATION.indexOf(head) === -1) field.alias = tokens.shift();
-        return field;
-
-      } else if(consume(["`"], tokens)) {
-        let field:FieldAST = {type: "field", tokenIx};
-        let tokensLength = tokens.length;
-        try {
-          field.value = consumeUntil(["`"], tokens, this.parseError("Unterminated quoted literal.", field));
-        } catch (err) {
-          return err;
-        }
-        tokens.shift();
-        field.value = coerceInput(field.value);
-        return field;
-      }
-    }
+    protected parseField = parseField;
 
     /** Parse a single keyword token from Q_KEYWORD_TOKENS. */
     protected parseKeyword(tokens:string[], tokenIx:number = 0) {
@@ -562,7 +558,7 @@ module Parsers {
 
       let kw = line.chunks[2];
       if(line.chunks.length < 3 || !tokenIsKeyword(kw) || kw.text !== "$=") return;
-      let text = tokenToString(line);
+      let text = line.chunks.map(this.stringify).join("");
 
       if(!tokenIsField(line.chunks[0])) return this.parseError("Calculations must be formatted as '?field $= <calculation>", line);
       let resultField:FieldAST = line.chunks[0];
@@ -590,7 +586,6 @@ module Parsers {
             continue;
           }
         }
-
         cur.chunks.push(token);
       }
       if(stack.length > 1) return this.parseError("Too few close parens", line);
@@ -646,7 +641,6 @@ module Parsers {
       if(!this.ast) return;
       if(this.reified) this.prev = this.reified;
       this.reified = {id: (this.prev && this.prev.id) || Api.uuid(), sources: [], aliases: {}, variables: {}, actions: []};
-      this.id = this.reified.id;
       let prev = this.prev;
 
       let sort = [];
@@ -656,9 +650,8 @@ module Parsers {
         else chunks.push(line);
       }
 
-      this.lineIx = -1;
       LINE_LOOP: for(let line of chunks) {
-        this.lineIx++;
+        this.lineIx = line.lineIx;
         if(tokenIsSource(line)) {
           let fingerprint = fingerprintSource(line);
           let {"view fingerprint: view": view} = Api.ixer.findOne("view fingerprint", {"view fingerprint: fingerprint": fingerprint}) || {};
@@ -737,7 +730,7 @@ module Parsers {
       if(this.errors.length) {
         this.failed = this.reified;
         this.reified = undefined;
-      }
+      } else this.id = this.reified.id;
     }
 
     protected unreify() {
@@ -761,7 +754,6 @@ module Parsers {
 
           // Add field token between this structure token and the next.
           let field:FieldIR = source.fields[fieldIx++];
-          if(!field.alias) throw new Error("@TODO: Map this to a new unique alias based on the variable it is bound to.");
           line.chunks.push(<FieldAST>{type: "field", alias: field.alias, grouped: field.grouped, value: field.value});
         }
         if(tail) line.chunks.push(<TextAST>{type: "text", text: tail});
@@ -788,595 +780,194 @@ module Parsers {
 
       if(this.reified.actions.length) throw new Error("@TODO Implement action unreification.");
 
-      this.raw = this.stringify(this.ast);
+      if(!this.errors.length) this.raw = this.stringify(this.ast);
     }
   }
-
-  export var query = {
-    // Utilities
-    tokenize: makeTokenizer(Q_TOKENS),
-    tokenToChar: (token:Token, line:string):number => (token.tokenIx !== undefined) ? query.tokenize(line).slice(0, token.tokenIx - 1).join("").length : 0,
-
-    getSourceIR(sourceId:string, reified:QueryIR):SourceIR {
-      for(let source of reified.sources) {
-        if(source.source === sourceId) return source;
-      }
-    },
-    getSourceAST(source:SourceIR, ast:QueryAST) {
-      if(source.lineIx === undefined) return;
-      return ast.chunks[source.lineIx];
-    },
-
-    // Parsing
-    parse: function(raw:string):QueryAST {
-      let ast:QueryAST = {type: "query", chunks: []};
-      let lines = raw.split("\n");
-      for(let ix = 0; ix < lines.length; ix++) lines[ix] = lines[ix].trim();
-
-      // Set up debugging metadata globally so downstream doesn't need to be aware of it.
-      ParseError.lines = lines;
-      ParseError.tokenToChar = query.tokenToChar;
-
-      for(let line of lines) {
-        ParseError.lineIx = ast.chunks.length;
-        let tokens = query.tokenize(line);
-        if(tokens.length === 0) {
-          ast.chunks[ast.chunks.length] = <TextAST>{type: "text", text: "", lineIx: ast.chunks.length};
-          continue;
-        }
-        let tokensLength = tokens.length;
-
-        let parsedLine = query.parseLine(tokens, ast.chunks.length);
-        if(parsedLine.chunks.length) {
-          if(tokenIsKeyword(parsedLine.chunks[0]) && parsedLine.chunks[0]["text"] === ";") {
-            parsedLine["text"] = tokenToString(parsedLine);
-            parsedLine.type = "comment";
-
-          } else {
-            parsedLine = query.processAction(parsedLine)
-              || query.processOrdinal(parsedLine, ast)
-              || query.processCalculation(parsedLine)
-              || query.processSource(parsedLine);
-          }
-        }
-        ast.chunks.push(parsedLine);
-      }
-      return ast;
-    },
-
-    parseLine: function(tokens:string[], lineIx:number = 0) {
-      let ast:LineAST = {type: "", chunks: [], lineIx};
-      let tokensLength = tokens.length;
-      while(tokens.length) {
-        let tokenIx = tokensLength - tokens.length + 1;
-        let token = query.parseField(tokens, tokenIx)
-          || query.parseKeyword(tokens, tokenIx)
-          || query.parseStructure(tokens, tokenIx);
-        if(!token) throw ParseError("Unrecognized token sequence.", {type: "text", text: tokens.join(""), tokenIx});
-        ast.chunks.push(token);
-      }
-      return ast.chunks.length ? ast : undefined;
-    },
-
-    parseField: function(tokens:string[], tokenIx:number = 0) {
-      if(tokens[0] === "?") {
-        tokens.shift();
-        let field:FieldAST = {type: "field", tokenIx};
-        if(tokens[0] === "?") {
-          tokens.shift();
-          field.grouped = true;
-        }
-        let head = tokens[0];
-        if(head && head !== " " && PUNCTUATION.indexOf(head) === -1) field.alias = tokens.shift();
-        return field;
-
-      } else if(tokens[0] === "`") {
-        tokens.shift();
-        let field:FieldAST = {type: "field", tokenIx};
-        let tokensLength = tokens.length;
-        field.value = consumeUntil(["`"], tokens, ParseError("Unterminated quoted literal.", field));
-        tokens.shift();
-        field.value = coerceInput(field.value);
-        return field;
-      }
-    },
-
-    parseKeyword: function(tokens:string[], tokenIx:number = 0) {
-      if(Q_KEYWORD_TOKENS.indexOf(tokens[0]) !== -1) {
-        return {type: "keyword", text: tokens.shift(), tokenIx};
-      }
-    },
-
-    parseStructure: function(tokens:string[], tokenIx:number = 0) {
-      let text = consumeUntil(Q_KEYWORD_TOKENS, tokens);
-      if(text) return {type: "text", text, tokenIx};
-    },
-
-    processAction: function(line:LineAST):LineAST {
-      let kw = line.chunks[0];
-      if(line.chunks.length < 1 || !tokenIsKeyword(kw) || Q_ACTION_TOKENS.indexOf(kw.text) === -1) return;
-      line.type = "action";
-      for(let token of line.chunks) {
-        if(tokenIsField(token) && !token.alias) throw ParseError("All action fields must be aliased to a query field.", token);
-      }
-
-      return line;
-    },
-
-    processCalculation: function(line:LineAST):CalculationAST {
-      let calculations:{view:string, calculation:string}[] = [];
-      let fields:{calculation:string, field:string, ix:number}[] = [];
-
-      let kw = line.chunks[2];
-      if(line.chunks.length < 3 || !tokenIsKeyword(kw) || kw.text !== "$=") return;
-      let text = tokenToString(line);
-
-      if(!tokenIsField(line.chunks[0])) throw ParseError("Calculations must be formatted as '?field $= <calculation>", line);
-      let resultField:FieldAST = line.chunks[0];
-
-      let partIx = 0;
-      let lines:CalculationAST[] = [];
-      let stack = [{type: "source", chunks: [], partIx: partIx++, lineIx: line.lineIx}];
-      for(let token of line.chunks.slice(4)) {
-        let cur = stack[stack.length - 1];
-
-        if(tokenIsKeyword(token)) {
-          if(token.text === "(") {
-            stack.push({type: "source", chunks: [], partIx: partIx++, lineIx: line.lineIx});
-            continue;
-          }
-          else if(token.text === ")") {
-            stack.pop();
-            let prev = stack[stack.length - 1];
-            if(!prev) throw ParseError("Too many close parens", line);
-            let alias = `_${resultField.alias}-${cur.partIx}`;
-            let field:FieldAST = {type: "field", alias};
-            cur.chunks.push({type: "text", text: " = "}, field);
-            prev.chunks.push(field);
-            lines.push(cur);
-            continue;
-          }
-        }
-
-        cur.chunks.push(token);
-      }
-      if(stack.length > 1) throw ParseError("Too few close parens", line);
-      if(stack.length === 0) throw ParseError("Too many close parens", line);
-      stack[0].chunks.push({type: "text", text: " = "}, resultField);
-      lines.push(stack[0]);
-
-      return {type: "calculation", chunks: lines, text};
-    },
-
-    processOrdinal: function(parsedLine:LineAST, ast:QueryAST):OrdinalAST {
-      let kw = parsedLine.chunks[0];
-      if(parsedLine.chunks.length < 1 || !tokenIsKeyword(kw) || kw.text !== "#") return;
-      parsedLine.type = "ordinal";
-
-      let prevChunk = ast.chunks[ast.chunks.length - 1];
-      if(!prevChunk || !tokenIsSource(prevChunk)) throw ParseError("Ordinal must immediately follow a source.");
-      if(parsedLine.chunks.length < 3 || !tokenIsField(parsedLine.chunks[2]))
-        throw ParseError("Ordinal requires a field to bind to ('?' or '?foo').", parsedLine.chunks[1]);
-      if(parsedLine.chunks.length > 3 && parsedLine.chunks[3]["text"].indexOf("by") !== 1)
-        throw ParseError("Ordinals are formatted as '# ? by ?... <dir>'", parsedLine.chunks[2]);
-
-      let line = <OrdinalAST>parsedLine;
-      line.alias = line.chunks[2]["alias"];
-      line.directions = [];
-      let sortFieldCount = 0;
-      for(let tokenIx = 3, chunkCount = line.chunks.length; tokenIx < chunkCount; tokenIx++) {
-        let token = line.chunks[tokenIx];
-        if(tokenIsField(token)) {
-          if(!token.alias) throw ParseError("Ordinal sorting fields must be aliased to a query field.", token);
-          sortFieldCount++;
-        } else if(tokenIsText(token) && sortFieldCount > 0) {
-          let text = token.text.trim().toLowerCase();
-          if(text.indexOf("ascending") === 0) line.directions[sortFieldCount - 1] = "ascending";
-          else if(text.indexOf("descending") === 0) line.directions[sortFieldCount - 1] = "descending";
-        }
-      }
-      if(sortFieldCount === 0) throw ParseError("Ordinal requires at least one sorting field.");
-      return line;
-    },
-
-    processSource: function(line:SourceAST):SourceAST {
-      let kw = line.chunks[0];
-      if(tokenIsText(kw) && kw.text === "!") line.negated = true;
-      line.type = "source";
-      return line;
-    },
-
-    // Reification
-    reify: function(ast:QueryAST, prev?:QueryIR):QueryIR {
-      let reified:QueryIR = {id: (prev && prev.id) || Api.uuid(), sources: [], aliases: {}, variables: {}, actions: []};
-      let sort = [];
-      let chunks = [];
-      for(let line of ast.chunks) {
-        if(tokenIsCalculation(line)) chunks.push.apply(chunks, line.chunks);
-        else chunks.push(line);
-      }
-
-      for(let line of chunks) {
-        if(tokenIsSource(line)) {
-          let source = query.reifySource(<SourceAST>line);
-          let prevSource = prev && prev.sources[reified.sources.length];
-          if(prevSource && prevSource.sourceView === source.sourceView) source.source = prevSource.source;
-          reified.sources.push(source);
-
-          for(let field of source.fields) {
-            let varId = prev && prev.aliases[field.alias];
-            let variable = getVariable(field.alias, reified, varId, varId && prev.variables[varId].selected);
-            if(field.grouped) source.chunked = true;
-            if(field.value !== undefined) variable.value = field.value;
-            variable.bindings.push({source: source.source, field: field.field});
-          }
-
-        } else if(tokenIsOrdinal(line)) {
-          let source = reified.sources[reified.sources.length - 1];
-          source.ordinal = line.alias || true;
-          let varId = prev && prev.aliases[line.alias];
-          let variable = getVariable(line.alias, reified, varId, varId && prev.variables[varId].selected);
-          if(!variable.ordinals) variable.ordinals = [source.source];
-          else variable.ordinals.push(source.source);
-          let unsorted = [];
-          for(let field of source.fields) unsorted[unsorted.length] = field.field;
-
-          let sortFieldIx = 0;
-          source.sort = [];
-          for(let tokenIx = 3, chunkCount = line.chunks.length; tokenIx < chunkCount; tokenIx++) {
-            let chunk = line.chunks[tokenIx];
-            if(tokenIsField(chunk)) {
-              for(let field of source.fields) {
-                if(field.alias !== chunk.alias) continue;
-                source.sort.push({ix: sortFieldIx, field: field.field, direction: line.directions[sortFieldIx++] || "ascending"});
-                unsorted.splice(unsorted.indexOf(field.field), 1);
-                break;
-              }
-            }
-          }
-          for(let fieldId of unsorted) source.sort.push({ix: sortFieldIx++, field: fieldId, direction: "ascending"});
-
-        } else if(tokenIsAction(line)) {
-          reified.actions.push(query.reifyAction(line));
-        }
-      }
-
-      return reified;
-    },
-
-    reifySource: function(ast:SourceAST, allowMissing:boolean = false):SourceIR {
-      ParseError.lineIx = ast.lineIx;
-      let fingerprint = fingerprintSource(ast);
-      let {"view fingerprint: view":view} = Api.ixer.findOne("view fingerprint", {"view fingerprint: fingerprint": fingerprint}) || {};
-      if(!view && !allowMissing) throw ParseError(`Fingerprint '${fingerprint}' matches no known views.`); //@NOTE: Should this create a union..?
-
-      let source:SourceIR = {negated: ast.negated, source: Api.uuid(), sourceView: view, fields: [], lineIx: ast.lineIx};
-      let fieldIxes = Api.ixer.find("fingerprint field", {"fingerprint field: fingerprint": fingerprint}).slice()
-        .sort((a, b) => a["fingerprint field: ix"] - b["fingerprint field: ix"]);
-
-      for(let token of ast.chunks) {
-        if(tokenIsField(token)) {
-          let {"fingerprint field: field":field} = fieldIxes.shift() || {};
-          if(!field && !allowMissing) throw ParseError(`Fingerprint '${fingerprint}' is missing a field for blank '${tokenToString(token)}'.`);
-          source.fields.push({field, grouped: token.grouped, alias: token.alias, value: token.value});
-        }
-      }
-
-      return source;
-    },
-
-    reifyAction: function(ast:any):any {
-      let action = {action: (<TextAST>ast.chunks[0]).text, view: Api.uuid(), fields: []};
-      if(action.action === "+") {
-        let source = query.reifySource({type: "source", chunks: ast.chunks}, true);
-        for(let field of source.fields) {
-          field.field = Api.uuid();
-          action.fields.push(field);
-        }
-      }
-      return action;
-    },
-
-    // Stringification
-    fromView: function(viewId:string, ixer:Indexer.Indexer = Api.ixer):QueryIR {
-      let reified:QueryIR = {id: viewId, sources: [], aliases: {}, variables: {}, actions: []};
-      let ordinalSourceAlias:{[source:string]: string|boolean} = {};
-      let bindingFieldVariable:{[id:string]: VariableIR} = {};
-      for(let varId of Api.extract("variable: variable", Api.ixer.find("variable", {"variable: view": viewId}))) {
-        // {selected: boolean, alias?:string, value?: any, ordinals?: string[], bindings: {source: string, field: string}[]}
-        let fieldId = (ixer.findOne("select", {"select: variable": varId}) || {})["select: field"];
-        let alias = Api.get.name(fieldId) || undefined;
-        let variable = getVariable(alias, reified, varId);
-        variable.selected = fieldId;
-        variable.value = (ixer.findOne("constant binding", {"constant binding: variable": varId}) || {})["constant binding: value"];
-
-        let ordinalSources = Api.extract("ordinal binding: source", Api.ixer.find("ordinal binding", {"ordinal binding: variable": varId}));
-        if(ordinalSources.length) {
-          variable.ordinals = ordinalSources;
-          for(let sourceId of ordinalSources) ordinalSourceAlias[sourceId] = alias || true;
-        }
-
-        variable.bindings = <any>Api.omit("variable", Api.humanize("binding", Api.ixer.find("binding", {"binding: variable": varId})));
-        for(let binding of variable.bindings) {
-          bindingFieldVariable[binding.field] = variable;
-        }
-      }
-
-      let rawSources = {};
-      for(let rawSource of Api.ixer.find("source", {"source: view": viewId})) rawSources[rawSource["source: source"]] = rawSource;
-      let sourceIds = Object.keys(rawSources).sort(Api.displaySort);
-
-      for(let sourceId of sourceIds) {
-        let rawSource = rawSources[sourceId];
-        let source:SourceIR = {source: sourceId, sourceView: rawSource["source: source view"], fields: []};
-        reified.sources[reified.sources.length] = source;
-
-        if(ordinalSourceAlias[source.source]) source.ordinal = ordinalSourceAlias[source.source];
-        if(Api.ixer.findOne("chunked source", {"chunked source: source": source.source})) source.chunked = true;
-        if(Api.ixer.findOne("negated source", {"negated source: source": source.source})) source.negated = true;
-
-        let sorted = Api.ixer.find("sorted field", {"sorted field: source": source.source});
-        if(sorted && sorted.length) source.sort = <any>Api.omit("source", Api.humanize("sorted field", sorted));
-
-        let fieldIds = Api.get.fields(source.sourceView);
-        for(let fieldId of fieldIds) {
-          let field:FieldIR = {field: fieldId};
-          source.fields[source.fields.length] = field;
-          if(Api.ixer.findOne("grouped field", {"grouped field: field": fieldId})) field.grouped = true;
-
-          let variable = bindingFieldVariable[fieldId];
-          if(variable.alias) field.alias = variable.alias;
-          if(variable.value !== undefined) field.value = variable.value;
-          if(variable.ordinals !== undefined && variable.ordinals.indexOf(source.source) !== -1) field.ordinal = true;
-        }
-      }
-
-      return reified;
-    },
-
-    unreify: function(reified:QueryIR):QueryAST {
-      let ast:QueryAST = {type: "query", chunks: []};
-      for(let source of reified.sources) {
-        // @FIXME: This may not be the correct fingerprint, we need to look through all of them
-        // comparing field ordering. This still isn't lossless, but it's at least better.
-        let fingerprint = (Api.ixer.findOne("view fingerprint", {"view fingerprint: view": source.sourceView}) || {})["view fingerprint: fingerprint"];
-        if(!fingerprint) throw new Error(`No fingerprint found for view '${source.sourceView}'.`);
-        let structures = fingerprint.split("?");
-        let tail:string = structures.pop(); // We don't want to tack a field to the end of the fingerprint.
-        let line:SourceAST = {type: "source", negated: source.negated, chunks: [], lineIx: ast.chunks.length};
-        ast.chunks[ast.chunks.length] = line;
-
-        let fieldIx = 0;
-        for(let text of structures) {
-          // Add structure token if there's any text.
-          if(text) line.chunks[line.chunks.length] = <TextAST>{type: "text", text};
-
-          // Add field token between this structure token and the next.
-          let field:FieldIR = source.fields[fieldIx++];
-          line.chunks[line.chunks.length] = <FieldAST>{type: "field", alias: field.alias, grouped: field.grouped, value: field.value};
-        }
-        if(tail) line.chunks[line.chunks.length] = <TextAST>{type: "text", text: tail};
-
-        if(source.ordinal) {
-          let line:OrdinalAST = {type: "ordinal", alias: undefined, directions: [], chunks: [], lineIx: ast.chunks.length};
-          ast.chunks[ast.chunks.length] = line;
-
-          if(source.ordinal !== true) line.alias = <string>source.ordinal;
-          line.chunks[0] = <TextAST>{type: "text", text: `# ?${line.alias || ""} by `};
-
-          let fields = {};
-          for(let field of source.fields) {
-            fields[field.field] = field;
-          }
-
-          // Super lossy, but nothing can be done about it.
-          for(let {ix, field:fieldId, direction} of source.sort) {
-            let field = fields[fieldId];
-            line.chunks[line.chunks.length] = <FieldAST>{type: "field", alias: field.alias, grouped: field.grouped, value: field.value};
-            line.chunks[line.chunks.length] = <TextAST>{type: "text", text: ` ${direction} `};
-            line.directions[line.directions.length] = direction;
-          }
-        }
-      }
-
-      if(reified.actions.length) throw new Error("@TODO Implement action unreification.");
-      return ast;
-    },
-
-    unparse: (ast:QueryAST):string => tokenToString(ast)
-  };
 
   //---------------------------------------------------------------------------
   // Ui Parser
   //---------------------------------------------------------------------------
-  const U_TOKENS = [";", "@", "~", "-", " ", "\t", "`", "?"];
-  export var ui = {
-   // Utilities
-    tokenize: makeTokenizer(Q_TOKENS),
-    tokenToChar(token:Token, line:string) {
-      if(token.tokenIx === undefined) return 0;
-      let text = ui.tokenize(line).slice(0, token.tokenIx - 1).join("");
-      let ix = text.indexOf("\n");
-      if(ix !== -1) return ix;
-      return text.length;
-    },
+  const U_TOKENS = [";", ":", "@", "~", "-", " ", "\t", "`", "?"];
+  export class Ui {
+    raw: string;
+    ast: UiAST;
+    reified: UiIR;
+    failed: UiAST|UiIR;
 
-    parse(raw:string): UiAST {
-      let ast:QueryAST = {type: "ui", chunks: []};
-      let lines = raw.split("\n");
+    errors: Error[];
+    id: string;
+    name: string;
+    tags: string[];
 
-      // Set up debugging metadata globally so downstream doesn't need to be aware of it.
+    protected prev: UiIR;
+    protected lineIx: number;
+
+    constructor(initializer?:UiIR) {
+      this.prev = initializer;
+    }
+
+    /** Nicely formatted error for reporting problems during parsing or reification. */
+    parseError<T extends Token>(message:string, token?:T):Error {
+      let lines = this.raw.split("\n");
+      if(!token) token = <any>{type: "text", text: lines[this.lineIx]};
+      if(token.lineIx) ParseError.lineIx = token.lineIx;
+      else ParseError.lineIx = this.lineIx;
       ParseError.lines = lines;
-      ParseError.tokenToChar = ui.tokenToChar;
+      ParseError.tokenToChar = Ui.tokenToChar;
 
+      let err = ParseError(message, token);
+      ParseError.reset();
+      return err;
+    }
+
+    /** Convert any valid query token into its raw string equivalent. */
+    stringify = tokenToString;
+
+     /** Parse a raw ui string into this Ui. */
+    parse(raw:string):Ui {
+      if(raw === this.raw) return this;
+      this.errors = [];
+      this.raw = raw;
+      this.ast = {type: "ui", chunks: []};
+      this.prev = this.reified ? this.reified : this.prev;
+      this.reified = undefined;
+
+      let lines = raw.split("\n");
+      this.lineIx = -1;
       for(let rawLine of lines) {
-        let lineIx = ast.chunks.length;
-        ParseError.lineIx = lineIx;
-        let tokens = ui.tokenize(rawLine);
+        this.lineIx++;
+        let tokens = Ui.tokenize(rawLine);
         let tokensLength = tokens.length;
         let consumed = consumeWhile([" ", "\t"], tokens);
         let indent = tokensLength - tokens.length;
-        let line:Token = {type: "", lineIx, indent};
+        let line:Token = {type: "", lineIx: this.lineIx, indent};
         let head = tokens.shift();
 
         if(head === undefined) {
-          ast.chunks.push(<TextAST>{type: "text", text: ""});
+          this.ast.chunks.push(<TextAST>{type: "text", text: "", lineIx: this.lineIx, indent});
           continue;
         }
+        if(head === ";") line.type = "comment";
+        else if(head === "-") line.type = "attribute";
+        else if(head === "~") line.type = "binding";
+        else if(head === "@") line.type = "event";
+        else line.type = "element";
 
-        if(head === ";") {
-          line.type = "comment";
-          let comment:CommentAST = <any>line;
-          comment.text = tokens.join("");
+        if(tokenIsComment(line)) {
+          line.text = tokens.join("");
 
-        } else if(head === "-") {
-          line.type = "attribute";
-          let attribute:AttributeAST = <any>line;
+        } else if(tokenIsAttribute(line)) {
           consumeWhile([" ", "\t"], tokens);
-          attribute.property = consumeUntil([":"], tokens, ParseError("Attributes are formatted as '- <property>: <value or field>'."));
+          try {
+            line.property = consumeUntil([":"], tokens, this.parseError("Attributes are formatted as '- <property>: <value or field>'."));
+          } catch(err) {
+            this.errors.push(err);
+            continue;
+          }
           tokens.shift();
           consumeWhile([" ", "\t"], tokens);
-          let field = query.parseField(tokens, tokensLength - tokens.length);
+          let field = this.parseField(tokens, tokensLength - tokens.length);
           // @TODO we can wrap this in `` and rerun it, or skip the middleman since we know the value.
-          if(!field) throw ParseError("Value of attribute must be a field (either ' ?foo ' or ' `100` ')", {type: "text", text: tokens.join(""), tokenIx: tokensLength - tokens.length});
-          attribute.value = field;
-          attribute.static = field.value !== undefined;
-          if(tokens.length) throw ParseError("Extraneous tokens after value.", {type: "text", text: tokens.join(""), tokenIx: tokensLength - tokens.length});
+          if(!field) {
+            this.errors.push(this.parseError("Value of attribute must be a field (either ' ?foo ' or ' `100` ')",
+              {type: "text", text: tokens.join(""), tokenIx: tokensLength - tokens.length}));
+            continue;
+          }
+          if(field instanceof Error) {
+            this.errors.push(field);
+            continue;
+          }
+          line.value = <FieldAST>field;
+          line.static = line.value.value !== undefined;
+          if(tokens.length) {
+            this.errors.push(
+              this.parseError("Extraneous tokens after value.", {type: "text", text: tokens.join(""), tokenIx: tokensLength - tokens.length})
+            );
+            continue;
+          }
 
-        } else if(head === "~") {
-          let prevLine = ast.chunks[ast.chunks.length - 1];
+        } else if(tokenIsBinding(line)) {
+          let prevLine = this.ast.chunks[this.ast.chunks.length - 1];
           if(!prevLine || tokenIsElement(prevLine)) {
-            line.type = "binding";
-            let binding:BindingAST = <any>line;
             consumeWhile([" ", "\t"], tokens);
-            binding.text = tokens.join("");
+            line.text = tokens.join("");
 
           } else if(tokenIsBinding(prevLine)) {
             consumeWhile([" ", "\t"], tokens);
             prevLine.text += "\n" + tokens.join("");
             continue;
 
-          } else throw ParseError("Binding must immediately follow an element or a binding.", line);
+          } else {
+            line.text = tokens.join("");
+            this.errors.push(this.parseError("Binding must immediately follow an element or a binding.", line));
+            continue;
+          }
 
-        } else if(head === "@") {
-          line.type = "event";
-          let event:EventAST = <any>line;
+        } else if(tokenIsEvent(line)) {
           consumeWhile([" ", "\t"], tokens);
-          event.event = consumeUntil([":"], tokens);
+          line.event = consumeUntil([":"], tokens);
           tokens.shift();
           consumeWhile([" ", "\t"], tokens);
           if(tokens.length) {
-            let field = query.parseField(tokens, tokensLength - tokens.length);
+            let field = this.parseField(tokens, tokensLength - tokens.length);
             // @TODO we can wrap this in `` and rerun it, or skip the middleman since we know the value.
-            if(!field) throw ParseError("Value of attribute must be a field (either ' ?foo ' or ' `100` ')", {type: "text", text: tokens.join(""), tokenIx: tokensLength - tokens.length});
-            if(!field.alias) throw ParseError("Event keys must be aliased to a bound field.", field);
-            event.key = field;
-          }
-          if(tokens.length) throw ParseError("Extraneous tokens after value.", {type: "text", text: tokens.join(""), tokenIx: tokensLength - tokens.length});
-
-        } else {
-          line.type = "element";
-          let element:ElementAST = <any>line;
-          if(head) element.tag = head;
-          element.classes = consumeUntil([";"], tokens);
-          if(tokens[0] === ";") tokens.shift();
-          if(tokens.length) element.name = tokens.join("").trim();
-        }
-
-        ast.chunks[ast.chunks.length] = line;
-      }
-
-      return ast;
-    },
-
-    reify(ast:UiAST, prev?:UiIR): UiIR {
-      let rootId = prev ? prev.root.element : Api.uuid();
-      let root:ElementIR = {element: rootId, tag: "div", ix: 0, attributes: {}, boundAttributes: {}, events: [], boundEvents: {}};
-      let reified:UiIR = {elements: [], root, boundQueries: {}};
-      let indent = {[root.element]: -1};
-      let childCount = {[root.element]: 0};
-      let ancestors = [root];
-
-      for(let line of ast.chunks) {
-        if(tokenIsComment(line) || tokenIsText(line)) continue;
-
-        let parentElem:ElementIR;
-        while(ancestors.length) {
-            parentElem = ancestors[ancestors.length - 1];
-            if(indent[parentElem.element] < line.indent) break;
-            ancestors.pop();
-        }
-
-        if(tokenIsElement(line)) {
-          let prevElem = prev && prev.elements[reified.elements.length]; // This is usually not going to match up.
-          let elemId = prevElem ? prevElem.element : Api.uuid();
-          let ix = childCount[parentElem.element]++;
-          let elem:ElementIR = {element: elemId, tag: line.tag, parent: parentElem.element, ix, attributes: {}, boundAttributes: {}, events: [], boundEvents: {}};
-          indent[elem.element] = line.indent;
-          childCount[elem.element] = 0;
-          ancestors.push(elem);
-
-          if(line.classes) elem.attributes["c"] = line.classes;
-          if(line.name) elem.name = line.name;
-          reified.elements[reified.elements.length] = elem;
-
-        } else if(tokenIsBinding(line)) {
-          if(!parentElem) throw ParseError("Bindings must follow an element.", line);
-          let queryAST = query.parse(line.text);
-          let queryIR = query.reify(queryAST);
-
-          // @TODO: Use prev.queries for mapping queryIRs
-
-          reified.boundQueries[queryIR.id] = queryIR;
-          parentElem.boundView = queryIR.id;
-
-          let joinedFields = {};
-          let scopeJoined = false;
-          for(let alias in queryIR.aliases) {
-            let scopedField = getScopedBinding(alias, ancestors.slice(0, -1), reified.boundQueries);
-            let selected = queryIR.variables[queryIR.aliases[alias]].selected;
-            if(!scopedField) continue;
-            if(!selected) throw ParseError(`Cannot join nested views on unselected alias '${alias}'`);
-            joinedFields[selected] = scopedField;
-            scopeJoined = true;
-          }
-          if(scopeJoined) parentElem.bindings = joinedFields;
-
-        } else if(tokenIsAttribute(line)) {
-          if(!parentElem) throw ParseError("Attributes must follow an element.", line);
-
-          if(line.static) {
-            if(line.property === "parent") parentElem.parent = line.value.value;
-            else if(line.property === "id") {
-              let old = parentElem.element;
-              if(childCount[old]) throw ParseError("ID must be set prior to including child elements.");
-              parentElem.element = line.value.value;
-              indent[parentElem.element] = indent[old];
-              childCount[parentElem.element] = childCount[old];
+            if(!field) {
+              this.errors.push(this.parseError("Value of attribute must be a field (either ' ?foo ' or ' `100` ')",
+                {type: "text", text: tokens.join(""), tokenIx: tokensLength - tokens.length}));
+              continue;
             }
-            else parentElem.attributes[line.property] = line.value.value;
-          } else {
-            parentElem.boundAttributes[line.property] = getScopedBinding(line.value.alias, ancestors, reified.boundQueries);
-            if(!parentElem.boundAttributes[line.property])
-              throw ParseError(`Could not resolve alias '${line.value.alias}' for bound attribute '${line.property}'`);
+            if(field instanceof Error) {
+              this.errors.push(field);
+              continue;
+            }
+            line.key = <FieldAST>field;
+            if(!line.key.alias) {
+              this.errors.push(this.parseError("Event keys must be aliased to a bound field.", line.key));
+              continue;
+            }
           }
-        } else if(tokenIsEvent(line)) {
-          if(line.key) {
-            parentElem.boundEvents[line.event] = getScopedBinding(line.key.alias, ancestors, reified.boundQueries);
-              if(!parentElem.boundEvents[line.event])
-                throw ParseError(`Could not resolve alias '${line.key.alias}' for bound event '${line.event}'`);
-          } else {
-            parentElem.events.push(line.event);
+          if(tokens.length) {
+            this.errors.push(
+              this.parseError("Extraneous tokens after value.", {type: "text", text: tokens.join(""), tokenIx: tokensLength - tokens.length})
+            );
+            continue;
           }
-        }
-      }
-      return reified;
-    },
 
-    fromElement(rootId:string):UiIR {
+        } else if(tokenIsElement(line)) {
+          if(head) line.tag = head;
+          line.classes = consumeUntil([";"], tokens);
+          if(tokens[0] === ";") tokens.shift();
+          if(tokens.length) line.name = tokens.join("").trim();
+        }
+
+        this.ast.chunks.push(line);
+      }
+      if(this.errors.length === 0) this.reify();
+    }
+
+    /** Load an existing AST into this Ui. */
+    loadFromAST(ast:QueryAST, elemId?:string):Ui {
+      this.raw = this.prev = this.reified = undefined;
+      this.errors = [];
+      if(!ast) return;
+      if(elemId) this.loadFromElement(elemId, true);
+      this.ast = ast;
+      this.raw = this.stringify(this.ast);
+      this.reify();
+      return this;
+    }
+
+    /** Load the given element *lossily* into this Ui. */
+    loadFromElement(rootId:string, ignoreAST:boolean = false):Ui {
+      this.id = rootId;
+      this.name = Api.get.name(rootId);
+      this.tags = Api.get.tags(rootId);
+      this.raw = this.ast = this.prev = undefined;
+      this.errors = [];
+
       let root:ElementIR = Api.humanize("uiElement", Api.ixer.findOne("uiElement", {"uiElement: element": rootId}));
       if(!root) throw new Error(`Requested element '${rootId}' does not exist.`);
-      let reified:UiIR = {elements: [], root, boundQueries: {}};
+      this.reified = {elements: [], root, boundQueries: {}};
 
       let queries = [];
       let elems = [root];
@@ -1405,47 +996,158 @@ module Parsers {
         let children = Api.ixer.find("uiElement", {"uiElement: parent": elemId});
         for(let elem of Api.humanize("uiElement", children)) elems.push(elem);
 
-        if(elem !== root) reified.elements.push(elem);
+        if(elem !== root) this.reified.elements.push(elem);
       }
 
-      for(let queryId of queries) reified.boundQueries[queryId] = query.fromView(queryId);
+      for(let queryId of queries) this.reified.boundQueries[queryId] = new Query().loadFromView(queryId);
 
-      return reified;
-    },
+      if(this.errors.length === 0 && !ignoreAST) this.unreify();
+      return this;
+    }
 
-    unreify(reified:UiIR): UiAST {
-      let ast:QueryAST = {type: "ui", chunks: []};
+    protected static tokenize = makeTokenizer(U_TOKENS);
+    protected static tokenToChar(token:Token, line:string):number {
+      return (token.tokenIx !== undefined) ? Ui.tokenize(line).slice(0, token.tokenIx - 1).join("").length : 0;
+    }
+
+    protected parseField = parseField;
+
+    protected reify() {
+      if(!this.ast) return;
+      if(this.reified) this.prev = this.reified;
+      let prev = this.prev;
+
+      let rootId = prev ? prev.root.element : Api.uuid();
+      let root:ElementIR = {element: rootId, tag: "div", ix: 0, attributes: {}, boundAttributes: {}, events: [], boundEvents: {}};
+      this.reified = {elements: [], root, boundQueries: {}};
+      let indent = {[root.element]: -1};
+      let childCount = {[root.element]: 0};
+      let ancestors = [root];
+
+      for(let line of this.ast.chunks) {
+        if(tokenIsComment(line) || tokenIsText(line)) continue;
+
+        let parentElem:ElementIR;
+        while(ancestors.length) {
+            parentElem = ancestors[ancestors.length - 1];
+            if(indent[parentElem.element] < line.indent) break;
+            ancestors.pop();
+        }
+
+        if(tokenIsElement(line)) {
+          let prevElem = prev && prev.elements[this.reified.elements.length]; // This is usually not going to match up.
+          let elemId = prevElem ? prevElem.element : Api.uuid();
+          let ix = childCount[parentElem.element]++;
+          let elem:ElementIR = {element: elemId, tag: line.tag, parent: parentElem.element, ix, attributes: {}, boundAttributes: {}, events: [], boundEvents: {}};
+          indent[elem.element] = line.indent;
+          childCount[elem.element] = 0;
+          ancestors.push(elem);
+
+          if(line.classes) elem.attributes["c"] = line.classes;
+          if(line.name) elem.name = line.name;
+          this.reified.elements.push(elem);
+
+        } else if(tokenIsBinding(line)) {
+          if(!parentElem) {
+            this.errors.push(this.parseError("Bindings must follow an element.", line));
+            continue;
+          }
+          let query = new Query().parse(line.text);
+          // @TODO: Use prev.queries for mapping queryIRs
+
+          this.reified.boundQueries[query.id] = query;
+          parentElem.boundView = query.id;
+
+          let joinedFields = {};
+          let scopeJoined = false;
+          for(let alias in query.reified.aliases) {
+            let scopedField = getScopedBinding(alias, ancestors.slice(0, -1), this.reified.boundQueries);
+            let selected = query.reified.variables[query.reified.aliases[alias]].selected;
+            if(!scopedField) continue;
+            if(!selected) {
+              this.errors.push(this.parseError(`Cannot join nested views on unselected alias '${alias}'`));
+              continue;
+            }
+            joinedFields[selected] = scopedField;
+            scopeJoined = true;
+          }
+          if(scopeJoined) parentElem.bindings = joinedFields;
+
+        } else if(tokenIsAttribute(line)) {
+          if(!parentElem) {
+            this.errors.push(this.parseError("Attributes must follow an element.", line));
+            continue;
+          }
+
+          if(line.static) {
+            if(line.property === "parent") parentElem.parent = line.value.value;
+            else if(line.property === "id") {
+              let old = parentElem.element;
+              if(childCount[old]) throw ParseError("ID must be set prior to including child elements.");
+              parentElem.element = line.value.value;
+              indent[parentElem.element] = indent[old];
+              childCount[parentElem.element] = childCount[old];
+            }
+            else parentElem.attributes[line.property] = line.value.value;
+          } else {
+            parentElem.boundAttributes[line.property] = getScopedBinding(line.value.alias, ancestors, this.reified.boundQueries);
+            if(!parentElem.boundAttributes[line.property]) {
+              this.errors.push(this.parseError(`Could not resolve alias '${line.value.alias}' for bound attribute '${line.property}'`));
+              continue;
+            }
+          }
+        } else if(tokenIsEvent(line)) {
+          if(line.key) {
+            parentElem.boundEvents[line.event] = getScopedBinding(line.key.alias, ancestors, this.reified.boundQueries);
+              if(!parentElem.boundEvents[line.event]) {
+                this.errors.push(this.parseError(`Could not resolve alias '${line.key.alias}' for bound event '${line.event}'`));
+                continue;
+              }
+          } else {
+            parentElem.events.push(line.event);
+          }
+        }
+      }
+
+      if(this.errors.length !== 0) {
+        this.failed = this.reified;
+        this.reified = undefined;
+      } else this.id = rootId;
+    }
+
+    protected unreify() {
+      if(!this.reified) return;
+      this.ast = {type: "ui", chunks: []};
       let aliases:{[field:string]: string} = {};
 
       // Naive dependency resolution.
-      let childMap:{[key:string]: string[]} = {[reified.root.element]: []};
-      let elemMap:{[key:string]: ElementIR} = {[reified.root.element]: reified.root};
-      for(let elem of reified.elements) {
+      let childMap:{[key:string]: string[]} = {[this.reified.root.element]: []};
+      let elemMap:{[key:string]: ElementIR} = {[this.reified.root.element]: this.reified.root};
+      for(let elem of this.reified.elements) {
         if(!childMap[elem.parent]) childMap[elem.parent] = [];
         childMap[elem.parent].push(elem.element);
         childMap[elem.element] = [];
         elemMap[elem.element] = elem;
       }
-      let elems = unravel(reified.root.element, childMap);
+      let elems = unravel(this.reified.root.element, childMap);
 
-      let elemIndent = {[reified.root.element]: -2};
+      let elemIndent = {[this.reified.root.element]: -2};
       for(let elemId of elems) {
         let elem = elemMap[elemId];
         let indent = 0;
         if(elem.parent) indent = elemIndent[elem.element] = elemIndent[elem.parent] + 2;
 
-        let elemAST:ElementAST = {type: "element", name: elem.name, tag: elem.tag, indent, lineIx: ast.chunks.length};
-        if(elem !== reified.root) ast.chunks[ast.chunks.length] = elemAST;
+        let elemAST:ElementAST = {type: "element", name: elem.name, tag: elem.tag, indent, lineIx: this.ast.chunks.length};
+        if(elem !== this.reified.root) this.ast.chunks.push(elemAST);
         else {
           indent = -2;
           elemAST = undefined;
         }
 
         if(elem.boundView) {
-          let queryAST = query.unreify(reified.boundQueries[elem.boundView]);
-          let queryString = query.unparse(queryAST).trim();
-          let line:BindingAST = {type: "binding", text: queryString, indent: indent + 2, lineIx: ast.chunks.length};
-          ast.chunks[ast.chunks.length] = line;
+          let queryString = this.reified.boundQueries[elem.boundView].raw.trim();
+          let line:BindingAST = {type: "binding", text: queryString, indent: indent + 2, lineIx: this.ast.chunks.length};
+          this.ast.chunks.push(line);
 
           if(elem.bindings) {
             for(let fieldId in elem.bindings) {
@@ -1461,15 +1163,16 @@ module Parsers {
             continue;
           }
           let value = {type: "field", value: elem.attributes[property]};
-          let line:AttributeAST = {type: "attribute", property, value, static: true, indent: indent + 2, lineIx: ast.chunks.length};
-          ast.chunks[ast.chunks.length] = line;
+          let line:AttributeAST = {type: "attribute", property, value, static: true, indent: indent + 2, lineIx: this.ast.chunks.length};
+          this.ast.chunks.push(line);
         }
         for(let property in elem.boundAttributes) {
           let fieldId = elem.boundAttributes[property];
           let alias = aliases[fieldId];
           if(!alias) {
             let base = Api.get.name(fieldId);
-            if(!base) throw new Error(fieldId);
+
+            if(!base) throw new Error(`@TODO: Generate alias for unnamed fields. '${fieldId}'`);
             let ix = 0;
 
             do {
@@ -1487,14 +1190,12 @@ module Parsers {
           }
 
           let value:FieldAST = {type: "field", alias};
-          let line:AttributeAST = {type: "attribute", property, value, static: false, indent: indent + 2, lineIx: ast.chunks.length};
-          ast.chunks[ast.chunks.length] = line;
+          let line:AttributeAST = {type: "attribute", property, value, static: false, indent: indent + 2, lineIx: this.ast.chunks.length};
+          this.ast.chunks.push(line);
         }
       }
 
-      return ast;
-    },
-
-    unparse: (ast:UiAST) => tokenToString(ast)
-  };
+      if(this.errors.length === 0) this.raw = this.stringify(this.ast);
+    }
+  }
 }

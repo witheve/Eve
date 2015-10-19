@@ -74,16 +74,11 @@ module Editor {
       localState.editing = editing;
       return effect;
     },
-    editUi: function({editing}:{editing:string}) {
-      let effect = DispatchEffect.from(this);
-      localState.ui.editing = editing;
-      return effect;
-    },
     loadQuery: function({viewId}:{viewId:string}) {
       let effect = DispatchEffect.from(this);
       if(viewId) {
         let ast = Api.ixer.findOne("ast cache", {"ast cache: id": viewId, "ast cache: kind": "query"});
-        if(ast) localState.query.loadFromAST(ast, viewId);
+        if(ast) localState.query.loadFromAST(JSON.parse(ast["ast cache: ast"]), viewId);
         else localState.query.loadFromView(viewId);
       }
       return effect;
@@ -140,55 +135,43 @@ module Editor {
 
     loadUi: function({elementId:elemId}:{elementId:string}) {
       let effect = DispatchEffect.from(this);
-      localState.ui.reified = localState.ui.ast = localState.ui.msg = undefined;
-      localState.ui.name = Api.get.name(elemId) || undefined;
-      localState.ui.tags = Api.get.tags(elemId) || [];
-      localState.ui.id = elemId || undefined;
 
       if(elemId) {
-        localState.ui.reified = Parsers.ui.fromElement(elemId);
         let ast = Api.ixer.findOne("ast cache", {"ast cache: id": elemId, "ast cache: kind": "ui"});
-        if(ast) localState.ui.ast = JSON.parse(ast["ast cache: ast"]);
-        else localState.ui.ast = Parsers.ui.unreify(localState.ui.reified);
-      }
-      return effect;
-    },
-    parseUi: function({ui, prev}:{ui:string, prev?:Parsers.UiIR}) {
-      let effect = DispatchEffect.from(this);
-      localState.ui.msg = undefined;
-      try {
-        localState.ui.ast = Parsers.ui.parse(ui);
-        localState.ui.reified = Parsers.ui.reify(localState.ui.ast, prev);
-      } catch(err) {
-        localState.ui.reified = undefined;
-        if(err.name === "Parse Error") localState.ui.msg = `${err}`;
-        else {
-          console.warn(err.stack);
-          throw err;
-        }
+        if(ast) localState.ui.loadFromAST(JSON.parse(ast["ast cache: ast"]), elemId);
+        else localState.ui.loadFromElement(elemId);
       }
 
+      localState.ui.name = Api.get.name(elemId) || undefined;
+      localState.ui.tags = Api.get.tags(elemId) || [];
       return effect;
     },
-    compileUi: function({ui}:{ui:Ui}) {
+    parseUi: function({ui:uiString}:{ui:string}) {
+      let effect = DispatchEffect.from(this);
+      localState.ui.parse(uiString)
+      return effect;
+    },
+    compileUi: function({ui}:{ui:Parsers.Ui}) {
       let effect = DispatchEffect.from(this);
       let reified = ui.reified;
       if(!reified) throw new Error("Cannot compile unreified ui.");
 
       if(ui.id) {
-        let prev = Parsers.ui.fromElement(ui.id);
-        for(let viewId in prev.boundQueries) {
-          effect.change.removeWithDependents("view", viewId).clearContext();
-        }
-        for(let elem of [prev.root].concat(prev.elements)) {
-          effect.change.removeWithDependents("uiElement", elem.element)
-            .removeWithDependents("ast cache", {"ast cache: id": elem.element}).clearContext();
-        }
+        try {
+          let prev = new Parsers.Ui().loadFromElement(ui.id);
+          for(let viewId in prev.reified.boundQueries) {
+            effect.change.removeWithDependents("view", viewId).clearContext();
+          }
+          for(let elem of [prev.reified.root].concat(prev.reified.elements)) {
+            effect.change.removeWithDependents("uiElement", elem.element)
+              .removeWithDependents("ast cache", {"ast cache: id": elem.element}).clearContext();
+          }
+        } catch (err) {}
       }
 
       let ix = 0;
       for(let queryId in reified.boundQueries) {
-        let query:Parsers.Query = new Parsers.Query(reified.boundQueries[queryId]);
+        let query:Parsers.Query = reified.boundQueries[queryId];
         query.name = `${ui.name} bound view ${ix++}`;
         effect.dispatch("compileQuery", {query}).change.clearContext();
       }
@@ -211,8 +194,9 @@ module Editor {
       }
 
       ui.id = reified.root.element;
-      if(ui.tags) effect.dispatch("setTags", {id: ui.id, tags: ui.tags});
-      // @TODO: Better to dice this up and store sub-asts for each sub-element as well.
+      ui.tags = ui.tags || [];
+      if(ui.tags.indexOf("ui-root") === -1) ui.tags.push("ui-root");
+      effect.dispatch("setTags", {id: ui.id, tags: ui.tags});
       if(ui.ast)
         effect.change.add("ast cache", {"ast cache: id": ui.id, "ast cache: kind": "ui", "ast cache: ast": JSON.stringify(ui.ast)});
       return effect;
@@ -371,7 +355,7 @@ module Editor {
           focus: dispatchOnEvent("setEditing", "info.editing = elem.value"),
           blur: dispatchOnEvent("setEditing", "info.editing = undefined"),
         }),
-        {t: "pre", c: "err", children: query.errors.map((err) => { return {text: err}})},
+        {t: "pre", c: "err", children: query.errors.map((err) => { return {text: err.toString()}})},
         {t: "pre", c: "warn", children: warnings},
         query.id ? Ui.factTable({view: query.id}) : undefined
       ]}),
@@ -392,13 +376,14 @@ module Editor {
     }
   ];
   function uiEditor():Element {
+    let ui = localState.ui;
     let root = localState.ui.id;
     let uiName = localState.ui.name || Api.get.name(root);
-    let uiString = localState.ui.editing;
-    if(uiString === undefined) uiString = Parsers.ui.unparse(localState.ui.ast) || "";
+    let uiString = localState.editing;
+    if(uiString === undefined) uiString = ui.raw || "";
 
     let elems = {"": "New Ui"};
-    for(let elemId of Api.extract("uiElement: element", Api.ixer.find("uiElement"))) {
+    for(let elemId of Api.extract("tag: view", Api.ixer.find("tag", {"tag: tag": "ui-root"}))) {
       elems[elemId] = Api.get.name(elemId) || `<${elemId}>`;
     }
     let tags = (localState.ui.tags || []).join(", ");
@@ -407,7 +392,7 @@ module Editor {
     return Ui.row({children: [
       Ui.column({flex: 1, children: [
         Ui.row({children: [
-          Ui.input({placeholder: "Untitled Ui", text: uiName, elem: root, //localState.ui.id, // @FIXME: Need a way to refer to whole ui entity.
+          Ui.input({placeholder: "Untitled Ui", text: uiName, elem: root,
             blur: dispatchOnEvent("setName", "info.name = evt.target.textContent; info.id = elem.elem")
           }),
           Ui.input({placeholder: "tags", text: tags, view: localState.query.id,
@@ -420,12 +405,13 @@ module Editor {
           Ui.button({c: "ion-close", elem: root, click: dispatchOnEvent("remove; loadUi", "info.type = 'uiElement'; info.id = elem.elem")})
         ]}),
         Ui.codeMirrorElement({c: "code", id: "ui-code-editor", value: uiString,
-          change: dispatchOnEvent("parseUi", "info.ui = evt.getValue(); info.prev = localState.ui.reified", 66),
+          change: dispatchOnEvent("parseUi", "info.ui = evt.getValue()", 66),
           submit: dispatchOnEvent("compileUi", "info.ui = localState.ui"),
-          focus: dispatchOnEvent("editUi", "info.editing = elem.value"),
-          blur: dispatchOnEvent("editUi", "info.editing = undefined"),
+          focus: dispatchOnEvent("setEditing", "info.editing = elem.value"),
+          blur: dispatchOnEvent("setEditing", "info.editing = undefined"),
         }),
-        {t: "pre", c: "err", text: localState.ui.msg},
+        {t: "pre", c: "err", children: ui.errors.map((err) => { return {text: err.toString()}})},
+
         {c: "results", children: root ? renderer.compile([root]) : undefined}
       ]}),
       Ui.tabbedBox({id: "ui-results", flex: 1, panes: uiInspectorPanes, defaultTab: "result-reified"})
@@ -435,15 +421,6 @@ module Editor {
   //---------------------------------------------------------------------------
   // Initialization
   //---------------------------------------------------------------------------
-  interface Ui {
-    editing?: string
-    name?: string
-    tags?: string[]
-    id?: string
-    ast?: Parsers.UiAST
-    reified?: Parsers.UiIR
-    msg?: string
-  }
   // @FIXME: This should be moved into API once completed.
   interface LocalState {
     initialized: boolean
@@ -455,14 +432,14 @@ module Editor {
 
     editing?: string
     query?: Parsers.Query
-    ui?: Ui
+    ui?: Parsers.Ui
   }
   export var localState:LocalState = {
     initialized: true,
     eventId: 0,
     activeKind: "query",
     query: new Parsers.Query(),
-    ui: {}
+    ui: new Parsers.Ui()
   };
 
   export function init() {
