@@ -20,16 +20,21 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .article pre { flex:none; display:block; white-space: pre-wrap; min-height:25px; }
 .article h1 { font-size:16pt; }
 .article span { display:inline; }
-.article .link { color: #f88; cursor:default; border-bottom:1px solid transparent;  }
-.article .link.found { color: #99f; }
-.article .collection { color: #9f9; }
-.article .eav { color: #f9f; }
+.link { color: #f88; cursor:default; border-bottom:1px solid transparent;  }
+.link.found, .entity { color: #99f; }
+.collection, .deck { color: #9f9; }
+.eav, .attribute { color: #f9f; }
+.operation, .value { color: #fa5; }
+.modifier { color: #9cf; }
 .link:hover { border-bottom-color:#f88; }
 .link.found:hover { border-bottom-color:#99f; }
 
 .search-input { flex: none; background: none; width:100%; text-align:center; color: #ccc; font-family: "Lato"; font-size: 14pt; margin:20px; border:none; padding:0 10px; padding-bottom:5px; outline:none; }
 
 .spacer { flex: 1; }
+
+.search-description { display: block; }
+.search-description * { display:inline; }
 
 .search-results { flex:none; padding:0 10px; overflow:auto;  }
 .search-results .path { flex-direction:row; }
