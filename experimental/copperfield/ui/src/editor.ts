@@ -69,9 +69,9 @@ module Editor {
       effect.change.add("event", {"event: event": localState.eventId++, "event: element": elem, "event: kind": kind, "event: key": key});
       return effect;
     },
-    editQuery: function({editing}:{editing:string}) {
+    setEditing: function({editing}:{editing:string}) {
       let effect = DispatchEffect.from(this);
-      localState.query.editing = editing;
+      localState.editing = editing;
       return effect;
     },
     editUi: function({editing}:{editing:string}) {
@@ -81,42 +81,20 @@ module Editor {
     },
     loadQuery: function({viewId}:{viewId:string}) {
       let effect = DispatchEffect.from(this);
-      localState.query.reified = localState.query.ast = localState.query.msg = undefined;
-      localState.query.name = Api.get.name(viewId) || undefined;
-      localState.query.tags = Api.get.tags(viewId) || [];
-      localState.query.id = viewId || undefined;
-
       if(viewId) {
-        localState.query.reified = Parsers.query.fromView(viewId);
         let ast = Api.ixer.findOne("ast cache", {"ast cache: id": viewId, "ast cache: kind": "query"});
-        if(ast) localState.query.ast = JSON.parse(ast["ast cache: ast"]);
-        else localState.query.ast = Parsers.query.unreify(localState.query.reified);
-        // @FIXME: Ugly hack, we need to send lineIx's forward until we make getSourceAST more intelligent
-        // localState.query.reified = Parsers.query.reify(localState.query.ast, localState.query.reified);
+        if(ast) localState.query.loadFromAST(ast, viewId);
+        else localState.query.loadFromView(viewId);
       }
       return effect;
     },
-    parseQuery: function({query, prev}:{query:string, prev?:Parsers.QueryIR}) {
+    parseQuery: function({query:queryString, prev}:{query:string, prev?:Parsers.QueryIR}) {
       let effect = DispatchEffect.from(this);
-      localState.query.msg = undefined;
-      try {
-        localState.query.ast = Parsers.query.parse(query);
-        localState.query.reified = Parsers.query.reify(localState.query.ast, prev);
-        localState.query.id = localState.query.reified.id;
-
-      } catch(err) {
-        localState.query.reified = undefined;
-        if(err.name === "Parse Error") localState.query.msg = `${err}`;
-        else {
-          console.warn(err.stack);
-          throw err;
-        }
-      }
-
-      effect.rerender = true;
+      localState.query.parse(queryString);
+      window["qs"] = queryString;
       return effect;
     },
-    compileQuery: function({query}:{query:Query}) {
+    compileQuery: function({query}:{query:Parsers.Query}) {
       let effect = DispatchEffect.from(this);
       let reified = query.reified;
       if(!reified) throw new Error("Cannot compile unreified query.");
@@ -154,7 +132,6 @@ module Editor {
           .add("select");
       }
 
-      query.id = effect.change.context["view: view"];
       if(query.tags) effect.dispatch("setTags", {id: query.id, tags: query.tags});
       if(query.ast)
         effect.change.add("ast cache", {"ast cache: id": query.id, "ast cache: kind": "query", "ast cache: ast": JSON.stringify(query.ast)});
@@ -211,7 +188,8 @@ module Editor {
 
       let ix = 0;
       for(let queryId in reified.boundQueries) {
-        let query:Query = {id: queryId, name: `${ui.name} bound view ${ix++}`, reified: reified.boundQueries[queryId]};
+        let query:Parsers.Query = new Parsers.Query(reified.boundQueries[queryId]);
+        query.name = `${ui.name} bound view ${ix++}`;
         effect.dispatch("compileQuery", {query}).change.clearContext();
       }
 
@@ -340,8 +318,8 @@ module Editor {
   function queryEditor():Element {
     let query = localState.query;
     let queryName = query.name || Api.get.name(query.id);
-    let queryString = query.editing;
-    if(queryString === undefined) queryString = Parsers.query.unparse(query.ast) || "";
+    let queryString = localState.editing;
+    if(queryString === undefined) queryString = query.raw || "";
     let queries = {"": "New Query"};
     for(let viewId of Api.extract("view: view", Api.ixer.find("view"))) {
       queries[viewId] = Api.get.name(viewId) || `<${viewId}>`;
@@ -356,8 +334,8 @@ module Editor {
         let warningView = warning["disabled view: warning view"];
         let row = Api.humanize(warningView, Client.factToMap(warningView, warning["disabled view: warning row"]));
         if(warningView === "unschedulable source") {
-          let sourceIR = Parsers.query.getSourceIR(row.source, query.reified);
-          let sourceAST = sourceIR ? Parsers.query.getSourceAST(sourceIR, query.ast) : undefined;
+          let sourceIR = query.getSourceIR(row.source);
+          let sourceAST = sourceIR ? query.getSourceAST(sourceIR) : undefined;
           let line = Parsers.tokenToString(sourceAST);
           explanation = {children: [
             {text: `Source: '${row.source}'`},
@@ -390,10 +368,10 @@ module Editor {
         Ui.codeMirrorElement({c: "code", id: "query-code-editor", value: queryString, prev: query.reified, query,
           change: dispatchOnEvent("parseQuery", "info.query = evt.getValue()", 66),
           submit: dispatchOnEvent("compileQuery"),
-          focus: dispatchOnEvent("editQuery", "info.editing = elem.value"),
-          blur: dispatchOnEvent("editQuery", "info.editing = undefined"),
+          focus: dispatchOnEvent("setEditing", "info.editing = elem.value"),
+          blur: dispatchOnEvent("setEditing", "info.editing = undefined"),
         }),
-        {t: "pre", c: "err", text: query.msg},
+        {t: "pre", c: "err", children: query.errors.map((err) => { return {text: err}})},
         {t: "pre", c: "warn", children: warnings},
         query.id ? Ui.factTable({view: query.id}) : undefined
       ]}),
@@ -457,15 +435,6 @@ module Editor {
   //---------------------------------------------------------------------------
   // Initialization
   //---------------------------------------------------------------------------
-  interface Query {
-    editing?: string // If we're editing, store the last set value to prevent MicroReact from considering the element dirty.
-    name?: string
-    tags?: string[]
-    id?: string
-    ast?: Parsers.QueryAST
-    reified?: Parsers.QueryIR
-    msg?: string
-  }
   interface Ui {
     editing?: string
     name?: string
@@ -484,14 +453,15 @@ module Editor {
     activeComponent?: string
     activeKind?: string //hack
 
-    query?: Query
+    editing?: string
+    query?: Parsers.Query
     ui?: Ui
   }
   export var localState:LocalState = {
     initialized: true,
     eventId: 0,
     activeKind: "query",
-    query: {},
+    query: new Parsers.Query(),
     ui: {}
   };
 

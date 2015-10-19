@@ -242,6 +242,14 @@ module Parsers {
   }
 
   function consume(needles:string[], tokens:string[], err?:Error):string {
+   if(needles.indexOf(tokens[0]) === -1) {
+     if(err) throw err;
+     return;
+   }
+   return tokens.shift();
+  }
+
+  function consumeWhile(needles:string[], tokens:string[], err?:Error):string {
     let res = "";
     while(true) {
       let head = tokens[0];
@@ -293,8 +301,496 @@ module Parsers {
   //---------------------------------------------------------------------------
 
   const Q_ACTION_TOKENS = ["+"];
-  const Q_KEYWORD_TOKENS = ["!", "(", ")", "$=", "#", ";"].concat(Q_ACTION_TOKENS);
-  const Q_TOKENS = [" ", "\t", "`", "?"].concat(Q_KEYWORD_TOKENS, PUNCTUATION);
+  const Q_KEYWORD_TOKENS = ["!", "(", ")", "$=", "#", ";", "?", "`"].concat(Q_ACTION_TOKENS);
+  const Q_TOKENS = [" ", "\t"].concat(Q_KEYWORD_TOKENS, PUNCTUATION);
+
+  export class Query {
+    raw: string;
+    ast: QueryAST;
+    reified: QueryIR;
+    failed: QueryAST|QueryIR;
+
+    errors: Error[];
+    id: string;
+    name: string;
+    tags: string[];
+
+    protected prev: QueryIR;
+    protected lineIx: number;
+
+    constructor(initializer?:QueryIR) {
+      this.prev = initializer;
+    }
+
+    /** Nicely formatted error for reporting problems during parsing or reification. */
+    parseError<T extends Token>(message:string, token:T):Error {
+      let lines = this.raw.split("\n");
+      if(token.lineIx === undefined) token.lineIx = this.lineIx;
+      ParseError.lines = lines;
+      ParseError.tokenToChar = Query.tokenToChar;
+
+      let err = ParseError(message, token);
+      ParseError.reset();
+      return err;
+    }
+
+    /** Convert any valid query token into its raw string equivalent. */
+    stringify = tokenToString;
+
+    /** Parse a raw query string into this Query. */
+    parse(raw:string):Query {
+      if(raw === this.raw) return this;
+      this.errors = [];
+      this.raw = raw;
+      this.ast = {type: "query", chunks: []};
+      this.prev = this.reified ? this.reified : this.prev;
+      this.reified = undefined;
+
+      let lines = this.raw.split("\n");
+      let lineIx = 0;
+      for(let line of lines) {
+        let tokens = query.tokenize(line);
+        if(tokens.length === 0) {
+          this.ast.chunks.push(<TextAST>{type: "text", text: "", lineIx: lineIx++});
+          continue;
+        }
+
+        let maybeParsed = this.parseLine(tokens, lineIx++);
+        if(maybeParsed instanceof Error) {
+          this.errors.push(maybeParsed);
+          continue;
+        }
+        let parsed = <LineAST>maybeParsed;
+
+        if(tokenIsKeyword(parsed.chunks[0]) && parsed.chunks[0]["text"] === ";") {
+          parsed["text"] = tokenToString(parsed);
+          parsed.type = "comment";
+
+        } else {
+          maybeParsed = this.processAction(parsed)
+            || this.processCalculation(parsed)
+            || this.processOrdinal(parsed)
+            || this.processSource(parsed);
+
+          if(maybeParsed instanceof Error) {
+            this.errors.push(maybeParsed);
+            continue;
+          }
+          parsed = <LineAST>maybeParsed;
+        }
+
+        this.ast.chunks.push(parsed);
+      }
+
+      if(this.errors.length === 0) this.reify();
+
+      return this;
+    }
+
+    /** Load an existing AST into this Query. */
+    loadFromAST(ast:QueryAST, viewId?:string):Query {
+      this.raw = this.prev = this.reified = undefined;
+      this.errors = [];
+      if(!ast) return;
+      if(viewId) this.loadFromView(viewId);
+      this.ast = ast;
+      this.raw = this.stringify(this.ast);
+      this.reify();
+      return this;
+    }
+
+    /** Load the given view *lossily* into this Query. */
+    loadFromView(viewId:string):Query {
+      this.id = viewId;
+      this.name = Api.get.name(viewId);
+      this.tags = Api.get.tags(viewId);
+      this.raw = this.ast = this.prev = undefined;
+      this.errors = [];
+      this.reified = {id: viewId, sources: [], aliases: {}, variables: {}, actions: []};
+      let ordinalSourceAlias:{[source:string]: string|boolean} = {};
+      let bindingFieldVariable:{[id:string]: VariableIR} = {};
+
+      // Reconstitute variables.
+      for(let varId of Api.extract("variable: variable", Api.ixer.find("variable", {"variable: view": viewId}))) {
+        let fieldId = (Api.ixer.findOne("select", {"select: variable": varId}) || {})["select: field"];
+        let alias = Api.get.name(fieldId) || undefined;
+        let variable = getVariable(alias, this.reified, varId);
+        variable.selected = fieldId;
+        variable.value = (Api.ixer.findOne("constant binding", {"constant binding: variable": varId}) || {})["constant binding: value"];
+
+        let ordinalSources = Api.extract("ordinal binding: source", Api.ixer.find("ordinal binding", {"ordinal binding: variable": varId}));
+        if(ordinalSources.length) {
+          variable.ordinals = ordinalSources;
+          for(let sourceId of ordinalSources) ordinalSourceAlias[sourceId] = alias || true;
+        }
+
+        variable.bindings = <any>Api.omit("variable", Api.humanize("binding", Api.ixer.find("binding", {"binding: variable": varId})));
+        for(let binding of variable.bindings) bindingFieldVariable[binding.field] = variable;
+      }
+
+      // Reconstitute sources.
+      let rawSources = {};
+      for(let rawSource of Api.ixer.find("source", {"source: view": viewId})) rawSources[rawSource["source: source"]] = rawSource;
+      let sourceIds = Object.keys(rawSources).sort(Api.displaySort);
+
+      for(let sourceId of sourceIds) {
+        let rawSource = rawSources[sourceId];
+        let source:SourceIR = {source: sourceId, sourceView: rawSource["source: source view"], fields: []};
+        this.reified.sources.push(source);
+
+        if(ordinalSourceAlias[source.source]) source.ordinal = ordinalSourceAlias[source.source];
+        if(Api.ixer.findOne("chunked source", {"chunked source: source": source.source})) source.chunked = true;
+        if(Api.ixer.findOne("negated source", {"negated source: source": source.source})) source.negated = true;
+
+        let sorted = Api.ixer.find("sorted field", {"sorted field: source": source.source});
+        if(sorted && sorted.length) source.sort = <any>Api.omit("source", Api.humanize("sorted field", sorted));
+
+        let fieldIds = Api.get.fields(source.sourceView);
+        for(let fieldId of fieldIds) {
+          let field:FieldIR = {field: fieldId};
+          source.fields[source.fields.length] = field;
+          if(Api.ixer.findOne("grouped field", {"grouped field: field": fieldId})) field.grouped = true;
+
+          let variable = bindingFieldVariable[fieldId];
+          if(variable.alias) field.alias = variable.alias;
+          if(variable.value !== undefined) field.value = variable.value;
+          if(variable.ordinals !== undefined && variable.ordinals.indexOf(source.source) !== -1) field.ordinal = true;
+        }
+      }
+
+    if(this.errors.length === 0) this.unreify();
+
+      return this;
+    }
+
+    /** Unlink the reification of this Query from it's current IDs (for duplicating views). */
+    unlink():Query {
+      throw new Error("@TODO: Implement me.");
+    }
+
+    /** Clone this Query instance for destructive editing. */
+    clone():Query {
+      throw new Error("@TODO: Implement me.");
+    }
+
+    /** Retrieve the Source IR for the given view source if present. */
+    getSourceIR(sourceId:string):SourceIR {
+      for(let source of this.reified.sources) {
+        if(source.source === sourceId) return source;
+      }
+    }
+
+    /** Retrieve the Source AST for the given source IR if present. */
+    getSourceAST(source:SourceIR) {
+      if(source.lineIx === undefined) return;
+      return this.ast.chunks[source.lineIx];
+    }
+
+    protected static tokenize = makeTokenizer(Q_TOKENS);
+    protected static tokenToChar(token:Token, line:string):number {
+      return (token.tokenIx !== undefined) ? Query.tokenize(line).slice(0, token.tokenIx - 1).join("").length : 0;
+    }
+
+    /** Parse a line's worth of tokens into field, keyword, and structure chunks. */
+    protected parseLine(tokens:string[], lineIx:number = 0):LineAST|Error {
+      this.lineIx = lineIx;
+      let tokensLength = tokens.length;
+      let padding = consumeWhile([" ", "\t"], tokens);
+      let ast:LineAST = {type: "", chunks: [], lineIx, indent: padding.length};
+      while(tokens.length) {
+        let tokenIx = tokensLength - tokens.length + 1;
+        let token = this.parseField(tokens, tokenIx)
+          || this.parseKeyword(tokens, tokenIx)
+          || this.parseStructure(tokens, tokenIx);
+        if(!token) return this.parseError("Unrecognized token sequence.", {type: "text", text: tokens.join(""), tokenIx, lineIx});
+        if(token instanceof Error) return token;
+        else ast.chunks.push(<Token>token);
+      }
+      return ast.chunks.length ? ast : undefined;
+    }
+
+    /** Parse a field in the form ?[?][alias] or a constant field in the form `[content]`. */
+    protected parseField(tokens:string[], tokenIx:number = 0):FieldAST|Error {
+      if(consume(["?"], tokens)) {
+        let field:FieldAST = {type: "field", tokenIx};
+        if(consume(["?"], tokens)) field.grouped = true;
+        let head = tokens[0];
+        if(head && head !== " " && PUNCTUATION.indexOf(head) === -1) field.alias = tokens.shift();
+        return field;
+
+      } else if(consume(["`"], tokens)) {
+        let field:FieldAST = {type: "field", tokenIx};
+        let tokensLength = tokens.length;
+        try {
+          field.value = consumeUntil(["`"], tokens, this.parseError("Unterminated quoted literal.", field));
+        } catch (err) {
+          return err;
+        }
+        tokens.shift();
+        field.value = coerceInput(field.value);
+        return field;
+      }
+    }
+
+    /** Parse a single keyword token from Q_KEYWORD_TOKENS. */
+    protected parseKeyword(tokens:string[], tokenIx:number = 0) {
+      if(Q_KEYWORD_TOKENS.indexOf(tokens[0]) !== -1) {
+        return {type: "keyword", text: tokens.shift(), tokenIx};
+      }
+    }
+
+    /** consume tokens into a single text chunk until a Q_KEYWORD_TOKEN is hit. */
+    protected parseStructure(tokens:string[], tokenIx:number = 0) {
+      let text = consumeUntil(Q_KEYWORD_TOKENS, tokens);
+      if(text) return {type: "text", text, tokenIx};
+    }
+
+    protected processAction(line:LineAST):LineAST|Error {
+      let kw = line.chunks[0];
+      if(line.chunks.length < 1 || !tokenIsKeyword(kw) || Q_ACTION_TOKENS.indexOf(kw.text) === -1) return;
+      line.type = "action";
+      for(let token of line.chunks) {
+        if(tokenIsField(token) && !token.alias) return this.parseError("All action fields must be aliased to a query field.", token);
+      }
+
+      return line;
+    }
+
+    protected processCalculation(line:LineAST):CalculationAST|Error {
+      let calculations:{view:string, calculation:string}[] = [];
+      let fields:{calculation:string, field:string, ix:number}[] = [];
+
+      let kw = line.chunks[2];
+      if(line.chunks.length < 3 || !tokenIsKeyword(kw) || kw.text !== "$=") return;
+      let text = tokenToString(line);
+
+      if(!tokenIsField(line.chunks[0])) return this.parseError("Calculations must be formatted as '?field $= <calculation>", line);
+      let resultField:FieldAST = line.chunks[0];
+
+      let partIx = 0;
+      let lines:CalculationAST[] = [];
+      let stack = [{type: "source", chunks: [], partIx: partIx++, lineIx: line.lineIx}];
+      for(let token of line.chunks.slice(4)) {
+        let cur = stack[stack.length - 1];
+
+        if(tokenIsKeyword(token)) {
+          if(token.text === "(") {
+            stack.push({type: "source", chunks: [], partIx: partIx++, lineIx: line.lineIx});
+            continue;
+          }
+          else if(token.text === ")") {
+            stack.pop();
+            let prev = stack[stack.length - 1];
+            if(!prev) return this.parseError("Too many close parens", line);
+            let alias = `_${resultField.alias}-${cur.partIx}`;
+            let field:FieldAST = {type: "field", alias};
+            cur.chunks.push({type: "text", text: " = "}, field);
+            prev.chunks.push(field);
+            lines.push(cur);
+            continue;
+          }
+        }
+
+        cur.chunks.push(token);
+      }
+      if(stack.length > 1) return this.parseError("Too few close parens", line);
+      if(stack.length === 0) return this.parseError("Too many close parens", line);
+      stack[0].chunks.push({type: "text", text: " = "}, resultField);
+      lines.push(stack[0]);
+
+      return {type: "calculation", chunks: lines, text};
+    }
+
+    protected processOrdinal(parsedLine:LineAST):OrdinalAST|Error {
+      let kw = parsedLine.chunks[0];
+      if(parsedLine.chunks.length < 1 || !tokenIsKeyword(kw) || kw.text !== "#") return;
+      parsedLine.type = "ordinal";
+
+      let prevChunk = this.ast.chunks[this.ast.chunks.length - 1];
+      if(!prevChunk || !tokenIsSource(prevChunk))
+        return this.parseError("Ordinal must immediately follow a source.", {type: "text", text: parsedLine.chunks.map(this.stringify).join("")});
+      if(parsedLine.chunks.length < 3 || !tokenIsField(parsedLine.chunks[2]))
+        return this.parseError("Ordinal requires a field to bind to ('?' or '?foo').", parsedLine.chunks[2]);
+      if(parsedLine.chunks.length > 3 && parsedLine.chunks[3]["text"].indexOf("by") !== 1)
+        return this.parseError("Ordinals are formatted as '# ? by ?... <dir>'", parsedLine.chunks[3]);
+
+      let line = <OrdinalAST>parsedLine;
+      line.alias = line.chunks[2]["alias"];
+      line.directions = [];
+      let sortFieldCount = 0;
+      for(let tokenIx = 3, chunkCount = line.chunks.length; tokenIx < chunkCount; tokenIx++) {
+        let token = line.chunks[tokenIx];
+        if(tokenIsField(token)) {
+          if(!token.alias) return this.parseError("Ordinal sorting fields must be aliased to a query field.", token);
+          sortFieldCount++;
+        } else if(tokenIsText(token) && sortFieldCount > 0) {
+          let text = token.text.trim().toLowerCase();
+          if(text.indexOf("ascending") === 0) line.directions[sortFieldCount - 1] = "ascending";
+          else if(text.indexOf("descending") === 0) line.directions[sortFieldCount - 1] = "descending";
+        }
+      }
+      if(sortFieldCount === 0)
+        return this.parseError("Ordinal requires at least one sorting field.", {type: "text", text: parsedLine.chunks.map(this.stringify).join("")});
+
+      return line;
+    }
+
+    protected processSource(line:SourceAST):SourceAST {
+      let kw = line.chunks[0];
+      if(tokenIsText(kw) && kw.text === "!") line.negated = true;
+      line.type = "source";
+      return line;
+    }
+
+    protected reify() {
+      if(!this.ast) return;
+      if(this.reified) this.prev = this.reified;
+      this.reified = {id: (this.prev && this.prev.id) || Api.uuid(), sources: [], aliases: {}, variables: {}, actions: []};
+      this.id = this.reified.id;
+      let prev = this.prev;
+
+      let sort = [];
+      let chunks = [];
+      for(let line of this.ast.chunks) {
+        if(tokenIsCalculation(line)) chunks.push.apply(chunks, line.chunks);
+        else chunks.push(line);
+      }
+
+      this.lineIx = -1;
+      LINE_LOOP: for(let line of chunks) {
+        this.lineIx++;
+        if(tokenIsSource(line)) {
+          let fingerprint = fingerprintSource(line);
+          let {"view fingerprint: view": view} = Api.ixer.findOne("view fingerprint", {"view fingerprint: fingerprint": fingerprint}) || {};
+          if(!view) {
+            this.errors.push(this.parseError(`Fingerprint '${fingerprint}' matches no known views.`, line)); //@NOTE: Should this create a union..?
+            continue;
+          }
+
+          let sourceId = Api.uuid();
+          let prevSource = prev && prev.sources[this.reified.sources.length];
+          if(prevSource && prevSource.sourceView === view) sourceId = prevSource.source;
+
+          let source:SourceIR = {negated: line.negated, source: sourceId, sourceView: view, fields: [], lineIx: line.lineIx};
+          let fieldIxes = Api.ixer.find("fingerprint field", {"fingerprint field: fingerprint": fingerprint}).slice()
+            .sort((a, b) => a["fingerprint field: ix"] - b["fingerprint field: ix"]);
+
+          for(let token of line.chunks) {
+            if(tokenIsField(token)) {
+              let {"fingerprint field: field": fieldId} = fieldIxes.shift() || {};
+              if(!fieldId) {
+                this.errors.push(this.parseError(`Fingerprint '${fingerprint}' is missing for field.`, token));
+                break LINE_LOOP;
+              }
+              let field = {field:fieldId, grouped: token.grouped, alias: token.alias, value: token.value};
+              source.fields.push(field);
+
+              let varId = prev && prev.aliases[field.alias];
+              let variable = getVariable(field.alias, this.reified, varId, varId && prev.variables[varId].selected);
+              if(field.grouped) source.chunked = true;
+              if(field.value !== undefined) variable.value = field.value;
+              variable.bindings.push({source: source.source, field: field.field});
+            }
+          }
+          this.reified.sources.push(source);
+
+        } else if(tokenIsOrdinal(line)) {
+          let source = this.reified.sources[this.reified.sources.length - 1];
+          if(!source) {
+            this.errors.push(this.parseError(`Ordinals must follow a valid source.`, line));
+            continue;
+          }
+          source.ordinal = line.alias || true;
+          let varId = prev && prev.aliases[line.alias];
+          let variable = getVariable(line.alias, this.reified, varId, varId && prev.variables[varId].selected);
+          if(!variable.ordinals) variable.ordinals = [source.source];
+          else variable.ordinals.push(source.source);
+          let unsorted = [];
+          for(let field of source.fields) unsorted[unsorted.length] = field.field;
+
+          let sortFieldIx = 0;
+          source.sort = [];
+          for(let tokenIx = 3, chunkCount = line.chunks.length; tokenIx < chunkCount; tokenIx++) {
+            let chunk = line.chunks[tokenIx];
+            if(tokenIsField(chunk)) {
+              let matched = false;
+              for(let field of source.fields) {
+                if(field.alias !== chunk.alias) continue;
+                source.sort.push({ix: sortFieldIx, field: field.field, direction: line.directions[sortFieldIx++] || "ascending"});
+                unsorted.splice(unsorted.indexOf(field.field), 1);
+                matched = true;
+                break;
+              }
+              if(!matched) {
+                this.errors.push(this.parseError(`Ordinal alias '${chunk.alias}' does not match any aliased fields of the ordinated source.`, chunk));
+              }
+            }
+          }
+          for(let fieldId of unsorted) source.sort.push({ix: sortFieldIx++, field: fieldId, direction: "ascending"});
+
+        } else if(tokenIsAction(line)) {
+          this.errors.push(this.parseError("@TODO: Add support for reifying actions", line));
+          continue;
+        }
+      }
+
+      if(this.errors.length) {
+        this.failed = this.reified;
+        this.reified = undefined;
+      }
+    }
+
+    protected unreify() {
+      if(!this.reified) return;
+
+      this.ast = {type: "query", chunks: []};
+      for(let source of this.reified.sources) {
+        // @FIXME: This may not be the correct fingerprint, we need to look through all of them
+        // comparing field ordering. This still isn't lossless, but it's at least better.
+        let {"view fingerprint: fingerprint": fingerprint} = Api.ixer.findOne("view fingerprint", {"view fingerprint: view": source.sourceView}) ||{};
+        if(!fingerprint) throw new Error(`No fingerprint found for view '${source.sourceView}'.`);
+        let structures = fingerprint.split("?");
+        let tail:string = structures.pop(); // We don't want to tack an extra field to the end of the fingerprint.
+        let line:SourceAST = {type: "source", negated: source.negated, chunks: [], lineIx: this.ast.chunks.length};
+        this.ast.chunks.push(line);
+
+        let fieldIx = 0;
+        for(let text of structures) {
+          // Add structure token if there's any text.
+          if(text) line.chunks.push(<TextAST>{type: "text", text});
+
+          // Add field token between this structure token and the next.
+          let field:FieldIR = source.fields[fieldIx++];
+          if(!field.alias) throw new Error("@TODO: Map this to a new unique alias based on the variable it is bound to.");
+          line.chunks.push(<FieldAST>{type: "field", alias: field.alias, grouped: field.grouped, value: field.value});
+        }
+        if(tail) line.chunks.push(<TextAST>{type: "text", text: tail});
+
+        if(source.ordinal) {
+          let line:OrdinalAST = {type: "ordinal", alias: undefined, directions: [], chunks: [], lineIx: this.ast.chunks.length};
+          this.ast.chunks.push(line);
+
+          if(source.ordinal !== true) line.alias = <string>source.ordinal;
+          line.chunks[0] = <TextAST>{type: "text", text: `# ?${line.alias || ""} by `}; // @NOTE: Shouldn't line.alias be a field?
+
+          let fields = {};
+          for(let field of source.fields) fields[field.field] = field;
+
+          // Super lossy, but nothing can be done about it.
+          for(let {ix, field:fieldId, direction} of source.sort) {
+            let field = fields[fieldId];
+            line.chunks.push(<FieldAST>{type: "field", alias: field.alias, grouped: field.grouped, value: field.value});
+            line.chunks.push(<TextAST>{type: "text", text: ` ${direction} `});
+            line.directions.push(direction);
+          }
+        }
+      }
+
+      if(this.reified.actions.length) throw new Error("@TODO Implement action unreification.");
+
+      this.raw = this.stringify(this.ast);
+    }
+  }
 
   export var query = {
     // Utilities
@@ -363,29 +859,26 @@ module Parsers {
     },
 
     parseField: function(tokens:string[], tokenIx:number = 0) {
-      let field:FieldAST = {type: "field", tokenIx};
-      let ix = 0;
-      if(tokens[ix] === "?") {
-        ix++;
-        if(tokens[ix] === "?") {
-          ix++;
+      if(tokens[0] === "?") {
+        tokens.shift();
+        let field:FieldAST = {type: "field", tokenIx};
+        if(tokens[0] === "?") {
+          tokens.shift();
           field.grouped = true;
         }
-        if(tokens[ix] && tokens[ix] !== " " && PUNCTUATION.indexOf(tokens[ix]) === -1) field.alias = tokens[ix++];
+        let head = tokens[0];
+        if(head && head !== " " && PUNCTUATION.indexOf(head) === -1) field.alias = tokens.shift();
+        return field;
 
-      } else if(tokens[ix] === "`") {
-        field.value = "";
-        while(true) {
-          ix++;
-          if(tokens[ix] === "`") break;
-          if(tokens[ix] === undefined) throw ParseError("Unterminated quoted literal.", field);
-          field.value += tokens[ix];
-        }
-        ix++;
+      } else if(tokens[0] === "`") {
+        tokens.shift();
+        let field:FieldAST = {type: "field", tokenIx};
+        let tokensLength = tokens.length;
+        field.value = consumeUntil(["`"], tokens, ParseError("Unterminated quoted literal.", field));
+        tokens.shift();
         field.value = coerceInput(field.value);
+        return field;
       }
-      tokens.splice(0, ix);
-      return ix > 0 ? field : undefined;
     },
 
     parseKeyword: function(tokens:string[], tokenIx:number = 0) {
@@ -395,12 +888,7 @@ module Parsers {
     },
 
     parseStructure: function(tokens:string[], tokenIx:number = 0) {
-      let text = "";
-      while(true) {
-        let head = tokens[0];
-        if(head === undefined || head === "?" || head === "`" || Q_KEYWORD_TOKENS.indexOf(head) !== -1) break;
-        text += tokens.shift();
-      }
+      let text = consumeUntil(Q_KEYWORD_TOKENS, tokens);
       if(text) return {type: "text", text, tokenIx};
     },
 
@@ -726,7 +1214,7 @@ module Parsers {
         ParseError.lineIx = lineIx;
         let tokens = ui.tokenize(rawLine);
         let tokensLength = tokens.length;
-        let consumed = consume([" ", "\t"], tokens);
+        let consumed = consumeWhile([" ", "\t"], tokens);
         let indent = tokensLength - tokens.length;
         let line:Token = {type: "", lineIx, indent};
         let head = tokens.shift();
@@ -744,10 +1232,10 @@ module Parsers {
         } else if(head === "-") {
           line.type = "attribute";
           let attribute:AttributeAST = <any>line;
-          consume([" ", "\t"], tokens);
+          consumeWhile([" ", "\t"], tokens);
           attribute.property = consumeUntil([":"], tokens, ParseError("Attributes are formatted as '- <property>: <value or field>'."));
           tokens.shift();
-          consume([" ", "\t"], tokens);
+          consumeWhile([" ", "\t"], tokens);
           let field = query.parseField(tokens, tokensLength - tokens.length);
           // @TODO we can wrap this in `` and rerun it, or skip the middleman since we know the value.
           if(!field) throw ParseError("Value of attribute must be a field (either ' ?foo ' or ' `100` ')", {type: "text", text: tokens.join(""), tokenIx: tokensLength - tokens.length});
@@ -760,11 +1248,11 @@ module Parsers {
           if(!prevLine || tokenIsElement(prevLine)) {
             line.type = "binding";
             let binding:BindingAST = <any>line;
-            consume([" ", "\t"], tokens);
+            consumeWhile([" ", "\t"], tokens);
             binding.text = tokens.join("");
 
           } else if(tokenIsBinding(prevLine)) {
-            consume([" ", "\t"], tokens);
+            consumeWhile([" ", "\t"], tokens);
             prevLine.text += "\n" + tokens.join("");
             continue;
 
@@ -773,10 +1261,10 @@ module Parsers {
         } else if(head === "@") {
           line.type = "event";
           let event:EventAST = <any>line;
-          consume([" ", "\t"], tokens);
+          consumeWhile([" ", "\t"], tokens);
           event.event = consumeUntil([":"], tokens);
           tokens.shift();
-          consume([" ", "\t"], tokens);
+          consumeWhile([" ", "\t"], tokens);
           if(tokens.length) {
             let field = query.parseField(tokens, tokensLength - tokens.length);
             // @TODO we can wrap this in `` and rerun it, or skip the middleman since we know the value.
