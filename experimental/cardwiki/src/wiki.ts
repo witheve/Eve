@@ -308,6 +308,10 @@ module wiki {
     "contains": {op: "contains", argCount: 2, infix: true},
     "older": {op: ">", argCount: 2, infix: true, attribute: "age"},
     "younger": {op: "<", argCount: 2, infix: true, attribute: "age"},
+    "+": {op: "+", argCount: 2, infix: true},
+    "-": {op: "-", argCount: 2, infix: true},
+    "/": {op: "/", argCount: 2, infix: true},
+    "*": {op: "*", argCount: 2, infix: true},
   }
   function newSearchTokens(searchString) {
     // search the string for entities / decks
@@ -344,10 +348,10 @@ module wiki {
       } else if(word === "deck" || word === "decks") {
         all.push({type: "collection", found: word, orig: word, pos: ix})
       } else if(parseFloat(word)) {
-        all.push({type: "value", orig: word, pos: ix});
+        all.push({type: "value", value: word, orig: word, pos: ix});
       } else if(word[0] === "\"") {
         // @TODO: account for multi word quotes
-        all.push({type: "value", orig: word, pos: ix});
+        all.push({type: "value", value: word, orig: word, pos: ix});
       }
       ix += word.length + 1;
     }
@@ -366,13 +370,19 @@ module wiki {
 
 function walk(tree, indent = 0) {
     if(!tree) return console.log("UNDEFINED TREE");
-    console.group(tree.found, `(${tree.type})`);
+    let text = tree.found;
+    if(!text && tree.operation) {
+      text = tree.operation.op;
+    } else if(!text && tree.value) {
+      text = tree.value;
+    }
+    console.group(text, `(${tree.type})`);
     if(tree.children) {
       for(let child of tree.children) {
         walk(child, indent+1);
       }
     }
-    console.groupEnd(tree.type, `(${tree.type})`);
+    console.groupEnd(text, `(${tree.type})`);
 }
 
 
@@ -394,7 +404,7 @@ function walk(tree, indent = 0) {
     let tokens = newSearchTokens(searchString);
     let root:any;
     let cursor:any;
-    let state:any = {prevCursor: []};
+    let state:any = {operationStack: []};
     // find the root subject which is either the first collection found
     // or if there are not collections, the first entity
     for(let token of tokens) {
@@ -429,7 +439,7 @@ function walk(tree, indent = 0) {
             continue;
           }
         }
-        state.prevCursor.push(cursor);
+        state.operationStack.push({cursor, operator: state.operator});
         state.consuming = true;
         state.operator = token;
         cursor = token;
@@ -453,17 +463,28 @@ function walk(tree, indent = 0) {
         let argCount = state.operator.operation.argCount;
         if(state.operator.operation.infix) argCount--;
         console.log(argCount, state.operator.children.length, state);
-        if(state.operator.children.length > argCount) {
-          cursor = state.prevCursor.pop();
+        while(state.operator.children.length > argCount) {
+          let item = state.operationStack.pop();
+          cursor = item.cursor;
           if(cursor) cursor.push(state.operator);
           else root.children.push(state.operator);
-          // we consumed one too many, so push that onto root
-          root.children.push(state.operator.children.pop());
-          // we're done consuming now
-          state.consuming = false;
-          state.operator = null;
-          state.lastValue = false;
-          activeRoot = root;
+
+          if(item.operator) {
+            // we consumed one too many, so push that onto root
+            item.operator.children.push(state.operator.children.pop());
+            activeRoot = state.operator = item.operator;
+            argCount = state.operator.operation.argCount;
+            if(state.operator.operation.infix) argCount--;
+          } else {
+            // we consumed one too many, so push that onto root
+            root.children.push(state.operator.children.pop());
+            // we're done consuming now
+            state.consuming = false;
+            state.operator = null;
+            state.lastValue = false;
+            activeRoot = root;
+            break;
+          }
         }
       }
 
@@ -506,13 +527,27 @@ function walk(tree, indent = 0) {
       }
 
     }
-    console.log(root);
     if(state.consuming) {
-      cursor = state.prevCursor.pop();
-      if(cursor) cursor.children.push(state.operator);
-      else root.children.push(state.operator);
+      let item = state.operationStack.pop();
+      while(item) {
+        cursor = item.cursor;
+        if(cursor) cursor.children.push(state.operator);
+        else root.children.push(state.operator);
+
+        let argCount = state.operator.operation.argCount;
+        if(state.operator.operation.infix) argCount--;
+        if(state.operator.children.length > argCount) {
+          if(item.operator) {
+            item.operator.children.push(state.operator.children.pop());
+          } else {
+            root.children.push(state.operator.children.pop());
+          }
+        }
+
+        state.operator = item.operator;
+        item = state.operationStack.pop();
+      }
     }
-    console.log(state);
     if(root) walk(root);
     return root;
   }
