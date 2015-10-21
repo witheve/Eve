@@ -85,41 +85,47 @@ module Parsers {
   //---------------------------------------------------------------------------
   const PUNCTUATION = [".", ",", ";", ":"];
 
-  interface ParseError {
-    (msg:string, token?:any): Error
-    reset: () => void
-    tokenToChar: (token:any, line:string) => number
-    lines: string[]
-    lineIx: number
-  }
-  var ParseError:ParseError = <any>function(msg, token?:any) {
-    let {lines = [], lineIx} = ParseError;
-    let line = lines[lineIx] || "";
-    let charIx = 0;
-    let length = line.length;
-    if(token) {
-      lineIx = (token.lineIx !== undefined) ? token.lineIx : lineIx;
-      line = lines[lineIx] || "";
-      charIx = ParseError.tokenToChar(token, line);
-      let text = tokenToString(token) || "";
-      let ix = text.indexOf("\n");
-      if(ix !== -1) length = ix - charIx;
-      else length = (text.length || line.length) - charIx;
+  class ParseError extends Error {
+    name: string = "Parse Error";
+
+    constructor(public message:string, public line:string, public lineIx?:number, public charIx:number = 0, public length:number = line.length) {
+      super(message);
     }
-    msg += `\nOn line ${lineIx}:${charIx}`;
-    if(line !== undefined) {
-      msg += `\n${line}\n${underline(charIx, length)}`;
+    toString() {
+      return unpad(8) `
+        ${this.name}: ${this.message}
+        ${this.lineIx !== undefined ? `On line ${this.lineIx + 1}:${this.charIx}` : ""}
+        ${this.line}
+        ${underline(this.charIx, this.length)}
+        ${this.length}
+      `;
     }
-    let err = <any>new Error(msg);
-    err.name = "Parse Error";
-    err.line = line;
-    err.lineIx = lineIx;
-    err.charIx = charIx;
-    return err;
   }
-  ParseError.reset = function() {
-    ParseError.lines = ParseError.tokenToChar = ParseError.lineIx = undefined;
-  };
+
+  type TemplateStringTag = (strings:string[], ...values:any[]) => string
+  interface unpad {
+    (indent:number): TemplateStringTag
+    memo: {[indent:number]: TemplateStringTag}
+  }
+  var unpad:unpad = <any>function(indent) {
+    if(unpad.memo[indent]) return unpad.memo[indent];
+    return unpad.memo[indent] = function(strings, ...values) {
+      if(!strings.length) return;
+      let res = "";
+      let ix = 0;
+      for(let str of strings) res += str + (values.length > ix ? values[ix++] : "");
+
+      if(res[0] === "\n") res = res.slice(1);
+      let charIx = 0;
+      while(true) {
+        res = res.slice(0, charIx) + res.slice(charIx + indent);
+        charIx = res.indexOf("\n", charIx) + 1;
+        if(!charIx) break;
+      }
+      return res;
+    }
+  }
+  unpad.memo = {};
 
   function repeat(length, str) {
     let len = length / str.length;
@@ -275,7 +281,7 @@ module Parsers {
       let varId = scope.reified.aliases[alias];
       if(!varId) continue;
       let variable = scope.reified.variables[varId];
-      if(!variable.selected) throw ParseError("UI Properties can only be bound to selected aliases.");
+      if(!variable.selected) throw Error(`Unable to bind alias '${alias}'. Only selected fields may be bound.`);
       return variable.selected;
     }
   }
@@ -326,7 +332,7 @@ module Parsers {
     reified: QueryIR;
     failed: QueryAST|QueryIR;
 
-    errors: Error[];
+    errors: ParseError[];
     id: string;
     name: string;
     tags: string[];
@@ -339,16 +345,14 @@ module Parsers {
     }
 
     /** Nicely formatted error for reporting problems during parsing or reification. */
-    parseError<T extends Token>(message:string, token:T):Error {
+    parseError<T extends Token>(message:string, token?:T):ParseError {
       let lines = this.raw.split("\n");
-      if(token.lineIx) ParseError.lineIx = token.lineIx;
-      else ParseError.lineIx = this.lineIx;
-      ParseError.lines = lines;
-      ParseError.tokenToChar = Query.tokenToChar;
-
-      let err = ParseError(message, token);
-      ParseError.reset();
-      return err;
+      let lineIx = (token && token.lineIx) !== undefined ? token.lineIx : this.lineIx;
+      let line = lines[lineIx];
+      let charIx = token ? Query.tokenToChar(token, line) : undefined;
+      let length = token ? this.stringify(token).length : undefined;
+      if(lineIx === 3) console.log(token);
+      return new ParseError(message, line, lineIx, charIx, length);
     }
 
     /** Convert any valid query token into its raw string equivalent. */
@@ -373,7 +377,7 @@ module Parsers {
         }
 
         let maybeParsed = this.parseLine(tokens, lineIx++);
-        if(maybeParsed instanceof Error) {
+        if(maybeParsed instanceof ParseError) {
           this.errors.push(maybeParsed);
           continue;
         }
@@ -389,7 +393,7 @@ module Parsers {
             || this.processOrdinal(parsed)
             || this.processSource(parsed);
 
-          if(maybeParsed instanceof Error) {
+          if(maybeParsed instanceof ParseError) {
             this.errors.push(maybeParsed);
             continue;
           }
@@ -794,7 +798,7 @@ module Parsers {
     reified: UiIR;
     failed: UiAST|UiIR;
 
-    errors: Error[];
+    errors: ParseError[];
     id: string;
     name: string;
     tags: string[];
@@ -807,17 +811,13 @@ module Parsers {
     }
 
     /** Nicely formatted error for reporting problems during parsing or reification. */
-    parseError<T extends Token>(message:string, token?:T):Error {
+    parseError<T extends Token>(message:string, token?:T):ParseError {
       let lines = this.raw.split("\n");
-      if(!token) token = <any>{type: "text", text: lines[this.lineIx]};
-      if(token.lineIx) ParseError.lineIx = token.lineIx;
-      else ParseError.lineIx = this.lineIx;
-      ParseError.lines = lines;
-      ParseError.tokenToChar = Ui.tokenToChar;
-
-      let err = ParseError(message, token);
-      ParseError.reset();
-      return err;
+      let lineIx = (token && token.lineIx) !== undefined ? token.lineIx : this.lineIx;
+      let line = lines[lineIx];
+      let charIx = token ? Ui.tokenToChar(token, line) : undefined;
+      let length = token ? this.stringify(token).length : undefined;
+      return new ParseError(message, line, lineIx, charIx, length);
     }
 
     /** Convert any valid query token into its raw string equivalent. */
@@ -873,7 +873,7 @@ module Parsers {
               {type: "text", text: tokens.join(""), tokenIx: tokensLength - tokens.length}));
             continue;
           }
-          if(field instanceof Error) {
+          if(field instanceof ParseError) {
             this.errors.push(field);
             continue;
           }
@@ -916,7 +916,7 @@ module Parsers {
                 {type: "text", text: tokens.join(""), tokenIx: tokensLength - tokens.length}));
               continue;
             }
-            if(field instanceof Error) {
+            if(field instanceof ParseError) {
               this.errors.push(field);
               continue;
             }
@@ -1007,7 +1007,7 @@ module Parsers {
 
     protected static tokenize = makeTokenizer(U_TOKENS);
     protected static tokenToChar(token:Token, line:string):number {
-      return (token.tokenIx !== undefined) ? Ui.tokenize(line).slice(0, token.tokenIx - 1).join("").length : 0;
+      return (token.tokenIx !== undefined) ? Ui.tokenize(line).slice(0, token.tokenIx).join("").length : 0;
     }
 
     protected parseField = parseField;
@@ -1026,6 +1026,7 @@ module Parsers {
 
       for(let line of this.ast.chunks) {
         if(tokenIsComment(line) || tokenIsText(line)) continue;
+        this.lineIx = line.lineIx;
 
         let parentElem:ElementIR;
         while(ancestors.length) {
@@ -1053,6 +1054,19 @@ module Parsers {
             continue;
           }
           let query = new Query().parse(line.text);
+          if(query.errors.length) {
+            for(let err of query.errors) {
+              err.line = this.stringify(line).split("\n")[err.lineIx];
+              err.lineIx += line.lineIx;
+              err.charIx += line.indent + 2;
+            }
+            this.errors.push.apply(this.errors, query.errors);
+            continue;
+          }
+          if(query.reified.actions.length) {
+            this.errors.push(this.parseError("Binding queries may not directly utilize actions.", line));
+            continue;
+          }
           // @TODO: Use prev.queries for mapping queryIRs
 
           this.reified.boundQueries[query.id] = query;
@@ -1083,7 +1097,10 @@ module Parsers {
             if(line.property === "parent") parentElem.parent = line.value.value;
             else if(line.property === "id") {
               let old = parentElem.element;
-              if(childCount[old]) throw ParseError("ID must be set prior to including child elements.");
+              if(childCount[old]) {
+                this.errors.push(this.parseError("ID must be set prior to including child elements.", line));
+                continue;
+              }
               parentElem.element = line.value.value;
               indent[parentElem.element] = indent[old];
               childCount[parentElem.element] = childCount[old];
@@ -1092,7 +1109,7 @@ module Parsers {
           } else {
             parentElem.boundAttributes[line.property] = getScopedBinding(line.value.alias, ancestors, this.reified.boundQueries);
             if(!parentElem.boundAttributes[line.property]) {
-              this.errors.push(this.parseError(`Could not resolve alias '${line.value.alias}' for bound attribute '${line.property}'`));
+              this.errors.push(this.parseError(`Could not resolve alias '${line.value.alias}' for bound attribute '${line.property}'`, line.value));
               continue;
             }
           }
@@ -1100,7 +1117,7 @@ module Parsers {
           if(line.key) {
             parentElem.boundEvents[line.event] = getScopedBinding(line.key.alias, ancestors, this.reified.boundQueries);
               if(!parentElem.boundEvents[line.event]) {
-                this.errors.push(this.parseError(`Could not resolve alias '${line.key.alias}' for bound event '${line.event}'`));
+                this.errors.push(this.parseError(`Could not resolve alias '${line.key.alias}' for bound event '${line.event}'`, line.key));
                 continue;
               }
           } else {
