@@ -2,7 +2,7 @@ module Parsers {
   //---------------------------------------------------------------------------
   // Types
   //---------------------------------------------------------------------------
-  interface Token { type: string, tokenIx?: number, lineIx?: number, indent?: number }
+  interface Token { type: string, tokenIx?: number, endIx?: number, lineIx?: number, indent?: number }
   interface LineAST extends Token { chunks: Token[] }
 
   interface CommentAST extends Token { text: string }
@@ -97,7 +97,6 @@ module Parsers {
         ${this.lineIx !== undefined ? `On line ${this.lineIx + 1}:${this.charIx}` : ""}
         ${this.line}
         ${underline(this.charIx, this.length)}
-        ${this.length}
       `;
     }
   }
@@ -349,9 +348,12 @@ module Parsers {
       let lines = this.raw.split("\n");
       let lineIx = (token && token.lineIx) !== undefined ? token.lineIx : this.lineIx;
       let line = lines[lineIx];
-      let charIx = token ? Query.tokenToChar(token, line) : undefined;
-      let length = token ? this.stringify(token).length : undefined;
-      if(lineIx === 3) console.log(token);
+      let charIx, length;
+      if(token) {
+        charIx = Query.tokenToChar(token.tokenIx, line);
+        length = (token.endIx !== undefined) ? Query.tokenToChar(token.endIx, line) - charIx : this.stringify(token).length;
+      }
+
       return new ParseError(message, line, lineIx, charIx, length);
     }
 
@@ -508,8 +510,8 @@ module Parsers {
     }
 
     protected static tokenize = makeTokenizer(Q_TOKENS);
-    protected static tokenToChar(token:Token, line:string):number {
-      return (token.tokenIx !== undefined) ? Query.tokenize(line).slice(0, token.tokenIx - 1).join("").length : 0;
+    protected static tokenToChar(tokenIx:number, line:string):number {
+      return (tokenIx !== undefined) ? Query.tokenize(line).slice(0, tokenIx - 1).join("").length : 0;
     }
 
     /** Parse a line's worth of tokens into field, keyword, and structure chunks. */
@@ -567,15 +569,16 @@ module Parsers {
       if(!tokenIsField(line.chunks[0])) return this.parseError("Calculations must be formatted as '?field $= <calculation>", line);
       let resultField:FieldAST = line.chunks[0];
 
+
       let partIx = 0;
       let lines:CalculationAST[] = [];
-      let stack = [{type: "source", chunks: [], partIx: partIx++, lineIx: line.lineIx}];
+      let stack = [{type: "source", chunks: [], partIx: partIx++, lineIx: line.lineIx, tokenIx: line.chunks[4].tokenIx, endIx: Infinity}];
       for(let token of line.chunks.slice(4)) {
         let cur = stack[stack.length - 1];
 
         if(tokenIsKeyword(token)) {
           if(token.text === "(") {
-            stack.push({type: "source", chunks: [], partIx: partIx++, lineIx: line.lineIx});
+            stack.push({type: "source", chunks: [], partIx: partIx++, lineIx: line.lineIx, tokenIx: token.tokenIx, endIx: undefined});
             continue;
           }
           else if(token.text === ")") {
@@ -585,6 +588,7 @@ module Parsers {
             let alias = `_${resultField.alias}-${cur.partIx}`;
             let field:FieldAST = {type: "field", alias};
             cur.chunks.push({type: "text", text: " = "}, field);
+            cur.endIx = token.tokenIx + 1;
             prev.chunks.push(field);
             lines.push(cur);
             continue;
@@ -815,8 +819,11 @@ module Parsers {
       let lines = this.raw.split("\n");
       let lineIx = (token && token.lineIx) !== undefined ? token.lineIx : this.lineIx;
       let line = lines[lineIx];
-      let charIx = token ? Ui.tokenToChar(token, line) : undefined;
-      let length = token ? this.stringify(token).length : undefined;
+      let charIx, length;
+      if(token) {
+        charIx = Ui.tokenToChar(token.tokenIx, line);
+        length = (token.endIx !== undefined) ? Ui.tokenToChar(token.endIx, line) - charIx : this.stringify(token).length;
+      }
       return new ParseError(message, line, lineIx, charIx, length);
     }
 
@@ -1006,8 +1013,8 @@ module Parsers {
     }
 
     protected static tokenize = makeTokenizer(U_TOKENS);
-    protected static tokenToChar(token:Token, line:string):number {
-      return (token.tokenIx !== undefined) ? Ui.tokenize(line).slice(0, token.tokenIx).join("").length : 0;
+    protected static tokenToChar(tokenIx:number, line:string):number {
+      return (tokenIx !== undefined) ? Ui.tokenize(line).slice(0, tokenIx).join("").length : 0;
     }
 
     protected parseField = parseField;
