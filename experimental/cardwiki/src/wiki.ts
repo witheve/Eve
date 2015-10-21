@@ -281,37 +281,35 @@ module wiki {
     return results;
   }
 
-  var comparatives = {
-    "older": ["age", ">"],
-    "younger": ["age", "<"],
-  }
   var modifiers = {
     "per": "group",
-    "with": "group",
     "each": "group",
     "without": "deselect",
     "not": "deselect",
+    "aren't": "deselect",
   }
   var operations = {
-    "sum": "sum",
-    "count": "count",
-    "average": "average",
-    "mean": "average",
-    "top": "sort limit",
-    "bottom": "sort limit",
-    "highest": "sort limit",
-    "lowest": "sort limit",
-    ">": "greater",
-    "<": "lesser",
-    "=": "equal",
-    "greater": "greater",
-    "bigger": "greater",
-    "lower": "lesser",
-    "smaller": "lesser",
-    "equal": "equal",
-    "contains": "contains",
+    "sum": {op: "sum", argCount: 1},
+    "count": {op: "count", argCount: 1},
+    "average": {op: "average", argCount: 1},
+    "mean": {op: "average", argCount: 1},
+    "top": {op: "sort limit", argCount: 1},
+    "bottom": {op: "sort limit", argCount: 1},
+    "highest": {op: "sort limit", argCount: 1},
+    "lowest": {op: "sort limit", argCount: 1},
+    ">": {op: ">", argCount: 2, infix: true},
+    "greater": {op: ">", argCount: 2, infix: true},
+    "bigger": {op: ">", argCount: 2, infix: true},
+    "<": {op: "<", argCount: 2, infix: true},
+    "lower": {op: "<", argCount: 2, infix: true},
+    "smaller": {op: "<", argCount: 2, infix: true},
+    "=": {op: "=", argCount: 2, infix: true},
+    "equal": {op: "=", argCount: 2, infix: true},
+    "contains": {op: "contains", argCount: 2, infix: true},
+    "older": {op: ">", argCount: 2, infix: true, attribute: "age"},
+    "younger": {op: "<", argCount: 2, infix: true, attribute: "age"},
   }
-  function newSearch(searchString) {
+  function newSearchTokens(searchString) {
     // search the string for entities / decks
     // TODO: this is stupidly slow
     let cleaned = searchString.toLowerCase();
@@ -339,9 +337,7 @@ module wiki {
         ix++;
         continue;
       }
-      if(comparatives[word]) {
-        all.push({type: "attribute", found: comparatives[word][0], orig: word, comparative: comparatives[word], pos: ix});
-      } else if(modifiers[word]) {
+      if(modifiers[word]) {
         all.push({type: "modifier", orig: word, modifier: modifiers[word], pos: ix});
       } else if(operations[word]) {
         all.push({type: "operation", orig: word, operation: operations[word], pos: ix});
@@ -356,6 +352,174 @@ module wiki {
       ix += word.length + 1;
     }
     all.sort((a, b) => a.pos - b.pos);
+    return all;
+  }
+
+
+  var tokenTypeScore = {
+    "collection": 1,
+    "entity": 2,
+    "attribute": 3,
+    "operation": 4,
+    "value": 5,
+  }
+
+function walk(tree, indent = 0) {
+    if(!tree) return console.log("UNDEFINED TREE");
+    console.group(tree.found, `(${tree.type})`);
+    if(tree.children) {
+      for(let child of tree.children) {
+        walk(child, indent+1);
+      }
+    }
+    console.groupEnd(tree.type, `(${tree.type})`);
+}
+
+
+  var tokenRelationships = {
+    "collection": {
+      "collection": findCollectionToCollectionRelationship,
+      "attribute": findCollectionToAttrRelationship,
+      "entity": findCollectionToEntRelationship,
+    },
+    "entity": {
+      "attribute": findEntToAttrRelationship,
+    },
+  }
+  function tokensToRelationship(token1, token2) {
+    return tokenRelationships[token1.type][token2.type](token1.found, token2.found);
+  }
+
+  function planTree(searchString) {
+    let tokens = newSearchTokens(searchString);
+    let root:any;
+    let cursor:any;
+    let state:any = {prevCursor: []};
+    // find the root subject which is either the first collection found
+    // or if there are not collections, the first entity
+    for(let token of tokens) {
+      if(token.type === "collection") {
+        token.children = [];
+        root = token;
+        break;
+      } else if(token.type === "entity" && !root) {
+        token.children = [];
+        root = token;
+      }
+    }
+    for(let tokenIx = 0, len = tokens.length; tokenIx < len; tokenIx++) {
+      let token = tokens[tokenIx];
+      if(token === root) continue;
+
+      let {type} = token;
+      if(type === "modifier") {
+        state[token.modifier] = true;
+        continue;
+      }
+
+      token.children = [];
+
+      if(type === "operation") {
+        if(state.lastValue) {
+          state.lastValue = null;
+          token.children.push(state.lastValue);
+          if(token.children.length === token.operation.argCount) {
+            if(cursor) cursor.push(token);
+            else root.children.push(token);
+            continue;
+          }
+        }
+        state.prevCursor.push(cursor);
+        state.consuming = true;
+        state.operator = token;
+        cursor = token;
+        continue;
+      }
+
+      if(!state.consuming && type === "value") {
+        state.lastValue = token;
+        continue;
+      }
+
+      let maybeSubject = (type === "collection" || type === "entity");
+      if(state.deselect && maybeSubject) {
+        token.deselect = true;
+        state.deselect = false;
+      }
+
+      let activeRoot = root;
+      if(state.consuming) {
+        activeRoot = state.operator;
+        let argCount = state.operator.operation.argCount;
+        if(state.operator.operation.infix) argCount--;
+        console.log(argCount, state.operator.children.length, state);
+        if(state.operator.children.length > argCount) {
+          cursor = state.prevCursor.pop();
+          if(cursor) cursor.push(state.operator);
+          else root.children.push(state.operator);
+          // we consumed one too many, so push that onto root
+          root.children.push(state.operator.children.pop());
+          // we're done consuming now
+          state.consuming = false;
+          state.operator = null;
+          state.lastValue = false;
+          activeRoot = root;
+        }
+      }
+
+      // if we don't have a cursor, then associate to the root
+      if(!cursor) {
+        activeRoot.children.push(token);
+      }
+      // all values just get pushed onto the activeRoot
+      else if(type === "value") {
+        activeRoot.children.push(token);
+      }
+      // if the current cursor is an entity and this is anything other than an attribute, this is related
+      // to the root.
+      else if(cursor.type === "entity" && type !== "attribute") {
+        activeRoot.children.push(token);
+      }
+      // if the current cursor is an entity or a collection, we have to check if it should go to the cursor
+      // or the root
+      else if(cursor.type === "entity" || cursor.type === "collection") {
+        let cursorRel = tokensToRelationship(cursor, token);
+        let rootRel = tokensToRelationship(root, token);
+        if(!cursorRel) {
+          activeRoot.children.push(token);
+        } else if(!rootRel) {
+          cursor.children.push(token);
+        } else if(cursorRel.distance <= rootRel.distance) {
+          cursor.children.push(token);
+        } else {
+          // @TODO: maybe if there's a cursorRel we should just always ignore the rootRel even if it
+          // is a "better" relationship. Sentence structure-wise it seems pretty likely that attributes
+          // following an entity are related to that entity and not something else.
+          activeRoot.children.push(token);
+        }
+      } else if(cursor.type === "operation") {
+        activeRoot.children.push(token);
+      }
+      // if this was a subject, then this is now the cursor
+      if(maybeSubject) {
+        cursor = token;
+      }
+
+    }
+    console.log(root);
+    if(state.consuming) {
+      cursor = state.prevCursor.pop();
+      if(cursor) cursor.children.push(state.operator);
+      else root.children.push(state.operator);
+    }
+    console.log(state);
+    if(root) walk(root);
+    return root;
+  }
+
+  function newSearch(searchString) {
+    let all = newSearchTokens(searchString);
+    planTree(searchString);
     // start coming up with a plan
     let plan = [];
     let ops = [];
@@ -373,7 +537,6 @@ module wiki {
           state.prevCollection = part;
         }
       } else if(prev && isEdible) {
-        console.log("matching", prev, part);
         if(prev.type === "entity") {
           if(part.type === "collection") {
             plan.push(prev, findCollectionToEntRelationship(part.found, prev.found) || "Unknown", part);
@@ -381,7 +544,6 @@ module wiki {
             if(state.prevCollection) {
               plan.push(state.prevCollection, findCollectionToEntRelationship(state.prevCollection.found, part.found) || "Unknown", part);
             } else {
-              console.log("TODO: entity to entity");
             }
 //             plan.push(findCollectionToCollectionRelationship(prev.found, part.found) || "Unknown");
           } else if(part.type === "attribute") {
@@ -468,11 +630,10 @@ module wiki {
 
   // e.g. "salaries in engineering"
   // e.g. "chris's age"
-  function findEntToAttrRelationship(ent, attr) {
+  function findEntToAttrRelationship(ent, attr):any {
     // check if this ent has that attr
     let directAttribute = eve.findOne("page eavs", {page: ent, attribute: attr});
     if(directAttribute) {
-      console.log("Direct!", directAttribute);
       return {distance: 0};
     }
     let relationships = eve.query(``)
@@ -481,7 +642,6 @@ module wiki {
                   .exec();
     if(relationships.unprojected.length) {
       let pages = extractFromUnprojected(relationships.unprojected, 0, "link", 2);
-      console.log("One hop! common collections:", pages, findCommonCollections(pages));
       return {distance: 1, nodes: [findCommonCollections(pages)]};
     }
     let relationships2 = eve.query(``)
@@ -492,7 +652,6 @@ module wiki {
     if(relationships2.unprojected.length) {
       let pages = extractFromUnprojected(relationships2.unprojected, 0, "link", 3);
       let pages2 = extractFromUnprojected(relationships2.unprojected, 1, "link", 3);
-      console.log("dual hop!", relationships2.unprojected);
       return {distance: 2, nodes: [findCommonCollections(pages), findCommonCollections(pages2)]};
     }
   }
@@ -506,7 +665,6 @@ module wiki {
                   .exec();
     if(relationships.unprojected.length) {
       let pages = extractFromUnprojected(relationships.unprojected, 1, "link", 3);
-      console.log("Coll->Attr One hop!", relationships.unprojected);
       return {distance: 1, nodes: [findCommonCollections(pages)]};
     }
     let relationships2 = eve.query(``)
@@ -518,7 +676,6 @@ module wiki {
     if(relationships2.unprojected.length) {
       let pages = extractFromUnprojected(relationships2.unprojected, 1, "link", 4);
       let pages2 = extractFromUnprojected(relationships2.unprojected, 2, "link", 4);
-      console.log("Coll->Attr dual hop!", relationships2.unprojected);
       return {distance: 2, nodes: [findCommonCollections(pages), findCommonCollections(pages2)]};
     }
   }
@@ -526,17 +683,14 @@ module wiki {
   // e.g. "meetings john was in"
   function findCollectionToEntRelationship(coll, ent) {
     if(coll === "decks") {
-      console.log("Coll->Ent decks lookup", eve.find("deck pages", {page: ent}));
       return eve.find("deck pages", {page: ent});
     }
     let relationships = eve.query(``)
                   .select("deck pages", {deck: coll}, "deck")
                   .select("directionless links", {page: ["deck", "page"], link: ent}, "links")
                   .exec();
-    console.log(relationships);
     if(relationships.unprojected.length) {
 //       let pages = extractFromUnprojected(relationships.unprojected, 1, "link", 2);
-      console.log("Coll->Ent One hop!", relationships.unprojected);
       return {distance: 0, nodes: []};
     }
     let relationships2 = eve.query(``)
@@ -547,7 +701,6 @@ module wiki {
     if(relationships2.unprojected.length) {
       let pages = extractFromUnprojected(relationships2.unprojected, 1, "link", 3);
       let pages2 = extractFromUnprojected(relationships2.unprojected, 2, "link", 3);
-      console.log("Coll->Ent dual hop!", relationships2.unprojected);
       return {distance: 2, nodes: [findCommonCollections(pages), findCommonCollections(pages2)]};
     }
   }
@@ -584,7 +737,6 @@ module wiki {
     } else {
 
     }
-    console.log(maxRel.count, intersectionSize);
   }
 
   function stringMatches(string, index) {
