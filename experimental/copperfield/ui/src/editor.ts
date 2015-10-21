@@ -269,36 +269,24 @@ module Editor {
   }
 
   var rootPanes:Ui.Pane[] = [
-    {title: "Query", id: "root-query", content: queryEditor},
-    {title: "Ui", id: "root-ui", content: uiEditor},
+    {title: "Query", pane: "root-query", content: queryEditor},
+    {title: "Ui", pane: "root-ui", content: uiEditor},
   ];
   function root():Element {
     return {children: [
       {text: "Copperfield - " + localState.query.id},
-      Ui.tabbedBox({id: "root-workspace", panes: rootPanes, tabChange: switchEditor})
+      Ui.tabbedBox({container: "root-workspace", panes: rootPanes, paneChange: switchEditor})
     ]};
   }
 
   // @FIXME: Hack
   function switchEditor(evt, elem) {
-    if(elem.tab === "root-query") localState.activeKind = "query";
-    else if(elem.tab === "root-ui") localState.activeKind = "ui";
+    if(elem.pane === "root-query") localState.activeKind = "query";
+    else if(elem.pane === "root-ui") localState.activeKind = "ui";
     else throw new Error(`Unknown kind: '${elem.tab}'`);
     dispatch("HACK HACK HACK", undefined).done();
   }
 
-  var queryInspectorPanes:Ui.Pane[] = [
-    {
-      title: "AST",
-      id: "result-ast",
-      content: () => {return {t: "pre", c: "ast", text: JSON.stringify(localState.query.ast, null, 2)}}
-    },
-    {
-      title: "Reified",
-      id: "result-reified",
-      content: () => {return {t: "pre", c: "reified", text: JSON.stringify(localState.query.reified, null, 2)}}
-    }
-  ];
   function queryEditor():Element {
     let query = localState.query;
     let queryName = query.name || Api.get.name(query.id);
@@ -310,6 +298,21 @@ module Editor {
     }
     let tags = (query.tags || []).join(", ");
     if(query.id) tags = Api.get.tags(query.id).join(", ");
+
+
+    var queryInspectorPanes:Ui.Pane[] = [
+      {
+        title: "AST",
+        pane: "result-ast",
+        content: [{t: "pre", c: "ast", text: JSON.stringify(query.ast, null, 2)}]
+      },
+      {
+        title: "Reified",
+        pane: "result-reified",
+        content: [{t: "pre", c: "reified", text: JSON.stringify(query.reified, null, 2)}]
+      }
+    ];
+
 
     let warnings;
     if(query.id) {
@@ -359,22 +362,10 @@ module Editor {
         {t: "pre", c: "warn", children: warnings},
         query.id ? Ui.factTable({view: query.id}) : undefined
       ]}),
-      Ui.tabbedBox({id: "query-results", flex: 1, panes: queryInspectorPanes, defaultTab: "result-reified"})
+      Ui.tabbedBox({container: "query-results", flex: 1, panes: queryInspectorPanes, defaultPane: "result-reified"})
     ]});
   }
 
-  var uiInspectorPanes:Ui.Pane[] = [
-    {
-      title: "AST",
-      id: "result-ast",
-      content: () => {return {t: "pre", c: "ast", text: JSON.stringify(localState.ui.ast, null, 2)}}
-    },
-    {
-      title: "Reified",
-      id: "result-reified",
-      content: () => {return {t: "pre", c: "reified", text: JSON.stringify(localState.ui.reified, null, 2)}}
-    }
-  ];
   function uiEditor():Element {
     let ui = localState.ui;
     let root = localState.ui.id;
@@ -388,6 +379,21 @@ module Editor {
     }
     let tags = (localState.ui.tags || []).join(", ");
     if(localState.ui.id) tags = Api.get.tags(localState.ui.id).join(", ");
+
+
+    var uiInspectorPanes:Ui.Pane[] = [
+      {
+        title: "AST",
+        pane: "result-ast",
+        content: [{t: "pre", c: "ast", text: JSON.stringify(ui.ast, null, 2)}]
+      },
+      {
+        title: "Reified",
+        pane: "result-reified",
+        content: [{t: "pre", c: "reified", text: JSON.stringify(ui.reified, null, 2)}]
+      }
+    ];
+
 
     return Ui.row({children: [
       Ui.column({flex: 1, children: [
@@ -414,7 +420,7 @@ module Editor {
 
         {c: "results", children: root ? renderer.compile([root]) : undefined}
       ]}),
-      Ui.tabbedBox({id: "ui-results", flex: 1, panes: uiInspectorPanes, defaultTab: "result-reified"})
+      Ui.tabbedBox({container: "ui-results", flex: 1, panes: uiInspectorPanes, defaultPane: "result-reified"})
     ]});
   }
 
