@@ -116,6 +116,24 @@ module Bootstrap {
   };
   for(let viewId in queries) queries[viewId] = queries[viewId].replace(/\"/gm, "`");
 
+  let uis:{[elemId:string]: string} = {
+    "homepage page": Parsers.unpad(6) `
+      div; wiki root
+        ~ ?page is the selected page
+        div bordered ui-row; wiki header
+          - flex: "none"
+          span
+            - flex: "none"
+            - text: "Copperfield - "
+          span
+            - flex: "none"
+            - text: ?page
+        div
+          - text: "Buenos Aires!"
+    `
+  };
+  for(let elemId in uis) uis[elemId] = uis[elemId].replace(/\"/gm, "`");
+
   function addView(effect, viewId, kind, fields) {
     effect.change.add("view", resolve("view", {view: viewId, kind}))
       .add("display name", viewId);
@@ -128,23 +146,31 @@ module Bootstrap {
     return effect;
   }
 
+  function assertValid(parser:Parsers.Query|Parsers.Ui):Parsers.Query|Parsers.Ui {
+    if(parser.errors.length) {
+      console.warn("Failed to parse: " + parser.id);
+      for(let error of parser.errors)
+        console.warn(error.toString());
+      throw new Error("Invalid builtin");
+    }
+    return parser;
+  }
+
   Client.afterInit(function() {
     Api.DEBUG.SEND = 3;
-    Api.DEBUG.STRUCTURED_CHANGE = true;
-    // Phase 1: Create  and initialize views (tables + unions).
-    console.info("BOOTSTRAP");
-    if(Api.DEBUG.BOOTSTRAP) console.groupCollapsed("Phase 1: Create tables + unions");
+    //Api.DEBUG.STRUCTURED_CHANGE = true;
+    // Phase 1: Create views, fingerprints, and initial facts.
+    if(Api.DEBUG.BOOTSTRAP) console.groupCollapsed("Phase 1: Create views, fingerprints, and initial facts");
     let effect = new Editor.DispatchEffect();
-    for(var viewId in views) {
-      let kind = viewKinds[viewId] || "union";
-      console.log(viewId, kind);
-      addView(effect, viewId, kind, views[viewId]);
-      if(kind === "table" && facts[viewId])
-        effect.change.changeSet.addFacts(viewId, facts[viewId].map((fact) => hoboResolve(viewId, fact)));
+    for(var viewId in views)
+      addView(effect, viewId, viewKinds[viewId] || "union", views[viewId]);
 
+    for(var viewId in fingerprints) {
       for(let fingerprint of fingerprints[viewId])
         effect.dispatch("addFingerprint", {viewId, fingerprint, fieldIds: fingerprintFields[fingerprint]})
     }
+    for(var viewId in facts)
+        effect.change.changeSet.addFacts(viewId, facts[viewId].map((fact) => hoboResolve(viewId, fact)));
     effect.done();
     if(Api.DEBUG.BOOTSTRAP) console.groupEnd();
 
@@ -153,37 +179,37 @@ module Bootstrap {
     effect = new Editor.DispatchEffect();
     var members:{[viewId:string]: number} = {};
     for(let viewId in queries) {
-      let query = new Parsers.Query().loadFromView(viewId, true).parse(queries[viewId]);
-
-      if(query.errors.length) {
-        console.warn("Failed to parse: " + viewId);
-        for(let error of query.errors)
-          console.warn(error.toString());
-
-        throw new Error("Invalid query");
-      }
+      let query = <Parsers.Query>assertValid(new Parsers.Query().loadFromView(viewId, true).parse(queries[viewId]));
 
       query.name = viewId;
-      query.tags = query.tags || [];
       query.tags.push("system");
 
       for(let action of query.reified.actions) {
         if(action.action === "+") {
-          for(let viewId in fingerprints) {
-            if(fingerprints[viewId].indexOf(action.fingerprint) !== -1) {
-              action.memberIx = members[viewId] || 0;
-              members[viewId] = action.memberIx + 1;
-              break;
-            }
-          }
+          let {"view fingerprint: view": viewId} = Api.ixer.findOne("view fingerprint", {"view fingerprint: fingerprint": action.fingerprint}) || {};
+          if(!viewId) throw new Error(`Unknown fingerprint: '${action.fingerprint}'`);
+          action.memberIx = members[viewId] || 0;
+          members[viewId] = action.memberIx + 1;
+
         } else throw new Error(`Unsupported action '${action.action}'`);
       }
 
-      effect = effect.dispatch("compileQuery", {query});
+      effect.dispatch("compileQuery", {query});
     }
     effect.done();
     if(Api.DEBUG.BOOTSTRAP) console.groupEnd();
 
-    // Phase 3: Default values
+    // Phase 3: Create uis.
+    if(Api.DEBUG.BOOTSTRAP) console.groupCollapsed("Phase 3: Create uis");
+    effect = new Editor.DispatchEffect();
+    for(let elemId in uis) {
+      let ui = <Parsers.Ui>assertValid(new Parsers.Ui().loadFromElement(elemId, true).parse(uis[elemId]));
+      ui.name = elemId;
+      ui.tags.push("system", "ui-root");
+
+      effect.dispatch("compileUi", {ui});
+    }
+    effect.done();
+    if(Api.DEBUG.BOOTSTRAP) console.groupEnd();
   });
 }
