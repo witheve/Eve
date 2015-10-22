@@ -290,10 +290,10 @@ module wiki {
     "except": "engineering",
   }
   var operations = {
-    "sum": {op: "sum", argCount: 1},
-    "count": {op: "count", argCount: 1},
-    "average": {op: "average", argCount: 1},
-    "mean": {op: "average", argCount: 1},
+    "sum": {op: "sum", argCount: 1, aggregate: true},
+    "count": {op: "count", argCount: 1, aggregate: true},
+    "average": {op: "average", argCount: 1, aggregate: true},
+    "mean": {op: "average", argCount: 1, aggregate: true},
     "top": {op: "sort limit", argCount: 1},
     "bottom": {op: "sort limit", argCount: 1},
     "highest": {op: "sort limit", argCount: 1},
@@ -389,7 +389,11 @@ function walk(tree, indent = 0) {
     },
   }
   function tokensToRelationship(token1, token2) {
-    return tokenRelationships[token1.type][token2.type](token1.found, token2.found);
+    let func = tokenRelationships[token1.type];
+    if(func) func = func[token2.type];
+    if(func) {
+      return func(token1.found, token2.found);
+    }
   }
 
   function planTree(searchString) {
