@@ -243,17 +243,16 @@ module Parsers {
   }
 
   export function coerceInput(input) {
-    if (input.match(/^-?[\d]+$/gim)) {
-        return parseInt(input);
-    }
-    else if (input.match(/^-?[\d]+\.[\d]+$/gim)) {
-        return parseFloat(input);
-    }
-    else if (input === "true") {
-        return true;
-    }
-    else if (input === "false") {
-        return false;
+    if(input.match(/^-?[\d]+$/gim)) return parseInt(input);
+    if(input.match(/^-?[\d]+\.[\d]+$/gim)) return parseFloat(input);
+    if(input === "true") return true;
+    if(input === "false") return false;
+    if(input && input[0] === "[" && input[input.length - 1] === "]") {
+      try {
+        return JSON.parse(input);
+      } catch(err) {
+        return input;
+      }
     }
     return input;
   }
@@ -535,7 +534,8 @@ module Parsers {
         if(token instanceof ParseError) return token;
         else ast.chunks.push(<Token>token);
       }
-      return ast.chunks.length ? ast : undefined;
+      if(ast.chunks.length === 0) ast.type = "text";
+      return ast;
     }
 
     protected parseField = parseField;
