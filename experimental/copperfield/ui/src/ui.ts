@@ -76,7 +76,6 @@ module Ui {
   export var dispatches:{[evt:string]: (info:{}) => boolean} = {
     switchPane: ({pane, container}:{pane:string, container:string}) => {
       uiState.container[container].selected = pane;
-      console.log(container, pane);
       return true;
     },
     setSort: ({forId, fieldId, direction}:{forId:string, fieldId: string, direction:number}) => {
