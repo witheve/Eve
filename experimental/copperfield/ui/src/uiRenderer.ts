@@ -214,6 +214,11 @@ module UiRenderer {
           }
 
           // Prep children and add them to the stack.
+          if(elem.children) { // Process bound children (ids) into compilable facts.
+            children = children || [];
+            children.push.apply(children, elem.children.map((childId) => Api.ixer.findOne("uiElement", {"uiElement: element": childId})))
+          }
+
           if(children) {
             let boundAncestor = boundAncestors[elem.id];
             if(binding) boundAncestor = elem;

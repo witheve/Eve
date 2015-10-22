@@ -11,6 +11,8 @@ module Bootstrap {
   let views:{[viewId:string]: string[]} = {
     "entity": ["entity"],
     "entity kind": ["entity", "kind"],
+    "collection entity": ["entity", "kind"],
+    "related entity": ["entity", "related entity"],
     "page": ["entity", "page", "element"],
     "block": ["page", "block", "entity", "element"],
     "selected page": ["page"],
@@ -18,6 +20,7 @@ module Bootstrap {
 
     "default page": ["page"],
     "builtin entity": ["entity", "kind"],
+    "builtin collection entity": ["entity", "kind"],
     "builtin page": ["entity", "page", "element"],
     "builtin block": ["page", "block", "element"],
 
@@ -29,6 +32,7 @@ module Bootstrap {
   let viewKinds:{[viewId:string]: string} = {
     "default page": "table",
     "builtin entity": "table",
+    "builtin collection entity": "table",
     "builtin page": "table",
     "builtin block": "table"
   }
@@ -36,6 +40,8 @@ module Bootstrap {
   let fingerprintsRaw:{[viewId:string]: string[]} = {
     "entity": ["?entity is an entity"],
     "entity kind": ["entity ?entity is a ?kind", "entity ?entity is an ?kind"],
+    "collection entity": ["entity ?entity contains each ?kind"],
+    "related entity": ["entity ?entity is related to ?related_entity"],
     "page": ["page ?page represents ?entity as ?element"],
     "block": ["block ?block represents ?entity in ?page as ?element"],
     "selected page": ["?page is the selected page"],
@@ -43,6 +49,7 @@ module Bootstrap {
 
     "default page": ["?page is the default page"],
     "builtin entity": ["builtin entity ?entity is a ?kind", "builtin entity ?entity is an ?kind"],
+    "builtin collection entity": ["builtin entity ?entity contains each ?kind"],
     "builtin page": ["builtin page ?page represents ?entity as ?element"],
     "builtin block": ["builtin block ?block represents ?entity in ?page as ?element"],
 
@@ -55,10 +62,14 @@ module Bootstrap {
   let facts:{[viewId:string]: Api.Dict[]} = {
     "default page": [{page: "homepage"}],
     "builtin entity": [
-      {entity: "entities", kind: "collection"},
+      {entity: "collections", kind: "collection"},
+    ],
+    "builtin collection entity": [
       {entity: "collections", kind: "collection"}
     ],
-    "builtin page": [{entity: "entities", page: "homepage", element: "homepage-elem"}],
+    "builtin page": [
+      {entity: "collections", page: "homepage", element: "homepage-elem"}
+    ],
   };
 
   let fingerprints:{[viewId:string]: string[]} = {};
@@ -72,7 +83,7 @@ module Bootstrap {
       for(let chunk of fingerprintRaw.split(" ")) {
         if(multi) fingerprint += " "
         if(chunk[0] === "?") {
-          fieldIds.push(viewId + ": " + chunk.slice(1));
+          fieldIds.push(viewId + ": " + chunk.slice(1).replace(/_/gm, " "));
           fingerprint += "?"
         } else fingerprint += chunk;
         multi = true;
@@ -116,6 +127,32 @@ module Bootstrap {
   };
   for(let viewId in queries) queries[viewId] = queries[viewId].replace(/\"/gm, "`");
 
+  let uis:{[elemId:string]: string} = {
+    "wiki root-elem": Parsers.unpad(6) `
+      div; wiki root
+        ~ ?page is the selected page
+        div bordered ui-row; wiki header
+          - flex: "none"
+          span
+            - flex: "none"
+            - text: "Copperfield - "
+          span
+            - flex: "none"
+            - text: ?page
+        div; workspace
+          ~ page ?page represents ? as ??element
+          ;- text: ?element
+          - children: ?element
+        div bordered ui-row; wiki footer
+          - flex: "none"
+          - text: "footer"
+    `,
+    "homepage-elem": Parsers.unpad(6) `
+      - text: "Hello I am homepage how are you."
+    `
+  };
+  for(let elemId in uis) uis[elemId] = uis[elemId].replace(/\"/gm, "`");
+
   function addView(effect, viewId, kind, fields) {
     effect.change.add("view", resolve("view", {view: viewId, kind}))
       .add("display name", viewId);
@@ -128,23 +165,31 @@ module Bootstrap {
     return effect;
   }
 
+  function assertValid(parser:Parsers.Query|Parsers.Ui):Parsers.Query|Parsers.Ui {
+    if(parser.errors.length) {
+      console.warn("Failed to parse: " + parser.id);
+      for(let error of parser.errors)
+        console.warn(error.toString());
+      throw new Error("Invalid builtin");
+    }
+    return parser;
+  }
+
   Client.afterInit(function() {
     Api.DEBUG.SEND = 3;
-    Api.DEBUG.STRUCTURED_CHANGE = true;
-    // Phase 1: Create  and initialize views (tables + unions).
-    console.info("BOOTSTRAP");
-    if(Api.DEBUG.BOOTSTRAP) console.groupCollapsed("Phase 1: Create tables + unions");
+    //Api.DEBUG.STRUCTURED_CHANGE = true;
+    // Phase 1: Create views, fingerprints, and initial facts.
+    if(Api.DEBUG.BOOTSTRAP) console.groupCollapsed("Phase 1: Create views, fingerprints, and initial facts");
     let effect = new Editor.DispatchEffect();
-    for(var viewId in views) {
-      let kind = viewKinds[viewId] || "union";
-      console.log(viewId, kind);
-      addView(effect, viewId, kind, views[viewId]);
-      if(kind === "table" && facts[viewId])
-        effect.change.changeSet.addFacts(viewId, facts[viewId].map((fact) => hoboResolve(viewId, fact)));
+    for(var viewId in views)
+      addView(effect, viewId, viewKinds[viewId] || "union", views[viewId]);
 
+    for(var viewId in fingerprints) {
       for(let fingerprint of fingerprints[viewId])
         effect.dispatch("addFingerprint", {viewId, fingerprint, fieldIds: fingerprintFields[fingerprint]})
     }
+    for(var viewId in facts)
+        effect.change.changeSet.addFacts(viewId, facts[viewId].map((fact) => hoboResolve(viewId, fact)));
     effect.done();
     if(Api.DEBUG.BOOTSTRAP) console.groupEnd();
 
@@ -153,37 +198,37 @@ module Bootstrap {
     effect = new Editor.DispatchEffect();
     var members:{[viewId:string]: number} = {};
     for(let viewId in queries) {
-      let query = new Parsers.Query().loadFromView(viewId, true).parse(queries[viewId]);
-
-      if(query.errors.length) {
-        console.warn("Failed to parse: " + viewId);
-        for(let error of query.errors)
-          console.warn(error.toString());
-
-        throw new Error("Invalid query");
-      }
+      let query = <Parsers.Query>assertValid(new Parsers.Query().loadFromView(viewId, true).parse(queries[viewId]));
 
       query.name = viewId;
-      query.tags = query.tags || [];
       query.tags.push("system");
 
       for(let action of query.reified.actions) {
         if(action.action === "+") {
-          for(let viewId in fingerprints) {
-            if(fingerprints[viewId].indexOf(action.fingerprint) !== -1) {
-              action.memberIx = members[viewId] || 0;
-              members[viewId] = action.memberIx + 1;
-              break;
-            }
-          }
+          let {"view fingerprint: view": viewId} = Api.ixer.findOne("view fingerprint", {"view fingerprint: fingerprint": action.fingerprint}) || {};
+          if(!viewId) throw new Error(`Unknown fingerprint: '${action.fingerprint}'`);
+          action.memberIx = members[viewId] || 0;
+          members[viewId] = action.memberIx + 1;
+
         } else throw new Error(`Unsupported action '${action.action}'`);
       }
 
-      effect = effect.dispatch("compileQuery", {query});
+      effect.dispatch("compileQuery", {query});
     }
     effect.done();
     if(Api.DEBUG.BOOTSTRAP) console.groupEnd();
 
-    // Phase 3: Default values
+    // Phase 3: Create uis.
+    if(Api.DEBUG.BOOTSTRAP) console.groupCollapsed("Phase 3: Create uis");
+    effect = new Editor.DispatchEffect();
+    for(let elemId in uis) {
+      let ui = <Parsers.Ui>assertValid(new Parsers.Ui().loadFromElement(elemId, true).parse(uis[elemId]));
+      ui.name = elemId;
+      ui.tags.push("system", "ui-root");
+
+      effect.dispatch("compileUi", {ui});
+    }
+    effect.done();
+    if(Api.DEBUG.BOOTSTRAP) console.groupEnd();
   });
 }

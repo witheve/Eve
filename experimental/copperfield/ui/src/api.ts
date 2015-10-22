@@ -272,8 +272,18 @@ module Api {
     dependents?: Id[]
   }
 
-  const EDITOR_PKS = {tag: "", uiElement: "element", "view fingerprint": "fingerprint"};
-  const EDITOR_FKS = {"uiElement: parent": "element", "member: member view": "view", "mapping: member field": "field"};
+  const EDITOR_PKS = {
+    tag: "",
+    uiElement: "element",
+    "view fingerprint": "fingerprint",
+    "related entity": ""
+  };
+  const EDITOR_FKS = {
+    "uiElement: parent": "element",
+    "member: member view": "view",
+    "mapping: member field": "field",
+    "related entity: related entity": "entity"
+  };
   const EDITOR_PK_DEPS = [
     ["display name", "display name: id"],
     ["display order", "display order: id"],
@@ -403,7 +413,7 @@ module Api {
         for(let fieldId in schema.foreign) {
           let dependents = this.dependents[fact[fieldId]] || (this.dependents[fact[fieldId]] = {});
           dependents[viewId] = (dependents[viewId] || 0) + 1;
-          if(dependents[viewId] > 1) throw new Error(`Relationship for '${viewId}' should be 1:1 but is 1:N with '${this.context[fact[fieldId]]}'`);
+          if(dependents[viewId] > 1) throw new Error(`Relationship for '${viewId}' should be 1:1 but is 1:N with '${fieldId}' = '${fact[fieldId]}'`);
         }
       }
 
@@ -470,6 +480,11 @@ module Api {
           this.removeWithDependents(dependentId, {}, dependents);
           if(schema.key) this.context[schema.key] = this.context["$$LAST_PKEY"] = undefined;
         }
+      }
+      if(viewId === "uiElement" || viewId === "view") { // Hack to clear ast cache
+        if(DEBUG.STRUCTURED_CHANGE) console.info(new Array(this.depth + 1).join("  ") + "- ast cache");
+        for(let remove of removes)
+          this.removeWithDependents("ast cache", {"ast cache: id": remove[schema.key]}, dependents);
       }
       this.depth--;
       if(this.depth === 0) this.changeSet.collapseRemoves();
