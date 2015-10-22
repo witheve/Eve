@@ -470,7 +470,6 @@ function walk(tree, indent = 0) {
         activeRoot = state.operator;
         let argCount = state.operator.operation.argCount;
         if(state.operator.operation.infix) argCount--;
-        console.log(argCount, state.operator.children.length, state);
         while(state.operator.children.length > argCount) {
           let item = state.operationStack.pop();
           cursor = item.cursor;
@@ -661,7 +660,6 @@ function walk(tree, indent = 0) {
       }
     }
     if(root) walk(root);
-    console.log(tree);
     return tree;
   }
 
@@ -795,7 +793,6 @@ function walk(tree, indent = 0) {
         } else {
           limitInfo.perGroup = limit;
         }
-        console.log("limitInfo", limitInfo);
         plan.push({type: "limit", id: uuid(), limit: limitInfo});
       }
       return plan;
@@ -927,9 +924,6 @@ function walk(tree, indent = 0) {
           break;
       }
     }
-    if(query.tables.length) {
-      console.log(query.debug());
-    }
     return query;
   }
 
@@ -937,23 +931,7 @@ function walk(tree, indent = 0) {
     let all = newSearchTokens(searchString);
     let tree = planTree(searchString);
     let plan = treeToPlan(tree);
-    console.log("PLAN:", plan);
     let query = planToQuery(plan);
-    console.log(query);
-//     console.log("paper -> author");
-//     findCollectionToCollectionRelationship("paper", "author")
-//     console.log("people -> american");
-//     console.log(findCollectionToEntRelationship("person", "edward norton"));
-//     findCollectionToCollectionRelationship("person", "american")
-//     findEntToAttrRelationship("engineering", "salary");
-//     findEntToAttrRelationship("chris granger", "age");
-//     findCollectionToAttrRelationship("department", "salary");
-//     findCollectionToEntRelationship("department", "chris granger");
-//     findCollectionToEntRelationship("person", "engineering");
-//     findCollectionToAttrRelationship("sales person", "sales price");
-//     findCollectionToEntRelationship("decks", "chris granger");
-//     findCollectionToEntRelationship("person", "california");
-//     console.log("common", findCommonCollections(["chris granger", "jamie brandon"]));
     return {tokens: all, plan, query};
   }
 
@@ -1030,7 +1008,6 @@ function walk(tree, indent = 0) {
 
   // e.g. "salaries per department"
   function findCollectionToAttrRelationship(coll, attr) {
-    console.log("coll->eav", coll, attr);
     let direct = eve.query(``)
                   .select("deck pages", {deck: coll}, "deck")
                   .select("page eavs", {page: ["deck", "page"], attribute: attr}, "eav")
@@ -1062,7 +1039,6 @@ function walk(tree, indent = 0) {
 
   // e.g. "meetings john was in"
   function findCollectionToEntRelationship(coll, ent) {
-    console.log("coll to ent", coll, ent);
     if(coll === "decks") {
       if(eve.findOne("deck pages", {page: ent})) {
         return {distance: 0, type: "ent->deck"};
@@ -1084,7 +1060,6 @@ function walk(tree, indent = 0) {
                   .select("directionless links", {page: ["deck", "page"]}, "links")
                   .select("directionless links", {page: ["links", "link"], link: ent}, "links2")
                   .exec();
-    console.log("relationships 2", relationships2);
     if(relationships2.unprojected.length) {
       let pages = extractFromUnprojected(relationships2.unprojected, 1, "link", 3);
       return {distance: 2, type: "coll->ent", nodes: [findCommonCollections(pages)]};
@@ -1125,82 +1100,6 @@ function walk(tree, indent = 0) {
     } else {
       return {distance: 1, type: "coll->coll"};
     }
-  }
-
-  function stringMatches(string, index) {
-    // remove all non-word non-space characters
-    let cleaned = string.replace(/[^\s\w]/gi, "").toLowerCase();
-    let words = cleaned.split(" ");
-    let front = 0;
-    let back = words.length;
-    let results = [];
-    while(front < words.length) {
-      let str = words.slice(front, back).join(" ");
-      let found = index[str];
-      if(!found) {
-        str = pluralize(str, 1);
-        found = index[str];
-        if(!found) {
-          str = pluralize(str, 12);
-          found = index[str];
-        }
-      }
-      if(found) {
-        results.push(str);
-        front = back;
-        back = words.length;
-      } else if(back - 1 > front) {
-        back--;
-      } else {
-        back = words.length;
-        front++;
-      }
-    }
-    return results;
-  }
-
-  function search(searchString) {
-    // search the string for entities / decks
-    // TODO: this is stupidly slow
-    newSearch(searchString);
-    let cleaned = searchString.toLowerCase();
-    eve.find("entity", {entity: ""});
-    var index = eve.table("entity").indexes["entity"].index;
-    let entities = stringMatches(searchString, index);
-    eve.find("deck", {deck: ""});
-    var deckIndex = eve.table("deck").indexes["deck"].index;
-    let decks = stringMatches(searchString, deckIndex);
-    eve.find("page eavs", {attribute: ""});
-    var eavIndex = eve.table("page eavs").indexes["attribute"].index;
-    let eavs = stringMatches(searchString, eavIndex);
-    // TODO: handle more than two entities
-    //
-    if(entities.length === 0 && decks.length) {
-      let results = [];
-      for(let deck of decks) {
-        for(let page of eve.find("deck pages", {deck})) {
-            results.push({page: page["page"], step: 0});
-        }
-      }
-      return results;
-    }
-    let [from, to] = entities;
-    if(!from) return [];
-    if(!to) return [{page: from, step: 0}];
-
-    let results = [];
-    let pathIx = 0;
-    for(let path of findPath(from, to)) {
-      for(let ix = 0, len = path.length; ix < len; ix++) {
-        results.push({to: path[ix + 1] || "", page: path[ix], step: ix})
-      }
-    }
-    for(let path of findPath(to, from)) {
-      for(let ix = 0, len = path.length; ix < len; ix++) {
-        results.push({to: path[len - ix - 2] || "", page: path[len - ix - 1], step: ix})
-      }
-    }
-    return results;
   }
 
   function CodeMirrorElement(node, elem) {
@@ -1351,38 +1250,6 @@ function walk(tree, indent = 0) {
       {c: "search-results", children: resultItems},
     ]};
 
-  }
-
-  function searchResults() {
-    let pathItems = [];
-    let paths = eve.find("search results", {step: 0});
-    let pathIx = 0;
-    for(let path of paths) {
-      let result = path;
-      pathItems[pathIx] = {c: "path", children: []};
-      while(result) {
-        let {step, page, to} = result;
-        let pageContent = eve.findOne("page", {page});
-        let article = articleUi(page, pathIx);
-        pathItems[pathIx].children.push(article, {c: "arrow ion-ios-arrow-thin-right"});
-        result = eve.findOne("search results", {step: step + 1, page: to});
-      }
-      pathItems[pathIx].children.pop();
-      pathIx++;
-    }
-    if(eve.find("search results").length === 1) {
-      pathItems[0].c += " singleton";
-    }
-    if(paths.length === 0) {
-      let search = eve.findOne("search") || {search: "root"};
-      pathItems.push({c: "path singleton", children: [
-        articleUi(search.search)
-      ]});
-    }
-    return {c: "container", children: [
-      searchDescription(),
-      {c: "search-results", children: pathItems}
-    ]};
   }
 
   function commitArticle(cm, elem) {
@@ -1581,11 +1448,6 @@ function walk(tree, indent = 0) {
   eve.asView(eve.union("directionless links")
                 .union("page links", {page: ["page"], link: ["link"]})
                 .union("page links", {page: ["link"], link: ["page"]}));
-
-  eve.asView(eve.query("search results")
-             .select("search", {}, "search")
-             .calculate("search string", {text: ["search", "search"]}, "results")
-             .project({page: ["results", "page"], to: ["results", "to"], step: ["results", "step"]}));
 
   eve.asView(eve.query("active page incoming")
              .select("active page", {}, "active")
