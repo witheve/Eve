@@ -281,37 +281,40 @@ module wiki {
     return results;
   }
 
-  var comparatives = {
-    "older": ["age", ">"],
-    "younger": ["age", "<"],
-  }
   var modifiers = {
     "per": "group",
-    "with": "group",
     "each": "group",
     "without": "deselect",
     "not": "deselect",
+    "aren't": "deselect",
+    "except": "engineering",
   }
   var operations = {
-    "sum": "sum",
-    "count": "count",
-    "average": "average",
-    "mean": "average",
-    "top": "sort limit",
-    "bottom": "sort limit",
-    "highest": "sort limit",
-    "lowest": "sort limit",
-    ">": "greater",
-    "<": "lesser",
-    "=": "equal",
-    "greater": "greater",
-    "bigger": "greater",
-    "lower": "lesser",
-    "smaller": "lesser",
-    "equal": "equal",
-    "contains": "contains",
+    "sum": {op: "sum", argCount: 1},
+    "count": {op: "count", argCount: 1},
+    "average": {op: "average", argCount: 1},
+    "mean": {op: "average", argCount: 1},
+    "top": {op: "sort limit", argCount: 1},
+    "bottom": {op: "sort limit", argCount: 1},
+    "highest": {op: "sort limit", argCount: 1},
+    "lowest": {op: "sort limit", argCount: 1},
+    ">": {op: ">", argCount: 2, infix: true},
+    "greater": {op: ">", argCount: 2, infix: true},
+    "bigger": {op: ">", argCount: 2, infix: true},
+    "<": {op: "<", argCount: 2, infix: true},
+    "lower": {op: "<", argCount: 2, infix: true},
+    "smaller": {op: "<", argCount: 2, infix: true},
+    "=": {op: "=", argCount: 2, infix: true},
+    "equal": {op: "=", argCount: 2, infix: true},
+    "contains": {op: "contains", argCount: 2, infix: true},
+    "older": {op: ">", argCount: 2, infix: true, attribute: "age"},
+    "younger": {op: "<", argCount: 2, infix: true, attribute: "age"},
+    "+": {op: "+", argCount: 2, infix: true},
+    "-": {op: "-", argCount: 2, infix: true},
+    "/": {op: "/", argCount: 2, infix: true},
+    "*": {op: "*", argCount: 2, infix: true},
   }
-  function newSearch(searchString) {
+  function newSearchTokens(searchString) {
     // search the string for entities / decks
     // TODO: this is stupidly slow
     let cleaned = searchString.toLowerCase();
@@ -339,77 +342,389 @@ module wiki {
         ix++;
         continue;
       }
-      if(comparatives[word]) {
-        all.push({type: "attribute", found: comparatives[word][0], orig: word, comparative: comparatives[word], pos: ix});
-      } else if(modifiers[word]) {
+      if(modifiers[word]) {
         all.push({type: "modifier", orig: word, modifier: modifiers[word], pos: ix});
       } else if(operations[word]) {
         all.push({type: "operation", orig: word, operation: operations[word], pos: ix});
       } else if(word === "deck" || word === "decks") {
         all.push({type: "collection", found: word, orig: word, pos: ix})
       } else if(parseFloat(word)) {
-        all.push({type: "value", orig: word, pos: ix});
+        all.push({type: "value", value: word, orig: word, pos: ix});
       } else if(word[0] === "\"") {
         // @TODO: account for multi word quotes
-        all.push({type: "value", orig: word, pos: ix});
+        all.push({type: "value", value: word, orig: word, pos: ix});
       }
       ix += word.length + 1;
     }
     all.sort((a, b) => a.pos - b.pos);
-    // start coming up with a plan
-    let plan = [];
-    let ops = [];
-    let state = {prev: null, prevCollection: null};
-    for(let part of all) {
-      let {type} = part;
-      if(type === "operation") {
-        ops.push(part);
-      }
-      let isEdible = (part.type === "attribute" || part.type === "collection" || part.type === "entity");
-      let prev = state.prev;
-      if(!prev && isEdible) {
-        state.prev = part;
-        if(part.type === "collection") {
-          state.prevCollection = part;
-        }
-      } else if(prev && isEdible) {
-        console.log("matching", prev, part);
-        if(prev.type === "entity") {
-          if(part.type === "collection") {
-            plan.push(prev, findCollectionToEntRelationship(part.found, prev.found) || "Unknown", part);
-          } else if(part.type === "entity") {
-            if(state.prevCollection) {
-              plan.push(state.prevCollection, findCollectionToEntRelationship(state.prevCollection.found, part.found) || "Unknown", part);
-            } else {
-              console.log("TODO: entity to entity");
-            }
-//             plan.push(findCollectionToCollectionRelationship(prev.found, part.found) || "Unknown");
-          } else if(part.type === "attribute") {
-            plan.push(prev, findEntToAttrRelationship(prev.found, part.found) || "Unknown", part);
-          }
-        } else if(prev.type === "collection") {
-          if(part.type === "collection") {
-            plan.push(prev, findCollectionToCollectionRelationship(prev.found, part.found) || "Unknown", part);
-          } else if(part.type === "entity") {
-            plan.push(prev, findCollectionToEntRelationship(prev.found, part.found) || "Unknown", part);
-          } else if(part.type === "attribute") {
-            plan.push(prev, findCollectionToAttrRelationship(prev.found, part.found) || "Unknown", part);
-          }
-        } else if(prev.type === "attribute") {
-          if(part.type === "collection") {
-            plan.push(part, findCollectionToAttrRelationship(part.found, prev.found) || "Unknown", prev);
-          } else if(part.type === "entity") {
-            plan.push(part, findEntToAttrRelationship(part.found, prev.found) || "Unknown", prev);
-          }
-        }
-        state.prev = part;
+    return all;
+  }
+
+function walk(tree, indent = 0) {
+    if(!tree) return console.log("UNDEFINED TREE");
+    let text = tree.found;
+    if(!text && tree.operation) {
+      text = tree.operation.op;
+    } else if(!text && tree.value) {
+      text = tree.value;
+    }
+    console.group(text, `(${tree.type})`);
+    if(tree.children) {
+      for(let child of tree.children) {
+        walk(child, indent+1);
       }
     }
-    console.log(all);
+    console.groupEnd(text, `(${tree.type})`);
+}
+
+
+  var tokenRelationships = {
+    "collection": {
+      "collection": findCollectionToCollectionRelationship,
+      "attribute": findCollectionToAttrRelationship,
+      "entity": findCollectionToEntRelationship,
+    },
+    "entity": {
+      "attribute": findEntToAttrRelationship,
+    },
+  }
+  function tokensToRelationship(token1, token2) {
+    return tokenRelationships[token1.type][token2.type](token1.found, token2.found);
+  }
+
+  function planTree(searchString) {
+    let tokens = newSearchTokens(searchString);
+    let root:any;
+    let cursor:any;
+    let state:any = {operationStack: []};
+    // find the root subject which is either the first collection found
+    // or if there are not collections, the first entity
+    for(let token of tokens) {
+      if(token.type === "collection") {
+        token.children = [];
+        root = token;
+        break;
+      } else if(token.type === "entity" && !root) {
+        token.children = [];
+        root = token;
+      }
+    }
+    for(let tokenIx = 0, len = tokens.length; tokenIx < len; tokenIx++) {
+      let token = tokens[tokenIx];
+      if(token === root) continue;
+
+      let {type} = token;
+      if(type === "modifier") {
+        state[token.modifier] = true;
+        continue;
+      }
+
+      token.children = [];
+
+      if(type === "operation") {
+        if(state.lastValue) {
+          state.lastValue = null;
+          token.children.push(state.lastValue);
+          if(token.children.length === token.operation.argCount) {
+            if(cursor) cursor.push(token);
+            else root.children.push(token);
+            continue;
+          }
+        }
+        state.operationStack.push({cursor, operator: state.operator});
+        state.consuming = true;
+        state.operator = token;
+        cursor = token;
+        continue;
+      }
+
+      if(!state.consuming && type === "value") {
+        state.lastValue = token;
+        continue;
+      }
+
+      let maybeSubject = (type === "collection" || type === "entity");
+      if(state.deselect && maybeSubject) {
+        token.deselect = true;
+        state.deselect = false;
+      }
+
+      let activeRoot = root;
+      if(state.consuming) {
+        activeRoot = state.operator;
+        let argCount = state.operator.operation.argCount;
+        if(state.operator.operation.infix) argCount--;
+        console.log(argCount, state.operator.children.length, state);
+        while(state.operator.children.length > argCount) {
+          let item = state.operationStack.pop();
+          cursor = item.cursor;
+          if(cursor) cursor.push(state.operator);
+          else root.children.push(state.operator);
+
+          if(item.operator) {
+            // we consumed one too many, so push that onto root
+            item.operator.children.push(state.operator.children.pop());
+            activeRoot = state.operator = item.operator;
+            argCount = state.operator.operation.argCount;
+            if(state.operator.operation.infix) argCount--;
+          } else {
+            // we consumed one too many, so push that onto root
+            root.children.push(state.operator.children.pop());
+            // we're done consuming now
+            state.consuming = false;
+            state.operator = null;
+            state.lastValue = false;
+            activeRoot = root;
+            break;
+          }
+        }
+      }
+
+      // if we don't have a cursor, then associate to the root
+      if(!cursor) {
+        activeRoot.children.push(token);
+      }
+      // all values just get pushed onto the activeRoot
+      else if(type === "value") {
+        activeRoot.children.push(token);
+      }
+      // if the current cursor is an entity and this is anything other than an attribute, this is related
+      // to the root.
+      else if(cursor.type === "entity" && type !== "attribute") {
+        activeRoot.children.push(token);
+      }
+      // if the current cursor is an entity or a collection, we have to check if it should go to the cursor
+      // or the root
+      else if(cursor.type === "entity" || cursor.type === "collection") {
+        let cursorRel = tokensToRelationship(cursor, token);
+        let rootRel = tokensToRelationship(root, token);
+        // if this token is an entity and either root or cursor has a direct relationship
+        // we don't really want to use that as it's most likely meant to filter a set down
+        // instead of reduce the set to exactly one ent
+        if(token.type === "entity") {
+          if(cursorRel && cursorRel.distance === 0) cursorRel = null;
+          if(rootRel && rootRel.distance === 0) rootRel = null;
+        }
+        if(!cursorRel) {
+          activeRoot.children.push(token);
+        } else if(!rootRel) {
+          cursor.children.push(token);
+        } else if(cursorRel.distance <= rootRel.distance) {
+          cursor.children.push(token);
+        } else {
+          // @TODO: maybe if there's a cursorRel we should just always ignore the rootRel even if it
+          // is a "better" relationship. Sentence structure-wise it seems pretty likely that attributes
+          // following an entity are related to that entity and not something else.
+          activeRoot.children.push(token);
+        }
+      } else if(cursor.type === "operation") {
+        activeRoot.children.push(token);
+      }
+      // if this was a subject, then this is now the cursor
+      if(maybeSubject) {
+        cursor = token;
+      }
+
+    }
+    if(state.consuming) {
+      let item = state.operationStack.pop();
+      while(item) {
+        cursor = item.cursor;
+        if(cursor) cursor.children.push(state.operator);
+        else root.children.push(state.operator);
+
+        let argCount = state.operator.operation.argCount;
+        if(state.operator.operation.infix) argCount--;
+        if(state.operator.children.length > argCount) {
+          if(item.operator) {
+            item.operator.children.push(state.operator.children.pop());
+          } else {
+            root.children.push(state.operator.children.pop());
+          }
+        }
+
+        state.operator = item.operator;
+        item = state.operationStack.pop();
+      }
+    }
+    if(root) walk(root);
+    return root;
+  }
+
+  function ignoreHiddenCollections(colls) {
+    for(let coll of colls) {
+      if(coll !== "unknown" && coll !== "history" && coll !== "collection") {
+        return coll;
+      }
+    }
+  }
+
+  function nodeToPlanStep(node, parent, parentPlan) {
+    //TODO: figure out what to do with operations
+    if(parent) {
+      let {deselect} = node;
+      let rel = tokensToRelationship(parent, node);
+      console.log(rel);
+      if(!rel) {
+        return [];
+      }
+      switch(rel.type) {
+        case "coll->eav":
+          let plan = [];
+          let curParent = parentPlan;
+          for(let node of rel.nodes) {
+            let coll = ignoreHiddenCollections(node);
+            let item = {type: "gather", relatedTo: curParent, collection: coll};
+            plan.push(item);
+            curParent = item;
+          }
+          plan.push({type: "lookup", relatedTo: curParent, attribute: node.found, deselect});
+          return plan;
+          break;
+        case "coll->ent":
+          let plan = [];
+          let curParent = parentPlan;
+          for(let node of rel.nodes) {
+            let coll = ignoreHiddenCollections(node);
+            let item = {type: "gather", relatedTo: curParent, collection: coll};
+            plan.push(item);
+            curParent = item;
+          }
+          plan.push({type: "filter by entity", relatedTo: curParent, entity: node.found, deselect});
+          return plan;
+          break;
+        case "coll->coll":
+          if(rel.distance === 0) {
+            return [{type: "intersect", relatedTo: parentPlan, collection: node.found, deselect}];
+          } else {
+            return [{type: "gather", relatedTo: parentPlan, collection: node.found, deselect}];
+          }
+          break;
+        case "ent->eav":
+          if(rel.distance === 0) {
+            return [{type: "lookup", relatedTo: parentPlan, attribute: node.found, deselect}];
+          } else {
+            let plan = [];
+            let curParent = parentPlan;
+            for(let node of rel.nodes) {
+              let coll = ignoreHiddenCollections(node);
+              let item = {type: "gather", relatedTo: curParent, collection: coll};
+              plan.push(item);
+              curParent = item;
+            }
+            plan.push({type: "lookup", relatedTo: curParent, attribute: node.found, deselect});
+            return plan;
+          }
+          break;
+        case "deck->ent":
+          break;
+      }
+    } else {
+      if(node.type === "collection") {
+        return [{type: "gather", collection: node.found, deselect}];
+      } else if(node.type === "entity") {
+        return [{type: "find", entity: node.found, deselect}];
+      }
+      return [];
+    }
+  }
+
+  function treeToPlan(tree, parent = null, parentPlan = null) {
+    if(!tree) return [];
+    let plan = [];
+    //process you, then your children
+    plan.push.apply(plan, nodeToPlanStep(tree, parent, parentPlan));
+    let neueParentPlan = plan[plan.length - 1];
+    for(let child of tree.children) {
+      plan.push.apply(plan, treeToPlan(child, tree, neueParentPlan));
+    }
+    return plan;
+  }
+
+  function planToQuery(plan) {
+    let query = eve.query();
+    for(let step of plan) {
+      step.id = uuid();
+      switch(step.type) {
+        case "find":
+          // find is a no-op
+          step.size = 0;
+          break;
+        case "gather":
+          let join = {deck: step.collection};
+          let related = step.relatedTo;
+          if(related) {
+            if(related.type === "find") {
+              step.size = 2;
+              let linkId = `${step.id} | link`;
+              query.select("directionless links", {page: related.entity}, linkId);
+              join.page = [linkId, "link"];
+              query.select("deck pages", join, step.id);
+            } else {
+              step.size = 2;
+              let linkId = `${step.id} | link`;
+              query.select("directionless links", {page: [related.id, "page"]}, linkId);
+              join.page = [linkId, "link"];
+              query.select("deck pages", join, step.id);
+            }
+          } else {
+            step.size = 1;
+            query.select("deck pages", join, step.id);
+          }
+          break;
+        case "lookup":
+          let join = {attribute: step.attribute};
+          let related = step.relatedTo;
+          if(related) {
+            if(related.type === "find") {
+              join.page = related.entity;
+            } else {
+              join.page = [related.id, "page"];
+            }
+          }
+          step.size = 1;
+          query.select("page eavs", join, step.id);
+          break;
+        case "intersect":
+          let related = step.relatedTo;
+          if(step.deselect) {
+            step.size = 0;
+            query.deselect("deck pages", {deck: step.collection, page: [related.id, "page"]}, step.id);
+          } else {
+            step.size = 1;
+            query.select("deck pages", {deck: step.collection, page: [related.id, "page"]}, step.id);
+          }
+          break;
+        case "filter by entity":
+          let related = step.relatedTo;
+          let linkId = `${step.id} | link`;
+          if(step.deselect) {
+            step.size = 0;
+            query.deselect("directionless links", {page: [related.id, "page"], link: step.entity}, step.id);
+          } else {
+            step.size = 1;
+            query.select("directionless links", {page: [related.id, "page"], link: step.entity}, step.id);
+          }
+          break;
+      }
+    }
+    if(query.tables.length) {
+      console.log(query.debug());
+    }
+    return query;
+  }
+
+  function newSearch(searchString) {
+    let all = newSearchTokens(searchString);
+    let tree = planTree(searchString);
+    let plan = treeToPlan(tree);
+    console.log("PLAN:", plan);
+    let query = planToQuery(plan);
     console.log(plan);
 //     console.log("paper -> author");
 //     findCollectionToCollectionRelationship("paper", "author")
 //     console.log("people -> american");
+//     console.log(findCollectionToEntRelationship("person", "edward norton"));
 //     findCollectionToCollectionRelationship("person", "american")
 //     findEntToAttrRelationship("engineering", "salary");
 //     findEntToAttrRelationship("chris granger", "age");
@@ -420,7 +735,7 @@ module wiki {
 //     findCollectionToEntRelationship("decks", "chris granger");
 //     findCollectionToEntRelationship("person", "california");
 //     console.log("common", findCommonCollections(["chris granger", "jamie brandon"]));
-    return all;
+    return {tokens: all, plan, query};
   }
 
   function arrayIntersect(a, b) {
@@ -468,12 +783,11 @@ module wiki {
 
   // e.g. "salaries in engineering"
   // e.g. "chris's age"
-  function findEntToAttrRelationship(ent, attr) {
+  function findEntToAttrRelationship(ent, attr):any {
     // check if this ent has that attr
     let directAttribute = eve.findOne("page eavs", {page: ent, attribute: attr});
     if(directAttribute) {
-      console.log("Direct!", directAttribute);
-      return {distance: 0};
+      return {distance: 0, type: "ent->eav"};
     }
     let relationships = eve.query(``)
                   .select("page links", {page: ent}, "links")
@@ -481,8 +795,7 @@ module wiki {
                   .exec();
     if(relationships.unprojected.length) {
       let pages = extractFromUnprojected(relationships.unprojected, 0, "link", 2);
-      console.log("One hop! common collections:", pages, findCommonCollections(pages));
-      return {distance: 1, nodes: [findCommonCollections(pages)]};
+      return {distance: 1, type: "ent->eav", nodes: [findCommonCollections(pages)]};
     }
     let relationships2 = eve.query(``)
                   .select("page links", {page: ent}, "links")
@@ -492,13 +805,20 @@ module wiki {
     if(relationships2.unprojected.length) {
       let pages = extractFromUnprojected(relationships2.unprojected, 0, "link", 3);
       let pages2 = extractFromUnprojected(relationships2.unprojected, 1, "link", 3);
-      console.log("dual hop!", relationships2.unprojected);
-      return {distance: 2, nodes: [findCommonCollections(pages), findCommonCollections(pages2)]};
+      return {distance: 2, type: "ent->eav", nodes: [findCommonCollections(pages), findCommonCollections(pages2)]};
     }
   }
 
   // e.g. "salaries per department"
   function findCollectionToAttrRelationship(coll, attr) {
+    console.log("coll->eav", coll, attr);
+    let direct = eve.query(``)
+                  .select("deck pages", {deck: coll}, "deck")
+                  .select("page eavs", {page: ["deck", "page"], attribute: attr}, "eav")
+                  .exec();
+    if(direct.unprojected.length) {
+      return {distance: 0, type: "coll->eav", nodes: []};
+    }
     let relationships = eve.query(``)
                   .select("deck pages", {deck: coll}, "deck")
                   .select("directionless links", {page: ["deck", "page"]}, "links")
@@ -506,8 +826,7 @@ module wiki {
                   .exec();
     if(relationships.unprojected.length) {
       let pages = extractFromUnprojected(relationships.unprojected, 1, "link", 3);
-      console.log("Coll->Attr One hop!", relationships.unprojected);
-      return {distance: 1, nodes: [findCommonCollections(pages)]};
+      return {distance: 1, type: "coll->eav", nodes: [findCommonCollections(pages)]};
     }
     let relationships2 = eve.query(``)
                   .select("deck pages", {deck: coll}, "deck")
@@ -518,37 +837,38 @@ module wiki {
     if(relationships2.unprojected.length) {
       let pages = extractFromUnprojected(relationships2.unprojected, 1, "link", 4);
       let pages2 = extractFromUnprojected(relationships2.unprojected, 2, "link", 4);
-      console.log("Coll->Attr dual hop!", relationships2.unprojected);
-      return {distance: 2, nodes: [findCommonCollections(pages), findCommonCollections(pages2)]};
+      return {distance: 2, type: "coll->eav", nodes: [findCommonCollections(pages), findCommonCollections(pages2)]};
     }
   }
 
   // e.g. "meetings john was in"
   function findCollectionToEntRelationship(coll, ent) {
+    console.log("coll to ent", coll, ent);
     if(coll === "decks") {
-      console.log("Coll->Ent decks lookup", eve.find("deck pages", {page: ent}));
-      return eve.find("deck pages", {page: ent});
+      if(eve.findOne("deck pages", {page: ent})) {
+        return {distance: 0, type: "ent->deck"};
+      }
+    }
+    if(eve.findOne("deck pages", {deck: coll, page: ent})) {
+      return {distance: 0, type: "coll->ent", nodes: []};
     }
     let relationships = eve.query(``)
                   .select("deck pages", {deck: coll}, "deck")
                   .select("directionless links", {page: ["deck", "page"], link: ent}, "links")
                   .exec();
-    console.log(relationships);
     if(relationships.unprojected.length) {
-//       let pages = extractFromUnprojected(relationships.unprojected, 1, "link", 2);
-      console.log("Coll->Ent One hop!", relationships.unprojected);
-      return {distance: 0, nodes: []};
+      return {distance: 1, type: "coll->ent", nodes: []};
     }
+    // e.g. events with chris granger (events -> meetings -> chris granger)
     let relationships2 = eve.query(``)
                   .select("deck pages", {deck: coll}, "deck")
                   .select("directionless links", {page: ["deck", "page"]}, "links")
                   .select("directionless links", {page: ["links", "link"], link: ent}, "links2")
                   .exec();
+    console.log("relationships 2", relationships2);
     if(relationships2.unprojected.length) {
       let pages = extractFromUnprojected(relationships2.unprojected, 1, "link", 3);
-      let pages2 = extractFromUnprojected(relationships2.unprojected, 2, "link", 3);
-      console.log("Coll->Ent dual hop!", relationships2.unprojected);
-      return {distance: 2, nodes: [findCommonCollections(pages), findCommonCollections(pages2)]};
+      return {distance: 2, type: "coll->ent", nodes: [findCommonCollections(pages)]};
     }
   }
 
@@ -578,13 +898,14 @@ module wiki {
     // and we have two selects.
     let intersectionSize = intersection.unprojected.length / 2;
     if(maxRel.count > intersectionSize) {
-
+      return {distance: 1, type: "coll->coll"};
     } else if(intersectionSize > maxRel.count) {
-
+      return {distance: 0, type: "coll->coll"};
+    } else if(maxRel.count === 0 && intersectionSize === 0) {
+      return;
     } else {
-
+      return {distance: 1, type: "coll->coll"};
     }
-    console.log(maxRel.count, intersectionSize);
   }
 
   function stringMatches(string, index) {
@@ -696,13 +1017,15 @@ module wiki {
   //---------------------------------------------------------
 
   app.handle("startEditingArticle", (result, info) => {
-    result.add("editing", {editing: true, page: info.page});
+    let page = info.page.toLowerCase();
+    result.add("editing", {editing: true, page});
   });
 
   app.handle("stopEditingArticle", (result, info) => {
     if(!eve.findOne("editing")) return;
     result.remove("editing");
     let {page, value} = info;
+    page = page.toLowerCase();
     result.add("page", {page, text: value});
     result.remove("page", {page});
   });
@@ -728,7 +1051,7 @@ module wiki {
     return {id: "root", c: "root", children: [
       {c: "spacer"},
       {c: "search-input", t: "input", type: "text", placeholder: "search", keydown: maybeSubmitSearch, value: search},
-      searchResults(),
+      newSearchResults(),
 //       relatedItems(),
       {c: "spacer"},
       historyStack(),
@@ -754,12 +1077,11 @@ module wiki {
     return {children: items};
   }
 
-  function searchDescription() {
+  function searchDescription(tokens, plan) {
     let search = eve.findOne("search")["search"];
-    let parts = newSearch(search);
     let ix = 0;
     let children = [];
-    for(let part of parts) {
+    for(let part of tokens) {
       let {type, pos} = part;
       if(ix < pos) {
         children.push({c: "text", text: search.substring(ix, pos)});
@@ -770,7 +1092,46 @@ module wiki {
     if(ix < search.length) {
       children.push({c: "text", text: search.substring(ix)});
     }
-    return {c: "search-description", children};
+
+    let planChildren = [];
+    for(let step of plan) {
+      planChildren.push({c: "text", text: `${step.type}->`});
+    }
+    return {c: "container", children: [
+      {c: "search-description", children},
+      {c: "search-plan", children: planChildren}
+    ]};
+  }
+
+  function newSearchResults() {
+    let search = eve.findOne("search")["search"];
+    let {tokens, plan, query} = newSearch(search);
+    let results = query.exec();
+    let resultItems = [];
+    let planLength = plan.length;
+    for(let ix = 0, len = results.unprojected.length; ix < len; ix += query.unprojectedSize) {
+      let resultItem = {c: "path", children: []};
+      let planOffset = 0;
+      for(let planIx = 0; planIx < planLength; planIx++) {
+        let planItem = plan[planIx];
+        if(planItem.size) {
+          let resultPart = results.unprojected[ix + planOffset + planItem.size - 1];
+          resultItem.children.push({c: "step", text: JSON.stringify(resultPart)});
+          planOffset += planItem.size;
+        }
+      }
+      resultItems.push(resultItem);
+    }
+    if(plan.length === 1 && plan[0].type === "find") {
+      resultItems.push({c: "singleton", children: [articleUi(plan[0].entity)]});
+    } else if(plan.length === 0) {
+      resultItems.push({c: "singleton", children: [articleUi(search)]});
+    }
+    return {c: "container", children: [
+      searchDescription(tokens, plan),
+      {c: "search-results", children: resultItems},
+    ]};
+
   }
 
   function searchResults() {
@@ -947,8 +1308,8 @@ module wiki {
              .project({page: ["page", "page"], link: ["links", "link"], type: ["links", "type"]}));
 
   eve.asView(eve.union("directionless links")
-                .union("page links", {page: ["page"], link: ["link"], type: ["type"]})
-                .union("page links", {page: ["link"], link: ["page"], type: ["type"]}));
+                .union("page links", {page: ["page"], link: ["link"]})
+                .union("page links", {page: ["link"], link: ["page"]}));
 
   eve.asView(eve.query("search results")
              .select("search", {}, "search")
