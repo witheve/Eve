@@ -1009,6 +1009,7 @@ module Parsers {
         this.ast.chunks.push(line);
       }
       if(this.errors.length === 0) this.reify();
+      return this;
     }
 
     /** Load an existing AST into this Ui. */
@@ -1032,11 +1033,13 @@ module Parsers {
       this.errors = [];
 
       let root:ElementIR = Api.humanize("uiElement", Api.ixer.findOne("uiElement", {"uiElement: element": rootId}));
-      if(!root) throw new Error(`Requested element '${rootId}' does not exist.`);
+      if(!root) return this;
       this.reified = {elements: [], root, boundQueries: {}};
 
       let queries = [];
       let elems = [root];
+      let elemMap = {};
+      let elemIds = [];
       while(elems.length) {
         let elem = elems.shift();
         let elemId = elem.element;
@@ -1059,12 +1062,14 @@ module Parsers {
           for(let {"uiScopedBinding: field": field, "uiScopedBinding: scoped field": scopedField} of bindings) elem.bindings[field] = scopedField;
         }
 
-        let children = Api.ixer.find("uiElement", {"uiElement: parent": elemId});
-        for(let elem of Api.humanize("uiElement", children)) elems.push(elem);
+        let children =  Api.humanize("uiElement", Api.ixer.find("uiElement", {"uiElement: parent": elemId}));
+        for(let child of children) elems.push(child);
 
-        if(elem !== root) this.reified.elements.push(elem);
+        elemMap[elem.element] = elem;
+        if(elem !== root) elemIds.push(elem.element);
       }
 
+      for(let elemId of elemIds.sort(Api.displaySort)) this.reified.elements.push(elemMap[elemId]);
       for(let queryId of queries) this.reified.boundQueries[queryId] = new Query().loadFromView(queryId);
 
       if(this.errors.length === 0 && !ignoreAST) this.unreify();
@@ -1083,13 +1088,14 @@ module Parsers {
       if(this.reified) this.prev = this.reified;
       let prev = this.prev;
 
-      let rootId = prev ? prev.root.element : Api.uuid();
+      let rootId = this.id || Api.uuid();
       let root:ElementIR = {element: rootId, tag: "div", ix: 0, attributes: {}, boundAttributes: {}, events: [], boundEvents: {}};
       this.reified = {elements: [], root, boundQueries: {}};
       let indent = {[root.element]: -1};
       let childCount = {[root.element]: 0};
       let ancestors = [root];
 
+      let prevElem:ElementIR = prev && prev.root;
       for(let line of this.ast.chunks) {
         if(tokenIsComment(line) || tokenIsText(line)) continue;
         this.lineIx = line.lineIx;
@@ -1102,7 +1108,7 @@ module Parsers {
         }
 
         if(tokenIsElement(line)) {
-          let prevElem = prev && prev.elements[this.reified.elements.length]; // This is usually not going to match up.
+          prevElem = prev && prev.elements[this.reified.elements.length]; // This is usually not going to match up.
           let elemId = prevElem ? prevElem.element : Api.uuid();
           let ix = childCount[parentElem.element]++;
           let elem:ElementIR = {element: elemId, tag: line.tag, parent: parentElem.element, ix, attributes: {}, boundAttributes: {}, events: [], boundEvents: {}};
@@ -1119,7 +1125,8 @@ module Parsers {
             this.errors.push(this.parseError("Bindings must follow an element.", line));
             continue;
           }
-          let query = new Query().parse(line.text);
+
+          let query = new Query().loadFromView(prevElem && prevElem.boundView).parse(line.text);
           if(query.errors.length) {
             for(let err of query.errors) {
               err.line = this.stringify(line).split("\n")[err.lineIx];

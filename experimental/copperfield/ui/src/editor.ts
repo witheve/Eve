@@ -234,9 +234,10 @@ module Editor {
       }
 
       if(ui.name) reified.root.name = ui.name;
-
+      let displayIx = 0;
       for(let elem of [reified.root].concat(reified.elements)) {
-        effect.change.add("uiElement", Api.resolve("uiElement", {"element": elem.element, "tag": elem.tag, "parent": elem.parent || "", ix: elem.ix}));
+        effect.change.add("uiElement", Api.resolve("uiElement", {"element": elem.element, "tag": elem.tag, "parent": elem.parent || "", ix: elem.ix}))
+          .add("display order", displayIx++);
         if(elem.name) effect.change.add("display name", elem.name);
         if(elem.boundView) effect.change.add("uiElementBinding", {"uiElementBinding: view": elem.boundView});
         for(let prop in elem.attributes)
