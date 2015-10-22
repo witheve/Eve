@@ -329,10 +329,20 @@ module Editor {
   var rootPanes:Ui.Pane[] = [
     {title: "Query", pane: "root-query", content: queryEditor},
     {title: "Ui", pane: "root-ui", content: uiEditor},
+    {title: "Page", pane: "root-page", content: function() {
+      //let {"selected page: page": page} = Api.ixer.findOne("selected page") || {};
+      //if(!page) throw new Error("No page selected");
+      //let {"page: element": rootElem} = Api.ixer.findOne("page", {"page: page": page});
+      return renderer.compile(["wiki root-elem"]);
+    }}
   ];
   function root():Element {
+    let entityId;
+    if(localState.activeKind === "query") entityId = localState.query.id;
+    else if(localState.activeKind === "ui") entityId = localState.ui.id;
+    else if(localState.activeKind === "page") entityId = (Api.ixer.findOne("selected page") || {})["selected page: page"];
     return {children: [
-      {text: "Copperfield - " + localState.query.id},
+      {text: "Copperfield - " + entityId},
       Ui.tabbedBox({container: "root-workspace", panes: rootPanes, paneChange: switchEditor})
     ]};
   }
@@ -341,6 +351,7 @@ module Editor {
   function switchEditor(evt, elem) {
     if(elem.pane === "root-query") localState.activeKind = "query";
     else if(elem.pane === "root-ui") localState.activeKind = "ui";
+    else if(elem.pane === "root-page") localState.activeKind = "page";
     else throw new Error(`Unknown kind: '${elem.tab}'`);
     dispatch("HACK HACK HACK", undefined).done();
   }

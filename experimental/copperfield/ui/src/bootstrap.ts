@@ -11,6 +11,8 @@ module Bootstrap {
   let views:{[viewId:string]: string[]} = {
     "entity": ["entity"],
     "entity kind": ["entity", "kind"],
+    "collection entity": ["entity", "kind"],
+    "related entity": ["entity", "related entity"],
     "page": ["entity", "page", "element"],
     "block": ["page", "block", "entity", "element"],
     "selected page": ["page"],
@@ -18,6 +20,7 @@ module Bootstrap {
 
     "default page": ["page"],
     "builtin entity": ["entity", "kind"],
+    "builtin collection entity": ["entity", "kind"],
     "builtin page": ["entity", "page", "element"],
     "builtin block": ["page", "block", "element"],
 
@@ -29,6 +32,7 @@ module Bootstrap {
   let viewKinds:{[viewId:string]: string} = {
     "default page": "table",
     "builtin entity": "table",
+    "builtin collection entity": "table",
     "builtin page": "table",
     "builtin block": "table"
   }
@@ -36,6 +40,8 @@ module Bootstrap {
   let fingerprintsRaw:{[viewId:string]: string[]} = {
     "entity": ["?entity is an entity"],
     "entity kind": ["entity ?entity is a ?kind", "entity ?entity is an ?kind"],
+    "collection entity": ["entity ?entity contains each ?kind"],
+    "related entity": ["entity ?entity is related to ?related_entity"],
     "page": ["page ?page represents ?entity as ?element"],
     "block": ["block ?block represents ?entity in ?page as ?element"],
     "selected page": ["?page is the selected page"],
@@ -43,6 +49,7 @@ module Bootstrap {
 
     "default page": ["?page is the default page"],
     "builtin entity": ["builtin entity ?entity is a ?kind", "builtin entity ?entity is an ?kind"],
+    "builtin collection entity": ["builtin entity ?entity contains each ?kind"],
     "builtin page": ["builtin page ?page represents ?entity as ?element"],
     "builtin block": ["builtin block ?block represents ?entity in ?page as ?element"],
 
@@ -55,10 +62,14 @@ module Bootstrap {
   let facts:{[viewId:string]: Api.Dict[]} = {
     "default page": [{page: "homepage"}],
     "builtin entity": [
-      {entity: "entities", kind: "collection"},
+      {entity: "collections", kind: "collection"},
+    ],
+    "builtin collection entity": [
       {entity: "collections", kind: "collection"}
     ],
-    "builtin page": [{entity: "entities", page: "homepage", element: "homepage-elem"}],
+    "builtin page": [
+      {entity: "collections", page: "homepage", element: "homepage-elem"}
+    ],
   };
 
   let fingerprints:{[viewId:string]: string[]} = {};
@@ -72,7 +83,7 @@ module Bootstrap {
       for(let chunk of fingerprintRaw.split(" ")) {
         if(multi) fingerprint += " "
         if(chunk[0] === "?") {
-          fieldIds.push(viewId + ": " + chunk.slice(1));
+          fieldIds.push(viewId + ": " + chunk.slice(1).replace(/_/gm, " "));
           fingerprint += "?"
         } else fingerprint += chunk;
         multi = true;
@@ -117,7 +128,7 @@ module Bootstrap {
   for(let viewId in queries) queries[viewId] = queries[viewId].replace(/\"/gm, "`");
 
   let uis:{[elemId:string]: string} = {
-    "homepage page": Parsers.unpad(6) `
+    "wiki root-elem": Parsers.unpad(6) `
       div; wiki root
         ~ ?page is the selected page
         div bordered ui-row; wiki header
@@ -128,8 +139,16 @@ module Bootstrap {
           span
             - flex: "none"
             - text: ?page
-        div
-          - text: "Buenos Aires!"
+        div; workspace
+          ~ page ?page represents ? as ??element
+          ;- text: ?element
+          - children: ?element
+        div bordered ui-row; wiki footer
+          - flex: "none"
+          - text: "footer"
+    `,
+    "homepage-elem": Parsers.unpad(6) `
+      - text: "Hello I am homepage how are you."
     `
   };
   for(let elemId in uis) uis[elemId] = uis[elemId].replace(/\"/gm, "`");
