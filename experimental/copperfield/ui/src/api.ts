@@ -272,8 +272,18 @@ module Api {
     dependents?: Id[]
   }
 
-  const EDITOR_PKS = {tag: "", uiElement: "element", "view fingerprint": "fingerprint"};
-  const EDITOR_FKS = {"uiElement: parent": "element", "member: member view": "view", "mapping: member field": "field"};
+  const EDITOR_PKS = {
+    tag: "",
+    uiElement: "element",
+    "view fingerprint": "fingerprint",
+    "related entity": ""
+  };
+  const EDITOR_FKS = {
+    "uiElement: parent": "element",
+    "member: member view": "view",
+    "mapping: member field": "field",
+    "related entity: related entity": "entity"
+  };
   const EDITOR_PK_DEPS = [
     ["display name", "display name: id"],
     ["display order", "display order: id"],
