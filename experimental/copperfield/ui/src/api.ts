@@ -471,6 +471,11 @@ module Api {
           if(schema.key) this.context[schema.key] = this.context["$$LAST_PKEY"] = undefined;
         }
       }
+      if(viewId === "uiElement" || viewId === "view") { // Hack to clear ast cache
+        if(DEBUG.STRUCTURED_CHANGE) console.info(new Array(this.depth + 1).join("  ") + "- ast cache");
+        for(let remove of removes)
+          this.removeWithDependents("ast cache", {"ast cache: id": remove[schema.key]}, dependents);
+      }
       this.depth--;
       if(this.depth === 0) this.changeSet.collapseRemoves();
       return this;
