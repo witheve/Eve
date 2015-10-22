@@ -290,29 +290,31 @@ module wiki {
     "except": "engineering",
   }
   var operations = {
-    "sum": {op: "sum", argCount: 1, aggregate: true},
-    "count": {op: "count", argCount: 1, aggregate: true},
-    "average": {op: "average", argCount: 1, aggregate: true},
-    "mean": {op: "average", argCount: 1, aggregate: true},
-    "top": {op: "sort limit", argCount: 1},
-    "bottom": {op: "sort limit", argCount: 1},
-    "highest": {op: "sort limit", argCount: 1},
-    "lowest": {op: "sort limit", argCount: 1},
-    ">": {op: ">", argCount: 2, infix: true},
-    "greater": {op: ">", argCount: 2, infix: true},
-    "bigger": {op: ">", argCount: 2, infix: true},
-    "<": {op: "<", argCount: 2, infix: true},
-    "lower": {op: "<", argCount: 2, infix: true},
-    "smaller": {op: "<", argCount: 2, infix: true},
-    "=": {op: "=", argCount: 2, infix: true},
-    "equal": {op: "=", argCount: 2, infix: true},
-    "contains": {op: "contains", argCount: 2, infix: true},
-    "older": {op: ">", argCount: 2, infix: true, attribute: "age"},
-    "younger": {op: "<", argCount: 2, infix: true, attribute: "age"},
-    "+": {op: "+", argCount: 2, infix: true},
-    "-": {op: "-", argCount: 2, infix: true},
-    "/": {op: "/", argCount: 2, infix: true},
-    "*": {op: "*", argCount: 2, infix: true},
+    "sum": {op: "sum", argCount: 1, aggregate: true, args: ["value"]},
+    "count": {op: "count", argCount: 0, aggregate: true, args: []},
+    "average": {op: "average", argCount: 1, aggregate: true, args: ["value"]},
+    "mean": {op: "average", argCount: 1, aggregate: true, args: ["value"]},
+    "top": {op: "sort limit", argCount: 2, direction: "descending"},
+    "bottom": {op: "sort limit", argCount: 2, direction: "ascending"},
+    "highest": {op: "sort limit", argCount: 1, direction: "descending"},
+    "lowest": {op: "sort limit", argCount: 1, direction: "ascending"},
+    ">": {op: ">", argCount: 2, infix: true, args: ["a", "b"], filter: true},
+    ">=": {op: ">=", argCount: 2, infix: true, args: ["a", "b"], filter: true},
+    "greater": {op: ">", argCount: 2, infix: true, args: ["a", "b"], filter: true},
+    "bigger": {op: ">", argCount: 2, infix: true, args: ["a", "b"], filter: true},
+    "<": {op: "<", argCount: 2, infix: true, args: ["a", "b"], filter: true},
+    "<=": {op: "<=", argCount: 2, infix: true, args: ["a", "b"], filter: true},
+    "lower": {op: "<", argCount: 2, infix: true, args: ["a", "b"], filter: true},
+    "smaller": {op: "<", argCount: 2, infix: true, args: ["a", "b"], filter: true},
+    "=": {op: "=", argCount: 2, infix: true, args: ["a", "b"], filter: true},
+    "equal": {op: "=", argCount: 2, infix: true, args: ["a", "b"], filter: true},
+    "contains": {op: "contains", argCount: 2, infix: true, args: ["haystack", "needle"]},
+    "older": {op: ">", argCount: 2, infix: true, attribute: "age", args: ["a", "b"], filter: true},
+    "younger": {op: "<", argCount: 2, infix: true, attribute: "age", args: ["a", "b"], filter: true},
+    "+": {op: "+", argCount: 2, infix: true, args: ["a", "b"]},
+    "-": {op: "-", argCount: 2, infix: true, args: ["a", "b"]},
+    "/": {op: "/", argCount: 2, infix: true, args: ["a", "b"]},
+    "*": {op: "*", argCount: 2, infix: true, args: ["a", "b"]},
   }
   function newSearchTokens(searchString) {
     // search the string for entities / decks
@@ -398,6 +400,7 @@ function walk(tree, indent = 0) {
 
   function planTree(searchString) {
     let tokens = newSearchTokens(searchString);
+    var tree = {roots: [], operations: [], groups: []}
     let root:any;
     let cursor:any;
     let state:any = {operationStack: []};
@@ -413,11 +416,19 @@ function walk(tree, indent = 0) {
         root = token;
       }
     }
+    tree.roots.push(root);
     for(let tokenIx = 0, len = tokens.length; tokenIx < len; tokenIx++) {
+      token.id = uuid();
       let token = tokens[tokenIx];
+      let {type} = token;
+
+      if(state.group && (type === "collection" || type === "attribute")) {
+        token.group = true;
+        tree.groups.push(token);
+      }
+
       if(token === root) continue;
 
-      let {type} = token;
       if(type === "modifier") {
         state[token.modifier] = true;
         continue;
@@ -462,18 +473,62 @@ function walk(tree, indent = 0) {
         while(state.operator.children.length > argCount) {
           let item = state.operationStack.pop();
           cursor = item.cursor;
-          if(cursor) cursor.push(state.operator);
-          else root.children.push(state.operator);
+          // we consumed one too many, so push that onto either the parent operator or
+          // the root
+          let overflowCursor = item.operator ? item.operator : root;
+          overflowCursor.children.push(state.operator.children.pop());
+
+          // run through the items, determine if they're a totally different root,
+          // or if they belong to the current cursor/root
+          let operation = state.operator.operation;
+          let operatorChildren = state.operator.children;
+          let ix = 0;
+          // if this is an infix operator that invokes an attribute, e.g. "older", push
+          // that attribute onto the cursor
+          if(operation.infix && operation.attribute) {
+            let id = uuid();
+            cursor.children.push({type: "attribute", found: operation.attribute, orig: operation.attribute, id, children: []});
+            // we also need to add this as the first arg to the function
+            state.operator.children.unshift(id);
+          } else if(operation.infix) {
+            // we need to add the closest thing before this as the first arg to the function.
+            let tip = cursor || root;
+            while(tip.children.length) {
+              tip = tip.children[tip.children.length - 1];
+            }
+            state.operator.children.unshift(tip.id);
+          }
+          for(let child of operatorChildren) {
+            if(child.type === "attribute") {
+              cursor.children.push(child);
+              operatorChildren[ix] = child.id;
+            } else if(child.type !== "value") {
+              // we have something that could nest.
+              let tip = child;
+              while(tip.children.length) {
+                tip = tip.children[tip.children.length - 1];
+              }
+              if(operation.attribute) {
+                tip.children.push({type: "attribute", found: operation.attribute, orig: operation.attribute, id: uuid(), children: []});
+              }
+              // if this is an infix operation, then this is an entirely different root now
+              if(operation.infix) {
+                tree.roots.push(child);
+              } else {
+                throw new Error("Non infix operation with a non-attribute child: " + JSON.stringify(state.operator));
+              }
+              operatorChildren[ix] = tip.id;
+            }
+            ix++;
+          }
+
+          tree.operations.shift(state.operator);
 
           if(item.operator) {
-            // we consumed one too many, so push that onto root
-            item.operator.children.push(state.operator.children.pop());
             activeRoot = state.operator = item.operator;
             argCount = state.operator.operation.argCount;
             if(state.operator.operation.infix) argCount--;
           } else {
-            // we consumed one too many, so push that onto root
-            root.children.push(state.operator.children.pop());
             // we're done consuming now
             state.consuming = false;
             state.operator = null;
@@ -533,26 +588,80 @@ function walk(tree, indent = 0) {
     if(state.consuming) {
       let item = state.operationStack.pop();
       while(item) {
-        cursor = item.cursor;
-        if(cursor) cursor.children.push(state.operator);
-        else root.children.push(state.operator);
-
-        let argCount = state.operator.operation.argCount;
-        if(state.operator.operation.infix) argCount--;
-        if(state.operator.children.length > argCount) {
-          if(item.operator) {
-            item.operator.children.push(state.operator.children.pop());
-          } else {
-            root.children.push(state.operator.children.pop());
-          }
+        cursor = item.cursor || root;
+        if(state.operator.children.length > state.operator.operation.argCount) {
+          // we consumed one too many, so push that onto either the parent operator or
+          // the root
+          let overflowCursor = item.operator ? item.operator : root;
+          overflowCursor.children.push(state.operator.children.pop());
         }
 
-        state.operator = item.operator;
+        // run through the items, determine if they're a totally different root,
+        // or if they belong to the current cursor/root
+        let operation = state.operator.operation;
+        let operatorChildren = state.operator.children;
+        let ix = 0;
+        // if this is an infix operator that invokes an attribute, e.g. "older", push
+        // that attribute onto the cursor
+        if(operation.infix && operation.attribute) {
+          let id = uuid();
+          cursor.children.push({type: "attribute", found: operation.attribute, orig: operation.attribute, id, children: []});
+          // we also need to add this as the first arg to the function
+          state.operator.children.unshift(id);
+        } else if(operation.infix) {
+          // we need to add the closest thing before this as the first arg to the function.
+          let tip = cursor || root;
+          while(tip.children.length) {
+            tip = tip.children[tip.children.length - 1];
+          }
+          state.operator.children.unshift(tip.id);
+        }
+        for(let child of operatorChildren) {
+          if(child.type === "attribute") {
+            cursor.children.push(child);
+            operatorChildren[ix] = child.id;
+          } else if(child.type && child.type !== "value") {
+            // we have something that could nest.
+            let tip = child;
+            while(tip.children.length) {
+              tip = tip.children[tip.children.length - 1];
+            }
+            if(operation.attribute) {
+              let neueAttr = {type: "attribute", found: operation.attribute, orig: operation.attribute, id: uuid(), children: []};
+              tip.children.push(neueAttr);
+              tip = neueAttr;
+            }
+            // if this is an infix operation, then this is an entirely different root now
+            if(operation.infix) {
+              tree.roots.push(child);
+            } else {
+              throw new Error("Non infix operation with a non-attribute child: " + JSON.stringify(state.operator));
+            }
+            operatorChildren[ix] = tip.id;
+          }
+          ix++;
+        }
+
+        tree.operations.push(state.operator);
+
+        if(item.operator) {
+          activeRoot = state.operator = item.operator;
+          argCount = state.operator.operation.argCount;
+          if(state.operator.operation.infix) argCount--;
+        } else {
+          // we're done consuming now
+          state.consuming = false;
+          state.operator = null;
+          state.lastValue = false;
+          activeRoot = root;
+          break;
+        }
         item = state.operationStack.pop();
       }
     }
     if(root) walk(root);
-    return root;
+    console.log(tree);
+    return tree;
   }
 
   function ignoreHiddenCollections(colls) {
@@ -563,12 +672,12 @@ function walk(tree, indent = 0) {
     }
   }
 
-  function nodeToPlanStep(node, parent, parentPlan) {
+  function nodeToPlanSteps(node, parent, parentPlan) {
     //TODO: figure out what to do with operations
+    let id = node.id || uuid();
     if(parent) {
       let {deselect} = node;
       let rel = tokensToRelationship(parent, node);
-      console.log(rel);
       if(!rel) {
         return [];
       }
@@ -578,11 +687,11 @@ function walk(tree, indent = 0) {
           let curParent = parentPlan;
           for(let node of rel.nodes) {
             let coll = ignoreHiddenCollections(node);
-            let item = {type: "gather", relatedTo: curParent, collection: coll};
+            let item = {type: "gather", relatedTo: curParent, collection: coll, id: uuid()};
             plan.push(item);
             curParent = item;
           }
-          plan.push({type: "lookup", relatedTo: curParent, attribute: node.found, deselect});
+          plan.push({type: "lookup", relatedTo: curParent, attribute: node.found, id, deselect});
           return plan;
           break;
         case "coll->ent":
@@ -590,33 +699,33 @@ function walk(tree, indent = 0) {
           let curParent = parentPlan;
           for(let node of rel.nodes) {
             let coll = ignoreHiddenCollections(node);
-            let item = {type: "gather", relatedTo: curParent, collection: coll};
+            let item = {type: "gather", relatedTo: curParent, collection: coll, id: uuid()};
             plan.push(item);
             curParent = item;
           }
-          plan.push({type: "filter by entity", relatedTo: curParent, entity: node.found, deselect});
+          plan.push({type: "filter by entity", relatedTo: curParent, entity: node.found, id, deselect});
           return plan;
           break;
         case "coll->coll":
           if(rel.distance === 0) {
-            return [{type: "intersect", relatedTo: parentPlan, collection: node.found, deselect}];
+            return [{type: "intersect", relatedTo: parentPlan, collection: node.found, id, deselect}];
           } else {
-            return [{type: "gather", relatedTo: parentPlan, collection: node.found, deselect}];
+            return [{type: "gather", relatedTo: parentPlan, collection: node.found, id, deselect}];
           }
           break;
         case "ent->eav":
           if(rel.distance === 0) {
-            return [{type: "lookup", relatedTo: parentPlan, attribute: node.found, deselect}];
+            return [{type: "lookup", relatedTo: parentPlan, attribute: node.found, id, deselect}];
           } else {
             let plan = [];
             let curParent = parentPlan;
             for(let node of rel.nodes) {
               let coll = ignoreHiddenCollections(node);
-              let item = {type: "gather", relatedTo: curParent, collection: coll};
+              let item = {type: "gather", relatedTo: curParent, collection: coll, id: uuid()};
               plan.push(item);
               curParent = item;
             }
-            plan.push({type: "lookup", relatedTo: curParent, attribute: node.found, deselect});
+            plan.push({type: "lookup", relatedTo: curParent, attribute: node.found, id, deselect});
             return plan;
           }
           break;
@@ -625,22 +734,104 @@ function walk(tree, indent = 0) {
       }
     } else {
       if(node.type === "collection") {
-        return [{type: "gather", collection: node.found, deselect}];
+        return [{type: "gather", collection: node.found, id, deselect}];
       } else if(node.type === "entity") {
-        return [{type: "find", entity: node.found, deselect}];
+        return [{type: "find", entity: node.found, id, deselect}];
       }
       return [];
     }
   }
 
-  function treeToPlan(tree, parent = null, parentPlan = null) {
+  function nodeToPlan(tree, parent = null, parentPlan = null) {
     if(!tree) return [];
     let plan = [];
     //process you, then your children
-    plan.push.apply(plan, nodeToPlanStep(tree, parent, parentPlan));
+    plan.push.apply(plan, nodeToPlanSteps(tree, parent, parentPlan));
     let neueParentPlan = plan[plan.length - 1];
     for(let child of tree.children) {
-      plan.push.apply(plan, treeToPlan(child, tree, neueParentPlan));
+      plan.push.apply(plan, nodeToPlan(child, tree, neueParentPlan));
+    }
+    return plan;
+  }
+
+  function opToPlan(op, groupLookup) {
+    let info = op.operation;
+    let args = {};
+    let ix = 0;
+    if(info.args) {
+      for(let arg of info.args) {
+        let value = op.children[ix];
+        if(value.type && value.type === "value") {
+          args[arg] = value.value;
+        } else if(typeof value === "string") {
+          args[arg] = [value, "value"];
+        } else {
+          throw new Error("Invalid operation argument: " + JSON.stringify(op));
+        }
+        ix++;
+      }
+    }
+    if(info.aggregate) {
+      return [{type: "aggregate", aggregate: info.op, args, id: uuid()}];
+    } else if(info.op === "sort limit") {
+      let sort, limit, grouped;
+      for(let child of op.children) {
+        if(child.type && child.type === "value") {
+          limit = child.value;
+        } else {
+          sort = [child, "value", info.direction];
+          grouped = groupLookup[child];
+        }
+      }
+      let plan = [];
+      if(sort) {
+        plan.push({type: "sort", id: uuid(), sort: [sort]});
+      }
+      if(limit) {
+        let limitInfo = {};
+        if(grouped || Object.keys(groupLookup).length === 0) {
+          limitInfo.results = limit;
+        } else {
+          limitInfo.perGroup = limit;
+        }
+        console.log("limitInfo", limitInfo);
+        plan.push({type: "limit", id: uuid(), limit: limitInfo});
+      }
+      return plan;
+    } else if(info.filter) {
+      return [{type: "filter", func: info.op, args, id: uuid()}];
+    } else {
+      return [{type: "calculate", func: info.op, args, id: uuid()}];
+    }
+  }
+
+  function groupsToPlan(nodes) {
+    if(!nodes.length) return [];
+    let groups = [];
+    for(let node of nodes) {
+      if(node.type === "collection") {
+        groups.push([node.id, "page"]);
+      } else if(node.type === "") {
+        groups.push([node.id, "value"]);
+      } else {
+        throw new Error("Invalid node to group on: " + JSON.stringify(nodes));
+      }
+    }
+    return [{type: "group", id: uuid(), groups}];
+  }
+
+  function treeToPlan(tree) {
+    let plan = [];
+    for(let root of tree.roots) {
+      plan.push.apply(plan, nodeToPlan(root));
+    }
+    plan.push.apply(plan, groupsToPlan(tree.groups));
+    let groupLookup = {};
+    for(let node of tree.groups) {
+      groupLookup[node.id] = true;
+    }
+    for(let op of tree.operations) {
+      plan.push.apply(plan, opToPlan(op, groupLookup));
     }
     return plan;
   }
@@ -648,7 +839,6 @@ function walk(tree, indent = 0) {
   function planToQuery(plan) {
     let query = eve.query();
     for(let step of plan) {
-      step.id = uuid();
       switch(step.type) {
         case "find":
           // find is a no-op
@@ -710,6 +900,30 @@ function walk(tree, indent = 0) {
             query.select("directionless links", {page: [related.id, "page"], link: step.entity}, step.id);
           }
           break;
+        case "filter":
+          step.size = 0;
+          query.calculate(step.func, step.args, step.id);
+          break;
+        case "calculate":
+          step.size = 1;
+          query.calculate(step.func, step.args, step.id);
+          break;
+        case "aggregate":
+          step.size = 1;
+          query.aggregate(step.aggregate, step.args, step.id);
+          break;
+        case "group":
+          step.size = 0;
+          query.group(step.groups);
+          break;
+        case "sort":
+          step.size = 0;
+          query.sort(step.sort);
+          break;
+        case "limit":
+          step.size = 0;
+          query.limit(step.limit);
+          break;
       }
     }
     if(query.tables.length) {
@@ -724,7 +938,7 @@ function walk(tree, indent = 0) {
     let plan = treeToPlan(tree);
     console.log("PLAN:", plan);
     let query = planToQuery(plan);
-    console.log(plan);
+    console.log(query);
 //     console.log("paper -> author");
 //     findCollectionToCollectionRelationship("paper", "author")
 //     console.log("people -> american");
@@ -1300,6 +1514,58 @@ function walk(tree, indent = 0) {
     }
     prev.count++;
     return prev;
+  });
+
+  runtime.define("sum", {}, function(prev, value) {
+    if(!prev.sum) {
+      prev.sum = 0;
+    }
+    prev.sum += value;
+    return prev;
+  });
+
+  runtime.define("average", {}, function(prev, value) {
+    if(!prev.sum) {
+      prev.sum = 0;
+      prev.count = 0;
+    }
+    prev.count++;
+    prev.sum += value;
+    prev.average = prev.sum / prev.count;
+    return prev;
+  });
+
+
+  runtime.define(">", {filter: true}, function(a, b) {
+    return a > b ? runtime.SUCCEED : runtime.FAIL;
+  });
+
+  runtime.define("<", {filter: true}, function(a, b) {
+    return a < b ? runtime.SUCCEED : runtime.FAIL;
+  });
+
+  runtime.define(">=", {filter: true}, function(a, b) {
+    return a >= b ? runtime.SUCCEED : runtime.FAIL;
+  });
+
+  runtime.define("<=", {filter: true}, function(a, b) {
+    return a <= b ? runtime.SUCCEED : runtime.FAIL;
+  });
+
+  runtime.define("+", {}, function(a, b) {
+    return {result: a + b};
+  });
+
+  runtime.define("-", {}, function(a, b) {
+    return {result: a - b};
+  });
+
+  runtime.define("*", {}, function(a, b) {
+    return {result: a * b};
+  });
+
+  runtime.define("/", {}, function(a, b) {
+    return {result: a / b};
   });
 
   //---------------------------------------------------------

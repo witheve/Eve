@@ -427,7 +427,9 @@ return index;`
       if(as) {
         this.aliases[as] = Object.keys(this.aliases).length;
       }
-      this.unprojectedSize++;
+      if(!QueryFunctions[funcName].filter) {
+        this.unprojectedSize++;
+      }
       this.funcs.push({name: funcName, args, as, ix: this.aliases[as]});
       return this;
     }
@@ -455,6 +457,7 @@ return index;`
       if(as) {
         this.aliases[as] = Object.keys(this.aliases).length;
       }
+      this.unprojectedSize++;
       this.aggregates.push({name: funcName, args, as, ix: this.aliases[as]});
       return this;
     }
@@ -561,7 +564,8 @@ return index;`
           let funcInfo = QueryFunctions[name];
           this.applyAliases(args);
           root.children.unshift({type: "functionDeclaration", ix, info: funcInfo});
-          aggregateChildren.push({type: "functionCall", ix, args, info: funcInfo, unprojected: true, children: []});
+          aggregateChildren.push({type: "functionCall", ix, resultsIx: results.length, args, info: funcInfo, unprojected: true, children: []});
+          results.push({type: "placeholder"});
         }
         let aggregate = {type: "aggregate loop", groups: this.groups, limit: this.limitInfo, size, children: aggregateChildren};
         root.children.push(aggregate);
@@ -664,8 +668,12 @@ return index;`
         case "result":
           var results = [];
           for(var result of root.results) {
-            let ix = result.ix;
-            results.push(`row${ix}`);
+            if(result.type === "placeholder") {
+              results.push("undefined");
+            } else {
+              let ix = result.ix;
+              results.push(`row${ix}`);
+            }
           }
           code += `unprojected.push(${results.join(", ")});\n`;
           break;
@@ -682,6 +690,7 @@ return index;`
             if(agg.type === "functionCall") {
               unprojected[agg.ix] = true;
               let compiled = this.compileAST(agg);
+              compiled += `\nunprojected[ix + ${agg.resultsIx}] = row${agg.ix};\n`;
               aggregateCalls.push(compiled);
               aggregateStates.push(`var row${agg.ix} = {};`);
               aggregateResets.push(`row${agg.ix} = {};`);
@@ -706,12 +715,27 @@ return index;`
           }
           let groupLimitCheck = "";
           if(root.limit && root.limit.perGroup && root.groups) {
-            groupLimitCheck = `if(perGroupCount === ${root.limit.results}) {
+            groupLimitCheck = `if(perGroupCount === ${root.limit.perGroup}) {
               while(nextIx < len && !differentGroup) {
                 nextIx += ${root.size};
                 differentGroup = ${groupCheck};
               }
             }`;
+          }
+          let groupDifference = "";
+          if(this.groups) {
+            groupDifference = `
+            perGroupCount++
+            var differentGroup = ${groupCheck};
+            ${groupLimitCheck}
+            if(differentGroup) {
+              ${projection}
+              ${aggregateResets.join("\n")}
+              perGroupCount = 0;
+              resultCount++;
+            }\n`;
+          } else {
+            groupDifference = "resultCount++;\n";
           }
           // if there are neither aggregates to calculate nor groups to build,
           // then we just need to worry about limiting
@@ -740,15 +764,7 @@ return index;`
                       break;
                     }
                     nextIx += ${root.size};
-                    perGroupCount++
-                    var differentGroup = ${groupCheck};
-                    ${groupLimitCheck}
-                    if(differentGroup) {
-                      ${projection}
-                      ${aggregateResets.join("\n")}
-                      perGroupCount = 0;
-                      resultCount++;
-                    }
+                    ${groupDifference}
                     ${resultsCheck}
                     ix = nextIx;
                   }\n`;
