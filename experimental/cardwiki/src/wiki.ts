@@ -287,6 +287,7 @@ module wiki {
     "without": "deselect",
     "not": "deselect",
     "aren't": "deselect",
+    "except": "engineering",
   }
   var operations = {
     "sum": {op: "sum", argCount: 1},
@@ -357,15 +358,6 @@ module wiki {
     }
     all.sort((a, b) => a.pos - b.pos);
     return all;
-  }
-
-
-  var tokenTypeScore = {
-    "collection": 1,
-    "entity": 2,
-    "attribute": 3,
-    "operation": 4,
-    "value": 5,
   }
 
 function walk(tree, indent = 0) {
@@ -506,6 +498,13 @@ function walk(tree, indent = 0) {
       else if(cursor.type === "entity" || cursor.type === "collection") {
         let cursorRel = tokensToRelationship(cursor, token);
         let rootRel = tokensToRelationship(root, token);
+        // if this token is an entity and either root or cursor has a direct relationship
+        // we don't really want to use that as it's most likely meant to filter a set down
+        // instead of reduce the set to exactly one ent
+        if(token.type === "entity") {
+          if(cursorRel && cursorRel.distance === 0) cursorRel = null;
+          if(rootRel && rootRel.distance === 0) rootRel = null;
+        }
         if(!cursorRel) {
           activeRoot.children.push(token);
         } else if(!rootRel) {
@@ -552,61 +551,180 @@ function walk(tree, indent = 0) {
     return root;
   }
 
-  function newSearch(searchString) {
-    let all = newSearchTokens(searchString);
-    planTree(searchString);
-    // start coming up with a plan
-    let plan = [];
-    let ops = [];
-    let state = {prev: null, prevCollection: null};
-    for(let part of all) {
-      let {type} = part;
-      if(type === "operation") {
-        ops.push(part);
-      }
-      let isEdible = (part.type === "attribute" || part.type === "collection" || part.type === "entity");
-      let prev = state.prev;
-      if(!prev && isEdible) {
-        state.prev = part;
-        if(part.type === "collection") {
-          state.prevCollection = part;
-        }
-      } else if(prev && isEdible) {
-        if(prev.type === "entity") {
-          if(part.type === "collection") {
-            plan.push(prev, findCollectionToEntRelationship(part.found, prev.found) || "Unknown", part);
-          } else if(part.type === "entity") {
-            if(state.prevCollection) {
-              plan.push(state.prevCollection, findCollectionToEntRelationship(state.prevCollection.found, part.found) || "Unknown", part);
-            } else {
-            }
-//             plan.push(findCollectionToCollectionRelationship(prev.found, part.found) || "Unknown");
-          } else if(part.type === "attribute") {
-            plan.push(prev, findEntToAttrRelationship(prev.found, part.found) || "Unknown", part);
-          }
-        } else if(prev.type === "collection") {
-          if(part.type === "collection") {
-            plan.push(prev, findCollectionToCollectionRelationship(prev.found, part.found) || "Unknown", part);
-          } else if(part.type === "entity") {
-            plan.push(prev, findCollectionToEntRelationship(prev.found, part.found) || "Unknown", part);
-          } else if(part.type === "attribute") {
-            plan.push(prev, findCollectionToAttrRelationship(prev.found, part.found) || "Unknown", part);
-          }
-        } else if(prev.type === "attribute") {
-          if(part.type === "collection") {
-            plan.push(part, findCollectionToAttrRelationship(part.found, prev.found) || "Unknown", prev);
-          } else if(part.type === "entity") {
-            plan.push(part, findEntToAttrRelationship(part.found, prev.found) || "Unknown", prev);
-          }
-        }
-        state.prev = part;
+  function ignoreHiddenCollections(colls) {
+    for(let coll of colls) {
+      if(coll !== "unknown" && coll !== "history" && coll !== "collection") {
+        return coll;
       }
     }
-    console.log(all);
+  }
+
+  function nodeToPlanStep(node, parent, parentPlan) {
+    //TODO: figure out what to do with operations
+    if(parent) {
+      let {deselect} = node;
+      let rel = tokensToRelationship(parent, node);
+      console.log(rel);
+      if(!rel) {
+        return [];
+      }
+      switch(rel.type) {
+        case "coll->eav":
+          let plan = [];
+          let curParent = parentPlan;
+          for(let node of rel.nodes) {
+            let coll = ignoreHiddenCollections(node);
+            let item = {type: "gather", relatedTo: curParent, collection: coll};
+            plan.push(item);
+            curParent = item;
+          }
+          plan.push({type: "lookup", relatedTo: curParent, attribute: node.found, deselect});
+          return plan;
+          break;
+        case "coll->ent":
+          let plan = [];
+          let curParent = parentPlan;
+          for(let node of rel.nodes) {
+            let coll = ignoreHiddenCollections(node);
+            let item = {type: "gather", relatedTo: curParent, collection: coll};
+            plan.push(item);
+            curParent = item;
+          }
+          plan.push({type: "filter by entity", relatedTo: curParent, entity: node.found, deselect});
+          return plan;
+          break;
+        case "coll->coll":
+          if(rel.distance === 0) {
+            return [{type: "intersect", relatedTo: parentPlan, collection: node.found, deselect}];
+          } else {
+            return [{type: "gather", relatedTo: parentPlan, collection: node.found, deselect}];
+          }
+          break;
+        case "ent->eav":
+          if(rel.distance === 0) {
+            return [{type: "lookup", relatedTo: parentPlan, attribute: node.found, deselect}];
+          } else {
+            let plan = [];
+            let curParent = parentPlan;
+            for(let node of rel.nodes) {
+              let coll = ignoreHiddenCollections(node);
+              let item = {type: "gather", relatedTo: curParent, collection: coll};
+              plan.push(item);
+              curParent = item;
+            }
+            plan.push({type: "lookup", relatedTo: curParent, attribute: node.found, deselect});
+            return plan;
+          }
+          break;
+        case "deck->ent":
+          break;
+      }
+    } else {
+      if(node.type === "collection") {
+        return [{type: "gather", collection: node.found, deselect}];
+      } else if(node.type === "entity") {
+        return [{type: "find", entity: node.found, deselect}];
+      }
+      return [];
+    }
+  }
+
+  function treeToPlan(tree, parent = null, parentPlan = null) {
+    if(!tree) return [];
+    let plan = [];
+    //process you, then your children
+    plan.push.apply(plan, nodeToPlanStep(tree, parent, parentPlan));
+    let neueParentPlan = plan[plan.length - 1];
+    for(let child of tree.children) {
+      plan.push.apply(plan, treeToPlan(child, tree, neueParentPlan));
+    }
+    return plan;
+  }
+
+  function planToQuery(plan) {
+    let query = eve.query();
+    for(let step of plan) {
+      step.id = uuid();
+      switch(step.type) {
+        case "find":
+          // find is a no-op
+          step.size = 0;
+          break;
+        case "gather":
+          let join = {deck: step.collection};
+          let related = step.relatedTo;
+          if(related) {
+            if(related.type === "find") {
+              step.size = 2;
+              let linkId = `${step.id} | link`;
+              query.select("directionless links", {page: related.entity}, linkId);
+              join.page = [linkId, "link"];
+              query.select("deck pages", join, step.id);
+            } else {
+              step.size = 2;
+              let linkId = `${step.id} | link`;
+              query.select("directionless links", {page: [related.id, "page"]}, linkId);
+              join.page = [linkId, "link"];
+              query.select("deck pages", join, step.id);
+            }
+          } else {
+            step.size = 1;
+            query.select("deck pages", join, step.id);
+          }
+          break;
+        case "lookup":
+          let join = {attribute: step.attribute};
+          let related = step.relatedTo;
+          if(related) {
+            if(related.type === "find") {
+              join.page = related.entity;
+            } else {
+              join.page = [related.id, "page"];
+            }
+          }
+          step.size = 1;
+          query.select("page eavs", join, step.id);
+          break;
+        case "intersect":
+          let related = step.relatedTo;
+          if(step.deselect) {
+            step.size = 0;
+            query.deselect("deck pages", {deck: step.collection, page: [related.id, "page"]}, step.id);
+          } else {
+            step.size = 1;
+            query.select("deck pages", {deck: step.collection, page: [related.id, "page"]}, step.id);
+          }
+          break;
+        case "filter by entity":
+          let related = step.relatedTo;
+          let linkId = `${step.id} | link`;
+          if(step.deselect) {
+            step.size = 0;
+            query.deselect("directionless links", {page: [related.id, "page"], link: step.entity}, step.id);
+          } else {
+            step.size = 1;
+            query.select("directionless links", {page: [related.id, "page"], link: step.entity}, step.id);
+          }
+          break;
+      }
+    }
+    if(query.tables.length) {
+      console.log(query.debug());
+    }
+    return query;
+  }
+
+  function newSearch(searchString) {
+    let all = newSearchTokens(searchString);
+    let tree = planTree(searchString);
+    let plan = treeToPlan(tree);
+    console.log("PLAN:", plan);
+    let query = planToQuery(plan);
     console.log(plan);
 //     console.log("paper -> author");
 //     findCollectionToCollectionRelationship("paper", "author")
 //     console.log("people -> american");
+//     console.log(findCollectionToEntRelationship("person", "edward norton"));
 //     findCollectionToCollectionRelationship("person", "american")
 //     findEntToAttrRelationship("engineering", "salary");
 //     findEntToAttrRelationship("chris granger", "age");
@@ -617,7 +735,7 @@ function walk(tree, indent = 0) {
 //     findCollectionToEntRelationship("decks", "chris granger");
 //     findCollectionToEntRelationship("person", "california");
 //     console.log("common", findCommonCollections(["chris granger", "jamie brandon"]));
-    return all;
+    return {tokens: all, plan, query};
   }
 
   function arrayIntersect(a, b) {
@@ -669,7 +787,7 @@ function walk(tree, indent = 0) {
     // check if this ent has that attr
     let directAttribute = eve.findOne("page eavs", {page: ent, attribute: attr});
     if(directAttribute) {
-      return {distance: 0};
+      return {distance: 0, type: "ent->eav"};
     }
     let relationships = eve.query(``)
                   .select("page links", {page: ent}, "links")
@@ -677,7 +795,7 @@ function walk(tree, indent = 0) {
                   .exec();
     if(relationships.unprojected.length) {
       let pages = extractFromUnprojected(relationships.unprojected, 0, "link", 2);
-      return {distance: 1, nodes: [findCommonCollections(pages)]};
+      return {distance: 1, type: "ent->eav", nodes: [findCommonCollections(pages)]};
     }
     let relationships2 = eve.query(``)
                   .select("page links", {page: ent}, "links")
@@ -687,12 +805,20 @@ function walk(tree, indent = 0) {
     if(relationships2.unprojected.length) {
       let pages = extractFromUnprojected(relationships2.unprojected, 0, "link", 3);
       let pages2 = extractFromUnprojected(relationships2.unprojected, 1, "link", 3);
-      return {distance: 2, nodes: [findCommonCollections(pages), findCommonCollections(pages2)]};
+      return {distance: 2, type: "ent->eav", nodes: [findCommonCollections(pages), findCommonCollections(pages2)]};
     }
   }
 
   // e.g. "salaries per department"
   function findCollectionToAttrRelationship(coll, attr) {
+    console.log("coll->eav", coll, attr);
+    let direct = eve.query(``)
+                  .select("deck pages", {deck: coll}, "deck")
+                  .select("page eavs", {page: ["deck", "page"], attribute: attr}, "eav")
+                  .exec();
+    if(direct.unprojected.length) {
+      return {distance: 0, type: "coll->eav", nodes: []};
+    }
     let relationships = eve.query(``)
                   .select("deck pages", {deck: coll}, "deck")
                   .select("directionless links", {page: ["deck", "page"]}, "links")
@@ -700,7 +826,7 @@ function walk(tree, indent = 0) {
                   .exec();
     if(relationships.unprojected.length) {
       let pages = extractFromUnprojected(relationships.unprojected, 1, "link", 3);
-      return {distance: 1, nodes: [findCommonCollections(pages)]};
+      return {distance: 1, type: "coll->eav", nodes: [findCommonCollections(pages)]};
     }
     let relationships2 = eve.query(``)
                   .select("deck pages", {deck: coll}, "deck")
@@ -711,32 +837,38 @@ function walk(tree, indent = 0) {
     if(relationships2.unprojected.length) {
       let pages = extractFromUnprojected(relationships2.unprojected, 1, "link", 4);
       let pages2 = extractFromUnprojected(relationships2.unprojected, 2, "link", 4);
-      return {distance: 2, nodes: [findCommonCollections(pages), findCommonCollections(pages2)]};
+      return {distance: 2, type: "coll->eav", nodes: [findCommonCollections(pages), findCommonCollections(pages2)]};
     }
   }
 
   // e.g. "meetings john was in"
   function findCollectionToEntRelationship(coll, ent) {
+    console.log("coll to ent", coll, ent);
     if(coll === "decks") {
-      return eve.find("deck pages", {page: ent});
+      if(eve.findOne("deck pages", {page: ent})) {
+        return {distance: 0, type: "ent->deck"};
+      }
+    }
+    if(eve.findOne("deck pages", {deck: coll, page: ent})) {
+      return {distance: 0, type: "coll->ent", nodes: []};
     }
     let relationships = eve.query(``)
                   .select("deck pages", {deck: coll}, "deck")
                   .select("directionless links", {page: ["deck", "page"], link: ent}, "links")
                   .exec();
     if(relationships.unprojected.length) {
-//       let pages = extractFromUnprojected(relationships.unprojected, 1, "link", 2);
-      return {distance: 0, nodes: []};
+      return {distance: 1, type: "coll->ent", nodes: []};
     }
+    // e.g. events with chris granger (events -> meetings -> chris granger)
     let relationships2 = eve.query(``)
                   .select("deck pages", {deck: coll}, "deck")
                   .select("directionless links", {page: ["deck", "page"]}, "links")
                   .select("directionless links", {page: ["links", "link"], link: ent}, "links2")
                   .exec();
+    console.log("relationships 2", relationships2);
     if(relationships2.unprojected.length) {
       let pages = extractFromUnprojected(relationships2.unprojected, 1, "link", 3);
-      let pages2 = extractFromUnprojected(relationships2.unprojected, 2, "link", 3);
-      return {distance: 2, nodes: [findCommonCollections(pages), findCommonCollections(pages2)]};
+      return {distance: 2, type: "coll->ent", nodes: [findCommonCollections(pages)]};
     }
   }
 
@@ -766,11 +898,13 @@ function walk(tree, indent = 0) {
     // and we have two selects.
     let intersectionSize = intersection.unprojected.length / 2;
     if(maxRel.count > intersectionSize) {
-
+      return {distance: 1, type: "coll->coll"};
     } else if(intersectionSize > maxRel.count) {
-
+      return {distance: 0, type: "coll->coll"};
+    } else if(maxRel.count === 0 && intersectionSize === 0) {
+      return;
     } else {
-
+      return {distance: 1, type: "coll->coll"};
     }
   }
 
@@ -883,13 +1017,15 @@ function walk(tree, indent = 0) {
   //---------------------------------------------------------
 
   app.handle("startEditingArticle", (result, info) => {
-    result.add("editing", {editing: true, page: info.page});
+    let page = info.page.toLowerCase();
+    result.add("editing", {editing: true, page});
   });
 
   app.handle("stopEditingArticle", (result, info) => {
     if(!eve.findOne("editing")) return;
     result.remove("editing");
     let {page, value} = info;
+    page = page.toLowerCase();
     result.add("page", {page, text: value});
     result.remove("page", {page});
   });
@@ -915,7 +1051,7 @@ function walk(tree, indent = 0) {
     return {id: "root", c: "root", children: [
       {c: "spacer"},
       {c: "search-input", t: "input", type: "text", placeholder: "search", keydown: maybeSubmitSearch, value: search},
-      searchResults(),
+      newSearchResults(),
 //       relatedItems(),
       {c: "spacer"},
       historyStack(),
@@ -941,12 +1077,11 @@ function walk(tree, indent = 0) {
     return {children: items};
   }
 
-  function searchDescription() {
+  function searchDescription(tokens, plan) {
     let search = eve.findOne("search")["search"];
-    let parts = newSearch(search);
     let ix = 0;
     let children = [];
-    for(let part of parts) {
+    for(let part of tokens) {
       let {type, pos} = part;
       if(ix < pos) {
         children.push({c: "text", text: search.substring(ix, pos)});
@@ -957,7 +1092,46 @@ function walk(tree, indent = 0) {
     if(ix < search.length) {
       children.push({c: "text", text: search.substring(ix)});
     }
-    return {c: "search-description", children};
+
+    let planChildren = [];
+    for(let step of plan) {
+      planChildren.push({c: "text", text: `${step.type}->`});
+    }
+    return {c: "container", children: [
+      {c: "search-description", children},
+      {c: "search-plan", children: planChildren}
+    ]};
+  }
+
+  function newSearchResults() {
+    let search = eve.findOne("search")["search"];
+    let {tokens, plan, query} = newSearch(search);
+    let results = query.exec();
+    let resultItems = [];
+    let planLength = plan.length;
+    for(let ix = 0, len = results.unprojected.length; ix < len; ix += query.unprojectedSize) {
+      let resultItem = {c: "path", children: []};
+      let planOffset = 0;
+      for(let planIx = 0; planIx < planLength; planIx++) {
+        let planItem = plan[planIx];
+        if(planItem.size) {
+          let resultPart = results.unprojected[ix + planOffset + planItem.size - 1];
+          resultItem.children.push({c: "step", text: JSON.stringify(resultPart)});
+          planOffset += planItem.size;
+        }
+      }
+      resultItems.push(resultItem);
+    }
+    if(plan.length === 1 && plan[0].type === "find") {
+      resultItems.push({c: "singleton", children: [articleUi(plan[0].entity)]});
+    } else if(plan.length === 0) {
+      resultItems.push({c: "singleton", children: [articleUi(search)]});
+    }
+    return {c: "container", children: [
+      searchDescription(tokens, plan),
+      {c: "search-results", children: resultItems},
+    ]};
+
   }
 
   function searchResults() {
@@ -1134,8 +1308,8 @@ function walk(tree, indent = 0) {
              .project({page: ["page", "page"], link: ["links", "link"], type: ["links", "type"]}));
 
   eve.asView(eve.union("directionless links")
-                .union("page links", {page: ["page"], link: ["link"], type: ["type"]})
-                .union("page links", {page: ["link"], link: ["page"], type: ["type"]}));
+                .union("page links", {page: ["page"], link: ["link"]})
+                .union("page links", {page: ["link"], link: ["page"]}));
 
   eve.asView(eve.query("search results")
              .select("search", {}, "search")

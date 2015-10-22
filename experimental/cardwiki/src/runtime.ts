@@ -398,7 +398,7 @@ return index;`
     constructor(ixer, name = "unknown") {
       this.name = name;
       this.ixer = ixer;
-      this.dirty = false;
+      this.dirty = true;
       this.tables = [];
       this.joins = [];
       this.aliases = {};
