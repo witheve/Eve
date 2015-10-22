@@ -403,7 +403,7 @@ module Api {
         for(let fieldId in schema.foreign) {
           let dependents = this.dependents[fact[fieldId]] || (this.dependents[fact[fieldId]] = {});
           dependents[viewId] = (dependents[viewId] || 0) + 1;
-          if(dependents[viewId] > 1) throw new Error(`Relationship for '${viewId}' should be 1:1 but is 1:N with '${this.context[fact[fieldId]]}'`);
+          if(dependents[viewId] > 1) throw new Error(`Relationship for '${viewId}' should be 1:1 but is 1:N with '${fieldId}' = '${fact[fieldId]}'`);
         }
       }
 
