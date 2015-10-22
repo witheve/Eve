@@ -3,7 +3,7 @@ module Editor {
   // Dispatcher
   //---------------------------------------------------------------------------
 
-  class DispatchEffect {
+  export class DispatchEffect {
     static inProgress = 0;
 
     static from(caller?):DispatchEffect {
@@ -74,12 +74,20 @@ module Editor {
       localState.editing = editing;
       return effect;
     },
+    addFingerprint: function({viewId, fingerprint, fieldIds}:{viewId:string, fingerprint:string, fieldIds: string[]}) {
+      let effect = DispatchEffect.from(this);
+      effect.change.add("view fingerprint", {"view fingerprint: view": viewId, "view fingerprint: fingerprint": fingerprint})
+        .addEach("fingerprint field", fieldIds.map((fieldId, ix) => {return {"fingerprint field: field": fieldId, "fingerprint field: ix": ix}}));
+      return effect;
+    },
     loadQuery: function({viewId}:{viewId:string}) {
       let effect = DispatchEffect.from(this);
       if(viewId) {
         let ast = Api.ixer.findOne("ast cache", {"ast cache: id": viewId, "ast cache: kind": "query"});
         if(ast) localState.query.loadFromAST(JSON.parse(ast["ast cache: ast"]), viewId);
         else localState.query.loadFromView(viewId);
+      } else {
+        localState.query = new Parsers.Query();
       }
       return effect;
     },
@@ -95,7 +103,7 @@ module Editor {
       if(!reified) throw new Error("Cannot compile unreified query.");
       if(query.id) {
         effect.change.removeWithDependents("view", {"view: view": query.id})
-          .removeWithDependents("ast cache", {"ast cache: id": query.id});
+          .removeWithDependents("ast cache", {"ast cache: id": query.id})
       }
       effect.change.add("view", {"view: view": query.id, "view: kind": "join"})
         .add("display name", query.name || "Untitled Search");
@@ -127,6 +135,56 @@ module Editor {
           .add("select");
       }
 
+      for(let action of reified.actions) { // Actions
+        if(action.action === "+") {
+          let {"view fingerprint: view":viewId} = Api.ixer.findOne("view fingerprint", {"view fingerprint: fingerprint": action.fingerprint}) || {};
+          let fieldIds = [];
+          if(!viewId) {
+            for(let ix = 0; ix < action.mappings.length; ix++) fieldIds.push(Api.uuid());
+            effect.change.add("view", "union")
+              .add("display name", action.fingerprint);
+            let ix = 0;
+            for(let fieldId of fieldIds) {
+              effect.change.add("field", {"field: field": fieldId, "field: kind": "output"})
+                .add("display name", reified.variables[action.mappings[ix]].alias)
+                .add("display order", ix++)
+            }
+            effect.dispatch("addFingerprint", {viewId, fingerprint: action.fingerprint, fieldIds});
+          } else {
+            let fingerprintFields = Api.ixer.find("fingerprint field", {"fingerprint field: fingerprint": action.fingerprint});
+            if(!fingerprintFields) throw new Error("WUT DO");
+            fingerprintFields.sort(function(a, b) {
+              return a["fingerprint field: ix"] - b["fingerprint field: ix"];
+            });
+            fieldIds = Api.extract("fingerprint field: field", fingerprintFields);
+          }
+
+          let member = Api.ixer.findOne("member", {"member: view": viewId, "member: member view": query.id});
+          if(member) {
+            effect.change.add("member", Api.resolve("member",
+              {member: member["member: member"], view: viewId, ix: member["member: ix"], "member view": query.id})
+            );
+          } else {
+            let memberIx = action.memberIx;
+            if(memberIx === undefined) {
+              memberIx = Math.max.apply(Math, Api.extract("member: ix", Api.ixer.find("member", {"member: view": viewId})));
+              memberIx = memberIx > -Infinity ? memberIx + 1 : 0;
+            }
+            effect.change.add("member", Api.resolve("member", {view: viewId, ix: memberIx, "member view": query.id}));
+          }
+
+          let ix = 0;
+          for(let fieldId of fieldIds) {
+            let variable = reified.variables[action.mappings[ix++]];
+            effect.change.add("mapping", Api.resolve("mapping", {"view field": fieldId, "member field": variable.selected}));
+          }
+
+          // @TODO: Add support for negation (requires ordering across multiple children...)
+        } else {
+          throw new Error(`Unknown action '${action.action}':` + JSON.stringify(action));
+        }
+      }
+
       if(query.tags) effect.dispatch("setTags", {id: query.id, tags: query.tags});
       if(query.ast)
         effect.change.add("ast cache", {"ast cache: id": query.id, "ast cache: kind": "query", "ast cache: ast": JSON.stringify(query.ast)});
@@ -140,10 +198,9 @@ module Editor {
         let ast = Api.ixer.findOne("ast cache", {"ast cache: id": elemId, "ast cache: kind": "ui"});
         if(ast) localState.ui.loadFromAST(JSON.parse(ast["ast cache: ast"]), elemId);
         else localState.ui.loadFromElement(elemId);
+      } else {
+        localState.ui = new Parsers.Ui();
       }
-
-      localState.ui.name = Api.get.name(elemId) || undefined;
-      localState.ui.tags = Api.get.tags(elemId) || [];
       return effect;
     },
     parseUi: function({ui:uiString}:{ui:string}) {
@@ -331,7 +388,7 @@ module Editor {
           ]};
         }
         return {c: "warning-row", children: [
-          {text: warning["disabled view: warning"]},
+          {text: warningView + " error: \n" + warning["disabled view: warning"] + "\n" + JSON.stringify(row)},
           explanation
         ]};
       });
