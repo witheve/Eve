@@ -284,6 +284,7 @@ module wiki {
   var modifiers = {
     "per": "group",
     "each": "group",
+    "grouped": "group",
     "without": "deselect",
     "not": "deselect",
     "aren't": "deselect",
@@ -418,8 +419,8 @@ function walk(tree, indent = 0) {
     }
     tree.roots.push(root);
     for(let tokenIx = 0, len = tokens.length; tokenIx < len; tokenIx++) {
-      token.id = uuid();
       let token = tokens[tokenIx];
+      token.id = uuid();
       let {type} = token;
 
       if(state.group && (type === "collection" || type === "attribute")) {
@@ -811,7 +812,7 @@ function walk(tree, indent = 0) {
     for(let node of nodes) {
       if(node.type === "collection") {
         groups.push([node.id, "page"]);
-      } else if(node.type === "") {
+      } else if(node.type === "attribute") {
         groups.push([node.id, "value"]);
       } else {
         throw new Error("Invalid node to group on: " + JSON.stringify(nodes));
