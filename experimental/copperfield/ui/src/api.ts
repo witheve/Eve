@@ -10,7 +10,9 @@ module Api {
   export var DEBUG = {
     RECEIVE: 0,
     SEND: 0,
+    DISPATCH: false,
     STRUCTURED_CHANGE: false,
+    BOOTSTRAP: true,
     RENDERER: false,
     RENDER_TIME: false,
     TABLE_CELL_LOOKUP: true
@@ -270,8 +272,8 @@ module Api {
     dependents?: Id[]
   }
 
-  const EDITOR_PKS = {tag: "", uiElement: "element"};
-  const EDITOR_FKS = {"uiElement: parent": "element"};
+  const EDITOR_PKS = {tag: "", uiElement: "element", "view fingerprint": "fingerprint"};
+  const EDITOR_FKS = {"uiElement: parent": "element", "member: member view": "view", "mapping: member field": "field"};
   const EDITOR_PK_DEPS = [
     ["display name", "display name: id"],
     ["display order", "display order: id"],
@@ -313,17 +315,11 @@ module Api {
           schema.key = fieldId;
           keys[fieldName] = [viewId, fieldId];
         } else { // Field is either a foreign key or unbound.
-          // Field is explicitly foreign in an override.
-          let manualPrimaryFieldId = EDITOR_FKS[fieldId];
-          if(manualPrimaryFieldId) {
-            if(!schema.foreign) schema.foreign = {};
-            schema.foreign[fieldId] = manualPrimaryFieldId;
-
-          } else {
-            if(!names[fieldName]) names[fieldName] = [];
-            names[fieldName].push([viewId, fieldId]);
-            schema.unboundFields.push(fieldId);
-          }
+          // If fieldId is in EDITOR_FKS (a custom foreign mapping), override it's fieldName.
+          fieldName = EDITOR_FKS[fieldId] || fieldName;
+          if(!names[fieldName]) names[fieldName] = [];
+          names[fieldName].push([viewId, fieldId]);
+          schema.unboundFields.push(fieldId);
         }
       }
     }
@@ -332,7 +328,7 @@ module Api {
     for(let name in keys) {
       let [primaryViewId, primaryFieldId] = keys[name];
       let primarySchema = schemas[primaryViewId];
-      primarySchema.dependents = [];
+      primarySchema.dependents = primarySchema.dependents || [];
 
       // Generic PKey foreign dependents
       // @NOTE: Must come first to prevent $$LAST_PKEY from being overwritten by other dependents.

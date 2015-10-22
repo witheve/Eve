@@ -14,14 +14,13 @@ module Ui {
   type Control = Element;
 
   export interface Pane {
-    title:Content
-    id:string
-    content:Content
+    pane: string
+    content: Content
+    title: Content
   }
 
   export interface UiState {
-    tabbedBox: {[id:string]: string}
-    accordion: {[id:string]: string}
+    container: {[id:string]: {selected: string}}
     sort: {[id:string]: {field: string, direction: number}}
   }
 
@@ -61,8 +60,7 @@ module Ui {
   //---------------------------------------------------------
   export var onChange = () => undefined;
   export var uiState:UiState = {
-    tabbedBox: {},
-    accordion: {},
+    container: {},
     sort: {}
   };
 
@@ -76,12 +74,8 @@ module Ui {
   }
 
   export var dispatches:{[evt:string]: (info:{}) => boolean} = {
-    switchTab: ({tab, tabbedBox}:{tab:string, tabbedBox:string}) => {
-      uiState.tabbedBox[tabbedBox] = tab;
-      return true;
-    },
-    switchAccordion: ({pane, accordion}:{pane:string, accordion:string}) => {
-      uiState.accordion[accordion] = pane;
+    switchPane: ({pane, container}:{pane:string, container:string}) => {
+      uiState.container[container].selected = pane;
       return true;
     },
     setSort: ({forId, fieldId, direction}:{forId:string, fieldId: string, direction:number}) => {
@@ -102,80 +96,78 @@ module Ui {
     }
   }
 
+  function switchPane(evt, elem) {
+    dispatch("switchPane", {container: elem.container, pane: elem.pane});
+    if(elem.change) elem.change(evt, elem);
+  }
+
   //---------------------------------------------------------
   // Containers
   //---------------------------------------------------------
   export interface TabbedBoxElement extends Element {
+    container: string
     panes: Pane[]
-    controls?:Control[]
-    defaultTab?:string
-    direction?:string
+    controls?: Control[]
+    defaultPane?: string
+    horizontal?: boolean
 
-    tabChange?:Handler
+    paneChange?: Handler
   }
   export function tabbedBox(elem:TabbedBoxElement):Element {
-    let {id, defaultTab, panes = [], controls = [], direction = "column"} = elem;
+    let {container, defaultPane, panes, controls = [], horizontal = false} = elem;
     if(panes.length < 1) { return; }
-    let tabs = [];
-    let currentPane;
-    let selected = uiState.tabbedBox[id];
+    if(!uiState.container[container]) uiState.container[container] = {selected: undefined};
+
+    let selected = uiState.container[container].selected;
     if(selected === undefined) {
-      selected = uiState.tabbedBox[id] = (defaultTab !== undefined) ? defaultTab : panes[0].id;
+      selected = uiState.container[container].selected = (defaultPane !== undefined) ? defaultPane : panes[0].pane;
     }
 
+    let tabs = [];
+    let currentPane:Pane;
     for(let pane of panes) {
-      let isSelected = (pane.id === selected);
-      tabs.push(inject({c: isSelected ? "tab selected" : "tab", tab: pane.id, tabbedBox: id, semantic: "item::tab::" + pane.id, click: switchTab, change: elem.tabChange}, pane.title));
-      if(isSelected) {
-        currentPane = pane;
-      }
+      let isSelected = (pane.pane === selected);
+      if(isSelected) { currentPane = pane; }
+      tabs.push(inject({c: isSelected ? "tab selected" : "tab", pane: pane.pane, container, semantic: "item::tab::" + pane.pane, click: switchPane, change: elem.paneChange}, pane.title));
     }
-    elem.c = `tabbed-box ${elem.c || ""}`;
-    if(elem.c.indexOf("ui-row") !== -1) { direction = "row"; }
-    else if(direction === "row") { elem.c += " ui-row"; }
+    elem.c = `container tabbed-box ${elem.c || ""}`;
+    if(elem.c.indexOf("ui-row") !== -1) { horizontal = true; }
+    else if(horizontal) { elem.c += " ui-row"; }
 
     elem.children = [
-      {c: `tabs ${direction === "column" ? "ui-row ui-spaced-row" : ""}`, children: tabs.concat(spacer()).concat(controls)},
-      inject({c: "pane"}, currentPane.content)
+      {c: `tabs ${!horizontal ? "ui-row ui-spaced-row" : ""}`, children: tabs.concat(spacer()).concat(controls)},
+      inject({c: "pane selected"}, currentPane.content)
     ];
     return elem;
   }
 
-  function switchTab(evt, elem) {
-    dispatch("switchTab", {tabbedBox: elem.tabbedBox, tab: elem.tab});
-    if(elem.change) elem.change(evt, elem);
-  }
-
   export interface AccordionElement extends Element {
+    container: string
     panes: Pane[]
-    defaultPane?:string
-    horizontal?:boolean
+    defaultPane?: string
+    horizontal?: boolean
+
+    paneChange?: Handler
   }
   export function accordion(elem:AccordionElement):Element {
-    let {id, defaultPane, panes = [], horizontal} = elem;
+    let {container, defaultPane, panes, horizontal = false} = elem;
     if(panes.length < 1) { return; }
-    let tabs = [];
-    let currentPane;
+    if(!uiState.container[container]) uiState.container[container] = {selected: undefined};
 
-    // manage the default selected pane if none is supplied
-    let selected = uiState.accordion[id];
+    let selected = uiState.container[container].selected;
     if(selected === undefined) {
-      selected = uiState.tabbedBox[id] = (defaultPane !== undefined) ? defaultPane : panes[0].id;
+      selected = uiState.container[container].selected = (defaultPane !== undefined) ? defaultPane : panes[0].pane;
     }
 
-    elem.c = `accordion ${elem.c || ""}`;
     elem.children = [];
-    // for each pane, inject the title, and if the pane is selected its content
-    for(let p of panes) {
-      let isSelected = (p.id === selected);
-      elem.children.push(inject({c: isSelected ? "tab selected" : "tab", accordion: id, pane: p.id, click: switchAccordion}, p.title));
-      elem.children.push(inject({c: isSelected ? "pane selected" : "pane"}, p.content));
+    for(let pane of panes) {
+      let isSelected = (pane.pane === selected);
+      elem.children.push(inject({c: isSelected ? "tab selected" : "tab", pane: pane.pane, container, semantic: "item::tab::" + pane.pane, click: switchPane}, pane.title));
+      if(isSelected) elem.children.push(inject({c: "pane selected"}, pane.content));
     }
-    return elem;
-  }
 
-  function switchAccordion(evt,elem) {
-    dispatch("switchAccordion", {accordion: elem.accordion, pane: elem.pane});
+    elem.c = `container accordion ${elem.c || ""}`;
+    return elem;
   }
 
   export function row(elem:Element):Element {

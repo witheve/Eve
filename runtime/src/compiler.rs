@@ -237,6 +237,24 @@ pub fn editor_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     // Copperfield tables
     ("view fingerprint", vec!["view", "fingerprint"]),
     ("fingerprint field", vec!["fingerprint", "field", "ix"]),
+
+    // Entities
+    //("entity", vec!["entity"]),
+    //("entity kind", vec!["entity"]),
+    //("related view", vec!["entity", "view", "field"]),
+    //("related entity", vec!["entity", "related entity"]),
+
+    // Projections
+    //("projection", vec!["projection", "element"]),
+    //("default projection", vec!["entity", "projection"]),
+    //("kind projection", vec!["kind", "projection", "priority"]),
+
+    // Pages
+    //("page", vec!["entity", "page", "element"]),
+    //("block", vec!["entity", "block", "element"]),
+    //("block projection", vec!["block", "entity", "projection"]),
+    //("selected page", vec!["page"]),
+    //("selected block", vec!["block"])
     ]
 }
 
@@ -668,7 +686,8 @@ fn plan(flow: &Flow) {
 
     find!(variable_table, [view, variable], {
         if dont_find!(binding_table, [(= variable), _, _])
-        && dont_find!(ordinal_binding_table, [(= variable), _]) {
+        && dont_find!(ordinal_binding_table, [(= variable), _])
+        && dont_find!(constant_binding_table, [(= variable), _]) {
             warning_table.index.insert(vec![
                 string!("variable"),
                 Column(vec![view.clone(), variable.clone()]),
