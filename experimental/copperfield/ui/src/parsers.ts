@@ -70,6 +70,7 @@ module Parsers {
 
   function tokenIsKeyword(token:Token): token is TextAST { return token.type === "keyword"; }
   function tokenIsField(token:Token): token is FieldAST { return token.type === "field"; }
+  function tokenIsConstant(token:Token): token is FieldAST { return token.type === "constant"; }
   function tokenIsSource(token:Token): token is SourceAST {return token.type === "source"; }
   function tokenIsOrdinal(token:Token): token is OrdinalAST { return token.type === "ordinal"; }
   export function tokenIsCalculation(token:Token): token is CalculationAST { return token.type === "calculation"; }
@@ -106,7 +107,7 @@ module Parsers {
     (indent:number): TemplateStringTag
     memo: {[indent:number]: TemplateStringTag}
   }
-  var unpad:unpad = <any>function(indent) {
+  export var unpad:unpad = <any>function(indent) {
     if(unpad.memo[indent]) return unpad.memo[indent];
     return unpad.memo[indent] = function(strings, ...values) {
       if(!strings.length) return;
@@ -177,6 +178,9 @@ module Parsers {
         prev = chunk;
       }
       return res;
+    }
+    if(tokenIsConstant(token)) {
+      return `?${token.grouped ? "?" : ""}${token.alias || ""} = \`${token.value}\``;
     }
     if(tokenIsField(token)) {
       if(token.value !== undefined) return `\`${token.value || ""}\``;
@@ -285,12 +289,12 @@ module Parsers {
     }
   }
 
-  function getVariable(alias, ast:QueryIR, varId?:string, fieldId?:string) {
-    if(!varId) varId = ast.aliases[alias] || Api.uuid();
-    let variable = ast.variables[varId];
-    if(!variable) variable = ast.variables[varId] = {selected: fieldId, alias: alias, bindings: []};
+  function getVariable(alias, reified:QueryIR, varId?:string, fieldId?:string) {
+    if(!varId) varId = reified.aliases[alias] || Api.uuid();
+    let variable = reified.variables[varId];
+    if(!variable) variable = reified.variables[varId] = {selected: fieldId, alias: alias, bindings: []};
     if(!variable.selected && alias && alias[0] !== "_") variable.selected = Api.uuid();
-    if(alias) ast.aliases[alias] = varId;
+    if(alias) reified.aliases[alias] = varId;
     return variable;
   }
 
@@ -322,7 +326,7 @@ module Parsers {
   //---------------------------------------------------------------------------
 
   const Q_ACTION_TOKENS = ["+"];
-  const Q_KEYWORD_TOKENS = ["!", "(", ")", "$=", "#", ";", "?", "`"].concat(Q_ACTION_TOKENS);
+  const Q_KEYWORD_TOKENS = ["!", "(", ")", "$=", "=", "#", ";", "?", "`"].concat(Q_ACTION_TOKENS);
   const Q_TOKENS = [" ", "\t"].concat(Q_KEYWORD_TOKENS, PUNCTUATION);
 
   export class Query {
@@ -331,7 +335,7 @@ module Parsers {
     reified: QueryIR;
     failed: QueryAST|QueryIR;
 
-    errors: ParseError[];
+    errors: ParseError[] = [];
     id: string;
     name: string;
     tags: string[];
@@ -378,7 +382,7 @@ module Parsers {
           continue;
         }
 
-        let maybeParsed = this.parseLine(tokens, lineIx++);
+        let maybeParsed:Token|ParseError = this.parseLine(tokens, lineIx++);
         if(maybeParsed instanceof ParseError) {
           this.errors.push(maybeParsed);
           continue;
@@ -391,6 +395,7 @@ module Parsers {
 
         } else {
           maybeParsed = this.processAction(parsed)
+            || this.processConstant(parsed)
             || this.processCalculation(parsed)
             || this.processOrdinal(parsed)
             || this.processSource(parsed);
@@ -412,7 +417,7 @@ module Parsers {
 
     /** Load an existing AST into this Query. */
     loadFromAST(ast:QueryAST, viewId?:string):Query {
-      this.raw = this.prev = this.reified = undefined;
+      this.id = this.name = this.tags = this.raw = this.prev = this.reified = this.failed = undefined;
       this.errors = [];
       if(!ast) return;
       if(viewId) this.loadFromView(viewId, true);
@@ -475,6 +480,7 @@ module Parsers {
           if(Api.ixer.findOne("grouped field", {"grouped field: field": fieldId})) field.grouped = true;
 
           let variable = bindingFieldVariable[fieldId];
+          if(!variable) continue;
           if(variable.alias) field.alias = variable.alias;
           if(variable.value !== undefined) field.value = variable.value;
           if(variable.ordinals !== undefined && variable.ordinals.indexOf(source.source) !== -1) field.ordinal = true;
@@ -515,7 +521,7 @@ module Parsers {
     }
 
     /** Parse a line's worth of tokens into field, keyword, and structure chunks. */
-    protected parseLine(tokens:string[], lineIx:number = 0):LineAST|Error {
+    protected parseLine(tokens:string[], lineIx:number = 0):LineAST|ParseError {
       this.lineIx = lineIx;
       let tokensLength = tokens.length;
       let padding = consumeWhile([" ", "\t"], tokens);
@@ -526,7 +532,7 @@ module Parsers {
           || this.parseKeyword(tokens, tokenIx)
           || this.parseStructure(tokens, tokenIx);
         if(!token) return this.parseError("Unrecognized token sequence.", {type: "text", text: tokens.join(""), tokenIx, lineIx});
-        if(token instanceof Error) return token;
+        if(token instanceof ParseError) return token;
         else ast.chunks.push(<Token>token);
       }
       return ast.chunks.length ? ast : undefined;
@@ -547,7 +553,7 @@ module Parsers {
       if(text) return {type: "text", text, tokenIx};
     }
 
-    protected processAction(line:LineAST):LineAST|Error {
+    protected processAction(line:LineAST):LineAST|ParseError {
       let kw = line.chunks[0];
       if(line.chunks.length < 1 || !tokenIsKeyword(kw) || Q_ACTION_TOKENS.indexOf(kw.text) === -1) return;
       line.type = "action";
@@ -558,7 +564,23 @@ module Parsers {
       return line;
     }
 
-    protected processCalculation(line:LineAST):CalculationAST|Error {
+    protected processConstant(line:LineAST):FieldAST|ParseError {
+      let kw = line.chunks[2];
+      if(line.chunks.length < 3 || !tokenIsKeyword(kw) || kw.text !== "=") return;
+
+      let resultField:FieldAST = line.chunks[0];
+      resultField.type = "constant";
+      resultField.lineIx = line.lineIx;
+      if(!resultField.alias) return this.parseError("Constant fields must be aliased.", resultField);
+      let constantField:FieldAST = line.chunks[4];
+      if(!constantField || !tokenIsField(constantField))
+        return this.parseError("Constant field values must be a constant field.", constantField || line);
+      resultField.value = constantField.value;
+      if(line.chunks[5]) return this.parseError("Extraneous tokens after value.", line.chunks[5]);
+      return resultField;
+    }
+
+    protected processCalculation(line:LineAST):CalculationAST|ParseError {
       let calculations:{view:string, calculation:string}[] = [];
       let fields:{calculation:string, field:string, ix:number}[] = [];
 
@@ -604,7 +626,7 @@ module Parsers {
       return {type: "calculation", chunks: lines, text};
     }
 
-    protected processOrdinal(parsedLine:LineAST):OrdinalAST|Error {
+    protected processOrdinal(parsedLine:LineAST):OrdinalAST|ParseError {
       let kw = parsedLine.chunks[0];
       if(parsedLine.chunks.length < 1 || !tokenIsKeyword(kw) || kw.text !== "#") return;
       parsedLine.type = "ordinal";
@@ -652,7 +674,7 @@ module Parsers {
       let prev = this.prev;
 
       let sort = [];
-      let chunks = [];
+      let chunks:Token[] = [];
       for(let line of this.ast.chunks) {
         if(tokenIsCalculation(line)) chunks.push.apply(chunks, line.chunks);
         else chunks.push(line);
@@ -660,7 +682,12 @@ module Parsers {
 
       LINE_LOOP: for(let line of chunks) {
         this.lineIx = line.lineIx;
-        if(tokenIsSource(line)) {
+        if(tokenIsConstant(line)) {
+          let varId = prev && prev.aliases[line.alias];
+          let variable = getVariable(line.alias, this.reified, varId, varId && prev.variables[varId].selected);
+          variable.value = line.value;
+
+        } else if(tokenIsSource(line)) {
           let fingerprint = fingerprintSource(line);
           let {"view fingerprint: view": view} = Api.ixer.findOne("view fingerprint", {"view fingerprint: fingerprint": fingerprint}) || {};
           if(!view) {
@@ -687,6 +714,15 @@ module Parsers {
               source.fields.push(field);
 
               let varId = prev && prev.aliases[field.alias];
+              if(!varId && prev && field.value !== undefined) {
+                for(let curId in prev.variables) {
+                  let variable = prev.variables[curId];
+                  if(variable.value === field.value && !variable.alias) {
+                    varId = curId;
+                    break;
+                  }
+                }
+              }
               let variable = getVariable(field.alias, this.reified, varId, varId && prev.variables[varId].selected);
               if(field.grouped) source.chunked = true;
               if(field.value !== undefined) variable.value = field.value;
@@ -730,9 +766,32 @@ module Parsers {
           for(let fieldId of unsorted) source.sort.push({ix: sortFieldIx++, field: fieldId, direction: "ascending"});
 
         } else if(tokenIsAction(line)) {
-          this.errors.push(this.parseError("@TODO: Add support for reifying actions", line));
-          continue;
+          if(line.chunks[0]["text"] === "+") {
+            let fingerprint = fingerprintSource(line).slice(2); // @FIXME: Hack to drop the '+ '
+            let mappings = [];
+            for(let chunk of line.chunks) {
+              if(tokenIsField(chunk)) {
+                let varId = this.reified.aliases[chunk.alias];
+                if(!varId || !this.reified.variables[varId].selected) {
+                  this.errors.push(this.parseError(`Action field '${chunk.alias}' must be aliased to a selected query field.`, chunk));
+                  continue LINE_LOOP;
+                }
+                mappings.push(varId);
+              }
+            }
+            this.reified.actions.push({action: "+", fingerprint, mappings});
+          } else {
+            this.errors.push(this.parseError("@TODO: Add support for reifying actions", line));
+            continue;
+          }
         }
+      }
+
+      for(let varId in this.reified.variables) {
+        let variable = this.reified.variables[varId];
+        if(variable.alias) continue;
+        let bindings = variable.bindings.length + (variable.ordinals ? variable.ordinals.length : 0) + (variable.value !== undefined ? 1 : 0);
+        if(bindings < 2) delete this.reified.variables[varId];
       }
 
       if(this.errors.length) {
@@ -802,7 +861,7 @@ module Parsers {
     reified: UiIR;
     failed: UiAST|UiIR;
 
-    errors: ParseError[];
+    errors: ParseError[] = [];
     id: string;
     name: string;
     tags: string[];
@@ -954,7 +1013,7 @@ module Parsers {
 
     /** Load an existing AST into this Ui. */
     loadFromAST(ast:QueryAST, elemId?:string):Ui {
-      this.raw = this.prev = this.reified = undefined;
+      this.id = this.name = this.tags = this.raw = this.prev = this.reified = this.failed = undefined;
       this.errors = [];
       if(!ast) return;
       if(elemId) this.loadFromElement(elemId, true);
