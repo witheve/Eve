@@ -15,6 +15,7 @@ module Parsers {
   export interface QueryAST extends LineAST {}
 
   interface ElementAST extends Token { tag?: string, classes?: string, name?: string }
+  interface EmbedAST extends Token { element: FieldAST, static: boolean, bindings?:FieldAST[] }
   interface AttributeAST extends Token { property: string, value: FieldAST, static: boolean }
   interface BindingAST extends Token { text: string }
   interface EventAST extends Token { event: string, key?: FieldAST }
@@ -57,6 +58,7 @@ module Parsers {
     boundEvents: Api.Dict
     boundView?: string
     bindings?: Api.Dict
+    bindingConstraints?: Api.Dict
   }
   export interface UiIR {
     elements: ElementIR[]
@@ -80,6 +82,7 @@ module Parsers {
   function tokenIsBinding(token:Token): token is BindingAST { return token.type === "binding"; }
   function tokenIsEvent(token:Token): token is EventAST { return token.type === "event"; }
   function tokenIsElement(token:Token): token is ElementAST { return token.type === "element"; }
+  function tokenIsEmbed(token:Token): token is EmbedAST { return token.type === "embed"; }
 
   //---------------------------------------------------------------------------
   // Utilities
@@ -195,6 +198,7 @@ module Parsers {
     }
     if(tokenIsBinding(token)) return padding + "~ " + token.text.split("\n").join("\n" + padding + "~ ");
     if(tokenIsEvent(token)) return padding + "@ " + token.event + (token.key ? ": " + tokenToString(token.key) : "");
+    if(tokenIsEmbed(token)) return padding + "> " + tokenToString(token.element) + (token.bindings.length ? " " + token.bindings.map(tokenToString).join(" ") : "");
     if(tokenIsComment(token)) return padding + ";" + token.text;
     if(tokenIsText(token) || tokenIsKeyword(token)) return padding + token.text;
     throw new Error(`Unknown token type '${token && token.type}' for token '${JSON.stringify(token)}'.`);
@@ -854,7 +858,7 @@ module Parsers {
   //---------------------------------------------------------------------------
   // Ui Parser
   //---------------------------------------------------------------------------
-  const U_TOKENS = [";", ":", "@", "~", "-", " ", "\t", "`", "?"];
+  const U_TOKENS = [";", ":", "@", "~", "-", ">", " ", "\t", "`", "?"];
   export class Ui {
     raw: string;
     ast: UiAST;
@@ -917,6 +921,7 @@ module Parsers {
         else if(head === "-") line.type = "attribute";
         else if(head === "~") line.type = "binding";
         else if(head === "@") line.type = "event";
+        else if(head === ">") line.type = "embed";
         else line.type = "element";
 
         if(tokenIsComment(line)) {
@@ -999,6 +1004,34 @@ module Parsers {
             continue;
           }
 
+        } else if(tokenIsEmbed(line)) {
+          consumeWhile([" ", "\t"], tokens);
+          let maybeField = this.parseField(tokens, tokensLength - tokens.length);
+          if(!maybeField || maybeField instanceof ParseError) {
+            this.errors.push(<ParseError>maybeField
+              || this.parseError("Specify a field containing the id(s) of the element(s) to import.", line));
+            continue;
+          }
+          line.element = <FieldAST>maybeField;
+          line.static = line.element.value !== undefined;
+
+          line.bindings = [];
+          while(tokens.length) {
+            consumeWhile([" ", "\t"], tokens);
+            let maybeField = this.parseField(tokens, tokensLength - tokens.length);
+            if(!maybeField || maybeField instanceof ParseError) {
+              this.errors.push(<ParseError>maybeField
+                || this.parseError("Binding constraints must be aliased fields.", line));
+              continue;
+            }
+            let field = <FieldAST>maybeField;
+            if(!field.alias) {
+              this.errors.push(this.parseError("Binding constraints must be aliased fields.", field));
+              continue;
+            }
+            line.bindings.push(field);
+          }
+
         } else if(tokenIsElement(line)) {
           if(head) line.tag = head;
           line.classes = consumeUntil([";"], tokens);
@@ -1062,6 +1095,12 @@ module Parsers {
           for(let {"uiScopedBinding: field": field, "uiScopedBinding: scoped field": scopedField} of bindings) elem.bindings[field] = scopedField;
         }
 
+        let bindingConstraints = Api.ixer.find("ui binding constraint", {"ui binding constraint: parent": elemId});
+        let constraints = {};
+        for(let constraint of bindingConstraints)
+          constraints[constraint["ui binding constraint: alias"]] = constraint["ui binding constraint: field"];
+        elem.bindingConstraints = constraints;
+
         let children =  Api.humanize("uiElement", Api.ixer.find("uiElement", {"uiElement: parent": elemId}));
         for(let child of children) elems.push(child);
 
@@ -1111,7 +1150,7 @@ module Parsers {
           prevElem = prev && prev.elements[this.reified.elements.length]; // This is usually not going to match up.
           let elemId = prevElem ? prevElem.element : Api.uuid();
           let ix = childCount[parentElem.element]++;
-          let elem:ElementIR = {element: elemId, tag: line.tag, parent: parentElem.element, ix, attributes: {}, boundAttributes: {}, events: [], boundEvents: {}};
+          let elem:ElementIR = {element: elemId, tag: line.tag, parent: parentElem.element, ix, attributes: {}, boundAttributes: {}, events: [], boundEvents: {}, bindingConstraints: {}};
           indent[elem.element] = line.indent;
           childCount[elem.element] = 0;
           ancestors.push(elem);
@@ -1140,7 +1179,6 @@ module Parsers {
             this.errors.push(this.parseError("Binding queries may not directly utilize actions.", line));
             continue;
           }
-          // @TODO: Use prev.queries for mapping queryIRs
 
           this.reified.boundQueries[query.id] = query;
           parentElem.boundView = query.id;
@@ -1152,7 +1190,7 @@ module Parsers {
             let selected = query.reified.variables[query.reified.aliases[alias]].selected;
             if(!scopedField) continue;
             if(!selected) {
-              this.errors.push(this.parseError(`Cannot join nested views on unselected alias '${alias}'`));
+              this.errors.push(this.parseError(`Cannot join nested views on unselected alias '${alias}'.`));
               continue;
             }
             joinedFields[selected] = scopedField;
@@ -1182,15 +1220,34 @@ module Parsers {
           } else {
             parentElem.boundAttributes[line.property] = getScopedBinding(line.value.alias, ancestors, this.reified.boundQueries);
             if(!parentElem.boundAttributes[line.property]) {
-              this.errors.push(this.parseError(`Could not resolve alias '${line.value.alias}' for bound attribute '${line.property}'`, line.value));
+              this.errors.push(this.parseError(`Could not resolve alias '${line.value.alias}' for bound attribute '${line.property}'.`, line.value));
               continue;
             }
           }
+        } else if(tokenIsEmbed(line)) {
+          if(parentElem.attributes["children"] || parentElem.boundAttributes["children"]) {
+            this.errors.push(this.parseError("Elements may only contain a single embed.", line));
+            continue;
+          }
+          if(line.static) parentElem.attributes["children"] = line.element.value;
+          else parentElem.boundAttributes["children"] = getScopedBinding(line.element.alias, ancestors, this.reified.boundQueries);
+          if(!parentElem.boundAttributes["children"]) {
+            this.errors.push(this.parseError(`Could not resolve alias '${line.element.alias}' for bound embed.`, line.element));
+            continue;
+          }
+          for(let constraint of line.bindings) {
+            parentElem.bindingConstraints[constraint.alias] = getScopedBinding(constraint.alias, ancestors, this.reified.boundQueries);
+            if(!parentElem.bindingConstraints[constraint.alias]) {
+              this.errors.push(this.parseError(`Could not resolve alias '${constraint.alias}' for bound embed.`, constraint));
+              continue;
+            }
+          }
+
         } else if(tokenIsEvent(line)) {
           if(line.key) {
             parentElem.boundEvents[line.event] = getScopedBinding(line.key.alias, ancestors, this.reified.boundQueries);
               if(!parentElem.boundEvents[line.event]) {
-                this.errors.push(this.parseError(`Could not resolve alias '${line.key.alias}' for bound event '${line.event}'`, line.key));
+                this.errors.push(this.parseError(`Could not resolve alias '${line.key.alias}' for bound event '${line.event}'.`, line.key));
                 continue;
               }
           } else {
@@ -1246,12 +1303,32 @@ module Parsers {
             }
           }
         }
+        let attributes = Api.extend({}, elem.attributes);
+        let boundAttributes = Api.extend({}, elem.boundAttributes);
+        if(attributes.c && elemAST) {
+          elemAST.classes = attributes.c;
+          delete attributes.c;
+        }
 
-        for(let property in elem.attributes) {
-          if(property === "c" && elemAST) {
-            elemAST.classes = elem.attributes[property];
-            continue;
-          }
+        let bindingConstraints:FieldAST[] = [];
+        for(let alias in elem.bindingConstraints) {
+          bindingConstraints.push({type: "field", alias});
+        }
+
+        if(attributes.children) {
+          let children = attributes.children;
+          let elementField:FieldAST = {type: "field", value: children};
+          let line:EmbedAST = {type: "embed", element: elementField, static: true, bindings: bindingConstraints};
+          this.ast.chunks.push(line);
+          delete attributes.children;
+        if(boundAttributes.children) {
+          let children = boundAttributes.children;
+          let elementField:FieldAST = {type: "field", alias: aliases[children]};
+          let line:EmbedAST = {type: "embed", element: elementField, static: false, bindings: bindingConstraints};
+          this.ast.chunks.push(line);
+          delete boundAttributes.children;
+        }
+        for(let property in attributes) {
           let value = {type: "field", value: elem.attributes[property]};
           let line:AttributeAST = {type: "attribute", property, value, static: true, indent: indent + 2, lineIx: this.ast.chunks.length};
           this.ast.chunks.push(line);
