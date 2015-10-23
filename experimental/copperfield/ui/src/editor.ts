@@ -221,7 +221,8 @@ module Editor {
           }
           for(let elem of [prev.reified.root].concat(prev.reified.elements)) {
             effect.change.removeWithDependents("uiElement", elem.element)
-              .removeWithDependents("ast cache", {"ast cache: id": elem.element}).clearContext();
+              .removeWithDependents("ast cache", {"ast cache: id": elem.element})
+              .addEach("builtin projection", Api.ixer.find("builtin projection", {"builtin projection: element": ui.id})).clearContext();
           }
         } catch (err) {}
       }
@@ -249,6 +250,8 @@ module Editor {
         effect.change.addEach("ui event", elem.events.map((kind) => {return {"ui event: kind": kind}}));
         for(let event in elem.boundEvents)
           effect.change.add("ui event binding", {"ui event binding: kind": event, "ui event binding: field": elem.boundEvents[event]});
+        for(let alias in elem.bindingConstraints)
+          effect.change.add("ui binding constraint", Api.resolve("ui binding constraint", {alias, field: elem.bindingConstraints[alias]}));
       }
 
       ui.id = reified.root.element;
