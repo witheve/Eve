@@ -496,7 +496,7 @@ function walk(tree, indent = 0) {
             while(tip.children.length) {
               tip = tip.children[tip.children.length - 1];
             }
-            state.operator.children.unshift(tip.id);
+            state.operator.children.unshift(tip);
           }
           for(let child of operatorChildren) {
             if(child.type === "attribute") {
@@ -517,7 +517,7 @@ function walk(tree, indent = 0) {
               } else {
                 throw new Error("Non infix operation with a non-attribute child: " + JSON.stringify(state.operator));
               }
-              operatorChildren[ix] = tip.id;
+              operatorChildren[ix] = tip;
             }
             ix++;
           }
@@ -614,7 +614,7 @@ function walk(tree, indent = 0) {
           while(tip.children.length) {
             tip = tip.children[tip.children.length - 1];
           }
-          state.operator.children.unshift(tip.id);
+          state.operator.children.unshift(tip);
         }
         for(let child of operatorChildren) {
           if(child.type === "attribute") {
@@ -637,7 +637,7 @@ function walk(tree, indent = 0) {
             } else {
               throw new Error("Non infix operation with a non-attribute child: " + JSON.stringify(state.operator));
             }
-            operatorChildren[ix] = tip.id;
+            operatorChildren[ix] = tip;
           }
           ix++;
         }
@@ -762,8 +762,8 @@ function walk(tree, indent = 0) {
         let value = op.children[ix];
         if(value.type && value.type === "value") {
           args[arg] = value.value;
-        } else if(typeof value === "string") {
-          args[arg] = [value, "value"];
+        } else if(value.type) {
+          args[arg] = [value.id, "value"];
         } else {
           throw new Error("Invalid operation argument: " + JSON.stringify(op));
         }
@@ -883,7 +883,7 @@ function walk(tree, indent = 0) {
             step.size = 0;
             query.deselect("deck pages", {deck: step.collection, page: [related.id, "page"]}, step.id);
           } else {
-            step.size = 1;
+            step.size = 0;
             query.select("deck pages", {deck: step.collection, page: [related.id, "page"]}, step.id);
           }
           break;
@@ -1213,7 +1213,42 @@ function walk(tree, indent = 0) {
 
     let planChildren = [];
     for(let step of plan) {
-      planChildren.push({c: "text", text: `${step.type}->`});
+      if(step.type === "gather") {
+        let related = step.relatedTo ? "related to those" : "";
+        planChildren.push({c: "text", text: `gather ${pluralize(step.collection, 2)} ${related}`});
+      } else if(step.type === "intersect") {
+        planChildren.push({c: "text", text: `intersect with ${pluralize(step.collection, 2)}`});
+      } else if(step.type === "lookup") {
+        planChildren.push({c: "text", text: `lookup ${step.attribute}`});
+      } else if(step.type === "find") {
+        planChildren.push({c: "text", text: `find ${step.entity}`});
+      } else if(step.type === "filter by entity") {
+        if(step.deselect) {
+          planChildren.push({c: "text", text: `remove anything related to ${step.entity}`});
+        } else {
+          planChildren.push({c: "text", text: `related to ${step.entity}`});
+        }
+      } else if(step.type === "filter") {
+        planChildren.push({c: "text", text: `filter those by ${step.func}`});
+      } else if(step.type === "sort") {
+        planChildren.push({c: "text", text: `sort them by `});
+      } else if(step.type === "group") {
+        planChildren.push({c: "text", text: `group them by `});
+      } else if(step.type === "limit") {
+        let limit;
+        if(step.limit.results) {
+          limit = `to ${step.limit.results} results`;
+        } else {
+          limit = `to ${step.limit.perGroup} items per group`;
+        }
+        planChildren.push({c: "text", text: `limit ${limit}`});
+      } else if(step.type === "calculate") {
+        planChildren.push({c: "text", text: `${step.type}->`});
+      } else if(step.type === "aggregate") {
+        planChildren.push({c: "text", text: `${step.aggregate}`});
+      } else {
+        planChildren.push({c: "text", text: `${step.type}->`});
+      }
     }
     return {c: "container", children: [
       {c: "search-description", children},
@@ -1227,14 +1262,30 @@ function walk(tree, indent = 0) {
     let results = query.exec();
     let resultItems = [];
     let planLength = plan.length;
-    for(let ix = 0, len = results.unprojected.length; ix < len; ix += query.unprojectedSize) {
+    row: for(let ix = 0, len = results.unprojected.length; ix < len; ix += query.unprojectedSize) {
       let resultItem = {c: "path", children: []};
       let planOffset = 0;
       for(let planIx = 0; planIx < planLength; planIx++) {
         let planItem = plan[planIx];
         if(planItem.size) {
           let resultPart = results.unprojected[ix + planOffset + planItem.size - 1];
-          resultItem.children.push({c: "step", text: JSON.stringify(resultPart)});
+          if(!resultPart) continue row;
+          let text;
+          if(planItem.type === "gather") {
+            text = resultPart["page"];
+          } else if(planItem.type === "lookup") {
+            text = resultPart["value"];
+          } else if(planItem.type === "aggregate") {
+            text = resultPart[planItem.aggregate];
+          } else if(planItem.type === "filter by entity") {
+            // we don't really want these to show up.
+          } else {
+            text = JSON.stringify(resultPart);
+          }
+          if(text) {
+            resultItem.children.push({c: "step", text});
+          }
+
           planOffset += planItem.size;
         }
       }
