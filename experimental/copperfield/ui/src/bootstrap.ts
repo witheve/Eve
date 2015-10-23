@@ -9,7 +9,7 @@ module Bootstrap {
   }
 
   let views:{[viewId:string]: string[]} = {
-    "ui binding constraint": ["element", "parent", "alias", "field"],
+    "ui binding constraint": ["parent", "alias", "field"],
 
     "entity": ["entity"],
     "entity kind": ["entity", "kind"],
@@ -44,7 +44,7 @@ module Bootstrap {
   }
 
   let fingerprintsRaw:{[viewId:string]: string[]} = {
-    "ui binding constraint": ["element ?element is bound to ?parent field ?field for alias ?alias"],
+    "ui binding constraint": ["?parent field ?field constraints alias ?alias"],
     "entity": ["?entity is an entity"],
     "entity kind": ["entity ?entity is a ?kind", "entity ?entity is an ?kind"],
     "collection entity": ["entity ?entity contains each ?kind"],
@@ -152,7 +152,7 @@ module Bootstrap {
     "wiki root-elem": Parsers.unpad(6) `
       div; wiki root
         ~ ?page is the selected page
-        ~ page ?page represents ?entity
+        ~ page ?page represents ?root_entity
         div bordered ui-row; wiki header
           - flex: "none"
           span
@@ -165,7 +165,7 @@ module Bootstrap {
           div; block
             ~ block ? represents ?entity in ?page as a ?projection
             ~ projection ?projection is templated as ??element
-            - children: ?element
+            > ?element ?entity
         div bordered ui-row; wiki footer
           - flex: "none"
           - text: "footer"
@@ -186,7 +186,8 @@ module Bootstrap {
 
   function addView(effect, viewId, kind, fields) {
     effect.change.add("view", resolve("view", {view: viewId, kind}))
-      .add("display name", viewId);
+      .add("display name", viewId)
+      .add("tag", {"tag: tag": "editor"});
 
     let fieldIx = 0;
     for(let fieldName of fields)
@@ -262,7 +263,6 @@ module Bootstrap {
       let ui = <Parsers.Ui>assertValid(new Parsers.Ui().loadFromElement(elemId, true).parse(projections[elemId]));
       ui.name = elemId;
       ui.tags.push("system", "projection", "ui-root");
-      ui.bind("entity", "block: entity");
       effect.dispatch("compileUi", {ui});
     }
     effect.done();
