@@ -1180,6 +1180,8 @@ function walk(tree, indent = 0) {
   // Wiki
   //---------------------------------------------------------
 
+  var activeSearch = {tokens: [], query: false, plan: []};
+
   app.handle("startEditingArticle", (result, info) => {
     let page = info.page.toLowerCase();
     result.add("editing", {editing: true, page});
@@ -1202,8 +1204,10 @@ function walk(tree, indent = 0) {
       let stack = eve.find("history stack");
       result.add("history stack", {page: search, pos: stack.length});
     }
+    let newSearchValue = info.value.trim();
+    activeSearch = newSearch(newSearchValue);
     result.remove("search");
-    result.add("search", {search: info.value.trim()});
+    result.add("search", {search: newSearchValue});
   });
 
   export function root() {
@@ -1288,38 +1292,40 @@ function walk(tree, indent = 0) {
 
   function newSearchResults() {
     let search = eve.findOne("search")["search"];
-    let {tokens, plan, query} = newSearch(search);
-    let results = query.exec();
+    let {tokens, plan, query} = activeSearch;
     let resultItems = [];
-    let planLength = plan.length;
-    row: for(let ix = 0, len = results.unprojected.length; ix < len; ix += query.unprojectedSize) {
-      let resultItem = {c: "path", children: []};
-      let planOffset = 0;
-      for(let planIx = 0; planIx < planLength; planIx++) {
-        let planItem = plan[planIx];
-        if(planItem.size) {
-          let resultPart = results.unprojected[ix + planOffset + planItem.size - 1];
-          if(!resultPart) continue row;
-          let text;
-          if(planItem.type === "gather") {
-            text = resultPart["page"];
-          } else if(planItem.type === "lookup") {
-            text = resultPart["value"];
-          } else if(planItem.type === "aggregate") {
-            text = resultPart[planItem.aggregate];
-          } else if(planItem.type === "filter by entity") {
-            // we don't really want these to show up.
-          } else {
-            text = JSON.stringify(resultPart);
-          }
-          if(text) {
-            resultItem.children.push({c: "step", text});
-          }
+    if(query) {
+      let results = query.exec();
+      let planLength = plan.length;
+      row: for(let ix = 0, len = results.unprojected.length; ix < len; ix += query.unprojectedSize) {
+        let resultItem = {c: "path", children: []};
+        let planOffset = 0;
+        for(let planIx = 0; planIx < planLength; planIx++) {
+          let planItem = plan[planIx];
+          if(planItem.size) {
+            let resultPart = results.unprojected[ix + planOffset + planItem.size - 1];
+            if(!resultPart) continue row;
+            let text;
+            if(planItem.type === "gather") {
+              text = resultPart["page"];
+            } else if(planItem.type === "lookup") {
+              text = resultPart["value"];
+            } else if(planItem.type === "aggregate") {
+              text = resultPart[planItem.aggregate];
+            } else if(planItem.type === "filter by entity") {
+              // we don't really want these to show up.
+            } else {
+              text = JSON.stringify(resultPart);
+            }
+            if(text) {
+              resultItem.children.push({c: "step", text});
+            }
 
-          planOffset += planItem.size;
+            planOffset += planItem.size;
+          }
         }
+        resultItems.push(resultItem);
       }
-      resultItems.push(resultItem);
     }
     if(plan.length === 1 && plan[0].type === "find") {
       resultItems.push({c: "singleton", children: [articleUi(plan[0].entity)]});
@@ -1367,7 +1373,7 @@ function walk(tree, indent = 0) {
   //---------------------------------------------------------
 
   // view: view, kind[union|query]
-  // action: view, action, kind[select|calculate|project|union|ununion|stateful], ix
+  // action: view, action, kind[select|calculate|project|union|ununion|stateful|limit|sort|group|aggregate], ix
   // action source: action, source view
   // action mapping: action, from, to source, to field
   // action mapping constant: action, from, value
@@ -1377,20 +1383,24 @@ function walk(tree, indent = 0) {
   eve.addTable("action source", ["action", "source view"]);
   eve.addTable("action mapping", ["action", "from", "to source", "to field"]);
   eve.addTable("action mapping constant", ["action", "from", "value"]);
+  eve.addTable("action mapping sorted", ["action", "ix", "source", "field", "direction"]);
+  eve.addTable("action mapping limit", ["action", "limit type", "value"]);
 
   var diff = eve.diff();
   diff.add("view", {view: "page links 2", kind: "query"});
   diff.add("action", {view: "page links 2", action: "page links - page", kind: "select", ix: 0});
-  diff.add("action source", {action: "page links - page", "source view": "page"});
-  diff.add("action", {view: "page links 2", action: "page links - links", kind: "calculate", ix: 1});
-  diff.add("action source", {action: "page links - links", "source view": "page to graph"});
-  diff.add("action mapping", {action: "page links - links", from: "text", "to source": "page links - page", "to field": "text"});
-  diff.add("action mapping", {action: "page links - links", from: "page", "to source": "page links - page", "to field": "page"});
-  diff.add("action", {view: "page links 2", action: "page links - project", kind: "project", ix: 2});
+  diff.add("action source", {action: "page links - page", "source view": "page links"});
+  diff.add("action", {view: "page links 2", action: "page links - project", kind: "project", ix: 1});
   diff.add("action mapping", {action: "page links - project", from: "page", "to source": "page links - page", "to field": "page"});
-  diff.add("action mapping", {action: "page links - project", from: "link", "to source": "page links - links", "to field": "link"});
-  diff.add("action mapping", {action: "page links - project", from: "type", "to source": "page links - links", "to field": "type"});
+  diff.add("action mapping", {action: "page links - project", from: "count", "to source": "page links - agg", "to field": "count"});
+  diff.add("action", {view: "page links 2", action: "page links - group", kind: "group", ix: 2});
+  diff.add("action mapping sorted", {action: "page links - group", ix: 0, source: "page links - page", field: "page", direction: "ascending"});
+  diff.add("action", {view: "page links 2", action: "page links - agg", kind: "aggregate", ix: 3});
+  diff.add("action source", {action: "page links - agg", "source view": "count"});
+  diff.add("action", {view: "page links 2", action: "page links - limit", kind: "limit", ix: 3});
+  diff.add("action mapping limit", {action: "page links - limit", "limit type": "results", value: 5});
   eve.applyDiff(diff);
+
 
   function compile(ixer, viewId) {
     let view = ixer.findOne("view", {view: viewId});
@@ -1406,29 +1416,50 @@ function walk(tree, indent = 0) {
     actions.sort((a, b) => a.ix - b.ix);
     for(let action of actions) {
       let actionKind = action.kind;
-      let mappings = ixer.find("action mapping", {action: action.action});
-      let mappingObject = {};
-      for(let mapping of mappings) {
-        let source = mapping["to source"];
-        let field = mapping["to field"];
-        if(actionKind === "union" || actionKind === "ununion") {
-          mappingObject[mapping.from] = [field];
-        } else {
-          mappingObject[mapping.from] = [source, field];
+      if(actionKind === "limit") {
+        let limit = {};
+        for(let limitMapping of ixer.find("action mapping limit", {action: action.action})) {
+          limit[limitMapping["limit type"]] = limitMapping["value"];
         }
-      }
-      let constants = ixer.find("action mapping constant", {action: action.action});
-      for(let constant of constants) {
-        mappingObject[constant.from] = constant.value;
-      }
-      let source = ixer.findOne("action source", {action: action.action});
-      if(!source && actionKind !== "project") {
-        throw new Error(`${actionKind} action without a source in '${viewId}'`);
-      }
-      if(actionKind !== "project") {
-        compiled[actionKind](source["source view"], mappingObject, action.action);
+        compiled.limit(limit);
+      } else if(actionKind === "sort" || actionKind === "group") {
+        let sorted = [];
+        let mappings = ixer.find("action mapping sorted", {action: action.action});
+        mappings.sort((a, b) => a.ix - b.ix);
+        for(let mapping of mappings) {
+          sorted.push([mapping["source"], mapping["field"], mapping["direction"]]);
+        }
+        console.log("sorted", sorted);
+        if(sorted.length) {
+          compiled[actionKind](sorted);
+        } else {
+          throw new Error(`${actionKind} without any mappings: ${action.action}`)
+        }
       } else {
-        compiled[actionKind](mappingObject);
+        let mappings = ixer.find("action mapping", {action: action.action});
+        let mappingObject = {};
+        for(let mapping of mappings) {
+          let source = mapping["to source"];
+          let field = mapping["to field"];
+          if(actionKind === "union" || actionKind === "ununion") {
+            mappingObject[mapping.from] = [field];
+          } else {
+            mappingObject[mapping.from] = [source, field];
+          }
+        }
+        let constants = ixer.find("action mapping constant", {action: action.action});
+        for(let constant of constants) {
+          mappingObject[constant.from] = constant.value;
+        }
+        let source = ixer.findOne("action source", {action: action.action});
+        if(!source && actionKind !== "project") {
+          throw new Error(`${actionKind} action without a source in '${viewId}'`);
+        }
+        if(actionKind !== "project") {
+          compiled[actionKind](source["source view"], mappingObject, action.action);
+        } else {
+          compiled[actionKind](mappingObject);
+        }
       }
     }
     return compiled;
@@ -1562,6 +1593,7 @@ function walk(tree, indent = 0) {
     } else {
       eve.load(stored);
     }
+    activeSearch = newSearch(eve.findOne("search")["search"]);
   }
 
   app.init("wiki", function() {

@@ -273,7 +273,9 @@ return index;`
       return cursor;
     }
     execTrigger(trigger) {
-      let {results} = trigger.exec();
+      let {results, unprojected} = trigger.exec();
+      let table = this.table(trigger.name);
+      table.unprojected = unprojected;
       if(results) {
         let diff = new Diff(this);
         this.clearTable(trigger.name);
