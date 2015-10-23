@@ -1180,7 +1180,7 @@ function walk(tree, indent = 0) {
   // Wiki
   //---------------------------------------------------------
 
-  var activeSearch = {tokens: [], query: false, plan: []};
+  var activeSearch = {tokens: [], query: null, plan: []};
 
   app.handle("startEditingArticle", (result, info) => {
     let page = info.page.toLowerCase();
@@ -1385,6 +1385,110 @@ function walk(tree, indent = 0) {
   eve.addTable("action mapping constant", ["action", "from", "value"]);
   eve.addTable("action mapping sorted", ["action", "ix", "source", "field", "direction"]);
   eve.addTable("action mapping limit", ["action", "limit type", "value"]);
+
+  function mappingToDiff(diff, action, mapping, aliases, reverseLookup) {
+    for(let from in mapping) {
+      let to = mapping[from];
+      if(to.constructor === Array) {
+        let source = to[0];
+        if(typeof source === "number") {
+          source = aliases[reverseLookup[source]];
+        } else {
+          source = aliases[source];
+        }
+        diff.add("action mapping", {action, from, "to source": source, "to field": to[1]});
+      } else {
+        diff.add("action mapping constant", {action, from, value: to});
+      }
+    }
+    return diff;
+  }
+
+  function queryObjectToDiff(query) {
+    let diff = eve.diff();
+    let aliases = {};
+    let reverseLookup = {};
+    for(let alias of query.aliases) {
+      reverseLookup[query.aliases[alias]] = alias;
+    }
+    let view = query.name;
+    diff.add("view", {view, kind: "query"});
+    //joins
+    for(let join of query.joins) {
+      let action = uuid();
+      aliases[join.as] = action;
+      if(!join.negated) {
+        diff.add("action", {view, action, kind: "select", ix: join.ix});
+      } else {
+        diff.add("action", {view, action, kind: "deselect", ix: join.ix});
+      }
+      diff.add("action source", {action, "source view": join.table});
+      mappingToDiff(diff, action, join.join, aliases, reverseLookup);
+    }
+    //functions
+    for(let func of query.funcs) {
+      let action = uuid();
+      aliases[func.as] = action;
+      diff.add("action", {view, action, kind: "calculate", ix: func.ix});
+      diff.add("action source", {action, "source view": func.name});
+      mappingToDiff(diff, action, func.args, aliases, reverseLookup);
+    }
+    //aggregates
+    for(let agg of query.aggregates) {
+      let action = uuid();
+      aliases[agg.as] = action;
+      diff.add("action", {view, action, kind: "calculate", ix: agg.ix});
+      diff.add("action source", {action, "source view": agg.name});
+      mappingToDiff(diff, action, agg.args, aliases, reverseLookup);
+    }
+    //sort
+    if(query.sorts) {
+      let action = uuid();
+      diff.add("action", {view, action, kind: "sort", ix: Number.MAX_SAFE_INTEGER});
+      let ix = 0;
+      for(let sort of query.sorts) {
+        let [source, field, direction] = sort;
+        if(typeof source === "number") {
+          source = aliases[reverseLookup[source]];
+        } else {
+          source = aliases[source];
+        }
+        diff.add("action mapping sorted", {action, ix, source, field, direction});
+        ix++;
+      }
+    }
+    //group
+    if(query.groups) {
+      let action = uuid();
+      diff.add("action", {view, action, kind: "group", ix: Number.MAX_SAFE_INTEGER});
+      let ix = 0;
+      for(let group of query.groups) {
+        let [source, field] = group;
+        if(typeof source === "number") {
+          source = aliases[reverseLookup[source]];
+        } else {
+          source = aliases[source];
+        }
+        diff.add("action mapping sorted", {action, ix, source, field, direction: "ascending"});
+        ix++;
+      }
+    }
+    //limit
+    if(query.limitInfo) {
+      let action = uuid();
+      diff.add("action", {view, action, kind: "limit", ix: Number.MAX_SAFE_INTEGER});
+      for(let limitType in query.limitInfo) {
+        diff.add("action mapping limit", {action, limitType, value: query.limitInfo[limitType]});
+      }
+    }
+    //projection
+    if(query.projectionMap) {
+      let action = uuid();
+      diff.add("action", {view, action, kind: "project", ix: Number.MAX_SAFE_INTEGER});
+      mappingToDiff(diff, action, query.projectionMap, aliases, reverseLookup);
+    }
+    return diff;
+  }
 
   var diff = eve.diff();
   diff.add("view", {view: "page links 2", kind: "query"});
