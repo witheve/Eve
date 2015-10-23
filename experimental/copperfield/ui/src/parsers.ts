@@ -1321,6 +1321,7 @@ module Parsers {
           let line:EmbedAST = {type: "embed", element: elementField, static: true, bindings: bindingConstraints};
           this.ast.chunks.push(line);
           delete attributes.children;
+        }
         if(boundAttributes.children) {
           let children = boundAttributes.children;
           let elementField:FieldAST = {type: "field", alias: aliases[children]};
