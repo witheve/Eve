@@ -1134,6 +1134,18 @@ function walk(tree, indent = 0) {
     }
   }
 
+  function articleToGraph(pageId, content) {
+    let parsed = parsePage(pageId, content);
+    let links = [];
+    for(let link of parsed.links) {
+      links.push({link: link.link.toLowerCase(), type: (link.linkType || "unknown").toLowerCase()});
+    }
+    for(let collection of parsed.collections) {
+      links.push({link: collection.link.toLowerCase(), type: "collection"});
+    }
+    return links;
+  }
+
   //---------------------------------------------------------
   // Wiki
   //---------------------------------------------------------
