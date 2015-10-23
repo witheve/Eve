@@ -1144,6 +1144,38 @@ function walk(tree, indent = 0) {
     }
   }
 
+  function CMSearchBox(node, elem) {
+    let cm = node.editor;
+    if(!cm) {
+      let state = {marks: []};
+      cm = node.editor = new CodeMirror(node, {
+        lineWrapping: true,
+        extraKeys: {
+          "Enter": (cm) => {
+            app.dispatch("setSearch", {value: cm.getValue()}).commit();
+          }
+        }
+      });
+      cm.on("change", (cm) => {
+        let value = cm.getValue();
+        let tokens = newSearchTokens(value);
+        for(let mark of state.marks) {
+          mark.clear();
+        }
+        state.marks = [];
+        for(let token of tokens) {
+          let start = cm.posFromIndex(token.pos);
+          let stop = cm.posFromIndex(token.pos + token.orig.length);
+          state.marks.push(cm.markText(start, stop, {className: token.type}));
+        }
+      });
+      cm.focus();
+    }
+    if(cm.getValue() !== elem.value) {
+      cm.setValue(elem.value);
+    }
+  }
+
   //---------------------------------------------------------
   // Wiki
   //---------------------------------------------------------
@@ -1182,7 +1214,7 @@ function walk(tree, indent = 0) {
     }
     return {id: "root", c: "root", children: [
       {c: "spacer"},
-      {c: "search-input", t: "input", type: "text", placeholder: "search", keydown: maybeSubmitSearch, value: search},
+      {c: "search-input", value: search, postRender: CMSearchBox},
       newSearchResults(),
 //       relatedItems(),
       {c: "spacer"},
@@ -1210,21 +1242,6 @@ function walk(tree, indent = 0) {
   }
 
   function searchDescription(tokens, plan) {
-    let search = eve.findOne("search")["search"];
-    let ix = 0;
-    let children = [];
-    for(let part of tokens) {
-      let {type, pos} = part;
-      if(ix < pos) {
-        children.push({c: "text", text: search.substring(ix, pos)});
-      }
-      children.push({c: type, text: search.substring(pos, pos + part.orig.length)});
-      ix = pos + part.orig.length;
-    }
-    if(ix < search.length) {
-      children.push({c: "text", text: search.substring(ix)});
-    }
-
     let planChildren = [];
     for(let step of plan) {
       if(step.type === "gather") {
@@ -1265,7 +1282,6 @@ function walk(tree, indent = 0) {
       }
     }
     return {c: "container", children: [
-      {c: "search-description", children},
       {c: "search-plan", children: planChildren}
     ]};
   }
@@ -1316,7 +1332,6 @@ function walk(tree, indent = 0) {
     ]};
 
   }
-
   function commitArticle(cm, elem) {
     app.dispatch("stopEditingArticle", {page: elem.page, value: cm.getValue()}).commit();
   }
@@ -1328,12 +1343,6 @@ function walk(tree, indent = 0) {
 
   function followLink(e, elem) {
     app.dispatch("setSearch", {value: elem.linkText}).commit();
-  }
-
-  function maybeSubmitSearch(e, elem) {
-    if(e.keyCode === 13) {
-      app.dispatch("setSearch", {value: e.currentTarget.value}).commit();
-    }
   }
 
   function historyStack() {
