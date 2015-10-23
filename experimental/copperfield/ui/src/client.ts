@@ -78,27 +78,23 @@ module Client {
     var totalRemoves = 0;
     var malformedDiffs:string[] = [];
     var badValues:string[] = [];
-    data.changes.forEach(function(change) {
-      totalAdds += change[2].length;
-      totalRemoves += change[3].length;
+    data.changes.forEach(function([viewId, fields, adds, removes]) {
+      totalAdds += adds.length;
+      totalRemoves += removes.length;
       // Simple check to notify programmers of definitely unhealthy payloads they may be sending.
       var hasMalformedDiffs = false;
       var hasBadValues = false;
-      change[2].forEach(function(diff) {
-        hasMalformedDiffs = hasMalformedDiffs || (diff.length !== change[1].length);
-        hasBadValues = hasBadValues || diff.some(isUndefined);
-      });
+      for(let add of adds) {
+        hasMalformedDiffs = hasMalformedDiffs || add.length !== fields.length;
+        for(let cell of add) hasBadValues = hasBadValues || cell === undefined;
+      }
+      for(let remove of removes) {
+        hasMalformedDiffs = hasMalformedDiffs || remove.length !== fields.length;
+        for(let cell of remove) hasBadValues = hasBadValues || cell === undefined;
+      }
 
-      change[3].forEach(function(diff) {
-        hasMalformedDiffs = hasMalformedDiffs || (diff.length !== change[1].length);
-        hasBadValues = hasBadValues || diff.some(isUndefined);
-      });
-      if (hasMalformedDiffs) {
-        malformedDiffs.push(change[0]);
-      }
-      if (hasBadValues) {
-        badValues.push(change[0]);
-      }
+      if (hasMalformedDiffs) malformedDiffs.push(viewId);
+      if (hasBadValues) badValues.push(viewId);
     });
 
     return { adds: totalAdds, removes: totalRemoves, malformedDiffs: malformedDiffs, badValues: badValues };
@@ -277,7 +273,10 @@ module Client {
     if (DEBUG.SEND) {
       var stats = getDataStats(payload);
       if (stats.adds || stats.removes) {
-        var header = `[client:sent][+${stats.adds}/-${stats.removes}]`;
+        let errors = ""
+          + (stats.malformedDiffs.length ? `[bad diffs: ${stats.malformedDiffs.length}]` : "")
+          + (stats.badValues.length ? `[bad values: ${stats.badValues.length}]` : "");
+        var header = `[client:sent][+${stats.adds}/-${stats.removes}]${errors}`;
         console.groupCollapsed(pad(header, formatTime()));
         if (stats.malformedDiffs.length) {
           console.warn("The following views have malformed diffs:", stats.malformedDiffs);
