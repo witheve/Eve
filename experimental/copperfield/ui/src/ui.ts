@@ -340,8 +340,17 @@ module Ui {
   export function factTable(elem:FactTable):Element {
     let facts = Api.ixer.find(elem.view);
     elem["data"] = facts;
+    elem["headerClick"] = clickFieldHeader;
     if(!facts.length) elem["headers"] = Api.get.fields(elem.view);
     return table(<any>elem);
+  }
+
+  function clickFieldHeader(evt, elem) {
+    let fieldId = elem.header;
+    console.info(fieldId);
+    console.info("* name:", Api.get.name(fieldId));
+    console.info("* order:", Api.get.order(fieldId));
+    console.info("* tags:", Api.get.tags(fieldId));
   }
 
   //---------------------------------------------------------
