@@ -64,9 +64,13 @@ module Editor {
       if(id && type) effect.change.removeWithDependents(type, id);
       return effect;
     },
-    addEvent: function({elem, kind, key = ""}:{elem: string, kind: string, key: any}) {
+    addEvent: function({elem, event, kind, key = ""}:{elem: string, event: string, kind: string, key: any}) {
       let effect = DispatchEffect.from(this);
-      effect.change.add("event", {"event: event": localState.eventId++, "event: element": elem, "event: kind": kind, "event: key": key});
+      effect.change.add("event", {
+        "event: tick": localState.eventId++,
+        "event: event": event,
+        "event: kind": kind,
+        "event: key": key});
       return effect;
     },
     setEditing: function({editing}:{editing:string}) {
@@ -247,9 +251,8 @@ module Editor {
           effect.change.add("uiAttributeBinding", {"uiAttributeBinding: property": prop, "uiAttributeBinding: field": elem.boundAttributes[prop]});
         for(let field in elem.bindings)
           effect.change.add("uiScopedBinding", {"uiScopedBinding: field": field, "uiScopedBinding: scoped field": elem.bindings[field]});
-        effect.change.addEach("ui event", elem.events.map((kind) => {return {"ui event: kind": kind}}));
-        for(let event in elem.boundEvents)
-          effect.change.add("ui event binding", {"ui event binding: kind": event, "ui event binding: field": elem.boundEvents[event]});
+        effect.change.addEach("ui event", Api.resolve("ui event", elem.events));
+        effect.change.addEach("ui event binding", Api.resolve("ui event binding", elem.boundEvents));
         for(let alias in elem.bindingConstraints)
           effect.change.add("ui binding constraint", Api.resolve("ui binding constraint", {alias, field: elem.bindingConstraints[alias]}));
       }
@@ -321,8 +324,8 @@ module Editor {
     window.addEventListener("resize", render);
   }
 
-  function handleEvent(elem:string, kind: string, key?:any) {
-    dispatch("addEvent", {elem, kind, key}).done();
+  function handleEvent(elem:string, event: string, kind: string, key?:any) {
+    dispatch("addEvent", {elem, event, kind, key}).done();
   }
 
   function render() {
@@ -534,27 +537,8 @@ module Editor {
     } else {
       localState = Api.localState;
     }
-    dispatch("parseQuery", {query: `
-?view is named ?name
-# ?ord by ?name descending
-?ord < \`20\`
-?foo $= (\`5\` * (\`3\` + \`1\`)) / \`2\``
-    })
-    .dispatch("parseUi", {ui: `
-div view
-  ~ view ?view is a ?kind
-  div view-meta
-    span
-      - text: ?view
-    span
-      - text: \`is a\`
-    span
-      - text: ?kind
-  div view-name
-    ~ ?view is named ?name
-    ~ \`named \` concat ?name = ?text
-    - text: ?text`
-    }).done();
+    dispatch("parseQuery", {query: ``})
+    .dispatch("parseUi", {ui: ``}).done();
     render();
   }
 

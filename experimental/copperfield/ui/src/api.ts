@@ -274,6 +274,7 @@ module Api {
 
   const EDITOR_PKS = {
     tag: "",
+    event: "tick",
     uiElement: "element",
     "view fingerprint": "fingerprint",
     "related entity": ""

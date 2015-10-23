@@ -49,7 +49,7 @@ module UiRenderer {
 
     private _handlers:{[key:string]: MicroReact.Handler<Event>} = {};
 
-    constructor(public renderer:MicroReact.Renderer, public handleEvent:(element:string, kind: string, key?:any) => void) {}
+    constructor(public renderer:MicroReact.Renderer, public handleEvent:(element:string, event: string, kind: string, key?:any) => void) {}
 
     // Mark the renderer dirty so it will rerender next frame.
     queue(root) {
@@ -214,15 +214,15 @@ module UiRenderer {
 
           // Attach static event handlers.
           if(events) {
-            for(let {"ui event: kind": event} of events) {
-              elem[event] = this.generateEventHandler(elem, event);
+            for(let {"ui event: event": event, "ui event: kind": kind} of events) {
+              elem[event] = this.generateEventHandler(elem, event, kind);
             }
           }
 
           // Attach bound event handlers.
           if(boundEvents) {
-            for(let {"ui event binding: kind": event, "ui event binding: field": key} of boundEvents) {
-              elem[event] = this.generateEventHandler(elem, event, key, boundAncestors, elemToRow);
+            for(let {"ui event binding: event": event, "ui event binding: kind": kind, "ui event binding: field": key} of boundEvents) {
+              elem[event] = this.generateEventHandler(elem, event, kind, key, boundAncestors, elemToRow);
             }
           }
 
@@ -294,15 +294,15 @@ module UiRenderer {
       return compiledElements;
     }
 
-    generateEventHandler(elem:Element, kind:string, key?:string, boundAncestors?, elemToRow?):MicroReact.Handler<Event> {
-      let memoKey = `${kind}:${key || ""}`;
-      let attrKey = `__${kind}_event_key`;
+    generateEventHandler(elem:Element, event:string, kind:string, key?:string, boundAncestors?, elemToRow?):MicroReact.Handler<Event> {
+      let memoKey = `${event}_${kind}:${key || ""}`;
+      let attrKey = `__${event}_${kind}_event_key`;
       if(key) elem[attrKey] = getBoundValue(elem, key, boundAncestors, elemToRow);
       if(this._handlers[memoKey]) return this._handlers[memoKey];
 
       let self = this;
       // @TODO: Specialize for event families (e.g. keyboard, mouse).
-      this._handlers[memoKey] = (evt:Event, elem:Element) => self.handleEvent(elem.__template, kind, attrKey && elem[attrKey]);
+      this._handlers[memoKey] = (evt:Event, elem:Element) => self.handleEvent(elem.__template, event, kind, attrKey && elem[attrKey]);
 
       return this._handlers[memoKey];
     }

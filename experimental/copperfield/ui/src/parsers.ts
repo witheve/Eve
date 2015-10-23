@@ -18,7 +18,7 @@ module Parsers {
   interface EmbedAST extends Token { element: FieldAST, static: boolean, bindings?:FieldAST[] }
   interface AttributeAST extends Token { property: string, value: FieldAST, static: boolean }
   interface BindingAST extends Token { text: string }
-  interface EventAST extends Token { event: string, key?: FieldAST }
+  interface EventAST extends Token { event: string, kind: string, key?: FieldAST }
   export interface UiAST extends LineAST {}
 
   interface FieldIR { field: string, grouped?: boolean, alias?: string, value?: string, ordinal?: boolean }
@@ -54,8 +54,8 @@ module Parsers {
     parent?: string
     attributes: Api.Dict
     boundAttributes: Api.Dict
-    events: string[]
-    boundEvents: Api.Dict
+    events: {event:string, kind:string}[]
+    boundEvents: {event: string, kind:string, field:string}[]
     boundView?: string
     bindings?: Api.Dict
     bindingConstraints?: Api.Dict
@@ -197,7 +197,7 @@ module Parsers {
       return res;
     }
     if(tokenIsBinding(token)) return padding + "~ " + token.text.split("\n").join("\n" + padding + "~ ");
-    if(tokenIsEvent(token)) return padding + "@ " + token.event + (token.key ? ": " + tokenToString(token.key) : "");
+    if(tokenIsEvent(token)) return `${padding}@${token.event} ${token.kind} ${token.key ? ": " + tokenToString(token.key) : ""}`;
     if(tokenIsEmbed(token)) return padding + "> " + tokenToString(token.element) + (token.bindings.length ? " " + token.bindings.map(tokenToString).join(" ") : "");
     if(tokenIsComment(token)) return padding + ";" + token.text;
     if(tokenIsText(token) || tokenIsKeyword(token)) return padding + token.text;
@@ -976,14 +976,21 @@ module Parsers {
 
         } else if(tokenIsEvent(line)) {
           consumeWhile([" ", "\t"], tokens);
-          line.event = consumeUntil([":"], tokens);
+          line.event = consumeUntil([" "], tokens);
+          line.kind = consumeUntil([":"], tokens);
+          if(!line.kind) {
+            this.errors.push(this.parseError("Events must specify a kind",
+              {type: "text", text: tokens.join(""), tokenIx: tokensLength - tokens.length}));
+            continue;
+          }
+          line.kind = line.kind.trim();
           tokens.shift();
           consumeWhile([" ", "\t"], tokens);
           if(tokens.length) {
             let field = this.parseField(tokens, tokensLength - tokens.length);
             // @TODO we can wrap this in `` and rerun it, or skip the middleman since we know the value.
             if(!field) {
-              this.errors.push(this.parseError("Value of attribute must be a field (either ' ?foo ' or ' `100` ')",
+              this.errors.push(this.parseError("Value of key must be a field (either ' ?foo ' or ' `100` ')",
                 {type: "text", text: tokens.join(""), tokenIx: tokensLength - tokens.length}));
               continue;
             }
@@ -1128,7 +1135,7 @@ module Parsers {
       let prev = this.prev;
 
       let rootId = this.id || Api.uuid();
-      let root:ElementIR = {element: rootId, tag: "div", ix: 0, attributes: {}, boundAttributes: {}, events: [], boundEvents: {}};
+      let root:ElementIR = {element: rootId, tag: "div", ix: 0, attributes: {}, boundAttributes: {}, events: [], boundEvents: [], bindingConstraints: {}};
       this.reified = {elements: [], root, boundQueries: {}};
       let indent = {[root.element]: -1};
       let childCount = {[root.element]: 0};
@@ -1150,7 +1157,7 @@ module Parsers {
           prevElem = prev && prev.elements[this.reified.elements.length]; // This is usually not going to match up.
           let elemId = prevElem ? prevElem.element : Api.uuid();
           let ix = childCount[parentElem.element]++;
-          let elem:ElementIR = {element: elemId, tag: line.tag, parent: parentElem.element, ix, attributes: {}, boundAttributes: {}, events: [], boundEvents: {}, bindingConstraints: {}};
+          let elem:ElementIR = {element: elemId, tag: line.tag, parent: parentElem.element, ix, attributes: {}, boundAttributes: {}, events: [], boundEvents: [], bindingConstraints: {}};
           indent[elem.element] = line.indent;
           childCount[elem.element] = 0;
           ancestors.push(elem);
@@ -1245,13 +1252,14 @@ module Parsers {
 
         } else if(tokenIsEvent(line)) {
           if(line.key) {
-            parentElem.boundEvents[line.event] = getScopedBinding(line.key.alias, ancestors, this.reified.boundQueries);
-              if(!parentElem.boundEvents[line.event]) {
-                this.errors.push(this.parseError(`Could not resolve alias '${line.key.alias}' for bound event '${line.event}'.`, line.key));
-                continue;
-              }
+            let field = getScopedBinding(line.key.alias, ancestors, this.reified.boundQueries);
+            if(!field) {
+              this.errors.push(this.parseError(`Could not resolve alias '${line.key.alias}' for bound event '${line.event}'.`, line.key));
+              continue;
+            }
+            parentElem.boundEvents.push({event: line.event, kind: line.kind, field});
           } else {
-            parentElem.events.push(line.event);
+            parentElem.events.push({event: line.event, kind: line.kind});
           }
         }
       }
