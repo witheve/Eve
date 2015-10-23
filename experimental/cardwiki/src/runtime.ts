@@ -344,7 +344,7 @@ return index;`
     findOne(tableId, query?) {
       return this.find(tableId, query)[0];
     }
-    query(name) {
+    query(name = "unknown") {
       return new Query(this, name);
     }
     union(name) {
@@ -716,8 +716,9 @@ return index;`
           let groupLimitCheck = "";
           if(root.limit && root.limit.perGroup && root.groups) {
             groupLimitCheck = `if(perGroupCount === ${root.limit.perGroup}) {
-              while(nextIx < len && !differentGroup) {
+              while(!differentGroup) {
                 nextIx += ${root.size};
+                if(nextIx >= len) break;
                 differentGroup = ${groupCheck};
               }
             }`;

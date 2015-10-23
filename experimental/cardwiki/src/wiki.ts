@@ -7,6 +7,7 @@ module wiki {
 
   declare var CodeMirror;
   declare var pluralize;
+  declare var uuid;
 
   //---------------------------------------------------------
   // App state
@@ -441,11 +442,6 @@ function walk(tree, indent = 0) {
         if(state.lastValue) {
           state.lastValue = null;
           token.children.push(state.lastValue);
-          if(token.children.length === token.operation.argCount) {
-            if(cursor) cursor.push(token);
-            else root.children.push(token);
-            continue;
-          }
         }
         state.operationStack.push({cursor, operator: state.operator});
         state.consuming = true;
@@ -483,25 +479,10 @@ function walk(tree, indent = 0) {
           let operation = state.operator.operation;
           let operatorChildren = state.operator.children;
           let ix = 0;
-          // if this is an infix operator that invokes an attribute, e.g. "older", push
-          // that attribute onto the cursor
-          if(operation.infix && operation.attribute) {
-            let id = uuid();
-            cursor.children.push({type: "attribute", found: operation.attribute, orig: operation.attribute, id, children: []});
-            // we also need to add this as the first arg to the function
-            state.operator.children.unshift(id);
-          } else if(operation.infix) {
-            // we need to add the closest thing before this as the first arg to the function.
-            let tip = cursor || root;
-            while(tip.children.length) {
-              tip = tip.children[tip.children.length - 1];
-            }
-            state.operator.children.unshift(tip);
-          }
           for(let child of operatorChildren) {
             if(child.type === "attribute") {
               cursor.children.push(child);
-              operatorChildren[ix] = child.id;
+              operatorChildren[ix] = child;
             } else if(child.type !== "value") {
               // we have something that could nest.
               let tip = child;
@@ -522,7 +503,31 @@ function walk(tree, indent = 0) {
             ix++;
           }
 
-          tree.operations.shift(state.operator);
+          // if this is an infix operator that invokes an attribute, e.g. "older", push
+          // that attribute onto the cursor
+          if(operation.infix && operation.attribute) {
+            let attr = {type: "attribute", found: operation.attribute, orig: operation.attribute, id: uuid(), children: []};
+            cursor.children.push(attr);
+            // we also need to add this as the first arg to the function
+            state.operator.children.unshift(attr);
+          } else if(operation.infix) {
+            // we need to add the closest thing before this as the first arg to the function.
+            let tip = cursor || root;
+            while(tip.children.length) {
+              tip = tip.children[tip.children.length - 1];
+            }
+            state.operator.children.unshift(tip);
+            // if we don't have an attribute to attach to the right side, let's assume
+            // that it mirrors the left.
+//             var rightSide = state.operator.children[state.operator.children.length - 1];
+//             if(rightSide.type !== "attribute") {
+//               let attr = {type: "attribute", found: tip.found, orig: tip.found, id: uuid(), children: []};
+//               rightSide.children.push(attr);
+//               state.operator.children[state.operator.children.length - 1] = attr;
+//             }
+          }
+
+          tree.operations.push(state.operator);
 
           if(item.operator) {
             activeRoot = state.operator = item.operator;
@@ -588,6 +593,7 @@ function walk(tree, indent = 0) {
     if(state.consuming) {
       let item = state.operationStack.pop();
       while(item) {
+        console.log("Consuming: ", item);
         cursor = item.cursor || root;
         if(state.operator.children.length > state.operator.operation.argCount) {
           // we consumed one too many, so push that onto either the parent operator or
@@ -601,25 +607,11 @@ function walk(tree, indent = 0) {
         let operation = state.operator.operation;
         let operatorChildren = state.operator.children;
         let ix = 0;
-        // if this is an infix operator that invokes an attribute, e.g. "older", push
-        // that attribute onto the cursor
-        if(operation.infix && operation.attribute) {
-          let id = uuid();
-          cursor.children.push({type: "attribute", found: operation.attribute, orig: operation.attribute, id, children: []});
-          // we also need to add this as the first arg to the function
-          state.operator.children.unshift(id);
-        } else if(operation.infix) {
-          // we need to add the closest thing before this as the first arg to the function.
-          let tip = cursor || root;
-          while(tip.children.length) {
-            tip = tip.children[tip.children.length - 1];
-          }
-          state.operator.children.unshift(tip);
-        }
+        console.log(JSON.stringify(operatorChildren));
         for(let child of operatorChildren) {
           if(child.type === "attribute") {
             cursor.children.push(child);
-            operatorChildren[ix] = child.id;
+            operatorChildren[ix] = child;
           } else if(child.type && child.type !== "value") {
             // we have something that could nest.
             let tip = child;
@@ -642,18 +634,39 @@ function walk(tree, indent = 0) {
           ix++;
         }
 
+        // if this is an infix operator that invokes an attribute, e.g. "older", push
+        // that attribute onto the cursor
+        if(operation.infix && operation.attribute) {
+          let attr = {type: "attribute", found: operation.attribute, orig: operation.attribute, id: uuid(), children: []};
+          cursor.children.push(attr);
+          // we also need to add this as the first arg to the function
+          state.operator.children.unshift(attr);
+        } else if(operation.infix) {
+          // we need to add the closest thing before this as the first arg to the function.
+          let tip = cursor || root;
+          while(tip.children.length) {
+            tip = tip.children[tip.children.length - 1];
+          }
+          state.operator.children.unshift(tip);
+          // if we don't have an attribute to attach to the right side, let's assume
+          // that it mirrors the left.
+//           var rightSide = state.operator.children[state.operator.children.length - 1];
+//           if(rightSide.type !== "attribute") {
+//             let attr = {type: "attribute", found: tip.found, orig: tip.found, id: uuid(), children: []};
+//             rightSide.children.push(attr);
+//             state.operator.children[state.operator.children.length - 1] = attr;
+//           }
+        }
+
         tree.operations.push(state.operator);
 
         if(item.operator) {
-          activeRoot = state.operator = item.operator;
-          argCount = state.operator.operation.argCount;
-          if(state.operator.operation.infix) argCount--;
+          state.operator = item.operator;
         } else {
           // we're done consuming now
           state.consuming = false;
           state.operator = null;
           state.lastValue = false;
-          activeRoot = root;
           break;
         }
         item = state.operationStack.pop();
@@ -674,16 +687,16 @@ function walk(tree, indent = 0) {
   function nodeToPlanSteps(node, parent, parentPlan) {
     //TODO: figure out what to do with operations
     let id = node.id || uuid();
+    let {deselect} = node;
     if(parent) {
-      let {deselect} = node;
       let rel = tokensToRelationship(parent, node);
       if(!rel) {
         return [];
       }
       switch(rel.type) {
         case "coll->eav":
-          let plan = [];
-          let curParent = parentPlan;
+          var plan = [];
+          var curParent = parentPlan;
           for(let node of rel.nodes) {
             let coll = ignoreHiddenCollections(node);
             let item = {type: "gather", relatedTo: curParent, collection: coll, id: uuid()};
@@ -694,8 +707,8 @@ function walk(tree, indent = 0) {
           return plan;
           break;
         case "coll->ent":
-          let plan = [];
-          let curParent = parentPlan;
+          var plan = [];
+          var curParent = parentPlan;
           for(let node of rel.nodes) {
             let coll = ignoreHiddenCollections(node);
             let item = {type: "gather", relatedTo: curParent, collection: coll, id: uuid()};
@@ -778,7 +791,7 @@ function walk(tree, indent = 0) {
         if(child.type && child.type === "value") {
           limit = child.value;
         } else {
-          sort = [child, "value", info.direction];
+          sort = [child.id, "value", info.direction];
           grouped = groupLookup[child];
         }
       }
@@ -787,7 +800,7 @@ function walk(tree, indent = 0) {
         plan.push({type: "sort", id: uuid(), sort: [sort]});
       }
       if(limit) {
-        let limitInfo = {};
+        let limitInfo:any = {};
         if(grouped || Object.keys(groupLookup).length === 0) {
           limitInfo.results = limit;
         } else {
@@ -836,15 +849,15 @@ function walk(tree, indent = 0) {
 
   function planToQuery(plan) {
     let query = eve.query();
-    for(let step of plan) {
+    for(var step of plan) {
       switch(step.type) {
         case "find":
           // find is a no-op
           step.size = 0;
           break;
         case "gather":
-          let join = {deck: step.collection};
-          let related = step.relatedTo;
+          var join:any = {deck: step.collection};
+          var related = step.relatedTo;
           if(related) {
             if(related.type === "find") {
               step.size = 2;
@@ -865,8 +878,8 @@ function walk(tree, indent = 0) {
           }
           break;
         case "lookup":
-          let join = {attribute: step.attribute};
-          let related = step.relatedTo;
+          var join:any = {attribute: step.attribute};
+          var related = step.relatedTo;
           if(related) {
             if(related.type === "find") {
               join.page = related.entity;
@@ -878,21 +891,21 @@ function walk(tree, indent = 0) {
           query.select("page eavs", join, step.id);
           break;
         case "intersect":
-          let related = step.relatedTo;
+          var related = step.relatedTo;
           if(step.deselect) {
             step.size = 0;
-            query.deselect("deck pages", {deck: step.collection, page: [related.id, "page"]}, step.id);
+            query.deselect("deck pages", {deck: step.collection, page: [related.id, "page"]});
           } else {
             step.size = 0;
             query.select("deck pages", {deck: step.collection, page: [related.id, "page"]}, step.id);
           }
           break;
         case "filter by entity":
-          let related = step.relatedTo;
-          let linkId = `${step.id} | link`;
+          var related = step.relatedTo;
+          var linkId = `${step.id} | link`;
           if(step.deselect) {
             step.size = 0;
-            query.deselect("directionless links", {page: [related.id, "page"], link: step.entity}, step.id);
+            query.deselect("directionless links", {page: [related.id, "page"], link: step.entity});
           } else {
             step.size = 1;
             query.select("directionless links", {page: [related.id, "page"], link: step.entity}, step.id);
@@ -930,6 +943,7 @@ function walk(tree, indent = 0) {
   function newSearch(searchString) {
     let all = newSearchTokens(searchString);
     let tree = planTree(searchString);
+    console.log(tree);
     let plan = treeToPlan(tree);
     let query = planToQuery(plan);
     return {tokens: all, plan, query};
@@ -1038,7 +1052,7 @@ function walk(tree, indent = 0) {
   }
 
   // e.g. "meetings john was in"
-  function findCollectionToEntRelationship(coll, ent) {
+  function findCollectionToEntRelationship(coll, ent):any {
     if(coll === "decks") {
       if(eve.findOne("deck pages", {page: ent})) {
         return {distance: 0, type: "ent->deck"};
@@ -1421,10 +1435,6 @@ function walk(tree, indent = 0) {
 
   runtime.define("parse eavs", {multi: true}, function(page, text) {
     return parsePage(page, text).eavs;
-  });
-
-  runtime.define("search string", {multi: true}, function(text) {
-    return search(text);
   });
 
   runtime.define("count", {}, function(prev) {
