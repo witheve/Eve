@@ -9,7 +9,7 @@ module Api {
 
   export var DEBUG = {
     RECEIVE: 0,
-    SEND: 0,
+    SEND: 3,
     DISPATCH: false,
     STRUCTURED_CHANGE: false,
     BOOTSTRAP: true,
@@ -282,7 +282,8 @@ module Api {
     "uiElement: parent": "element",
     "member: member view": "view",
     "mapping: member field": "field",
-    "related entity: related entity": "entity"
+    "related entity: related entity": "entity",
+    "ui binding constraint: parent": "element"
   };
   const EDITOR_PK_DEPS = [
     ["display name", "display name: id"],
@@ -311,6 +312,8 @@ module Api {
     // Generate initial schemas and list of aliases.
     for(let editorView of editorViews) {
       let viewId = editorView["tag: view"];
+      let kind = Api.ixer.findOne("view", {"view: view": viewId})["view: kind"];
+      if(kind !== "table") continue;
       let schema:Schema = schemas[viewId] = {fields: [], unboundFields: [], singular: !!EDITOR_SINGULAR[viewId]};
       let prefix = `${viewId}: `;
       let key = EDITOR_PKS[viewId] !== undefined ? EDITOR_PKS[viewId] : viewId;
