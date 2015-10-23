@@ -45,6 +45,7 @@ module Bootstrap {
     addEntity(entity, "collection");
     facts["builtin collection entity"].push({entity, kind});
     addBlock(page, entity, "index-projection");
+    addBlock(page, "collections", "name-projection");
   }
 
   function assertValid(parser:Parsers.Query|Parsers.Ui):Parsers.Query|Parsers.Ui {
@@ -99,6 +100,23 @@ module Bootstrap {
   }
 
   var fingerprintsRaw:{[viewId:string]: string[]} = {
+    "concat": ["?A concat ?B = ?result"],
+    "remainder": ["?A remainder ?B = ?result"],
+    "-": ["?A - ?B = ?result"],
+    "+": ["?A + ?B = ?result"],
+    "/": ["?A / ?B = ?result"],
+    "*": ["?A * ?B = ?result"],
+
+    "<": ["?A < ?B"],
+    "<=": ["?A <= ?B"],
+    "!=": ["?A != ?B"],
+
+    "view": ["view ?view is a ?kind"],
+    "display name": ["?id is named ?name"],
+    "display order": ["?id is ordered ?priority"],
+    "tag": ["?view is tagged ?tag"],
+    "event": ["event at ?tick is a ?kind ?event with key ?key"],
+
     "ui binding constraint": ["?parent field ?field constraints alias ?alias"],
     "entity": ["?entity is an entity"],
     "entity kind": ["entity ?entity is a ?kind", "entity ?entity is an ?kind"],
@@ -201,10 +219,9 @@ module Bootstrap {
       + ?page is the selected page
     `,
     "select page on index click": Parsers.unpad(6) `
-      projection "index-projection" is templated as ?elem
-      event ?evt is a ?kind for element ?elem with key ?entity
+      event at ?tick is a "switch page" "click" with key ?entity
       page ?page represents ?entity
-      + ?page is the selected page at tick ?evt
+      + ?page is the selected page at tick ?tick
     `
   };
 
@@ -237,6 +254,7 @@ module Bootstrap {
       ~ ?entity is named ?name
       - debug: "name"
       - text: ?name
+      @click switch page: ?entity
     `,
     // index projection to list related entities by name as blocks
     "index": Parsers.unpad(6) `
@@ -247,7 +265,7 @@ module Bootstrap {
         ~ entity ?related is a ?kind
         ~ ?related is named ?name
         - text: ?name
-        @ click: ?related
+        @click switch page: ?related
     `
   };
 
