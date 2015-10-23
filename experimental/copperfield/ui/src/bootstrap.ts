@@ -9,67 +9,84 @@ module Bootstrap {
   }
 
   let views:{[viewId:string]: string[]} = {
+    "ui binding constraint": ["element", "parent", "alias", "field"],
+
     "entity": ["entity"],
     "entity kind": ["entity", "kind"],
     "collection entity": ["entity", "kind"],
     "related entity": ["entity", "related entity"],
-    "page": ["entity", "page", "element"],
-    "block": ["page", "block", "entity", "element"],
+
+    "page": ["entity", "page"],
+    "block": ["page", "block", "entity", "projection"],
     "selected page": ["page"],
     "selected block": ["block"],
-
-    "default page": ["page"],
-    "builtin entity": ["entity", "kind"],
-    "builtin collection entity": ["entity", "kind"],
-    "builtin page": ["entity", "page", "element"],
-    "builtin block": ["page", "block", "element"],
 
     "projection": ["projection", "element"],
     "default projection": ["entity", "projection"],
     "kind projection": ["kind", "projection"],
-    "block projection": ["block", "projection"],
+
+    "default page": ["page"],
+    "builtin entity": ["entity", "kind"],
+    "builtin collection entity": ["entity", "kind"],
+    "builtin page": ["entity", "page"],
+    "builtin block": ["page", "block", "entity", "projection"],
+    "builtin projection": ["projection", "element"],
   };
   let viewKinds:{[viewId:string]: string} = {
+    "ui binding constraint": "table",
+
     "default page": "table",
     "builtin entity": "table",
     "builtin collection entity": "table",
     "builtin page": "table",
-    "builtin block": "table"
+    "builtin block": "table",
+    "builtin projection": "table"
   }
 
   let fingerprintsRaw:{[viewId:string]: string[]} = {
+    "ui binding constraint": ["element ?element is bound to ?parent field ?field for alias ?alias"],
     "entity": ["?entity is an entity"],
     "entity kind": ["entity ?entity is a ?kind", "entity ?entity is an ?kind"],
     "collection entity": ["entity ?entity contains each ?kind"],
     "related entity": ["entity ?entity is related to ?related_entity"],
-    "page": ["page ?page represents ?entity as ?element"],
-    "block": ["block ?block represents ?entity in ?page as ?element"],
+
+    "page": ["page ?page represents ?entity"],
+    "block": ["block ?block represents ?entity in ?page as a ?projection", "block ?block represents ?entity in ?page as an ?projection"],
     "selected page": ["?page is the selected page"],
     "selected block": ["?block is the selected block"],
-
-    "default page": ["?page is the default page"],
-    "builtin entity": ["builtin entity ?entity is a ?kind", "builtin entity ?entity is an ?kind"],
-    "builtin collection entity": ["builtin entity ?entity contains each ?kind"],
-    "builtin page": ["builtin page ?page represents ?entity as ?element"],
-    "builtin block": ["builtin block ?block represents ?entity in ?page as ?element"],
 
     "projection": ["projection ?projection is templated as ?element"],
     "default projection": ["entity ?entity usually looks like a ?projection", "entity ?entity usually looks like an ?projection"],
     "kind projection": ["?kind entities can look like a ?projection", "?kind entities can look like an ?projection"],
-    "block projection": ["block ?block looks like a ?projection", "block ?block looks like an ?projection"],
+
+    "default page": ["?page is the default page"],
+    "builtin entity": ["builtin entity ?entity is a ?kind", "builtin entity ?entity is an ?kind"],
+    "builtin collection entity": ["builtin entity ?entity contains each ?kind"],
+    "builtin page": ["builtin page ?page represents ?entity"],
+    "builtin block": [
+      "builtin block ?block represents ?entity in ?page as a ?projection",
+      "builtin block ?block represents ?entity in ?page as an ?projection"
+    ],
+    "builtin projection": ["builtin projection ?projection is templated as ?element"],
   };
 
   let facts:{[viewId:string]: Api.Dict[]} = {
-    "default page": [{page: "homepage"}],
     "builtin entity": [
       {entity: "collections", kind: "collection"},
     ],
     "builtin collection entity": [
       {entity: "collections", kind: "collection"}
     ],
+    "default page": [{page: "collections-page"}],
     "builtin page": [
-      {entity: "collections", page: "homepage", element: "homepage-elem"}
+      {entity: "collections", page: "collections-page"}
     ],
+    "builtin block": [
+      {block: "collections index-block", entity: "collections", page: "collections-page", projection: "name-projection"}
+    ],
+    "builtin projection": [
+      {projection: "name-projection", element: "projection-name-elem"}
+    ]
   };
 
   let fingerprints:{[viewId:string]: string[]} = {};
@@ -104,12 +121,16 @@ module Bootstrap {
       + entity ?entity is a ?kind
     `,
     "set builtin pages": Parsers.unpad(6) `
-      builtin page ?page represents ?entity as ?element
-      + page ?page represents ?entity as ?element
+      builtin page ?page represents ?entity
+      + page ?page represents ?entity
     `,
     "set builtin blocks": Parsers.unpad(6) `
-      builtin block ?block represents ?entity in ?page as ?element
-      + block ?block represents ?entity in ?page as ?element
+      builtin block ?block represents ?entity in ?page as a ?projection
+      + block ?block represents ?entity in ?page as a ?projection
+    `,
+    "set builtin projections": Parsers.unpad(6) `
+      builtin projection ?projection is templated as ?element
+      + projection ?projection is templated as ?element
     `,
     "entity list": Parsers.unpad(6) `
       entity ?entity is a ?
@@ -131,6 +152,7 @@ module Bootstrap {
     "wiki root-elem": Parsers.unpad(6) `
       div; wiki root
         ~ ?page is the selected page
+        ~ page ?page represents ?entity
         div bordered ui-row; wiki header
           - flex: "none"
           span
@@ -139,19 +161,28 @@ module Bootstrap {
           span
             - flex: "none"
             - text: ?page
-        div; workspace
-          ~ page ?page represents ? as ??element
-          ;- text: ?element
-          - children: ?element
+        div; page
+          div; block
+            ~ block ? represents ?entity in ?page as a ?projection
+            ~ projection ?projection is templated as ??element
+            - children: ?element
         div bordered ui-row; wiki footer
           - flex: "none"
           - text: "footer"
-    `,
-    "homepage-elem": Parsers.unpad(6) `
-      - text: "Hello I am homepage how are you."
     `
   };
   for(let elemId in uis) uis[elemId] = uis[elemId].replace(/\"/gm, "`");
+
+  let projections:{[elemId:string]: string} = {
+    // Projections
+    "projection-name-elem": Parsers.unpad(6) `
+      ~ ?entity is named ?name
+      - debug: "projection-name-elem"
+      - text: ?name
+    `
+  };
+  for(let elemId in projections) projections[elemId] = projections[elemId].replace(/\"/gm, "`");
+
 
   function addView(effect, viewId, kind, fields) {
     effect.change.add("view", resolve("view", {view: viewId, kind}))
@@ -225,7 +256,13 @@ module Bootstrap {
       let ui = <Parsers.Ui>assertValid(new Parsers.Ui().loadFromElement(elemId, true).parse(uis[elemId]));
       ui.name = elemId;
       ui.tags.push("system", "ui-root");
-
+      effect.dispatch("compileUi", {ui});
+    }
+    for(let elemId in projections) {
+      let ui = <Parsers.Ui>assertValid(new Parsers.Ui().loadFromElement(elemId, true).parse(projections[elemId]));
+      ui.name = elemId;
+      ui.tags.push("system", "projection", "ui-root");
+      ui.bind("entity", "block: entity");
       effect.dispatch("compileUi", {ui});
     }
     effect.done();
