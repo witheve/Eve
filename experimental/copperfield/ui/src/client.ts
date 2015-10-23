@@ -50,22 +50,23 @@ module Client {
   function writeDataToConsole(data, verbosity) {
     verbosity = +verbosity;
     var consoleTable = console["table"].bind(console) || console.log.bind(console);
-    data.changes.forEach(function(change) {
-      if (change[2].length || change[3].length) {
+    data.changes.forEach(function([viewId, fields, adds, removes]) {
+      if (adds.length || removes.length) {
         if (verbosity == 1) {
-          console.log(" ", change[0], `+${change[2].length}/-${change[3].length}`);
+          console.log(" ", viewId, `+${adds.length}/-${removes.length}`);
         }
         if (verbosity == 2) {
-          console.log(" ", change[0], `+${change[2].length}/-${change[3].length}`,
-            { fields: change[1], inserts: change[2], removes: change[3] });
+          console.log(" ", viewId, `+${adds.length}/-${removes.length}`,
+            { fields, inserts: adds, removes: removes });
         }
         if (verbosity == 3) {
-          console.log(" ", change[0], `+${change[2].length}/-${change[3].length}`);
-          console.groupCollapsed(`   inserts ${change[1]}`);
-          consoleTable(change[2]);
-          console.groupEnd();
-          console.groupCollapsed(`   removes ${change[1]}`);
-          consoleTable(change[3]);
+          let human = fields.map(Api.get.name);
+          console.groupCollapsed(` ${viewId} +${adds.length}/-${removes.length}`);
+          console.info(`   fields`, fields);
+          console.info(`   adds`, human);
+          consoleTable(adds);
+          console.info(`   removes`, human);
+          consoleTable(removes);
           console.groupEnd();
         }
       }
