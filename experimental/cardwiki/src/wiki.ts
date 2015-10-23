@@ -204,48 +204,6 @@ module wiki {
     return children;
   }
 
-  function articleToGraph(pageId, content) {
-    let parsed = parsePage(pageId, content);
-    let links = [];
-    for(let link of parsed.links) {
-      links.push({link: link.link.toLowerCase(), type: (link.linkType || "unknown").toLowerCase()});
-    }
-    for(let collection of parsed.collections) {
-      links.push({link: collection.link.toLowerCase(), type: "collection"});
-    }
-    return links;
-  }
-
-  function findPath(from, to, depth = 0, seen = {}) {
-    if(from === to) return [[to]];
-    if(depth > 5) return [];
-    seen[from] = true;
-    let results = [];
-    var outbound = eve.find("page links", {page: from});
-    for(let out of outbound) {
-      let cur = out["link"];
-      if(!seen[cur]) {
-        if(cur !== to) seen[cur] = true;
-        for(var result of findPath(cur, to, depth + 1, seen)) {
-          result.unshift(from);
-          results.push(result);
-        }
-      }
-    }
-    var inbound = eve.find("page links", {link: from});
-    for(let inb of inbound) {
-      let cur = inb["page"];
-      if(!seen[cur]) {
-        if(cur !== to) seen[cur] = true;
-        for(var result of findPath(cur, to, depth + 1, seen)) {
-          result.unshift(from);
-          results.push(result);
-        }
-      }
-    }
-    return results;
-  }
-
   function stringMatches2(string, type, index) {
     // remove all non-word non-space characters
     let cleaned = string.replace(/[^\s\w]/gi, " ").toLowerCase();
