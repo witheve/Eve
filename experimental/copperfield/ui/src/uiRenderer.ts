@@ -25,13 +25,14 @@ module UiRenderer {
     return keys;
   }
 
-  function getBoundValue(elem:Element, field:string, boundAncestors: {[id: string]: Element}, elemToRow:{[id:string]: any}, debug?:Api.Dict) {
+  function getBoundValue(elem:Element, field:string, boundAncestors: {[id: string]: Element}, elemToRow:Api.Dict, elemToView?:Api.Dict, debug?:Api.Dict) {
     let ancestor = elem;
     let scopeIx = 0;
     while(ancestor && scopeIx++ < 100) {
       let row = elemToRow[ancestor.id];
       if(debug) {
         debug["ancestor"] = ancestor;
+        debug["view"] = elemToView[ancestor.id];
         debug["row"] = row;
       }
       if(row && row[field] !== undefined) return row[field];
@@ -117,6 +118,7 @@ module UiRenderer {
       let stack:Element[] = [];
       let compiledElements:MicroReact.Element[] = [];
       let elemToRow:{[id:string]: any} = {};
+      let elemToView:{[id:string]: string} = {};
       let boundAncestors:{[id:string]: Element} = {};
       let bindingConstraints:{[id:string]: {[alias: string]: string}} = {};
       for(let root of roots) {
@@ -145,7 +147,6 @@ module UiRenderer {
         let boundAttrs = elementToAttrBindings[templateId];
         let events = elementToEvents[templateId];
         let boundEvents = elementToEventBindings[templateId];
-        let children = elementToChildren[templateId];
 
         let elems = [elem];
         let binding = Api.ixer.findOne("uiElementBinding", {"uiElementBinding: element": templateId});
@@ -157,14 +158,14 @@ module UiRenderer {
           let ancestor = boundAncestors[elem.id];
           for(let {"uiScopedBinding: field": field, "uiScopedBinding: scoped field": scopedField} of scopedBindings) {
             bindings[field] = getBoundValue(ancestor, scopedField, boundAncestors, elemToRow);
+            if(DEBUG.RENDERER) console.info("* Binding", Api.get.name(field), field, "=", bindings[field]);
           }
           if(bindingConstraints[elem.id]) {
             let constraints = bindingConstraints[elem.id];
-            //console.log("constraints", constraints);
             for(let field of Api.ixer.find("field", {"field: view": boundView})) {
               let name = Api.get.name(field["field: field"]);
-              //console.log("*", name, field["field: field"]);
               if(constraints[name]) bindings[field["field: field"]] = getBoundValue(ancestor, constraints[name], boundAncestors, elemToRow);
+              if(DEBUG.RENDERER && constraints[name]) console.info("* Binding", name, field["field: field"], "=", bindings[field["field: field"]]);
             }
           }
 
@@ -176,6 +177,7 @@ module UiRenderer {
             let childId = `${elem.id}.${ix++}`;
             elems.push({t: elem.t, parent: elem.id, id: childId, __template: templateId});
             elemToRow[childId] = row;
+            elemToView[childId] = boundView;
             boundAncestors[childId] = boundAncestors[elem.id]; // Pass over the wrapper, it's these children which are bound.
 
             if(DEBUG.RENDERER) console.info(`* Linking ${childId} -> ${boundAncestors[elem.id] && boundAncestors[elem.id].id}.`);
@@ -196,13 +198,15 @@ module UiRenderer {
           // Handle bound properties.
           if(boundAttrs) {
             for(let {"uiAttributeBinding: property": prop, "uiAttributeBinding: field": field} of boundAttrs) {
-              let val = getBoundValue(elem, field, boundAncestors, elemToRow, boundValueDebug);
+              let val = getBoundValue(elem, field, boundAncestors, elemToRow, elemToView, boundValueDebug);
               elem[prop] = val;
               if(DEBUG.RENDERER) {
-                console.info(`
+                console.info(Parsers.unpad(18) `
                   * Binding ${elem.id}['${prop}'] to ${field} (${val})
                     source elem: ${boundValueDebug["ancestor"] && boundValueDebug["ancestor"].id}
-                    row: ${boundValueDebug["row"] && JSON.stringify(boundValueDebug["row"])}`
+                    row: ${boundValueDebug["row"] && JSON.stringify(
+                      Api.humanize(boundValueDebug["view"], boundValueDebug["row"])
+                    )}`
                 );
               }
             }
@@ -223,6 +227,9 @@ module UiRenderer {
           }
 
           // Prep children and add them to the stack.
+          let children = elementToChildren[templateId];
+          if(children) children = children.slice();
+
           if(elem.children) { // Process bound children (ids) into compilable facts.
             children = children || [];
             for(let childId of elem.children) {
@@ -235,19 +242,20 @@ module UiRenderer {
           if(children) {
             let boundAncestor = boundAncestors[elem.id];
             if(binding) boundAncestor = elem;
+            let childBindingConstraints = Api.ixer.find("ui binding constraint", {"ui binding constraint: parent": templateId});
+            let constraints;
+            if(childBindingConstraints.length) {
+              constraints = {};
+              for(let constraint of childBindingConstraints)
+                constraints[constraint["ui binding constraint: alias"]] = constraint["ui binding constraint: field"];
+            }
 
             elem.children = [];
             for(let child of children) {
               let childTemplateId = child["uiElement: element"];
               let childId = `${elem.id}__${childTemplateId}`;
-              let childBindingConstraints = Api.ixer.find("ui binding constraint",
-                {"ui binding constraint: element": childTemplateId, "ui binding constraint: parent": templateId}
-              );
-              if(childBindingConstraints.length) {
-                let constraints = bindingConstraints[childId] = {};
-                for(let constraint of childBindingConstraints)
-                  constraints[constraint["ui binding constraint: alias"]] = constraint["ui binding constraint: field"];
-              }
+              if(constraints) bindingConstraints[childId] = constraints;
+
               boundAncestors[childId] = boundAncestor;
               let childElem:Element = {id: childId, __template: childTemplateId};
               if(child["uiElement: ix"] !== "") childElem.ix = child["uiElement: ix"];
