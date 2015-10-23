@@ -6,7 +6,6 @@ module UiRenderer {
 
   interface Element extends MicroReact.Element {
     __template:string // The id of the uiElement that spawned this element. This relationship may be many to one when bound.
-    //__key?:string // The key which matches this element to it's source row and view if bound.
   }
 
   interface UiWarning {
@@ -119,6 +118,7 @@ module UiRenderer {
       let compiledElements:MicroReact.Element[] = [];
       let elemToRow:{[id:string]: any} = {};
       let boundAncestors:{[id:string]: Element} = {};
+      let bindingConstraints:{[id:string]: {[alias: string]: string}} = {};
       for(let root of roots) {
         if(typeof root === "object") {
           compiledElements.push(<Element>root);
@@ -157,6 +157,15 @@ module UiRenderer {
           let ancestor = boundAncestors[elem.id];
           for(let {"uiScopedBinding: field": field, "uiScopedBinding: scoped field": scopedField} of scopedBindings) {
             bindings[field] = getBoundValue(ancestor, scopedField, boundAncestors, elemToRow);
+          }
+          if(bindingConstraints[elem.id]) {
+            let constraints = bindingConstraints[elem.id];
+            //console.log("constraints", constraints);
+            for(let field of Api.ixer.find("field", {"field: view": boundView})) {
+              let name = Api.get.name(field["field: field"]);
+              //console.log("*", name, field["field: field"]);
+              if(constraints[name]) bindings[field["field: field"]] = getBoundValue(ancestor, constraints[name], boundAncestors, elemToRow);
+            }
           }
 
           var boundRows = this.getBoundRows(boundView, bindings);
@@ -216,7 +225,11 @@ module UiRenderer {
           // Prep children and add them to the stack.
           if(elem.children) { // Process bound children (ids) into compilable facts.
             children = children || [];
-            children.push.apply(children, elem.children.map((childId) => Api.ixer.findOne("uiElement", {"uiElement: element": childId})))
+            for(let childId of elem.children) {
+              let child = Api.ixer.findOne("uiElement", {"uiElement: element": childId});
+              if(child) children.push(child);
+              else console.warn("Missing child:", childId);
+            }
           }
 
           if(children) {
@@ -227,6 +240,14 @@ module UiRenderer {
             for(let child of children) {
               let childTemplateId = child["uiElement: element"];
               let childId = `${elem.id}__${childTemplateId}`;
+              let childBindingConstraints = Api.ixer.find("ui binding constraint",
+                {"ui binding constraint: element": childTemplateId, "ui binding constraint: parent": templateId}
+              );
+              if(childBindingConstraints.length) {
+                let constraints = bindingConstraints[childId] = {};
+                for(let constraint of childBindingConstraints)
+                  constraints[constraint["ui binding constraint: alias"]] = constraint["ui binding constraint: field"];
+              }
               boundAncestors[childId] = boundAncestor;
               let childElem:Element = {id: childId, __template: childTemplateId};
               if(child["uiElement: ix"] !== "") childElem.ix = child["uiElement: ix"];
