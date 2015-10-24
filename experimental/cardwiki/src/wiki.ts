@@ -247,7 +247,8 @@ module wiki {
     "without": "deselect",
     "not": "deselect",
     "aren't": "deselect",
-    "except": "engineering",
+    "except": "deselect",
+    "don't": "deselect",
   }
   var operations = {
     "sum": {op: "sum", argCount: 1, aggregate: true, args: ["value"]},
@@ -814,7 +815,10 @@ function walk(tree, indent = 0) {
           step.size = 0;
           break;
         case "gather":
-          var join:any = {deck: step.collection};
+          var join:any = {};
+          if(step.collection) {
+            join.deck = step.collection;
+          }
           var related = step.relatedTo;
           if(related) {
             if(related.type === "find") {
@@ -1220,9 +1224,17 @@ function walk(tree, indent = 0) {
     for(let step of plan) {
       if(step.type === "gather") {
         let related = step.relatedTo ? "related to those" : "";
-        planChildren.push({c: "text", text: `gather ${pluralize(step.collection, 2)} ${related}`});
+        let coll = "anything"
+        if(step.collection) {
+          coll = pluralize(step.collection, 2);
+        }
+        planChildren.push({c: "text", text: `gather ${coll} ${related}`});
       } else if(step.type === "intersect") {
-        planChildren.push({c: "text", text: `intersect with ${pluralize(step.collection, 2)}`});
+        if(step.deselect) {
+          planChildren.push({c: "text", text: `remove the ${pluralize(step.collection, 2)}`});
+        } else {
+          planChildren.push({c: "text", text: `keep only the ${pluralize(step.collection, 2)}`});
+        }
       } else if(step.type === "lookup") {
         planChildren.push({c: "text", text: `lookup ${step.attribute}`});
       } else if(step.type === "find") {
@@ -1578,6 +1590,9 @@ function walk(tree, indent = 0) {
     return prev;
   });
 
+  runtime.define("=", {filter: true}, function(a, b) {
+    return a === b ? runtime.SUCCEED : runtime.FAIL;
+  });
 
   runtime.define(">", {filter: true}, function(a, b) {
     return a > b ? runtime.SUCCEED : runtime.FAIL;
