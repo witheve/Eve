@@ -163,13 +163,22 @@ return index;`
     removeFacts(table, objs) {
       let tableDiff = this.ensureTable(table);
       this.length += objs.length;
-      tableDiff.removes.push(tableDiff.removes, objs);
+      tableDiff.removes.push.apply(tableDiff.removes, objs);
     }
     remove(table, query) {
       let tableDiff = this.ensureTable(table);
       let found = this.ixer.find(table, query);
       this.length += found.length;
       tableDiff.removes.push.apply(tableDiff.removes, found);
+    }
+    reverse() {
+      let reversed = new Diff(this.ixer);
+      for(let table in this.tables) {
+        let diff = this.tables[table];
+        reversed.addMany(table, diff.removes);
+        reversed.removeFacts(table, diff.adds);
+      }
+      return reversed;
     }
   }
 
