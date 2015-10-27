@@ -107,6 +107,7 @@ module Ui {
   let elementCompilers = {
     row,
     column,
+    renderer,
     button,
     input,
     checkbox,
@@ -201,6 +202,16 @@ module Ui {
 
   export function column(elem:Element):Element {
     elem.c = `ui-column ${elem.c || ""}`;
+    return elem;
+  }
+
+  interface RendererElement extends Element {
+    element: string
+  }
+  export function renderer(elem:RendererElement):Element {
+    let renderElems = elem.element;
+    if(renderElems.constructor !== Array) renderElems = [renderElems];
+    inject(elem, Editor.renderer.compile(renderElems));
     return elem;
   }
 
