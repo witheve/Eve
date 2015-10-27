@@ -281,7 +281,6 @@ module Api {
   };
   const EDITOR_FKS = {
     "uiElement: parent": "element",
-    "member: member view": "view",
     "mapping: member field": "field",
     "related entity: related entity": "entity",
     "ui binding constraint: parent": "element"
@@ -329,11 +328,12 @@ module Api {
           schema.key = fieldId;
           keys[fieldName] = [viewId, fieldId];
         } else { // Field is either a foreign key or unbound.
+          schema.unboundFields.push(fieldId);
           // If fieldId is in EDITOR_FKS (a custom foreign mapping), override it's fieldName.
-          fieldName = EDITOR_FKS[fieldId] || fieldName;
+          if(EDITOR_FKS[fieldId] !== undefined) fieldName = EDITOR_FKS[fieldId];
+          if(!fieldName) continue;
           if(!names[fieldName]) names[fieldName] = [];
           names[fieldName].push([viewId, fieldId]);
-          schema.unboundFields.push(fieldId);
         }
       }
     }
@@ -368,6 +368,16 @@ module Api {
       schema.unboundFields.splice(schema.unboundFields.indexOf(foreignFieldId), 1);
       if(!schema.foreign) schema.foreign = {};
       schema.foreign[foreignFieldId] = "$$LAST_PKEY";
+    }
+
+    for(let viewId in schemas) { // dedupe dependents
+      let schema = schemas[viewId];
+      let prev;
+      for(let ix = 0; schema.dependents && ix < schema.dependents.length; ix++) {
+        if(schema.dependents[ix] === schema.dependents[ix - 1]) {
+          schema.dependents.splice(ix, 1);
+        }
+      }
     }
   }
   ixer.trigger("generate schemas", "field", generateSchemas);
@@ -448,6 +458,7 @@ module Api {
       for(let fact of facts) this.remove(viewId, fact);
       return this;
     }
+    // @FIXME: in the case that multiple foreign fields map to the same pkey, this erroneously assumes both fields must equal the same entity.
     removeWithDependents(viewId:string, factOrPKey:Dict|any, dependents?:string[]):StructuredChange {
       let schema = schemas[viewId];
       if(!schema) throw new Error(`Unknown structured view: '${viewId}'.`);
