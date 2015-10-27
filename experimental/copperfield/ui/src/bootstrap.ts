@@ -221,7 +221,7 @@ module Bootstrap {
     "query entity": Parsers.unpad(6) `
       view ?entity is a "join"
       ?kind = "query"
-      ?projection = "name-projection"
+      ?projection = "fact-table-projection"
       + entity ?entity is a ?kind
       + entity ?entity usually looks like a ?projection
     `,
@@ -235,7 +235,7 @@ module Bootstrap {
     "ui entity": Parsers.unpad(6) `
       ?entity is tagged "ui-root"
       ?kind = "ui"
-      ?projection = "name-projection"
+      ?projection = "renderer-projection"
       + entity ?entity is a ?kind
       + entity ?entity usually looks like a ?projection
     `,
@@ -338,6 +338,13 @@ module Bootstrap {
       ~ view ?entity is a ?
       - t: "fact-table"
       - view: ?entity
+    `,
+    renderer: Parsers.unpad(6) `
+      ~ entity ?entity is a "ui"
+      ~ ?entity != "wiki root-elem"
+      ~ ?entity != "renderer-projection-elem"
+      - t: "renderer"
+      - element: ?entity
     `
   };
 
@@ -347,8 +354,8 @@ module Bootstrap {
   //---------------------------------------------------------------------------
   addCollection("collections", "collection", ["index-projection"]);
   addCollection("queries", "query");
-  addCollection("unions", "union");
-  addCollection("uis", "ui");
+  addCollection("unions", "union", ["fact-table-projection"]);
+  addCollection("uis", "ui", ["renderer-projection"]);
   addCollection("projections", "projection");
 
   for(let projection in projections)
