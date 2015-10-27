@@ -806,7 +806,20 @@ function walk(tree, indent = 0) {
     return plan;
   }
 
+  function safeProjectionName(name, projection) {
+    if(!projection[name]) {
+      return name;
+    }
+    let ix = 1;
+    while(projection[name]) {
+      name = `${name} ${ix}`;
+      ix++;
+    }
+    return name;
+  }
+
   function planToQuery(plan) {
+    let projection = {};
     let query = eve.query();
     for(var step of plan) {
       switch(step.type) {
@@ -838,6 +851,8 @@ function walk(tree, indent = 0) {
             step.size = 1;
             query.select("deck pages", join, step.id);
           }
+          step.name = safeProjectionName(step.collection, projection);
+          projection[step.name] = [step.id, "page"];
           break;
         case "lookup":
           var join:any = {attribute: step.attribute};
@@ -851,6 +866,8 @@ function walk(tree, indent = 0) {
           }
           step.size = 1;
           query.select("page eavs", join, step.id);
+          step.name = safeProjectionName(step.attribute, projection);
+          projection[step.name] = [step.id, "value"];
           break;
         case "intersect":
           var related = step.relatedTo;
@@ -880,10 +897,14 @@ function walk(tree, indent = 0) {
         case "calculate":
           step.size = 1;
           query.calculate(step.func, step.args, step.id);
+          step.name = safeProjectionName(step.func, projection);
+          projection[step.name] = [step.id, "result"];
           break;
         case "aggregate":
           step.size = 1;
           query.aggregate(step.aggregate, step.args, step.id);
+          step.name = safeProjectionName(step.aggregate, projection);
+          projection[step.name] = [step.id, step.aggregate];
           break;
         case "group":
           step.size = 0;
@@ -899,6 +920,7 @@ function walk(tree, indent = 0) {
           break;
       }
     }
+    query.project(projection);
     return query;
   }
 
@@ -1154,7 +1176,7 @@ function walk(tree, indent = 0) {
   // Wiki
   //---------------------------------------------------------
 
-  var activeSearch = {tokens: [], query: null, plan: []};
+  export var activeSearch:{tokens: any[], query: any, plan: any[]};
 
   app.handle("startEditingArticle", (result, info) => {
     let page = info.page.toLowerCase();
@@ -1179,9 +1201,29 @@ function walk(tree, indent = 0) {
       result.add("history stack", {page: search, pos: stack.length});
     }
     let newSearchValue = info.value.trim();
-    activeSearch = newSearch(newSearchValue);
+    app.activeSearch = newSearch(newSearchValue);
     result.remove("search");
     result.add("search", {search: newSearchValue});
+  });
+
+  app.handle("submitAction", (result, info) => {
+    let search = eve.findOne("search")["search"];
+    result.merge(saveSearch(search, app.activeSearch.query));
+    if(info.type === "attribute") {
+      if(!info.entity || !info.attribute || !info.value) return;
+      result.merge(addEavAction(search, info.entity, info.attribute, info.value));
+    } else if(info.type === "collection") {
+      result.merge(addToCollectionAction(search, info.entity, info.collection));
+    }
+  });
+
+  app.handle("startAddingAction", (result, info) => {
+    result.remove("adding action");
+    result.add("adding action", {type: info.type});
+  });
+
+  app.handle("stopAddingAction", (result, info) => {
+    result.remove("adding action");
   });
 
   export function root() {
@@ -1208,7 +1250,34 @@ function walk(tree, indent = 0) {
     } else {
       articleView = {id: "article editor", c: "article editor", page: articleId, postRender: CodeMirrorElement, value: article.text, blur: commitArticle};
     }
-    return articleView;
+    let relatedBits;
+    let addedEavs = eve.find("added eavs", {page: articleId});
+    if(addedEavs) {
+      let children = [];
+      for(let added of addedEavs) {
+        children.push({c: "bit", click: followLink, linkText: added["source view"], children: [
+          {c: "header attribute", text: added.attribute},
+          {c: "value", text: added.value},
+        ]})
+      }
+      relatedBits = {c: "related-bits", children};
+    }
+    let relatedColls;
+    let addedColls = eve.find("added collections", {page: articleId});
+    if(addedColls) {
+      let children = [];
+      for(let added of addedColls) {
+        children.push({c: "bit", click: followLink, linkText: added["source view"], children: [
+          {c: "header collection", text: added.deck},
+        ]})
+      }
+      relatedColls = {c: "related-bits", children};
+    }
+    return {c: "article-container", children: [
+      articleView,
+      relatedBits,
+      relatedColls,
+    ]};
   }
 
   function relatedItems() {
@@ -1274,7 +1343,7 @@ function walk(tree, indent = 0) {
 
   function newSearchResults() {
     let search = eve.findOne("search")["search"];
-    let {tokens, plan, query} = activeSearch;
+    let {tokens, plan, query} = app.activeSearch;
     let resultItems = [];
     if(query) {
       let results = query.exec();
@@ -1314,12 +1383,76 @@ function walk(tree, indent = 0) {
     } else if(plan.length === 0) {
       resultItems.push({c: "singleton", children: [articleUi(search)]});
     }
+    let actions = [];
+    for(let eavAction of eve.find("add eav action", {view: search})) {
+      actions.push({c: "bit", children: [
+        {c: "", text: `Each ${eavAction.entity} has`},
+        {c: "header attribute", text: eavAction.attribute},
+        {c: "value", text: eavAction.field},
+      ]})
+    }
+    for(let collectionAction of eve.find("add collection action", {view: search})) {
+      actions.push({c: "bit", children: [
+        {c: "", text: `Each ${collectionAction.field} is added to`},
+        {c: "header collection", text: collectionAction.collection},
+      ]})
+    }
+
+    let addActionChildren = [];
+    let adding = eve.findOne("adding action");
+    if(adding) {
+     if(adding.type === "attribute") {
+      addActionChildren.push({c: "add-attribute", children: [
+        {text: "let's add an attribute"},
+        {t: "input", c: "entity", placeholder: "entity"},
+        {t: "input", c: "attribute", placeholder: "attribute"},
+        {t: "input", c: "value", placeholder: "value"},
+        {c: "button", text: "submit", click: submitAction},
+        {c: "button", text: "cancel", click: stopAddingAction},
+      ]});
+     } else if(adding.type === "collection") {
+      addActionChildren.push({c: "add-collection", children: [
+        {text: "lets add a collection"},
+        {t: "input", c: "entity", placeholder: "entity"},
+        {t: "input", c: "collection", placeholder: "collection"},
+        {c: "button", text: "submit", click: submitAction},
+        {c: "button", text: "cancel", click: stopAddingAction},
+      ]});
+     }
+    } else {
+      addActionChildren.push({c: "button", text: "add attribute", actionType: "attribute", click: startAddingAction});
+      addActionChildren.push({c: "button", text: "add to collection", actionType: "collection", click: startAddingAction});
+    }
+
     return {c: "container", children: [
       searchDescription(tokens, plan),
       {c: "search-results", children: resultItems},
+      {c: "related-bits", children: actions},
+      {c: "add-action", children: addActionChildren}
     ]};
-
   }
+
+  function startAddingAction(e, elem) {
+    app.dispatch("startAddingAction", {type: elem.actionType}).commit();
+  }
+
+  function stopAddingAction(e, elem) {
+    app.dispatch("stopAddingAction", {}).commit();
+  }
+
+  function submitAction(e, elem) {
+    let values = {type: eve.findOne("adding action")["type"]};
+    let parent = e.currentTarget.parentNode;
+    for(let child of parent.childNodes) {
+      if(child.nodeName === "INPUT") {
+        values[child.className] = child.value;
+      }
+    }
+    app.dispatch("submitAction", values)
+       .dispatch("stopAddingAction", {})
+       .commit();
+  }
+
   function commitArticle(cm, elem) {
     app.dispatch("stopEditingArticle", {page: elem.page, value: cm.getValue()}).commit();
   }
@@ -1350,6 +1483,84 @@ function walk(tree, indent = 0) {
     return {c: "history-stack", children: stackItems};
   }
 
+  function saveSearch(name, query) {
+    if(!eve.findOne("view", {view: name})) {
+      query.name = name;
+      let diff = queryObjectToDiff(query);
+      return diff;
+    } else {
+      return eve.diff();
+    }
+  }
+
+  function addToCollectionAction(name, field, collection) {
+    let diff = eve.diff();
+    // add an action
+    let action = `${name}|${field}|${collection}`;
+    diff.add("add collection action", {view: name, action, field, collection});
+    diff.add("action", {view: "added collections", action, kind: "union", ix: 1});
+    // a source
+    diff.add("action source", {action, "source view": name});
+    // a mapping
+    diff.add("action mapping", {action, from: "page", "to source": action, "to field": field});
+    diff.add("action mapping constant", {action, from: "deck", value: collection});
+    diff.add("action mapping constant", {action, from: "source view", value: name});
+    console.log(name, field, collection, diff);
+    return diff;
+  }
+
+  function removeAddToCollectionAction(action) {
+    let info = eve.findOne("add collection action", {action});
+    if(info) {
+      let diff = addToCollectionAction(info.view, info.field, info.collection);
+      return diff.reverse();
+    } else {
+      return eve.diff();
+    }
+  }
+
+  function addEavAction(name, entity, attribute, field) {
+    let diff = eve.diff();
+    // add an action
+    let action = `${name}|${entity}|${attribute}|${field}`;
+    diff.add("add eav action", {view: name, action, entity, attribute, field,});
+    diff.add("action", {view: "added eavs", action, kind: "union", ix: 1});
+    // a source
+    diff.add("action source", {action, "source view": name});
+    // a mapping
+    diff.add("action mapping", {action, from: "page", "to source": action, "to field": entity});
+    diff.add("action mapping", {action, from: "value", "to source": action, "to field": field});
+    diff.add("action mapping constant", {action, from: "attribute", value: attribute});
+    diff.add("action mapping constant", {action, from: "source view", value: name});
+    return diff;
+  }
+
+  function removeAddEavAction(action) {
+    let info = eve.findOne("add eav action", {action});
+    if(info) {
+      let diff = addEavAction(info.view, info.entity, info.attribute, info.field);
+      return diff.reverse();
+    } else {
+      return eve.diff();
+    }
+  }
+
+  export function clearSaved() {
+    let diff = eve.diff();
+    diff.remove("view");
+    diff.remove("action");
+    diff.remove("action source");
+    diff.remove("action mapping");
+    diff.remove("action mapping constant");
+    diff.remove("action mapping sorted");
+    diff.remove("action mapping limit");
+    diff.remove("add collection action");
+    diff.remove("add eav action");
+    return diff;
+  }
+
+
+
   //---------------------------------------------------------
   // AST and compiler
   //---------------------------------------------------------
@@ -1360,6 +1571,16 @@ function walk(tree, indent = 0) {
   // action mapping: action, from, to source, to field
   // action mapping constant: action, from, value
 
+  var recompileTrigger = {
+    exec: () => {
+      for(let view of eve.find("view")) {
+        let query = compile(eve, view["view"]);
+        eve.asView(query);
+      }
+      return {};
+    }
+  }
+
   eve.addTable("view", ["view", "kind"]);
   eve.addTable("action", ["view", "action", "kind", "ix"]);
   eve.addTable("action source", ["action", "source view"]);
@@ -1367,6 +1588,14 @@ function walk(tree, indent = 0) {
   eve.addTable("action mapping constant", ["action", "from", "value"]);
   eve.addTable("action mapping sorted", ["action", "ix", "source", "field", "direction"]);
   eve.addTable("action mapping limit", ["action", "limit type", "value"]);
+
+  eve.table("view").triggers["recompile"] = recompileTrigger;
+  eve.table("action").triggers["recompile"] = recompileTrigger;
+  eve.table("action source").triggers["recompile"] = recompileTrigger;
+  eve.table("action mapping").triggers["recompile"] = recompileTrigger;
+  eve.table("action mapping constant").triggers["recompile"] = recompileTrigger;
+  eve.table("action mapping sorted").triggers["recompile"] = recompileTrigger;
+  eve.table("action mapping limit").triggers["recompile"] = recompileTrigger;
 
   function mappingToDiff(diff, action, mapping, aliases, reverseLookup) {
     for(let from in mapping) {
@@ -1390,7 +1619,7 @@ function walk(tree, indent = 0) {
     let diff = eve.diff();
     let aliases = {};
     let reverseLookup = {};
-    for(let alias of query.aliases) {
+    for(let alias in query.aliases) {
       reverseLookup[query.aliases[alias]] = alias;
     }
     let view = query.name;
@@ -1419,7 +1648,7 @@ function walk(tree, indent = 0) {
     for(let agg of query.aggregates) {
       let action = uuid();
       aliases[agg.as] = action;
-      diff.add("action", {view, action, kind: "calculate", ix: agg.ix});
+      diff.add("action", {view, action, kind: "aggregate", ix: agg.ix});
       diff.add("action source", {action, "source view": agg.name});
       mappingToDiff(diff, action, agg.args, aliases, reverseLookup);
     }
@@ -1472,19 +1701,11 @@ function walk(tree, indent = 0) {
     return diff;
   }
 
+  // add the added collections union so that sources can be added to it by
+  // actions.
   var diff = eve.diff();
-  diff.add("view", {view: "page links 2", kind: "query"});
-  diff.add("action", {view: "page links 2", action: "page links - page", kind: "select", ix: 0});
-  diff.add("action source", {action: "page links - page", "source view": "page links"});
-  diff.add("action", {view: "page links 2", action: "page links - project", kind: "project", ix: 1});
-  diff.add("action mapping", {action: "page links - project", from: "page", "to source": "page links - page", "to field": "page"});
-  diff.add("action mapping", {action: "page links - project", from: "count", "to source": "page links - agg", "to field": "count"});
-  diff.add("action", {view: "page links 2", action: "page links - group", kind: "group", ix: 2});
-  diff.add("action mapping sorted", {action: "page links - group", ix: 0, source: "page links - page", field: "page", direction: "ascending"});
-  diff.add("action", {view: "page links 2", action: "page links - agg", kind: "aggregate", ix: 3});
-  diff.add("action source", {action: "page links - agg", "source view": "count"});
-  diff.add("action", {view: "page links 2", action: "page links - limit", kind: "limit", ix: 3});
-  diff.add("action mapping limit", {action: "page links - limit", "limit type": "results", value: 5});
+  diff.add("view", {view: "added collections", kind: "union"});
+  diff.add("view", {view: "added eavs", kind: "union"});
   eve.applyDiff(diff);
 
 
@@ -1648,12 +1869,22 @@ function walk(tree, indent = 0) {
              .select("page links", {type: "collection"}, "links")
              .project({page: ["links", "page"], deck: ["links", "link"]}));
 
-  eve.asView(eve.query("page eavs")
+  eve.asView(eve.query("parsed eavs")
              .select("page", {}, "page")
              .calculate("parse eavs", {page: ["page", "page"], text: ["page", "text"]}, "parsed")
              .project({page: ["page", "page"], attribute: ["parsed", "attribute"], value: ["parsed", "value"]}));
 
+  eve.asView(eve.union("page eavs")
+             .union("parsed eavs", {page: ["page"], attribute: ["attribute"], value: ["value"]})
+             // this is a stored union that is used by the add eav action to take query results and
+             // push them into eavs, e.g. sum salaries per department -> [total salary = *]
+             .union("added eavs", {page: ["page"], attribute: ["attribute"], value: ["value"]}));
+
   eve.asView(eve.union("deck pages")
+             // this is a stored union that is used by the add to collection action to take query results and
+             // push them into collections, e.g. people older than 21 -> [[can drink]]
+             .union("added collections", {page: ["page"], deck: ["deck"]})
+             // the rest of these are editor-level views
              .union("collection links", {page: ["page"], deck: ["deck"]})
              .union("history stack", {page: ["page"], deck: "history"})
              .union("page links", {page: ["link"], deck: ["type"]}));
@@ -1682,12 +1913,21 @@ function walk(tree, indent = 0) {
     } else {
       eve.load(stored);
     }
-    activeSearch = newSearch(eve.findOne("search")["search"]);
+    app.activeSearch = newSearch(eve.findOne("search")["search"]);
+//     eve.applyDiff(saveSearch("ceo", activeSearch.query));
+//     eve.applyDiff(addToCollectionAction("ceo", "ceo", "executive"));
+//     eve.applyDiff(removeAddEavAction("sum of salaries per department|department|total cost|sum", "department", "total cost", "sum"));
+    // compile all stored views
+    for(let view of eve.find("view")) {
+      let query = compile(eve, view["view"]);
+      eve.asView(query);
+    }
   }
 
+  app.renderRoots["wiki"] = root;
   app.init("wiki", function() {
+    app.activeSearch = {tokens: [], query: null, plan: []};
     initEve();
-    app.renderRoots["wiki"] = root;
   });
 
 }
