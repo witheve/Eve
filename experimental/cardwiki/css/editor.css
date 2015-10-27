@@ -36,6 +36,11 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .search-description { display: block; }
 .search-description * { display:inline; }
 
+.search-plan { padding: 30px 0; align-items: flex-start; }
+.search-plan * { padding: 5px; background: #333; margin:5px 0px; border-radius:2px; }
+
+.search-results .step { padding: 5px; background: #444; margin:4px; border-radius:2px; }
+
 .search-results { flex:none; padding:0 10px; overflow:auto;  }
 .search-results .path { flex-direction:row; }
 .search-results pre { display:none; }

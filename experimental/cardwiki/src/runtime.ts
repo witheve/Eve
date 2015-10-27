@@ -163,13 +163,22 @@ return index;`
     removeFacts(table, objs) {
       let tableDiff = this.ensureTable(table);
       this.length += objs.length;
-      tableDiff.removes.push(tableDiff.removes, objs);
+      tableDiff.removes.push.apply(tableDiff.removes, objs);
     }
     remove(table, query) {
       let tableDiff = this.ensureTable(table);
       let found = this.ixer.find(table, query);
       this.length += found.length;
       tableDiff.removes.push.apply(tableDiff.removes, found);
+    }
+    reverse() {
+      let reversed = new Diff(this.ixer);
+      for(let table in this.tables) {
+        let diff = this.tables[table];
+        reversed.addMany(table, diff.removes);
+        reversed.removeFacts(table, diff.adds);
+      }
+      return reversed;
     }
   }
 
@@ -272,13 +281,69 @@ return index;`
       }
       return cursor;
     }
+    execDiff(diff) {
+      let triggers = {};
+      let realDiffs = {};
+      for(let tableId in diff.tables) {
+        let tableDiff = diff.tables[tableId];
+        if(!tableDiff.adds.length && !tableDiff.removes.length) continue;
+        let realDiff = this.updateTable(tableId, tableDiff.adds, tableDiff.removes);
+        // go through all the indexes and update them.
+        let table = this.tables[tableId];
+        for(let indexName in table.indexes) {
+          let index = table.indexes[indexName];
+          index.collect(index.index, realDiff.adds, realDiff.removes, table.equals);
+        }
+        for(let triggerName in table.triggers) {
+          let trigger = table.triggers[triggerName];
+          triggers[triggerName] = trigger;
+        }
+        realDiffs[tableId] = realDiff;
+      }
+      return {triggers, realDiffs};
+    }
     execTrigger(trigger) {
-      let {results} = trigger.exec();
+      let {results, unprojected} = trigger.exec();
+      let table = this.table(trigger.name);
+      let prevResults = table.factHash;
+      let prevHashes = Object.keys(prevResults);
+      table.unprojected = unprojected;
       if(results) {
         let diff = new Diff(this);
         this.clearTable(trigger.name);
         diff.addMany(trigger.name, results);
-        this.applyDiff(diff);
+        let {triggers} = this.execDiff(diff);
+        let newHashes = table.factHash;
+        if(prevHashes.length === Object.keys(newHashes).length) {
+          let same = true;
+          for(let hash of prevHashes) {
+            if(!newHashes[hash]) {
+              same = false;
+              break;
+            }
+          }
+          return same ? undefined : triggers;
+        } else {
+          return triggers;
+        }
+      }
+      return;
+    }
+    execTriggers(triggers) {
+      let newTriggers = {};
+      let retrigger = false;
+      for(let triggerName in triggers) {
+        let trigger = triggers[triggerName];
+        let nextRound = this.execTrigger(trigger);
+        if(nextRound) {
+          retrigger = true;
+          for(let trigger in nextRound) {
+            newTriggers[trigger] = nextRound[trigger];
+          }
+        }
+      }
+      if(retrigger) {
+        return newTriggers;
       }
     }
     //---------------------------------------------------------
@@ -304,26 +369,9 @@ return index;`
       return new Diff(this);
     }
     applyDiff(diff:Diff) {
-      let triggers = {};
-      for(let tableId in diff.tables) {
-        let tableDiff = diff.tables[tableId];
-        if(!tableDiff.adds.length && !tableDiff.removes.length) continue;
-        let realDiff = this.updateTable(tableId, tableDiff.adds, tableDiff.removes);
-        // go through all the indexes and update them.
-        let table = this.tables[tableId];
-        for(let indexName in table.indexes) {
-          let index = table.indexes[indexName];
-          index.collect(index.index, realDiff.adds, realDiff.removes, table.equals);
-        }
-        //TODO: apply triggers
-        for(let triggerName in table.triggers) {
-          let trigger = table.triggers[triggerName];
-          triggers[triggerName] = trigger;
-        }
-      }
-      for(let triggerName in triggers) {
-        let trigger = triggers[triggerName];
-        this.execTrigger(trigger);
+      let {triggers, realDiffs} = this.execDiff(diff);
+      while(triggers) {
+        triggers = this.execTriggers(triggers);
       }
     }
     table(tableId) {
@@ -344,7 +392,7 @@ return index;`
     findOne(tableId, query?) {
       return this.find(tableId, query)[0];
     }
-    query(name) {
+    query(name = "unknown") {
       return new Query(this, name);
     }
     union(name) {
@@ -358,7 +406,10 @@ return index;`
         let table = this.table(tableName);
         table.triggers[name] = query;
       }
-      this.execTrigger(query);
+      let nextRound = this.execTrigger(query);
+      while(nextRound) {
+        nextRound = this.execTriggers(nextRound);
+      };
     }
   }
 
@@ -427,7 +478,9 @@ return index;`
       if(as) {
         this.aliases[as] = Object.keys(this.aliases).length;
       }
-      this.unprojectedSize++;
+      if(!QueryFunctions[funcName].filter) {
+        this.unprojectedSize++;
+      }
       this.funcs.push({name: funcName, args, as, ix: this.aliases[as]});
       return this;
     }
@@ -455,6 +508,7 @@ return index;`
       if(as) {
         this.aliases[as] = Object.keys(this.aliases).length;
       }
+      this.unprojectedSize++;
       this.aggregates.push({name: funcName, args, as, ix: this.aliases[as]});
       return this;
     }
@@ -561,7 +615,8 @@ return index;`
           let funcInfo = QueryFunctions[name];
           this.applyAliases(args);
           root.children.unshift({type: "functionDeclaration", ix, info: funcInfo});
-          aggregateChildren.push({type: "functionCall", ix, args, info: funcInfo, unprojected: true, children: []});
+          aggregateChildren.push({type: "functionCall", ix, resultsIx: results.length, args, info: funcInfo, unprojected: true, children: []});
+          results.push({type: "placeholder"});
         }
         let aggregate = {type: "aggregate loop", groups: this.groups, limit: this.limitInfo, size, children: aggregateChildren};
         root.children.push(aggregate);
@@ -664,8 +719,12 @@ return index;`
         case "result":
           var results = [];
           for(var result of root.results) {
-            let ix = result.ix;
-            results.push(`row${ix}`);
+            if(result.type === "placeholder") {
+              results.push("undefined");
+            } else {
+              let ix = result.ix;
+              results.push(`row${ix}`);
+            }
           }
           code += `unprojected.push(${results.join(", ")});\n`;
           break;
@@ -682,6 +741,7 @@ return index;`
             if(agg.type === "functionCall") {
               unprojected[agg.ix] = true;
               let compiled = this.compileAST(agg);
+              compiled += `\nunprojected[ix + ${agg.resultsIx}] = row${agg.ix};\n`;
               aggregateCalls.push(compiled);
               aggregateStates.push(`var row${agg.ix} = {};`);
               aggregateResets.push(`row${agg.ix} = {};`);
@@ -706,12 +766,28 @@ return index;`
           }
           let groupLimitCheck = "";
           if(root.limit && root.limit.perGroup && root.groups) {
-            groupLimitCheck = `if(perGroupCount === ${root.limit.results}) {
-              while(nextIx < len && !differentGroup) {
+            groupLimitCheck = `if(perGroupCount === ${root.limit.perGroup}) {
+              while(!differentGroup) {
                 nextIx += ${root.size};
+                if(nextIx >= len) break;
                 differentGroup = ${groupCheck};
               }
             }`;
+          }
+          let groupDifference = "";
+          if(this.groups) {
+            groupDifference = `
+            perGroupCount++
+            var differentGroup = ${groupCheck};
+            ${groupLimitCheck}
+            if(differentGroup) {
+              ${projection}
+              ${aggregateResets.join("\n")}
+              perGroupCount = 0;
+              resultCount++;
+            }\n`;
+          } else {
+            groupDifference = "resultCount++;\n";
           }
           // if there are neither aggregates to calculate nor groups to build,
           // then we just need to worry about limiting
@@ -740,15 +816,7 @@ return index;`
                       break;
                     }
                     nextIx += ${root.size};
-                    perGroupCount++
-                    var differentGroup = ${groupCheck};
-                    ${groupLimitCheck}
-                    if(differentGroup) {
-                      ${projection}
-                      ${aggregateResets.join("\n")}
-                      perGroupCount = 0;
-                      resultCount++;
-                    }
+                    ${groupDifference}
                     ${resultsCheck}
                     ix = nextIx;
                   }\n`;
@@ -820,6 +888,7 @@ return index;`
       this.sources = [];
       this.isStateful = false;
       this.prev = {results: [], hashes: {}};
+      this.dirty = true;
     }
     stateful() {
       this.dirty = true;
@@ -894,8 +963,11 @@ return index;`
           for(let key in root.mapping) {
             let mapping = root.mapping[key];
             let value;
-            if(mapping.constructor === Array) {
+            if(mapping.constructor === Array && mapping.length === 1) {
               let [field] = mapping;
+              value = `sourceRow${ix}['${field}']`;
+            } else if(mapping.constructor === Array && mapping.length === 2) {
+              let [_, field] = mapping;
               value = `sourceRow${ix}['${field}']`;
             } else {
               value = JSON.stringify(mapping);
