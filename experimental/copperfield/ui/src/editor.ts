@@ -540,7 +540,7 @@ module Editor {
       }
       Ui.onChange = render;
 
-      let eids = Api.extract("event: event", Api.ixer.find("event"));
+      let eids = Api.extract("event: tick", Api.ixer.find("event"));
       if(eids.length) localState.eventId = Math.max.apply(Math, eids) + 1; // Ensure eids are monotonic across sessions.
     } else {
       localState = Api.localState;
