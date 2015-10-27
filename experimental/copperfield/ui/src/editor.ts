@@ -139,9 +139,11 @@ module Editor {
           .add("select");
       }
 
+      let memberCount = {};
+
       for(let action of reified.actions) { // Actions
         if(action.action === "+") {
-          let {"view fingerprint: view":viewId} = Api.ixer.findOne("view fingerprint", {"view fingerprint: fingerprint": action.fingerprint}) || {};
+          let {"view fingerprint: view": viewId} = Api.ixer.findOne("view fingerprint", {"view fingerprint: fingerprint": action.fingerprint}) || {};
           let fieldIds = [];
           if(!viewId) {
             for(let ix = 0; ix < action.mappings.length; ix++) fieldIds.push(Api.uuid());
@@ -162,25 +164,31 @@ module Editor {
             });
             fieldIds = Api.extract("fingerprint field: field", fingerprintFields);
           }
+          let members = Api.ixer.find("member", {"member: view": viewId, "member: member view": query.id});
 
-          let member = Api.ixer.findOne("member", {"member: view": viewId, "member: member view": query.id});
-          if(member) {
-            effect.change.add("member", Api.resolve("member",
-              {member: member["member: member"], view: viewId, ix: member["member: ix"], "member view": query.id})
-            );
-          } else {
+          if(!memberCount[viewId]) memberCount[viewId] = 0;
+          if(members && memberCount[viewId] < members.length) {
+            effect.change.add("member", members[memberCount[viewId]++]);
+          }
+          else {
             let memberIx = action.memberIx;
-            if(memberIx === undefined) {
-              memberIx = Math.max.apply(Math, Api.extract("member: ix", Api.ixer.find("member", {"member: view": viewId})));
-              memberIx = memberIx > -Infinity ? memberIx + 1 : 0;
+            if(!memberIx) {
+              if(memberCount[viewId] === undefined) {
+                memberCount[viewId] = Math.max.apply(Math, Api.extract("member: ix", Api.ixer.find("member", {"member: view": viewId})));
+                memberIx = memberCount[viewId] = memberCount[viewId] > -Infinity ? memberCount[viewId] + 1 : 0;
+              } else memberIx = memberCount[viewId]++;
             }
+
             effect.change.add("member", Api.resolve("member", {view: viewId, ix: memberIx, "member view": query.id}));
           }
 
+          // Hack required due to field context getting erroneously applied -- need to turn context into a stack instead of a log.
+          effect.change.changeSet.remove("mapping", {"mapping: member": effect.change.context["member: member"]});
           let ix = 0;
           for(let fieldId of fieldIds) {
             let variable = reified.variables[action.mappings[ix++]];
-            effect.change.add("mapping", Api.resolve("mapping", {"view field": fieldId, "member field": variable.selected}));
+            let mapping = Api.resolve("mapping", {"view field": fieldId, "member field": variable.selected})
+            effect.change.add("mapping", mapping);
           }
 
           // @TODO: Add support for negation (requires ordering across multiple children...)
