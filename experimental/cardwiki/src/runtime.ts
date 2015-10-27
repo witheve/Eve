@@ -272,15 +272,69 @@ return index;`
       }
       return cursor;
     }
+    execDiff(diff) {
+      let triggers = {};
+      let realDiffs = {};
+      for(let tableId in diff.tables) {
+        let tableDiff = diff.tables[tableId];
+        if(!tableDiff.adds.length && !tableDiff.removes.length) continue;
+        let realDiff = this.updateTable(tableId, tableDiff.adds, tableDiff.removes);
+        // go through all the indexes and update them.
+        let table = this.tables[tableId];
+        for(let indexName in table.indexes) {
+          let index = table.indexes[indexName];
+          index.collect(index.index, realDiff.adds, realDiff.removes, table.equals);
+        }
+        for(let triggerName in table.triggers) {
+          let trigger = table.triggers[triggerName];
+          triggers[triggerName] = trigger;
+        }
+        realDiffs[tableId] = realDiff;
+      }
+      return {triggers, realDiffs};
+    }
     execTrigger(trigger) {
       let {results, unprojected} = trigger.exec();
       let table = this.table(trigger.name);
+      let prevResults = table.factHash;
+      let prevHashes = Object.keys(prevResults);
       table.unprojected = unprojected;
       if(results) {
         let diff = new Diff(this);
         this.clearTable(trigger.name);
         diff.addMany(trigger.name, results);
-        this.applyDiff(diff);
+        let {triggers} = this.execDiff(diff);
+        let newHashes = table.factHash;
+        if(prevHashes.length === Object.keys(newHashes).length) {
+          let same = true;
+          for(let hash of prevHashes) {
+            if(!newHashes[hash]) {
+              same = false;
+              break;
+            }
+          }
+          return same ? undefined : triggers;
+        } else {
+          return triggers;
+        }
+      }
+      return;
+    }
+    execTriggers(triggers) {
+      let newTriggers = {};
+      let retrigger = false;
+      for(let triggerName in triggers) {
+        let trigger = triggers[triggerName];
+        let nextRound = this.execTrigger(trigger);
+        if(nextRound) {
+          retrigger = true;
+          for(let trigger in nextRound) {
+            newTriggers[trigger] = nextRound[trigger];
+          }
+        }
+      }
+      if(retrigger) {
+        return newTriggers;
       }
     }
     //---------------------------------------------------------
@@ -306,26 +360,9 @@ return index;`
       return new Diff(this);
     }
     applyDiff(diff:Diff) {
-      let triggers = {};
-      for(let tableId in diff.tables) {
-        let tableDiff = diff.tables[tableId];
-        if(!tableDiff.adds.length && !tableDiff.removes.length) continue;
-        let realDiff = this.updateTable(tableId, tableDiff.adds, tableDiff.removes);
-        // go through all the indexes and update them.
-        let table = this.tables[tableId];
-        for(let indexName in table.indexes) {
-          let index = table.indexes[indexName];
-          index.collect(index.index, realDiff.adds, realDiff.removes, table.equals);
-        }
-        //TODO: apply triggers
-        for(let triggerName in table.triggers) {
-          let trigger = table.triggers[triggerName];
-          triggers[triggerName] = trigger;
-        }
-      }
-      for(let triggerName in triggers) {
-        let trigger = triggers[triggerName];
-        this.execTrigger(trigger);
+      let {triggers, realDiffs} = this.execDiff(diff);
+      while(triggers) {
+        triggers = this.execTriggers(triggers);
       }
     }
     table(tableId) {
@@ -360,7 +397,10 @@ return index;`
         let table = this.table(tableName);
         table.triggers[name] = query;
       }
-      this.execTrigger(query);
+      let nextRound = this.execTrigger(query);
+      while(nextRound) {
+        nextRound = this.execTriggers(nextRound);
+      };
     }
   }
 
@@ -839,6 +879,7 @@ return index;`
       this.sources = [];
       this.isStateful = false;
       this.prev = {results: [], hashes: {}};
+      this.dirty = true;
     }
     stateful() {
       this.dirty = true;
@@ -913,8 +954,11 @@ return index;`
           for(let key in root.mapping) {
             let mapping = root.mapping[key];
             let value;
-            if(mapping.constructor === Array) {
+            if(mapping.constructor === Array && mapping.length === 1) {
               let [field] = mapping;
+              value = `sourceRow${ix}['${field}']`;
+            } else if(mapping.constructor === Array && mapping.length === 2) {
+              let [_, field] = mapping;
               value = `sourceRow${ix}['${field}']`;
             } else {
               value = JSON.stringify(mapping);
