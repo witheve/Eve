@@ -316,14 +316,7 @@ module UiRenderer {
   }
 
   export type ElementCompiler = (elem:MicroReact.Element) => void;
-  export var elementCompilers:{[tag:string]: ElementCompiler} = {
-    chart: (elem:Ui.ChartElement) => {
-      elem.pointLabels = (elem.pointLabels) ? [<any>elem.pointLabels] : elem.pointLabels;
-      elem.ydata = (elem.ydata) ? [<any>elem.ydata] : [];
-      elem.xdata = (elem.xdata) ? [<any>elem.xdata] : elem.xdata;
-      Ui.chart(elem);
-    },
-  };
+  export var elementCompilers:{[tag:string]: ElementCompiler} = {};
   export function addElementCompiler(tag:string, compiler:ElementCompiler) {
     if(elementCompilers[tag]) {
       throw new Error(`Refusing to overwrite existing compilfer for tag: "${tag}"`);

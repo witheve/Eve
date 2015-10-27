@@ -102,6 +102,30 @@ module Ui {
   }
 
   //---------------------------------------------------------
+  // Custom Element Compilers
+  //---------------------------------------------------------
+  let elementCompilers = {
+    row,
+    column,
+    button,
+    input,
+    checkbox,
+    codemirror: codeMirrorElement,
+    image,
+    spacer,
+    chart: (elem:Ui.ChartElement) => {
+      elem.pointLabels = (elem.pointLabels) ? [<any>elem.pointLabels] : elem.pointLabels;
+      elem.ydata = (elem.ydata) ? [<any>elem.ydata] : [];
+      elem.xdata = (elem.xdata) ? [<any>elem.xdata] : elem.xdata;
+      Ui.chart(elem);
+    },
+    "fact-table": factTable
+  };
+  for(let tag in elementCompilers) {
+    UiRenderer.addElementCompiler(tag, elementCompilers[tag]);
+  }
+
+  //---------------------------------------------------------
   // Containers
   //---------------------------------------------------------
   export interface TabbedBoxElement extends Element {
