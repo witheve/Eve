@@ -30,12 +30,13 @@ module Client {
     sendToServer([[viewId, fieldIds, [], toRemove]]);
   }
 
-  function formatTime(time?) {
+  function formatTime(time?:Date) {
     time = time || new Date();
-    return pad("", time.getHours(), "0", 2) + ":" + pad("", time.getMinutes(), "0", 2) + ":" + pad("", time.getSeconds(), "0", 2);
+    return pad("", time.getHours(), "0", 2) + ":" + pad("", time.getMinutes(), "0", 2) + ":" + pad("", time.getSeconds(), "0", 2)
+      + "." + pad("", time.getMilliseconds(), "0", 3);
   }
 
-  function pad(left, right = "", pad = " ", length = 120) {
+  function pad(left, right:any = "", pad:any = " ", length = 120) {
     left = "" + left;
     right = "" + right;
 
