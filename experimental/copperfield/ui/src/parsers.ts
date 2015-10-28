@@ -8,7 +8,7 @@ module Parsers {
   interface CommentAST extends Token { text: string }
   interface TextAST extends Token { text: string }
   interface KeywordAST extends TextAST {}
-  interface FieldAST extends Token { grouped?: boolean, alias?: string, value?: string }
+  interface FieldAST extends Token { chunked?: boolean, grouped?: boolean, alias?: string, value?: string }
   interface SourceAST extends LineAST { negated?: boolean }
   interface OrdinalAST extends LineAST { alias: string, directions: string[] }
   interface CalculationAST extends LineAST { partIx?: number, text?: string }
@@ -187,7 +187,7 @@ module Parsers {
     }
     if(tokenIsField(token)) {
       if(token.value !== undefined) return `\`${token.value || ""}\``;
-      return `?${token.grouped ? "?" : ""}${token.alias || ""}`;
+      return `?${token.chunked ? "?" : ""}${token.grouped ? "%" : ""}${token.alias || ""}`;
     }
     if(tokenIsAttribute(token)) return `${padding}- ${token.property}: ${tokenToString(token.value)}`;
     if(tokenIsElement(token)) {
@@ -306,7 +306,8 @@ module Parsers {
   function parseField(tokens:string[], tokenIx:number = 0):FieldAST|Error {
     if(consume(["?"], tokens)) {
       let field:FieldAST = {type: "field", tokenIx};
-      if(consume(["?"], tokens)) field.grouped = true;
+      if(consume(["?"], tokens)) field.chunked = true;
+      else if(consume(["%"], tokens)) field.grouped = true;
       let head = tokens[0];
       if(head && head !== " " && PUNCTUATION.indexOf(head) === -1) field.alias = tokens.shift();
       return field;
@@ -330,7 +331,7 @@ module Parsers {
   //---------------------------------------------------------------------------
 
   const Q_ACTION_TOKENS = ["+", "dispatch"];
-  const Q_KEYWORD_TOKENS = ["!", "(", ")", "$=", "=", "#", ";", "?", "`"].concat(Q_ACTION_TOKENS);
+  const Q_KEYWORD_TOKENS = ["!", "%", "(", ")", "$=", "=", "#", ";", "?", "`"].concat(Q_ACTION_TOKENS);
   const Q_TOKENS = [" ", "\t"].concat(Q_KEYWORD_TOKENS, PUNCTUATION);
 
   export class Query {
@@ -667,7 +668,7 @@ module Parsers {
 
     protected processSource(line:SourceAST):SourceAST {
       let kw = line.chunks[0];
-      if(tokenIsText(kw) && kw.text === "!") line.negated = true;
+      if(tokenIsKeyword(kw) && kw.text === "!") line.negated = true;
       line.type = "source";
       return line;
     }
@@ -709,13 +710,20 @@ module Parsers {
             .sort((a, b) => a["fingerprint field: ix"] - b["fingerprint field: ix"]);
 
           for(let token of line.chunks) {
+            if(tokenIsField(token) && token.chunked) {
+              source.chunked = true;
+              break;
+            }
+          }
+
+          for(let token of line.chunks) {
             if(tokenIsField(token)) {
               let {"fingerprint field: field": fieldId} = fieldIxes.shift() || {};
               if(!fieldId) {
                 this.errors.push(this.parseError(`Fingerprint '${fingerprint}' is missing for field.`, token));
                 break LINE_LOOP;
               }
-              let field = {field:fieldId, grouped: token.grouped, alias: token.alias, value: token.value};
+              let field = {field:fieldId, grouped: token.grouped || source.chunked && !token.chunked, alias: token.alias, value: token.value};
               source.fields.push(field);
 
               let varId = prev && prev.aliases[field.alias];
@@ -729,7 +737,6 @@ module Parsers {
                 }
               }
               let variable = getVariable(field.alias, this.reified, varId, varId && prev.variables[varId].selected);
-              if(field.grouped) source.chunked = true;
               if(field.value !== undefined) variable.value = field.value;
               variable.bindings.push({source: source.source, field: field.field});
             }
@@ -748,7 +755,9 @@ module Parsers {
           if(!variable.ordinals) variable.ordinals = [source.source];
           else variable.ordinals.push(source.source);
           let unsorted = [];
-          for(let field of source.fields) unsorted[unsorted.length] = field.field;
+          for(let field of source.fields) {
+            if(!field.grouped) unsorted.push(field.field);
+          }
 
           let sortFieldIx = 0;
           source.sort = [];
@@ -826,7 +835,7 @@ module Parsers {
 
           // Add field token between this structure token and the next.
           let field:FieldIR = source.fields[fieldIx++];
-          line.chunks.push(<FieldAST>{type: "field", alias: field.alias, grouped: field.grouped, value: field.value});
+          line.chunks.push(<FieldAST>{type: "field", alias: field.alias, grouped: !source.chunked && field.grouped, chunked: source.chunked && !field.grouped, value: field.value});
         }
         if(tail) line.chunks.push(<TextAST>{type: "text", text: tail});
 
@@ -843,7 +852,7 @@ module Parsers {
           // Super lossy, but nothing can be done about it.
           for(let {ix, field:fieldId, direction} of source.sort) {
             let field = fields[fieldId];
-            line.chunks.push(<FieldAST>{type: "field", alias: field.alias, grouped: field.grouped, value: field.value});
+            line.chunks.push(<FieldAST>{type: "field", alias: field.alias, grouped: !source.chunked && field.grouped, chunked: source.chunked && !field.grouped, value: field.value});
             line.chunks.push(<TextAST>{type: "text", text: ` ${direction} `});
             line.directions.push(direction);
           }
