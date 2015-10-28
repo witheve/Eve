@@ -616,7 +616,7 @@ return index;`
         root.children.push({type: "sort", sorts, size, children: []});
       }
       //then we need to run through the sorted items and do the aggregate as a fold.
-      if(this.aggregates.length || sorts || this.limitInfo) {
+      if(this.aggregates.length || sorts.length || this.limitInfo) {
         let aggregateChildren = [];
         for(let func of this.aggregates) {
           let {args, name, ix} = func;

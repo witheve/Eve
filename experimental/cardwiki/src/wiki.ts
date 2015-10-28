@@ -566,7 +566,6 @@ function walk(tree, indent = 0) {
         let operation = state.operator.operation;
         let operatorChildren = state.operator.children;
         let ix = 0;
-        console.log(JSON.stringify(operatorChildren));
         for(let child of operatorChildren) {
           if(child.type === "attribute") {
             cursor.children.push(child);
@@ -1505,7 +1504,6 @@ function walk(tree, indent = 0) {
     diff.add("action mapping", {action, from: "page", "to source": action, "to field": field});
     diff.add("action mapping constant", {action, from: "deck", value: collection});
     diff.add("action mapping constant", {action, from: "source view", value: name});
-    console.log(name, field, collection, diff);
     return diff;
   }
 
@@ -1689,7 +1687,7 @@ function walk(tree, indent = 0) {
       let action = uuid();
       diff.add("action", {view, action, kind: "limit", ix: Number.MAX_SAFE_INTEGER});
       for(let limitType in query.limitInfo) {
-        diff.add("action mapping limit", {action, limitType, value: query.limitInfo[limitType]});
+        diff.add("action mapping limit", {action, "limit type": limitType, value: query.limitInfo[limitType]});
       }
     }
     //projection
