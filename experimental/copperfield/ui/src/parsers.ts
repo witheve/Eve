@@ -266,10 +266,11 @@ module Parsers {
     let tokenIx = 0;
     let tokenCount = ast.chunks.length;
     let head = ast.chunks[0];
-    if(tokenIsText(head)) {
-      if(head.text[0] === "!" && head.text[1] === " ") {
-        tokenIx = 1;
-        fingerprint = head.text.slice(2);
+    if(tokenIsKeyword(head)) {
+      let head = ast.chunks[++tokenIx];
+      if(head && tokenIsText(head)) {
+        fingerprint += head.text.slice(1);
+        tokenIx++;
       }
     }
     for(; tokenIx < tokenCount; tokenIx++) {
@@ -328,7 +329,7 @@ module Parsers {
   // Query Parser
   //---------------------------------------------------------------------------
 
-  const Q_ACTION_TOKENS = ["+"];
+  const Q_ACTION_TOKENS = ["+", "dispatch"];
   const Q_KEYWORD_TOKENS = ["!", "(", ")", "$=", "=", "#", ";", "?", "`"].concat(Q_ACTION_TOKENS);
   const Q_TOKENS = [" ", "\t"].concat(Q_KEYWORD_TOKENS, PUNCTUATION);
 
@@ -771,7 +772,7 @@ module Parsers {
 
         } else if(tokenIsAction(line)) {
           if(line.chunks[0]["text"] === "+") {
-            let fingerprint = fingerprintSource(line).slice(2); // @FIXME: Hack to drop the '+ '
+            let fingerprint = fingerprintSource(line);
             let mappings = [];
             for(let chunk of line.chunks) {
               if(tokenIsField(chunk)) {
