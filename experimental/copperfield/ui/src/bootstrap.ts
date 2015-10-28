@@ -65,23 +65,29 @@ module Bootstrap {
 
   var views:{[viewId:string]: string[]} = {
     "ui binding constraint": ["parent", "alias", "field"],
+    "handled event": ["tick"],
 
+    // Entities
     "entity": ["entity"],
     "entity kind": ["entity", "kind"],
     "collection entity": ["entity", "kind"],
     "related entity": ["entity", "related entity"],
 
+    // Rendering
     "page": ["entity", "page"],
     "block": ["page", "block", "ix", "entity", "projection"],
-    "selected page history": ["page", "tick"],
-    "selected page": ["page"],
-    "selected block history": ["block", "tick"],
-    "selected block": ["block"],
-
     "projection": ["projection", "element"],
     "default projection": ["entity", "projection"],
     "kind projection": ["kind", "projection"],
 
+    // Interaction
+    "selected page history": ["page", "tick"],
+    "selected page": ["page"],
+    "selected block history": ["block", "tick"],
+    "selected block": ["block"],
+    "next layer": ["page", "ix"],
+
+    // Builtins/defaults
     "default page": ["page"],
     "builtin entity": ["entity", "kind"],
     "builtin collection entity": ["entity", "kind"],
@@ -93,6 +99,7 @@ module Bootstrap {
   };
   var viewKinds:{[viewId:string]: string} = {
     "ui binding constraint": "table",
+    "next layer": "join",
 
     "default page": "table",
     "builtin entity": "table",
@@ -102,7 +109,6 @@ module Bootstrap {
     "builtin projection": "table",
     "builtin default projection": "table",
     "builtin kind projection": "table"
-
   }
 
   var fingerprintsRaw:{[viewId:string]: string[]} = {
@@ -121,28 +127,34 @@ module Bootstrap {
     "display name": ["?id is named ?name"],
     "display order": ["?id is ordered ?priority"],
     "tag": ["?view is tagged ?tag"],
-    "event": ["event at ?tick is a ?kind ?event with key ?key"],
-
+    "event": ["event at ?tick is a ?kind ?event with key ?key", "event at ?tick is an ?kind ?event with key ?key"],
+    "handled event": ["event at ?tick is already handled"],
     "ui binding constraint": ["?parent field ?field constraints alias ?alias"],
+
+    // Entities
     "entity": ["?entity is an entity"],
     "entity kind": ["entity ?entity is a ?kind", "entity ?entity is an ?kind"],
     "collection entity": ["entity ?entity contains each ?kind"],
     "related entity": ["entity ?entity is related to ?related_entity"],
 
+    // Rendering
     "page": ["page ?page represents ?entity"],
     "block": [
       "block ?block on layer ?ix represents ?entity in ?page as a ?projection",
       "block ?block on layer ?ix represents ?entity in ?page as an ?projection"
     ],
-    "selected page history": ["?page is the selected page at tick ?tick"],
-    "selected page": ["?page is the selected page"],
-    "selected block history": ["?block is the selected block at tick ?tick"],
-    "selected block": ["?block is the selected block"],
-
     "projection": ["projection ?projection is templated as ?element"],
     "default projection": ["entity ?entity usually looks like a ?projection", "entity ?entity usually looks like an ?projection"],
     "kind projection": ["?kind entities can look like a ?projection", "?kind entities can look like an ?projection"],
 
+    // Interaction
+    "selected page history": ["?page is the selected page at tick ?tick"],
+    "selected page": ["?page is the selected page"],
+    "selected block history": ["?block is the selected block at tick ?tick"],
+    "selected block": ["?block is the selected block"],
+    "next layer": ["next layer for page ?page is ?ix"],
+
+    // Builtins/defaults
     "default page": ["?page is the default page"],
     "builtin entity": ["builtin entity ?entity is a ?kind", "builtin entity ?entity is an ?kind"],
     "builtin collection entity": ["builtin entity ?entity contains each ?kind"],
@@ -253,7 +265,7 @@ module Bootstrap {
       + ?page is the selected page
     `,
     "select page on index click": Parsers.unpad(6) `
-      event at ?tick is a "switch page" "click" with key ?entity
+      event at ?tick is a "switch page" ? with key ?entity
       page ?page represents ?entity
       + ?page is the selected page at tick ?tick
     `,
@@ -278,8 +290,32 @@ module Bootstrap {
       + block ?block-title on layer ?block-title-ix represents ?entity in ?page as a ?block-title-projection
       + block ?block-nav on layer ?block-nav-ix represents ?entity in ?page as a ?block-nav-projection
       + block ?block-self on layer ?block-self-ix represents ?entity in ?page as a ?block-self-projection
+    `,
 
-    `
+    //"set next layer": Parsers.unpad(6) `
+    //  block ? on layer ?ix represents ? in ?page as a ?
+    //  # ?ord by ?ix descending
+    //  ?ord < "2"
+    //  ?next $= ?ix + "1"
+    //  + next layer for page ?page is ?next
+    //`,
+
+    "maintain handled events state": Parsers.unpad(6) `
+      event at ?tick is already handled
+      + event at ?tick is already handled
+    `,
+
+    // User page editing
+    "user created blocks": Parsers.unpad(6) `
+      ; @TODO: Figure out why I'm failing to fixed point. Its because these unions arent stateful...
+      event at ?tick is an "add block" ? with key ?page
+      ! event at ?tick is already handled
+      next layer for page ?page is ?next
+      ?block-id $= "manual-block-" concat ?tick
+      ?projection = "search-and-replace-projection"
+      + block ?block-id on layer ?next represents ?block-id in ?page as a ?projection
+      + event at ?tick is already handled
+    `,
   };
 
   let uis:{[elemId:string]: string} = {
@@ -299,6 +335,9 @@ module Bootstrap {
             ~ projection ?projection is templated as ??element
             - ix: ?ix
             > ?element ?entity
+          div bordered; add-block
+            - text: "+"
+            @click add block: ?page
         div bordered ui-row; wiki footer
           - flex: "none"
           - text: "footer"
@@ -345,6 +384,9 @@ module Bootstrap {
       ~ ?entity != "renderer-projection-elem"
       - t: "renderer"
       - element: ?entity
+    `,
+    "search-and-replace": Parsers.unpad(6) `
+      - text: "search and replace!"
     `
   };
 
@@ -442,6 +484,50 @@ module Bootstrap {
     // Phase 3: Create uis.
     if(Api.DEBUG.BOOTSTRAP) console.groupCollapsed("Phase 3: Create uis");
     effect = new Editor.DispatchEffect();
+
+    effect.change.add("view", {"view: view": "next layer", "view: kind": "join"}) // @TODO: Finish me.
+      .add("display name", "next layer")
+      .add("source", {"source: source": "set next layer block source", "source: source view": "block"})
+      .add("display order", 0)
+
+      .add("variable", {"variable: variable": "set next layer page var"})
+      .add("binding", {"binding: field": "block: page"})
+      .add("field", {"field: field": "next layer: page", "field: kind": "output"})
+      .add("display name",  "page")
+      .add("display order", 0)
+      .add("grouped field", {"grouped field: field": "block: page"})
+      .add("select")
+
+      .add("variable", {"variable: variable": "set next layer ix var"})
+      .add("binding", {"binding: field": "block: ix"})
+      .add("binding", {"binding: source": "set next layer + source", "binding: field": "+: A"})
+      .add("sorted field", {"sorted field: field": "block: ix", "sorted field: ix": 0, "sorted field: direction": "descending"})
+
+      .add("variable", {"variable: variable": "set next layer ord var"})
+      .add("ordinal binding")
+      .add("binding", {"binding: source": "set next layer < source", "binding: field": "<: A"})
+
+      .add("source", {"source: source": "set next layer < source", "source: source view": "<"})
+      .add("display order", 1)
+      .add("variable", {"variable: variable": "set next layer < constant var"})
+      .add("constant binding", 2)
+      .add("binding", {"binding: field": "<: B"})
+
+      .add("source", {"source: source": "set next layer + source", "source: source view": "+"})
+      .add("display order", 1)
+      .add("variable", {"variable: variable": "set next layer + constant var"})
+      .add("constant binding", 1)
+      .add("binding", {"binding: field": "+: B"})
+
+      .add("variable", {"variable: variable": "set next layer + result var"})
+      .add("binding", {"binding: field": "+: result"})
+      .add("field", {"field: field": "next layer: ix", "field: kind": "output"})
+      .add("display name", "ix")
+      .add("display order", 1)
+      .add("select")
+      .clearContext();
+
+
     for(let elemId in uis) {
       let ui = <Parsers.Ui>assertValid(new Parsers.Ui().loadFromElement(elemId, true).parse(uis[elemId]));
       ui.name = elemId;
