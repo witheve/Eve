@@ -206,11 +206,12 @@ module Ui {
   }
 
   interface RendererElement extends Element {
-    element: string
+    element: string|string[]
   }
   export function renderer(elem:RendererElement):Element {
-    let renderElems = elem.element;
-    if(renderElems.constructor !== Array) renderElems = [renderElems];
+    let renderElems:string[];
+    if(elem.element.constructor !== Array) renderElems = [<string>elem.element];
+    else renderElems = <string[]>elem.element;
     inject(elem, Editor.renderer.compile(renderElems));
     return elem;
   }
