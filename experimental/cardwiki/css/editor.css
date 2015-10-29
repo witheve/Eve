@@ -29,7 +29,7 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .link:hover { border-bottom-color:#f88; }
 .link.found:hover { border-bottom-color:#99f; }
 
-.bit { text-align:center; justify-content:center; padding:10px; background: #333; width: 100px; height:100px; align-self:flex-start; box-shadow:0 0px 0px #111; margin-bottom:5px; border-radius:3px; align-items:center; }
+.bit { text-align:center; justify-content:center; padding:10px; background: #333; width: 100px; height:40px; align-self:flex-start; box-shadow:0 0px 0px #111; margin-bottom:5px; border-radius:0px; align-items:center; }
 .bit.collection { background: #0a6; color: #222; }
 .bit.collection .collection { color: #fff; }
 
@@ -39,10 +39,10 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .bit.small { height:30px; width:30px; text-transform:uppercase; }
 
 
-.search-input { flex: none; background: none; width:100%; text-align:center; color: #ccc; font-family: "Lato"; font-size: 14pt; margin:20px; margin-bottom:50px; border:none; padding:0 10px; padding-bottom:5px; outline:none; }
+.search-input { flex: none; background: none; min-width:350px; text-align:center; color: #ccc; font-family: "Lato"; font-size: 14pt; margin:20px; margin-bottom:50px; border:none; padding:3px 10px; outline:none; border:1px solid #444; border-radius:3px; }
 .search-input .CodeMirror.cm-s-default { font-size: 16pt; }
 
-.phrase { display: block; position:absolute; top: 400px; left: 200px; font-size: 16pt;}
+.phrase { display: block; font-size: 12pt; height: 20px;}
 .phrase span { display:inline; opacity:0; }
 
 .phrase.pos2 { top:430px; }
@@ -74,6 +74,7 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 
 .CodeMirror div { display:block; }
 .CodeMirror.cm-s-default { font-family: "Lato"; font-size: 12pt; height: auto; background: transparent; color: #ccc; }
+.CodeMirror .CodeMirror-selected { background: #444; border-radius:2px; }
 .CodeMirror .Codemirror-scroll { height:auto; }
 .cm-s-default .CodeMirror-cursor { border-color: #999; }
 .cm-s-default .cm-link { color: #99f; }

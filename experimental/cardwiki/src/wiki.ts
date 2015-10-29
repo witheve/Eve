@@ -1230,7 +1230,7 @@ function walk(tree, indent = 0) {
     let ix = 0;
     for(var letter of phrase) {
       let rand = Math.round(Math.random() * 5);
-      children.push({id: phrase + ix, t: "span", c: `letter`, text: letter, enter: {opacity: 1, duration: (rand * 280) + 100, delay:300}, leave: {opacity: 0, duration: (rand * 30) + 100}});
+      children.push({id: phrase + ix, t: "span", c: `letter`, text: letter, enter: {opacity: 1, duration: (rand * 180) + 100, delay:300}, leave: {opacity: 0, duration: 250}});
       ix++;
     }
     return {c: `phrase ${klass}`, children};
@@ -1243,12 +1243,11 @@ function walk(tree, indent = 0) {
       search = searchObj["search"];
     }
     return {id: "root", c: "root", children: [
+      {c: "search-input", value: search, postRender: CMSearchBox},
       {c: "spacer"},
-      randomlyLetter("I've found 5 results")
       newSearchResults(),
 //       relatedItems(),
       {c: "spacer"},
-      {c: "search-input", value: search, postRender: CMSearchBox},
 //       historyStack(),
     ]};
   }
@@ -1372,12 +1371,12 @@ function walk(tree, indent = 0) {
               text = resultPart["page"];
               klass = "entity";
               if(planIx > 0) {
-                klass += " small";
-                text = first2Letters(text);
+//                 klass += " small";
+//                 text = first2Letters(text);
               }
             } else if(planItem.type === "lookup") {
               text = resultPart["value"];
-              klass = "value small";
+              klass = "value";
 
             } else if(planItem.type === "aggregate") {
               text = resultPart[planItem.aggregate];
@@ -1446,6 +1445,7 @@ function walk(tree, indent = 0) {
     return {c: "container", children: [
       searchDescription(tokens, plan),
       {c: "search-results", children: resultItems},
+//       randomlyLetter(`I found ${resultItems.length} results.`),
 //       {c: "related-bits", children: actions},
 //       {c: "add-action", children: addActionChildren}
     ]};
