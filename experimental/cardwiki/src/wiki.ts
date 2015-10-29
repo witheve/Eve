@@ -372,7 +372,10 @@ function walk(tree, indent = 0) {
         token.children = [];
         root = token;
         break;
-      } else if(token.type === "entity" && !root) {
+      } else if(token.type === "entity" && (!root || root.type === "attibute")) {
+        token.children = [];
+        root = token;
+      } else if(token.type === "attribute" && !root) {
         token.children = [];
         root = token;
       }
@@ -707,6 +710,8 @@ function walk(tree, indent = 0) {
         return [{type: "gather", collection: node.found, id, deselect}];
       } else if(node.type === "entity") {
         return [{type: "find", entity: node.found, id, deselect}];
+      } else if(node.type === "attribute") {
+        return [{type: "lookup", attribute: node.found, id, deselect}];
       }
       return [];
     }
@@ -786,7 +791,7 @@ function walk(tree, indent = 0) {
         throw new Error("Invalid node to group on: " + JSON.stringify(nodes));
       }
     }
-    return [{type: "group", id: uuid(), groups}];
+    return [{type: "group", id: uuid(), groups, groupNodes: nodes}];
   }
 
   function treeToPlan(tree) {
@@ -1244,7 +1249,8 @@ function walk(tree, indent = 0) {
     }
     return {id: "root", c: "root", children: [
       {c: "search-input", value: search, postRender: CMSearchBox},
-      {c: "spacer"},
+//       {c: "spacer"},
+//       randomlyLetter("I found 20 results"),
       newSearchResults(),
 //       relatedItems(),
       {c: "spacer"},
@@ -1355,28 +1361,61 @@ function walk(tree, indent = 0) {
     let search = eve.findOne("search")["search"];
     let {tokens, plan, query} = app.activeSearch;
     let resultItems = [];
+    let groupedFields = {};
     if(query) {
+      // figure out what fields are grouped, if any
+      for(let step of plan) {
+        if(step.type === "group") {
+          for(let node of step.groupNodes) {
+            let name;
+            for(let searchStep of plan) {
+              if(searchStep.id === node.id) {
+                name = searchStep.name;
+                break;
+              }
+            }
+            groupedFields[name] = true;
+          }
+        } else if(step.type === "aggregate") {
+          groupedFields[step.name] = true;
+        }
+      }
+      console.log(plan, groupedFields);
       let results = query.exec();
+      let groupInfo = results.groupInfo;
+      console.log(results);
       let planLength = plan.length;
       row: for(let ix = 0, len = results.unprojected.length; ix < len; ix += query.unprojectedSize) {
-        let resultItem = {c: "path", children: []};
+        if(groupInfo && ix > groupInfo.length) break;
+        if(groupInfo && groupInfo[ix] === undefined) continue;
+        let resultItem;
+        if(groupInfo && !resultItems[groupInfo[ix]]) {
+          resultItem = resultItems[groupInfo[ix]] = {c: "path", children: []};
+        } else if(!groupInfo) {
+          resultItem = {c: "path", children: []};
+          resultItems.push(resultItem);
+        } else {
+          resultItem = resultItems[groupInfo[ix]];
+        }
         let planOffset = 0;
         for(let planIx = 0; planIx < planLength; planIx++) {
           let planItem = plan[planIx];
           if(planItem.size) {
             let resultPart = results.unprojected[ix + planOffset + planItem.size - 1];
             if(!resultPart) continue row;
-            let text, klass;
+            let text, klass, click, link;
             if(planItem.type === "gather") {
               text = resultPart["page"];
               klass = "entity";
+              click = followLink;
+              link = resultPart["page"];
               if(planIx > 0) {
 //                 klass += " small";
 //                 text = first2Letters(text);
               }
             } else if(planItem.type === "lookup") {
               text = resultPart["value"];
-              klass = "value";
+              klass = "attribute";
 
             } else if(planItem.type === "aggregate") {
               text = resultPart[planItem.aggregate];
@@ -1388,12 +1427,18 @@ function walk(tree, indent = 0) {
             }
             if(text) {
               let rand = Math.floor(Math.random() * 20) + 1;
-              resultItem.children.push({id: `${search} ${ix} ${planIx}`, c: `bit ${klass}`, text, enter: {opacity:1, duration: rand * 100, delay: ix * 0}});
+              let item = {id: `${search} ${ix} ${planIx}`, c: `bit ${klass}`, text, click, linkText: link, enter: {opacity:1, duration: rand * 100, delay: ix * 0}};
+              if(groupedFields[planItem.name] && !resultItem.children[planIx]) {
+                resultItem.children[planIx] = item;
+              } else if(!groupedFields[planItem.name] && !resultItem.children[planIx]) {
+                resultItem.children[planIx] = {c: "sub-group", children: [item]};
+              } else if(!groupedFields[planItem.name]) {
+                resultItem.children[planIx].children.push(item);
+              }
             }
             planOffset += planItem.size;
           }
         }
-        resultItems.push(resultItem);
       }
     }
     if(plan.length === 1 && plan[0].type === "find") {
@@ -1442,12 +1487,20 @@ function walk(tree, indent = 0) {
       addActionChildren.push({c: "button", text: "add to collection", actionType: "collection", click: startAddingAction});
     }
 
+    let headers = [];
+    for(let step of plan) {
+      if(step.type === "filter by entity") continue;
+      if(step.size === 0) continue;
+      headers.push({text: step.name});
+    }
+
     return {c: "container", children: [
-      searchDescription(tokens, plan),
+//       searchDescription(tokens, plan),
+      {c: "search-headers", children: headers},
       {c: "search-results", children: resultItems},
 //       randomlyLetter(`I found ${resultItems.length} results.`),
-//       {c: "related-bits", children: actions},
-//       {c: "add-action", children: addActionChildren}
+      {c: "related-bits", children: actions},
+      {c: "add-action", children: addActionChildren}
     ]};
   }
 
