@@ -1225,6 +1225,17 @@ function walk(tree, indent = 0) {
     result.remove("adding action");
   });
 
+  function randomlyLetter(phrase, klass) {
+    let children = [];
+    let ix = 0;
+    for(var letter of phrase) {
+      let rand = Math.round(Math.random() * 5);
+      children.push({id: phrase + ix, t: "span", c: `letter`, text: letter, enter: {opacity: 1, duration: (rand * 280) + 100, delay:300}, leave: {opacity: 0, duration: (rand * 30) + 100}});
+      ix++;
+    }
+    return {c: `phrase ${klass}`, children};
+  }
+
   export function root() {
     let search = "";
     let searchObj = eve.findOne("search");
@@ -1233,11 +1244,12 @@ function walk(tree, indent = 0) {
     }
     return {id: "root", c: "root", children: [
       {c: "spacer"},
-      {c: "search-input", value: search, postRender: CMSearchBox},
+      randomlyLetter("I've found 5 results")
       newSearchResults(),
 //       relatedItems(),
       {c: "spacer"},
-      historyStack(),
+      {c: "search-input", value: search, postRender: CMSearchBox},
+//       historyStack(),
     ]};
   }
 
@@ -1254,7 +1266,7 @@ function walk(tree, indent = 0) {
     if(addedEavs) {
       let children = [];
       for(let added of addedEavs) {
-        children.push({c: "bit", click: followLink, linkText: added["source view"], children: [
+        children.push({c: "bit attribute", click: followLink, linkText: added["source view"], children: [
           {c: "header attribute", text: added.attribute},
           {c: "value", text: added.value},
         ]})
@@ -1266,7 +1278,7 @@ function walk(tree, indent = 0) {
     if(addedColls) {
       let children = [];
       for(let added of addedColls) {
-        children.push({c: "bit", click: followLink, linkText: added["source view"], children: [
+        children.push({c: "bit collection", click: followLink, linkText: added["source view"], children: [
           {c: "header collection", text: added.deck},
         ]})
       }
@@ -1336,7 +1348,7 @@ function walk(tree, indent = 0) {
       }
     }
     return {c: "container", children: [
-      {c: "search-plan", children: planChildren}
+//       {c: "search-plan", children: planChildren}
     ]};
   }
 
@@ -1355,22 +1367,30 @@ function walk(tree, indent = 0) {
           if(planItem.size) {
             let resultPart = results.unprojected[ix + planOffset + planItem.size - 1];
             if(!resultPart) continue row;
-            let text;
+            let text, klass;
             if(planItem.type === "gather") {
               text = resultPart["page"];
+              klass = "entity";
+              if(planIx > 0) {
+                klass += " small";
+                text = first2Letters(text);
+              }
             } else if(planItem.type === "lookup") {
               text = resultPart["value"];
+              klass = "value small";
+
             } else if(planItem.type === "aggregate") {
               text = resultPart[planItem.aggregate];
+              klass = "value";
             } else if(planItem.type === "filter by entity") {
               // we don't really want these to show up.
             } else {
               text = JSON.stringify(resultPart);
             }
             if(text) {
-              resultItem.children.push({c: "step", text});
+              let rand = Math.floor(Math.random() * 20) + 1;
+              resultItem.children.push({id: `${search} ${ix} ${planIx}`, c: `bit ${klass}`, text, enter: {opacity:1, duration: rand * 100, delay: ix * 0}});
             }
-
             planOffset += planItem.size;
           }
         }
@@ -1426,8 +1446,8 @@ function walk(tree, indent = 0) {
     return {c: "container", children: [
       searchDescription(tokens, plan),
       {c: "search-results", children: resultItems},
-      {c: "related-bits", children: actions},
-      {c: "add-action", children: addActionChildren}
+//       {c: "related-bits", children: actions},
+//       {c: "add-action", children: addActionChildren}
     ]};
   }
 
@@ -1465,18 +1485,23 @@ function walk(tree, indent = 0) {
     app.dispatch("setSearch", {value: elem.linkText}).commit();
   }
 
+  function first2Letters(str) {
+    let items = str.split(" ");
+    let text = "";
+    if(items.length > 1) {
+      text = items[0][0] + items[1][0];
+    } else if(items.length) {
+      text = items[0].substring(0, 2);
+    }
+    return text;
+  }
+
   function historyStack() {
     let stack = eve.find("history stack");
     stack.sort((a, b) => a.pos - b.pos);
     let stackItems = stack.map((item) => {
       let link = item["page"];
-      let items = link.split(" ");
-      let text = "";
-      if(items.length > 1) {
-        text = items[0][0] + items[1][0];
-      } else if(items.length) {
-        text = items[0].substring(0, 2);
-      }
+      let text = first2Letters(link);
       return {c: "link", text, linkText: link, click: followLink};
     });
     return {c: "history-stack", children: stackItems};
