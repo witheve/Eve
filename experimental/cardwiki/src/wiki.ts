@@ -814,7 +814,7 @@ function walk(tree, indent = 0) {
     if(!projection[name]) {
       return name;
     }
-    let ix = 1;
+    let ix = 2;
     while(projection[name]) {
       name = `${name} ${ix}`;
       ix++;
@@ -1235,7 +1235,7 @@ function walk(tree, indent = 0) {
     let ix = 0;
     for(var letter of phrase) {
       let rand = Math.round(Math.random() * 5);
-      children.push({id: phrase + ix, t: "span", c: `letter`, text: letter, enter: {opacity: 1, duration: (rand * 180) + 100, delay:300}, leave: {opacity: 0, duration: 250}});
+      children.push({id: phrase + ix, t: "span", c: `letter`, text: letter, enter: {opacity: 1, duration: (rand * 100) + 150, delay: (0 * 30) + 300}, leave: {opacity: 0, duration: 250}});
       ix++;
     }
     return {c: `phrase ${klass}`, children};
@@ -1248,9 +1248,8 @@ function walk(tree, indent = 0) {
       search = searchObj["search"];
     }
     return {id: "root", c: "root", children: [
-      {c: "search-input", value: search, postRender: CMSearchBox},
-//       {c: "spacer"},
-//       randomlyLetter("I found 20 results"),
+      {c: "spacer"},
+//       randomlyLetter("Let's get started."),
       newSearchResults(),
 //       relatedItems(),
       {c: "spacer"},
@@ -1380,6 +1379,7 @@ function walk(tree, indent = 0) {
           groupedFields[step.name] = true;
         }
       }
+
       console.log(plan, groupedFields);
       let results = query.exec();
       let groupInfo = results.groupInfo;
@@ -1429,7 +1429,7 @@ function walk(tree, indent = 0) {
               let rand = Math.floor(Math.random() * 20) + 1;
               let item = {id: `${search} ${ix} ${planIx}`, c: `bit ${klass}`, text, click, linkText: link, enter: {opacity:1, duration: rand * 100, delay: ix * 0}};
               if(groupedFields[planItem.name] && !resultItem.children[planIx]) {
-                resultItem.children[planIx] = item;
+                resultItem.children[planIx] = {c: "sub-group", children: [item]};
               } else if(!groupedFields[planItem.name] && !resultItem.children[planIx]) {
                 resultItem.children[planIx] = {c: "sub-group", children: [item]};
               } else if(!groupedFields[planItem.name]) {
@@ -1448,16 +1448,20 @@ function walk(tree, indent = 0) {
     }
     let actions = [];
     for(let eavAction of eve.find("add eav action", {view: search})) {
-      actions.push({c: "bit", children: [
-        {c: "", text: `Each ${eavAction.entity} has`},
+      actions.push({c: "action", children: [
+        {c: "collection", text: `${pluralize(eavAction.entity, 3)}`},
+        {text: " have "},
         {c: "header attribute", text: eavAction.attribute},
+        {text: " = "},
         {c: "value", text: eavAction.field},
       ]})
     }
     for(let collectionAction of eve.find("add collection action", {view: search})) {
-      actions.push({c: "bit", children: [
-        {c: "", text: `Each ${collectionAction.field} is added to`},
-        {c: "header collection", text: collectionAction.collection},
+      actions.push({c: "action", children: [
+        {text: "These "},
+        {c: "collection", text: `${pluralize(collectionAction.field,3)}`},
+        {text: " are "},
+        {c: "header collection", text: pluralize(collectionAction.collection, 2)},
       ]})
     }
 
@@ -1487,7 +1491,8 @@ function walk(tree, indent = 0) {
       addActionChildren.push({c: "button", text: "add to collection", actionType: "collection", click: startAddingAction});
     }
 
-    let headers = [];
+    let headers = []
+    // figure out what the headers are
     for(let step of plan) {
       if(step.type === "filter by entity") continue;
       if(step.size === 0) continue;
@@ -1495,12 +1500,13 @@ function walk(tree, indent = 0) {
     }
 
     return {c: "container", children: [
+      {c: "search-input", value: search, postRender: CMSearchBox},
 //       searchDescription(tokens, plan),
-      {c: "search-headers", children: headers},
+      headers.length ? {c: "search-headers", children: headers} : undefined,
       {c: "search-results", children: resultItems},
 //       randomlyLetter(`I found ${resultItems.length} results.`),
       {c: "related-bits", children: actions},
-      {c: "add-action", children: addActionChildren}
+//       {c: "add-action", children: addActionChildren}
     ]};
   }
 
