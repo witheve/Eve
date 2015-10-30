@@ -372,7 +372,7 @@ function walk(tree, indent = 0) {
         token.children = [];
         root = token;
         break;
-      } else if(token.type === "entity" && (!root || root.type === "attibute")) {
+      } else if(token.type === "entity" && (!root || root.type === "attribute")) {
         token.children = [];
         root = token;
       } else if(token.type === "attribute" && !root) {
@@ -1470,25 +1470,29 @@ function walk(tree, indent = 0) {
     if(adding) {
      if(adding.type === "attribute") {
       addActionChildren.push({c: "add-attribute", children: [
-        {text: "let's add an attribute"},
         {t: "input", c: "entity", placeholder: "entity"},
+        {text: " have "},
         {t: "input", c: "attribute", placeholder: "attribute"},
+        {text: " = "},
         {t: "input", c: "value", placeholder: "value"},
+        {c: "spacer"},
         {c: "button", text: "submit", click: submitAction},
         {c: "button", text: "cancel", click: stopAddingAction},
       ]});
      } else if(adding.type === "collection") {
       addActionChildren.push({c: "add-collection", children: [
-        {text: "lets add a collection"},
+        {text: "These "},
         {t: "input", c: "entity", placeholder: "entity"},
+        {text: " are "},
         {t: "input", c: "collection", placeholder: "collection"},
+        {c: "spacer"},
         {c: "button", text: "submit", click: submitAction},
         {c: "button", text: "cancel", click: stopAddingAction},
       ]});
      }
     } else {
-      addActionChildren.push({c: "button", text: "add attribute", actionType: "attribute", click: startAddingAction});
-      addActionChildren.push({c: "button", text: "add to collection", actionType: "collection", click: startAddingAction});
+      addActionChildren.push({c: "", text: "add attribute", actionType: "attribute", click: startAddingAction});
+      addActionChildren.push({c: "", text: "add to collection", actionType: "collection", click: startAddingAction});
     }
 
     let headers = []
@@ -1506,7 +1510,7 @@ function walk(tree, indent = 0) {
       {c: "search-results", children: resultItems},
 //       randomlyLetter(`I found ${resultItems.length} results.`),
       {c: "related-bits", children: actions},
-//       {c: "add-action", children: addActionChildren}
+      {c: "add-action", children: addActionChildren}
     ]};
   }
 

@@ -40,6 +40,10 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .bit.small { height:30px; width:30px; text-transform:uppercase; }
 
 .action { flex-direction: row; background: #333; margin:0 10px;  padding:10px; white-space:pre; justify-content:center; }
+.add-action { white-space: pre; margin:0 10px;}
+.add-action > * { flex-direction:row; background: #333; margin-top:10px; padding:10px; }
+.add-action input { outline:none; font-size: 11pt; padding:0; text-align:center; font-family: "Lato"; background: none; border: none; border-bottom:1px solid #777; width: 80px; }
+.add-action .button { margin-left: 10px;  }
 
 .search-input { flex: none; background: #333; min-width:100px; text-align:center; color: #ccc; font-family: "Lato"; font-size: 14pt; margin:50px 10px; margin-bottom:10px; padding:5px 30px; outline:none; }
 .search-input .CodeMirror.cm-s-default { font-size: 16pt; }
