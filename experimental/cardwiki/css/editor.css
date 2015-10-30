@@ -41,7 +41,7 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 
 .action { flex-direction: row; background: #333; margin:0 10px;  padding:10px; white-space:pre; justify-content:center; }
 .add-action { white-space: pre; margin:0 10px;}
-.add-action > * { flex-direction:row; background: #333; margin-top:10px; padding:10px; }
+.add-action > * { flex-direction:row; background: #333; margin-bottom:10px; padding:10px; }
 .add-action input { outline:none; font-size: 11pt; padding:0; text-align:center; font-family: "Lato"; background: none; border: none; border-bottom:1px solid #777; width: 80px; }
 .add-action .button { margin-left: 10px;  }
 

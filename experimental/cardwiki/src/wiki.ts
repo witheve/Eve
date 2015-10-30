@@ -1352,7 +1352,7 @@ function walk(tree, indent = 0) {
       }
     }
     return {c: "container", children: [
-//       {c: "search-plan", children: planChildren}
+      {c: "search-plan", children: planChildren}
     ]};
   }
 
