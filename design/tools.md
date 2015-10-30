@@ -2,7 +2,7 @@
 
 The item selector shows all views in the system along with a snapshot of their internal logic. The toolbar allows searching for existing views, creating/importing new views or deleting views. Clicking on a view selects it. Double-clicking on a view opens it.
 
-Clicking the magnifying glass brings up Eve's universal search, allowing you to filter and search for individual items by name. Clicking on a result in the search will open it, or pressing enter will open the bottom-most result. The search also contains two different filters at the moment: `[field: *]` and `[tag: *]` which will limit the search to items that either contain a specific field or tag. For example: `[field: place]` will show me all views that have a `place` field or `[tag: editor] [tag: hidden]` will show me all the views that are tagged as both hidden and editor.
+Clicking the magnifying glass brings up Eve's universal search, allowing you to filter and search for individual items by name. Clicking on a result in the search will open it, or pressing enter will open the bottom-most result. The search also contains two different filters at the moment: `[field: *]` and `[tag: *]` which will limit the search to items that either contain a specific field or tag. For example: `[field: place]` will show me all views that have a `place` field or `[tag: editor] [tag: system]` will show me all the views that are tagged as both system and editor.
 
 Search works well when you know what you are looking for. Exploring larger programs would benefit from structure though. (Roadmap: view tagging, dependency graph)
 
@@ -56,7 +56,7 @@ Both of these are temporary solutions. (Roadmap: [version control](http://incide
 
 The editor can show the current state of any view. The join editor also shows 'peek' views when a source is selected. Making temporary joins is fairly effective for answering [specific questions](http://www.cs.cmu.edu/~NatProg/papers/MyersICPC2013NatProg.pdf) about the current state (eg are there any accounts that are not shown in the final report?).
 
-The program itself and the internal state of the compiler are stored in tables which can be seen by checking 'show hidden' in the settings menu. These are useful for debugging internal errors or for understanding scheduling decisions.
+The program itself and the internal state of the compiler are stored in tables which can be seen by checking 'show system tables' in the settings menu. These are useful for debugging internal errors or for understanding scheduling decisions.
 
 Areas to improve:
 
