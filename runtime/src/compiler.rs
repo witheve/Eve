@@ -1452,25 +1452,25 @@ pub fn bootstrap(flow: &mut Flow) {
 
         for (view, _) in code_schema().into_iter() {
             tag_table.index.insert(vec![string!("{}", view), string!("editor")]);
-            tag_table.index.insert(vec![string!("{}", view), string!("hidden")]);
+            tag_table.index.insert(vec![string!("{}", view), string!("system")]);
         }
 
         for (view, _) in compiler_schema().into_iter() {
-            tag_table.index.insert(vec![string!("{}", view), string!("hidden")]);
+            tag_table.index.insert(vec![string!("{}", view), string!("system")]);
         }
 
         for (view, _) in server_schema().into_iter() {
-            tag_table.index.insert(vec![string!("{}", view), string!("hidden")]);
+            tag_table.index.insert(vec![string!("{}", view), string!("system")]);
         }
 
         for (view, _) in editor_schema().into_iter() {
             tag_table.index.insert(vec![string!("{}", view), string!("editor")]);
-            tag_table.index.insert(vec![string!("{}", view), string!("hidden")]);
+            tag_table.index.insert(vec![string!("{}", view), string!("system")]);
         }
 
         for (view, fields) in client_schema().into_iter() {
             tag_table.index.insert(vec![string!("{}", view), string!("client")]);
-            tag_table.index.insert(vec![string!("{}", view), string!("hidden")]);
+            tag_table.index.insert(vec![string!("{}", view), string!("system")]);
             let has_session = fields.into_iter().any(|name| name == "session");
             if has_session {
                 tag_table.index.insert(vec![string!("{}: {}", view, "session"), string!("session")]);
