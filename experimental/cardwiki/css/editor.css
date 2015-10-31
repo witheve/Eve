@@ -16,7 +16,7 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 /*---------------------------------------------------------
 - Article Editor
 ---------------------------------------------------------*/
-.article { background: #333; padding:20px; overflow:auto; max-width: 600px; min-height: 300px; min-width: 300px; border-radius:3px; box-shadow: 0 2px 2px #111; line-height: 25px; }
+.article { background: #333; padding:20px; overflow:auto; max-width: 600px; min-height: 300px; min-width: 300px; border-radius:3px; box-shadow: 0 0px 0px #111; line-height: 25px; }
 .article pre { flex:none; display:block; white-space: pre-wrap; min-height:25px; }
 .article h1 { font-size:16pt; }
 .article span { display:inline; }
@@ -29,7 +29,29 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .link:hover { border-bottom-color:#f88; }
 .link.found:hover { border-bottom-color:#99f; }
 
-.search-input { flex: none; background: none; width:100%; text-align:center; color: #ccc; font-family: "Lato"; font-size: 14pt; margin:20px; border:none; padding:0 10px; padding-bottom:5px; outline:none; }
+.bit { text-align:center; justify-content:center; padding:10px; background: #333; box-shadow:0 0px 0px #111; margin-bottom:5px; border-radius:0px; align-items:center; }
+.bit.collection { background: #0a6; color: #222; }
+.bit.collection .collection { color: #fff; }
+
+.bit.entity { background: #55a; color: #fff; }
+.bit.value { background: #c63; color: #fff; }
+.bit.attribute { background: #a4a; color: #fff; }
+
+.bit.small { height:30px; width:30px; text-transform:uppercase; }
+
+.action { flex-direction: row; background: #333; margin:0 10px;  padding:10px; white-space:pre; justify-content:center; }
+.add-action { white-space: pre; margin:0 10px;}
+.add-action > * { flex-direction:row; background: #333; margin-bottom:10px; padding:10px; }
+.add-action input { outline:none; font-size: 11pt; padding:0; text-align:center; font-family: "Lato"; background: none; border: none; border-bottom:1px solid #777; width: 80px; }
+.add-action .button { margin-left: 10px;  }
+
+.search-input { flex: none; background: #333; min-width:100px; text-align:center; color: #ccc; font-family: "Lato"; font-size: 14pt; margin:50px 10px; margin-bottom:10px; padding:5px 30px; outline:none; }
+.search-input .CodeMirror.cm-s-default { font-size: 16pt; }
+
+.phrase { position:absolute; top: 700px; left: 1000px; display: block; font-size: 16pt; min-height: 20px; max-width:250px; line-height: 35px; }
+.phrase span { display:inline; opacity:0; }
+
+.phrase.pos2 { top:430px; }
 
 .spacer { flex: 1; }
 
@@ -39,13 +61,18 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .search-plan { padding: 30px 0; align-items: flex-start; }
 .search-plan * { padding: 5px; background: #333; margin:5px 0px; border-radius:2px; }
 
-.search-results .step { padding: 5px; background: #444; margin:4px; border-radius:2px; }
 
-.search-results { flex:none; padding:0 10px; overflow:auto;  }
-.search-results .path { flex-direction:row; }
+.search-headers { flex-direction:row; padding: 0 10px; margin-bottom:10px; }
+.search-headers > * { flex:1; align-items:center; color: #aaa; font-size:11pt; margin:1px; background: #333; padding:10px 10px; }
+
+.search-results .path > * { flex:1; margin:1px 1px; }
+.search-results .sub-group { margin:0 1px; min-width:100px; }
+.search-results .sub-group .bit { margin:1px 0; flex: 1 0 0; overflow:hidden; min-height:50px; }
+.search-results { flex:none; padding:0 10px; overflow:auto; margin-bottom: 0px; }
+.search-results .path { flex-direction:row; margin-bottom: 10px; }
 .search-results pre { display:none; }
 .search-results pre.header { display:block; }
-.search-results .article { margin:10px; min-width:100px; min-height:100px; width:auto; height:auto; margin:20px 10px; }
+.search-results .article { min-width:100px; min-height:100px; width:auto; height:auto; margin-bottom:10px; }
 .search-results .singleton pre { display: block; }
 .search-results .singleton .article { width: 600px; height: auto; }
 .search-results .arrow { justify-content:center; font-size: 18pt; }
@@ -58,6 +85,7 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 
 .CodeMirror div { display:block; }
 .CodeMirror.cm-s-default { font-family: "Lato"; font-size: 12pt; height: auto; background: transparent; color: #ccc; }
+.CodeMirror .CodeMirror-selected { background: #444; border-radius:2px; }
 .CodeMirror .Codemirror-scroll { height:auto; }
 .cm-s-default .CodeMirror-cursor { border-color: #999; }
 .cm-s-default .cm-link { color: #99f; }

@@ -165,11 +165,19 @@ return index;`
       this.length += objs.length;
       tableDiff.removes.push.apply(tableDiff.removes, objs);
     }
-    remove(table, query) {
+    remove(table, query?) {
       let tableDiff = this.ensureTable(table);
       let found = this.ixer.find(table, query);
       this.length += found.length;
       tableDiff.removes.push.apply(tableDiff.removes, found);
+    }
+    merge(diff) {
+      for(let table in diff.tables) {
+        let tableDiff = diff.tables[table];
+        this.addMany(table, tableDiff.adds);
+        this.removeFacts(table, tableDiff.removes);
+      }
+      return this;
     }
     reverse() {
       let reversed = new Diff(this.ixer);
@@ -529,6 +537,8 @@ return index;`
                     children: []};
       let root = cursor;
       let results = [];
+      // by default the only thing we return are the unprojected results
+      let returns = ["unprojected"];
 
       // we need an array to store our unprojected results
       root.children.push({type: "declaration", var: "unprojected", value: "[]"});
@@ -608,7 +618,11 @@ return index;`
         root.children.push({type: "sort", sorts, size, children: []});
       }
       //then we need to run through the sorted items and do the aggregate as a fold.
-      if(this.aggregates.length || sorts || this.limitInfo) {
+      if(this.aggregates.length || sorts.length || this.limitInfo) {
+        // we need to store group info for post processing of the unprojected results
+        // this will indicate what group number, if any, that each unprojected result belongs to
+        root.children.unshift({type: "declaration", var: "groupInfo", value: "[]"});
+        returns.push("groupInfo");
         let aggregateChildren = [];
         for(let func of this.aggregates) {
           let {args, name, ix} = func;
@@ -623,8 +637,7 @@ return index;`
         cursor = aggregate;
       }
 
-      // do any projections
-      let returns = ["unprojected"];
+
       if(this.projectionMap) {
         this.applyAliases(this.projectionMap);
         root.children.unshift({type: "declaration", var: "results", value: "[]"});
@@ -770,11 +783,13 @@ return index;`
               while(!differentGroup) {
                 nextIx += ${root.size};
                 if(nextIx >= len) break;
+                groupInfo[nextIx] = undefined;
                 differentGroup = ${groupCheck};
               }
             }`;
           }
           let groupDifference = "";
+          let groupInfo = "";
           if(this.groups) {
             groupDifference = `
             perGroupCount++
@@ -786,8 +801,10 @@ return index;`
               perGroupCount = 0;
               resultCount++;
             }\n`;
+            groupInfo = "groupInfo[ix] = resultCount;";
           } else {
             groupDifference = "resultCount++;\n";
+            groupInfo = "groupInfo[ix] = 0;"
           }
           // if there are neither aggregates to calculate nor groups to build,
           // then we just need to worry about limiting
@@ -798,6 +815,7 @@ return index;`
                     while(ix < len) {
                       ${resultsCheck}
                       ${projection}
+                      groupInfo[ix] = resultCount;
                       resultCount++;
                       ix += ${root.size};
                     }\n`;
@@ -811,8 +829,10 @@ return index;`
                   ${aggregateStates.join("\n")}
                   while(ix < len) {
                     ${aggregateCalls.join("")}
+                    ${groupInfo}
                     if(ix + ${root.size} === len) {
                       ${projection}
+
                       break;
                     }
                     nextIx += ${root.size};

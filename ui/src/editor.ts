@@ -1697,12 +1697,12 @@ module drawn {
         diffs = dispatch("hideTooltip", {}, true);
         localState.loading = false;
       break;
-      case "toggleHidden":
-        var hidden = localStorage["showHidden"];
+      case "toggleSystem":
+        var hidden = localStorage["showSystem"];
         if(hidden) {
-          localStorage["showHidden"] = "";
+          localStorage["showSystem"] = "";
         } else {
-          localStorage["showHidden"] = "show";
+          localStorage["showSystem"] = "show";
         }
         diffs = dispatch("updateSearch", {value: localState.searchingFor || ""}, true);
       break;
@@ -1881,7 +1881,7 @@ module drawn {
     }
 
     for(let viewId of viewIds) {
-      if(!localStorage["showHidden"] && ixer.selectOne("tag", {view: viewId, tag: "hidden"})) {
+      if(!localStorage["showSystem"] && ixer.selectOne("tag", {view: viewId, tag: "system"})) {
         continue;
       }
       let name = code.name(viewId);
@@ -2231,7 +2231,7 @@ module drawn {
     viewIds.forEach((viewId) : any => {
       let view = ixer.selectOne("view", {view: viewId});
       let kind = view["view: kind"];
-      if(!searching && !localStorage["showHidden"] && ixer.selectOne("tag", {view: viewId, tag: "hidden"})) {
+      if(!searching && !localStorage["showSystem"] && ixer.selectOne("tag", {view: viewId, tag: "system"})) {
         return;
       }
       if(kind === "join") {
@@ -2277,11 +2277,11 @@ module drawn {
   function visibleItemCount() {
     let allViews = ixer.select("view", {});
     let totalCount = allViews.length;
-    // hidden views don't contribute to the count
-    if(!localStorage["showHidden"]) {
-      totalCount -= ixer.select("tag", {tag: "hidden"}).length
+    // system views don't contribute to the count
+    if(!localStorage["showSystem"]) {
+      totalCount -= ixer.select("tag", {tag: "system"}).length
     }
-    // primtive views don't contribute to the count
+    // primitive views don't contribute to the count
     totalCount -= ixer.select("view", {kind: "primitive"}).length;
     return totalCount;
   }
@@ -2484,11 +2484,11 @@ module drawn {
       id: "preferences",
       title: "Preferences",
       content: () => {
-        let showHidden;
-        if(localStorage["showHidden"]) {
-          showHidden = ui.button({click: toggleHidden, text: "Hide hidden"});
+        let showSystem;
+        if(localStorage["showSystem"]) {
+          showSystem = ui.button({click: toggleSystem, text: "Hide system tables"});
         } else {
-          showHidden = ui.button({click: toggleHidden, text: "Show hidden"});
+          showSystem = ui.button({click: toggleSystem, text: "Show system tables"});
         }
         let theme;
         let curTheme = localStorage["theme"];
@@ -2499,14 +2499,14 @@ module drawn {
         }
         return {c: "preferences", semantic: "pane::preferences", children: [
           theme,
-          showHidden,
+          showSystem,
         ]};
       }
     }
   ];
 
-  function toggleHidden(e, elem) {
-    dispatch("toggleHidden", {});
+  function toggleSystem(e, elem) {
+    dispatch("toggleSystem", {});
   }
 
   function toggleTheme(e, elem) {

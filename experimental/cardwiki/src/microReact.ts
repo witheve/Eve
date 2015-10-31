@@ -190,7 +190,13 @@ module microReact {
         div._id = id;
         elementCache[id] = div;
         if(cur.enter) {
+          if(cur.enter.delay) {
+            cur.enter.display = "auto";
+            div.style.display = "none";
+          }
+
           Velocity(div, cur.enter, cur.enter);
+
         }
       }
 
