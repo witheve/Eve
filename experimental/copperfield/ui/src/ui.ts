@@ -107,6 +107,7 @@ module Ui {
   let elementCompilers = {
     row,
     column,
+    dropdown,
     renderer,
     button,
     input,
