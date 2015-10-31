@@ -43,12 +43,8 @@ module Indexer {
   //---------------------------------------------------------------------------
   function generateEqualityFn<T>(keys:Keys): EqualityFn<T> {
     return <EqualityFn<T>>new Function("a", "b",  `return ${keys.map(function(key, ix) {
-      if(key.constructor === Array) {
-        return `a[${key[0]}]['${key[1]}'] === b[${key[0]}]['${key[1]}']`;
-      } else {
-        return `a["${key}"] === b["${key}"]`;
-      }
-    }).join(" && ")};`);
+      return `a["${key}"] === b["${key}"] || typeof a === "object" && Indexer.identical(a, b)`;
+    }).join("\n&& ")};`);
   }
 
   function generateStringFn<T>(keys:Keys): StringFn<T> {
@@ -166,7 +162,7 @@ return index;`
     if(!arraysIdentical(aKeys, Object.keys(b))) { return false; }
     for(var key of aKeys) {
       if(typeof a[key] !== "object" && a[key] !== b[key]) { return false; }
-      else if(a[key].constructor === Array) { console.log(a[key], b[key], arraysIdentical(a[key], b[key])); return arraysIdentical(a[key], b[key]); }
+      else if(a[key].constructor === Array) { return arraysIdentical(a[key], b[key]); }
       else if(!identical(a[key], b[key])) { return false; }
     }
     return true;
