@@ -43,7 +43,8 @@ module Bootstrap {
     addEntity(entity, "collection");
     facts["builtin collection entity"].push({entity, kind});
     facts["builtin default projection"].push({entity, projection: "index-projection"});
-    if(!projections.indexOf("name-projection")) projections.unshift("name-projection");
+    if(projections.indexOf("name-projection") === -1) projections.unshift("name-projection");
+    if(projections.indexOf("kinds-projection") === -1) projections.unshift("kinds-projection");
     for(let projection of projections) {
       facts["builtin kind projection"].push({kind, projection});
     }
@@ -66,6 +67,7 @@ module Bootstrap {
   var views:{[viewId:string]: string[]} = {
     "ui binding constraint": ["parent", "alias", "field"],
     "handled event": ["tick"],
+    "event value": ["tick", "value"],
 
     // Entities
     "entity": ["entity"],
@@ -75,6 +77,7 @@ module Bootstrap {
 
     // Rendering
     "page": ["entity", "page"],
+    "block history": ["tick", "page", "block", "ix", "entity", "projection"],
     "block": ["page", "block", "ix", "entity", "projection"],
     "projection": ["projection", "element"],
     "default projection": ["entity", "projection"],
@@ -99,7 +102,7 @@ module Bootstrap {
   };
   var viewKinds:{[viewId:string]: string} = {
     "ui binding constraint": "table",
-    "next layer": "join",
+    "event value": "table",
 
     "default page": "table",
     "builtin entity": "table",
@@ -129,6 +132,7 @@ module Bootstrap {
     "tag": ["?view is tagged ?tag"],
     "event": ["event at ?tick is a ?kind ?event with key ?key", "event at ?tick is an ?kind ?event with key ?key"],
     "handled event": ["event at ?tick is already handled"],
+    "event value": ["event at ?tick is valued ?value"],
     "ui binding constraint": ["?parent field ?field constraints alias ?alias"],
 
     // Entities
@@ -142,6 +146,10 @@ module Bootstrap {
     "block": [
       "block ?block on layer ?ix represents ?entity in ?page as a ?projection",
       "block ?block on layer ?ix represents ?entity in ?page as an ?projection"
+    ],
+    "block history": [
+      "block ?block on layer ?ix represents ?entity in ?page as a ?projection at tick ?tick",
+      "block ?block on layer ?ix represents ?entity in ?page as an ?projection at tick ?tick"
     ],
     "projection": ["projection ?projection is templated as ?element"],
     "default projection": ["entity ?entity usually looks like a ?projection", "entity ?entity usually looks like an ?projection"],
@@ -178,7 +186,7 @@ module Bootstrap {
     "builtin entity": [],
     "builtin collection entity": [],
     "default page": [{page: "collections-page"}],
-    "builtin page": [],
+    "builtin page": [{page: "dummy-page", entity: "dummy"}],
     "builtin block": [],
     "builtin projection": [],
     "builtin default projection": [],
@@ -210,7 +218,8 @@ module Bootstrap {
     `,
     "set builtin blocks": Parsers.unpad(6) `
       builtin block ?block on layer ?ix represents ?entity in ?page as a ?projection
-      + block ?block on layer ?ix represents ?entity in ?page as a ?projection
+      ?tick = "-1"
+      + block ?block on layer ?ix represents ?entity in ?page as a ?projection at tick ?tick
     `,
     "set builtin projections": Parsers.unpad(6) `
       builtin projection ?projection is templated as ?element
@@ -257,6 +266,13 @@ module Bootstrap {
       + entity ?entity is a ?kind
     `,
 
+    "set block state": Parsers.unpad(6) `
+      block ?%block on layer ?ix represents ?entity in ?page as a ?projection at tick ?tick
+      # ?ord by ?tick descending
+      ?ord < "2"
+      + block ?block on layer ?ix represents ?entity in ?page as a ?projection
+    `,
+
     // Selected page
     "set selected page": Parsers.unpad(6) `
       ?page is the selected page at tick ?tick
@@ -273,6 +289,7 @@ module Bootstrap {
     // Create pages
     "create entity pages": Parsers.unpad(6) `
       entity ?entity is a ?
+      ?tick = "-1"
       ?page $= ?entity concat "-page"
       ?block-title $= ?page concat "-block.0"
       ?block-title-ix = "0"
@@ -287,23 +304,35 @@ module Bootstrap {
       entity ?entity usually looks like a ?block-self-projection
 
       + page ?page represents ?entity
-      + block ?block-title on layer ?block-title-ix represents ?entity in ?page as a ?block-title-projection
-      + block ?block-nav on layer ?block-nav-ix represents ?entity in ?page as a ?block-nav-projection
-      + block ?block-self on layer ?block-self-ix represents ?entity in ?page as a ?block-self-projection
+      + block ?block-title on layer ?block-title-ix represents ?entity in ?page as a ?block-title-projection at tick ?tick
+      + block ?block-nav on layer ?block-nav-ix represents ?entity in ?page as a ?block-nav-projection at tick ?tick
+      + block ?block-self on layer ?block-self-ix represents ?entity in ?page as a ?block-self-projection at tick ?tick
     `,
 
-    //"set next layer": Parsers.unpad(6) `
-    //  block ? on layer ?ix represents ? in ?page as a ?
-    //  # ?ord by ?ix descending
-    //  ?ord < "2"
-    //  ?next $= ?ix + "1"
-    //  + next layer for page ?page is ?next
-    //`,
+    "set next layer": Parsers.unpad(6) `
+      block ? on layer ?ix represents ? in ?%page as a ?
+      # ?ord by ?ix descending
+      ?ord < "2"
+      ?next $= ?ix + "1"
+      + next layer for page ?page is ?next
+    `,
+    "set next layer default": Parsers.unpad(6) `
+      page ?page represents ?
+      ! block ? on layer ? represents ? in ?page as a ?
+      ?next = "0"
+      + next layer for page ?page is ?next
+    `,
 
     "maintain handled events state": Parsers.unpad(6) `
       event at ?tick is already handled
       + event at ?tick is already handled
     `,
+
+    "maintain block history state": Parsers.unpad(6) `
+      block ?block on layer ?ix represents ?entity in ?page as a ?projection at tick ?tick
+      + block ?block on layer ?ix represents ?entity in ?page as a ?projection at tick ?tick
+    `,
+
 
     // User page editing
     "user created blocks": Parsers.unpad(6) `
@@ -313,9 +342,18 @@ module Bootstrap {
       next layer for page ?page is ?next
       ?block-id $= "manual-block-" concat ?tick
       ?projection = "search-and-replace-projection"
-      + block ?block-id on layer ?next represents ?block-id in ?page as a ?projection
+      + block ?block-id on layer ?next represents ?block-id in ?page as a ?projection at tick ?tick
       + event at ?tick is already handled
     `,
+
+    // User projection switching
+    "user switch projection": Parsers.unpad(6) `
+      event at ?tick is a "switch block projection" ? with key ?block
+      ! event at ?tick is already handled
+      event at ?tick is valued ?projection
+      block ?block on layer ?ix represents ?entity in ?page as a ? at tick ?
+      + block ?block on layer ?ix represents ?entity in ?page as a ?projection at tick ?tick
+    `
   };
 
   let uis:{[elemId:string]: string} = {
@@ -331,10 +369,19 @@ module Bootstrap {
             - text: ?header
         div; page
           div; block
-            ~ block ? on layer ?ix represents ?entity in ?page as a ?projection
-            ~ projection ?projection is templated as ??element
+            ~ block ?%block on layer ?ix represents ?entity in ?page as a ?projection
+            ~ # ?ord by ?ix ascending
             - ix: ?ix
-            > ?element ?entity
+            dropdown
+              ~ entity ?entity is a ?kind
+              ~ ?kind entities can look like a ??projection_opts
+              - key: ?block
+              - options: ?projection_opts
+              - defaultOption: ?projection
+              @change switch block projection: ?block
+            div
+              ~ projection ?projection is templated as ??element
+              > ?element ?entity
           div bordered; add-block
             - text: "+"
             @click add block: ?page
@@ -348,6 +395,7 @@ module Bootstrap {
     // Projections
     name: Parsers.unpad(6) `
       ~ ?entity is named ?name
+      - c: "bordered"
       - debug: "name"
       - text: ?name
       @click switch page: ?entity
@@ -355,6 +403,7 @@ module Bootstrap {
     // index projection to list related entities by name as blocks
     index: Parsers.unpad(6) `
       ~ ?entity is an entity
+      - c: "bordered"
       ; Hack since alias bindings arent deep yet.
       div
         ~ entity ?entity contains each ?kind
@@ -365,6 +414,7 @@ module Bootstrap {
     `,
     kinds: Parsers.unpad(6) `
       ~ ?entity is an entity
+      - c: "bordered"
       ; Hack since alias bindings arent deep yet.
       row
         ~ entity ?entity is a ?kind
@@ -375,6 +425,7 @@ module Bootstrap {
     `,
     "fact-table": Parsers.unpad(6) `
       ~ view ?entity is a ?
+      - c: "bordered"
       - t: "fact-table"
       - view: ?entity
     `,
@@ -382,10 +433,12 @@ module Bootstrap {
       ~ entity ?entity is a "ui"
       ~ ?entity != "wiki root-elem"
       ~ ?entity != "renderer-projection-elem"
+      - c: "bordered"
       - t: "renderer"
       - element: ?entity
     `,
     "search-and-replace": Parsers.unpad(6) `
+      - c: "bordered"
       - text: "search and replace!"
     `
   };
@@ -485,47 +538,47 @@ module Bootstrap {
     if(Api.DEBUG.BOOTSTRAP) console.groupCollapsed("Phase 3: Create uis");
     effect = new Editor.DispatchEffect();
 
-    effect.change.add("view", {"view: view": "next layer", "view: kind": "join"}) // @TODO: Finish me.
-      .add("display name", "next layer")
-      .add("source", {"source: source": "set next layer block source", "source: source view": "block"})
-      .add("display order", 0)
+    // effect.change.add("view", {"view: view": "next layer", "view: kind": "join"}) // @TODO: Finish me.
+    //   .add("display name", "next layer")
+    //   .add("source", {"source: source": "set next layer block source", "source: source view": "block"})
+    //   .add("display order", 0)
 
-      .add("variable", {"variable: variable": "set next layer page var"})
-      .add("binding", {"binding: field": "block: page"})
-      .add("field", {"field: field": "next layer: page", "field: kind": "output"})
-      .add("display name",  "page")
-      .add("display order", 0)
-      .add("grouped field", {"grouped field: field": "block: page"})
-      .add("select")
+    //   .add("variable", {"variable: variable": "set next layer page var"})
+    //   .add("binding", {"binding: field": "block: page"})
+    //   .add("field", {"field: field": "next layer: page", "field: kind": "output"})
+    //   .add("display name",  "page")
+    //   .add("display order", 0)
+    //   .add("grouped field", {"grouped field: field": "block: page"})
+    //   .add("select")
 
-      .add("variable", {"variable: variable": "set next layer ix var"})
-      .add("binding", {"binding: field": "block: ix"})
-      .add("binding", {"binding: source": "set next layer + source", "binding: field": "+: A"})
-      .add("sorted field", {"sorted field: field": "block: ix", "sorted field: ix": 0, "sorted field: direction": "descending"})
+    //   .add("variable", {"variable: variable": "set next layer ix var"})
+    //   .add("binding", {"binding: field": "block: ix"})
+    //   .add("binding", {"binding: source": "set next layer + source", "binding: field": "+: A"})
+    //   .add("sorted field", {"sorted field: field": "block: ix", "sorted field: ix": 0, "sorted field: direction": "descending"})
 
-      .add("variable", {"variable: variable": "set next layer ord var"})
-      .add("ordinal binding")
-      .add("binding", {"binding: source": "set next layer < source", "binding: field": "<: A"})
+    //   .add("variable", {"variable: variable": "set next layer ord var"})
+    //   .add("ordinal binding")
+    //   .add("binding", {"binding: source": "set next layer < source", "binding: field": "<: A"})
 
-      .add("source", {"source: source": "set next layer < source", "source: source view": "<"})
-      .add("display order", 1)
-      .add("variable", {"variable: variable": "set next layer < constant var"})
-      .add("constant binding", 2)
-      .add("binding", {"binding: field": "<: B"})
+    //   .add("source", {"source: source": "set next layer < source", "source: source view": "<"})
+    //   .add("display order", 1)
+    //   .add("variable", {"variable: variable": "set next layer < constant var"})
+    //   .add("constant binding", 2)
+    //   .add("binding", {"binding: field": "<: B"})
 
-      .add("source", {"source: source": "set next layer + source", "source: source view": "+"})
-      .add("display order", 1)
-      .add("variable", {"variable: variable": "set next layer + constant var"})
-      .add("constant binding", 1)
-      .add("binding", {"binding: field": "+: B"})
+    //   .add("source", {"source: source": "set next layer + source", "source: source view": "+"})
+    //   .add("display order", 1)
+    //   .add("variable", {"variable: variable": "set next layer + constant var"})
+    //   .add("constant binding", 1)
+    //   .add("binding", {"binding: field": "+: B"})
 
-      .add("variable", {"variable: variable": "set next layer + result var"})
-      .add("binding", {"binding: field": "+: result"})
-      .add("field", {"field: field": "next layer: ix", "field: kind": "output"})
-      .add("display name", "ix")
-      .add("display order", 1)
-      .add("select")
-      .clearContext();
+    //   .add("variable", {"variable: variable": "set next layer + result var"})
+    //   .add("binding", {"binding: field": "+: result"})
+    //   .add("field", {"field: field": "next layer: ix", "field: kind": "output"})
+    //   .add("display name", "ix")
+    //   .add("display order", 1)
+    //   .add("select")
+    //   .clearContext();
 
 
     for(let elemId in uis) {

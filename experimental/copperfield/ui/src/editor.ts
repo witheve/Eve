@@ -64,13 +64,18 @@ module Editor {
       if(id && type) effect.change.removeWithDependents(type, id);
       return effect;
     },
-    addEvent: function({elem, event, kind, key = ""}:{elem: string, event: string, kind: string, key: any}) {
+    addEvent: function({elem, event, kind, extras = {}}:{elem: string, event: string, kind: string, extras: any}) {
       let effect = DispatchEffect.from(this);
+      let tick = localState.eventId++;
       effect.change.add("event", {
-        "event: tick": localState.eventId++,
+        "event: tick": tick,
         "event: event": event,
         "event: kind": kind,
-        "event: key": key});
+        "event: key": extras.key || ""});
+
+      if(extras.value !== undefined) {
+        effect.change.add("event value", {"event value: tick": tick, "event value: value": extras.value});
+      }
       return effect;
     },
     setEditing: function({editing}:{editing:string}) {
@@ -330,8 +335,8 @@ module Editor {
     window.addEventListener("resize", render);
   }
 
-  function handleEvent(elem:string, event: string, kind: string, key?:any) {
-    dispatch("addEvent", {elem, event, kind, key}).done();
+  function handleEvent(elem:string, event: string, kind: string, extras?:any) {
+    dispatch("addEvent", {elem, event, kind, extras}).done();
   }
 
   function render() {

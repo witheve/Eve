@@ -14,6 +14,11 @@ module UiRenderer {
     "uiWarning: warning": string
   }
 
+  interface EventExtras {
+    key?: any
+    value?: any
+  }
+
   function getKeys(table:Id):Id[] {
     var fieldIds = Api.get.fields(table) || [];
     var keys = [];
@@ -49,7 +54,7 @@ module UiRenderer {
 
     private _handlers:{[key:string]: MicroReact.Handler<Event>} = {};
 
-    constructor(public renderer:MicroReact.Renderer, public handleEvent:(element:string, event: string, kind: string, key?:any) => void) {}
+    constructor(public renderer:MicroReact.Renderer, public handleEvent:(element:string, event: string, kind: string, extras?:EventExtras) => void) {}
 
     // Mark the renderer dirty so it will rerender next frame.
     queue(root) {
@@ -295,14 +300,24 @@ module UiRenderer {
     }
 
     generateEventHandler(elem:Element, event:string, kind:string, key?:string, boundAncestors?, elemToRow?):MicroReact.Handler<Event> {
-      let memoKey = `${event}_${kind}:${key || ""}`;
+      let memoKey = `${event}_${kind}`;
       let attrKey = `__${event}_${kind}_event_key`;
       if(key) elem[attrKey] = getBoundValue(elem, key, boundAncestors, elemToRow);
       if(this._handlers[memoKey]) return this._handlers[memoKey];
 
       let self = this;
       // @TODO: Specialize for event families (e.g. keyboard, mouse).
-      this._handlers[memoKey] = (evt:Event, elem:Element) => self.handleEvent(elem.__template, event, kind, attrKey && elem[attrKey]);
+      if(event === "change") {
+        this._handlers[memoKey] = (evt:Event, elem:Element) => {
+          let value;
+          // @NOTE: We can't hoist elem checks since we reuse handlers based on event and kind alone.
+          if(elem.t === "select" || elem.t === "input") value = (<HTMLSelectElement|HTMLInputElement>evt.target).value;
+          if(elem.type === "checkbox") value = (<HTMLInputElement>evt.target).checked;
+          self.handleEvent(elem.__template, event, kind, {key: elem[attrKey], value});
+        };
+      } else {
+        this._handlers[memoKey] = (evt:Event, elem:Element) => self.handleEvent(elem.__template, event, kind, {key: elem[attrKey]});
+      }
 
       return this._handlers[memoKey];
     }
