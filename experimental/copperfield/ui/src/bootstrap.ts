@@ -346,13 +346,21 @@ module Bootstrap {
       + event at ?tick is already handled
     `,
 
-    // User projection switching
     "user switch projection": Parsers.unpad(6) `
       event at ?tick is a "switch block projection" ? with key ?block
       ! event at ?tick is already handled
       event at ?tick is valued ?projection
-      block ?block on layer ?ix represents ?entity in ?page as a ? at tick ?
+      block ?block on layer ?ix represents ?entity in ?page as a ?
       + block ?block on layer ?ix represents ?entity in ?page as a ?projection at tick ?tick
+      + event at ?tick is already handled
+    `,
+    "user switch entity": Parsers.unpad(6) `
+      event at ?tick is a "switch block entity" ? with key ?block
+      ! event at ?tick is already handled
+      event at ?tick is valued ?entity
+      block ?block on layer ?ix represents ? in ?page as a ?projection
+      + block ?block on layer ?ix represents ?entity in ?page as a ?projection at tick ?tick
+      + event at ?tick is already handled
     `
   };
 
@@ -438,8 +446,11 @@ module Bootstrap {
       - element: ?entity
     `,
     "search-and-replace": Parsers.unpad(6) `
+      ~ block ?entity on layer ? represents ? in ? as a ?
+      - t: "input"
       - c: "bordered"
-      - text: "search and replace!"
+      - placeholder: "Find an entity..."
+      @change switch block entity: ?entity
     `
   };
 
