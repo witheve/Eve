@@ -656,13 +656,17 @@ return index;`
         let arg = args[param];
         let argCode;
         if(arg.constructor === Array) {
+          let property = "";
+          if(arg[1]) {
+            property = `['${arg[1]}']`;
+          }
           if(!unprojected) {
-            argCode = `row${arg[0]}['${arg[1]}']`;
+            argCode = `row${arg[0]}${property}`;
           } else {
-            argCode = `unprojected[ix + ${arg[0]}]['${arg[1]}']`;
+            argCode = `unprojected[ix + ${arg[0]}]${property}`;
           }
         } else {
-          argCode = arg;
+          argCode = JSON.stringify(arg);
         }
         code += `${argCode}, `;
       }

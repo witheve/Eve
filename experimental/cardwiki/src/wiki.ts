@@ -1132,6 +1132,35 @@ function walk(tree, indent = 0) {
     }
   }
 
+  function NewBitEditor(node, elem) {
+    let cm = node.editor;
+    if(!cm) {
+      cm = node.editor = new CodeMirror(node, {
+        mode: "gfm",
+        lineWrapping: true,
+        extraKeys: {
+          "Cmd-Enter": (cm) => {
+            submitAction(cm, elem);
+            console.log("Commit bit!", cm.getValue());
+          }
+        }
+      });
+      if(elem.onInput) {
+        cm.on("change", elem.onInput)
+      }
+      if(elem.keydown) {
+        cm.on("keydown", (cm) => { elem.keydown(cm, elem); });
+      }
+      if(elem.blur) {
+        cm.on("blur", (cm) => { elem.blur(cm, elem); });
+      }
+      cm.focus();
+    }
+    if(cm.getValue() !== elem.value) {
+      cm.setValue(elem.value);
+    }
+  }
+
   function CMSearchBox(node, elem) {
     let cm = node.editor;
     if(!cm) {
@@ -1192,7 +1221,7 @@ function walk(tree, indent = 0) {
     result.remove("editing");
     let {page, value} = info;
     page = page.toLowerCase();
-    result.add("page", {page, text: value});
+    result.add("manual page", {page, content: value});
     result.remove("page", {page});
   });
 
@@ -1218,6 +1247,8 @@ function walk(tree, indent = 0) {
       result.merge(addEavAction(search, info.entity, info.attribute, info.value));
     } else if(info.type === "collection") {
       result.merge(addToCollectionAction(search, info.entity, info.collection));
+    } else if(info.type === "bit") {
+      result.merge(addBitAction(search, info.template, app.activeSearch.query));
     }
   });
 
@@ -1258,12 +1289,12 @@ function walk(tree, indent = 0) {
   }
 
   function articleUi(articleId, instance:string|number = "") {
-    let article = eve.findOne("page", {page: articleId}) || {text: ""};
+    let article = eve.findOne("page", {page: articleId}) || {content: ""};
     let articleView;
     if(!eve.findOne("editing", {page: articleId})) {
-      articleView = {id: `${articleId}${instance}`, c: "article", page: articleId, children: articleToHTML(parsePage(articleId, article.text).lines), dblclick: editArticle, enter: {display: "flex", opacity: 1, duration: 300}};
+      articleView = {id: `${articleId}${instance}`, c: "article", page: articleId, children: articleToHTML(parsePage(articleId, article.content).lines), dblclick: editArticle, enter: {display: "flex", opacity: 1, duration: 300}};
     } else {
-      articleView = {id: "article editor", c: "article editor", page: articleId, postRender: CodeMirrorElement, value: article.text, blur: commitArticle};
+      articleView = {id: "article editor", c: "article editor", page: articleId, postRender: CodeMirrorElement, value: article.content, blur: commitArticle};
     }
     let relatedBits;
     let addedEavs = eve.find("added eavs", {page: articleId});
@@ -1464,6 +1495,13 @@ function walk(tree, indent = 0) {
         {c: "header collection", text: pluralize(collectionAction.collection, 2)},
       ]})
     }
+    for(let bitAction of eve.find("add bit action", {view: search})) {
+      let {template, action} = bitAction;
+      actions.push({c: "action", children: [
+        {text: "bit action!"},
+        {c: "bit entity", children: articleToHTML(parsePage(action, template).lines)}
+      ]})
+    }
 
     let addActionChildren = [];
     let adding = eve.findOne("adding action");
@@ -1489,10 +1527,19 @@ function walk(tree, indent = 0) {
         {c: "button", text: "submit", click: submitAction},
         {c: "button", text: "cancel", click: stopAddingAction},
       ]});
+     } else if(adding.type === "bit") {
+      addActionChildren.push({c: "add-collection", children: [
+        {c: "new-bit-editor", value: "hi!", postRender: NewBitEditor},
+        {c: "spacer"},
+//         {c: "button", text: "submit", click: submitAction},
+        {c: "button", text: "cancel", click: stopAddingAction},
+      ]});
+
      }
     } else {
       addActionChildren.push({c: "", text: "add attribute", actionType: "attribute", click: startAddingAction});
       addActionChildren.push({c: "", text: "add to collection", actionType: "collection", click: startAddingAction});
+      addActionChildren.push({c: "", text: "add bit", actionType: "bit", click: startAddingAction});
     }
 
     let headers = []
@@ -1524,10 +1571,19 @@ function walk(tree, indent = 0) {
 
   function submitAction(e, elem) {
     let values = {type: eve.findOne("adding action")["type"]};
-    let parent = e.currentTarget.parentNode;
-    for(let child of parent.childNodes) {
-      if(child.nodeName === "INPUT") {
-        values[child.className] = child.value;
+    if(values.type === "bit") {
+      if(e.getValue) {
+        values.template = e.getValue();
+      } else {
+        let editor = e.currentTarget.parentNode.querySelector("new-bit-editor").editor;
+        values.template = editor.getValue();
+      }
+    } else {
+      let parent = e.currentTarget.parentNode;
+      for(let child of parent.childNodes) {
+        if(child.nodeName === "INPUT") {
+          values[child.className] = child.value;
+        }
       }
     }
     app.dispatch("submitAction", values)
@@ -1629,6 +1685,47 @@ function walk(tree, indent = 0) {
     } else {
       return eve.diff();
     }
+  }
+
+  function addBitAction(name, template, query) {
+    console.log(name, template, query);
+    let diff = eve.diff();
+    let names = Object.keys(query.projectionMap);
+    // add an action
+    let bitQueryId = `${name}|bit`;
+    let action = `${name}|${template}`;
+    diff.add("add bit action", {view: name, action, template});
+    diff.remove("add bit action", {view: name});
+    let bitQuery = eve.query(bitQueryId)
+                   .select("add bit action", {}, "action")
+                   .select(name, {}, "table")
+                   .calculate("bit template", {row: ["table"], name, template: ["action", "template"]}, "result")
+                   .project({page: ["result", "page"], content: ["result", "content"]});
+    diff.merge(queryObjectToDiff(bitQuery));
+    diff.merge(removeView(bitQueryId));
+    diff.add("action", {view: "added bits", action, kind: "union", ix: 1});
+    // a source
+    diff.add("action source", {action, "source view": bitQueryId});
+    // a mapping
+    diff.add("action mapping", {action, from: "page", "to source": action, "to field": "page"});
+    diff.add("action mapping", {action, from: "content", "to source": action, "to field": "content"});
+    diff.add("action mapping constant", {action, from: "source view", value: name});
+    return diff;
+  }
+
+  export function removeView(view) {
+    let diff = eve.diff();
+    diff.remove("view", {view});
+    for(let actionItem of eve.find("action", {view})) {
+      let action = actionItem.action;
+      diff.remove("action", {action});
+      diff.remove("action source", {action});
+      diff.remove("action mapping", {action});
+      diff.remove("action mapping constant", {action});
+      diff.remove("action mapping sorted", {action});
+      diff.remove("action mapping limit", {action});
+    }
+    return diff;
   }
 
   export function clearSaved() {
@@ -1792,10 +1889,11 @@ function walk(tree, indent = 0) {
   var diff = eve.diff();
   diff.add("view", {view: "added collections", kind: "union"});
   diff.add("view", {view: "added eavs", kind: "union"});
+  diff.add("view", {view: "added bits", kind: "union"});
   eve.applyDiff(diff);
 
 
-  function compile(ixer, viewId) {
+  export function compile(ixer, viewId) {
     let view = ixer.findOne("view", {view: viewId});
     if(!view) {
       throw new Error(`No view found for ${viewId}.`);
@@ -1870,6 +1968,23 @@ function walk(tree, indent = 0) {
     return parsePage(page, text).eavs;
   });
 
+  runtime.define("bit template", {multi: true}, function(row, name, template) {
+    let content = template;
+    for(let key in row) {
+      let item = row[key];
+      content = content.replace(new RegExp(`{${key}}`, "gi"), item);
+    }
+    let page;
+    let header = content.match(/#.*$/mgi);
+    if(header) {
+      page = header[0].replace("#", "").toLowerCase().trim();
+    } else {
+      let rowId = eve.table(name).stringify(row);
+      page = `${name}|${rowId}`;
+    }
+    return [{page, content}];
+  });
+
   runtime.define("count", {}, function(prev) {
     if(!prev.count) {
       prev.count = 0;
@@ -1937,9 +2052,13 @@ function walk(tree, indent = 0) {
   // Queries
   //---------------------------------------------------------
 
+  eve.asView(eve.union("page")
+                .union("manual page", {page: ["page"], content: ["content"]})
+                .union("added bits", {page: ["page"], content: ["content"]}));
+
   eve.asView(eve.query("page links")
              .select("page", {}, "page")
-             .calculate("page to graph", {text: ["page", "text"], page: ["page", "page"]}, "links")
+             .calculate("page to graph", {text: ["page", "content"], page: ["page", "page"]}, "links")
              .project({page: ["page", "page"], link: ["links", "link"], type: ["links", "type"]}));
 
   eve.asView(eve.union("directionless links")
@@ -1957,7 +2076,7 @@ function walk(tree, indent = 0) {
 
   eve.asView(eve.query("parsed eavs")
              .select("page", {}, "page")
-             .calculate("parse eavs", {page: ["page", "page"], text: ["page", "text"]}, "parsed")
+             .calculate("parse eavs", {page: ["page", "page"], text: ["page", "content"]}, "parsed")
              .project({page: ["page", "page"], attribute: ["parsed", "attribute"], value: ["parsed", "value"]}));
 
   eve.asView(eve.union("page eavs")
@@ -1992,8 +2111,8 @@ function walk(tree, indent = 0) {
     let stored = localStorage["eve"];
     if(!stored) {
       var diff = eve.diff();
-      diff.add("page", {page: "foo", text: "[pixar] movies:\n[up]\n[toy story]"});
-      diff.add("page", {page: "pixar", text: "[Pixar] is an animation studio owned by disney"});
+      diff.add("manual page", {page: "foo", content: "[pixar] movies:\n[up]\n[toy story]"});
+      diff.add("manual page", {page: "pixar", content: "[Pixar] is an animation studio owned by disney"});
       diff.add("search", {search: "foo"});
       eve.applyDiff(diff);
     } else {
