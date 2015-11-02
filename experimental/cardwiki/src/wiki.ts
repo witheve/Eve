@@ -1111,7 +1111,8 @@ function walk(tree, indent = 0) {
         lineWrapping: true,
         extraKeys: {
           "Cmd-Enter": (cm) => {
-            commitArticle(cm, elem);
+            let latest = app.renderer.tree[elem.id];
+            commitArticle(cm, latest);
           }
         }
       });
@@ -1139,7 +1140,8 @@ function walk(tree, indent = 0) {
         lineWrapping: true,
         extraKeys: {
           "Enter": (cm) => {
-            app.dispatch("setSearch", {value: cm.getValue(), searchId: elem.searchId}).commit();
+            let latest = app.renderer.tree[elem.id];
+            app.dispatch("setSearch", {value: cm.getValue(), searchId: latest.searchId}).commit();
           }
         }
       });
@@ -1182,8 +1184,7 @@ function walk(tree, indent = 0) {
   var dragging = null;
 
   app.handle("startEditingArticle", (result, info) => {
-    let page = info.page.toLowerCase();
-    result.add("editing", {editing: true, page});
+    result.add("editing", {editing: true, search: info.searchId});
   });
 
   app.handle("stopEditingArticle", (result, info) => {
@@ -1304,10 +1305,10 @@ function walk(tree, indent = 0) {
   function articleUi(articleId, instance:string|number = "", searchId) {
     let article = eve.findOne("page", {page: articleId}) || {text: ""};
     let articleView;
-    if(!eve.findOne("editing", {page: articleId})) {
-      articleView = {id: `${articleId}${instance}`, c: "article", page: articleId, children: articleToHTML(parsePage(articleId, article.text).lines, searchId), dblclick: editArticle, enter: {display: "flex", opacity: 1, duration: 300}};
+    if(!eve.findOne("editing", {search: searchId})) {
+      articleView = {id: `${articleId}${instance}`, c: "article", searchId, page: articleId, children: articleToHTML(parsePage(articleId, article.text).lines, searchId), dblclick: editArticle, enter: {display: "flex", opacity: 1, duration: 300}};
     } else {
-      articleView = {id: "article editor", c: "article editor", page: articleId, postRender: CodeMirrorElement, value: article.text, blur: commitArticle};
+      articleView = {id: `${articleId}${instance}|editor`, c: "article editor", page: articleId, searchId, postRender: CodeMirrorElement, value: article.text, blur: commitArticle};
     }
     let relatedBits;
     let addedEavs = eve.find("added eavs", {page: articleId});
@@ -1485,9 +1486,9 @@ function walk(tree, indent = 0) {
       }
     }
     if(plan.length === 1 && plan[0].type === "find") {
-      resultItems.push({c: "singleton", children: [articleUi(plan[0].entity, "", searchId)]});
+      resultItems.push({c: "singleton", children: [articleUi(plan[0].entity, searchId, searchId)]});
     } else if(plan.length === 0) {
-      resultItems.push({c: "singleton", children: [articleUi(search, "", searchId)]});
+      resultItems.push({c: "singleton", children: [articleUi(search, searchId, searchId)]});
     }
     let actions = [];
     for(let eavAction of eve.find("add eav action", {view: search})) {
@@ -1596,11 +1597,11 @@ function walk(tree, indent = 0) {
   }
 
   function commitArticle(cm, elem) {
-    app.dispatch("stopEditingArticle", {page: elem.page, value: cm.getValue()}).commit();
+    app.dispatch("stopEditingArticle", {searchId: elem.searchId, page: elem.page, value: cm.getValue()}).commit();
   }
 
   function editArticle(e, elem) {
-    app.dispatch("startEditingArticle", {page: elem.page}).commit();
+    app.dispatch("startEditingArticle", {searchId: elem.searchId, page: elem.page}).commit();
     e.preventDefault();
   }
 
