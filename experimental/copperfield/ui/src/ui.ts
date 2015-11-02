@@ -110,7 +110,7 @@ module Ui {
     dropdown,
     renderer,
     button,
-    input,
+    input: rawInput,
     checkbox,
     codemirror: codeMirrorElement,
     image,
@@ -403,6 +403,12 @@ module Ui {
     multiline?:boolean
     normalize?:boolean
   }
+  export function rawInput(elem:TextInputElement) {
+    elem.t = elem.multiline ? "textarea" : "input";
+    return elem;
+  }
+
+
   export function input(elem:TextInputElement) {
     let {multiline, normalize = true} = elem;
     if(!elem.placeholder) { elem.placeholder === " "; }
