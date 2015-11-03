@@ -1349,33 +1349,28 @@ function walk(tree, indent = 0) {
     } else {
       articleView = {id: `${articleId}${instance}|editor`, c: "article editor", page: articleId, searchId, postRender: CodeMirrorElement, value: article.content, blur: commitArticle};
     }
-    let relatedBits;
-    let addedEavs = eve.find("added eavs", {page: articleId});
-    if(addedEavs) {
-      let children = [];
-      for(let added of addedEavs) {
-        children.push({c: "bit attribute", click: followLink, searchId, linkText: added["source view"], children: [
-          {c: "header attribute", text: added.attribute},
-          {c: "value", text: added.value},
-        ]})
-      }
-      relatedBits = {c: "related-bits", children};
+    let relatedBits = [];
+    for(let added of eve.find("added eavs", {page: articleId})) {
+      relatedBits.push({c: "bit attribute", click: followLink, searchId, linkText: added["source view"], children: [
+        {c: "header attribute", text: added.attribute},
+        {c: "value", text: added.value},
+      ]})
     }
-    let relatedColls;
-    let addedColls = eve.find("added collections", {page: articleId});
-    if(addedColls) {
-      let children = [];
-      for(let added of addedColls) {
-        children.push({c: "bit collection", click: followLink, searchId, linkText: added["source view"], children: [
-          {c: "header collection", text: added.deck},
-        ]})
-      }
-      relatedColls = {c: "related-bits", children};
+    for(let added of eve.find("added collections", {page: articleId})) {
+      relatedBits.push({c: "bit collection", click: followLink, searchId, linkText: added["source view"], children: [
+        {c: "header collection", text: added.deck},
+      ]})
     }
+    for(let incoming of eve.find("page links", {link: articleId})) {
+      if(incoming.page === articleId) continue;
+      relatedBits.push({c: "bit entity", click: followLink, searchId, linkText: incoming.page, children: [
+        {c: "header entity", text: incoming.page},
+      ]})
+    }
+
     return {c: "article-container", children: [
       articleView,
-      relatedBits,
-      relatedColls,
+      {c: "related-bits", children: relatedBits},
     ]};
   }
 
