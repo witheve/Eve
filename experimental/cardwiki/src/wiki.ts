@@ -1546,11 +1546,11 @@ function walk(tree, indent = 0) {
       if(step.size === 0) continue;
       headers.push({text: step.name});
     }
-
-    return {c: "container search-container", top, left, children: [
+    let isDragging = dragging && dragging.id === searchId ? "dragging" : "";
+    return {id: `${searchId}|container`, c: `container search-container ${isDragging}`, top, left, children: [
       {c: "controls", children: [
-        {c: "remove": text: "x", click: removeSearch, searchId},
-        {c: "move": text: "<->", mousedown: startDragging, mouseup: stopDragging, searchId},
+        {c: "ion-android-close", click: removeSearch, searchId},
+        {c: "ion-arrow-move", mousedown: startDragging, mouseup: stopDragging, searchId},
       ]},
       {c: "search-input", value: search, postRender: CMSearchBox, searchId},
 //       searchDescription(tokens, plan),
