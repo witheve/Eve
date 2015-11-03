@@ -41,8 +41,8 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 
 .bit.small { height:30px; width:30px; text-transform:uppercase; }
 
-.related-bits { flex-direction:row; flex-wrap: wrap; }
-.related-bits .bit { flex:1; }
+.related-bits { flex-direction:row; flex-wrap: wrap; max-width:600px; }
+.related-bits .bit { flex:1 0 auto; }
 .related-bits .bit + .bit { margin-left:1px; }
 
 .action { flex-direction: row; background: #333; margin:0;  padding:10px; white-space:pre; justify-content:center; }
