@@ -1295,6 +1295,14 @@ function walk(tree, indent = 0) {
     result.add("search", {id: searchId, top: y - dragging.offsetTop, left: x - dragging.offsetLeft});
   });
 
+  app.handle("toggleShowPlan", (result, info) => {
+    if(eve.findOne("showPlan", {search: info.searchId})) {
+      result.remove("showPlan", {search: info.searchId});
+    } else {
+      result.add("showPlan", {search: info.searchId});
+    }
+  });
+
   function randomlyLetter(phrase, klass) {
     let children = [];
     let ix = 0;
@@ -1388,7 +1396,7 @@ function walk(tree, indent = 0) {
         if(step.collection) {
           coll = pluralize(step.collection, 2);
         }
-        planChildren.push({c: "text", text: `gather ${coll} ${related}`});
+        planChildren.push({c: "text collection", text: `gather ${coll} ${related}`});
       } else if(step.type === "intersect") {
         if(step.deselect) {
           planChildren.push({c: "text", text: `remove the ${pluralize(step.collection, 2)}`});
@@ -1396,21 +1404,21 @@ function walk(tree, indent = 0) {
           planChildren.push({c: "text", text: `keep only the ${pluralize(step.collection, 2)}`});
         }
       } else if(step.type === "lookup") {
-        planChildren.push({c: "text", text: `lookup ${step.attribute}`});
+        planChildren.push({c: "text attribute", text: `lookup ${step.attribute}`});
       } else if(step.type === "find") {
-        planChildren.push({c: "text", text: `find ${step.entity}`});
+        planChildren.push({c: "text entity", text: `find ${step.entity}`});
       } else if(step.type === "filter by entity") {
         if(step.deselect) {
-          planChildren.push({c: "text", text: `remove anything related to ${step.entity}`});
+          planChildren.push({c: "text entity", text: `remove anything related to ${step.entity}`});
         } else {
-          planChildren.push({c: "text", text: `related to ${step.entity}`});
+          planChildren.push({c: "text entity", text: `related to ${step.entity}`});
         }
       } else if(step.type === "filter") {
-        planChildren.push({c: "text", text: `filter those by ${step.func}`});
+        planChildren.push({c: "text operation", text: `filter those by ${step.func}`});
       } else if(step.type === "sort") {
-        planChildren.push({c: "text", text: `sort them by `});
+        planChildren.push({c: "text operation", text: `sort them by `});
       } else if(step.type === "group") {
-        planChildren.push({c: "text", text: `group them by `});
+        planChildren.push({c: "text operation", text: `group them by `});
       } else if(step.type === "limit") {
         let limit;
         if(step.limit.results) {
@@ -1418,11 +1426,11 @@ function walk(tree, indent = 0) {
         } else {
           limit = `to ${step.limit.perGroup} items per group`;
         }
-        planChildren.push({c: "text", text: `limit ${limit}`});
+        planChildren.push({c: "text operation", text: `limit ${limit}`});
       } else if(step.type === "calculate") {
-        planChildren.push({c: "text", text: `${step.type}->`});
+        planChildren.push({c: "text operation", text: `${step.type}->`});
       } else if(step.type === "aggregate") {
-        planChildren.push({c: "text", text: `${step.aggregate}`});
+        planChildren.push({c: "text operation", text: `${step.aggregate}`});
       } else {
         planChildren.push({c: "text", text: `${step.type}->`});
       }
@@ -1594,19 +1602,25 @@ function walk(tree, indent = 0) {
       headers.push({text: step.name});
     }
     let isDragging = dragging && dragging.id === searchId ? "dragging" : "";
+    let showPlan = eve.findOne("showPlan", {search: searchId}) ? searchDescription(tokens, plan) : undefined;
     return {id: `${searchId}|container`, c: `container search-container ${isDragging}`, top, left, children: [
       {c: "controls", children: [
         {c: "ion-android-close", click: removeSearch, searchId},
         {c: "ion-arrow-move", mousedown: startDragging, mouseup: stopDragging, searchId},
+        {c: "ion-network", click: toggleShowPlan, searchId},
       ]},
       {c: "search-input", value: search, postRender: CMSearchBox, searchId},
-//       searchDescription(tokens, plan),
+      showPlan,
       headers.length ? {c: "search-headers", children: headers} : undefined,
       {c: "search-results", children: resultItems},
 //       randomlyLetter(`I found ${resultItems.length} results.`),
       {c: "", children: actions},
       {c: "add-action", children: addActionChildren}
     ]};
+  }
+
+  function toggleShowPlan(e, elem) {
+    app.dispatch("toggleShowPlan", {searchId: elem.searchId}).commit();
   }
 
   function startDragging(e, elem) {
@@ -2112,9 +2126,14 @@ function walk(tree, indent = 0) {
   // Queries
   //---------------------------------------------------------
 
+  eve.asView(eve.query("unmodified added bits")
+                .select("added bits", {}, "added")
+                .deselect("manual page", {page: ["added", "page"]}, "modified")
+                .project({page: ["added", "page"], content: ["added", "content"]}));
+
   eve.asView(eve.union("page")
                 .union("manual page", {page: ["page"], content: ["content"]})
-                .union("added bits", {page: ["page"], content: ["content"]}));
+                .union("unmodified added bits", {page: ["page"], content: ["content"]}));
 
   eve.asView(eve.query("page links")
              .select("page", {}, "page")
