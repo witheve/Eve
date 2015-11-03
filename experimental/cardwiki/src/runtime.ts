@@ -348,6 +348,12 @@ return index;`
         handled[trigger] = true;
         remaining.push.apply(remaining, Object.keys(this.table(trigger).triggers));
       }
+      for(let trigger of Object.keys(handled)) {
+        let view = this.table(trigger).view;
+        if(view) {
+          this.execTrigger(view);
+        }
+      }
     }
     execTriggers(triggers) {
       let newTriggers = {};
@@ -430,6 +436,7 @@ return index;`
     asView(query:Query|Union) {
       let name = query.name;
       let view = this.table(name);
+      view.view = query;
       view.isView = true;
       for(let tableName of query.tables) {
         let table = this.table(tableName);

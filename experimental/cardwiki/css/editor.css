@@ -52,8 +52,11 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .add-action > * { flex-direction:row; background: #333; margin-bottom:1px; padding:10px; }
 .add-action input { outline:none; font-size: 11pt; padding:0; text-align:center; font-family: "Lato"; background: none; border: none; border-bottom:1px solid #777; width: 80px; }
 .add-action .button { margin-left: 10px;  }
+.action.new-bit { flex-direction:column; padding:0; padding-top:10px; }
+.action.new-bit .bit { margin-top: 10px; align-items:flex-start; }
+.action .description { padding:0 10px; }
 
-.search-input { flex: none; background: #333; min-width:100px; text-align:center; color: #ccc; font-family: "Lato"; font-size: 14pt; margin:0px 10px; margin-bottom:1px; padding:5px 30px; outline:none; }
+.search-input { flex: none; background: #333; min-width:100px; color: #ccc; font-family: "Lato"; font-size: 14pt; margin:0px 10px; margin-bottom:1px; padding:5px 30px; outline:none; align-items:center; }
 .search-input .CodeMirror.cm-s-default { font-size: 16pt; }
 
 .phrase { position:absolute; top: 700px; left: 1000px; display: block; font-size: 16pt; min-height: 20px; max-width:250px; line-height: 35px; }

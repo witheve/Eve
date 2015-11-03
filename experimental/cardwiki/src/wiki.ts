@@ -1541,8 +1541,8 @@ function walk(tree, indent = 0) {
     }
     for(let bitAction of eve.find("add bit action", {view: search})) {
       let {template, action} = bitAction;
-      actions.push({c: "action", children: [
-        {text: "bit action!"},
+      actions.push({c: "action new-bit", children: [
+        {c: "description", text: "actions"},
         {c: "bit entity", children: articleToHTML(parsePage(action, template).lines)}
       ]})
     }
