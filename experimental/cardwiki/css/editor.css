@@ -81,6 +81,7 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 
 
 .search-headers { flex-direction:row; margin-bottom:1px; }
+.search-headers:empty { margin:0; }
 .search-headers > * { flex:1; align-items:center; color: #aaa; font-size:11pt; background: #333; padding:10px 10px; }
 .search-headers > * + * { margin-left:1px; }
 

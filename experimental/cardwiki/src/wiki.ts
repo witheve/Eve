@@ -1606,7 +1606,7 @@ function walk(tree, indent = 0) {
       ]},
       {c: "search-input", value: search, postRender: CMSearchBox, searchId},
       showPlan,
-      headers.length ? {c: "search-headers", children: headers} : undefined,
+      {c: "search-headers", children: headers},
       {c: "search-results", children: resultItems},
 //       randomlyLetter(`I found ${resultItems.length} results.`),
       {c: "", children: actions},
