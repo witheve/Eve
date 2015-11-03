@@ -43,7 +43,7 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 
 .related-bits { flex-direction:row; flex-wrap: wrap; }
 .related-bits .bit { flex:1; }
-.related-bits .bit + .bit { margin-left:10px; }
+.related-bits .bit + .bit { margin-left:1px; }
 
 .action { flex-direction: row; background: #333; margin:0 10px;  padding:10px; white-space:pre; justify-content:center; }
 .action + .action { margin-top:1px; }
