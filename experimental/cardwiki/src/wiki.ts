@@ -178,7 +178,7 @@ module wiki {
     return cached[1];
   }
 
-  function articleToHTML(lines) {
+  function articleToHTML(lines, searchId) {
     let children = [];
     for (let line of lines) {
       let lineChildren = [];
@@ -194,7 +194,7 @@ module wiki {
         }
         let link = item.link.toLowerCase();
         let found = eve.findOne("page", {page: link}) || eve.findOne("deck", {page: link});
-        lineChildren.push({t: "span", c: `${item.type} ${found ? 'found' : ""}`, text: item.link, linkText: link, click: followLink});
+        lineChildren.push({t: "span", c: `${item.type} ${found ? 'found' : ""}`, text: item.link, linkText: link, click: followLink, searchId});
       }
       if(line.header) {
         lineChildren = [{t: "h1", children: lineChildren}];
@@ -555,7 +555,6 @@ function walk(tree, indent = 0) {
     if(state.consuming) {
       let item = state.operationStack.pop();
       while(item) {
-        console.log("Consuming: ", item);
         cursor = item.cursor || root;
         if(state.operator.children.length > state.operator.operation.argCount) {
           // we consumed one too many, so push that onto either the parent operator or
@@ -577,7 +576,7 @@ function walk(tree, indent = 0) {
             // we have something that could nest.
             let tip = child;
             while(tip.children.length) {
-              tip = tip.children[tip.children.length - 1];
+              tip = tip.children[0];
             }
             if(operation.attribute) {
               let neueAttr = {type: "attribute", found: operation.attribute, orig: operation.attribute, id: uuid(), children: []};
@@ -1112,7 +1111,8 @@ function walk(tree, indent = 0) {
         lineWrapping: true,
         extraKeys: {
           "Cmd-Enter": (cm) => {
-            commitArticle(cm, elem);
+            let latest = app.renderer.tree[elem.id];
+            commitArticle(cm, latest);
           }
         }
       });
@@ -1140,8 +1140,8 @@ function walk(tree, indent = 0) {
         lineWrapping: true,
         extraKeys: {
           "Cmd-Enter": (cm) => {
-            submitAction(cm, elem);
-            console.log("Commit bit!", cm.getValue());
+            let latest = app.renderer.tree[elem.id];
+            submitAction(cm, latest);
           }
         }
       });
@@ -1169,7 +1169,8 @@ function walk(tree, indent = 0) {
         lineWrapping: true,
         extraKeys: {
           "Enter": (cm) => {
-            app.dispatch("setSearch", {value: cm.getValue()}).commit();
+            let latest = app.renderer.tree[elem.id];
+            app.dispatch("setSearch", {value: cm.getValue(), searchId: latest.searchId}).commit();
           }
         }
       });
@@ -1209,11 +1210,10 @@ function walk(tree, indent = 0) {
   // Wiki
   //---------------------------------------------------------
 
-  export var activeSearch:{tokens: any[], query: any, plan: any[]};
+  var dragging = null;
 
   app.handle("startEditingArticle", (result, info) => {
-    let page = info.page.toLowerCase();
-    result.add("editing", {editing: true, page});
+    result.add("editing", {editing: true, search: info.searchId});
   });
 
   app.handle("stopEditingArticle", (result, info) => {
@@ -1222,11 +1222,12 @@ function walk(tree, indent = 0) {
     let {page, value} = info;
     page = page.toLowerCase();
     result.add("manual page", {page, content: value});
-    result.remove("page", {page});
+    result.remove("manual page", {page});
   });
 
   app.handle("setSearch", (result, info) => {
-    let search = eve.findOne("search")["search"];
+    let searchId = info.searchId;
+    let search = eve.findOne("search query", {id: searchId})["search"];
     if(search === info.value) return;
 
     if(!eve.findOne("history stack", {page: search})) {
@@ -1234,22 +1235,39 @@ function walk(tree, indent = 0) {
       result.add("history stack", {page: search, pos: stack.length});
     }
     let newSearchValue = info.value.trim();
-    app.activeSearch = newSearch(newSearchValue);
-    result.remove("search");
-    result.add("search", {search: newSearchValue});
+    app.activeSearches[searchId] = newSearch(newSearchValue);
+    result.remove("search query", {id: searchId});
+    result.add("search query", {id: searchId, search: newSearchValue});
   });
 
   app.handle("submitAction", (result, info) => {
-    let search = eve.findOne("search")["search"];
-    result.merge(saveSearch(search, app.activeSearch.query));
+    let searchId = info.searchId;
+    let search = eve.findOne("search query", {id: searchId})["search"];
+    result.merge(saveSearch(search, app.activeSearches[searchId].query));
     if(info.type === "attribute") {
       if(!info.entity || !info.attribute || !info.value) return;
       result.merge(addEavAction(search, info.entity, info.attribute, info.value));
     } else if(info.type === "collection") {
       result.merge(addToCollectionAction(search, info.entity, info.collection));
     } else if(info.type === "bit") {
-      result.merge(addBitAction(search, info.template, app.activeSearch.query));
+      result.merge(addBitAction(search, info.template, app.activeSearches[searchId].query));
     }
+  });
+
+  app.handle("addNewSearch", (result, info) => {
+    let id = uuid();
+    let search = info.search || "foo";
+    app.activeSearches[id] = newSearch(search);
+    result.add("search", {id, top: info.top || 100, left: info.left || 100});
+    result.add("search query", {id, search});
+  });
+
+  app.handle("removeSearch", (result, info) => {
+    let {searchId} = info;
+    if(!searchId) return;
+    result.remove("search", {id: searchId});
+    result.remove("search query", {id: searchId});
+    app.activeSearches[searchId] = null;
   });
 
   app.handle("startAddingAction", (result, info) => {
@@ -1259,6 +1277,22 @@ function walk(tree, indent = 0) {
 
   app.handle("stopAddingAction", (result, info) => {
     result.remove("adding action");
+  });
+
+  app.handle("startDragging", (result, info) => {
+    let {searchId, x, y} = info;
+    let pos = eve.findOne("search", {id: searchId});
+    dragging = {id: searchId, offsetTop: y - pos.top, offsetLeft: x - pos.left};
+  });
+
+  app.handle("stopDragging", (result, info) => {
+    dragging = null;
+  });
+
+  app.handle("moveSearch", (result, info) => {
+    let {searchId, x, y} = info;
+    result.remove("search", {id: searchId});
+    result.add("search", {id: searchId, top: y - dragging.offsetTop, left: x - dragging.offsetLeft});
   });
 
   function randomlyLetter(phrase, klass) {
@@ -1273,35 +1307,46 @@ function walk(tree, indent = 0) {
   }
 
   export function root() {
-    let search = "";
-    let searchObj = eve.findOne("search");
-    if(searchObj) {
-      search = searchObj["search"];
+    let searchers = [];
+    for(let search of eve.find("search")) {
+      searchers.push(newSearchResults(search.id));
     }
-    return {id: "root", c: "root", children: [
-      {c: "spacer"},
+    return {id: "root", c: "root", dblclick: addNewSearch, children: [
 //       randomlyLetter("Let's get started."),
-      newSearchResults(),
+      {c: "canvas", mousemove: maybeDrag, children: searchers},
 //       relatedItems(),
-      {c: "spacer"},
 //       historyStack(),
     ]};
   }
 
-  function articleUi(articleId, instance:string|number = "") {
+  function maybeDrag(e, elem) {
+    if(dragging) {
+      app.dispatch("moveSearch", {searchId: dragging.id, x: e.clientX, y: e.clientY}).commit();
+      e.preventDefault();
+    }
+  }
+
+  function addNewSearch(e, elem) {
+    if(e.target.classList.contains("canvas")) {
+      app.dispatch("addNewSearch", {top: e.clientY, left: e.clientX}).commit();
+      e.preventDefault();
+    }
+  }
+
+  function articleUi(articleId, instance:string|number = "", searchId) {
     let article = eve.findOne("page", {page: articleId}) || {content: ""};
     let articleView;
-    if(!eve.findOne("editing", {page: articleId})) {
-      articleView = {id: `${articleId}${instance}`, c: "article", page: articleId, children: articleToHTML(parsePage(articleId, article.content).lines), dblclick: editArticle, enter: {display: "flex", opacity: 1, duration: 300}};
+    if(!eve.findOne("editing", {search: searchId})) {
+      articleView = {id: `${articleId}${instance}`, c: "article", searchId, page: articleId, children: articleToHTML(parsePage(articleId, article.content).lines, searchId), dblclick: editArticle, enter: {display: "flex", opacity: 1, duration: 300}};
     } else {
-      articleView = {id: "article editor", c: "article editor", page: articleId, postRender: CodeMirrorElement, value: article.content, blur: commitArticle};
+      articleView = {id: `${articleId}${instance}|editor`, c: "article editor", page: articleId, searchId, postRender: CodeMirrorElement, value: article.content, blur: commitArticle};
     }
     let relatedBits;
     let addedEavs = eve.find("added eavs", {page: articleId});
     if(addedEavs) {
       let children = [];
       for(let added of addedEavs) {
-        children.push({c: "bit attribute", click: followLink, linkText: added["source view"], children: [
+        children.push({c: "bit attribute", click: followLink, searchId, linkText: added["source view"], children: [
           {c: "header attribute", text: added.attribute},
           {c: "value", text: added.value},
         ]})
@@ -1313,7 +1358,7 @@ function walk(tree, indent = 0) {
     if(addedColls) {
       let children = [];
       for(let added of addedColls) {
-        children.push({c: "bit collection", click: followLink, linkText: added["source view"], children: [
+        children.push({c: "bit collection", click: followLink, searchId, linkText: added["source view"], children: [
           {c: "header collection", text: added.deck},
         ]})
       }
@@ -1387,9 +1432,10 @@ function walk(tree, indent = 0) {
     ]};
   }
 
-  function newSearchResults() {
-    let search = eve.findOne("search")["search"];
-    let {tokens, plan, query} = app.activeSearch;
+  function newSearchResults(searchId) {
+    let {top, left} = eve.findOne("search", {id: searchId});
+    let search = eve.findOne("search query", {id: searchId})["search"];
+    let {tokens, plan, query} = app.activeSearches[searchId];
     let resultItems = [];
     let groupedFields = {};
     if(query) {
@@ -1411,10 +1457,8 @@ function walk(tree, indent = 0) {
         }
       }
 
-      console.log(plan, groupedFields);
       let results = query.exec();
       let groupInfo = results.groupInfo;
-      console.log(results);
       let planLength = plan.length;
       row: for(let ix = 0, len = results.unprojected.length; ix < len; ix += query.unprojectedSize) {
         if(groupInfo && ix > groupInfo.length) break;
@@ -1458,7 +1502,7 @@ function walk(tree, indent = 0) {
             }
             if(text) {
               let rand = Math.floor(Math.random() * 20) + 1;
-              let item = {id: `${search} ${ix} ${planIx}`, c: `bit ${klass}`, text, click, linkText: link, enter: {opacity:1, duration: rand * 100, delay: ix * 0}};
+              let item = {id: `${searchId} ${ix} ${planIx}`, c: `bit ${klass}`, text, click, searchId, linkText: link, enter: {opacity:1, duration: rand * 100, delay: ix * 0}};
               if(groupedFields[planItem.name] && !resultItem.children[planIx]) {
                 resultItem.children[planIx] = {c: "sub-group", children: [item]};
               } else if(!groupedFields[planItem.name] && !resultItem.children[planIx]) {
@@ -1473,9 +1517,9 @@ function walk(tree, indent = 0) {
       }
     }
     if(plan.length === 1 && plan[0].type === "find") {
-      resultItems.push({c: "singleton", children: [articleUi(plan[0].entity)]});
+      resultItems.push({c: "singleton", children: [articleUi(plan[0].entity, searchId, searchId)]});
     } else if(plan.length === 0) {
-      resultItems.push({c: "singleton", children: [articleUi(search)]});
+      resultItems.push({c: "singleton", children: [articleUi(search, searchId, searchId)]});
     }
     let actions = [];
     for(let eavAction of eve.find("add eav action", {view: search})) {
@@ -1514,7 +1558,7 @@ function walk(tree, indent = 0) {
         {text: " = "},
         {t: "input", c: "value", placeholder: "value"},
         {c: "spacer"},
-        {c: "button", text: "submit", click: submitAction},
+        {c: "button", text: "submit", click: submitAction, searchId},
         {c: "button", text: "cancel", click: stopAddingAction},
       ]});
      } else if(adding.type === "collection") {
@@ -1524,12 +1568,12 @@ function walk(tree, indent = 0) {
         {text: " are "},
         {t: "input", c: "collection", placeholder: "collection"},
         {c: "spacer"},
-        {c: "button", text: "submit", click: submitAction},
+        {c: "button", text: "submit", click: submitAction, searchId},
         {c: "button", text: "cancel", click: stopAddingAction},
       ]});
      } else if(adding.type === "bit") {
       addActionChildren.push({c: "add-collection", children: [
-        {c: "new-bit-editor", value: "hi!", postRender: NewBitEditor},
+        {c: "new-bit-editor", searchId, value: "hi!", postRender: NewBitEditor},
         {c: "spacer"},
 //         {c: "button", text: "submit", click: submitAction},
         {c: "button", text: "cancel", click: stopAddingAction},
@@ -1549,16 +1593,32 @@ function walk(tree, indent = 0) {
       if(step.size === 0) continue;
       headers.push({text: step.name});
     }
-
-    return {c: "container", children: [
-      {c: "search-input", value: search, postRender: CMSearchBox},
+    let isDragging = dragging && dragging.id === searchId ? "dragging" : "";
+    return {id: `${searchId}|container`, c: `container search-container ${isDragging}`, top, left, children: [
+      {c: "controls", children: [
+        {c: "ion-android-close", click: removeSearch, searchId},
+        {c: "ion-arrow-move", mousedown: startDragging, mouseup: stopDragging, searchId},
+      ]},
+      {c: "search-input", value: search, postRender: CMSearchBox, searchId},
 //       searchDescription(tokens, plan),
       headers.length ? {c: "search-headers", children: headers} : undefined,
       {c: "search-results", children: resultItems},
 //       randomlyLetter(`I found ${resultItems.length} results.`),
-      {c: "related-bits", children: actions},
+      {c: "", children: actions},
       {c: "add-action", children: addActionChildren}
     ]};
+  }
+
+  function startDragging(e, elem) {
+    app.dispatch("startDragging", {searchId: elem.searchId, x: e.clientX, y: e.clientY}).commit();
+  }
+
+  function stopDragging(e, elem) {
+    app.dispatch("stopDragging", {}).commit();
+  }
+
+  function removeSearch(e, elem) {
+    app.dispatch("removeSearch", {searchId: elem.searchId}).commit();
   }
 
   function startAddingAction(e, elem) {
@@ -1570,7 +1630,8 @@ function walk(tree, indent = 0) {
   }
 
   function submitAction(e, elem) {
-    let values = {type: eve.findOne("adding action")["type"]};
+    let values = {type: eve.findOne("adding action")["type"],
+                  searchId: elem.searchId};
     if(values.type === "bit") {
       if(e.getValue) {
         values.template = e.getValue();
@@ -1592,16 +1653,16 @@ function walk(tree, indent = 0) {
   }
 
   function commitArticle(cm, elem) {
-    app.dispatch("stopEditingArticle", {page: elem.page, value: cm.getValue()}).commit();
+    app.dispatch("stopEditingArticle", {searchId: elem.searchId, page: elem.page, value: cm.getValue()}).commit();
   }
 
   function editArticle(e, elem) {
-    app.dispatch("startEditingArticle", {page: elem.page}).commit();
+    app.dispatch("startEditingArticle", {searchId: elem.searchId, page: elem.page}).commit();
     e.preventDefault();
   }
 
   function followLink(e, elem) {
-    app.dispatch("setSearch", {value: elem.linkText}).commit();
+    app.dispatch("setSearch", {value: elem.linkText, searchId: elem.searchId}).commit();
   }
 
   function first2Letters(str) {
@@ -1697,7 +1758,7 @@ function walk(tree, indent = 0) {
     diff.add("add bit action", {view: name, action, template});
     diff.remove("add bit action", {view: name});
     let bitQuery = eve.query(bitQueryId)
-                   .select("add bit action", {}, "action")
+                   .select("add bit action", {view: name}, "action")
                    .select(name, {}, "table")
                    .calculate("bit template", {row: ["table"], name, template: ["action", "template"]}, "result")
                    .project({page: ["result", "page"], content: ["result", "content"]});
@@ -1920,7 +1981,6 @@ function walk(tree, indent = 0) {
         for(let mapping of mappings) {
           sorted.push([mapping["source"], mapping["field"], mapping["direction"]]);
         }
-        console.log("sorted", sorted);
         if(sorted.length) {
           compiled[actionKind](sorted);
         } else {
@@ -2113,15 +2173,16 @@ function walk(tree, indent = 0) {
       var diff = eve.diff();
       diff.add("manual page", {page: "foo", content: "[pixar] movies:\n[up]\n[toy story]"});
       diff.add("manual page", {page: "pixar", content: "[Pixar] is an animation studio owned by disney"});
-      diff.add("search", {search: "foo"});
+      let id = uuid();
+      diff.add("search", {id, top: 100, left: 100});
+      diff.add("search query", {id, search: "foo"});
       eve.applyDiff(diff);
     } else {
       eve.load(stored);
     }
-    app.activeSearch = newSearch(eve.findOne("search")["search"]);
-//     eve.applyDiff(saveSearch("ceo", activeSearch.query));
-//     eve.applyDiff(addToCollectionAction("ceo", "ceo", "executive"));
-//     eve.applyDiff(removeAddEavAction("sum of salaries per department|department|total cost|sum", "department", "total cost", "sum"));
+    for(let search of eve.find("search")) {
+      app.activeSearches[search.id] = newSearch(eve.findOne("search query", {id: search.id})["search"]);
+    }
     // compile all stored views
     for(let view of eve.find("view")) {
       let query = compile(eve, view["view"]);
@@ -2131,7 +2192,7 @@ function walk(tree, indent = 0) {
 
   app.renderRoots["wiki"] = root;
   app.init("wiki", function() {
-    app.activeSearch = {tokens: [], query: null, plan: []};
+    app.activeSearches = {};
     initEve();
   });
 

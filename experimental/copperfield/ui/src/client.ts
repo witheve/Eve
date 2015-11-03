@@ -30,12 +30,13 @@ module Client {
     sendToServer([[viewId, fieldIds, [], toRemove]]);
   }
 
-  function formatTime(time?) {
+  function formatTime(time?:Date) {
     time = time || new Date();
-    return pad("", time.getHours(), "0", 2) + ":" + pad("", time.getMinutes(), "0", 2) + ":" + pad("", time.getSeconds(), "0", 2);
+    return pad("", time.getHours(), "0", 2) + ":" + pad("", time.getMinutes(), "0", 2) + ":" + pad("", time.getSeconds(), "0", 2)
+      + "." + pad("", time.getMilliseconds(), "0", 3);
   }
 
-  function pad(left, right = "", pad = " ", length = 120) {
+  function pad(left, right:any = "", pad:any = " ", length = 120) {
     left = "" + left;
     right = "" + right;
 
@@ -50,22 +51,23 @@ module Client {
   function writeDataToConsole(data, verbosity) {
     verbosity = +verbosity;
     var consoleTable = console["table"].bind(console) || console.log.bind(console);
-    data.changes.forEach(function(change) {
-      if (change[2].length || change[3].length) {
+    data.changes.forEach(function([viewId, fields, adds, removes]) {
+      if (adds.length || removes.length) {
         if (verbosity == 1) {
-          console.log(" ", change[0], `+${change[2].length}/-${change[3].length}`);
+          console.log(" ", viewId, `+${adds.length}/-${removes.length}`);
         }
         if (verbosity == 2) {
-          console.log(" ", change[0], `+${change[2].length}/-${change[3].length}`,
-            { fields: change[1], inserts: change[2], removes: change[3] });
+          console.log(" ", viewId, `+${adds.length}/-${removes.length}`,
+            { fields, inserts: adds, removes: removes });
         }
         if (verbosity == 3) {
-          console.log(" ", change[0], `+${change[2].length}/-${change[3].length}`);
-          console.groupCollapsed(`   inserts ${change[1]}`);
-          consoleTable(change[2]);
-          console.groupEnd();
-          console.groupCollapsed(`   removes ${change[1]}`);
-          consoleTable(change[3]);
+          let human = fields.map(Api.get.name);
+          console.groupCollapsed(` ${viewId} +${adds.length}/-${removes.length}`);
+          console.info(`   fields`, fields);
+          console.info(`   adds`, human);
+          consoleTable(adds);
+          console.info(`   removes`, human);
+          consoleTable(removes);
           console.groupEnd();
         }
       }
@@ -78,27 +80,23 @@ module Client {
     var totalRemoves = 0;
     var malformedDiffs:string[] = [];
     var badValues:string[] = [];
-    data.changes.forEach(function(change) {
-      totalAdds += change[2].length;
-      totalRemoves += change[3].length;
+    data.changes.forEach(function([viewId, fields, adds, removes]) {
+      totalAdds += adds.length;
+      totalRemoves += removes.length;
       // Simple check to notify programmers of definitely unhealthy payloads they may be sending.
       var hasMalformedDiffs = false;
       var hasBadValues = false;
-      change[2].forEach(function(diff) {
-        hasMalformedDiffs = hasMalformedDiffs || (diff.length !== change[1].length);
-        hasBadValues = hasBadValues || diff.some(isUndefined);
-      });
+      for(let add of adds) {
+        hasMalformedDiffs = hasMalformedDiffs || add.length !== fields.length;
+        for(let cell of add) hasBadValues = hasBadValues || cell === undefined;
+      }
+      for(let remove of removes) {
+        hasMalformedDiffs = hasMalformedDiffs || remove.length !== fields.length;
+        for(let cell of remove) hasBadValues = hasBadValues || cell === undefined;
+      }
 
-      change[3].forEach(function(diff) {
-        hasMalformedDiffs = hasMalformedDiffs || (diff.length !== change[1].length);
-        hasBadValues = hasBadValues || diff.some(isUndefined);
-      });
-      if (hasMalformedDiffs) {
-        malformedDiffs.push(change[0]);
-      }
-      if (hasBadValues) {
-        badValues.push(change[0]);
-      }
+      if (hasMalformedDiffs) malformedDiffs.push(viewId);
+      if (hasBadValues) badValues.push(viewId);
     });
 
     return { adds: totalAdds, removes: totalRemoves, malformedDiffs: malformedDiffs, badValues: badValues };
@@ -277,7 +275,10 @@ module Client {
     if (DEBUG.SEND) {
       var stats = getDataStats(payload);
       if (stats.adds || stats.removes) {
-        var header = `[client:sent][+${stats.adds}/-${stats.removes}]`;
+        let errors = ""
+          + (stats.malformedDiffs.length ? `[bad diffs: ${stats.malformedDiffs.length}]` : "")
+          + (stats.badValues.length ? `[bad values: ${stats.badValues.length}]` : "");
+        var header = `[client:sent][+${stats.adds}/-${stats.removes}]${errors}`;
         console.groupCollapsed(pad(header, formatTime()));
         if (stats.malformedDiffs.length) {
           console.warn("The following views have malformed diffs:", stats.malformedDiffs);

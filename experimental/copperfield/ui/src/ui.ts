@@ -102,6 +102,32 @@ module Ui {
   }
 
   //---------------------------------------------------------
+  // Custom Element Compilers
+  //---------------------------------------------------------
+  let elementCompilers = {
+    row,
+    column,
+    dropdown,
+    renderer,
+    button,
+    input,
+    checkbox,
+    codemirror: codeMirrorElement,
+    image,
+    spacer,
+    chart: (elem:Ui.ChartElement) => {
+      elem.pointLabels = (elem.pointLabels) ? [<any>elem.pointLabels] : elem.pointLabels;
+      elem.ydata = (elem.ydata) ? [<any>elem.ydata] : [];
+      elem.xdata = (elem.xdata) ? [<any>elem.xdata] : elem.xdata;
+      Ui.chart(elem);
+    },
+    "fact-table": factTable
+  };
+  for(let tag in elementCompilers) {
+    UiRenderer.addElementCompiler(tag, elementCompilers[tag]);
+  }
+
+  //---------------------------------------------------------
   // Containers
   //---------------------------------------------------------
   export interface TabbedBoxElement extends Element {
@@ -177,6 +203,17 @@ module Ui {
 
   export function column(elem:Element):Element {
     elem.c = `ui-column ${elem.c || ""}`;
+    return elem;
+  }
+
+  interface RendererElement extends Element {
+    element: string|string[]
+  }
+  export function renderer(elem:RendererElement):Element {
+    let renderElems:string[];
+    if(elem.element.constructor !== Array) renderElems = [<string>elem.element];
+    else renderElems = <string[]>elem.element;
+    inject(elem, Editor.renderer.compile(renderElems));
     return elem;
   }
 
@@ -340,8 +377,17 @@ module Ui {
   export function factTable(elem:FactTable):Element {
     let facts = Api.ixer.find(elem.view);
     elem["data"] = facts;
+    elem["headerClick"] = clickFieldHeader;
     if(!facts.length) elem["headers"] = Api.get.fields(elem.view);
     return table(<any>elem);
+  }
+
+  function clickFieldHeader(evt, elem) {
+    let fieldId = elem.header;
+    console.info(fieldId);
+    console.info("* name:", Api.get.name(fieldId));
+    console.info("* order:", Api.get.order(fieldId));
+    console.info("* tags:", Api.get.tags(fieldId));
   }
 
   //---------------------------------------------------------

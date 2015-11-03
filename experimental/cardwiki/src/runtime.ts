@@ -311,8 +311,8 @@ return index;`
       return {triggers, realDiffs};
     }
     execTrigger(trigger) {
-      let {results, unprojected} = trigger.exec();
       let table = this.table(trigger.name);
+      let {results, unprojected} = trigger.exec();
       let prevResults = table.factHash;
       let prevHashes = Object.keys(prevResults);
       table.unprojected = unprojected;
@@ -337,10 +337,23 @@ return index;`
       }
       return;
     }
+    transitivelyClearTriggers(startingTriggers) {
+      let handled = {};
+      let remaining = Object.keys(startingTriggers);
+
+      for(let ix = 0; ix < remaining.length; ix++) {
+        let trigger = remaining[ix];
+        if(handled[trigger]) continue;
+        this.clearTable(trigger);
+        handled[trigger] = true;
+        remaining.push.apply(remaining, Object.keys(this.table(trigger).triggers));
+      }
+    }
     execTriggers(triggers) {
       let newTriggers = {};
       let retrigger = false;
       for(let triggerName in triggers) {
+        // console.log("Calling:", triggerName);
         let trigger = triggers[triggerName];
         let nextRound = this.execTrigger(trigger);
         if(nextRound) {
@@ -361,7 +374,9 @@ return index;`
       let dump = {};
       for(let tableName in this.tables) {
         let table = this.tables[tableName];
-        dump[tableName] = table.table;
+        if(!table.isView) {
+          dump[tableName] = table.table;
+        }
       }
       return JSON.stringify(dump);
     }
@@ -378,8 +393,14 @@ return index;`
     }
     applyDiff(diff:Diff) {
       let {triggers, realDiffs} = this.execDiff(diff);
+      let cleared = {};
+      let round = 0;
+      if(triggers) this.transitivelyClearTriggers(triggers);
       while(triggers) {
+        // console.group(`ROUND ${round}`);
         triggers = this.execTriggers(triggers);
+        round++;
+        // console.groupEnd(`ROUND ${round}`);
       }
     }
     table(tableId) {

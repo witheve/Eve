@@ -208,12 +208,12 @@ pub fn editor_schema() -> Vec<(&'static str, Vec<&'static str>)> {
     ("uiElement", vec!["element", "tag", "parent", "ix"]),
     ("uiAttribute", vec!["element", "property", "value"]),
     ("uiAttributeBinding", vec!["element", "property", "field"]),
-    ("ui event", vec!["element", "kind"]),
-    ("ui event binding", vec!["element", "kind", "field"]),
+    ("ui event", vec!["element", "event", "kind"]),
+    ("ui event binding", vec!["element", "event", "kind", "field"]),
     ("uiElementBinding", vec!["element", "view"]),
     ("uiScopedBinding", vec!["element", "field", "scoped field"]),
 
-    ("event", vec!["event", "element", "key", "kind"]),
+    ("event", vec!["tick", "event", "key", "kind"]),
 
     // Lossless ast storage
     ("ast cache", vec!["id", "kind", "ast"]),

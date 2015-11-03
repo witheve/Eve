@@ -6,13 +6,17 @@ module UiRenderer {
 
   interface Element extends MicroReact.Element {
     __template:string // The id of the uiElement that spawned this element. This relationship may be many to one when bound.
-    //__key?:string // The key which matches this element to it's source row and view if bound.
   }
 
   interface UiWarning {
     "uiWarning: element": string
     "uiWarning: row": any[]
     "uiWarning: warning": string
+  }
+
+  interface EventExtras {
+    key?: any
+    value?: any
   }
 
   function getKeys(table:Id):Id[] {
@@ -26,13 +30,14 @@ module UiRenderer {
     return keys;
   }
 
-  function getBoundValue(elem:Element, field:string, boundAncestors: {[id: string]: Element}, elemToRow:{[id:string]: any}, debug?:Api.Dict) {
+  function getBoundValue(elem:Element, field:string, boundAncestors: {[id: string]: Element}, elemToRow:Api.Dict, elemToView?:Api.Dict, debug?:Api.Dict) {
     let ancestor = elem;
     let scopeIx = 0;
     while(ancestor && scopeIx++ < 100) {
       let row = elemToRow[ancestor.id];
       if(debug) {
         debug["ancestor"] = ancestor;
+        debug["view"] = elemToView[ancestor.id];
         debug["row"] = row;
       }
       if(row && row[field] !== undefined) return row[field];
@@ -49,7 +54,7 @@ module UiRenderer {
 
     private _handlers:{[key:string]: MicroReact.Handler<Event>} = {};
 
-    constructor(public renderer:MicroReact.Renderer, public handleEvent:(element:string, kind: string, key?:any) => void) {}
+    constructor(public renderer:MicroReact.Renderer, public handleEvent:(element:string, event: string, kind: string, extras?:EventExtras) => void) {}
 
     // Mark the renderer dirty so it will rerender next frame.
     queue(root) {
@@ -118,7 +123,9 @@ module UiRenderer {
       let stack:Element[] = [];
       let compiledElements:MicroReact.Element[] = [];
       let elemToRow:{[id:string]: any} = {};
+      let elemToView:{[id:string]: string} = {};
       let boundAncestors:{[id:string]: Element} = {};
+      let bindingConstraints:{[id:string]: {[alias: string]: string}} = {};
       for(let root of roots) {
         if(typeof root === "object") {
           compiledElements.push(<Element>root);
@@ -145,7 +152,6 @@ module UiRenderer {
         let boundAttrs = elementToAttrBindings[templateId];
         let events = elementToEvents[templateId];
         let boundEvents = elementToEventBindings[templateId];
-        let children = elementToChildren[templateId];
 
         let elems = [elem];
         let binding = Api.ixer.findOne("uiElementBinding", {"uiElementBinding: element": templateId});
@@ -157,6 +163,15 @@ module UiRenderer {
           let ancestor = boundAncestors[elem.id];
           for(let {"uiScopedBinding: field": field, "uiScopedBinding: scoped field": scopedField} of scopedBindings) {
             bindings[field] = getBoundValue(ancestor, scopedField, boundAncestors, elemToRow);
+            if(DEBUG.RENDERER) console.info("* Binding", Api.get.name(field), field, "=", bindings[field]);
+          }
+          if(bindingConstraints[elem.id]) {
+            let constraints = bindingConstraints[elem.id];
+            for(let field of Api.ixer.find("field", {"field: view": boundView})) {
+              let name = Api.get.name(field["field: field"]);
+              if(constraints[name]) bindings[field["field: field"]] = getBoundValue(ancestor, constraints[name], boundAncestors, elemToRow);
+              if(DEBUG.RENDERER && constraints[name]) console.info("* Binding", name, field["field: field"], "=", bindings[field["field: field"]]);
+            }
           }
 
           var boundRows = this.getBoundRows(boundView, bindings);
@@ -167,6 +182,7 @@ module UiRenderer {
             let childId = `${elem.id}.${ix++}`;
             elems.push({t: elem.t, parent: elem.id, id: childId, __template: templateId});
             elemToRow[childId] = row;
+            elemToView[childId] = boundView;
             boundAncestors[childId] = boundAncestors[elem.id]; // Pass over the wrapper, it's these children which are bound.
 
             if(DEBUG.RENDERER) console.info(`* Linking ${childId} -> ${boundAncestors[elem.id] && boundAncestors[elem.id].id}.`);
@@ -187,13 +203,15 @@ module UiRenderer {
           // Handle bound properties.
           if(boundAttrs) {
             for(let {"uiAttributeBinding: property": prop, "uiAttributeBinding: field": field} of boundAttrs) {
-              let val = getBoundValue(elem, field, boundAncestors, elemToRow, boundValueDebug);
+              let val = getBoundValue(elem, field, boundAncestors, elemToRow, elemToView, boundValueDebug);
               elem[prop] = val;
               if(DEBUG.RENDERER) {
-                console.info(`
+                console.info(Parsers.unpad(18) `
                   * Binding ${elem.id}['${prop}'] to ${field} (${val})
                     source elem: ${boundValueDebug["ancestor"] && boundValueDebug["ancestor"].id}
-                    row: ${boundValueDebug["row"] && JSON.stringify(boundValueDebug["row"])}`
+                    row: ${boundValueDebug["row"] && JSON.stringify(
+                      Api.humanize(boundValueDebug["view"], boundValueDebug["row"])
+                    )}`
                 );
               }
             }
@@ -201,32 +219,48 @@ module UiRenderer {
 
           // Attach static event handlers.
           if(events) {
-            for(let {"ui event: kind": event} of events) {
-              elem[event] = this.generateEventHandler(elem, event);
+            for(let {"ui event: event": event, "ui event: kind": kind} of events) {
+              elem[event] = this.generateEventHandler(elem, event, kind);
             }
           }
 
           // Attach bound event handlers.
           if(boundEvents) {
-            for(let {"ui event binding: kind": event, "ui event binding: field": key} of boundEvents) {
-              elem[event] = this.generateEventHandler(elem, event, key, boundAncestors, elemToRow);
+            for(let {"ui event binding: event": event, "ui event binding: kind": kind, "ui event binding: field": key} of boundEvents) {
+              elem[event] = this.generateEventHandler(elem, event, kind, key, boundAncestors, elemToRow);
             }
           }
 
           // Prep children and add them to the stack.
+          let children = elementToChildren[templateId];
+          if(children) children = children.slice();
+
           if(elem.children) { // Process bound children (ids) into compilable facts.
             children = children || [];
-            children.push.apply(children, elem.children.map((childId) => Api.ixer.findOne("uiElement", {"uiElement: element": childId})))
+            for(let childId of elem.children) {
+              let child = Api.ixer.findOne("uiElement", {"uiElement: element": childId});
+              if(child) children.push(child);
+              else console.warn("Missing child:", childId);
+            }
           }
 
           if(children) {
             let boundAncestor = boundAncestors[elem.id];
             if(binding) boundAncestor = elem;
+            let childBindingConstraints = Api.ixer.find("ui binding constraint", {"ui binding constraint: parent": templateId});
+            let constraints;
+            if(childBindingConstraints.length) {
+              constraints = {};
+              for(let constraint of childBindingConstraints)
+                constraints[constraint["ui binding constraint: alias"]] = constraint["ui binding constraint: field"];
+            }
 
             elem.children = [];
             for(let child of children) {
               let childTemplateId = child["uiElement: element"];
               let childId = `${elem.id}__${childTemplateId}`;
+              if(constraints) bindingConstraints[childId] = constraints;
+
               boundAncestors[childId] = boundAncestor;
               let childElem:Element = {id: childId, __template: childTemplateId};
               if(child["uiElement: ix"] !== "") childElem.ix = child["uiElement: ix"];
@@ -265,15 +299,25 @@ module UiRenderer {
       return compiledElements;
     }
 
-    generateEventHandler(elem:Element, kind:string, key?:string, boundAncestors?, elemToRow?):MicroReact.Handler<Event> {
-      let memoKey = `${kind}:${key || ""}`;
-      let attrKey = `__${kind}_event_key`;
+    generateEventHandler(elem:Element, event:string, kind:string, key?:string, boundAncestors?, elemToRow?):MicroReact.Handler<Event> {
+      let memoKey = `${event}_${kind}`;
+      let attrKey = `__${event}_${kind}_event_key`;
       if(key) elem[attrKey] = getBoundValue(elem, key, boundAncestors, elemToRow);
       if(this._handlers[memoKey]) return this._handlers[memoKey];
 
       let self = this;
       // @TODO: Specialize for event families (e.g. keyboard, mouse).
-      this._handlers[memoKey] = (evt:Event, elem:Element) => self.handleEvent(elem.__template, kind, attrKey && elem[attrKey]);
+      if(event === "change") {
+        this._handlers[memoKey] = (evt:Event, elem:Element) => {
+          let value;
+          // @NOTE: We can't hoist elem checks since we reuse handlers based on event and kind alone.
+          if(elem.t === "select" || elem.t === "input") value = (<HTMLSelectElement|HTMLInputElement>evt.target).value;
+          if(elem.type === "checkbox") value = (<HTMLInputElement>evt.target).checked;
+          self.handleEvent(elem.__template, event, kind, {key: elem[attrKey], value});
+        };
+      } else {
+        this._handlers[memoKey] = (evt:Event, elem:Element) => self.handleEvent(elem.__template, event, kind, {key: elem[attrKey]});
+      }
 
       return this._handlers[memoKey];
     }
@@ -287,14 +331,7 @@ module UiRenderer {
   }
 
   export type ElementCompiler = (elem:MicroReact.Element) => void;
-  export var elementCompilers:{[tag:string]: ElementCompiler} = {
-    chart: (elem:Ui.ChartElement) => {
-      elem.pointLabels = (elem.pointLabels) ? [<any>elem.pointLabels] : elem.pointLabels;
-      elem.ydata = (elem.ydata) ? [<any>elem.ydata] : [];
-      elem.xdata = (elem.xdata) ? [<any>elem.xdata] : elem.xdata;
-      Ui.chart(elem);
-    },
-  };
+  export var elementCompilers:{[tag:string]: ElementCompiler} = {};
   export function addElementCompiler(tag:string, compiler:ElementCompiler) {
     if(elementCompilers[tag]) {
       throw new Error(`Refusing to overwrite existing compilfer for tag: "${tag}"`);

@@ -8,16 +8,17 @@ module Parsers {
   interface CommentAST extends Token { text: string }
   interface TextAST extends Token { text: string }
   interface KeywordAST extends TextAST {}
-  interface FieldAST extends Token { grouped?: boolean, alias?: string, value?: string }
+  interface FieldAST extends Token { chunked?: boolean, grouped?: boolean, alias?: string, value?: string }
   interface SourceAST extends LineAST { negated?: boolean }
   interface OrdinalAST extends LineAST { alias: string, directions: string[] }
   interface CalculationAST extends LineAST { partIx?: number, text?: string }
   export interface QueryAST extends LineAST {}
 
   interface ElementAST extends Token { tag?: string, classes?: string, name?: string }
+  interface EmbedAST extends Token { element: FieldAST, static: boolean, bindings?:FieldAST[] }
   interface AttributeAST extends Token { property: string, value: FieldAST, static: boolean }
   interface BindingAST extends Token { text: string }
-  interface EventAST extends Token { event: string, key?: FieldAST }
+  interface EventAST extends Token { event: string, kind: string, key?: FieldAST }
   export interface UiAST extends LineAST {}
 
   interface FieldIR { field: string, grouped?: boolean, alias?: string, value?: string, ordinal?: boolean }
@@ -53,10 +54,11 @@ module Parsers {
     parent?: string
     attributes: Api.Dict
     boundAttributes: Api.Dict
-    events: string[]
-    boundEvents: Api.Dict
+    events: {event:string, kind:string}[]
+    boundEvents: {event: string, kind:string, field:string}[]
     boundView?: string
     bindings?: Api.Dict
+    bindingConstraints?: Api.Dict
   }
   export interface UiIR {
     elements: ElementIR[]
@@ -80,6 +82,7 @@ module Parsers {
   function tokenIsBinding(token:Token): token is BindingAST { return token.type === "binding"; }
   function tokenIsEvent(token:Token): token is EventAST { return token.type === "event"; }
   function tokenIsElement(token:Token): token is ElementAST { return token.type === "element"; }
+  function tokenIsEmbed(token:Token): token is EmbedAST { return token.type === "embed"; }
 
   //---------------------------------------------------------------------------
   // Utilities
@@ -184,7 +187,7 @@ module Parsers {
     }
     if(tokenIsField(token)) {
       if(token.value !== undefined) return `\`${token.value || ""}\``;
-      return `?${token.grouped ? "?" : ""}${token.alias || ""}`;
+      return `?${token.chunked ? "?" : ""}${token.grouped ? "%" : ""}${token.alias || ""}`;
     }
     if(tokenIsAttribute(token)) return `${padding}- ${token.property}: ${tokenToString(token.value)}`;
     if(tokenIsElement(token)) {
@@ -194,7 +197,8 @@ module Parsers {
       return res;
     }
     if(tokenIsBinding(token)) return padding + "~ " + token.text.split("\n").join("\n" + padding + "~ ");
-    if(tokenIsEvent(token)) return padding + "@ " + token.event + (token.key ? ": " + tokenToString(token.key) : "");
+    if(tokenIsEvent(token)) return `${padding}@${token.event} ${token.kind} ${token.key ? ": " + tokenToString(token.key) : ""}`;
+    if(tokenIsEmbed(token)) return padding + "> " + tokenToString(token.element) + (token.bindings.length ? " " + token.bindings.map(tokenToString).join(" ") : "");
     if(tokenIsComment(token)) return padding + ";" + token.text;
     if(tokenIsText(token) || tokenIsKeyword(token)) return padding + token.text;
     throw new Error(`Unknown token type '${token && token.type}' for token '${JSON.stringify(token)}'.`);
@@ -262,10 +266,11 @@ module Parsers {
     let tokenIx = 0;
     let tokenCount = ast.chunks.length;
     let head = ast.chunks[0];
-    if(tokenIsText(head)) {
-      if(head.text[0] === "!" && head.text[1] === " ") {
-        tokenIx = 1;
-        fingerprint = head.text.slice(2);
+    if(tokenIsKeyword(head)) {
+      let head = ast.chunks[++tokenIx];
+      if(head && tokenIsText(head)) {
+        fingerprint += head.text.slice(1);
+        tokenIx++;
       }
     }
     for(; tokenIx < tokenCount; tokenIx++) {
@@ -301,7 +306,8 @@ module Parsers {
   function parseField(tokens:string[], tokenIx:number = 0):FieldAST|Error {
     if(consume(["?"], tokens)) {
       let field:FieldAST = {type: "field", tokenIx};
-      if(consume(["?"], tokens)) field.grouped = true;
+      if(consume(["?"], tokens)) field.chunked = true;
+      else if(consume(["%"], tokens)) field.grouped = true;
       let head = tokens[0];
       if(head && head !== " " && PUNCTUATION.indexOf(head) === -1) field.alias = tokens.shift();
       return field;
@@ -324,8 +330,8 @@ module Parsers {
   // Query Parser
   //---------------------------------------------------------------------------
 
-  const Q_ACTION_TOKENS = ["+"];
-  const Q_KEYWORD_TOKENS = ["!", "(", ")", "$=", "=", "#", ";", "?", "`"].concat(Q_ACTION_TOKENS);
+  const Q_ACTION_TOKENS = ["+", "dispatch"];
+  const Q_KEYWORD_TOKENS = ["!", "%", "(", ")", "$=", "=", "#", ";", "?", "`"].concat(Q_ACTION_TOKENS);
   const Q_TOKENS = [" ", "\t"].concat(Q_KEYWORD_TOKENS, PUNCTUATION);
 
   export class Query {
@@ -662,7 +668,7 @@ module Parsers {
 
     protected processSource(line:SourceAST):SourceAST {
       let kw = line.chunks[0];
-      if(tokenIsText(kw) && kw.text === "!") line.negated = true;
+      if(tokenIsKeyword(kw) && kw.text === "!") line.negated = true;
       line.type = "source";
       return line;
     }
@@ -704,13 +710,20 @@ module Parsers {
             .sort((a, b) => a["fingerprint field: ix"] - b["fingerprint field: ix"]);
 
           for(let token of line.chunks) {
+            if(tokenIsField(token) && token.chunked) {
+              source.chunked = true;
+              break;
+            }
+          }
+
+          for(let token of line.chunks) {
             if(tokenIsField(token)) {
               let {"fingerprint field: field": fieldId} = fieldIxes.shift() || {};
               if(!fieldId) {
                 this.errors.push(this.parseError(`Fingerprint '${fingerprint}' is missing for field.`, token));
                 break LINE_LOOP;
               }
-              let field = {field:fieldId, grouped: token.grouped, alias: token.alias, value: token.value};
+              let field = {field:fieldId, grouped: token.grouped || source.chunked && !token.chunked, alias: token.alias, value: token.value};
               source.fields.push(field);
 
               let varId = prev && prev.aliases[field.alias];
@@ -724,7 +737,6 @@ module Parsers {
                 }
               }
               let variable = getVariable(field.alias, this.reified, varId, varId && prev.variables[varId].selected);
-              if(field.grouped) source.chunked = true;
               if(field.value !== undefined) variable.value = field.value;
               variable.bindings.push({source: source.source, field: field.field});
             }
@@ -743,7 +755,9 @@ module Parsers {
           if(!variable.ordinals) variable.ordinals = [source.source];
           else variable.ordinals.push(source.source);
           let unsorted = [];
-          for(let field of source.fields) unsorted[unsorted.length] = field.field;
+          for(let field of source.fields) {
+            if(!field.grouped) unsorted.push(field.field);
+          }
 
           let sortFieldIx = 0;
           source.sort = [];
@@ -767,7 +781,7 @@ module Parsers {
 
         } else if(tokenIsAction(line)) {
           if(line.chunks[0]["text"] === "+") {
-            let fingerprint = fingerprintSource(line).slice(2); // @FIXME: Hack to drop the '+ '
+            let fingerprint = fingerprintSource(line);
             let mappings = [];
             for(let chunk of line.chunks) {
               if(tokenIsField(chunk)) {
@@ -821,7 +835,7 @@ module Parsers {
 
           // Add field token between this structure token and the next.
           let field:FieldIR = source.fields[fieldIx++];
-          line.chunks.push(<FieldAST>{type: "field", alias: field.alias, grouped: field.grouped, value: field.value});
+          line.chunks.push(<FieldAST>{type: "field", alias: field.alias, grouped: !source.chunked && field.grouped, chunked: source.chunked && !field.grouped, value: field.value});
         }
         if(tail) line.chunks.push(<TextAST>{type: "text", text: tail});
 
@@ -838,7 +852,7 @@ module Parsers {
           // Super lossy, but nothing can be done about it.
           for(let {ix, field:fieldId, direction} of source.sort) {
             let field = fields[fieldId];
-            line.chunks.push(<FieldAST>{type: "field", alias: field.alias, grouped: field.grouped, value: field.value});
+            line.chunks.push(<FieldAST>{type: "field", alias: field.alias, grouped: !source.chunked && field.grouped, chunked: source.chunked && !field.grouped, value: field.value});
             line.chunks.push(<TextAST>{type: "text", text: ` ${direction} `});
             line.directions.push(direction);
           }
@@ -854,7 +868,7 @@ module Parsers {
   //---------------------------------------------------------------------------
   // Ui Parser
   //---------------------------------------------------------------------------
-  const U_TOKENS = [";", ":", "@", "~", "-", " ", "\t", "`", "?"];
+  const U_TOKENS = [";", ":", "@", "~", "-", ">", " ", "\t", "`", "?"];
   export class Ui {
     raw: string;
     ast: UiAST;
@@ -917,6 +931,7 @@ module Parsers {
         else if(head === "-") line.type = "attribute";
         else if(head === "~") line.type = "binding";
         else if(head === "@") line.type = "event";
+        else if(head === ">") line.type = "embed";
         else line.type = "element";
 
         if(tokenIsComment(line)) {
@@ -971,14 +986,21 @@ module Parsers {
 
         } else if(tokenIsEvent(line)) {
           consumeWhile([" ", "\t"], tokens);
-          line.event = consumeUntil([":"], tokens);
+          line.event = consumeUntil([" "], tokens);
+          line.kind = consumeUntil([":"], tokens);
+          if(!line.kind) {
+            this.errors.push(this.parseError("Events must specify a kind",
+              {type: "text", text: tokens.join(""), tokenIx: tokensLength - tokens.length}));
+            continue;
+          }
+          line.kind = line.kind.trim();
           tokens.shift();
           consumeWhile([" ", "\t"], tokens);
           if(tokens.length) {
             let field = this.parseField(tokens, tokensLength - tokens.length);
             // @TODO we can wrap this in `` and rerun it, or skip the middleman since we know the value.
             if(!field) {
-              this.errors.push(this.parseError("Value of attribute must be a field (either ' ?foo ' or ' `100` ')",
+              this.errors.push(this.parseError("Value of key must be a field (either ' ?foo ' or ' `100` ')",
                 {type: "text", text: tokens.join(""), tokenIx: tokensLength - tokens.length}));
               continue;
             }
@@ -997,6 +1019,34 @@ module Parsers {
               this.parseError("Extraneous tokens after value.", {type: "text", text: tokens.join(""), tokenIx: tokensLength - tokens.length})
             );
             continue;
+          }
+
+        } else if(tokenIsEmbed(line)) {
+          consumeWhile([" ", "\t"], tokens);
+          let maybeField = this.parseField(tokens, tokensLength - tokens.length);
+          if(!maybeField || maybeField instanceof ParseError) {
+            this.errors.push(<ParseError>maybeField
+              || this.parseError("Specify a field containing the id(s) of the element(s) to import.", line));
+            continue;
+          }
+          line.element = <FieldAST>maybeField;
+          line.static = line.element.value !== undefined;
+
+          line.bindings = [];
+          while(tokens.length) {
+            consumeWhile([" ", "\t"], tokens);
+            let maybeField = this.parseField(tokens, tokensLength - tokens.length);
+            if(!maybeField || maybeField instanceof ParseError) {
+              this.errors.push(<ParseError>maybeField
+                || this.parseError("Binding constraints must be aliased fields.", line));
+              continue;
+            }
+            let field = <FieldAST>maybeField;
+            if(!field.alias) {
+              this.errors.push(this.parseError("Binding constraints must be aliased fields.", field));
+              continue;
+            }
+            line.bindings.push(field);
           }
 
         } else if(tokenIsElement(line)) {
@@ -1062,6 +1112,12 @@ module Parsers {
           for(let {"uiScopedBinding: field": field, "uiScopedBinding: scoped field": scopedField} of bindings) elem.bindings[field] = scopedField;
         }
 
+        let bindingConstraints = Api.ixer.find("ui binding constraint", {"ui binding constraint: parent": elemId});
+        let constraints = {};
+        for(let constraint of bindingConstraints)
+          constraints[constraint["ui binding constraint: alias"]] = constraint["ui binding constraint: field"];
+        elem.bindingConstraints = constraints;
+
         let children =  Api.humanize("uiElement", Api.ixer.find("uiElement", {"uiElement: parent": elemId}));
         for(let child of children) elems.push(child);
 
@@ -1089,7 +1145,7 @@ module Parsers {
       let prev = this.prev;
 
       let rootId = this.id || Api.uuid();
-      let root:ElementIR = {element: rootId, tag: "div", ix: 0, attributes: {}, boundAttributes: {}, events: [], boundEvents: {}};
+      let root:ElementIR = {element: rootId, tag: "div", ix: 0, attributes: {}, boundAttributes: {}, events: [], boundEvents: [], bindingConstraints: {}};
       this.reified = {elements: [], root, boundQueries: {}};
       let indent = {[root.element]: -1};
       let childCount = {[root.element]: 0};
@@ -1111,7 +1167,7 @@ module Parsers {
           prevElem = prev && prev.elements[this.reified.elements.length]; // This is usually not going to match up.
           let elemId = prevElem ? prevElem.element : Api.uuid();
           let ix = childCount[parentElem.element]++;
-          let elem:ElementIR = {element: elemId, tag: line.tag, parent: parentElem.element, ix, attributes: {}, boundAttributes: {}, events: [], boundEvents: {}};
+          let elem:ElementIR = {element: elemId, tag: line.tag, parent: parentElem.element, ix, attributes: {}, boundAttributes: {}, events: [], boundEvents: [], bindingConstraints: {}};
           indent[elem.element] = line.indent;
           childCount[elem.element] = 0;
           ancestors.push(elem);
@@ -1140,7 +1196,6 @@ module Parsers {
             this.errors.push(this.parseError("Binding queries may not directly utilize actions.", line));
             continue;
           }
-          // @TODO: Use prev.queries for mapping queryIRs
 
           this.reified.boundQueries[query.id] = query;
           parentElem.boundView = query.id;
@@ -1152,7 +1207,7 @@ module Parsers {
             let selected = query.reified.variables[query.reified.aliases[alias]].selected;
             if(!scopedField) continue;
             if(!selected) {
-              this.errors.push(this.parseError(`Cannot join nested views on unselected alias '${alias}'`));
+              this.errors.push(this.parseError(`Cannot join nested views on unselected alias '${alias}'.`));
               continue;
             }
             joinedFields[selected] = scopedField;
@@ -1182,19 +1237,39 @@ module Parsers {
           } else {
             parentElem.boundAttributes[line.property] = getScopedBinding(line.value.alias, ancestors, this.reified.boundQueries);
             if(!parentElem.boundAttributes[line.property]) {
-              this.errors.push(this.parseError(`Could not resolve alias '${line.value.alias}' for bound attribute '${line.property}'`, line.value));
+              this.errors.push(this.parseError(`Could not resolve alias '${line.value.alias}' for bound attribute '${line.property}'.`, line.value));
               continue;
             }
           }
+        } else if(tokenIsEmbed(line)) {
+          if(parentElem.attributes["children"] || parentElem.boundAttributes["children"]) {
+            this.errors.push(this.parseError("Elements may only contain a single embed.", line));
+            continue;
+          }
+          if(line.static) parentElem.attributes["children"] = line.element.value;
+          else parentElem.boundAttributes["children"] = getScopedBinding(line.element.alias, ancestors, this.reified.boundQueries);
+          if(!parentElem.boundAttributes["children"]) {
+            this.errors.push(this.parseError(`Could not resolve alias '${line.element.alias}' for bound embed.`, line.element));
+            continue;
+          }
+          for(let constraint of line.bindings) {
+            parentElem.bindingConstraints[constraint.alias] = getScopedBinding(constraint.alias, ancestors, this.reified.boundQueries);
+            if(!parentElem.bindingConstraints[constraint.alias]) {
+              this.errors.push(this.parseError(`Could not resolve alias '${constraint.alias}' for bound embed.`, constraint));
+              continue;
+            }
+          }
+
         } else if(tokenIsEvent(line)) {
           if(line.key) {
-            parentElem.boundEvents[line.event] = getScopedBinding(line.key.alias, ancestors, this.reified.boundQueries);
-              if(!parentElem.boundEvents[line.event]) {
-                this.errors.push(this.parseError(`Could not resolve alias '${line.key.alias}' for bound event '${line.event}'`, line.key));
-                continue;
-              }
+            let field = getScopedBinding(line.key.alias, ancestors, this.reified.boundQueries);
+            if(!field) {
+              this.errors.push(this.parseError(`Could not resolve alias '${line.key.alias}' for bound event '${line.event}'.`, line.key));
+              continue;
+            }
+            parentElem.boundEvents.push({event: line.event, kind: line.kind, field});
           } else {
-            parentElem.events.push(line.event);
+            parentElem.events.push({event: line.event, kind: line.kind});
           }
         }
       }
@@ -1246,12 +1321,33 @@ module Parsers {
             }
           }
         }
+        let attributes = Api.extend({}, elem.attributes);
+        let boundAttributes = Api.extend({}, elem.boundAttributes);
+        if(attributes.c && elemAST) {
+          elemAST.classes = attributes.c;
+          delete attributes.c;
+        }
 
-        for(let property in elem.attributes) {
-          if(property === "c" && elemAST) {
-            elemAST.classes = elem.attributes[property];
-            continue;
-          }
+        let bindingConstraints:FieldAST[] = [];
+        for(let alias in elem.bindingConstraints) {
+          bindingConstraints.push({type: "field", alias});
+        }
+
+        if(attributes.children) {
+          let children = attributes.children;
+          let elementField:FieldAST = {type: "field", value: children};
+          let line:EmbedAST = {type: "embed", element: elementField, static: true, bindings: bindingConstraints};
+          this.ast.chunks.push(line);
+          delete attributes.children;
+        }
+        if(boundAttributes.children) {
+          let children = boundAttributes.children;
+          let elementField:FieldAST = {type: "field", alias: aliases[children]};
+          let line:EmbedAST = {type: "embed", element: elementField, static: false, bindings: bindingConstraints};
+          this.ast.chunks.push(line);
+          delete boundAttributes.children;
+        }
+        for(let property in attributes) {
           let value = {type: "field", value: elem.attributes[property]};
           let line:AttributeAST = {type: "attribute", property, value, static: true, indent: indent + 2, lineIx: this.ast.chunks.length};
           this.ast.chunks.push(line);

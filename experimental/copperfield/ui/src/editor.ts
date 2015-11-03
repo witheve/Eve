@@ -64,9 +64,18 @@ module Editor {
       if(id && type) effect.change.removeWithDependents(type, id);
       return effect;
     },
-    addEvent: function({elem, kind, key = ""}:{elem: string, kind: string, key: any}) {
+    addEvent: function({elem, event, kind, extras = {}}:{elem: string, event: string, kind: string, extras: any}) {
       let effect = DispatchEffect.from(this);
-      effect.change.add("event", {"event: event": localState.eventId++, "event: element": elem, "event: kind": kind, "event: key": key});
+      let tick = localState.eventId++;
+      effect.change.add("event", {
+        "event: tick": tick,
+        "event: event": event,
+        "event: kind": kind,
+        "event: key": extras.key || ""});
+
+      if(extras.value !== undefined) {
+        effect.change.add("event value", {"event value: tick": tick, "event value: value": extras.value});
+      }
       return effect;
     },
     setEditing: function({editing}:{editing:string}) {
@@ -113,11 +122,9 @@ module Editor {
         effect.change.add("source", {"source: source": source.source, "source: source view": source.sourceView})
           .add("display order", sourceIx++);
         if(source.negated) effect.change.add("negated source");
-        if(source.chunked) {
-          effect.change.add("chunked source");
-          for(let field of source.fields) {
-            if(!field.grouped) effect.change.add("grouped field", {"grouped field: field": field.field});
-          }
+        if(source.chunked) effect.change.add("chunked source");
+        for(let field of source.fields) {
+          if(field.grouped) effect.change.add("grouped field", {"grouped field: field": field.field});
         }
         if(source.sort) effect.change.addEach("sorted field", Api.resolve("sorted field", source.sort));
       }
@@ -135,9 +142,11 @@ module Editor {
           .add("select");
       }
 
+      let memberCount = {};
+
       for(let action of reified.actions) { // Actions
         if(action.action === "+") {
-          let {"view fingerprint: view":viewId} = Api.ixer.findOne("view fingerprint", {"view fingerprint: fingerprint": action.fingerprint}) || {};
+          let {"view fingerprint: view": viewId} = Api.ixer.findOne("view fingerprint", {"view fingerprint: fingerprint": action.fingerprint}) || {};
           let fieldIds = [];
           if(!viewId) {
             for(let ix = 0; ix < action.mappings.length; ix++) fieldIds.push(Api.uuid());
@@ -158,25 +167,31 @@ module Editor {
             });
             fieldIds = Api.extract("fingerprint field: field", fingerprintFields);
           }
+          let members = Api.ixer.find("member", {"member: view": viewId, "member: member view": query.id});
 
-          let member = Api.ixer.findOne("member", {"member: view": viewId, "member: member view": query.id});
-          if(member) {
-            effect.change.add("member", Api.resolve("member",
-              {member: member["member: member"], view: viewId, ix: member["member: ix"], "member view": query.id})
-            );
-          } else {
+          if(!memberCount[viewId]) memberCount[viewId] = 0;
+          if(members && memberCount[viewId] < members.length) {
+            effect.change.add("member", members[memberCount[viewId]++]);
+          }
+          else {
             let memberIx = action.memberIx;
-            if(memberIx === undefined) {
-              memberIx = Math.max.apply(Math, Api.extract("member: ix", Api.ixer.find("member", {"member: view": viewId})));
-              memberIx = memberIx > -Infinity ? memberIx + 1 : 0;
+            if(!memberIx) {
+              if(memberCount[viewId] === undefined) {
+                memberCount[viewId] = Math.max.apply(Math, Api.extract("member: ix", Api.ixer.find("member", {"member: view": viewId})));
+                memberIx = memberCount[viewId] = memberCount[viewId] > -Infinity ? memberCount[viewId] + 1 : 0;
+              } else memberIx = memberCount[viewId]++;
             }
+
             effect.change.add("member", Api.resolve("member", {view: viewId, ix: memberIx, "member view": query.id}));
           }
 
+          // Hack required due to field context getting erroneously applied -- need to turn context into a stack instead of a log.
+          effect.change.changeSet.remove("mapping", {"mapping: member": effect.change.context["member: member"]});
           let ix = 0;
           for(let fieldId of fieldIds) {
             let variable = reified.variables[action.mappings[ix++]];
-            effect.change.add("mapping", Api.resolve("mapping", {"view field": fieldId, "member field": variable.selected}));
+            let mapping = Api.resolve("mapping", {"view field": fieldId, "member field": variable.selected})
+            effect.change.add("mapping", mapping);
           }
 
           // @TODO: Add support for negation (requires ordering across multiple children...)
@@ -221,7 +236,8 @@ module Editor {
           }
           for(let elem of [prev.reified.root].concat(prev.reified.elements)) {
             effect.change.removeWithDependents("uiElement", elem.element)
-              .removeWithDependents("ast cache", {"ast cache: id": elem.element}).clearContext();
+              .removeWithDependents("ast cache", {"ast cache: id": elem.element})
+              .addEach("builtin projection", Api.ixer.find("builtin projection", {"builtin projection: element": ui.id})).clearContext();
           }
         } catch (err) {}
       }
@@ -246,9 +262,10 @@ module Editor {
           effect.change.add("uiAttributeBinding", {"uiAttributeBinding: property": prop, "uiAttributeBinding: field": elem.boundAttributes[prop]});
         for(let field in elem.bindings)
           effect.change.add("uiScopedBinding", {"uiScopedBinding: field": field, "uiScopedBinding: scoped field": elem.bindings[field]});
-        effect.change.addEach("ui event", elem.events.map((kind) => {return {"ui event: kind": kind}}));
-        for(let event in elem.boundEvents)
-          effect.change.add("ui event binding", {"ui event binding: kind": event, "ui event binding: field": elem.boundEvents[event]});
+        effect.change.addEach("ui event", Api.resolve("ui event", elem.events));
+        effect.change.addEach("ui event binding", Api.resolve("ui event binding", elem.boundEvents));
+        for(let alias in elem.bindingConstraints)
+          effect.change.add("ui binding constraint", Api.resolve("ui binding constraint", {alias, field: elem.bindingConstraints[alias]}));
       }
 
       ui.id = reified.root.element;
@@ -318,8 +335,8 @@ module Editor {
     window.addEventListener("resize", render);
   }
 
-  function handleEvent(elem:string, kind: string, key?:any) {
-    dispatch("addEvent", {elem, kind, key}).done();
+  function handleEvent(elem:string, event: string, kind: string, extras?:any) {
+    dispatch("addEvent", {elem, event, kind, extras}).done();
   }
 
   function render() {
@@ -526,32 +543,13 @@ module Editor {
       }
       Ui.onChange = render;
 
-      let eids = Api.extract("event: event", Api.ixer.find("event"));
+      let eids = Api.extract("event: tick", Api.ixer.find("event"));
       if(eids.length) localState.eventId = Math.max.apply(Math, eids) + 1; // Ensure eids are monotonic across sessions.
     } else {
       localState = Api.localState;
     }
-    dispatch("parseQuery", {query: `
-?view is named ?name
-# ?ord by ?name descending
-?ord < \`20\`
-?foo $= (\`5\` * (\`3\` + \`1\`)) / \`2\``
-    })
-    .dispatch("parseUi", {ui: `
-div view
-  ~ view ?view is a ?kind
-  div view-meta
-    span
-      - text: ?view
-    span
-      - text: \`is a\`
-    span
-      - text: ?kind
-  div view-name
-    ~ ?view is named ?name
-    ~ \`named \` concat ?name = ?text
-    - text: ?text`
-    }).done();
+    dispatch("parseQuery", {query: ``})
+    .dispatch("parseUi", {ui: ``}).done();
     render();
   }
 
