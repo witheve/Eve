@@ -736,7 +736,7 @@ function walk(tree, indent = 0) {
       for(let arg of info.args) {
         let value = op.children[ix];
         if(value.type && value.type === "value") {
-          args[arg] = value.value;
+          args[arg] = JSON.parse(value.value);
         } else if(value.type) {
           args[arg] = [value.id, "value"];
         } else {
