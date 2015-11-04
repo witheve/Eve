@@ -1599,12 +1599,11 @@ function walk(tree, indent = 0) {
     let isDragging = dragging && dragging.id === searchId ? "dragging" : "";
     let showPlan = eve.findOne("showPlan", {search: searchId}) ? searchDescription(tokens, plan) : undefined;
     return {id: `${searchId}|container`, c: `container search-container ${isDragging}`, top, left, children: [
-      {c: "controls", children: [
-        {c: "ion-android-close", click: removeSearch, searchId},
-        {c: "ion-arrow-move", mousedown: startDragging, mouseup: stopDragging, searchId},
-        {c: "ion-network", click: toggleShowPlan, searchId},
+      {c: "search-input", mousedown: startDragging, mouseup: stopDragging, searchId, children: [
+        {value: search, postRender: CMSearchBox, searchId},
+        {c: "ion-android-close close", click: removeSearch, searchId},
+        {c: `ion-ios-arrow-${showPlan ? 'up' : 'down'} plan`, click: toggleShowPlan, searchId},
       ]},
-      {c: "search-input", value: search, postRender: CMSearchBox, searchId},
       showPlan,
       {c: "search-headers", children: headers},
       {c: "search-results", children: resultItems},
@@ -1619,11 +1618,15 @@ function walk(tree, indent = 0) {
   }
 
   function startDragging(e, elem) {
-    app.dispatch("startDragging", {searchId: elem.searchId, x: e.clientX, y: e.clientY}).commit();
+    if(e.target === e.currentTarget) {
+      app.dispatch("startDragging", {searchId: elem.searchId, x: e.clientX, y: e.clientY}).commit();
+    }
   }
 
   function stopDragging(e, elem) {
-    app.dispatch("stopDragging", {}).commit();
+    if(e.target === e.currentTarget) {
+      app.dispatch("stopDragging", {}).commit();
+    }
   }
 
   function removeSearch(e, elem) {

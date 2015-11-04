@@ -56,7 +56,11 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .action.new-bit .bit { margin-top: 10px; align-items:flex-start; }
 .action .description { padding:0 10px; }
 
-.search-input { flex: none; background: #333; min-width:100px; color: #ccc; font-family: "Lato"; font-size: 14pt; margin:0px; margin-bottom:1px; padding:5px 30px; outline:none; align-items:center; }
+.search-input { flex: none; flex-direction:row; background: #333; min-width:100px; color: #ccc; font-family: "Lato"; font-size: 14pt; margin:0px; margin-bottom:1px; padding:5px 70px; outline:none; justify-content:center; align-items:center; }
+.search-input .close {display:none; position:absolute; right:10px; top:10px; }
+.search-input .plan {display:none; position:absolute; left:10px; top:11px; }
+.search-container:hover .close { display:flex; }
+.search-container:hover .plan { display:flex; }
 .search-input .CodeMirror.cm-s-default { font-size: 16pt; }
 
 .phrase { position:absolute; top: 700px; left: 1000px; display: block; font-size: 16pt; min-height: 20px; max-width:250px; line-height: 35px; }
@@ -65,10 +69,6 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .phrase.pos2 { top:430px; }
 
 .spacer { flex: 1; }
-
-.controls { transition:opacity 0.2s ease-in-out; opacity:0; position:absolute; width:35px; padding-top:10px; align-items:center; margin-right:-36px; background:#333; right:0; top: 0px; bottom:0; font-size: 16pt; }
-.controls > * + * { margin-top:10px;  }
-.search-container:hover .controls, .dragging .controls { opacity:1; }
 
 .search-description { display: block; }
 .search-description * { display:inline; }
