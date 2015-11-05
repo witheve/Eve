@@ -3,8 +3,19 @@ body * { display: flex; flex-direction: column; }
 pre { font-family: monospace; }
 .ui-input { outline: none; }
 
+.justify-start { justify-content: flex-start; }
+.justify-center { justify-content: center; }
+.justify-end { justify-content: flex-end; }
+
+.align-start { align-items: flex-start; }
+.align-center { align-items: center; }
+.align-end { align-items: flex-end; }
+
 // Debug
 .bordered { border: 1px solid gray; }
 .sample div { display: block; }
 .sample span { display: inline-block; }
 .sample spaced { padding: 0 3px; }
+
+.block-controls { opacity: 0; transition: all 0.3s; }
+.block:hover .block-controls { opacity: 1; }
