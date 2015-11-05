@@ -66,7 +66,7 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .phrase { display: block; font-size: 32pt; min-height: 20px; max-width:750px; line-height: 55px; }
 .phrase span { display:inline; opacity:0; }
 
-.slide-controls { position: absolute; bottom: 15px; left: calc(50% - 92px); flex-direction: row; font-size: 32pt; color: #555; z-index: 10; }
+.slide-controls { position: absolute; bottom: 15px; left: calc(50% - 46px); flex-direction: row; font-size: 32pt; color: #555; z-index: 10; }
 .slide-controls * {margin-right: 0px; padding:0 15px; }
 .slide-controls div:hover { color: #ccc; }
 

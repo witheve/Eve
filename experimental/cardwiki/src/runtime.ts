@@ -347,7 +347,7 @@ return index;`
         this.clearTable(trigger);
         handled[trigger] = true;
         remaining.push.apply(remaining, Object.keys(this.table(trigger).triggers));
-        console.log("CLEARED: ", trigger);
+        // console.log("CLEARED: ", trigger);
       }
       for(let trigger of Object.keys(handled)) {
         let view = this.table(trigger).view;
@@ -366,6 +366,7 @@ return index;`
         if(nextRound) {
           retrigger = true;
           for(let trigger in nextRound) {
+            // console.log("Queuing:", trigger);
             newTriggers[trigger] = nextRound[trigger];
           }
         }
@@ -447,6 +448,13 @@ return index;`
       while(nextRound) {
         nextRound = this.execTriggers(nextRound);
       };
+    }
+    totalFacts() {
+      let total = 0;
+      for(let tableName in this.tables) {
+        total += this.tables[tableName].table.length;
+      }
+      return total;
     }
   }
 
@@ -906,6 +914,7 @@ return index;`
       let ast = this.toAST();
       let code = this.compileAST(ast);
       this.compiled = new Function("ixer", "QueryFunctions", code);
+      this.dirty = false;
       return this;
     }
     exec() {
@@ -1063,6 +1072,7 @@ return index;`
       let ast = this.toAST();
       let code = this.compileAST(ast);
       this.compiled = new Function("ixer", "hasher", "prevHashes", code);
+      this.dirty = false;
       return this;
     }
     debug() {

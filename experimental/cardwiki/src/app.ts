@@ -2,11 +2,11 @@
 /// <reference path="runtime.ts" />
 
 module app {
-	
+
   //---------------------------------------------------------
   // Renderer
   //---------------------------------------------------------
-  
+
   var perfStats;
   var updateStat = 0;
   export var renderer;
@@ -46,13 +46,13 @@ module app {
       renderer.queued = false;
     }, 16);
   }
-  
+
   //---------------------------------------------------------
   // Dispatch
   //---------------------------------------------------------
-  
+
   let dispatches = {};
-  
+
   export function handle(event, func) {
     if(dispatches[event]) {
       console.error(`Overwriting handler for '${event}'`);
@@ -80,6 +80,7 @@ module app {
         localStorage["eve"] = eve.serialize();
       }
       updateStat = performance.now() - start;
+      console.log("UPDATE TOOK: ", updateStat);
     }
     let func = dispatches[event];
     if (!func) {
@@ -89,32 +90,32 @@ module app {
     }
     return result
   }
-  
+
   //---------------------------------------------------------
   // State
   //---------------------------------------------------------
-  
+
   export var eve = runtime.indexer();
   export var initializers = {};
-  
+
   export function init(name, func) {
     initializers[name] = func;
   }
-  
+
   function executeInitializers() {
     for(let initName in initializers) {
       initializers[initName]();
     }
   }
-  
+
   //---------------------------------------------------------
   // Go
   //---------------------------------------------------------
-  
-  document.addEventListener("DOMContentLoaded", function(event) { 
+
+  document.addEventListener("DOMContentLoaded", function(event) {
     initRenderer();
     executeInitializers();
     render();
   });
-  
+
 }

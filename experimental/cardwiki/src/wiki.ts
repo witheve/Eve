@@ -1314,7 +1314,7 @@ function walk(tree, indent = 0) {
     return {c: `phrase ${klass}`, children};
   }
 
-  var slideNumber = 25;
+  var slideNumber = 12;
   var slides = [
     {type: "slide",
      content: {children: [
@@ -1322,7 +1322,7 @@ function walk(tree, indent = 0) {
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("We spend our lives collecting, exploring, and communicating those bits.")
+       randomlyLetter("We spend our lives exploring those bits.")
      ]}},
     {type: "slide",
      content: {children: [
@@ -1397,7 +1397,7 @@ function walk(tree, indent = 0) {
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("We can...")
+       randomlyLetter("Together we can...")
        {id: "slide-list" c: "list", children: [
          randomlyLetter("- Add structure at any time"),
          randomlyLetter("- Work with heterogenous collections"),
@@ -1408,7 +1408,7 @@ function walk(tree, indent = 0) {
     {type: "eve"},
     {type: "slide",
      content: {children: [
-       randomlyLetter("The purpose of collecting all this is to then be able to explore it.")
+       randomlyLetter("The purpose of collecting all this is to explore it.")
      ]}},
     {type: "slide",
      content: {children: [
