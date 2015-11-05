@@ -389,8 +389,7 @@ module Bootstrap {
         div wiki-page; wiki page
           div wiki-blocks; wiki blocks
             > ?blockElem ?page
-          div bordered; add-block
-            - text: "+"
+          div wiki-block add-button ion-plus; add-block
             @click add block: ?page
         row bordered; wiki footer
           - flex: "none"

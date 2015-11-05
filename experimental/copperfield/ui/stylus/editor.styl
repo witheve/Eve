@@ -33,6 +33,8 @@ pre { font-family: monospace; }
 
 .wiki-page {
   width: 960px;
+}
+.wiki-blocks {
   box-shadow: alpha(black, 0.5) 0 2px 2px;
 }
 
@@ -70,6 +72,9 @@ pre { font-family: monospace; }
     padding: 1em;
     padding-top: 0;
   }
+
+  &.add-button { align-items: center; justify-content: center; height: 3em; opacity: 0; border: 1px solid darken($bg, 10%); transition: all 0.3s; }
+  &.add-button:hover { opacity: 0.75; }
 }
 
 
