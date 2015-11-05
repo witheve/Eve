@@ -311,8 +311,8 @@ return index;`
       return {triggers, realDiffs};
     }
     execTrigger(trigger) {
-      let {results, unprojected} = trigger.exec();
       let table = this.table(trigger.name);
+      let {results, unprojected} = trigger.exec();
       let prevResults = table.factHash;
       let prevHashes = Object.keys(prevResults);
       table.unprojected = unprojected;
@@ -337,15 +337,36 @@ return index;`
       }
       return;
     }
+    transitivelyClearTriggers(startingTriggers) {
+      let handled = {};
+      let remaining = Object.keys(startingTriggers);
+
+      for(let ix = 0; ix < remaining.length; ix++) {
+        let trigger = remaining[ix];
+        if(handled[trigger]) continue;
+        this.clearTable(trigger);
+        handled[trigger] = true;
+        remaining.push.apply(remaining, Object.keys(this.table(trigger).triggers));
+        // console.log("CLEARED: ", trigger);
+      }
+      for(let trigger of Object.keys(handled)) {
+        let view = this.table(trigger).view;
+        if(view) {
+          this.execTrigger(view);
+        }
+      }
+    }
     execTriggers(triggers) {
       let newTriggers = {};
       let retrigger = false;
       for(let triggerName in triggers) {
+        // console.log("Calling:", triggerName);
         let trigger = triggers[triggerName];
         let nextRound = this.execTrigger(trigger);
         if(nextRound) {
           retrigger = true;
           for(let trigger in nextRound) {
+            // console.log("Queuing:", trigger);
             newTriggers[trigger] = nextRound[trigger];
           }
         }
@@ -361,7 +382,9 @@ return index;`
       let dump = {};
       for(let tableName in this.tables) {
         let table = this.tables[tableName];
-        dump[tableName] = table.table;
+        if(!table.isView) {
+          dump[tableName] = table.table;
+        }
       }
       return JSON.stringify(dump);
     }
@@ -378,8 +401,14 @@ return index;`
     }
     applyDiff(diff:Diff) {
       let {triggers, realDiffs} = this.execDiff(diff);
+      let cleared = {};
+      let round = 0;
+      if(triggers) this.transitivelyClearTriggers(triggers);
       while(triggers) {
+        // console.group(`ROUND ${round}`);
         triggers = this.execTriggers(triggers);
+        round++;
+        // console.groupEnd(`ROUND ${round}`);
       }
     }
     table(tableId) {
@@ -409,6 +438,7 @@ return index;`
     asView(query:Query|Union) {
       let name = query.name;
       let view = this.table(name);
+      view.view = query;
       view.isView = true;
       for(let tableName of query.tables) {
         let table = this.table(tableName);
@@ -418,6 +448,13 @@ return index;`
       while(nextRound) {
         nextRound = this.execTriggers(nextRound);
       };
+    }
+    totalFacts() {
+      let total = 0;
+      for(let tableName in this.tables) {
+        total += this.tables[tableName].table.length;
+      }
+      return total;
     }
   }
 
@@ -656,13 +693,17 @@ return index;`
         let arg = args[param];
         let argCode;
         if(arg.constructor === Array) {
+          let property = "";
+          if(arg[1]) {
+            property = `['${arg[1]}']`;
+          }
           if(!unprojected) {
-            argCode = `row${arg[0]}['${arg[1]}']`;
+            argCode = `row${arg[0]}${property}`;
           } else {
-            argCode = `unprojected[ix + ${arg[0]}]['${arg[1]}']`;
+            argCode = `unprojected[ix + ${arg[0]}]${property}`;
           }
         } else {
-          argCode = arg;
+          argCode = JSON.stringify(arg);
         }
         code += `${argCode}, `;
       }
@@ -873,6 +914,7 @@ return index;`
       let ast = this.toAST();
       let code = this.compileAST(ast);
       this.compiled = new Function("ixer", "QueryFunctions", code);
+      this.dirty = false;
       return this;
     }
     exec() {
@@ -1030,6 +1072,7 @@ return index;`
       let ast = this.toAST();
       let code = this.compileAST(ast);
       this.compiled = new Function("ixer", "hasher", "prevHashes", code);
+      this.dirty = false;
       return this;
     }
     debug() {

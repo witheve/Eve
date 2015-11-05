@@ -178,7 +178,7 @@ module wiki {
     return cached[1];
   }
 
-  function articleToHTML(lines) {
+  function articleToHTML(lines, searchId) {
     let children = [];
     for (let line of lines) {
       let lineChildren = [];
@@ -194,7 +194,7 @@ module wiki {
         }
         let link = item.link.toLowerCase();
         let found = eve.findOne("page", {page: link}) || eve.findOne("deck", {page: link});
-        lineChildren.push({t: "span", c: `${item.type} ${found ? 'found' : ""}`, text: item.link, linkText: link, click: followLink});
+        lineChildren.push({t: "span", c: `${item.type} ${found ? 'found' : ""}`, text: item.link, linkText: link, click: followLink, searchId});
       }
       if(line.header) {
         lineChildren = [{t: "h1", children: lineChildren}];
@@ -555,7 +555,6 @@ function walk(tree, indent = 0) {
     if(state.consuming) {
       let item = state.operationStack.pop();
       while(item) {
-        console.log("Consuming: ", item);
         cursor = item.cursor || root;
         if(state.operator.children.length > state.operator.operation.argCount) {
           // we consumed one too many, so push that onto either the parent operator or
@@ -577,7 +576,7 @@ function walk(tree, indent = 0) {
             // we have something that could nest.
             let tip = child;
             while(tip.children.length) {
-              tip = tip.children[tip.children.length - 1];
+              tip = tip.children[0];
             }
             if(operation.attribute) {
               let neueAttr = {type: "attribute", found: operation.attribute, orig: operation.attribute, id: uuid(), children: []};
@@ -737,7 +736,7 @@ function walk(tree, indent = 0) {
       for(let arg of info.args) {
         let value = op.children[ix];
         if(value.type && value.type === "value") {
-          args[arg] = value.value;
+          args[arg] = JSON.parse(value.value);
         } else if(value.type) {
           args[arg] = [value.id, "value"];
         } else {
@@ -1112,7 +1111,37 @@ function walk(tree, indent = 0) {
         lineWrapping: true,
         extraKeys: {
           "Cmd-Enter": (cm) => {
-            commitArticle(cm, elem);
+            let latest = app.renderer.tree[elem.id];
+            commitArticle(cm, latest);
+          }
+        }
+      });
+      if(elem.onInput) {
+        cm.on("change", elem.onInput)
+      }
+      if(elem.keydown) {
+        cm.on("keydown", (cm) => { elem.keydown(cm, elem); });
+      }
+      if(elem.blur) {
+        cm.on("blur", (cm) => { elem.blur(cm, elem); });
+      }
+      cm.focus();
+    }
+    if(cm.getValue() !== elem.value) {
+      cm.setValue(elem.value);
+    }
+  }
+
+  function NewBitEditor(node, elem) {
+    let cm = node.editor;
+    if(!cm) {
+      cm = node.editor = new CodeMirror(node, {
+        mode: "gfm",
+        lineWrapping: true,
+        extraKeys: {
+          "Cmd-Enter": (cm) => {
+            let latest = app.renderer.tree[elem.id];
+            submitAction(cm, latest);
           }
         }
       });
@@ -1140,7 +1169,8 @@ function walk(tree, indent = 0) {
         lineWrapping: true,
         extraKeys: {
           "Enter": (cm) => {
-            app.dispatch("setSearch", {value: cm.getValue()}).commit();
+            let latest = app.renderer.tree[elem.id];
+            app.dispatch("setSearch", {value: cm.getValue(), searchId: latest.searchId}).commit();
           }
         }
       });
@@ -1180,11 +1210,10 @@ function walk(tree, indent = 0) {
   // Wiki
   //---------------------------------------------------------
 
-  export var activeSearch:{tokens: any[], query: any, plan: any[]};
+  var dragging = null;
 
   app.handle("startEditingArticle", (result, info) => {
-    let page = info.page.toLowerCase();
-    result.add("editing", {editing: true, page});
+    result.add("editing", {editing: true, search: info.searchId});
   });
 
   app.handle("stopEditingArticle", (result, info) => {
@@ -1192,12 +1221,13 @@ function walk(tree, indent = 0) {
     result.remove("editing");
     let {page, value} = info;
     page = page.toLowerCase();
-    result.add("page", {page, text: value});
-    result.remove("page", {page});
+    result.add("manual page", {page, content: value});
+    result.remove("manual page", {page});
   });
 
   app.handle("setSearch", (result, info) => {
-    let search = eve.findOne("search")["search"];
+    let searchId = info.searchId;
+    let search = eve.findOne("search query", {id: searchId})["search"];
     if(search === info.value) return;
 
     if(!eve.findOne("history stack", {page: search})) {
@@ -1205,20 +1235,39 @@ function walk(tree, indent = 0) {
       result.add("history stack", {page: search, pos: stack.length});
     }
     let newSearchValue = info.value.trim();
-    app.activeSearch = newSearch(newSearchValue);
-    result.remove("search");
-    result.add("search", {search: newSearchValue});
+    app.activeSearches[searchId] = newSearch(newSearchValue);
+    result.remove("search query", {id: searchId});
+    result.add("search query", {id: searchId, search: newSearchValue});
   });
 
   app.handle("submitAction", (result, info) => {
-    let search = eve.findOne("search")["search"];
-    result.merge(saveSearch(search, app.activeSearch.query));
+    let searchId = info.searchId;
+    let search = eve.findOne("search query", {id: searchId})["search"];
+    result.merge(saveSearch(search, app.activeSearches[searchId].query));
     if(info.type === "attribute") {
       if(!info.entity || !info.attribute || !info.value) return;
       result.merge(addEavAction(search, info.entity, info.attribute, info.value));
     } else if(info.type === "collection") {
       result.merge(addToCollectionAction(search, info.entity, info.collection));
+    } else if(info.type === "bit") {
+      result.merge(addBitAction(search, info.template, app.activeSearches[searchId].query));
     }
+  });
+
+  app.handle("addNewSearch", (result, info) => {
+    let id = uuid();
+    let search = info.search || "foo";
+    app.activeSearches[id] = newSearch(search);
+    result.add("search", {id, top: info.top || 100, left: info.left || 100});
+    result.add("search query", {id, search});
+  });
+
+  app.handle("removeSearch", (result, info) => {
+    let {searchId} = info;
+    if(!searchId) return;
+    result.remove("search", {id: searchId});
+    result.remove("search query", {id: searchId});
+    app.activeSearches[searchId] = null;
   });
 
   app.handle("startAddingAction", (result, info) => {
@@ -1228,6 +1277,30 @@ function walk(tree, indent = 0) {
 
   app.handle("stopAddingAction", (result, info) => {
     result.remove("adding action");
+  });
+
+  app.handle("startDragging", (result, info) => {
+    let {searchId, x, y} = info;
+    let pos = eve.findOne("search", {id: searchId});
+    dragging = {id: searchId, offsetTop: y - pos.top, offsetLeft: x - pos.left};
+  });
+
+  app.handle("stopDragging", (result, info) => {
+    dragging = null;
+  });
+
+  app.handle("moveSearch", (result, info) => {
+    let {searchId, x, y} = info;
+    result.remove("search", {id: searchId});
+    result.add("search", {id: searchId, top: y - dragging.offsetTop, left: x - dragging.offsetLeft});
+  });
+
+  app.handle("toggleShowPlan", (result, info) => {
+    if(eve.findOne("showPlan", {search: info.searchId})) {
+      result.remove("showPlan", {search: info.searchId});
+    } else {
+      result.add("showPlan", {search: info.searchId});
+    }
   });
 
   function randomlyLetter(phrase, klass) {
@@ -1241,57 +1314,303 @@ function walk(tree, indent = 0) {
     return {c: `phrase ${klass}`, children};
   }
 
-  export function root() {
-    let search = "";
-    let searchObj = eve.findOne("search");
-    if(searchObj) {
-      search = searchObj["search"];
+  var slideNumber = 12;
+  var slides = [
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("The world is full of bits of information.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("We spend our lives exploring those bits.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("They form the foundation of our understanding, our decisions, our work...")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("And yet the tools we have to work with them are fairly primitive.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("That's where I come in.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("I help collect, explore, and communicate aspects of the world around you.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("My name is Eve.")
+     ]}},
+    {type: "slide",
+     setup: () => {
+       let diff = eve.diff();
+       diff.add("search", {id: "vin diesel", top: 0, left: 0});
+       diff.add("search query", {id: "vin diesel", search: "vin diesel"});
+       eve.applyDiff(diff);
+       app.activeSearches["vin diesel"] = newSearch("vin diesel");
+     },
+     teardown: () => {
+       let diff = eve.diff();
+       diff.remove("search", {id: "vin diesel"});
+       diff.remove("search query", {id: "vin diesel"});
+       eve.applyDiff(diff);
+       app.activeSearches["vin diesel"] = null;
+     },
+     content: () => {
+       let search = newSearchResults("vin diesel");
+       search.leave = {opacity:0, duration: 300},
+       search.enter = {opacity:1, duration: 2500, delay: 300, begin: (node) => {
+         if(!node[0]) return;
+         setTimeout(() => {
+           node[0].querySelector(".search-box").editor.refresh();
+         }, 30);
+       }};
+       return {children: [
+         randomlyLetter("And I collect bits like this one"),
+         search,
+         //        {c: "bit entity", text: "George Washington"}
+       ]}}
+    },
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("There are some serious advantages to collecting information in bits.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       {id: "slide-list" c: "list", children: [
+         randomlyLetter("- Capture information however it comes."),
+         randomlyLetter("- No planning or pre-structuring"),
+         randomlyLetter("- Nothing is too big or too small"),
+         randomlyLetter("- Not just tables, it's the whole story"),
+       ]}
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("I can also pull in information from the outside world.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("But the most important thing is that I was designed to be malleable.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("Together we can...")
+       {id: "slide-list" c: "list", children: [
+         randomlyLetter("- Add structure at any time"),
+         randomlyLetter("- Work with heterogenous collections"),
+         randomlyLetter("- Handle one off tasks"),
+         randomlyLetter("- Cleanly deal with special cases"),
+       ]}
+     ]}},
+    {type: "eve"},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("The purpose of collecting all this is to explore it.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("But I likely mean something different than what you're thinking.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("Exploration isn't just navigation. It's discovering new information.")
+     ]}},
+    {type: "slide",
+     setup: () => {
+       let diff = eve.diff();
+       diff.add("search", {id: "vin diesel", top: 0, left: 0});
+       diff.add("search query", {id: "vin diesel", search: "vin diesel"});
+       eve.applyDiff(diff);
+       app.activeSearches["vin diesel"] = newSearch("vin diesel");
+     },
+     teardown: () => {
+       let diff = eve.diff();
+       diff.remove("search", {id: "vin diesel"});
+       diff.remove("search query", {id: "vin diesel"});
+       eve.applyDiff(diff);
+       app.activeSearches["vin diesel"] = null;
+     },
+     content: () => {
+       let search = newSearchResults("vin diesel");
+       search.leave = {opacity:0, duration: 300},
+       search.enter = {opacity:1, duration: 1000, delay: 300, begin: (node) => {
+         if(!node[0]) return;
+         setTimeout(() => {
+           node[0].querySelector(".search-box").editor.refresh();
+         }, 30);
+       }};
+       return {children: [
+         search,
+         //        {c: "bit entity", text: "George Washington"}
+       ]}}
+    },
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("My search is more powerful than most searches you're used to.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       {id: "slide-list" c: "list", children: [
+         randomlyLetter("- It's live"),
+         randomlyLetter("- It's tangible"),
+         randomlyLetter("- It's manipulable"),
+       ]}
+     ]}},
+    {type: "eve"},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("You can do nearly anything simply by searching and formatting the results.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("I can also peer into the past and help explore alternative futures.")
+     ]}},
+    {type: "eve"},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("The world is changing")
+       {id: "slide-list" c: "list", children: [
+         randomlyLetter("- New inputs: pen, voice"),
+         randomlyLetter("- New displays: mobile, VR, AR"),
+         randomlyLetter("- New systems: everything is distributed"),
+         randomlyLetter("- New work: everything is data, and it's changing"),
+       ]}
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("I was designed to...")
+       {id: "slide-list" c: "list", children: [
+         randomlyLetter("- Collect"),
+         randomlyLetter("- Explore"),
+         randomlyLetter("- Communicate"),
+       ]}
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("I was designed to be...")
+       {id: "slide-list" c: "list", children: [
+         randomlyLetter("- Alive"),
+         randomlyLetter("- Malleable"),
+         randomlyLetter("- Everywhere"),
+       ]}
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("Questions")
+       {id: "slide-list" c: "list", children: [
+         randomlyLetter("- She vs. it"),
+         randomlyLetter("- Mobile?"),
+         randomlyLetter("- What is eve?"),
+       ]}
+     ]}},
+  ]
+
+  function nextSlide(e, elem) {
+    let prev = slides[slideNumber];
+    if(prev.teardown) {
+      prev.teardown();
     }
-    return {id: "root", c: "root", children: [
-      {c: "spacer"},
+    if(!elem.back) {
+      slideNumber++;
+    } else {
+      slideNumber--;
+    }
+    if(slideNumber < 0) slideNumber = 0;
+    if(slideNumber >= slides.length) slideNumber = slides.length - 1;
+    let slide = slides[slideNumber];
+    if(slide.setup) {
+      slide.setup();
+    }
+    e.stopPropagation();
+    e.preventDefault();
+    console.log(slideNumber);
+    app.render();
+  }
+
+  function slideControls() {
+    return {c: "slide-controls", children: [
+      {c: "ion-ios-arrow-back", back: true, click: nextSlide},
+      {c: "ion-ios-arrow-forward", click: nextSlide}
+    ]};
+  }
+
+  export function root() {
+    let slide = slides[slideNumber] || {type: "slide"};
+    if(slide.type === "slide") {
+      let content = slide.content;
+      if(typeof content === "function") {
+        content = content();
+      }
+      return {id: "root", c: "root slide", children: [
+        slideControls(),
+        content
+      ]};
+    } else {
+      return eveRoot();
+    }
+  }
+
+  function eveRoot() {
+    let searchers = [];
+    for(let search of eve.find("search")) {
+      searchers.push(newSearchResults(search.id));
+    }
+    return {id: "root", c: "root", dblclick: addNewSearch, children: [
+      slideControls(),
 //       randomlyLetter("Let's get started."),
-      newSearchResults(),
+      {c: "canvas", mousemove: maybeDrag, children: searchers},
 //       relatedItems(),
-      {c: "spacer"},
 //       historyStack(),
     ]};
   }
 
-  function articleUi(articleId, instance:string|number = "") {
-    let article = eve.findOne("page", {page: articleId}) || {text: ""};
+  function maybeDrag(e, elem) {
+    if(dragging) {
+      app.dispatch("moveSearch", {searchId: dragging.id, x: e.clientX, y: e.clientY}).commit();
+      e.preventDefault();
+    }
+  }
+
+  function addNewSearch(e, elem) {
+    if(e.target.classList.contains("canvas")) {
+      app.dispatch("addNewSearch", {top: e.clientY, left: e.clientX}).commit();
+      e.preventDefault();
+    }
+  }
+
+  function articleUi(articleId, instance:string|number = "", searchId) {
+    let article = eve.findOne("page", {page: articleId}) || {content: ""};
     let articleView;
-    if(!eve.findOne("editing", {page: articleId})) {
-      articleView = {id: `${articleId}${instance}`, c: "article", page: articleId, children: articleToHTML(parsePage(articleId, article.text).lines), dblclick: editArticle, enter: {display: "flex", opacity: 1, duration: 300}};
+    if(!eve.findOne("editing", {search: searchId})) {
+      articleView = {id: `${articleId}${instance}`, c: "article", searchId, page: articleId, children: articleToHTML(parsePage(articleId, article.content).lines, searchId), dblclick: editArticle, enter: {display: "flex", opacity: 1, duration: 300}};
     } else {
-      articleView = {id: "article editor", c: "article editor", page: articleId, postRender: CodeMirrorElement, value: article.text, blur: commitArticle};
+      articleView = {id: `${articleId}${instance}|editor`, c: "article editor", page: articleId, searchId, postRender: CodeMirrorElement, value: article.content, blur: commitArticle};
     }
-    let relatedBits;
-    let addedEavs = eve.find("added eavs", {page: articleId});
-    if(addedEavs) {
-      let children = [];
-      for(let added of addedEavs) {
-        children.push({c: "bit attribute", click: followLink, linkText: added["source view"], children: [
-          {c: "header attribute", text: added.attribute},
-          {c: "value", text: added.value},
-        ]})
-      }
-      relatedBits = {c: "related-bits", children};
+    let relatedBits = [];
+    for(let added of eve.find("added eavs", {page: articleId})) {
+      relatedBits.push({c: "bit attribute", click: followLink, searchId, linkText: added["source view"], children: [
+        {c: "header attribute", text: added.attribute},
+        {c: "value", text: added.value},
+      ]})
     }
-    let relatedColls;
-    let addedColls = eve.find("added collections", {page: articleId});
-    if(addedColls) {
-      let children = [];
-      for(let added of addedColls) {
-        children.push({c: "bit collection", click: followLink, linkText: added["source view"], children: [
-          {c: "header collection", text: added.deck},
-        ]})
-      }
-      relatedColls = {c: "related-bits", children};
+    for(let added of eve.find("added collections", {page: articleId})) {
+      relatedBits.push({c: "bit collection", click: followLink, searchId, linkText: added["source view"], children: [
+        {c: "header collection", text: added.deck},
+      ]})
     }
+    for(let incoming of eve.find("page links", {link: articleId})) {
+      if(incoming.page === articleId) continue;
+      relatedBits.push({c: "bit entity", click: followLink, searchId, linkText: incoming.page, children: [
+        {c: "header entity", text: incoming.page},
+      ]})
+    }
+
     return {c: "article-container", children: [
       articleView,
-      relatedBits,
-      relatedColls,
+      {c: "related-bits", children: relatedBits},
     ]};
   }
 
@@ -1312,7 +1631,7 @@ function walk(tree, indent = 0) {
         if(step.collection) {
           coll = pluralize(step.collection, 2);
         }
-        planChildren.push({c: "text", text: `gather ${coll} ${related}`});
+        planChildren.push({c: "text collection", text: `gather ${coll} ${related}`});
       } else if(step.type === "intersect") {
         if(step.deselect) {
           planChildren.push({c: "text", text: `remove the ${pluralize(step.collection, 2)}`});
@@ -1320,21 +1639,21 @@ function walk(tree, indent = 0) {
           planChildren.push({c: "text", text: `keep only the ${pluralize(step.collection, 2)}`});
         }
       } else if(step.type === "lookup") {
-        planChildren.push({c: "text", text: `lookup ${step.attribute}`});
+        planChildren.push({c: "text attribute", text: `lookup ${step.attribute}`});
       } else if(step.type === "find") {
-        planChildren.push({c: "text", text: `find ${step.entity}`});
+        planChildren.push({c: "text entity", text: `find ${step.entity}`});
       } else if(step.type === "filter by entity") {
         if(step.deselect) {
-          planChildren.push({c: "text", text: `remove anything related to ${step.entity}`});
+          planChildren.push({c: "text entity", text: `remove anything related to ${step.entity}`});
         } else {
-          planChildren.push({c: "text", text: `related to ${step.entity}`});
+          planChildren.push({c: "text entity", text: `related to ${step.entity}`});
         }
       } else if(step.type === "filter") {
-        planChildren.push({c: "text", text: `filter those by ${step.func}`});
+        planChildren.push({c: "text operation", text: `filter those by ${step.func}`});
       } else if(step.type === "sort") {
-        planChildren.push({c: "text", text: `sort them by `});
+        planChildren.push({c: "text operation", text: `sort them by `});
       } else if(step.type === "group") {
-        planChildren.push({c: "text", text: `group them by `});
+        planChildren.push({c: "text operation", text: `group them by `});
       } else if(step.type === "limit") {
         let limit;
         if(step.limit.results) {
@@ -1342,11 +1661,11 @@ function walk(tree, indent = 0) {
         } else {
           limit = `to ${step.limit.perGroup} items per group`;
         }
-        planChildren.push({c: "text", text: `limit ${limit}`});
+        planChildren.push({c: "text operation", text: `limit ${limit}`});
       } else if(step.type === "calculate") {
-        planChildren.push({c: "text", text: `${step.type}->`});
+        planChildren.push({c: "text operation", text: `${step.type}->`});
       } else if(step.type === "aggregate") {
-        planChildren.push({c: "text", text: `${step.aggregate}`});
+        planChildren.push({c: "text operation", text: `${step.aggregate}`});
       } else {
         planChildren.push({c: "text", text: `${step.type}->`});
       }
@@ -1356,9 +1675,10 @@ function walk(tree, indent = 0) {
     ]};
   }
 
-  function newSearchResults() {
-    let search = eve.findOne("search")["search"];
-    let {tokens, plan, query} = app.activeSearch;
+  function newSearchResults(searchId) {
+    let {top, left} = eve.findOne("search", {id: searchId});
+    let search = eve.findOne("search query", {id: searchId})["search"];
+    let {tokens, plan, query} = app.activeSearches[searchId];
     let resultItems = [];
     let groupedFields = {};
     if(query) {
@@ -1380,10 +1700,8 @@ function walk(tree, indent = 0) {
         }
       }
 
-      console.log(plan, groupedFields);
       let results = query.exec();
       let groupInfo = results.groupInfo;
-      console.log(results);
       let planLength = plan.length;
       row: for(let ix = 0, len = results.unprojected.length; ix < len; ix += query.unprojectedSize) {
         if(groupInfo && ix > groupInfo.length) break;
@@ -1427,7 +1745,7 @@ function walk(tree, indent = 0) {
             }
             if(text) {
               let rand = Math.floor(Math.random() * 20) + 1;
-              let item = {id: `${search} ${ix} ${planIx}`, c: `bit ${klass}`, text, click, linkText: link, enter: {opacity:1, duration: rand * 100, delay: ix * 0}};
+              let item = {id: `${searchId} ${ix} ${planIx}`, c: `bit ${klass}`, text, click, searchId, linkText: link, enter: {opacity:1, duration: rand * 100, delay: ix * 0}};
               if(groupedFields[planItem.name] && !resultItem.children[planIx]) {
                 resultItem.children[planIx] = {c: "sub-group", children: [item]};
               } else if(!groupedFields[planItem.name] && !resultItem.children[planIx]) {
@@ -1442,9 +1760,9 @@ function walk(tree, indent = 0) {
       }
     }
     if(plan.length === 1 && plan[0].type === "find") {
-      resultItems.push({c: "singleton", children: [articleUi(plan[0].entity)]});
+      resultItems.push({c: "singleton", children: [articleUi(plan[0].entity, searchId, searchId)]});
     } else if(plan.length === 0) {
-      resultItems.push({c: "singleton", children: [articleUi(search)]});
+      resultItems.push({c: "singleton", children: [articleUi(search, searchId, searchId)]});
     }
     let actions = [];
     for(let eavAction of eve.find("add eav action", {view: search})) {
@@ -1464,6 +1782,13 @@ function walk(tree, indent = 0) {
         {c: "header collection", text: pluralize(collectionAction.collection, 2)},
       ]})
     }
+    for(let bitAction of eve.find("add bit action", {view: search})) {
+      let {template, action} = bitAction;
+      actions.push({c: "action new-bit", children: [
+        {c: "description", text: "actions"},
+        {c: "bit entity", children: articleToHTML(parsePage(action, template).lines)}
+      ]})
+    }
 
     let addActionChildren = [];
     let adding = eve.findOne("adding action");
@@ -1476,7 +1801,7 @@ function walk(tree, indent = 0) {
         {text: " = "},
         {t: "input", c: "value", placeholder: "value"},
         {c: "spacer"},
-        {c: "button", text: "submit", click: submitAction},
+        {c: "button", text: "submit", click: submitAction, searchId},
         {c: "button", text: "cancel", click: stopAddingAction},
       ]});
      } else if(adding.type === "collection") {
@@ -1486,13 +1811,22 @@ function walk(tree, indent = 0) {
         {text: " are "},
         {t: "input", c: "collection", placeholder: "collection"},
         {c: "spacer"},
-        {c: "button", text: "submit", click: submitAction},
+        {c: "button", text: "submit", click: submitAction, searchId},
         {c: "button", text: "cancel", click: stopAddingAction},
       ]});
+     } else if(adding.type === "bit") {
+      addActionChildren.push({c: "add-collection", children: [
+        {c: "new-bit-editor", searchId, value: "hi!", postRender: NewBitEditor},
+        {c: "spacer"},
+//         {c: "button", text: "submit", click: submitAction},
+        {c: "button", text: "cancel", click: stopAddingAction},
+      ]});
+
      }
     } else {
       addActionChildren.push({c: "", text: "add attribute", actionType: "attribute", click: startAddingAction});
       addActionChildren.push({c: "", text: "add to collection", actionType: "collection", click: startAddingAction});
+      addActionChildren.push({c: "", text: "add bit", actionType: "bit", click: startAddingAction});
     }
 
     let headers = []
@@ -1502,16 +1836,41 @@ function walk(tree, indent = 0) {
       if(step.size === 0) continue;
       headers.push({text: step.name});
     }
-
-    return {c: "container", children: [
-      {c: "search-input", value: search, postRender: CMSearchBox},
-//       searchDescription(tokens, plan),
-      headers.length ? {c: "search-headers", children: headers} : undefined,
+    let isDragging = dragging && dragging.id === searchId ? "dragging" : "";
+    let showPlan = eve.findOne("showPlan", {search: searchId}) ? searchDescription(tokens, plan) : undefined;
+    return {id: `${searchId}|container`, c: `container search-container ${isDragging}`, top, left, children: [
+      {c: "search-input", mousedown: startDragging, mouseup: stopDragging, searchId, children: [
+        {c: "search-box", value: search, postRender: CMSearchBox, searchId},
+        {c: "ion-android-close close", click: removeSearch, searchId},
+        {c: `ion-ios-arrow-${showPlan ? 'up' : 'down'} plan`, click: toggleShowPlan, searchId},
+      ]},
+      showPlan,
+      {c: "search-headers", children: headers},
       {c: "search-results", children: resultItems},
 //       randomlyLetter(`I found ${resultItems.length} results.`),
-      {c: "related-bits", children: actions},
+      {c: "", children: actions},
       {c: "add-action", children: addActionChildren}
     ]};
+  }
+
+  function toggleShowPlan(e, elem) {
+    app.dispatch("toggleShowPlan", {searchId: elem.searchId}).commit();
+  }
+
+  function startDragging(e, elem) {
+    if(e.target === e.currentTarget) {
+      app.dispatch("startDragging", {searchId: elem.searchId, x: e.clientX, y: e.clientY}).commit();
+    }
+  }
+
+  function stopDragging(e, elem) {
+    if(e.target === e.currentTarget) {
+      app.dispatch("stopDragging", {}).commit();
+    }
+  }
+
+  function removeSearch(e, elem) {
+    app.dispatch("removeSearch", {searchId: elem.searchId}).commit();
   }
 
   function startAddingAction(e, elem) {
@@ -1523,11 +1882,21 @@ function walk(tree, indent = 0) {
   }
 
   function submitAction(e, elem) {
-    let values = {type: eve.findOne("adding action")["type"]};
-    let parent = e.currentTarget.parentNode;
-    for(let child of parent.childNodes) {
-      if(child.nodeName === "INPUT") {
-        values[child.className] = child.value;
+    let values = {type: eve.findOne("adding action")["type"],
+                  searchId: elem.searchId};
+    if(values.type === "bit") {
+      if(e.getValue) {
+        values.template = e.getValue();
+      } else {
+        let editor = e.currentTarget.parentNode.querySelector("new-bit-editor").editor;
+        values.template = editor.getValue();
+      }
+    } else {
+      let parent = e.currentTarget.parentNode;
+      for(let child of parent.childNodes) {
+        if(child.nodeName === "INPUT") {
+          values[child.className] = child.value;
+        }
       }
     }
     app.dispatch("submitAction", values)
@@ -1536,16 +1905,16 @@ function walk(tree, indent = 0) {
   }
 
   function commitArticle(cm, elem) {
-    app.dispatch("stopEditingArticle", {page: elem.page, value: cm.getValue()}).commit();
+    app.dispatch("stopEditingArticle", {searchId: elem.searchId, page: elem.page, value: cm.getValue()}).commit();
   }
 
   function editArticle(e, elem) {
-    app.dispatch("startEditingArticle", {page: elem.page}).commit();
+    app.dispatch("startEditingArticle", {searchId: elem.searchId, page: elem.page}).commit();
     e.preventDefault();
   }
 
   function followLink(e, elem) {
-    app.dispatch("setSearch", {value: elem.linkText}).commit();
+    app.dispatch("setSearch", {value: elem.linkText, searchId: elem.searchId}).commit();
   }
 
   function first2Letters(str) {
@@ -1629,6 +1998,47 @@ function walk(tree, indent = 0) {
     } else {
       return eve.diff();
     }
+  }
+
+  function addBitAction(name, template, query) {
+    console.log(name, template, query);
+    let diff = eve.diff();
+    let names = Object.keys(query.projectionMap);
+    // add an action
+    let bitQueryId = `${name}|bit`;
+    let action = `${name}|${template}`;
+    diff.add("add bit action", {view: name, action, template});
+    diff.remove("add bit action", {view: name});
+    let bitQuery = eve.query(bitQueryId)
+                   .select("add bit action", {view: name}, "action")
+                   .select(name, {}, "table")
+                   .calculate("bit template", {row: ["table"], name, template: ["action", "template"]}, "result")
+                   .project({page: ["result", "page"], content: ["result", "content"]});
+    diff.merge(queryObjectToDiff(bitQuery));
+    diff.merge(removeView(bitQueryId));
+    diff.add("action", {view: "added bits", action, kind: "union", ix: 1});
+    // a source
+    diff.add("action source", {action, "source view": bitQueryId});
+    // a mapping
+    diff.add("action mapping", {action, from: "page", "to source": action, "to field": "page"});
+    diff.add("action mapping", {action, from: "content", "to source": action, "to field": "content"});
+    diff.add("action mapping constant", {action, from: "source view", value: name});
+    return diff;
+  }
+
+  export function removeView(view) {
+    let diff = eve.diff();
+    diff.remove("view", {view});
+    for(let actionItem of eve.find("action", {view})) {
+      let action = actionItem.action;
+      diff.remove("action", {action});
+      diff.remove("action source", {action});
+      diff.remove("action mapping", {action});
+      diff.remove("action mapping constant", {action});
+      diff.remove("action mapping sorted", {action});
+      diff.remove("action mapping limit", {action});
+    }
+    return diff;
   }
 
   export function clearSaved() {
@@ -1792,10 +2202,11 @@ function walk(tree, indent = 0) {
   var diff = eve.diff();
   diff.add("view", {view: "added collections", kind: "union"});
   diff.add("view", {view: "added eavs", kind: "union"});
+  diff.add("view", {view: "added bits", kind: "union"});
   eve.applyDiff(diff);
 
 
-  function compile(ixer, viewId) {
+  export function compile(ixer, viewId) {
     let view = ixer.findOne("view", {view: viewId});
     if(!view) {
       throw new Error(`No view found for ${viewId}.`);
@@ -1822,7 +2233,6 @@ function walk(tree, indent = 0) {
         for(let mapping of mappings) {
           sorted.push([mapping["source"], mapping["field"], mapping["direction"]]);
         }
-        console.log("sorted", sorted);
         if(sorted.length) {
           compiled[actionKind](sorted);
         } else {
@@ -1868,6 +2278,23 @@ function walk(tree, indent = 0) {
 
   runtime.define("parse eavs", {multi: true}, function(page, text) {
     return parsePage(page, text).eavs;
+  });
+
+  runtime.define("bit template", {multi: true}, function(row, name, template) {
+    let content = template;
+    for(let key in row) {
+      let item = row[key];
+      content = content.replace(new RegExp(`{${key}}`, "gi"), item);
+    }
+    let page;
+    let header = content.match(/#.*$/mgi);
+    if(header) {
+      page = header[0].replace("#", "").toLowerCase().trim();
+    } else {
+      let rowId = eve.table(name).stringify(row);
+      page = `${name}|${rowId}`;
+    }
+    return [{page, content}];
   });
 
   runtime.define("count", {}, function(prev) {
@@ -1937,9 +2364,18 @@ function walk(tree, indent = 0) {
   // Queries
   //---------------------------------------------------------
 
+  eve.asView(eve.union("page")
+                .union("manual page", {page: ["page"], content: ["content"]})
+                .union("unmodified added bits", {page: ["page"], content: ["content"]}));
+
+  eve.asView(eve.query("unmodified added bits")
+                .select("added bits", {}, "added")
+                .deselect("manual page", {page: ["added", "page"]}, "modified")
+                .project({page: ["added", "page"], content: ["added", "content"]}));
+
   eve.asView(eve.query("page links")
              .select("page", {}, "page")
-             .calculate("page to graph", {text: ["page", "text"], page: ["page", "page"]}, "links")
+             .calculate("page to graph", {text: ["page", "content"], page: ["page", "page"]}, "links")
              .project({page: ["page", "page"], link: ["links", "link"], type: ["links", "type"]}));
 
   eve.asView(eve.union("directionless links")
@@ -1957,7 +2393,7 @@ function walk(tree, indent = 0) {
 
   eve.asView(eve.query("parsed eavs")
              .select("page", {}, "page")
-             .calculate("parse eavs", {page: ["page", "page"], text: ["page", "text"]}, "parsed")
+             .calculate("parse eavs", {page: ["page", "page"], text: ["page", "content"]}, "parsed")
              .project({page: ["page", "page"], attribute: ["parsed", "attribute"], value: ["parsed", "value"]}));
 
   eve.asView(eve.union("page eavs")
@@ -1967,13 +2403,13 @@ function walk(tree, indent = 0) {
              .union("added eavs", {page: ["page"], attribute: ["attribute"], value: ["value"]}));
 
   eve.asView(eve.union("deck pages")
-             // this is a stored union that is used by the add to collection action to take query results and
-             // push them into collections, e.g. people older than 21 -> [[can drink]]
-             .union("added collections", {page: ["page"], deck: ["deck"]})
              // the rest of these are editor-level views
              .union("collection links", {page: ["page"], deck: ["deck"]})
              .union("history stack", {page: ["page"], deck: "history"})
-             .union("page links", {page: ["link"], deck: ["type"]}));
+             .union("page links", {page: ["link"], deck: ["type"]})
+             // this is a stored union that is used by the add to collection action to take query results and
+             // push them into collections, e.g. people older than 21 -> [[can drink]]
+             .union("added collections", {page: ["page"], deck: ["deck"]}));
 
   eve.asView(eve.union("entity")
              .union("page", {entity: ["page"]}));
@@ -1992,17 +2428,18 @@ function walk(tree, indent = 0) {
     let stored = localStorage["eve"];
     if(!stored) {
       var diff = eve.diff();
-      diff.add("page", {page: "foo", text: "[pixar] movies:\n[up]\n[toy story]"});
-      diff.add("page", {page: "pixar", text: "[Pixar] is an animation studio owned by disney"});
-      diff.add("search", {search: "foo"});
+      diff.add("manual page", {page: "foo", content: "[pixar] movies:\n[up]\n[toy story]"});
+      diff.add("manual page", {page: "pixar", content: "[Pixar] is an animation studio owned by disney"});
+      let id = uuid();
+      diff.add("search", {id, top: 100, left: 100});
+      diff.add("search query", {id, search: "foo"});
       eve.applyDiff(diff);
     } else {
       eve.load(stored);
     }
-    app.activeSearch = newSearch(eve.findOne("search")["search"]);
-//     eve.applyDiff(saveSearch("ceo", activeSearch.query));
-//     eve.applyDiff(addToCollectionAction("ceo", "ceo", "executive"));
-//     eve.applyDiff(removeAddEavAction("sum of salaries per department|department|total cost|sum", "department", "total cost", "sum"));
+    for(let search of eve.find("search")) {
+      app.activeSearches[search.id] = newSearch(eve.findOne("search query", {id: search.id})["search"]);
+    }
     // compile all stored views
     for(let view of eve.find("view")) {
       let query = compile(eve, view["view"]);
@@ -2012,7 +2449,7 @@ function walk(tree, indent = 0) {
 
   app.renderRoots["wiki"] = root;
   app.init("wiki", function() {
-    app.activeSearch = {tokens: [], query: null, plan: []};
+    app.activeSearches = {};
     initEve();
   });
 
