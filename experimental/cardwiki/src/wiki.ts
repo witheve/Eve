@@ -1314,12 +1314,252 @@ function walk(tree, indent = 0) {
     return {c: `phrase ${klass}`, children};
   }
 
+  var slideNumber = 25;
+  var slides = [
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("The world is full of bits of information.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("We spend our lives collecting, exploring, and communicating those bits.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("They form the foundation of our understanding, our decisions, our work...")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("And yet the tools we have to work with them are fairly primitive.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("That's where I come in.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("I help collect, explore, and communicate aspects of the world around you.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("My name is Eve.")
+     ]}},
+    {type: "slide",
+     setup: () => {
+       let diff = eve.diff();
+       diff.add("search", {id: "vin diesel", top: 0, left: 0});
+       diff.add("search query", {id: "vin diesel", search: "vin diesel"});
+       eve.applyDiff(diff);
+       app.activeSearches["vin diesel"] = newSearch("vin diesel");
+     },
+     teardown: () => {
+       let diff = eve.diff();
+       diff.remove("search", {id: "vin diesel"});
+       diff.remove("search query", {id: "vin diesel"});
+       eve.applyDiff(diff);
+       app.activeSearches["vin diesel"] = null;
+     },
+     content: () => {
+       let search = newSearchResults("vin diesel");
+       search.leave = {opacity:0, duration: 300},
+       search.enter = {opacity:1, duration: 2500, delay: 300, begin: (node) => {
+         if(!node[0]) return;
+         setTimeout(() => {
+           node[0].querySelector(".search-box").editor.refresh();
+         }, 30);
+       }};
+       return {children: [
+         randomlyLetter("And I collect bits like this one"),
+         search,
+         //        {c: "bit entity", text: "George Washington"}
+       ]}}
+    },
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("There are some serious advantages to collecting information in bits.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       {id: "slide-list" c: "list", children: [
+         randomlyLetter("- Capture information however it comes."),
+         randomlyLetter("- No planning or pre-structuring"),
+         randomlyLetter("- Nothing is too big or too small"),
+         randomlyLetter("- Not just tables, it's the whole story"),
+       ]}
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("I can also pull in information from the outside world.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("But the most important thing is that I was designed to be malleable.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("We can...")
+       {id: "slide-list" c: "list", children: [
+         randomlyLetter("- Add structure at any time"),
+         randomlyLetter("- Work with heterogenous collections"),
+         randomlyLetter("- Handle one off tasks"),
+         randomlyLetter("- Cleanly deal with special cases"),
+       ]}
+     ]}},
+    {type: "eve"},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("The purpose of collecting all this is to then be able to explore it.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("But I likely mean something different than what you're thinking.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("Exploration isn't just navigation. It's discovering new information.")
+     ]}},
+    {type: "slide",
+     setup: () => {
+       let diff = eve.diff();
+       diff.add("search", {id: "vin diesel", top: 0, left: 0});
+       diff.add("search query", {id: "vin diesel", search: "vin diesel"});
+       eve.applyDiff(diff);
+       app.activeSearches["vin diesel"] = newSearch("vin diesel");
+     },
+     teardown: () => {
+       let diff = eve.diff();
+       diff.remove("search", {id: "vin diesel"});
+       diff.remove("search query", {id: "vin diesel"});
+       eve.applyDiff(diff);
+       app.activeSearches["vin diesel"] = null;
+     },
+     content: () => {
+       let search = newSearchResults("vin diesel");
+       search.leave = {opacity:0, duration: 300},
+       search.enter = {opacity:1, duration: 1000, delay: 300, begin: (node) => {
+         if(!node[0]) return;
+         setTimeout(() => {
+           node[0].querySelector(".search-box").editor.refresh();
+         }, 30);
+       }};
+       return {children: [
+         search,
+         //        {c: "bit entity", text: "George Washington"}
+       ]}}
+    },
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("My search is more powerful than most searches you're used to.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       {id: "slide-list" c: "list", children: [
+         randomlyLetter("- It's live"),
+         randomlyLetter("- It's tangible"),
+         randomlyLetter("- It's manipulable"),
+       ]}
+     ]}},
+    {type: "eve"},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("You can do nearly anything simply by searching and formatting the results.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("I can also peer into the past and help explore alternative futures.")
+     ]}},
+    {type: "eve"},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("The world is changing")
+       {id: "slide-list" c: "list", children: [
+         randomlyLetter("- New inputs: pen, voice"),
+         randomlyLetter("- New displays: mobile, VR, AR"),
+         randomlyLetter("- New systems: everything is distributed"),
+         randomlyLetter("- New work: everything is data, and it's changing"),
+       ]}
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("I was designed to...")
+       {id: "slide-list" c: "list", children: [
+         randomlyLetter("- Collect"),
+         randomlyLetter("- Explore"),
+         randomlyLetter("- Communicate"),
+       ]}
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("I was designed to be...")
+       {id: "slide-list" c: "list", children: [
+         randomlyLetter("- Alive"),
+         randomlyLetter("- Malleable"),
+         randomlyLetter("- Everywhere"),
+       ]}
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("Questions")
+       {id: "slide-list" c: "list", children: [
+         randomlyLetter("- She vs. it"),
+         randomlyLetter("- Mobile?"),
+         randomlyLetter("- What is eve?"),
+       ]}
+     ]}},
+  ]
+
+  function nextSlide(e, elem) {
+    let prev = slides[slideNumber];
+    if(prev.teardown) {
+      prev.teardown();
+    }
+    if(!elem.back) {
+      slideNumber++;
+    } else {
+      slideNumber--;
+    }
+    if(slideNumber < 0) slideNumber = 0;
+    if(slideNumber > slides.length) slideNumber = slides.length - 1;
+    let slide = slides[slideNumber];
+    if(slide.setup) {
+      slide.setup();
+    }
+    e.stopPropagation();
+    e.preventDefault();
+    console.log(slideNumber);
+    app.render();
+  }
+
+  function slideControls() {
+    return {c: "slide-controls", children: [
+      {c: "ion-ios-arrow-back", back: true, click: nextSlide},
+      {c: "ion-ios-arrow-forward", click: nextSlide}
+    ]};
+  }
+
   export function root() {
+    let slide = slides[slideNumber] || {type: "slide"};
+    if(slide.type === "slide") {
+      let content = slide.content;
+      if(typeof content === "function") {
+        content = content();
+      }
+      return {id: "root", c: "root slide", children: [
+        slideControls(),
+        content
+      ]};
+    } else {
+      return eveRoot();
+    }
+  }
+
+  function eveRoot() {
     let searchers = [];
     for(let search of eve.find("search")) {
       searchers.push(newSearchResults(search.id));
     }
     return {id: "root", c: "root", dblclick: addNewSearch, children: [
+      slideControls(),
 //       randomlyLetter("Let's get started."),
       {c: "canvas", mousemove: maybeDrag, children: searchers},
 //       relatedItems(),
@@ -1600,7 +1840,7 @@ function walk(tree, indent = 0) {
     let showPlan = eve.findOne("showPlan", {search: searchId}) ? searchDescription(tokens, plan) : undefined;
     return {id: `${searchId}|container`, c: `container search-container ${isDragging}`, top, left, children: [
       {c: "search-input", mousedown: startDragging, mouseup: stopDragging, searchId, children: [
-        {value: search, postRender: CMSearchBox, searchId},
+        {c: "search-box", value: search, postRender: CMSearchBox, searchId},
         {c: "ion-android-close close", click: removeSearch, searchId},
         {c: `ion-ios-arrow-${showPlan ? 'up' : 'down'} plan`, click: toggleShowPlan, searchId},
       ]},

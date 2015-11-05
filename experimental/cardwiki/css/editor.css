@@ -63,10 +63,19 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .search-container:hover .plan { display:flex; }
 .search-input .CodeMirror.cm-s-default { font-size: 16pt; }
 
-.phrase { position:absolute; top: 700px; left: 1000px; display: block; font-size: 16pt; min-height: 20px; max-width:250px; line-height: 35px; }
+.phrase { display: block; font-size: 32pt; min-height: 20px; max-width:750px; line-height: 55px; }
 .phrase span { display:inline; opacity:0; }
 
-.phrase.pos2 { top:430px; }
+.slide-controls { position: absolute; bottom: 15px; left: calc(50% - 92px); flex-direction: row; font-size: 32pt; color: #555; z-index: 10; }
+.slide-controls * {margin-right: 0px; padding:0 15px; }
+.slide-controls div:hover { color: #ccc; }
+
+.slide > div > .bit { flex:none; align-self:center; margin-top:20px; }
+.slide .search-container { position:relative; margin-top: 50px; overflow:hidden;  }
+.slide .search-container:hover .add-action { display:none; }
+.slide .list .phrase { font-size:20pt; }
+.slide .phrase + .list { margin-top: 40px; }
+
 
 .spacer { flex: 1; }
 
