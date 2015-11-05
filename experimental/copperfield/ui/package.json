@@ -8,7 +8,12 @@
     "stylus": "^0.52.4",
     "typescript": "1.6.2"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "gulp": "^3.9.0",
+    "gulp-batch": "^1.0.5",
+    "gulp-help": "^1.6.1",
+    "gulp-livereload": "^3.8.1"
+  },
   "scripts": {
     "test": "./test.sh"
   },
