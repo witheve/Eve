@@ -220,7 +220,7 @@ module Editor {
     },
     parseUi: function({ui:uiString}:{ui:string}) {
       let effect = DispatchEffect.from(this);
-      localState.ui.parse(uiString)
+      localState.ui.parse(uiString);
       return effect;
     },
     compileUi: function({ui}:{ui:Parsers.Ui}) {
@@ -358,7 +358,7 @@ module Editor {
     if(localState.activeKind === "query") entityId = localState.query.id;
     else if(localState.activeKind === "ui") entityId = localState.ui.id;
     else if(localState.activeKind === "page") entityId = (Api.ixer.findOne("selected page") || {})["selected page: page"];
-    return {children: [
+    return {id: "wiki-root-container", children: [
       {text: "Copperfield - " + entityId},
       Ui.tabbedBox({container: "root-workspace", panes: rootPanes, paneChange: switchEditor})
     ]};
