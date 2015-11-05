@@ -231,9 +231,10 @@ module Ui {
       options = opts;
     }
     // Build the option elements
+    let ix = 0;
     let optionElements:Element[] = [];
     for(let value in options) {
-      let item:Element = {t: "option", value, text: options[value]};
+      let item:Element = {t: "option", value, ix: ix++, text: options[value]};
       if(value === defaultOption) {
         item["selected"] = true;
       }
