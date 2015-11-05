@@ -432,7 +432,7 @@ module Editor {
           Ui.input({placeholder: "tags", text: tags, view: query.id,
             blur: dispatchOnEvent("setTags", "info.tags = (evt.target.textContent || '').split(', '); info.id = elem.view")
           }),
-          Ui.dropdown({options: queries, defaultOption: <any>query.id,
+          Ui.dropdown({options: queries, value: <any>query.id,
             change: dispatchOnEvent("loadQuery", "info.viewId = evt.target.value")
           }),
           Ui.button({text: "compile", query, click: dispatchOnEvent("compileQuery")}),
@@ -490,7 +490,7 @@ module Editor {
           Ui.input({placeholder: "tags", text: tags, view: localState.query.id,
             blur: dispatchOnEvent("setTags", "info.tags = (evt.target.textContent || '').split(', '); info.id = elem.view")
           }),
-          Ui.dropdown({options: elems, defaultOption: root,
+          Ui.dropdown({options: elems, value: root,
             change: dispatchOnEvent("loadUi", "info.elementId = evt.target.value")
           }),
           Ui.button({text: "compile", click: dispatchOnEvent("compileUi", "info.ui = localState.ui")}),

@@ -388,7 +388,7 @@ module Bootstrap {
             - flex: "none"
             - text: ?header
         div; wiki page
-          div block bordered; block
+          div block; block
             ~ block ?block on layer ?ix represents ?entity in ?page as a ?projection
             - debug: ?block
             - key: ?block
@@ -409,7 +409,7 @@ module Bootstrap {
                 ~ entity ?entity is a ?kind
                 ~ ?kind entities can look like a ??projection_opts
                 - options: ?projection_opts
-                - defaultOption: ?projection
+                - value: ?projection
                 - flex: "none"
                 @change switch block projection: ?block
               button delete-button; delete block button
