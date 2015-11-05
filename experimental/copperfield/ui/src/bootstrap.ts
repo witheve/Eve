@@ -77,6 +77,7 @@ module Bootstrap {
 
     // Rendering
     "page": ["entity", "page"],
+    "block removed": ["block", "tick"],
     "block history": ["tick", "page", "block", "ix", "entity", "projection"],
     "block": ["page", "block", "ix", "entity", "projection"],
     "projection": ["projection", "element"],
@@ -151,6 +152,7 @@ module Bootstrap {
       "block ?block on layer ?ix represents ?entity in ?page as a ?projection at tick ?tick",
       "block ?block on layer ?ix represents ?entity in ?page as an ?projection at tick ?tick"
     ],
+    "block removed": ["block ?block was removed at ?tick"],
     "projection": ["projection ?projection is templated as ?element"],
     "default projection": ["entity ?entity usually looks like a ?projection", "entity ?entity usually looks like an ?projection"],
     "kind projection": ["?kind entities can look like a ?projection", "?kind entities can look like an ?projection"],
@@ -266,10 +268,12 @@ module Bootstrap {
       + entity ?entity is a ?kind
     `,
 
+    // @TODO: No removals for this block or greatest removal tick < current tick
     "set block state": Parsers.unpad(6) `
       block ?%block on layer ?ix represents ?entity in ?page as a ?projection at tick ?tick
       # ?ord by ?tick descending
       ?ord < "2"
+      ! block ?block was removed at ?
       + block ?block on layer ?ix represents ?entity in ?page as a ?projection
     `,
 
@@ -327,25 +331,26 @@ module Bootstrap {
       event at ?tick is already handled
       + event at ?tick is already handled
     `,
-
     "maintain block history state": Parsers.unpad(6) `
       block ?block on layer ?ix represents ?entity in ?page as a ?projection at tick ?tick
       + block ?block on layer ?ix represents ?entity in ?page as a ?projection at tick ?tick
     `,
-
+    "maintain block removed state": Parsers.unpad(6) `
+      block ?block was removed at ?tick
+      + block ?block was removed at ?tick
+    `,
 
     // User page editing
-    "user created blocks": Parsers.unpad(6) `
+    "user add block": Parsers.unpad(6) `
       ; @TODO: Figure out why I'm failing to fixed point. Its because these unions arent stateful...
       event at ?tick is an "add block" ? with key ?page
       ! event at ?tick is already handled
       next layer for page ?page is ?next
-      ?block-id $= "manual-block-" concat ?tick
-      ?projection = "search-and-replace-projection"
-      + block ?block-id on layer ?next represents ?block-id in ?page as a ?projection at tick ?tick
+      ?block $= "manual-block-" concat ?tick
+      ?empty = ""
+      + block ?block on layer ?next represents ?empty in ?page as a ?empty at tick ?tick
       + event at ?tick is already handled
     `,
-
     "user switch projection": Parsers.unpad(6) `
       event at ?tick is a "switch block projection" ? with key ?block
       ! event at ?tick is already handled
@@ -361,6 +366,13 @@ module Bootstrap {
       block ?block on layer ?ix represents ? in ?page as a ?projection
       + block ?block on layer ?ix represents ?entity in ?page as a ?projection at tick ?tick
       + event at ?tick is already handled
+    `,
+    "user delete block": Parsers.unpad(6) `
+      event at ?tick is a "delete block" ? with key ?block
+      ! event at ?tick is already handled
+      block ?block on layer ? represents ? in ? as a ?
+      + block ?block was removed at ?tick
+      + event at ?tick is already handled
     `
   };
 
@@ -375,21 +387,47 @@ module Bootstrap {
           span
             - flex: "none"
             - text: ?header
-        div; page
-          div; block
-            ~ block ?%block on layer ?ix represents ?entity in ?page as a ?projection
+        div; wiki page
+          div block bordered; block
+            ~ block ?block on layer ?ix represents ?entity in ?%page as a ?projection
             ~ # ?ord by ?ix ascending
+            - debug: ?block
+            - key: ?block
             - ix: ?ix
-            dropdown
-              ~ entity ?entity is a ?kind
-              ~ ?kind entities can look like a ??projection_opts
-              - key: ?block
-              - options: ?projection_opts
-              - defaultOption: ?projection
-              @change switch block projection: ?block
-            div
+            row block-controls justify-end; block controls
+              row; block label
+                span
+                  - text: ?block
+                span
+                  - text: " :: "
+                span
+                  - text: ?entity
+                span
+                  - text: " :: "
+                span
+                  - text: ?ix
+                span
+                  - text: " :: "
+                span
+                  - text: ?ord
+              dropdown
+                ~ entity ?entity is a ?kind
+                ~ ?kind entities can look like a ??projection_opts
+                - key: ?block
+                - options: ?projection_opts
+                - defaultOption: ?projection
+                - flex: "none"
+                @change switch block projection: ?block
+              button delete-button; delete block button
+                - text: "x"
+                @click delete block: ?block
+            div block-content; block content
               ~ projection ?projection is templated as ??element
               > ?element ?entity
+            div block-empty; block empty
+              ~ block ?block on layer ?ix represents ?entity in ?page as a ""
+              ~ projection "search-and-replace-projection" is templated as ??element
+              > ?element ?block
           div bordered; add-block
             - text: "+"
             @click add block: ?page
@@ -403,7 +441,6 @@ module Bootstrap {
     // Projections
     name: Parsers.unpad(6) `
       ~ ?entity is named ?name
-      - c: "bordered"
       - debug: "name"
       - text: ?name
       @click switch page: ?entity
@@ -411,7 +448,6 @@ module Bootstrap {
     // index projection to list related entities by name as blocks
     index: Parsers.unpad(6) `
       ~ ?entity is an entity
-      - c: "bordered"
       ; Hack since alias bindings arent deep yet.
       div
         ~ entity ?entity contains each ?kind
@@ -422,7 +458,6 @@ module Bootstrap {
     `,
     kinds: Parsers.unpad(6) `
       ~ ?entity is an entity
-      - c: "bordered"
       ; Hack since alias bindings arent deep yet.
       row
         ~ entity ?entity is a ?kind
@@ -433,7 +468,6 @@ module Bootstrap {
     `,
     "fact-table": Parsers.unpad(6) `
       ~ view ?entity is a ?
-      - c: "bordered"
       - t: "fact-table"
       - view: ?entity
     `,
@@ -441,16 +475,15 @@ module Bootstrap {
       ~ entity ?entity is a "ui"
       ~ ?entity != "wiki root-elem"
       ~ ?entity != "renderer-projection-elem"
-      - c: "bordered"
       - t: "renderer"
       - element: ?entity
     `,
     "search-and-replace": Parsers.unpad(6) `
-      ~ block ?entity on layer ? represents ? in ? as a ?
+      ~ block ?block on layer ? represents ? in ? as a ?
       - t: "input"
-      - c: "bordered"
+      - value: ""
       - placeholder: "Find an entity..."
-      @change switch block entity: ?entity
+      @change switch block entity: ?block
     `
   };
 
@@ -606,6 +639,5 @@ module Bootstrap {
     }
     effect.done();
     if(Api.DEBUG.BOOTSTRAP) console.groupEnd();
-    Api.DEBUG.STRUCTURED_CHANGE = true;
   });
 }
