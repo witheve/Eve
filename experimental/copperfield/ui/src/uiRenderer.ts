@@ -5,7 +5,8 @@ module UiRenderer {
   type RowTokeyFn = (row:{[key:string]: any}) => string;
 
   interface Element extends MicroReact.Element {
-    __template:string // The id of the uiElement that spawned this element. This relationship may be many to one when bound.
+    static?: boolean
+    __template: string // The id of the uiElement that spawned this element. This relationship may be many to one when bound.
   }
 
   interface UiWarning {
@@ -129,6 +130,7 @@ module UiRenderer {
       for(let root of roots) {
         if(typeof root === "object") {
           compiledElements.push(<Element>root);
+          root.static = true;
           continue;
         }
 
@@ -175,12 +177,13 @@ module UiRenderer {
           }
 
           var boundRows = this.getBoundRows(boundView, bindings);
+          // let stringify = Api.ixer.table(boundView).stringify;
           elems = [];
           let ix = 0;
           for(let row of boundRows) {
             // We need an id unique per row for bound elements.
-            let childId = `${elem.id}.${ix++}`;
-            elems.push({t: elem.t, parent: elem.id, id: childId, __template: templateId});
+            let childId = `${elem.id}.${ix}`;
+            elems.push({t: elem.t, parent: elem.id, id: childId, __template: templateId, ix: ix++});
             elemToRow[childId] = row;
             elemToView[childId] = boundView;
             boundAncestors[childId] = boundAncestors[elem.id]; // Pass over the wrapper, it's these children which are bound.
@@ -263,7 +266,8 @@ module UiRenderer {
 
               boundAncestors[childId] = boundAncestor;
               let childElem:Element = {id: childId, __template: childTemplateId};
-              if(child["uiElement: ix"] !== "") childElem.ix = child["uiElement: ix"];
+              childElem.ix = child["uiElement: ix"];
+              if(typeof childElem.ix !== "number") childElem.ix = undefined;
               elem.children.push(childElem);
               stack.push(childElem);
             }
@@ -296,6 +300,29 @@ module UiRenderer {
       if(DEBUG.RENDER_TIME) {
         console.info(Date.now() - start);
       }
+      for(let elem of compiledElements) {
+        if((<Element>elem).static || !elem.children) continue;
+        stack.push.apply(stack, elem.children);
+      }
+
+      let children = [];
+      while(stack.length > 0) {
+        let elem = stack.shift();
+        elem.id = elem.parent = undefined;
+        if(!elem.children) continue;
+
+        // Sort children (potentally sparsely).
+        for(let child of elem.children) children[child.ix] = child;
+        // Compact children and add them to the stack for sorting.
+        elem.children.length = 0;
+        for(let ix = 0; ix < children.length; ix++) {
+          if(!children[ix]) continue;
+          stack.push(<Element>children[ix]);
+          elem.children.push(children[ix]);
+        }
+        children.length = 0;
+      }
+
       return compiledElements;
     }
 
