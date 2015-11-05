@@ -105,14 +105,14 @@ module Api {
   export function wrap(key:string, values:any[]):Dict[] {
     let res = [];
     for(let value of values) {
-      res[res.length] = {[key]: value};
+      res.push({[key]: value});
     }
     return res;
   }
   export function extract(key:string, objs:Dict[]):any[] {
     let res = [];
     for(let obj of objs) {
-      res[res.length] = obj[key];
+      res.push(obj && obj[key]);
     }
     return res;
   }
