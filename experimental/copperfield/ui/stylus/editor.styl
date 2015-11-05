@@ -1,4 +1,14 @@
+$bg = rgb(224, 224, 224);
+$eve-purple-l = rgb(107, 103, 173);
+$eve-purple-m = rgb(91, 89, 164);
+$eve-purple-d = rgb(74, 64, 136);
+$eve-blue-l = rgb(0, 184, 241);
+$eve-blue-m = rgb(0, 158, 224);
+$eve-blue-d = rgb(0, 121, 177);
+
 body * { display: flex; flex-direction: column; }
+
+body { background: $bg; }
 
 pre { font-family: monospace; }
 .ui-input { outline: none; }
@@ -17,5 +27,61 @@ pre { font-family: monospace; }
 .sample span { display: inline-block; }
 .sample spaced { padding: 0 3px; }
 
-.block-controls { opacity: 0; transition: all 0.3s; }
-.block:hover .block-controls { opacity: 1; }
+.wiki-root {
+  align-items: center;
+}
+
+.wiki-page {
+  width: 960px;
+}
+
+.wiki-block {
+  $offset = rgb(20, 20, 20);
+  background: $bg + $offset * 2;
+  border-top: 1px solid ($bg + $offset * 1);
+  border-bottom: 1px solid $bg;
+
+  .block-controls {
+    margin: 0 0.5em;
+    padding: 2px 0;
+    align-items: stretch;
+    opacity: 0;
+    transition: all 0.3s;
+
+    & > * {
+      min-width: 2em;
+      align-items: center;
+      padding 0 0.25em;
+      border: 1px solid alpha($eve-purple-l, 0.5);
+      border-right: none;
+      &:first-child { border-bottom-left-radius: 5px; border-top-left-radius: 5px; }
+      &:last-child { border-bottom-right-radius: 5px; border-top-right-radius: 5px; border-right: 1px solid alpha($eve-purple-l, 0.5); }
+    }
+  }
+  &:hover .block-controls { opacity: 1; }
+
+  .block-content {
+    padding: 1em;
+    padding-top: 0;
+  }
+}
+
+
+// CodeMirror
+.CodeMirror.cm-s-default {
+  $offset = rgb(20, 20, 20);
+  $radius = 3px;
+  background: $bg + $offset * 2;
+  border-radius: $radius;
+  box-shadow: rgba(12, 0, 32, 0.4) 0 2px 5px;
+  .CodeMirror-lines {
+    border-top: 1px solid $bg + $offset * 3;
+    border-bottom: 1px solid $bg + $offset;
+    border-radius: $radius;
+  }
+  .CodeMirror-gutters {
+    background-color: $bg + $offset;
+    border-right: 1px solid $bg - $offset;
+    border-radius: $radius;
+  }
+}
