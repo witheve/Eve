@@ -347,6 +347,7 @@ return index;`
         this.clearTable(trigger);
         handled[trigger] = true;
         remaining.push.apply(remaining, Object.keys(this.table(trigger).triggers));
+        console.log("CLEARED: ", trigger);
       }
       for(let trigger of Object.keys(handled)) {
         let view = this.table(trigger).view;

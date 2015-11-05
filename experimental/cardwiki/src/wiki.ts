@@ -1519,7 +1519,7 @@ function walk(tree, indent = 0) {
       slideNumber--;
     }
     if(slideNumber < 0) slideNumber = 0;
-    if(slideNumber > slides.length) slideNumber = slides.length - 1;
+    if(slideNumber >= slides.length) slideNumber = slides.length - 1;
     let slide = slides[slideNumber];
     if(slide.setup) {
       slide.setup();
@@ -2364,14 +2364,14 @@ function walk(tree, indent = 0) {
   // Queries
   //---------------------------------------------------------
 
+  eve.asView(eve.union("page")
+                .union("manual page", {page: ["page"], content: ["content"]})
+                .union("unmodified added bits", {page: ["page"], content: ["content"]}));
+
   eve.asView(eve.query("unmodified added bits")
                 .select("added bits", {}, "added")
                 .deselect("manual page", {page: ["added", "page"]}, "modified")
                 .project({page: ["added", "page"], content: ["added", "content"]}));
-
-  eve.asView(eve.union("page")
-                .union("manual page", {page: ["page"], content: ["content"]})
-                .union("unmodified added bits", {page: ["page"], content: ["content"]}));
 
   eve.asView(eve.query("page links")
              .select("page", {}, "page")
@@ -2403,13 +2403,13 @@ function walk(tree, indent = 0) {
              .union("added eavs", {page: ["page"], attribute: ["attribute"], value: ["value"]}));
 
   eve.asView(eve.union("deck pages")
-             // this is a stored union that is used by the add to collection action to take query results and
-             // push them into collections, e.g. people older than 21 -> [[can drink]]
-             .union("added collections", {page: ["page"], deck: ["deck"]})
              // the rest of these are editor-level views
              .union("collection links", {page: ["page"], deck: ["deck"]})
              .union("history stack", {page: ["page"], deck: "history"})
-             .union("page links", {page: ["link"], deck: ["type"]}));
+             .union("page links", {page: ["link"], deck: ["type"]})
+             // this is a stored union that is used by the add to collection action to take query results and
+             // push them into collections, e.g. people older than 21 -> [[can drink]]
+             .union("added collections", {page: ["page"], deck: ["deck"]}));
 
   eve.asView(eve.union("entity")
              .union("page", {entity: ["page"]}));
