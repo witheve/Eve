@@ -378,7 +378,7 @@ module Bootstrap {
 
   let uis:{[elemId:string]: string} = {
     "wiki root-elem": Parsers.unpad(6) `
-      div; wiki root
+      div wiki-root; wiki root
         ~ ?page is the selected page
         ~ page ?page represents ?root_entity
         div bordered ui-row; wiki header
@@ -387,24 +387,19 @@ module Bootstrap {
           span
             - flex: "none"
             - text: ?header
-        div; wiki page
-          div block; block
+        div wiki-page; wiki page
+          div wiki-block; wiki block
             ~ block ?block on layer ?ix represents ?entity in ?page as a ?projection
             - debug: ?block
             - key: ?block
             - ix: ?ix
             row block-controls justify-end; block controls
-              row; block label
-                span
-                  - text: ?block
-                span
-                  - text: " :: "
-                span
-                  - text: ?entity
-                span
-                  - text: " :: "
-                span
-                  - text: ?ix
+              span
+                - text: ?block
+              span
+                - text: ?entity
+              span
+                - text: ?ix
               dropdown
                 ~ entity ?entity is a ?kind
                 ~ ?kind entities can look like a ??projection_opts
