@@ -224,7 +224,7 @@ module Ui {
     defaultOption?: string
   }
   export function dropdown(elem:DropdownElement):Element {
-    let {value, options, defaultOption, multiple} = elem;
+    let {value:current, options, defaultOption, multiple} = elem;
     if(options instanceof Array) {
       let opts = {};
       for(let option of <string[]>options) opts[option] = option;
@@ -236,7 +236,7 @@ module Ui {
     let optionElements:Element[] = [];
     for(let value in options) {
       let item:Element = {t: "option", value, ix: ix++, text: options[value]};
-      if(value === value) {
+      if(value === current) {
         item["selected"] = true;
       }
       optionElements.push(item);
