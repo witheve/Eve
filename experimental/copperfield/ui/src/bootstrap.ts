@@ -381,48 +381,50 @@ module Bootstrap {
       div wiki-root; wiki root
         ~ ?page is the selected page
         ~ page ?page represents ?root_entity
-        div bordered ui-row; wiki header
+        ~ ??blockElem = "[''wiki block-elem'']"
+        row bordered; wiki header
           ~ ?header $= "Copperfield: " concat ?page
-          - flex: "none"
           span
-            - flex: "none"
             - text: ?header
         div wiki-page; wiki page
-          div wiki-block; wiki block
-            ~ block ?block on layer ?ix represents ?entity in ?page as a ?projection
-            - debug: ?block
-            - key: ?block
-            - ix: ?ix
-            row block-controls justify-end; block controls
-              span
-                - text: ?block
-              span
-                - text: ?entity
-              span
-                - text: ?ix
-              dropdown
-                ~ entity ?entity is a ?kind
-                ~ ?kind entities can look like a ??projection_opts
-                - options: ?projection_opts
-                - value: ?projection
-                - flex: "none"
-                @change switch block projection: ?block
-              button delete-button; delete block button
-                - text: "x"
-                @click delete block: ?block
-            div block-content; block content
-              ~ projection ?projection is templated as ??element
-              > ?element ?entity
-            div block-empty; block empty
-              ~ block ?block on layer ?ix represents ?entity in ?page as a ""
-              ~ projection "search-and-replace-projection" is templated as ??element
-              > ?element ?block
+          div wiki-blocks; wiki blocks
+            > ?blockElem ?page
           div bordered; add-block
             - text: "+"
             @click add block: ?page
-        div bordered ui-row; wiki footer
+        row bordered; wiki footer
           - flex: "none"
           - text: "footer"
+    `,
+    "wiki block-elem": Parsers.unpad(6) `
+      ~ block ?block on layer ?ix represents ?entity in ?page as a ?projection
+      ~ # ?ord by ?ix ascending
+      - c: "wiki-block"
+      - debug: ?block
+      - key: ?block
+      - ix: ?ix
+      row block-controls justify-end; block controls
+        span
+          - text: ?block
+        span
+          - text: ?entity
+        span
+          - text: ?ix
+        dropdown
+          ~ entity ?entity is a ?kind
+          ~ ?kind entities can look like a ??projection_opts
+          - options: ?projection_opts
+          - value: ?projection
+          @change switch block projection: ?block
+        button delete-button ion-close; delete block button
+          @click delete block: ?block
+      div block-content; block content
+        ~ projection ?projection is templated as ??element
+        > ?element ?entity
+      div block-empty; block empty
+        ~ block ?block on layer ?ix represents ?entity in ?page as a ""
+        ~ projection "search-and-replace-projection" is templated as ??element
+        > ?element ?block
     `
   };
 
@@ -462,7 +464,7 @@ module Bootstrap {
     `,
     renderer: Parsers.unpad(6) `
       ~ entity ?entity is a "ui"
-      ~ ?entity != "wiki root-elem"
+      ~ ?entity != "wiki root elem"
       ~ ?entity != "renderer-projection-elem"
       - t: "renderer"
       - element: ?entity
@@ -515,7 +517,7 @@ module Bootstrap {
 
   // Replace " with ` to make writing dsl in template strings easier.
   for(let viewId in queries) queries[viewId] = queries[viewId].replace(/\"/gm, "`");
-  for(let elemId in uis) uis[elemId] = uis[elemId].replace(/\"/gm, "`");
+  for(let elemId in uis) uis[elemId] = uis[elemId].replace(/\"/gm, "`").replace(/''/gm, "\"");
   for(let elemId in projections) projections[elemId] = projections[elemId].replace(/\"/gm, "`");
 
 
