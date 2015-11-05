@@ -389,8 +389,7 @@ module Bootstrap {
             - text: ?header
         div; wiki page
           div block bordered; block
-            ~ block ?block on layer ?ix represents ?entity in ?%page as a ?projection
-            ~ # ?ord by ?ix ascending
+            ~ block ?block on layer ?ix represents ?entity in ?page as a ?projection
             - debug: ?block
             - key: ?block
             - ix: ?ix
@@ -406,14 +405,9 @@ module Bootstrap {
                   - text: " :: "
                 span
                   - text: ?ix
-                span
-                  - text: " :: "
-                span
-                  - text: ?ord
               dropdown
                 ~ entity ?entity is a ?kind
                 ~ ?kind entities can look like a ??projection_opts
-                - key: ?block
                 - options: ?projection_opts
                 - defaultOption: ?projection
                 - flex: "none"
