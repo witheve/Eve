@@ -541,7 +541,7 @@ module Editor {
       Client.onReceive = function(changed, commands) {
         render();
       }
-      Ui.onChange = render;
+      Ui.init(localState, render);
 
       let eids = Api.extract("event: tick", Api.ixer.find("event"));
       if(eids.length) localState.eventId = Math.max.apply(Math, eids) + 1; // Ensure eids are monotonic across sessions.

@@ -254,6 +254,7 @@ module Ui {
     active?: boolean
   }
   export function sortToggle(elem:SortToggleElement) {
+    elem.t = "sort-toggle";
     let {"for":forId, field:fieldId, direction = 1, active = false} = elem;
 
     var sortClass = `icon ${(direction === 1 || !active) ? "ion-android-arrow-dropdown" : "ion-android-arrow-dropup"} ${active ? "active" : ""}`;
@@ -326,10 +327,7 @@ module Ui {
 
     if(autosort && elem.id && uiState.sort[elem.id]) {
       let {field: sortField, direction: sortDirection} = uiState.sort[elem.id];
-      let sortIx = headers.indexOf(sortField);
-      if(sortIx !== -1) {
-        Api.sortRows(data, sortIx, sortDirection);
-      }
+      Api.sortRows(data, sortField, sortDirection);
     }
 
     elem.children = [];
@@ -364,7 +362,7 @@ module Ui {
         entryRow.push(cellRenderer ? cellRenderer(cellElem) : cellElem);
         ix++;
       }
-      bodyRows.push({t: "tr", c: "row", children: entryRow, row: rowIx, click: elem.rowClick});
+      bodyRows.push({t: "tr", c: "row", children: entryRow, ix: rowIx, row: rowIx, click: elem.rowClick});
       rowIx++;
     }
     elem.children.push({t: "tbody", children: bodyRows});
