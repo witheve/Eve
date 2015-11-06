@@ -431,6 +431,7 @@ module Bootstrap {
               - debug: ?block
               - key: ?block
               row block-controls justify-end; block controls
+                - ix: "-1"
                 span
                   - text: ?block
                 span
