@@ -1050,7 +1050,11 @@ module Parsers {
           }
 
         } else if(tokenIsElement(line)) {
-          if(head) line.tag = head;
+          line.tag = (head || "") + consumeUntil([" ", "\t", ";"], tokens);
+          if(!line.tag) {
+            this.errors.push(this.parseError("Elements must begin with a valid html tag.", line));
+            continue;
+          }
           line.classes = consumeUntil([";"], tokens);
           if(tokens[0] === ";") tokens.shift();
           if(tokens.length) line.name = tokens.join("").trim();
