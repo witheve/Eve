@@ -9,7 +9,7 @@ $eve-blue-d = rgb(0, 121, 177);
 body * { display: flex; flex-direction: column; }
 body .document-flow {
   * { display: block; flex-direction: unset; }
-  span, em, strong { display: inline-block; }
+  span, em, strong, a { display: inline-block; }
   ul { list-style: disc; }
   ol { list-style: decimal; }
   li { display: list-item; margin-left: 1.2em; }
@@ -20,6 +20,13 @@ body .document-flow {
 
   em { font-style: italic; }
   strong { font-weight: bold; }
+  code {
+    padding: 0.5em;
+    font-family: monospace;
+    white-space: pre;
+    background: rgba(24, 0, 32, 0.1);
+    border-radius: 3px;
+  }
 }
 
 body { background: $bg; }
