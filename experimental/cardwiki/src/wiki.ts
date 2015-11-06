@@ -1430,9 +1430,9 @@ function walk(tree, indent = 0) {
      setup: () => {
        let diff = eve.diff();
        diff.add("search", {id: "vin diesel", top: 0, left: 0});
-       diff.add("search query", {id: "vin diesel", search: "vin diesel"});
+       diff.add("search query", {id: "vin diesel", search: "sum salaries per department"});
        eve.applyDiff(diff);
-       app.activeSearches["vin diesel"] = newSearch("vin diesel");
+       app.activeSearches["vin diesel"] = newSearch("sum salaries per department");
      },
      teardown: () => {
        let diff = eve.diff();
@@ -1482,16 +1482,16 @@ function walk(tree, indent = 0) {
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("But we also need to be able to communicate, not just explore.")
+       randomlyLetter("But you also need to be able to communicate, not just explore.")
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("Fortunately, you can send bits to other people or systems. All of which is tracked, so you can search over that too.")
+       randomlyLetter("Fortunately, you can send bits to other people and systems. You can even search over the communcations themselves.")
      ]}},
     {type: "eve"},
     {type: "slide",
      content: {children: [
-       randomlyLetter("Communicating isn't just about sending messages though. It has to do with representing information in useful ways.")
+       randomlyLetter("Communicating isn't just about sending messages though. It's about representing information in useful ways.")
      ]}},
     {type: "slide",
      content: {children: [
@@ -1499,11 +1499,11 @@ function walk(tree, indent = 0) {
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("What's particularly interesting is that, like all bits, you can pull them apart and see how they're made.")
+       randomlyLetter("And you can still pull them apart and see how they're made.")
      ]}},
      {type: "slide",
      content: {children: [
-       randomlyLetter("People can further explore anything you send them, remix it, and create new bits based on the information it contains.")
+       randomlyLetter("People can explore beyond what you send them. They can remix it and create new bits based on the information.")
      ]}},
     {type: "slide",
      content: {children: [
@@ -1511,11 +1511,7 @@ function walk(tree, indent = 0) {
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("And collaboration is incredibly important.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("Sometimes we're just exploring by ourselves, but much of the time there are teams, business, even times when we want to work with the whole world.")
+       randomlyLetter("Sometimes we're just exploring by ourselves, but much of the time there are teams, businesses, even times when we want to work with the whole world.")
      ]}},
     {type: "slide",
      content: {children: [
@@ -1527,11 +1523,11 @@ function walk(tree, indent = 0) {
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("But we can also propose changes and choose people that act as approvers for updating the official version.")
+       randomlyLetter("But we can still propose changes to each other and choose people to approve updates to the official version.")
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("This allows people to explore and contribute to the overall process, while ultimately allowing control of the end result.")
+       randomlyLetter("This allows you to explore and contribute to the overall process, while maintaining control of the end result.")
      ]}},
     {type: "slide",
      content: {children: [
@@ -1539,7 +1535,7 @@ function walk(tree, indent = 0) {
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("I was meant to fit the world we live in, not some idealized version of it where everything fits neatly in a box.")
+       randomlyLetter("Which is important because I was meant to fit the world we live in, not some idealized version where everything fits neatly in a box.")
      ]}},
     {type: "slide",
      content: {children: [
@@ -1556,15 +1552,15 @@ function walk(tree, indent = 0) {
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("I was built to collect, explore and communicate in that world.")
+       randomlyLetter("I am built to collect, explore and communicate in that world.")
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("And I was designed to be alive, malleable, and everywhere.")
+       randomlyLetter("I am alive, malleable, and everywhere.")
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("I am the approachable genius, honest, genuine, curious, and conversational. Not dead, formal, or scripted.")
+       randomlyLetter("I am the approachable genius: honest, genuine, curious, and conversational.")
      ]}},
     {type: "slide",
      content: {children: [
@@ -1910,9 +1906,9 @@ function walk(tree, indent = 0) {
 
      }
     } else {
-      addActionChildren.push({c: "", text: "add attribute", actionType: "attribute", click: startAddingAction});
-      addActionChildren.push({c: "", text: "add to collection", actionType: "collection", click: startAddingAction});
-      addActionChildren.push({c: "", text: "add bit", actionType: "bit", click: startAddingAction});
+      addActionChildren.push({c: "", text: "+ entity", actionType: "bit", click: startAddingAction});
+      addActionChildren.push({c: "", text: "+ attribute", actionType: "attribute", click: startAddingAction});
+      addActionChildren.push({c: "", text: "+ collection", actionType: "collection", click: startAddingAction});
     }
 
     let headers = []
