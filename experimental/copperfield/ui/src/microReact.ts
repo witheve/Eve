@@ -26,6 +26,7 @@ module MicroReact {
     href?:string
     placeholder?:string
     selected?:boolean
+    autocomplete?:boolean
     tabindex?:number
     text?:string
     type?:string
@@ -216,6 +217,7 @@ module MicroReact {
         if(cur.colspan !== prev.colspan) div.colSpan = cur.colspan;
         if(cur.placeholder !== prev.placeholder) div.setAttribute("placeholder", cur.placeholder);
         if(cur.selected !== prev.selected) cur.selected ? div.setAttribute("selected", true) : div.removeAttribute("selected");
+        if(cur.autocomplete !== prev.autocomplete) cur.autocomplete ? div.setAttribute("autocomplete", cur.autocomplete) : div.removeAttribute("autocomplete");
         if(cur.value !== prev.value) div.value = cur.value;
         if(cur.t === "input" && cur.type !== prev.type) div.type = cur.type;
         if(cur.t === "input" && cur.checked !== prev.checked)  cur.checked ? div.setAttribute("checked", "") : div.removeAttribute("checked");
@@ -354,6 +356,7 @@ module MicroReact {
            && curA.href === curB.href
            && curA.placeholder === curB.placeholder
            && curA.selected === curB.selected
+           && curA.autocomplete === curB.autocomplete
            && curA.draggable === curB.draggable
            && curA.contentEditable === curB.contentEditable
            && curA.value === curB.value
