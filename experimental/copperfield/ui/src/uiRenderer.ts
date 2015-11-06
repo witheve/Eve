@@ -339,7 +339,7 @@ module UiRenderer {
         this._handlers[memoKey] = (evt:Event, elem:Element) => {
           let value;
           // @NOTE: We can't hoist elem checks since we reuse handlers based on event and kind alone.
-          if(elem.t === "select" || elem.t === "input") value = (<HTMLSelectElement|HTMLInputElement>evt.target).value;
+          if(elem.t === "select" || elem.t === "input" || elem.t === "textarea") value = (<HTMLSelectElement|HTMLInputElement>evt.target).value;
           if(elem.type === "checkbox") value = (<HTMLInputElement>evt.target).checked;
           self.handleEvent(elem.__template, event, kind, {key: elem[attrKey], value});
         };
