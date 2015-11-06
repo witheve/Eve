@@ -92,6 +92,8 @@ module Bootstrap {
     "next layer": ["page", "ix"],
 
     // Builtins/defaults
+    "boolean string": ["value", "string"],
+    "single": [],
     "default page": ["page"],
     "builtin entity": ["entity", "kind"],
     "builtin collection entity": ["entity", "kind"],
@@ -99,9 +101,15 @@ module Bootstrap {
     "builtin block": ["page", "block", "ix", "entity", "projection"],
     "builtin projection": ["projection", "element"],
     "builtin default projection": ["entity", "projection"],
-    "builtin kind projection": ["kind", "projection"]
+    "builtin kind projection": ["kind", "projection"],
+
+    // maybe hacks
+    "maybe entity": ["entity"],
+    "maybe projection": ["projection"],
   };
   var viewKinds:{[viewId:string]: string} = {
+    "boolean string": "table",
+    "single": "table",
     "ui binding constraint": "table",
     "event value": "table",
 
@@ -116,16 +124,20 @@ module Bootstrap {
   }
 
   var fingerprintsRaw:{[viewId:string]: string[]} = {
-    "concat": ["?A concat ?B = ?result"],
-    "remainder": ["?A remainder ?B = ?result"],
+    "<": ["?A < ?B"],
+    "<=": ["?A <= ?B"],
+    "!=": ["?A != ?B"],
+
+    "==": ["?A == ?B = ?result"],
     "-": ["?A - ?B = ?result"],
     "+": ["?A + ?B = ?result"],
     "/": ["?A / ?B = ?result"],
     "*": ["?A * ?B = ?result"],
+    "concat": ["?A concat ?B = ?result"],
+    "remainder": ["?A remainder ?B = ?result"],
 
-    "<": ["?A < ?B"],
-    "<=": ["?A <= ?B"],
-    "!=": ["?A != ?B"],
+    "boolean string": ["boolean ?value = ?string"],
+    "single": ["single"],
 
     "view": ["view ?view is a ?kind"],
     "display name": ["?id is named ?name"],
@@ -179,6 +191,10 @@ module Bootstrap {
       "builtin entity ?entity usually looks like a ?projection",
       "builtin entity ?entity usually looks like an ?projection"
     ],
+
+    // Maybe hacks
+    "maybe entity": ["maybe ?entity is an entity"],
+    "maybe projection": ["maybe ?projection is a projection"],
   };
 
   var facts:{[viewId:string]: Api.Dict[]} = {
@@ -192,7 +208,9 @@ module Bootstrap {
     "builtin block": [],
     "builtin projection": [],
     "builtin default projection": [],
-    "builtin kind projection": []
+    "builtin kind projection": [],
+    "boolean string": [{value: true, string: "true"}, {value: false, string: ""}],
+    "single": [[]]
   };
 
   //---------------------------------------------------------------------------
@@ -373,7 +391,27 @@ module Bootstrap {
       block ?block on layer ? represents ? in ? as a ?
       + block ?block was removed at ?tick
       + event at ?tick is already handled
-    `
+    `,
+
+    // Maybe hacks
+    "maybe entity list": Parsers.unpad(6) `
+      ?entity is an entity
+      + maybe ?entity is an entity
+    `,
+    "maybe entity list default": Parsers.unpad(6) `
+      single
+      ?entity = ""
+      + maybe ?entity is an entity
+    `,
+    "maybe projection list": Parsers.unpad(6) `
+      projection ?projection is templated as ?
+      + maybe ?projection is a projection
+    `,
+    "maybe projection list default": Parsers.unpad(6) `
+      single
+      ?projection = ""
+      + maybe ?projection is a projection
+    `,
   };
 
   let uis:{[elemId:string]: string} = {
@@ -381,14 +419,65 @@ module Bootstrap {
       div wiki-root; wiki root
         ~ ?page is the selected page
         ~ page ?page represents ?root_entity
-        ~ ??blockElem = "[''wiki block-elem'']"
         row bordered; wiki header
           ~ ?header $= "Copperfield: " concat ?page
-          span
-            - text: ?header
+          - text: ?header
         div wiki-page; wiki page
           div wiki-blocks; wiki blocks
-            > ?blockElem ?page
+            div wiki-block; wiki block
+              ~ block ?block on layer ?ix represents ?entity in ?%page as a ?projection
+              ~ # ?ord by ?ix ascending
+              - ix: ?ix
+              - debug: ?block
+              - key: ?block
+              row block-controls justify-end; block controls
+                span
+                  - text: ?block
+                span
+                  - text: ?ix
+                select; entity switcher
+                  @change switch block entity: ?block
+                  - key: ?entity
+                  option
+                    - text: "---"
+                    - ix: "-1"
+                  option
+                    ~ maybe ?entity is an entity
+                    ~ ?entity_opt is an entity
+                    ~ ?entity_opt is named ?entity_opt_text
+                    ~ ?entity_selected $= ?entity_opt == ?entity
+                    - text: ?entity_opt_text
+                    - key: ?entity_opt
+                    - value: ?entity_opt
+                    - selected: ?entity_selected
+                    - debug: ?entity_selected
+                select; projection switcher
+                  @change switch block projection: ?block
+                  - key: ?projection
+                  option
+                    - text: "---"
+                    - ix: "-1"
+                  option
+                    ~ entity ?entity is a ?kind
+                    ~ maybe ?projection is a projection
+                    ~ ?kind entities can look like a ?projection_opt
+                    ~ ?projection_opt is named ?projection_opt_text
+                    ~ ?projection_selected $= ?projection_opt == ?projection
+                    - key: ?projection_opt
+                    - text: ?projection_opt_text
+                    - value: ?projection_opt
+                    - selected: ?projection_selected
+                    - debug: ?projection_selected
+                button delete-button ion-close; delete block button
+                  @click delete block: ?block
+              div block-content; block content
+                ~ projection ?projection is templated as ??element
+                > ?element ?entity
+              div block-empty; block empty
+                ~ block ?block on layer ?ix represents ?entity in ?page as a ""
+                ~ projection "search-and-replace-projection" is templated as ??element
+                - ix: "1"
+                > ?element ?block
           div wiki-block add-button ion-plus; add-block
             @click add block: ?page
         row bordered; wiki footer
@@ -396,34 +485,7 @@ module Bootstrap {
           - text: "footer"
     `,
     "wiki block-elem": Parsers.unpad(6) `
-      ~ block ?block on layer ?ix represents ?entity in ?page as a ?projection
-      ~ # ?ord by ?ix ascending
-      - c: "wiki-block"
-      - debug: ?block
-      - key: ?block
-      - ix: ?ix
-      row block-controls justify-end; block controls
-        span
-          - text: ?block
-        span
-          - text: ?entity
-        span
-          - text: ?ix
-        dropdown
-          ~ entity ?entity is a ?kind
-          ~ ?kind entities can look like a ??projection_opts
-          - options: ?projection_opts
-          - value: ?projection
-          @change switch block projection: ?block
-        button delete-button ion-close; delete block button
-          @click delete block: ?block
-      div block-content; block content
-        ~ projection ?projection is templated as ??element
-        > ?element ?entity
-      div block-empty; block empty
-        ~ block ?block on layer ?ix represents ?entity in ?page as a ""
-        ~ projection "search-and-replace-projection" is templated as ??element
-        > ?element ?block
+
     `
   };
 
@@ -463,7 +525,7 @@ module Bootstrap {
     `,
     renderer: Parsers.unpad(6) `
       ~ entity ?entity is a "ui"
-      ~ ?entity != "wiki root elem"
+      ~ ?entity != "wiki root-elem"
       ~ ?entity != "renderer-projection-elem"
       - t: "renderer"
       - element: ?entity
@@ -572,49 +634,6 @@ module Bootstrap {
     if(Api.DEBUG.BOOTSTRAP) console.groupCollapsed("Phase 3: Create uis");
     effect = new Editor.DispatchEffect();
 
-    // effect.change.add("view", {"view: view": "next layer", "view: kind": "join"}) // @TODO: Finish me.
-    //   .add("display name", "next layer")
-    //   .add("source", {"source: source": "set next layer block source", "source: source view": "block"})
-    //   .add("display order", 0)
-
-    //   .add("variable", {"variable: variable": "set next layer page var"})
-    //   .add("binding", {"binding: field": "block: page"})
-    //   .add("field", {"field: field": "next layer: page", "field: kind": "output"})
-    //   .add("display name",  "page")
-    //   .add("display order", 0)
-    //   .add("grouped field", {"grouped field: field": "block: page"})
-    //   .add("select")
-
-    //   .add("variable", {"variable: variable": "set next layer ix var"})
-    //   .add("binding", {"binding: field": "block: ix"})
-    //   .add("binding", {"binding: source": "set next layer + source", "binding: field": "+: A"})
-    //   .add("sorted field", {"sorted field: field": "block: ix", "sorted field: ix": 0, "sorted field: direction": "descending"})
-
-    //   .add("variable", {"variable: variable": "set next layer ord var"})
-    //   .add("ordinal binding")
-    //   .add("binding", {"binding: source": "set next layer < source", "binding: field": "<: A"})
-
-    //   .add("source", {"source: source": "set next layer < source", "source: source view": "<"})
-    //   .add("display order", 1)
-    //   .add("variable", {"variable: variable": "set next layer < constant var"})
-    //   .add("constant binding", 2)
-    //   .add("binding", {"binding: field": "<: B"})
-
-    //   .add("source", {"source: source": "set next layer + source", "source: source view": "+"})
-    //   .add("display order", 1)
-    //   .add("variable", {"variable: variable": "set next layer + constant var"})
-    //   .add("constant binding", 1)
-    //   .add("binding", {"binding: field": "+: B"})
-
-    //   .add("variable", {"variable: variable": "set next layer + result var"})
-    //   .add("binding", {"binding: field": "+: result"})
-    //   .add("field", {"field: field": "next layer: ix", "field: kind": "output"})
-    //   .add("display name", "ix")
-    //   .add("display order", 1)
-    //   .add("select")
-    //   .clearContext();
-
-
     for(let elemId in uis) {
       let ui = <Parsers.Ui>assertValid(new Parsers.Ui().loadFromElement(elemId, true).parse(uis[elemId]));
       ui.name = elemId;
@@ -626,6 +645,7 @@ module Bootstrap {
       ui.name = projection;
       ui.tags.push("system", "projection", "ui-root");
       effect.dispatch("compileUi", {ui});
+      effect.change.add("display name", {"display name: id": projection + "-projection", "display name: name": projection});
     }
     effect.done();
     if(Api.DEBUG.BOOTSTRAP) console.groupEnd();
