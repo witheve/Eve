@@ -382,17 +382,16 @@ module Parsers {
       let lineIx = 0;
       for(let line of lines) {
         let tokens = Query.tokenize(line);
-        if(tokens.length === 0) {
-          this.ast.chunks.push(<TextAST>{type: "text", text: "", lineIx: lineIx++});
-          continue;
-        }
-
         let maybeParsed:Token|ParseError = this.parseLine(tokens, lineIx++);
         if(maybeParsed instanceof ParseError) {
           this.errors.push(maybeParsed);
           continue;
         }
         let parsed = <LineAST>maybeParsed;
+        if(parsed.chunks.length === 0) {
+          this.ast.chunks.push(parsed);
+          continue;
+        }
 
         if(tokenIsKeyword(parsed.chunks[0]) && parsed.chunks[0]["text"] === ";") {
           parsed["text"] = tokenToString(parsed);

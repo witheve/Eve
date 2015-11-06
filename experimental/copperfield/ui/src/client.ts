@@ -62,7 +62,8 @@ module Client {
         }
         if (verbosity == 3) {
           let human = fields.map(Api.get.name);
-          console.groupCollapsed(` ${viewId} +${adds.length}/-${removes.length}`);
+          let name = Api.get.name(viewId);
+          console.groupCollapsed(` ${name && name !== viewId ? `${name} (${viewId})` : viewId} +${adds.length}/-${removes.length}`);
           console.info(`   fields`, fields);
           console.info(`   adds`, human);
           consoleTable(adds);

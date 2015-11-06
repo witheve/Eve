@@ -206,6 +206,9 @@ module MicroReact {
           div = elementCache[id];
         }
 
+        if(cur.id !== prev.id) div.setAttribute("data-id", cur.id);
+        if(cur.ix !== prev.ix) div.setAttribute("data-ix", cur.ix);
+
         var style = div.style;
         if(cur.c !== prev.c) div.className = cur.c;
         if(cur.draggable !== prev.draggable) div.draggable = cur.draggable === undefined ? null : "true";
@@ -306,11 +309,15 @@ module MicroReact {
         if(type === "added" || type === "replaced" || type === "moved") {
           var parentEl = elementCache[cur.parent];
           if(parentEl) {
-            if(cur.ix >= parentEl.children.length) {
-              parentEl.appendChild(div);
-            } else {
-              parentEl.insertBefore(div, parentEl.children[cur.ix]);
+            var insertIx = undefined;
+            for(var childIx = 0; childIx < parentEl.children.length; childIx++) {
+              if(+parentEl.children[childIx].getAttribute("data-ix") > cur.ix) {
+                insertIx = childIx;
+                break;
+              }
             }
+            if(insertIx !== undefined) parentEl.insertBefore(div, parentEl.children[insertIx]);
+            else parentEl.appendChild(div);
           }
         }
       }
@@ -426,6 +433,7 @@ module MicroReact {
           for(var childIx = 0, len = children.length; childIx < len; childIx++) {
             var child = children[childIx];
             if(child === undefined) continue;
+
             if(child.id === undefined) { child.id = elem.id + "__" + childIx; }
             if(child.ix === undefined) { child.ix = childIx; }
             if(child.parent === undefined) { child.parent = elem.id; }
@@ -457,7 +465,6 @@ module MicroReact {
       let start = now();
       for(let elem of elems) {
         let post = this.prepare(elem);
-
       }
       let prepare = now();
       let d = this.diff();

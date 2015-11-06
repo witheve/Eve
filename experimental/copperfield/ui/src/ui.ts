@@ -110,7 +110,7 @@ module Ui {
     dropdown,
     renderer,
     button,
-    input,
+    input: rawInput,
     checkbox,
     codemirror: codeMirrorElement,
     image,
@@ -219,22 +219,24 @@ module Ui {
 
   interface DropdownElement extends Element {
     options: string[]|Api.Dict
-    size?: number
     multiple?: boolean
+    value?: string
     defaultOption?: string
   }
   export function dropdown(elem:DropdownElement):Element {
-    let {defaultOption, options, size, multiple} = elem;
+    let {value:current, options, defaultOption, multiple} = elem;
     if(options instanceof Array) {
       let opts = {};
       for(let option of <string[]>options) opts[option] = option;
       options = opts;
     }
+    if(defaultOption) options[defaultOption] = defaultOption;
     // Build the option elements
+    let ix = 0;
     let optionElements:Element[] = [];
     for(let value in options) {
-      let item:Element = {t: "option", value, text: options[value]};
-      if(value === defaultOption) {
+      let item:Element = {t: "option", value, ix: ix++, text: options[value]};
+      if(value === current) {
         item["selected"] = true;
       }
       optionElements.push(item);
@@ -403,6 +405,12 @@ module Ui {
     multiline?:boolean
     normalize?:boolean
   }
+  export function rawInput(elem:TextInputElement) {
+    elem.t = elem.multiline ? "textarea" : "input";
+    return elem;
+  }
+
+
   export function input(elem:TextInputElement) {
     let {multiline, normalize = true} = elem;
     if(!elem.placeholder) { elem.placeholder === " "; }
