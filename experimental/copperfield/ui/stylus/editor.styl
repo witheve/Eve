@@ -45,7 +45,15 @@ pre { font-family: monospace; }
   border-bottom: 1px solid $bg;
 
   .block-controls {
+    position: relative;
+    top: -2px;
+    align-self: flex-end;
     align-items: stretch;
+
+    background: alpha($eve-purple-l, 0.5);
+    border-bottom: 1px solid alpha(black, 0.1);
+    border-top: 1px solid alpha(white, 0.2);
+    box-shadow: alpha(black, 0.5) 1px 2px 2px;
     opacity: 0;
     transition: all 0.3s;
 
@@ -57,20 +65,18 @@ pre { font-family: monospace; }
       align-items: center;
       justify-content: flex-end;
       padding 0 0.25em;
-      background: alpha($eve-purple-l, 0.5);
       border: none;
-      border-bottom: 1px solid alpha(black, 0.1);
-      border-top: 1px solid alpha(white, 0.2);
-      box-shadow: alpha(black, 0.5) 1px 2px 2px;
+      background: transparent;
+
       &:first-child { border-bottom-left-radius: 3px; }
       & + * { border-left: 1px solid alpha($eve-purple-l, 0.5); }
     }
 
     select {
+      -webkit-appearance: none;
       margin: 0;
-      padding: none;
-      background: none;
-      border: none;
+      padding-right: 0.5em;
+      border-radius: 0;
     }
   }
   &:hover .block-controls { opacity: 1; }
