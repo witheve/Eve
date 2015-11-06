@@ -108,6 +108,7 @@ module Ui {
     row,
     column,
     dropdown,
+    select,
     renderer,
     button,
     input: rawInput,
@@ -247,6 +248,17 @@ module Ui {
     return elem;
   }
 
+  export function select(elem:Element) {
+    let {value} = elem;
+    for(let child of elem.children || []) {
+      if(child.value === value) {
+        child.selected = true;
+        break;
+      }
+    }
+    return elem;
+  }
+
   interface SortToggleElement extends Element {
     for: string
     field: string
@@ -358,7 +370,8 @@ module Ui {
       let entryRow = [];
       let ix = 0;
       for(let cell of row) {
-        let cellElem = {t: "td", c: "cell", click: elem.cellClick, header: headers[ix], text: (cell instanceof Array) ? cell.join(", ") : cell};
+        let text = (cell instanceof Array) ? cell.join(", ") : cell;
+        let cellElem = {t: "td", c: "cell", click: elem.cellClick, header: headers[ix], text, title: text};
         entryRow.push(cellRenderer ? cellRenderer(cellElem) : cellElem);
         ix++;
       }
