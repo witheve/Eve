@@ -277,6 +277,8 @@ module Parsers {
       let token = ast.chunks[tokenIx];
       fingerprint +=  tokenIsField(token) ? "?" : tokenToString(token);
     }
+    fingerprint = fingerprint.trim();
+    if(fingerprint.indexOf("=") !== 0) console.log(fingerprint, ast.chunks);
     return fingerprint;
   }
 
@@ -570,10 +572,12 @@ module Parsers {
     }
 
     protected processConstant(line:LineAST):FieldAST|ParseError {
-      let kw = line.chunks[2];
-      if(line.chunks.length < 3 || !tokenIsKeyword(kw) || kw.text !== "=") return;
-
       let resultField:FieldAST = line.chunks[0];
+      let kw = line.chunks[2];
+      let next = line.chunks[3];
+      if(line.chunks.length < 3 || !tokenIsField(resultField) || !tokenIsKeyword(kw) || kw.text !== "=" || (next && tokenIsKeyword(next))) return;
+
+
       resultField.type = "constant";
       resultField.lineIx = line.lineIx;
       if(!resultField.alias) return this.parseError("Constant fields must be aliased.", resultField);
@@ -600,9 +604,8 @@ module Parsers {
       let partIx = 0;
       let lines:CalculationAST[] = [];
       let stack = [{type: "source", chunks: [], partIx: partIx++, lineIx: line.lineIx, tokenIx: line.chunks[4].tokenIx, endIx: Infinity}];
-      for(let token of line.chunks.slice(4)) {
+      for(let token of line.chunks.slice(3)) {
         let cur = stack[stack.length - 1];
-
         if(tokenIsKeyword(token)) {
           if(token.text === "(") {
             stack.push({type: "source", chunks: [], partIx: partIx++, lineIx: line.lineIx, tokenIx: token.tokenIx, endIx: undefined});
@@ -627,7 +630,6 @@ module Parsers {
       if(stack.length === 0) return this.parseError("Too many close parens", line);
       stack[0].chunks.push({type: "text", text: " = "}, resultField);
       lines.push(stack[0]);
-
       return {type: "calculation", chunks: lines, text};
     }
 
