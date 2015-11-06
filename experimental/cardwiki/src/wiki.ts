@@ -1314,7 +1314,7 @@ function walk(tree, indent = 0) {
     return {c: `phrase ${klass}`, children};
   }
 
-  var slideNumber = 0;
+  var slideNumber = 23;
   var slides = [
     {type: "slide",
      content: {children: [
@@ -1474,7 +1474,7 @@ function walk(tree, indent = 0) {
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("Everything you want to do boils down to just searching and formatting the results.")
+       randomlyLetter("Everything you want to do boils down to searching and formatting the results.")
      ]}},
     {type: "slide",
      content: {children: [
@@ -1482,15 +1482,11 @@ function walk(tree, indent = 0) {
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("From there however, we also need to be able to communicate.")
+       randomlyLetter("But we also need to be able to communicate, not just explore.")
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("Fortunately, you can send bits to other people or systems.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("Communications are just more bits that you can work with.")
+       randomlyLetter("Fortunately, you can send bits to other people or systems. All of which is tracked, so you can search over that too.")
      ]}},
     {type: "eve"},
     {type: "slide",
@@ -1523,7 +1519,7 @@ function walk(tree, indent = 0) {
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("One thing I've learned about that is that collaboration doesn't always mean consensus.")
+       randomlyLetter("One thing I've learned about collaboration though is that it doesn't always mean consensus.")
      ]}},
     {type: "slide",
      content: {children: [
@@ -1560,11 +1556,7 @@ function walk(tree, indent = 0) {
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("I am built for it.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("I was designed to collect, explore and communicate in that world.")
+       randomlyLetter("I was built to collect, explore and communicate in that world.")
      ]}},
     {type: "slide",
      content: {children: [
