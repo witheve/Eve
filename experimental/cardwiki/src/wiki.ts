@@ -1314,7 +1314,7 @@ function walk(tree, indent = 0) {
     return {c: `phrase ${klass}`, children};
   }
 
-  var slideNumber = 12;
+  var slideNumber = 0;
   var slides = [
     {type: "slide",
      content: {children: [
@@ -1331,6 +1331,14 @@ function walk(tree, indent = 0) {
     {type: "slide",
      content: {children: [
        randomlyLetter("And yet the tools we have to work with them are fairly primitive.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       {id: "slide-list" c: "list", children: [
+         randomlyLetter("- Our communications are static"),
+         randomlyLetter("- Information requires rigid structure"),
+         randomlyLetter("- Exploration is either limited or it's code"),
+       ]}
      ]}},
     {type: "slide",
      content: {children: [
@@ -1397,7 +1405,7 @@ function walk(tree, indent = 0) {
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("Together we can...")
+       randomlyLetter("You can...")
        {id: "slide-list" c: "list", children: [
          randomlyLetter("- Add structure at any time"),
          randomlyLetter("- Work with heterogenous collections"),
@@ -1462,40 +1470,105 @@ function walk(tree, indent = 0) {
     {type: "eve"},
     {type: "slide",
      content: {children: [
-       randomlyLetter("You can do nearly anything simply by searching and formatting the results.")
+       randomlyLetter("I can also peer into the past and help explore alternative futures.")
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("I can also peer into the past and help explore alternative futures.")
+       randomlyLetter("Everything you want to do boils down to searching and formatting the results.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("That gives you an immense amount of power over the bits you collect.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("But we also need to be able to communicate, not just explore.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("Fortunately, you can send bits to other people or systems. All of which is tracked, so you can search over that too.")
      ]}},
     {type: "eve"},
     {type: "slide",
      content: {children: [
-       randomlyLetter("The world is changing")
+       randomlyLetter("Communicating isn't just about sending messages though. It has to do with representing information in useful ways.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("You can create documents, dashboards, even custom interfaces, by drawing and embedding bits.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("What's particularly interesting is that, like all bits, you can pull them apart and see how they're made.")
+     ]}},
+     {type: "slide",
+     content: {children: [
+       randomlyLetter("People can further explore anything you send them, remix it, and create new bits based on the information it contains.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("This gives people the power to do more together, to collaborate in a much deeper way.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("And collaboration is incredibly important.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("Sometimes we're just exploring by ourselves, but much of the time there are teams, business, even times when we want to work with the whole world.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("One thing I've learned about collaboration though is that it doesn't always mean consensus.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("Many versions of a bit can exist, you can have your own and others can have their own.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("But we can also propose changes and choose people that act as approvers for updating the official version.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("This allows people to explore and contribute to the overall process, while ultimately allowing control of the end result.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("It also allows for different world views and different ideas of correctness.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("I was meant to fit the world we live in, not some idealized version of it where everything fits neatly in a box.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("And that world is rapidly becoming something new.")
+     ]}},
+    {type: "slide",
+     content: {children: [
        {id: "slide-list" c: "list", children: [
-         randomlyLetter("- New inputs: pen, voice"),
-         randomlyLetter("- New displays: mobile, VR, AR"),
-         randomlyLetter("- New systems: everything is distributed"),
-         randomlyLetter("- New work: everything is data, and it's changing"),
+         randomlyLetter("There are new inputs: pen, voice"),
+         randomlyLetter("New displays: mobile, VR, AR"),
+         randomlyLetter("New kinds of systems: everything is distributed"),
+         randomlyLetter("New version of work: everything is constantly changing data"),
        ]}
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("I was designed to...")
-       {id: "slide-list" c: "list", children: [
-         randomlyLetter("- Collect"),
-         randomlyLetter("- Explore"),
-         randomlyLetter("- Communicate"),
-       ]}
+       randomlyLetter("I was built to collect, explore and communicate in that world.")
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("I was designed to be...")
-       {id: "slide-list" c: "list", children: [
-         randomlyLetter("- Alive"),
-         randomlyLetter("- Malleable"),
-         randomlyLetter("- Everywhere"),
-       ]}
+       randomlyLetter("And I was designed to be alive, malleable, and everywhere.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("I am the approachable genius, honest, genuine, curious, and conversational. Not dead, formal, or scripted.")
+     ]}},
+    {type: "slide",
+     content: {children: [
+       randomlyLetter("I am Eve.")
      ]}},
     {type: "slide",
      content: {children: [
@@ -1503,7 +1576,20 @@ function walk(tree, indent = 0) {
        {id: "slide-list" c: "list", children: [
          randomlyLetter("- She vs. it"),
          randomlyLetter("- Mobile?"),
-         randomlyLetter("- What is eve?"),
+         randomlyLetter("- What is eve? Jarvis? A workspace? ..?"),
+       ]}
+     ]}},
+     {type: "slide",
+     content: {children: [
+       randomlyLetter("Technical questions")
+       {id: "slide-list" c: "list", children: [
+         randomlyLetter("- Incrementalism with cycles"),
+         randomlyLetter("- Efficient incrementalism in an EAV world"),
+         randomlyLetter("- Federation"),
+         randomlyLetter("- Supporting integrations"),
+         randomlyLetter("- Version control"),
+         randomlyLetter("- How far can the natural language stuff go, before heuristics stop working?"),
+         randomlyLetter("- Progressive storage/querying"),
        ]}
      ]}},
   ]
