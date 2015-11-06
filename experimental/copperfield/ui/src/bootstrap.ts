@@ -109,6 +109,7 @@ module Bootstrap {
     "builtin collection entity": ["entity", "kind"],
     "builtin page": ["entity", "page"],
     "builtin block": ["page", "block", "ix", "entity", "projection"],
+    "builtin block scratch": ["block", "scratch"],
     "builtin projection": ["projection", "element"],
     "builtin default projection": ["entity", "projection"],
     "builtin kind projection": ["kind", "projection"],
@@ -128,6 +129,7 @@ module Bootstrap {
     "builtin collection entity": "table",
     "builtin page": "table",
     "builtin block": "table",
+    "builtin block scratch": "table",
     "builtin projection": "table",
     "builtin default projection": "table",
     "builtin kind projection": "table"
@@ -201,6 +203,7 @@ module Bootstrap {
       "builtin block ?block on layer ?ix represents ?entity in ?page as a ?projection",
       "builtin block ?block on layer ?ix represents ?entity in ?page as an ?projection"
     ],
+    "builtin block scratch": ["builtin block ?block contains ?scratch"],
     "builtin projection": ["builtin projection ?projection is templated as ?element"],
     "builtin kind projection": ["builtin ?kind entities can look like a ?projection", "builtin ?kind entities can look like an ?projection"],
     "builtin default projection": [
@@ -222,6 +225,7 @@ module Bootstrap {
     "default page": [{page: "collections-page"}],
     "builtin page": [{page: "dummy-page", entity: "dummy"}],
     "builtin block": [],
+    "builtin block scratch": [],
     "builtin projection": [],
     "builtin default projection": [],
     "builtin kind projection": [],
@@ -237,7 +241,7 @@ module Bootstrap {
     // Builtins/defaults
     "set selected page default": Parsers.unpad(6) `
       ?page is the default page
-      ?tick = "-1"
+      ?tick = "-10"
       + ?page is the selected page at tick ?tick
     `,
     "set builtin entities": Parsers.unpad(6) `
@@ -254,8 +258,13 @@ module Bootstrap {
     `,
     "set builtin blocks": Parsers.unpad(6) `
       builtin block ?block on layer ?ix represents ?entity in ?page as a ?projection
-      ?tick = "-1"
+      ?tick = "-10"
       + block ?block on layer ?ix represents ?entity in ?page as a ?projection at tick ?tick
+    `,
+    "set builtin scratch blocks": Parsers.unpad(6) `
+      builtin block ?block contains ?scratch
+      ?tick = "-9"
+      + block ?block contains ?scratch at tick ?tick
     `,
     "set builtin projections": Parsers.unpad(6) `
       builtin projection ?projection is templated as ?element
@@ -272,13 +281,13 @@ module Bootstrap {
     "set default block scratch": Parsers.unpad(6) `
       ?block is a block
       ?scratch = ""
-      ?tick = "-1"
+      ?tick = "-10"
       + block ?block contains ?scratch at tick ?tick
     `,
     "set default block editing": Parsers.unpad(6) `
       ?block is a block
       ?editing = "false"
-      ?tick = "-1"
+      ?tick = "-10"
       + ?block is being edited ?editing at tick ?tick
     `,
 
@@ -332,7 +341,7 @@ module Bootstrap {
     // Generate derived facts
     "create entity pages": Parsers.unpad(6) `
       ?entity is an entity
-      ?tick = "-1"
+      ?tick = "-10"
       ?page $= ?entity concat "-page"
       ?block-title $= ?page concat "-block.0"
       ?block-title-ix = "0"
@@ -511,7 +520,7 @@ module Bootstrap {
               - debug: ?block
               - key: ?block
               row block-controls justify-end; block controls
-                - ix: "-1"
+                - ix: "-10"
                 span
                   - text: ?block
                 span
@@ -522,7 +531,7 @@ module Bootstrap {
                   - autocomplete: "off"
                   option
                     - text: "---"
-                    - ix: "-1"
+                    - ix: "-10"
                   option
                     ~ maybe ?entity is an entity
                     ~ ?entity_opt is an entity
@@ -541,7 +550,7 @@ module Bootstrap {
                   - autocomplete: "off"
                   option
                     - text: "---"
-                    - ix: "-1"
+                    - ix: "-10"
                   option
                     ~ entity ?entity is a ?_kind
                     ~ maybe ?projection is a projection
@@ -640,6 +649,7 @@ module Bootstrap {
     input: string
     outputs: {[id: string]: string}
     trigger: (effect:Editor.DispatchEffect, diff:Indexer.Diff<Api.Dict>, ixer:Indexer.Indexer) => void
+    scratch?: string
   }
   var actions:{[action:string]: Action} = {
     marked: {
@@ -656,7 +666,17 @@ module Bootstrap {
         }
         console.log("marked", effect);
         setTimeout(() => effect.done(), 50);
-      }
+      },
+      scratch: Parsers.unpad(8) `
+        # Marked
+        Marked is a speedy markdown processor that safely converts markdown formatted text into html.
+        Writing markdown is easy! You can see all the formatting tricks [here](https://daringfireball.net/projects/markdown/syntax).
+
+        To use the marked action, insert a string of markdown formatted text like so:
+        \`+ marked ?my_markdown\`
+        and read the parsed html like so:
+        \`+ marked ?my_markdown = ?html\`
+      `
     }
   };
 
@@ -679,8 +699,11 @@ module Bootstrap {
       var inputId = actionId + " input";
       fingerprintsRaw[inputId] = [action.input];
       views[inputId] = getFingerprintAliases(action.input);
-      facts["builtin entity"].push({entity: actionId + "-action", kind: "action"});
-      facts["display name"].push({id: actionId + "-action", name: actionId});
+      let entity = actionId + "-action";
+      facts["builtin entity"].push({entity, kind: "action"});
+      facts["builtin default projection"].push({entity, projection: "scratch-projection"});
+      if(action.scratch) facts["builtin block scratch"].push({block: `${entity}-page-block.2`, scratch: action.scratch});
+      facts["display name"].push({id: entity, name: actionId});
       // @NOTE: Ensure action is closed over properly here when less sleep deprived.
       Api.ixer.trigger(inputId, inputId, function(ixer) {
         action.trigger(new Editor.DispatchEffect(), ixer.table(inputId).diff, ixer);
