@@ -1314,7 +1314,7 @@ function walk(tree, indent = 0) {
     return {c: `phrase ${klass}`, children};
   }
 
-  var slideNumber = 23;
+  var slideNumber = 0;
   var slides = [
     {type: "slide",
      content: {children: [
