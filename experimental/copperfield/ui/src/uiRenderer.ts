@@ -316,6 +316,7 @@ module UiRenderer {
 
       while(stack.length > 0) {
         let elem = stack.shift();
+        if(!elem) continue;
         elem.id = elem.parent = undefined;
         if(!elem.children) continue;
 
