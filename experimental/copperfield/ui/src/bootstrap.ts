@@ -1,4 +1,6 @@
 module Bootstrap {
+  declare var marked;
+
   //---------------------------------------------------------------------------
   // Utilities
   //---------------------------------------------------------------------------
@@ -60,6 +62,10 @@ module Bootstrap {
     return parser;
   }
 
+  function getFingerprintAliases(fingerprint:string):string[] {
+    return fingerprint.split(" ").filter((token) => token[0] === "?").map((field) => field.slice(1));
+  }
+
   //---------------------------------------------------------------------------
   // Static setup
   //---------------------------------------------------------------------------
@@ -80,6 +86,10 @@ module Bootstrap {
     "block removed": ["block", "tick"],
     "block history": ["tick", "page", "block", "ix", "entity", "projection"],
     "block": ["page", "block", "ix", "entity", "projection"],
+    "block scratch": ["block", "scratch"],
+    "block scratch history": ["block", "scratch", "tick"],
+    "block editing": ["block", "editing"],
+    "block editing history": ["block", "editing", "tick"],
     "projection": ["projection", "element"],
     "default projection": ["entity", "projection"],
     "kind projection": ["kind", "projection"],
@@ -158,13 +168,19 @@ module Bootstrap {
     "page": ["page ?page represents ?entity"],
     "block": [
       "block ?block on layer ?ix represents ?entity in ?page as a ?projection",
-      "block ?block on layer ?ix represents ?entity in ?page as an ?projection"
+      "block ?block on layer ?ix represents ?entity in ?page as an ?projection",
+      "?block is a block"
     ],
     "block history": [
       "block ?block on layer ?ix represents ?entity in ?page as a ?projection at tick ?tick",
       "block ?block on layer ?ix represents ?entity in ?page as an ?projection at tick ?tick"
     ],
     "block removed": ["block ?block was removed at ?tick"],
+    "block scratch": ["block ?block contains ?scratch"],
+    "block scratch history": ["block ?block contains ?scratch at tick ?tick"],
+    "block editing": ["?block is being edited ?editing"],
+    "block editing history": ["?block is being edited ?editing at tick ?tick"],
+
     "projection": ["projection ?projection is templated as ?element"],
     "default projection": ["entity ?entity usually looks like a ?projection", "entity ?entity usually looks like an ?projection"],
     "kind projection": ["?kind entities can look like a ?projection", "?kind entities can look like an ?projection"],
@@ -253,6 +269,18 @@ module Bootstrap {
       builtin ?kind entities can look like a ?projection
       + ?kind entities can look like a ?projection
     `,
+    "set default block scratch": Parsers.unpad(6) `
+      ?block is a block
+      ?scratch = ""
+      ?tick = "-1"
+      + block ?block contains ?scratch at tick ?tick
+    `,
+    "set default block editing": Parsers.unpad(6) `
+      ?block is a block
+      ?editing = "false"
+      ?tick = "-1"
+      + ?block is being edited ?editing at tick ?tick
+    `,
 
     // Basic derivations
     "entity list": Parsers.unpad(6) `
@@ -286,31 +314,24 @@ module Bootstrap {
       + entity ?entity is a ?kind
     `,
 
-    // @TODO: No removals for this block or greatest removal tick < current tick
-    "set block state": Parsers.unpad(6) `
-      block ?%block on layer ?ix represents ?entity in ?page as a ?projection at tick ?tick
-      # ?ord by ?tick descending
+    // Utilities
+    "set next layer": Parsers.unpad(6) `
+      block ? on layer ?ix represents ? in ?%page as a ?
+      # ?ord by ?ix descending
       ?ord < "2"
-      ! block ?block was removed at ?
-      + block ?block on layer ?ix represents ?entity in ?page as a ?projection
+      ?next $= ?ix + "1"
+      + next layer for page ?page is ?next
+    `,
+    "set next layer default": Parsers.unpad(6) `
+      page ?page represents ?
+      ! block ? on layer ? represents ? in ?page as a ?
+      ?next = "0"
+      + next layer for page ?page is ?next
     `,
 
-    // Selected page
-    "set selected page": Parsers.unpad(6) `
-      ?page is the selected page at tick ?tick
-      # ?ord by ?tick descending
-      ?ord < "2"
-      + ?page is the selected page
-    `,
-    "select page on index click": Parsers.unpad(6) `
-      event at ?tick is a "switch page" ? with key ?entity
-      page ?page represents ?entity
-      + ?page is the selected page at tick ?tick
-    `,
-
-    // Create pages
+    // Generate derived facts
     "create entity pages": Parsers.unpad(6) `
-      entity ?entity is a ?
+      ?entity is an entity
       ?tick = "-1"
       ?page $= ?entity concat "-page"
       ?block-title $= ?page concat "-block.0"
@@ -331,44 +352,68 @@ module Bootstrap {
       + block ?block-self on layer ?block-self-ix represents ?entity in ?page as a ?block-self-projection at tick ?tick
     `,
 
-    "set next layer": Parsers.unpad(6) `
-      block ? on layer ?ix represents ? in ?%page as a ?
-      # ?ord by ?ix descending
+    // State
+    "set selected page state": Parsers.unpad(6) `
+      ?page is the selected page at tick ?tick
+      # ?ord by ?tick descending
       ?ord < "2"
-      ?next $= ?ix + "1"
-      + next layer for page ?page is ?next
+      + ?page is the selected page
     `,
-    "set next layer default": Parsers.unpad(6) `
-      page ?page represents ?
-      ! block ? on layer ? represents ? in ?page as a ?
-      ?next = "0"
-      + next layer for page ?page is ?next
+    "set block state": Parsers.unpad(6) `
+      block ?%block on layer ?ix represents ?entity in ?page as a ?projection at tick ?tick
+      # ?ord by ?tick descending
+      ?ord < "2"
+      ! block ?block was removed at ?
+      + block ?block on layer ?ix represents ?entity in ?page as a ?projection
+    `,
+    "set block scratch state": Parsers.unpad(6) `
+      block ?%block contains ?scratch at tick ?tick
+      # ?ord by ?tick descending
+      ?ord < "2"
+      + block ?block contains ?scratch
+    `,
+    "set block editing state": Parsers.unpad(6) `
+      ?%block is being edited ?editing at tick ?tick
+      # ?ord by ?tick descending
+      ?ord < "2"
+      + ?block is being edited ?editing
     `,
 
-    "maintain handled events state": Parsers.unpad(6) `
+    "parse scratch": Parsers.unpad(6) `
+      block ?block contains ?scratch
+      + marked ?scratch
+    `,
+
+    // Stateful union maintenance
+    "maintain handled events": Parsers.unpad(6) `
       event at ?tick is already handled
       + event at ?tick is already handled
     `,
-    "maintain block history state": Parsers.unpad(6) `
+    "maintain block history": Parsers.unpad(6) `
       block ?block on layer ?ix represents ?entity in ?page as a ?projection at tick ?tick
       + block ?block on layer ?ix represents ?entity in ?page as a ?projection at tick ?tick
     `,
-    "maintain block removed state": Parsers.unpad(6) `
+    "maintain block removed": Parsers.unpad(6) `
       block ?block was removed at ?tick
       + block ?block was removed at ?tick
     `,
+    "maintain block scratch history": Parsers.unpad(6) `
+      block ?block contains ?scratch at tick ?tick
+      + block ?block contains ?scratch at tick ?tick
+    `,
+    "maintain block editing history": Parsers.unpad(6) `
+      ?block is being edited ?editing at tick ?tick
+      + ?block is being edited ?editing at tick ?tick
+    `,
+
+    // User page navigation
+    "select page on index click": Parsers.unpad(6) `
+      event at ?tick is a "switch page" ? with key ?entity
+      page ?page represents ?entity
+      + ?page is the selected page at tick ?tick
+    `,
 
     // User page editing
-    "user add block": Parsers.unpad(6) `
-      ; @TODO: Figure out why I'm failing to fixed point. Its because these unions arent stateful...
-      event at ?tick is an "add block" ? with key ?page
-      ! event at ?tick is already handled
-      next layer for page ?page is ?next
-      ?block $= "manual-block-" concat ?tick
-      ?empty = ""
-      + block ?block on layer ?next represents ?empty in ?page as a ?empty at tick ?tick
-      + event at ?tick is already handled
-    `,
     "user switch projection": Parsers.unpad(6) `
       event at ?tick is a "switch block projection" ? with key ?block
       ! event at ?tick is already handled
@@ -385,11 +430,46 @@ module Bootstrap {
       + block ?block on layer ?ix represents ?entity in ?page as a ?projection at tick ?tick
       + event at ?tick is already handled
     `,
+    "user switch scratch": Parsers.unpad(6) `
+      event at ?tick is a "switch block scratch" ? with key ?block
+      ! event at ?tick is already handled
+      event at ?tick is valued ?scratch
+      + block ?block contains ?scratch at tick ?tick
+      + event at ?tick is already handled
+    `,
+    "user add block": Parsers.unpad(6) `
+      ; @TODO: Figure out why I'm failing to fixed point. Its because these unions arent stateful...
+      event at ?tick is an "add block" ? with key ?page
+      ! event at ?tick is already handled
+      next layer for page ?page is ?next
+      ?block $= "manual-block-" concat ?tick
+      ?empty = ""
+      ?editing = "true"
+      + block ?block on layer ?next represents ?empty in ?page as a ?empty at tick ?tick
+      + ?block is being edited ?editing at tick ?tick
+      + event at ?tick is already handled
+    `,
     "user delete block": Parsers.unpad(6) `
       event at ?tick is a "delete block" ? with key ?block
       ! event at ?tick is already handled
-      block ?block on layer ? represents ? in ? as a ?
+      ?block is a block
       + block ?block was removed at ?tick
+      + event at ?tick is already handled
+    `,
+    "user edit block": Parsers.unpad(6) `
+      event at ?tick is a "edit block" ? with key ?block
+      ! event at ?tick is already handled
+      ?block is a block
+      ?editing = "true"
+      + ?block is being edited ?editing at tick ?tick
+      + event at ?tick is already handled
+    `,
+    "user stop edit block": Parsers.unpad(6) `
+      event at ?tick is a "stop edit block" ? with key ?block
+      ! event at ?tick is already handled
+      ?block is a block
+      ?editing = "false"
+      + ?block is being edited ?editing at tick ?tick
       + event at ?tick is already handled
     `,
 
@@ -482,7 +562,7 @@ module Bootstrap {
                 > ?element ?entity ?block ?page
               div block-empty; block empty
                 ~ block ?block on layer ?ix represents ?entity in ?page as a ""
-                ~ projection "search-and-replace-projection" is templated as ??element
+                ~ projection "scratch-projection" is templated as ??element
                 - ix: "1"
                 > ?element ?block ?page
           div wiki-block add-button ion-plus; add-block
@@ -490,9 +570,6 @@ module Bootstrap {
         row bordered; wiki footer
           - flex: "none"
           - text: "footer"
-    `,
-    "wiki block-elem": Parsers.unpad(6) `
-
     `
   };
 
@@ -537,15 +614,51 @@ module Bootstrap {
       - t: "renderer"
       - element: ?entity
     `,
-    "search-and-replace": Parsers.unpad(6) `
-      ~ block ?block on layer ? represents ? in ? as a ?
-      - t: "input"
-      - value: ""
-      - placeholder: "Find an entity..."
-      @change switch block entity: ?block
+    scratch: Parsers.unpad(6) `
+      ~ ?block is a block
+      ~ block ?block contains ?scratch
+      - c: "block-scratch"
+      @dblclick edit block: ?block
+      textarea
+        ~ ?block is being edited "true"
+        - t: "textarea"
+        - value: ?scratch
+        - placeholder: "Start typing anything..."
+        - autofocus: "true"
+        - height: "10em"
+        @change switch block scratch: ?block
+        @blur stop edit block: ?block
+      div document-flow
+        ~ ?block is being edited "false"
+        ~ marked ?scratch = ?html
+        - key: ?scratch
+        - dangerouslySetInnerHTML: ?html
     `
   };
 
+  interface Action {
+    input: string
+    outputs: {[id: string]: string}
+    trigger: (effect:Editor.DispatchEffect, diff:Indexer.Diff<Api.Dict>, ixer:Indexer.Indexer) => void
+  }
+  var actions:{[action:string]: Action} = {
+    marked: {
+      input: "marked ?md",
+      outputs: {
+        marked: "marked ?md = ?html"
+      },
+      trigger: function(effect, diff, ixer) {
+        effect.change.removeEach("marked", Api.resolve("marked", Api.humanize("marked input", diff.removes)));
+        for(let add of Api.humanize("marked input", diff.adds)) {
+          let {md} = add;
+          let html = marked(md);
+          effect.change.add("marked", Api.resolve("marked", {md, html}));
+        }
+        console.log("marked", effect);
+        setTimeout(() => effect.done(), 50);
+      }
+    }
+  };
 
   //---------------------------------------------------------------------------
   // Macro-generated builtin facts.
@@ -555,9 +668,31 @@ module Bootstrap {
   addCollection("unions", "union", ["fact-table-projection"]);
   addCollection("uis", "ui", ["renderer-projection"]);
   addCollection("projections", "projection");
+  addCollection("actions", "action");
 
   for(let projection in projections)
     facts["builtin projection"].push({projection: projection + "-projection", element: projection + "-projection-elem"});
+
+  (function() {
+    for(var actionId in actions) {
+      var action = actions[actionId];
+      var inputId = actionId + " input";
+      fingerprintsRaw[inputId] = [action.input];
+      views[inputId] = getFingerprintAliases(action.input);
+      facts["builtin entity"].push({entity: actionId + "-action", kind: "action"});
+      facts["display name"].push({id: actionId + "-action", name: actionId});
+      // @NOTE: Ensure action is closed over properly here when less sleep deprived.
+      Api.ixer.trigger(inputId, inputId, function(ixer) {
+        action.trigger(new Editor.DispatchEffect(), ixer.table(inputId).diff, ixer);
+      });
+
+      for(var output in action.outputs) {
+        fingerprintsRaw[output] = [action.outputs[output]];
+        views[output] = getFingerprintAliases(action.outputs[output]);
+        viewKinds[output] = "table";
+      }
+    }
+  })();
 
   //---------------------------------------------------------------------------
   // Resolve raw (humanized) bootstrap facts for compiling.

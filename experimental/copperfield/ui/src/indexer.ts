@@ -1,6 +1,6 @@
 module Indexer {
   export type Dict = {[key:string]: any}
-  interface Diff<T> { adds: T[], removes: T[] }
+  export interface Diff<T> { adds: T[], removes: T[] }
   export type Diffs<T> = {[viewId:string]: Diff<T>}
   type Index<T> = IndexPath<T>|T[]
   interface IndexPath<T> { [key:string]: Index<T> }
