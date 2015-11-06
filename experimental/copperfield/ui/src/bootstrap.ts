@@ -156,9 +156,11 @@ module Bootstrap {
 
     "view": ["view ?view is a ?kind"],
     "source": ["source ?source for ?view is ?source_view"],
+    "member": ["member ?member for ?view is ?member_view at ix ?ix"],
     "display name": ["?id is named ?name"],
     "display order": ["?id is ordered ?priority"],
     "tag": ["?view is tagged ?tag"],
+    "ast cache": ["ast for ?id is a ?kind = ?ast"],
     "event": ["event at ?tick is a ?kind ?event with key ?key", "event at ?tick is an ?kind ?event with key ?key"],
     "handled event": ["event at ?tick is already handled"],
     "event value": ["event at ?tick is valued ?value"],
@@ -416,6 +418,19 @@ module Bootstrap {
       block ?block contains ?scratch
       + marked ?scratch
     `,
+    "parse queries": Parsers.unpad(6) `
+      ?kind = "query"
+      entity ?entity is a ?kind
+      ast for ?entity is a ?kind = ?ast
+      + parse ?kind ast ?ast from ?entity
+    `,
+    "parse uis": Parsers.unpad(6) `
+      ?kind = "ui"
+      entity ?entity is a ?kind
+      ast for ?entity is a ?kind = ?ast
+      + parse ?kind ast ?ast from ?entity
+    `,
+
 
     // Stateful union maintenance
     "maintain handled events": Parsers.unpad(6) `
@@ -558,6 +573,8 @@ module Bootstrap {
                     - value: ""
                     - ix: "-10"
                   option
+                    ~ ?page is the selected page
+                    ~ block ?block on layer ? represents ?entity in ?page as a ?
                     ~ maybe ?entity is an entity
                     ~ ?entity_opt is an entity
                     ~ ?entity_opt is named ?entity_opt_text
@@ -577,6 +594,8 @@ module Bootstrap {
                     - value: ""
                     - ix: "-10"
                   option
+                    ~ ?page is the selected page
+                    ~ block ?block on layer ? represents ?entity in ?page as a ?
                     ~ entity ?entity is a ?_kind
                     ~ maybe ?projection is a projection
                     ~ ?_kind entities can look like a ?projection_opt
@@ -607,7 +626,12 @@ module Bootstrap {
   };
 
   var projections:{[projection:string]: string} = {
-    // Projections
+    "code": Parsers.unpad(6) `
+      ~ entity ?entity is a ?kind
+      ~ raw ?kind code for ?entity = ?code
+      - t: "pre"
+      - text: ?code
+    `,
     name: Parsers.unpad(6) `
       ~ ?entity is named ?name
       - debug: "name"
@@ -695,6 +719,20 @@ module Bootstrap {
           - text: ?text
           @click switch page: ?sourceView
     `,
+    members: Parsers.unpad(6) `
+      ~ entity ?entity is a "union"
+      - c: "document-flow"
+      h2
+        - text: "Members"
+      ul
+        li
+          ~ member ? for ?entity is ?sourceView at ix ?
+          ~ entity ?sourceView is a ??kind
+          ~ ?sourceView is named ?name
+          ~ ?text $= (?name concat " ") concat ??kind
+          - text: ?text
+          @click switch page: ?sourceView
+    `,
   };
 
   interface Action {
@@ -716,11 +754,10 @@ module Bootstrap {
           let html = marked(md);
           effect.change.add("marked", Api.resolve("marked", {md, html}));
         }
-        effect.rerender = true;
         setTimeout(() => effect.done(), 100);
       },
       scratch: Parsers.unpad(8) `
-        # Marked
+        ## Marked
         Marked is a speedy markdown processor that safely converts markdown formatted text into html.
         Writing markdown is easy! You can see all the formatting tricks [here](https://daringfireball.net/projects/markdown/syntax).
 
@@ -729,6 +766,40 @@ module Bootstrap {
         and read the parsed html like so:
         \`+ marked ?my_markdown = ?html\`
       `
+    },
+    "parse ast": {
+      input: "parse ?kind ast ?ast from ?entity",
+      outputs: {
+        "raw code": "raw ?kind code for ?entity = ?code"
+      },
+      trigger: function(effect, diff, ixer) {
+        if(!diff) return;
+        effect.change.removeEach("raw code", Api.resolve("raw code", Api.humanize("parse ast input", diff.removes)));
+        for(let add of Api.humanize("parse ast input", diff.adds)) {
+          let {kind, ast, entity} = add;
+          if(kind === "query") {
+            let query = new Parsers.Query();
+            query.loadFromAST(JSON.parse(ast), entity);
+            effect.change.add("raw code", Api.resolve("raw code", {kind, entity, code: query.raw}));
+          } else if(kind === "ui") {
+            let ui = new Parsers.Ui();
+            ui.loadFromAST(JSON.parse(ast), entity);
+            effect.change.add("raw code", Api.resolve("raw code", {kind, entity, code: ui.raw}));
+          } else {
+            throw new Error(`Unknown parseable entity kind '${kind}' for entity '${entity}'.`);
+          }
+          setTimeout(() => effect.done(), 100);
+        }
+      },
+      scratch: Parsers.unpad(8) `
+        ## Parse AST
+        Parse AST Is an internal tool for converting an ast into a raw code string. This is useful for debugging or providing code as editable text, but not much else.
+
+        To use the parse ast action, insert the AST as a json string and a viewId for reification like so:
+        \`+ parse ?kind ast ?ast from ?entity\`
+        and read the unparsed code like so:
+        \`raw ?kind code from ?entity = ?code\`
+      `
     }
   };
 
@@ -736,10 +807,10 @@ module Bootstrap {
   // Macro-generated builtin facts.
   //---------------------------------------------------------------------------
   addCollection("collections", "collection", ["index-projection"]);
-  addCollection("queries", "query");
-  addCollection("unions", "union", ["fact-table-projection"]);
+  addCollection("queries", "query", ["code-projection", "fact-table-projection", "sources-projection"]);
+  addCollection("unions", "union", ["fact-table-projection", "members-projection"]);
   addCollection("tables", "table", ["fact-table-projection"]);
-  addCollection("uis", "ui", ["renderer-projection"]);
+  addCollection("uis", "ui", ["code-projection", "renderer-projection"]);
   addCollection("projections", "projection");
   addCollection("actions", "action");
 
@@ -747,24 +818,27 @@ module Bootstrap {
     facts["builtin projection"].push({projection: projection + "-projection", element: projection + "-projection-elem"});
 
   (function() {
+    function wrapTrigger(table, trigger) {
+      return function(ixer) {
+        trigger(new Editor.DispatchEffect(), ixer.table(table).diff, ixer);
+      };
+    }
+
     for(var actionId in actions) {
       var action = actions[actionId];
       let entity = actionId + "-action";
       let page = entity + "-page";
       facts["builtin entity"].push({entity, kind: "action"});
       facts["builtin default projection"].push({entity, projection: ""});
-      if(action.scratch) facts["builtin block scratch"].push({block: `${entity}-page-block.2`, scratch: action.scratch});
+      if(action.scratch) facts["builtin block scratch"].push({block: `${page}-block.2`, scratch: action.scratch});
       facts["builtin block"].push({page, block: page + "-block.3", ix: 3, entity, projection: "related-projection"});
       facts["display name"].push({id: entity, name: actionId});
 
-      var inputId = actionId + " input";
+      let inputId = actionId + " input";
       facts["builtin related entity"].push({entity, "related entity": inputId});
       fingerprintsRaw[inputId] = [action.input];
       views[inputId] = getFingerprintAliases(action.input);
-      // @NOTE: Ensure action is closed over properly here when less sleep deprived.
-      Api.ixer.trigger(inputId, inputId, function(ixer) {
-        action.trigger(new Editor.DispatchEffect(), ixer.table(inputId).diff, ixer);
-      });
+      Api.ixer.trigger(inputId, inputId, wrapTrigger(inputId, action.trigger));
 
       for(var output in action.outputs) {
         facts["builtin related entity"].push({entity, "related entity": output});
