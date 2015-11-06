@@ -161,6 +161,7 @@ module Bootstrap {
     "display order": ["?id is ordered ?priority"],
     "tag": ["?view is tagged ?tag"],
     "ast cache": ["ast for ?id is a ?kind = ?ast"],
+    "view fingerprint": ["?view has fingerprint ?fingerprint"],
     "event": ["event at ?tick is a ?kind ?event with key ?key", "event at ?tick is an ?kind ?event with key ?key"],
     "handled event": ["event at ?tick is already handled"],
     "event value": ["event at ?tick is valued ?value"],
@@ -661,14 +662,28 @@ module Bootstrap {
     `,
     "fact-table": Parsers.unpad(6) `
       ~ view ?entity is a ?
-      - t: "fact-table"
-      - view: ?entity
+      - c: "document"
+      h2
+        - text: "Facts"
+      fact-table
+        - view: ?entity
+        - sortable: "true"
+    `,
+    fingerprints: Parsers.unpad(6) `
+      ~ ?entity is an entity
+      - c: "document"
+      h2
+        - text: "Fingerprints"
+      ul
+        li
+          ~ ?entity has fingerprint ?fingerprint
+          - text: ?fingerprint
     `,
     related: Parsers.unpad(6) `
       ~ ?entity is an entity
-      - c: "document-flow"
+      - c: "document"
       h2
-        - text: "Related"
+        - text: "Related Entities"
       ul
         li
           ~ entity ?entity is related to ?related
@@ -707,7 +722,7 @@ module Bootstrap {
     `,
     sources: Parsers.unpad(6) `
       ~ entity ?entity is a "query"
-      - c: "document-flow"
+      - c: "document"
       h2
         - text: "Sources"
       ul
@@ -721,7 +736,7 @@ module Bootstrap {
     `,
     members: Parsers.unpad(6) `
       ~ entity ?entity is a "union"
-      - c: "document-flow"
+      - c: "document"
       h2
         - text: "Members"
       ul
@@ -807,9 +822,9 @@ module Bootstrap {
   // Macro-generated builtin facts.
   //---------------------------------------------------------------------------
   addCollection("collections", "collection", ["index-projection"]);
-  addCollection("queries", "query", ["code-projection", "fact-table-projection", "sources-projection"]);
-  addCollection("unions", "union", ["fact-table-projection", "members-projection"]);
-  addCollection("tables", "table", ["fact-table-projection"]);
+  addCollection("queries", "query", ["fact-table-projection", "fingerprints-projection", "sources-projection", "code-projection"]);
+  addCollection("unions", "union", ["fact-table-projection", "fingerprints-projection", "members-projection"]);
+  addCollection("tables", "table", ["fact-table-projection", "fingerprints-projection"]);
   addCollection("uis", "ui", ["code-projection", "renderer-projection"]);
   addCollection("projections", "projection");
   addCollection("actions", "action");
