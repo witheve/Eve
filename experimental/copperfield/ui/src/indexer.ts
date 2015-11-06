@@ -1,6 +1,6 @@
 module Indexer {
   export type Dict = {[key:string]: any}
-  interface Diff<T> { adds: T[], removes: T[] }
+  export interface Diff<T> { adds: T[], removes: T[] }
   export type Diffs<T> = {[viewId:string]: Diff<T>}
   type Index<T> = IndexPath<T>|T[]
   interface IndexPath<T> { [key:string]: Index<T> }
@@ -43,7 +43,7 @@ module Indexer {
   //---------------------------------------------------------------------------
   function generateEqualityFn<T>(keys:Keys): EqualityFn<T> {
     return <EqualityFn<T>>new Function("a", "b",  `return ${keys.map(function(key, ix) {
-      return `a["${key}"] === b["${key}"] || typeof a === "object" && Indexer.identical(a, b)`;
+      return `(a["${key}"] === b["${key}"] || typeof a === "object" && Indexer.identical(a, b))`;
     }).join("\n&& ")};`);
   }
 

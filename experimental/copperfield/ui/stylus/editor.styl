@@ -7,6 +7,27 @@ $eve-blue-m = rgb(0, 158, 224);
 $eve-blue-d = rgb(0, 121, 177);
 
 body * { display: flex; flex-direction: column; }
+body .document-flow {
+  * { display: block; flex-direction: unset; }
+  span, em, strong, a { display: inline-block; }
+  ul { list-style: disc; }
+  ol { list-style: decimal; }
+  li { display: list-item; margin-left: 1.2em; }
+
+  h1 { font-size: 2em; }
+  h2 { font-size: 1.5em; }
+  h3 { font-weight: bold; }
+
+  em { font-style: italic; }
+  strong { font-weight: bold; }
+  code {
+    padding: 0.5em;
+    font-family: monospace;
+    white-space: pre;
+    background: rgba(24, 0, 32, 0.1);
+    border-radius: 3px;
+  }
+}
 
 body { background: $bg; }
 
@@ -45,7 +66,15 @@ pre { font-family: monospace; }
   border-bottom: 1px solid $bg;
 
   .block-controls {
+    position: relative;
+    top: -2px;
+    align-self: flex-end;
     align-items: stretch;
+
+    background: alpha($eve-purple-l, 0.5);
+    border-bottom: 1px solid alpha(black, 0.1);
+    border-top: 1px solid alpha(white, 0.2);
+    box-shadow: alpha(black, 0.5) 1px 2px 2px;
     opacity: 0;
     transition: all 0.3s;
 
@@ -57,20 +86,26 @@ pre { font-family: monospace; }
       align-items: center;
       justify-content: flex-end;
       padding 0 0.25em;
-      background: alpha($eve-purple-l, 0.5);
       border: none;
-      border-bottom: 1px solid alpha(black, 0.1);
-      border-top: 1px solid alpha(white, 0.2);
-      box-shadow: alpha(black, 0.5) 1px 2px 2px;
+      background: transparent;
+
       &:first-child { border-bottom-left-radius: 3px; }
       & + * { border-left: 1px solid alpha($eve-purple-l, 0.5); }
+    }
+
+    select {
+      -webkit-appearance: none;
+      margin: 0;
+      padding-right: 0.5em;
+      border-radius: 0;
     }
   }
   &:hover .block-controls { opacity: 1; }
 
-  .block-content {
+  .block-content, .block-scratch {
     padding: 1em;
     padding-top: 0;
+    min-height: 1em;
   }
 
   &.add-button { align-items: center; justify-content: center; height: 3em; opacity: 0; border: 1px solid darken($bg, 10%); transition: all 0.3s; }

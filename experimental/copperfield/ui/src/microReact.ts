@@ -26,10 +26,12 @@ module MicroReact {
     href?:string
     placeholder?:string
     selected?:boolean
+    autocomplete?:boolean
     tabindex?:number
     text?:string
     type?:string
     value?:string
+    dangerouslySetInnerHTML?:string
 
     // Styles (Structure)
     flex?:number|string
@@ -167,7 +169,7 @@ module MicroReact {
       for(var i = 0, len = adds.length; i < len; i++) {
         var id = adds[i];
         var cur = elements[id];
-        var div: any;
+        var div:any;
         if (cur.svg) {
           div = document.createElementNS("http://www.w3.org/2000/svg", cur.t || "rect");
         } else {
@@ -182,7 +184,7 @@ module MicroReact {
         var cur = elements[id];
         var prev = prevElements[id] || fakePrev;
         var type = updates[id];
-        var div;
+        var div:any;
         if(type === "replaced") {
           var me = elementCache[id];
           if (me.parentNode) me.parentNode.removeChild(me);
@@ -215,10 +217,12 @@ module MicroReact {
         if(cur.contentEditable !== prev.contentEditable) div.contentEditable = cur.contentEditable || "inherit";
         if(cur.colspan !== prev.colspan) div.colSpan = cur.colspan;
         if(cur.placeholder !== prev.placeholder) div.setAttribute("placeholder", cur.placeholder);
-        if(cur.selected !== prev.selected) div.selected = cur.selected;
+        if(cur.selected !== prev.selected) cur.selected ? div.setAttribute("selected", true) : div.removeAttribute("selected");
+        if(cur.autocomplete !== prev.autocomplete) cur.autocomplete ? div.setAttribute("autocomplete", cur.autocomplete) : div.removeAttribute("autocomplete");
         if(cur.value !== prev.value) div.value = cur.value;
+        if(cur.dangerouslySetInnerHTML !== prev.dangerouslySetInnerHTML) div.innerHTML = cur.dangerouslySetInnerHTML;
         if(cur.t === "input" && cur.type !== prev.type) div.type = cur.type;
-        if(cur.t === "input" && cur.checked !== prev.checked) div.checked = cur.checked;
+        if(cur.t === "input" && cur.checked !== prev.checked)  cur.checked ? div.setAttribute("checked", "") : div.removeAttribute("checked");
         if(cur.text !== prev.text && div.textContent !== cur.text) div.textContent = cur.text === undefined ? "" : cur.text;
         if(cur.tabindex !== prev.tabindex) div.setAttribute("tabindex", cur.tabindex);
         if(cur.href !== prev.href) div.setAttribute("href", cur.href);
@@ -354,6 +358,7 @@ module MicroReact {
            && curA.href === curB.href
            && curA.placeholder === curB.placeholder
            && curA.selected === curB.selected
+           && curA.autocomplete === curB.autocomplete
            && curA.draggable === curB.draggable
            && curA.contentEditable === curB.contentEditable
            && curA.value === curB.value

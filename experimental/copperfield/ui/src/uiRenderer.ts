@@ -123,6 +123,7 @@ module UiRenderer {
       let boundValueDebug = {};
       let stack:Element[] = [];
       let compiledElements:MicroReact.Element[] = [];
+      let elements:{[id:string]: Element} = {};
       let elemToRow:{[id:string]: any} = {};
       let elemToView:{[id:string]: string} = {};
       let boundAncestors:{[id:string]: Element} = {};
@@ -183,7 +184,7 @@ module UiRenderer {
           for(let row of boundRows) {
             // We need an id unique per row for bound elements.
             let childId = `${elem.id}.${ix}`;
-            elems.push({t: elem.t, parent: elem.id, id: childId, __template: templateId, ix: ix++});
+            elems.push({t: elem.t, parent: elem.parent, id: childId, __template: templateId, ix: ix++});
             elemToRow[childId] = row;
             elemToView[childId] = boundView;
             boundAncestors[childId] = boundAncestors[elem.id]; // Pass over the wrapper, it's these children which are bound.
@@ -194,6 +195,8 @@ module UiRenderer {
 
         let rowIx = 0;
         for(let elem of elems) {
+          elements[elem.id] = elem;
+
           this.compiled++;
           // Handle meta properties.
           elem.t = fact["uiElement: tag"];
@@ -265,7 +268,7 @@ module UiRenderer {
               if(constraints) bindingConstraints[childId] = constraints;
 
               boundAncestors[childId] = boundAncestor;
-              let childElem:Element = {id: childId, __template: childTemplateId};
+              let childElem:Element = {id: childId, __template: childTemplateId, parent: elem.id};
               childElem.ix = child["uiElement: ix"];
               if(typeof childElem.ix !== "number") childElem.ix = undefined;
               elem.children.push(childElem);
@@ -295,7 +298,13 @@ module UiRenderer {
           rowIx++;
         }
 
-        if(binding) elem.children = elems;
+        if(binding) {
+          let parent = elements[elem.parent];
+          let children = compiledElements;
+          if(parent) children = parent.children;
+          let ix = children.indexOf(elem);
+          children.splice.apply(children, (<any[]>[ix, 1]).concat(elems.sort((a, b) => a.ix === b.ix ? 0 : a.ix - b.ix)));
+        }
       }
       if(DEBUG.RENDER_TIME) {
         console.info(Date.now() - start);
@@ -305,22 +314,14 @@ module UiRenderer {
         stack.push.apply(stack, elem.children);
       }
 
-      let children = [];
       while(stack.length > 0) {
         let elem = stack.shift();
+        if(!elem) continue;
         elem.id = elem.parent = undefined;
         if(!elem.children) continue;
 
-        // Sort children (potentally sparsely).
-        for(let child of elem.children) children[child.ix] = child;
-        // Compact children and add them to the stack for sorting.
-        elem.children.length = 0;
-        for(let ix = 0; ix < children.length; ix++) {
-          if(!children[ix]) continue;
-          stack.push(<Element>children[ix]);
-          elem.children.push(children[ix]);
-        }
-        children.length = 0;
+        elem.children.sort((a, b) => a.ix - b.ix);
+        for(let child of elem.children) stack.push(<Element>child);
       }
 
       return compiledElements;
@@ -338,7 +339,7 @@ module UiRenderer {
         this._handlers[memoKey] = (evt:Event, elem:Element) => {
           let value;
           // @NOTE: We can't hoist elem checks since we reuse handlers based on event and kind alone.
-          if(elem.t === "select" || elem.t === "input") value = (<HTMLSelectElement|HTMLInputElement>evt.target).value;
+          if(elem.t === "select" || elem.t === "input" || elem.t === "textarea") value = (<HTMLSelectElement|HTMLInputElement>evt.target).value;
           if(elem.type === "checkbox") value = (<HTMLInputElement>evt.target).checked;
           self.handleEvent(elem.__template, event, kind, {key: elem[attrKey], value});
         };
