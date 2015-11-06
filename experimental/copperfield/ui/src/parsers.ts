@@ -278,7 +278,6 @@ module Parsers {
       fingerprint +=  tokenIsField(token) ? "?" : tokenToString(token);
     }
     fingerprint = fingerprint.trim();
-    if(fingerprint.indexOf("=") !== 0) console.log(fingerprint, ast.chunks);
     return fingerprint;
   }
 
