@@ -31,6 +31,7 @@ module MicroReact {
     text?:string
     type?:string
     value?:string
+    dangerouslySetInnerHTML?:string
 
     // Styles (Structure)
     flex?:number|string
@@ -219,6 +220,7 @@ module MicroReact {
         if(cur.selected !== prev.selected) cur.selected ? div.setAttribute("selected", true) : div.removeAttribute("selected");
         if(cur.autocomplete !== prev.autocomplete) cur.autocomplete ? div.setAttribute("autocomplete", cur.autocomplete) : div.removeAttribute("autocomplete");
         if(cur.value !== prev.value) div.value = cur.value;
+        if(cur.dangerouslySetInnerHTML !== prev.dangerouslySetInnerHTML) div.innerHTML = cur.dangerouslySetInnerHTML;
         if(cur.t === "input" && cur.type !== prev.type) div.type = cur.type;
         if(cur.t === "input" && cur.checked !== prev.checked)  cur.checked ? div.setAttribute("checked", "") : div.removeAttribute("checked");
         if(cur.text !== prev.text && div.textContent !== cur.text) div.textContent = cur.text === undefined ? "" : cur.text;
