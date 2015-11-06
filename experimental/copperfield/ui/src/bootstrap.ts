@@ -439,6 +439,7 @@ module Bootstrap {
                 select; entity switcher
                   @change switch block entity: ?block
                   - key: ?entity
+                  - autocomplete: "off"
                   option
                     - text: "---"
                     - ix: "-1"
@@ -446,25 +447,30 @@ module Bootstrap {
                     ~ maybe ?entity is an entity
                     ~ ?entity_opt is an entity
                     ~ ?entity_opt is named ?entity_opt_text
+                    ~ # ?opt_ord by ?entity_opt_text ascending
                     ~ ?entity_selected $= ?entity_opt == ?entity
-                    - text: ?entity_opt_text
                     - key: ?entity_opt
+                    - ix: ?opt_ord
+                    - text: ?entity_opt_text
                     - value: ?entity_opt
                     - selected: ?entity_selected
                     - debug: ?entity_selected
                 select; projection switcher
                   @change switch block projection: ?block
                   - key: ?projection
+                  - autocomplete: "off"
                   option
                     - text: "---"
                     - ix: "-1"
                   option
-                    ~ entity ?entity is a ?kind
+                    ~ entity ?entity is a ?_kind
                     ~ maybe ?projection is a projection
-                    ~ ?kind entities can look like a ?projection_opt
+                    ~ ?_kind entities can look like a ?projection_opt
                     ~ ?projection_opt is named ?projection_opt_text
+                    ~ # ?opt_ord by ?projection_opt_text ascending
                     ~ ?projection_selected $= ?projection_opt == ?projection
                     - key: ?projection_opt
+                    - ix: ?opt_ord
                     - text: ?projection_opt_text
                     - value: ?projection_opt
                     - selected: ?projection_selected
@@ -473,12 +479,12 @@ module Bootstrap {
                   @click delete block: ?block
               div block-content; block content
                 ~ projection ?projection is templated as ??element
-                > ?element ?entity
+                > ?element ?entity ?block ?page
               div block-empty; block empty
                 ~ block ?block on layer ?ix represents ?entity in ?page as a ""
                 ~ projection "search-and-replace-projection" is templated as ??element
                 - ix: "1"
-                > ?element ?block
+                > ?element ?block ?page
           div wiki-block add-button ion-plus; add-block
             @click add block: ?page
         row bordered; wiki footer
