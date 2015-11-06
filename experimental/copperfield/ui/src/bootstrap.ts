@@ -548,9 +548,24 @@ module Bootstrap {
       div wiki-root; wiki root
         ~ ?page is the selected page
         ~ page ?page represents ?root_entity
-        row bordered; wiki header
-          ~ ?header $= "Copperfield: " concat ?page
-          - text: ?header
+        row wiki-header bordered; wiki header
+          - ix: "-1"
+          span
+            ~ ?page is the selected page
+            ~ ?header $= "Copperfield: " concat ?page
+            - text: ?header
+          span ui-spacer
+          span
+            - text: "Previous pages:"
+          row wiki-nav
+            span wiki-nav-item recent-page
+              ~ page ?prevPage represents ?prev
+              ~ ?prevPage is the selected page at tick ?_tick
+              ~ # ?_ord by ?_tick descending
+              ~ ?_ord < "5"
+              ~ "1" < ?_ord
+              - text: ?prev
+              @click switch page: ?prev
         div wiki-page; wiki page
           div wiki-blocks; wiki blocks
             div wiki-block; wiki block
@@ -567,25 +582,20 @@ module Bootstrap {
                   - text: ?ix
                 select; entity switcher
                   @change switch block entity: ?block
-                  - key: ?entity
+                  - value: ?entity
                   - autocomplete: "off"
                   option
                     - text: "---"
                     - value: ""
                     - ix: "-10"
                   option
-                    ~ ?page is the selected page
-                    ~ block ?block on layer ? represents ?entity in ?page as a ?
-                    ~ maybe ?entity is an entity
                     ~ ?entity_opt is an entity
                     ~ ?entity_opt is named ?entity_opt_text
                     ~ # ?opt_ord by ?entity_opt_text ascending
-                    ~ ?entity_selected $= ?entity_opt == ?entity
                     - key: ?entity_opt
                     - ix: ?opt_ord
                     - text: ?entity_opt_text
                     - value: ?entity_opt
-                    - selected: ?entity_selected
                 select; projection switcher
                   @change switch block projection: ?block
                   - key: ?projection
@@ -596,9 +606,8 @@ module Bootstrap {
                     - ix: "-10"
                   option
                     ~ ?page is the selected page
-                    ~ block ?block on layer ? represents ?entity in ?page as a ?
+                    ~ block ?block on layer ? represents ?entity in ?page as a ?projection
                     ~ entity ?entity is a ?_kind
-                    ~ maybe ?projection is a projection
                     ~ ?_kind entities can look like a ?projection_opt
                     ~ ?projection_opt is named ?projection_opt_text
                     ~ # ?opt_ord by ?projection_opt_text ascending
@@ -716,6 +725,8 @@ module Bootstrap {
         @blur stop edit block: ?block
       div document-flow
         ~ ?block is being edited "false"
+        ~ block ?block contains ?scratch
+        ~ ?scratch != ""
         ~ marked ?scratch = ?html
         - key: ?scratch
         - dangerouslySetInnerHTML: ?html
