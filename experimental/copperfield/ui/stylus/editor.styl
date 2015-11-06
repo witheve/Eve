@@ -7,6 +7,20 @@ $eve-blue-m = rgb(0, 158, 224);
 $eve-blue-d = rgb(0, 121, 177);
 
 body * { display: flex; flex-direction: column; }
+body .document-flow {
+  * { display: block; flex-direction: unset; }
+  span, em, strong { display: inline-block; }
+  ul { list-style: disc; }
+  ol { list-style: decimal; }
+  li { display: list-item; margin-left: 1.2em; }
+
+  h1 { font-size: 2em; }
+  h2 { font-size: 1.5em; }
+  h3 { font-weight: bold; }
+
+  em { font-style: italic; }
+  strong { font-weight: bold; }
+}
 
 body { background: $bg; }
 
@@ -84,6 +98,10 @@ pre { font-family: monospace; }
   .block-content {
     padding: 1em;
     padding-top: 0;
+  }
+
+  .block-scratch {
+    min-height: 1em;
   }
 
   &.add-button { align-items: center; justify-content: center; height: 3em; opacity: 0; border: 1px solid darken($bg, 10%); transition: all 0.3s; }
