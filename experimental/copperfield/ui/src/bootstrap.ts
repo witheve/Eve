@@ -47,6 +47,7 @@ module Bootstrap {
     facts["builtin default projection"].push({entity, projection: "index-projection"});
     if(projections.indexOf("name-projection") === -1) projections.unshift("name-projection");
     if(projections.indexOf("kinds-projection") === -1) projections.unshift("kinds-projection");
+    if(projections.indexOf("related-projection") === -1) projections.unshift("related-projection");
     for(let projection of projections) {
       facts["builtin kind projection"].push({kind, projection});
     }
@@ -107,6 +108,7 @@ module Bootstrap {
     "default page": ["page"],
     "builtin entity": ["entity", "kind"],
     "builtin collection entity": ["entity", "kind"],
+    "builtin related entity": ["entity", "related entity"],
     "builtin page": ["entity", "page"],
     "builtin block": ["page", "block", "ix", "entity", "projection"],
     "builtin block scratch": ["block", "scratch"],
@@ -127,6 +129,7 @@ module Bootstrap {
     "default page": "table",
     "builtin entity": "table",
     "builtin collection entity": "table",
+    "builtin related entity": "table",
     "builtin page": "table",
     "builtin block": "table",
     "builtin block scratch": "table",
@@ -152,6 +155,7 @@ module Bootstrap {
     "single": ["single"],
 
     "view": ["view ?view is a ?kind"],
+    "source": ["source ?source for ?view is ?source_view"],
     "display name": ["?id is named ?name"],
     "display order": ["?id is ordered ?priority"],
     "tag": ["?view is tagged ?tag"],
@@ -198,6 +202,7 @@ module Bootstrap {
     "default page": ["?page is the default page"],
     "builtin entity": ["builtin entity ?entity is a ?kind", "builtin entity ?entity is an ?kind"],
     "builtin collection entity": ["builtin entity ?entity contains each ?kind"],
+    "builtin related entity": ["builtin entity ?entity is related to ?related_entity"],
     "builtin page": ["builtin page ?page represents ?entity"],
     "builtin block": [
       "builtin block ?block on layer ?ix represents ?entity in ?page as a ?projection",
@@ -222,6 +227,7 @@ module Bootstrap {
     "tag": [],
     "builtin entity": [],
     "builtin collection entity": [],
+    "builtin related entity": [],
     "default page": [{page: "collections-page"}],
     "builtin page": [{page: "dummy-page", entity: "dummy"}],
     "builtin block": [],
@@ -251,6 +257,10 @@ module Bootstrap {
     "set builtin collection entities": Parsers.unpad(6) `
       builtin entity ?entity contains each ?kind
       + entity ?entity contains each ?kind
+    `,
+    "set builtin related entities": Parsers.unpad(6) `
+      builtin entity ?entity is related to ?related_entity
+      + entity ?entity is related to ?related_entity
     `,
     "set builtin pages": Parsers.unpad(6) `
       builtin page ?page represents ?entity
@@ -291,7 +301,7 @@ module Bootstrap {
       + ?block is being edited ?editing at tick ?tick
     `,
 
-    // Basic derivations
+    // Derivations
     "entity list": Parsers.unpad(6) `
       entity ?entity is a ?
       + ?entity is an entity
@@ -310,6 +320,13 @@ module Bootstrap {
       + entity ?entity is a ?kind
       + entity ?entity usually looks like a ?projection
     `,
+    "table entity": Parsers.unpad(6) `
+      view ?entity is a "table"
+      ?kind = "table"
+      ?projection = "fact-table-projection"
+      + entity ?entity is a ?kind
+      + entity ?entity usually looks like a ?projection
+    `,
     "ui entity": Parsers.unpad(6) `
       ?entity is tagged "ui-root"
       ?kind = "ui"
@@ -322,23 +339,6 @@ module Bootstrap {
       ?kind = "projection"
       + entity ?entity is a ?kind
     `,
-
-    // Utilities
-    "set next layer": Parsers.unpad(6) `
-      block ? on layer ?ix represents ? in ?%page as a ?
-      # ?ord by ?ix descending
-      ?ord < "2"
-      ?next $= ?ix + "1"
-      + next layer for page ?page is ?next
-    `,
-    "set next layer default": Parsers.unpad(6) `
-      page ?page represents ?
-      ! block ? on layer ? represents ? in ?page as a ?
-      ?next = "0"
-      + next layer for page ?page is ?next
-    `,
-
-    // Generate derived facts
     "create entity pages": Parsers.unpad(6) `
       ?entity is an entity
       ?tick = "-10"
@@ -359,6 +359,30 @@ module Bootstrap {
       + block ?block-title on layer ?block-title-ix represents ?entity in ?page as a ?block-title-projection at tick ?tick
       + block ?block-nav on layer ?block-nav-ix represents ?entity in ?page as a ?block-nav-projection at tick ?tick
       + block ?block-self on layer ?block-self-ix represents ?entity in ?page as a ?block-self-projection at tick ?tick
+    `,
+    "create query extra blocks": Parsers.unpad(6) `
+      entity ?entity is a "query"
+      ?tick = "-10"
+      page ?page represents ?entity
+      ?block-sources $= ?page concat "-block.3"
+      ?block-sources-ix = "3"
+      ?sources-projection = "sources-projection"
+      + block ?block-sources on layer ?block-sources-ix represents ?entity in ?page as a ?sources-projection at tick ?tick
+    `,
+
+    // Utilities
+    "set next layer": Parsers.unpad(6) `
+      block ? on layer ?ix represents ? in ?%page as a ?
+      # ?ord by ?ix descending
+      ?ord < "2"
+      ?next $= ?ix + "1"
+      + next layer for page ?page is ?next
+    `,
+    "set next layer default": Parsers.unpad(6) `
+      page ?page represents ?
+      ! block ? on layer ? represents ? in ?page as a ?
+      ?next = "0"
+      + next layer for page ?page is ?next
     `,
 
     // State
@@ -515,7 +539,7 @@ module Bootstrap {
           div wiki-blocks; wiki blocks
             div wiki-block; wiki block
               ~ block ?block on layer ?ix represents ?entity in ?%page as a ?projection
-              ~ # ?ord by ?ix ascending
+              ~ # ?_ord by ?ix ascending
               - ix: ?ix
               - debug: ?block
               - key: ?block
@@ -531,6 +555,7 @@ module Bootstrap {
                   - autocomplete: "off"
                   option
                     - text: "---"
+                    - value: ""
                     - ix: "-10"
                   option
                     ~ maybe ?entity is an entity
@@ -543,13 +568,13 @@ module Bootstrap {
                     - text: ?entity_opt_text
                     - value: ?entity_opt
                     - selected: ?entity_selected
-                    - debug: ?entity_selected
                 select; projection switcher
                   @change switch block projection: ?block
                   - key: ?projection
                   - autocomplete: "off"
                   option
                     - text: "---"
+                    - value: ""
                     - ix: "-10"
                   option
                     ~ entity ?entity is a ?_kind
@@ -563,7 +588,6 @@ module Bootstrap {
                     - text: ?projection_opt_text
                     - value: ?projection_opt
                     - selected: ?projection_selected
-                    - debug: ?projection_selected
                 button delete-button ion-close; delete block button
                   @click delete block: ?block
               div block-content; block content
@@ -616,6 +640,20 @@ module Bootstrap {
       - t: "fact-table"
       - view: ?entity
     `,
+    related: Parsers.unpad(6) `
+      ~ ?entity is an entity
+      - c: "document-flow"
+      h2
+        - text: "Related"
+      ul
+        li
+          ~ entity ?entity is related to ?related
+          ~ entity ?related is a ??kind
+          ~ ?related is named ?name
+          ~ ?text $= (?name concat " ") concat ??kind
+          - text: ?text
+          @click switch page: ?related
+    `,
     renderer: Parsers.unpad(6) `
       ~ entity ?entity is a "ui"
       ~ ?entity != "wiki root-elem"
@@ -642,7 +680,21 @@ module Bootstrap {
         ~ marked ?scratch = ?html
         - key: ?scratch
         - dangerouslySetInnerHTML: ?html
-    `
+    `,
+    sources: Parsers.unpad(6) `
+      ~ entity ?entity is a "query"
+      - c: "document-flow"
+      h2
+        - text: "Sources"
+      ul
+        li
+          ~ source ? for ?entity is ?sourceView
+          ~ entity ?sourceView is a ??kind
+          ~ ?sourceView is named ?name
+          ~ ?text $= (?name concat " ") concat ??kind
+          - text: ?text
+          @click switch page: ?sourceView
+    `,
   };
 
   interface Action {
@@ -664,8 +716,8 @@ module Bootstrap {
           let html = marked(md);
           effect.change.add("marked", Api.resolve("marked", {md, html}));
         }
-        console.log("marked", effect);
-        setTimeout(() => effect.done(), 50);
+        effect.rerender = true;
+        setTimeout(() => effect.done(), 100);
       },
       scratch: Parsers.unpad(8) `
         # Marked
@@ -686,6 +738,7 @@ module Bootstrap {
   addCollection("collections", "collection", ["index-projection"]);
   addCollection("queries", "query");
   addCollection("unions", "union", ["fact-table-projection"]);
+  addCollection("tables", "table", ["fact-table-projection"]);
   addCollection("uis", "ui", ["renderer-projection"]);
   addCollection("projections", "projection");
   addCollection("actions", "action");
@@ -696,20 +749,25 @@ module Bootstrap {
   (function() {
     for(var actionId in actions) {
       var action = actions[actionId];
+      let entity = actionId + "-action";
+      let page = entity + "-page";
+      facts["builtin entity"].push({entity, kind: "action"});
+      facts["builtin default projection"].push({entity, projection: ""});
+      if(action.scratch) facts["builtin block scratch"].push({block: `${entity}-page-block.2`, scratch: action.scratch});
+      facts["builtin block"].push({page, block: page + "-block.3", ix: 3, entity, projection: "related-projection"});
+      facts["display name"].push({id: entity, name: actionId});
+
       var inputId = actionId + " input";
+      facts["builtin related entity"].push({entity, "related entity": inputId});
       fingerprintsRaw[inputId] = [action.input];
       views[inputId] = getFingerprintAliases(action.input);
-      let entity = actionId + "-action";
-      facts["builtin entity"].push({entity, kind: "action"});
-      facts["builtin default projection"].push({entity, projection: "scratch-projection"});
-      if(action.scratch) facts["builtin block scratch"].push({block: `${entity}-page-block.2`, scratch: action.scratch});
-      facts["display name"].push({id: entity, name: actionId});
       // @NOTE: Ensure action is closed over properly here when less sleep deprived.
       Api.ixer.trigger(inputId, inputId, function(ixer) {
         action.trigger(new Editor.DispatchEffect(), ixer.table(inputId).diff, ixer);
       });
 
       for(var output in action.outputs) {
+        facts["builtin related entity"].push({entity, "related entity": output});
         fingerprintsRaw[output] = [action.outputs[output]];
         views[output] = getFingerprintAliases(action.outputs[output]);
         viewKinds[output] = "table";
@@ -753,7 +811,7 @@ module Bootstrap {
   //---------------------------------------------------------------------------
   Client.afterInit(function() {
     Api.DEBUG.SEND = 3;
-    Api.DEBUG.RECEIVE = 3;
+    Api.DEBUG.RECEIVE = 1;
     //Api.DEBUG.STRUCTURED_CHANGE = true;
     // Phase 1: Create views, fingerprints, and initial facts.
     if(Api.DEBUG.BOOTSTRAP) console.groupCollapsed("Phase 1: Create views, fingerprints, and initial facts");
