@@ -1474,11 +1474,7 @@ function walk(tree, indent = 0) {
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("Everything you want to do boils down to searching and formatting the results.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("That gives you an immense amount of power over the bits you collect.")
+       randomlyLetter("Exploration is simply a matter of searching and formatting the results.")
      ]}},
     {type: "slide",
      content: {children: [
@@ -1499,47 +1495,47 @@ function walk(tree, indent = 0) {
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("And you can still pull them apart and see how they're made.")
+       randomlyLetter("And you can still pull them apart to see how they're made.")
      ]}},
      {type: "slide",
      content: {children: [
-       randomlyLetter("People can explore beyond what you send them. They can remix it and create new bits based on the information.")
+       randomlyLetter("That allows people to explore beyond what you send them. They can remix it and create new bits based on the information.")
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("This gives people the power to do more together, to collaborate in a much deeper way.")
+       randomlyLetter("This enables people to collaborate in a much deeper way.")
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("Sometimes we're just exploring by ourselves, but much of the time there are teams, businesses, even times when we want to work with the whole world.")
+       randomlyLetter("Sometimes we are just exploring by ourselves, but much of the time there are teams, businesses, even times when we want to work with the whole world.")
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("One thing I've learned about collaboration though is that it doesn't always mean consensus.")
+       randomlyLetter("One thing I've learned about collaboration is that that doesn't always mean consensus.")
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("Many versions of a bit can exist, you can have your own and others can have their own.")
+       randomlyLetter("Instead, many versions of a bit can exist, you can have yours and others can have theirs.")
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("But we can still propose changes to each other and choose people to approve updates to the official version.")
+       randomlyLetter("But we can still propose changes to each other and select people to approve updates to the final version.")
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("This allows you to explore and contribute to the overall process, while maintaining control of the end result.")
+       randomlyLetter("This enables others to contribute to the overall process, while maintaining control of the end result.")
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("It also allows for different world views and different ideas of correctness.")
+       randomlyLetter("This form of collaboration also allows for different world views and different ideas of correctness.")
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("Which is important because I was meant to fit the world we live in, not some idealized version where everything fits neatly in a box.")
+       randomlyLetter("Which is important because I was meant to fit in the real world, not some idealized version where everything fits neatly in a box.")
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("And that world is rapidly becoming something new.")
+       randomlyLetter("And it is that world that is rapidly becoming something new.")
      ]}},
     {type: "slide",
      content: {children: [
