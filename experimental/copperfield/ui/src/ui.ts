@@ -108,6 +108,7 @@ module Ui {
     row,
     column,
     dropdown,
+    select,
     renderer,
     button,
     input: rawInput,
@@ -247,6 +248,17 @@ module Ui {
     return elem;
   }
 
+  export function select(elem:Element) {
+    let {value} = elem;
+    for(let child of elem.children || []) {
+      if(child.value === value) {
+        child.selected = true;
+        break;
+      }
+    }
+    return elem;
+  }
+
   interface SortToggleElement extends Element {
     for: string
     field: string
@@ -254,6 +266,7 @@ module Ui {
     active?: boolean
   }
   export function sortToggle(elem:SortToggleElement) {
+    elem.t = "sort-toggle";
     let {"for":forId, field:fieldId, direction = 1, active = false} = elem;
 
     var sortClass = `icon ${(direction === 1 || !active) ? "ion-android-arrow-dropdown" : "ion-android-arrow-dropup"} ${active ? "active" : ""}`;
@@ -326,10 +339,7 @@ module Ui {
 
     if(autosort && elem.id && uiState.sort[elem.id]) {
       let {field: sortField, direction: sortDirection} = uiState.sort[elem.id];
-      let sortIx = headers.indexOf(sortField);
-      if(sortIx !== -1) {
-        Api.sortRows(data, sortIx, sortDirection);
-      }
+      Api.sortRows(data, sortField, sortDirection);
     }
 
     elem.children = [];
@@ -360,11 +370,12 @@ module Ui {
       let entryRow = [];
       let ix = 0;
       for(let cell of row) {
-        let cellElem = {t: "td", c: "cell", click: elem.cellClick, header: headers[ix], text: (cell instanceof Array) ? cell.join(", ") : cell};
+        let text = (cell instanceof Array) ? cell.join(", ") : cell;
+        let cellElem = {t: "td", c: "cell", click: elem.cellClick, header: headers[ix], text, title: text};
         entryRow.push(cellRenderer ? cellRenderer(cellElem) : cellElem);
         ix++;
       }
-      bodyRows.push({t: "tr", c: "row", children: entryRow, row: rowIx, click: elem.rowClick});
+      bodyRows.push({t: "tr", c: "row", children: entryRow, ix: rowIx, row: rowIx, click: elem.rowClick});
       rowIx++;
     }
     elem.children.push({t: "tbody", children: bodyRows});

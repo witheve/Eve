@@ -133,17 +133,21 @@ module Api {
   // @NOTE Rows array will be mutated in place. Please slice in advance if source cannot be mutated.
   export function sortRows(rows:any[], field:string|number, direction:number) {
     rows.sort(function sort(factA:Dict, factB:Dict) {
-      var a, b;
-      if(direction >= 0) [a, b] = [factA[field], factB[field]];
-      else [b, a] = [factA[field], factB[field]];
+      let a = factA[field], b = factB[field];
+      if(direction < 0) {
+        let tmp = a;
+        a = b;
+        b = tmp;
+      }
 
       var typeA = typeof a;
       var typeB = typeof b;
+      if(typeA === typeB && a === b) { return 0; }
       if(typeA === typeB && typeA === "number") { return a - b; }
-      if(typeA === "number") { return -1; }
-      if(typeB === "number") { return 1; }
       if(typeA === "undefined") { return -1; }
       if(typeB === "undefined") { return 1; }
+      if(typeA === "number") { return -1; }
+      if(typeB === "number") { return 1; }
       if(a.constructor === Array) { return JSON.stringify(a).localeCompare(JSON.stringify(b)); }
       return a.toString().localeCompare(b);
     });

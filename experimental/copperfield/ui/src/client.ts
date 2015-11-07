@@ -81,9 +81,15 @@ module Client {
     var totalRemoves = 0;
     var malformedDiffs:string[] = [];
     var badValues:string[] = [];
+    var maxChanges = 0;
+    var maxChangesView;
     data.changes.forEach(function([viewId, fields, adds, removes]) {
       totalAdds += adds.length;
       totalRemoves += removes.length;
+      if(adds.length + removes.length > maxChanges) {
+        maxChanges = adds.length + removes.length;
+        maxChangesView = viewId;
+      }
       // Simple check to notify programmers of definitely unhealthy payloads they may be sending.
       var hasMalformedDiffs = false;
       var hasBadValues = false;
@@ -100,7 +106,7 @@ module Client {
       if (hasBadValues) badValues.push(viewId);
     });
 
-    return { adds: totalAdds, removes: totalRemoves, malformedDiffs: malformedDiffs, badValues: badValues };
+    return { adds: totalAdds, removes: totalRemoves, malformedDiffs: malformedDiffs, badValues: badValues, maxChangesView, maxChanges };
   }
 
   export function factToMap(viewId:Id, fact:Fact, fieldIds:string[] = Api.get.fields(viewId)) {
@@ -213,6 +219,7 @@ module Client {
           if (stats.badValues.length) {
             console.warn("The following views have bad values:", stats.badValues);
           }
+          console.log(`Max Changes: ${stats.maxChangesView} (${stats.maxChanges})`);
           writeDataToConsole({ changes: changes }, DEBUG.RECEIVE);
           console.groupEnd();
         }
@@ -287,6 +294,7 @@ module Client {
         if (stats.badValues.length) {
           console.warn("The following views have bad values:", stats.badValues);
         }
+        console.log(`Max Changes: ${stats.maxChangesView} (${stats.maxChanges})`);
         writeDataToConsole(payload, DEBUG.SEND);
         console.groupEnd();
       }

@@ -276,24 +276,6 @@ module UiRenderer {
             }
           }
 
-          // Handle compiled element tags.
-          let elementCompiler = elementCompilers[elem.t];
-          if(elementCompiler) {
-            try {
-              elementCompiler(elem);
-            } catch(err) {
-              let row = elemToRow[elem.id];
-              let warning = {"uiWarning: element": elem.id, "uiWarning: row": row || "", "uiWarning: warning": err.message};
-              if(!Api.ixer.findOne("uiWarning", warning)) {
-                this.warnings.push(warning);
-              }
-              elem["message"] = warning["uiWarning: warning"];
-              elem["element"] = warning["uiWarning: element"];
-              Ui.uiError(<any> elem);
-              console.warn("Invalid element:", elem);
-            }
-          }
-
           if(DEBUG.RENDERER) elem.debug = elem.id;
           rowIx++;
         }
@@ -317,6 +299,24 @@ module UiRenderer {
       while(stack.length > 0) {
         let elem = stack.shift();
         if(!elem) continue;
+        // Handle compiled element tags.
+        let elementCompiler = elementCompilers[elem.t];
+        if(elementCompiler) {
+          try {
+            elementCompiler(elem);
+          } catch(err) {
+            let row = elemToRow[elem.id];
+            let warning = {"uiWarning: element": elem.id, "uiWarning: row": row || "", "uiWarning: warning": err.message};
+            if(!Api.ixer.findOne("uiWarning", warning)) {
+              this.warnings.push(warning);
+            }
+            elem["message"] = warning["uiWarning: warning"];
+            elem["element"] = warning["uiWarning: element"];
+            Ui.uiError(<any> elem);
+            console.warn("Invalid element:", elem);
+          }
+        }
+
         elem.id = elem.parent = undefined;
         if(!elem.children) continue;
 
