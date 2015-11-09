@@ -735,25 +735,29 @@ module Bootstrap {
   };
 
   interface Action {
-    input: string
+    inputs: {[id: string]: string}
     outputs: {[id: string]: string}
-    trigger: (effect:Editor.DispatchEffect, diff:Indexer.Diff<Api.Dict>, ixer:Indexer.Indexer) => void
+    triggers: {[id: string]: (effect:Editor.DispatchEffect, diff:Indexer.Diff<Api.Dict>, ixer:Indexer.Indexer) => void}
     scratch?: string
   }
   var actions:{[action:string]: Action} = {
     marked: {
-      input: "marked ?md",
+      inputs: {
+        "marked input": "marked ?md"
+      },
       outputs: {
         marked: "marked ?md = ?html"
       },
-      trigger: function(effect, diff, ixer) {
-        effect.change.removeEach("marked", Api.resolve("marked", Api.humanize("marked input", diff.removes)));
-        for(let add of Api.humanize("marked input", diff.adds)) {
-          let {md} = add;
-          let html = marked(md);
-          effect.change.add("marked", Api.resolve("marked", {md, html}));
+      triggers: {
+        "marked input": function(effect, diff, ixer) {
+          effect.change.removeEach("marked", Api.resolve("marked", Api.humanize("marked input", diff.removes)));
+          for(let add of Api.humanize("marked input", diff.adds)) {
+            let {md} = add;
+            let html = marked(md);
+            effect.change.add("marked", Api.resolve("marked", {md, html}));
+          }
+          setTimeout(() => effect.done(), 32);
         }
-        setTimeout(() => effect.done(), 100);
       },
       scratch: Parsers.unpad(8) `
         ## Marked
@@ -767,27 +771,31 @@ module Bootstrap {
       `
     },
     "parse ast": {
-      input: "parse ?kind ast ?ast from ?entity",
+      inputs: {
+        "parse ast input": "parse ?kind ast ?ast from ?entity"
+      },
       outputs: {
         "raw code": "raw ?kind code for ?entity = ?code"
       },
-      trigger: function(effect, diff, ixer) {
-        if(!diff) return;
-        effect.change.removeEach("raw code", Api.resolve("raw code", Api.humanize("parse ast input", diff.removes)));
-        for(let add of Api.humanize("parse ast input", diff.adds)) {
-          let {kind, ast, entity} = add;
-          if(kind === "query") {
-            let query = new Parsers.Query();
-            query.loadFromAST(JSON.parse(ast), entity);
-            effect.change.add("raw code", Api.resolve("raw code", {kind, entity, code: query.raw}));
-          } else if(kind === "ui") {
-            let ui = new Parsers.Ui();
-            ui.loadFromAST(JSON.parse(ast), entity);
-            effect.change.add("raw code", Api.resolve("raw code", {kind, entity, code: ui.raw}));
-          } else {
-            throw new Error(`Unknown parseable entity kind '${kind}' for entity '${entity}'.`);
+      triggers: {
+        "parse ast input": function(effect, diff, ixer) {
+          if(!diff) return;
+          effect.change.removeEach("raw code", Api.resolve("raw code", Api.humanize("parse ast input", diff.removes)));
+          for(let add of Api.humanize("parse ast input", diff.adds)) {
+            let {kind, ast, entity} = add;
+            if(kind === "query") {
+              let query = new Parsers.Query();
+              query.loadFromAST(JSON.parse(ast), entity);
+              effect.change.add("raw code", Api.resolve("raw code", {kind, entity, code: query.raw}));
+            } else if(kind === "ui") {
+              let ui = new Parsers.Ui();
+              ui.loadFromAST(JSON.parse(ast), entity);
+              effect.change.add("raw code", Api.resolve("raw code", {kind, entity, code: ui.raw}));
+            } else {
+              throw new Error(`Unknown parseable entity kind '${kind}' for entity '${entity}'.`);
+            }
+            setTimeout(() => effect.done(), 100);
           }
-          setTimeout(() => effect.done(), 100);
         }
       },
       scratch: Parsers.unpad(8) `
@@ -833,11 +841,14 @@ module Bootstrap {
       facts["builtin block"].push({page, block: page + "-block.3", ix: 3, entity, projection: "related-projection"});
       facts["display name"].push({id: entity, name: actionId});
 
-      let inputId = actionId + " input";
-      facts["builtin related entity"].push({entity, "related entity": inputId});
-      fingerprintsRaw[inputId] = [action.input];
-      views[inputId] = getFingerprintAliases(action.input);
-      Api.ixer.trigger(inputId, inputId, wrapTrigger(inputId, action.trigger));
+      for(var input in action.inputs) {
+        facts["builtin related entity"].push({entity, "related entity": input});
+        fingerprintsRaw[input] = [action.inputs[input]];
+        views[input] = getFingerprintAliases(action.inputs[input]);
+      }
+      for(var trigger in action.triggers) {
+        Api.ixer.trigger(trigger, trigger, wrapTrigger(trigger, action.triggers[trigger]));
+      }
 
       for(var output in action.outputs) {
         facts["builtin related entity"].push({entity, "related entity": output});
