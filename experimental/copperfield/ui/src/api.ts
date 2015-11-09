@@ -1,7 +1,8 @@
 /// <reference path="indexer.ts" />
+/// <reference path="../vendor/nlp.d.ts" />
+/// <reference path="../vendor/marked.d.ts" />
 module Api {
-  declare var window;
-  export var uuid:()=>string = window.uuid;
+  export var uuid:() => string = window["uuid"];
 
   export type Dict = Indexer.Dict;
   type Id = string;
@@ -18,8 +19,8 @@ module Api {
     TABLE_CELL_LOOKUP: true
   };
 
-  if(!window.DEBUG) window.DEBUG = DEBUG;
-  else DEBUG = window.DEBUG;
+  if(!window["DEBUG"]) window["DEBUG"] = DEBUG;
+  else DEBUG = window["DEBUG"];
 
   export const KEYS = {
     TAB: 9,
