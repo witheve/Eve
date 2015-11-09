@@ -342,9 +342,13 @@ module UiRenderer {
           if(elem.t === "select" || elem.t === "input" || elem.t === "textarea") value = (<HTMLSelectElement|HTMLInputElement>evt.target).value;
           if(elem.type === "checkbox") value = (<HTMLInputElement>evt.target).checked;
           self.handleEvent(elem.__template, event, kind, {key: elem[attrKey], value});
+          evt.stopPropagation();
         };
       } else {
-        this._handlers[memoKey] = (evt:Event, elem:Element) => self.handleEvent(elem.__template, event, kind, {key: elem[attrKey]});
+        this._handlers[memoKey] = (evt:Event, elem:Element) => {
+          self.handleEvent(elem.__template, event, kind, {key: elem[attrKey]});
+          evt.stopPropagation();
+        }
       }
 
       return this._handlers[memoKey];
