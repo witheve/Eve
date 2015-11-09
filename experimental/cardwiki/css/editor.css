@@ -87,7 +87,7 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .search-plan * { flex:1; padding: 5px; background: #333; }
 .search-plan > * + * { margin-left:1px; }
 
-.search-container { position:absolute; }
+.search-container { position:absolute; min-width: 300px; }
 
 
 .search-headers { flex-direction:row; margin-bottom:1px; }
