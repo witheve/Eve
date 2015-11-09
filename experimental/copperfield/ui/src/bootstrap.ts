@@ -283,6 +283,11 @@ module Bootstrap {
       entity ?entity is a ?
       + ?entity is an entity
     `,
+    "derive collection entities": Parsers.unpad(6) `
+      entity ?entity is a "collection"
+      ?entity is named ?name
+      + ?entity is a collection
+    `,
     "derive query entities": Parsers.unpad(6) `
       view ?entity is a "join"
       ?kind = "query-kind"
@@ -926,7 +931,7 @@ module Bootstrap {
     // Phase 2: Create queries.
     if(Api.DEBUG.BOOTSTRAP) console.groupCollapsed("Phase 2: Create queries");
     effect = new Editor.DispatchEffect();
-    var members:{[viewId:string]: number} = {};
+    var members:{[fingerprint:string]: number} = {};
     for(let viewId in queries) {
       let query = <Parsers.Query>assertValid(new Parsers.Query().loadFromView(viewId, true).parse(queries[viewId]));
 
@@ -936,9 +941,8 @@ module Bootstrap {
       for(let action of query.reified.actions) {
         if(action.action === "+") {
           let {"view fingerprint: view": viewId} = Api.ixer.findOne("view fingerprint", {"view fingerprint: fingerprint": action.fingerprint}) || {};
-          if(!viewId) throw new Error(`Unknown fingerprint: '${action.fingerprint}'`);
-          action.memberIx = members[viewId] || 0;
-          members[viewId] = action.memberIx + 1;
+          action.memberIx = members[action.fingerprint] || 0;
+          members[action.fingerprint] = action.memberIx + 1;
 
         } else throw new Error(`Unsupported action '${action.action}'`);
       }
