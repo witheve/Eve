@@ -495,6 +495,16 @@ module Bootstrap {
       + ?block is being edited ?editing at tick ?tick
       + event at ?tick is already handled
     `,
+    "user focus block": Parsers.unpad(6) `
+      event at ?tick is a "focus block" ? with key ?block
+      ! event at ?tick is already handled
+      ?other is being edited "true"
+      ?other != ?block
+      ?editing = "false"
+      + ?other is being edited ?editing at tick ?tick
+      + event at ?tick is already handled
+      + ?block is the selected block at tick ?tick
+    `,
 
     // Maybe hacks
     "maybe entity list": Parsers.unpad(6) `
@@ -522,6 +532,7 @@ module Bootstrap {
       div wiki-root; wiki root
         ~ ?page is the selected page
         ~ page ?page represents ?root_entity
+        @click focus block
         row wiki-header bordered; wiki header
           - ix: "-1"
           span
@@ -548,6 +559,8 @@ module Bootstrap {
               - ix: ?ix
               - debug: ?block
               - key: ?block
+              @dblclick edit block: ?block
+              @click focus block: ?block
               row block-controls justify-end; block controls
                 - ix: "-10"
                 span
@@ -685,7 +698,6 @@ module Bootstrap {
       ~ ?block is a block
       ~ block ?block contains ?scratch
       - c: "block-scratch"
-      @dblclick edit block: ?block
       textarea
         ~ ?block is being edited "true"
         - t: "textarea"
@@ -694,7 +706,6 @@ module Bootstrap {
         - autofocus: "true"
         - height: "10em"
         @change switch block scratch: ?block
-        @blur stop edit block: ?block
       div document-flow
         ~ ?block is being edited "false"
         ~ block ?block contains ?scratch
