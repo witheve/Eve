@@ -1113,7 +1113,11 @@ function walk(tree, indent = 0) {
           "Cmd-Enter": (cm) => {
             let latest = app.renderer.tree[elem.id];
             commitArticle(cm, latest);
-          }
+            },
+            "Ctrl-Enter": (cm) => {
+                  let latest = app.renderer.tree[elem.id];
+                  commitArticle(cm, latest);
+            }
         }
       });
       if(elem.onInput) {
@@ -1142,6 +1146,10 @@ function walk(tree, indent = 0) {
           "Cmd-Enter": (cm) => {
             let latest = app.renderer.tree[elem.id];
             submitAction(cm, latest);
+            },
+          "Ctrl-Enter": (cm) => {
+              let latest = app.renderer.tree[elem.id];
+              submitAction(cm, latest);
           }
         }
       });
@@ -1617,7 +1625,7 @@ function walk(tree, indent = 0) {
 
   export function root() {
     let slide = slides[slideNumber] || {type: "slide"};
-    if(slide.type === "slide") {
+    if(false) {
       let content = slide.content;
       if(typeof content === "function") {
         content = content();
@@ -1637,7 +1645,7 @@ function walk(tree, indent = 0) {
       searchers.push(newSearchResults(search.id));
     }
     return {id: "root", c: "root", dblclick: addNewSearch, children: [
-      slideControls(),
+//       slideControls(),
 //       randomlyLetter("Let's get started."),
       {c: "canvas", mousemove: maybeDrag, children: searchers},
 //       relatedItems(),
