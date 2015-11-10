@@ -2,7 +2,7 @@
 - Root
 ---------------------------------------------------------*/
 
-body { background: #222; font-family:"Lato"; overflow:hidden; height: 100vh; display:flex; }
+body { background: #222; font-family:"Lato"; overflow:hidden; height: 100vh; display:flex; -webkit-user-select: none; }
 
 /* we want everything to be flex and to use a sane box-sizing model */
 body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-direction-flex: column; box-sizing: border-box; outline:none; }
@@ -18,7 +18,7 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 /*---------------------------------------------------------
 - Article Editor
 ---------------------------------------------------------*/
-.article { background: #55a; color: #fff; padding:20px; overflow:auto; max-width: 600px; min-height: 300px; min-width: 300px; line-height: 25px; }
+.article { -webkit-user-select:auto; background: #55a; color: #fff; padding:20px; overflow:auto; max-width: 600px; min-height: 300px; min-width: 300px; line-height: 25px; }
 .article pre { flex:none; display:block; white-space: pre-wrap; min-height:25px; }
 .article h1 { font-size:16pt; }
 .article span { display:inline; }
@@ -31,7 +31,7 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .link:hover { border-bottom-color:#f88; }
 .link.found:hover { border-bottom-color:#99f; }
 
-.bit { text-align:center; justify-content:center; padding:10px; background: #333; box-shadow:0 0px 0px #111; margin-bottom:1px; border-radius:0px; align-items:center; }
+.bit { -webkit-user-select:auto; text-align:center; justify-content:center; padding:10px; background: #333; box-shadow:0 0px 0px #111; margin-bottom:1px; border-radius:0px; align-items:center; }
 .bit.collection { background: #0a6; color: #222; }
 .bit.collection .collection { color: #fff; }
 
