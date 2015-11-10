@@ -1280,7 +1280,7 @@ function walk(tree, indent = 0) {
 
   app.handle("startAddingAction", (result, info) => {
     result.remove("adding action");
-    result.add("adding action", {type: info.type});
+    result.add("adding action", {type: info.type, search: info.searchId});
   });
 
   app.handle("stopAddingAction", (result, info) => {
@@ -1877,7 +1877,7 @@ function walk(tree, indent = 0) {
     }
 
     let addActionChildren = [];
-    let adding = eve.findOne("adding action");
+    let adding = eve.findOne("adding action", {search: searchId});
     if(adding) {
      if(adding.type === "attribute") {
       addActionChildren.push({c: "add-attribute", children: [
@@ -1910,9 +1910,9 @@ function walk(tree, indent = 0) {
 
      }
     } else {
-      addActionChildren.push({c: "", text: "+ entity", actionType: "bit", click: startAddingAction});
-      addActionChildren.push({c: "", text: "+ attribute", actionType: "attribute", click: startAddingAction});
-      addActionChildren.push({c: "", text: "+ collection", actionType: "collection", click: startAddingAction});
+      addActionChildren.push({c: "", text: "+ entity", actionType: "bit", searchId, click: startAddingAction});
+      addActionChildren.push({c: "", text: "+ attribute", actionType: "attribute", searchId, click: startAddingAction});
+      addActionChildren.push({c: "", text: "+ collection", actionType: "collection", searchId, click: startAddingAction});
     }
 
     let headers = []
@@ -1960,7 +1960,7 @@ function walk(tree, indent = 0) {
   }
 
   function startAddingAction(e, elem) {
-    app.dispatch("startAddingAction", {type: elem.actionType}).commit();
+    app.dispatch("startAddingAction", {type: elem.actionType, searchId: elem.searchId}).commit();
   }
 
   function stopAddingAction(e, elem) {
