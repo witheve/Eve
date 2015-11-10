@@ -1113,7 +1113,7 @@ function walk(tree, indent = 0) {
           "Cmd-Enter": (cm) => {
             let latest = app.renderer.tree[elem.id];
             commitArticle(cm, latest);
-            }, 
+            },
             "Ctrl-Enter": (cm) => {
                   let latest = app.renderer.tree[elem.id];
                   commitArticle(cm, latest);
@@ -1645,7 +1645,7 @@ function walk(tree, indent = 0) {
       searchers.push(newSearchResults(search.id));
     }
     return {id: "root", c: "root", dblclick: addNewSearch, children: [
-      slideControls(),
+//       slideControls(),
 //       randomlyLetter("Let's get started."),
       {c: "canvas", mousemove: maybeDrag, children: searchers},
 //       relatedItems(),

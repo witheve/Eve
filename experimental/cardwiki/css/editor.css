@@ -47,8 +47,8 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 
 .action { flex-direction: row; background: #333; margin:0;  padding:10px; white-space:pre; justify-content:center; }
 .action + .action { margin-top:1px; }
-.add-action { flex-direction:row; display:none; transition:opacity 0.2s ease-in-out; opacity:0; white-space: pre; margin:0; margin-top:1px; }
-.search-container:hover .add-action, .dragging .add-action { opacity:1; display:flex; }
+.add-action { flex-direction:row; transition:opacity 0.2s ease-in-out; opacity:1; white-space: pre; margin:0; margin-top:1px; }
+/* .search-container:hover .add-action, .dragging .add-action { opacity:1; display:flex; } */
 .add-action > * { flex:1; flex-direction:row; background: #333; padding:10px; justify-content:center; }
 .add-action> * + * { margin-left:1px; }
 .add-action input { outline:none; font-size: 11pt; padding:0; text-align:center; font-family: "Lato"; background: none; border: none; border-bottom:1px solid #777; width: 80px; }
