@@ -80,7 +80,6 @@ module app {
         localStorage["eve"] = eve.serialize();
       }
       updateStat = performance.now() - start;
-      console.log("UPDATE TOOK: ", updateStat);
     }
     let func = dispatches[event];
     if (!func) {
