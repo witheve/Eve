@@ -300,7 +300,9 @@ module wiki {
     }
     let words = remaining.split(" ");
     let ix = 0;
-    for(let word of words) {
+    let wordIx = 0;
+    for(let wordLen = words.length; wordIx < wordLen; wordIx++) {
+      let word = words[wordIx];
       if(!word) {
         ix++;
         continue;
@@ -315,6 +317,17 @@ module wiki {
         all.push({type: "value", value: word, orig: word, pos: ix});
       } else if(word[0] === "\"") {
         // @TODO: account for multi word quotes
+        let total = word;
+        let next = words[++wordIx];
+        while(next) {
+          total += ` ${next}`;
+          if(next[next.length - 1] === "\"") {
+            break;
+          }
+          wordIx++;
+          next = words[wordIx];
+        }
+        word = total;
         all.push({type: "value", value: word, orig: word, pos: ix});
       }
       ix += word.length + 1;
