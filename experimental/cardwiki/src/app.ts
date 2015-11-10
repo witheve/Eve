@@ -97,6 +97,7 @@ module app {
 
   export var eve = runtime.indexer();
   export var initializers = {};
+  export var activeSearches = {};
 
   export function init(name, func) {
     initializers[name] = func;

@@ -1280,7 +1280,7 @@ function walk(tree, indent = 0) {
 
   app.handle("startAddingAction", (result, info) => {
     result.remove("adding action");
-    result.add("adding action", {type: info.type});
+    result.add("adding action", {type: info.type, search: info.searchId});
   });
 
   app.handle("stopAddingAction", (result, info) => {
@@ -1311,7 +1311,7 @@ function walk(tree, indent = 0) {
     }
   });
 
-  function randomlyLetter(phrase, klass) {
+  function randomlyLetter(phrase, klass = "") {
     let children = [];
     let ix = 0;
     for(var letter of phrase) {
@@ -1342,7 +1342,7 @@ function walk(tree, indent = 0) {
      ]}},
     {type: "slide",
      content: {children: [
-       {id: "slide-list" c: "list", children: [
+       {id: "slide-list", c: "list", children: [
          randomlyLetter("- Our communications are static"),
          randomlyLetter("- Information requires rigid structure"),
          randomlyLetter("- Exploration is either limited or it's code"),
@@ -1376,7 +1376,7 @@ function walk(tree, indent = 0) {
        app.activeSearches["vin diesel"] = null;
      },
      content: () => {
-       let search = newSearchResults("vin diesel");
+       let search:any = newSearchResults("vin diesel");
        search.leave = {opacity:0, duration: 300},
        search.enter = {opacity:1, duration: 2500, delay: 300, begin: (node) => {
          if(!node[0]) return;
@@ -1396,7 +1396,7 @@ function walk(tree, indent = 0) {
      ]}},
     {type: "slide",
      content: {children: [
-       {id: "slide-list" c: "list", children: [
+       {id: "slide-list", c: "list", children: [
          randomlyLetter("- Capture information however it comes."),
          randomlyLetter("- No planning or pre-structuring"),
          randomlyLetter("- Nothing is too big or too small"),
@@ -1413,8 +1413,8 @@ function walk(tree, indent = 0) {
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("You can...")
-       {id: "slide-list" c: "list", children: [
+       randomlyLetter("You can..."),
+       {id: "slide-list", c: "list", children: [
          randomlyLetter("- Add structure at any time"),
          randomlyLetter("- Work with heterogenous collections"),
          randomlyLetter("- Handle one off tasks"),
@@ -1450,7 +1450,7 @@ function walk(tree, indent = 0) {
        app.activeSearches["vin diesel"] = null;
      },
      content: () => {
-       let search = newSearchResults("vin diesel");
+       let search:any = newSearchResults("vin diesel");
        search.leave = {opacity:0, duration: 300},
        search.enter = {opacity:1, duration: 1000, delay: 300, begin: (node) => {
          if(!node[0]) return;
@@ -1469,7 +1469,7 @@ function walk(tree, indent = 0) {
      ]}},
     {type: "slide",
      content: {children: [
-       {id: "slide-list" c: "list", children: [
+       {id: "slide-list", c: "list", children: [
          randomlyLetter("- It's live"),
          randomlyLetter("- It's tangible"),
          randomlyLetter("- It's manipulable"),
@@ -1547,7 +1547,7 @@ function walk(tree, indent = 0) {
      ]}},
     {type: "slide",
      content: {children: [
-       {id: "slide-list" c: "list", children: [
+       {id: "slide-list", c: "list", children: [
          randomlyLetter("There are new inputs: pen, voice"),
          randomlyLetter("New displays: mobile, VR, AR"),
          randomlyLetter("New kinds of systems: everything is distributed"),
@@ -1572,8 +1572,8 @@ function walk(tree, indent = 0) {
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("Questions")
-       {id: "slide-list" c: "list", children: [
+       randomlyLetter("Questions"),
+       {id: "slide-list", c: "list", children: [
          randomlyLetter("- She vs. it"),
          randomlyLetter("- Mobile?"),
          randomlyLetter("- What is eve? Jarvis? A workspace? ..?"),
@@ -1581,8 +1581,8 @@ function walk(tree, indent = 0) {
      ]}},
      {type: "slide",
      content: {children: [
-       randomlyLetter("Technical questions")
-       {id: "slide-list" c: "list", children: [
+       randomlyLetter("Technical questions"),
+       {id: "slide-list", c: "list", children: [
          randomlyLetter("- Incrementalism with cycles"),
          randomlyLetter("- Efficient incrementalism in an EAV world"),
          randomlyLetter("- Federation"),
@@ -1595,7 +1595,7 @@ function walk(tree, indent = 0) {
   ]
 
   function nextSlide(e, elem) {
-    let prev = slides[slideNumber];
+    let prev:any = slides[slideNumber];
     if(prev.teardown) {
       prev.teardown();
     }
@@ -1606,7 +1606,7 @@ function walk(tree, indent = 0) {
     }
     if(slideNumber < 0) slideNumber = 0;
     if(slideNumber >= slides.length) slideNumber = slides.length - 1;
-    let slide = slides[slideNumber];
+    let slide:any = slides[slideNumber];
     if(slide.setup) {
       slide.setup();
     }
@@ -1624,7 +1624,7 @@ function walk(tree, indent = 0) {
   }
 
   export function root() {
-    let slide = slides[slideNumber] || {type: "slide"};
+    let slide:any = slides[slideNumber] || {type: "slide"};
     if(false) {
       let content = slide.content;
       if(typeof content === "function") {
@@ -1872,12 +1872,12 @@ function walk(tree, indent = 0) {
       let {template, action} = bitAction;
       actions.push({c: "action new-bit", children: [
         {c: "description", text: "actions"},
-        {c: "bit entity", children: articleToHTML(parsePage(action, template).lines)}
+        {c: "bit entity", children: articleToHTML(parsePage(action, template).lines, null)}
       ]})
     }
 
     let addActionChildren = [];
-    let adding = eve.findOne("adding action");
+    let adding = eve.findOne("adding action", {search: searchId});
     if(adding) {
      if(adding.type === "attribute") {
       addActionChildren.push({c: "add-attribute", children: [
@@ -1910,9 +1910,9 @@ function walk(tree, indent = 0) {
 
      }
     } else {
-      addActionChildren.push({c: "", text: "+ entity", actionType: "bit", click: startAddingAction});
-      addActionChildren.push({c: "", text: "+ attribute", actionType: "attribute", click: startAddingAction});
-      addActionChildren.push({c: "", text: "+ collection", actionType: "collection", click: startAddingAction});
+      addActionChildren.push({c: "", text: "+ entity", actionType: "bit", searchId, click: startAddingAction});
+      addActionChildren.push({c: "", text: "+ attribute", actionType: "attribute", searchId, click: startAddingAction});
+      addActionChildren.push({c: "", text: "+ collection", actionType: "collection", searchId, click: startAddingAction});
     }
 
     let headers = []
@@ -1960,7 +1960,7 @@ function walk(tree, indent = 0) {
   }
 
   function startAddingAction(e, elem) {
-    app.dispatch("startAddingAction", {type: elem.actionType}).commit();
+    app.dispatch("startAddingAction", {type: elem.actionType, searchId: elem.searchId}).commit();
   }
 
   function stopAddingAction(e, elem) {
@@ -1968,8 +1968,8 @@ function walk(tree, indent = 0) {
   }
 
   function submitAction(e, elem) {
-    let values = {type: eve.findOne("adding action")["type"],
-                  searchId: elem.searchId};
+    let values:any = {type: eve.findOne("adding action")["type"],
+                      searchId: elem.searchId};
     if(values.type === "bit") {
       if(e.getValue) {
         values.template = e.getValue();
@@ -2456,7 +2456,7 @@ function walk(tree, indent = 0) {
 
   eve.asView(eve.query("unmodified added bits")
                 .select("added bits", {}, "added")
-                .deselect("manual page", {page: ["added", "page"]}, "modified")
+                .deselect("manual page", {page: ["added", "page"]})
                 .project({page: ["added", "page"], content: ["added", "content"]}));
 
   eve.asView(eve.query("page links")
