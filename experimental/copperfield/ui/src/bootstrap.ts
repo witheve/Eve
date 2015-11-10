@@ -158,7 +158,8 @@ module Bootstrap {
     "block": [
       "block ?block on layer ?ix represents ?entity in ?page as a ?projection",
       "block ?block on layer ?ix represents ?entity in ?page as an ?projection",
-      "?block is a block"
+      "?block is a block",
+      "block ?block represents ?entity"
     ],
     "block history": [
       "block ?block on layer ?ix represents ?entity in ?page as a ?projection at tick ?tick",
@@ -590,7 +591,7 @@ module Bootstrap {
                     - value: ?entity_opt
                 select; projection switcher
                   @change switch block projection: ?block
-                  - key: ?projection
+                  - value: ?projection
                   - autocomplete: "off"
                   option
                     - text: "---"
@@ -603,12 +604,10 @@ module Bootstrap {
                     ~ ?_kind entities can look like a ?projection_opt
                     ~ ?projection_opt is named ?projection_opt_text
                     ~ # ?opt_ord by ?projection_opt_text ascending
-                    ~ ?projection_selected $= ?projection_opt == ?projection
                     - key: ?projection_opt
                     - ix: ?opt_ord
                     - text: ?projection_opt_text
                     - value: ?projection_opt
-                    - selected: ?projection_selected
                 button delete-button ion-close; delete block button
                   @click delete block: ?block
               div block-content; block content
@@ -628,11 +627,16 @@ module Bootstrap {
   };
 
   var projections:{[projection:string]: string} = {
-    "code": Parsers.unpad(6) `
+    code: Parsers.unpad(6) `
+      ~ block ?block represents ?entity
       ~ entity ?entity is a ?kind
       ~ raw ?kind code for ?entity = ?code
-      - t: "pre"
-      - text: ?code
+      pre
+        ~ ?block is being edited "false"
+        - text: ?code
+      textarea
+        ~ ?block is being edited "true"
+        - value: ?code
     `,
     name: Parsers.unpad(6) `
       ~ ?entity is named ?name
@@ -651,13 +655,24 @@ module Bootstrap {
         @click switch page: ?related
     `,
     kinds: Parsers.unpad(6) `
-      ~ ?entity is an entity
+      ~ block ?block represents ?entity
       ; Hack since alias bindings arent deep yet.
       row
-        ~ entity ?entity is a ?collection
-        ~ ?collection is named ?name
-        - text: ?name
-        @click switch page: ?collection
+        ~ ?block is being edited "false"
+        span bordered
+          ~ entity ?entity is a ?collection
+          ~ ?collection is named ?name
+          - text: ?name
+          @click switch page: ?collection
+      row
+        ~ ?block is being edited "true"
+        row
+          ~ entity ?entity is a ?collection
+          ~ ?collection is named ?name
+          span
+            - text: ?name
+          button ion-close
+            @click remove active block kind: ?collection
     `,
     "fact-table": Parsers.unpad(6) `
       ~ view ?entity is a ?
