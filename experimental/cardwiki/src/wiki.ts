@@ -1513,8 +1513,12 @@ function walk(tree, indent = 0) {
         }
       }
     }
+    let noHeaders = false;
     if(plan.length === 1 && plan[0].type === "find") {
       resultItems.push({c: "singleton", children: [entityUi(plan[0].entity, searchId, searchId)]});
+    } else if(plan.length === 1 && plan[0].type === "gather") {
+      resultItems.unshift({c: "singleton", children: [entityUi(plan[0].collection, searchId, searchId)]});
+      noHeaders = true;
     } else if(plan.length === 0) {
       resultItems.push({c: "singleton", children: [entityUi(search, searchId, searchId)]});
     }
@@ -1585,10 +1589,12 @@ function walk(tree, indent = 0) {
 
     let headers = []
     // figure out what the headers are
-    for(let step of plan) {
-      if(step.type === "filter by entity") continue;
-      if(step.size === 0) continue;
-      headers.push({text: step.name});
+    if(!noHeaders) {
+      for(let step of plan) {
+        if(step.type === "filter by entity") continue;
+        if(step.size === 0) continue;
+        headers.push({text: step.name});
+      }
     }
     let isDragging = dragging && dragging.id === searchId ? "dragging" : "";
     let showPlan = eve.findOne("showPlan", {search: searchId}) ? searchDescription(tokens, plan) : undefined;
