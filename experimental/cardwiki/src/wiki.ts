@@ -9,6 +9,8 @@ module wiki {
   declare var pluralize;
   declare var uuid;
 
+  const MAX_NUMBER = 9007199254740991;
+
   //---------------------------------------------------------
   // App state
   //---------------------------------------------------------
@@ -344,13 +346,13 @@ function walk(tree, indent = 0) {
     } else if(!text && tree.value) {
       text = tree.value;
     }
-    console.group(text, `(${tree.type})`);
+    console.group(`${text} (${tree.type})`);
     if(tree.children) {
       for(let child of tree.children) {
         walk(child, indent+1);
       }
     }
-    console.groupEnd(text, `(${tree.type})`);
+    console.groupEnd();
 }
 
 
@@ -2250,7 +2252,7 @@ function walk(tree, indent = 0) {
     //sort
     if(query.sorts) {
       let action = uuid();
-      diff.add("action", {view, action, kind: "sort", ix: Number.MAX_SAFE_INTEGER});
+      diff.add("action", {view, action, kind: "sort", ix: MAX_NUMBER});
       let ix = 0;
       for(let sort of query.sorts) {
         let [source, field, direction] = sort;
@@ -2266,7 +2268,7 @@ function walk(tree, indent = 0) {
     //group
     if(query.groups) {
       let action = uuid();
-      diff.add("action", {view, action, kind: "group", ix: Number.MAX_SAFE_INTEGER});
+      diff.add("action", {view, action, kind: "group", ix: MAX_NUMBER});
       let ix = 0;
       for(let group of query.groups) {
         let [source, field] = group;
@@ -2282,7 +2284,7 @@ function walk(tree, indent = 0) {
     //limit
     if(query.limitInfo) {
       let action = uuid();
-      diff.add("action", {view, action, kind: "limit", ix: Number.MAX_SAFE_INTEGER});
+      diff.add("action", {view, action, kind: "limit", ix: MAX_NUMBER});
       for(let limitType in query.limitInfo) {
         diff.add("action mapping limit", {action, "limit type": limitType, value: query.limitInfo[limitType]});
       }
@@ -2290,7 +2292,7 @@ function walk(tree, indent = 0) {
     //projection
     if(query.projectionMap) {
       let action = uuid();
-      diff.add("action", {view, action, kind: "project", ix: Number.MAX_SAFE_INTEGER});
+      diff.add("action", {view, action, kind: "project", ix: MAX_NUMBER});
       mappingToDiff(diff, action, query.projectionMap, aliases, reverseLookup);
     }
     return diff;
