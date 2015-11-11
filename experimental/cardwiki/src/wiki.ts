@@ -112,29 +112,19 @@ module wiki {
           state.items.push(token);
           state.type = "link";
           if(state.mode === "assignment") {
-            state.type = "eav";
+            if(state.attribute === "is a") {
+              state.type = "collection";
+              state.link = state.value;
+              console.log(state);
+            } else {
+              state.type = "eav";
+            }
             eavs.push(state);
           } else {
             links.push(state);
           }
           line.items.push(state);
           state = {items: []};
-          break;
-        case "collection open":
-          state.capturing = true;
-          state.mode = "collection";
-          state.items.push(token);
-          break;
-        case "collection close":
-          state.items.push(token);
-          state.type = "collection";
-          line.items.push(state);
-          collections.push(state);
-          state = {items: []};
-          break;
-        case "link separator":
-          state.mode = "link type";
-          state.items.push(token);
           break;
         case "assignment":
           state.mode = "assignment";
@@ -144,12 +134,6 @@ module wiki {
           if(!state.capturing) {
             line.items.push(token);
           } else if(state.mode === "link") {
-            state.link = token.text.trim();
-            state.items.push(token);
-          } else if(state.mode === "link type") {
-            state.linkType = token.text.trim();
-            state.items.push(token);
-          } else if(state.mode === "collection") {
             state.link = token.text.trim();
             state.items.push(token);
           } else if(state.mode === "assignment") {
