@@ -2159,15 +2159,20 @@ function walk(tree, indent = 0) {
              .calculate("parse eavs", {entity: ["entity", "entity"], text: ["entity", "content"]}, "parsed")
              .project({entity: ["entity", "entity"], attribute: ["parsed", "attribute"], value: ["parsed", "value"]}));
 
-  eve.asView(eve.query("is a attributes")
-                .select("entity eavs", {attribute: "is a"}, "is a")
-                .project({collection: ["is a", "value"], entity: ["is a", "entity"]}));
-
   eve.asView(eve.union("entity eavs")
              .union("parsed eavs", {entity: ["entity"], attribute: ["attribute"], value: ["value"]})
              // this is a stored union that is used by the add eav action to take query results and
              // push them into eavs, e.g. sum salaries per department -> [total salary = *]
              .union("added eavs", {entity: ["entity"], attribute: ["attribute"], value: ["value"]}));
+
+  eve.asView(eve.query("is a attributes")
+                .select("entity eavs", {attribute: "is a"}, "is a")
+                .project({collection: ["is a", "value"], entity: ["is a", "entity"]}));
+
+  eve.asView(eve.query("values that are entities")
+                .select("entity eavs", {}, "eav")
+                .select("entity", {entity: ["eav", "value"]}, "entity")
+                .project({entity: ["eav", "entity"], link: ["entity", "entity"], type: ["eav", "attribute"]}));
 
   eve.asView(eve.union("collection entities")
              // the rest of these are editor-level views
