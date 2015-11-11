@@ -121,7 +121,10 @@ module wiki {
             }
             eavs.push(state);
           } else {
-            links.push(state);
+            state.type = "eav";
+            state.attribute = "generic related to";
+            state.value = state.link;
+            eavs.push(state);
           }
           line.items.push(state);
           state = {items: []};
@@ -270,13 +273,15 @@ module wiki {
     eve.find("entity", {entity: ""});
     var index = eve.table("entity").indexes["entity"].index;
     let entities = stringMatches2(searchString, "entity", index);
-    eve.find("collection", {collection: ""});
-    var collectionIndex = eve.table("collection").indexes["collection"].index;
-    let collections = stringMatches2(searchString, "collection", collectionIndex);
+    for(let entity of entities) {
+      if(eve.findOne("collection", {collection: entity.found})) {
+        entity.type = "collection";
+      }
+    }
     eve.find("entity eavs", {attribute: ""});
     var eavIndex = eve.table("entity eavs").indexes["attribute"].index;
     let eavs = stringMatches2(searchString, "attribute", eavIndex);
-    let all = entities.concat(collections).concat(eavs);
+    let all = entities.concat(eavs);
     all.sort((a, b) => a.pos - b.pos);
     let remaining = cleaned;
     for(let part of all) {
@@ -2135,15 +2140,6 @@ function walk(tree, indent = 0) {
                 .deselect("manual entity", {entity: ["added", "entity"]})
                 .project({entity: ["added", "entity"], content: ["added", "content"]}));
 
-  eve.asView(eve.query("entity links")
-             .select("entity", {}, "entity")
-             .calculate("entity to graph", {text: ["entity", "content"], entity: ["entity", "entity"]}, "links")
-             .project({entity: ["entity", "entity"], link: ["links", "link"], type: ["links", "type"]}));
-
-  eve.asView(eve.union("directionless links")
-                .union("entity links", {entity: ["entity"], link: ["link"]})
-                .union("entity links", {entity: ["link"], link: ["entity"]}));
-
   eve.asView(eve.query("parsed eavs")
              .select("entity", {}, "entity")
              .calculate("parse eavs", {entity: ["entity", "entity"], text: ["entity", "content"]}, "parsed")
@@ -2159,10 +2155,14 @@ function walk(tree, indent = 0) {
                 .select("entity eavs", {attribute: "is a"}, "is a")
                 .project({collection: ["is a", "value"], entity: ["is a", "entity"]}));
 
-  eve.asView(eve.query("values that are entities")
+  eve.asView(eve.query("entity links")
                 .select("entity eavs", {}, "eav")
                 .select("entity", {entity: ["eav", "value"]}, "entity")
                 .project({entity: ["eav", "entity"], link: ["entity", "entity"], type: ["eav", "attribute"]}));
+
+  eve.asView(eve.union("directionless links")
+                .union("entity links", {entity: ["entity"], link: ["link"]})
+                .union("entity links", {entity: ["link"], link: ["entity"]}));
 
   eve.asView(eve.union("collection entities")
              // the rest of these are editor-level views
