@@ -18,7 +18,7 @@ module wiki {
   var eve = app.eve;
 
   //---------------------------------------------------------
-  // Article
+  // Entity
   //---------------------------------------------------------
 
   export function coerceInput(input) {
@@ -47,14 +47,14 @@ module wiki {
     "|": "link separator",
     "=": "assignment",
   }
-  function tokenize(article) {
+  function tokenize(entity) {
     let line = 0;
     let ix = 0;
-    let len = article.length;
+    let len = entity.length;
     let tokens = [];
     let cur = {ix, line, type: "text", text: ""};
     for(; ix < len; ix++) {
-      let ch = article[ix];
+      let ch = entity[ix];
       if(ch.match(breaks)) {
         let type = types[ch];
         if(ch === "\n") line++;
@@ -67,9 +67,9 @@ module wiki {
         }
         cur = {ix, line, type, text: ch};
         tokens.push(cur);
-        while(ch === article[ix + 1]) {
+        while(ch === entity[ix + 1]) {
           ix++;
-          ch = article[ix];
+          ch = entity[ix];
           cur.text += ch;
         }
         if(types[cur.text]) {
@@ -78,7 +78,7 @@ module wiki {
         if(type === "header") {
           //trim the next character if it's a space between the header indicator
           //and the text;
-          if(article[ix+1] === " ") ix++;
+          if(entity[ix+1] === " ") ix++;
         }
         cur = {ix: ix+1, line, type: "text", text: ""};
       } else {
@@ -180,7 +180,7 @@ module wiki {
     return cached[1];
   }
 
-  function articleToHTML(lines, searchId) {
+  function entityToHTML(lines, searchId) {
     let children = [];
     for (let line of lines) {
       let lineChildren = [];
@@ -1127,11 +1127,11 @@ function walk(tree, indent = 0) {
         extraKeys: {
           "Cmd-Enter": (cm) => {
             let latest = app.renderer.tree[elem.id];
-            commitArticle(cm, latest);
+            commitEntity(cm, latest);
             },
             "Ctrl-Enter": (cm) => {
                   let latest = app.renderer.tree[elem.id];
-                  commitArticle(cm, latest);
+                  commitEntity(cm, latest);
             }
         }
       });
@@ -1217,7 +1217,7 @@ function walk(tree, indent = 0) {
     }
   }
 
-  function articleToGraph(entityId, content) {
+  function entityToGraph(entityId, content) {
     let parsed = parseEntity(entityId, content);
     let links = [];
     for(let link of parsed.links) {
@@ -1235,11 +1235,11 @@ function walk(tree, indent = 0) {
 
   var dragging = null;
 
-  app.handle("startEditingArticle", (result, info) => {
+  app.handle("startEditingEntity", (result, info) => {
     result.add("editing", {editing: true, search: info.searchId});
   });
 
-  app.handle("stopEditingArticle", (result, info) => {
+  app.handle("stopEditingEntity", (result, info) => {
     if(!eve.findOne("editing")) return;
     result.remove("editing");
     let {entity, value} = info;
@@ -1359,35 +1359,35 @@ function walk(tree, indent = 0) {
     }
   }
 
-  function articleUi(articleId, instance:string|number = "", searchId) {
-    let article = eve.findOne("entity", {entity: articleId}) || {content: ""};
-    let articleView;
+  function entityUi(entityId, instance:string|number = "", searchId) {
+    let entity = eve.findOne("entity", {entity: entityId}) || {content: ""};
+    let entityView;
     if(!eve.findOne("editing", {search: searchId})) {
-      articleView = {id: `${articleId}${instance}`, c: "article", searchId, entity: articleId, children: articleToHTML(parseEntity(articleId, article.content).lines, searchId), dblclick: editArticle, enter: {display: "flex", opacity: 1, duration: 300}};
+      entityView = {id: `${entityId}${instance}`, c: "entity", searchId, entity: entityId, children: entityToHTML(parseEntity(entityId, entity.content).lines, searchId), dblclick: editEntity, enter: {display: "flex", opacity: 1, duration: 300}};
     } else {
-      articleView = {id: `${articleId}${instance}|editor`, c: "article editor", entity: articleId, searchId, postRender: CodeMirrorElement, value: article.content, blur: commitArticle};
+      entityView = {id: `${entityId}${instance}|editor`, c: "entity editor", entity: entityId, searchId, postRender: CodeMirrorElement, value: entity.content, blur: commitEntity};
     }
     let relatedBits = [];
-    for(let added of eve.find("added eavs", {entity: articleId})) {
+    for(let added of eve.find("added eavs", {entity: entityId})) {
       relatedBits.push({c: "bit attribute", click: followLink, searchId, linkText: added["source view"], children: [
         {c: "header attribute", text: added.attribute},
         {c: "value", text: added.value},
       ]})
     }
-    for(let added of eve.find("added collections", {entity: articleId})) {
+    for(let added of eve.find("added collections", {entity: entityId})) {
       relatedBits.push({c: "bit collection", click: followLink, searchId, linkText: added["source view"], children: [
         {c: "header collection", text: added.collection},
       ]})
     }
-    for(let incoming of eve.find("entity links", {link: articleId})) {
-      if(incoming.entity === articleId) continue;
+    for(let incoming of eve.find("entity links", {link: entityId})) {
+      if(incoming.entity === entityId) continue;
       relatedBits.push({c: "bit entity", click: followLink, searchId, linkText: incoming.entity, children: [
         {c: "header entity", text: incoming.entity},
       ]})
     }
 
-    return {c: "article-container", children: [
-      articleView,
+    return {c: "entity-container", children: [
+      entityView,
       {c: "related-bits", children: relatedBits},
     ]};
   }
@@ -1530,9 +1530,9 @@ function walk(tree, indent = 0) {
       }
     }
     if(plan.length === 1 && plan[0].type === "find") {
-      resultItems.push({c: "singleton", children: [articleUi(plan[0].entity, searchId, searchId)]});
+      resultItems.push({c: "singleton", children: [entityUi(plan[0].entity, searchId, searchId)]});
     } else if(plan.length === 0) {
-      resultItems.push({c: "singleton", children: [articleUi(search, searchId, searchId)]});
+      resultItems.push({c: "singleton", children: [entityUi(search, searchId, searchId)]});
     }
     let actions = [];
     for(let eavAction of eve.find("add eav action", {view: search})) {
@@ -1556,7 +1556,7 @@ function walk(tree, indent = 0) {
       let {template, action} = bitAction;
       actions.push({c: "action new-bit", children: [
         {c: "description", text: "actions"},
-        {c: "bit entity", children: articleToHTML(parseEntity(action, template).lines, null)}
+        {c: "bit entity", children: entityToHTML(parseEntity(action, template).lines, null)}
       ]})
     }
 
@@ -1674,12 +1674,12 @@ function walk(tree, indent = 0) {
        .commit();
   }
 
-  function commitArticle(cm, elem) {
-    app.dispatch("stopEditingArticle", {searchId: elem.searchId, entity: elem.entity, value: cm.getValue()}).commit();
+  function commitEntity(cm, elem) {
+    app.dispatch("stopEditingEntity", {searchId: elem.searchId, entity: elem.entity, value: cm.getValue()}).commit();
   }
 
-  function editArticle(e, elem) {
-    app.dispatch("startEditingArticle", {searchId: elem.searchId, entity: elem.entity}).commit();
+  function editEntity(e, elem) {
+    app.dispatch("startEditingEntity", {searchId: elem.searchId, entity: elem.entity}).commit();
     e.preventDefault();
   }
 
@@ -2043,7 +2043,7 @@ function walk(tree, indent = 0) {
   //---------------------------------------------------------
 
   runtime.define("entity to graph", {multi: true}, function(entity, text) {
-    return articleToGraph(entity, text);
+    return entityToGraph(entity, text);
   });
 
   runtime.define("parse eavs", {multi: true}, function(entity, text) {

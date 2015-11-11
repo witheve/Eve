@@ -18,10 +18,10 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 /*---------------------------------------------------------
 - Article Editor
 ---------------------------------------------------------*/
-.article { -webkit-user-select:auto; background: #55a; color: #fff; padding:20px; overflow:auto; max-width: 600px; min-height: 300px; min-width: 300px; line-height: 25px; }
-.article pre { flex:none; display:block; white-space: pre-wrap; min-height:25px; }
-.article h1 { font-size:16pt; }
-.article span { display:inline; }
+div.entity { -webkit-user-select:auto; background: #55a; color: #fff; padding:20px; overflow:auto; max-width: 600px; min-height: 300px; min-width: 300px; line-height: 25px; }
+.entity pre { flex:none; display:block; white-space: pre-wrap; min-height:25px; }
+.entity h1 { font-size:16pt; }
+.entity span { display:inline; }
 .link { color: #f88; cursor:default; border-bottom:1px solid transparent;  }
 .link.found, .entity { color: #99f; }
 .collection, .deck { color: #9f9; }
@@ -104,9 +104,9 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .search-results .path { flex-direction:row; margin-bottom: 1px; }
 .search-results pre { display:none; }
 .search-results pre.header { display:block; }
-.search-results .article { min-width:100px; min-height:100px; width:auto; height:auto; margin-bottom:1px; }
+.search-results div.entity { min-width:100px; min-height:100px; width:auto; height:auto; margin-bottom:1px; }
 .search-results .singleton pre { display: block; }
-.search-results .singleton .article { width: 600px; height: auto; }
+.search-results .singleton div.entity { width: 600px; height: auto; }
 .search-results .arrow { justify-content:center; font-size: 18pt; }
 
 .history-stack { flex:none; flex-direction:row; padding: 20px 10px;}
