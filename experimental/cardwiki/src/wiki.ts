@@ -166,13 +166,21 @@ module wiki {
           lineChildren.push({t: "span", text: item.text});
           continue;
         }
-        if(item.type === "eav") {
+        if(typeof item.value === "number") {
           lineChildren.push({t: "span", c: `${item.type}`, text: item.value});
           continue;
         }
-        let link = item.link.toLowerCase();
+        let link = item.type === "eav" ? item.value.toLowerCase() : item.link.toLowerCase();
         let found = eve.findOne("entity", {entity: link}) || eve.findOne("collection", {entity: link});
-        lineChildren.push({t: "span", c: `${item.type} ${found ? 'found' : ""}`, text: item.link, linkText: link, click: followLink, searchId});
+        if(item.type === "eav") {
+          if(found) {
+            lineChildren.push({t: "span", c: `link found`, text: item.value, linkText: link, click: followLink, searchId});
+          } else {
+            lineChildren.push({t: "span", c: `${item.type}`, text: item.value});
+          }
+        } else {
+          lineChildren.push({t: "span", c: `${item.type} ${found ? 'found' : ""}`, text: item.link, linkText: link, click: followLink, searchId});
+        }
       }
       if(line.header) {
         lineChildren = [{t: "h1", children: lineChildren}];
