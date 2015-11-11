@@ -37,15 +37,12 @@ module wiki {
     return input;
   }
 
-  var breaks = /[\[\]\|=\n#]/;
+  var breaks = /[{}\|:\n#]/;
   var types = {
     "#": "header",
-    "[": "link open",
-    "]": "link close",
-    "[[": "collection open",
-    "]]": "collection close",
-    "|": "link separator",
-    "=": "assignment",
+    "{": "link open",
+    "}": "link close",
+    ":": "assignment",
   }
   function tokenize(entity) {
     let line = 0;
@@ -67,11 +64,6 @@ module wiki {
         }
         cur = {ix, line, type, text: ch};
         tokens.push(cur);
-        while(ch === entity[ix + 1]) {
-          ix++;
-          ch = entity[ix];
-          cur.text += ch;
-        }
         if(types[cur.text]) {
           cur.type = types[cur.text];
         }
