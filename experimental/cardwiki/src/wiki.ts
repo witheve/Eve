@@ -193,7 +193,7 @@ module wiki {
           continue;
         }
         let link = item.link.toLowerCase();
-        let found = eve.findOne("page", {page: link}) || eve.findOne("deck", {page: link});
+        let found = eve.findOne("page", {page: link}) || eve.findOne("collection", {page: link});
         lineChildren.push({t: "span", c: `${item.type} ${found ? 'found' : ""}`, text: item.link, linkText: link, click: followLink, searchId});
       }
       if(line.header) {
@@ -278,19 +278,19 @@ module wiki {
     "*": {op: "*", argCount: 2, infix: true, args: ["a", "b"]},
   }
   function newSearchTokens(searchString) {
-    // search the string for entities / decks
+    // search the string for entities / collections
     // TODO: this is stupidly slow
     let cleaned = searchString.toLowerCase();
     eve.find("entity", {entity: ""});
     var index = eve.table("entity").indexes["entity"].index;
     let entities = stringMatches2(searchString, "entity", index);
-    eve.find("deck", {deck: ""});
-    var deckIndex = eve.table("deck").indexes["deck"].index;
-    let decks = stringMatches2(searchString, "collection", deckIndex);
+    eve.find("collection", {collection: ""});
+    var collectionIndex = eve.table("collection").indexes["collection"].index;
+    let collections = stringMatches2(searchString, "collection", collectionIndex);
     eve.find("page eavs", {attribute: ""});
     var eavIndex = eve.table("page eavs").indexes["attribute"].index;
     let eavs = stringMatches2(searchString, "attribute", eavIndex);
-    let all = entities.concat(decks).concat(eavs);
+    let all = entities.concat(collections).concat(eavs);
     all.sort((a, b) => a.pos - b.pos);
     let remaining = cleaned;
     for(let part of all) {
@@ -311,7 +311,7 @@ module wiki {
         all.push({type: "modifier", orig: word, modifier: modifiers[word], pos: ix});
       } else if(operations[word]) {
         all.push({type: "operation", orig: word, operation: operations[word], pos: ix});
-      } else if(word === "deck" || word === "decks") {
+      } else if(word === "collection" || word === "collections") {
         all.push({type: "collection", found: word, orig: word, pos: ix})
       } else if(parseFloat(word)) {
         all.push({type: "value", value: word, orig: word, pos: ix});
@@ -714,7 +714,7 @@ function walk(tree, indent = 0) {
             return plan;
           }
           break;
-        case "deck->ent":
+        case "collection->ent":
           break;
       }
     } else {
@@ -846,7 +846,7 @@ function walk(tree, indent = 0) {
         case "gather":
           var join:any = {};
           if(step.collection) {
-            join.deck = step.collection;
+            join.collection = step.collection;
           }
           var related = step.relatedTo;
           if(related) {
@@ -855,17 +855,17 @@ function walk(tree, indent = 0) {
               let linkId = `${step.id} | link`;
               query.select("directionless links", {page: related.entity}, linkId);
               join.page = [linkId, "link"];
-              query.select("deck pages", join, step.id);
+              query.select("collection pages", join, step.id);
             } else {
               step.size = 2;
               let linkId = `${step.id} | link`;
               query.select("directionless links", {page: [related.id, "page"]}, linkId);
               join.page = [linkId, "link"];
-              query.select("deck pages", join, step.id);
+              query.select("collection pages", join, step.id);
             }
           } else {
             step.size = 1;
-            query.select("deck pages", join, step.id);
+            query.select("collection pages", join, step.id);
           }
           step.name = safeProjectionName(step.collection, projection);
           projection[step.name] = [step.id, "page"];
@@ -889,10 +889,10 @@ function walk(tree, indent = 0) {
           var related = step.relatedTo;
           if(step.deselect) {
             step.size = 0;
-            query.deselect("deck pages", {deck: step.collection, page: [related.id, "page"]});
+            query.deselect("collection pages", {collection: step.collection, page: [related.id, "page"]});
           } else {
             step.size = 0;
-            query.select("deck pages", {deck: step.collection, page: [related.id, "page"]}, step.id);
+            query.select("collection pages", {collection: step.collection, page: [related.id, "page"]}, step.id);
           }
           break;
         case "filter by entity":
@@ -965,9 +965,9 @@ function walk(tree, indent = 0) {
     return result;
   }
 
-  function pageToDecksArray(page) {
-    let pages = eve.find("deck pages", {page});
-    return pages.map((a) => a["deck"]);
+  function pageTocollectionsArray(page) {
+    let pages = eve.find("collection pages", {page});
+    return pages.map((a) => a["collection"]);
   }
 
   function extractFromUnprojected(coll, ix, field, size) {
@@ -979,15 +979,15 @@ function walk(tree, indent = 0) {
   }
 
   function findCommonCollections(ents) {
-    let intersection = pageToDecksArray(ents[0]);
+    let intersection = pageTocollectionsArray(ents[0]);
     intersection.sort();
     for(let entId of ents.slice(1)) {
-      let cur = pageToDecksArray(entId);
+      let cur = pageTocollectionsArray(entId);
       cur.sort();
       arrayIntersect(intersection, cur);
     }
     intersection.sort((a, b) => {
-      return eve.findOne("deck", {deck: b})["count"] - eve.findOne("deck", {deck: a})["count"];
+      return eve.findOne("collection", {collection: b})["count"] - eve.findOne("collection", {collection: a})["count"];
     })
     return intersection;
   }
@@ -1023,15 +1023,15 @@ function walk(tree, indent = 0) {
   // e.g. "salaries per department"
   function findCollectionToAttrRelationship(coll, attr) {
     let direct = eve.query(``)
-                  .select("deck pages", {deck: coll}, "deck")
-                  .select("page eavs", {page: ["deck", "page"], attribute: attr}, "eav")
+                  .select("collection pages", {collection: coll}, "collection")
+                  .select("page eavs", {page: ["collection", "page"], attribute: attr}, "eav")
                   .exec();
     if(direct.unprojected.length) {
       return {distance: 0, type: "coll->eav", nodes: []};
     }
     let relationships = eve.query(``)
-                  .select("deck pages", {deck: coll}, "deck")
-                  .select("directionless links", {page: ["deck", "page"]}, "links")
+                  .select("collection pages", {collection: coll}, "collection")
+                  .select("directionless links", {page: ["collection", "page"]}, "links")
                   .select("page eavs", {page: ["links", "link"], attribute: attr}, "eav")
                   .exec();
     if(relationships.unprojected.length) {
@@ -1039,8 +1039,8 @@ function walk(tree, indent = 0) {
       return {distance: 1, type: "coll->eav", nodes: [findCommonCollections(pages)]};
     }
     let relationships2 = eve.query(``)
-                  .select("deck pages", {deck: coll}, "deck")
-                  .select("directionless links", {page: ["deck", "page"]}, "links")
+                  .select("collection pages", {collection: coll}, "collection")
+                  .select("directionless links", {page: ["collection", "page"]}, "links")
                   .select("directionless links", {page: ["links", "link"]}, "links2")
                   .select("page eavs", {page: ["links2", "link"], attribute: attr}, "eav")
                   .exec();
@@ -1053,25 +1053,25 @@ function walk(tree, indent = 0) {
 
   // e.g. "meetings john was in"
   function findCollectionToEntRelationship(coll, ent):any {
-    if(coll === "decks") {
-      if(eve.findOne("deck pages", {page: ent})) {
-        return {distance: 0, type: "ent->deck"};
+    if(coll === "collections") {
+      if(eve.findOne("collection pages", {page: ent})) {
+        return {distance: 0, type: "ent->collection"};
       }
     }
-    if(eve.findOne("deck pages", {deck: coll, page: ent})) {
+    if(eve.findOne("collection pages", {collection: coll, page: ent})) {
       return {distance: 0, type: "coll->ent", nodes: []};
     }
     let relationships = eve.query(``)
-                  .select("deck pages", {deck: coll}, "deck")
-                  .select("directionless links", {page: ["deck", "page"], link: ent}, "links")
+                  .select("collection pages", {collection: coll}, "collection")
+                  .select("directionless links", {page: ["collection", "page"], link: ent}, "links")
                   .exec();
     if(relationships.unprojected.length) {
       return {distance: 1, type: "coll->ent", nodes: []};
     }
     // e.g. events with chris granger (events -> meetings -> chris granger)
     let relationships2 = eve.query(``)
-                  .select("deck pages", {deck: coll}, "deck")
-                  .select("directionless links", {page: ["deck", "page"]}, "links")
+                  .select("collection pages", {collection: coll}, "collection")
+                  .select("directionless links", {page: ["collection", "page"]}, "links")
                   .select("directionless links", {page: ["links", "link"], link: ent}, "links2")
                   .exec();
     if(relationships2.unprojected.length) {
@@ -1084,14 +1084,14 @@ function walk(tree, indent = 0) {
   function findCollectionToCollectionRelationship(coll, coll2) {
     // are there things in both sets?
     let intersection = eve.query(`${coll}->${coll2}`)
-                     .select("deck pages", {deck: coll}, "coll1")
-                     .select("deck pages", {deck: coll2, page: ["coll1", "page"]}, "coll2")
+                     .select("collection pages", {collection: coll}, "coll1")
+                     .select("collection pages", {collection: coll2, page: ["coll1", "page"]}, "coll2")
                      .exec();
     //is there a relationship between things in both sets
     let relationships = eve.query(`relationships between ${coll} and ${coll2}`)
-                  .select("deck pages", {deck: coll}, "coll1")
+                  .select("collection pages", {collection: coll}, "coll1")
                   .select("directionless links", {page: ["coll1", "page"]}, "links")
-                  .select("deck pages", {deck: coll2, page: ["links", "link"]}, "coll2")
+                  .select("collection pages", {collection: coll2, page: ["links", "link"]}, "coll2")
                   .group([["links", "type"]])
                   .aggregate("count", {}, "count")
                   .project({type: ["links", "type"], count: ["count", "count"]})
@@ -1697,7 +1697,7 @@ function walk(tree, indent = 0) {
     }
     for(let added of eve.find("added collections", {page: articleId})) {
       relatedBits.push({c: "bit collection", click: followLink, searchId, linkText: added["source view"], children: [
-        {c: "header collection", text: added.deck},
+        {c: "header collection", text: added.collection},
       ]})
     }
     for(let incoming of eve.find("page links", {link: articleId})) {
@@ -2058,7 +2058,7 @@ function walk(tree, indent = 0) {
     diff.add("action source", {action, "source view": name});
     // a mapping
     diff.add("action mapping", {action, from: "page", "to source": action, "to field": field});
-    diff.add("action mapping constant", {action, from: "deck", value: collection});
+    diff.add("action mapping constant", {action, from: "collection", value: collection});
     diff.add("action mapping constant", {action, from: "source view", value: name});
     return diff;
   }
@@ -2488,7 +2488,7 @@ function walk(tree, indent = 0) {
 
   eve.asView(eve.query("collection links")
              .select("page links", {type: "collection"}, "links")
-             .project({page: ["links", "page"], deck: ["links", "link"]}));
+             .project({page: ["links", "page"], collection: ["links", "link"]}));
 
   eve.asView(eve.query("parsed eavs")
              .select("page", {}, "page")
@@ -2501,23 +2501,23 @@ function walk(tree, indent = 0) {
              // push them into eavs, e.g. sum salaries per department -> [total salary = *]
              .union("added eavs", {page: ["page"], attribute: ["attribute"], value: ["value"]}));
 
-  eve.asView(eve.union("deck pages")
+  eve.asView(eve.union("collection pages")
              // the rest of these are editor-level views
-             .union("collection links", {page: ["page"], deck: ["deck"]})
-             .union("history stack", {page: ["page"], deck: "history"})
-             .union("page links", {page: ["link"], deck: ["type"]})
+             .union("collection links", {page: ["page"], collection: ["collection"]})
+             .union("history stack", {page: ["page"], collection: "history"})
+             .union("page links", {page: ["link"], collection: ["type"]})
              // this is a stored union that is used by the add to collection action to take query results and
              // push them into collections, e.g. people older than 21 -> [[can drink]]
-             .union("added collections", {page: ["page"], deck: ["deck"]}));
+             .union("added collections", {page: ["page"], collection: ["collection"]}));
 
   eve.asView(eve.union("entity")
              .union("page", {entity: ["page"]}));
 
-  eve.asView(eve.query("deck")
-             .select("deck pages", {}, "decks")
-             .group([["decks", "deck"]])
+  eve.asView(eve.query("collection")
+             .select("collection pages", {}, "collections")
+             .group([["collections", "collection"]])
              .aggregate("count", {}, "count")
-             .project({deck: ["decks", "deck"], count: ["count", "count"]}));
+             .project({collection: ["collections", "collection"], count: ["count", "count"]}));
 
   //---------------------------------------------------------
   // Go
