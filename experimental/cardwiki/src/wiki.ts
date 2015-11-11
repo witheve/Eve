@@ -9,6 +9,8 @@ module wiki {
   declare var pluralize;
   declare var uuid;
 
+  const MAX_NUMBER = 9007199254740991;
+
   //---------------------------------------------------------
   // App state
   //---------------------------------------------------------
@@ -16,7 +18,7 @@ module wiki {
   var eve = app.eve;
 
   //---------------------------------------------------------
-  // Article
+  // Entity
   //---------------------------------------------------------
 
   export function coerceInput(input) {
@@ -45,14 +47,14 @@ module wiki {
     "|": "link separator",
     "=": "assignment",
   }
-  function tokenize(article) {
+  function tokenize(entity) {
     let line = 0;
     let ix = 0;
-    let len = article.length;
+    let len = entity.length;
     let tokens = [];
     let cur = {ix, line, type: "text", text: ""};
     for(; ix < len; ix++) {
-      let ch = article[ix];
+      let ch = entity[ix];
       if(ch.match(breaks)) {
         let type = types[ch];
         if(ch === "\n") line++;
@@ -65,9 +67,9 @@ module wiki {
         }
         cur = {ix, line, type, text: ch};
         tokens.push(cur);
-        while(ch === article[ix + 1]) {
+        while(ch === entity[ix + 1]) {
           ix++;
-          ch = article[ix];
+          ch = entity[ix];
           cur.text += ch;
         }
         if(types[cur.text]) {
@@ -76,7 +78,7 @@ module wiki {
         if(type === "header") {
           //trim the next character if it's a space between the header indicator
           //and the text;
-          if(article[ix+1] === " ") ix++;
+          if(entity[ix+1] === " ") ix++;
         }
         cur = {ix: ix+1, line, type: "text", text: ""};
       } else {
@@ -169,16 +171,16 @@ module wiki {
   }
 
   var parseCache;
-  function parsePage(pageId, content) {
+  function parseEntity(entityId, content) {
     if(!parseCache) parseCache = {};
-    let cached = parseCache[pageId];
+    let cached = parseCache[entityId];
     if(!cached || cached[0] !== content) {
-      cached = parseCache[pageId] = [content, parse(tokenize(content))];
+      cached = parseCache[entityId] = [content, parse(tokenize(content))];
     }
     return cached[1];
   }
 
-  function articleToHTML(lines, searchId) {
+  function entityToHTML(lines, searchId) {
     let children = [];
     for (let line of lines) {
       let lineChildren = [];
@@ -193,7 +195,7 @@ module wiki {
           continue;
         }
         let link = item.link.toLowerCase();
-        let found = eve.findOne("page", {page: link}) || eve.findOne("deck", {page: link});
+        let found = eve.findOne("entity", {entity: link}) || eve.findOne("collection", {entity: link});
         lineChildren.push({t: "span", c: `${item.type} ${found ? 'found' : ""}`, text: item.link, linkText: link, click: followLink, searchId});
       }
       if(line.header) {
@@ -278,19 +280,19 @@ module wiki {
     "*": {op: "*", argCount: 2, infix: true, args: ["a", "b"]},
   }
   function newSearchTokens(searchString) {
-    // search the string for entities / decks
+    // search the string for entities / collections
     // TODO: this is stupidly slow
     let cleaned = searchString.toLowerCase();
     eve.find("entity", {entity: ""});
     var index = eve.table("entity").indexes["entity"].index;
     let entities = stringMatches2(searchString, "entity", index);
-    eve.find("deck", {deck: ""});
-    var deckIndex = eve.table("deck").indexes["deck"].index;
-    let decks = stringMatches2(searchString, "collection", deckIndex);
-    eve.find("page eavs", {attribute: ""});
-    var eavIndex = eve.table("page eavs").indexes["attribute"].index;
+    eve.find("collection", {collection: ""});
+    var collectionIndex = eve.table("collection").indexes["collection"].index;
+    let collections = stringMatches2(searchString, "collection", collectionIndex);
+    eve.find("entity eavs", {attribute: ""});
+    var eavIndex = eve.table("entity eavs").indexes["attribute"].index;
     let eavs = stringMatches2(searchString, "attribute", eavIndex);
-    let all = entities.concat(decks).concat(eavs);
+    let all = entities.concat(collections).concat(eavs);
     all.sort((a, b) => a.pos - b.pos);
     let remaining = cleaned;
     for(let part of all) {
@@ -300,7 +302,9 @@ module wiki {
     }
     let words = remaining.split(" ");
     let ix = 0;
-    for(let word of words) {
+    let wordIx = 0;
+    for(let wordLen = words.length; wordIx < wordLen; wordIx++) {
+      let word = words[wordIx];
       if(!word) {
         ix++;
         continue;
@@ -309,12 +313,23 @@ module wiki {
         all.push({type: "modifier", orig: word, modifier: modifiers[word], pos: ix});
       } else if(operations[word]) {
         all.push({type: "operation", orig: word, operation: operations[word], pos: ix});
-      } else if(word === "deck" || word === "decks") {
+      } else if(word === "collection" || word === "collections") {
         all.push({type: "collection", found: word, orig: word, pos: ix})
       } else if(parseFloat(word)) {
         all.push({type: "value", value: word, orig: word, pos: ix});
       } else if(word[0] === "\"") {
         // @TODO: account for multi word quotes
+        let total = word;
+        let next = words[++wordIx];
+        while(next) {
+          total += ` ${next}`;
+          if(next[next.length - 1] === "\"") {
+            break;
+          }
+          wordIx++;
+          next = words[wordIx];
+        }
+        word = total;
         all.push({type: "value", value: word, orig: word, pos: ix});
       }
       ix += word.length + 1;
@@ -331,13 +346,13 @@ function walk(tree, indent = 0) {
     } else if(!text && tree.value) {
       text = tree.value;
     }
-    console.group(text, `(${tree.type})`);
+    console.group(`${text} (${tree.type})`);
     if(tree.children) {
       for(let child of tree.children) {
         walk(child, indent+1);
       }
     }
-    console.groupEnd(text, `(${tree.type})`);
+    console.groupEnd();
 }
 
 
@@ -701,7 +716,7 @@ function walk(tree, indent = 0) {
             return plan;
           }
           break;
-        case "deck->ent":
+        case "collection->ent":
           break;
       }
     } else {
@@ -783,7 +798,7 @@ function walk(tree, indent = 0) {
     let groups = [];
     for(let node of nodes) {
       if(node.type === "collection") {
-        groups.push([node.id, "page"]);
+        groups.push([node.id, "entity"]);
       } else if(node.type === "attribute") {
         groups.push([node.id, "value"]);
       } else {
@@ -833,42 +848,42 @@ function walk(tree, indent = 0) {
         case "gather":
           var join:any = {};
           if(step.collection) {
-            join.deck = step.collection;
+            join.collection = step.collection;
           }
           var related = step.relatedTo;
           if(related) {
             if(related.type === "find") {
               step.size = 2;
               let linkId = `${step.id} | link`;
-              query.select("directionless links", {page: related.entity}, linkId);
-              join.page = [linkId, "link"];
-              query.select("deck pages", join, step.id);
+              query.select("directionless links", {entity: related.entity}, linkId);
+              join.entity = [linkId, "link"];
+              query.select("collection entities", join, step.id);
             } else {
               step.size = 2;
               let linkId = `${step.id} | link`;
-              query.select("directionless links", {page: [related.id, "page"]}, linkId);
-              join.page = [linkId, "link"];
-              query.select("deck pages", join, step.id);
+              query.select("directionless links", {entity: [related.id, "entity"]}, linkId);
+              join.entity = [linkId, "link"];
+              query.select("collection entities", join, step.id);
             }
           } else {
             step.size = 1;
-            query.select("deck pages", join, step.id);
+            query.select("collection entities", join, step.id);
           }
           step.name = safeProjectionName(step.collection, projection);
-          projection[step.name] = [step.id, "page"];
+          projection[step.name] = [step.id, "entity"];
           break;
         case "lookup":
           var join:any = {attribute: step.attribute};
           var related = step.relatedTo;
           if(related) {
             if(related.type === "find") {
-              join.page = related.entity;
+              join.entity = related.entity;
             } else {
-              join.page = [related.id, "page"];
+              join.entity = [related.id, "entity"];
             }
           }
           step.size = 1;
-          query.select("page eavs", join, step.id);
+          query.select("entity eavs", join, step.id);
           step.name = safeProjectionName(step.attribute, projection);
           projection[step.name] = [step.id, "value"];
           break;
@@ -876,10 +891,10 @@ function walk(tree, indent = 0) {
           var related = step.relatedTo;
           if(step.deselect) {
             step.size = 0;
-            query.deselect("deck pages", {deck: step.collection, page: [related.id, "page"]});
+            query.deselect("collection entities", {collection: step.collection, entity: [related.id, "entity"]});
           } else {
             step.size = 0;
-            query.select("deck pages", {deck: step.collection, page: [related.id, "page"]}, step.id);
+            query.select("collection entities", {collection: step.collection, entity: [related.id, "entity"]}, step.id);
           }
           break;
         case "filter by entity":
@@ -887,10 +902,10 @@ function walk(tree, indent = 0) {
           var linkId = `${step.id} | link`;
           if(step.deselect) {
             step.size = 0;
-            query.deselect("directionless links", {page: [related.id, "page"], link: step.entity});
+            query.deselect("directionless links", {entity: [related.id, "entity"], link: step.entity});
           } else {
             step.size = 1;
-            query.select("directionless links", {page: [related.id, "page"], link: step.entity}, step.id);
+            query.select("directionless links", {entity: [related.id, "entity"], link: step.entity}, step.id);
           }
           break;
         case "filter":
@@ -927,7 +942,7 @@ function walk(tree, indent = 0) {
     return query;
   }
 
-  function newSearch(searchString) {
+  export function newSearch(searchString) {
     let all = newSearchTokens(searchString);
     let tree = planTree(searchString);
     console.log(tree);
@@ -952,9 +967,9 @@ function walk(tree, indent = 0) {
     return result;
   }
 
-  function pageToDecksArray(page) {
-    let pages = eve.find("deck pages", {page});
-    return pages.map((a) => a["deck"]);
+  function entityTocollectionsArray(entity) {
+    let entities = eve.find("collection entities", {entity});
+    return entities.map((a) => a["collection"]);
   }
 
   function extractFromUnprojected(coll, ix, field, size) {
@@ -966,15 +981,15 @@ function walk(tree, indent = 0) {
   }
 
   function findCommonCollections(ents) {
-    let intersection = pageToDecksArray(ents[0]);
+    let intersection = entityTocollectionsArray(ents[0]);
     intersection.sort();
     for(let entId of ents.slice(1)) {
-      let cur = pageToDecksArray(entId);
+      let cur = entityTocollectionsArray(entId);
       cur.sort();
       arrayIntersect(intersection, cur);
     }
     intersection.sort((a, b) => {
-      return eve.findOne("deck", {deck: b})["count"] - eve.findOne("deck", {deck: a})["count"];
+      return eve.findOne("collection", {collection: b})["count"] - eve.findOne("collection", {collection: a})["count"];
     })
     return intersection;
   }
@@ -983,87 +998,87 @@ function walk(tree, indent = 0) {
   // e.g. "chris's age"
   function findEntToAttrRelationship(ent, attr):any {
     // check if this ent has that attr
-    let directAttribute = eve.findOne("page eavs", {page: ent, attribute: attr});
+    let directAttribute = eve.findOne("entity eavs", {entity: ent, attribute: attr});
     if(directAttribute) {
       return {distance: 0, type: "ent->eav"};
     }
     let relationships = eve.query(``)
-                  .select("page links", {page: ent}, "links")
-                  .select("page eavs", {page: ["links", "link"], attribute: attr}, "eav")
+                  .select("entity links", {entity: ent}, "links")
+                  .select("entity eavs", {entity: ["links", "link"], attribute: attr}, "eav")
                   .exec();
     if(relationships.unprojected.length) {
-      let pages = extractFromUnprojected(relationships.unprojected, 0, "link", 2);
-      return {distance: 1, type: "ent->eav", nodes: [findCommonCollections(pages)]};
+      let entities = extractFromUnprojected(relationships.unprojected, 0, "link", 2);
+      return {distance: 1, type: "ent->eav", nodes: [findCommonCollections(entities)]};
     }
     let relationships2 = eve.query(``)
-                  .select("page links", {page: ent}, "links")
-                  .select("page links", {page: ["links", "link"]}, "links2")
-                  .select("page eavs", {page: ["links2", "link"], attribute: attr}, "eav")
+                  .select("entity links", {entity: ent}, "links")
+                  .select("entity links", {entity: ["links", "link"]}, "links2")
+                  .select("entity eavs", {entity: ["links2", "link"], attribute: attr}, "eav")
                   .exec();
     if(relationships2.unprojected.length) {
-      let pages = extractFromUnprojected(relationships2.unprojected, 0, "link", 3);
-      let pages2 = extractFromUnprojected(relationships2.unprojected, 1, "link", 3);
-      return {distance: 2, type: "ent->eav", nodes: [findCommonCollections(pages), findCommonCollections(pages2)]};
+      let entities = extractFromUnprojected(relationships2.unprojected, 0, "link", 3);
+      let entities2 = extractFromUnprojected(relationships2.unprojected, 1, "link", 3);
+      return {distance: 2, type: "ent->eav", nodes: [findCommonCollections(entities), findCommonCollections(entities2)]};
     }
   }
 
   // e.g. "salaries per department"
   function findCollectionToAttrRelationship(coll, attr) {
     let direct = eve.query(``)
-                  .select("deck pages", {deck: coll}, "deck")
-                  .select("page eavs", {page: ["deck", "page"], attribute: attr}, "eav")
+                  .select("collection entities", {collection: coll}, "collection")
+                  .select("entity eavs", {entity: ["collection", "entity"], attribute: attr}, "eav")
                   .exec();
     if(direct.unprojected.length) {
       return {distance: 0, type: "coll->eav", nodes: []};
     }
     let relationships = eve.query(``)
-                  .select("deck pages", {deck: coll}, "deck")
-                  .select("directionless links", {page: ["deck", "page"]}, "links")
-                  .select("page eavs", {page: ["links", "link"], attribute: attr}, "eav")
+                  .select("collection entities", {collection: coll}, "collection")
+                  .select("directionless links", {entity: ["collection", "entity"]}, "links")
+                  .select("entity eavs", {entity: ["links", "link"], attribute: attr}, "eav")
                   .exec();
     if(relationships.unprojected.length) {
-      let pages = extractFromUnprojected(relationships.unprojected, 1, "link", 3);
-      return {distance: 1, type: "coll->eav", nodes: [findCommonCollections(pages)]};
+      let entities = extractFromUnprojected(relationships.unprojected, 1, "link", 3);
+      return {distance: 1, type: "coll->eav", nodes: [findCommonCollections(entities)]};
     }
     let relationships2 = eve.query(``)
-                  .select("deck pages", {deck: coll}, "deck")
-                  .select("directionless links", {page: ["deck", "page"]}, "links")
-                  .select("directionless links", {page: ["links", "link"]}, "links2")
-                  .select("page eavs", {page: ["links2", "link"], attribute: attr}, "eav")
+                  .select("collection entities", {collection: coll}, "collection")
+                  .select("directionless links", {entity: ["collection", "entity"]}, "links")
+                  .select("directionless links", {entity: ["links", "link"]}, "links2")
+                  .select("entity eavs", {entity: ["links2", "link"], attribute: attr}, "eav")
                   .exec();
     if(relationships2.unprojected.length) {
-      let pages = extractFromUnprojected(relationships2.unprojected, 1, "link", 4);
-      let pages2 = extractFromUnprojected(relationships2.unprojected, 2, "link", 4);
-      return {distance: 2, type: "coll->eav", nodes: [findCommonCollections(pages), findCommonCollections(pages2)]};
+      let entities = extractFromUnprojected(relationships2.unprojected, 1, "link", 4);
+      let entities2 = extractFromUnprojected(relationships2.unprojected, 2, "link", 4);
+      return {distance: 2, type: "coll->eav", nodes: [findCommonCollections(entities), findCommonCollections(entities2)]};
     }
   }
 
   // e.g. "meetings john was in"
   function findCollectionToEntRelationship(coll, ent):any {
-    if(coll === "decks") {
-      if(eve.findOne("deck pages", {page: ent})) {
-        return {distance: 0, type: "ent->deck"};
+    if(coll === "collections") {
+      if(eve.findOne("collection entities", {entity: ent})) {
+        return {distance: 0, type: "ent->collection"};
       }
     }
-    if(eve.findOne("deck pages", {deck: coll, page: ent})) {
+    if(eve.findOne("collection entities", {collection: coll, entity: ent})) {
       return {distance: 0, type: "coll->ent", nodes: []};
     }
     let relationships = eve.query(``)
-                  .select("deck pages", {deck: coll}, "deck")
-                  .select("directionless links", {page: ["deck", "page"], link: ent}, "links")
+                  .select("collection entities", {collection: coll}, "collection")
+                  .select("directionless links", {entity: ["collection", "entity"], link: ent}, "links")
                   .exec();
     if(relationships.unprojected.length) {
       return {distance: 1, type: "coll->ent", nodes: []};
     }
     // e.g. events with chris granger (events -> meetings -> chris granger)
     let relationships2 = eve.query(``)
-                  .select("deck pages", {deck: coll}, "deck")
-                  .select("directionless links", {page: ["deck", "page"]}, "links")
-                  .select("directionless links", {page: ["links", "link"], link: ent}, "links2")
+                  .select("collection entities", {collection: coll}, "collection")
+                  .select("directionless links", {entity: ["collection", "entity"]}, "links")
+                  .select("directionless links", {entity: ["links", "link"], link: ent}, "links2")
                   .exec();
     if(relationships2.unprojected.length) {
-      let pages = extractFromUnprojected(relationships2.unprojected, 1, "link", 3);
-      return {distance: 2, type: "coll->ent", nodes: [findCommonCollections(pages)]};
+      let entities = extractFromUnprojected(relationships2.unprojected, 1, "link", 3);
+      return {distance: 2, type: "coll->ent", nodes: [findCommonCollections(entities)]};
     }
   }
 
@@ -1071,14 +1086,14 @@ function walk(tree, indent = 0) {
   function findCollectionToCollectionRelationship(coll, coll2) {
     // are there things in both sets?
     let intersection = eve.query(`${coll}->${coll2}`)
-                     .select("deck pages", {deck: coll}, "coll1")
-                     .select("deck pages", {deck: coll2, page: ["coll1", "page"]}, "coll2")
+                     .select("collection entities", {collection: coll}, "coll1")
+                     .select("collection entities", {collection: coll2, entity: ["coll1", "entity"]}, "coll2")
                      .exec();
     //is there a relationship between things in both sets
     let relationships = eve.query(`relationships between ${coll} and ${coll2}`)
-                  .select("deck pages", {deck: coll}, "coll1")
-                  .select("directionless links", {page: ["coll1", "page"]}, "links")
-                  .select("deck pages", {deck: coll2, page: ["links", "link"]}, "coll2")
+                  .select("collection entities", {collection: coll}, "coll1")
+                  .select("directionless links", {entity: ["coll1", "entity"]}, "links")
+                  .select("collection entities", {collection: coll2, entity: ["links", "link"]}, "coll2")
                   .group([["links", "type"]])
                   .aggregate("count", {}, "count")
                   .project({type: ["links", "type"], count: ["count", "count"]})
@@ -1112,11 +1127,11 @@ function walk(tree, indent = 0) {
         extraKeys: {
           "Cmd-Enter": (cm) => {
             let latest = app.renderer.tree[elem.id];
-            commitArticle(cm, latest);
+            commitEntity(cm, latest);
             },
             "Ctrl-Enter": (cm) => {
                   let latest = app.renderer.tree[elem.id];
-                  commitArticle(cm, latest);
+                  commitEntity(cm, latest);
             }
         }
       });
@@ -1202,8 +1217,8 @@ function walk(tree, indent = 0) {
     }
   }
 
-  function articleToGraph(pageId, content) {
-    let parsed = parsePage(pageId, content);
+  function entityToGraph(entityId, content) {
+    let parsed = parseEntity(entityId, content);
     let links = [];
     for(let link of parsed.links) {
       links.push({link: link.link.toLowerCase(), type: (link.linkType || "unknown").toLowerCase()});
@@ -1220,17 +1235,17 @@ function walk(tree, indent = 0) {
 
   var dragging = null;
 
-  app.handle("startEditingArticle", (result, info) => {
+  app.handle("startEditingEntity", (result, info) => {
     result.add("editing", {editing: true, search: info.searchId});
   });
 
-  app.handle("stopEditingArticle", (result, info) => {
+  app.handle("stopEditingEntity", (result, info) => {
     if(!eve.findOne("editing")) return;
     result.remove("editing");
-    let {page, value} = info;
-    page = page.toLowerCase();
-    result.add("manual page", {page, content: value});
-    result.remove("manual page", {page});
+    let {entity, value} = info;
+    entity = entity.toLowerCase();
+    result.add("manual entity", {entity, content: value});
+    result.remove("manual entity", {entity});
   });
 
   app.handle("setSearch", (result, info) => {
@@ -1238,9 +1253,9 @@ function walk(tree, indent = 0) {
     let search = eve.findOne("search query", {id: searchId})["search"];
     if(search === info.value) return;
 
-    if(!eve.findOne("history stack", {page: search})) {
+    if(!eve.findOne("history stack", {entity: search})) {
       let stack = eve.find("history stack");
-      result.add("history stack", {page: search, pos: stack.length});
+      result.add("history stack", {entity: search, pos: stack.length});
     }
     let newSearchValue = info.value.trim();
     app.activeSearches[searchId] = newSearch(newSearchValue);
@@ -1311,345 +1326,22 @@ function walk(tree, indent = 0) {
     }
   });
 
-  function randomlyLetter(phrase, klass = "") {
-    let children = [];
-    let ix = 0;
-    for(var letter of phrase) {
-      let rand = Math.round(Math.random() * 5);
-      children.push({id: phrase + ix, t: "span", c: `letter`, text: letter, enter: {opacity: 1, duration: (rand * 100) + 150, delay: (0 * 30) + 300}, leave: {opacity: 0, duration: 250}});
-      ix++;
-    }
-    return {c: `phrase ${klass}`, children};
-  }
-
-  var slideNumber = 0;
-  var slides = [
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("The world is full of bits of information.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("We spend our lives exploring those bits.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("They form the foundation of our understanding, our decisions, our work...")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("And yet the tools we have to work with them are fairly primitive.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       {id: "slide-list", c: "list", children: [
-         randomlyLetter("- Our communications are static"),
-         randomlyLetter("- Information requires rigid structure"),
-         randomlyLetter("- Exploration is either limited or it's code"),
-       ]}
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("That's where I come in.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("I help collect, explore, and communicate aspects of the world around you.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("My name is Eve.")
-     ]}},
-    {type: "slide",
-     setup: () => {
-       let diff = eve.diff();
-       diff.add("search", {id: "vin diesel", top: 0, left: 0});
-       diff.add("search query", {id: "vin diesel", search: "vin diesel"});
-       eve.applyDiff(diff);
-       app.activeSearches["vin diesel"] = newSearch("vin diesel");
-     },
-     teardown: () => {
-       let diff = eve.diff();
-       diff.remove("search", {id: "vin diesel"});
-       diff.remove("search query", {id: "vin diesel"});
-       eve.applyDiff(diff);
-       app.activeSearches["vin diesel"] = null;
-     },
-     content: () => {
-       let search:any = newSearchResults("vin diesel");
-       search.leave = {opacity:0, duration: 300},
-       search.enter = {opacity:1, duration: 2500, delay: 300, begin: (node) => {
-         if(!node[0]) return;
-         setTimeout(() => {
-           node[0].querySelector(".search-box").editor.refresh();
-         }, 30);
-       }};
-       return {children: [
-         randomlyLetter("And I collect bits like this one"),
-         search,
-         //        {c: "bit entity", text: "George Washington"}
-       ]}}
-    },
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("There are some serious advantages to collecting information in bits.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       {id: "slide-list", c: "list", children: [
-         randomlyLetter("- Capture information however it comes."),
-         randomlyLetter("- No planning or pre-structuring"),
-         randomlyLetter("- Nothing is too big or too small"),
-         randomlyLetter("- Not just tables, it's the whole story"),
-       ]}
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("I can also pull in information from the outside world.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("But the most important thing is that I was designed to be malleable.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("You can..."),
-       {id: "slide-list", c: "list", children: [
-         randomlyLetter("- Add structure at any time"),
-         randomlyLetter("- Work with heterogenous collections"),
-         randomlyLetter("- Handle one off tasks"),
-         randomlyLetter("- Cleanly deal with special cases"),
-       ]}
-     ]}},
-    {type: "eve"},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("The purpose of collecting all this is to explore it.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("But I likely mean something different than what you're thinking.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("Exploration isn't just navigation. It's discovering new information.")
-     ]}},
-    {type: "slide",
-     setup: () => {
-       let diff = eve.diff();
-       diff.add("search", {id: "vin diesel", top: 0, left: 0});
-       diff.add("search query", {id: "vin diesel", search: "sum salaries per department"});
-       eve.applyDiff(diff);
-       app.activeSearches["vin diesel"] = newSearch("sum salaries per department");
-     },
-     teardown: () => {
-       let diff = eve.diff();
-       diff.remove("search", {id: "vin diesel"});
-       diff.remove("search query", {id: "vin diesel"});
-       eve.applyDiff(diff);
-       app.activeSearches["vin diesel"] = null;
-     },
-     content: () => {
-       let search:any = newSearchResults("vin diesel");
-       search.leave = {opacity:0, duration: 300},
-       search.enter = {opacity:1, duration: 1000, delay: 300, begin: (node) => {
-         if(!node[0]) return;
-         setTimeout(() => {
-           node[0].querySelector(".search-box").editor.refresh();
-         }, 30);
-       }};
-       return {children: [
-         search,
-         //        {c: "bit entity", text: "George Washington"}
-       ]}}
-    },
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("My search is more powerful than most searches you're used to.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       {id: "slide-list", c: "list", children: [
-         randomlyLetter("- It's live"),
-         randomlyLetter("- It's tangible"),
-         randomlyLetter("- It's manipulable"),
-       ]}
-     ]}},
-    {type: "eve"},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("I can also peer into the past and help explore alternative futures.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("Exploration is simply a matter of searching and formatting the results.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("But you also need to be able to communicate, not just explore.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("Fortunately, you can send bits to other people and systems. You can even search over the communcations themselves.")
-     ]}},
-    {type: "eve"},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("Communicating isn't just about sending messages though. It's about representing information in useful ways.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("You can create documents, dashboards, even custom interfaces, by drawing and embedding bits.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("And you can still pull them apart to see how they're made.")
-     ]}},
-     {type: "slide",
-     content: {children: [
-       randomlyLetter("That allows people to explore beyond what you send them. They can remix it and create new bits based on the information.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("This enables people to collaborate in a much deeper way.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("Sometimes we are just exploring by ourselves, but much of the time there are teams, businesses, even times when we want to work with the whole world.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("One thing I've learned about collaboration is that that doesn't always mean consensus.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("Instead, many versions of a bit can exist, you can have yours and others can have theirs.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("But we can still propose changes to each other and select people to approve updates to the final version.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("This enables others to contribute to the overall process, while maintaining control of the end result.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("This form of collaboration also allows for different world views and different ideas of correctness.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("Which is important because I was meant to fit in the real world, not some idealized version where everything fits neatly in a box.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("And it is that world that is rapidly becoming something new.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       {id: "slide-list", c: "list", children: [
-         randomlyLetter("There are new inputs: pen, voice"),
-         randomlyLetter("New displays: mobile, VR, AR"),
-         randomlyLetter("New kinds of systems: everything is distributed"),
-         randomlyLetter("New version of work: everything is constantly changing data"),
-       ]}
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("I am built to collect, explore and communicate in that world.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("I am alive, malleable, and everywhere.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("I am the approachable genius: honest, genuine, curious, and conversational.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("I am Eve.")
-     ]}},
-    {type: "slide",
-     content: {children: [
-       randomlyLetter("Questions"),
-       {id: "slide-list", c: "list", children: [
-         randomlyLetter("- She vs. it"),
-         randomlyLetter("- Mobile?"),
-         randomlyLetter("- What is eve? Jarvis? A workspace? ..?"),
-       ]}
-     ]}},
-     {type: "slide",
-     content: {children: [
-       randomlyLetter("Technical questions"),
-       {id: "slide-list", c: "list", children: [
-         randomlyLetter("- Incrementalism with cycles"),
-         randomlyLetter("- Efficient incrementalism in an EAV world"),
-         randomlyLetter("- Federation"),
-         randomlyLetter("- Supporting integrations"),
-         randomlyLetter("- Version control"),
-         randomlyLetter("- How far can the natural language stuff go, before heuristics stop working?"),
-         randomlyLetter("- Progressive storage/querying"),
-       ]}
-     ]}},
-  ]
-
-  function nextSlide(e, elem) {
-    let prev:any = slides[slideNumber];
-    if(prev.teardown) {
-      prev.teardown();
-    }
-    if(!elem.back) {
-      slideNumber++;
-    } else {
-      slideNumber--;
-    }
-    if(slideNumber < 0) slideNumber = 0;
-    if(slideNumber >= slides.length) slideNumber = slides.length - 1;
-    let slide:any = slides[slideNumber];
-    if(slide.setup) {
-      slide.setup();
-    }
-    e.stopPropagation();
-    e.preventDefault();
-    console.log(slideNumber);
-    app.render();
-  }
-
-  function slideControls() {
-    return {c: "slide-controls", children: [
-      {c: "ion-ios-arrow-back", back: true, click: nextSlide},
-      {c: "ion-ios-arrow-forward", click: nextSlide}
-    ]};
-  }
-
   export function root() {
-    let slide:any = slides[slideNumber] || {type: "slide"};
-    if(false) {
-      let content = slide.content;
-      if(typeof content === "function") {
-        content = content();
-      }
-      return {id: "root", c: "root slide", children: [
-        slideControls(),
-        content
-      ]};
+    if(window["slides"]) {
+      window["slides"].root();
     } else {
       return eveRoot();
     }
   }
 
-  function eveRoot() {
+  export function eveRoot() {
     let searchers = [];
     for(let search of eve.find("search")) {
       searchers.push(newSearchResults(search.id));
     }
     return {id: "root", c: "root", dblclick: addNewSearch, children: [
 //       slideControls(),
-//       randomlyLetter("Let's get started."),
       {c: "canvas", mousemove: maybeDrag, children: searchers},
-//       relatedItems(),
-//       historyStack(),
     ]};
   }
 
@@ -1667,45 +1359,37 @@ function walk(tree, indent = 0) {
     }
   }
 
-  function articleUi(articleId, instance:string|number = "", searchId) {
-    let article = eve.findOne("page", {page: articleId}) || {content: ""};
-    let articleView;
+  function entityUi(entityId, instance:string|number = "", searchId) {
+    let entity = eve.findOne("entity", {entity: entityId}) || {content: ""};
+    let entityView;
     if(!eve.findOne("editing", {search: searchId})) {
-      articleView = {id: `${articleId}${instance}`, c: "article", searchId, page: articleId, children: articleToHTML(parsePage(articleId, article.content).lines, searchId), dblclick: editArticle, enter: {display: "flex", opacity: 1, duration: 300}};
+      entityView = {id: `${entityId}${instance}`, c: "entity", searchId, entity: entityId, children: entityToHTML(parseEntity(entityId, entity.content).lines, searchId), dblclick: editEntity, enter: {display: "flex", opacity: 1, duration: 300}};
     } else {
-      articleView = {id: `${articleId}${instance}|editor`, c: "article editor", page: articleId, searchId, postRender: CodeMirrorElement, value: article.content, blur: commitArticle};
+      entityView = {id: `${entityId}${instance}|editor`, c: "entity editor", entity: entityId, searchId, postRender: CodeMirrorElement, value: entity.content, blur: commitEntity};
     }
     let relatedBits = [];
-    for(let added of eve.find("added eavs", {page: articleId})) {
+    for(let added of eve.find("added eavs", {entity: entityId})) {
       relatedBits.push({c: "bit attribute", click: followLink, searchId, linkText: added["source view"], children: [
         {c: "header attribute", text: added.attribute},
         {c: "value", text: added.value},
       ]})
     }
-    for(let added of eve.find("added collections", {page: articleId})) {
+    for(let added of eve.find("added collections", {entity: entityId})) {
       relatedBits.push({c: "bit collection", click: followLink, searchId, linkText: added["source view"], children: [
-        {c: "header collection", text: added.deck},
+        {c: "header collection", text: added.collection},
       ]})
     }
-    for(let incoming of eve.find("page links", {link: articleId})) {
-      if(incoming.page === articleId) continue;
-      relatedBits.push({c: "bit entity", click: followLink, searchId, linkText: incoming.page, children: [
-        {c: "header entity", text: incoming.page},
+    for(let incoming of eve.find("entity links", {link: entityId})) {
+      if(incoming.entity === entityId) continue;
+      relatedBits.push({c: "bit entity", click: followLink, searchId, linkText: incoming.entity, children: [
+        {c: "header entity", text: incoming.entity},
       ]})
     }
 
-    return {c: "article-container", children: [
-      articleView,
+    return {c: "entity-container", children: [
+      entityView,
       {c: "related-bits", children: relatedBits},
     ]};
-  }
-
-  function relatedItems() {
-    let items = [];
-    for(let inbound of eve.find("active page incoming")) {
-      items.push({text: inbound["page"], linkText: inbound["page"], click: followLink});
-    }
-    return {children: items};
   }
 
   function searchDescription(tokens, plan) {
@@ -1761,7 +1445,7 @@ function walk(tree, indent = 0) {
     ]};
   }
 
-  function newSearchResults(searchId) {
+  export function newSearchResults(searchId) {
     let {top, left} = eve.findOne("search", {id: searchId});
     let search = eve.findOne("search query", {id: searchId})["search"];
     let {tokens, plan, query} = app.activeSearches[searchId];
@@ -1809,10 +1493,10 @@ function walk(tree, indent = 0) {
             if(!resultPart) continue row;
             let text, klass, click, link;
             if(planItem.type === "gather") {
-              text = resultPart["page"];
+              text = resultPart["entity"];
               klass = "entity";
               click = followLink;
-              link = resultPart["page"];
+              link = resultPart["entity"];
               if(planIx > 0) {
 //                 klass += " small";
 //                 text = first2Letters(text);
@@ -1846,9 +1530,9 @@ function walk(tree, indent = 0) {
       }
     }
     if(plan.length === 1 && plan[0].type === "find") {
-      resultItems.push({c: "singleton", children: [articleUi(plan[0].entity, searchId, searchId)]});
+      resultItems.push({c: "singleton", children: [entityUi(plan[0].entity, searchId, searchId)]});
     } else if(plan.length === 0) {
-      resultItems.push({c: "singleton", children: [articleUi(search, searchId, searchId)]});
+      resultItems.push({c: "singleton", children: [entityUi(search, searchId, searchId)]});
     }
     let actions = [];
     for(let eavAction of eve.find("add eav action", {view: search})) {
@@ -1872,7 +1556,7 @@ function walk(tree, indent = 0) {
       let {template, action} = bitAction;
       actions.push({c: "action new-bit", children: [
         {c: "description", text: "actions"},
-        {c: "bit entity", children: articleToHTML(parsePage(action, template).lines, null)}
+        {c: "bit entity", children: entityToHTML(parseEntity(action, template).lines, null)}
       ]})
     }
 
@@ -1990,12 +1674,12 @@ function walk(tree, indent = 0) {
        .commit();
   }
 
-  function commitArticle(cm, elem) {
-    app.dispatch("stopEditingArticle", {searchId: elem.searchId, page: elem.page, value: cm.getValue()}).commit();
+  function commitEntity(cm, elem) {
+    app.dispatch("stopEditingEntity", {searchId: elem.searchId, entity: elem.entity, value: cm.getValue()}).commit();
   }
 
-  function editArticle(e, elem) {
-    app.dispatch("startEditingArticle", {searchId: elem.searchId, page: elem.page}).commit();
+  function editEntity(e, elem) {
+    app.dispatch("startEditingEntity", {searchId: elem.searchId, entity: elem.entity}).commit();
     e.preventDefault();
   }
 
@@ -2018,7 +1702,7 @@ function walk(tree, indent = 0) {
     let stack = eve.find("history stack");
     stack.sort((a, b) => a.pos - b.pos);
     let stackItems = stack.map((item) => {
-      let link = item["page"];
+      let link = item["entity"];
       let text = first2Letters(link);
       return {c: "link", text, linkText: link, click: followLink};
     });
@@ -2044,8 +1728,8 @@ function walk(tree, indent = 0) {
     // a source
     diff.add("action source", {action, "source view": name});
     // a mapping
-    diff.add("action mapping", {action, from: "page", "to source": action, "to field": field});
-    diff.add("action mapping constant", {action, from: "deck", value: collection});
+    diff.add("action mapping", {action, from: "entity", "to source": action, "to field": field});
+    diff.add("action mapping constant", {action, from: "collection", value: collection});
     diff.add("action mapping constant", {action, from: "source view", value: name});
     return diff;
   }
@@ -2069,7 +1753,7 @@ function walk(tree, indent = 0) {
     // a source
     diff.add("action source", {action, "source view": name});
     // a mapping
-    diff.add("action mapping", {action, from: "page", "to source": action, "to field": entity});
+    diff.add("action mapping", {action, from: "entity", "to source": action, "to field": entity});
     diff.add("action mapping", {action, from: "value", "to source": action, "to field": field});
     diff.add("action mapping constant", {action, from: "attribute", value: attribute});
     diff.add("action mapping constant", {action, from: "source view", value: name});
@@ -2099,14 +1783,14 @@ function walk(tree, indent = 0) {
                    .select("add bit action", {view: name}, "action")
                    .select(name, {}, "table")
                    .calculate("bit template", {row: ["table"], name, template: ["action", "template"]}, "result")
-                   .project({page: ["result", "page"], content: ["result", "content"]});
+                   .project({entity: ["result", "entity"], content: ["result", "content"]});
     diff.merge(queryObjectToDiff(bitQuery));
     diff.merge(removeView(bitQueryId));
     diff.add("action", {view: "added bits", action, kind: "union", ix: 1});
     // a source
     diff.add("action source", {action, "source view": bitQueryId});
     // a mapping
-    diff.add("action mapping", {action, from: "page", "to source": action, "to field": "page"});
+    diff.add("action mapping", {action, from: "entity", "to source": action, "to field": "entity"});
     diff.add("action mapping", {action, from: "content", "to source": action, "to field": "content"});
     diff.add("action mapping constant", {action, from: "source view", value: name});
     return diff;
@@ -2237,7 +1921,7 @@ function walk(tree, indent = 0) {
     //sort
     if(query.sorts) {
       let action = uuid();
-      diff.add("action", {view, action, kind: "sort", ix: Number.MAX_SAFE_INTEGER});
+      diff.add("action", {view, action, kind: "sort", ix: MAX_NUMBER});
       let ix = 0;
       for(let sort of query.sorts) {
         let [source, field, direction] = sort;
@@ -2253,7 +1937,7 @@ function walk(tree, indent = 0) {
     //group
     if(query.groups) {
       let action = uuid();
-      diff.add("action", {view, action, kind: "group", ix: Number.MAX_SAFE_INTEGER});
+      diff.add("action", {view, action, kind: "group", ix: MAX_NUMBER});
       let ix = 0;
       for(let group of query.groups) {
         let [source, field] = group;
@@ -2269,7 +1953,7 @@ function walk(tree, indent = 0) {
     //limit
     if(query.limitInfo) {
       let action = uuid();
-      diff.add("action", {view, action, kind: "limit", ix: Number.MAX_SAFE_INTEGER});
+      diff.add("action", {view, action, kind: "limit", ix: MAX_NUMBER});
       for(let limitType in query.limitInfo) {
         diff.add("action mapping limit", {action, "limit type": limitType, value: query.limitInfo[limitType]});
       }
@@ -2277,7 +1961,7 @@ function walk(tree, indent = 0) {
     //projection
     if(query.projectionMap) {
       let action = uuid();
-      diff.add("action", {view, action, kind: "project", ix: Number.MAX_SAFE_INTEGER});
+      diff.add("action", {view, action, kind: "project", ix: MAX_NUMBER});
       mappingToDiff(diff, action, query.projectionMap, aliases, reverseLookup);
     }
     return diff;
@@ -2358,12 +2042,12 @@ function walk(tree, indent = 0) {
   // Eve functions
   //---------------------------------------------------------
 
-  runtime.define("page to graph", {multi: true}, function(page, text) {
-    return articleToGraph(page, text);
+  runtime.define("entity to graph", {multi: true}, function(entity, text) {
+    return entityToGraph(entity, text);
   });
 
-  runtime.define("parse eavs", {multi: true}, function(page, text) {
-    return parsePage(page, text).eavs;
+  runtime.define("parse eavs", {multi: true}, function(entity, text) {
+    return parseEntity(entity, text).eavs;
   });
 
   runtime.define("bit template", {multi: true}, function(row, name, template) {
@@ -2372,15 +2056,15 @@ function walk(tree, indent = 0) {
       let item = row[key];
       content = content.replace(new RegExp(`{${key}}`, "gi"), item);
     }
-    let page;
+    let entity;
     let header = content.match(/#.*$/mgi);
     if(header) {
-      page = header[0].replace("#", "").toLowerCase().trim();
+      entity = header[0].replace("#", "").toLowerCase().trim();
     } else {
       let rowId = eve.table(name).stringify(row);
-      page = `${name}|${rowId}`;
+      entity = `${name}|${rowId}`;
     }
-    return [{page, content}];
+    return [{entity, content}];
   });
 
   runtime.define("count", {}, function(prev) {
@@ -2450,61 +2134,58 @@ function walk(tree, indent = 0) {
   // Queries
   //---------------------------------------------------------
 
-  eve.asView(eve.union("page")
-                .union("manual page", {page: ["page"], content: ["content"]})
-                .union("unmodified added bits", {page: ["page"], content: ["content"]}));
+  eve.addTable("manual entity", ["entity", "content"]);
+
+  eve.asView(eve.union("entity")
+                .union("manual entity", {entity: ["entity"], content: ["content"]})
+                .union("unmodified added bits", {entity: ["entity"], content: ["content"]}));
 
   eve.asView(eve.query("unmodified added bits")
                 .select("added bits", {}, "added")
-                .deselect("manual page", {page: ["added", "page"]})
-                .project({page: ["added", "page"], content: ["added", "content"]}));
+                .deselect("manual entity", {entity: ["added", "entity"]})
+                .project({entity: ["added", "entity"], content: ["added", "content"]}));
 
-  eve.asView(eve.query("page links")
-             .select("page", {}, "page")
-             .calculate("page to graph", {text: ["page", "content"], page: ["page", "page"]}, "links")
-             .project({page: ["page", "page"], link: ["links", "link"], type: ["links", "type"]}));
+  eve.asView(eve.query("entity links")
+             .select("entity", {}, "entity")
+             .calculate("entity to graph", {text: ["entity", "content"], entity: ["entity", "entity"]}, "links")
+             .project({entity: ["entity", "entity"], link: ["links", "link"], type: ["links", "type"]}));
 
   eve.asView(eve.union("directionless links")
-                .union("page links", {page: ["page"], link: ["link"]})
-                .union("page links", {page: ["link"], link: ["page"]}));
-
-  eve.asView(eve.query("active page incoming")
-             .select("active page", {}, "active")
-             .select("page links", {link: ["active", "page"]}, "links")
-             .project({page: ["links", "page"], link: ["links", "link"], type: ["links", "type"]}));
-
-  eve.asView(eve.query("collection links")
-             .select("page links", {type: "collection"}, "links")
-             .project({page: ["links", "page"], deck: ["links", "link"]}));
+                .union("entity links", {entity: ["entity"], link: ["link"]})
+                .union("entity links", {entity: ["link"], link: ["entity"]}));
 
   eve.asView(eve.query("parsed eavs")
-             .select("page", {}, "page")
-             .calculate("parse eavs", {page: ["page", "page"], text: ["page", "content"]}, "parsed")
-             .project({page: ["page", "page"], attribute: ["parsed", "attribute"], value: ["parsed", "value"]}));
+             .select("entity", {}, "entity")
+             .calculate("parse eavs", {entity: ["entity", "entity"], text: ["entity", "content"]}, "parsed")
+             .project({entity: ["entity", "entity"], attribute: ["parsed", "attribute"], value: ["parsed", "value"]}));
 
-  eve.asView(eve.union("page eavs")
-             .union("parsed eavs", {page: ["page"], attribute: ["attribute"], value: ["value"]})
+  eve.asView(eve.union("entity eavs")
+             .union("parsed eavs", {entity: ["entity"], attribute: ["attribute"], value: ["value"]})
              // this is a stored union that is used by the add eav action to take query results and
              // push them into eavs, e.g. sum salaries per department -> [total salary = *]
-             .union("added eavs", {page: ["page"], attribute: ["attribute"], value: ["value"]}));
+             .union("added eavs", {entity: ["entity"], attribute: ["attribute"], value: ["value"]}));
 
-  eve.asView(eve.union("deck pages")
+  eve.asView(eve.query("is a attributes")
+                .select("entity eavs", {attribute: "is a"}, "is a")
+                .project({collection: ["is a", "value"], entity: ["is a", "entity"]}));
+
+  eve.asView(eve.query("values that are entities")
+                .select("entity eavs", {}, "eav")
+                .select("entity", {entity: ["eav", "value"]}, "entity")
+                .project({entity: ["eav", "entity"], link: ["entity", "entity"], type: ["eav", "attribute"]}));
+
+  eve.asView(eve.union("collection entities")
              // the rest of these are editor-level views
-             .union("collection links", {page: ["page"], deck: ["deck"]})
-             .union("history stack", {page: ["page"], deck: "history"})
-             .union("page links", {page: ["link"], deck: ["type"]})
+             .union("is a attributes", {entity: ["entity"], collection: ["collection"]})
              // this is a stored union that is used by the add to collection action to take query results and
              // push them into collections, e.g. people older than 21 -> [[can drink]]
-             .union("added collections", {page: ["page"], deck: ["deck"]}));
+             .union("added collections", {entity: ["entity"], collection: ["collection"]}));
 
-  eve.asView(eve.union("entity")
-             .union("page", {entity: ["page"]}));
-
-  eve.asView(eve.query("deck")
-             .select("deck pages", {}, "decks")
-             .group([["decks", "deck"]])
+  eve.asView(eve.query("collection")
+             .select("collection entities", {}, "collections")
+             .group([["collections", "collection"]])
              .aggregate("count", {}, "count")
-             .project({deck: ["decks", "deck"], count: ["count", "count"]}));
+             .project({collection: ["collections", "collection"], count: ["count", "count"]}));
 
   //---------------------------------------------------------
   // Go
@@ -2514,8 +2195,8 @@ function walk(tree, indent = 0) {
     let stored = localStorage["eve"];
     if(!stored) {
       var diff = eve.diff();
-      diff.add("manual page", {page: "foo", content: "[pixar] movies:\n[up]\n[toy story]"});
-      diff.add("manual page", {page: "pixar", content: "[Pixar] is an animation studio owned by disney"});
+      diff.add("manual entity", {entity: "foo", content: "[pixar] movies:\n[up]\n[toy story]"});
+      diff.add("manual entity", {entity: "pixar", content: "[Pixar] is an animation studio owned by disney"});
       let id = uuid();
       diff.add("search", {id, top: 100, left: 100});
       diff.add("search query", {id, search: "foo"});
