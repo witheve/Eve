@@ -2062,6 +2062,10 @@ function walk(tree, indent = 0) {
     return [{entity, content}];
   });
 
+  runtime.define("collection content", {}, function(collection) {
+    return {content: `# ${pluralize(collection, 2)}`};
+  });
+
   runtime.define("count", {}, function(prev) {
     if(!prev.count) {
       prev.count = 0;
@@ -2133,7 +2137,8 @@ function walk(tree, indent = 0) {
 
   eve.asView(eve.union("entity")
                 .union("manual entity", {entity: ["entity"], content: ["content"]})
-                .union("unmodified added bits", {entity: ["entity"], content: ["content"]}));
+                .union("unmodified added bits", {entity: ["entity"], content: ["content"]})
+                .union("automatic collection entities", {entity: ["entity"], content: ["content"]}));
 
   eve.asView(eve.query("unmodified added bits")
                 .select("added bits", {}, "added")
@@ -2176,6 +2181,12 @@ function walk(tree, indent = 0) {
              .group([["collections", "collection"]])
              .aggregate("count", {}, "count")
              .project({collection: ["collections", "collection"], count: ["count", "count"]}));
+
+  eve.asView(eve.query("automatic collection entities")
+                .select("collection", {}, "coll")
+                .deselect("manual entity", {entity: ["coll", "collection"]})
+                .calculate("collection content", {collection: ["coll", "collection"]}, "content")
+                .project({entity: ["coll", "collection"], content: ["content", "content"]}));
 
   //---------------------------------------------------------
   // Go
