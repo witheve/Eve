@@ -2196,8 +2196,8 @@ function walk(tree, indent = 0) {
     let stored = localStorage["eve"];
     if(!stored) {
       var diff = eve.diff();
-      diff.add("manual entity", {entity: "foo", content: "[pixar] movies:\n[up]\n[toy story]"});
-      diff.add("manual entity", {entity: "pixar", content: "[Pixar] is an animation studio owned by disney"});
+      diff.add("manual entity", {entity: "foo", content: "{pixar} movies:\n{up}\n{toy story}"});
+      diff.add("manual entity", {entity: "pixar", content: "{Pixar} is an animation studio owned by disney"});
       let id = uuid();
       diff.add("search", {id, top: 100, left: 100});
       diff.add("search query", {id, search: "foo"});
