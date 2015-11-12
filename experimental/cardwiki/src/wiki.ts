@@ -1525,7 +1525,7 @@ function walk(tree, indent = 0) {
       resultItems.unshift({c: "singleton", children: [entityUi(plan[0].collection, searchId, searchId)]});
       noHeaders = true;
     } else if(plan.length === 0) {
-      resultItems.push({c: "singleton", children: [entityUi(search, searchId, searchId)]});
+      resultItems.push({c: "singleton", children: [entityUi(search.toLowerCase(), searchId, searchId)]});
     }
     let actions = [];
     for(let eavAction of eve.find("add eav action", {view: search})) {
