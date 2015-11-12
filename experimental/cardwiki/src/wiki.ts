@@ -2093,6 +2093,13 @@ function walk(tree, indent = 0) {
     return prev;
   });
 
+  runtime.define("lowercase", {}, function(text) {
+    if(typeof text === "string") {
+      return {result: text.toLowerCase()};
+    }
+    return {result: text};
+  })
+
   runtime.define("=", {filter: true}, function(a, b) {
     return a === b ? runtime.SUCCEED : runtime.FAIL;
   });
@@ -2160,8 +2167,13 @@ function walk(tree, indent = 0) {
                 .select("entity eavs", {attribute: "is a"}, "is a")
                 .project({collection: ["is a", "value"], entity: ["is a", "entity"]}));
 
-  eve.asView(eve.query("entity links")
+  eve.asView(eve.query("lowercase eavs")
                 .select("entity eavs", {}, "eav")
+                .calculate("lowercase", {text: ["eav", "value"]}, "lower")
+                .project({entity: ["eav", "entity"], attribute: ["eav", "attribute"], value: ["lower", "result"]}));
+
+  eve.asView(eve.query("entity links")
+                .select("lowercase eavs", {}, "eav")
                 .select("entity", {entity: ["eav", "value"]}, "entity")
                 .project({entity: ["eav", "entity"], link: ["entity", "entity"], type: ["eav", "attribute"]}));
 
