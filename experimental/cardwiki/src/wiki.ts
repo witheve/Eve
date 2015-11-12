@@ -2167,6 +2167,8 @@ function walk(tree, indent = 0) {
                 .select("entity eavs", {attribute: "is a"}, "is a")
                 .project({collection: ["is a", "value"], entity: ["is a", "entity"]}));
 
+  // @HACK: this view is required because you can't currently join a select on the result of a function.
+  // so we create a version of the eavs table that already has everything lowercased.
   eve.asView(eve.query("lowercase eavs")
                 .select("entity eavs", {}, "eav")
                 .calculate("lowercase", {text: ["eav", "value"]}, "lower")
