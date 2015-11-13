@@ -4,5 +4,6 @@
 
 @font-face {
   font-family: 'Lato';
+  src: url('/fonts/Lato/Lato-Light.ttf'); /* IE9 Compat Modes */
   src: url('../fonts/Lato/Lato-Light.ttf'); /* IE9 Compat Modes */
 }

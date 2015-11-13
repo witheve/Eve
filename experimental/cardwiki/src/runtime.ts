@@ -1,4 +1,8 @@
-module runtime {
+if(!this.exports) {
+  this.exports = {};
+}
+
+export module runtime {
   //---------------------------------------------------------
   // Runtime
   //---------------------------------------------------------
@@ -373,13 +377,16 @@ return index;`
     //---------------------------------------------------------
     // Indexer Public API
     //---------------------------------------------------------
-    serialize() {
+    serialize(asObject?) {
       let dump = {};
       for(let tableName in this.tables) {
         let table = this.tables[tableName];
         if(!table.isView) {
           dump[tableName] = table.table;
         }
+      }
+      if(asObject) {
+        return dump;
       }
       return JSON.stringify(dump);
     }

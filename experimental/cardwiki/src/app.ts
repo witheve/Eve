@@ -3,6 +3,12 @@
 
 module app {
 
+  declare var uuid;
+  declare var runtime;
+
+  export var syncedTables = ["manual entity", "view", "action", "action source", "action mapping", "action mapping constant", "action mapping sorted", "action mapping limit", "add collection action", "add eav action", "add bit action"];
+  export var eveLocalStorageKey = "eve";
+
   //---------------------------------------------------------
   // Renderer
   //---------------------------------------------------------
@@ -29,7 +35,7 @@ module app {
       // requestAnimationFrame(function() {
       var start = performance.now();
       let trees = [];
-      for(var root in renderRoots) {
+      for (var root in renderRoots) {
         trees.push(renderRoots[root]());
       }
       var total = performance.now() - start;
@@ -54,7 +60,7 @@ module app {
   let dispatches = {};
 
   export function handle(event, func) {
-    if(dispatches[event]) {
+    if (dispatches[event]) {
       console.error(`Overwriting handler for '${event}'`);
     }
     dispatches[event] = func;
@@ -68,7 +74,7 @@ module app {
       result.meta.store = true;
     }
     result.dispatch = (event, info) => {
-        return dispatch(event, info, result);
+      return dispatch(event, info, result);
     };
     result.commit = () => {
       var start = performance.now();
@@ -77,13 +83,20 @@ module app {
         render();
       }
       if (result.meta.store) {
-        localStorage["eve"] = eve.serialize();
+        let serialized = eve.serialize(true);
+        if (eveLocalStorageKey === "eve") {
+          for (let synced of syncedTables) {
+            delete serialized[synced];
+          }
+          sendChangeSet(result);
+        }
+        localStorage[eveLocalStorageKey] = JSON.stringify(serialized);
       }
       updateStat = performance.now() - start;
     }
     let func = dispatches[event];
     if (!func) {
-      console.error(`No dispatches for '${event}' with ${JSON.stringify(info)}`);
+      console.error(`No dispatches for '${event}' with ${JSON.stringify(info) }`);
     } else {
       func(result, info);
     }
@@ -103,9 +116,62 @@ module app {
   }
 
   function executeInitializers() {
-    for(let initName in initializers) {
+    for (let initName in initializers) {
       initializers[initName]();
     }
+  }
+
+  //---------------------------------------------------------
+  // Websocket
+  //---------------------------------------------------------
+
+  var me = localStorage["me"] || uuid();
+  localStorage["me"] = me;
+
+  export var socket;
+  function connectToServer() {
+    socket = new WebSocket(`ws://${window.location.hostname || "localhost"}:8080`);
+    socket.onerror = () => {
+      console.error("Failed to connect to server, falling back to local storage");
+      eveLocalStorageKey = "local-eve";
+      executeInitializers();
+    }
+    socket.onopen = () => {
+      sendServer("connect", me);
+    }
+    socket.onmessage = (data) => {
+      let parsed = JSON.parse(data.data);
+      console.log("WS MESSAGE:", parsed);
+
+      if (parsed.kind === "load") {
+        eve.load(parsed.data);
+        executeInitializers();
+        render();
+      } else if (parsed.kind === "changeset") {
+        let diff = eve.diff();
+        diff.tables = parsed.data;
+        eve.applyDiff(diff);
+        render();
+      }
+    };
+  }
+
+  function sendServer(messageKind, data) {
+    if (!socket) return;
+    socket.send(JSON.stringify({ kind: messageKind, me, time: (new Date).getTime(), data }));
+  }
+
+  function sendChangeSet(changeset) {
+    if (!socket) return;
+    let changes = {};
+    let send = false;
+    for (let table of syncedTables) {
+      if (changeset.tables[table]) {
+        send = true;
+        changes[table] = changeset.tables[table];
+      }
+    }
+    if (send) sendServer("changeset", changes);
   }
 
   //---------------------------------------------------------
@@ -114,7 +180,7 @@ module app {
 
   document.addEventListener("DOMContentLoaded", function(event) {
     initRenderer();
-    executeInitializers();
+    connectToServer();
     render();
   });
 

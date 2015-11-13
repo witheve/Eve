@@ -10,6 +10,7 @@
   },
   "devDependencies": {},
   "scripts": {
+    "server": "node bin/server.js",
     "test": "./test.sh"
   },
   "repository": {
