@@ -503,6 +503,7 @@ return index;`
     sorts;
     aggregates;
     unprojectedSize;
+    hasOrdinal;
     constructor(ixer, name = "unknown") {
       this.name = name;
       this.ixer = ixer;
@@ -513,6 +514,7 @@ return index;`
       this.funcs = [];
       this.aggregates = [];
       this.unprojectedSize = 0;
+      this.hasOrdinal = false;
     }
     select(table, join, as?) {
       this.dirty = true;
@@ -569,12 +571,20 @@ return index;`
       this.aggregates.push({name: funcName, args, as, ix: this.aliases[as]});
       return this;
     }
+    ordinal() {
+      this.dirty = true;
+      this.hasOrdinal = true;
+      this.unprojectedSize++;
+      return this;
+    }
     applyAliases(joinMap) {
       for(let field in joinMap) {
         let joinInfo = joinMap[field];
         if(joinInfo.constructor !== Array || typeof joinInfo[0] === "number") continue;
         let joinTable = joinInfo[0];
-        if(this.aliases[joinTable] !== undefined) {
+        if(joinTable === "ordinal") {
+          joinInfo[0] = this.unprojectedSize - 1;
+        } else if(this.aliases[joinTable] !== undefined) {
           joinInfo[0] = this.aliases[joinTable];
         } else {
           throw new Error("Invalid alias used: " + joinTable);
@@ -667,7 +677,7 @@ return index;`
         root.children.push({type: "sort", sorts, size, children: []});
       }
       //then we need to run through the sorted items and do the aggregate as a fold.
-      if(this.aggregates.length || sorts.length || this.limitInfo) {
+      if(this.aggregates.length || sorts.length || this.limitInfo || this.hasOrdinal) {
         // we need to store group info for post processing of the unprojected results
         // this will indicate what group number, if any, that each unprojected result belongs to
         root.children.unshift({type: "declaration", var: "groupInfo", value: "[]"});
@@ -679,6 +689,10 @@ return index;`
           this.applyAliases(args);
           root.children.unshift({type: "functionDeclaration", ix, info: funcInfo});
           aggregateChildren.push({type: "functionCall", ix, resultsIx: results.length, args, info: funcInfo, unprojected: true, children: []});
+          results.push({type: "placeholder"});
+        }
+        if(this.hasOrdinal === true) {
+          aggregateChildren.push({type: "ordinal"});
           results.push({type: "placeholder"});
         }
         let aggregate = {type: "aggregate loop", groups: this.groups, limit: this.limitInfo, size, children: aggregateChildren};
@@ -798,11 +812,12 @@ return index;`
           code += generateUnprojectedSorterCode(root.size, root.sorts)+"\n";
           break;
         case "aggregate loop":
-          let projection = "";
-          let aggregateCalls = [];
-          let aggregateStates = [];
-          let aggregateResets = [];
-          let unprojected = {};
+          var projection = "";
+          var aggregateCalls = [];
+          var aggregateStates = [];
+          var aggregateResets = [];
+          var unprojected = {};
+          var ordinal = false;
           for(let agg of root.children) {
             if(agg.type === "functionCall") {
               unprojected[agg.ix] = true;
@@ -814,10 +829,12 @@ return index;`
             } else if(agg.type === "projection") {
               agg.unprojected = unprojected;
               projection = this.compileAST(agg);
+            } else if(agg.type === "ordinal") {
+              ordinal = `unprojected[ix+${this.unprojectedSize - 1}] = resultCount;\n`;
             }
           }
-          let differentGroupChecks = [];
-          let groupCheck = `false`;
+          var differentGroupChecks = [];
+          var groupCheck = `false`;
           if(root.groups) {
             for(let group of root.groups) {
               let [table, field] = group;
@@ -826,11 +843,11 @@ return index;`
             groupCheck = `(${differentGroupChecks.join(" || ")})`;
           }
 
-          let resultsCheck = "";
+          var resultsCheck = "";
           if(root.limit && root.limit.results) {
             resultsCheck = `if(resultCount === ${root.limit.results}) break;`;
           }
-          let groupLimitCheck = "";
+          var groupLimitCheck = "";
           if(root.limit && root.limit.perGroup && root.groups) {
             groupLimitCheck = `if(perGroupCount === ${root.limit.perGroup}) {
               while(!differentGroup) {
@@ -841,8 +858,8 @@ return index;`
               }
             }`;
           }
-          let groupDifference = "";
-          let groupInfo = "";
+          var groupDifference = "";
+          var groupInfo = "";
           if(this.groups) {
             groupDifference = `
             perGroupCount++
@@ -867,6 +884,7 @@ return index;`
                     var len = unprojected.length;
                     while(ix < len) {
                       ${resultsCheck}
+                      ${ordinal || ""}
                       ${projection}
                       groupInfo[ix] = resultCount;
                       resultCount++;
@@ -883,9 +901,9 @@ return index;`
                   while(ix < len) {
                     ${aggregateCalls.join("")}
                     ${groupInfo}
+                    ${ordinal || ""}
                     if(ix + ${root.size} === len) {
                       ${projection}
-
                       break;
                     }
                     nextIx += ${root.size};
@@ -900,7 +918,9 @@ return index;`
             let mapping = root.projectionMap[newField];
             let value = "";
             if(mapping.constructor === Array) {
-              if(!root.unprojected || root.unprojected[mapping[0]]) {
+              if(mapping[1] === undefined) {
+                value = `unprojected[ix + ${mapping[0]}]`;
+              } else if(!root.unprojected || root.unprojected[mapping[0]]) {
                 value = `row${mapping[0]}['${mapping[1]}']`;
               } else {
                 value = `unprojected[ix + ${mapping[0]}]['${mapping[1]}']`;
