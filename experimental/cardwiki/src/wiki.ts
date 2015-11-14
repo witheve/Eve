@@ -8,6 +8,7 @@ module wiki {
   declare var CodeMirror;
   declare var pluralize;
   declare var uuid;
+  declare var runtime;
 
   const MAX_NUMBER = 9007199254740991;
 
@@ -1291,6 +1292,16 @@ function walk(tree, indent = 0) {
     result.remove("adding action");
   });
 
+  app.handle("removeAction", (result, info) => {
+    if(info.type === "eav") {
+      result.merge(removeAddEavAction(info.actionId));
+    } else if(info.type === "collection") {
+      result.merge(removeAddToCollectionAction(info.actionId));
+    } else if(info.type === "bit") {
+      result.merge(removeAddBitAction(info.actionId));
+    }
+  });
+
   app.handle("startDragging", (result, info) => {
     let {searchId, x, y} = info;
     let pos = eve.findOne("search", {id: searchId});
@@ -1440,7 +1451,7 @@ function walk(tree, indent = 0) {
     let {tokens, plan, query} = app.activeSearches[searchId];
     let resultItems = [];
     let groupedFields = {};
-    if(query) {
+    if(query && plan.length > 1) {
       // figure out what fields are grouped, if any
       for(let step of plan) {
         if(step.type === "group") {
@@ -1535,6 +1546,8 @@ function walk(tree, indent = 0) {
         {c: "header attribute", text: eavAction.attribute},
         {text: " = "},
         {c: "value", text: eavAction.field},
+        {c: "spacer"},
+        {c: "ion-android-close", click: removeAction, actionType: "eav", actionId: eavAction.action}
       ]})
     }
     for(let collectionAction of eve.find("add collection action", {view: search})) {
@@ -1543,13 +1556,17 @@ function walk(tree, indent = 0) {
         {c: "collection", text: `${pluralize(collectionAction.field,3)}`},
         {text: " are "},
         {c: "header collection", text: pluralize(collectionAction.collection, 2)},
+        {c: "spacer"},
+        {c: "ion-android-close", click: removeAction, actionType: "collection", actionId: collectionAction.action}
       ]})
     }
     for(let bitAction of eve.find("add bit action", {view: search})) {
       let {template, action} = bitAction;
       actions.push({c: "action new-bit", children: [
         {c: "description", text: "actions"},
-        {c: "bit entity", children: entityToHTML(parseEntity(action, template).lines, null)}
+        {c: "bit entity", children: entityToHTML(parseEntity(action, template).lines, null)},
+        {c: "spacer"},
+        {c: "ion-android-close", click: removeAction, actionType: "bit", actionId: bitAction.action}
       ]})
     }
 
@@ -1616,6 +1633,10 @@ function walk(tree, indent = 0) {
       {c: "", children: actions},
       {c: "add-action", children: addActionChildren}
     ]};
+  }
+
+  function removeAction(e, elem) {
+    app.dispatch("removeAction", {type: elem.actionType, actionId: elem.actionId}).commit();
   }
 
   function toggleShowPlan(e, elem) {
@@ -1789,6 +1810,16 @@ function walk(tree, indent = 0) {
     diff.add("action mapping", {action, from: "content", "to source": action, "to field": "content"});
     diff.add("action mapping constant", {action, from: "source view", value: name});
     return diff;
+  }
+
+  function removeAddBitAction(action) {
+    let info = eve.findOne("add bit action", {action});
+    if(info) {
+      let diff = addBitAction(info.view, info.entity, info.attribute, info.field);
+      return diff.reverse();
+    } else {
+      return eve.diff();
+    }
   }
 
   export function removeView(view) {
@@ -2093,6 +2124,13 @@ function walk(tree, indent = 0) {
     return prev;
   });
 
+  runtime.define("lowercase", {}, function(text) {
+    if(typeof text === "string") {
+      return {result: text.toLowerCase()};
+    }
+    return {result: text};
+  })
+
   runtime.define("=", {filter: true}, function(a, b) {
     return a === b ? runtime.SUCCEED : runtime.FAIL;
   });
@@ -2162,8 +2200,15 @@ function walk(tree, indent = 0) {
                 .select("entity eavs", {attribute: "is a"}, "is a")
                 .project({collection: ["is a", "value"], entity: ["is a", "entity"]}));
 
-  eve.asView(eve.query("entity links")
+  // @HACK: this view is required because you can't currently join a select on the result of a function.
+  // so we create a version of the eavs table that already has everything lowercased.
+  eve.asView(eve.query("lowercase eavs")
                 .select("entity eavs", {}, "eav")
+                .calculate("lowercase", {text: ["eav", "value"]}, "lower")
+                .project({entity: ["eav", "entity"], attribute: ["eav", "attribute"], value: ["lower", "result"]}));
+
+  eve.asView(eve.query("entity links")
+                .select("lowercase eavs", {}, "eav")
                 .select("entity", {entity: ["eav", "value"]}, "entity")
                 .project({entity: ["eav", "entity"], link: ["entity", "entity"], type: ["eav", "attribute"]}));
 
@@ -2194,12 +2239,16 @@ function walk(tree, indent = 0) {
   // Go
   //---------------------------------------------------------
 
+  function initSearches() {
+    for(let search of eve.find("search")) {
+      app.activeSearches[search.id] = newSearch(eve.findOne("search query", {id: search.id})["search"]);
+    }
+  }
+
   function initEve() {
-    let stored = localStorage["eve"];
+    let stored = localStorage[app.eveLocalStorageKey];
     if(!stored) {
       var diff = eve.diff();
-      diff.add("manual entity", {entity: "foo", content: "[pixar] movies:\n[up]\n[toy story]"});
-      diff.add("manual entity", {entity: "pixar", content: "[Pixar] is an animation studio owned by disney"});
       let id = uuid();
       diff.add("search", {id, top: 100, left: 100});
       diff.add("search query", {id, search: "foo"});
@@ -2207,14 +2256,7 @@ function walk(tree, indent = 0) {
     } else {
       eve.load(stored);
     }
-    for(let search of eve.find("search")) {
-      app.activeSearches[search.id] = newSearch(eve.findOne("search query", {id: search.id})["search"]);
-    }
-    // compile all stored views
-    for(let view of eve.find("view")) {
-      let query = compile(eve, view["view"]);
-      eve.asView(query);
-    }
+    initSearches();
   }
 
   app.renderRoots["wiki"] = root;
