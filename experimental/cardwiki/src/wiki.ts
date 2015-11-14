@@ -2134,9 +2134,11 @@ function walk(tree, indent = 0) {
   //---------------------------------------------------------
 
   eve.addTable("manual entity", ["entity", "content"]);
+  eve.addTable("action entity", ["entity", "content", "source"]);
 
   eve.asView(eve.union("entity")
                 .union("manual entity", {entity: ["entity"], content: ["content"]})
+                .union("action entity", {entity: ["entity"], content: ["content"]})
                 .union("unmodified added bits", {entity: ["entity"], content: ["content"]})
                 .union("automatic collection entities", {entity: ["entity"], content: ["content"]}));
 
