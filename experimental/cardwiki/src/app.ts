@@ -23,6 +23,7 @@ module app {
 
   export var renderRoots = {};
   export function render() {
+    if(!renderer) return;
     renderer.queued = true;
     // @FIXME: why does using request animation frame cause events to stack up and the renderer to get behind?
     setTimeout(function() {
