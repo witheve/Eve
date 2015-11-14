@@ -190,7 +190,7 @@ return index;`
     }
   }
 
-  class Indexer {
+  export class Indexer {
     tables;
     constructor() {
       this.tables = {};
@@ -312,7 +312,8 @@ return index;`
     }
     execTrigger(trigger) {
       let table = this.table(trigger.name);
-      let {results, unprojected} = trigger.exec();
+      let {results, unprojected} = trigger.exec() || {};
+      if(!results) return;
       let prevResults = table.factHash;
       let prevHashes = Object.keys(prevResults);
       table.unprojected = unprojected;
@@ -440,19 +441,30 @@ return index;`
     union(name) {
       return new Union(this, name);
     }
+    trigger(name:string, table:string|string[], exec:(ixer:Indexer) => void) {
+      let tables = (typeof table === "string") ? [table] : table;
+      let trigger = {name, tables, exec};
+      for(let tableId of tables) {
+        let table = this.table(tableId);
+        table.triggers[name] = trigger;
+      }
+      let nextRound = this.execTrigger(trigger);
+      while(nextRound) {
+        nextRound = this.execTriggers(nextRound);
+      };
+    }
+
     asView(query:Query|Union) {
       let name = query.name;
       let view = this.table(name);
       view.view = query;
       view.isView = true;
-      for(let tableName of query.tables) {
-        let table = this.table(tableName);
-        table.triggers[name] = query;
+      this.trigger(name, query.tables, query.exec.bind(query));
+    }
+    removeView(id:string) {
+      for(let table of this.tables) {
+        delete table.triggers[id];
       }
-      let nextRound = this.execTrigger(query);
-      while(nextRound) {
-        nextRound = this.execTriggers(nextRound);
-      };
     }
     totalFacts() {
       let total = 0;
