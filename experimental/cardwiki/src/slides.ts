@@ -15,7 +15,7 @@ module slides {
     return {c: `phrase ${klass}`, children};
   }
 
-  var slideNumber = 15;
+  var slideNumber = 0;
   var slides = [
     {type: "slide",
      content: {children: [
