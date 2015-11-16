@@ -148,7 +148,7 @@ module slides {
        return {children: [
          {c: "row", children :[
            {c: "phrase-container", children : [
-              randomlyLetter("For example, here's a bit about modern family"),
+              randomlyLetter("For example, here's a bit about Modern Family"),
            ]},
            search,
          ]}
