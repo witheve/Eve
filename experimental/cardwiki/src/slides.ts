@@ -115,7 +115,7 @@ module slides {
     // {type: "eve"},
     {type: "slide",
      content: {children: [
-       randomlyLetter("But that malleability doesn't sacrafice the ability to explore.")
+       randomlyLetter("But that malleability doesn't sacrifice the ability to explore.")
      ]}},
     {type: "slide",
      content: {children: [
