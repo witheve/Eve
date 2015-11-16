@@ -375,7 +375,7 @@ module slides {
     //  ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("I am designed to collect, explore and communicate in a world that is constantly changing.")
+       randomlyLetter("I am designed to collect, explore, and communicate in a world that is constantly changing.")
      ]}},
     {type: "slide",
      content: {children: [
