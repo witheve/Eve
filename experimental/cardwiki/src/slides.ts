@@ -334,7 +334,7 @@ module slides {
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("That enables people to collaborate in a much deeper way.")
+       randomlyLetter("This enables people to collaborate in a much deeper way.")
      ]}},
     // {type: "slide",
     //  content: {children: [
@@ -354,7 +354,7 @@ module slides {
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("And it allows for different world views and ideas of correctness, which is vital to fitting into the real world.")
+       randomlyLetter("It also allows for different world views and ideas of correctness, which is vital to fitting into the real world.")
      ]}},
      {type: "slide",
      content: {children: [
@@ -379,7 +379,7 @@ module slides {
      ]}},
     {type: "slide",
      content: {children: [
-       randomlyLetter("I am alive, malleable, and everywhere.")
+       randomlyLetter("I am alive, malleable, and always available.")
      ]}},
     {type: "slide",
      content: {children: [
@@ -391,7 +391,7 @@ module slides {
      ]}},
      {type: "slide",
      content: {children: [
-       randomlyLetter("And it's nice to meet you.")
+       randomlyLetter("It's nice to meet you.")
      ]}},
     // {type: "slide",
     //  content: {children: [
