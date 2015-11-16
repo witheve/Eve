@@ -1328,7 +1328,7 @@ function walk(tree, indent = 0) {
 
   export function root() {
     if(window["slides"]) {
-      window["slides"].root();
+      return window["slides"].root();
     } else {
       return eveRoot();
     }
