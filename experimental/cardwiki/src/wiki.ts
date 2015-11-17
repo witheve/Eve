@@ -174,16 +174,18 @@ module wiki {
           lineChildren.push({t: "span", c: `${item.type}`, text: item.value});
           continue;
         }
+        if(!item.value && !item.link) continue;
         let link = item.type === "eav" ? item.value.toLowerCase() : item.link.toLowerCase();
         let found = eve.findOne("entity", {entity: link}) || eve.findOne("collection", {entity: link});
-        if(item.type === "eav") {
+        if(item.type === "eav" && item.attribute !== "generic related to") {
           if(found) {
             lineChildren.push({t: "span", c: `link found`, text: item.value, linkText: link, click: followLink, searchId});
           } else {
             lineChildren.push({t: "span", c: `${item.type}`, text: item.value});
           }
         } else {
-          lineChildren.push({t: "span", c: `${item.type} ${found ? 'found' : ""}`, text: item.link, linkText: link, click: followLink, searchId});
+          let type = item.type === "eav" && item.attribute !== "is a" ? "link" : item.type;
+          lineChildren.push({t: "span", c: `${type} ${found ? 'found' : ""}`, text: item.link, linkText: link, click: followLink, searchId});
         }
       }
       if(line.header) {
@@ -1328,7 +1330,7 @@ function walk(tree, indent = 0) {
 
   export function root() {
     if(window["slides"]) {
-      window["slides"].root();
+      return window["slides"].root();
     } else {
       return eveRoot();
     }
@@ -1552,7 +1554,6 @@ function walk(tree, indent = 0) {
     }
     for(let collectionAction of eve.find("add collection action", {view: search})) {
       actions.push({c: "action", children: [
-        {text: "These "},
         {c: "collection", text: `${pluralize(collectionAction.field,3)}`},
         {text: " are "},
         {c: "header collection", text: pluralize(collectionAction.collection, 2)},
@@ -2191,6 +2192,7 @@ function walk(tree, indent = 0) {
              .project({entity: ["entity", "entity"], attribute: ["parsed", "attribute"], value: ["parsed", "value"]}));
 
   eve.asView(eve.union("entity eavs")
+             .union("added collections", {entity: ["entity"], attribute: "is a", value: ["collection"]})
              .union("parsed eavs", {entity: ["entity"], attribute: ["attribute"], value: ["value"]})
              // this is a stored union that is used by the add eav action to take query results and
              // push them into eavs, e.g. sum salaries per department -> [total salary = *]

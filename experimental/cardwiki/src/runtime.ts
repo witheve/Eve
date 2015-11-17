@@ -136,6 +136,16 @@ return index;`
     return new Function("index", "adds", "removes", "equals", code);
   }
 
+  function mergeArrays(as, bs) {
+    let ix = as.length;
+    let start = ix;
+    for(let b of bs) {
+      as[ix] = bs[ix - start];
+      ix++;
+    }
+    return as;
+  }
+
   class Diff {
     tables;
     length;
@@ -162,18 +172,18 @@ return index;`
     addMany(table, objs) {
       let tableDiff = this.ensureTable(table);
       this.length += objs.length;
-      tableDiff.adds.push.apply(tableDiff.adds, objs);
+      mergeArrays(tableDiff.adds, objs);
     }
     removeFacts(table, objs) {
       let tableDiff = this.ensureTable(table);
       this.length += objs.length;
-      tableDiff.removes.push.apply(tableDiff.removes, objs);
+      mergeArrays(tableDiff.removes, objs);
     }
     remove(table, query?) {
       let tableDiff = this.ensureTable(table);
       let found = this.ixer.find(table, query);
       this.length += found.length;
-      tableDiff.removes.push.apply(tableDiff.removes, found);
+      mergeArrays(tableDiff.removes, found);
     }
     merge(diff) {
       for(let table in diff.tables) {
