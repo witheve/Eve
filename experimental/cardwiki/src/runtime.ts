@@ -429,6 +429,20 @@ return index;`
       if(table) return table;
       return this.addTable(tableId);
     }
+    index(tableId:string, keys:any[]) {
+      let table = this.table(tableId);
+      if(!table) {
+        table = this.addTable(tableId);
+      }
+      keys.sort();
+      let indexName = keys.join("|");
+      let index = table.indexes[indexName];
+      if(!index) {
+        index = table.indexes[indexName] = <any>this.collector(keys);
+        if(table.fields.length) index.collect(index.index, table.facts, [], table.equals);
+      }
+      return index.index;
+    }
     find(tableId, query?) {
       let table = this.tables[tableId];
       if(!table) {

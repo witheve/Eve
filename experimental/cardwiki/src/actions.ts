@@ -79,24 +79,26 @@ module Action {
   }
 
   add("marked", {
-    inputs: ["awesome dude"],
-    outputs: ["cool guy"],
+    inputs: ["markdown input"],
+    outputs: ["markdown"],
     triggerAttributes: {
-      "awesome dude": ["name"]
+      "markdown input": ["md"]
     },
     triggers: {
-      "awesome dude": function() {
+      "markdown input": function() {
         let changeset = eve.diff();
         let actionId = "marked";
         let existingEntities = [];
-        let awesomeDudes = eve.find(`${actionId}|awesome dude`);
+        let inputs = eve.find(`${actionId}|markdown input`);
 
-        for(let dude of awesomeDudes) {
-          let entityId = `${dude.name} a really cool guy`;
+        // we want to add an attribute, not create an entity
+
+        for(let input of inputs) {
+          let entityId = `markdown ${input.md}`;
           existingEntities.push(entityId);
           if(eve.findOne("action entity", {entity: entityId, source: "marked"})) continue;
           changeset.add("action entity", {entity: entityId, source: "marked", content: `
-            ${dude.name} is a {is a: cool guy}!
+            ${marked(input.md)}
           `});
         }
         for(let entity of eve.find("action entity", {source: "marked"})) {

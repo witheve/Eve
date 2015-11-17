@@ -1,5 +1,6 @@
 /// <reference path="microReact.ts" />
 /// <reference path="runtime.ts" />
+/// <reference path="../vendor/marked.d.ts" />
 
 module app {
 
