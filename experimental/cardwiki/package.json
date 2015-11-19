@@ -4,9 +4,11 @@
   "description": "Better tools for thought.",
   "main": "./ui/editor.html",
   "dependencies": {
+    "browserify": "^12.0.1",
     "codemirror": "^5.7.0",
     "pluralize": "^1.2.1",
-    "typescript": "1.6.0-dev.20150731"
+    "tsify": "^0.12.2",
+    "watchify": "^3.6.1"
   },
   "devDependencies": {},
   "scripts": {

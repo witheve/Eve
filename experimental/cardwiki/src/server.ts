@@ -1,16 +1,17 @@
 import fs = require("fs");
 import path = require("path");
-import runtime = require("./runtime");
+import * as runtime from "./runtime";
 import express = require('express');
 
 let WebSocketServer = require('ws').Server;
 let wss = new WebSocketServer({ port: 8080 });
 
-let eve = runtime.runtime.indexer();
+let eve = runtime.indexer();
 
-if(fs.statSync("server.evedb")) {
+try {
+  fs.statSync("server.evedb");
   eve.load(fs.readFileSync("server.evedb").toString());
-}
+} catch(err) {}
 
 let clients = {};
 
