@@ -61,7 +61,7 @@ npm i
 echo "# Starting watchers..."
 mkdir -p "bin"
 tsc --watch -m commonjs 2>&1 | tag "typescript" "$blue" &
-bundle "src/wiki.ts" "bin/bundle.js" 2>&1 | tag "editor" "$purple" &
+bundle "src/wiki.ts" "bin/wiki.js" 2>&1 | tag "editor" "$purple" &
 bundle "src/slides.ts" "bin/slides.js" 2>&1 | tag "slides" "$purple" &
 
 if $server; then
