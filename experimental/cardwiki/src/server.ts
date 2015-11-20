@@ -1,7 +1,7 @@
 import fs = require("fs");
 import path = require("path");
-import * as runtime from "./runtime";
 import express = require('express');
+import * as runtime from "./runtime";
 
 let WebSocketServer = require('ws').Server;
 let wss = new WebSocketServer({ port: 8080 });

@@ -52,19 +52,22 @@ function tag {
 }
 
 function bundle {
-  node_modules/watchify/bin/cmd.js -dv -p [tsify -m commonjs] "$1" -o "$2"
+  node_modules/watchify/bin/cmd.js -dv $3 -p [tsify -m commonjs] "$1" -o "$2"
 }
 
 echo "# Updating node_modules..."
 npm i
 
-if $server; then
-  echo "# Starting server..."
-  node bin/server.js 2>&1 | tag "server" "$purple" &
-fi
-
-echo "# Starting dev watcher..."
-#tsc --watch -m commonjs 2>&1 | tag "typescript" "$blue" &
+echo "# Starting watchers..."
+mkdir -p "bin"
+tsc --watch -m commonjs 2>&1 | tag "typescript" "$blue" &
 bundle "src/wiki.ts" "bin/bundle.js" 2>&1 | tag "editor" "$purple" &
 bundle "src/slides.ts" "bin/slides.js" 2>&1 | tag "slides" "$purple" &
+
+if $server; then
+  sleep 4s
+  echo "# Starting server..."
+  node bin/server.js 2>&1 | tag "server" "$green" &
+fi
+
 wait
