@@ -3,8 +3,6 @@
 import * as microReact from "./microReact";
 import * as runtime from "./runtime";
 
-console.log("HELLO");
-
 declare var uuid;
 
 export var syncedTables = ["manual entity", "view", "action", "action source", "action mapping", "action mapping constant", "action mapping sorted", "action mapping limit", "add collection action", "add eav action", "add bit action"];
@@ -137,6 +135,7 @@ function connectToServer() {
     console.error("Failed to connect to server, falling back to local storage");
     eveLocalStorageKey = "local-eve";
     executeInitializers();
+    render();
   }
   socket.onopen = () => {
     sendServer("connect", me);

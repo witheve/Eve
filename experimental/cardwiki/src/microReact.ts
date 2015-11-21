@@ -35,6 +35,8 @@ export interface Element {
   type?:string
   value?:string
 
+  style?: string,
+
   // Styles (Structure)
   flex?:number|string
   left?:number|string
@@ -325,6 +327,7 @@ export class Renderer {
       if(cur.verticalAlign !== prev.verticalAlign) style.justifyContent = cur.verticalAlign;
       if(cur.fontFamily !== prev.fontFamily) style.fontFamily = cur.fontFamily || "inherit";
       if(cur.transform !== prev.transform) style.transform = cur.transform || "none";
+      if(cur.style !== prev.style) div.setAttribute("style", cur.style);
 
       // debug/programmatic properties
       if(cur.semantic !== prev.semantic) div.setAttribute("data-semantic", cur.semantic);
@@ -451,6 +454,7 @@ export class Renderer {
           && curA.verticalAlign === curB.verticalAlign
           && curA.semantic === curB.semantic
           && curA.debug === curB.debug
+          && curA.style === curB.style
           && (curB.svg === undefined || (
               curA.x === curB.x
               && curA.y === curB.y

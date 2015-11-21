@@ -61,8 +61,9 @@ npm i
 echo "# Starting watchers..."
 mkdir -p "bin"
 node_modules/tsify/node_modules/typescript/bin/tsc --watch -m commonjs 2>&1 | tag "typescript" "$blue" &
-bundle "src/wiki.ts" "bin/wiki.js" 2>&1 | tag "editor" "$purple" &
-bundle "src/slides.ts" "bin/slides.js" 2>&1 | tag "slides" "$purple" &
+bundle "src/wiki.ts" "bin/wikiBundle.js" 2>&1 | tag "editor" "$purple" &
+bundle "src/slides.ts" "bin/slidesBundle.js" 2>&1 | tag "slides" "$purple" &
+bundle "src/queryParser.ts" "bin/queryParserTestBundle.js" 2>&1 | tag "queryParserTest" "$purple" &
 
 if $server; then
   sleep 4s
