@@ -135,6 +135,7 @@ function connectToServer() {
     console.error("Failed to connect to server, falling back to local storage");
     eveLocalStorageKey = "local-eve";
     executeInitializers();
+    render();
   }
   socket.onopen = () => {
     sendServer("connect", me);

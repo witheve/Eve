@@ -1,0 +1,9 @@
+body { color: #ccc; }
+
+.test-root { overflow:auto; flex:1; }
+
+.search { padding: 20px 30px; background: #333; margin:30px; flex-shrink:0; }
+.search-header { font-size:16pt; color: #fff; }
+.header { font-size: 14pt; margin-top:20px; margin-bottom: 10px; }
+.header2 { font-size: 12pt; }
+.kids { margin-left: 30px; }

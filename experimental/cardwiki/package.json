@@ -6,9 +6,11 @@
   "dependencies": {
     "browserify": "^12.0.1",
     "codemirror": "^5.7.0",
+    "express": "^4.13.3",
     "pluralize": "^1.2.1",
     "tsify": "^0.12.2",
-    "watchify": "^3.6.1"
+    "watchify": "^3.6.1",
+    "ws": "^0.8.0"
   },
   "devDependencies": {},
   "scripts": {

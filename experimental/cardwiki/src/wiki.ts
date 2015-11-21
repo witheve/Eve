@@ -1,6 +1,3 @@
-/// <reference path="app.ts" />
-/// <reference path="microReact.ts" />
-/// <reference path="runtime.ts" />
 "use strict"
 import {Element} from "./microReact";
 import * as runtime from "./runtime";
@@ -12,7 +9,6 @@ declare var pluralize;
 declare var uuid;
 
 const MAX_NUMBER = 9007199254740991;
-
 
 //---------------------------------------------------------
 // Entity
