@@ -6,6 +6,7 @@ import {Element} from "./microReact";
 import * as runtime from "./runtime";
 import {eve} from "./app";
 import * as app from "./app";
+
 declare var CodeMirror;
 declare var pluralize;
 declare var uuid;
@@ -111,7 +112,6 @@ function parse(tokens) {
           if(state.attribute === "is a") {
             state.type = "collection";
             state.link = state.value;
-            console.log(state);
           } else {
             state.type = "eav";
           }
@@ -822,7 +822,7 @@ function safeProjectionName(name, projection) {
   return name;
 }
 
-function planToQuery(plan) {
+export function planToQuery(plan) {
   let projection = {};
   let query = eve.query();
   for(var step of plan) {
@@ -1902,7 +1902,7 @@ function mappingToDiff(diff, action, mapping, aliases, reverseLookup) {
   return diff;
 }
 
-function queryObjectToDiff(query) {
+export function queryObjectToDiff(query) {
   let diff = eve.diff();
   let aliases = {};
   let reverseLookup = {};
@@ -2260,3 +2260,7 @@ app.init("wiki", function() {
   app.activeSearches = {};
   initEve();
 });
+
+
+// @TODO: KILL ME
+import "./bootstrap";
