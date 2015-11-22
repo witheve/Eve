@@ -33,10 +33,20 @@ export function underline(startIx, length) {
   return repeat(" ", startIx) + "^" + repeat("~", length - 1);
 }
 
+export function capitalize(word:string):string {
+  return word[0].toUpperCase() + word.slice(1)
+}
+
+export function titlecase(name:string):string {
+  return name.split(" ").map(capitalize).join(" ");
+}
+
 export var string = {
   unpad,
   repeat,
-  underline
+  underline,
+  capitalize,
+  titlecase
 };
 
 export function tail(arr) {
