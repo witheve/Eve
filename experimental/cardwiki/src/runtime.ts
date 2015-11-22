@@ -165,22 +165,26 @@ class Diff {
     let tableDiff = this.ensureTable(table);
     this.length++;
     tableDiff.adds.push(obj);
+    return this;
   }
   addMany(table, objs) {
     let tableDiff = this.ensureTable(table);
     this.length += objs.length;
     mergeArrays(tableDiff.adds, objs);
+    return this;
   }
   removeFacts(table, objs) {
     let tableDiff = this.ensureTable(table);
     this.length += objs.length;
     mergeArrays(tableDiff.removes, objs);
+    return this;
   }
   remove(table, query?) {
     let tableDiff = this.ensureTable(table);
     let found = this.ixer.find(table, query);
     this.length += found.length;
     mergeArrays(tableDiff.removes, found);
+    return this;
   }
   merge(diff) {
     for(let table in diff.tables) {
@@ -521,7 +525,7 @@ export function define(name, opts, func) {
   QueryFunctions[name] = opts;
 }
 
-class Query {
+export class Query {
   tables;
   joins;
   dirty;
@@ -1024,7 +1028,7 @@ class Query {
   }
 }
 
-class Union {
+export class Union {
   name;
   tables;
   sources;

@@ -3,6 +3,7 @@ import {Element} from "./microReact";
 import * as runtime from "./runtime";
 import {eve} from "./app";
 import * as app from "./app";
+
 declare var CodeMirror;
 declare var pluralize;
 declare var uuid;
@@ -327,7 +328,6 @@ function walk(tree, indent = 0) {
   } else if(!text && tree.value) {
     text = tree.value;
   }
-  console.group(`${text} (${tree.type})`);
   if(tree.children) {
     for(let child of tree.children) {
       walk(child, indent+1);
@@ -817,7 +817,7 @@ function safeProjectionName(name, projection) {
   return name;
 }
 
-function planToQuery(plan) {
+export function planToQuery(plan) {
   let projection = {};
   let query = eve.query();
   for(var step of plan) {
@@ -926,7 +926,6 @@ function planToQuery(plan) {
 export function newSearch(searchString) {
   let all = newSearchTokens(searchString);
   let tree = planTree(searchString);
-  console.log(tree);
   let plan = treeToPlan(tree);
   let query = planToQuery(plan);
   return {tokens: all, plan, query};
@@ -1847,7 +1846,7 @@ export function clearSaved() {
 // AST and compiler
 //---------------------------------------------------------
 
-// view: view, kind[union|query]
+// view: view, kind[union|query|table]
 // action: view, action, kind[select|calculate|project|union|ununion|stateful|limit|sort|group|aggregate], ix
 // action source: action, source view
 // action mapping: action, from, to source, to field
@@ -1856,7 +1855,8 @@ export function clearSaved() {
 var recompileTrigger = {
   exec: () => {
     for(let view of eve.find("view")) {
-      let query = compile(eve, view["view"]);
+      if(view.kind === "table") continue;
+      let query = compile(eve, view.view);
       eve.asView(query);
     }
     return {};
@@ -1897,7 +1897,7 @@ function mappingToDiff(diff, action, mapping, aliases, reverseLookup) {
   return diff;
 }
 
-function queryObjectToDiff(query) {
+export function queryObjectToDiff(query) {
   let diff = eve.diff();
   let aliases = {};
   let reverseLookup = {};
@@ -2164,11 +2164,11 @@ runtime.define("/", {}, function(a, b) {
 eve.addTable("manual entity", ["entity", "content"]);
 eve.addTable("action entity", ["entity", "content", "source"]);
 
-eve.asView(eve.union("entity")
-              .union("manual entity", {entity: ["entity"], content: ["content"]})
-              .union("action entity", {entity: ["entity"], content: ["content"]})
-              .union("unmodified added bits", {entity: ["entity"], content: ["content"]})
-              .union("automatic collection entities", {entity: ["entity"], content: ["content"]}));
+// eve.asView(eve.union("entity")
+//               .union("manual entity", {entity: ["entity"], content: ["content"]})
+//               .union("action entity", {entity: ["entity"], content: ["content"]})
+//               .union("unmodified added bits", {entity: ["entity"], content: ["content"]})
+//               .union("automatic collection entities", {entity: ["entity"], content: ["content"]}));
 
 eve.asView(eve.query("unmodified added bits")
               .select("added bits", {}, "added")
@@ -2255,3 +2255,7 @@ app.init("wiki", function() {
   app.activeSearches = {};
   initEve();
 });
+
+
+// @TODO: KILL ME
+import "./bootstrap";
