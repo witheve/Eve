@@ -1,4 +1,4 @@
-import {unpad, underline, tail} from "./utils"
+import {unpad, underline, titlecase} from "./utils"
 import * as runtime from "./runtime"
 import * as wiki from "./wiki"
 import * as app from "./app"
@@ -7,6 +7,9 @@ import {eve} from "./app"
 export var ixer = eve;
 declare var uuid;
 
+//-----------------------------------------------------------------------------
+// Plan Parser
+//-----------------------------------------------------------------------------
 interface PlanStep {
   id: string
   size?: number
@@ -219,7 +222,6 @@ let parseStep:{[step: string]: (line: string, lineIx: number, charIx: number, re
   }
 };
 
-
 export function parsePlan(str:string):PlanStep[] {
   let plan:PlanStep[] = [];
   let errors = [];
@@ -249,7 +251,6 @@ export function parsePlan(str:string):PlanStep[] {
       for(let arg in args) {
         if(args[arg] instanceof Array) {
           let [source] = args[arg];
-          console.log(source);
           let valid = false;
           for(let step of plan) {
             if(step.id === source) {
@@ -280,9 +281,12 @@ export function parsePlan(str:string):PlanStep[] {
   return plan;
 }
 
+//-----------------------------------------------------------------------------
+// Utilities
+//-----------------------------------------------------------------------------
+
 function queryFromSearch(search:string):runtime.Query {
   let result = wiki.newSearch(search);
-  console.log(result);
   return result.query;
 }
 export function queryFromPlanDSL(str:string):runtime.Query {
@@ -290,79 +294,156 @@ export function queryFromPlanDSL(str:string):runtime.Query {
   return wiki.planToQuery(plan);
 }
 
-let changeset = eve.diff();
+class BSPhase {
+  protected _views:{[view:string]: string} = {};
+  protected _viewFields:{[view:string]: string[]} = {};
 
-let tables = {};
-let unions = {};
-let queries = {};
+  constructor(public ixer:runtime.Indexer, public changeset = ixer.diff()) {}
 
-//-----------------------------------------------------------------------------
-// Macros
-//-----------------------------------------------------------------------------
-function addFact(table:string, fact:{}) {
-  changeset.add(table, fact);
-}
-
-function addTable(id:string, fields:string[]) {
-  tables[id] = eve.addTable(id, fields);
-  addFact("entity collection", {entity: id, collection: "table"});
-  addFact("manual entity", {entity: id, content: `
-    # ${id} (Table)
-    ${id.split(" ").map((word) => word[0].toUpperCase() + word.slice(1)).join(" ")} is a builtin table.
-  `});
-}
-
-function addBuiltin(view, fields) {
-  let table = `builtin ${view}`;
-  addTable(table, fields);
-  changeset.add("view", {view, kind: "union"});
-  addBuiltinMember(view, table, fields.reduce((memo, field) => memo[field] = field, {}));
-  addFact("entity collection", {entity: view, collection: "union"});
-  addFact("manual entity", {entity: view, content: `
-    # ${view} (Union)
-    ${view.split(" ").map((word) => word[0].toUpperCase() + word.slice(1)).join(" ")} is a builtin union.
-  `});
-}
-
-function addBuiltinMember(union:string, member: string, mapping:{}) {
-  let action = `builtin ${member} -> ${union} union`;
-  changeset.add("action", {view: union, action, kind: "union", ix: 0})
-    .add("action source", {action, "source view": member});
-
-  for(let field in mapping) {
-    changeset.add("action mapping", {action, from: field, "to source": member, "to field": mapping[field]});
+  viewKind(view:string) {
+    return this._views[view];
+  }
+  viewFields(view:string) {
+    return this._viewFields[view];
+  }
+  apply() {
+    for(let view in this._views) {
+      if(this._views[view] !== "table") continue;
+      ixer.addTable(view, this.viewFields[view]);
+    }
+    ixer.applyDiff(this.changeset);
   }
 
-}
+  //-----------------------------------------------------------------------------
+  // Macros
+  //-----------------------------------------------------------------------------
+  addFact(table:string, fact:{}) {
+    this.changeset.add(table, fact);
+    return this;
+  }
+  addView(view:string, kind:string, fields:string[]) {
+    this._views[view] = kind;
+    this._viewFields[view] = fields;
+    this.addFact("view", {view, kind: kind});
+    for(let field of fields) this.addFact("field", {view, field});
+    //this.addFact("builtin entity collection", {entity: view, collection: kind});
+    this.addFact("builtin entity", {entity: view, content: unpad(6) `
+      # ${view} ({is a: system} {is a: ${kind}})
+      ${titlecase(view)} is a system view.
 
-function addQuery(id, query:runtime.Query) {
-  query.name = id;
-  console.log("diff", wiki.queryObjectToDiff(query));
-  changeset.merge(wiki.queryObjectToDiff(query));
-  addFact("entity collection", {entity: id, collection: "query"});
-  addFact("manual entity", {entity: id, content: `
-    # ${id} (Query)
-    ${id.split(" ").map((word) => word[0].toUpperCase() + word.slice(1)).join(" ")} is a builtin query.
-  `});
+      ## Fields
+      ${fields.map((field) => `* ${field}`).join("\n      ")}
+    `});
+    return this;
+  }
+
+  addTable(view:string, fields:string[]) {
+    this.addView(view, "table", fields);
+    return this;
+  }
+
+  addUnion(view:string, fields:string[]) {
+    let table = `builtin ${view}`;
+    this.addTable(table, fields);
+    this.addView(view, "union", fields);
+    this.addUnionMember(view, table);
+    return this;
+  }
+
+  addUnionMember(union:string, member: string, mapping?:{}) {
+    // apply the natural mapping.
+    if(!mapping) {
+      if(this.viewKind(union) !== "union") throw new Error(`Union '${union}' must be added before adding members`);
+      let memberFields = this.viewFields(member);
+      if(!memberFields) throw new Error(`Member '${member}' must be added before adding as a member`);
+      mapping = {};
+      for(let field of this.viewFields(union)) {
+        if(memberFields.indexOf(field) === -1)
+          throw new Error(`Cannot apply natural mapping for '${union}' <-- '${member}', member missing field '${field}'`);
+        mapping[field] = field;
+      }
+    }
+    let action = `${union} <-- ${member}`;
+    this.addFact("action", {view: union, action, kind: "union", ix: 0})
+      .addFact("action source", {action, "source view": member});
+
+    for(let field in mapping)
+      this.addFact("action mapping", {action, from: field, "to source": member, "to field": mapping[field]});
+
+    return this;
+  }
+
+  addQuery(view:string, query:runtime.Query) {
+    query.name = view;
+    this.addView(view, "query", Object.keys(query.projectionMap));
+    this.changeset.merge(wiki.queryObjectToDiff(query));
+  }
 }
 
 app.init("bootstrap", function bootstrap() {
-  //-----------------------------------------------------------------------------
-  // Builtins
-  //-----------------------------------------------------------------------------
-  addBuiltin("entity", ["entity", "content"]);
-  addBuiltin("entity collection", ["entity", "collection"]);
-  //eve.applyDiff(changeset);
+  let phase = new BSPhase(eve);
+  phase.addUnion("entity", ["entity", "content"]);
+  phase.addFact("builtin entity", {entity: "system", content: unpad(4) `
+    # System ({is a: collection})
+  `});
+  phase.addFact("builtin entity", {entity: "union", content: unpad(4) `
+    # Union ({is a: system} {is a: collection})
+  `});
+  phase.addFact("builtin entity", {entity: "query", content: unpad(4) `
+    # Query ({is a: system} {is a: collection})
+  `});
+  phase.addFact("builtin entity", {entity: "table", content: unpad(4) `
+    # Table ({is a: system} {is a: collection})
+  `});
+  phase.apply();
 
   //-----------------------------------------------------------------------------
-  // Search-based queries
-  // @NOTE: Must be registered in phase 2 due to parser reliance on known data.
+  // Testing
   //-----------------------------------------------------------------------------
-  //addQuery("entity test", queryFromSearch("sources for view"));
-
-  //-----------------------------------------------------------------------------
-  // Shim
-  //-----------------------------------------------------------------------------
+  phase = new BSPhase(eve);
+  let testData = {
+    "test data": ["collection"],
+    pet: ["collection"],
+    exotic: ["collection"],
+    dangerous: ["collection"],
+    cat: ["pet"],
+    dog: ["pet"],
+    fish: ["pet"],
+    snake: ["pet", "exotic"],
+    koala: ["pet", "exotic"],
+    sloth: ["pet", "exotic"],
+    kangaroo: ["exotic"],
+    giraffe: ["exotic"],
+    gorilla: ["exotic", "dangerous"]
+  };
+  let testAttrs = {
+    cat: {length: 4},
+    dog: {length: 3},
+    fish: {length: 1},
+    snake: {length: 4},
+    koala: {length: 3},
+    sloth: {length: 3}
+  };
+  for(let entity in testData) {
+    let attrs = "";
+    for(let attr in testAttrs[entity] || {}) {
+      attrs += `${attr}: {${attr}: ${testAttrs[entity][attr]}}\n      `;
+    }
+    phase.addFact("builtin entity", {entity, content: unpad(6) `
+      # ${entity} ${entity !== "test data" ? `({is a: test data})` : ""}
+      ${entity} is a ${testData[entity].map((kind) => `{is a: ${kind}}`).join(", ")}.
+      ${attrs}
+    `});
+  }
+  phase.addQuery("exotic pet", queryFromPlanDSL(unpad(4) `
+    gather pet as [animal]
+      intersect exotic
+      lookup length as [animal length]
+      filterByEntity ! snake
+      filter > { a: [animal length, value]; b: 1 }
+  `));
+  phase.apply();
+  window["p"] = phase;
 });
 
 declare var exports;
