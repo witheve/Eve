@@ -2,8 +2,16 @@ body { color: #ccc; }
 
 .test-root { overflow:auto; flex:1; }
 
-.search { padding: 20px 30px; background: #333; margin:30px; flex-shrink:0; }
+.search { padding: 20px 30px; background: #333; margin:30px; flex-shrink:0; border-left:20px solid #444; }
+.search.failed { border-left-color: #FF3666; }
+.search.succeeded { border-left-color: #9fa; }
 .search-header { font-size:16pt; color: #fff; }
 .header { font-size: 14pt; margin-top:20px; margin-bottom: 10px; }
 .header2 { font-size: 12pt; }
 .kids { margin-left: 30px; }
+
+
+.step { padding-left: 5px; }
+.step + .step { margin-top:5px; }
+.invalid, .missing { border-left:5px solid #FF3666; }
+.valid { border-left:5px solid #9fa; }

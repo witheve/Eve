@@ -337,8 +337,279 @@ function tokensToTree(tokens) {
 // Query plans
 //---------------------------------------------------------
 
+enum StepTypes {
+  find,
+  gather,
+  lookup,
+  filterByEntity,
+  intersect,
+  calculate,
+  aggregate,
+  filter,
+  sort,
+  limit,
+  group,
+}
+
+function ignoreHiddenCollections(colls) {
+  for(let coll of colls) {
+    if(coll !== "generic related to") {
+      return coll;
+    }
+  }
+}
+
+function nodeToPlanSteps(node, parent, parentPlan) {
+  //TODO: figure out what to do with operations
+  let id = node.id || uuid();
+  let {deselect} = node;
+  let rel = node.relationship;
+  if(parent && rel) {
+    switch(rel.type) {
+      case RelationshipTypes.collectionToAttribute:
+        var plan = [];
+        var curParent = parentPlan;
+        for(let node of rel.nodes) {
+          let coll = ignoreHiddenCollections(node);
+          let item = {type: StepTypes.gather, relatedTo: curParent, subject: coll, id: uuid()};
+          plan.push(item);
+          curParent = item;
+        }
+        plan.push({type: StepTypes.lookup, relatedTo: curParent, subject: node.found, id, deselect});
+        return plan;
+        break;
+      case RelationshipTypes.collectionToEntity:
+        var plan = [];
+        var curParent = parentPlan;
+        for(let node of rel.nodes) {
+          let coll = ignoreHiddenCollections(node);
+          let item = {type: StepTypes.gather, relatedTo: curParent, subject: coll, id: uuid()};
+          plan.push(item);
+          curParent = item;
+        }
+        plan.push({type: StepTypes.filterByEntity, relatedTo: curParent, subject: node.found, id, deselect});
+        return plan;
+        break;
+      case RelationshipTypes.collectionToCollection:
+        return [{type: StepTypes.gather, relatedTo: parentPlan, subject: node.found, id, deselect}];
+        break;
+      case RelationshipTypes.collectionIntersection:
+        return [{type: StepTypes.intersect, relatedTo: parentPlan, subject: node.found, id, deselect}];
+        break;
+      case RelationshipTypes.entityToAttribute:
+        if(rel.distance === 0) {
+          return [{type: StepTypes.lookup, relatedTo: parentPlan, subject: node.found, id, deselect}];
+        } else {
+          let plan = [];
+          let curParent = parentPlan;
+          for(let node of rel.nodes) {
+            let coll = ignoreHiddenCollections(node);
+            let item = {type: StepTypes.gather, relatedTo: curParent, subject: coll, id: uuid()};
+            plan.push(item);
+            curParent = item;
+          }
+          plan.push({type: StepTypes.lookup, relatedTo: curParent, subject: node.found, id, deselect});
+          return plan;
+        }
+        break;
+    }
+  } else {
+    if(node.type === TokenTypes.collection) {
+      return [{type: StepTypes.gather, subject: node.found, id, deselect}];
+    } else if(node.type === TokenTypes.entity) {
+      return [{type: StepTypes.find, subject: node.found, id, deselect}];
+    } else if(node.type === TokenTypes.attribute) {
+      return [{type: StepTypes.lookup, subject: node.found, id, deselect}];
+    }
+    return [];
+  }
+}
+
+function nodeToPlan(tree, parent = null, parentPlan = null) {
+  if(!tree) return [];
+  let plan = [];
+  //process you, then your children
+  plan.push.apply(plan, nodeToPlanSteps(tree, parent, parentPlan));
+  let neueParentPlan = plan[plan.length - 1];
+  for(let child of tree.children) {
+    plan.push.apply(plan, nodeToPlan(child, tree, neueParentPlan));
+  }
+  return plan;
+}
+
 function treeToPlan(tree) {
-  return [];
+  let plan = [];
+  for(let root of tree.roots) {
+    plan = plan.concat(nodeToPlan(root));
+  }
+  return plan;
+}
+
+//---------------------------------------------------------
+// Test queries
+//---------------------------------------------------------
+
+function validatePlan(plan, expected) {
+  let ix = 0;
+  for(let exStep of expected) {
+    let step = plan[ix];
+    if(!step || step.type !== exStep.type || step.subject !== exStep.subject) {
+      return false;
+    }
+    ix++;
+  }
+  return true;
+}
+
+var tests = {
+  "chris granger's age": {
+    expected: [{type: StepTypes.find, subject: "chris granger"}, {type: StepTypes.lookup, subject: "age"}],
+  },
+  "robert attorri's age": {
+    expected: [{type: StepTypes.find, subject: "robert attorri"}, {type: StepTypes.lookup, subject: "age"}]
+  },
+  "salaries per department": {
+
+  },
+  "dishes with eggs and chicken": {
+
+  },
+  "dishes with eggs or chicken": {
+
+  },
+  "dishes without eggs and chicken": {
+
+  },
+  "dishes without eggs or chicken": {
+
+  },
+  "dishes with eggs that aren't desserts": {
+
+  },
+  "dishes that don't have eggs or chicken": {
+
+  },
+  "dishes with figs that aren't desserts": {
+
+  },
+  "dishes with a cook time < 30 that have eggs and are sweet": {
+
+  },
+  "dishes that take 30 minutes to an hour": {
+
+  },
+  "dishes that take 30-60 minutes": {
+
+  },
+
+  "people who live alone": {
+
+  },
+  "departments where all the employees are male": {
+
+  },
+  "departments where all the employees are over-40 males": {
+
+  },
+  "everyone in this room speaks at least two languages": {
+
+  },
+  "at least two languages are spoken by everyone in this room": {
+
+  },
+
+  "people whose age < chris granger’s": {
+
+  },
+  "people older than chris granger and younger than edward norton": {
+
+  },
+  "people aged between 50 and 65": {
+
+  },
+  "people whose age is between 50 and 65": {
+
+  },
+  "people who are 50-65 years old": {
+
+  },
+  "people who are either heads or spouses of heads": {
+
+  },
+  "people who have a hair color of red or black": {
+
+  },
+  "people who have neither attended a meeting nor had a one-on-one": {
+
+  },
+
+  "friends older than the average age of people with pets": {
+
+  },
+
+  "meetings john was in in the last 10 days": {
+
+  },
+
+  "parts that have a color of “red”, “green”, “blue”, or “yellow”": {
+
+  },
+
+  "per book get the average price of books(2) that are cheaper": {
+
+  },
+  "per book get the average price of books(2) that cost less": {
+
+  },
+  "per book get the average price of books(2) where books(2) price < book price": {
+
+  },
+
+  "head’s last name = employee’s last name and head != employee and head’s department = employee’s department": {
+
+  },
+
+  "person loves person(2) and person(2) loves person(3) and person(3) loves person": {
+
+  },
+
+  "employee salary / employee’s department total cost ": {
+
+  },
+
+  "Return the average number of publications by Bob in each year": {
+
+  },
+  "Return authors who have more papers than Bob in VLDB after 2000": {
+
+  },
+  "Return the conference in each area whose papers have the most total citations": {
+
+  },
+  "return all conferences in the database area": {
+
+  },
+  "return all the organizations, where the number of papers by the organization is more than the number of authors in IBM": {
+
+  },
+  "return all the authors, where the number of papers by the author in VLDB is more than the number of papers in ICDE": {
+
+  },
+  "Where are the restaurants in San Francisco that serve good French food?": {
+
+  },
+  "What are the population sizes of cities that are located in California?": {
+
+  },
+  "What are the names of rivers in the state that has the largest city in the united states of america?": {
+
+  },
+  "What is the average elevation of the highest points in each state?": {
+
+  },
+  "What jobs as a senior software developer are available in houston but not san antonio?": {
+
+  },
 }
 
 //---------------------------------------------------------
@@ -367,7 +638,7 @@ function groupTree(root) {
   ]};
 }
 
-function testSearch(search) {
+function testSearch(search, info) {
   let tokens = getTokens(search);
   let tree = tokensToTree(tokens);
   let plan = treeToPlan(tree);
@@ -394,14 +665,42 @@ function testSearch(search) {
   ]};
 
   //tokens
-  let planNode = {c: "tokens", children: [
-    {c: "header", text: "Plan"},
-    {c: "kids", children: plan.map((step) => {
-      return {c: "node", text: `${step.type} (${step.found})`}
-    })}
-  ]};
+  let planNode;
+  let klass = "";
+  if(info.expected) {
+    let expected = info.expected;
+    let valid = validatePlan(plan, expected);
+    if(!valid) klass += "failed";
+    else klass += "succeeded";
 
-  return {c: "search", children: [
+    planNode = {c: "tokens", children: [
+      {c: "header", text: "Plan"},
+      {c: "kids", children: expected.map((step, ix) => {
+        let actual = plan[ix];
+        let validStep = "";
+        if(!actual) {
+          return {c: `step missing`, text: `expected ${StepTypes[step.type]} ${step.subject}`}
+        }
+        let expectedStep = "";
+        if(actual.type === step.type && actual.subject === step.subject) {
+          validStep = "valid";
+        } else {
+          validStep = "invalid";
+          expectedStep = ` :: expected ${StepTypes[step.type]} ${step.subject}`;
+        }
+        return {c: `step ${validStep}`, text: `${StepTypes[actual.type]} ${actual.subject}${expectedStep}`}
+      })}
+    ]};
+  } else {
+    planNode = {c: "tokens", children: [
+      {c: "header", text: "Plan"},
+      {c: "kids", children: plan.map((step) => {
+        return {c: "node", text: `${StepTypes[step.type]} ${step.subject}`}
+      })}
+    ]};
+  }
+
+  return {c: `search ${klass}`, children: [
     {c: "search-header", text: `${search}`},
     tokensNode,
     treeNode,
@@ -409,17 +708,14 @@ function testSearch(search) {
   ]};
 }
 
+
+
 function root() {
-  return {id: "root", c: "test-root", children: [
-    testSearch("chris granger's age"),
-    testSearch("robert attorri's age"),
-    testSearch("salaries per department"),
-    testSearch("dishes with eggs and chicken"),
-    testSearch("dishes with eggs or chicken"),
-    testSearch("dishes without eggs and chicken"),
-    testSearch("dishes without eggs or chicken"),
-    testSearch("dishes with eggs that aren't desserts"),
-  ]};
+  let results = [];
+  for(let test in tests) {
+    results.push(testSearch(test, tests[test]));
+  }
+  return {id: "root", c: "test-root", children: results};
 }
 
 wiki.coerceInput("foo");
