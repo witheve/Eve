@@ -328,7 +328,6 @@ function walk(tree, indent = 0) {
   } else if(!text && tree.value) {
     text = tree.value;
   }
-  console.group(`${text} (${tree.type})`);
   if(tree.children) {
     for(let child of tree.children) {
       walk(child, indent+1);
@@ -927,7 +926,6 @@ export function planToQuery(plan) {
 export function newSearch(searchString) {
   let all = newSearchTokens(searchString);
   let tree = planTree(searchString);
-  console.log(tree);
   let plan = treeToPlan(tree);
   let query = planToQuery(plan);
   return {tokens: all, plan, query};
@@ -1848,7 +1846,7 @@ export function clearSaved() {
 // AST and compiler
 //---------------------------------------------------------
 
-// view: view, kind[union|query]
+// view: view, kind[union|query|table]
 // action: view, action, kind[select|calculate|project|union|ununion|stateful|limit|sort|group|aggregate], ix
 // action source: action, source view
 // action mapping: action, from, to source, to field
@@ -1857,7 +1855,8 @@ export function clearSaved() {
 var recompileTrigger = {
   exec: () => {
     for(let view of eve.find("view")) {
-      let query = compile(eve, view["view"]);
+      if(view.kind === "table") continue;
+      let query = compile(eve, view.view);
       eve.asView(query);
     }
     return {};
