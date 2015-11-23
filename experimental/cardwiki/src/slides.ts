@@ -385,7 +385,7 @@ var slides = [
     ]}},
   {type: "slide",
     content: {children: [
-      randomlyLetter("I am the approachable genius: honest, genuine, curious, and conversational.")
+      randomlyLetter("I am honest, genuine, curious, and conversational.")
     ]}},
   {type: "slide",
     content: {children: [

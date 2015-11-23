@@ -469,10 +469,10 @@ var tests = {
     expected: [{type: StepTypes.find, subject: "robert attorri"}, {type: StepTypes.lookup, subject: "age"}]
   },
   "salaries per department": {
-
+    expected: [{type: StepTypes.gather, subject: "department"}, {type: StepTypes.gather, subject: "employee"}, {type: StepTypes.lookup, subject: "salary"}, {type: StepTypes.group, subject: "department"}]
   },
   "dishes with eggs and chicken": {
-
+    expected: [{type: StepTypes.gather, subject: "dish"}, {type: StepTypes.filterByEntity, subject: "egg"}, {type: StepTypes.filterByEntity, subject: "chicken"}]
   },
   "dishes with eggs or chicken": {
 
@@ -518,7 +518,7 @@ var tests = {
 
   },
 
-  "people whose age < chris granger’s": {
+  "people whose age < chris granger's": {
 
   },
   "people older than chris granger and younger than edward norton": {
@@ -565,7 +565,7 @@ var tests = {
 
   },
 
-  "head’s last name = employee’s last name and head != employee and head’s department = employee’s department": {
+  "head's last name = employee's last name and head != employee and head's department = employee's department": {
 
   },
 
@@ -573,7 +573,7 @@ var tests = {
 
   },
 
-  "employee salary / employee’s department total cost ": {
+  "employee salary / employee's department total cost ": {
 
   },
 
