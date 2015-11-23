@@ -870,6 +870,8 @@ export class Query {
             ordinal = `unprojected[ix+${this.unprojectedSize - 1}] = resultCount;\n`;
           }
         }
+        var aggregateCallsCode = aggregateCalls.join("");
+
         var differentGroupChecks = [];
         var groupCheck = `false`;
         if(root.groups) {
@@ -882,11 +884,27 @@ export class Query {
 
         var resultsCheck = "";
         if(root.limit && root.limit.results) {
-          resultsCheck = `if(resultCount === ${root.limit.results}) break;`;
+          let limitValue = root.limit.results;
+          let offset = root.limit.offset;
+          if(offset) {
+            limitValue += offset;
+            projection = `if(resultCount >= ${offset}) {
+              ${projection}
+            }`;
+          }
+          resultsCheck = `if(resultCount === ${limitValue}) break;`;
         }
         var groupLimitCheck = "";
         if(root.limit && root.limit.perGroup && root.groups) {
-          groupLimitCheck = `if(perGroupCount === ${root.limit.perGroup}) {
+          let limitValue = root.limit.perGroup;
+          let offset = root.limit.offset;
+          if(offset) {
+            limitValue += offset;
+            aggregateCallsCode = `if(perGroupCount >= ${offset}) {
+              ${aggregateCallsCode}
+            }`;
+          }
+          groupLimitCheck = `if(perGroupCount === ${limitValue}) {
             while(!differentGroup) {
               nextIx += ${root.size};
               if(nextIx >= len) break;
@@ -898,17 +916,25 @@ export class Query {
         var groupDifference = "";
         var groupInfo = "";
         if(this.groups) {
+          groupInfo = "groupInfo[ix] = resultCount;";
+          let groupProjection = `${projection}resultCount++;`
+          if(root.limit && root.limit.offset) {
+            groupProjection = `if(perGroupCount > ${root.limit.offset}) {
+              ${groupProjection}
+            }`;
+            groupInfo = `if(perGroupCount >= ${root.limit.offset}) {
+              ${groupInfo}
+            }`;
+          }
           groupDifference = `
           perGroupCount++
           var differentGroup = ${groupCheck};
           ${groupLimitCheck}
           if(differentGroup) {
-            ${projection}
+            ${groupProjection}
             ${aggregateResets.join("\n")}
             perGroupCount = 0;
-            resultCount++;
           }\n`;
-          groupInfo = "groupInfo[ix] = resultCount;";
         } else {
           groupDifference = "resultCount++;\n";
           groupInfo = "groupInfo[ix] = 0;"
@@ -936,7 +962,7 @@ export class Query {
                 var len = unprojected.length;
                 ${aggregateStates.join("\n")}
                 while(ix < len) {
-                  ${aggregateCalls.join("")}
+                  ${aggregateCallsCode}
                   ${groupInfo}
                   ${ordinal || ""}
                   if(ix + ${root.size} === len) {

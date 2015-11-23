@@ -731,6 +731,7 @@ function opToPlan(op, groupLookup) {
   if(info.args) {
     for(let arg of info.args) {
       let value = op.children[ix];
+      if(value === undefined) continue;
       if(value.type && value.type === "value") {
         args[arg] = JSON.parse(value.value);
       } else if(value.type) {
