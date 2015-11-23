@@ -61,7 +61,7 @@ function maybeCoerceAlias(maybeAlias:string):Error|any {
   if(maybeAlias[0] === "[") {
     if(maybeAlias[maybeAlias.length - 1] !== "]") return new Error("Attribute aliases must terminate in a closing ']'")
     let [source, attribute] = maybeAlias.slice(1, -1).split(",");
-    if(!attribute) return new Error("Attribute Aliases must contain a source, attribute pair");
+    if(!attribute) return new Error("Attribute aliases must contain a source, attribute pair");
     return [source.trim(), attribute.trim()];
   }
   return coerceInput(maybeAlias);
@@ -72,6 +72,8 @@ function getMapArgs(line:string, lineIx: number, charIx: number):[Error, number]
   if(line[charIx] === "{") {
     let endIx = line.indexOf("}", charIx);
     if(endIx === -1) return [new ParseError(`Args must terminate in a closing '}'`, line, lineIx, line.length), line.length];
+    let syntaxErrorIx = line.indexOf("],");
+    if(syntaxErrorIx !== -1) return [new ParseError(`Args are delimited by ';', not ','`, line, lineIx, syntaxErrorIx + 1, 0), charIx];
     for(let pair of line.slice(++charIx, endIx).split(";")) {
       let [key, val] = pair.split(":");
       if(key === undefined || val === undefined)
@@ -95,6 +97,8 @@ function getListArgs(line:string, lineIx: number, charIx: number):[Error, number
   if(line[charIx] === "{") {
     let endIx = line.indexOf("}", charIx);
     if(endIx === -1) return [new ParseError(`Args must terminate in a closing '}'`, line, lineIx, line.length), line.length];
+    let syntaxErrorIx = line.indexOf("],");
+    if(syntaxErrorIx !== -1) return [new ParseError(`Args are delimited by ';', not ','`, line, lineIx, syntaxErrorIx + 1, 0), charIx];
     for(let val of line.slice(++charIx, endIx).split(";")) {
       let coerced = maybeCoerceAlias(val.trim());
       if(coerced instanceof Error) {
@@ -434,7 +438,7 @@ export function parseQuery(str:string):QueryStep[] {
   }
   if(errors.length) {
     for(let err of errors) {
-      console.error(err);
+      console.error(err.toString());
     }
   }
   return plan;
