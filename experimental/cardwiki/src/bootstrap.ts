@@ -112,7 +112,7 @@ class BSPhase {
       mapping = {};
       for(let field of this.viewFields(union)) mapping[field] = field;
     }
-    let action = `${union} <-- ${member}`;
+    let action = `${union} <-- ${member} <-- ${JSON.stringify(mapping)}`;
     this.addFact("action", {view: union, action, kind: "union", ix: 0})
       .addFact("action source", {action, "source view": member});
 
