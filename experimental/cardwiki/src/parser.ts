@@ -464,9 +464,8 @@ export interface UIElem {
   events?: {[event:string]: MapArgs}
 }
 
-export function parseUI(str:string):UIElem[] {
+export function parseUI(str:string):UIElem {
   let root:UIElem = {};
-  let elems:UIElem[] = [root];
   let errors = [];
   let lineIx = 0;
   let lines = str.split("\n");
@@ -571,7 +570,7 @@ export function parseUI(str:string):UIElem[] {
       console.error(err);
     }
   }
-  return elems;
+  return root;
 }
 
 declare var exports;
