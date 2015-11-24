@@ -1,6 +1,6 @@
 import {eve as ixer} from "./app";
 import {Element} from "./microReact";
-import {Indexer} from "./runtime";
+import {Indexer, Query} from "./runtime";
 declare var DEBUG;
 window["DEBUG"] = window["DEBUG"] || {};
 
@@ -13,7 +13,7 @@ function resolvedAdd(changeset, table, fact) {
 }
 
 export class UI {
-  protected _binding:string;
+  protected _binding:Query;
   protected _embedded:{};
   protected _children:UI[] = [];
   protected _attributes:{} = {};
@@ -138,7 +138,7 @@ export class UI {
     return this;
   }
 
-  bind(binding:string) {
+  bind(binding:Query) {
     this._binding = binding;
     return this;
   }
