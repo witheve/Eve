@@ -128,7 +128,7 @@ class BSPhase {
       mapping = {};
       for(let field of this.viewFields(union)) mapping[field] = field;
     }
-    let action = `${union} <-- ${member}`;
+    let action = `${union} <-- ${member} <-- ${JSON.stringify(mapping)}`;
     this.addFact("action", {view: union, action, kind: "union", ix: 0})
       .addFact("action source", {action, "source view": member});
 
@@ -221,7 +221,7 @@ app.init("bootstrap", function bootstrap() {
 
   phase.addQuery("collection", queryFromQueryDSL(phase.ixer, unpad(4) `
     select collection entities as [coll]
-    group [[coll, collection]]
+    group {[coll, collection]}
     aggregate count as [count]
     project {collection: [coll, collection]; count: [count, count]}
   `));

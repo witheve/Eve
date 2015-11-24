@@ -390,6 +390,7 @@ function tokensToTree(tokens) {
         while(localTokenIx < len && tokens[localTokenIx].type === TokenTypes.text) {
           localTokenIx++;
         }
+        if(localTokenIx === len) break;
         let localToken = tokens[localTokenIx];
         localToken.grouped = true;
         groups.push(localToken);
