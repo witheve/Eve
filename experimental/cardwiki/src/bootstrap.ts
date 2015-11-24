@@ -41,7 +41,7 @@ export function queryFromQueryDSL(ixer:runtime.Indexer, str:string):runtime.Quer
 }
 export function UIFromDSL(str:string):UI {
   function processElem(data:UIElem):UI {
-    let elem = new UI(data.id);
+    let elem = new UI(data.id || uuid());
     if(data.binding) elem.bind(queryFromPlanDSL(data.binding));
     if(data.embedded) elem.embed(data.embedded);
     if(data.attributes) elem.attributes(data.attributes);
@@ -142,12 +142,14 @@ class BSPhase {
     query.name = view;
     this.addView(view, "query", Object.keys(query.projectionMap || {}));
     this.changeset.merge(wiki.queryObjectToDiff(query));
+    return this;
   }
 
   addUI(id:string, ui:UI) {
     ui.id = id;
     this.addEntity(id, id, ["system", "ui"]);
     this.changeset.merge(ui.changeset(this.ixer));
+    return this;
   }
 }
 
