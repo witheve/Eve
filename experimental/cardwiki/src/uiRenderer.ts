@@ -1,6 +1,7 @@
 import {eve as ixer} from "./app";
 import {Element} from "./microReact";
 import {Indexer, Query} from "./runtime";
+import * as wiki from "./wiki";
 declare var uuid;
 declare var DEBUG;
 window["DEBUG"] = window["DEBUG"] || {};
@@ -41,7 +42,11 @@ export class UI {
     if(ix === -1 || ix === undefined) ix = "";
 
     resolvedAdd(changeset, "ui template", {template: this.id, parent, ix});
-    if(this._binding) resolvedAdd(changeset, "ui template binding", {template: this.id, binding: this._binding});
+    if(this._binding) {
+      if(!this._binding.name) this._binding.name = `bound view ${this.id}`;
+      changeset.merge(wiki.queryObjectToDiff(this._binding));
+      resolvedAdd(changeset, "ui template binding", {template: this.id, binding: this._binding.name});
+    }
     if(this._embedded) {
       let embed = uuid();
       resolvedAdd(changeset, "ui embed", {embed, template: this.id, parent: this._parent || "", ix});
