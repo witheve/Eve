@@ -1,15 +1,171 @@
 import {eve as ixer} from "./app";
 import {Element} from "./microReact";
+import {Indexer} from "./runtime";
 declare var DEBUG;
 window["DEBUG"] = window["DEBUG"] || {};
 
+function resolvedAdd(changeset, table, fact) {
+  let neue = {};
+  for(let field in fact) {
+    neue[`${table}: ${field}`] = fact[field];
+  }
+  return changeset.add(table, neue);
+}
+
+export class UI {
+  protected _binding:string;
+  protected _embedded:{};
+  protected _children:UI[] = [];
+  protected _attributes:{} = {};
+  protected _events:{} = {};
+
+  protected _parent:UI;
+
+  constructor(public id) {
+
+  }
+  copy() {
+    let neue = new UI(this.id);
+    neue._children = this._children;
+    neue._attributes = this._attributes;
+    neue._events = this._events;
+    return neue;
+  }
+  changeset(ixer:Indexer) {
+    let changeset = ixer.diff();
+
+    let parent = this._attributes["parent"] || (this._parent && this._parent.id) || "";
+    let ix = this._attributes["ix"] || (this._parent && this._parent._children.indexOf(this)) || "";
+    if(ix === -1) ix = "";
+
+    resolvedAdd(changeset, "ui template", {template: this.id, parent, ix});
+    if(this._binding) resolvedAdd(changeset, "ui template binding", {template: this.id, binding: this._binding});
+    if(this._embedded) {
+      for(let key in this._embedded) {
+        let value = this._attributes[key];
+        if(value instanceof Array) resolvedAdd(changeset, "ui template scope binding", {template: this.id, key, source: value[0], alias: value[1]});
+        else resolvedAdd(changeset, "ui template scope", {template: this.id, key, value});
+      }
+    }
+
+    for(let property in this._attributes) {
+      let value = this._attributes[property];
+      if(value instanceof Array) resolvedAdd(changeset, "ui attribute binding", {template: this.id, property, source: value[0], alias: value[1]});
+      else resolvedAdd(changeset, "ui attribute", {template: this.id, property, value});
+    }
+
+    for(let event in this._events) {
+      resolvedAdd(changeset, "ui event", {template: this.id, event});
+      let state = this._events[event];
+      for(let key in state) {
+        let value = state[key];
+        if(value instanceof Array)
+          resolvedAdd(changeset, "ui event state binding", {template: this.id, event, key, source: value[0], alias: value[1]});
+        else resolvedAdd(changeset, "ui event state", {template: this.id, event, key, value});
+      }
+    }
+
+    for(let child of this._children) changeset.merge(child.changeset(ixer));
+
+    return changeset;
+  }
+
+  children(neue?:UI[], append = false) {
+    if(!neue) return this._children;
+    if(!append) this._children.length = 0;
+    for(let child of neue) {
+      let copied = child.copy();
+      copied._parent = this;
+      this._children.push(copied);
+    }
+    return this._children;
+  }
+  child(child:UI, ix?: number, embed?:{}) {
+    child = child.copy();
+    child._parent = this;
+    if(embed) child.embed(embed);
+    if(!ix) this._children.push(child);
+    else this._children.splice(ix, 0, child);
+    return child;
+  }
+  removeChild(ix: number) {
+    return this._children.splice(ix, 1);
+  }
+
+  attributes(properties?: {}, merge = false) {
+    if(!properties) return this._attributes;
+    if(!merge) {
+      for(let prop in this._attributes) delete this._attributes[prop];
+    }
+    for(let prop in properties) this._attributes[prop] = properties[prop];
+    return this;
+  }
+  attribute(property: string, value?: any) {
+    if(value === undefined) return this._attributes[property];
+    this._attributes[property] = value;
+    return this;
+  }
+  removeAttribute(property: string) {
+    delete this._attributes[property];
+    return this;
+  }
+
+  events(events?: {}, merge = false) {
+    if(!events) return this._events;
+    if(!merge) {
+      for(let event in this._events) delete this._events[event];
+    }
+    for(let event in events) this._events[event] = events[event];
+    return this;
+  }
+  event(event: string, state?: any) {
+    if(state === undefined) return this._events[event];
+    this._attributes[event] = state;
+    return this;
+  }
+  removeEvent(event: string) {
+    delete this._events[event];
+    return this;
+  }
+
+  embed(scope:{}|boolean = {}) {
+    if(!scope) {
+      this._embedded = undefined;
+      return this;
+    }
+    if(scope === true) scope = {};
+    this._embedded = scope;
+    return this;
+  }
+
+  bind(binding:string) {
+    this._binding = binding;
+    return this;
+  }
+}
+
 // @FIXME: These should probably be unionized.
-ixer.addTable("ui template", ["ui template: template", "ui template: parent", "ui template: ix"]);
-ixer.addTable("ui template binding", ["ui template binding: template", "ui template binding: query"]);
-ixer.addTable("ui attribute", ["ui attribute: template", "ui attribute: property", "ui attribute: value"]);
-ixer.addTable("ui attribute binding", ["ui attribute binding: template", "ui attribute binding: property", "ui attribute binding: alias"]);
-ixer.addTable("ui event", ["ui event: template", "ui event: event", "ui event: kind", "ui event: key"]);
-ixer.addTable("ui event binding", ["ui event binding: template", "ui event binding: event", "ui event binding: kind", "ui event binding: alias"]);
+function addResolvedTable(ixer, table, fields) {
+  return ixer.addTable(table, fields.map((field) => `${table}: ${field}`));
+}
+addResolvedTable(ixer, "ui template", ["template", "parent", "ix"]);
+addResolvedTable(ixer, "ui template binding", ["template", "query"]);
+addResolvedTable(ixer, "ui template scope", ["template", "key", "value"]);
+addResolvedTable(ixer, "ui template scope binding", ["template", "key", "source", "alias"]);
+addResolvedTable(ixer, "ui attribute", ["template", "property", "value"]);
+addResolvedTable(ixer, "ui attribute binding", ["template", "property", "source", "alias"]);
+addResolvedTable(ixer, "ui event", ["template", "event"]);
+addResolvedTable(ixer, "ui event state", ["template", "event", "key", "value"]);
+addResolvedTable(ixer, "ui event state binding", ["template", "event", "key", "source", "alias"]);
+
+
+// @FIXME: These should probably be unionized.
+//ixer.addTable("ui template", ["ui template: template", "ui template: parent", "ui template: ix"]);
+//ixer.addTable("ui template binding", ["ui template binding: template", "ui template binding: query"]);
+//ixer.addTable("ui attribute", ["ui attribute: template", "ui attribute: property", "ui attribute: value"]);
+//ixer.addTable("ui attribute binding", ["ui attribute binding: template", "ui attribute binding: property", "ui attribute binding: alias"]);
+//ixer.addTable("ui event", ["ui event: template", "ui event: event", "ui event: kind", "ui event: key"]);
+//ixer.addTable("ui event binding", ["ui event binding: template", "ui event binding: event", "ui event binding: kind", "ui event binding: alias"]);
 
 interface UiWarning {
   "ui warning: template": string
