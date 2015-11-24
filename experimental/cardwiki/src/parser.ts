@@ -110,6 +110,7 @@ function getListArgs(line:string, lineIx: number, charIx: number):[Error, number
       args.push(coerced);
       charIx += alert.length + 1;
     }
+    return [args, charIx];
   }
   return [undefined, charIx];
 }

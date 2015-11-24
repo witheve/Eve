@@ -196,7 +196,7 @@ app.init("bootstrap", function bootstrap() {
 
   phase.addQuery("collection", queryFromQueryDSL(phase.ixer, unpad(4) `
     select collection entities as [coll]
-    group [[coll, collection]]
+    group {[coll, collection]}
     aggregate count as [count]
     project {collection: [coll, collection]; count: [count, count]}
   `));
