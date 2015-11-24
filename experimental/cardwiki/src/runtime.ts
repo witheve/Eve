@@ -450,7 +450,7 @@ export class Indexer {
     let index = table.indexes[indexName];
     if(!index) {
       index = table.indexes[indexName] = <any>this.collector(keys);
-      if(table.fields.length) index.collect(index.index, table.facts, [], table.equals);
+      if(table.fields.length) index.collect(index.index, table.facts || [], [], table.equals);
     }
     return index.index;
   }
