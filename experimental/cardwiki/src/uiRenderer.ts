@@ -1,6 +1,7 @@
 import {eve as ixer} from "./app";
 import {Element} from "./microReact";
 import {Indexer, Query} from "./runtime";
+declare var uuid;
 declare var DEBUG;
 window["DEBUG"] = window["DEBUG"] || {};
 
@@ -35,16 +36,19 @@ export class UI {
     let changeset = ixer.diff();
 
     let parent = this._attributes["parent"] || (this._parent && this._parent.id) || "";
-    let ix = this._attributes["ix"] || (this._parent && this._parent._children.indexOf(this)) || "";
-    if(ix === -1) ix = "";
+    let ix = this._attributes["ix"];
+    if(ix === undefined) ix = (this._parent && this._parent._children.indexOf(this));
+    if(ix === -1 || ix === undefined) ix = "";
 
     resolvedAdd(changeset, "ui template", {template: this.id, parent, ix});
     if(this._binding) resolvedAdd(changeset, "ui template binding", {template: this.id, binding: this._binding});
     if(this._embedded) {
+      let embed = uuid();
+      resolvedAdd(changeset, "ui embed", {embed, template: this.id, parent: this._parent || "", ix});
       for(let key in this._embedded) {
         let value = this._attributes[key];
-        if(value instanceof Array) resolvedAdd(changeset, "ui template scope binding", {template: this.id, key, source: value[0], alias: value[1]});
-        else resolvedAdd(changeset, "ui template scope", {template: this.id, key, value});
+        if(value instanceof Array) resolvedAdd(changeset, "ui embed scope binding", {embed, key, source: value[0], alias: value[1]});
+        else resolvedAdd(changeset, "ui embed scope", {embed, key, value});
       }
     }
 
@@ -150,8 +154,9 @@ function addResolvedTable(ixer, table, fields) {
 }
 addResolvedTable(ixer, "ui template", ["template", "parent", "ix"]);
 addResolvedTable(ixer, "ui template binding", ["template", "query"]);
-addResolvedTable(ixer, "ui template scope", ["template", "key", "value"]);
-addResolvedTable(ixer, "ui template scope binding", ["template", "key", "source", "alias"]);
+addResolvedTable(ixer, "ui embed", ["embed", "template", "parent", "ix"]);
+addResolvedTable(ixer, "ui embed scope", ["embed", "key", "value"]);
+addResolvedTable(ixer, "ui embed scope binding", ["embed", "key", "source", "alias"]);
 addResolvedTable(ixer, "ui attribute", ["template", "property", "value"]);
 addResolvedTable(ixer, "ui attribute binding", ["template", "property", "source", "alias"]);
 addResolvedTable(ixer, "ui event", ["template", "event"]);
