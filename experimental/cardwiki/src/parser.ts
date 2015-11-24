@@ -4,14 +4,15 @@ import {eve} from "./app"
 import {coerceInput} from "./wiki"
 declare var uuid;
 
+type Alias = [string, string];
 interface MapArgs {
   // value may be a [source, alias] pair to be applied or a constant
-  [param:string]:[string, string]|any
+  [param:string]:Alias|any
 }
 
 interface ListArgs {
   // value may be a [source, alias] pair to be applied or a constant
-  [param: number]:[string, string]|any
+  [param: number]:Alias|any
 }
 
 class ParseError extends Error {
@@ -61,7 +62,7 @@ function maybeCoerceAlias(maybeAlias:string):Error|any {
   if(maybeAlias[0] === "[") {
     if(maybeAlias[maybeAlias.length - 1] !== "]") return new Error("Attribute aliases must terminate in a closing ']'")
     let [source, attribute] = maybeAlias.slice(1, -1).split(",");
-    if(!attribute) return new Error("Attribute Aliases must contain a source, attribute pair");
+    if(!attribute) return new Error("Attribute aliases must contain a source, attribute pair");
     return [source.trim(), attribute.trim()];
   }
   return coerceInput(maybeAlias);
@@ -72,6 +73,8 @@ function getMapArgs(line:string, lineIx: number, charIx: number):[Error, number]
   if(line[charIx] === "{") {
     let endIx = line.indexOf("}", charIx);
     if(endIx === -1) return [new ParseError(`Args must terminate in a closing '}'`, line, lineIx, line.length), line.length];
+    let syntaxErrorIx = line.indexOf("],");
+    if(syntaxErrorIx !== -1) return [new ParseError(`Args are delimited by ';', not ','`, line, lineIx, syntaxErrorIx + 1, 0), charIx];
     for(let pair of line.slice(++charIx, endIx).split(";")) {
       let [key, val] = pair.split(":");
       if(key === undefined || val === undefined)
@@ -95,6 +98,8 @@ function getListArgs(line:string, lineIx: number, charIx: number):[Error, number
   if(line[charIx] === "{") {
     let endIx = line.indexOf("}", charIx);
     if(endIx === -1) return [new ParseError(`Args must terminate in a closing '}'`, line, lineIx, line.length), line.length];
+    let syntaxErrorIx = line.indexOf("],");
+    if(syntaxErrorIx !== -1) return [new ParseError(`Args are delimited by ';', not ','`, line, lineIx, syntaxErrorIx + 1, 0), charIx];
     for(let val of line.slice(++charIx, endIx).split(";")) {
       let coerced = maybeCoerceAlias(val.trim());
       if(coerced instanceof Error) {
@@ -144,6 +149,9 @@ function getDeselect(line, lineIx, charIx):[boolean, number] {
 }
 
 let parsePlanStep:{[step: string]: (line: string, lineIx: number, charIx: number, related?: PlanStep) => Error|PlanStep} = {
+  ["#"]() { // Comment noop
+    return;
+  },
   // Sources
   find(line, lineIx, charIx) {
     while(line[charIx] === " ") charIx++;
@@ -248,9 +256,9 @@ export function parsePlan(str:string):PlanStep[] {
     charIx += keyword.length;
     let step:Error|PlanStep;
     if(parsePlanStep[keyword]) step = parsePlanStep[keyword](line, lineIx, charIx, related);
-    else step = new ParseError(`Keyword '${keyword}' is not a valid plan step, ignoring`, line, lineIx, charIx, keyword.length);
+    else step = new ParseError(`Keyword '${keyword}' is not a valid plan step, ignoring`, line, lineIx, charIx - keyword.length, keyword.length);
 
-    if(step["args"]) {
+    if(step && step["args"]) {
       let args = step["args"];
       for(let arg in args) {
         if(args[arg] instanceof Array) {
@@ -263,14 +271,14 @@ export function parsePlan(str:string):PlanStep[] {
             }
           }
           if(!valid) {
-            step = new ParseError(`Alias source '${source}' does not exist in plan`, line, lineIx, charIx)
+            step = new ParseError(`Alias source '${source}' does not exist in plan`, line, lineIx, line.indexOf(`[${source},`) + 1, source.length);
           }
         }
       }
     }
 
     if(step instanceof Error) errors.push(step);
-    else {
+    else if(step) {
       plan.push(<PlanStep>step);
       stack.push({indent, step: <PlanStep>step});
     }
@@ -298,6 +306,9 @@ interface QueryLimit extends QueryStep { limit: ListArgs }
 interface QueryProject extends QueryStep { mapping: ListArgs }
 
 let parseQueryStep:{[step: string]: (line: string, lineIx: number, charIx: number) => Error|QueryStep} = {
+  ["#"]() { // Comment noop
+    return;
+  },
   select(line: string, lineIx: number, charIx: number) {
     while(line[charIx] === " ") charIx++;
     let [alias, aliasIx] = getAlias(line, lineIx, charIx);
@@ -408,7 +419,7 @@ export function parseQuery(str:string):QueryStep[] {
     if(parseQueryStep[keyword]) step = parseQueryStep[keyword](line, lineIx, charIx);
     else step = new ParseError(`Keyword '${keyword}' is not a valid query step, ignoring`, line, lineIx, charIx - keyword.length, keyword.length);
 
-    if(step["args"]) {
+    if(step && step["args"]) {
       let args = step["args"];
       for(let arg in args) {
         if(args[arg] instanceof Array) {
@@ -421,21 +432,147 @@ export function parseQuery(str:string):QueryStep[] {
             }
           }
           if(!valid) {
-            step = new ParseError(`Alias source '${source}' does not exist in query`, line, lineIx, charIx)
+            step = new ParseError(`Alias source '${source}' does not exist in query`, line, lineIx, line.indexOf(`[${source},`) + 1, source.length);
           }
         }
       }
     }
 
     if(step instanceof Error) errors.push(step);
-    else plan.push(<QueryStep>step);
+    else if(step) plan.push(<QueryStep>step);
 
     lineIx++;
   }
+  if(errors.length) {
+    // @FIXME: Return errors instead of logging them.
+    for(let err of errors) {
+      console.error(err.toString());
+    }
+  }
+  return plan;
+}
+
+//-----------------------------------------------------------------------------
+// UI DSL Parser
+//-----------------------------------------------------------------------------
+export interface UIElem {
+  id?: string
+  children?: UIElem[]
+  embedded?: MapArgs // Undefined or the restricted scope of the embedded child.
+  binding?: string
+  attributes?: MapArgs
+  events?: {[event:string]: MapArgs}
+}
+
+export function parseUI(str:string):UIElem[] {
+  let root:UIElem = {};
+  let elems:UIElem[] = [root];
+  let errors = [];
+  let lineIx = 0;
+  let lines = str.split("\n");
+  let stack:{indent: number, elem: UIElem}[] = [{indent: -2, elem: root}];
+  // @FIXME: Chunk into element chunks instead of lines to enable in-argument continuation.
+  for(let line of lines) {
+    let charIx = 0;
+    while(line[charIx] === " ") charIx++;
+    let indent = charIx;
+    if(line[charIx] === undefined)  continue;
+    let parent:UIElem;
+    for(let stackIx = stack.length - 1; stackIx >= 0; stackIx--) {
+      if(indent > stack[stackIx].indent) {
+        parent = stack[stackIx].elem;
+        break;
+      } else stack.pop();
+    }
+    let keyword = readUntil(line, " ", charIx);
+    charIx += keyword.length;
+
+    if(keyword[0] === "~") { //Handle binding
+      charIx -= keyword.length - 1;
+      if(!parent.binding) parent.binding = line.slice(charIx);
+      else parent.binding += "\n" + line.slice(charIx);
+      charIx = line.length;
+
+    } else if(keyword[0] === "@") { // Handle event
+      charIx -= keyword.length - 1;
+      let err;
+      while(line[charIx] === " ") charIx++;
+      let lastIx = charIx;
+      let eventRaw = readUntil(line, "{", charIx);
+      charIx += eventRaw.length;
+      let event = eventRaw.trim();
+
+      if(!event) err = new ParseError(`UI event must specify a valid event name`, line, lineIx, lastIx, eventRaw.length);
+      let state;
+      [state, charIx] = getMapArgs(line, lineIx, charIx);
+      if(state instanceof Error && !err) err = state;
+      if(err) {
+        errors.push(err);
+        lineIx++;
+        continue;
+      }
+
+      if(!parent.events) parent.events = {};
+      parent.events[event] = state;
+
+    } else if(keyword[0] === ">") { // Handle embed
+      charIx -= keyword.length - 1;
+      let err;
+      while(line[charIx] === " ") charIx++;
+      let lastIx = charIx;
+      let embedIdRaw = readUntil(line, "{", charIx);
+      charIx += embedIdRaw.length;
+      let embedId = embedIdRaw.trim();
+
+      if(!embedId) err = new ParseError(`UI embed must specify a valid element id`, line, lineIx, lastIx, embedIdRaw.length);
+      let scope;
+      [scope = {}, charIx] = getMapArgs(line, lineIx, charIx);
+      if(scope instanceof Error && !err) err = scope;
+      if(err) {
+        errors.push(err);
+        lineIx++;
+        continue;
+      }
+
+      let elem = {embedded: scope, id: embedId};
+      if(!parent.children) parent.children = [];
+      parent.children.push(elem);
+      stack.push({indent, elem});
+
+    } else { // Handle element
+      let err;
+      if(!keyword) err = new ParseError(`UI element must specify a valid tag name`, line, lineIx, charIx, 0);
+      while(line[charIx] === " ") charIx++;
+      let classesRaw = readUntil(line, "{", charIx);
+      charIx += classesRaw.length;
+      let classes = classesRaw.trim();
+
+      let attributes;
+      [attributes = {}, charIx] = getMapArgs(line, lineIx, charIx);
+      if(attributes instanceof Error && !err) err = attributes;
+      if(err) {
+        errors.push(err);
+        lineIx++;
+        continue;
+      }
+      attributes["t"] = keyword;
+      if(classes) attributes["c"] = classes;
+      let elem:UIElem = {id: attributes["id"], attributes};
+      if(!parent.children) parent.children = [];
+      parent.children.push(elem);
+      stack.push({indent, elem});
+    }
+
+    lineIx++;
+  }
+
   if(errors.length) {
     for(let err of errors) {
       console.error(err);
     }
   }
-  return plan;
+  return elems;
 }
+
+declare var exports;
+window["parser"] = exports;

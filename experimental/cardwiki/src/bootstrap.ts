@@ -124,18 +124,16 @@ class BSPhase {
 
   addQuery(view:string, query:runtime.Query) {
     query.name = view;
-    this.addView(view, "query", Object.keys(query.projectionMap));
+    this.addView(view, "query", Object.keys(query.projectionMap || {}));
     this.changeset.merge(wiki.queryObjectToDiff(query));
   }
 }
 
 app.init("bootstrap", function bootstrap() {
   let phase = new BSPhase(eve);
-  phase.addUnion("entity", ["entity", "content"])
-    .addUnionMember("entity", "manual entity")
-    .addUnionMember("entity", "action entity")
-    .addUnionMember("entity", "unmodified added bits")
-    .addUnionMember("entity", "automatic collection entities");
+
+  phase.addTable("manual entity", ["entity", "content"]);
+  phase.addTable("action entity", ["entity", "content", "source"]);
 
   phase.addEntity("collection", "collection", ["system"])
     .addEntity("system", "system", ["collection"])
@@ -143,10 +141,72 @@ app.init("bootstrap", function bootstrap() {
     .addEntity("query", "query", ["system", "collection"])
     .addEntity("table", "table", ["system", "collection"]);
 
+  phase.addUnion("entity", ["entity", "content"])
+    .addUnionMember("entity", "manual entity")
+    .addUnionMember("entity", "action entity")
+    .addUnionMember("entity", "unmodified added bits")
+    .addUnionMember("entity", "automatic collection entities");
+
   phase.addQuery("unmodified added bits", queryFromQueryDSL(phase.ixer, unpad(4) `
     select added bits as [added]
     deselect manual entity {entity: [added, entity]}
     project {entity: [added, entity]; content: [added, content]}
+  `));
+
+  phase.addQuery("parsed eavs", queryFromQueryDSL(phase.ixer, unpad(4) `
+    select entity as [entity]
+    calculate parse eavs {entity: [entity, entity]; text: [entity, content]} as [parsed]
+    project {entity: [entity, entity]; attribute: [parsed, attribute]; value: [parsed, value]}
+  `));
+
+  phase.addUnion("entity eavs", ["entity", "attribute", "value"])
+    .addUnionMember("entity eavs", "parsed eavs")
+    // this is a stored union that is used by the add eav action to take query results and
+    // push them into eavs, e.g. sum salaries per department -> [total salary = *]
+    .addUnionMember("entity eavs", "added eavs");
+
+  phase.addQuery("is a attributes", queryFromQueryDSL(phase.ixer, unpad(4) `
+    select entity eavs {attribute: is a} as [is a]
+    project {collection: [is a, value]; entity: [is a, entity]}
+  `));
+
+  // @HACK: this view is required because you can't currently join a select on the result of a function.
+  // so we create a version of the eavs table that already has everything lowercased.
+  phase.addQuery("lowercase eavs", queryFromQueryDSL(phase.ixer, unpad(4) `
+    select entity eavs as [eav]
+    calculate lowercase {text: [eav, value]} as [lower]
+    project {entity: [eav, entity];  attribute: [eav, attribute]; value: [lower, result]}
+  `));
+
+  phase.addQuery("entity links", queryFromQueryDSL(phase.ixer, unpad(4) `
+    select lowercase eavs as [eav]
+    select entity {entity: [eav, value]} as [entity]
+    project {entity: [eav, entity]; link: [entity, entity]; type: [eav, attribute]}
+  `));
+
+  phase.addUnion("directionless links", ["entity", "link"])
+    .addUnionMember("directionless links", "entity links")
+    .addUnionMember("directionless links", "entity links", {entity: "link", link: "entity"});
+
+  phase.addUnion("collection entities", ["entity", "collection"])
+    .addUnionMember("collection entities", "is a attributes")
+    // this is a stored union that is used by the add to collection action to take query results and
+    // push them into collections, e.g. people older than 21 -> [[can drink]]
+    .addUnionMember("collection entities", "added collections");
+
+  phase.addQuery("collection", queryFromQueryDSL(phase.ixer, unpad(4) `
+    select collection entities as [coll]
+    group [[coll, collection]]
+    aggregate count as [count]
+    project {collection: [coll, collection]; count: [count, count]}
+  `));
+
+  phase.addQuery("automatic collection entities", queryFromQueryDSL(phase.ixer, unpad(4) `
+    select collection as [coll]
+    deselect manual entity {entity: [coll, collection]}
+    deselect builtin entity {entity: [coll, collection]}
+    calculate collection content {collection: [coll, collection]} as [content]
+    project {entity: [coll, collection]; content: [content,content]}
   `));
 
   phase.apply();
@@ -187,7 +247,7 @@ app.init("bootstrap", function bootstrap() {
       filterByEntity ! snake
       filter > { a: [animal length, value]; b: 1 }
   `));
-  //phase.apply();
+  phase.apply();
   window["p"] = phase;
 });
 

@@ -2162,8 +2162,8 @@ runtime.define("/", {}, function(a, b) {
 // Queries
 //---------------------------------------------------------
 
-eve.addTable("manual entity", ["entity", "content"]);
-eve.addTable("action entity", ["entity", "content", "source"]);
+// eve.addTable("manual entity", ["entity", "content"]);
+// eve.addTable("action entity", ["entity", "content", "source"]);
 
 // eve.asView(eve.union("entity")
 //               .union("manual entity", {entity: ["entity"], content: ["content"]})
@@ -2171,61 +2171,61 @@ eve.addTable("action entity", ["entity", "content", "source"]);
 //               .union("unmodified added bits", {entity: ["entity"], content: ["content"]})
 //               .union("automatic collection entities", {entity: ["entity"], content: ["content"]}));
 
-eve.asView(eve.query("unmodified added bits")
-              .select("added bits", {}, "added")
-              .deselect("manual entity", {entity: ["added", "entity"]})
-              .project({entity: ["added", "entity"], content: ["added", "content"]}));
+// eve.asView(eve.query("unmodified added bits")
+//               .select("added bits", {}, "added")
+//               .deselect("manual entity", {entity: ["added", "entity"]})
+//               .project({entity: ["added", "entity"], content: ["added", "content"]}));
 
-eve.asView(eve.query("parsed eavs")
-            .select("entity", {}, "entity")
-            .calculate("parse eavs", {entity: ["entity", "entity"], text: ["entity", "content"]}, "parsed")
-            .project({entity: ["entity", "entity"], attribute: ["parsed", "attribute"], value: ["parsed", "value"]}));
+// eve.asView(eve.query("parsed eavs")
+//             .select("entity", {}, "entity")
+//             .calculate("parse eavs", {entity: ["entity", "entity"], text: ["entity", "content"]}, "parsed")
+//             .project({entity: ["entity", "entity"], attribute: ["parsed", "attribute"], value: ["parsed", "value"]}));
 
-eve.asView(eve.union("entity eavs")
-            .union("added collections", {entity: ["entity"], attribute: "is a", value: ["collection"]})
-            .union("parsed eavs", {entity: ["entity"], attribute: ["attribute"], value: ["value"]})
-            // this is a stored union that is used by the add eav action to take query results and
-            // push them into eavs, e.g. sum salaries per department -> [total salary = *]
-            .union("added eavs", {entity: ["entity"], attribute: ["attribute"], value: ["value"]}));
+// eve.asView(eve.union("entity eavs")
+//             .union("added collections", {entity: ["entity"], attribute: "is a", value: ["collection"]})
+//             .union("parsed eavs", {entity: ["entity"], attribute: ["attribute"], value: ["value"]})
+//             // this is a stored union that is used by the add eav action to take query results and
+//             // push them into eavs, e.g. sum salaries per department -> [total salary = *]
+//             .union("added eavs", {entity: ["entity"], attribute: ["attribute"], value: ["value"]}));
 
-eve.asView(eve.query("is a attributes")
-              .select("entity eavs", {attribute: "is a"}, "is a")
-              .project({collection: ["is a", "value"], entity: ["is a", "entity"]}));
+// eve.asView(eve.query("is a attributes")
+//               .select("entity eavs", {attribute: "is a"}, "is a")
+//               .project({collection: ["is a", "value"], entity: ["is a", "entity"]}));
 
 // @HACK: this view is required because you can't currently join a select on the result of a function.
 // so we create a version of the eavs table that already has everything lowercased.
-eve.asView(eve.query("lowercase eavs")
-              .select("entity eavs", {}, "eav")
-              .calculate("lowercase", {text: ["eav", "value"]}, "lower")
-              .project({entity: ["eav", "entity"], attribute: ["eav", "attribute"], value: ["lower", "result"]}));
+// eve.asView(eve.query("lowercase eavs")
+//               .select("entity eavs", {}, "eav")
+//               .calculate("lowercase", {text: ["eav", "value"]}, "lower")
+//               .project({entity: ["eav", "entity"], attribute: ["eav", "attribute"], value: ["lower", "result"]}));
 
-eve.asView(eve.query("entity links")
-              .select("lowercase eavs", {}, "eav")
-              .select("entity", {entity: ["eav", "value"]}, "entity")
-              .project({entity: ["eav", "entity"], link: ["entity", "entity"], type: ["eav", "attribute"]}));
+// eve.asView(eve.query("entity links")
+//               .select("lowercase eavs", {}, "eav")
+//               .select("entity", {entity: ["eav", "value"]}, "entity")
+//               .project({entity: ["eav", "entity"], link: ["entity", "entity"], type: ["eav", "attribute"]}));
 
-eve.asView(eve.union("directionless links")
-              .union("entity links", {entity: ["entity"], link: ["link"]})
-              .union("entity links", {entity: ["link"], link: ["entity"]}));
+// eve.asView(eve.union("directionless links")
+//               .union("entity links", {entity: ["entity"], link: ["link"]})
+//               .union("entity links", {entity: ["link"], link: ["entity"]}));
 
-eve.asView(eve.union("collection entities")
-            // the rest of these are editor-level views
-            .union("is a attributes", {entity: ["entity"], collection: ["collection"]})
-            // this is a stored union that is used by the add to collection action to take query results and
-            // push them into collections, e.g. people older than 21 -> [[can drink]]
-            .union("added collections", {entity: ["entity"], collection: ["collection"]}));
+// eve.asView(eve.union("collection entities")
+//             // the rest of these are editor-level views
+//             .union("is a attributes", {entity: ["entity"], collection: ["collection"]})
+//             // this is a stored union that is used by the add to collection action to take query results and
+//             // push them into collections, e.g. people older than 21 -> [[can drink]]
+//             .union("added collections", {entity: ["entity"], collection: ["collection"]}));
 
-eve.asView(eve.query("collection")
-            .select("collection entities", {}, "collections")
-            .group([["collections", "collection"]])
-            .aggregate("count", {}, "count")
-            .project({collection: ["collections", "collection"], count: ["count", "count"]}));
+// eve.asView(eve.query("collection")
+//             .select("collection entities", {}, "collections")
+//             .group([["collections", "collection"]])
+//             .aggregate("count", {}, "count")
+//             .project({collection: ["collections", "collection"], count: ["count", "count"]}));
 
-eve.asView(eve.query("automatic collection entities")
-              .select("collection", {}, "coll")
-              .deselect("manual entity", {entity: ["coll", "collection"]})
-              .calculate("collection content", {collection: ["coll", "collection"]}, "content")
-              .project({entity: ["coll", "collection"], content: ["content", "content"]}));
+// eve.asView(eve.query("automatic collection entities")
+//               .select("collection", {}, "coll")
+//               .deselect("manual entity", {entity: ["coll", "collection"]})
+//               .calculate("collection content", {collection: ["coll", "collection"]}, "content")
+//               .project({entity: ["coll", "collection"], content: ["content", "content"]}));
 
 //---------------------------------------------------------
 // Go
@@ -2251,12 +2251,11 @@ function initEve() {
   initSearches();
 }
 
+// @TODO: KILL ME
+import "./bootstrap";
+
 app.renderRoots["wiki"] = root;
 app.init("wiki", function() {
   app.activeSearches = {};
   initEve();
 });
-
-
-// @TODO: KILL ME
-import "./bootstrap";
