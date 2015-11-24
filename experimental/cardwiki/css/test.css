@@ -10,6 +10,16 @@ body { color: #ccc; }
 .header2 { font-size: 12pt; }
 .kids { margin-left: 30px; }
 
+.pattern { color: #fa5;}
+.separator { color: #99f; }
+
+.stats { font-size: 32pt; padding: 0 30px; margin-top:40px; flex:none; justify-content: center;  }
+.stats > * { padding: 20px; border-radius:0px; color: #222; }
+.stats > * + * { margin-left: 1px;  }
+.stats .failed { background: #FF3666; }
+.stats .succeeded { background: #9fa; }
+.stats .unvalidated { background: #777; }
+
 
 .step { padding-left: 5px; }
 .step + .step { margin-top:5px; }

@@ -13,26 +13,45 @@ window["eve"] = eve;
 // Tokens
 //---------------------------------------------------------
 
-var modifiers = {
-  "and": "and",
-  "or": "or",
-  "without": "without",
-  "aren't": "aren't",
-  "per": {group: true},
-};
-var patterns = {};
-
 enum TokenTypes {
   entity,
   collection,
   attribute,
   modifier,
   pattern,
+  value,
   text,
 }
 
+var modifiers = {
+  "and": {and: true},
+  "or": {or: true},
+  "without": {deselected: true},
+  "aren't": {deselected: true},
+  "don't": {deselected: true},
+  "per": {group: true},
+  ",": {separator: true},
+  "all": {every: true},
+  "every": {every: true},
+};
+var patterns = {
+  "<": {
+    type: "operation",
+    op: "<",
+    patterns: [
+      [TokenTypes.attribute, "<", TokenTypes.attribute],
+      [TokenTypes.attribute, "<", TokenTypes.value],
+      [TokenTypes.attribute, "<", TokenTypes.entity],
+      ["<", TokenTypes.entity],
+      ["<", TokenTypes.attribute],
+      ["<", TokenTypes.value],
+    ]
+  },
+};
+
 function checkForToken(token): any {
   var found;
+  if(!token) return {};
   if(found = eve.findOne("collection", {collection: token})) {
     return {found, type: TokenTypes.collection};
   } else if(found = eve.findOne("entity", {entity: token})) {
@@ -43,6 +62,12 @@ function checkForToken(token): any {
     return {found, type: TokenTypes.modifier};
   } else if(found = patterns[token]) {
     return {found, type: TokenTypes.pattern};
+  } else if(token.match(/^-?[\d]+$/gm)) {
+    return {type: TokenTypes.value, found: JSON.parse(token), valueType: "number"};
+  } else if(token.match(/^["][^"]*["]$/gm)) {
+    return {type: TokenTypes.value, found: JSON.parse(token), valueType: "string"};
+  } else if(found = token.match(/^([\d]+)-([\d]+)$/gm)) {
+    return {type: TokenTypes.value, found: token, valueType: "range", start: found[1], stop: found[2]};
   }
   return {};
 }
@@ -50,7 +75,8 @@ function checkForToken(token): any {
 function getTokens(string) {
   // remove all non-word non-space characters
   let cleaned = string.replace(/'s/gi, "  ").toLowerCase();
-  let words = cleaned.split(/[ ,.?!]/gi);
+  cleaned = cleaned.replace(/[,.?!]/gi, " , ");
+  let words = cleaned.split(" ");
   let front = 0;
   let back = words.length;
   let results = [];
@@ -75,7 +101,9 @@ function getTokens(string) {
     } else if(back - 1 > front) {
       back--;
     } else {
-      results.push({found: orig, orig, pos, type: TokenTypes.text});
+      if(orig) {
+        results.push({found: orig, orig, pos, type: TokenTypes.text});
+      }
       back = words.length;
       pos += words[front].length + 1;
       front++;
@@ -307,15 +335,87 @@ function tokensToTree(tokens) {
   // related to that or the directObject
   let indirectObject = directObject;
 
-  for(let token of tokens) {
+
+  for(let tokenIx = 0, len = tokens.length; tokenIx < len; tokenIx++) {
+    let token = tokens[tokenIx];
     let {type, info, found} = token;
 
     // deal with modifiers
     if(type === TokenTypes.modifier) {
+      // if this is a deselect modifier, we need to roll forward through the tokens
+      // to figure out roughly how far the deselection should go. Also if we run into
+      // an and or an or, we need to deal with that specially.
+      if(info.deselected) {
+        // we're going to move forward from this token and deselect as we go
+        let localTokenIx = tokenIx + 1;
+        // get to the first non-text token
+        while(localTokenIx < len && tokens[localTokenIx].type === TokenTypes.text) {
+          localTokenIx++;
+        }
+        // negate until we find a reason to stop
+        while(localTokenIx < len) {
+          let localToken = tokens[localTokenIx];
+          if(localToken.type === TokenTypes.text) {
+            break;
+          }
+          localToken.deselected = true;
+          localTokenIx++;
+        }
+      }
+      // if we're dealing with an or we have two cases, we're either dealing with a negation
+      // or a split. If this is a deselected or, we don't really need to do anything because that
+      // means we just do a deselected join. If it's not negated though, we're now dealing with
+      // a second query context. e.g. people who are employees or spouses of employees
+      if(info.or && !token.deslected) {
+        let localTokenIx = tokenIx + 1;
+        // get to the first non-text token
+        while(localTokenIx < len && tokens[localTokenIx].type === TokenTypes.text) {
+          localTokenIx++;
+        }
+        // consume until we hit a separator
+        while(localTokenIx < len) {
+          let localToken = tokens[localTokenIx];
+          if(localToken.type === TokenTypes.text) {
+            break;
+          }
+          localTokenIx++;
+        }
+      }
+      // a group adds a group for the next collection and checks to see if there's an and
+      // or a separator that would indicate multiple groupings
+      if(info.group) {
+        // we're going to move forward from this token and deselect as we go
+        let localTokenIx = tokenIx + 1;
+        // get to the first non-text token
+        while(localTokenIx < len && tokens[localTokenIx].type === TokenTypes.text) {
+          localTokenIx++;
+        }
+        let localToken = tokens[localTokenIx];
+        localToken.grouped = true;
+        groups.push(localToken);
+        localTokenIx++;
+        let next = tokens[localTokenIx];
+        while(next && next.type === TokenTypes.modifier && (next.info.separator || next.info.and)) {
+          localTokenIx++;
+          next = tokens[localTokenIx];
+          if(next && next.type === TokenTypes.modifier) {
+            continue;
+          }
+          next.grouped = true;
+          groups.push(next);
+          localTokenIx++;
+          next = tokens[localTokenIx];
+        }
+      }
       continue;
     }
     // deal with patterns
     if(type === TokenTypes.pattern) {
+      continue;
+    }
+
+    // deal with values
+    if(type === TokenTypes.value) {
       continue;
     }
 
@@ -362,7 +462,7 @@ function ignoreHiddenCollections(colls) {
 function nodeToPlanSteps(node, parent, parentPlan) {
   //TODO: figure out what to do with operations
   let id = node.id || uuid();
-  let {deselect} = node;
+  let {deselected} = node;
   let rel = node.relationship;
   if(parent && rel) {
     switch(rel.type) {
@@ -375,7 +475,7 @@ function nodeToPlanSteps(node, parent, parentPlan) {
           plan.push(item);
           curParent = item;
         }
-        plan.push({type: StepTypes.lookup, relatedTo: curParent, subject: node.found, id, deselect});
+        plan.push({type: StepTypes.lookup, relatedTo: curParent, subject: node.found, id, deselected});
         return plan;
         break;
       case RelationshipTypes.collectionToEntity:
@@ -387,18 +487,18 @@ function nodeToPlanSteps(node, parent, parentPlan) {
           plan.push(item);
           curParent = item;
         }
-        plan.push({type: StepTypes.filterByEntity, relatedTo: curParent, subject: node.found, id, deselect});
+        plan.push({type: StepTypes.filterByEntity, relatedTo: curParent, subject: node.found, id, deselected});
         return plan;
         break;
       case RelationshipTypes.collectionToCollection:
-        return [{type: StepTypes.gather, relatedTo: parentPlan, subject: node.found, id, deselect}];
+        return [{type: StepTypes.gather, relatedTo: parentPlan, subject: node.found, id, deselected}];
         break;
       case RelationshipTypes.collectionIntersection:
-        return [{type: StepTypes.intersect, relatedTo: parentPlan, subject: node.found, id, deselect}];
+        return [{type: StepTypes.intersect, relatedTo: parentPlan, subject: node.found, id, deselected}];
         break;
       case RelationshipTypes.entityToAttribute:
         if(rel.distance === 0) {
-          return [{type: StepTypes.lookup, relatedTo: parentPlan, subject: node.found, id, deselect}];
+          return [{type: StepTypes.lookup, relatedTo: parentPlan, subject: node.found, id, deselected}];
         } else {
           let plan = [];
           let curParent = parentPlan;
@@ -408,18 +508,18 @@ function nodeToPlanSteps(node, parent, parentPlan) {
             plan.push(item);
             curParent = item;
           }
-          plan.push({type: StepTypes.lookup, relatedTo: curParent, subject: node.found, id, deselect});
+          plan.push({type: StepTypes.lookup, relatedTo: curParent, subject: node.found, id, deselected});
           return plan;
         }
         break;
     }
   } else {
     if(node.type === TokenTypes.collection) {
-      return [{type: StepTypes.gather, subject: node.found, id, deselect}];
+      return [{type: StepTypes.gather, subject: node.found, id, deselected}];
     } else if(node.type === TokenTypes.entity) {
-      return [{type: StepTypes.find, subject: node.found, id, deselect}];
+      return [{type: StepTypes.find, subject: node.found, id, deselected}];
     } else if(node.type === TokenTypes.attribute) {
-      return [{type: StepTypes.lookup, subject: node.found, id, deselect}];
+      return [{type: StepTypes.lookup, subject: node.found, id, deselected}];
     }
     return [];
   }
@@ -437,10 +537,32 @@ function nodeToPlan(tree, parent = null, parentPlan = null) {
   return plan;
 }
 
+function groupsToPlan(nodes) {
+  if(!nodes.length) return [];
+  let groups = [];
+  for(let node of nodes) {
+    if(node.type === "collection") {
+      groups.push([node.id, "entity"]);
+    } else if(node.type === "attribute") {
+      groups.push([node.id, "value"]);
+    } else {
+      throw new Error("Invalid node to group on: " + JSON.stringify(nodes));
+    }
+  }
+  return [{type: "group", id: uuid(), groups, groupNodes: nodes}];
+}
+
+function dedupePlan(plan) {
+  // for(let planIx = plan.length; planIx > 0; planIx--)
+}
+
 function treeToPlan(tree) {
   let plan = [];
   for(let root of tree.roots) {
     plan = plan.concat(nodeToPlan(root));
+  }
+  for(let group of tree.groups) {
+    plan.push({type: StepTypes.group, subject: group.found, subjectNode: group});
   }
   return plan;
 }
@@ -449,13 +571,18 @@ function treeToPlan(tree) {
 // Test queries
 //---------------------------------------------------------
 
+function validateStep(step, expected) {
+  if(!step || step.type !== expected.type || step.subject !== expected.subject || step.deselected !== expected.deselected) {
+    return false;
+  }
+  return true;
+}
+
 function validatePlan(plan, expected) {
   let ix = 0;
   for(let exStep of expected) {
     let step = plan[ix];
-    if(!step || step.type !== exStep.type || step.subject !== exStep.subject) {
-      return false;
-    }
+    if(!validateStep(step, exStep)) return false;
     ix++;
   }
   return true;
@@ -471,6 +598,12 @@ var tests = {
   "salaries per department": {
     expected: [{type: StepTypes.gather, subject: "department"}, {type: StepTypes.gather, subject: "employee"}, {type: StepTypes.lookup, subject: "salary"}, {type: StepTypes.group, subject: "department"}]
   },
+  "salaries per department and age": {
+    expected: [{type: StepTypes.gather, subject: "department"}, {type: StepTypes.gather, subject: "employee"}, {type: StepTypes.lookup, subject: "salary"}, {type: StepTypes.lookup, subject: "age"}, {type: StepTypes.group, subject: "department"}, {type: StepTypes.group, subject: "age"}]
+  },
+  "sum of the salaries per employee, department, and age": {
+
+  },
   "dishes with eggs and chicken": {
     expected: [{type: StepTypes.gather, subject: "dish"}, {type: StepTypes.filterByEntity, subject: "egg"}, {type: StepTypes.filterByEntity, subject: "chicken"}]
   },
@@ -481,16 +614,13 @@ var tests = {
 
   },
   "dishes without eggs or chicken": {
-
+    expected: [{type: StepTypes.gather, subject: "dish"}, {type: StepTypes.filterByEntity, subject: "egg", deselected: true}, {type: StepTypes.filterByEntity, subject: "chicken", deselected: true}]
   },
   "dishes with eggs that aren't desserts": {
-
+    expected: [{type: StepTypes.gather, subject: "dish"}, {type: StepTypes.filterByEntity, subject: "egg"}, {type: StepTypes.intersect, subject: "dessert", deselected: true}]
   },
   "dishes that don't have eggs or chicken": {
-
-  },
-  "dishes with figs that aren't desserts": {
-
+    expected: [{type: StepTypes.gather, subject: "dish"}, {type: StepTypes.filterByEntity, subject: "egg", deselected: true}, {type: StepTypes.filterByEntity, subject: "chicken", deselected: true}]
   },
   "dishes with a cook time < 30 that have eggs and are sweet": {
 
@@ -517,7 +647,12 @@ var tests = {
   "at least two languages are spoken by everyone in this room": {
 
   },
+  "people whose age < 30": {
 
+  },
+  "people whose age < chris granger's age": {
+
+  },
   "people whose age < chris granger's": {
 
   },
@@ -542,6 +677,9 @@ var tests = {
   "people who have neither attended a meeting nor had a one-on-one": {
 
   },
+  "count employees and their spouses": {
+
+  },
 
   "friends older than the average age of people with pets": {
 
@@ -551,7 +689,7 @@ var tests = {
 
   },
 
-  "parts that have a color of “red”, “green”, “blue”, or “yellow”": {
+  "parts that have a color of \"red\", \"green\", \"blue\", or \"yellow\"": {
 
   },
 
@@ -642,7 +780,30 @@ function testSearch(search, info) {
   let tokens = getTokens(search);
   let tree = tokensToTree(tokens);
   let plan = treeToPlan(tree);
+  let valid;
+  let expectedPlan:any;
+  if(info.expected) {
+    let expected = info.expected;
+    valid = validatePlan(plan, expected);
+    expectedPlan = expected.map((step, ix): any => {
+        let actual = plan[ix];
+        let validStep = "";
+        let deselected = step.deselected ? "!" : "";
+        if(!actual) {
+          return {state: "missing", message: `${StepTypes[step.type]} ${deselected}${step.subject}`};
+        }
+        if(validateStep(actual, step)) {
+          return {state: "valid", message: "valid"};
+        } else {
+          return {state: "invalid", message: `${StepTypes[step.type]} ${deselected}${step.subject}`};
+        }
+      })
+  }
+  return {tokens, tree, plan, valid, validated: !!info.expected, expectedPlan, search};
+}
 
+function searchResultUi(result) {
+  let {tokens, tree, plan, valid, validated, expectedPlan, search} = result;
   //tokens
   let tokensNode = {c: "tokens", children: [
     {c: "header", text: "Tokens"},
@@ -660,42 +821,39 @@ function testSearch(search, info) {
       {c: "header2", text: "Operations"},
       {c: "kids", children: tree.operations.map(groupTree)},
       {c: "header2", text: "Groups"},
-      {c: "kids", children: tree.groups.map(groupTree)},
+      {c: "kids", children: tree.groups.map((root) => {
+        return {c: `node ${TokenTypes[root.type]}`, text: `${root.found}`};
+      })},
     ]}
   ]};
 
   //tokens
   let planNode;
   let klass = "";
-  if(info.expected) {
-    let expected = info.expected;
-    let valid = validatePlan(plan, expected);
+  if(validated) {
     if(!valid) klass += "failed";
     else klass += "succeeded";
 
     planNode = {c: "tokens", children: [
       {c: "header", text: "Plan"},
-      {c: "kids", children: expected.map((step, ix) => {
+      {c: "kids", children: expectedPlan.map((info, ix) => {
         let actual = plan[ix];
-        let validStep = "";
-        if(!actual) {
-          return {c: `step missing`, text: `expected ${StepTypes[step.type]} ${step.subject}`}
+        let message = "";
+        if(info.state !== "valid") {
+          message = ` :: expected ${info.message}`;
+          if(info.state === "missing") {
+            return {c: `step ${info.state}`, text: `none ${message}`};
+          }
         }
-        let expectedStep = "";
-        if(actual.type === step.type && actual.subject === step.subject) {
-          validStep = "valid";
-        } else {
-          validStep = "invalid";
-          expectedStep = ` :: expected ${StepTypes[step.type]} ${step.subject}`;
-        }
-        return {c: `step ${validStep}`, text: `${StepTypes[actual.type]} ${actual.subject}${expectedStep}`}
+        return {c: `step ${info.state}`, text: `${StepTypes[actual.type]} ${actual.deselected ? "!" : ""}${actual.subject}${message}`};
       })}
     ]};
   } else {
     planNode = {c: "tokens", children: [
       {c: "header", text: "Plan"},
       {c: "kids", children: plan.map((step) => {
-        return {c: "node", text: `${StepTypes[step.type]} ${step.subject}`}
+        let deselected = step.deselected ? "!" : "";
+        return {c: "node", text: `${StepTypes[step.type]} ${deselected}${step.subject}`}
       })}
     ]};
   }
@@ -712,10 +870,27 @@ function testSearch(search, info) {
 
 function root() {
   let results = [];
+  let resultStats = {unvalidated: 0, succeeded: 0, failed: 0};
   for(let test in tests) {
-    results.push(testSearch(test, tests[test]));
+    let result = testSearch(test, tests[test]);
+    results.push(result);
+    if(!result.validated) {
+      resultStats.unvalidated++;
+    } else if(result.valid === false) {
+      resultStats.failed++;
+    } else {
+      resultStats.succeeded++;
+    }
   }
-  return {id: "root", c: "test-root", children: results};
+  let resultItems = results.map(searchResultUi);
+  return {id: "root", c: "test-root", children: [
+    {c: "stats row", children: [
+      {c: "failed", text: resultStats.failed},
+      {c: "succeeded", text: resultStats.succeeded},
+      {c: "unvalidated", text: resultStats.unvalidated},
+    ]},
+    {children: resultItems}
+  ]};
 }
 
 wiki.coerceInput("foo");
