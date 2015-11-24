@@ -182,6 +182,8 @@ interface UiWarning {
   "ui warning: warning": string
 }
 
+// @TODO: Finish reference impl.
+// @TODO: Then build bit-generating version
 export class UiRenderer {
   public compiled = 0;
   protected tagCompilers:{[tag: string]: (elem:Element) => void} = {};
@@ -209,17 +211,8 @@ export class UiRenderer {
     return compiledElems;
   }
 
-  protected _compileWrapper(template:string, baseIx: number, boundAliases?:string[], bindingStack:any[] = []):Element[] {
+  protected _compileWrapper(template:string, baseIx: number, constraints:{} = {}, bindingStack:any[] = []):Element[] {
     let elems = [];
-    let insulated = false; // If the element is insulated, it will only have access to the aliases in boundAliases in a separate bindingStack.
-    if(!boundAliases) boundAliases = this.getBoundAliases(bindingStack);
-    else insulated = true;
-
-    // Resolve bound aliases into constraints
-    let constraints = {};
-    for(let alias of boundAliases) constraints[alias] = this.getBoundValue(alias, bindingStack);
-    if(insulated) bindingStack = [constraints];
-
     let binding = ixer.findOne("ui template binding", {"ui template binding: template": template});
     if(!binding) {
       elems[0] = this._compileElement(template, bindingStack);
@@ -248,6 +241,9 @@ export class UiRenderer {
 
   protected _compileElement(template:string, bindingStack:any[], fact?:any):Element {
     let elementToChildren = ixer.index("ui template", ["ui template: parent"]);
+    let elementToEmbeds = ixer.index("ui embed", ["ui embed: parent"]);
+    let embedToScope = ixer.index("ui embed scope", ["ui embed scope: embed"]);
+    let embedToScopeBinding = ixer.index("ui embed scope binding", ["ui embed scope binding: embed"]);
     let elementToAttrs = ixer.index("ui attribute", ["ui attribute: template"]);
     let elementToAttrBindings = ixer.index("ui attribute binding", ["ui attribute binding: template"]);
     let elementToEvents = ixer.index("ui event", ["ui event: template"]);
@@ -275,36 +271,49 @@ export class UiRenderer {
 
     // Handle bound properties
     if(boundAttrs) {
-      for(let {"ui attribute binding": prop, "ui attribute binding: alias": alias} of boundAttrs) {
+      // @FIXME: What do with source?
+      for(let {"ui attribute binding: property": prop, "ui attribute binding: source": source, "ui attribute binding: alias": alias} of boundAttrs) {
         elem[prop] = this.getBoundValue(alias, bindingStack);
       }
     }
 
-    // Attach static event handlers
+    // Attach event handlers
     if(events) {
-      for(let {"ui event: event": event, "ui event: kind": kind} of events) {
-        elem[event] = this.generateEventHandler(elem, event, kind);
+      for(let {"ui event: event": event} of events) {
+        elem[event] = this.generateEventHandler(elem, event);
       }
     }
 
-    // Attach bound event handlers
-    for(let {"ui event binding: event": event, "ui event binding: kind": kind, "ui event binding: alias": alias} of boundEvents) {
-      elem[event] = this.generateEventHandler(elem, event, kind, alias);
-    }
-
     // Compile children
-    let children = elementToChildren[template];
-    if(elem.children) {
-      // Include embedded children after injected children.
-      // @FIXME: This does not preserve definition order between static and dynamic elems.
-      // @FIXME: Need a way to selectively push alias constraints to embedded child instead of adding all of them.
-      children = children ? children.concat(elem.children) : elem.children;
-    }
+    let children = elementToChildren[template] || [];
+    let embeds = elementToEmbeds[template] || [];
 
-    if(children) {
+    if(children.length || embeds.length) {
       elem.children = [];
-      for(let childTemplate of children) {
-        elem.children.push.apply(elem.children, this._compileWrapper(childTemplate, elem.children.length));
+      let childIx = 0, embedIx = 0;
+      let boundAliases = this.getBoundAliases(bindingStack);
+      while(childIx < children.length || embedIx < embeds.length) {
+        let child = children[childIx];
+        let embed = embeds[embedIx];
+        let add, constraints = {}, childBindingStack = bindingStack;
+        if(!embed || child && child.ix <= embed.ix) {
+          add = children[childIx++]["ui template: template"];
+          // Resolve bound aliases into constraints
+          for(let alias of boundAliases) constraints[alias] = this.getBoundValue(alias, bindingStack);
+
+        } else {
+          add = embeds[embedIx++]["ui embed: template"];
+          for(let scope of embedToScope[embed["ui embed: embed"]] || [])
+            constraints[scope["ui embed scope: key"]] = scope["ui embed scope: value"];
+
+          for(let scope of embedToScopeBinding[embed["ui embed: embed"]] || []) {
+            // @FIXME: What do about source?
+            let {"ui embed scope binding: key": key, "ui embed scope binding: source": source, "ui embed scope binding: alias": alias} = scope;
+            constraints[key] = this.getBoundValue(alias, bindingStack);
+          }
+          childBindingStack = [constraints];
+        }
+        elem.children.push.apply(elem.children, this._compileWrapper(add, elem.children.length, constraints, childBindingStack));
       }
     }
 
@@ -329,13 +338,16 @@ export class UiRenderer {
     }
     return Object.keys(aliases);
   }
+
+  //@FIXME: What do about source?
   protected getBoundValue(alias, bindingStack:any[]):any {
     for(let ix = bindingStack.length; ix >= 0; ix--) {
       let fact = bindingStack[ix];
       if(fact[alias]) return alias;
     }
   }
-  protected generateEventHandler(elem, event, kind, key?) {
+  protected generateEventHandler(elem, event) {
+    // @TODO: Pull event state and event state binding
     throw new Error("Implement me!");
   }
 }
