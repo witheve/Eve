@@ -2,6 +2,7 @@
 /// <reference path="../vendor/marked.d.ts" />
 import * as microReact from "./microReact";
 import * as runtime from "./runtime";
+import {UIRenderer} from "./uiRenderer";
 
 declare var uuid;
 
@@ -15,8 +16,10 @@ export var eveLocalStorageKey = "eve";
 var perfStats;
 var updateStat = 0;
 export var renderer;
+export var uiRenderer;
 function initRenderer() {
   renderer = new microReact.Renderer();
+  uiRenderer = new UIRenderer(eve);
   document.body.appendChild(renderer.content);
   window.addEventListener("resize", render);
   perfStats = document.createElement("div");
@@ -33,20 +36,31 @@ export function render() {
   // @FIXME: why does using request animation frame cause events to stack up and the renderer to get behind?
   setTimeout(function() {
     // requestAnimationFrame(function() {
-    var start = performance.now();
+    let start = performance.now();
+    perfStats.textContent = "";
     let trees = [];
     for (var root in renderRoots) {
       trees.push(renderRoots[root]());
     }
-    var total = performance.now() - start;
-    if (total > 10) {
-      console.log("Slow root: " + total);
-    }
-    perfStats.textContent = "";
+
+    let total = performance.now() - start;
     perfStats.textContent += `root: ${total.toFixed(2) }`;
-    var start = performance.now();
+    if (total > 10) console.log("Slow root: " + total);
+
+    start = performance.now();
+    let dynamicUI = eve.find("system ui").map((ui) => ui["template"]);
+    if(window["DEBUG"] && window["DEBUG"].UI_COMPILE) {
+      console.log("compiling", dynamicUI);
+      console.log("*", uiRenderer.compile(dynamicUI));
+    }
+    trees.push.apply(trees, uiRenderer.compile(dynamicUI));
+    total = performance.now() - start;
+    perfStats.textContent += ` | ui compile: ${total.toFixed(2) }`;
+    if (total > 10) console.log("Slow ui compile: " + total);
+
+    start = performance.now();
     renderer.render(trees);
-    var total = performance.now() - start;
+    total = performance.now() - start;
     perfStats.textContent += ` | render: ${total.toFixed(2) }`;
     perfStats.textContent += ` | update: ${updateStat.toFixed(2) }`;
     renderer.queued = false;
