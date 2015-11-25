@@ -290,14 +290,8 @@ export class Indexer {
   }
   factToIndex(table, fact) {
     let keys = Object.keys(fact);
-    keys.sort();
-    let indexName = keys.join("|");
-    let index = table.indexes[indexName];
-    if(!index) {
-      index = table.indexes[indexName] = this.collector(keys);
-      index.collect(index.index, table.table, [], table.equals);
-    }
-    let cursor = index.index;
+    if(!keys.length) return table.table;
+    let cursor = this.index(table, keys);
     for(let key of keys) {
       cursor = cursor[fact[key]];
       if(!cursor) return [];
@@ -440,17 +434,16 @@ export class Indexer {
     if(table) return table;
     return this.addTable(tableId);
   }
-  index(tableId:string, keys:any[]) {
-    let table = this.table(tableId);
-    if(!table) {
-      table = this.addTable(tableId);
-    }
+  index(tableOrId:string|{}, keys:any[]) {
+    let table;
+    if(typeof tableOrId === "string") table = this.table(tableOrId);
+    else table = tableOrId;
     keys.sort();
     let indexName = keys.join("|");
     let index = table.indexes[indexName];
     if(!index) {
-      index = table.indexes[indexName] = <any>this.collector(keys);
-      if(table.fields.length) index.collect(index.index, table.facts || [], [], table.equals);
+      index = table.indexes[indexName] = this.collector(keys);
+      index.collect(index.index, table.table, [], table.equals);
     }
     return index.index;
   }
