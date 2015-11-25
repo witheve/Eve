@@ -28,9 +28,12 @@ export class UI {
   }
   copy() {
     let neue = new UI(this.id);
+    neue._binding = this._binding;
+    neue._embedded = this._embedded;
     neue._children = this._children;
     neue._attributes = this._attributes;
     neue._events = this._events;
+    neue._parent = this._parent;
     return neue;
   }
   changeset(ixer:Indexer) {
@@ -43,7 +46,7 @@ export class UI {
 
     resolvedAdd(changeset, "ui template", {template: this.id, parent, ix});
     if(this._binding) {
-      if(!this._binding.name) this._binding.name = `bound view ${this.id}`;
+      if(!this._binding.name || this._binding.name === "unknown") this._binding.name = `bound view ${this.id}`;
       changeset.merge(wiki.queryObjectToDiff(this._binding));
       resolvedAdd(changeset, "ui template binding", {template: this.id, binding: this._binding.name});
     }
@@ -215,31 +218,30 @@ export class UiRenderer {
     let elems = [];
     let binding = ixer.findOne("ui template binding", {"ui template binding: template": template});
     if(!binding) {
-      elems[0] = this._compileElement(template, bindingStack);
-      elems[0].ix = baseIx + (elems[0].ix || 0);
+      let elem = this._compileElement(template, bindingStack);
+      if(elem) elems[0] = elem;
     } else {
-      let boundQuery = binding["ui template binding: query"];
+      let boundQuery = binding["ui template binding: binding"];
       let facts = this.getBoundFacts(boundQuery, constraints);
       let ix = 0;
       for(let fact of facts) {
         bindingStack.push(fact);
-        let elem = this._compileElement(template, bindingStack, fact);
+        let elem = this._compileElement(template, bindingStack);
         bindingStack.pop();
-        elem.ix = (elem.ix || 0);
-        elems.push(elem);
+        if(elem) elems.push(elem);
       }
     }
     elems.sort((a, b) => a.ix - b.ix);
     let prevIx = undefined;
     for(let elem of elems) {
-      elem.ix += baseIx;
+      elem.ix = elem.ix ? elem.ix + baseIx : baseIx;
       if(elem.ix === prevIx) elem.ix++;
       prevIx = elem.ix;
     }
     return elems;
   }
 
-  protected _compileElement(template:string, bindingStack:any[], fact?:any):Element {
+  protected _compileElement(template:string, bindingStack:any[]):Element {
     let elementToChildren = ixer.index("ui template", ["ui template: parent"]);
     let elementToEmbeds = ixer.index("ui embed", ["ui embed: parent"]);
     let embedToScope = ixer.index("ui embed scope", ["ui embed scope: embed"]);
@@ -248,7 +250,6 @@ export class UiRenderer {
     let elementToAttrBindings = ixer.index("ui attribute binding", ["ui attribute binding: template"]);
     let elementToEvents = ixer.index("ui event", ["ui event: template"]);
     let elementToEventBindings = ixer.index("ui event binding", ["ui event binding: template"]);
-
     this.compiled++;
     let base = ixer.findOne("ui template", {"ui template: template": template});
     if(!base) {
@@ -262,7 +263,7 @@ export class UiRenderer {
     let boundEvents = elementToEventBindings[template];
 
     // Handle meta properties
-    let elem:Element = {t: base["ui template: tag"], ix: base["ui template: ix"]};
+    let elem:Element = {_template: template, ix: base["ui template: ix"]};
 
     // Handle static properties
     if(attrs) {
@@ -272,26 +273,21 @@ export class UiRenderer {
     // Handle bound properties
     if(boundAttrs) {
       // @FIXME: What do with source?
-      for(let {"ui attribute binding: property": prop, "ui attribute binding: source": source, "ui attribute binding: alias": alias} of boundAttrs) {
-        elem[prop] = this.getBoundValue(alias, bindingStack);
-      }
+      for(let {"ui attribute binding: property": prop, "ui attribute binding: source": source, "ui attribute binding: alias": alias} of boundAttrs)
+        elem[prop] = this.getBoundValue(source, alias, bindingStack);
     }
 
     // Attach event handlers
     if(events) {
-      for(let {"ui event: event": event} of events) {
-        elem[event] = this.generateEventHandler(elem, event);
-      }
+      for(let {"ui event: event": event} of events) elem[event] = this.generateEventHandler(elem, event);
     }
 
     // Compile children
     let children = elementToChildren[template] || [];
     let embeds = elementToEmbeds[template] || [];
-
     if(children.length || embeds.length) {
       elem.children = [];
       let childIx = 0, embedIx = 0;
-      let boundAliases = this.getBoundAliases(bindingStack);
       while(childIx < children.length || embedIx < embeds.length) {
         let child = children[childIx];
         let embed = embeds[embedIx];
@@ -299,7 +295,7 @@ export class UiRenderer {
         if(!embed || child && child.ix <= embed.ix) {
           add = children[childIx++]["ui template: template"];
           // Resolve bound aliases into constraints
-          for(let alias of boundAliases) constraints[alias] = this.getBoundValue(alias, bindingStack);
+          constraints = this.getBoundScope(bindingStack);
 
         } else {
           add = embeds[embedIx++]["ui embed: template"];
@@ -309,7 +305,7 @@ export class UiRenderer {
           for(let scope of embedToScopeBinding[embed["ui embed: embed"]] || []) {
             // @FIXME: What do about source?
             let {"ui embed scope binding: key": key, "ui embed scope binding: source": source, "ui embed scope binding: alias": alias} = scope;
-            constraints[key] = this.getBoundValue(alias, bindingStack);
+            constraints[key] = this.getBoundValue(source, alias, bindingStack);
           }
           childBindingStack = [constraints];
         }
@@ -325,25 +321,26 @@ export class UiRenderer {
         elem.t = "ui-error";
       }
     }
+
+    return elem;
   }
 
   protected getBoundFacts(query, constraints):string[] {
     return ixer.find(query, constraints);
   }
-  protected getBoundAliases(bindingStack:any[]):string[] {
-    let aliases = {};
-    for(let ix = bindingStack.length; ix >= 0; ix--) {
-      let fact = bindingStack[ix];
-      for(let alias in fact) aliases[alias] = true;
+  protected getBoundScope(bindingStack:any[]):{} {
+    let scope = {};
+    for(let fact of bindingStack) {
+      for(let alias in fact) scope[alias] = fact[alias];
     }
-    return Object.keys(aliases);
+    return scope;
   }
 
   //@FIXME: What do about source?
-  protected getBoundValue(alias, bindingStack:any[]):any {
-    for(let ix = bindingStack.length; ix >= 0; ix--) {
+  protected getBoundValue(source:string, alias:string, bindingStack:any[]):any {
+    for(let ix = bindingStack.length - 1; ix >= 0; ix--) {
       let fact = bindingStack[ix];
-      if(fact[alias]) return alias;
+      if(source in fact && fact[alias]) return fact[alias];
     }
   }
   protected generateEventHandler(elem, event) {
@@ -351,3 +348,6 @@ export class UiRenderer {
     throw new Error("Implement me!");
   }
 }
+
+declare var exports;
+window["uiRenderer"] = exports;
