@@ -237,6 +237,20 @@ app.init("bootstrap", function bootstrap() {
   phase.apply();
 
   //-----------------------------------------------------------------------------
+  // UI
+  //-----------------------------------------------------------------------------
+  phase = new BSPhase(eve);
+  phase.addUI("wiki root", UIFromDSL(unpad(4) `
+    div wiki-root {background: pink}
+      header {text: header}
+      content {text: [pet, pet]}
+        ~ gather pet as [pet]
+      footer {text: footer}
+  `));
+
+  phase.apply();
+
+  //-----------------------------------------------------------------------------
   // Testing
   //-----------------------------------------------------------------------------
   phase = new BSPhase(eve);
