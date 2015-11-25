@@ -1,4 +1,3 @@
-import {eve as ixer} from "./app";
 import {Element} from "./microReact";
 import {Indexer, Query} from "./runtime";
 import * as wiki from "./wiki";
@@ -156,30 +155,6 @@ export class UI {
   }
 }
 
-// @FIXME: These should probably be unionized.
-function addResolvedTable(ixer, table, fields) {
-  return ixer.addTable(table, fields.map((field) => `${table}: ${field}`));
-}
-addResolvedTable(ixer, "ui template", ["template", "parent", "ix"]);
-addResolvedTable(ixer, "ui template binding", ["template", "query"]);
-addResolvedTable(ixer, "ui embed", ["embed", "template", "parent", "ix"]);
-addResolvedTable(ixer, "ui embed scope", ["embed", "key", "value"]);
-addResolvedTable(ixer, "ui embed scope binding", ["embed", "key", "source", "alias"]);
-addResolvedTable(ixer, "ui attribute", ["template", "property", "value"]);
-addResolvedTable(ixer, "ui attribute binding", ["template", "property", "source", "alias"]);
-addResolvedTable(ixer, "ui event", ["template", "event"]);
-addResolvedTable(ixer, "ui event state", ["template", "event", "key", "value"]);
-addResolvedTable(ixer, "ui event state binding", ["template", "event", "key", "source", "alias"]);
-
-
-// @FIXME: These should probably be unionized.
-//ixer.addTable("ui template", ["ui template: template", "ui template: parent", "ui template: ix"]);
-//ixer.addTable("ui template binding", ["ui template binding: template", "ui template binding: query"]);
-//ixer.addTable("ui attribute", ["ui attribute: template", "ui attribute: property", "ui attribute: value"]);
-//ixer.addTable("ui attribute binding", ["ui attribute binding: template", "ui attribute binding: property", "ui attribute binding: alias"]);
-//ixer.addTable("ui event", ["ui event: template", "ui event: event", "ui event: kind", "ui event: key"]);
-//ixer.addTable("ui event binding", ["ui event binding: template", "ui event binding: event", "ui event binding: kind", "ui event binding: alias"]);
-
 interface UiWarning {
   "ui warning: template": string
   "ui warning: warning": string
@@ -187,9 +162,11 @@ interface UiWarning {
 
 // @TODO: Finish reference impl.
 // @TODO: Then build bit-generating version
-export class UiRenderer {
+export class UIRenderer {
   public compiled = 0;
   protected tagCompilers:{[tag: string]: (elem:Element) => void} = {};
+
+  constructor(public ixer:Indexer) {}
 
   compile(roots:(string|Element)[]):Element[] {
     let compiledElems:Element[] = [];
@@ -198,7 +175,7 @@ export class UiRenderer {
       if(typeof root === "string") {
         let elems = this._compileWrapper(root, compiledElems.length);
         compiledElems.push.apply(compiledElems, elems);
-        let base = ixer.findOne("ui template", {"ui template: template": root});
+        let base = this.ixer.findOne("ui template", {"ui template: template": root});
         if(!base) continue;
         let parent = base["ui template: parent"];
         if(parent) {
@@ -216,7 +193,7 @@ export class UiRenderer {
 
   protected _compileWrapper(template:string, baseIx: number, constraints:{} = {}, bindingStack:any[] = []):Element[] {
     let elems = [];
-    let binding = ixer.findOne("ui template binding", {"ui template binding: template": template});
+    let binding = this.ixer.findOne("ui template binding", {"ui template binding: template": template});
     if(!binding) {
       let elem = this._compileElement(template, bindingStack);
       if(elem) elems[0] = elem;
@@ -242,16 +219,16 @@ export class UiRenderer {
   }
 
   protected _compileElement(template:string, bindingStack:any[]):Element {
-    let elementToChildren = ixer.index("ui template", ["ui template: parent"]);
-    let elementToEmbeds = ixer.index("ui embed", ["ui embed: parent"]);
-    let embedToScope = ixer.index("ui embed scope", ["ui embed scope: embed"]);
-    let embedToScopeBinding = ixer.index("ui embed scope binding", ["ui embed scope binding: embed"]);
-    let elementToAttrs = ixer.index("ui attribute", ["ui attribute: template"]);
-    let elementToAttrBindings = ixer.index("ui attribute binding", ["ui attribute binding: template"]);
-    let elementToEvents = ixer.index("ui event", ["ui event: template"]);
-    let elementToEventBindings = ixer.index("ui event binding", ["ui event binding: template"]);
+    let elementToChildren = this.ixer.index("ui template", ["ui template: parent"]);
+    let elementToEmbeds = this.ixer.index("ui embed", ["ui embed: parent"]);
+    let embedToScope = this.ixer.index("ui embed scope", ["ui embed scope: embed"]);
+    let embedToScopeBinding = this.ixer.index("ui embed scope binding", ["ui embed scope binding: embed"]);
+    let elementToAttrs = this.ixer.index("ui attribute", ["ui attribute: template"]);
+    let elementToAttrBindings = this.ixer.index("ui attribute binding", ["ui attribute binding: template"]);
+    let elementToEvents = this.ixer.index("ui event", ["ui event: template"]);
+    let elementToEventBindings = this.ixer.index("ui event binding", ["ui event binding: template"]);
     this.compiled++;
-    let base = ixer.findOne("ui template", {"ui template: template": template});
+    let base = this.ixer.findOne("ui template", {"ui template: template": template});
     if(!base) {
       console.warn(`ui template ${template} does not exist. Ignoring.`);
       return undefined;
@@ -326,7 +303,7 @@ export class UiRenderer {
   }
 
   protected getBoundFacts(query, constraints):string[] {
-    return ixer.find(query, constraints);
+    return this.ixer.find(query, constraints);
   }
   protected getBoundScope(bindingStack:any[]):{} {
     let scope = {};

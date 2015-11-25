@@ -240,8 +240,26 @@ app.init("bootstrap", function bootstrap() {
   // UI
   //-----------------------------------------------------------------------------
   phase = new BSPhase(eve);
+
+  // @FIXME: These should probably be unionized.
+  function resolve(table, fields) {
+    return fields.map((field) => `${table}: ${field}`);
+  }
+  phase.addTable("ui template", resolve("ui template", ["template", "parent", "ix"]));
+  phase.addTable("ui template binding", resolve("ui template binding", ["template", "query"]));
+  phase.addTable("ui embed", resolve("ui embed", ["embed", "template", "parent", "ix"]));
+  phase.addTable("ui embed scope", resolve("ui embed scope", ["embed", "key", "value"]));
+  phase.addTable("ui embed scope binding", resolve("ui embed scope binding", ["embed", "key", "source", "alias"]));
+  phase.addTable("ui attribute", resolve("ui attribute", ["template", "property", "value"]));
+  phase.addTable("ui attribute binding", resolve("ui attribute binding", ["template", "property", "source", "alias"]));
+  phase.addTable("ui event", resolve("ui event", ["template", "event"]));
+  phase.addTable("ui event state", resolve("ui event state", ["template", "event", "key", "value"]));
+  phase.addTable("ui event state binding", resolve("ui event state binding", ["template", "event", "key", "source", "alias"]));
+
+  phase.addTable("system ui", ["template"]);
+  phase.addFact("system ui", {template: "wiki root"});
   phase.addUI("wiki root", UIFromDSL(unpad(4) `
-    div wiki-root {background: pink}
+    div wiki-root
       header {text: header}
       content {text: [pet, pet]}
         ~ gather pet as [pet]
