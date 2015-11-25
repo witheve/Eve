@@ -3,7 +3,8 @@ import * as runtime from "./runtime"
 import * as wiki from "./wiki"
 import * as app from "./app"
 import {eve} from "./app"
-import {parsePlan, PlanStep, parseQuery, QueryStep} from "./parser"
+import {parsePlan, PlanStep, parseQuery, QueryStep, parseUI, UIElem} from "./parser"
+import {UI} from "./uiRenderer"
 
 export var ixer = eve;
 declare var uuid;
@@ -37,6 +38,21 @@ export function queryFromQueryDSL(ixer:runtime.Indexer, str:string):runtime.Quer
     else throw new Error(`Unknown query step type '${step.type}'`);
   }
   return query;
+}
+export function UIFromDSL(str:string):UI {
+  function processElem(data:UIElem):UI {
+    let elem = new UI(data.id || uuid());
+    if(data.binding) elem.bind(queryFromPlanDSL(data.binding));
+    if(data.embedded) elem.embed(data.embedded);
+    if(data.attributes) elem.attributes(data.attributes);
+    if(data.events) elem.events(data.events);
+    if(data.children) {
+      for(let child of data.children) elem.child(processElem(child));
+    }
+    return elem;
+  }
+
+  return processElem(parseUI(str));
 }
 
 class BSPhase {
@@ -126,6 +142,14 @@ class BSPhase {
     query.name = view;
     this.addView(view, "query", Object.keys(query.projectionMap || {}));
     this.changeset.merge(wiki.queryObjectToDiff(query));
+    return this;
+  }
+
+  addUI(id:string, ui:UI) {
+    ui.id = id;
+    this.addEntity(id, id, ["system", "ui"]);
+    this.changeset.merge(ui.changeset(this.ixer));
+    return this;
   }
 }
 
@@ -139,7 +163,8 @@ app.init("bootstrap", function bootstrap() {
     .addEntity("system", "system", ["collection"])
     .addEntity("union", "union", ["system", "collection"])
     .addEntity("query", "query", ["system", "collection"])
-    .addEntity("table", "table", ["system", "collection"]);
+    .addEntity("table", "table", ["system", "collection"])
+    .addEntity("ui", "ui", ["system", "collection"]);
 
   phase.addUnion("entity", ["entity", "content"])
     .addUnionMember("entity", "manual entity")
@@ -207,6 +232,20 @@ app.init("bootstrap", function bootstrap() {
     deselect builtin entity {entity: [coll, collection]}
     calculate collection content {collection: [coll, collection]} as [content]
     project {entity: [coll, collection]; content: [content,content]}
+  `));
+
+  phase.apply();
+
+  //-----------------------------------------------------------------------------
+  // UI
+  //-----------------------------------------------------------------------------
+  phase = new BSPhase(eve);
+  phase.addUI("wiki root", UIFromDSL(unpad(4) `
+    div wiki-root {background: pink}
+      header {text: header}
+      content {text: [pet, pet]}
+        ~ gather pet as [pet]
+      footer {text: footer}
   `));
 
   phase.apply();
