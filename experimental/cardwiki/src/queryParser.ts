@@ -10,7 +10,7 @@ declare var uuid;
 window["eve"] = eve;
 
 //---------------------------------------------------------
-// Tokens
+// Token types
 //---------------------------------------------------------
 
 enum TokenTypes {
@@ -23,6 +23,10 @@ enum TokenTypes {
   text,
 }
 
+//---------------------------------------------------------
+// Modifiers
+//---------------------------------------------------------
+
 var modifiers = {
   "and": {and: true},
   "or": {or: true},
@@ -34,20 +38,80 @@ var modifiers = {
   "all": {every: true},
   "every": {every: true},
 };
+
+//---------------------------------------------------------
+// Patterns
+//---------------------------------------------------------
+
+function closestAttribute(cursor) {
+  for(let ix = cursor.children.length; ix > -1; ix--) {
+    let node = cursor.children[ix];
+    if(node.type === TokenTypes.attribute) {
+      return node;
+    }
+  }
+  return;
+}
+
 var patterns = {
-  "<": {
-    type: "operation",
+  "older": {
+    type: "rewrite",
+    rewrites: [{attribute: "age", text: "age >"}],
+  },
+  "younger": {
+    type: "rewrite",
+    rewrites: [{attribute: "age", text: "age <"}],
+  },
+  "cheaper": {
+    type: "rewrite",
+    rewrites: [{attribute: "price", text: "price <"}, {attribute: "cost", text: "cost <"}]
+  },
+  "greater than": {
+    type: "rewrite",
+    rewrites: [{text: ">"}],
+  },
+  "years old": {
+    type: "rewrite",
+    rewrites: [{attribute: "age", text: "age"}],
+  },
+  "sum" :{
+    type: "aggregate",
+    op: "sum",
+    // sum sales per person
+    // sum sales
+    // people whose sum of sales is < 10
+    getArgs: (tokens, tokenIx, cursor) => {
+      console.log(cursor);
+    }
+  },
+  "top": {
+    type: "filter",
     op: "<",
-    patterns: [
-      [TokenTypes.attribute, "<", TokenTypes.attribute],
-      [TokenTypes.attribute, "<", TokenTypes.value],
-      [TokenTypes.attribute, "<", TokenTypes.entity],
-      ["<", TokenTypes.entity],
-      ["<", TokenTypes.attribute],
-      ["<", TokenTypes.value],
-    ]
+    getArgs: (tokens, tokenIx, cursor, tree) => {
+
+    }
+  },
+  "<": {
+    type: "filter",
+    op: "<",
+    getArgs: (tokens, tokenIx, cursor, tree) => {
+
+    }
+  },
+  ">": {
+    type: "filter",
+    op: "<",
+    getArgs: (tokens, tokenIx, cursor) => {
+      // let left = closestAttribute(cursor);
+      // console.log(cursor);
+      // return [left, ];
+    }
   },
 };
+
+//---------------------------------------------------------
+// Tokenizer
+//---------------------------------------------------------
 
 function checkForToken(token): any {
   var found;
@@ -305,7 +369,8 @@ function findCollectionToCollectionRelationship(coll, coll2) {
 // Token tree
 //---------------------------------------------------------
 
-function tokensToTree(tokens) {
+function tokensToTree(origTokens) {
+  let tokens = origTokens;
   let roots = [];
   let operations = [];
   let groups = [];
@@ -324,7 +389,8 @@ function tokensToTree(tokens) {
     }
   }
 
-  if(!directObject) return {directObject, roots, operations, groups};
+  let tree = {directObject, roots, operations, groups};
+  if(!directObject) return tree;
 
   // the direct object is always the first root
   roots.push(directObject);
@@ -334,7 +400,6 @@ function tokensToTree(tokens) {
   // need a reference to those previous subjects to see if the current token is
   // related to that or the directObject
   let indirectObject = directObject;
-
 
   for(let tokenIx = 0, len = tokens.length; tokenIx < len; tokenIx++) {
     let token = tokens[tokenIx];
@@ -362,7 +427,7 @@ function tokensToTree(tokens) {
           localTokenIx++;
         }
       }
-      // if we're dealing with an or we have two cases, we're either dealing with a negation
+      // if we're dealing with an "or" we have two cases, we're either dealing with a negation
       // or a split. If this is a deselected or, we don't really need to do anything because that
       // means we just do a deselected join. If it's not negated though, we're now dealing with
       // a second query context. e.g. people who are employees or spouses of employees
@@ -390,15 +455,21 @@ function tokensToTree(tokens) {
         while(localTokenIx < len && tokens[localTokenIx].type === TokenTypes.text) {
           localTokenIx++;
         }
+        // if we've run out of tokens, bail
         if(localTokenIx === len) break;
+        // otherwise, the next thing we found is what we're trying to group by
         let localToken = tokens[localTokenIx];
         localToken.grouped = true;
         groups.push(localToken);
         localTokenIx++;
+        // now we have to check if we're trying to group by multiple things, e.g.
+        // "per department and age" or "per department, team, and age"
         let next = tokens[localTokenIx];
         while(next && next.type === TokenTypes.modifier && (next.info.separator || next.info.and)) {
           localTokenIx++;
           next = tokens[localTokenIx];
+          // if we have another modifier directly after (e.g. ", and") loop again
+          // to see if this is valid.
           if(next && next.type === TokenTypes.modifier) {
             continue;
           }
@@ -412,6 +483,36 @@ function tokensToTree(tokens) {
     }
     // deal with patterns
     if(type === TokenTypes.pattern) {
+      if(info.type === "rewrite") {
+        let newText;
+        // if we only have one possible rewrite, we can just take it
+        if(info.rewrites.length === 1) {
+          newText = info.rewrites[0].text;
+        } else {
+          // @TODO: we have to go through every possibility and deal with it
+          newText = info.rewrites[0].text;
+        }
+        // Tokenize the new string
+        let newTokens = getTokens(newText);
+        // Splice in the new tokens, adjust the length and make sure we revisit this token.
+        len += newTokens.length;
+        tokens.splice.apply(tokens, [tokenIx+1, 0].concat(newTokens));
+        // apply any deselects, or's, or and's to this token
+        for(let newToken of newTokens) {
+          newToken.deselected = token.deselected;
+          newToken.and = token.and;
+          newToken.or = token.or;
+        }
+        continue;
+      } else if(info.type === "aggregate") {
+        let args = token.info.getArgs(tokens, tokenIx, indirectObject);
+        token.args = args;
+        operations.push(token);
+      } else if(info.type === "filter") {
+        let args = token.info.getArgs(tokens, tokenIx, indirectObject);
+        token.args = args;
+        operations.push(token);
+      }
       continue;
     }
 
@@ -427,11 +528,65 @@ function tokensToTree(tokens) {
     if(directObject === indirectObject) {
       directObject.children.push(token);
       token.relationship = determineRelationship(directObject, token);
+      token.parent = directObject;
+      indirectObject = token;
+    } else {
+      let potentialParent = indirectObject;
+      // if our indirect object is an attribute and we encounter another one, we want to check
+      // the parent of this node of a match
+      if(indirectObject.type === TokenTypes.attribute && token.type === TokenTypes.attribute) {
+        potentialParent = indirectObject.parent;
+      }
+
+      if(indirectObject.type === TokenTypes.attribute && token.type !== TokenTypes.attribute) {
+        indirectObject = token;
+        roots.push(indirectObject);
+      }
+      // the only valid child of an entity is an attribute, if the parent is an entity and
+      // the child is not an attribute, then this must be related to the directObject
+      else if(potentialParent.type === TokenTypes.entity && token.type !== TokenTypes.attribute) {
+        directObject.children.push(token);
+        token.relationship = determineRelationship(directObject, token);
+        token.parent = directObject;
+        indirectObject = token;
+      }
+      else {
+        let cursorRel = determineRelationship(potentialParent, token);
+        let rootRel = determineRelationship(directObject, token);
+        // if this token is an entity and either the directObject or indirectObject has a direct relationship
+        // we don't really want to use that as it's most likely meant to filter a set down
+        // instead of reduce the set to exactly one member.
+        if(token.type === TokenTypes.entity) {
+          if(cursorRel && cursorRel.distance === 0) cursorRel = null;
+          if(rootRel && rootRel.distance === 0) rootRel = null;
+        }
+        if(!cursorRel) {
+          directObject.children.push(token);
+          token.relationship = rootRel;
+          token.parent = directObject;
+        } else if(!rootRel) {
+          potentialParent.children.push(token);
+          token.relationship = cursorRel;
+          token.parent = potentialParent;
+        } else if(cursorRel.distance <= rootRel.distance) {
+          potentialParent.children.push(token);
+          token.relationship = cursorRel;
+          token.parent = potentialParent;
+        } else {
+          // @TODO: maybe if there's a cursorRel we should just always ignore the rootRel even if it
+          // is a "better" relationship. Sentence structure-wise it seems pretty likely that attributes
+          // following an entity are related to that entity and not something else.
+          directObject.children.push(token);
+          token.relationship = rootRel;
+          token.parent = directObject;
+        }
+        indirectObject = token;
+      }
     }
 
   }
 
-  return {directObject, roots, operations, groups};
+  return tree;
 }
 
 //---------------------------------------------------------
@@ -553,8 +708,33 @@ function groupsToPlan(nodes) {
   return [{type: "group", id: uuid(), groups, groupNodes: nodes}];
 }
 
+// Since intermediate plan steps can end up duplicated, we need to walk the plan to find
+// nodes that are exactly the same and only do them once. E.g. salaries per department and age
+// will bring in two employee gathers.
 function dedupePlan(plan) {
-  // for(let planIx = plan.length; planIx > 0; planIx--)
+  let dupes = {};
+  // for every node in the plan backwards
+  for(let planIx = plan.length - 1; planIx > -1; planIx--) {
+    let step = plan[planIx];
+    // check all preceding nodes for a node that is equivalent
+    for(let dupeIx = planIx - 1; dupeIx > -1;  dupeIx--) {
+      let dupe = plan[dupeIx];
+      // equivalency requires the same type, subject, deselect, and parent
+      if(step.type === dupe.type && step.subject === dupe.subject && step.deselected === dupe.deselected && step.relatedTo === dupe.relatedTo) {
+        // store the dupe and what node will replace it
+        dupes[step.id] = dupe.id;
+      }
+    }
+  }
+  return plan.filter((step) => {
+    // remove anything we found to be a dupe
+    if(dupes[step.id]) return false;
+    // if this step references a dupe, relate it to the new node
+    if(dupes[step.relatedTo]) {
+      step.relatedTo = dupes[step.relatedTo];
+    }
+    return true;
+  })
 }
 
 function treeToPlan(tree) {
@@ -562,6 +742,7 @@ function treeToPlan(tree) {
   for(let root of tree.roots) {
     plan = plan.concat(nodeToPlan(root));
   }
+  plan = dedupePlan(plan);
   for(let group of tree.groups) {
     plan.push({type: StepTypes.group, subject: group.found, subjectNode: group});
   }
@@ -596,13 +777,73 @@ var tests = {
   "robert attorri's age": {
     expected: [{type: StepTypes.find, subject: "robert attorri"}, {type: StepTypes.lookup, subject: "age"}]
   },
+  "people older than chris granger": {
+
+  },
+  "people whose age < 30": {
+
+  },
+  "people whose age < chris granger's age": {
+
+  },
+  "people whose age < chris granger's": {
+
+  },
+  "people older than chris granger and younger than edward norton": {
+
+  },
+  "people between 50 and 65 years old": {
+
+  },
+  "people whose age is between 50 and 65": {
+
+  },
+  "people who are 50-65 years old": {
+
+  },
+  "people older than chris granger's spouse": {
+
+  },
+  "people older than their spouse": {
+
+  },
+  "people who are either heads or spouses of heads": {
+
+  },
+  "people who have a hair color of red or black": {
+
+  },
+  "people who have neither attended a meeting nor had a one-on-one": {
+
+  },
   "salaries per department": {
     expected: [{type: StepTypes.gather, subject: "department"}, {type: StepTypes.gather, subject: "employee"}, {type: StepTypes.lookup, subject: "salary"}, {type: StepTypes.group, subject: "department"}]
   },
   "salaries per department and age": {
     expected: [{type: StepTypes.gather, subject: "department"}, {type: StepTypes.gather, subject: "employee"}, {type: StepTypes.lookup, subject: "salary"}, {type: StepTypes.lookup, subject: "age"}, {type: StepTypes.group, subject: "department"}, {type: StepTypes.group, subject: "age"}]
   },
-  "sum of the salaries per employee, department, and age": {
+  "salaries per department, employee, and age": {
+    expected: [{type: StepTypes.gather, subject: "department"}, {type: StepTypes.gather, subject: "employee"}, {type: StepTypes.lookup, subject: "salary"}, {type: StepTypes.lookup, subject: "age"}, {type: StepTypes.group, subject: "department"}, {type: StepTypes.group, subject: "employee"}, {type: StepTypes.group, subject: "age"}]
+  },
+  "sum of the salaries per department": {
+    expected: [{type: StepTypes.gather, subject: "department"}, {type: StepTypes.gather, subject: "employee"}, {type: StepTypes.lookup, subject: "salary"}, {type: StepTypes.group, subject: "department"}, {type: StepTypes.aggregate, subject: "sum", args: ["salary"]}]
+  },
+  "top 2 salaries per department": {
+
+  },
+  "sum of the top 2 salaries per department": {
+
+  },
+  "departments where all the employees are male": {
+
+  },
+  "departments where all the employees are over-40 males": {
+
+  },
+  "employees whose sales are greater than their salary": {
+
+  },
+  "count employees and their spouses": {
 
   },
   "dishes with eggs and chicken": {
@@ -636,51 +877,14 @@ var tests = {
   "people who live alone": {
 
   },
-  "departments where all the employees are male": {
 
-  },
-  "departments where all the employees are over-40 males": {
-
-  },
   "everyone in this room speaks at least two languages": {
 
   },
   "at least two languages are spoken by everyone in this room": {
 
   },
-  "people whose age < 30": {
 
-  },
-  "people whose age < chris granger's age": {
-
-  },
-  "people whose age < chris granger's": {
-
-  },
-  "people older than chris granger and younger than edward norton": {
-
-  },
-  "people aged between 50 and 65": {
-
-  },
-  "people whose age is between 50 and 65": {
-
-  },
-  "people who are 50-65 years old": {
-
-  },
-  "people who are either heads or spouses of heads": {
-
-  },
-  "people who have a hair color of red or black": {
-
-  },
-  "people who have neither attended a meeting nor had a one-on-one": {
-
-  },
-  "count employees and their spouses": {
-
-  },
 
   "friends older than the average age of people with pets": {
 
@@ -778,6 +982,7 @@ function groupTree(root) {
 }
 
 function testSearch(search, info) {
+  let start = performance.now();
   let tokens = getTokens(search);
   let tree = tokensToTree(tokens);
   let plan = treeToPlan(tree);
@@ -800,7 +1005,7 @@ function testSearch(search, info) {
         }
       })
   }
-  return {tokens, tree, plan, valid, validated: !!info.expected, expectedPlan, search};
+  return {tokens, tree, plan, valid, validated: !!info.expected, expectedPlan, search, time: performance.now() - start};
 }
 
 function searchResultUi(result) {
@@ -861,9 +1066,16 @@ function searchResultUi(result) {
 
   return {c: `search ${klass}`, children: [
     {c: "search-header", text: `${search}`},
+
     tokensNode,
     treeNode,
     planNode,
+    {c: "tokens", children: [
+      {c: "header", text: "Performance"},
+      {c: "kids", children: [
+        {c: "time", text: `Total: ${result.time.toFixed(2)}ms`},
+      ]}
+    ]}
   ]};
 }
 
