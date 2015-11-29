@@ -223,7 +223,7 @@ let parsePlanStep:{[step: string]: (line: string, lineIx: number, charIx: number
     charIx += filter.length;
     filter = filter.trim();
     if(!filter)
-      return new ParseError(`Filter step must specify a valid filter id`, line, lineIx, lastIx);
+      return new ParseError(`Filter step must specify a valid filter fn`, line, lineIx, lastIx);
 
     let args;
     [args, charIx] = getMapArgs(line, lineIx, charIx);
@@ -231,6 +231,25 @@ let parsePlanStep:{[step: string]: (line: string, lineIx: number, charIx: number
     if(line.length > charIx) return new ParseError(`Filter step contains extraneous text`, line, lineIx, charIx);
 
     let step:PlanFilter = {type: "filter", id: alias, func: filter, args};
+    return step;
+  },
+  calculate(line, lineIx, charIx) {
+    // filter positive
+    // filter >; a: 7, b: [person age]
+    while(line[charIx] === " ") charIx++;
+    let [alias, aliasIx] = getAlias(line, lineIx, charIx);
+    let lastIx = charIx;
+    let filter = readUntil(line, "{", charIx); // @NOTE: Need to remove alias
+    charIx += filter.length;
+    filter = filter.trim();
+    if(!filter)
+      return new ParseError(`Calculate step must specify a valid calculate fn`, line, lineIx, lastIx);
+
+    let args;
+    [args, charIx] = getMapArgs(line, lineIx, charIx);
+    if(args instanceof Error) return args;
+
+    let step:PlanFilter = {type: "calculate", id: alias, func: filter, args};
     return step;
   }
 };
