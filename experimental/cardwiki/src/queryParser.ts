@@ -77,35 +77,29 @@ var patterns = {
   "sum" :{
     type: "aggregate",
     op: "sum",
+    args: ["a"],
     // sum sales per person
     // sum sales
     // people whose sum of sales is < 10
-    getArgs: (tokens, tokenIx, cursor) => {
-      console.log(cursor);
-    }
   },
   "top": {
-    type: "filter",
-    op: "<",
-    getArgs: (tokens, tokenIx, cursor, tree) => {
-
-    }
+    type: "sort and limit",
+    resultingIndirectObject: 1,
+    args: ["limit", "attribute"],
   },
   "<": {
     type: "filter",
     op: "<",
-    getArgs: (tokens, tokenIx, cursor, tree) => {
-
-    }
+    infix: true,
+    resultingIndirectObject: 0,
+    args: ["a", "b"],
   },
   ">": {
     type: "filter",
-    op: "<",
-    getArgs: (tokens, tokenIx, cursor) => {
-      // let left = closestAttribute(cursor);
-      // console.log(cursor);
-      // return [left, ];
-    }
+    op: ">",
+    infix: true,
+    resultingIndirectObject: 0,
+    args: ["a", "b"],
   },
 };
 
@@ -395,7 +389,7 @@ function tokensToTree(origTokens) {
   // the direct object is always the first root
   roots.push(directObject);
   // we need to keep state as we traverse the tokens for modifiers and patterns
-  let state = {};
+  let state = {patternStack: [], currentPattern: null, lastAttribute: null};
   // as we parse the query we may encounter other subjects in the sentence, we
   // need a reference to those previous subjects to see if the current token is
   // related to that or the directObject
@@ -404,6 +398,29 @@ function tokensToTree(origTokens) {
   for(let tokenIx = 0, len = tokens.length; tokenIx < len; tokenIx++) {
     let token = tokens[tokenIx];
     let {type, info, found} = token;
+
+    // check if the last pass finshed our current pattern.
+    if(state.currentPattern && state.currentPattern.args.length) {
+      let args = state.currentPattern.args;
+      let infoArgs = state.currentPattern.info.args;
+      let latestArg = args[args.length - 1];
+      let latestArgComplete = latestArg.type === TokenTypes.attribute || latestArg.type === TokenTypes.value;
+      while(args.length === infoArgs.length && latestArgComplete) {
+        let {resultingIndirectObject} = state.currentPattern.info;
+        if(resultingIndirectObject !== undefined) {
+          indirectObject = args[resultingIndirectObject];
+        } else {
+          indirectObject = state.currentPattern;
+        }
+        state.currentPattern = state.patternStack.pop();
+        if(!state.currentPattern) break;
+        args = state.currentPattern.args;
+        infoArgs = state.currentPattern.info.args;
+        args.push(indirectObject);
+        latestArg = args[args.length - 1];
+        latestArgComplete = latestArg.type === TokenTypes.attribute || latestArg.type === TokenTypes.value;
+      }
+    }
 
     // deal with modifiers
     if(type === TokenTypes.modifier) {
@@ -504,26 +521,40 @@ function tokensToTree(origTokens) {
           newToken.or = token.or;
         }
         continue;
-      } else if(info.type === "aggregate") {
-        let args = token.info.getArgs(tokens, tokenIx, indirectObject);
-        token.args = args;
+      } else {
+        // otherwise it's an operation of some kind
         operations.push(token);
-      } else if(info.type === "filter") {
-        let args = token.info.getArgs(tokens, tokenIx, indirectObject);
-        token.args = args;
-        operations.push(token);
+        // keep track of any other patterns we're trying to fill right now
+        if(state.currentPattern) {
+          state.patternStack.push(state.currentPattern);
+        }
+        state.currentPattern = token;
+        state.currentPattern.args = [];
+      }
+      if(info.infix) {
+        state.currentPattern.args.push(indirectObject);
       }
       continue;
     }
 
     // deal with values
     if(type === TokenTypes.value) {
+      // if we still have a currentPattern to fill
+      if(state.currentPattern && state.currentPattern.args.length < state.currentPattern.info.args.length) {
+        state.currentPattern.args.push(token);
+      }
       continue;
     }
 
+    //We don't do anything with text nodes at this point
+    if(type === TokenTypes.text) continue;
+
     // once modifiers and patterns have been applied, we don't need to worry
     // about the directObject as it's already been asigned to the first root.
-    if(directObject === token || type === TokenTypes.text) continue;
+    if(directObject === token) {
+      indirectObject = directObject;
+      continue;
+    }
 
     if(directObject === indirectObject) {
       directObject.children.push(token);
@@ -533,14 +564,22 @@ function tokensToTree(origTokens) {
     } else {
       let potentialParent = indirectObject;
       // if our indirect object is an attribute and we encounter another one, we want to check
-      // the parent of this node of a match
+      // the parent of this node for a match
       if(indirectObject.type === TokenTypes.attribute && token.type === TokenTypes.attribute) {
         potentialParent = indirectObject.parent;
       }
-
+      // if the indirect object is an attribute, anything other than another attribute will create
+      // a new root
       if(indirectObject.type === TokenTypes.attribute && token.type !== TokenTypes.attribute) {
-        indirectObject = token;
-        roots.push(indirectObject);
+        let rootRel = determineRelationship(directObject, token);
+        if(!rootRel || (rootRel.distance === 0 && token.type === TokenTypes.entity)) {
+          indirectObject = token;
+          roots.push(indirectObject);
+        } else {
+          directObject.children.push(token);
+          token.relationship = rootRel;
+          token.parent = directObject;
+        }
       }
       // the only valid child of an entity is an attribute, if the parent is an entity and
       // the child is not an attribute, then this must be related to the directObject
@@ -584,8 +623,41 @@ function tokensToTree(origTokens) {
       }
     }
 
+    // if we are still looking to fill in a pattern
+    if(state.currentPattern) {
+      let args = state.currentPattern.args;
+      let infoArgs = state.currentPattern.info.args;
+      let latestArg = args[args.length - 1];
+      let latestArgComplete = !latestArg || latestArg.type === TokenTypes.attribute || latestArg.type === TokenTypes.value;
+      let firstArg = args[0];
+      if(!latestArgComplete && indirectObject.type === TokenTypes.attribute) {
+        args.pop();
+        args.push(indirectObject);
+      } else if(latestArgComplete && args.length < infoArgs.length) {
+          args.push(indirectObject);
+          latestArg = indirectObject;
+      }
+    }
   }
-
+  // if we've run out of tokens and are still looking to fill in a pattern,
+  // we might need to carry the attribute through.
+  if(state.currentPattern && state.currentPattern.args.length) {
+    let args = state.currentPattern.args;
+    let infoArgs = state.currentPattern.info.args;
+    let latestArg = args[args.length - 1];
+    let latestArgComplete = latestArg.type === TokenTypes.attribute || latestArg.type === TokenTypes.value;
+    let firstArg = args[0];
+    // e.g. people older than chris granger => people age > chris granger age
+    if(!latestArgComplete && firstArg && firstArg.type === TokenTypes.attribute) {
+      let newArg:any = {type: firstArg.type, found: firstArg.found, orig: firstArg.orig, info: firstArg.info, id: uuid(), children: []};
+      let cursorRel = determineRelationship(latestArg, newArg);
+      newArg.relationship = cursorRel;
+      newArg.parent = latestArg;
+      latestArg.children.push(newArg);
+      args.pop();
+      args.push(newArg);
+    }
+  }
   return tree;
 }
 
@@ -708,6 +780,35 @@ function groupsToPlan(nodes) {
   return [{type: "group", id: uuid(), groups, groupNodes: nodes}];
 }
 
+function opToPlan(op): any {
+  let info = op.info;
+  let args = {};
+  if(info.args) {
+    let ix = 0;
+    for(let arg of info.args) {
+      let argValue = op.args[ix];
+      if(argValue === undefined) continue;
+      if(argValue.type === TokenTypes.value) {
+        args[arg] = JSON.parse(argValue.orig);
+      } else if(argValue.type === TokenTypes.attribute) {
+        args[arg] = [argValue.id, "value"];
+      } else {
+        console.error(`Invalid operation argument: ${argValue.orig} for ${op.found}`);
+      }
+      ix++;
+    }
+  }
+  if(info.type === "aggregate") {
+    return [{type: StepTypes.aggregate, subject: info.op, args, id: uuid(), argArray: op.args}];
+  } else if(info.type === "sort and limit") {
+    return [];
+  } else if(info.type === "filter") {
+    return [{type: StepTypes.filter, subject: info.op, args, id: uuid(), argArray: op.args}];
+  } else {
+    return [{type: StepTypes.calculate, subject: info.op, args, id: uuid(), argArray: op.args}];
+  }
+}
+
 // Since intermediate plan steps can end up duplicated, we need to walk the plan to find
 // nodes that are exactly the same and only do them once. E.g. salaries per department and age
 // will bring in two employee gathers.
@@ -746,6 +847,9 @@ function treeToPlan(tree) {
   for(let group of tree.groups) {
     plan.push({type: StepTypes.group, subject: group.found, subjectNode: group});
   }
+  for(let op of tree.operations) {
+    plan = plan.concat(opToPlan(op));
+  }
   return plan;
 }
 
@@ -756,6 +860,19 @@ function treeToPlan(tree) {
 function validateStep(step, expected) {
   if(!step || step.type !== expected.type || step.subject !== expected.subject || step.deselected !== expected.deselected) {
     return false;
+  }
+  if(expected.args) {
+    let ix = 0;
+    for(let exArg of expected.args) {
+      let arg = step.argArray[ix];
+      if(arg.found !== exArg.subject) {
+        return false;
+      }
+      if(exArg.parent && (!arg.parent || arg.parent.found !== exArg.parent)) {
+        return false;
+      }
+      ix++
+    }
   }
   return true;
 }
@@ -778,16 +895,50 @@ var tests = {
     expected: [{type: StepTypes.find, subject: "robert attorri"}, {type: StepTypes.lookup, subject: "age"}]
   },
   "people older than chris granger": {
-
+    expected: [
+      {type: StepTypes.gather, subject: "person"},
+      {type: StepTypes.lookup, subject: "age"},
+      {type: StepTypes.find, subject: "chris granger"},
+      {type: StepTypes.lookup, subject: "age"},
+      {type: StepTypes.filter, subject: ">", args: [
+        {parent: "person", subject: "age"},
+        {parent: "chris granger", subject: "age"}
+      ]}
+    ]
   },
   "people whose age < 30": {
-
+    expected: [
+      {type: StepTypes.gather, subject: "person"},
+      {type: StepTypes.lookup, subject: "age"},
+      {type: StepTypes.filter, subject: "<", args: [
+        {parent: "person", subject: "age"},
+        {subject: "30"}
+      ]}
+    ]
   },
   "people whose age < chris granger's age": {
-
+    expected: [
+      {type: StepTypes.gather, subject: "person"},
+      {type: StepTypes.lookup, subject: "age"},
+      {type: StepTypes.find, subject: "chris granger"},
+      {type: StepTypes.lookup, subject: "age"},
+      {type: StepTypes.filter, subject: "<", args: [
+        {parent: "person", subject: "age"},
+        {parent: "chris granger", subject: "age"}
+      ]}
+    ]
   },
   "people whose age < chris granger's": {
-
+    expected: [
+      {type: StepTypes.gather, subject: "person"},
+      {type: StepTypes.lookup, subject: "age"},
+      {type: StepTypes.find, subject: "chris granger"},
+      {type: StepTypes.lookup, subject: "age"},
+      {type: StepTypes.filter, subject: "<", args: [
+        {parent: "person", subject: "age"},
+        {parent: "chris granger", subject: "age"}
+      ]}
+    ]
   },
   "people older than chris granger and younger than edward norton": {
 
@@ -826,7 +977,7 @@ var tests = {
     expected: [{type: StepTypes.gather, subject: "department"}, {type: StepTypes.gather, subject: "employee"}, {type: StepTypes.lookup, subject: "salary"}, {type: StepTypes.lookup, subject: "age"}, {type: StepTypes.group, subject: "department"}, {type: StepTypes.group, subject: "employee"}, {type: StepTypes.group, subject: "age"}]
   },
   "sum of the salaries per department": {
-    expected: [{type: StepTypes.gather, subject: "department"}, {type: StepTypes.gather, subject: "employee"}, {type: StepTypes.lookup, subject: "salary"}, {type: StepTypes.group, subject: "department"}, {type: StepTypes.aggregate, subject: "sum", args: ["salary"]}]
+    expected: [{type: StepTypes.gather, subject: "department"}, {type: StepTypes.gather, subject: "employee"}, {type: StepTypes.lookup, subject: "salary"}, {type: StepTypes.group, subject: "department"}, {type: StepTypes.aggregate, subject: "sum", args: [{parent: "department", subject: "salary"}]}]
   },
   "top 2 salaries per department": {
 
@@ -1025,7 +1176,16 @@ function searchResultUi(result) {
       {c: "header2", text: "Roots"},
       {c: "kids", children: tree.roots.map(groupTree)},
       {c: "header2", text: "Operations"},
-      {c: "kids", children: tree.operations.map(groupTree)},
+      {c: "kids", children: tree.operations.map((root) => {
+        console.log(root);
+        return {c: "tokens", children: [
+          {c: `node ${TokenTypes[root.type]}`, text: `${root.found}`},
+          {c: "kids", children: root.args.map((token) => {
+            let parent = token.parent ? token.parent.found + "." : "";
+            return {c: `node ${TokenTypes[token.type]}`, text: `${parent}${token.found}`}
+          })}
+        ]};
+      })},
       {c: "header2", text: "Groups"},
       {c: "kids", children: tree.groups.map((root) => {
         return {c: `node ${TokenTypes[root.type]}`, text: `${root.found}`};
@@ -1033,7 +1193,7 @@ function searchResultUi(result) {
     ]}
   ]};
 
-  //tokens
+  //plan
   let planNode;
   let klass = "";
   if(validated) {
@@ -1051,7 +1211,11 @@ function searchResultUi(result) {
             return {c: `step ${info.state}`, text: `none ${message}`};
           }
         }
-        return {c: `step ${info.state}`, text: `${StepTypes[actual.type]} ${actual.deselected ? "!" : ""}${actual.subject}${message}`};
+        let args = "";
+        if(actual.argArray) {
+          args = " " + actual.argArray.map((arg) => arg.found).join(", ");
+        }
+        return {c: `step ${info.state}`, text: `${StepTypes[actual.type]} ${actual.deselected ? "!" : ""}${actual.subject}${args}${message}`};
       })}
     ]};
   } else {
@@ -1059,7 +1223,11 @@ function searchResultUi(result) {
       {c: "header", text: "Plan"},
       {c: "kids", children: plan.map((step) => {
         let deselected = step.deselected ? "!" : "";
-        return {c: "node", text: `${StepTypes[step.type]} ${deselected}${step.subject}`}
+        let args = "";
+        if(step.argArray) {
+          args = " " + step.argArray.map((arg) => arg.found).join(", ");
+        }
+        return {c: "node", text: `${StepTypes[step.type]} ${deselected}${step.subject}${args}`}
       })}
     ]};
   }
