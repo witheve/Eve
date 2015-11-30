@@ -571,8 +571,15 @@ function tokensToTree(origTokens) {
       // if the indirect object is an attribute, anything other than another attribute will create
       // a new root
       if(indirectObject.type === TokenTypes.attribute && token.type !== TokenTypes.attribute) {
-        indirectObject = token;
-        roots.push(indirectObject);
+        let rootRel = determineRelationship(directObject, token);
+        if(!rootRel || (rootRel.distance === 0 && token.type === TokenTypes.entity)) {
+          indirectObject = token;
+          roots.push(indirectObject);
+        } else {
+          directObject.children.push(token);
+          token.relationship = rootRel;
+          token.parent = directObject;
+        }
       }
       // the only valid child of an entity is an attribute, if the parent is an entity and
       // the child is not an attribute, then this must be related to the directObject
