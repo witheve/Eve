@@ -1,4 +1,5 @@
-import {Element} from "./microReact";
+import {unpad} from "./utils";
+import {Element, Handler} from "./microReact";
 import {Indexer, Query} from "./runtime";
 import * as wiki from "./wiki";
 declare var uuid;
@@ -164,7 +165,8 @@ interface UiWarning {
 // @TODO: Then build bit-generating version
 export class UIRenderer {
   public compiled = 0;
-  protected tagCompilers:{[tag: string]: (elem:Element) => void} = {};
+  protected _tagCompilers:{[tag: string]: (elem:Element) => void} = {};
+  protected _handlers:Handler<Event>[] = [];
 
   constructor(public ixer:Indexer) {}
 
@@ -226,7 +228,6 @@ export class UIRenderer {
     let elementToAttrs = this.ixer.index("ui attribute", ["ui attribute: template"]);
     let elementToAttrBindings = this.ixer.index("ui attribute binding", ["ui attribute binding: template"]);
     let elementToEvents = this.ixer.index("ui event", ["ui event: template"]);
-    let elementToEventBindings = this.ixer.index("ui event binding", ["ui event binding: template"]);
     this.compiled++;
     let base = this.ixer.findOne("ui template", {"ui template: template": template});
     if(!base) {
@@ -237,7 +238,6 @@ export class UIRenderer {
     let attrs = elementToAttrs[template];
     let boundAttrs = elementToAttrBindings[template];
     let events = elementToEvents[template];
-    let boundEvents = elementToEventBindings[template];
 
     // Handle meta properties
     let elem:Element = {_template: template, ix: base["ui template: ix"]};
@@ -256,7 +256,7 @@ export class UIRenderer {
 
     // Attach event handlers
     if(events) {
-      for(let {"ui event: event": event} of events) elem[event] = this.generateEventHandler(elem, event);
+      for(let {"ui event: event": event} of events) elem[event] = this.generateEventHandler(elem, event, bindingStack);
     }
 
     // Compile children
@@ -290,9 +290,9 @@ export class UIRenderer {
       }
     }
 
-    if(this.tagCompilers[elem.t]) {
+    if(this._tagCompilers[elem.t]) {
       try {
-        this.tagCompilers[elem.t](elem);
+        this._tagCompilers[elem.t](elem);
       } catch(err) {
         console.warn(`Failed to compile template: '${template}' due to '${err}' for element '${JSON.stringify(elem)}'`);
         elem.t = "ui-error";
@@ -320,9 +320,74 @@ export class UIRenderer {
       if(source in fact && fact[alias]) return fact[alias];
     }
   }
-  protected generateEventHandler(elem, event) {
-    // @TODO: Pull event state and event state binding
-    throw new Error("Implement me!");
+  protected generateEventHandler(elem:Element, event:string, bindingStack:any[]):Handler<Event> {
+    let template = elem["_template"];
+    let memoKey = `${template}::${event}`;
+    let attrKey = `${event}::state`;
+    elem[attrKey] = this.getEventState(template, event, bindingStack);
+    if(this._handlers[memoKey]) return this._handlers[memoKey];
+
+    let self = this;
+    if(event === "change" || event === "input") {
+      this._handlers[memoKey] = (evt:Event, elem:Element) => {
+        let props:any = {};
+        if(elem.t === "select" || elem.t === "input" || elem.t === "textarea") props.value = (<HTMLSelectElement|HTMLInputElement>evt.target).value;
+        if(elem.type === "checkbox") props.value = (<HTMLInputElement>evt.target).checked;
+        self.handleEvent(template, event, evt, elem, props);
+      };
+    } else {
+      this._handlers[memoKey] = (evt:Event, elem:Element) => {
+        self.handleEvent(template, event, evt, elem, {});
+      }
+    }
+
+    return this._handlers[memoKey];
+  }
+  protected handleEvent(template:string, eventName:string, event:Event, elem:Element, eventProps:{}) {
+    let attrKey = `${eventName}::state`;
+    let state = elem[attrKey];
+    let content = unpad(6) `
+      # ${eventName} ({is a: event})
+      ## Meta
+      event target: {event target: ${elem.id}}
+      event template: {event template: ${template}}
+      event type: {event type: ${eventName}}
+
+      ## State
+    `;
+    if(state["*event*"]) {
+      for(let prop in state["*event*"])
+        content += `${prop}: {${prop}: ${eventProps[state["*event*"][prop]]}}\n`;
+    }
+    for(let prop in state) {
+      if(prop === "*event*") continue;
+      content += `${prop}: {${prop}: ${state[prop]}}\n`
+    }
+
+    let changeset = this.ixer.diff();
+    let raw = uuid();
+    let entity = `${eventName} event ${raw.slice(-12)}`;
+    changeset.add("builtin entity", {entity, content});
+    this.ixer.applyDiff(changeset);
+    console.log(entity);
+  }
+
+  protected getEventState(template:string, event:string, bindingStack:any[]):{} {
+    let state = {};
+    let staticAttrs = this.ixer.find("ui event state", {"ui event state: template": template, "ui event state: event": event});
+    for(let {"ui event state: key": key, "ui event state: value": val} of staticAttrs) state[key] = val;
+
+    let boundAttrs = this.ixer.find("ui event state binding", {"ui event state binding: template": template, "ui event state binding: event": event});
+    for(let {"ui event state binding: key": key, "ui event state binding: source": source, "ui event state binding: alias": alias} of boundAttrs) {
+      if(source === "*event*") {
+        state["*event*"] = state["*event*"] || {};
+        state["*event*"][key] = alias;
+      } else {
+        state[key] = this.getBoundValue(source, alias, bindingStack);
+      }
+    }
+
+    return state;
   }
 }
 
