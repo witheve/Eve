@@ -1240,8 +1240,8 @@ app.handle("setSearch", (result, info) => {
   }
   let newSearchValue = info.value.trim();
   app.activeSearches[searchId] = newSearch(newSearchValue);
-  result.remove("search query", {id: searchId});
-  result.add("search query", {id: searchId, search: newSearchValue});
+  result.remove("builtin search query", {id: searchId});
+  result.add("builtin search query", {id: searchId, search: newSearchValue});
 });
 
 app.handle("submitAction", (result, info) => {
@@ -1262,15 +1262,15 @@ app.handle("addNewSearch", (result, info) => {
   let id = uuid();
   let search = info.search || "foo";
   app.activeSearches[id] = newSearch(search);
-  result.add("search", {id, top: info.top || 100, left: info.left || 100});
-  result.add("search query", {id, search});
+  result.add("builtin search", {id, top: info.top || 100, left: info.left || 100});
+  result.add("builtin search query", {id, search});
 });
 
 app.handle("removeSearch", (result, info) => {
   let {searchId} = info;
   if(!searchId) return;
-  result.remove("search", {id: searchId});
-  result.remove("search query", {id: searchId});
+  result.remove("builtin search", {id: searchId});
+  result.remove("builtin search query", {id: searchId});
   app.activeSearches[searchId] = null;
 });
 
@@ -1305,8 +1305,8 @@ app.handle("stopDragging", (result, info) => {
 
 app.handle("moveSearch", (result, info) => {
   let {searchId, x, y} = info;
-  result.remove("search", {id: searchId});
-  result.add("search", {id: searchId, top: y - dragging.offsetTop, left: x - dragging.offsetLeft});
+  result.remove("builtin search", {id: searchId});
+  result.add("builtin search", {id: searchId, top: y - dragging.offsetTop, left: x - dragging.offsetLeft});
 });
 
 app.handle("toggleShowPlan", (result, info) => {
@@ -1691,28 +1691,6 @@ function editEntity(e, elem) {
 
 function followLink(e, elem) {
   app.dispatch("setSearch", {value: elem.linkText, searchId: elem.searchId}).commit();
-}
-
-function first2Letters(str) {
-  let items = str.split(" ");
-  let text = "";
-  if(items.length > 1) {
-    text = items[0][0] + items[1][0];
-  } else if(items.length) {
-    text = items[0].substring(0, 2);
-  }
-  return text;
-}
-
-function historyStack() {
-  let stack = eve.find("history stack");
-  stack.sort((a, b) => a.pos - b.pos);
-  let stackItems = stack.map((item) => {
-    let link = item["entity"];
-    let text = first2Letters(link);
-    return {c: "link", text, linkText: link, click: followLink};
-  });
-  return {c: "history-stack", children: stackItems};
 }
 
 function saveSearch(name, query) {
@@ -2242,8 +2220,8 @@ function initEve() {
   if(!stored) {
     var diff = eve.diff();
     let id = uuid();
-    diff.add("search", {id, top: 100, left: 100});
-    diff.add("search query", {id, search: "foo"});
+    diff.add("builtin search", {id, top: 100, left: 100});
+    diff.add("builtin search query", {id, search: "foo"});
     eve.applyDiff(diff);
   } else {
     eve.load(stored);

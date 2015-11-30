@@ -25,7 +25,9 @@ export function queryFromPlanDSL(str:string):runtime.Query {
 export function queryFromQueryDSL(ixer:runtime.Indexer, str:string):runtime.Query {
   let plan = parseQuery(str);
   let query = new runtime.Query(ixer);
+  let ix = 0;
   for(let step of plan) {
+    let id = step.id || `${step.type}||${ix}`;
     if(step.type === "select") query.select(step["view"], step["join"] || {}, step.id);
     else if(step.type === "deselect") query.deselect(step["view"], step["join"] || {});
     else if(step.type === "calculate") query.calculate(step["func"], step["args"], step.id);
@@ -51,7 +53,6 @@ export function UIFromDSL(str:string):UI {
     }
     return elem;
   }
-
   return processElem(parseUI(str));
 }
 
@@ -67,10 +68,14 @@ class BSPhase {
   viewFields(view:string) {
     return this._viewFields[view];
   }
-  apply() {
+  apply(nukeExisting?:boolean) {
     for(let view in this._views) {
-      if(this._views[view] !== "table") continue;
-      ixer.addTable(view, this.viewFields[view]);
+
+      if(this._views[view] !== "table") {
+        if(nukeExisting) wiki.removeView(view);
+      } else {
+        ixer.addTable(view, this.viewFields[view]);
+      }
     }
     ixer.applyDiff(this.changeset);
   }
@@ -113,11 +118,13 @@ class BSPhase {
     return this;
   }
 
-  addUnion(view:string, fields:string[]) {
-    let table = `builtin ${view}`;
-    this.addTable(table, fields);
+  addUnion(view:string, fields:string[], builtin:boolean = true) {
     this.addView(view, "union", fields);
-    this.addUnionMember(view, table);
+    if(builtin) {
+      let table = `builtin ${view}`;
+      this.addTable(table, fields);
+      this.addUnionMember(view, table);
+    }
     return this;
   }
 
@@ -154,11 +161,12 @@ class BSPhase {
 }
 
 app.init("bootstrap", function bootstrap() {
+  //-----------------------------------------------------------------------------
+  // Entity System
+  //-----------------------------------------------------------------------------
   let phase = new BSPhase(eve);
-
   phase.addTable("manual entity", ["entity", "content"]);
   phase.addTable("action entity", ["entity", "content", "source"]);
-
   phase.addEntity("collection", "collection", ["system"])
     .addEntity("system", "system", ["collection"])
     .addEntity("union", "union", ["system", "collection"])
@@ -166,11 +174,19 @@ app.init("bootstrap", function bootstrap() {
     .addEntity("table", "table", ["system", "collection"])
     .addEntity("ui", "ui", ["system", "collection"]);
 
-  phase.addUnion("entity", ["entity", "content"])
+  phase.addUnion("entity", ["entity", "content"], false)
     .addUnionMember("entity", "manual entity")
     .addUnionMember("entity", "action entity")
     .addUnionMember("entity", "unmodified added bits")
-    .addUnionMember("entity", "automatic collection entities");
+    .addUnionMember("entity", "automatic collection entities")
+    .addTable("builtin entity", ["entity", "content"])
+    .addQuery("unmodified builtin entities", queryFromQueryDSL(phase.ixer, unpad(4) `
+      select builtin entity as [builtin]
+      deselect manual entity {entity: [builtin, entity]}
+      deselect action entity {entity: [builtin, entity]}
+      project {entity: [builtin, entity]; content: [builtin, content]}
+    `))
+    .addUnionMember("entity", "unmodified builtin entities");
 
   phase.addQuery("unmodified added bits", queryFromQueryDSL(phase.ixer, unpad(4) `
     select added bits as [added]
@@ -234,7 +250,7 @@ app.init("bootstrap", function bootstrap() {
     project {entity: [coll, collection]; content: [content,content]}
   `));
 
-  phase.apply();
+  phase.apply(true);
 
   //-----------------------------------------------------------------------------
   // UI
@@ -258,15 +274,34 @@ app.init("bootstrap", function bootstrap() {
 
   phase.addTable("system ui", ["template"]);
   phase.addFact("system ui", {template: "wiki root"});
-  phase.addUI("wiki root", UIFromDSL(unpad(4) `
-    div wiki-root
+  let wikiRoot = UIFromDSL(unpad(4) `
+    div wiki-root {color: fuchsia}
       header {text: header}
-      content {text: [pet, pet]}
-        ~ gather pet as [pet]
+      content
+        div pet
+          ~ gather pet as [pet]
+          ~   lookup length
+          ~# calculate + {a: [pet, pet]; b: [pet, length]} as [label]
+          span {text: [pet, pet]}
+            @ click {foo: bar; baz: [pet, pet]}
+          label {text: enemy}
+            input
+              @ change {pet: [pet, pet]; enemy: [*event*, value]}
+          span {text: [pet, length]}
       footer {text: footer}
-  `));
+  `);
+  phase.addUI("wiki root", wikiRoot);
+  window["uu"] = wikiRoot;
 
-  phase.apply();
+  phase.apply(true);
+
+  //-----------------------------------------------------------------------------
+  // Wiki Logic
+  //-----------------------------------------------------------------------------
+  phase = new BSPhase(eve);
+  phase.addUnion("search", ["id", "top", "left"]);
+  phase.addUnion("search query", ["id", "search"]);
+  phase.apply(true);
 
   //-----------------------------------------------------------------------------
   // Testing
@@ -304,7 +339,7 @@ app.init("bootstrap", function bootstrap() {
       filterByEntity ! snake
       filter > { a: [animal length, value]; b: 1 }
   `));
-  phase.apply();
+  phase.apply(true);
   window["p"] = phase;
 });
 
