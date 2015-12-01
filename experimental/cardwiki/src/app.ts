@@ -73,7 +73,7 @@ export function render() {
     let changeset = eve.diff();
     changeset.remove("builtin entity", {entity: "render performance statistics"});
     changeset.add("builtin entity", {entity: "render performance statistics", content: `
-    # Render performance statistics
+    # Render performance statistics ({is a: system})
     root: {root: ${stats.root}}
     ui compile: {ui compile: ${stats.uiCompile}}
     render: {render: ${stats.render}}
