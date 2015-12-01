@@ -1,8 +1,6 @@
-import {unpad} from "./utils";
+import {unpad, repeat} from "./utils";
 import {Element, Handler} from "./microReact";
 import {Indexer, Query} from "./runtime";
-import * as wiki from "./wiki";
-import {repeat} from "./utils";
 declare var uuid;
 declare var DEBUG;
 window["DEBUG"] = window["DEBUG"] || {};
@@ -93,7 +91,7 @@ export class UI {
     resolvedAdd(changeset, "ui template", {template: this.id, parent, ix});
     if(this._binding) {
       if(!this._binding.name || this._binding.name === "unknown") this._binding.name = `bound view ${this.id}`;
-      changeset.merge(wiki.queryObjectToDiff(this._binding));
+      changeset.merge(this._binding.changeset(ixer));
       resolvedAdd(changeset, "ui template binding", {template: this.id, binding: this._binding.name});
     }
     if(this._embedded) {

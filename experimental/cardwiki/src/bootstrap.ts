@@ -9,7 +9,6 @@ import {UI} from "./uiRenderer"
 export var ixer = eve;
 declare var uuid;
 
-
 //-----------------------------------------------------------------------------
 // Utilities
 //-----------------------------------------------------------------------------
@@ -151,7 +150,7 @@ class BSPhase {
   addQuery(view:string, query:runtime.Query) {
     query.name = view;
     this.addView(view, "query", Object.keys(query.projectionMap || {}));
-    this.changeset.merge(wiki.queryObjectToDiff(query));
+    this.changeset.merge(query.changeset(this.ixer));
     return this;
   }
 
@@ -283,7 +282,14 @@ app.init("bootstrap", function bootstrap() {
     div wiki-root {color: red}
       header
         > perf stats
-      content {text: foo}
+      content
+        search container search-container {top: [search, top]; left: [search, left]}
+          ~ gather search as [search]
+          ~   lookup top
+          ~   lookup left
+          ~   lookup search
+          header search-header
+            div search-input { text: [search, search]}
   `);
   phase.addUI("wiki root", wikiRoot);
   window["uu"] = wikiRoot;

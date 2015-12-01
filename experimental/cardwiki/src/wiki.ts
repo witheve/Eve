@@ -9,7 +9,7 @@ declare var CodeMirror;
 declare var pluralize;
 declare var uuid;
 
-const MAX_NUMBER = 9007199254740991;
+const MAX_NUMBER = runtime.MAX_NUMBER;
 
 //---------------------------------------------------------
 // Entity
@@ -1758,110 +1758,9 @@ eve.table("action mapping constant").triggers["recompile"] = recompileTrigger;
 eve.table("action mapping sorted").triggers["recompile"] = recompileTrigger;
 eve.table("action mapping limit").triggers["recompile"] = recompileTrigger;
 
-function mappingToDiff(diff, action, mapping, aliases, reverseLookup) {
-  for(let from in mapping) {
-    let to = mapping[from];
-    if(to.constructor === Array) {
-      let source = to[0];
-      if(typeof source === "number") {
-        source = aliases[reverseLookup[source]];
-      } else {
-        source = aliases[source];
-      }
-      diff.add("action mapping", {action, from, "to source": source, "to field": to[1]});
-    } else {
-      diff.add("action mapping constant", {action, from, value: to});
-    }
-  }
-  return diff;
+function queryObjectToDiff(query:runtime.Query) {
+  return query.changeset(eve);
 }
-
-export function queryObjectToDiff(query) {
-  let diff = eve.diff();
-  let aliases = {};
-  let reverseLookup = {};
-  for(let alias in query.aliases) {
-    reverseLookup[query.aliases[alias]] = alias;
-  }
-  let view = query.name;
-  diff.add("view", {view, kind: "query"});
-  //joins
-  for(let join of query.joins) {
-    let action = uuid();
-    aliases[join.as] = action;
-    if(!join.negated) {
-      diff.add("action", {view, action, kind: "select", ix: join.ix});
-    } else {
-      diff.add("action", {view, action, kind: "deselect", ix: join.ix});
-    }
-    diff.add("action source", {action, "source view": join.table});
-    mappingToDiff(diff, action, join.join, aliases, reverseLookup);
-  }
-  //functions
-  for(let func of query.funcs) {
-    let action = uuid();
-    aliases[func.as] = action;
-    diff.add("action", {view, action, kind: "calculate", ix: func.ix});
-    diff.add("action source", {action, "source view": func.name});
-    mappingToDiff(diff, action, func.args, aliases, reverseLookup);
-  }
-  //aggregates
-  for(let agg of query.aggregates) {
-    let action = uuid();
-    aliases[agg.as] = action;
-    diff.add("action", {view, action, kind: "aggregate", ix: agg.ix});
-    diff.add("action source", {action, "source view": agg.name});
-    mappingToDiff(diff, action, agg.args, aliases, reverseLookup);
-  }
-  //sort
-  if(query.sorts) {
-    let action = uuid();
-    diff.add("action", {view, action, kind: "sort", ix: MAX_NUMBER});
-    let ix = 0;
-    for(let sort of query.sorts) {
-      let [source, field, direction] = sort;
-      if(typeof source === "number") {
-        source = aliases[reverseLookup[source]];
-      } else {
-        source = aliases[source];
-      }
-      diff.add("action mapping sorted", {action, ix, source, field, direction});
-      ix++;
-    }
-  }
-  //group
-  if(query.groups) {
-    let action = uuid();
-    diff.add("action", {view, action, kind: "group", ix: MAX_NUMBER});
-    let ix = 0;
-    for(let group of query.groups) {
-      let [source, field] = group;
-      if(typeof source === "number") {
-        source = aliases[reverseLookup[source]];
-      } else {
-        source = aliases[source];
-      }
-      diff.add("action mapping sorted", {action, ix, source, field, direction: "ascending"});
-      ix++;
-    }
-  }
-  //limit
-  if(query.limitInfo) {
-    let action = uuid();
-    diff.add("action", {view, action, kind: "limit", ix: MAX_NUMBER});
-    for(let limitType in query.limitInfo) {
-      diff.add("action mapping limit", {action, "limit type": limitType, value: query.limitInfo[limitType]});
-    }
-  }
-  //projection
-  if(query.projectionMap) {
-    let action = uuid();
-    diff.add("action", {view, action, kind: "project", ix: MAX_NUMBER});
-    mappingToDiff(diff, action, query.projectionMap, aliases, reverseLookup);
-  }
-  return diff;
-}
-
 // add the added collections union so that sources can be added to it by
 // actions.
 var diff = eve.diff();
