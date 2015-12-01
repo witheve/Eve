@@ -13,7 +13,7 @@ window["eve"] = eve;
 // Token types
 //---------------------------------------------------------
 
-enum TokenTypes {
+export enum TokenTypes {
   entity,
   collection,
   attribute,
@@ -130,7 +130,7 @@ function checkForToken(token): any {
   return {};
 }
 
-function getTokens(string) {
+export function getTokens(string) {
   // remove all non-word non-space characters
   let cleaned = string.replace(/'s/gi, "  ").toLowerCase();
   cleaned = cleaned.replace(/[,.?!]/gi, " , ");
@@ -1274,8 +1274,7 @@ function root() {
   ]};
 }
 
-wiki.coerceInput("foo");
-app.renderRoots["wiki"] = root;
+// app.renderRoots["wiki"] = root;
 
 //---------------------------------------------------------
 // Utils
