@@ -59,6 +59,8 @@ export function UIFromDSL(str:string):UI {
 class BSPhase {
   protected _views:{[view:string]: string} = {};
   protected _viewFields:{[view:string]: string[]} = {};
+  protected _entities:string[] = [];
+  protected _uis:string[] = [];
 
   constructor(public ixer:runtime.Indexer, public changeset = ixer.diff()) {}
 
@@ -70,12 +72,12 @@ class BSPhase {
   }
   apply(nukeExisting?:boolean) {
     for(let view in this._views) {
-
-      if(this._views[view] !== "table") {
-        if(nukeExisting) wiki.removeView(view);
-      } else {
-        ixer.addTable(view, this.viewFields[view]);
-      }
+      if(this._views[view] === "table") ixer.addTable(view, this.viewFields[view]);
+    }
+    if(nukeExisting) {
+      for(let view in this._views) this.changeset.merge(runtime.Query.remove(view, this.ixer));
+      for(let entity of this._entities) this.changeset.remove("builtin entity", {entity});
+      for(let ui of this._uis) this.changeset.merge(UI.remove(ui, this.ixer));
     }
     ixer.applyDiff(this.changeset);
   }
@@ -89,6 +91,7 @@ class BSPhase {
   }
 
   addEntity(entity:string, name:string, kinds:string[], attributes?:{}, extraContent?:string) {
+    this._entities.push(entity);
     let content = unpad(6) `
       # ${titlecase(name)} (${kinds.map((kind) => `{is a: ${kind}}`).join(", ")})
     `;
@@ -154,6 +157,7 @@ class BSPhase {
 
   addUI(id:string, ui:UI) {
     ui.id = id;
+    this._uis.push(id);
     this.addEntity(id, id, ["system", "ui"]);
     this.changeset.merge(ui.changeset(this.ixer));
     return this;
@@ -274,24 +278,34 @@ app.init("bootstrap", function bootstrap() {
 
   phase.addTable("system ui", ["template"]);
   phase.addFact("system ui", {template: "wiki root"});
+
   let wikiRoot = UIFromDSL(unpad(4) `
-    div wiki-root {color: fuchsia}
-      header {text: header}
-      content
-        div pet
-          ~ gather pet as [pet]
-          ~   lookup length
-          ~# calculate + {a: [pet, pet]; b: [pet, length]} as [label]
-          span {text: [pet, pet]}
-            @ click {foo: bar; baz: [pet, pet]}
-          label {text: enemy}
-            input
-              @ change {pet: [pet, pet]; enemy: [*event*, value]}
-          span {text: [pet, length]}
-      footer {text: footer}
+    div wiki-root {color: red}
+      header
+        > perf stats
+      content {text: foo}
   `);
   phase.addUI("wiki root", wikiRoot);
   window["uu"] = wikiRoot;
+
+  phase.addUI("perf stats", UIFromDSL(unpad(4) `
+    row perf-stats
+      ~ find render performance statistics as [perf stats]
+      ~   # Horrible hack (finds don't create source fields), disregard this
+      ~   lookup perf stats
+      ~   lookup root
+      ~   lookup ui compile
+      ~   lookup render
+      ~   lookup update
+      label {text: root}
+        span {text: [perf stats, root]}
+      label {text: ui compile}
+        span {text: [perf stats, ui compile]}
+      label {text: render}
+        span {text: [perf stats, render]}
+      label {text: update}
+        span {text: [perf stats, update]}
+  `));
 
   phase.apply(true);
 
@@ -339,7 +353,25 @@ app.init("bootstrap", function bootstrap() {
       filterByEntity ! snake
       filter > { a: [animal length, value]; b: 1 }
   `));
-  phase.apply(true);
+  let example = UIFromDSL(unpad(4) `
+    div example {color: fuchsia}
+      header {text: header}
+      content
+        div pet
+          ~ gather pet as [pet]
+          ~   lookup length
+          ~# calculate + {a: [pet, pet]; b: [pet, length]} as [label]
+          span {text: [pet, pet]}
+            @ click {foo: bar; baz: [pet, pet]}
+          label {text: enemy}
+            input
+              @ change {pet: [pet, pet]; enemy: [*event*, value]}
+          span {text: [pet, length]}
+      footer {text: footer}
+  `);
+  phase.addUI("example ui", example);
+
+  //phase.apply(true);
   window["p"] = phase;
 });
 
