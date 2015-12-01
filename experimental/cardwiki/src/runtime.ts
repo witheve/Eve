@@ -534,6 +534,22 @@ export class Query {
   aggregates;
   unprojectedSize;
   hasOrdinal;
+
+  static remove(view: string, ixer:Indexer) {
+    let diff = ixer.diff();
+    diff.remove("view", {view});
+    for(let actionItem of ixer.find("action", {view})) {
+      let action = actionItem.action;
+      diff.remove("action", {action});
+      diff.remove("action source", {action});
+      diff.remove("action mapping", {action});
+      diff.remove("action mapping constant", {action});
+      diff.remove("action mapping sorted", {action});
+      diff.remove("action mapping limit", {action});
+    }
+    return diff;
+  }
+
   constructor(ixer, name = "unknown") {
     this.name = name;
     this.ixer = ixer;
