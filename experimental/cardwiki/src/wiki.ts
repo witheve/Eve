@@ -1,6 +1,7 @@
 "use strict"
 import {Element} from "./microReact";
 import * as runtime from "./runtime";
+import * as queryParser from "./queryParser";
 import {eve} from "./app";
 import * as app from "./app";
 
@@ -186,42 +187,6 @@ function entityToHTML(lines, searchId) {
   return children;
 }
 
-function stringMatches2(string, type, index) {
-  // remove all non-word non-space characters
-  let cleaned = string.replace(/[^\s\w]/gi, " ").toLowerCase();
-  let words = cleaned.split(" ");
-  let front = 0;
-  let back = words.length;
-  let results = [];
-  let pos = 0;
-  while(front < words.length) {
-    let str = words.slice(front, back).join(" ");
-    let orig = str;
-    let found = index[str];
-    if(!found) {
-      str = pluralize(str, 1);
-      found = index[str];
-      if(!found) {
-        str = pluralize(str, 12);
-        found = index[str];
-      }
-    }
-    if(found) {
-      results.push({found: str, orig, pos, type});
-      front = back;
-      pos += orig.length + 1;
-      back = words.length;
-    } else if(back - 1 > front) {
-      back--;
-    } else {
-      back = words.length;
-      pos += words[front].length + 1;
-      front++;
-    }
-  }
-  return results;
-}
-
 var modifiers = {
   "per": "group",
   "each": "group",
@@ -260,64 +225,10 @@ var operations = {
   "*": {op: "*", argCount: 2, infix: true, args: ["a", "b"]},
 }
 function newSearchTokens(searchString) {
-  // search the string for entities / collections
-  // TODO: this is stupidly slow
   let cleaned = searchString.toLowerCase();
-  eve.find("entity", {entity: ""});
-  var index = eve.table("entity").indexes["entity"].index;
-  let entities = stringMatches2(searchString, "entity", index);
-  for(let entity of entities) {
-    if(eve.findOne("collection", {collection: entity.found})) {
-      entity.type = "collection";
-    }
-  }
-  eve.find("entity eavs", {attribute: ""});
-  var eavIndex = eve.table("entity eavs").indexes["attribute"].index;
-  let eavs = stringMatches2(searchString, "attribute", eavIndex);
-  let all = entities.concat(eavs);
-  all.sort((a, b) => a.pos - b.pos);
-  let remaining = cleaned;
-  for(let part of all) {
-    let spaces = "";
-    for(var i = 0; i < part.orig.length; i++) spaces += " ";
-    remaining = remaining.replace(part.orig, spaces);
-  }
-  let words = remaining.split(" ");
-  let ix = 0;
-  let wordIx = 0;
-  for(let wordLen = words.length; wordIx < wordLen; wordIx++) {
-    let word = words[wordIx];
-    if(!word) {
-      ix++;
-      continue;
-    }
-    if(modifiers[word]) {
-      all.push({type: "modifier", orig: word, modifier: modifiers[word], pos: ix});
-    } else if(operations[word]) {
-      all.push({type: "operation", orig: word, operation: operations[word], pos: ix});
-    } else if(word === "collection" || word === "collections") {
-      all.push({type: "collection", found: word, orig: word, pos: ix})
-    } else if(parseFloat(word)) {
-      all.push({type: "value", value: word, orig: word, pos: ix});
-    } else if(word[0] === "\"") {
-      // @TODO: account for multi word quotes
-      let total = word;
-      let next = words[++wordIx];
-      while(next) {
-        total += ` ${next}`;
-        if(next[next.length - 1] === "\"") {
-          break;
-        }
-        wordIx++;
-        next = words[wordIx];
-      }
-      word = total;
-      all.push({type: "value", value: word, orig: word, pos: ix});
-    }
-    ix += word.length + 1;
-  }
-  all.sort((a, b) => a.pos - b.pos);
-  return all;
+  let all = queryParser.getTokens(cleaned);
+  all.forEach((token) => token.type = queryParser.TokenTypes[token.type]);
+  return all.filter((token) => token.type !== "text");
 }
 
 function walk(tree, indent = 0) {
@@ -1791,18 +1702,7 @@ function removeAddBitAction(action) {
 }
 
 export function removeView(view) {
-  let diff = eve.diff();
-  diff.remove("view", {view});
-  for(let actionItem of eve.find("action", {view})) {
-    let action = actionItem.action;
-    diff.remove("action", {action});
-    diff.remove("action source", {action});
-    diff.remove("action mapping", {action});
-    diff.remove("action mapping constant", {action});
-    diff.remove("action mapping sorted", {action});
-    diff.remove("action mapping limit", {action});
-  }
-  return diff;
+  return runtime.Query.remove(view, eve);
 }
 
 export function clearSaved() {
@@ -2229,11 +2129,11 @@ function initEve() {
   initSearches();
 }
 
-// @TODO: KILL ME
-import "./bootstrap";
-
 app.renderRoots["wiki"] = root;
 app.init("wiki", function() {
   app.activeSearches = {};
   initEve();
 });
+
+// @TODO: KILL ME
+import "./bootstrap";
