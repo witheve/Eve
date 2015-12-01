@@ -36,16 +36,16 @@ export function render() {
   // @FIXME: why does using request animation frame cause events to stack up and the renderer to get behind?
   setTimeout(function() {
     // requestAnimationFrame(function() {
+    let stats:any = {};
     let start = performance.now();
-    perfStats.textContent = "";
+
     let trees = [];
     for (var root in renderRoots) {
       trees.push(renderRoots[root]());
     }
 
-    let total = performance.now() - start;
-    perfStats.textContent += `root: ${total.toFixed(2) }`;
-    if (total > 10) console.log("Slow root: " + total);
+    stats.root = (performance.now() - start).toFixed(2);
+    if (+stats.root > 10) console.log("Slow root: " + stats.root);
 
     start = performance.now();
     let dynamicUI = eve.find("system ui").map((ui) => ui["template"]);
@@ -54,16 +54,34 @@ export function render() {
       console.log("*", uiRenderer.compile(dynamicUI));
     }
     trees.push.apply(trees, uiRenderer.compile(dynamicUI));
-    total = performance.now() - start;
-    perfStats.textContent += ` | ui compile: ${total.toFixed(2) }`;
-    if (total > 10) console.log("Slow ui compile: " + total);
+    stats.uiCompile = (performance.now() - start).toFixed(2);
+    if (+stats.uiCompile > 10) console.log("Slow ui compile: " + stats.uiCompile);
 
     start = performance.now();
     renderer.render(trees);
-    total = performance.now() - start;
-    perfStats.textContent += ` | render: ${total.toFixed(2) }`;
-    perfStats.textContent += ` | update: ${updateStat.toFixed(2) }`;
+    stats.render = (performance.now() - start).toFixed(2);
+    stats.update = updateStat.toFixed(2);
+
+    perfStats.textContent = "";
+    perfStats.textContent += `root: ${stats.root}`;
+    perfStats.textContent += ` | ui compile: ${stats.uiCompile}`;
+    perfStats.textContent += ` | render: ${stats.render}`;
+    perfStats.textContent += ` | update: ${stats.update}`;
+
     renderer.queued = false;
+
+    let changeset = eve.diff();
+    changeset.remove("builtin entity", {entity: "render performance statistics"});
+    changeset.add("builtin entity", {entity: "render performance statistics", content: `
+    # Render performance statistics
+    root: {root: ${stats.root}}
+    ui compile: {ui compile: ${stats.uiCompile}}
+    render: {render: ${stats.render}}
+    update: {update: ${stats.update}}
+    Horrible hack, disregard this: {perf stats: render performance statistics}
+    `});
+    eve.applyDiff(changeset);
+
   }, 16);
 }
 
