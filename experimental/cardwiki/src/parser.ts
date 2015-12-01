@@ -506,7 +506,7 @@ export function parseUI(str:string):UIElem {
     let keyword = readUntil(line, " ", charIx);
     charIx += keyword.length;
 
-    if(keyword[0] === "~") { //Handle binding
+    if(keyword[0] === "~") { // Handle binding
       charIx -= keyword.length - 1;
       if(!parent.binding) parent.binding = line.slice(charIx);
       else parent.binding += "\n" + line.slice(charIx);

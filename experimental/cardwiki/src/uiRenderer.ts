@@ -2,16 +2,36 @@ import {unpad} from "./utils";
 import {Element, Handler} from "./microReact";
 import {Indexer, Query} from "./runtime";
 import * as wiki from "./wiki";
+import {repeat} from "./utils";
 declare var uuid;
 declare var DEBUG;
 window["DEBUG"] = window["DEBUG"] || {};
 
-function resolvedAdd(changeset, table, fact) {
+function resolve(table, fact) {
   let neue = {};
-  for(let field in fact) {
+  for(let field in fact)
     neue[`${table}: ${field}`] = fact[field];
-  }
-  return changeset.add(table, neue);
+  return neue;
+}
+function humanize(table, fact) {
+  let neue = {};
+  for(let field in fact)
+    neue[field.slice(table.length + 2)] = fact[field];
+  return neue;
+}
+
+function resolvedAdd(changeset, table, fact) {
+  return changeset.add(table, resolve(table, fact));
+}
+function resolvedRemove(changeset, table, fact) {
+  return changeset.remove(table, resolve(table, fact));
+}
+function humanizedFind(ixer:Indexer, table, query) {
+  let results = [];
+  for(let fact of ixer.find(table, resolve(table, query))) results.push(humanize(table, fact));
+  let diag = {};
+  for(let table in ixer.tables) diag[table] = ixer.tables[table].table.length;
+  return results;
 }
 
 export class UI {
@@ -22,6 +42,31 @@ export class UI {
   protected _events:{} = {};
 
   protected _parent:UI;
+
+  static remove(template:string, ixer:Indexer) {
+    let changeset = ixer.diff();
+    resolvedRemove(changeset, "ui template", {template});
+    resolvedRemove(changeset, "ui template binding", {template});
+    let bindings = humanizedFind(ixer, "ui template binding", {template});
+    for(let binding of bindings) changeset.merge(Query.remove(binding.binding, ixer));
+    resolvedRemove(changeset, "ui embed", {template});
+    let embeds = humanizedFind(ixer, "ui embed", {template});
+    for(let embed of embeds) {
+      resolvedRemove(changeset, "ui embed scope", {template, embed: embed.embed});
+      resolvedRemove(changeset, "ui embed scope binding", {template, embed: embed.embed});
+    }
+    resolvedRemove(changeset, "ui attribute", {template});
+    resolvedRemove(changeset, "ui attribute binding", {template});
+    resolvedRemove(changeset, "ui event", {template});
+    let events = humanizedFind(ixer, "ui event", {template});
+    for(let event of events) {
+      resolvedRemove(changeset, "ui event state", {template, event: event.event});
+      resolvedRemove(changeset, "ui event state binding", {template, event: event.event});
+    }
+
+    for(let child of humanizedFind(ixer, "ui template", {parent: template})) changeset.merge(UI.remove(child.template, ixer));
+    return changeset;
+  }
 
   constructor(public id) {
 
@@ -43,6 +88,7 @@ export class UI {
     let ix = this._attributes["ix"];
     if(ix === undefined) ix = (this._parent && this._parent._children.indexOf(this));
     if(ix === -1 || ix === undefined) ix = "";
+    if(this._embedded) parent = "";
 
     resolvedAdd(changeset, "ui template", {template: this.id, parent, ix});
     if(this._binding) {
@@ -52,7 +98,7 @@ export class UI {
     }
     if(this._embedded) {
       let embed = uuid();
-      resolvedAdd(changeset, "ui embed", {embed, template: this.id, parent: this._parent || "", ix});
+      resolvedAdd(changeset, "ui embed", {embed, template: this.id, parent: (this._parent || <any>{}).id, ix});
       for(let key in this._embedded) {
         let value = this._attributes[key];
         if(value instanceof Array) resolvedAdd(changeset, "ui embed scope binding", {embed, key, source: value[0], alias: value[1]});
@@ -80,6 +126,35 @@ export class UI {
     for(let child of this._children) changeset.merge(child.changeset(ixer));
 
     return changeset;
+  }
+  load(template:string, ixer:Indexer, parent?:UI) {
+    let fact = humanizedFind(ixer, "ui template", {template})[0];
+    if(!fact) return this;
+    if(parent || fact.parent) this._parent = parent || new UI(this._parent);
+    let binding = humanizedFind(ixer, "ui template binding", {template})[0];
+    if(binding) this.bind((new Query(ixer, binding.binding)));
+    let embed = humanizedFind(ixer, "ui embed", {template, parent: this._parent ? this._parent.id : ""})[0];
+    if(embed) {
+      let scope = {};
+      for(let attr of humanizedFind(ixer, "ui embed scope", {embed: embed.embed})) scope[attr.key] = attr.value;
+      for(let attr of humanizedFind(ixer, "ui embed scope binding", {embed: embed.embed})) scope[attr.key] = [attr.source, attr.alias];
+      this.embed(scope);
+    }
+
+    for(let attr of humanizedFind(ixer, "ui attribute", {template})) this.attribute(attr.property, attr.value);
+    for(let attr of humanizedFind(ixer, "ui attribute binding", {template})) this.attribute(attr.property, [attr.source, attr.alias]);
+
+    for(let event of humanizedFind(ixer, "ui event", {template})) {
+      let state = {};
+      for(let attr of humanizedFind(ixer, "ui event state", {template, event: event.event})) state[event.key] = event.value;
+      for(let attr of humanizedFind(ixer, "ui event state binding", {template, event: event.event})) state[event.key] = [event.source, event.alias]
+      this.event(event.event, state);
+    }
+
+    for(let child of humanizedFind(ixer, "ui template", {parent: template}))
+      this.child((new UI(child.template)).load(child.template, ixer, this));
+
+    return this;
   }
 
   children(neue?:UI[], append = false) {
@@ -171,6 +246,7 @@ export class UIRenderer {
   constructor(public ixer:Indexer) {}
 
   compile(roots:(string|Element)[]):Element[] {
+    if(DEBUG.RENDERER) console.group("ui compile");
     let compiledElems:Element[] = [];
     for(let root of roots) {
       // @TODO: reparent dynamic roots if needed.
@@ -189,15 +265,15 @@ export class UIRenderer {
         compiledElems.push(root);
       }
     }
-
+    if(DEBUG.RENDERER) console.groupEnd();
     return compiledElems;
   }
 
-  protected _compileWrapper(template:string, baseIx: number, constraints:{} = {}, bindingStack:any[] = []):Element[] {
+  protected _compileWrapper(template:string, baseIx: number, constraints:{} = {}, bindingStack:any[] = [], depth:number = 0):Element[] {
     let elems = [];
     let binding = this.ixer.findOne("ui template binding", {"ui template binding: template": template});
     if(!binding) {
-      let elem = this._compileElement(template, bindingStack);
+      let elem = this._compileElement(template, bindingStack, depth);
       if(elem) elems[0] = elem;
     } else {
       let boundQuery = binding["ui template binding: binding"];
@@ -205,7 +281,7 @@ export class UIRenderer {
       let ix = 0;
       for(let fact of facts) {
         bindingStack.push(fact);
-        let elem = this._compileElement(template, bindingStack);
+        let elem = this._compileElement(template, bindingStack, depth);
         bindingStack.pop();
         if(elem) elems.push(elem);
       }
@@ -220,7 +296,8 @@ export class UIRenderer {
     return elems;
   }
 
-  protected _compileElement(template:string, bindingStack:any[]):Element {
+  protected _compileElement(template:string, bindingStack:any[], depth:number):Element {
+    if(DEBUG.RENDERER) console.log(repeat("  ", depth) + "* compile", template);
     let elementToChildren = this.ixer.index("ui template", ["ui template: parent"]);
     let elementToEmbeds = this.ixer.index("ui embed", ["ui embed: parent"]);
     let embedToScope = this.ixer.index("ui embed scope", ["ui embed scope: embed"]);
@@ -286,7 +363,7 @@ export class UIRenderer {
           }
           childBindingStack = [constraints];
         }
-        elem.children.push.apply(elem.children, this._compileWrapper(add, elem.children.length, constraints, childBindingStack));
+        elem.children.push.apply(elem.children, this._compileWrapper(add, elem.children.length, constraints, childBindingStack, depth + 1));
       }
     }
 
@@ -314,7 +391,7 @@ export class UIRenderer {
   }
 
   //@FIXME: What do about source?
-  protected getBoundValue(source:string, alias:string, bindingStack:any[]):any {
+  protected getBoundValue(source:string, alias:string, bindingStack:any[]):any { // @FIXME: Finds don't create a source field on the result.
     for(let ix = bindingStack.length - 1; ix >= 0; ix--) {
       let fact = bindingStack[ix];
       if(source in fact && fact[alias]) return fact[alias];
