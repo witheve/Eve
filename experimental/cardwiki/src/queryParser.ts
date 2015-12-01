@@ -43,16 +43,6 @@ var modifiers = {
 // Patterns
 //---------------------------------------------------------
 
-function closestAttribute(cursor) {
-  for(let ix = cursor.children.length; ix > -1; ix--) {
-    let node = cursor.children[ix];
-    if(node.type === TokenTypes.attribute) {
-      return node;
-    }
-  }
-  return;
-}
-
 var patterns = {
   "older": {
     type: "rewrite",
