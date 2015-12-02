@@ -2,7 +2,6 @@ import * as microReact from "./microReact";
 import * as runtime from "./runtime";
 import {eve} from "./app";
 import * as app from "./app";
-import * as wiki from "./wiki";
 
 declare var pluralize;
 declare var uuid;
@@ -13,7 +12,7 @@ window["eve"] = eve;
 // Token types
 //---------------------------------------------------------
 
-enum TokenTypes {
+export enum TokenTypes {
   entity,
   collection,
   attribute,
@@ -42,16 +41,6 @@ var modifiers = {
 //---------------------------------------------------------
 // Patterns
 //---------------------------------------------------------
-
-function closestAttribute(cursor) {
-  for(let ix = cursor.children.length; ix > -1; ix--) {
-    let node = cursor.children[ix];
-    if(node.type === TokenTypes.attribute) {
-      return node;
-    }
-  }
-  return;
-}
 
 var patterns = {
   "older": {
@@ -130,7 +119,7 @@ function checkForToken(token): any {
   return {};
 }
 
-function getTokens(string) {
+export function getTokens(string) {
   // remove all non-word non-space characters
   let cleaned = string.replace(/'s/gi, "  ").toLowerCase();
   cleaned = cleaned.replace(/[,.?!]/gi, " , ");
@@ -1249,7 +1238,7 @@ function searchResultUi(result) {
 
 
 
-function root() {
+export function root() {
   let results = [];
   let resultStats = {unvalidated: 0, succeeded: 0, failed: 0};
   for(let test in tests) {
@@ -1273,9 +1262,6 @@ function root() {
     {children: resultItems}
   ]};
 }
-
-wiki.coerceInput("foo");
-app.renderRoots["wiki"] = root;
 
 //---------------------------------------------------------
 // Utils

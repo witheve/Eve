@@ -1,6 +1,7 @@
 "use strict"
 import {Element} from "./microReact";
 import * as runtime from "./runtime";
+import * as queryParser from "./queryParser";
 import {eve} from "./app";
 import * as app from "./app";
 
@@ -8,7 +9,7 @@ declare var CodeMirror;
 declare var pluralize;
 declare var uuid;
 
-const MAX_NUMBER = 9007199254740991;
+const MAX_NUMBER = runtime.MAX_NUMBER;
 
 //---------------------------------------------------------
 // Entity
@@ -186,42 +187,6 @@ function entityToHTML(lines, searchId) {
   return children;
 }
 
-function stringMatches2(string, type, index) {
-  // remove all non-word non-space characters
-  let cleaned = string.replace(/[^\s\w]/gi, " ").toLowerCase();
-  let words = cleaned.split(" ");
-  let front = 0;
-  let back = words.length;
-  let results = [];
-  let pos = 0;
-  while(front < words.length) {
-    let str = words.slice(front, back).join(" ");
-    let orig = str;
-    let found = index[str];
-    if(!found) {
-      str = pluralize(str, 1);
-      found = index[str];
-      if(!found) {
-        str = pluralize(str, 12);
-        found = index[str];
-      }
-    }
-    if(found) {
-      results.push({found: str, orig, pos, type});
-      front = back;
-      pos += orig.length + 1;
-      back = words.length;
-    } else if(back - 1 > front) {
-      back--;
-    } else {
-      back = words.length;
-      pos += words[front].length + 1;
-      front++;
-    }
-  }
-  return results;
-}
-
 var modifiers = {
   "per": "group",
   "each": "group",
@@ -260,64 +225,10 @@ var operations = {
   "*": {op: "*", argCount: 2, infix: true, args: ["a", "b"]},
 }
 function newSearchTokens(searchString) {
-  // search the string for entities / collections
-  // TODO: this is stupidly slow
   let cleaned = searchString.toLowerCase();
-  eve.find("entity", {entity: ""});
-  var index = eve.table("entity").indexes["entity"].index;
-  let entities = stringMatches2(searchString, "entity", index);
-  for(let entity of entities) {
-    if(eve.findOne("collection", {collection: entity.found})) {
-      entity.type = "collection";
-    }
-  }
-  eve.find("entity eavs", {attribute: ""});
-  var eavIndex = eve.table("entity eavs").indexes["attribute"].index;
-  let eavs = stringMatches2(searchString, "attribute", eavIndex);
-  let all = entities.concat(eavs);
-  all.sort((a, b) => a.pos - b.pos);
-  let remaining = cleaned;
-  for(let part of all) {
-    let spaces = "";
-    for(var i = 0; i < part.orig.length; i++) spaces += " ";
-    remaining = remaining.replace(part.orig, spaces);
-  }
-  let words = remaining.split(" ");
-  let ix = 0;
-  let wordIx = 0;
-  for(let wordLen = words.length; wordIx < wordLen; wordIx++) {
-    let word = words[wordIx];
-    if(!word) {
-      ix++;
-      continue;
-    }
-    if(modifiers[word]) {
-      all.push({type: "modifier", orig: word, modifier: modifiers[word], pos: ix});
-    } else if(operations[word]) {
-      all.push({type: "operation", orig: word, operation: operations[word], pos: ix});
-    } else if(word === "collection" || word === "collections") {
-      all.push({type: "collection", found: word, orig: word, pos: ix})
-    } else if(parseFloat(word)) {
-      all.push({type: "value", value: word, orig: word, pos: ix});
-    } else if(word[0] === "\"") {
-      // @TODO: account for multi word quotes
-      let total = word;
-      let next = words[++wordIx];
-      while(next) {
-        total += ` ${next}`;
-        if(next[next.length - 1] === "\"") {
-          break;
-        }
-        wordIx++;
-        next = words[wordIx];
-      }
-      word = total;
-      all.push({type: "value", value: word, orig: word, pos: ix});
-    }
-    ix += word.length + 1;
-  }
-  all.sort((a, b) => a.pos - b.pos);
-  return all;
+  let all = queryParser.getTokens(cleaned);
+  all.forEach((token) => token.type = queryParser.TokenTypes[token.type]);
+  return all.filter((token) => token.type !== "text");
 }
 
 function walk(tree, indent = 0) {
@@ -1240,8 +1151,8 @@ app.handle("setSearch", (result, info) => {
   }
   let newSearchValue = info.value.trim();
   app.activeSearches[searchId] = newSearch(newSearchValue);
-  result.remove("search query", {id: searchId});
-  result.add("search query", {id: searchId, search: newSearchValue});
+  result.remove("builtin search query", {id: searchId});
+  result.add("builtin search query", {id: searchId, search: newSearchValue});
 });
 
 app.handle("submitAction", (result, info) => {
@@ -1262,15 +1173,15 @@ app.handle("addNewSearch", (result, info) => {
   let id = uuid();
   let search = info.search || "foo";
   app.activeSearches[id] = newSearch(search);
-  result.add("search", {id, top: info.top || 100, left: info.left || 100});
-  result.add("search query", {id, search});
+  result.add("builtin search", {id, top: info.top || 100, left: info.left || 100});
+  result.add("builtin search query", {id, search});
 });
 
 app.handle("removeSearch", (result, info) => {
   let {searchId} = info;
   if(!searchId) return;
-  result.remove("search", {id: searchId});
-  result.remove("search query", {id: searchId});
+  result.remove("builtin search", {id: searchId});
+  result.remove("builtin search query", {id: searchId});
   app.activeSearches[searchId] = null;
 });
 
@@ -1305,8 +1216,8 @@ app.handle("stopDragging", (result, info) => {
 
 app.handle("moveSearch", (result, info) => {
   let {searchId, x, y} = info;
-  result.remove("search", {id: searchId});
-  result.add("search", {id: searchId, top: y - dragging.offsetTop, left: x - dragging.offsetLeft});
+  result.remove("builtin search", {id: searchId});
+  result.add("builtin search", {id: searchId, top: y - dragging.offsetTop, left: x - dragging.offsetLeft});
 });
 
 app.handle("toggleShowPlan", (result, info) => {
@@ -1693,28 +1604,6 @@ function followLink(e, elem) {
   app.dispatch("setSearch", {value: elem.linkText, searchId: elem.searchId}).commit();
 }
 
-function first2Letters(str) {
-  let items = str.split(" ");
-  let text = "";
-  if(items.length > 1) {
-    text = items[0][0] + items[1][0];
-  } else if(items.length) {
-    text = items[0].substring(0, 2);
-  }
-  return text;
-}
-
-function historyStack() {
-  let stack = eve.find("history stack");
-  stack.sort((a, b) => a.pos - b.pos);
-  let stackItems = stack.map((item) => {
-    let link = item["entity"];
-    let text = first2Letters(link);
-    return {c: "link", text, linkText: link, click: followLink};
-  });
-  return {c: "history-stack", children: stackItems};
-}
-
 function saveSearch(name, query) {
   if(!eve.findOne("view", {view: name})) {
     query.name = name;
@@ -1813,18 +1702,7 @@ function removeAddBitAction(action) {
 }
 
 export function removeView(view) {
-  let diff = eve.diff();
-  diff.remove("view", {view});
-  for(let actionItem of eve.find("action", {view})) {
-    let action = actionItem.action;
-    diff.remove("action", {action});
-    diff.remove("action source", {action});
-    diff.remove("action mapping", {action});
-    diff.remove("action mapping constant", {action});
-    diff.remove("action mapping sorted", {action});
-    diff.remove("action mapping limit", {action});
-  }
-  return diff;
+  return runtime.Query.remove(view, eve);
 }
 
 export function clearSaved() {
@@ -1880,110 +1758,9 @@ eve.table("action mapping constant").triggers["recompile"] = recompileTrigger;
 eve.table("action mapping sorted").triggers["recompile"] = recompileTrigger;
 eve.table("action mapping limit").triggers["recompile"] = recompileTrigger;
 
-function mappingToDiff(diff, action, mapping, aliases, reverseLookup) {
-  for(let from in mapping) {
-    let to = mapping[from];
-    if(to.constructor === Array) {
-      let source = to[0];
-      if(typeof source === "number") {
-        source = aliases[reverseLookup[source]];
-      } else {
-        source = aliases[source];
-      }
-      diff.add("action mapping", {action, from, "to source": source, "to field": to[1]});
-    } else {
-      diff.add("action mapping constant", {action, from, value: to});
-    }
-  }
-  return diff;
+function queryObjectToDiff(query:runtime.Query) {
+  return query.changeset(eve);
 }
-
-export function queryObjectToDiff(query) {
-  let diff = eve.diff();
-  let aliases = {};
-  let reverseLookup = {};
-  for(let alias in query.aliases) {
-    reverseLookup[query.aliases[alias]] = alias;
-  }
-  let view = query.name;
-  diff.add("view", {view, kind: "query"});
-  //joins
-  for(let join of query.joins) {
-    let action = uuid();
-    aliases[join.as] = action;
-    if(!join.negated) {
-      diff.add("action", {view, action, kind: "select", ix: join.ix});
-    } else {
-      diff.add("action", {view, action, kind: "deselect", ix: join.ix});
-    }
-    diff.add("action source", {action, "source view": join.table});
-    mappingToDiff(diff, action, join.join, aliases, reverseLookup);
-  }
-  //functions
-  for(let func of query.funcs) {
-    let action = uuid();
-    aliases[func.as] = action;
-    diff.add("action", {view, action, kind: "calculate", ix: func.ix});
-    diff.add("action source", {action, "source view": func.name});
-    mappingToDiff(diff, action, func.args, aliases, reverseLookup);
-  }
-  //aggregates
-  for(let agg of query.aggregates) {
-    let action = uuid();
-    aliases[agg.as] = action;
-    diff.add("action", {view, action, kind: "aggregate", ix: agg.ix});
-    diff.add("action source", {action, "source view": agg.name});
-    mappingToDiff(diff, action, agg.args, aliases, reverseLookup);
-  }
-  //sort
-  if(query.sorts) {
-    let action = uuid();
-    diff.add("action", {view, action, kind: "sort", ix: MAX_NUMBER});
-    let ix = 0;
-    for(let sort of query.sorts) {
-      let [source, field, direction] = sort;
-      if(typeof source === "number") {
-        source = aliases[reverseLookup[source]];
-      } else {
-        source = aliases[source];
-      }
-      diff.add("action mapping sorted", {action, ix, source, field, direction});
-      ix++;
-    }
-  }
-  //group
-  if(query.groups) {
-    let action = uuid();
-    diff.add("action", {view, action, kind: "group", ix: MAX_NUMBER});
-    let ix = 0;
-    for(let group of query.groups) {
-      let [source, field] = group;
-      if(typeof source === "number") {
-        source = aliases[reverseLookup[source]];
-      } else {
-        source = aliases[source];
-      }
-      diff.add("action mapping sorted", {action, ix, source, field, direction: "ascending"});
-      ix++;
-    }
-  }
-  //limit
-  if(query.limitInfo) {
-    let action = uuid();
-    diff.add("action", {view, action, kind: "limit", ix: MAX_NUMBER});
-    for(let limitType in query.limitInfo) {
-      diff.add("action mapping limit", {action, "limit type": limitType, value: query.limitInfo[limitType]});
-    }
-  }
-  //projection
-  if(query.projectionMap) {
-    let action = uuid();
-    diff.add("action", {view, action, kind: "project", ix: MAX_NUMBER});
-    mappingToDiff(diff, action, query.projectionMap, aliases, reverseLookup);
-  }
-  return diff;
-}
-
 // add the added collections union so that sources can be added to it by
 // actions.
 var diff = eve.diff();
@@ -2242,8 +2019,8 @@ function initEve() {
   if(!stored) {
     var diff = eve.diff();
     let id = uuid();
-    diff.add("search", {id, top: 100, left: 100});
-    diff.add("search query", {id, search: "foo"});
+    diff.add("builtin search", {id, top: 100, left: 100});
+    diff.add("builtin search query", {id, search: "foo"});
     eve.applyDiff(diff);
   } else {
     eve.load(stored);
@@ -2251,12 +2028,12 @@ function initEve() {
   initSearches();
 }
 
-// @TODO: KILL ME
-import "./bootstrap";
-
 app.renderRoots["wiki"] = root;
 app.init("wiki", function() {
   document.body.classList.add(localStorage["theme"] || "light");
   app.activeSearches = {};
   initEve();
 });
+
+// @TODO: KILL ME
+import "./bootstrap";

@@ -1,8 +1,11 @@
 //---------------------------------------------------------
 // Runtime
 //---------------------------------------------------------
+declare var uuid;
 declare var exports;
 let runtime = exports;
+
+export var MAX_NUMBER = 9007199254740991;
 
 function objectsIdentical(a:{[key:string]: any}, b:{[key:string]: any}):boolean {
   var aKeys = Object.keys(a);
@@ -500,6 +503,25 @@ export class Indexer {
   }
 }
 
+
+function mappingToDiff(diff, action, mapping, aliases, reverseLookup) {
+  for(let from in mapping) {
+    let to = mapping[from];
+    if(to.constructor === Array) {
+      let source = to[0];
+      if(typeof source === "number") {
+        source = aliases[reverseLookup[source]];
+      } else {
+        source = aliases[source];
+      }
+      diff.add("action mapping", {action, from, "to source": source, "to field": to[1]});
+    } else {
+      diff.add("action mapping constant", {action, from, value: to});
+    }
+  }
+  return diff;
+}
+
 export var QueryFunctions = {}
 var STRIP_COMMENTS = /((\/\/.*$)|(\/\*[\s\S]*?\*\/))/mg;
 var ARGUMENT_NAMES = /([^\s,]+)/g;
@@ -534,6 +556,22 @@ export class Query {
   aggregates;
   unprojectedSize;
   hasOrdinal;
+
+  static remove(view: string, ixer:Indexer) {
+    let diff = ixer.diff();
+    diff.remove("view", {view});
+    for(let actionItem of ixer.find("action", {view})) {
+      let action = actionItem.action;
+      diff.remove("action", {action});
+      diff.remove("action source", {action});
+      diff.remove("action mapping", {action});
+      diff.remove("action mapping constant", {action});
+      diff.remove("action mapping sorted", {action});
+      diff.remove("action mapping limit", {action});
+    }
+    return diff;
+  }
+
   constructor(ixer, name = "unknown") {
     this.name = name;
     this.ixer = ixer;
@@ -546,6 +584,92 @@ export class Query {
     this.unprojectedSize = 0;
     this.hasOrdinal = false;
   }
+  changeset(ixer:Indexer) {
+    let diff = ixer.diff();
+    let aliases = {};
+    let reverseLookup = {};
+    for(let alias in this.aliases) {
+      reverseLookup[this.aliases[alias]] = alias;
+    }
+    let view = this.name;
+    diff.add("view", {view, kind: "query"});
+    //joins
+    for(let join of this.joins) {
+      let action = uuid();
+      aliases[join.as] = action;
+      if(!join.negated) {
+        diff.add("action", {view, action, kind: "select", ix: join.ix});
+      } else {
+        diff.add("action", {view, action, kind: "deselect", ix: join.ix});
+      }
+      diff.add("action source", {action, "source view": join.table});
+      mappingToDiff(diff, action, join.join, aliases, reverseLookup);
+    }
+    //functions
+    for(let func of this.funcs) {
+      let action = uuid();
+      aliases[func.as] = action;
+      diff.add("action", {view, action, kind: "calculate", ix: func.ix});
+      diff.add("action source", {action, "source view": func.name});
+      mappingToDiff(diff, action, func.args, aliases, reverseLookup);
+    }
+    //aggregates
+    for(let agg of this.aggregates) {
+      let action = uuid();
+      aliases[agg.as] = action;
+      diff.add("action", {view, action, kind: "aggregate", ix: agg.ix});
+      diff.add("action source", {action, "source view": agg.name});
+      mappingToDiff(diff, action, agg.args, aliases, reverseLookup);
+    }
+    //sort
+    if(this.sorts) {
+      let action = uuid();
+      diff.add("action", {view, action, kind: "sort", ix: MAX_NUMBER});
+      let ix = 0;
+      for(let sort of this.sorts) {
+        let [source, field, direction] = sort;
+        if(typeof source === "number") {
+          source = aliases[reverseLookup[source]];
+        } else {
+          source = aliases[source];
+        }
+        diff.add("action mapping sorted", {action, ix, source, field, direction});
+        ix++;
+      }
+    }
+    //group
+    if(this.groups) {
+      let action = uuid();
+      diff.add("action", {view, action, kind: "group", ix: MAX_NUMBER});
+      let ix = 0;
+      for(let group of this.groups) {
+        let [source, field] = group;
+        if(typeof source === "number") {
+          source = aliases[reverseLookup[source]];
+        } else {
+          source = aliases[source];
+        }
+        diff.add("action mapping sorted", {action, ix, source, field, direction: "ascending"});
+        ix++;
+      }
+    }
+    //limit
+    if(this.limitInfo) {
+      let action = uuid();
+      diff.add("action", {view, action, kind: "limit", ix: MAX_NUMBER});
+      for(let limitType in this.limitInfo) {
+        diff.add("action mapping limit", {action, "limit type": limitType, value: this.limitInfo[limitType]});
+      }
+    }
+    //projection
+    if(this.projectionMap) {
+      let action = uuid();
+      diff.add("action", {view, action, kind: "project", ix: MAX_NUMBER});
+      mappingToDiff(diff, action, this.projectionMap, aliases, reverseLookup);
+    }
+    return diff;
+  }
+
   select(table, join, as?) {
     this.dirty = true;
     if(as) {

@@ -1,17 +1,35 @@
-import {eve as ixer} from "./app";
-import {Element} from "./microReact";
+import {unpad, repeat} from "./utils";
+import {Element, Handler} from "./microReact";
 import {Indexer, Query} from "./runtime";
-import * as wiki from "./wiki";
 declare var uuid;
 declare var DEBUG;
 window["DEBUG"] = window["DEBUG"] || {};
 
-function resolvedAdd(changeset, table, fact) {
+function resolve(table, fact) {
   let neue = {};
-  for(let field in fact) {
+  for(let field in fact)
     neue[`${table}: ${field}`] = fact[field];
-  }
-  return changeset.add(table, neue);
+  return neue;
+}
+function humanize(table, fact) {
+  let neue = {};
+  for(let field in fact)
+    neue[field.slice(table.length + 2)] = fact[field];
+  return neue;
+}
+
+function resolvedAdd(changeset, table, fact) {
+  return changeset.add(table, resolve(table, fact));
+}
+function resolvedRemove(changeset, table, fact) {
+  return changeset.remove(table, resolve(table, fact));
+}
+function humanizedFind(ixer:Indexer, table, query) {
+  let results = [];
+  for(let fact of ixer.find(table, resolve(table, query))) results.push(humanize(table, fact));
+  let diag = {};
+  for(let table in ixer.tables) diag[table] = ixer.tables[table].table.length;
+  return results;
 }
 
 export class UI {
@@ -22,6 +40,31 @@ export class UI {
   protected _events:{} = {};
 
   protected _parent:UI;
+
+  static remove(template:string, ixer:Indexer) {
+    let changeset = ixer.diff();
+    resolvedRemove(changeset, "ui template", {template});
+    resolvedRemove(changeset, "ui template binding", {template});
+    let bindings = humanizedFind(ixer, "ui template binding", {template});
+    for(let binding of bindings) changeset.merge(Query.remove(binding.binding, ixer));
+    resolvedRemove(changeset, "ui embed", {template});
+    let embeds = humanizedFind(ixer, "ui embed", {template});
+    for(let embed of embeds) {
+      resolvedRemove(changeset, "ui embed scope", {template, embed: embed.embed});
+      resolvedRemove(changeset, "ui embed scope binding", {template, embed: embed.embed});
+    }
+    resolvedRemove(changeset, "ui attribute", {template});
+    resolvedRemove(changeset, "ui attribute binding", {template});
+    resolvedRemove(changeset, "ui event", {template});
+    let events = humanizedFind(ixer, "ui event", {template});
+    for(let event of events) {
+      resolvedRemove(changeset, "ui event state", {template, event: event.event});
+      resolvedRemove(changeset, "ui event state binding", {template, event: event.event});
+    }
+
+    for(let child of humanizedFind(ixer, "ui template", {parent: template})) changeset.merge(UI.remove(child.template, ixer));
+    return changeset;
+  }
 
   constructor(public id) {
 
@@ -43,16 +86,17 @@ export class UI {
     let ix = this._attributes["ix"];
     if(ix === undefined) ix = (this._parent && this._parent._children.indexOf(this));
     if(ix === -1 || ix === undefined) ix = "";
+    if(this._embedded) parent = "";
 
     resolvedAdd(changeset, "ui template", {template: this.id, parent, ix});
     if(this._binding) {
       if(!this._binding.name || this._binding.name === "unknown") this._binding.name = `bound view ${this.id}`;
-      changeset.merge(wiki.queryObjectToDiff(this._binding));
+      changeset.merge(this._binding.changeset(ixer));
       resolvedAdd(changeset, "ui template binding", {template: this.id, binding: this._binding.name});
     }
     if(this._embedded) {
       let embed = uuid();
-      resolvedAdd(changeset, "ui embed", {embed, template: this.id, parent: this._parent || "", ix});
+      resolvedAdd(changeset, "ui embed", {embed, template: this.id, parent: (this._parent || <any>{}).id, ix});
       for(let key in this._embedded) {
         let value = this._attributes[key];
         if(value instanceof Array) resolvedAdd(changeset, "ui embed scope binding", {embed, key, source: value[0], alias: value[1]});
@@ -80,6 +124,35 @@ export class UI {
     for(let child of this._children) changeset.merge(child.changeset(ixer));
 
     return changeset;
+  }
+  load(template:string, ixer:Indexer, parent?:UI) {
+    let fact = humanizedFind(ixer, "ui template", {template})[0];
+    if(!fact) return this;
+    if(parent || fact.parent) this._parent = parent || new UI(this._parent);
+    let binding = humanizedFind(ixer, "ui template binding", {template})[0];
+    if(binding) this.bind((new Query(ixer, binding.binding)));
+    let embed = humanizedFind(ixer, "ui embed", {template, parent: this._parent ? this._parent.id : ""})[0];
+    if(embed) {
+      let scope = {};
+      for(let attr of humanizedFind(ixer, "ui embed scope", {embed: embed.embed})) scope[attr.key] = attr.value;
+      for(let attr of humanizedFind(ixer, "ui embed scope binding", {embed: embed.embed})) scope[attr.key] = [attr.source, attr.alias];
+      this.embed(scope);
+    }
+
+    for(let attr of humanizedFind(ixer, "ui attribute", {template})) this.attribute(attr.property, attr.value);
+    for(let attr of humanizedFind(ixer, "ui attribute binding", {template})) this.attribute(attr.property, [attr.source, attr.alias]);
+
+    for(let event of humanizedFind(ixer, "ui event", {template})) {
+      let state = {};
+      for(let attr of humanizedFind(ixer, "ui event state", {template, event: event.event})) state[event.key] = event.value;
+      for(let attr of humanizedFind(ixer, "ui event state binding", {template, event: event.event})) state[event.key] = [event.source, event.alias]
+      this.event(event.event, state);
+    }
+
+    for(let child of humanizedFind(ixer, "ui template", {parent: template}))
+      this.child((new UI(child.template)).load(child.template, ixer, this));
+
+    return this;
   }
 
   children(neue?:UI[], append = false) {
@@ -156,30 +229,6 @@ export class UI {
   }
 }
 
-// @FIXME: These should probably be unionized.
-function addResolvedTable(ixer, table, fields) {
-  return ixer.addTable(table, fields.map((field) => `${table}: ${field}`));
-}
-addResolvedTable(ixer, "ui template", ["template", "parent", "ix"]);
-addResolvedTable(ixer, "ui template binding", ["template", "query"]);
-addResolvedTable(ixer, "ui embed", ["embed", "template", "parent", "ix"]);
-addResolvedTable(ixer, "ui embed scope", ["embed", "key", "value"]);
-addResolvedTable(ixer, "ui embed scope binding", ["embed", "key", "source", "alias"]);
-addResolvedTable(ixer, "ui attribute", ["template", "property", "value"]);
-addResolvedTable(ixer, "ui attribute binding", ["template", "property", "source", "alias"]);
-addResolvedTable(ixer, "ui event", ["template", "event"]);
-addResolvedTable(ixer, "ui event state", ["template", "event", "key", "value"]);
-addResolvedTable(ixer, "ui event state binding", ["template", "event", "key", "source", "alias"]);
-
-
-// @FIXME: These should probably be unionized.
-//ixer.addTable("ui template", ["ui template: template", "ui template: parent", "ui template: ix"]);
-//ixer.addTable("ui template binding", ["ui template binding: template", "ui template binding: query"]);
-//ixer.addTable("ui attribute", ["ui attribute: template", "ui attribute: property", "ui attribute: value"]);
-//ixer.addTable("ui attribute binding", ["ui attribute binding: template", "ui attribute binding: property", "ui attribute binding: alias"]);
-//ixer.addTable("ui event", ["ui event: template", "ui event: event", "ui event: kind", "ui event: key"]);
-//ixer.addTable("ui event binding", ["ui event binding: template", "ui event binding: event", "ui event binding: kind", "ui event binding: alias"]);
-
 interface UiWarning {
   "ui warning: template": string
   "ui warning: warning": string
@@ -187,18 +236,22 @@ interface UiWarning {
 
 // @TODO: Finish reference impl.
 // @TODO: Then build bit-generating version
-export class UiRenderer {
+export class UIRenderer {
   public compiled = 0;
-  protected tagCompilers:{[tag: string]: (elem:Element) => void} = {};
+  protected _tagCompilers:{[tag: string]: (elem:Element) => void} = {};
+  protected _handlers:Handler<Event>[] = [];
+
+  constructor(public ixer:Indexer) {}
 
   compile(roots:(string|Element)[]):Element[] {
+    if(DEBUG.RENDERER) console.group("ui compile");
     let compiledElems:Element[] = [];
     for(let root of roots) {
       // @TODO: reparent dynamic roots if needed.
       if(typeof root === "string") {
         let elems = this._compileWrapper(root, compiledElems.length);
         compiledElems.push.apply(compiledElems, elems);
-        let base = ixer.findOne("ui template", {"ui template: template": root});
+        let base = this.ixer.findOne("ui template", {"ui template: template": root});
         if(!base) continue;
         let parent = base["ui template: parent"];
         if(parent) {
@@ -210,15 +263,15 @@ export class UiRenderer {
         compiledElems.push(root);
       }
     }
-
+    if(DEBUG.RENDERER) console.groupEnd();
     return compiledElems;
   }
 
-  protected _compileWrapper(template:string, baseIx: number, constraints:{} = {}, bindingStack:any[] = []):Element[] {
+  protected _compileWrapper(template:string, baseIx: number, constraints:{} = {}, bindingStack:any[] = [], depth:number = 0):Element[] {
     let elems = [];
-    let binding = ixer.findOne("ui template binding", {"ui template binding: template": template});
+    let binding = this.ixer.findOne("ui template binding", {"ui template binding: template": template});
     if(!binding) {
-      let elem = this._compileElement(template, bindingStack);
+      let elem = this._compileElement(template, bindingStack, depth);
       if(elem) elems[0] = elem;
     } else {
       let boundQuery = binding["ui template binding: binding"];
@@ -226,7 +279,7 @@ export class UiRenderer {
       let ix = 0;
       for(let fact of facts) {
         bindingStack.push(fact);
-        let elem = this._compileElement(template, bindingStack);
+        let elem = this._compileElement(template, bindingStack, depth);
         bindingStack.pop();
         if(elem) elems.push(elem);
       }
@@ -241,17 +294,17 @@ export class UiRenderer {
     return elems;
   }
 
-  protected _compileElement(template:string, bindingStack:any[]):Element {
-    let elementToChildren = ixer.index("ui template", ["ui template: parent"]);
-    let elementToEmbeds = ixer.index("ui embed", ["ui embed: parent"]);
-    let embedToScope = ixer.index("ui embed scope", ["ui embed scope: embed"]);
-    let embedToScopeBinding = ixer.index("ui embed scope binding", ["ui embed scope binding: embed"]);
-    let elementToAttrs = ixer.index("ui attribute", ["ui attribute: template"]);
-    let elementToAttrBindings = ixer.index("ui attribute binding", ["ui attribute binding: template"]);
-    let elementToEvents = ixer.index("ui event", ["ui event: template"]);
-    let elementToEventBindings = ixer.index("ui event binding", ["ui event binding: template"]);
+  protected _compileElement(template:string, bindingStack:any[], depth:number):Element {
+    if(DEBUG.RENDERER) console.log(repeat("  ", depth) + "* compile", template);
+    let elementToChildren = this.ixer.index("ui template", ["ui template: parent"]);
+    let elementToEmbeds = this.ixer.index("ui embed", ["ui embed: parent"]);
+    let embedToScope = this.ixer.index("ui embed scope", ["ui embed scope: embed"]);
+    let embedToScopeBinding = this.ixer.index("ui embed scope binding", ["ui embed scope binding: embed"]);
+    let elementToAttrs = this.ixer.index("ui attribute", ["ui attribute: template"]);
+    let elementToAttrBindings = this.ixer.index("ui attribute binding", ["ui attribute binding: template"]);
+    let elementToEvents = this.ixer.index("ui event", ["ui event: template"]);
     this.compiled++;
-    let base = ixer.findOne("ui template", {"ui template: template": template});
+    let base = this.ixer.findOne("ui template", {"ui template: template": template});
     if(!base) {
       console.warn(`ui template ${template} does not exist. Ignoring.`);
       return undefined;
@@ -260,7 +313,6 @@ export class UiRenderer {
     let attrs = elementToAttrs[template];
     let boundAttrs = elementToAttrBindings[template];
     let events = elementToEvents[template];
-    let boundEvents = elementToEventBindings[template];
 
     // Handle meta properties
     let elem:Element = {_template: template, ix: base["ui template: ix"]};
@@ -279,7 +331,7 @@ export class UiRenderer {
 
     // Attach event handlers
     if(events) {
-      for(let {"ui event: event": event} of events) elem[event] = this.generateEventHandler(elem, event);
+      for(let {"ui event: event": event} of events) elem[event] = this.generateEventHandler(elem, event, bindingStack);
     }
 
     // Compile children
@@ -309,13 +361,13 @@ export class UiRenderer {
           }
           childBindingStack = [constraints];
         }
-        elem.children.push.apply(elem.children, this._compileWrapper(add, elem.children.length, constraints, childBindingStack));
+        elem.children.push.apply(elem.children, this._compileWrapper(add, elem.children.length, constraints, childBindingStack, depth + 1));
       }
     }
 
-    if(this.tagCompilers[elem.t]) {
+    if(this._tagCompilers[elem.t]) {
       try {
-        this.tagCompilers[elem.t](elem);
+        this._tagCompilers[elem.t](elem);
       } catch(err) {
         console.warn(`Failed to compile template: '${template}' due to '${err}' for element '${JSON.stringify(elem)}'`);
         elem.t = "ui-error";
@@ -326,7 +378,7 @@ export class UiRenderer {
   }
 
   protected getBoundFacts(query, constraints):string[] {
-    return ixer.find(query, constraints);
+    return this.ixer.find(query, constraints);
   }
   protected getBoundScope(bindingStack:any[]):{} {
     let scope = {};
@@ -337,15 +389,80 @@ export class UiRenderer {
   }
 
   //@FIXME: What do about source?
-  protected getBoundValue(source:string, alias:string, bindingStack:any[]):any {
+  protected getBoundValue(source:string, alias:string, bindingStack:any[]):any { // @FIXME: Finds don't create a source field on the result.
     for(let ix = bindingStack.length - 1; ix >= 0; ix--) {
       let fact = bindingStack[ix];
       if(source in fact && fact[alias]) return fact[alias];
     }
   }
-  protected generateEventHandler(elem, event) {
-    // @TODO: Pull event state and event state binding
-    throw new Error("Implement me!");
+  protected generateEventHandler(elem:Element, event:string, bindingStack:any[]):Handler<Event> {
+    let template = elem["_template"];
+    let memoKey = `${template}::${event}`;
+    let attrKey = `${event}::state`;
+    elem[attrKey] = this.getEventState(template, event, bindingStack);
+    if(this._handlers[memoKey]) return this._handlers[memoKey];
+
+    let self = this;
+    if(event === "change" || event === "input") {
+      this._handlers[memoKey] = (evt:Event, elem:Element) => {
+        let props:any = {};
+        if(elem.t === "select" || elem.t === "input" || elem.t === "textarea") props.value = (<HTMLSelectElement|HTMLInputElement>evt.target).value;
+        if(elem.type === "checkbox") props.value = (<HTMLInputElement>evt.target).checked;
+        self.handleEvent(template, event, evt, elem, props);
+      };
+    } else {
+      this._handlers[memoKey] = (evt:Event, elem:Element) => {
+        self.handleEvent(template, event, evt, elem, {});
+      }
+    }
+
+    return this._handlers[memoKey];
+  }
+  protected handleEvent(template:string, eventName:string, event:Event, elem:Element, eventProps:{}) {
+    let attrKey = `${eventName}::state`;
+    let state = elem[attrKey];
+    let content = unpad(6) `
+      # ${eventName} ({is a: event})
+      ## Meta
+      event target: {event target: ${elem.id}}
+      event template: {event template: ${template}}
+      event type: {event type: ${eventName}}
+
+      ## State
+    `;
+    if(state["*event*"]) {
+      for(let prop in state["*event*"])
+        content += `${prop}: {${prop}: ${eventProps[state["*event*"][prop]]}}\n`;
+    }
+    for(let prop in state) {
+      if(prop === "*event*") continue;
+      content += `${prop}: {${prop}: ${state[prop]}}\n`
+    }
+
+    let changeset = this.ixer.diff();
+    let raw = uuid();
+    let entity = `${eventName} event ${raw.slice(-12)}`;
+    changeset.add("builtin entity", {entity, content});
+    this.ixer.applyDiff(changeset);
+    console.log(entity);
+  }
+
+  protected getEventState(template:string, event:string, bindingStack:any[]):{} {
+    let state = {};
+    let staticAttrs = this.ixer.find("ui event state", {"ui event state: template": template, "ui event state: event": event});
+    for(let {"ui event state: key": key, "ui event state: value": val} of staticAttrs) state[key] = val;
+
+    let boundAttrs = this.ixer.find("ui event state binding", {"ui event state binding: template": template, "ui event state binding: event": event});
+    for(let {"ui event state binding: key": key, "ui event state binding: source": source, "ui event state binding: alias": alias} of boundAttrs) {
+      if(source === "*event*") {
+        state["*event*"] = state["*event*"] || {};
+        state["*event*"][key] = alias;
+      } else {
+        state[key] = this.getBoundValue(source, alias, bindingStack);
+      }
+    }
+
+    return state;
   }
 }
 

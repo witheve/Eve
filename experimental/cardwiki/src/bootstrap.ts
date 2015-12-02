@@ -9,7 +9,6 @@ import {UI} from "./uiRenderer"
 export var ixer = eve;
 declare var uuid;
 
-
 //-----------------------------------------------------------------------------
 // Utilities
 //-----------------------------------------------------------------------------
@@ -25,7 +24,9 @@ export function queryFromPlanDSL(str:string):runtime.Query {
 export function queryFromQueryDSL(ixer:runtime.Indexer, str:string):runtime.Query {
   let plan = parseQuery(str);
   let query = new runtime.Query(ixer);
+  let ix = 0;
   for(let step of plan) {
+    let id = step.id || `${step.type}||${ix}`;
     if(step.type === "select") query.select(step["view"], step["join"] || {}, step.id);
     else if(step.type === "deselect") query.deselect(step["view"], step["join"] || {});
     else if(step.type === "calculate") query.calculate(step["func"], step["args"], step.id);
@@ -51,13 +52,14 @@ export function UIFromDSL(str:string):UI {
     }
     return elem;
   }
-
   return processElem(parseUI(str));
 }
 
 class BSPhase {
   protected _views:{[view:string]: string} = {};
   protected _viewFields:{[view:string]: string[]} = {};
+  protected _entities:string[] = [];
+  protected _uis:string[] = [];
 
   constructor(public ixer:runtime.Indexer, public changeset = ixer.diff()) {}
 
@@ -67,10 +69,14 @@ class BSPhase {
   viewFields(view:string) {
     return this._viewFields[view];
   }
-  apply() {
+  apply(nukeExisting?:boolean) {
     for(let view in this._views) {
-      if(this._views[view] !== "table") continue;
-      ixer.addTable(view, this.viewFields[view]);
+      if(this._views[view] === "table") ixer.addTable(view, this.viewFields[view]);
+    }
+    if(nukeExisting) {
+      for(let view in this._views) this.changeset.merge(runtime.Query.remove(view, this.ixer));
+      for(let entity of this._entities) this.changeset.remove("builtin entity", {entity});
+      for(let ui of this._uis) this.changeset.merge(UI.remove(ui, this.ixer));
     }
     ixer.applyDiff(this.changeset);
   }
@@ -84,6 +90,7 @@ class BSPhase {
   }
 
   addEntity(entity:string, name:string, kinds:string[], attributes?:{}, extraContent?:string) {
+    this._entities.push(entity);
     let content = unpad(6) `
       # ${titlecase(name)} (${kinds.map((kind) => `{is a: ${kind}}`).join(", ")})
     `;
@@ -113,11 +120,13 @@ class BSPhase {
     return this;
   }
 
-  addUnion(view:string, fields:string[]) {
-    let table = `builtin ${view}`;
-    this.addTable(table, fields);
+  addUnion(view:string, fields:string[], builtin:boolean = true) {
     this.addView(view, "union", fields);
-    this.addUnionMember(view, table);
+    if(builtin) {
+      let table = `builtin ${view}`;
+      this.addTable(table, fields);
+      this.addUnionMember(view, table);
+    }
     return this;
   }
 
@@ -141,12 +150,13 @@ class BSPhase {
   addQuery(view:string, query:runtime.Query) {
     query.name = view;
     this.addView(view, "query", Object.keys(query.projectionMap || {}));
-    this.changeset.merge(wiki.queryObjectToDiff(query));
+    this.changeset.merge(query.changeset(this.ixer));
     return this;
   }
 
   addUI(id:string, ui:UI) {
     ui.id = id;
+    this._uis.push(id);
     this.addEntity(id, id, ["system", "ui"]);
     this.changeset.merge(ui.changeset(this.ixer));
     return this;
@@ -154,11 +164,12 @@ class BSPhase {
 }
 
 app.init("bootstrap", function bootstrap() {
+  //-----------------------------------------------------------------------------
+  // Entity System
+  //-----------------------------------------------------------------------------
   let phase = new BSPhase(eve);
-
   phase.addTable("manual entity", ["entity", "content"]);
   phase.addTable("action entity", ["entity", "content", "source"]);
-
   phase.addEntity("collection", "collection", ["system"])
     .addEntity("system", "system", ["collection"])
     .addEntity("union", "union", ["system", "collection"])
@@ -166,11 +177,19 @@ app.init("bootstrap", function bootstrap() {
     .addEntity("table", "table", ["system", "collection"])
     .addEntity("ui", "ui", ["system", "collection"]);
 
-  phase.addUnion("entity", ["entity", "content"])
+  phase.addUnion("entity", ["entity", "content"], false)
     .addUnionMember("entity", "manual entity")
     .addUnionMember("entity", "action entity")
     .addUnionMember("entity", "unmodified added bits")
-    .addUnionMember("entity", "automatic collection entities");
+    .addUnionMember("entity", "automatic collection entities")
+    .addTable("builtin entity", ["entity", "content"])
+    .addQuery("unmodified builtin entities", queryFromQueryDSL(phase.ixer, unpad(4) `
+      select builtin entity as [builtin]
+      deselect manual entity {entity: [builtin, entity]}
+      deselect action entity {entity: [builtin, entity]}
+      project {entity: [builtin, entity]; content: [builtin, content]}
+    `))
+    .addUnionMember("entity", "unmodified builtin entities");
 
   phase.addQuery("unmodified added bits", queryFromQueryDSL(phase.ixer, unpad(4) `
     select added bits as [added]
@@ -234,21 +253,75 @@ app.init("bootstrap", function bootstrap() {
     project {entity: [coll, collection]; content: [content,content]}
   `));
 
-  phase.apply();
+  phase.apply(true);
 
   //-----------------------------------------------------------------------------
   // UI
   //-----------------------------------------------------------------------------
   phase = new BSPhase(eve);
-  phase.addUI("wiki root", UIFromDSL(unpad(4) `
-    div wiki-root {background: pink}
-      header {text: header}
-      content {text: [pet, pet]}
-        ~ gather pet as [pet]
-      footer {text: footer}
+
+  // @FIXME: These should probably be unionized.
+  function resolve(table, fields) {
+    return fields.map((field) => `${table}: ${field}`);
+  }
+  phase.addTable("ui template", resolve("ui template", ["template", "parent", "ix"]));
+  phase.addTable("ui template binding", resolve("ui template binding", ["template", "query"]));
+  phase.addTable("ui embed", resolve("ui embed", ["embed", "template", "parent", "ix"]));
+  phase.addTable("ui embed scope", resolve("ui embed scope", ["embed", "key", "value"]));
+  phase.addTable("ui embed scope binding", resolve("ui embed scope binding", ["embed", "key", "source", "alias"]));
+  phase.addTable("ui attribute", resolve("ui attribute", ["template", "property", "value"]));
+  phase.addTable("ui attribute binding", resolve("ui attribute binding", ["template", "property", "source", "alias"]));
+  phase.addTable("ui event", resolve("ui event", ["template", "event"]));
+  phase.addTable("ui event state", resolve("ui event state", ["template", "event", "key", "value"]));
+  phase.addTable("ui event state binding", resolve("ui event state binding", ["template", "event", "key", "source", "alias"]));
+
+  phase.addTable("system ui", ["template"]);
+  phase.addFact("system ui", {template: "wiki root"});
+
+  let wikiRoot = UIFromDSL(unpad(4) `
+    div wiki-root {color: red}
+      header
+        > perf stats
+      content
+        search container search-container {top: [search, top]; left: [search, left]}
+          ~ gather search as [search]
+          ~   lookup top
+          ~   lookup left
+          ~   lookup search
+          header search-header
+            div search-input { text: [search, search]}
+  `);
+  phase.addUI("wiki root", wikiRoot);
+  window["uu"] = wikiRoot;
+
+  phase.addUI("perf stats", UIFromDSL(unpad(4) `
+    row perf-stats
+      ~ find render performance statistics as [perf stats]
+      ~   # Horrible hack (finds don't create source fields), disregard this
+      ~   lookup perf stats
+      ~   lookup root
+      ~   lookup ui compile
+      ~   lookup render
+      ~   lookup update
+      label {text: root}
+        span {text: [perf stats, root]}
+      label {text: ui compile}
+        span {text: [perf stats, ui compile]}
+      label {text: render}
+        span {text: [perf stats, render]}
+      label {text: update}
+        span {text: [perf stats, update]}
   `));
 
-  phase.apply();
+  phase.apply(true);
+
+  //-----------------------------------------------------------------------------
+  // Wiki Logic
+  //-----------------------------------------------------------------------------
+  phase = new BSPhase(eve);
+  phase.addUnion("search", ["id", "top", "left"]);
+  phase.addUnion("search query", ["id", "search"]);
+  phase.apply(true);
 
   //-----------------------------------------------------------------------------
   // Testing
@@ -286,7 +359,25 @@ app.init("bootstrap", function bootstrap() {
       filterByEntity ! snake
       filter > { a: [animal length, value]; b: 1 }
   `));
-  phase.apply();
+  let example = UIFromDSL(unpad(4) `
+    div example {color: fuchsia}
+      header {text: header}
+      content
+        div pet
+          ~ gather pet as [pet]
+          ~   lookup length
+          ~# calculate + {a: [pet, pet]; b: [pet, length]} as [label]
+          span {text: [pet, pet]}
+            @ click {foo: bar; baz: [pet, pet]}
+          label {text: enemy}
+            input
+              @ change {pet: [pet, pet]; enemy: [*event*, value]}
+          span {text: [pet, length]}
+      footer {text: footer}
+  `);
+  phase.addUI("example ui", example);
+
+  //phase.apply(true);
   window["p"] = phase;
 });
 
