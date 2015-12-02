@@ -183,7 +183,7 @@ let parsePlanStep:{[step: string]: (line: string, lineIx: number, charIx: number
     let attribute = line.slice(charIx, aliasIx).trim();
     if(!attribute)
       return new ParseError(`Lookup step must specify a valid attribute id.`, line, lineIx, charIx);
-    let step:PlanLookup = {type: "lookup", id: alias, attribute, deselect, relatedTo};
+    let step:PlanLookup = {type: "lookup", id: alias, name: alias, attribute, deselect, relatedTo};
     return step;
   },
   intersect(line, lineIx, charIx, relatedTo) {
