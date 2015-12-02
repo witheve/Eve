@@ -2256,6 +2256,7 @@ import "./bootstrap";
 
 app.renderRoots["wiki"] = root;
 app.init("wiki", function() {
+  document.body.classList.add(localStorage["theme"] || "light");
   app.activeSearches = {};
   initEve();
 });
