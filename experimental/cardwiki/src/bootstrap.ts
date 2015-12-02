@@ -153,7 +153,6 @@ class BSPhase {
         this.addFact("action mapping", {action, from: field, "to source": member, "to field": mapped});
       }
     }
-
     return this;
   }
 
@@ -241,7 +240,6 @@ app.init("bootstrap", function bootstrap() {
   phase.addUnion("entity links", ["entity", "link", "type"])
     .addUnionMember("entity links", "eav entity links")
     .addUnionMember("entity links", "collection entities", {entity: "entity", link: "collection", type: ["is a"]});
-
 
   phase.addUnion("directionless links", ["entity", "link"])
     .addUnionMember("directionless links", "entity links")
