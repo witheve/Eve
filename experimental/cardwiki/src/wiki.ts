@@ -1647,7 +1647,7 @@ function removeAddToCollectionAction(action) {
   }
 }
 
-function addEavAction(name, entity, attribute, field) {
+export function addEavAction(name, entity, attribute, field) {
   let diff = eve.diff();
   // add an action
   let action = `${name}|${entity}|${attribute}|${field}`;
@@ -1673,8 +1673,8 @@ function removeAddEavAction(action) {
   }
 }
 
-function addBitAction(name, template, query) {
-  console.log(name, template, query);
+export function addBitAction(name, template, query) {
+  console.log(name, "|", template, "|", query);
   let diff = eve.diff();
   let names = Object.keys(query.projectionMap);
   // add an action
@@ -2022,6 +2022,9 @@ function initSearches() {
   }
 }
 
+// @TODO: KILL ME
+import "./bootstrap";
+
 function initEve() {
   let stored = localStorage[app.eveLocalStorageKey];
   if(!stored) {
@@ -2040,6 +2043,3 @@ app.init("wiki", function() {
   app.activeSearches = {};
   initEve();
 });
-
-// @TODO: KILL ME
-import "./bootstrap";

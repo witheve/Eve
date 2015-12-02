@@ -1,6 +1,6 @@
 import {unpad, titlecase} from "./utils"
 import * as runtime from "./runtime"
-import * as wiki from "./wiki"
+import {newSearch as naturalSearch, planToQuery, addBitAction} from "./wiki"
 import * as app from "./app"
 import {eve} from "./app"
 import {parsePlan, PlanStep, parseQuery, QueryStep, parseUI, UIElem} from "./parser"
@@ -14,12 +14,12 @@ declare var uuid;
 //-----------------------------------------------------------------------------
 
 function queryFromSearch(search:string):runtime.Query {
-  let result = wiki.newSearch(search);
+  let result = naturalSearch(search);
   result.query.ordinal()
   return result.query;
 }
 export function queryFromPlanDSL(str:string):runtime.Query {
-  return wiki.planToQuery(parsePlan(str));
+  return planToQuery(parsePlan(str));
 }
 export function queryFromQueryDSL(ixer:runtime.Indexer, str:string):runtime.Query {
   let plan = parseQuery(str);
@@ -59,7 +59,8 @@ class BSPhase {
   protected _views:{[view:string]: string} = {};
   protected _viewFields:{[view:string]: string[]} = {};
   protected _entities:string[] = [];
-  protected _uis:string[] = [];
+  protected _uis:{[ui:string]: UI} = {};
+  protected _queries:{[query:string]: runtime.Query} = {};
 
   constructor(public ixer:runtime.Indexer, public changeset = ixer.diff()) {}
 
@@ -75,12 +76,10 @@ class BSPhase {
     }
     if(nukeExisting) {
       for(let view in this._views) {
-        if(this._views[view] !== "table") {
-          this.changeset.merge(runtime.Query.remove(view, this.ixer));
-        }
+        if(this._views[view] !== "table") this.changeset.merge(runtime.Query.remove(view, this.ixer));
       }
       for(let entity of this._entities) this.changeset.remove("builtin entity", {entity});
-      for(let ui of this._uis) this.changeset.merge(UI.remove(ui, this.ixer));
+      for(let ui in this._uis) this.changeset.merge(UI.remove(ui, this.ixer));
     }
     ixer.applyDiff(this.changeset);
   }
@@ -158,6 +157,7 @@ class BSPhase {
 
   addQuery(view:string, query:runtime.Query) {
     query.name = view;
+    this._queries[view] = query;
     this.addView(view, "query", Object.keys(query.projectionMap || {}));
     this.changeset.merge(query.changeset(this.ixer));
     return this;
@@ -165,9 +165,17 @@ class BSPhase {
 
   addUI(id:string, ui:UI) {
     ui.id = id;
-    this._uis.push(id);
+    this._uis[id] = ui;
     this.addEntity(id, id, ["system", "ui"]);
     this.changeset.merge(ui.changeset(this.ixer));
+    return this;
+  }
+
+  generateBitAction(name:string, queryOrName:string|runtime.Query, template:string) {
+    let query:runtime.Query;
+    if(typeof queryOrName === "string") query = this._queries[queryOrName];
+    else query = queryOrName;
+    this.changeset.merge(addBitAction(name, template, query));
     return this;
   }
 }
@@ -269,6 +277,27 @@ app.init("bootstrap", function bootstrap() {
   phase.apply(true);
 
   //-----------------------------------------------------------------------------
+  // Wiki Logic
+  //-----------------------------------------------------------------------------
+  phase = new BSPhase(eve);
+  phase.addUnion("search", ["id", "top", "left"]);
+  phase.addUnion("search query", ["id", "search"]);
+  phase.addQuery("searches to entities shim", queryFromQueryDSL(eve, unpad(4) `
+    select search as [search]
+    select search query {id: [search, id]} as [query]
+    project {id: [search, id]; search: [query, search]; top: [search, top]; left: [search, left]}
+  `));
+  phase.generateBitAction("searches to entities shim", "searches to entities shim", unpad(4) `
+    # {id}
+    ({is a: search}, {is a: system})
+    search: {search: {search}}
+    left: {left: {left}}
+    top: {top: {top}}
+  `);
+
+  phase.apply(true);
+
+  //-----------------------------------------------------------------------------
   // UI
   //-----------------------------------------------------------------------------
   phase = new BSPhase(eve);
@@ -302,7 +331,7 @@ app.init("bootstrap", function bootstrap() {
           ~   lookup left
           ~   lookup search
           header search-header
-            div search-input { text: [search, search]}
+            div search-input { text: [search, search 2]}
   `);
   phase.addUI("wiki root", wikiRoot);
   window["uu"] = wikiRoot;
@@ -326,14 +355,6 @@ app.init("bootstrap", function bootstrap() {
         span {text: [perf stats, update]}
   `));
 
-  phase.apply(true);
-
-  //-----------------------------------------------------------------------------
-  // Wiki Logic
-  //-----------------------------------------------------------------------------
-  phase = new BSPhase(eve);
-  phase.addUnion("search", ["id", "top", "left"]);
-  phase.addUnion("search query", ["id", "search"]);
   phase.apply(true);
 
   //-----------------------------------------------------------------------------
