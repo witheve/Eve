@@ -67,9 +67,11 @@ var patterns = {
     type: "aggregate",
     op: "sum",
     args: ["a"],
-    // sum sales per person
-    // sum sales
-    // people whose sum of sales is < 10
+  },
+  "average" :{
+    type: "aggregate",
+    op: "average",
+    args: ["a"],
   },
   "top": {
     type: "sort and limit",
@@ -935,6 +937,7 @@ var tests = {
       ]}
     ]
   },
+  /*
   "people older than chris granger and younger than edward norton": {
 
   },
@@ -962,6 +965,7 @@ var tests = {
   "people who have neither attended a meeting nor had a one-on-one": {
 
   },
+  */
   "salaries per department": {
     expected: [
       {type: StepTypes.gather, subject: "department"},
@@ -1002,6 +1006,17 @@ var tests = {
       ]}
     ]
   },
+  "average of the salaries per department": {
+    expected: [
+      {type: StepTypes.gather, subject: "department"},
+      {type: StepTypes.gather, subject: "employee"},
+      {type: StepTypes.lookup, subject: "salary"},
+      {type: StepTypes.group, subject: "department"},
+      {type: StepTypes.aggregate, subject: "average", args: [
+        {parent: "department", subject: "salary"}
+      ]}
+    ]
+  },
   "top 2 salaries per department": {
     expected: [
       {type: StepTypes.gather, subject: "department"},
@@ -1013,6 +1028,7 @@ var tests = {
       ]}
     ]
   },
+  /*
   "sum of the top 2 salaries per department": {
 
   },
@@ -1151,6 +1167,7 @@ var tests = {
   "What jobs as a senior software developer are available in houston but not san antonio?": {
 
   },
+  */
 }
 
 //---------------------------------------------------------
