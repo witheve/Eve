@@ -14,6 +14,7 @@ export var eveLocalStorageKey = "eve";
 //---------------------------------------------------------
 
 var perfStats;
+var perfStatsUi;
 var updateStat = 0;
 export var renderer;
 export var uiRenderer;
@@ -22,20 +23,18 @@ function initRenderer() {
   uiRenderer = new UIRenderer(eve);
   document.body.appendChild(renderer.content);
   window.addEventListener("resize", render);
-  perfStats = document.createElement("div");
-  perfStats.id = "perfStats";
-  document.body.appendChild(perfStats);
+  perfStatsUi = document.createElement("div");
+  perfStatsUi.id = "perfStats";
+  document.body.appendChild(perfStatsUi);
 }
 
 var performance = window["performance"] || { now: () => (new Date()).getTime() }
 
 export var renderRoots = {};
 export function render() {
-  if(!renderer) return;
+  if(!renderer || renderer.queued) return;
   renderer.queued = true;
-  // @FIXME: why does using request animation frame cause events to stack up and the renderer to get behind?
-  setTimeout(function() {
-    // requestAnimationFrame(function() {
+  requestAnimationFrame(function() {
     let stats:any = {};
     let start = performance.now();
 
@@ -62,27 +61,19 @@ export function render() {
     stats.render = (performance.now() - start).toFixed(2);
     stats.update = updateStat.toFixed(2);
 
-    perfStats.textContent = "";
-    perfStats.textContent += `root: ${stats.root}`;
-    perfStats.textContent += ` | ui compile: ${stats.uiCompile}`;
-    perfStats.textContent += ` | render: ${stats.render}`;
-    perfStats.textContent += ` | update: ${stats.update}`;
+    perfStatsUi.textContent = "";
+    perfStatsUi.textContent += `root: ${stats.root}`;
+    perfStatsUi.textContent += ` | ui compile: ${stats.uiCompile}`;
+    perfStatsUi.textContent += ` | render: ${stats.render}`;
+    perfStatsUi.textContent += ` | update: ${stats.update}`;
+    perfStats = stats;
 
     renderer.queued = false;
 
     let changeset = eve.diff();
-    changeset.remove("builtin entity", {entity: "render performance statistics"});
-    changeset.add("builtin entity", {entity: "render performance statistics", content: `
-    # Render performance statistics ({is a: system})
-    root: {root: ${stats.root}}
-    ui compile: {ui compile: ${stats.uiCompile}}
-    render: {render: ${stats.render}}
-    update: {update: ${stats.update}}
-    Horrible hack, disregard this: {perf stats: render performance statistics}
-    `});
-    eve.applyDiff(changeset);
 
-  }, 16);
+    // eve.applyDiff(changeset);
+  });
 }
 
 //---------------------------------------------------------
@@ -110,6 +101,15 @@ export function dispatch(event: string, info?: { [key: string]: any }, dispatchI
   };
   result.commit = () => {
     var start = performance.now();
+    result.remove("builtin entity", {entity: "render performance statistics"});
+    result.add("builtin entity", {entity: "render performance statistics", content: `
+    # Render performance statistics ({is a: system})
+    root: {root: ${perfStats.root}}
+    ui compile: {ui compile: ${perfStats.uiCompile}}
+    render: {render: ${perfStats.render}}
+    update: {update: ${perfStats.update}}
+    Horrible hack, disregard this: {perf stats: render performance statistics}
+    `});
     eve.applyDiff(result);
     if (result.meta.render) {
       render();
