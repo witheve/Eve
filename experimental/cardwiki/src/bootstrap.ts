@@ -144,8 +144,14 @@ class BSPhase {
     this.addFact("action", {view: union, action, kind: "union", ix: 0})
       .addFact("action source", {action, "source view": member});
 
-    for(let field in mapping)
-      this.addFact("action mapping", {action, from: field, "to source": member, "to field": mapping[field]});
+    for(let field in mapping) {
+      let mapped = mapping[field];
+      if(mapped.constructor === Array) {
+        this.addFact("action mapping constant", {action, from: field, "value": mapped[0]});
+      } else {
+        this.addFact("action mapping", {action, from: field, "to source": member, "to field": mapped});
+      }
+    }
 
     return this;
   }
@@ -234,11 +240,16 @@ app.init("bootstrap", function bootstrap() {
     project {entity: [eav, entity];  attribute: [eav, attribute]; value: [lower, result]}
   `));
 
-  phase.addQuery("entity links", queryFromQueryDSL(phase.ixer, unpad(4) `
+  phase.addQuery("eav entity links", queryFromQueryDSL(phase.ixer, unpad(4) `
     select lowercase eavs as [eav]
     select entity {entity: [eav, value]} as [entity]
     project {entity: [eav, entity]; link: [entity, entity]; type: [eav, attribute]}
   `));
+
+  phase.addUnion("entity links", ["entity", "link", "type"])
+    .addUnionMember("entity links", "eav entity links")
+    .addUnionMember("entity links", "collection entities", {entity: "entity", link: "collection", type: ["is a"]});
+
 
   phase.addUnion("directionless links", ["entity", "link"])
     .addUnionMember("directionless links", "entity links")

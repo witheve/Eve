@@ -219,5 +219,7 @@ document.addEventListener("DOMContentLoaded", function(event) {
 
 init("load data",function() {
   let stored = localStorage[eveLocalStorageKey];
-  if(stored) eve.load(stored);
+  if(stored) {
+    eve.load(stored);
+  }
 });
