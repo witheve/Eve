@@ -32,6 +32,8 @@ var modifiers = {
   "without": {deselected: true},
   "aren't": {deselected: true},
   "don't": {deselected: true},
+  "not": {deselected: true},
+  "isn't": {deselected: true},
   "per": {group: true},
   ",": {separator: true},
   "all": {every: true},
@@ -1024,6 +1026,7 @@ var tests = {
       {type: StepTypes.lookup, subject: "salary"},
       {type: StepTypes.group, subject: "department"},
       {type: StepTypes.limit, subject: "top", args: [
+        {subject: "2"},
         {parent: "department", subject: "salary"}
       ]}
     ]
@@ -1241,7 +1244,7 @@ function searchResultUi(result) {
       {c: "kids", children: tree.roots.map(groupTree)},
       {c: "header2", text: "Operations"},
       {c: "kids", children: tree.operations.map((root) => {
-        console.log(root);
+        //console.log(root);
         return {c: "tokens", children: [
           {c: `node ${TokenTypes[root.type]}`, text: `${root.found}`},
           {c: "kids", children: root.args.map((token) => {
