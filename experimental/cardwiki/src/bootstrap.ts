@@ -71,7 +71,7 @@ class BSPhase {
   }
   apply(nukeExisting?:boolean) {
     for(let view in this._views) {
-      if(this._views[view] === "table") ixer.addTable(view, this.viewFields[view]);
+      if(this._views[view] === "table") ixer.addTable(view, this._viewFields[view]);
     }
     if(nukeExisting) {
       for(let view in this._views) {
