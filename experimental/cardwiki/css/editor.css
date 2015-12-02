@@ -29,12 +29,12 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .entity span { display:inline; }
 .link { cursor:default; border-bottom:1px solid transparent;  }
 
-.bit { -webkit-user-select:auto; text-align:center; justify-content:center; padding:10px;  box-shadow:0 0px 0px #111; margin-bottom:1px; border-radius:0px; align-items:center; }
+.bit { -webkit-user-select:auto; text-align:center; justify-content:center; padding:10px;  box-shadow:0 0px 0px #111; border-radius:0px; align-items:center; }
 .bit.small { height:30px; width:30px; text-transform:uppercase; }
 
 .related-bits { flex-direction:row; flex-wrap: wrap; max-width:600px; }
-.related-bits .bit { flex:1 0 auto; }
-.related-bits .bit + .bit { margin-left:1px; }
+.related-bits .bit { flex:1 0 auto; border-top:1px solid #222; }
+.related-bits .bit + .bit { border-left:1px solid #222; }
 
 .action { flex-direction: row;  margin:0;  padding:10px; white-space:pre; justify-content:center; }
 .action + .action { margin-top:1px; }
@@ -78,6 +78,7 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .search-results .sub-group { margin:0 0px; min-width:100px; }
 .search-results .sub-group + .sub-group { border-left: 1px solid #222; }
 .search-results .sub-group .bit { margin:0 0; flex: 1 0 0; overflow:hidden; min-height:50px; }
+.search-results .path + .path { border-top:1px solid #222; }
 .search-results .sub-group .bit + .bit { border-top:1px solid #222; }
 .search-results .path { flex-direction:row; }
 .search-results pre { display:none; }
@@ -169,6 +170,10 @@ body.light { background: rgb(71,72,75); font-family: Helvetica Neue; font-weight
 .light .search-headers > * { color: #555; background: #eee; }
 .light .search-results .sub-group { border-color:#666; }
 .light .search-results .sub-group .bit + .bit { border-color: #666; }
+.light .search-results .path + .path { border-color: #666; }
+
+.light .related-bits .bit { border-color:#555; }
+
 
 .light .CodeMirror.cm-s-default { font-family: Helvetica Neue; background:none; color: #555; }
 .light .CodeMirror .CodeMirror-selected { background: #ccf; }
