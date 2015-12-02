@@ -227,7 +227,15 @@ var operations = {
 function newSearchTokens(searchString) {
   let cleaned = searchString.toLowerCase();
   let all = queryParser.getTokens(cleaned);
-  all.forEach((token) => token.type = queryParser.TokenTypes[token.type]);
+  all.forEach((token) => {
+    token.type = queryParser.TokenTypes[token.type]
+    if(token.type === "modifier") {
+      token.modifier = modifiers[token.found];
+    } else if(token.type === "pattern") {
+      token.type = "operation";
+      token.operation = operations[token.found];
+    }
+  });
   return all.filter((token) => token.type !== "text");
 }
 

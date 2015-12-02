@@ -377,7 +377,7 @@ app.init("bootstrap", function bootstrap() {
   `);
   phase.addUI("example ui", example);
 
-  //phase.apply(true);
+  // phase.apply(true);
   window["p"] = phase;
 });
 
