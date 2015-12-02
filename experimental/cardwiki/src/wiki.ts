@@ -2030,8 +2030,6 @@ function initEve() {
     diff.add("builtin search", {id, top: 100, left: 100});
     diff.add("builtin search query", {id, search: "foo"});
     eve.applyDiff(diff);
-  } else {
-    eve.load(stored);
   }
   initSearches();
 }

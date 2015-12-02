@@ -74,7 +74,11 @@ class BSPhase {
       if(this._views[view] === "table") ixer.addTable(view, this.viewFields[view]);
     }
     if(nukeExisting) {
-      for(let view in this._views) this.changeset.merge(runtime.Query.remove(view, this.ixer));
+      for(let view in this._views) {
+        if(this._views[view] !== "table") {
+          this.changeset.merge(runtime.Query.remove(view, this.ixer));
+        }
+      }
       for(let entity of this._entities) this.changeset.remove("builtin entity", {entity});
       for(let ui of this._uis) this.changeset.merge(UI.remove(ui, this.ixer));
     }
