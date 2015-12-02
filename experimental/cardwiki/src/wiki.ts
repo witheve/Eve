@@ -2017,8 +2017,8 @@ runtime.define("/", {}, function(a, b) {
 //---------------------------------------------------------
 
 function initSearches() {
-  for(let search of eve.find("search")) {
-    app.activeSearches[search.id] = newSearch(eve.findOne("search query", {id: search.id})["search"]);
+  for(let search of eve.find("builtin search")) {
+    app.activeSearches[search.id] = newSearch(eve.findOne("builtin search query", {id: search.id})["search"]);
   }
 }
 
