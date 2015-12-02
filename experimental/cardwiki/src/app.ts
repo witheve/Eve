@@ -219,6 +219,5 @@ document.addEventListener("DOMContentLoaded", function(event) {
 
 init("load data",function() {
   let stored = localStorage[eveLocalStorageKey];
-  eve.load(stored);
-  console.log(JSON.parse(stored));
+  if(stored) eve.load(stored);
 });
