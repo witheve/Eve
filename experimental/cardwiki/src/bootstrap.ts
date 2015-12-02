@@ -334,6 +334,15 @@ app.init("bootstrap", function bootstrap() {
           ~   lookup search
           header search-header
             div search-input { text: [search, search 2]}
+          content
+          footer search-actions
+            row
+              button {text: + entity}
+                @ click {kind: add entity action; id: [search, id]}
+              button {text: + attribute}
+                @ click {kind: add attribute action; id: [search, id]}
+              button {text: + collection}
+                @ click {kind: add collection action; id: [search, id]}
   `);
   phase.addUI("wiki root", wikiRoot);
   window["uu"] = wikiRoot;
