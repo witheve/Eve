@@ -77,7 +77,7 @@ var patterns = {
   },
   "top": {
     type: "sort and limit",
-    op: "descending",
+    op: ["descending", "top"],
     resultingIndirectObject: 1,
     args: ["limit", "attribute"],
   },
@@ -851,17 +851,17 @@ function treeToPlan(tree) {
 // Test queries
 //---------------------------------------------------------
 
-function validateStep(step, expected) {
-  if(!step || step.type !== expected.type || step.subject !== expected.subject || step.deselected !== expected.deselected) {
+function validateStep(actualStep, expectedStep) : boolean {
+  if(actualStep === undefined || actualStep.type !== expectedStep.type || actualStep.subject !== expectedStep.subject || actualStep.deselected !== expectedStep.deselected) {
     return false;
   }
-  if(expected.args) {
+  if(expectedStep.args) {
     let ix = 0;
-    for(let exArg of expected.args) {
-      if(step.argArray == undefined) {
+    for(let exArg of expectedStep.args) {
+      if(actualStep.argArray === undefined) {
         return false;
       }
-      let arg = step.argArray[ix];
+      let arg = actualStep.argArray[ix];
       if(arg.found !== exArg.subject) {
         return false;
       }
@@ -1033,7 +1033,7 @@ var tests = {
       {type: StepTypes.sort, subject: "descending", args: [
         {parent: "department", subject: "salary"}
       ]},
-      {type: StepTypes.limit, subject: "limit", args: [
+      {type: StepTypes.limit, subject: "top", args: [
         {subject: "2"},
         {parent: "department", subject: "salary"}
       ]}
@@ -1223,17 +1223,19 @@ function testSearch(searchString : string, planDefinition) {
   if(planDefinition.expected) {
     let expected = planDefinition.expected;
     valid = validatePlan(plan, expected);
-    expectedPlan = expected.map((step, ix): any => {
-        let actual = plan[ix];
+    expectedPlan = expected.map((expectedStep, ix): any => {
+        let actualStep = plan[ix];
         let validStep = "";
-        let deselected = step.deselected ? "!" : "";
-        if(actual === undefined) {
-          return {state: Validated.UNDEFINED, message: `${StepTypes[step.type]} ${deselected}${step.subject}`};
+        let deselected = expectedStep.deselected ? "!" : "";
+
+        if(actualStep === undefined) {
+          return {state: Validated.UNDEFINED, message: `${StepTypes[expectedStep.type]} ${deselected}${expectedStep.subject}${args}`};
         }
-        if(validateStep(actual, step)) {
+        if(validateStep(actualStep, expectedStep)) {
           return {state: Validated.VALID, message: "valid"};
         } else {
-          return {state: Validated.INVALID, message: `${StepTypes[step.type]} ${deselected}${step.subject}`};
+          var args = " (" + expectedStep.args.map((arg) => arg.subject).join(", ") + ")";
+          return {state: Validated.INVALID, message: `${StepTypes[expectedStep.type]} ${deselected}${expectedStep.subject}${args}`};
         }
     })
   }
@@ -1293,7 +1295,7 @@ function searchResultUi(result) {
         }
         let args = "";
         if(actual.argArray) {
-          args = " " + actual.argArray.map((arg) => arg.found).join(", ");
+          args = " (" + actual.argArray.map((arg) => arg.found).join(", ") + ")";
         }
         return {c: `step v${info.state}`, text: `${StepTypes[actual.type]} ${actual.deselected ? "!" : ""}${actual.subject}${args}${message}`};
       })}
@@ -1305,7 +1307,7 @@ function searchResultUi(result) {
         let deselected = step.deselected ? "!" : "";
         let args = "";
         if(step.argArray) {
-          args = " " + step.argArray.map((arg) => arg.found).join(", ");
+          args = " (" + step.argArray.map((arg) => arg.found).join(", ") + ")";
         }
         return {c: "step", text: `${StepTypes[step.type]} ${deselected}${step.subject}${args}`}
       })}
@@ -1330,7 +1332,6 @@ function searchResultUi(result) {
 }
 
 function toggleQueryResult(evt, elem) {
-
 
 }
 
