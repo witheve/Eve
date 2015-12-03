@@ -77,6 +77,7 @@ var patterns = {
   },
   "top": {
     type: "sort and limit",
+    op: "descending",
     resultingIndirectObject: 1,
     args: ["limit", "attribute"],
   },
@@ -857,6 +858,9 @@ function validateStep(step, expected) {
   if(expected.args) {
     let ix = 0;
     for(let exArg of expected.args) {
+      if(step.argArray == undefined) {
+        return false;
+      }
       let arg = step.argArray[ix];
       if(arg.found !== exArg.subject) {
         return false;
@@ -874,13 +878,14 @@ function validatePlan(plan, expected) {
   let ix = 0;
   for(let exStep of expected) {
     let step = plan[ix];
-    if(!validateStep(step, exStep)) return false;
+    if(!validateStep(step, exStep)) return Validated.VALID;
     ix++;
   }
-  return true;
+  return Validated.INVALID;
 }
 
 var tests = {
+  /*
   "chris granger's age": {
     expected: [
       {type: StepTypes.find, subject: "chris granger"},
@@ -939,7 +944,7 @@ var tests = {
       ]}
     ]
   },
-  /*
+
   "people older than chris granger and younger than edward norton": {
 
   },
@@ -967,7 +972,6 @@ var tests = {
   "people who have neither attended a meeting nor had a one-on-one": {
 
   },
-  */
   "salaries per department": {
     expected: [
       {type: StepTypes.gather, subject: "department"},
@@ -1008,6 +1012,7 @@ var tests = {
       ]}
     ]
   },
+  */
   "average of the salaries per department": {
     expected: [
       {type: StepTypes.gather, subject: "department"},
@@ -1025,16 +1030,19 @@ var tests = {
       {type: StepTypes.gather, subject: "employee"},
       {type: StepTypes.lookup, subject: "salary"},
       {type: StepTypes.group, subject: "department"},
-      {type: StepTypes.limit, subject: "top", args: [
+      {type: StepTypes.sort, subject: "descending", args: [
+        {parent: "department", subject: "salary"}
+      ]},
+      {type: StepTypes.limit, subject: "limit", args: [
         {subject: "2"},
         {parent: "department", subject: "salary"}
       ]}
     ]
   },
-  /*
   "sum of the top 2 salaries per department": {
 
   },
+  /*
   "departments where all the employees are male": {
 
   },
@@ -1199,15 +1207,21 @@ function groupTree(root) {
   ]};
 }
 
-function testSearch(search, info) {
+enum Validated {
+  VALID,
+  INVALID,
+  UNDEFINED,
+}
+
+function testSearch(search : string, planDefinition) {
   let start = performance.now();
   let tokens = getTokens(search);
   let tree = tokensToTree(tokens);
   let plan = treeToPlan(tree);
-  let valid;
+  let valid : Validated = Validated.UNDEFINED;
   let expectedPlan:any;
-  if(info.expected) {
-    let expected = info.expected;
+  if(planDefinition.expected) {
+    let expected = planDefinition.expected;
     valid = validatePlan(plan, expected);
     expectedPlan = expected.map((step, ix): any => {
         let actual = plan[ix];
@@ -1223,11 +1237,12 @@ function testSearch(search, info) {
         }
       })
   }
-  return {tokens, tree, plan, valid, validated: !!info.expected, expectedPlan, search, time: performance.now() - start};
+
+  return {tokens, tree, plan, valid, expectedPlan, search, time: performance.now() - start};
 }
 
 function searchResultUi(result) {
-  let {tokens, tree, plan, valid, validated, expectedPlan, search} = result;
+  let {tokens, tree, plan, valid, expectedPlan, search} = result;
   //tokens
   let tokensNode = {c: "tokens", children: [
     {c: "header", text: "Tokens"},
@@ -1263,7 +1278,8 @@ function searchResultUi(result) {
   //plan
   let planNode;
   let klass = "";
-  if(validated) {
+
+  if(valid != Validated.UNDEFINED) {
     if(!valid) klass += "failed";
     else klass += "succeeded";
 
@@ -1299,7 +1315,7 @@ function searchResultUi(result) {
     ]};
   }
 
-
+  // The final display for rendering
   return {c: `search ${klass}`, click: toggleQueryResult, children: [
     {c: "search-header", text: `${search}`},
     {c: "search-body", children: [
@@ -1327,9 +1343,9 @@ export function root() {
   for(let test in tests) {
     let result = testSearch(test, tests[test]);
     results.push(result);
-    if(!result.validated) {
+    if(result.valid === Validated.UNDEFINED) {
       resultStats.unvalidated++;
-    } else if(result.valid === false) {
+    } else if(result.valid === Validated.INVALID) {
       resultStats.failed++;
     } else {
       resultStats.succeeded++;
