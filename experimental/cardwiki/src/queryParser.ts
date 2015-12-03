@@ -1213,9 +1213,9 @@ enum Validated {
   UNDEFINED,
 }
 
-function testSearch(search : string, planDefinition) {
+function testSearch(searchString : string, planDefinition) {
   let start = performance.now();
-  let tokens = getTokens(search);
+  let tokens = getTokens(searchString);
   let tree = tokensToTree(tokens);
   let plan = treeToPlan(tree);
   let valid : Validated = Validated.UNDEFINED;
@@ -1227,22 +1227,22 @@ function testSearch(search : string, planDefinition) {
         let actual = plan[ix];
         let validStep = "";
         let deselected = step.deselected ? "!" : "";
-        if(!actual) {
-          return {state: "missing", message: `${StepTypes[step.type]} ${deselected}${step.subject}`};
+        if(actual === undefined) {
+          return {state: Validated.UNDEFINED, message: `${StepTypes[step.type]} ${deselected}${step.subject}`};
         }
         if(validateStep(actual, step)) {
-          return {state: "valid", message: "valid"};
+          return {state: Validated.VALID, message: "valid"};
         } else {
-          return {state: "invalid", message: `${StepTypes[step.type]} ${deselected}${step.subject}`};
+          return {state: Validated.INVALID, message: `${StepTypes[step.type]} ${deselected}${step.subject}`};
         }
-      })
+    })
   }
 
-  return {tokens, tree, plan, valid, expectedPlan, search, time: performance.now() - start};
+  return {tokens, tree, plan, valid, expectedPlan, searchString, time: performance.now() - start};
 }
 
 function searchResultUi(result) {
-  let {tokens, tree, plan, valid, expectedPlan, search} = result;
+  let {tokens, tree, plan, valid, expectedPlan, searchString} = result;
   //tokens
   let tokensNode = {c: "tokens", children: [
     {c: "header", text: "Tokens"},
@@ -1288,9 +1288,9 @@ function searchResultUi(result) {
       {c: "kids", children: expectedPlan.map((info, ix) => {
         let actual = plan[ix];
         let message = "";
-        if(info.state !== "valid") {
+        if(info.state !== Validated.VALID) {
           message = ` :: expected ${info.message}`;
-          if(info.state === "missing") {
+          if(info.state === Validated.UNDEFINED) {
             return {c: `step ${info.state}`, text: `none ${message}`};
           }
         }
@@ -1317,7 +1317,7 @@ function searchResultUi(result) {
 
   // The final display for rendering
   return {c: `search ${klass}`, click: toggleQueryResult, children: [
-    {c: "search-header", text: `${search}`},
+    {c: "search-header", text: `${searchString}`},
     {c: "search-body", children: [
     tokensNode,
     treeNode,
