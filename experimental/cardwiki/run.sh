@@ -64,6 +64,7 @@ node_modules/tsify/node_modules/typescript/bin/tsc --watch -m commonjs 2>&1 | ta
 bundle "src/wiki.ts" "bin/wikiBundle.js" 2>&1 | tag "editor" "$purple" &
 bundle "src/slides.ts" "bin/slidesBundle.js" 2>&1 | tag "slides" "$purple" &
 bundle "test/queryParserTest.ts" "bin/queryParserTestBundle.js" 2>&1 | tag "queryParserTest" "$purple" &
+bundle "test/runtimeTest.ts" "bin/runtimeTestBundle.js" 2>&1 | tag "runtimeTest" "$purple" &
 
 if $server; then
   sleep 4s

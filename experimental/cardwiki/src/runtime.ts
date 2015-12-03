@@ -36,7 +36,7 @@ export function removeFact(haystack, needle, equals?) {
 function generateEqualityFn(keys) {
   return new Function("a", "b",  `return ${keys.map(function(key, ix) {
     if(key.constructor === Array) {
-      return `a[${key[0]}]['${key[1]}'] === b[${key[0]}]['${key[1]}']`;
+      return `a['${key[0]}']['${key[1]}'] === b['${key[0]}']['${key[1]}']`;
     } else {
       return `a["${key}"] === b["${key}"]`;
     }
@@ -47,7 +47,7 @@ function generateStringFn(keys) {
   let keyStrings = [];
   for(let key of keys) {
     if(key.constructor === Array) {
-      keyStrings.push(`a[${key[0]}]['${key[1]}']`);
+      keyStrings.push(`a['${key[0]}']['${key[1]}']`);
     } else {
       keyStrings.push(`a['${key}']`);
     }
@@ -99,7 +99,7 @@ function generateCollector(keys) {
   let removes = "var cur = index";
   for(let key of keys) {
     if(key.constructor === Array) {
-      removes += `[remove[${key[0]}]['${key[1]}']]`;
+      removes += `[remove['${key[0]}']['${key[1]}']]`;
     } else {
       removes += `[remove['${key}']]`;
     }
@@ -108,7 +108,7 @@ function generateCollector(keys) {
   for(let key of keys) {
     ix++;
     if(key.constructor === Array) {
-      checks += `value = add[${key[0]}]['${key[1]}']\n`;
+      checks += `value = add['${key[0]}']['${key[1]}']\n`;
     } else {
       checks += `value = add['${key}']\n`;
     }
@@ -210,8 +210,10 @@ class Diff {
 
 export class Indexer {
   tables;
+  globalCount;
   constructor() {
     this.tables = {};
+    this.globalCount = 0;
   }
   addTable(name, keys = []) {
     let table = this.tables[name];
@@ -220,7 +222,14 @@ export class Indexer {
       table.stringify = generateStringFn(keys);
       table.equals = generateEqualityFn(keys);
     } else {
-      table = this.tables[name] = {table: [], factHash: {}, indexes: {}, triggers: {}, fields: keys, stringify: generateStringFn(keys), equals: generateEqualityFn(keys)};
+      table = this.tables[name] = {table: [], factHash: {}, indexes: {}, triggers: {}, fields: keys, stringify: generateStringFn(keys), equals: generateEqualityFn(keys), keyLookup: {}};
+    }
+    for(let key of keys) {
+      if(key.constructor === Array) {
+        table.keyLookup[key[0]] = key;
+      } else {
+        table.keyLookup[key] = key;
+      }
     }
     return table;
   }
@@ -247,7 +256,7 @@ export class Indexer {
     let hashToFact = {};
     let hashes = [];
     for(let add of adds) {
-      let hash = stringify(add);
+      let hash = add.__id || stringify(add);
       if(localHash[hash] === undefined) {
         localHash[hash] = 1;
         hashToFact[hash] = add;
@@ -255,9 +264,10 @@ export class Indexer {
       } else {
         localHash[hash]++;
       }
+      add.__id = hash;
     }
     for(let remove of removes) {
-      let hash = stringify(remove);
+      let hash = remove.__id || stringify(remove);
       if(localHash[hash] === undefined) {
         localHash[hash] = -1;
         hashToFact[hash] = remove;
@@ -265,6 +275,7 @@ export class Indexer {
       } else {
         localHash[hash]--;
       }
+      remove.__id = hash;
     }
     let realAdds = [];
     let realRemoves = [];
@@ -296,7 +307,13 @@ export class Indexer {
     if(!keys.length) return table.table;
     let cursor = this.index(table, keys);
     for(let key of keys) {
-      cursor = cursor[fact[key]];
+      let value = fact[key];
+      let tableKey = table.keyLookup[key];
+      if(tableKey && tableKey.constructor === Array) {
+        cursor = cursor[value[tableKey[1]]];
+      } else {
+        cursor = cursor[value];
+      }
       if(!cursor) return [];
     }
     return cursor;
@@ -445,7 +462,11 @@ export class Indexer {
     let indexName = keys.join("|");
     let index = table.indexes[indexName];
     if(!index) {
-      index = table.indexes[indexName] = this.collector(keys);
+      let tableKeys = [];
+      for(let key of keys) {
+        tableKeys.push(table.keyLookup[key] || key);
+      }
+      index = table.indexes[indexName] = this.collector(tableKeys);
       index.collect(index.index, table.table, [], table.equals);
     }
     return index.index;
@@ -503,6 +524,10 @@ export class Indexer {
   }
 }
 
+function addProvenanceTable(ixer) {
+  let table = ixer.addTable("provenance", ["table", ["row", "__id"], "row instance", "source", ["source row", "__id"]]);
+  return ixer;
+}
 
 function mappingToDiff(diff, action, mapping, aliases, reverseLookup) {
   for(let from in mapping) {
@@ -751,10 +776,12 @@ export class Query {
     let root = cursor;
     let results = [];
     // by default the only thing we return are the unprojected results
-    let returns = ["unprojected"];
+    let returns = ["unprojected", "provenance"];
 
     // we need an array to store our unprojected results
     root.children.push({type: "declaration", var: "unprojected", value: "[]"});
+    root.children.push({type: "declaration", var: "provenance", value: "[]"});
+    root.children.push({type: "declaration", var: "projected", value: "{}"});
 
     // run through each table nested in the order they were given doing pairwise
     // joins along the way.
@@ -858,6 +885,7 @@ export class Query {
     if(this.projectionMap) {
       this.applyAliases(this.projectionMap);
       root.children.unshift({type: "declaration", var: "results", value: "[]"});
+      cursor.children.push({type: "provenance"});
       cursor.children.push({type: "projection", projectionMap: this.projectionMap, unprojected: this.aggregates.length});
       returns.push("results");
     }
@@ -972,6 +1000,7 @@ export class Query {
         var aggregateResets = [];
         var unprojected = {};
         var ordinal:string|boolean = false;
+        var provenanceCode;
         for(let agg of root.children) {
           if(agg.type === "functionCall") {
             unprojected[agg.ix] = true;
@@ -985,6 +1014,8 @@ export class Query {
             projection = this.compileAST(agg);
           } else if(agg.type === "ordinal") {
             ordinal = `unprojected[ix+${this.unprojectedSize - 1}] = resultCount;\n`;
+          } else if(agg.type === "provenance") {
+            provenanceCode = this.compileAST(agg);
           }
         }
         var aggregateCallsCode = aggregateCalls.join("");
@@ -1065,6 +1096,7 @@ export class Query {
                   while(ix < len) {
                     ${resultsCheck}
                     ${ordinal || ""}
+                    ${provenanceCode}
                     ${projection}
                     groupInfo[ix] = resultCount;
                     resultCount++;
@@ -1082,6 +1114,7 @@ export class Query {
                   ${aggregateCallsCode}
                   ${groupInfo}
                   ${ordinal || ""}
+                  ${provenanceCode}
                   if(ix + ${root.size} === len) {
                     ${projection}
                     break;
@@ -1094,6 +1127,7 @@ export class Query {
         break;
       case "projection":
         var projectedVars = [];
+        var idStringParts = [];
         for(let newField in root.projectionMap) {
           let mapping = root.projectionMap[newField];
           let value = "";
@@ -1108,9 +1142,21 @@ export class Query {
           } else {
             value = JSON.stringify(mapping);
           }
-          projectedVars.push(`'${newField}': ${value}`);
+          projectedVars.push(`projected['${newField}'] = ${value}`);
+          idStringParts.push(value);
         }
-        code += `results.push({ ${projectedVars.join(", ")} });\n`;
+        code += projectedVars.join(";\n") + "\n";
+        code += `projected.__id = ${idStringParts.join(` + "|" + `)};\n`;
+        code += `results.push(projected);\n`;
+        code += `projected = {};\n`;
+        break;
+      case "provenance":
+        var provenance = "";
+        code += `var rowInstance = ixer.globalCount++;\n`
+        for(let join of this.joins) {
+          if(join.negated) continue;
+          code += `provenance.push({table: tableId, row: projected, "row instance": rowInstance, source: "${join.table}", "source row": row${join.ix}});\n`;
+        }
         break;
       case "return":
         var returns = [];
@@ -1125,7 +1171,7 @@ export class Query {
   compile() {
     let ast = this.toAST();
     let code = this.compileAST(ast);
-    this.compiled = new Function("ixer", "QueryFunctions", code);
+    this.compiled = new Function("ixer", "QueryFunctions", "tableId", code);
     this.dirty = false;
     return this;
   }
@@ -1133,7 +1179,7 @@ export class Query {
     if(this.dirty) {
       this.compile();
     }
-    return this.compiled(this.ixer, QueryFunctions);
+    return this.compiled(this.ixer, QueryFunctions, this.name);
   }
   debug() {
     console.log(this.compileAST(this.toAST()));
@@ -1311,5 +1357,5 @@ export const SUCCEED = [{success: true}];
 export const FAIL = [];
 
 export function indexer() {
-  return new Indexer();
+  return addProvenanceTable(new Indexer());
 }
