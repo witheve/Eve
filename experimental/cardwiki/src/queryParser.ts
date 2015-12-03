@@ -32,6 +32,8 @@ var modifiers = {
   "without": {deselected: true},
   "aren't": {deselected: true},
   "don't": {deselected: true},
+  "not": {deselected: true},
+  "isn't": {deselected: true},
   "per": {group: true},
   ",": {separator: true},
   "all": {every: true},
@@ -67,9 +69,11 @@ var patterns = {
     type: "aggregate",
     op: "sum",
     args: ["a"],
-    // sum sales per person
-    // sum sales
-    // people whose sum of sales is < 10
+  },
+  "average" :{
+    type: "aggregate",
+    op: "average",
+    args: ["a"],
   },
   "top": {
     type: "sort and limit",
@@ -878,10 +882,16 @@ function validatePlan(plan, expected) {
 
 var tests = {
   "chris granger's age": {
-    expected: [{type: StepTypes.find, subject: "chris granger"}, {type: StepTypes.lookup, subject: "age"}],
+    expected: [
+      {type: StepTypes.find, subject: "chris granger"},
+      {type: StepTypes.lookup, subject: "age"}
+    ],
   },
   "robert attorri's age": {
-    expected: [{type: StepTypes.find, subject: "robert attorri"}, {type: StepTypes.lookup, subject: "age"}]
+    expected: [
+      {type: StepTypes.find, subject: "robert attorri"},
+      {type: StepTypes.lookup, subject: "age"}
+    ]
   },
   "people older than chris granger": {
     expected: [
@@ -929,6 +939,7 @@ var tests = {
       ]}
     ]
   },
+  /*
   "people older than chris granger and younger than edward norton": {
 
   },
@@ -956,21 +967,71 @@ var tests = {
   "people who have neither attended a meeting nor had a one-on-one": {
 
   },
+  */
   "salaries per department": {
-    expected: [{type: StepTypes.gather, subject: "department"}, {type: StepTypes.gather, subject: "employee"}, {type: StepTypes.lookup, subject: "salary"}, {type: StepTypes.group, subject: "department"}]
+    expected: [
+      {type: StepTypes.gather, subject: "department"},
+      {type: StepTypes.gather, subject: "employee"},
+      {type: StepTypes.lookup, subject: "salary"},
+      {type: StepTypes.group, subject: "department"}
+    ]
   },
   "salaries per department and age": {
-    expected: [{type: StepTypes.gather, subject: "department"}, {type: StepTypes.gather, subject: "employee"}, {type: StepTypes.lookup, subject: "salary"}, {type: StepTypes.lookup, subject: "age"}, {type: StepTypes.group, subject: "department"}, {type: StepTypes.group, subject: "age"}]
+    expected: [
+      {type: StepTypes.gather, subject: "department"},
+      {type: StepTypes.gather, subject: "employee"},
+      {type: StepTypes.lookup, subject: "salary"},
+      {type: StepTypes.lookup, subject: "age"},
+      {type: StepTypes.group, subject: "department"},
+      {type: StepTypes.group, subject: "age"}
+    ]
   },
   "salaries per department, employee, and age": {
-    expected: [{type: StepTypes.gather, subject: "department"}, {type: StepTypes.gather, subject: "employee"}, {type: StepTypes.lookup, subject: "salary"}, {type: StepTypes.lookup, subject: "age"}, {type: StepTypes.group, subject: "department"}, {type: StepTypes.group, subject: "employee"}, {type: StepTypes.group, subject: "age"}]
+    expected: [
+      {type: StepTypes.gather, subject: "department"},
+      {type: StepTypes.gather, subject: "employee"},
+      {type: StepTypes.lookup, subject: "salary"},
+      {type: StepTypes.lookup, subject: "age"},
+      {type: StepTypes.group, subject: "department"},
+      {type: StepTypes.group, subject: "employee"},
+      {type: StepTypes.group, subject: "age"}
+    ]
   },
   "sum of the salaries per department": {
-    expected: [{type: StepTypes.gather, subject: "department"}, {type: StepTypes.gather, subject: "employee"}, {type: StepTypes.lookup, subject: "salary"}, {type: StepTypes.group, subject: "department"}, {type: StepTypes.aggregate, subject: "sum", args: [{parent: "department", subject: "salary"}]}]
+    expected: [
+      {type: StepTypes.gather, subject: "department"},
+      {type: StepTypes.gather, subject: "employee"},
+      {type: StepTypes.lookup, subject: "salary"},
+      {type: StepTypes.group, subject: "department"},
+      {type: StepTypes.aggregate, subject: "sum", args: [
+        {parent: "department", subject: "salary"}
+      ]}
+    ]
+  },
+  "average of the salaries per department": {
+    expected: [
+      {type: StepTypes.gather, subject: "department"},
+      {type: StepTypes.gather, subject: "employee"},
+      {type: StepTypes.lookup, subject: "salary"},
+      {type: StepTypes.group, subject: "department"},
+      {type: StepTypes.aggregate, subject: "average", args: [
+        {parent: "department", subject: "salary"}
+      ]}
+    ]
   },
   "top 2 salaries per department": {
-
+    expected: [
+      {type: StepTypes.gather, subject: "department"},
+      {type: StepTypes.gather, subject: "employee"},
+      {type: StepTypes.lookup, subject: "salary"},
+      {type: StepTypes.group, subject: "department"},
+      {type: StepTypes.limit, subject: "top", args: [
+        {subject: "2"},
+        {parent: "department", subject: "salary"}
+      ]}
+    ]
   },
+  /*
   "sum of the top 2 salaries per department": {
 
   },
@@ -987,7 +1048,11 @@ var tests = {
 
   },
   "dishes with eggs and chicken": {
-    expected: [{type: StepTypes.gather, subject: "dish"}, {type: StepTypes.filterByEntity, subject: "egg"}, {type: StepTypes.filterByEntity, subject: "chicken"}]
+    expected: [
+      {type: StepTypes.gather, subject: "dish"},
+      {type: StepTypes.filterByEntity, subject: "egg"},
+      {type: StepTypes.filterByEntity, subject: "chicken"}
+    ]
   },
   "dishes with eggs or chicken": {
 
@@ -996,13 +1061,25 @@ var tests = {
 
   },
   "dishes without eggs or chicken": {
-    expected: [{type: StepTypes.gather, subject: "dish"}, {type: StepTypes.filterByEntity, subject: "egg", deselected: true}, {type: StepTypes.filterByEntity, subject: "chicken", deselected: true}]
+    expected: [
+      {type: StepTypes.gather, subject: "dish"},
+      {type: StepTypes.filterByEntity, subject: "egg", deselected: true},
+      {type: StepTypes.filterByEntity, subject: "chicken", deselected: true}
+    ]
   },
   "dishes with eggs that aren't desserts": {
-    expected: [{type: StepTypes.gather, subject: "dish"}, {type: StepTypes.filterByEntity, subject: "egg"}, {type: StepTypes.intersect, subject: "dessert", deselected: true}]
+    expected: [
+      {type: StepTypes.gather, subject: "dish"},
+      {type: StepTypes.filterByEntity, subject: "egg"},
+      {type: StepTypes.intersect, subject: "dessert", deselected: true}
+    ]
   },
   "dishes that don't have eggs or chicken": {
-    expected: [{type: StepTypes.gather, subject: "dish"}, {type: StepTypes.filterByEntity, subject: "egg", deselected: true}, {type: StepTypes.filterByEntity, subject: "chicken", deselected: true}]
+    expected: [
+      {type: StepTypes.gather, subject: "dish"},
+      {type: StepTypes.filterByEntity, subject: "egg", deselected: true},
+      {type: StepTypes.filterByEntity, subject: "chicken", deselected: true}
+    ]
   },
   "dishes with a cook time < 30 that have eggs and are sweet": {
 
@@ -1093,6 +1170,7 @@ var tests = {
   "What jobs as a senior software developer are available in houston but not san antonio?": {
 
   },
+  */
 }
 
 //---------------------------------------------------------
@@ -1166,7 +1244,7 @@ function searchResultUi(result) {
       {c: "kids", children: tree.roots.map(groupTree)},
       {c: "header2", text: "Operations"},
       {c: "kids", children: tree.operations.map((root) => {
-        console.log(root);
+        //console.log(root);
         return {c: "tokens", children: [
           {c: `node ${TokenTypes[root.type]}`, text: `${root.found}`},
           {c: "kids", children: root.args.map((token) => {
@@ -1221,9 +1299,10 @@ function searchResultUi(result) {
     ]};
   }
 
-  return {c: `search ${klass}`, children: [
-    {c: "search-header", text: `${search}`},
 
+  return {c: `search ${klass}`, click: toggleQueryResult, children: [
+    {c: "search-header", text: `${search}`},
+    {c: "search-body", children: [
     tokensNode,
     treeNode,
     planNode,
@@ -1233,10 +1312,14 @@ function searchResultUi(result) {
         {c: "time", text: `Total: ${result.time.toFixed(2)}ms`},
       ]}
     ]}
+    ]}
   ]};
 }
 
+function toggleQueryResult(evt, elem) {
 
+
+}
 
 export function root() {
   let results = [];

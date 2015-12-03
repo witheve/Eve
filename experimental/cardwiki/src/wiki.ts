@@ -1674,7 +1674,7 @@ function removeAddEavAction(action) {
 }
 
 export function addBitAction(name, template, query) {
-  console.log(name, "|", template, "|", query);
+  // console.log(name, "|", template, "|", query);
   let diff = eve.diff();
   let names = Object.keys(query.projectionMap);
   // add an action
