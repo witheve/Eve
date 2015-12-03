@@ -1277,11 +1277,8 @@ function searchResultUi(result) {
 
   //plan
   let planNode;
-  let klass = "";
 
-  if(valid != Validated.UNDEFINED) {
-    if(!valid) klass += "failed";
-    else klass += "succeeded";
+  if(valid !== Validated.UNDEFINED) {
 
     planNode = {c: "tokens", children: [
       {c: "header", text: "Plan"},
@@ -1291,14 +1288,14 @@ function searchResultUi(result) {
         if(info.state !== Validated.VALID) {
           message = ` :: expected ${info.message}`;
           if(info.state === Validated.UNDEFINED) {
-            return {c: `step ${info.state}`, text: `none ${message}`};
+            return {c: `step v${info.state}`, text: `none ${message}`};
           }
         }
         let args = "";
         if(actual.argArray) {
           args = " " + actual.argArray.map((arg) => arg.found).join(", ");
         }
-        return {c: `step ${info.state}`, text: `${StepTypes[actual.type]} ${actual.deselected ? "!" : ""}${actual.subject}${args}${message}`};
+        return {c: `step v${info.state}`, text: `${StepTypes[actual.type]} ${actual.deselected ? "!" : ""}${actual.subject}${args}${message}`};
       })}
     ]};
   } else {
@@ -1310,13 +1307,13 @@ function searchResultUi(result) {
         if(step.argArray) {
           args = " " + step.argArray.map((arg) => arg.found).join(", ");
         }
-        return {c: "node", text: `${StepTypes[step.type]} ${deselected}${step.subject}${args}`}
+        return {c: "step", text: `${StepTypes[step.type]} ${deselected}${step.subject}${args}`}
       })}
     ]};
   }
 
   // The final display for rendering
-  return {c: `search ${klass}`, click: toggleQueryResult, children: [
+  return {c: `search v${valid}`, click: toggleQueryResult, children: [
     {c: "search-header", text: `${searchString}`},
     {c: "search-body", children: [
     tokensNode,
