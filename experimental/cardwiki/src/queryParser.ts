@@ -13,13 +13,13 @@ window["eve"] = eve;
 //---------------------------------------------------------
 
 export enum TokenTypes {
-  entity,
-  collection,
-  attribute,
-  modifier,
-  pattern,
-  value,
-  text,
+  ENTITY,
+  COLLECTION,
+  ATTRIBUTE,
+  MODIFIER,
+  PATTERN,
+  VALUE,
+  TEXT,
 }
 
 //---------------------------------------------------------
@@ -77,7 +77,6 @@ var patterns = {
   },
   "top": {
     type: "sort and limit",
-    op: ["descending", "top"],
     resultingIndirectObject: 1,
     args: ["limit", "attribute"],
   },
@@ -105,21 +104,21 @@ function checkForToken(token): any {
   var found;
   if(!token) return {};
   if(found = eve.findOne("collection", {collection: token})) {
-    return {found, type: TokenTypes.collection};
+    return {found, type: TokenTypes.COLLECTION};
   } else if(found = eve.findOne("entity", {entity: token})) {
-    return {found, type: TokenTypes.entity};
+    return {found, type: TokenTypes.ENTITY};
   } else if(found = eve.findOne("entity eavs", {attribute: token})) {
-    return {found, type: TokenTypes.attribute};
+    return {found, type: TokenTypes.ATTRIBUTE};
   } else if(found = modifiers[token]) {
-    return {found, type: TokenTypes.modifier};
+    return {found, type: TokenTypes.MODIFIER};
   } else if(found = patterns[token]) {
-    return {found, type: TokenTypes.pattern};
+    return {found, type: TokenTypes.PATTERN};
   } else if(token.match(/^-?[\d]+$/gm)) {
-    return {type: TokenTypes.value, found: JSON.parse(token), valueType: "number"};
+    return {type: TokenTypes.VALUE, found: JSON.parse(token), valueType: "number"};
   } else if(token.match(/^["][^"]*["]$/gm)) {
-    return {type: TokenTypes.value, found: JSON.parse(token), valueType: "string"};
+    return {type: TokenTypes.VALUE, found: JSON.parse(token), valueType: "string"};
   } else if(found = token.match(/^([\d]+)-([\d]+)$/gm)) {
-    return {type: TokenTypes.value, found: token, valueType: "range", start: found[1], stop: found[2]};
+    return {type: TokenTypes.VALUE, found: token, valueType: "range", start: found[1], stop: found[2]};
   }
   return {};
 }
@@ -154,7 +153,7 @@ export function getTokens(string) {
       back--;
     } else {
       if(orig) {
-        results.push({found: orig, orig, pos, type: TokenTypes.text});
+        results.push({found: orig, orig, pos, type: TokenTypes.TEXT});
       }
       back = words.length;
       pos += words[front].length + 1;
@@ -169,29 +168,29 @@ export function getTokens(string) {
 //---------------------------------------------------------
 
 enum RelationshipTypes {
-  none,
-  entityToEntity,
-  entityToAttribute,
-  collectionToCollection,
-  collectionIntersection,
-  collectionToEntity,
-  collectionToAttribute,
+  NONE,
+  ENTITY_ENTITY,
+  ENTITY_ATTRIBUTE,
+  COLLECTION_COLLECTION,
+  COLLECTION_INTERSECTION,
+  COLLECTION_ENTITY,
+  COLLECTION_ATTRIBUTE,
 }
 
 var tokenRelationships = {
-  [TokenTypes.collection]: {
-    [TokenTypes.collection]: findCollectionToCollectionRelationship,
-    [TokenTypes.entity]: findCollectionToEntRelationship,
-    [TokenTypes.attribute]: findCollectionToAttrRelationship,
+  [TokenTypes.COLLECTION]: {
+    [TokenTypes.COLLECTION]: findCollectionToCollectionRelationship,
+    [TokenTypes.ENTITY]: findCollectionToEntRelationship,
+    [TokenTypes.ATTRIBUTE]: findCollectionToAttrRelationship,
   },
-  [TokenTypes.entity]: {
-    [TokenTypes.entity]: findEntToEntRelationship,
-    [TokenTypes.attribute]: findEntToAttrRelationship,
+  [TokenTypes.ENTITY]: {
+    [TokenTypes.ENTITY]: findEntToEntRelationship,
+    [TokenTypes.ATTRIBUTE]: findEntToAttrRelationship,
   },
 }
 
 function determineRelationship(parent, child) {
-  if(!tokenRelationships[parent.type] || !tokenRelationships[parent.type][child.type]) return {distance: Infinity, type: RelationshipTypes.none};
+  if(!tokenRelationships[parent.type] || !tokenRelationships[parent.type][child.type]) return {distance: Infinity, type: RelationshipTypes.NONE};
   return tokenRelationships[parent.type][child.type](parent.found, child.found);
 }
 
@@ -223,7 +222,7 @@ function findCommonCollections(ents) {
 }
 
 function findEntToEntRelationship(ent, ent2) {
-  return {distance: Infinity, type: RelationshipTypes.entityToEntity};
+  return {distance: Infinity, type: RelationshipTypes.ENTITY_ENTITY};
 }
 
 // e.g. "salaries in engineering"
@@ -232,7 +231,7 @@ function findEntToAttrRelationship(ent, attr):any {
   // check if this ent has that attr
   let directAttribute = eve.findOne("entity eavs", {entity: ent, attribute: attr});
   if(directAttribute) {
-    return {distance: 0, type: RelationshipTypes.entityToAttribute};
+    return {distance: 0, type: RelationshipTypes.ENTITY_ATTRIBUTE};
   }
   let relationships = eve.query(``)
                 .select("entity links", {entity: ent}, "links")
@@ -240,7 +239,7 @@ function findEntToAttrRelationship(ent, attr):any {
                 .exec();
   if(relationships.unprojected.length) {
     let entities = extractFromUnprojected(relationships.unprojected, 0, "link", 2);
-    return {distance: 1, type: RelationshipTypes.entityToAttribute, nodes: [findCommonCollections(entities)]};
+    return {distance: 1, type: RelationshipTypes.ENTITY_ATTRIBUTE, nodes: [findCommonCollections(entities)]};
   }
   let relationships2 = eve.query(``)
                 .select("entity links", {entity: ent}, "links")
@@ -250,11 +249,11 @@ function findEntToAttrRelationship(ent, attr):any {
   if(relationships2.unprojected.length) {
     let entities = extractFromUnprojected(relationships2.unprojected, 0, "link", 3);
     let entities2 = extractFromUnprojected(relationships2.unprojected, 1, "link", 3);
-    return {distance: 2, type: RelationshipTypes.entityToAttribute, nodes: [findCommonCollections(entities), findCommonCollections(entities2)]};
+    return {distance: 2, type: RelationshipTypes.ENTITY_ATTRIBUTE, nodes: [findCommonCollections(entities), findCommonCollections(entities2)]};
   }
 
   //otherwise we assume it's direct and mark it as unfound.
-  return {distance: 0, type: RelationshipTypes.entityToAttribute, unfound: true};
+  return {distance: 0, type: RelationshipTypes.ENTITY_ATTRIBUTE, unfound: true};
 }
 
 // e.g. "salaries per department"
@@ -264,7 +263,7 @@ function findCollectionToAttrRelationship(coll, attr) {
                 .select("entity eavs", {entity: ["collection", "entity"], attribute: attr}, "eav")
                 .exec();
   if(direct.unprojected.length) {
-    return {distance: 0, type: RelationshipTypes.collectionToAttribute, nodes: []};
+    return {distance: 0, type: RelationshipTypes.COLLECTION_ATTRIBUTE, nodes: []};
   }
   let relationships = eve.query(``)
                 .select("collection entities", {collection: coll}, "collection")
@@ -273,7 +272,7 @@ function findCollectionToAttrRelationship(coll, attr) {
                 .exec();
   if(relationships.unprojected.length) {
     let entities = extractFromUnprojected(relationships.unprojected, 1, "link", 3);
-    return {distance: 1, type: RelationshipTypes.collectionToAttribute, nodes: [findCommonCollections(entities)]};
+    return {distance: 1, type: RelationshipTypes.COLLECTION_ATTRIBUTE, nodes: [findCommonCollections(entities)]};
   }
   let relationships2 = eve.query(``)
                 .select("collection entities", {collection: coll}, "collection")
@@ -284,7 +283,7 @@ function findCollectionToAttrRelationship(coll, attr) {
   if(relationships2.unprojected.length) {
     let entities = extractFromUnprojected(relationships2.unprojected, 1, "link", 4);
     let entities2 = extractFromUnprojected(relationships2.unprojected, 2, "link", 4);
-    return {distance: 2, type: RelationshipTypes.collectionToAttribute, nodes: [findCommonCollections(entities), findCommonCollections(entities2)]};
+    return {distance: 2, type: RelationshipTypes.COLLECTION_ATTRIBUTE, nodes: [findCommonCollections(entities), findCommonCollections(entities2)]};
   }
 }
 
@@ -296,14 +295,14 @@ function findCollectionToEntRelationship(coll, ent):any {
     }
   }
   if(eve.findOne("collection entities", {collection: coll, entity: ent})) {
-    return {distance: 0, type: RelationshipTypes.collectionToEntity, nodes: []};
+    return {distance: 0, type: RelationshipTypes.COLLECTION_ENTITY, nodes: []};
   }
   let relationships = eve.query(``)
                 .select("collection entities", {collection: coll}, "collection")
                 .select("directionless links", {entity: ["collection", "entity"], link: ent}, "links")
                 .exec();
   if(relationships.unprojected.length) {
-    return {distance: 1, type: RelationshipTypes.collectionToEntity, nodes: []};
+    return {distance: 1, type: RelationshipTypes.COLLECTION_ENTITY, nodes: []};
   }
   // e.g. events with chris granger (events -> meetings -> chris granger)
   let relationships2 = eve.query(``)
@@ -313,7 +312,7 @@ function findCollectionToEntRelationship(coll, ent):any {
                 .exec();
   if(relationships2.unprojected.length) {
     let entities = extractFromUnprojected(relationships2.unprojected, 1, "link", 3);
-    return {distance: 2, type: RelationshipTypes.collectionToEntity, nodes: [findCommonCollections(entities)]};
+    return {distance: 2, type: RelationshipTypes.COLLECTION_ENTITY, nodes: [findCommonCollections(entities)]};
   }
 }
 
@@ -343,13 +342,13 @@ function findCollectionToCollectionRelationship(coll, coll2) {
   // and we have two selects.
   let intersectionSize = intersection.unprojected.length / 2;
   if(maxRel.count > intersectionSize) {
-    return {distance: 1, type: RelationshipTypes.collectionToCollection};
+    return {distance: 1, type: RelationshipTypes.COLLECTION_COLLECTION};
   } else if(intersectionSize > maxRel.count) {
-    return {distance: 0, type: RelationshipTypes.collectionIntersection};
+    return {distance: 0, type: RelationshipTypes.COLLECTION_INTERSECTION};
   } else if(maxRel.count === 0 && intersectionSize === 0) {
     return;
   } else {
-    return {distance: 1, type: RelationshipTypes.collectionToCollection};
+    return {distance: 1, type: RelationshipTypes.COLLECTION_COLLECTION};
   }
 }
 
@@ -367,12 +366,12 @@ function tokensToTree(origTokens) {
   // the first entity, or finally the first attribute.
   let directObject;
   for(let token of tokens) {
-    if(token.type === TokenTypes.collection) {
+    if(token.type === TokenTypes.COLLECTION) {
       directObject = token;
       break;
-    } else if(token.type === TokenTypes.entity) {
+    } else if(token.type === TokenTypes.ENTITY) {
       directObject = token;
-    } else if(token.type === TokenTypes.attribute && !directObject) {
+    } else if(token.type === TokenTypes.ATTRIBUTE && !directObject) {
       directObject = token;
     }
   }
@@ -398,7 +397,7 @@ function tokensToTree(origTokens) {
       let args = state.currentPattern.args;
       let infoArgs = state.currentPattern.info.args;
       let latestArg = args[args.length - 1];
-      let latestArgComplete = latestArg.type === TokenTypes.attribute || latestArg.type === TokenTypes.value;
+      let latestArgComplete = latestArg.type === TokenTypes.ATTRIBUTE || latestArg.type === TokenTypes.VALUE;
       while(args.length === infoArgs.length && latestArgComplete) {
         let {resultingIndirectObject} = state.currentPattern.info;
         if(resultingIndirectObject !== undefined) {
@@ -412,12 +411,12 @@ function tokensToTree(origTokens) {
         infoArgs = state.currentPattern.info.args;
         args.push(indirectObject);
         latestArg = args[args.length - 1];
-        latestArgComplete = latestArg.type === TokenTypes.attribute || latestArg.type === TokenTypes.value;
+        latestArgComplete = latestArg.type === TokenTypes.ATTRIBUTE || latestArg.type === TokenTypes.VALUE;
       }
     }
 
     // deal with modifiers
-    if(type === TokenTypes.modifier) {
+    if(type === TokenTypes.MODIFIER) {
       // if this is a deselect modifier, we need to roll forward through the tokens
       // to figure out roughly how far the deselection should go. Also if we run into
       // an and or an or, we need to deal with that specially.
@@ -425,13 +424,13 @@ function tokensToTree(origTokens) {
         // we're going to move forward from this token and deselect as we go
         let localTokenIx = tokenIx + 1;
         // get to the first non-text token
-        while(localTokenIx < len && tokens[localTokenIx].type === TokenTypes.text) {
+        while(localTokenIx < len && tokens[localTokenIx].type === TokenTypes.TEXT) {
           localTokenIx++;
         }
         // negate until we find a reason to stop
         while(localTokenIx < len) {
           let localToken = tokens[localTokenIx];
-          if(localToken.type === TokenTypes.text) {
+          if(localToken.type === TokenTypes.TEXT) {
             break;
           }
           localToken.deselected = true;
@@ -445,13 +444,13 @@ function tokensToTree(origTokens) {
       if(info.or && !token.deslected) {
         let localTokenIx = tokenIx + 1;
         // get to the first non-text token
-        while(localTokenIx < len && tokens[localTokenIx].type === TokenTypes.text) {
+        while(localTokenIx < len && tokens[localTokenIx].type === TokenTypes.TEXT) {
           localTokenIx++;
         }
         // consume until we hit a separator
         while(localTokenIx < len) {
           let localToken = tokens[localTokenIx];
-          if(localToken.type === TokenTypes.text) {
+          if(localToken.type === TokenTypes.TEXT) {
             break;
           }
           localTokenIx++;
@@ -463,7 +462,7 @@ function tokensToTree(origTokens) {
         // we're going to move forward from this token and deselect as we go
         let localTokenIx = tokenIx + 1;
         // get to the first non-text token
-        while(localTokenIx < len && tokens[localTokenIx].type === TokenTypes.text) {
+        while(localTokenIx < len && tokens[localTokenIx].type === TokenTypes.TEXT) {
           localTokenIx++;
         }
         // if we've run out of tokens, bail
@@ -476,12 +475,12 @@ function tokensToTree(origTokens) {
         // now we have to check if we're trying to group by multiple things, e.g.
         // "per department and age" or "per department, team, and age"
         let next = tokens[localTokenIx];
-        while(next && next.type === TokenTypes.modifier && (next.info.separator || next.info.and)) {
+        while(next && next.type === TokenTypes.MODIFIER && (next.info.separator || next.info.and)) {
           localTokenIx++;
           next = tokens[localTokenIx];
           // if we have another modifier directly after (e.g. ", and") loop again
           // to see if this is valid.
-          if(next && next.type === TokenTypes.modifier) {
+          if(next && next.type === TokenTypes.MODIFIER) {
             continue;
           }
           next.grouped = true;
@@ -493,7 +492,7 @@ function tokensToTree(origTokens) {
       continue;
     }
     // deal with patterns
-    if(type === TokenTypes.pattern) {
+    if(type === TokenTypes.PATTERN) {
       if(info.type === "rewrite") {
         let newText;
         // if we only have one possible rewrite, we can just take it
@@ -532,7 +531,7 @@ function tokensToTree(origTokens) {
     }
 
     // deal with values
-    if(type === TokenTypes.value) {
+    if(type === TokenTypes.VALUE) {
       // if we still have a currentPattern to fill
       if(state.currentPattern && state.currentPattern.args.length < state.currentPattern.info.args.length) {
         state.currentPattern.args.push(token);
@@ -541,7 +540,7 @@ function tokensToTree(origTokens) {
     }
 
     //We don't do anything with text nodes at this point
-    if(type === TokenTypes.text) continue;
+    if(type === TokenTypes.TEXT) continue;
 
     // once modifiers and patterns have been applied, we don't need to worry
     // about the directObject as it's already been asigned to the first root.
@@ -559,14 +558,14 @@ function tokensToTree(origTokens) {
       let potentialParent = indirectObject;
       // if our indirect object is an attribute and we encounter another one, we want to check
       // the parent of this node for a match
-      if(indirectObject.type === TokenTypes.attribute && token.type === TokenTypes.attribute) {
+      if(indirectObject.type === TokenTypes.ATTRIBUTE && token.type === TokenTypes.ATTRIBUTE) {
         potentialParent = indirectObject.parent;
       }
       // if the indirect object is an attribute, anything other than another attribute will create
       // a new root
-      if(indirectObject.type === TokenTypes.attribute && token.type !== TokenTypes.attribute) {
+      if(indirectObject.type === TokenTypes.ATTRIBUTE && token.type !== TokenTypes.ATTRIBUTE) {
         let rootRel = determineRelationship(directObject, token);
-        if(!rootRel || (rootRel.distance === 0 && token.type === TokenTypes.entity)) {
+        if(!rootRel || (rootRel.distance === 0 && token.type === TokenTypes.ENTITY)) {
           indirectObject = token;
           roots.push(indirectObject);
         } else {
@@ -577,7 +576,7 @@ function tokensToTree(origTokens) {
       }
       // the only valid child of an entity is an attribute, if the parent is an entity and
       // the child is not an attribute, then this must be related to the directObject
-      else if(potentialParent.type === TokenTypes.entity && token.type !== TokenTypes.attribute) {
+      else if(potentialParent.type === TokenTypes.ENTITY && token.type !== TokenTypes.ATTRIBUTE) {
         directObject.children.push(token);
         token.relationship = determineRelationship(directObject, token);
         token.parent = directObject;
@@ -589,7 +588,7 @@ function tokensToTree(origTokens) {
         // if this token is an entity and either the directObject or indirectObject has a direct relationship
         // we don't really want to use that as it's most likely meant to filter a set down
         // instead of reduce the set to exactly one member.
-        if(token.type === TokenTypes.entity) {
+        if(token.type === TokenTypes.ENTITY) {
           if(cursorRel && cursorRel.distance === 0) cursorRel = null;
           if(rootRel && rootRel.distance === 0) rootRel = null;
         }
@@ -622,9 +621,9 @@ function tokensToTree(origTokens) {
       let args = state.currentPattern.args;
       let infoArgs = state.currentPattern.info.args;
       let latestArg = args[args.length - 1];
-      let latestArgComplete = !latestArg || latestArg.type === TokenTypes.attribute || latestArg.type === TokenTypes.value;
+      let latestArgComplete = !latestArg || latestArg.type === TokenTypes.ATTRIBUTE || latestArg.type === TokenTypes.VALUE;
       let firstArg = args[0];
-      if(!latestArgComplete && indirectObject.type === TokenTypes.attribute) {
+      if(!latestArgComplete && indirectObject.type === TokenTypes.ATTRIBUTE) {
         args.pop();
         args.push(indirectObject);
       } else if(latestArgComplete && args.length < infoArgs.length) {
@@ -639,10 +638,10 @@ function tokensToTree(origTokens) {
     let args = state.currentPattern.args;
     let infoArgs = state.currentPattern.info.args;
     let latestArg = args[args.length - 1];
-    let latestArgComplete = latestArg.type === TokenTypes.attribute || latestArg.type === TokenTypes.value;
+    let latestArgComplete = latestArg.type === TokenTypes.ATTRIBUTE || latestArg.type === TokenTypes.VALUE;
     let firstArg = args[0];
     // e.g. people older than chris granger => people age > chris granger age
-    if(!latestArgComplete && firstArg && firstArg.type === TokenTypes.attribute) {
+    if(!latestArgComplete && firstArg && firstArg.type === TokenTypes.ATTRIBUTE) {
       let newArg:any = {type: firstArg.type, found: firstArg.found, orig: firstArg.orig, info: firstArg.info, id: uuid(), children: []};
       let cursorRel = determineRelationship(latestArg, newArg);
       newArg.relationship = cursorRel;
@@ -660,17 +659,17 @@ function tokensToTree(origTokens) {
 //---------------------------------------------------------
 
 enum StepTypes {
-  find,
-  gather,
-  lookup,
-  filterByEntity,
-  intersect,
-  calculate,
-  aggregate,
-  filter,
-  sort,
-  limit,
-  group,
+  FIND,
+  GATHER,
+  LOOKUP,
+  FILTERBYENTITY,
+  INTERSECT,
+  CALCULATE,
+  AGGREGATE,
+  FILTER,
+  SORT,
+  LIMIT,
+  GROUP,
 }
 
 function ignoreHiddenCollections(colls) {
@@ -688,60 +687,60 @@ function nodeToPlanSteps(node, parent, parentPlan) {
   let rel = node.relationship;
   if(parent && rel) {
     switch(rel.type) {
-      case RelationshipTypes.collectionToAttribute:
+      case RelationshipTypes.COLLECTION_ATTRIBUTE:
         var plan = [];
         var curParent = parentPlan;
         for(let node of rel.nodes) {
           let coll = ignoreHiddenCollections(node);
-          let item = {type: StepTypes.gather, relatedTo: curParent, subject: coll, id: uuid()};
+          let item = {type: StepTypes.GATHER, relatedTo: curParent, subject: coll, id: uuid()};
           plan.push(item);
           curParent = item;
         }
-        plan.push({type: StepTypes.lookup, relatedTo: curParent, subject: node.found, id, deselected});
+        plan.push({type: StepTypes.LOOKUP, relatedTo: curParent, subject: node.found, id, deselected});
         return plan;
         break;
-      case RelationshipTypes.collectionToEntity:
+      case RelationshipTypes.COLLECTION_ENTITY:
         var plan = [];
         var curParent = parentPlan;
         for(let node of rel.nodes) {
           let coll = ignoreHiddenCollections(node);
-          let item = {type: StepTypes.gather, relatedTo: curParent, subject: coll, id: uuid()};
+          let item = {type: StepTypes.GATHER, relatedTo: curParent, subject: coll, id: uuid()};
           plan.push(item);
           curParent = item;
         }
-        plan.push({type: StepTypes.filterByEntity, relatedTo: curParent, subject: node.found, id, deselected});
+        plan.push({type: StepTypes.FILTERBYENTITY, relatedTo: curParent, subject: node.found, id, deselected});
         return plan;
         break;
-      case RelationshipTypes.collectionToCollection:
-        return [{type: StepTypes.gather, relatedTo: parentPlan, subject: node.found, id, deselected}];
+      case RelationshipTypes.COLLECTION_COLLECTION:
+        return [{type: StepTypes.GATHER, relatedTo: parentPlan, subject: node.found, id, deselected}];
         break;
-      case RelationshipTypes.collectionIntersection:
-        return [{type: StepTypes.intersect, relatedTo: parentPlan, subject: node.found, id, deselected}];
+      case RelationshipTypes.COLLECTION_INTERSECTION:
+        return [{type: StepTypes.INTERSECT, relatedTo: parentPlan, subject: node.found, id, deselected}];
         break;
-      case RelationshipTypes.entityToAttribute:
+      case RelationshipTypes.ENTITY_ATTRIBUTE:
         if(rel.distance === 0) {
-          return [{type: StepTypes.lookup, relatedTo: parentPlan, subject: node.found, id, deselected}];
+          return [{type: StepTypes.LOOKUP, relatedTo: parentPlan, subject: node.found, id, deselected}];
         } else {
           let plan = [];
           let curParent = parentPlan;
           for(let node of rel.nodes) {
             let coll = ignoreHiddenCollections(node);
-            let item = {type: StepTypes.gather, relatedTo: curParent, subject: coll, id: uuid()};
+            let item = {type: StepTypes.GATHER, relatedTo: curParent, subject: coll, id: uuid()};
             plan.push(item);
             curParent = item;
           }
-          plan.push({type: StepTypes.lookup, relatedTo: curParent, subject: node.found, id, deselected});
+          plan.push({type: StepTypes.LOOKUP, relatedTo: curParent, subject: node.found, id, deselected});
           return plan;
         }
         break;
     }
   } else {
-    if(node.type === TokenTypes.collection) {
-      return [{type: StepTypes.gather, subject: node.found, id, deselected}];
-    } else if(node.type === TokenTypes.entity) {
-      return [{type: StepTypes.find, subject: node.found, id, deselected}];
-    } else if(node.type === TokenTypes.attribute) {
-      return [{type: StepTypes.lookup, subject: node.found, id, deselected}];
+    if(node.type === TokenTypes.COLLECTION) {
+      return [{type: StepTypes.GATHER, subject: node.found, id, deselected}];
+    } else if(node.type === TokenTypes.ENTITY) {
+      return [{type: StepTypes.FIND, subject: node.found, id, deselected}];
+    } else if(node.type === TokenTypes.ATTRIBUTE) {
+      return [{type: StepTypes.LOOKUP, subject: node.found, id, deselected}];
     }
     return [];
   }
@@ -757,6 +756,18 @@ function nodeToPlan(tree, parent = null, parentPlan = null) {
     plan.push.apply(plan, nodeToPlan(child, tree, neueParentPlan));
   }
   return plan;
+}
+
+enum Types {
+  COLLECTION,
+  ENTITY,
+  ATTRIBUTE,
+  VALUE,
+  GROUP,
+  AGGREGATE,
+  SORTLIMIT,
+  FILTER,
+  REWRITE,
 }
 
 function groupsToPlan(nodes) {
@@ -782,9 +793,9 @@ function opToPlan(op): any {
     for(let arg of info.args) {
       let argValue = op.args[ix];
       if(argValue === undefined) continue;
-      if(argValue.type === TokenTypes.value) {
+      if(argValue.type === TokenTypes.VALUE) {
         args[arg] = JSON.parse(argValue.orig);
-      } else if(argValue.type === TokenTypes.attribute) {
+      } else if(argValue.type === TokenTypes.ATTRIBUTE) {
         args[arg] = [argValue.id, "value"];
       } else {
         console.error(`Invalid operation argument: ${argValue.orig} for ${op.found}`);
@@ -793,13 +804,32 @@ function opToPlan(op): any {
     }
   }
   if(info.type === "aggregate") {
-    return [{type: StepTypes.aggregate, subject: info.op, args, id: uuid(), argArray: op.args}];
+    return [{type: StepTypes.AGGREGATE, subject: info.op, args, id: uuid(), argArray: op.args}];
   } else if(info.type === "sort and limit") {
+    /*
+    var subject = op.args[info.resultingIndirectObject].found;
+
+    // Step 1: sort
+    var sortArgs = args;
+    var sortOpArgs = op.args;
+    var sortStep = {type: StepTypes.SORT, subject: info.op[0], sortArgs, id: uuid(), argArray: sortOpArgs};
+    // Step 2: limit
+    var limitStep = {type: StepTypes.LIMIT, subject: info.op[1], sortArgs, id: uuid(), argArray: sortOpArgs};
+
+    console.log("---------------");
+    console.log("args");
+    console.log(args);
+    console.log("op.args");
+    console.log(op.args);
+    console.log(sortStep);
+    console.log("---------------");
+
+    return [sortStep, limitStep];*/
     return [];
   } else if(info.type === "filter") {
-    return [{type: StepTypes.filter, subject: info.op, args, id: uuid(), argArray: op.args}];
+    return [{type: StepTypes.FILTER, subject: info.op, args, id: uuid(), argArray: op.args}];
   } else {
-    return [{type: StepTypes.calculate, subject: info.op, args, id: uuid(), argArray: op.args}];
+    return [{type: StepTypes.CALCULATE, subject: info.op, args, id: uuid(), argArray: op.args}];
   }
 }
 
@@ -839,7 +869,7 @@ function treeToPlan(tree) {
   }
   plan = dedupePlan(plan);
   for(let group of tree.groups) {
-    plan.push({type: StepTypes.group, subject: group.found, subjectNode: group});
+    plan.push({type: StepTypes.GROUP, subject: group.found, subjectNode: group});
   }
   for(let op of tree.operations) {
     plan = plan.concat(opToPlan(op));
@@ -888,23 +918,23 @@ var tests = {
   /*
   "chris granger's age": {
     expected: [
-      {type: StepTypes.find, subject: "chris granger"},
-      {type: StepTypes.lookup, subject: "age"}
+      {type: StepTypes.FIND, subject: "chris granger"},
+      {type: StepTypes.LOOKUP, subject: "age"}
     ],
   },
   "robert attorri's age": {
     expected: [
-      {type: StepTypes.find, subject: "robert attorri"},
-      {type: StepTypes.lookup, subject: "age"}
+      {type: StepTypes.FIND, subject: "robert attorri"},
+      {type: StepTypes.LOOKUP, subject: "age"}
     ]
   },
   "people older than chris granger": {
     expected: [
-      {type: StepTypes.gather, subject: "person"},
-      {type: StepTypes.lookup, subject: "age"},
-      {type: StepTypes.find, subject: "chris granger"},
-      {type: StepTypes.lookup, subject: "age"},
-      {type: StepTypes.filter, subject: ">", args: [
+      {type: StepTypes.GATHER, subject: "person"},
+      {type: StepTypes.LOOKUP, subject: "age"},
+      {type: StepTypes.FIND, subject: "chris granger"},
+      {type: StepTypes.LOOKUP, subject: "age"},
+      {type: StepTypes.FILTER, subject: ">", args: [
         {parent: "person", subject: "age"},
         {parent: "chris granger", subject: "age"}
       ]}
@@ -912,9 +942,9 @@ var tests = {
   },
   "people whose age < 30": {
     expected: [
-      {type: StepTypes.gather, subject: "person"},
-      {type: StepTypes.lookup, subject: "age"},
-      {type: StepTypes.filter, subject: "<", args: [
+      {type: StepTypes.GATHER, subject: "person"},
+      {type: StepTypes.LOOKUP, subject: "age"},
+      {type: StepTypes.FILTER, subject: "<", args: [
         {parent: "person", subject: "age"},
         {subject: "30"}
       ]}
@@ -922,11 +952,11 @@ var tests = {
   },
   "people whose age < chris granger's age": {
     expected: [
-      {type: StepTypes.gather, subject: "person"},
-      {type: StepTypes.lookup, subject: "age"},
-      {type: StepTypes.find, subject: "chris granger"},
-      {type: StepTypes.lookup, subject: "age"},
-      {type: StepTypes.filter, subject: "<", args: [
+      {type: StepTypes.GATHER, subject: "person"},
+      {type: StepTypes.LOOKUP, subject: "age"},
+      {type: StepTypes.FIND, subject: "chris granger"},
+      {type: StepTypes.LOOKUP, subject: "age"},
+      {type: StepTypes.FILTER, subject: "<", args: [
         {parent: "person", subject: "age"},
         {parent: "chris granger", subject: "age"}
       ]}
@@ -934,11 +964,11 @@ var tests = {
   },
   "people whose age < chris granger's": {
     expected: [
-      {type: StepTypes.gather, subject: "person"},
-      {type: StepTypes.lookup, subject: "age"},
-      {type: StepTypes.find, subject: "chris granger"},
-      {type: StepTypes.lookup, subject: "age"},
-      {type: StepTypes.filter, subject: "<", args: [
+      {type: StepTypes.GATHER, subject: "person"},
+      {type: StepTypes.LOOKUP, subject: "age"},
+      {type: StepTypes.FIND, subject: "chris granger"},
+      {type: StepTypes.LOOKUP, subject: "age"},
+      {type: StepTypes.FILTER, subject: "<", args: [
         {parent: "person", subject: "age"},
         {parent: "chris granger", subject: "age"}
       ]}
@@ -974,40 +1004,40 @@ var tests = {
   },
   "salaries per department": {
     expected: [
-      {type: StepTypes.gather, subject: "department"},
-      {type: StepTypes.gather, subject: "employee"},
-      {type: StepTypes.lookup, subject: "salary"},
-      {type: StepTypes.group, subject: "department"}
+      {type: StepTypes.GATHER, subject: "department"},
+      {type: StepTypes.GATHER, subject: "employee"},
+      {type: StepTypes.LOOKUP, subject: "salary"},
+      {type: StepTypes.GROUP, subject: "department"}
     ]
   },
   "salaries per department and age": {
     expected: [
-      {type: StepTypes.gather, subject: "department"},
-      {type: StepTypes.gather, subject: "employee"},
-      {type: StepTypes.lookup, subject: "salary"},
-      {type: StepTypes.lookup, subject: "age"},
-      {type: StepTypes.group, subject: "department"},
-      {type: StepTypes.group, subject: "age"}
+      {type: StepTypes.GATHER, subject: "department"},
+      {type: StepTypes.GATHER, subject: "employee"},
+      {type: StepTypes.LOOKUP, subject: "salary"},
+      {type: StepTypes.LOOKUP, subject: "age"},
+      {type: StepTypes.GROUP, subject: "department"},
+      {type: StepTypes.GROUP, subject: "age"}
     ]
   },
   "salaries per department, employee, and age": {
     expected: [
-      {type: StepTypes.gather, subject: "department"},
-      {type: StepTypes.gather, subject: "employee"},
-      {type: StepTypes.lookup, subject: "salary"},
-      {type: StepTypes.lookup, subject: "age"},
-      {type: StepTypes.group, subject: "department"},
-      {type: StepTypes.group, subject: "employee"},
-      {type: StepTypes.group, subject: "age"}
+      {type: StepTypes.GATHER, subject: "department"},
+      {type: StepTypes.GATHER, subject: "employee"},
+      {type: StepTypes.LOOKUP, subject: "salary"},
+      {type: StepTypes.LOOKUP, subject: "age"},
+      {type: StepTypes.GROUP, subject: "department"},
+      {type: StepTypes.GROUP, subject: "employee"},
+      {type: StepTypes.GROUP, subject: "age"}
     ]
   },
   "sum of the salaries per department": {
     expected: [
-      {type: StepTypes.gather, subject: "department"},
-      {type: StepTypes.gather, subject: "employee"},
-      {type: StepTypes.lookup, subject: "salary"},
-      {type: StepTypes.group, subject: "department"},
-      {type: StepTypes.aggregate, subject: "sum", args: [
+      {type: StepTypes.GATHER, subject: "department"},
+      {type: StepTypes.GATHER, subject: "employee"},
+      {type: StepTypes.LOOKUP, subject: "salary"},
+      {type: StepTypes.GROUP, subject: "department"},
+      {type: StepTypes.AGGREGATE, subject: "sum", args: [
         {parent: "department", subject: "salary"}
       ]}
     ]
@@ -1015,34 +1045,41 @@ var tests = {
   */
   "average of the salaries per department": {
     expected: [
-      {type: StepTypes.gather, subject: "department"},
-      {type: StepTypes.gather, subject: "employee"},
-      {type: StepTypes.lookup, subject: "salary"},
-      {type: StepTypes.group, subject: "department"},
-      {type: StepTypes.aggregate, subject: "average", args: [
+      {type: StepTypes.GATHER, subject: "department"},
+      {type: StepTypes.GATHER, subject: "employee"},
+      {type: StepTypes.LOOKUP, subject: "salary"},
+      {type: StepTypes.GROUP, subject: "department"},
+      {type: StepTypes.AGGREGATE, subject: "average", args: [
         {parent: "department", subject: "salary"}
       ]}
     ]
   },
+  "top 2 employee salaries" : {
+      expected: [
+        {type: StepTypes.GATHER, subject: "employee"},
+        {type: StepTypes.LOOKUP, subject: "salary"},
+        {type: StepTypes.SORT, subject: "results", direction: "descending" },
+        {type: StepTypes.LIMIT, subject: "results", value: 2},
+      ]
+  },
   "top 2 salaries per department": {
+    /*
     expected: [
-      {type: StepTypes.gather, subject: "department"},
-      {type: StepTypes.gather, subject: "employee"},
-      {type: StepTypes.lookup, subject: "salary"},
-      {type: StepTypes.group, subject: "department"},
-      {type: StepTypes.sort, subject: "descending", args: [
-        {parent: "department", subject: "salary"}
-      ]},
-      {type: StepTypes.limit, subject: "top", args: [
-        {subject: "2"},
-        {parent: "department", subject: "salary"}
-      ]}
-    ]
+      {type: StepTypes.GATHER, subject: "department"},
+      {type: StepTypes.GATHER, subject: "employee"},
+      {type: StepTypes.LOOKUP, subject: "salary"},
+      {type: StepTypes.GROUP, subject: "department"},
+      {type: StepTypes.SORT, subject: "per group", direction: "descending", field: {parent: "department", subject: "salary"}},
+      {type: StepTypes.LIMIT, subject: "per group", value: 2}
+    ]*/
   },
   "sum of the top 2 salaries per department": {
 
   },
   /*
+  "top 2 salaries of the first 3 departments": {
+
+  },
   "departments where all the employees are male": {
 
   },
@@ -1057,9 +1094,9 @@ var tests = {
   },
   "dishes with eggs and chicken": {
     expected: [
-      {type: StepTypes.gather, subject: "dish"},
-      {type: StepTypes.filterByEntity, subject: "egg"},
-      {type: StepTypes.filterByEntity, subject: "chicken"}
+      {type: StepTypes.GATHER, subject: "dish"},
+      {type: StepTypes.FILTERBYENTITY, subject: "egg"},
+      {type: StepTypes.FILTERBYENTITY, subject: "chicken"}
     ]
   },
   "dishes with eggs or chicken": {
@@ -1070,23 +1107,23 @@ var tests = {
   },
   "dishes without eggs or chicken": {
     expected: [
-      {type: StepTypes.gather, subject: "dish"},
-      {type: StepTypes.filterByEntity, subject: "egg", deselected: true},
-      {type: StepTypes.filterByEntity, subject: "chicken", deselected: true}
+      {type: StepTypes.GATHER, subject: "dish"},
+      {type: StepTypes.FILTERBYENTITY, subject: "egg", deselected: true},
+      {type: StepTypes.FILTERBYENTITY, subject: "chicken", deselected: true}
     ]
   },
   "dishes with eggs that aren't desserts": {
     expected: [
-      {type: StepTypes.gather, subject: "dish"},
-      {type: StepTypes.filterByEntity, subject: "egg"},
-      {type: StepTypes.intersect, subject: "dessert", deselected: true}
+      {type: StepTypes.GATHER, subject: "dish"},
+      {type: StepTypes.FILTERBYENTITY, subject: "egg"},
+      {type: StepTypes.INTERSECT, subject: "dessert", deselected: true}
     ]
   },
   "dishes that don't have eggs or chicken": {
     expected: [
-      {type: StepTypes.gather, subject: "dish"},
-      {type: StepTypes.filterByEntity, subject: "egg", deselected: true},
-      {type: StepTypes.filterByEntity, subject: "chicken", deselected: true}
+      {type: StepTypes.GATHER, subject: "dish"},
+      {type: StepTypes.FILTERBYENTITY, subject: "egg", deselected: true},
+      {type: StepTypes.FILTERBYENTITY, subject: "chicken", deselected: true}
     ]
   },
   "dishes with a cook time < 30 that have eggs and are sweet": {
@@ -1186,7 +1223,7 @@ var tests = {
 //---------------------------------------------------------
 
 function groupTree(root) {
-  if(root.type === TokenTypes.text) return;
+  if(root.type === TokenTypes.TEXT) return;
   let kids = root.children.map(groupTree);
   let relationship = "root";
   let unfound = "";
@@ -1228,13 +1265,18 @@ function testSearch(searchString : string, planDefinition) {
         let validStep = "";
         let deselected = expectedStep.deselected ? "!" : "";
 
+        // If we have arguments, format them as (arg1, arg2, ..., argN) for display
+        var args = "";
+        if (expectedStep.args !== undefined) {
+          args = " (" + expectedStep.args.map((arg) => arg.subject).join(", ") + ")";
+        }
+
         if(actualStep === undefined) {
           return {state: Validated.UNDEFINED, message: `${StepTypes[expectedStep.type]} ${deselected}${expectedStep.subject}${args}`};
         }
-        if(validateStep(actualStep, expectedStep)) {
+        else if(validateStep(actualStep, expectedStep)) {
           return {state: Validated.VALID, message: "valid"};
         } else {
-          var args = " (" + expectedStep.args.map((arg) => arg.subject).join(", ") + ")";
           return {state: Validated.INVALID, message: `${StepTypes[expectedStep.type]} ${deselected}${expectedStep.subject}${args}`};
         }
     })
