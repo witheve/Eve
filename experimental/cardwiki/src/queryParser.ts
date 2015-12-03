@@ -806,25 +806,6 @@ function opToPlan(op): any {
   if(info.type === "aggregate") {
     return [{type: StepTypes.AGGREGATE, subject: info.op, args, id: uuid(), argArray: op.args}];
   } else if(info.type === "sort and limit") {
-    /*
-    var subject = op.args[info.resultingIndirectObject].found;
-
-    // Step 1: sort
-    var sortArgs = args;
-    var sortOpArgs = op.args;
-    var sortStep = {type: StepTypes.SORT, subject: info.op[0], sortArgs, id: uuid(), argArray: sortOpArgs};
-    // Step 2: limit
-    var limitStep = {type: StepTypes.LIMIT, subject: info.op[1], sortArgs, id: uuid(), argArray: sortOpArgs};
-
-    console.log("---------------");
-    console.log("args");
-    console.log(args);
-    console.log("op.args");
-    console.log(op.args);
-    console.log(sortStep);
-    console.log("---------------");
-
-    return [sortStep, limitStep];*/
     return [];
   } else if(info.type === "filter") {
     return [{type: StepTypes.FILTER, subject: info.op, args, id: uuid(), argArray: op.args}];
@@ -908,10 +889,10 @@ function validatePlan(plan, expected) {
   let ix = 0;
   for(let exStep of expected) {
     let step = plan[ix];
-    if(!validateStep(step, exStep)) return Validated.VALID;
+    if(!validateStep(step, exStep)) return Validated.INVALID;
     ix++;
   }
-  return Validated.INVALID;
+  return Validated.VALID;
 }
 
 var tests = {
@@ -1042,7 +1023,7 @@ var tests = {
       ]}
     ]
   },
-  */
+
   "average of the salaries per department": {
     expected: [
       {type: StepTypes.GATHER, subject: "department"},
@@ -1062,8 +1043,9 @@ var tests = {
         {type: StepTypes.LIMIT, subject: "results", value: 2},
       ]
   },
+  */
   "top 2 salaries per department": {
-    /*
+
     expected: [
       {type: StepTypes.GATHER, subject: "department"},
       {type: StepTypes.GATHER, subject: "employee"},
@@ -1071,12 +1053,13 @@ var tests = {
       {type: StepTypes.GROUP, subject: "department"},
       {type: StepTypes.SORT, subject: "per group", direction: "descending", field: {parent: "department", subject: "salary"}},
       {type: StepTypes.LIMIT, subject: "per group", value: 2}
-    ]*/
+    ]
   },
+  /*
   "sum of the top 2 salaries per department": {
 
   },
-  /*
+
   "top 2 salaries of the first 3 departments": {
 
   },
@@ -1245,8 +1228,8 @@ function groupTree(root) {
 }
 
 enum Validated {
-  VALID,
   INVALID,
+  VALID,
   UNDEFINED,
 }
 
