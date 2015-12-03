@@ -790,6 +790,7 @@ export class Query {
       let cur = {
         type: "select",
         table,
+        passed: ix === 0,
         ix,
         negated,
         children: [],
@@ -964,6 +965,8 @@ export class Query {
             }
           }
           code += `var rows${ix} = ixer.factToIndex(ixer.table('${root.table}'), query${ix});\n`;
+        } else if(root.passed) {
+          code += `var rows${ix} = rootRows;\n`;
         } else {
           code += `var rows${ix} = ixer.table('${root.table}').table;\n`;
         }
@@ -1152,11 +1155,14 @@ export class Query {
         break;
       case "provenance":
         var provenance = "";
-        code += `var rowInstance = ixer.globalCount++;\n`
+        var ids = [];
         for(let join of this.joins) {
           if(join.negated) continue;
-          code += `provenance.push({table: tableId, row: projected, "row instance": rowInstance, source: "${join.table}", "source row": row${join.ix}});\n`;
+          provenance += `provenance.push({table: tableId, row: projected, "row instance": rowInstance, source: "${join.table}", "source row": row${join.ix}});\n`;
+          ids.push(`row${join.ix}.__id`);
         }
+        code = `var rowInstance = ${ids.join(" + '|' + ")};
+        ${provenance}`;
         break;
       case "return":
         var returns = [];
@@ -1171,7 +1177,7 @@ export class Query {
   compile() {
     let ast = this.toAST();
     let code = this.compileAST(ast);
-    this.compiled = new Function("ixer", "QueryFunctions", "tableId", code);
+    this.compiled = new Function("ixer", "QueryFunctions", "tableId", "rootRows", code);
     this.dirty = false;
     return this;
   }
@@ -1179,7 +1185,13 @@ export class Query {
     if(this.dirty) {
       this.compile();
     }
-    return this.compiled(this.ixer, QueryFunctions, this.name);
+    return this.compiled(this.ixer, QueryFunctions, this.name, this.ixer.table(this.joins[0].table).table);
+  }
+  execIncremental(rows) {
+    if(this.dirty) {
+      this.compile();
+    }
+    return this.compiled(this.ixer, QueryFunctions, this.name, rows);
   }
   debug() {
     console.log(this.compileAST(this.toAST()));

@@ -20,7 +20,8 @@ app.init("runtime test", () => {
 					.select("foo", {}, "foo")
 					.select("bar", {a: ["foo", "a"]}, "bar")
 					.project({c: ["bar", "c"]});
-	var res = query1.exec();
+	var res = query1.debug();
+    console.log(res);
 
 	var query2 = eve.query("group")
 					.select("foo", {}, "foo")
@@ -29,6 +30,7 @@ app.init("runtime test", () => {
 					.aggregate("count", {}, "count")
 					.project({b: ["foo", "b"], count: ["count", "count"]});
 	var res2 = query2.exec();
+    console.log(res2);
 
 	var provenance = eve.diff();
 	provenance.addMany("provenance", res.provenance);
@@ -38,9 +40,7 @@ app.init("runtime test", () => {
 	// given a set of changes and a join order, determine the root facts that need
 	// to be joined again to cover all the adds
 	function reverseJoin(query, joins) {
-		let code = "";
 		let changed = joins[0];
-
 		let reverseJoinMap = {};
 		// collect all the constraints and reverse them
 		for(let join of joins) {
@@ -59,23 +59,33 @@ app.init("runtime test", () => {
 
 		console.log("revjoinmap", reverseJoinMap);
 
-		// for(let join of joins) {
-		// 	let {table, ix, negated} = join;
-		// 	// we only care about this guy if he's joined with at least one thing
-		// 	if(Object.keys(prev.join).length === 0) {
-		// 		prev = join;
-		// 		continue;
-		// 	}
-		// 	for(let key in prev.join) {
-		// 		console.log(join.ix, key, prev.join[key]);
-		// 	}
-		// 	if(negated) {
-		// 		//@TODO: deal with negation;
-		// 	}
+        var recurse = (joins, joinIx) => {
+            var code = "";
+            if(joinIx >= joins.length) {
+                return "others.push(row0)";
+            }
+            let {table, ix, negated} = joins[joinIx];
+			// we only care about this guy if he's joined with at least one thing
+			if(!reverseJoinMap[ix]) return recurse(joins, joinIx+1);
 
-		// 	prev = join;
-		// }
-		return code;
+            let mappings = [];
+            for(let key in reverseJoinMap[ix]) {
+                let [sourceIx, field] = reverseJoinMap[ix][key];
+                mappings.push(`'${key}': row${sourceIx}['${field}']`);
+            }
+            if(negated) {
+				//@TODO: deal with negation;
+			}
+            code += `
+            var rows${ix} = eve.find('${table}', {${mappings.join(", ")}});
+            for(var rowsIx${ix} = 0, rowsLen${ix} = rows${ix}.length; rowsIx${ix} < rowsLen${ix}; rowsIx${ix}++) {
+                var row${ix} = rows${ix}[rowsIx${ix}];
+                ${recurse(joins, joinIx+1)}
+            }
+            `;
+            return code;
+        }
+		return recurse(joins, 1);
 	}
 	function newAsToJoin(query) {
 		let code = "var others = [];\n";
@@ -84,7 +94,9 @@ app.init("runtime test", () => {
 		for(let join of reversed) {
 			code += `
 			if(changes["${join.table}"] && changes["${join.table}"].adds) {
-				for(change${join.ix} of changes["${join.table}"].adds) {\n
+                var curChanges${join.ix} = changes["${join.table}"].adds;
+                for(var changeIx${join.ix} = 0, changeLen${join.ix} = curChanges${join.ix}.length; changeIx${join.ix} < changeLen${join.ix}; changeIx${join.ix}++) {
+                    var row${join.ix} = curChanges${join.ix}[changeIx${join.ix}];
 					${reverseJoin(query, reversed.slice(ix))}
 				}
 			}`;
@@ -95,8 +107,9 @@ app.init("runtime test", () => {
 		var last = reversed[ix];
 		code += `
 			if(changes["${last.table}"] && changes["${last.table}"].adds) {
-				for(let change of changes["${last.table}"].adds) {
-					others.push(change);
+                var curChanges = changes["${last.table}"].adds;
+				for(var changeIx = 0, changeLen = curChanges.length; changeIx < changeLen; changeIx++) {
+					others.push(curChanges[changeIx]);
 				}
 			}
 			return others;`;
@@ -121,11 +134,22 @@ app.init("runtime test", () => {
 		return others
 	}
 
+    var func = new Function("changes", newAsToJoin(query1));
 	console.log(newAsToJoin(query1));
 
-	console.log(foo({}, query1.joins));
-	console.log(foo({"foo": {adds: [{a: 2, b:7}]}}, query1.joins));
-	console.log(foo({"bar": {adds: [{a: 2, b:7}]}}, query1.joins));
-	console.log(foo({"foo": {adds: [{a: 2, b:7}]}, "bar": {adds: [{a: 2, b:7}]}}, query1.joins));
+	console.log(func({}, query1.joins));
+	console.log(func({"foo": {adds: [{a: 2, b:7}]}}, query1.joins));
+	console.log(func({"bar": {adds: [{a: 2, c:7}]}}, query1.joins));
+	console.log(func({"foo": {adds: [{a: 2, b:7}]}, "bar": {adds: [{a: 2, c:7}]}}, query1.joins));
+
+    var changeInfo = {"foo": {adds: [{a: 2, b:7}]}, "bar": {adds: [{a: 2, c:7}]}};
+    var changes = eve.diff();
+    changes.add("foo", {a: 2, b: 7});
+    changes.add("bar", {a: 2, c: 7});
+    eve.applyDiff(changes);
+
+    // changeInfo["bar"] = undefined;
+    var incremental = query1.execIncremental(func(changeInfo));
+    console.log(incremental);
 
 });
