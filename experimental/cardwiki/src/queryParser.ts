@@ -78,6 +78,7 @@ var patterns = {
   "top": {
     type: "sort and limit",
     resultingIndirectObject: 1,
+    direction: "descending",
     args: ["limit", "attribute"],
   },
   "<": {
@@ -806,7 +807,10 @@ function opToPlan(op): any {
   if(info.type === "aggregate") {
     return [{type: StepTypes.AGGREGATE, subject: info.op, args, id: uuid(), argArray: op.args}];
   } else if(info.type === "sort and limit") {
-    return [];
+    var sortLimitArgs = op.args.map((arg) => arg.found);
+    var sortStep = {type: StepTypes.SORT, subject: "results", direction: info.direction, field: sortLimitArgs[1], id: uuid()};
+    var limitStep = {type: StepTypes.LIMIT, subject: "results", value: sortLimitArgs[0], id: uuid()};
+    return [sortStep, limitStep];
   } else if(info.type === "filter") {
     return [{type: StepTypes.FILTER, subject: info.op, args, id: uuid(), argArray: op.args}];
   } else {
@@ -1034,7 +1038,7 @@ var tests = {
         {parent: "department", subject: "salary"}
       ]}
     ]
-  },
+  },*/
   "top 2 employee salaries" : {
       expected: [
         {type: StepTypes.GATHER, subject: "employee"},
@@ -1043,9 +1047,8 @@ var tests = {
         {type: StepTypes.LIMIT, subject: "results", value: 2},
       ]
   },
-  */
+  /*
   "top 2 salaries per department": {
-
     expected: [
       {type: StepTypes.GATHER, subject: "department"},
       {type: StepTypes.GATHER, subject: "employee"},
@@ -1055,7 +1058,7 @@ var tests = {
       {type: StepTypes.LIMIT, subject: "per group", value: 2}
     ]
   },
-  /*
+
   "sum of the top 2 salaries per department": {
 
   },
