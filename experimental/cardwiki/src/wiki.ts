@@ -228,7 +228,7 @@ function newSearchTokens(searchString) {
   let cleaned = searchString.toLowerCase();
   let all = queryParser.getTokens(cleaned);
   all.forEach((token) => {
-    token.type = queryParser.TokenTypes[token.type]
+    token.type = queryParser.TokenTypes[token.type].toLowerCase();
     if(token.type === "modifier") {
       token.modifier = modifiers[token.found];
     } else if(token.type === "pattern") {
