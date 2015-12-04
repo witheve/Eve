@@ -82,6 +82,18 @@ app.init("runtime test", () => {
 	  // var incremental2 = query2.execIncremental(changeInfo, eve.table(query2.name));
     // console.log(incremental2);
 
+	var parentAncestor = eve.query("parent ancestor")
+						 .select("parent", {}, "parent")
+						 .select("ancestor", {ancestor: ["parent", "child"]}, "ancestor")
+						 .project({ancestor: ["parent", "parent"], child: ["ancestor", "child"]});
+    eve.asView(parentAncestor);
 
+	var ancestorUnion = eve.union("ancestor")
+						   .union("parent", {ancestor: ["parent"], child: ["child"]})
+						   .union("parent ancestor", {ancestor: ["ancestor"], child: ["child"]});
+    eve.asView(ancestorUnion);
+	var parents = eve.diff();
+	parents.addMany("parent", [{parent: "a", child: "b"}, {parent: "b", child: "c"}]);
+	eve.applyDiffIncremental(parents);
 
 });

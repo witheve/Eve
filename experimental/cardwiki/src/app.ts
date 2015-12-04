@@ -122,7 +122,11 @@ export function dispatch(event: string, info?: { [key: string]: any }, dispatchI
     update: {update: ${perfStats.update}}
     Horrible hack, disregard this: {perf stats: render performance statistics}
     `});
-    eve.applyDiff(result);
+    if(!runtime.INCREMENTAL) {
+      eve.applyDiff(result);
+    } else {
+      eve.applyDiffIncremental(result);
+    }
     if (result.meta.render) {
       render();
     }

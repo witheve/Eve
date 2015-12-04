@@ -6,6 +6,7 @@ declare var exports;
 let runtime = exports;
 
 export var MAX_NUMBER = 9007199254740991;
+export var INCREMENTAL = true;
 
 function objectsIdentical(a:{[key:string]: any}, b:{[key:string]: any}):boolean {
   var aKeys = Object.keys(a);
@@ -211,9 +212,11 @@ export class Diff {
 export class Indexer {
   tables;
   globalCount;
+  edbTables;
   constructor() {
     this.tables = {};
     this.globalCount = 0;
+    this.edbTables = {};
   }
   addTable(name, keys = []) {
     let table = this.tables[name];
@@ -223,6 +226,7 @@ export class Indexer {
       table.equals = generateEqualityFn(keys);
     } else {
       table = this.tables[name] = {table: [], factHash: {}, indexes: {}, triggers: {}, fields: keys, stringify: generateStringFn(keys), equals: generateEqualityFn(keys), keyLookup: {}};
+      this.edbTables[name] = true;
     }
     for(let key of keys) {
       if(key.constructor === Array) {
@@ -500,24 +504,28 @@ export class Indexer {
       let table = this.table(tableId);
       table.triggers[name] = trigger;
     }
-    let nextRound = this.execTrigger(trigger);
-    while(nextRound) {
-      nextRound = this.execTriggers(nextRound);
-    };
-    // let initial = {[tables[0]]: {adds: this.tables[tables[0]].table, removes: []}};
-    // if(!tables.length) { return exec(this); }
-    // let {triggers, changes} = this.execTriggerIncremental(trigger, initial);
-    // while(triggers) {
-		//   let results = this.execTriggersIncremental(triggers, changes);
-    //   if(!results) break
-    //   triggers = results.triggers;
-    //   changes = results.changes;
-		// }
+    if(INCREMENTAL) {
+      let nextRound = this.execTrigger(trigger);
+      while(nextRound) {
+        nextRound = this.execTriggers(nextRound);
+      };
+    } else {
+      let initial = {[tables[0]]: {adds: this.tables[tables[0]].table, removes: []}};
+      if(!tables.length) { return exec(this); }
+      let {triggers, changes} = this.execTriggerIncremental(trigger, initial);
+      while(triggers) {
+        let results = this.execTriggersIncremental(triggers, changes);
+        if(!results) break
+        triggers = results.triggers;
+        changes = results.changes;
+      }
+    }
   }
 
   asView(query:Query|Union) {
     let name = query.name;
     let view = this.table(name);
+    this.edbTables[name] = false;
     view.view = query;
     view.isView = true;
     this.trigger(name, query.tables, query.exec.bind(query), query.execIncremental.bind(query));
@@ -541,12 +549,13 @@ export class Indexer {
     let changes = realDiffs;
 		while(triggers) {
 		  // console.group(`ROUND ${round}`);
+      // console.log("CHANGES: ", changes);
 		  let results = this.execTriggersIncremental(triggers, changes);
+      // console.groupEnd();
       if(!results) break
       triggers = results.triggers;
       changes = results.changes
 		  round++;
-		  // console.groupEnd();
 		}
 	}
 
@@ -581,16 +590,20 @@ export class Indexer {
     let newTriggers = {};
     let nextChanges = {};
     let retrigger = false;
-    for(let triggerName in triggers) {
+    let triggerKeys = Object.keys(triggers);
+    for(let triggerName of triggerKeys) {
       // console.log("Calling:", triggerName);
       let trigger = triggers[triggerName];
       let nextRound = this.execTriggerIncremental(trigger, changes);
       if(nextRound) {
         retrigger = true;
         nextChanges[triggerName] = nextRound.changes;
-        for(let trigger in nextRound.triggers) {
-          // console.log("Queuing:", trigger);
-          newTriggers[trigger] = nextRound.triggers[trigger];
+        if(nextRound.triggers) {
+          let nextRoundKeys = Object.keys(nextRound.triggers);
+          for(let trigger of nextRoundKeys) {
+            // console.log("Queuing:", trigger);
+            newTriggers[trigger] = nextRound.triggers[trigger];
+          }
         }
       }
     }
@@ -602,6 +615,11 @@ export class Indexer {
 
 export function addProvenanceTable(ixer) {
   let table = ixer.addTable("provenance", ["table", ["row", "__id"], "row instance", "source", ["source row", "__id"]]);
+  // generate some indexes that we know we're going to need upfront
+  ixer.index("provenance", ["table", "row"]);
+  ixer.index("provenance", ["table", "row instance"]);
+  ixer.index("provenance", ["table", "source", "source row"]);
+  ixer.index("provenance", ["table"]);
   return ixer;
 }
 
@@ -1333,21 +1351,88 @@ export class Query {
     let rowsToPostCheck = [];
     let provenanceDiff = this.ixer.diff();
     let removes = [];
+    let indexes = ixer.table("provenance").indexes;
+    let sourceRowLookup = indexes["source|source row|table"].index;
+    let rowInstanceLookup = indexes["row instance|table"].index;
+    let tableRowLookup = indexes["row|table"].index;
+    let provenanceRemoves = [];
     for(let join of this.joins) {
       let change = changes[join.table];
       if(change && change.removes.length) {
         for(let remove of change.removes) {
-          for(let provenance of ixer.find("provenance", {table: this.name, "source": join.table, "source row": remove})) {
-            provenanceDiff.remove("provenance", {table: provenance.table, "row instance": provenance["row instance"]});
-            rowsToPostCheck.push(provenance);
+          let provenances = sourceRowLookup[join.table] && sourceRowLookup[join.table][remove.__id] && sourceRowLookup[join.table][remove.__id][this.name];
+          if(provenances) {
+            for(let provenance of provenances) {
+              let relatedProvenance = rowInstanceLookup[provenance["row instance"]][provenance.table];
+              for(let related of relatedProvenance) {
+                provenanceRemoves.push(related);
+              }
+              rowsToPostCheck.push(provenance);
+            }
           }
         }
       }
     }
+    provenanceDiff.removeFacts("provenance", provenanceRemoves);
     ixer.applyDiffIncremental(provenanceDiff);
+    let isEdb = ixer.edbTables;
     for(let row of rowsToPostCheck) {
-      if(!ixer.findOne("provenance", {table: row.table, row: row.row})) {
+      let supports = tableRowLookup[row.row.__id][row.table];
+      if(supports.length === 0) {
         removes.push(row.row);
+      } else {
+        let supportsToRemove = [];
+        // otherwise if there are supports, then we need to walk the support
+        // graph backwards and make sure every supporting row terminates at an
+        // edb value. If not, then that support also needs to be removed
+        for(let support of supports) {
+          // if the support is already an edb, we're good to go.
+          if(isEdb[support.source]) continue;
+          if(!tableRowLookup[support["source row"].__id] || !tableRowLookup[support["source row"].__id][support.source]) {
+            supportsToRemove.push(support);
+            continue;
+          }
+          // get all the supports for this support
+          let nodes = tableRowLookup[support["source row"].__id][support.source].slice();
+          let nodeIx = 0;
+          // iterate through all the nodes, if they have further supports then
+          // assume this node is ok and add those supports to the list of nodes to
+          // check. If we run into a node with no supports it must either be an edb
+          // or it's unsupported and this row instance needs to be removed.
+          while(nodeIx < nodes.length) {
+            let node = nodes[nodeIx];
+            if(isEdb[node.source]) {
+              nodeIx++;
+              continue;
+            }
+            let nodeSupports = tableRowLookup[node["source row"].__id][node.source];
+            if(!nodeSupports || nodeSupports.length === 0) {
+              supportsToRemove.push(support);
+            } else {
+              for(let nodeSupport of nodeSupports) {
+                nodes.push(nodeSupport);
+              }
+            }
+          }
+        }
+        if(supportsToRemove.length) {
+          // we need to remove all the supports
+          let provenanceRemoves = [];
+          for(let support of supportsToRemove) {
+            let relatedProvenance = rowInstanceLookup[support["row instance"]][support.table];
+            for(let related of relatedProvenance) {
+              provenanceRemoves.push(related);
+            }
+          }
+          let diff = ixer.diff();
+          diff.removeFacts("provenance", provenanceRemoves);
+          ixer.applyDiffIncremental(diff);
+          // now that all the unsupported provenances have been removed, check if there's anything
+          // left.
+          if(!tableRowLookup[row.row.__id][row.table] || tableRowLookup[row.row.__id][row.table].length === 0) {
+            removes.push(row.row);
+          }
+        }
       }
     }
     return removes;
