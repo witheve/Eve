@@ -290,7 +290,7 @@ export class Indexer {
         let fact = hashToFact[hash];
         realRemoves.push(fact);
         removeFact(facts, fact, table.equals);
-        factHash[hash] = fact;
+        delete factHash[hash];
       }
     }
     return {adds:realAdds, removes:realRemoves};
@@ -318,20 +318,23 @@ export class Indexer {
     }
     return cursor;
   }
-  execDiff(diff): {triggers: any, realDiffs: any} {
+  execDiff(diff: Diff): {triggers: any, realDiffs: any} {
     let triggers = {};
     let realDiffs = {};
-    for(let tableId in diff.tables) {
+    let tableIds = Object.keys(diff.tables);
+    for(let tableId of tableIds) {
       let tableDiff = diff.tables[tableId];
-      if(!tableDiff.adds.length && !tableDiff.removes.length) continue;
+      if(tableDiff.adds.length === 0 && tableDiff.removes.length === 0) continue;
       let realDiff = this.updateTable(tableId, tableDiff.adds, tableDiff.removes);
       // go through all the indexes and update them.
       let table = this.tables[tableId];
-      for(let indexName in table.indexes) {
+      let indexes = Object.keys(table.indexes);
+      for(let indexName of indexes) {
         let index = table.indexes[indexName];
         index.collect(index.index, realDiff.adds, realDiff.removes, table.equals);
       }
-      for(let triggerName in table.triggers) {
+      let curTriggers = Object.keys(table.triggers);
+      for(let triggerName of curTriggers) {
         let trigger = table.triggers[triggerName];
         triggers[triggerName] = trigger;
       }
@@ -501,11 +504,8 @@ export class Indexer {
     while(nextRound) {
       nextRound = this.execTriggers(nextRound);
     };
-    // let initial = {};
-    // for(let table of tables) {
-    //   initial[table] = this.tables[table].table;
-    // }
-    // if(!this.tables.length) { return exec(this); }
+    // let initial = {[tables[0]]: {adds: this.tables[tables[0]].table, removes: []}};
+    // if(!tables.length) { return exec(this); }
     // let {triggers, changes} = this.execTriggerIncremental(trigger, initial);
     // while(triggers) {
 		//   let results = this.execTriggersIncremental(triggers, changes);
@@ -550,7 +550,7 @@ export class Indexer {
 		}
 	}
 
-  execTriggerIncremental(trigger, changes) {
+  execTriggerIncremental(trigger, changes):any {
     let table = this.table(trigger.name);
     let adds, provenance, removes, info;
     if(trigger.execIncremental) {
@@ -572,6 +572,8 @@ export class Indexer {
     let {realDiffs} = updated;
     if(realDiffs[trigger.name] && (realDiffs[trigger.name].adds.length || realDiffs[trigger.name].removes)) {
       return {changes: realDiffs[trigger.name], triggers: updated.triggers};
+    } else {
+      return {};
     }
   }
 
@@ -1422,7 +1424,7 @@ export class Query {
         }
       }
       let diff = this.ixer.diff();
-      diff.removeFacts("provenance", {table: this.name});
+      diff.remove("provenance", {table: this.name});
       diff.addMany("provenance", results.provenance);
       this.ixer.applyDiffIncremental(diff);
       return {provenance: results.provenance, adds, removes};
@@ -1561,11 +1563,13 @@ export class Union {
       case "hashesToResults":
         code += "var hashKeys = Object.keys(hashes);\n";
         code += "for(var hashKeyIx = 0, hashKeyLen = hashKeys.length; hashKeyIx < hashKeyLen; hashKeyIx++) {\n";
-        code += "var value = hashes[hashKeys[hashKeyIx]];\n";
+        code += "var curHashKey = hashKeys[hashKeyIx];"
+        code += "var value = hashes[curHashKey];\n";
         code += "if(value !== false) {\n";
-        code += "results.push(value);\n"
-        code += "}\n"
-        code += "}\n"
+        code += "value.__id = curHashKey;";
+        code += "results.push(value);\n";
+        code += "}\n";
+        code += "}\n";
         break;
       case "return":
         code += `return {${root.vars.join(", ")}};`;
@@ -1602,10 +1606,9 @@ export class Union {
     let removes = [];
     let prevHashes = table.factHash;
     let prevKeys = Object.keys(prevHashes);
-    let newHashes = {};
+    let newHashes = results.hashes;
     for(let result of results.results) {
       let id = result.__id;
-      newHashes[id] = result;
       if(prevHashes[id] === undefined) {
         adds.push(result);
       }
