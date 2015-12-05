@@ -266,7 +266,7 @@ export class Indexer {
       table.stringify = generateStringFn(keys);
       table.equals = generateEqualityFn(keys);
     } else {
-      table = this.tables[name] = {table: [], factHash: {}, indexes: {}, triggers: {}, fields: keys, stringify: generateStringFn(keys), equals: generateEqualityFn(keys), keyLookup: {}};
+      table = this.tables[name] = {table: [], hashToIx: {}, factHash: {}, indexes: {}, triggers: {}, fields: keys, stringify: generateStringFn(keys), equals: generateEqualityFn(keys), keyLookup: {}};
       this.edbTables[name] = true;
     }
     for(let key of keys) {
@@ -297,6 +297,7 @@ export class Indexer {
     let stringify = table.stringify;
     let facts = table.table;
     let factHash = table.factHash;
+    let hashToIx = table.hashToIx;
     let localHash = {};
     let hashToFact = {};
     let hashes = [];
@@ -331,11 +332,19 @@ export class Indexer {
         realAdds.push(fact);
         facts.push(fact);
         factHash[hash] = fact;
+        hashToIx[hash] = facts.length - 1;
       } else if(count < 0 && factHash[hash]) {
         let fact = hashToFact[hash];
+        let ix = hashToIx[hash];
+        //swap the last fact with this one to prevent holes
+        let lastFact = facts.pop();
+        if(lastFact && lastFact !== fact) {
+          facts[ix] = lastFact;
+          hashToIx[lastFact.__id] = ix;
+        }
         realRemoves.push(fact);
-        removeFact(facts, fact, table.equals);
         delete factHash[hash];
+        delete hashToIx[hash];
       }
     }
     return {adds:realAdds, removes:realRemoves};
