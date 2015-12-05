@@ -95,6 +95,13 @@ var patterns = {
     resultingIndirectObject: 0,
     args: ["a", "b"],
   },
+  "=": {
+    type: "filter",
+    op: "=",
+    infix: true,
+    resultingIndirectObject: 0,
+    args: ["a", "b"],
+  },
 };
 
 //---------------------------------------------------------
