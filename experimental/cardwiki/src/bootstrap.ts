@@ -21,7 +21,7 @@ function queryFromSearch(search:string):runtime.Query {
 export function queryFromPlanDSL(str:string):runtime.Query {
   return planToQuery(parsePlan(str));
 }
-export function queryFromQueryDSL(ixer:runtime.Indexer, str:string):runtime.Query {
+export function queryFromQueryDSL(str:string):runtime.Query {
   let plan = parseQuery(str);
   let query = new runtime.Query(ixer);
   let ix = 0;
@@ -43,7 +43,7 @@ export function queryFromQueryDSL(ixer:runtime.Indexer, str:string):runtime.Quer
 export function UIFromDSL(str:string):UI {
   function processElem(data:UIElem):UI {
     let elem = new UI(data.id || uuid());
-    if(data.binding) elem.bind(queryFromPlanDSL(data.binding));
+    if(data.binding) elem.bind(data.bindingKind === "query" ? queryFromQueryDSL(data.binding) : queryFromPlanDSL(data.binding));
     if(data.embedded) elem.embed(data.embedded);
     if(data.attributes) elem.attributes(data.attributes);
     if(data.events) elem.events(data.events);
@@ -180,6 +180,17 @@ class BSPhase {
   }
 }
 
+//-----------------------------------------------------------------------------
+// Runtime Setup
+//-----------------------------------------------------------------------------
+runtime.define("parse natural", {multi: true}, function(text:string) {
+  return naturalSearch(text).plan;
+});
+
+runtime.define("parse plan", {multi: true}, function(text:string) {
+  return parsePlan(text);
+});
+
 app.init("bootstrap", function bootstrap() {
   //-----------------------------------------------------------------------------
   // Entity System
@@ -200,7 +211,7 @@ app.init("bootstrap", function bootstrap() {
     .addUnionMember("entity", "unmodified added bits")
     .addUnionMember("entity", "automatic collection entities")
     .addTable("builtin entity", ["entity", "content"])
-    .addQuery("unmodified builtin entities", queryFromQueryDSL(phase.ixer, unpad(4) `
+    .addQuery("unmodified builtin entities", queryFromQueryDSL(unpad(4) `
       select builtin entity as [builtin]
       deselect manual entity {entity: [builtin, entity]}
       deselect action entity {entity: [builtin, entity]}
@@ -208,13 +219,13 @@ app.init("bootstrap", function bootstrap() {
     `))
     .addUnionMember("entity", "unmodified builtin entities");
 
-  phase.addQuery("unmodified added bits", queryFromQueryDSL(phase.ixer, unpad(4) `
+  phase.addQuery("unmodified added bits", queryFromQueryDSL(unpad(4) `
     select added bits as [added]
     deselect manual entity {entity: [added, entity]}
     project {entity: [added, entity]; content: [added, content]}
   `));
 
-  phase.addQuery("parsed eavs", queryFromQueryDSL(phase.ixer, unpad(4) `
+  phase.addQuery("parsed eavs", queryFromQueryDSL(unpad(4) `
     select entity as [entity]
     calculate parse eavs {entity: [entity, entity]; text: [entity, content]} as [parsed]
     project {entity: [entity, entity]; attribute: [parsed, attribute]; value: [parsed, value]}
@@ -226,20 +237,20 @@ app.init("bootstrap", function bootstrap() {
     // push them into eavs, e.g. sum salaries per department -> [total salary = *]
     .addUnionMember("entity eavs", "added eavs");
 
-  phase.addQuery("is a attributes", queryFromQueryDSL(phase.ixer, unpad(4) `
+  phase.addQuery("is a attributes", queryFromQueryDSL(unpad(4) `
     select entity eavs {attribute: is a} as [is a]
     project {collection: [is a, value]; entity: [is a, entity]}
   `));
 
   // @HACK: this view is required because you can't currently join a select on the result of a function.
   // so we create a version of the eavs table that already has everything lowercased.
-  phase.addQuery("lowercase eavs", queryFromQueryDSL(phase.ixer, unpad(4) `
+  phase.addQuery("lowercase eavs", queryFromQueryDSL(unpad(4) `
     select entity eavs as [eav]
     calculate lowercase {text: [eav, value]} as [lower]
     project {entity: [eav, entity];  attribute: [eav, attribute]; value: [lower, result]}
   `));
 
-  phase.addQuery("eav entity links", queryFromQueryDSL(phase.ixer, unpad(4) `
+  phase.addQuery("eav entity links", queryFromQueryDSL(unpad(4) `
     select lowercase eavs as [eav]
     select entity {entity: [eav, value]} as [entity]
     project {entity: [eav, entity]; link: [entity, entity]; type: [eav, attribute]}
@@ -259,14 +270,14 @@ app.init("bootstrap", function bootstrap() {
     // push them into collections, e.g. people older than 21 -> [[can drink]]
     .addUnionMember("collection entities", "added collections");
 
-  phase.addQuery("collection", queryFromQueryDSL(phase.ixer, unpad(4) `
+  phase.addQuery("collection", queryFromQueryDSL(unpad(4) `
     select collection entities as [coll]
     group {[coll, collection]}
     aggregate count as [count]
     project {collection: [coll, collection]; count: [count, count]}
   `));
 
-  phase.addQuery("automatic collection entities", queryFromQueryDSL(phase.ixer, unpad(4) `
+  phase.addQuery("automatic collection entities", queryFromQueryDSL(unpad(4) `
     select collection as [coll]
     deselect manual entity {entity: [coll, collection]}
     deselect builtin entity {entity: [coll, collection]}
@@ -282,15 +293,15 @@ app.init("bootstrap", function bootstrap() {
   phase = new BSPhase(eve);
   phase.addUnion("search", ["id", "top", "left"]);
   phase.addUnion("search query", ["id", "search"]);
-  phase.addQuery("searches to entities shim", queryFromQueryDSL(eve, unpad(4) `
+  phase.addQuery("searches to entities shim", queryFromQueryDSL(unpad(4) `
     select search as [search]
     select search query {id: [search, id]} as [query]
-    project {id: [search, id]; search: [query, search]; top: [search, top]; left: [search, left]}
+    project {id: [search, id]; text: [query, search]; top: [search, top]; left: [search, left]}
   `));
   phase.generateBitAction("searches to entities shim", "searches to entities shim", unpad(4) `
     # {id}
     ({is a: search}, {is a: system})
-    search: {search: {search}}
+    text: {text: {text}}
     left: {left: {left}}
     top: {top: {top}}
   `);
@@ -325,25 +336,32 @@ app.init("bootstrap", function bootstrap() {
       header
         > perf stats
       content
-        search container search-container {top: [search, top]; left: [search, left]}
-          ~ gather search as [search]
-          ~   lookup top
-          ~   lookup left
-          ~   lookup search
-          header search-header
-            div search-input { text: [search, search 2]}
-          content
-          footer search-actions
-            row
-              button {text: + entity}
-                @ click {kind: add entity action; id: [search, id]}
-              button {text: + attribute}
-                @ click {kind: add attribute action; id: [search, id]}
-              button {text: + collection}
-                @ click {kind: add collection action; id: [search, id]}
+        > search pane
   `);
   phase.addUI("wiki root", wikiRoot);
   window["uu"] = wikiRoot;
+
+  phase.addUI("search pane", UIFromDSL(unpad(4) `
+    search-pane container search-container {top: [search, top]; left: [search, left]}
+      ~ gather search as [search]
+      ~   lookup top
+      ~   lookup left
+      ~   lookup text
+      ~ calculate search {id: [search, search]} as [result]
+      header search-header
+        div search-input { text: [search, text]}
+      content {text: its a singleton yo.}
+        ~# filter = {a: [result, kind]; b: singleton}
+
+      footer search-actions
+        row add-action
+          button {text: + entity}
+            @ click {kind: add entity action; id: [search, search]}
+          button {text: + attribute}
+            @ click {kind: add attribute action; id: [search, search]}
+          button {text: + collection}
+            @ click {kind: add collection action; id: [search, search]}
+  `));
 
   phase.addUI("perf stats", UIFromDSL(unpad(4) `
     row perf-stats
@@ -395,6 +413,19 @@ app.init("bootstrap", function bootstrap() {
   };
   for(let entity in testData) phase.addEntity(entity, entity, ["test data"].concat(testData[entity]), testAttrs[entity]);
 
+  phase.addTable("department", ["department"])
+    .addFact("department", {department: "engineering"})
+    .addFact("department", {department: "operations"})
+    .addFact("department", {department: "magic"});
+  phase.addTable("employee", ["department", "employee", "salary"])
+    .addFact("employee", {department: "engineering", employee: "josh", salary: 10})
+    .addFact("employee", {department: "engineering", employee: "corey", salary: 11})
+    .addFact("employee", {department: "engineering", employee: "chris", salary: 7})
+    .addFact("employee", {department: "operations", employee: "rob", salary: 7});
+
+  phase.addTable("laid off", ["employee"])
+    .addFact("laid off", {employee: "josh"});
+
   phase.addQuery("exotic pet", queryFromPlanDSL(unpad(4) `
     gather pet as [animal]
       intersect exotic
@@ -420,7 +451,7 @@ app.init("bootstrap", function bootstrap() {
   `);
   phase.addUI("example ui", example);
 
-  // phase.apply(true);
+  phase.apply(true);
   window["p"] = phase;
 });
 
