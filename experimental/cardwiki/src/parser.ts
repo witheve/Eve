@@ -2,17 +2,18 @@ import {unpad, underline} from "./utils"
 import * as runtime from "./runtime"
 import {eve} from "./app"
 import {coerceInput} from "./wiki"
+import {repeat} from "./utils"
 declare var uuid;
 
-type Alias = [string, string];
+type SourceAttr = [string, string];
 interface MapArgs {
   // value may be a [source, alias] pair to be applied or a constant
-  [param:string]:Alias|any
+  [param:string]:SourceAttr|any
 }
 
 interface ListArgs {
   // value may be a [source, alias] pair to be applied or a constant
-  [param: number]:Alias|any
+  [param: number]:SourceAttr|any
 }
 
 class ParseError extends Error {
@@ -31,6 +32,11 @@ class ParseError extends Error {
   }
 }
 
+function maybe<T>(val:Error|T):T {
+  if(val instanceof Error) throw Error;
+  return <T>val;
+}
+
 function readWhile(str:string, substring:string, startIx:number):string {
   let endIx = startIx;
   while(str[endIx] === substring) endIx++;
@@ -41,6 +47,22 @@ function readUntil(str:string, sentinel:string, startIx:number):string;
 function readUntil(str:string, sentinel:string, startIx:number, unsatisfiedErr: Error):string|Error;
 function readUntil(str:string, sentinel:string, startIx:number, unsatisfiedErr?: Error):any {
   let endIx = str.indexOf(sentinel, startIx);
+  if(endIx === -1) {
+    if(unsatisfiedErr) return unsatisfiedErr;
+    return str.slice(startIx);
+  }
+  return str.slice(startIx, endIx);
+}
+
+function readUntilAny(str:string, sentinels:string[], startIx:number):string;
+function readUntilAny(str:string, sentinels:string[], startIx:number, unsatisfiedErr: Error):string|Error;
+function readUntilAny(str:string, sentinels:string[], startIx:number, unsatisfiedErr?: Error):any {
+  let endIx = -1;
+  for(let sentinel of sentinels) {
+    let ix = str.indexOf(sentinel, startIx);
+    if(ix === -1 || endIx !== -1 && ix > endIx) continue;
+    endIx = ix;
+  }
   if(endIx === -1) {
     if(unsatisfiedErr) return unsatisfiedErr;
     return str.slice(startIx);
@@ -480,6 +502,7 @@ export interface UIElem {
   children?: UIElem[]
   embedded?: MapArgs // Undefined or the restricted scope of the embedded child.
   binding?: string
+  bindingKind?: string
   attributes?: MapArgs
   events?: {[event:string]: MapArgs}
 }
@@ -506,10 +529,17 @@ export function parseUI(str:string):UIElem {
     let keyword = readUntil(line, " ", charIx);
     charIx += keyword.length;
 
-    if(keyword[0] === "~") { // Handle binding
+    if(keyword[0] === "~" || keyword[0] === "%") { // Handle binding
       charIx -= keyword.length - 1;
-      if(!parent.binding) parent.binding = line.slice(charIx);
-      else parent.binding += "\n" + line.slice(charIx);
+      let kind = keyword[0] === "~" ? "plan" : "query";
+      if(!parent.binding) {
+        parent.binding = line.slice(charIx);
+        parent.bindingKind = kind;
+      } else if(kind === parent.bindingKind) parent.binding += "\n" + line.slice(charIx);
+      else {
+        errors.push(new ParseError(`UI must be bound to a single type of query.`, line, lineIx));
+        continue;
+      }
       charIx = line.length;
 
     } else if(keyword[0] === "@") { // Handle event
@@ -593,5 +623,372 @@ export function parseUI(str:string):UIElem {
   return root;
 }
 
+
+//-----------------------------------------------------------------------------
+// Eve DSL Parser
+//-----------------------------------------------------------------------------
+interface Token {type?: string, text?: string}
+interface Sexpr extends Array<Token|Sexpr> {type?: string, lineIx?: number, charIx?: number}
+function isSexpr(x:any): x is Sexpr {
+  return x && (x.type === "expr" || x.type === "list" || x.type === "hash");
+}
+
+const TOKEN_TO_TYPE = {
+  "(": "expr",
+  ")": "expr",
+  "[": "list",
+  "]": "list",
+  "{": "hash",
+  "}": "hash"
+}
+
+export function readSexprs(text:string, macros?:any):Sexpr[] {
+  let root = [];
+  let token:Token;
+  let sexpr:Sexpr = root;
+  let sexprs:Sexpr[] = [root];
+
+  let lines = text.split("\n");
+  let lineIx = 0;
+  let mode;
+  for(let line of lines) {
+    let line = lines[lineIx];
+    let charIx = 0;
+
+    if(mode === "string") token.text += "\n";
+
+    while(charIx < line.length) {
+      if(mode === "string") {
+        if(line[charIx] === "\"" && line[charIx - 1] !== "\\") {
+          sexpr.push(token);
+          token = mode = undefined;
+          charIx++;
+
+        } else token.text += line[charIx++];
+
+        continue;
+      }
+
+      let padding = readWhile(line, " ", charIx);
+      charIx += padding.length;
+      if(padding.length) {
+        if(token) sexpr.push(token);
+        token = undefined;
+      }
+      if(charIx >= line.length) continue;
+
+      if(line[charIx] === ";") {
+        charIx = line.length;
+
+      } else if(line[charIx] === "\"") {
+        if(!sexpr.length && sexpr.type === "expr") throw new ParseError(`Literal must be an argument in a sexpr.`, line, lineIx, charIx);
+        mode = "string";
+        charIx++;
+        token = {type: "string", text: ""};
+
+      } else if(line[charIx] === ":") {
+        if(!sexpr.length && sexpr.type === "expr") throw new ParseError(`Literal must be an argument in a sexpr.`, line, lineIx, charIx);
+        let keyword = readUntilAny(line, [" ", ")", "]", "}"], ++charIx);
+        sexpr.push({type: "string", text: keyword});
+        charIx += keyword.length;
+
+      } else if(line[charIx] === "(" || line[charIx] === "[" || line[charIx] === "{") {
+        if(token) throw new ParseError(`Sexpr arguments must be space separated.`, line, lineIx, charIx);
+        sexpr = [];
+        sexpr.type = TOKEN_TO_TYPE[line[charIx]];
+        if(sexpr.type !== "expr") sexpr.push({type: "identifier", text: sexpr.type});
+        sexpr.lineIx = lineIx;
+        sexpr.charIx = charIx;
+        sexprs.push(sexpr);
+        charIx++;
+
+      } else if(line[charIx] === ")" || line[charIx] === "]" || line[charIx] === "}") {
+        let child = sexprs.pop();
+        let type = TOKEN_TO_TYPE[line[charIx]];
+        if(child.type !== type) throw new ParseError(`Must terminate ${child.type} before terminating ${type}`, line, lineIx, charIx);
+        sexpr = sexprs[sexprs.length - 1];
+        sexpr.push(child);
+        charIx++;
+
+      } else {
+        let literal = readUntilAny(line, [" ", ")", "]", "}"], charIx);
+        let length = literal.length;
+        literal = coerceInput(literal);
+        let type = typeof literal === "string" ? "identifier" : "literal";
+        if(!sexpr.length && type !== "identifier" && sexpr.type === "expr") throw new ParseError(`Expr must begin with identifier.`, line, lineIx, charIx);
+        if(type === "identifier") {
+          let dotIx = literal.indexOf(".");
+          if(dotIx !== -1) {
+            let child:Sexpr = [
+              {type: "identifier", text: "get"},
+              {type: "identifier", text: literal.slice(0, dotIx)},
+              {type: "string", text: literal.slice(dotIx + 1)}
+            ];
+            child.type = "expr";
+            child.lineIx = sexpr.lineIx;
+            child.charIx = charIx;
+            sexpr.push(child);
+
+          } else sexpr.push({type, text: literal});
+
+        } else sexpr.push({type, text: literal});
+        charIx += length;
+      }
+    }
+    lineIx++;
+  }
+  if(token) throw new ParseError(`Unterminated ${token.type} token`, lines[lineIx - 1], lineIx - 1);
+
+  return root;
+}
+
+enum NODE { ERROR, DEF, TYPE, GET, REF, LIST, HASH, QUERY, SUBQUERY, NEGATE, SELECT, CALCULATE, PROJECT}
+enum VALUE { NULL, ERROR, SCALAR, SET, VIEW, ENTITY, COLLECTION, QUERY };
+interface Variable { name: string, type: VALUE, value: any, source: Sexpr }
+class DSLAST {
+  node:NODE;
+  type:VALUE;
+  parent:DSLAST;
+  children:DSLAST[] =[];
+  value:any;
+
+  constructor(parent?:DSLAST, node?:NODE, type:VALUE = VALUE.NULL) {
+    this.parent = parent;
+    this.node = node;
+    this.type = type;
+  }
+
+    getVariable(name:string):Variable {
+    let variable;
+    let ast:DSLAST = this;
+    while(!variable && ast) {
+      if(ast instanceof DSLQueryAST) variable = ast.variables[name];
+      ast = ast.parent;
+    }
+    return variable;
+  }
+
+  getAttribute(name:string, variable:Variable) {
+    if(variable.type === VALUE.SCALAR || variable.type === VALUE.SET) {
+      if(typeof variable.value !== "object") throw new Error(`Cannot lookup attribute '${name}' of literal in variable '${variable.name}'`);
+      return variable.value[name];
+    } else if(variable.type === VALUE.VIEW) {
+      return [variable.name, name];
+    } else {
+      throw new Error("@TODO: Implement me!");
+    }
+  }
+}
+
+class DSLQueryAST extends DSLAST {
+  sub:boolean;
+  variables:{[variable:string]: Variable} = {};
+  usages: {[variable:string]: Sexpr[]} = {};
+
+  constructor(parent?:DSLAST, sub:boolean = false) {
+    super(parent, sub ? NODE.SUBQUERY : NODE.QUERY);
+    this.type = VALUE.QUERY;
+    this.sub = sub;
+  }
+}
+
+var DSLParsers:{[operation: string]: (...body:any[]) => DSLAST} = {
+  // Generic Operators
+  def(parent:DSLAST, identifier:Token, body:Sexpr|Token) {
+    let meta = <Sexpr> this;
+    let ast = new DSLAST(parent, NODE.DEF);
+    let name = identifier.text;
+    let value;
+    if(isSexpr(body)) {
+      value = parseSexpr(body, ast);
+      ast.children.push(value);
+    } else value = (<Token>body).text;
+    let variable = {name, type: value.type, value, source: meta};
+
+    let cur = parent;
+    while(cur) {
+      if(cur instanceof DSLQueryAST) cur.variables[name] = variable;
+      cur = cur.parent;
+    }
+    return ast;
+  },
+  type(parent:DSLAST, identifier:Token) {
+    let ast = new DSLAST(parent, NODE.TYPE, VALUE.SCALAR);
+    ast.value = ast.getVariable(identifier.text).type;
+    return ast;
+  },
+  get(parent:DSLAST, identifier:Token, attrName:Token) {
+    let variable = parent.getVariable(identifier.text);
+    if(!variable) throw new Error(`No variable aliased to '${identifier.text}'`);
+    let ast = new DSLAST(parent, NODE.GET, variable.type === VALUE.ENTITY ? VALUE.SCALAR : VALUE.SET);
+    ast.value = {variable: variable.name, attribute: attrName.text};
+    return ast;
+  },
+  ref(parent:DSLAST, identifier:Token) {
+    let name = identifier.text;
+    if(identifier.type === "identifier") name = parent.getVariable(name).value;
+    let variable = parent.getVariable(name);
+    let ast = new DSLAST(parent, NODE.REF, variable.type);
+    ast.value = name;
+    return ast;
+  },
+  list(parent:DSLAST, ...body:Sexpr[]) {
+    let ast = new DSLAST(parent, NODE.LIST, VALUE.SET);
+    ast.value = [];
+    for(let child of body) ast.value.push(isSexpr(child) ? parseSexpr(child, ast) : (<Token>child).text);
+    return ast;
+  },
+  hash(parent:DSLAST, ...body:Sexpr[]) {
+    let ast = new DSLAST(parent, NODE.HASH, VALUE.SCALAR);
+    ast.value = {};
+    for(let ix = 0; ix < body.length; ix += 2) {
+      if(body[ix].type !== "string") throw new Error("Hash keywords must be strings.");
+      if(!body[ix + 1]) throw new Error("Hashes must contain an even number of values.");
+      ast.value[(<Token>body[ix]).text] = isSexpr(body[ix + 1]) ? parseSexpr(body[ix + 1], ast) : (<Token>body[ix + 1]).text;
+    }
+    return ast;
+  },
+
+  query(parent:DSLAST, ...body:Sexpr[]) {
+    let ast = new DSLQueryAST(parent);
+    for(let child of body) ast.children.push(parseSexpr(child, ast));
+    return ast;
+  },
+  subquery(parent:DSLAST, ...body:Sexpr[]) {
+    throw new Error("@TODO: Implement me!");
+    return new DSLQueryAST(parent, true);
+  },
+  negate(parent:DSLAST, body:Sexpr) {
+    if(!body) throw new Error(`(negate <source>) requires a source to negate`);
+    let ast = new DSLAST(parent, NODE.NEGATE);
+    ast.children.push(parseSexpr(body, ast));
+    return ast;
+  },
+  ["calculate*"](parent:DSLAST, fn:Token, type:Token, params:Sexpr) {
+    let ast = new DSLAST(parent, NODE.CALCULATE, VALUE.VIEW);
+    let fnId = fn.type === "identifier" ? parent.getVariable(fn.text).value : fn.text;
+    let resolvedType = type.type === "identifier" ? parent.getVariable(type.text).value : type.text;
+    ast.value = {id: uuid(), fn: fnId, type: resolvedType, params: params ? parseSexpr(params, ast) : undefined};
+    return ast;
+  },
+
+  // View Operators
+  select(parent:DSLAST, id:Token, join?:Sexpr) {
+    let ast = new DSLAST(parent, NODE.SELECT, VALUE.VIEW);
+    let viewId = id.type === "identifier" ? parent.getVariable(id.text).value : id.text;
+    ast.value = {id: uuid(), viewId, join: join ? parseSexpr(join, ast) : undefined, negated: parent && parent.node === NODE.NEGATE};
+    return ast;
+  },
+
+  ["project!"](parent:DSLAST, id:Token, params:Sexpr, ix?:Token) {
+    let ast = new DSLAST(parent, NODE.PROJECT);
+    let viewId = id.type === "identifier" ? parent.getVariable(id.text).value : id.text;
+    ast.value = {viewId, params: parseSexpr(params, ast)};
+    return ast;
+  },
+
+  // Macros
+  calculate(parent:DSLAST, fn:Token, params:Sexpr) {
+    return DSLParsers["calculate*"](parent, fn, {type: "text", text: "calculate"}, params);
+  },
+  aggregate(parent:DSLAST, fn:Token, params:Sexpr) {
+    return DSLParsers["calculate*"](parent, fn, {type: "text", text: "aggregate"}, params);
+  },
+  filter(parent:DSLAST, fn:Token, params:Sexpr) {
+    let ast = DSLParsers["calculate*"](parent, fn, {type: "text", text: "filter"}, params);
+    ast.type = VALUE.NULL;
+    return ast;
+  }
+};
+
+export function parseSexpr(sexpr:Sexpr, parent?:DSLAST):DSLAST {
+  let op = (<Token>sexpr[0]).text;
+  let operation = DSLParsers[op];
+  let args:any = sexpr.slice(1);
+  args.unshift(parent);
+  return operation.apply(sexpr, args);
+}
+
+export function compileAST(ast:DSLAST, query:runtime.Query, queries:{[id:string]: runtime.Query}, depth) {
+  console.log(repeat("  ", depth), NODE[ast.node], VALUE[ast.type], ast.value);
+  switch(ast.node) {
+    case NODE.DEF:
+    case NODE.NEGATE:
+      for(let child of ast.children) compileAST(child, query, queries, depth + 1);
+      return;
+    case NODE.TYPE:
+      return ast.value;
+    case NODE.GET:
+      var {variable:name, attribute} = ast.value;
+      var variable = ast.getVariable(name);
+      if(typeof variable.value === "object" && (variable.type === VALUE.SCALAR || variable.type === VALUE.SET)) {
+        let val = variable.value.value[attribute];
+        return val instanceof DSLAST ? compileAST(val, query, queries, depth + 1) : val;
+      }
+      if(variable.type === VALUE.VIEW) return [variable.value.value.id, attribute];
+      throw new Error("@TODO: Implement me!");
+    case NODE.REF:
+      var variable = ast.getVariable(ast.value);
+      if(variable.type === VALUE.VIEW) return variable.value.value.id;
+      if(variable.value instanceof DSLAST) return variable.value.value;
+      return variable.value;
+    case NODE.HASH:
+      var hash = {};
+      for(let key in ast.value) hash[key] = ast.value[key] instanceof DSLAST ? compileAST(ast.value[key], query, queries, depth + 1) : ast.value[key];
+      return hash;
+    case NODE.LIST:
+      var list = [];
+      for(let key of ast.value) list[key] = ast.value[key] instanceof DSLAST ? compileAST(ast.value[key], query, queries, depth + 1) : ast.value[key];
+      return list;
+
+    case NODE.QUERY:
+    case NODE.SUBQUERY:
+      var nameIx = 1;
+      while(queries[query.name + "-" + nameIx]) nameIx++;
+      return compileQueryAST(<DSLQueryAST>ast, query.ixer, query.name + "-" + nameIx, queries, depth + 1);
+
+    case NODE.SELECT:
+      var {id, viewId, join, negated} = ast.value;
+      join = join ? compileAST(join, query, queries, depth + 1) : undefined;
+      if(negated) query.deselect(viewId, join);
+      else query.select(viewId, join, id);
+      return id;
+    case NODE.CALCULATE:
+      var {id, fn, type, params} = ast.value;
+      params = params ? compileAST(params, query, queries, depth + 1) : undefined;
+      if(type === "aggregate") query.aggregate(fn, params, id);
+      else query.calculate(fn, params, id);
+      return id;
+
+    case NODE.PROJECT:
+      return query.project(compileAST(ast.value.params, query, queries, depth + 1));
+
+    case NODE.ERROR:
+    default:
+      throw new Error(`Unknown node ${ast}`);
+  }
+}
+
+export function compileQueryAST(ast:DSLQueryAST, ixer:runtime.Indexer, id:string = uuid(), queries:{[id:string]: runtime.Query} = {}, depth = 0) {
+  let query = instrumentQuery(new runtime.Query(ixer, id));
+  queries[id] = query;
+  for(let child of ast.children) compileAST(child, query, queries, depth);
+  return queries;
+}
+
 declare var exports;
 window["parser"] = exports;
+
+export function instrumentQuery(q:runtime.Query) {
+  let keys = [];
+  for(let key in q) keys.push(key);
+  keys.forEach((fn) => {
+    if(!q.constructor.prototype.hasOwnProperty(fn) || typeof q[fn] !== "function") return;
+    var old = q[fn];
+    q[fn] = function() {
+      console.log("*", fn, arguments);
+      return old.apply(this, arguments);
+    }
+  });
+  return q;
+}
