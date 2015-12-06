@@ -594,6 +594,8 @@ export class Indexer {
   }
 
   applyDiffIncremental(diff:Diff) {
+    if(diff.length === 0) return;
+    // console.log("DIFF SIZE: ", diff.length, diff);
 		let {triggers, realDiffs} = this.execDiff(diff);
 		let round = 0;
     let changes = realDiffs;
@@ -1102,7 +1104,9 @@ export class Query {
         break;
       case "select":
         var ix = root.ix;
-        if(root.join) {
+        if(root.passed) {
+          code += `var rows${ix} = rootRows;\n`;
+        } else if(root.join) {
           for(let key in root.join) {
             let mapping = root.join[key];
             if(mapping.constructor === Array) {
@@ -1113,8 +1117,6 @@ export class Query {
             }
           }
           code += `var rows${ix} = ixer.factToIndex(ixer.table('${root.table}'), query${ix});\n`;
-        } else if(root.passed) {
-          code += `var rows${ix} = rootRows;\n`;
         } else {
           code += `var rows${ix} = ixer.table('${root.table}').table;\n`;
         }
@@ -1340,22 +1342,27 @@ export class Query {
         }
       }
     }
-
     var recurse = (joins, joinIx) => {
       var code = "";
       if (joinIx >= joins.length) {
         return "others.push(row0)";
       }
       let {table, ix, negated} = joins[joinIx];
+      let joinMap = joins[joinIx].join;
       // we only care about this guy if he's joined with at least one thing
       if (!reverseJoinMap[ix] && joinIx < joins.length - 1) return recurse(joins, joinIx + 1);
       else if(!reverseJoinMap) return "";
-
       let mappings = [];
       for (let key in reverseJoinMap[ix]) {
         let [sourceIx, field] = reverseJoinMap[ix][key];
-        if(reverseJoinMap[sourceIx]) {
+        if(sourceIx === changed.ix || reverseJoinMap[sourceIx] !== undefined) {
           mappings.push(`'${key}': row${sourceIx}['${field}']`);
+        }
+      }
+      for(let key in joinMap) {
+        let value = joinMap[key];
+        if(value.constructor !== Array) {
+          mappings.push(`'${key}': ${JSON.stringify(value)}`);
         }
       }
       if (negated) {
@@ -1412,16 +1419,21 @@ export class Query {
     let rowInstanceLookup = indexes["row instance|table"].index;
     let tableRowLookup = indexes["row|table"].index;
     let provenanceRemoves = [];
+    let visited = {}
     for(let join of this.joins) {
       let change = changes[join.table];
-      if(change && change.removes.length) {
+      if(!visited[join.table] && change && change.removes.length) {
+        visited[join.table] = true;
         for(let remove of change.removes) {
           let provenances = sourceRowLookup[join.table] && sourceRowLookup[join.table][remove.__id] && sourceRowLookup[join.table][remove.__id][this.name];
           if(provenances) {
             for(let provenance of provenances) {
-              let relatedProvenance = rowInstanceLookup[provenance["row instance"]][provenance.table];
-              for(let related of relatedProvenance) {
-                provenanceRemoves.push(related);
+              if(!visited[provenance["row instance"]]) {
+                visited[provenance["row instance"]] = true;
+                let relatedProvenance = rowInstanceLookup[provenance["row instance"]][provenance.table];
+                for(let related of relatedProvenance) {
+                  provenanceRemoves.push(related);
+                }
               }
               rowsToPostCheck.push(provenance);
             }
@@ -1436,7 +1448,319 @@ export class Query {
       let supports = tableRowLookup[row.row.__id][row.table];
       if(supports.length === 0) {
         removes.push(row.row);
+      }
+    }
+    return removes;
+  }
+  canBeIncremental() {
+    if(this.aggregates.length) return false;
+    if(this.sorts) return false;
+    if(this.groups) return false;
+    if(this.limitInfo) return false;
+    for(let join of this.joins) {
+      if(join.negated) return false;
+    }
+    return true;
+  }
+  compile() {
+    let ast = this.toAST();
+    let code = this.compileAST(ast);
+    this.compiled = new Function("ixer", "QueryFunctions", "tableId", "rootRows", code);
+    if(this.canBeIncremental()) {
+      this.incrementalRowFinder = new Function("changes", this.compileIncrementalRowFinderCode());
+    } else {
+      this.incrementalRowFinder = undefined;
+    }
+    this.dirty = false;
+    return this;
+  }
+  exec() {
+    if(this.dirty) {
+      this.compile();
+    }
+    let root = this.joins[0];
+    let rows = this.ixer.find(root.table, root.join);
+    return this.compiled(this.ixer, QueryFunctions, this.name, rows);
+  }
+  execIncremental(changes, table): {provenance: any[], adds: any[], removes: any[]} {
+    if(this.dirty) {
+      this.compile();
+    }
+    if(this.incrementalRowFinder) {
+      let potentialRows = this.incrementalRowFinder(changes);
+      // if the root select has some constant filters, then
+      // the above rows need to be filtered down to only those that
+      // match.
+      let rows = [];
+      let root = this.joins[0];
+      let rootKeys = Object.keys(root.join);
+      if(rootKeys.length > 0) {
+        rowLoop: for(let row of potentialRows) {
+          for(let key of rootKeys) {
+            if(row[key] !== root.join[key]) continue rowLoop;
+          }
+          rows.push(row);
+        }
       } else {
+        rows = potentialRows;
+      }
+      let results = this.compiled(this.ixer, QueryFunctions, this.name, rows);
+      let adds = [];
+      let prevHashes = table.factHash;
+      let prevKeys = Object.keys(prevHashes);
+      let suggestedRemoves = this.incrementalRemove(changes);
+      let realDiff = diffAddsAndRemoves(results.results, suggestedRemoves);
+      for(let result of realDiff.adds) {
+        let id = result.__id;
+        if(prevHashes[id] === undefined) {
+          adds.push(result);
+        }
+      }
+      let diff = this.ixer.diff();
+      diff.addMany("provenance", results.provenance);
+      this.ixer.applyDiffIncremental(diff);
+      // console.log("INC PROV DIFF", this.name, diff.length);
+      return {provenance: results.provenance, adds, removes: realDiff.removes};
+    } else {
+      let results = this.exec();
+      let adds = [];
+      let removes = [];
+      let prevHashes = table.factHash;
+      let prevKeys = Object.keys(prevHashes);
+      let newHashes = {};
+      for(let result of results.results) {
+        let id = result.__id;
+        newHashes[id] = result;
+        if(prevHashes[id] === undefined) {
+          adds.push(result);
+        }
+      }
+      for(let hash of prevKeys) {
+        let value = newHashes[hash];
+        if(value === undefined) {
+           removes.push(prevHashes[hash]);
+        }
+      }
+      let realDiff = diffAddsAndRemoves(adds, removes);
+      let diff = this.ixer.diff();
+      diff.remove("provenance", {table: this.name});
+      diff.addMany("provenance", results.provenance);
+      this.ixer.applyDiffIncremental(diff);
+      // console.log("FULL PROV SIZE", this.name, diff.length);
+      return {provenance: results.provenance, adds: realDiff.adds, removes: realDiff.removes};
+    }
+  }
+  debug() {
+    console.log(this.compileAST(this.toAST()));
+    console.time("exec");
+    var results = this.exec();
+    console.timeEnd("exec");
+    console.log(results);
+    return results;
+  }
+}
+
+export class Union {
+  name;
+  tables;
+  sources;
+  isStateful;
+  hasher;
+  dirty;
+  prev;
+  compiled;
+  ixer;
+  constructor(ixer, name = "unknown") {
+    this.name = name;
+    this.ixer = ixer;
+    this.tables = [];
+    this.sources = [];
+    this.isStateful = false;
+    this.prev = {results: [], hashes: {}};
+    this.dirty = true;
+  }
+  ensureHasher(mapping) {
+    if(!this.hasher) {
+      this.hasher = generateStringFn(Object.keys(mapping));
+    }
+  }
+  union(tableName, mapping) {
+    this.dirty = true;
+    this.ensureHasher(mapping);
+    this.tables.push(tableName);
+    this.sources.push({type: "+", table: tableName, mapping});
+    return this;
+  }
+  toAST() {
+    let root = {type: "union", children: []};
+    root.children.push({type: "declaration", var: "results", value: "[]"});
+    root.children.push({type: "declaration", var: "provenance", value: "[]"});
+
+    let hashesValue = "{}";
+    if(this.isStateful) {
+        hashesValue = "prevHashes";
+    }
+    root.children.push({type: "declaration", var: "hashes", value: hashesValue});
+
+    let ix = 0;
+    for(let source of this.sources) {
+      let action;
+      if(source.type === "+") {
+        action = {type: "result", ix, children: [{type: "provenance", source, ix}]};
+      }
+      root.children.push({
+        type: "source",
+        ix,
+        table: source.table,
+        mapping: source.mapping,
+        children: [action],
+      });
+      ix++;
+    }
+    root.children.push({type: "hashesToResults"});
+    root.children.push({type: "return", vars: ["results", "hashes", "provenance"]});
+    return root;
+  }
+  compileAST(root) {
+    let code = "";
+    let type = root.type;
+    switch(type) {
+      case "union":
+        for(var child of root.children) {
+          code += this.compileAST(child);
+        }
+        break;
+      case "declaration":
+        code += `var ${root.var} = ${root.value};\n`;
+        break;
+      case "source":
+        var ix = root.ix;
+        let mappingItems = [];
+        for(let key in root.mapping) {
+          let mapping = root.mapping[key];
+          let value;
+          if(mapping.constructor === Array && mapping.length === 1) {
+            let [field] = mapping;
+            value = `sourceRow${ix}['${field}']`;
+          } else if(mapping.constructor === Array && mapping.length === 2) {
+            let [_, field] = mapping;
+            value = `sourceRow${ix}['${field}']`;
+          } else {
+            value = JSON.stringify(mapping);
+          }
+          mappingItems.push(`'${key}': ${value}`)
+        }
+        code += `var sourceRows${ix} = changes['${root.table}'];\n`;
+        code += `for(var rowIx${ix} = 0, rowsLen${ix} = sourceRows${ix}.length; rowIx${ix} < rowsLen${ix}; rowIx${ix}++) {\n`
+        code += `var sourceRow${ix} = sourceRows${ix}[rowIx${ix}];\n`;
+        code += `var mappedRow${ix} = {${mappingItems.join(", ")}};\n`
+        for(var child of root.children) {
+          code += this.compileAST(child);
+        }
+        code += "}\n";
+        break;
+      case "result":
+        var ix = root.ix;
+        code += `var hash${ix} = hasher(mappedRow${ix});\n`;
+        code += `mappedRow${ix}.__id = hash${ix};\n`;
+        code += `hashes[hash${ix}] = mappedRow${ix};\n`;
+        for(var child of root.children) {
+          code += this.compileAST(child);
+        }
+        break;
+      case "removeResult":
+        var ix = root.ix;
+        code += `hashes[hasher(mappedRow${ix})] = false;\n`;
+        break;
+      case "hashesToResults":
+        code += "var hashKeys = Object.keys(hashes);\n";
+        code += "for(var hashKeyIx = 0, hashKeyLen = hashKeys.length; hashKeyIx < hashKeyLen; hashKeyIx++) {\n";
+        code += "var curHashKey = hashKeys[hashKeyIx];"
+        code += "var value = hashes[curHashKey];\n";
+        code += "if(value !== false) {\n";
+        code += "value.__id = curHashKey;\n";
+        code += "results.push(value);\n";
+        code += "}\n";
+        code += "}\n";
+        break;
+      case "provenance":
+        var source = root.source.table;
+        var ix = root.ix;
+        var provenance = "var provenance__id = '';\n";
+        provenance += `provenance__id = '${this.name}|' + mappedRow${ix}.__id + '|' + rowInstance + '|${source}|' + sourceRow${ix}.__id; \n`;
+        provenance += `provenance.push({table: '${this.name}', row: mappedRow${ix}, "row instance": rowInstance, source: "${source}", "source row": sourceRow${ix}});\n`;
+        code = `var rowInstance = "${source}|" + mappedRow${ix}.__id;
+        ${provenance}`;
+        break;
+      case "return":
+        code += `return {${root.vars.join(", ")}};`;
+        break;
+    }
+    return code;
+  }
+  compile() {
+    let ast = this.toAST();
+    let code = this.compileAST(ast);
+    this.compiled = new Function("ixer", "hasher", "changes", code);
+    this.dirty = false;
+    return this;
+  }
+  debug() {
+    let code = this.compileAST(this.toAST());
+    console.log(code);
+    return code;
+  }
+  exec() {
+    if(this.dirty) {
+      this.compile();
+    }
+    let changes = {}
+    for(let source of this.sources) {
+      changes[source.table] = this.ixer.table(source.table).table;
+    }
+    let results = this.compiled(this.ixer, this.hasher, changes);
+    return results;
+  }
+  incrementalRemove(changes) {
+    let ixer = this.ixer;
+    let rowsToPostCheck = [];
+    let provenanceDiff = this.ixer.diff();
+    let removes = [];
+    let indexes = ixer.table("provenance").indexes;
+    let sourceRowLookup = indexes["source|source row|table"].index;
+    let rowInstanceLookup = indexes["row instance|table"].index;
+    let tableRowLookup = indexes["row|table"].index;
+    let provenanceRemoves = [];
+    let visited = {}
+    for(let source of this.sources) {
+      let change = changes[source.table];
+      if(!visited[source.table] && change && change.removes.length) {
+        visited[source.table] = true;
+        for(let remove of change.removes) {
+          let provenances = sourceRowLookup[source.table] && sourceRowLookup[source.table][remove.__id] && sourceRowLookup[source.table][remove.__id][this.name];
+          if(provenances) {
+            for(let provenance of provenances) {
+              if(!visited[provenance["row instance"]]) {
+                visited[provenance["row instance"]] = true;
+                let relatedProvenance = rowInstanceLookup[provenance["row instance"]][provenance.table];
+                for(let related of relatedProvenance) {
+                  provenanceRemoves.push(related);
+                }
+              }
+              rowsToPostCheck.push(provenance);
+            }
+          }
+        }
+      }
+    }
+    provenanceDiff.removeFacts("provenance", provenanceRemoves);
+    ixer.applyDiffIncremental(provenanceDiff);
+    let isEdb = ixer.edbTables;
+    for(let row of rowsToPostCheck) {
+      let supports = tableRowLookup[row.row.__id][row.table];
+      if(supports.length === 0) {
+        removes.push(row.row);
+      } else if(this.sources.length > 2) {
         let supportsToRemove = [];
         // otherwise if there are supports, then we need to walk the support
         // graph backwards and make sure every supporting row terminates at an
@@ -1495,296 +1819,37 @@ export class Query {
     }
     return removes;
   }
-  canBeIncremental() {
-    if(this.aggregates.length) return false;
-    if(this.sorts) return false;
-    if(this.groups) return false;
-    if(this.limitInfo) return false;
-    for(let join of this.joins) {
-      if(join.negated) return false;
-    }
-    return true;
-  }
-  compile() {
-    let ast = this.toAST();
-    let code = this.compileAST(ast);
-    this.compiled = new Function("ixer", "QueryFunctions", "tableId", "rootRows", code);
-    if(this.canBeIncremental()) {
-      this.incrementalRowFinder = new Function("changes", this.compileIncrementalRowFinderCode());
-    } else {
-      this.incrementalRowFinder = undefined;
-    }
-    this.dirty = false;
-    return this;
-  }
-  exec() {
-    if(this.dirty) {
-      this.compile();
-    }
-    return this.compiled(this.ixer, QueryFunctions, this.name, this.ixer.table(this.joins[0].table).table);
-  }
   execIncremental(changes, table): {provenance: any[], adds: any[], removes: any[]} {
     if(this.dirty) {
       this.compile();
     }
-    if(this.incrementalRowFinder) {
-      let rows = this.incrementalRowFinder(changes);
-      let results = this.compiled(this.ixer, QueryFunctions, this.name, rows);
-      let adds = [];
-      let prevHashes = table.factHash;
-      let prevKeys = Object.keys(prevHashes);
-      let suggestedRemoves = this.incrementalRemove(changes);
-      let realDiff = diffAddsAndRemoves(results.results, suggestedRemoves);
-      for(let result of realDiff.adds) {
-        let id = result.__id;
-        if(prevHashes[id] === undefined) {
-          adds.push(result);
-        }
-      }
-      let diff = this.ixer.diff();
-      diff.addMany("provenance", results.provenance);
-      this.ixer.applyDiffIncremental(diff);
-      if(this.name === "edges from to = paths from to") {
-        // console.log("FROM TO", changes, results, adds, suggestedRemoves, realDiff.removes);
-      }
-      return {provenance: results.provenance, adds, removes: realDiff.removes};
-    } else {
-      let results = this.exec();
-      let adds = [];
-      let removes = [];
-      let prevHashes = table.factHash;
-      let prevKeys = Object.keys(prevHashes);
-      let newHashes = {};
-      for(let result of results.results) {
-        let id = result.__id;
-        newHashes[id] = result;
-        if(prevHashes[id] === undefined) {
-          adds.push(result);
-        }
-      }
-      for(let hash of prevKeys) {
-        let value = newHashes[hash];
-        if(value === undefined) {
-           removes.push(prevHashes[hash]);
-        }
-      }
-      let diff = this.ixer.diff();
-      diff.remove("provenance", {table: this.name});
-      diff.addMany("provenance", results.provenance);
-      this.ixer.applyDiffIncremental(diff);
-      return {provenance: results.provenance, adds, removes};
-    }
-  }
-  debug() {
-    console.log(this.compileAST(this.toAST()));
-    console.time("exec");
-    var results = this.exec();
-    console.timeEnd("exec");
-    console.log(results);
-    return results;
-  }
-}
 
-export class Union {
-  name;
-  tables;
-  sources;
-  isStateful;
-  hasher;
-  dirty;
-  prev;
-  compiled;
-  ixer;
-  constructor(ixer, name = "unknown") {
-    this.name = name;
-    this.ixer = ixer;
-    this.tables = [];
-    this.sources = [];
-    this.isStateful = false;
-    this.prev = {results: [], hashes: {}};
-    this.dirty = true;
-  }
-  stateful() {
-    this.dirty = true;
-    this.isStateful = true;
-    return this;
-  }
-  ensureHasher(mapping) {
-    if(!this.hasher) {
-      this.hasher = generateStringFn(Object.keys(mapping));
-    }
-  }
-  union(tableName, mapping) {
-    this.dirty = true;
-    this.ensureHasher(mapping);
-    this.tables.push(tableName);
-    this.sources.push({type: "+", table: tableName, mapping});
-    return this;
-  }
-  ununion(tableName, mapping) {
-    this.dirty = true;
-    this.ensureHasher(mapping);
-    this.tables.push(tableName);
-    this.sources.push({type: "-", table: tableName, mapping});
-    return this;
-  }
-  toAST() {
-    let root = {type: "union", children: []};
-    root.children.push({type: "declaration", var: "results", value: "[]"});
-    root.children.push({type: "declaration", var: "provenance", value: "[]"});
-
-    let hashesValue = "{}";
-    if(this.isStateful) {
-        hashesValue = "prevHashes";
-    }
-    root.children.push({type: "declaration", var: "hashes", value: hashesValue});
-
-    let ix = 0;
+    let sourceChanges = {}
     for(let source of this.sources) {
-      let action;
-      if(source.type === "+") {
-        action = {type: "result", ix, children: [{type: "provenance", source, ix}]};
+      let value;
+      if(!changes[source.table]) {
+        value = [];
       } else {
-        action = {type: "removeResult", ix};
+        value = changes[source.table].adds;
       }
-      root.children.push({
-        type: "source",
-        ix,
-        table: source.table,
-        mapping: source.mapping,
-        children: [action],
-      });
-      ix++;
+      sourceChanges[source.table] = value;
     }
-    root.children.push({type: "hashesToResults"});
-    root.children.push({type: "return", vars: ["results", "hashes", "provenance"]});
-    return root;
-  }
-  compileAST(root) {
-    let code = "";
-    let type = root.type;
-    switch(type) {
-      case "union":
-        for(var child of root.children) {
-          code += this.compileAST(child);
-        }
-        break;
-      case "declaration":
-        code += `var ${root.var} = ${root.value};\n`;
-        break;
-      case "source":
-        var ix = root.ix;
-        let mappingItems = [];
-        for(let key in root.mapping) {
-          let mapping = root.mapping[key];
-          let value;
-          if(mapping.constructor === Array && mapping.length === 1) {
-            let [field] = mapping;
-            value = `sourceRow${ix}['${field}']`;
-          } else if(mapping.constructor === Array && mapping.length === 2) {
-            let [_, field] = mapping;
-            value = `sourceRow${ix}['${field}']`;
-          } else {
-            value = JSON.stringify(mapping);
-          }
-          mappingItems.push(`'${key}': ${value}`)
-        }
-        code += `var sourceRows${ix} = ixer.table('${root.table}').table;\n`;
-        code += `for(var rowIx${ix} = 0, rowsLen${ix} = sourceRows${ix}.length; rowIx${ix} < rowsLen${ix}; rowIx${ix}++) {\n`
-        code += `var sourceRow${ix} = sourceRows${ix}[rowIx${ix}];\n`;
-        code += `var mappedRow${ix} = {${mappingItems.join(", ")}};\n`
-        for(var child of root.children) {
-          code += this.compileAST(child);
-        }
-        code += "}\n";
-        break;
-      case "result":
-        var ix = root.ix;
-        code += `var hash${ix} = hasher(mappedRow${ix});\n`;
-        code += `mappedRow${ix}.__id = hash${ix};\n`;
-        code += `hashes[hash${ix}] = mappedRow${ix};\n`;
-        for(var child of root.children) {
-          code += this.compileAST(child);
-        }
-        break;
-      case "removeResult":
-        var ix = root.ix;
-        code += `hashes[hasher(mappedRow${ix})] = false;\n`;
-        break;
-      case "hashesToResults":
-        code += "var hashKeys = Object.keys(hashes);\n";
-        code += "for(var hashKeyIx = 0, hashKeyLen = hashKeys.length; hashKeyIx < hashKeyLen; hashKeyIx++) {\n";
-        code += "var curHashKey = hashKeys[hashKeyIx];"
-        code += "var value = hashes[curHashKey];\n";
-        code += "if(value !== false) {\n";
-        code += "value.__id = curHashKey;\n";
-        code += "results.push(value);\n";
-        code += "}\n";
-        code += "}\n";
-        break;
-      case "provenance":
-        var source = root.source.table;
-        var ix = root.ix;
-        var provenance = "var provenance__id = '';\n";
-        provenance += `provenance__id = '${this.name}|' + mappedRow${ix}.__id + '|' + rowInstance + '|${source}|' + sourceRow${ix}.__id; \n`;
-        provenance += `provenance.push({table: '${this.name}', row: mappedRow${ix}, "row instance": rowInstance, source: "${source}", "source row": sourceRow${ix}});\n`;
-        code = `var rowInstance = "${source}|" + mappedRow${ix}.__id;
-        ${provenance}`;
-        break;
-      case "return":
-        code += `return {${root.vars.join(", ")}};`;
-        break;
-    }
-    return code;
-  }
-  compile() {
-    let ast = this.toAST();
-    let code = this.compileAST(ast);
-    this.compiled = new Function("ixer", "hasher", "prevHashes", code);
-    this.dirty = false;
-    return this;
-  }
-  debug() {
-    let code = this.compileAST(this.toAST());
-    console.log(code);
-    return code;
-  }
-  exec() {
-    if(this.dirty) {
-      this.compile();
-    }
-    let results = this.compiled(this.ixer, this.hasher, this.prev.hashes);
-    this.prev = results;
-    return results;
-  }
-  execIncremental(changes, table): {provenance: any[], adds: any[], removes: any[]} {
-    if(this.dirty) {
-      this.compile();
-    }
-    let results = this.exec();
+    let results = this.compiled(this.ixer, this.hasher, sourceChanges);
     let adds = [];
-    let removes = [];
     let prevHashes = table.factHash;
     let prevKeys = Object.keys(prevHashes);
-    let newHashes = results.hashes;
-    for(let result of results.results) {
+    let suggestedRemoves = this.incrementalRemove(changes);
+    let realDiff = diffAddsAndRemoves(results.results, suggestedRemoves);
+    for(let result of realDiff.adds) {
       let id = result.__id;
       if(prevHashes[id] === undefined) {
         adds.push(result);
       }
     }
-    for(let hash of prevKeys) {
-      let value = newHashes[hash];
-      if(value === undefined) {
-          removes.push(prevHashes[hash]);
-      }
-    }
-    // console.log("UNION provenance", results.provenance);
     let diff = this.ixer.diff();
-    diff.remove("provenance", {table: this.name});
     diff.addMany("provenance", results.provenance);
     this.ixer.applyDiffIncremental(diff);
-    return {provenance: results.provenance, adds, removes};
+    return {provenance: results.provenance, adds, removes: realDiff.removes};
   }
 }
 
