@@ -83,6 +83,7 @@ function storeLocally() {
         delete serialized[synced];
       }
     }
+    delete serialized["provenance"];
     localStorage[eveLocalStorageKey] = JSON.stringify(serialized);
     storeQueued = false;
   }, 1000);
