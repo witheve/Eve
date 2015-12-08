@@ -36,6 +36,7 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .related-bits .bit { flex:1 0 auto; border-top:1px solid #222; }
 .related-bits .bit + .bit { border-left:1px solid #222; }
 
+.actions-container > .description { padding:10px 15px; }
 .action { flex-direction: row;  margin:0;  padding:10px; white-space:pre; justify-content:center; }
 .action + .action { margin-top:1px; }
 .action:empty + action:empty { margin-top:0; }
@@ -161,6 +162,10 @@ body.light { background: rgb(71,72,75); font-family: Helvetica Neue; font-weight
 .light .bit.value { background: #779BA9; color: #fff; }
 .light .bit.attribute { background: #AA88AD; color: #fff; }
 
+.light .actions-container { border-top:1px solid #666; }
+.light .actions-container > * { background: #eee; }
+.light .actions-container > * + * { border-top:1px solid #999;}
+.light .actions > * + * { border-top:1px solid #999;}
 .light .action { background: #eee; }
 .light .add-action > * { background: #eee; }
 .light .add-action input { border-color:#777; }

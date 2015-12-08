@@ -1472,9 +1472,7 @@ export function newSearchResults(searchId) {
   for(let bitAction of eve.find("add bit action", {view: search})) {
     let {template, action} = bitAction;
     actions.push({c: "action new-bit", children: [
-      {c: "description", text: "actions"},
       {c: "bit entity", children: entityToHTML(parseEntity(action, template).lines, null)},
-      {c: "spacer"},
       {c: "ion-android-close", click: removeAction, actionType: "bit", actionId: bitAction.action}
     ]})
   }
@@ -1539,7 +1537,10 @@ export function newSearchResults(searchId) {
     {c: "search-headers", children: headers},
     {c: "search-results", children: resultItems},
 //       randomlyLetter(`I found ${resultItems.length} results.`),
-    {c: "", children: actions},
+    actions.length ? {c: "actions-container", children: [
+      {c: "description", text: "actions"},
+      {c: "actions", children: actions},
+    ]} : undefined,
     {c: "add-action", children: addActionChildren}
   ]};
 }
