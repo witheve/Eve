@@ -879,7 +879,7 @@ function treeToPlan(tree) {
 }
 
 //---------------------------------------------------------
-// Test queries
+// Validate queries
 //---------------------------------------------------------
 
 // Test the actualStep and expectedStep for equivalence
@@ -917,34 +917,31 @@ function validateStep(actualStep, expectedStep) : boolean {
   return true;
 }
 
-// Test the actual plan and expected plan for equivalence
+// Test the actual plan and expected plan for equivalence.
+// Equivelence here means the expected and actual plans have the same
+// steps. Order of steps does not matter.
 function validatePlan(actualPlan, expectedPlan) : any {
-  let ix = 0;
-  let valid = Validated.UNDEFINED;
-  
-  
+  let invalidSteps = actualPlan.length;
+  // Loop through the steps of the actual plan and test it against candidate steps.
+  // When a match is found, remove it from the canditate steps. Continue until all
+  // actual steps are validated.
   for(let actualStep of actualPlan) {
     for(let expectedStep of expectedPlan) {
       console.log(`Plan length ${expectedPlan.length}`);
       if(validateStep(actualStep,expectedStep)) {
-        valid = Validated.VALID;
+        actualStep.valid = Validated.VALID;
+        invalidSteps--;
         break;
       }
+      actualStep.valid = Validated.INVALID;
     }
   }
-
-  for(let expectedStep of expectedPlan) {
-    let step = actualPlan[ix];
-    if(!validateStep(step, expectedStep)) return { valid: Validated.INVALID, plan: actualPlan };;
-    ix++;
+  // If every step is validated, the plan is valid
+  if(invalidSteps === 0) {
+    return { valid: Validated.VALID, plan: actualPlan }
+  } else {
+    return { valid: Validated.INVALID, plan: actualPlan }
   }
-
-  // If the actual plan contains more steps than the expected plan, the plan is also invalid
-  if(actualPlan.length !== expectedPlan.length) {
-    return { valid: Validated.INVALID, plan: actualPlan };
-  }
-  
-  return { valid: Validated.VALID, plan: actualPlan};
 }
 
 interface TestQuery {
@@ -1319,10 +1316,11 @@ function validateTestQuery(test: TestQuery) {
   let tokens = getTokens(searchString);
   let tree = tokensToTree(tokens);
   let plan = treeToPlan(tree);
-  let valid : Validated = Validated.UNDEFINED;
+  //let valid : Validated = Validated.UNDEFINED;
   let expectedPlan:any;
 
-  valid = validatePlan(plan, test.expected);
+  let validatedPlan = validatePlan(plan, test.expected);
+  let valid = validatedPlan.valid;
   expectedPlan = test.expected.map((expectedStep, ix): any => {
       let actualStep = plan[ix];
       let validStep = "";
@@ -1343,12 +1341,11 @@ function validateTestQuery(test: TestQuery) {
         return {state: Validated.INVALID, message: `${StepType[expectedStep.type]} ${deselected}${expectedStep.subject}${args}`};
       }
   })
-  
 
-  return {tokens, tree, plan, valid, expectedPlan, searchString, time: performance.now() - start};
+  return {tokens, tree, plan, valid, expectedPlan, searchString, time: performance.now() - start, validatedPlan};
 }
 
-function searchResultUi(result) {
+function queryTestUI(result) {
   let {tokens, tree, plan, valid, expectedPlan, searchString} = result;
   //tokens
   let tokensNode = {c: "tokens", children: [
@@ -1465,7 +1462,7 @@ export function root() {
       resultStats.succeeded++;
     }
   }
-  let resultItems = results.map(searchResultUi);
+  let resultItems = results.map(queryTestUI);
   return {id: "root", c: "test-root", children: [
     {c: "stats row", children: [
       {c: "failed", text: resultStats.failed},
