@@ -793,7 +793,7 @@ function groupsToPlan(nodes) {
   return [{type: "group", id: uuid(), groups, groupNodes: nodes}];
 }
 
-function opToPlan(op): any {
+function opToPlan(op,groups): any {
   let info = op.info;
   let args = {};
   if(info.args) {
@@ -815,8 +815,17 @@ function opToPlan(op): any {
     return [{type: StepTypes.AGGREGATE, subject: info.op, args, id: uuid(), argArray: op.args}];
   } else if(info.type === "sort and limit") {
     var sortLimitArgs = op.args.map((arg) => arg.found);
-    var sortStep = {type: StepTypes.SORT, subject: "results", direction: info.direction, field: sortLimitArgs[1], id: uuid()};
-    var limitStep = {type: StepTypes.LIMIT, subject: "results", value: sortLimitArgs[0], id: uuid()};
+    var sortField = {parent: op.args[1].parent.found , subject: op.args[1].found };
+    var subject = "results";
+    // If groups are formed, check if we are sorting on one of them
+    for(var group of groups) {
+      if(group.found === sortField.parent) {
+        subject = "per group";
+        break;
+      }
+    }
+    var sortStep = {type: StepTypes.SORT, subject: subject, direction: info.direction, field: sortField, id: uuid()};
+    var limitStep = {type: StepTypes.LIMIT, subject: subject, value: sortLimitArgs[0], id: uuid()};
     return [sortStep, limitStep];
   } else if(info.type === "filter") {
     return [{type: StepTypes.FILTER, subject: info.op, args, id: uuid(), argArray: op.args}];
@@ -864,7 +873,7 @@ function treeToPlan(tree) {
     plan.push({type: StepTypes.GROUP, subject: group.found, subjectNode: group});
   }
   for(let op of tree.operations) {
-    plan = plan.concat(opToPlan(op));
+    plan = plan.concat(opToPlan(op,tree.groups));
   }
   return plan;
 }
@@ -877,7 +886,8 @@ function validateStep(actualStep, expectedStep) : boolean {
   if(actualStep === undefined || actualStep.type !== expectedStep.type || actualStep.subject !== expectedStep.subject || actualStep.deselected !== expectedStep.deselected) {
     return false;
   }
-  if(expectedStep.args) {
+  // Compare args
+  if(expectedStep.args !== undefined) {
     let ix = 0;
     for(let exArg of expectedStep.args) {
       if(actualStep.argArray === undefined) {
@@ -893,6 +903,16 @@ function validateStep(actualStep, expectedStep) : boolean {
       ix++
     }
   }
+  // Compare fields
+  if((expectedStep.field !== undefined && actualStep.field !== undefined) &&
+     (actualStep.field.parent !== expectedStep.field.parent || actualStep.field.subject !== expectedStep.field.subject)) {
+    return false;
+  }
+  // Compare values
+  if((expectedStep.value !== undefined && actualStep.value !== undefined) &&
+     (actualStep.value !== expectedStep.value)) {
+    return false;
+  }
   return true;
 }
 
@@ -903,6 +923,12 @@ function validatePlan(plan, expected) {
     if(!validateStep(step, exStep)) return Validated.INVALID;
     ix++;
   }
+
+  // If we don't have the correct number of steps, the plan is also invalid
+  if(plan.length !== expected.length) {
+    return Validated.INVALID;
+  }
+
   return Validated.VALID;
 }
 
@@ -1034,7 +1060,7 @@ var tests = {
       ]}
     ]
   },
-
+  */
   "average of the salaries per department": {
     expected: [
       {type: StepTypes.GATHER, subject: "department"},
@@ -1045,31 +1071,36 @@ var tests = {
         {parent: "department", subject: "salary"}
       ]}
     ]
-  },*/
+  },
   "top 2 employee salaries" : {
       expected: [
         {type: StepTypes.GATHER, subject: "employee"},
         {type: StepTypes.LOOKUP, subject: "salary"},
-        {type: StepTypes.SORT, subject: "results", direction: "descending" },
-        {type: StepTypes.LIMIT, subject: "results", value: 2},
+        {type: StepTypes.SORT, subject: "results", direction: "descending", field: {parent: "employee", subject: "salary"} },
+        {type: StepTypes.LIMIT, subject: "results", value: "2"},
       ]
   },
-  /*
   "top 2 salaries per department": {
     expected: [
       {type: StepTypes.GATHER, subject: "department"},
       {type: StepTypes.GATHER, subject: "employee"},
       {type: StepTypes.LOOKUP, subject: "salary"},
       {type: StepTypes.GROUP, subject: "department"},
-      {type: StepTypes.SORT, subject: "per group", direction: "descending", field: {parent: "department", subject: "salary"}},
-      {type: StepTypes.LIMIT, subject: "per group", value: 2}
+      {type: StepTypes.SORT, subject: "per group", direction: "descending", field: {parent: "department", subject: "salary"} },
+      {type: StepTypes.LIMIT, subject: "per group", value: "2"},
     ]
   },
-
   "sum of the top 2 salaries per department": {
-
+    expected: [
+      {type: StepTypes.GATHER, subject: "department"},
+      {type: StepTypes.GATHER, subject: "employee"},
+      {type: StepTypes.LOOKUP, subject: "salary"},
+      {type: StepTypes.GROUP, subject: "department"},
+      {type: StepTypes.SORT, subject: "per group", direction: "descending", field: {parent: "department", subject: "salary"} },
+      {type: StepTypes.LIMIT, subject: "per group", value: "2"},
+    ]
   },
-
+  /*
   "top 2 salaries of the first 3 departments": {
 
   },
@@ -1317,23 +1348,26 @@ function searchResultUi(result) {
 
   if(valid !== Validated.UNDEFINED) {
 
+    // Format the expected plan for output
+    var planDisplay = expectedPlan.map((info, ix) => {
+      let actual = plan[ix];
+      let message = "";
+      if(info.state !== Validated.VALID) {
+        message = ` :: expected ${info.message}`;
+        if(info.state === Validated.UNDEFINED) {
+          return {c: `step v${info.state}`, text: `none ${message}`};
+        }
+      }
+      let args = "";
+      if(actual.argArray) {
+        args = " (" + actual.argArray.map((arg) => arg.found).join(", ") + ")";
+      }
+      return {c: `step v${info.state}`, text: `${StepTypes[actual.type]} ${actual.deselected ? "!" : ""}${actual.subject}${args}${message}`};
+    });
+
     planNode = {c: "tokens", children: [
       {c: "header", text: "Plan"},
-      {c: "kids", children: expectedPlan.map((info, ix) => {
-        let actual = plan[ix];
-        let message = "";
-        if(info.state !== Validated.VALID) {
-          message = ` :: expected ${info.message}`;
-          if(info.state === Validated.UNDEFINED) {
-            return {c: `step v${info.state}`, text: `none ${message}`};
-          }
-        }
-        let args = "";
-        if(actual.argArray) {
-          args = " (" + actual.argArray.map((arg) => arg.found).join(", ") + ")";
-        }
-        return {c: `step v${info.state}`, text: `${StepTypes[actual.type]} ${actual.deselected ? "!" : ""}${actual.subject}${args}${message}`};
-      })}
+      {c: "kids", children: planDisplay}
     ]};
   } else {
     planNode = {c: "tokens", children: [
@@ -1347,6 +1381,14 @@ function searchResultUi(result) {
         return {c: "step", text: `${StepTypes[step.type]} ${deselected}${step.subject}${args}`}
       })}
     ]};
+  }
+
+  // If the parser produced more steps than we expected, display those as well
+  if(plan.length > expectedPlan.length) {
+    var extraPlans = plan.slice(expectedPlan.length);
+    for(var extraPlan of extraPlans) {
+      planDisplay.push({c: `step v0`, text: `${StepTypes[extraPlan.type]} ${extraPlan.deselected ? "!" : ""}${extraPlan.subject}:: expected none`});
+    }
   }
 
   // The final display for rendering
