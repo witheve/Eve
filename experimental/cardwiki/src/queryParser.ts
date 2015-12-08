@@ -666,7 +666,7 @@ function tokensToTree(origTokens) {
 // Query plans
 //---------------------------------------------------------
 
-enum StepTypes {
+enum StepType {
   FIND,
   GATHER,
   LOOKUP,
@@ -700,11 +700,11 @@ function nodeToPlanSteps(node, parent, parentPlan) {
         var curParent = parentPlan;
         for(let node of rel.nodes) {
           let coll = ignoreHiddenCollections(node);
-          let item = {type: StepTypes.GATHER, relatedTo: curParent, subject: coll, id: uuid()};
+          let item = {type: StepType.GATHER, relatedTo: curParent, subject: coll, id: uuid()};
           plan.push(item);
           curParent = item;
         }
-        plan.push({type: StepTypes.LOOKUP, relatedTo: curParent, subject: node.found, id, deselected});
+        plan.push({type: StepType.LOOKUP, relatedTo: curParent, subject: node.found, id, deselected});
         return plan;
         break;
       case RelationshipTypes.COLLECTION_ENTITY:
@@ -712,43 +712,43 @@ function nodeToPlanSteps(node, parent, parentPlan) {
         var curParent = parentPlan;
         for(let node of rel.nodes) {
           let coll = ignoreHiddenCollections(node);
-          let item = {type: StepTypes.GATHER, relatedTo: curParent, subject: coll, id: uuid()};
+          let item = {type: StepType.GATHER, relatedTo: curParent, subject: coll, id: uuid()};
           plan.push(item);
           curParent = item;
         }
-        plan.push({type: StepTypes.FILTERBYENTITY, relatedTo: curParent, subject: node.found, id, deselected});
+        plan.push({type: StepType.FILTERBYENTITY, relatedTo: curParent, subject: node.found, id, deselected});
         return plan;
         break;
       case RelationshipTypes.COLLECTION_COLLECTION:
-        return [{type: StepTypes.GATHER, relatedTo: parentPlan, subject: node.found, id, deselected}];
+        return [{type: StepType.GATHER, relatedTo: parentPlan, subject: node.found, id, deselected}];
         break;
       case RelationshipTypes.COLLECTION_INTERSECTION:
-        return [{type: StepTypes.INTERSECT, relatedTo: parentPlan, subject: node.found, id, deselected}];
+        return [{type: StepType.INTERSECT, relatedTo: parentPlan, subject: node.found, id, deselected}];
         break;
       case RelationshipTypes.ENTITY_ATTRIBUTE:
         if(rel.distance === 0) {
-          return [{type: StepTypes.LOOKUP, relatedTo: parentPlan, subject: node.found, id, deselected}];
+          return [{type: StepType.LOOKUP, relatedTo: parentPlan, subject: node.found, id, deselected}];
         } else {
           let plan = [];
           let curParent = parentPlan;
           for(let node of rel.nodes) {
             let coll = ignoreHiddenCollections(node);
-            let item = {type: StepTypes.GATHER, relatedTo: curParent, subject: coll, id: uuid()};
+            let item = {type: StepType.GATHER, relatedTo: curParent, subject: coll, id: uuid()};
             plan.push(item);
             curParent = item;
           }
-          plan.push({type: StepTypes.LOOKUP, relatedTo: curParent, subject: node.found, id, deselected});
+          plan.push({type: StepType.LOOKUP, relatedTo: curParent, subject: node.found, id, deselected});
           return plan;
         }
         break;
     }
   } else {
     if(node.type === TokenTypes.COLLECTION) {
-      return [{type: StepTypes.GATHER, subject: node.found, id, deselected}];
+      return [{type: StepType.GATHER, subject: node.found, id, deselected}];
     } else if(node.type === TokenTypes.ENTITY) {
-      return [{type: StepTypes.FIND, subject: node.found, id, deselected}];
+      return [{type: StepType.FIND, subject: node.found, id, deselected}];
     } else if(node.type === TokenTypes.ATTRIBUTE) {
-      return [{type: StepTypes.LOOKUP, subject: node.found, id, deselected}];
+      return [{type: StepType.LOOKUP, subject: node.found, id, deselected}];
     }
     return [];
   }
@@ -766,7 +766,7 @@ function nodeToPlan(tree, parent = null, parentPlan = null) {
   return plan;
 }
 
-enum Types {
+/*enum Types {
   COLLECTION,
   ENTITY,
   ATTRIBUTE,
@@ -776,7 +776,7 @@ enum Types {
   SORTLIMIT,
   FILTER,
   REWRITE,
-}
+}*/
 
 function groupsToPlan(nodes) {
   if(!nodes.length) return [];
@@ -812,7 +812,7 @@ function opToPlan(op,groups): any {
     }
   }
   if(info.type === "aggregate") {
-    return [{type: StepTypes.AGGREGATE, subject: info.op, args, id: uuid(), argArray: op.args}];
+    return [{type: StepType.AGGREGATE, subject: info.op, args, id: uuid(), argArray: op.args}];
   } else if(info.type === "sort and limit") {
     var sortLimitArgs = op.args.map((arg) => arg.found);
     var sortField = {parent: op.args[1].parent.found , subject: op.args[1].found };
@@ -824,13 +824,13 @@ function opToPlan(op,groups): any {
         break;
       }
     }
-    var sortStep = {type: StepTypes.SORT, subject: subject, direction: info.direction, field: sortField, id: uuid()};
-    var limitStep = {type: StepTypes.LIMIT, subject: subject, value: sortLimitArgs[0], id: uuid()};
+    var sortStep = {type: StepType.SORT, subject: subject, direction: info.direction, field: sortField, id: uuid()};
+    var limitStep = {type: StepType.LIMIT, subject: subject, value: sortLimitArgs[0], id: uuid()};
     return [sortStep, limitStep];
   } else if(info.type === "filter") {
-    return [{type: StepTypes.FILTER, subject: info.op, args, id: uuid(), argArray: op.args}];
+    return [{type: StepType.FILTER, subject: info.op, args, id: uuid(), argArray: op.args}];
   } else {
-    return [{type: StepTypes.CALCULATE, subject: info.op, args, id: uuid(), argArray: op.args}];
+    return [{type: StepType.CALCULATE, subject: info.op, args, id: uuid(), argArray: op.args}];
   }
 }
 
@@ -870,7 +870,7 @@ function treeToPlan(tree) {
   }
   plan = dedupePlan(plan);
   for(let group of tree.groups) {
-    plan.push({type: StepTypes.GROUP, subject: group.found, subjectNode: group});
+    plan.push({type: StepType.GROUP, subject: group.found, subjectNode: group});
   }
   for(let op of tree.operations) {
     plan = plan.concat(opToPlan(op,tree.groups));
@@ -882,6 +882,7 @@ function treeToPlan(tree) {
 // Test queries
 //---------------------------------------------------------
 
+// Test the actualStep and expectedStep for equivalence
 function validateStep(actualStep, expectedStep) : boolean {
   if(actualStep === undefined || actualStep.type !== expectedStep.type || actualStep.subject !== expectedStep.subject || actualStep.deselected !== expectedStep.deselected) {
     return false;
@@ -916,43 +917,73 @@ function validateStep(actualStep, expectedStep) : boolean {
   return true;
 }
 
-function validatePlan(plan, expected) {
+// Test the actual plan and expected plan for equivalence
+function validatePlan(actualPlan, expectedPlan) : any {
   let ix = 0;
-  for(let exStep of expected) {
-    let step = plan[ix];
-    if(!validateStep(step, exStep)) return Validated.INVALID;
+  let valid = Validated.UNDEFINED;
+  
+  
+  for(let actualStep of actualPlan) {
+    for(let expectedStep of expectedPlan) {
+      console.log(`Plan length ${expectedPlan.length}`);
+      if(validateStep(actualStep,expectedStep)) {
+        valid = Validated.VALID;
+        break;
+      }
+    }
+  }
+
+  for(let expectedStep of expectedPlan) {
+    let step = actualPlan[ix];
+    if(!validateStep(step, expectedStep)) return { valid: Validated.INVALID, plan: actualPlan };;
     ix++;
   }
 
-  // If we don't have the correct number of steps, the plan is also invalid
-  if(plan.length !== expected.length) {
-    return Validated.INVALID;
+  // If the actual plan contains more steps than the expected plan, the plan is also invalid
+  if(actualPlan.length !== expectedPlan.length) {
+    return { valid: Validated.INVALID, plan: actualPlan };
   }
-
-  return Validated.VALID;
+  
+  return { valid: Validated.VALID, plan: actualPlan};
 }
 
-var tests = {
+interface TestQuery {
+  query: string;
+  expected: Step[];
+}
+
+interface Step {
+  type: StepType;
+  subject?: string;
+  direction?: string;
+  field?: any;
+  value?: any;
+  args?: any;
+  deselected?: boolean;
+}
+
+var tests: TestQuery[] = [
   /*
-  "chris granger's age": {
-    expected: [
-      {type: StepTypes.FIND, subject: "chris granger"},
-      {type: StepTypes.LOOKUP, subject: "age"}
+  {
+    query: "chris granger's age",
+    expectedPlan: [
+      {type: StepType.FIND, subject: "chris granger"},
+      {type: StepType.LOOKUP, subject: "age"}
     ],
   },
   "robert attorri's age": {
     expected: [
-      {type: StepTypes.FIND, subject: "robert attorri"},
-      {type: StepTypes.LOOKUP, subject: "age"}
+      {type: StepType.FIND, subject: "robert attorri"},
+      {type: StepType.LOOKUP, subject: "age"}
     ]
   },
   "people older than chris granger": {
     expected: [
-      {type: StepTypes.GATHER, subject: "person"},
-      {type: StepTypes.LOOKUP, subject: "age"},
-      {type: StepTypes.FIND, subject: "chris granger"},
-      {type: StepTypes.LOOKUP, subject: "age"},
-      {type: StepTypes.FILTER, subject: ">", args: [
+      {type: StepType.GATHER, subject: "person"},
+      {type: StepType.LOOKUP, subject: "age"},
+      {type: StepType.FIND, subject: "chris granger"},
+      {type: StepType.LOOKUP, subject: "age"},
+      {type: StepType.FILTER, subject: ">", args: [
         {parent: "person", subject: "age"},
         {parent: "chris granger", subject: "age"}
       ]}
@@ -960,9 +991,9 @@ var tests = {
   },
   "people whose age < 30": {
     expected: [
-      {type: StepTypes.GATHER, subject: "person"},
-      {type: StepTypes.LOOKUP, subject: "age"},
-      {type: StepTypes.FILTER, subject: "<", args: [
+      {type: StepType.GATHER, subject: "person"},
+      {type: StepType.LOOKUP, subject: "age"},
+      {type: StepType.FILTER, subject: "<", args: [
         {parent: "person", subject: "age"},
         {subject: "30"}
       ]}
@@ -970,11 +1001,11 @@ var tests = {
   },
   "people whose age < chris granger's age": {
     expected: [
-      {type: StepTypes.GATHER, subject: "person"},
-      {type: StepTypes.LOOKUP, subject: "age"},
-      {type: StepTypes.FIND, subject: "chris granger"},
-      {type: StepTypes.LOOKUP, subject: "age"},
-      {type: StepTypes.FILTER, subject: "<", args: [
+      {type: StepType.GATHER, subject: "person"},
+      {type: StepType.LOOKUP, subject: "age"},
+      {type: StepType.FIND, subject: "chris granger"},
+      {type: StepType.LOOKUP, subject: "age"},
+      {type: StepType.FILTER, subject: "<", args: [
         {parent: "person", subject: "age"},
         {parent: "chris granger", subject: "age"}
       ]}
@@ -982,11 +1013,11 @@ var tests = {
   },
   "people whose age < chris granger's": {
     expected: [
-      {type: StepTypes.GATHER, subject: "person"},
-      {type: StepTypes.LOOKUP, subject: "age"},
-      {type: StepTypes.FIND, subject: "chris granger"},
-      {type: StepTypes.LOOKUP, subject: "age"},
-      {type: StepTypes.FILTER, subject: "<", args: [
+      {type: StepType.GATHER, subject: "person"},
+      {type: StepType.LOOKUP, subject: "age"},
+      {type: StepType.FIND, subject: "chris granger"},
+      {type: StepType.LOOKUP, subject: "age"},
+      {type: StepType.FILTER, subject: "<", args: [
         {parent: "person", subject: "age"},
         {parent: "chris granger", subject: "age"}
       ]}
@@ -1022,87 +1053,94 @@ var tests = {
   },
   "salaries per department": {
     expected: [
-      {type: StepTypes.GATHER, subject: "department"},
-      {type: StepTypes.GATHER, subject: "employee"},
-      {type: StepTypes.LOOKUP, subject: "salary"},
-      {type: StepTypes.GROUP, subject: "department"}
+      {type: StepType.GATHER, subject: "department"},
+      {type: StepType.GATHER, subject: "employee"},
+      {type: StepType.LOOKUP, subject: "salary"},
+      {type: StepType.GROUP, subject: "department"}
     ]
   },
   "salaries per department and age": {
     expected: [
-      {type: StepTypes.GATHER, subject: "department"},
-      {type: StepTypes.GATHER, subject: "employee"},
-      {type: StepTypes.LOOKUP, subject: "salary"},
-      {type: StepTypes.LOOKUP, subject: "age"},
-      {type: StepTypes.GROUP, subject: "department"},
-      {type: StepTypes.GROUP, subject: "age"}
+      {type: StepType.GATHER, subject: "department"},
+      {type: StepType.GATHER, subject: "employee"},
+      {type: StepType.LOOKUP, subject: "salary"},
+      {type: StepType.LOOKUP, subject: "age"},
+      {type: StepType.GROUP, subject: "department"},
+      {type: StepType.GROUP, subject: "age"}
     ]
   },
   "salaries per department, employee, and age": {
     expected: [
-      {type: StepTypes.GATHER, subject: "department"},
-      {type: StepTypes.GATHER, subject: "employee"},
-      {type: StepTypes.LOOKUP, subject: "salary"},
-      {type: StepTypes.LOOKUP, subject: "age"},
-      {type: StepTypes.GROUP, subject: "department"},
-      {type: StepTypes.GROUP, subject: "employee"},
-      {type: StepTypes.GROUP, subject: "age"}
+      {type: StepType.GATHER, subject: "department"},
+      {type: StepType.GATHER, subject: "employee"},
+      {type: StepType.LOOKUP, subject: "salary"},
+      {type: StepType.LOOKUP, subject: "age"},
+      {type: StepType.GROUP, subject: "department"},
+      {type: StepType.GROUP, subject: "employee"},
+      {type: StepType.GROUP, subject: "age"}
     ]
   },
   "sum of the salaries per department": {
     expected: [
-      {type: StepTypes.GATHER, subject: "department"},
-      {type: StepTypes.GATHER, subject: "employee"},
-      {type: StepTypes.LOOKUP, subject: "salary"},
-      {type: StepTypes.GROUP, subject: "department"},
-      {type: StepTypes.AGGREGATE, subject: "sum", args: [
+      {type: StepType.GATHER, subject: "department"},
+      {type: StepType.GATHER, subject: "employee"},
+      {type: StepType.LOOKUP, subject: "salary"},
+      {type: StepType.GROUP, subject: "department"},
+      {type: StepType.AGGREGATE, subject: "sum", args: [
+        {parent: "department", subject: "salary"}
+      ]}
+    ]
+  },
+  
+  "average of the salaries per department": {
+    expected: [
+      {type: StepType.GATHER, subject: "department"},
+      {type: StepType.GATHER, subject: "employee"},
+      {type: StepType.LOOKUP, subject: "salary"},
+      {type: StepType.GROUP, subject: "department"},
+      {type: StepType.AGGREGATE, subject: "average", args: [
         {parent: "department", subject: "salary"}
       ]}
     ]
   },
   */
-  "average of the salaries per department": {
+  {
+    query: "top 2 employee salaries",
     expected: [
-      {type: StepTypes.GATHER, subject: "department"},
-      {type: StepTypes.GATHER, subject: "employee"},
-      {type: StepTypes.LOOKUP, subject: "salary"},
-      {type: StepTypes.GROUP, subject: "department"},
-      {type: StepTypes.AGGREGATE, subject: "average", args: [
+      {type: StepType.GATHER, subject: "employee"},
+      {type: StepType.LOOKUP, subject: "salary"},
+      {type: StepType.SORT, subject: "results", direction: "descending", field: {parent: "employee", subject: "salary"} },
+      {type: StepType.LIMIT, subject: "results", value: "2"},
+    ]
+  },
+  {
+    query: "top 2 salaries per department",
+    expected: [
+      {type: StepType.GATHER, subject: "department"},
+      {type: StepType.GATHER, subject: "employee"},
+      {type: StepType.LOOKUP, subject: "salary"},
+      {type: StepType.GROUP, subject: "department"},
+      {type: StepType.SORT, subject: "per group", direction: "descending", field: {parent: "department", subject: "salary"} },
+      {type: StepType.LIMIT, subject: "per group", value: "2"},
+    ]
+  },
+  {
+    query: "sum of the top 2 salaries per department",
+    expected: [
+      {type: StepType.GATHER, subject: "department"},
+      {type: StepType.GATHER, subject: "employee"},
+      {type: StepType.LOOKUP, subject: "salary"},
+      {type: StepType.GROUP, subject: "department"},
+      {type: StepType.SORT, subject: "per group", direction: "descending", field: {parent: "department", subject: "salary"} },
+      {type: StepType.LIMIT, subject: "per group", value: "2"},
+      {type: StepType.AGGREGATE, subject: "sum", args: [
         {parent: "department", subject: "salary"}
       ]}
     ]
   },
-  "top 2 employee salaries" : {
-      expected: [
-        {type: StepTypes.GATHER, subject: "employee"},
-        {type: StepTypes.LOOKUP, subject: "salary"},
-        {type: StepTypes.SORT, subject: "results", direction: "descending", field: {parent: "employee", subject: "salary"} },
-        {type: StepTypes.LIMIT, subject: "results", value: "2"},
-      ]
-  },
-  "top 2 salaries per department": {
-    expected: [
-      {type: StepTypes.GATHER, subject: "department"},
-      {type: StepTypes.GATHER, subject: "employee"},
-      {type: StepTypes.LOOKUP, subject: "salary"},
-      {type: StepTypes.GROUP, subject: "department"},
-      {type: StepTypes.SORT, subject: "per group", direction: "descending", field: {parent: "department", subject: "salary"} },
-      {type: StepTypes.LIMIT, subject: "per group", value: "2"},
-    ]
-  },
-  "sum of the top 2 salaries per department": {
-    expected: [
-      {type: StepTypes.GATHER, subject: "department"},
-      {type: StepTypes.GATHER, subject: "employee"},
-      {type: StepTypes.LOOKUP, subject: "salary"},
-      {type: StepTypes.GROUP, subject: "department"},
-      {type: StepTypes.SORT, subject: "per group", direction: "descending", field: {parent: "department", subject: "salary"} },
-      {type: StepTypes.LIMIT, subject: "per group", value: "2"},
-    ]
-  },
   /*
-  "top 2 salaries of the first 3 departments": {
-
+  { 
+    query: "top 2 salaries of the first 3 departments",
   },
   "departments where all the employees are male": {
 
@@ -1118,9 +1156,9 @@ var tests = {
   },
   "dishes with eggs and chicken": {
     expected: [
-      {type: StepTypes.GATHER, subject: "dish"},
-      {type: StepTypes.FILTERBYENTITY, subject: "egg"},
-      {type: StepTypes.FILTERBYENTITY, subject: "chicken"}
+      {type: StepType.GATHER, subject: "dish"},
+      {type: StepType.FILTERBYENTITY, subject: "egg"},
+      {type: StepType.FILTERBYENTITY, subject: "chicken"}
     ]
   },
   "dishes with eggs or chicken": {
@@ -1131,23 +1169,23 @@ var tests = {
   },
   "dishes without eggs or chicken": {
     expected: [
-      {type: StepTypes.GATHER, subject: "dish"},
-      {type: StepTypes.FILTERBYENTITY, subject: "egg", deselected: true},
-      {type: StepTypes.FILTERBYENTITY, subject: "chicken", deselected: true}
+      {type: StepType.GATHER, subject: "dish"},
+      {type: StepType.FILTERBYENTITY, subject: "egg", deselected: true},
+      {type: StepType.FILTERBYENTITY, subject: "chicken", deselected: true}
     ]
   },
   "dishes with eggs that aren't desserts": {
     expected: [
-      {type: StepTypes.GATHER, subject: "dish"},
-      {type: StepTypes.FILTERBYENTITY, subject: "egg"},
-      {type: StepTypes.INTERSECT, subject: "dessert", deselected: true}
+      {type: StepType.GATHER, subject: "dish"},
+      {type: StepType.FILTERBYENTITY, subject: "egg"},
+      {type: StepType.INTERSECT, subject: "dessert", deselected: true}
     ]
   },
   "dishes that don't have eggs or chicken": {
     expected: [
-      {type: StepTypes.GATHER, subject: "dish"},
-      {type: StepTypes.FILTERBYENTITY, subject: "egg", deselected: true},
-      {type: StepTypes.FILTERBYENTITY, subject: "chicken", deselected: true}
+      {type: StepType.GATHER, subject: "dish"},
+      {type: StepType.FILTERBYENTITY, subject: "egg", deselected: true},
+      {type: StepType.FILTERBYENTITY, subject: "chicken", deselected: true}
     ]
   },
   "dishes with a cook time < 30 that have eggs and are sweet": {
@@ -1240,7 +1278,7 @@ var tests = {
 
   },
   */
-}
+];
 
 //---------------------------------------------------------
 // Debug drawing
@@ -1274,37 +1312,38 @@ enum Validated {
   UNDEFINED,
 }
 
-function testSearch(searchString : string, planDefinition) {
+function validateTestQuery(test: TestQuery) {
+  let searchString = test.query;
+
   let start = performance.now();
   let tokens = getTokens(searchString);
   let tree = tokensToTree(tokens);
   let plan = treeToPlan(tree);
   let valid : Validated = Validated.UNDEFINED;
   let expectedPlan:any;
-  if(planDefinition.expected) {
-    let expected = planDefinition.expected;
-    valid = validatePlan(plan, expected);
-    expectedPlan = expected.map((expectedStep, ix): any => {
-        let actualStep = plan[ix];
-        let validStep = "";
-        let deselected = expectedStep.deselected ? "!" : "";
 
-        // If we have arguments, format them as (arg1, arg2, ..., argN) for display
-        var args = "";
-        if (expectedStep.args !== undefined) {
-          args = " (" + expectedStep.args.map((arg) => arg.subject).join(", ") + ")";
-        }
+  valid = validatePlan(plan, test.expected);
+  expectedPlan = test.expected.map((expectedStep, ix): any => {
+      let actualStep = plan[ix];
+      let validStep = "";
+      let deselected = expectedStep.deselected ? "!" : "";
 
-        if(actualStep === undefined) {
-          return {state: Validated.UNDEFINED, message: `${StepTypes[expectedStep.type]} ${deselected}${expectedStep.subject}${args}`};
-        }
-        else if(validateStep(actualStep, expectedStep)) {
-          return {state: Validated.VALID, message: "valid"};
-        } else {
-          return {state: Validated.INVALID, message: `${StepTypes[expectedStep.type]} ${deselected}${expectedStep.subject}${args}`};
-        }
-    })
-  }
+      // If we have arguments, format them as (arg1, arg2, ..., argN) for display
+      var args = "";
+      if (expectedStep.args !== undefined) {
+        args = " (" + expectedStep.args.map((arg) => arg.subject).join(", ") + ")";
+      }
+
+      if(actualStep === undefined) {
+        return {state: Validated.UNDEFINED, message: `${StepType[expectedStep.type]} ${deselected}${expectedStep.subject}${args}`};
+      }
+      /*else if(validateStep(actualStep, expectedStep)) {
+        return {state: Validated.VALID, message: "valid"};
+      }*/ else {
+        return {state: Validated.INVALID, message: `${StepType[expectedStep.type]} ${deselected}${expectedStep.subject}${args}`};
+      }
+  })
+  
 
   return {tokens, tree, plan, valid, expectedPlan, searchString, time: performance.now() - start};
 }
@@ -1362,7 +1401,7 @@ function searchResultUi(result) {
       if(actual.argArray) {
         args = " (" + actual.argArray.map((arg) => arg.found).join(", ") + ")";
       }
-      return {c: `step v${info.state}`, text: `${StepTypes[actual.type]} ${actual.deselected ? "!" : ""}${actual.subject}${args}${message}`};
+      return {c: `step v${info.state}`, text: `${StepType[actual.type]} ${actual.deselected ? "!" : ""}${actual.subject}${args}${message}`};
     });
 
     planNode = {c: "tokens", children: [
@@ -1378,7 +1417,7 @@ function searchResultUi(result) {
         if(step.argArray) {
           args = " (" + step.argArray.map((arg) => arg.found).join(", ") + ")";
         }
-        return {c: "step", text: `${StepTypes[step.type]} ${deselected}${step.subject}${args}`}
+        return {c: "step", text: `${StepType[step.type]} ${deselected}${step.subject}${args}`}
       })}
     ]};
   }
@@ -1387,7 +1426,7 @@ function searchResultUi(result) {
   if(plan.length > expectedPlan.length) {
     var extraPlans = plan.slice(expectedPlan.length);
     for(var extraPlan of extraPlans) {
-      planDisplay.push({c: `step v0`, text: `${StepTypes[extraPlan.type]} ${extraPlan.deselected ? "!" : ""}${extraPlan.subject}:: expected none`});
+      planDisplay.push({c: `step v0`, text: `${StepType[extraPlan.type]} ${extraPlan.deselected ? "!" : ""}${extraPlan.subject}:: expected none`});
     }
   }
 
@@ -1415,8 +1454,8 @@ function toggleQueryResult(evt, elem) {
 export function root() {
   let results = [];
   let resultStats = {unvalidated: 0, succeeded: 0, failed: 0};
-  for(let test in tests) {
-    let result = testSearch(test, tests[test]);
+  for(let test of tests) {
+    let result = validateTestQuery(test);
     results.push(result);
     if(result.valid === Validated.UNDEFINED) {
       resultStats.unvalidated++;
