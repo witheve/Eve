@@ -961,7 +961,7 @@ function validatePlan(actualPlan: Plan, expectedPlan: Step[]) {
   if(actualPlan.length === 0 && expectedPlan.length !== 0) {
     actualPlan.valid = Validated.INVALID; 
   }
-  else if(invalidSteps === 0) {
+  else if(invalidSteps === 0 && actualPlan.length === expectedPlan.length) {
     actualPlan.valid = Validated.VALID;
   } else {
     actualPlan.valid = Validated.INVALID;
@@ -991,7 +991,6 @@ interface Step {
 }
 
 var tests: TestQuery[] = [
-  
   {
     query: "chris granger's age",
     expected: [
@@ -1477,7 +1476,6 @@ function toggleQueryResult(evt, elem) {
 }
 
 export function root() {
-  console.log(nlp.noun("dinosaur").pluralize());
   let results = [];
   let resultStats = {unvalidated: 0, succeeded: 0, failed: 0};
   for(let test of tests) {
