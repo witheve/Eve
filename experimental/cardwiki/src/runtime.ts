@@ -198,7 +198,7 @@ function generateCollector2(keys) {
       var facts = index[key];
       //swap the last fact with this one to prevent holes
       var lastFact = facts.pop();
-      if(lastFact && lastFact !== remove) {
+      if(lastFact && lastFact.__id !== remove.__id) {
         facts[factIx] = lastFact;
         ixCache[lastFact.__id] = factIx;
       } else if(facts.length === 0) {
@@ -381,7 +381,7 @@ export class Indexer {
         let ix = hashToIx[hash];
         //swap the last fact with this one to prevent holes
         let lastFact = facts.pop();
-        if(lastFact && lastFact !== fact) {
+        if(lastFact && lastFact.__id !== fact.__id) {
           facts[ix] = lastFact;
           hashToIx[lastFact.__id] = ix;
         }
@@ -1089,7 +1089,9 @@ export class Query {
     if(this.projectionMap) {
       this.applyAliases(this.projectionMap);
       root.children.unshift({type: "declaration", var: "results", value: "[]"});
-      cursor.children.push({type: "provenance"});
+      if(INCREMENTAL) {
+        cursor.children.push({type: "provenance"});
+      }
       cursor.children.push({type: "projection", projectionMap: this.projectionMap, unprojected: this.aggregates.length});
       returns.push("results");
     }
