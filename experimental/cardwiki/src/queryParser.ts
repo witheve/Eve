@@ -1092,7 +1092,9 @@ var tests: TestQuery[] = [
       {type: StepType.GROUP, subject: "age"}
     ]
   },
-  "sum of the salaries per department": {
+  */
+  {
+    query: "sum of the salaries per department",
     expected: [
       {type: StepType.GATHER, subject: "department"},
       {type: StepType.GATHER, subject: "employee"},
@@ -1103,8 +1105,8 @@ var tests: TestQuery[] = [
       ]}
     ]
   },
-  
-  "average of the salaries per department": {
+  {
+    query: "average of the salaries per department",
     expected: [
       {type: StepType.GATHER, subject: "department"},
       {type: StepType.GATHER, subject: "employee"},
@@ -1115,7 +1117,6 @@ var tests: TestQuery[] = [
       ]}
     ]
   },
-  */
   {
     query: "top 2 employee salaries",
     expected: [
