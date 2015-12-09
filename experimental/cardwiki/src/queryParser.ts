@@ -766,7 +766,7 @@ function nodeToPlan(tree, parent = null, parentPlan = null) {
   return plan;
 }
 
-/*enum Types {
+/*enum PatternTypes {
   COLLECTION,
   ENTITY,
   ATTRIBUTE,
@@ -863,8 +863,8 @@ function dedupePlan(plan) {
   })
 }
 
-function treeToPlan(tree) {
-  let plan = [];
+function treeToPlan(tree) : Plan {
+  let plan: Step[] = [];
   for(let root of tree.roots) {
     plan = plan.concat(nodeToPlan(root));
   }
@@ -875,7 +875,14 @@ function treeToPlan(tree) {
   for(let op of tree.operations) {
     plan = plan.concat(opToPlan(op,tree.groups));
   }
-  return plan;
+  // Create a plan type for return
+  let pplan: Plan = new Plan();
+  pplan.valid = Validated.INVALID;
+  for (let step of plan) {
+    pplan.push(step);
+  }
+  
+  return pplan;
 }
 
 //---------------------------------------------------------
@@ -920,11 +927,13 @@ function validateStep(actualStep, expectedStep) : boolean {
 // Test the actual plan and expected plan for equivalence.
 // Equivelence here means the expected and actual plans have the same
 // steps. Order of steps does not matter.
-function validatePlan(actualPlan, expectedPlan) : any {
+// Doesn't return anything, put adds a valid member to the plan and steps
+function validatePlan(actualPlan: Plan, expectedPlan: Step[]) {
   let invalidSteps = actualPlan.length;
   // Loop through the steps of the actual plan and test it against candidate steps.
   // When a match is found, remove it from the canditate steps. Continue until all
   // actual steps are validated.
+  // @TODO: remove matched steps
   for(let actualStep of actualPlan) {
     for(let expectedStep of expectedPlan) {
       console.log(`Plan length ${expectedPlan.length}`);
@@ -938,15 +947,19 @@ function validatePlan(actualPlan, expectedPlan) : any {
   }
   // If every step is validated, the plan is valid
   if(invalidSteps === 0) {
-    return { valid: Validated.VALID, plan: actualPlan }
+    actualPlan.valid = Validated.VALID;
   } else {
-    return { valid: Validated.INVALID, plan: actualPlan }
+    actualPlan.valid = Validated.INVALID;
   }
 }
 
 interface TestQuery {
   query: string;
   expected: Step[];
+}
+
+class Plan extends Array<Step> {
+  valid: Validated;
 }
 
 interface Step {
@@ -957,6 +970,8 @@ interface Step {
   value?: any;
   args?: any;
   deselected?: boolean;
+  subjectNode?: any;
+  valid?: Validated;
 }
 
 var tests: TestQuery[] = [
@@ -1306,7 +1321,7 @@ function groupTree(root) {
 enum Validated {
   INVALID,
   VALID,
-  UNDEFINED,
+  UNVALIDATED,
 }
 
 function validateTestQuery(test: TestQuery) {
@@ -1316,12 +1331,16 @@ function validateTestQuery(test: TestQuery) {
   let tokens = getTokens(searchString);
   let tree = tokensToTree(tokens);
   let plan = treeToPlan(tree);
-  //let valid : Validated = Validated.UNDEFINED;
+  
+  //let valid : Validated = Validated.UNVALIDATED;
   let expectedPlan:any;
 
-  let validatedPlan = validatePlan(plan, test.expected);
-  let valid = validatedPlan.valid;
+  validatePlan(plan, test.expected);
+  let valid = plan.valid;
   
+  console.log("PKLAN");
+  console.log(plan);
+ 
   expectedPlan = test.expected.map((expectedStep, ix): any => {
       let actualStep = plan[ix];
       let validStep = "";
@@ -1334,7 +1353,7 @@ function validateTestQuery(test: TestQuery) {
       }
 
       if(actualStep === undefined) {
-        return {state: Validated.UNDEFINED, message: `${StepType[expectedStep.type]} ${deselected}${expectedStep.subject}${args}`};
+        return {state: Validated.UNVALIDATED, message: `${StepType[expectedStep.type]} ${deselected}${expectedStep.subject}${args}`};
       }
       /*else if(validateStep(actualStep, expectedStep)) {
         return {state: Validated.VALID, message: "valid"};
@@ -1343,7 +1362,7 @@ function validateTestQuery(test: TestQuery) {
       }
   })
 
-  return { valid, tokens, tree, plan, expectedPlan, searchString, time: performance.now() - start, validatedPlan};
+  return { valid: plan.valid, tokens, tree, plan, expectedPlan, searchString, time: performance.now() - start };
 }
 
 function queryTestUI(result) {
@@ -1383,7 +1402,7 @@ function queryTestUI(result) {
   //plan
   let planNode;
 
-  if(valid !== Validated.UNDEFINED) {
+  if(valid !== Validated.UNVALIDATED) {
 
     // Format the expected plan for output
     var planDisplay = expectedPlan.map((info, ix) => {
@@ -1391,11 +1410,10 @@ function queryTestUI(result) {
       if(actual === undefined) {
         return {c: ``, text: ``};
       }
-      console.log(actual);
       let message = "";
       if(actual.valid !== Validated.VALID) {
         message = ` :: expected ${info.message}`;
-        if(actual.valid === Validated.UNDEFINED) {
+        if(actual.valid === Validated.UNVALIDATED) {
           return {c: `step v${actual.valid}`, text: `none ${message}`};
         }
       }
@@ -1459,7 +1477,7 @@ export function root() {
   for(let test of tests) {
     let result = validateTestQuery(test);
     results.push(result);
-    if(result.valid === Validated.UNDEFINED) {
+    if(result.valid === Validated.UNVALIDATED) {
       resultStats.unvalidated++;
     } else if(result.valid === Validated.INVALID) {
       resultStats.failed++;
