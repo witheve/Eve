@@ -23,9 +23,10 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 
 .search-container { width:600px; }
 
-.entity-blocks > .entity { -webkit-user-select:auto;  padding:20px; overflow:auto; max-width: 600px; min-width: 300px; line-height: 25px; }
+.entity-blocks > .entity { -webkit-user-select:auto;  padding:10px 20px; overflow:auto; max-width: 600px; min-width: 300px; line-height: 25px; }
 .entity-blocks > .entity:first-child() { min-height:300px; }
 .entity-blocks > .entity + .entity { border-top:1px solid #222; }
+.entity .placeholder { font-style:italic; }
 .entity pre { flex:none; display:block; white-space: pre-wrap; min-height:25px; }
 .entity h1 { font-size:16pt; }
 .entity span { display:inline; }
@@ -38,7 +39,7 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .related-bits .bit { flex:1 0 auto; border-top:1px solid #222; }
 .related-bits .bit + .bit { border-left:1px solid #222; }
 
-.actions-container > .description { padding:10px 15px; }
+.actions-container > .actions-header { padding:10px 15px; flex-direction:row; }
 .action { flex-direction: row;  margin:0;  padding:10px; white-space:pre; justify-content:center; }
 .action + .action { margin-top:1px; }
 .action:empty + action:empty { margin-top:0; }
@@ -48,13 +49,16 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .add-action> * + * { margin-left:1px; }
 .add-action input { outline:none; font-size: 11pt; padding:0; text-align:center; font-family: "Lato";  border: none; border-bottom:1px solid #777; width: 80px; }
 .add-action .button { margin-left: 10px;  }
-.action.new-bit { flex-direction:column; padding:0; padding-top:10px; }
-.action.new-bit .bit { margin-top: 10px; align-items:flex-start; }
+.action.new-bit { position:relative; flex-direction:column; padding:0; }
+.action.new-bit .bit { align-items:flex-start; }
+.action.new-bit .remove { display:none; position:absolute; top:10px; right:15px; }
+.action.new-bit:hover .remove { display:flex; }
 .action .description { padding:0 10px; }
 
-.search-input { flex: none; flex-direction:row;  min-width:100px;  font-family: "Lato"; font-size: 14pt; margin:0px; margin-bottom:1px; padding:5px 70px; outline:none; justify-content:center; align-items:center; }
-.search-input .close {display:none; position:absolute; right:10px; top:10px; }
-.search-input .plan {display:none; position:absolute; left:10px; top:11px; }
+.search-input { flex: none; flex-direction:row; font-family: "Lato"; font-size: 14pt; margin:0px; margin-bottom:1px; padding:5px 15px; outline:none; justify-content:flex-start; align-items:center; }
+.search-input .search-box { flex: none; min-width:100px; }
+.search-input .close {display:none; margin-left:15px; }
+.search-input .plan {display:none; }
 .search-container:hover .close { display:flex; }
 .search-container:hover .plan { display:flex; }
 .search-input .CodeMirror.cm-s-default { font-size: 16pt; }
@@ -80,7 +84,7 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .search-results .path > * { flex:1; }
 .search-results .sub-group { margin:0 0px; min-width:100px; }
 .search-results .sub-group + .sub-group { border-left: 1px solid #222; }
-.search-results .sub-group .bit { margin:0 0; flex: 1 0 0; overflow:hidden; min-height:50px; }
+.search-results .sub-group .bit { margin:0 0; flex: 1 0 0; overflow:hidden; min-height:35px; }
 .search-results .path + .path { border-top:1px solid #222; }
 .search-results .sub-group .bit + .bit { border-top:1px solid #222; }
 .search-results .path { flex-direction:row; }
@@ -145,7 +149,8 @@ body.light { background: rgb(71,72,75); font-family: Helvetica Neue; font-weight
 .light .root { background: rgb(71,72,75); color: #444; }
 .light .search-container { box-shadow:0 2px 10px #333; background: #888; }
 .light .entity-blocks > .entity { background: #eee; color: #555; }
-.light .entity-blocks > .entity + .entity { border-color: #999; }
+.light .entity-blocks > .entity + .entity { border-color: #ccc; }
+.light .placeholder { color: #aaa; }
 
 .light .link { color: #B74F4F; }
 .light .link.found, .light .entity { color: rgb(53, 105, 183); }
@@ -160,6 +165,7 @@ body.light { background: rgb(71,72,75); font-family: Helvetica Neue; font-weight
 .light .bit.collection { background: rgb(115, 173, 149); color: #fff; }
 .light .bit.collection .collection { color: #fff; }
 .light .bit.entity { background: #6E89B1; color: #FFF; }
+.light .new-bit .bit.entity { background: #eee; color: #555; }
 .light .header.entity { color: #fff; }
 .light .bit.value { background: #779BA9; color: #fff; }
 .light .bit.attribute { background: #AA88AD; color: #fff; }

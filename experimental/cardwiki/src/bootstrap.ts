@@ -175,7 +175,7 @@ class BSPhase {
     let query:runtime.Query;
     if(typeof queryOrName === "string") query = this._queries[queryOrName];
     else query = queryOrName;
-    this.changeset.merge(addBitAction(name, template, query));
+    this.changeset.merge(addBitAction(name, template));
     return this;
   }
 }
@@ -294,13 +294,13 @@ app.init("bootstrap", function bootstrap() {
     project {collection: [coll, collection]; count: [count, count]}
   `));
 
-  phase.addQuery("automatic collection entities", queryFromQueryDSL(phase.ixer, unpad(4) `
-    select collection as [coll]
-    deselect manual entity {entity: [coll, collection]}
-    deselect builtin entity {entity: [coll, collection]}
-    calculate collection content {collection: [coll, collection]} as [content]
-    project {entity: [coll, collection]; content: [content,content]}
-  `));
+//   phase.addQuery("automatic collection entities", queryFromQueryDSL(phase.ixer, unpad(4) `
+//     select collection as [coll]
+//     deselect manual entity {entity: [coll, collection]}
+//     deselect builtin entity {entity: [coll, collection]}
+//     calculate collection content {collection: [coll, collection]} as [content]
+//     project {entity: [coll, collection]; content: [content,content]}
+//   `));
 
   phase.apply(true);
 

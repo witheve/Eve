@@ -1205,7 +1205,7 @@ app.handle("submitAction", (result, info) => {
   } else if(info.type === "collection") {
     result.merge(addToCollectionAction(search, info.entity, info.collection));
   } else if(info.type === "bit") {
-    result.merge(addBitAction(search, info.template, app.activeSearches[searchId].query));
+    result.merge(addBitAction(search, info.template));
   }
 });
 
@@ -1322,7 +1322,7 @@ function entityUi(entityId, instance:string|number = "", searchId) {
   }
   if(entityViews.length === 0) {
     if(!eve.findOne("editing", {search: searchId})) {
-      entityViews.push({id: `${entityId}${instance}`, c: "entity", searchId, entity: entityId, children: entityToHTML(parseEntity(entityId, "").lines, searchId, true), dblclick: editEntity, enter: {display: "flex", opacity: 1, duration: 300}});
+      entityViews.push({id: `${entityId}${instance}`, c: "entity", searchId, entity: entityId, children: [{c: "placeholder", text: "Add a description"}], dblclick: editEntity, enter: {display: "flex", opacity: 1, duration: 300}});
     } else {
       entityViews.push({id: `${entityId}${instance}|editor`, c: "entity editor", entity: entityId, searchId, postRender: CodeMirrorElement, value: "", blur: commitEntity});
     }
@@ -1331,14 +1331,18 @@ function entityUi(entityId, instance:string|number = "", searchId) {
   for(let incoming of eve.find("entity links", {link: entityId})) {
     if(incoming.entity === entityId) continue;
     if(eve.findOne("entity eavs", {entity: incoming.entity, attribute: "is a", value: "content block"})) continue;
-    relatedBits.push({c: "bit", click: followLink, searchId, linkText: incoming.entity, children: [
-      {c: "header", text: incoming.entity},
-    ]})
+    if(eve.findOne("entity eavs", {entity: incoming.entity, attribute: "is a", value: entityId})) continue;
+    relatedBits.push({c: "entity", click: followLink, searchId, linkText: incoming.entity, text: incoming.entity});
+  }
+  if(relatedBits.length) {
+    entityViews.push({c: "entity related-bits", children: [
+      {text: "Related cards: "},
+      {children: relatedBits}
+    ]});
   }
 
   return {c: "entity-container", children: [
     {c: "entity-blocks", children: entityViews},
-    {c: "related-bits", children: relatedBits},
   ]};
 }
 
@@ -1401,7 +1405,7 @@ export function newSearchResults(searchId) {
   let {tokens, plan, query} = app.activeSearches[searchId];
   let resultItems = [];
   let groupedFields = {};
-  if(query && plan.length > 1) {
+  if(query && plan.length && (plan.length > 1 || plan[0].type === "gather")) {
     // figure out what fields are grouped, if any
     for(let step of plan) {
       if(step.type === "group") {
@@ -1493,10 +1497,11 @@ export function newSearchResults(searchId) {
     let {template, action} = bitAction;
     actions.push({c: "action new-bit", children: [
       {c: "bit entity", children: entityToHTML(parseEntity(action, template).lines, null, true)},
-      {c: "ion-android-close", click: removeAction, actionType: "bit", actionId: bitAction.action}
+      {c: "remove ion-android-close", click: removeAction, actionType: "bit", actionId: bitAction.action}
     ]})
   }
 
+  let actionContainer;
   let addActionChildren = [];
   let adding = eve.findOne("adding action", {search: searchId});
   if(adding) {
@@ -1508,8 +1513,15 @@ export function newSearchResults(searchId) {
         {c: "button", text: "cancel", click: stopAddingAction},
       ]});
     }
-  } else {
-    addActionChildren.push({c: "", text: "add card", actionType: "bit", searchId, click: startAddingAction});
+  } else if(plan.length && plan[0].type !== "find") {
+    actionContainer = {c: "actions-container", children: [
+      {c: "actions-header", children: [
+        {c: "", text: "Added cards", actionType: "bit", searchId, click: startAddingAction},
+        {c: "spacer"},
+        {c: "", text: "+", actionType: "bit", searchId, click: startAddingAction}
+      ]},
+      actions.length ? {c: "actions", children: actions} : undefined,
+    ]};
   }
 
   let headers = []
@@ -1526,17 +1538,15 @@ export function newSearchResults(searchId) {
   return {id: `${searchId}|container`, c: `container search-container ${isDragging}`, top, left, children: [
     {c: "search-input", mousedown: startDragging, mouseup: stopDragging, searchId, children: [
       {c: "search-box", value: search, postRender: CMSearchBox, searchId},
-      {c: "ion-android-close close", click: removeSearch, searchId},
+      {c: "spacer"},
       {c: `ion-ios-arrow-${showPlan ? 'up' : 'down'} plan`, click: toggleShowPlan, searchId},
+      {c: "ion-android-close close", click: removeSearch, searchId},
     ]},
     showPlan,
     {c: "search-headers", children: headers},
     {c: "search-results", children: resultItems},
 //       randomlyLetter(`I found ${resultItems.length} results.`),
-    actions.length ? {c: "actions-container", children: [
-      {c: "description", text: "actions"},
-      {c: "actions", children: actions},
-    ]} : undefined,
+    actionContainer,
     {c: "add-action", children: addActionChildren}
   ]};
 }
@@ -1670,22 +1680,21 @@ function removeAddEavAction(action) {
   }
 }
 
-export function addBitAction(name, template, query) {
+export function addBitAction(name, template) {
   // console.log(name, "|", template, "|", query);
   let diff = eve.diff();
-  let names = Object.keys(query.projectionMap);
   // add an action
   let bitQueryId = `${name}|bit`;
   let action = `${name}|${template}`;
   diff.add("add bit action", {view: name, action, template});
-  diff.remove("add bit action", {view: name});
+//   diff.remove("add bit action", {view: name});
   let bitQuery = eve.query(bitQueryId)
                   .select("add bit action", {view: name}, "action")
                   .select(name, {}, "table")
                   .calculate("bit template", {row: ["table"], name, template: ["action", "template"], action: ["action", "action"]}, "result")
                   .project({entity: ["result", "entity"], attribute: ["result", "attribute"], value: ["result", "value"]});
   diff.merge(queryObjectToDiff(bitQuery));
-  diff.merge(removeView(bitQueryId));
+//   diff.merge(removeView(bitQueryId));
   diff.add("action", {view: "generated eav", action, kind: "union", ix: 1});
   // a source
   diff.add("action source", {action, "source view": bitQueryId});
@@ -1700,7 +1709,7 @@ export function addBitAction(name, template, query) {
 function removeAddBitAction(action) {
   let info = eve.findOne("add bit action", {action});
   if(info) {
-    let diff = addBitAction(info.view, info.entity, info.attribute);
+    let diff = addBitAction(info.view, info.template);
     return diff.reverse();
   } else {
     return eve.diff();
