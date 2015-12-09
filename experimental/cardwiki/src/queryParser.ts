@@ -956,6 +956,7 @@ function validatePlan(actualPlan: Plan, expectedPlan: Step[]) {
 interface TestQuery {
   query: string;
   expected: Step[];
+  shouldFail?: boolean;
 }
 
 class Plan extends Array<Step> {
@@ -975,21 +976,23 @@ interface Step {
 }
 
 var tests: TestQuery[] = [
-  /*
+  
   {
     query: "chris granger's age",
-    expectedPlan: [
+    expected: [
       {type: StepType.FIND, subject: "chris granger"},
       {type: StepType.LOOKUP, subject: "age"}
     ],
   },
-  "robert attorri's age": {
+  {
+    query: "robert attorri's age",
     expected: [
       {type: StepType.FIND, subject: "robert attorri"},
       {type: StepType.LOOKUP, subject: "age"}
     ]
   },
-  "people older than chris granger": {
+  {
+    query: "people older than chris granger",
     expected: [
       {type: StepType.GATHER, subject: "person"},
       {type: StepType.LOOKUP, subject: "age"},
@@ -1001,7 +1004,8 @@ var tests: TestQuery[] = [
       ]}
     ]
   },
-  "people whose age < 30": {
+  { 
+    query: "people whose age < 30",
     expected: [
       {type: StepType.GATHER, subject: "person"},
       {type: StepType.LOOKUP, subject: "age"},
@@ -1011,7 +1015,8 @@ var tests: TestQuery[] = [
       ]}
     ]
   },
-  "people whose age < chris granger's age": {
+  {
+    query: "people whose age < chris granger's age",
     expected: [
       {type: StepType.GATHER, subject: "person"},
       {type: StepType.LOOKUP, subject: "age"},
@@ -1023,7 +1028,8 @@ var tests: TestQuery[] = [
       ]}
     ]
   },
-  "people whose age < chris granger's": {
+  {
+    query: "people whose age < chris granger's",
     expected: [
       {type: StepType.GATHER, subject: "person"},
       {type: StepType.LOOKUP, subject: "age"},
@@ -1035,35 +1041,44 @@ var tests: TestQuery[] = [
       ]}
     ]
   },
-
-  "people older than chris granger and younger than edward norton": {
-
+  {
+    query: "people older than chris granger and younger than edward norton",
+    expected: [],
   },
-  "people between 50 and 65 years old": {
-
+  {
+    query: "people between 50 and 65 years old",
+    expected: [],
   },
-  "people whose age is between 50 and 65": {
-
+  {
+    query: "people whose age is between 50 and 65",
+    expected: [],
   },
-  "people who are 50-65 years old": {
-
+  {
+    query: "people who are 50-65 years old",
+    expected: [],
   },
-  "people older than chris granger's spouse": {
-
+  {
+    query: "people older than chris granger's spouse",
+    expected: [],
   },
-  "people older than their spouse": {
-
+  {
+    query: "people older than their spouse",
+    expected: [],
   },
-  "people who are either heads or spouses of heads": {
-
+  {
+    query: "people who are either heads or spouses of heads",
+    expected: [],
   },
-  "people who have a hair color of red or black": {
-
+  {
+    query: "people who have a hair color of red or black",
+    expected: [],
   },
-  "people who have neither attended a meeting nor had a one-on-one": {
-
+  {
+    query: "people who have neither attended a meeting nor had a one-on-one",
+    expected: [],
   },
-  "salaries per department": {
+  {
+    query: "salaries per department",
     expected: [
       {type: StepType.GATHER, subject: "department"},
       {type: StepType.GATHER, subject: "employee"},
@@ -1071,7 +1086,8 @@ var tests: TestQuery[] = [
       {type: StepType.GROUP, subject: "department"}
     ]
   },
-  "salaries per department and age": {
+  {
+    query: "salaries per department and age",
     expected: [
       {type: StepType.GATHER, subject: "department"},
       {type: StepType.GATHER, subject: "employee"},
@@ -1081,7 +1097,8 @@ var tests: TestQuery[] = [
       {type: StepType.GROUP, subject: "age"}
     ]
   },
-  "salaries per department, employee, and age": {
+  {
+    query: "salaries per department, employee, and age",
     expected: [
       {type: StepType.GATHER, subject: "department"},
       {type: StepType.GATHER, subject: "employee"},
@@ -1092,7 +1109,6 @@ var tests: TestQuery[] = [
       {type: StepType.GROUP, subject: "age"}
     ]
   },
-  */
   {
     query: "sum of the salaries per department",
     expected: [
@@ -1151,146 +1167,170 @@ var tests: TestQuery[] = [
       ]}
     ]
   },
-  /*
   { 
     query: "top 2 salaries of the first 3 departments",
+    expected: [],
   },
-  "departments where all the employees are male": {
-
+  {
+    query: "departments where all the employees are male",
+    expected: [],
   },
-  "departments where all the employees are over-40 males": {
-
+  {
+    query: "departments where all the employees are over-40 males",
+    expected: [],
   },
-  "employees whose sales are greater than their salary": {
-
+  {
+    query: "employees whose sales are greater than their salary",
+    expected: [],
   },
-  "count employees and their spouses": {
-
+  {
+    query: "count employees and their spouses",
+    expected: [],
   },
-  "dishes with eggs and chicken": {
+  {
+    query: "dishes with eggs and chicken",
     expected: [
       {type: StepType.GATHER, subject: "dish"},
       {type: StepType.FILTERBYENTITY, subject: "egg"},
       {type: StepType.FILTERBYENTITY, subject: "chicken"}
     ]
   },
-  "dishes with eggs or chicken": {
-
+  {
+    query: "dishes with eggs or chicken",
+    expected: [],
   },
-  "dishes without eggs and chicken": {
-
+  {
+    query: "dishes without eggs and chicken",
+    expected: [],
   },
-  "dishes without eggs or chicken": {
+  {
+    query: "dishes without eggs or chicken",
     expected: [
       {type: StepType.GATHER, subject: "dish"},
       {type: StepType.FILTERBYENTITY, subject: "egg", deselected: true},
       {type: StepType.FILTERBYENTITY, subject: "chicken", deselected: true}
     ]
   },
-  "dishes with eggs that aren't desserts": {
+  {
+    query: "dishes with eggs that aren't desserts",
     expected: [
       {type: StepType.GATHER, subject: "dish"},
       {type: StepType.FILTERBYENTITY, subject: "egg"},
       {type: StepType.INTERSECT, subject: "dessert", deselected: true}
     ]
   },
-  "dishes that don't have eggs or chicken": {
+  {
+    query: "dishes that don't have eggs or chicken",
     expected: [
       {type: StepType.GATHER, subject: "dish"},
       {type: StepType.FILTERBYENTITY, subject: "egg", deselected: true},
       {type: StepType.FILTERBYENTITY, subject: "chicken", deselected: true}
     ]
   },
-  "dishes with a cook time < 30 that have eggs and are sweet": {
-
+  {
+    query: "dishes with a cook time < 30 that have eggs and are sweet",
+    expected: [],
   },
-  "dishes that take 30 minutes to an hour": {
-
+  {
+    query: "dishes that take 30 minutes to an hour",
+    expected: [],
   },
-  "dishes that take 30-60 minutes": {
-
+  {
+    query: "dishes that take 30-60 minutes",
+    expected: [],
   },
-
-  "people who live alone": {
-
+  {
+    query: "people who live alone",
+    expected: [],
   },
-
-  "everyone in this room speaks at least two languages": {
-
+  {
+    query: "everyone in this room speaks at least two languages",
+    expected: [],
   },
-  "at least two languages are spoken by everyone in this room": {
-
+  {
+    query: "at least two languages are spoken by everyone in this room",
+    expected: [],
   },
-
-
-  "friends older than the average age of people with pets": {
-
+  {
+    query: "friends older than the average age of people with pets",
+    expected: [],
   },
-
-  "meetings john was in in the last 10 days": {
-
+  { 
+    query: "meetings john was in in the last 10 days",
+    expected: [],
   },
-
-  "parts that have a color of \"red\", \"green\", \"blue\", or \"yellow\"": {
-
+  {
+    query: "parts that have a color of \"red\", \"green\", \"blue\", or \"yellow\"",
+    expected: [],
   },
-
-  "per book get the average price of books(2) that are cheaper": {
-
+  {
+    query: "per book get the average price of books(2) that are cheaper",
+    expected: [],
   },
-  "per book get the average price of books(2) that cost less": {
-
+  {
+    query: "per book get the average price of books(2) that cost less",
+    expected: [],
   },
-  "per book get the average price of books(2) where books(2) price < book price": {
-
+  {
+    query: "per book get the average price of books(2) where books(2) price < book price",
+    expected: [],
   },
-
-  "head's last name = employee's last name and head != employee and head's department = employee's department": {
-
+  {
+    query: "head's last name = employee's last name and head != employee and head's department = employee's department",
+    expected: [],
   },
-
-  "person loves person(2) and person(2) loves person(3) and person(3) loves person": {
-
+  {
+    query: "person loves person(2) and person(2) loves person(3) and person(3) loves person",
+    expected: [],
   },
-
-  "employee salary / employee's department total cost ": {
-
+  {
+    query: "employee salary / employee's department total cost ",
+    expected: [],
   },
-
-  "Return the average number of publications by Bob in each year": {
-
+  {
+    query: "Return the average number of publications by Bob in each year",
+    expected: [],
   },
-  "Return authors who have more papers than Bob in VLDB after 2000": {
-
+  {
+    query: "Return authors who have more papers than Bob in VLDB after 2000",
+    expected: [],
   },
-  "Return the conference in each area whose papers have the most total citations": {
-
+  {
+    query: "Return the conference in each area whose papers have the most total citations",
+    expected: [],
   },
-  "return all conferences in the database area": {
-
+  {
+    query: "return all conferences in the database area",
+    expected: [],
   },
-  "return all the organizations, where the number of papers by the organization is more than the number of authors in IBM": {
-
+  {
+    query: "return all the organizations, where the number of papers by the organization is more than the number of authors in IBM",
+    expected: [],
   },
-  "return all the authors, where the number of papers by the author in VLDB is more than the number of papers in ICDE": {
-
+  {
+    query: "return all the authors, where the number of papers by the author in VLDB is more than the number of papers in ICDE",
+    expected: [],
   },
-  "Where are the restaurants in San Francisco that serve good French food?": {
-
+  {
+    query: "Where are the restaurants in San Francisco that serve good French food?",
+    expected: [],
   },
-  "What are the population sizes of cities that are located in California?": {
-
+  {
+    query: "What are the population sizes of cities that are located in California?",
+    expected: [],
   },
-  "What are the names of rivers in the state that has the largest city in the united states of america?": {
-
+  {
+    query: "What are the names of rivers in the state that has the largest city in the united states of america?",
+    expected: [],
   },
-  "What is the average elevation of the highest points in each state?": {
-
+  {
+    query: "What is the average elevation of the highest points in each state?",
+    expected: [],
   },
-  "What jobs as a senior software developer are available in houston but not san antonio?": {
-
+  {
+    query: "What jobs as a senior software developer are available in houston but not san antonio?",
+    expected: [],
   },
-  */
 ];
 
 //---------------------------------------------------------
