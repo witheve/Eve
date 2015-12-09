@@ -864,25 +864,25 @@ function dedupePlan(plan) {
 }
 
 function treeToPlan(tree) : Plan {
-  let plan: Step[] = [];
+  let steps: Step[] = [];
   for(let root of tree.roots) {
-    plan = plan.concat(nodeToPlan(root));
+    steps = steps.concat(nodeToPlan(root));
   }
-  plan = dedupePlan(plan);
+  steps = dedupePlan(steps);
   for(let group of tree.groups) {
-    plan.push({type: StepType.GROUP, subject: group.found, subjectNode: group});
+    steps.push({type: StepType.GROUP, subject: group.found, subjectNode: group});
   }
   for(let op of tree.operations) {
-    plan = plan.concat(opToPlan(op,tree.groups));
+    steps = steps.concat(opToPlan(op,tree.groups));
   }
   // Create a plan type for return
-  let pplan: Plan = new Plan();
-  pplan.valid = Validated.INVALID;
-  for (let step of plan) {
-    pplan.push(step);
+  let plan: Plan = new Plan();
+  plan.valid = Validated.INVALID;
+  for (let step of steps) {
+    plan.push(step);
   }
   
-  return pplan;
+  return plan;
 }
 
 //---------------------------------------------------------
@@ -945,7 +945,6 @@ function validatePlan(actualPlan: Plan, expectedPlan: Step[]) {
   // @TODO: remove matched steps
   for(let actualStep of actualPlan) {
     for(let expectedStep of expectedPlan) {
-      console.log(`Plan length ${expectedPlan.length}`);
       if(validateStep(actualStep,expectedStep)) {
         actualStep.valid = Validated.VALID;
         invalidSteps--;
