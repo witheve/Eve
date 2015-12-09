@@ -927,8 +927,17 @@ function validateStep(actualStep, expectedStep) : boolean {
 // Test the actual plan and expected plan for equivalence.
 // Equivelence here means the expected and actual plans have the same
 // steps. Order of steps does not matter.
-// Doesn't return anything, put adds a valid member to the plan and steps
+// Doesn't return anything, adds a `valid` member to the plan and each step
+// indicating its validitity state
 function validatePlan(actualPlan: Plan, expectedPlan: Step[]) {
+  
+  // If no expected plan is provided, we cannot validate any steps
+  // which were found.
+  if(expectedPlan.length === 0) {
+    actualPlan.valid = Validated.UNVALIDATED;
+    return;
+  } 
+  
   let invalidSteps = actualPlan.length;
   // Loop through the steps of the actual plan and test it against candidate steps.
   // When a match is found, remove it from the canditate steps. Continue until all
@@ -946,7 +955,10 @@ function validatePlan(actualPlan: Plan, expectedPlan: Step[]) {
     }
   }
   // If every step is validated, the plan is valid
-  if(invalidSteps === 0) {
+  if(actualPlan.length === 0 && expectedPlan.length !== 0) {
+    actualPlan.valid = Validated.INVALID; 
+  }
+  else if(invalidSteps === 0) {
     actualPlan.valid = Validated.VALID;
   } else {
     actualPlan.valid = Validated.INVALID;
