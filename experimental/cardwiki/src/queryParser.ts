@@ -1321,6 +1321,7 @@ function validateTestQuery(test: TestQuery) {
 
   let validatedPlan = validatePlan(plan, test.expected);
   let valid = validatedPlan.valid;
+  
   expectedPlan = test.expected.map((expectedStep, ix): any => {
       let actualStep = plan[ix];
       let validStep = "";
@@ -1342,7 +1343,7 @@ function validateTestQuery(test: TestQuery) {
       }
   })
 
-  return {tokens, tree, plan, valid, expectedPlan, searchString, time: performance.now() - start, validatedPlan};
+  return { valid, tokens, tree, plan, expectedPlan, searchString, time: performance.now() - start, validatedPlan};
 }
 
 function queryTestUI(result) {
@@ -1387,18 +1388,22 @@ function queryTestUI(result) {
     // Format the expected plan for output
     var planDisplay = expectedPlan.map((info, ix) => {
       let actual = plan[ix];
+      if(actual === undefined) {
+        return {c: ``, text: ``};
+      }
+      console.log(actual);
       let message = "";
-      if(info.state !== Validated.VALID) {
+      if(actual.valid !== Validated.VALID) {
         message = ` :: expected ${info.message}`;
-        if(info.state === Validated.UNDEFINED) {
-          return {c: `step v${info.state}`, text: `none ${message}`};
+        if(actual.valid === Validated.UNDEFINED) {
+          return {c: `step v${actual.valid}`, text: `none ${message}`};
         }
       }
       let args = "";
       if(actual.argArray) {
         args = " (" + actual.argArray.map((arg) => arg.found).join(", ") + ")";
       }
-      return {c: `step v${info.state}`, text: `${StepType[actual.type]} ${actual.deselected ? "!" : ""}${actual.subject}${args}${message}`};
+      return {c: `step v${actual.valid}`, text: `${StepType[actual.type]} ${actual.deselected ? "!" : ""}${actual.subject}${args}${message}`};
     });
 
     planNode = {c: "tokens", children: [
