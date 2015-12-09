@@ -1089,7 +1089,9 @@ export class Query {
     if(this.projectionMap) {
       this.applyAliases(this.projectionMap);
       root.children.unshift({type: "declaration", var: "results", value: "[]"});
-      cursor.children.push({type: "provenance"});
+      if(INCREMENTAL) {
+        cursor.children.push({type: "provenance"});
+      }
       cursor.children.push({type: "projection", projectionMap: this.projectionMap, unprojected: this.aggregates.length});
       returns.push("results");
     }

@@ -186,6 +186,7 @@ app.init("bootstrap", function bootstrap() {
   //-----------------------------------------------------------------------------
   let phase = new BSPhase(eve);
   phase.addTable("manual entity", ["entity", "content"]);
+  phase.addTable("manual eav", ["entity", "attribute", "value"]);
   phase.addTable("action entity", ["entity", "content", "source"]);
   phase.addEntity("collection", "collection", ["system"])
     .addEntity("system", "system", ["collection"])
@@ -194,25 +195,52 @@ app.init("bootstrap", function bootstrap() {
     .addEntity("table", "table", ["system", "collection"])
     .addEntity("ui", "ui", ["system", "collection"]);
 
-  phase.addUnion("entity", ["entity", "content"], false)
-    .addUnionMember("entity", "manual entity")
-    .addUnionMember("entity", "action entity")
-    .addUnionMember("entity", "unmodified added bits")
-    .addUnionMember("entity", "automatic collection entities")
-    .addTable("builtin entity", ["entity", "content"])
-    .addQuery("unmodified builtin entities", queryFromQueryDSL(phase.ixer, unpad(4) `
-      select builtin entity as [builtin]
-      deselect manual entity {entity: [builtin, entity]}
-      deselect action entity {entity: [builtin, entity]}
-      project {entity: [builtin, entity]; content: [builtin, content]}
-    `))
-    .addUnionMember("entity", "unmodified builtin entities");
+//   phase.addUnion("entity", ["entity", "content"], false)
+//     .addUnionMember("entity", "manual entity")
+//     .addUnionMember("entity", "action entity")
+//     .addUnionMember("entity", "unmodified added bits")
+//     .addUnionMember("entity", "automatic collection entities")
+//     .addTable("builtin entity", ["entity", "content"])
+//     .addQuery("unmodified builtin entities", queryFromQueryDSL(phase.ixer, unpad(4) `
+//       select builtin entity as [builtin]
+//       deselect manual entity {entity: [builtin, entity]}
+//       deselect action entity {entity: [builtin, entity]}
+//       project {entity: [builtin, entity]; content: [builtin, content]}
+//     `))
+//     .addUnionMember("entity", "unmodified builtin entities");
+
+  phase.addQuery("entity", queryFromQueryDSL(phase.ixer, unpad(4) `
+    select content blocks as [blocks]
+    project {entity: [blocks, entity]; content: [blocks, content]}
+  `));
 
   phase.addQuery("unmodified added bits", queryFromQueryDSL(phase.ixer, unpad(4) `
     select added bits as [added]
     deselect manual entity {entity: [added, entity]}
     project {entity: [added, entity]; content: [added, content]}
   `));
+
+//   (block :is-a "block"
+//          :associated-entity entity
+//          :content content)
+//   (-> content-blocks :block block, :entity entity, :content content)
+
+  phase.addQuery("content blocks", queryFromQueryDSL(phase.ixer, unpad(4) `
+    select entity eavs {attribute: is a; value: content block} as [eav]
+    select entity eavs {entity: [eav, entity]; attribute: associated entity} as [assoc]
+    select entity eavs {entity: [eav, entity]; attribute: content} as [content]
+    project {block: [eav, entity]; entity: [assoc, value]; content: [content, value]}
+  `));
+
+//   (content-blocks :entity entity :content content)
+//   (parse-eavs :entity entity :text content :attribute attr :value value)
+//   (-> entity-eavs :entity entity :attribute attr :value value)
+
+  phase.addQuery("parsed content blocks", queryFromQueryDSL(phase.ixer, unpad(4) `
+     select content blocks as [blocks]
+     calculate parse eavs {entity: [blocks, entity]; text: [blocks, content]} as [parsed]
+     project {entity: [blocks, entity]; attribute: [parsed, attribute]; value: [parsed, value]}
+   `));
 
   phase.addQuery("parsed eavs", queryFromQueryDSL(phase.ixer, unpad(4) `
     select entity as [entity]
@@ -221,6 +249,9 @@ app.init("bootstrap", function bootstrap() {
   `));
 
   phase.addUnion("entity eavs", ["entity", "attribute", "value"])
+    .addUnionMember("entity eavs", "manual eav")
+    .addUnionMember("entity eavs", "generated eav", {entity: "entity", attribute: "attribute", value: "value"})
+    .addUnionMember("entity eavs", "parsed content blocks")
     .addUnionMember("entity eavs", "parsed eavs")
     // this is a stored union that is used by the add eav action to take query results and
     // push them into eavs, e.g. sum salaries per department -> [total salary = *]
@@ -247,20 +278,17 @@ app.init("bootstrap", function bootstrap() {
 
   phase.addUnion("entity links", ["entity", "link", "type"])
     .addUnionMember("entity links", "eav entity links")
-    .addUnionMember("entity links", "collection entities", {entity: "entity", link: "collection", type: ["is a"]});
+    .addUnionMember("entity links", "is a attributes", {entity: "entity", link: "collection", type: ["is a"]});
 
   phase.addUnion("directionless links", ["entity", "link"])
     .addUnionMember("directionless links", "entity links")
     .addUnionMember("directionless links", "entity links", {entity: "link", link: "entity"});
 
   phase.addUnion("collection entities", ["entity", "collection"])
-    .addUnionMember("collection entities", "is a attributes")
-    // this is a stored union that is used by the add to collection action to take query results and
-    // push them into collections, e.g. people older than 21 -> [[can drink]]
-    .addUnionMember("collection entities", "added collections");
+    .addUnionMember("collection entities", "is a attributes");
 
   phase.addQuery("collection", queryFromQueryDSL(phase.ixer, unpad(4) `
-    select collection entities as [coll]
+    select is a attributes as [coll]
     group {[coll, collection]}
     aggregate count as [count]
     project {collection: [coll, collection]; count: [count, count]}
@@ -287,13 +315,13 @@ app.init("bootstrap", function bootstrap() {
     select search query {id: [search, id]} as [query]
     project {id: [search, id]; search: [query, search]; top: [search, top]; left: [search, left]}
   `));
-  phase.generateBitAction("searches to entities shim", "searches to entities shim", unpad(4) `
-    # {id}
-    ({is a: search}, {is a: system})
-    search: {search: {search}}
-    left: {left: {left}}
-    top: {top: {top}}
-  `);
+//   phase.generateBitAction("searches to entities shim", "searches to entities shim", unpad(4) `
+//     # {id}
+//     ({is a: search}, {is a: system})
+//     search: {search: {search}}
+//     left: {left: {left}}
+//     top: {top: {top}}
+//   `);
 
   phase.apply(true);
 

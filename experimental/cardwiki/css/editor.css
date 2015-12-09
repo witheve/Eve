@@ -23,7 +23,9 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 
 .search-container { width:600px; }
 
-.entity-container > .entity { -webkit-user-select:auto;  padding:20px; overflow:auto; max-width: 600px; min-height: 300px; min-width: 300px; line-height: 25px; }
+.entity-blocks > .entity { -webkit-user-select:auto;  padding:20px; overflow:auto; max-width: 600px; min-width: 300px; line-height: 25px; }
+.entity-blocks > .entity:first-child() { min-height:300px; }
+.entity-blocks > .entity + .entity { border-top:1px solid #222; }
 .entity pre { flex:none; display:block; white-space: pre-wrap; min-height:25px; }
 .entity h1 { font-size:16pt; }
 .entity span { display:inline; }
@@ -142,7 +144,8 @@ body.dark { background: #222; }
 body.light { background: rgb(71,72,75); font-family: Helvetica Neue; font-weight:300; }
 .light .root { background: rgb(71,72,75); color: #444; }
 .light .search-container { box-shadow:0 2px 10px #333; background: #888; }
-.light .entity-container > .entity { background: #eee; color: #555; }
+.light .entity-blocks > .entity { background: #eee; color: #555; }
+.light .entity-blocks > .entity + .entity { border-color: #999; }
 
 .light .link { color: #B74F4F; }
 .light .link.found, .light .entity { color: rgb(53, 105, 183); }
@@ -153,10 +156,9 @@ body.light { background: rgb(71,72,75); font-family: Helvetica Neue; font-weight
 .light .link:hover { border-bottom-color:#B74F4F; }
 .light .link.found:hover { border-bottom-color:rgb(53, 105, 183); }
 
-.light .bit { background: #fff; }
+.light .bit { background: #eee; }
 .light .bit.collection { background: rgb(115, 173, 149); color: #fff; }
 .light .bit.collection .collection { color: #fff; }
-
 .light .bit.entity { background: #6E89B1; color: #FFF; }
 .light .header.entity { color: #fff; }
 .light .bit.value { background: #779BA9; color: #fff; }
@@ -177,7 +179,7 @@ body.light { background: rgb(71,72,75); font-family: Helvetica Neue; font-weight
 .light .search-results .sub-group .bit + .bit { border-color: #666; }
 .light .search-results .path + .path { border-color: #666; }
 
-.light .related-bits .bit { border-color:#555; }
+.light .related-bits .bit { border-color:#999; color: rgb(53, 105, 183); }
 
 
 .light .CodeMirror.cm-s-default { font-family: Helvetica Neue; background:none; color: #555; }

@@ -31,12 +31,13 @@ export function coerceInput(input) {
   return input;
 }
 
-var breaks = /[{}\|:\n#]/;
+var breaks = /[{}\|:\n#"]/;
 var types = {
   "#": "header",
   "{": "link open",
   "}": "link close",
   ":": "assignment",
+  "\"": "text",
 }
 function tokenize(entity) {
   let line = 0;
@@ -48,6 +49,18 @@ function tokenize(entity) {
     let ch = entity[ix];
     if(ch.match(breaks)) {
       let type = types[ch];
+      if(type === "text") {
+        ch = entity[++ix];
+        while(ch && ch !== "\"") {
+          if(ch === "\n") line++;
+          cur.text += ch;
+          ch = entity[++ix];
+        }
+        tokens.push(cur);
+        ix++;
+        cur = {ix: ix+1, line, type: "text", text: ""};
+        continue;
+      }
       if(ch === "\n") line++;
       if(cur.text !== "" || cur.line !== line) {
         tokens.push(cur);
@@ -74,6 +87,7 @@ function tokenize(entity) {
   tokens.push(cur);
   return tokens;
 }
+console.log(tokenize("{foo: \"bar baz{}\"}"));
 
 function parse(tokens) {
   let links = [];
@@ -151,14 +165,18 @@ function parseEntity(entityId, content) {
   }
   return cached[1];
 }
-function entityToHTML(lines, searchId) {
+function entityToHTML(lines, searchId, full) {
   let children = [];
+  let started = false;
   for (let line of lines) {
     let lineChildren = [];
     let items = line.items;
+    if(!full && line.header) continue;
     for (var item of items) {
       if(item.type === "text") {
-        lineChildren.push({t: "span", text: item.text});
+        if(item.text !== "") {
+            lineChildren.push({t: "span", text: item.text});
+        }
         continue;
       }
       if(typeof item.value === "number") {
@@ -182,7 +200,12 @@ function entityToHTML(lines, searchId) {
     if(line.header) {
       lineChildren = [{t: "h1", children: lineChildren}];
     }
-    children.push({t: "pre", c: `${line.header ? 'header' : ''}`, children: lineChildren});
+    if(lineChildren.length) {
+      started = true;
+    }
+    if(started) {
+      children.push({t: "pre", c: `${line.header ? 'header' : ''}`, children: lineChildren});
+    }
   }
   return children;
 }
@@ -1144,8 +1167,17 @@ app.handle("stopEditingEntity", (result, info) => {
   result.remove("editing");
   let {entity, value} = info;
   entity = entity.toLowerCase();
-  result.add("manual entity", {entity, content: value});
-  result.remove("manual entity", {entity});
+//   result.add("manual entity", {entity, content: value});
+//   result.remove("manual entity", {entity});
+  var blockId = entity + "|manual content block";
+  if(!eve.findOne("manual eav", {entity: blockId})) {
+    result.add("manual eav", {entity: blockId, attribute: "is a", value: "content block"});
+    result.add("manual eav", {entity: blockId, attribute: "source", value: "manual"});
+    result.add("manual eav", {entity: blockId, attribute: "associated entity", value: entity});
+  } else {
+    result.remove("manual eav", {entity: blockId, attribute: "content"});
+  }
+  result.add("manual eav", {entity: blockId, attribute: "content", value});
 });
 
 app.handle("setSearch", (result, info) => {
@@ -1270,34 +1302,42 @@ function addNewSearch(e, elem) {
 }
 
 function entityUi(entityId, instance:string|number = "", searchId) {
-  let entity = eve.findOne("entity", {entity: entityId}) || {content: ""};
-  let entityView;
-  if(!eve.findOne("editing", {search: searchId})) {
-    entityView = {id: `${entityId}${instance}`, c: "entity", searchId, entity: entityId, children: entityToHTML(parseEntity(entityId, entity.content).lines, searchId), dblclick: editEntity, enter: {display: "flex", opacity: 1, duration: 300}};
-  } else {
-    entityView = {id: `${entityId}${instance}|editor`, c: "entity editor", entity: entityId, searchId, postRender: CodeMirrorElement, value: entity.content, blur: commitEntity};
+  let entityBlocks = eve.find("content blocks", {entity: entityId});
+  let entityViews = [];
+  for(let block of entityBlocks) {
+    let isManual = eve.findOne("entity eavs", {entity: block.block, attribute: "source", value: "manual"});
+    let entityView;
+    if(isManual) {
+      if(!eve.findOne("editing", {search: searchId})) {
+        entityView = {id: `${block.block}${instance}`, c: "entity", searchId, entity: entityId, children: entityToHTML(parseEntity(entityId, block.content).lines, searchId, isManual), dblclick: editEntity, enter: {display: "flex", opacity: 1, duration: 300}};
+      } else {
+        entityView = {id: `${block.block}${instance}|editor`, c: "entity editor", entity: entityId, searchId, postRender: CodeMirrorElement, value: block.content, blur: commitEntity};
+      }
+      entityViews.unshift(entityView);
+    } else {
+      let source = eve.findOne("entity eavs", {entity: block.block, attribute: "source"}).value;
+      entityView = {id: `${block.block}${instance}`, c: "entity", searchId, entity: entityId, children: entityToHTML(parseEntity(entityId, block.content).lines, searchId, isManual), click: followLink, linkText: source, enter: {display: "flex", opacity: 1, duration: 300}};
+      entityViews.push(entityView);
+    }
+  }
+  if(entityViews.length === 0) {
+    if(!eve.findOne("editing", {search: searchId})) {
+      entityViews.push({id: `${entityId}${instance}`, c: "entity", searchId, entity: entityId, children: entityToHTML(parseEntity(entityId, "").lines, searchId, true), dblclick: editEntity, enter: {display: "flex", opacity: 1, duration: 300}});
+    } else {
+      entityViews.push({id: `${entityId}${instance}|editor`, c: "entity editor", entity: entityId, searchId, postRender: CodeMirrorElement, value: "", blur: commitEntity});
+    }
   }
   let relatedBits = [];
-  for(let added of eve.find("added eavs", {entity: entityId})) {
-    relatedBits.push({c: "bit attribute", click: followLink, searchId, linkText: added["source view"], children: [
-      {c: "header attribute", text: added.attribute},
-      {c: "value", text: added.value},
-    ]})
-  }
-  for(let added of eve.find("added collections", {entity: entityId})) {
-    relatedBits.push({c: "bit collection", click: followLink, searchId, linkText: added["source view"], children: [
-      {c: "header collection", text: added.collection},
-    ]})
-  }
   for(let incoming of eve.find("entity links", {link: entityId})) {
     if(incoming.entity === entityId) continue;
-    relatedBits.push({c: "bit entity", click: followLink, searchId, linkText: incoming.entity, children: [
-      {c: "header entity", text: incoming.entity},
+    if(eve.findOne("entity eavs", {entity: incoming.entity, attribute: "is a", value: "content block"})) continue;
+    relatedBits.push({c: "bit", click: followLink, searchId, linkText: incoming.entity, children: [
+      {c: "header", text: incoming.entity},
     ]})
   }
 
   return {c: "entity-container", children: [
-    entityView,
+    {c: "entity-blocks", children: entityViews},
     {c: "related-bits", children: relatedBits},
   ]};
 }
@@ -1449,30 +1489,10 @@ export function newSearchResults(searchId) {
     resultItems.push({c: "singleton", children: [entityUi(search.toLowerCase(), searchId, searchId)]});
   }
   let actions = [];
-  for(let eavAction of eve.find("add eav action", {view: search})) {
-    actions.push({c: "action", children: [
-      {c: "collection", text: `${pluralize(eavAction.entity, 3)}`},
-      {text: " have "},
-      {c: "header attribute", text: eavAction.attribute},
-      {text: " = "},
-      {c: "value", text: eavAction.field},
-      {c: "spacer"},
-      {c: "ion-android-close", click: removeAction, actionType: "eav", actionId: eavAction.action}
-    ]})
-  }
-  for(let collectionAction of eve.find("add collection action", {view: search})) {
-    actions.push({c: "action", children: [
-      {c: "collection", text: `${pluralize(collectionAction.field,3)}`},
-      {text: " are "},
-      {c: "header collection", text: pluralize(collectionAction.collection, 2)},
-      {c: "spacer"},
-      {c: "ion-android-close", click: removeAction, actionType: "collection", actionId: collectionAction.action}
-    ]})
-  }
   for(let bitAction of eve.find("add bit action", {view: search})) {
     let {template, action} = bitAction;
     actions.push({c: "action new-bit", children: [
-      {c: "bit entity", children: entityToHTML(parseEntity(action, template).lines, null)},
+      {c: "bit entity", children: entityToHTML(parseEntity(action, template).lines, null, true)},
       {c: "ion-android-close", click: removeAction, actionType: "bit", actionId: bitAction.action}
     ]})
   }
@@ -1480,40 +1500,16 @@ export function newSearchResults(searchId) {
   let addActionChildren = [];
   let adding = eve.findOne("adding action", {search: searchId});
   if(adding) {
-    if(adding.type === "attribute") {
-    addActionChildren.push({c: "add-attribute", children: [
-      {t: "input", c: "entity", placeholder: "entity"},
-      {text: " have "},
-      {t: "input", c: "attribute", placeholder: "attribute"},
-      {text: " = "},
-      {t: "input", c: "value", placeholder: "value"},
-      {c: "spacer"},
-      {c: "button", text: "submit", click: submitAction, searchId},
-      {c: "button", text: "cancel", click: stopAddingAction},
-    ]});
-    } else if(adding.type === "collection") {
-    addActionChildren.push({c: "add-collection", children: [
-      {text: "These "},
-      {t: "input", c: "entity", placeholder: "entity"},
-      {text: " are "},
-      {t: "input", c: "collection", placeholder: "collection"},
-      {c: "spacer"},
-      {c: "button", text: "submit", click: submitAction, searchId},
-      {c: "button", text: "cancel", click: stopAddingAction},
-    ]});
-    } else if(adding.type === "bit") {
-    addActionChildren.push({c: "add-collection", children: [
-      {c: "new-bit-editor", searchId, value: "hi!", postRender: NewBitEditor},
-      {c: "spacer"},
-//         {c: "button", text: "submit", click: submitAction},
-      {c: "button", text: "cancel", click: stopAddingAction},
-    ]});
-
+    if(adding.type === "bit") {
+      addActionChildren.push({c: "add-collection", children: [
+        {c: "new-bit-editor", searchId, value: "hi!", postRender: NewBitEditor},
+        {c: "spacer"},
+        //         {c: "button", text: "submit", click: submitAction},
+        {c: "button", text: "cancel", click: stopAddingAction},
+      ]});
     }
   } else {
-    addActionChildren.push({c: "", text: "+ entity", actionType: "bit", searchId, click: startAddingAction});
-    addActionChildren.push({c: "", text: "+ attribute", actionType: "attribute", searchId, click: startAddingAction});
-    addActionChildren.push({c: "", text: "+ collection", actionType: "collection", searchId, click: startAddingAction});
+    addActionChildren.push({c: "", text: "add card", actionType: "bit", searchId, click: startAddingAction});
   }
 
   let headers = []
@@ -1686,16 +1682,17 @@ export function addBitAction(name, template, query) {
   let bitQuery = eve.query(bitQueryId)
                   .select("add bit action", {view: name}, "action")
                   .select(name, {}, "table")
-                  .calculate("bit template", {row: ["table"], name, template: ["action", "template"]}, "result")
-                  .project({entity: ["result", "entity"], content: ["result", "content"]});
+                  .calculate("bit template", {row: ["table"], name, template: ["action", "template"], action: ["action", "action"]}, "result")
+                  .project({entity: ["result", "entity"], attribute: ["result", "attribute"], value: ["result", "value"]});
   diff.merge(queryObjectToDiff(bitQuery));
   diff.merge(removeView(bitQueryId));
-  diff.add("action", {view: "added bits", action, kind: "union", ix: 1});
+  diff.add("action", {view: "generated eav", action, kind: "union", ix: 1});
   // a source
   diff.add("action source", {action, "source view": bitQueryId});
   // a mapping
   diff.add("action mapping", {action, from: "entity", "to source": action, "to field": "entity"});
-  diff.add("action mapping", {action, from: "content", "to source": action, "to field": "content"});
+  diff.add("action mapping", {action, from: "attribute", "to source": action, "to field": "attribute"});
+  diff.add("action mapping", {action, from: "value", "to source": action, "to field": "value"});
   diff.add("action mapping constant", {action, from: "source view", value: name});
   return diff;
 }
@@ -1773,9 +1770,7 @@ function queryObjectToDiff(query:runtime.Query) {
 // add the added collections union so that sources can be added to it by
 // actions.
 var diff = eve.diff();
-diff.add("view", {view: "added collections", kind: "union"});
-diff.add("view", {view: "added eavs", kind: "union"});
-diff.add("view", {view: "added bits", kind: "union"});
+diff.add("view", {view: "generated eav", kind: "union"});
 eve.applyDiff(diff);
 
 
@@ -1853,7 +1848,7 @@ runtime.define("parse eavs", {multi: true}, function(entity, text) {
   return parseEntity(entity, text).eavs;
 });
 
-runtime.define("bit template", {multi: true}, function(row, name, template) {
+runtime.define("bit template", {multi: true}, function(row, name, template, action) {
   let content = template;
   for(let key in row) {
     let item = row[key];
@@ -1864,10 +1859,13 @@ runtime.define("bit template", {multi: true}, function(row, name, template) {
   if(header) {
     entity = header[0].replace("#", "").toLowerCase().trim();
   } else {
-    let rowId = eve.table(name).stringify(row);
-    entity = `${name}|${rowId}`;
+    entity = `${name}|${row.__id}`;
   }
-  return [{entity, content}];
+  let blockId = `${action}|${row.__id}`;
+  return [{entity: blockId, attribute: "is a", value: "content block"},
+          {entity: blockId, attribute: "associated entity", value: entity},
+          {entity: blockId, attribute: "content", value: content},
+          {entity: blockId, attribute: "source", value: name}];
 });
 
 runtime.define("collection content", {}, function(collection) {
