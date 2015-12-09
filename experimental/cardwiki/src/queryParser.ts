@@ -1324,49 +1324,21 @@ enum Validated {
   UNVALIDATED,
 }
 
-function validateTestQuery(test: TestQuery) {
-  let searchString = test.query;
-
+function validateTestQuery(test: TestQuery) : any {
   let start = performance.now();
-  let tokens = getTokens(searchString);
+  let tokens = getTokens(test.query);
   let tree = tokensToTree(tokens);
   let plan = treeToPlan(tree);
-  
-  //let valid : Validated = Validated.UNVALIDATED;
   let expectedPlan:any;
 
   validatePlan(plan, test.expected);
-  let valid = plan.valid;
   
-  console.log("PKLAN");
-  console.log(plan);
- 
-  expectedPlan = test.expected.map((expectedStep, ix): any => {
-      let actualStep = plan[ix];
-      let validStep = "";
-      let deselected = expectedStep.deselected ? "!" : "";
-
-      // If we have arguments, format them as (arg1, arg2, ..., argN) for display
-      var args = "";
-      if (expectedStep.args !== undefined) {
-        args = " (" + expectedStep.args.map((arg) => arg.subject).join(", ") + ")";
-      }
-
-      if(actualStep === undefined) {
-        return {state: Validated.UNVALIDATED, message: `${StepType[expectedStep.type]} ${deselected}${expectedStep.subject}${args}`};
-      }
-      /*else if(validateStep(actualStep, expectedStep)) {
-        return {state: Validated.VALID, message: "valid"};
-      }*/ else {
-        return {state: Validated.INVALID, message: `${StepType[expectedStep.type]} ${deselected}${expectedStep.subject}${args}`};
-      }
-  })
-
-  return { valid: plan.valid, tokens, tree, plan, expectedPlan, searchString, time: performance.now() - start };
+  return { valid: plan.valid, tokens, tree, plan, searchString: test.query, time: performance.now() - start };
 }
 
 function queryTestUI(result) {
-  let {tokens, tree, plan, valid, expectedPlan, searchString} = result;
+  let {tokens, tree, plan, valid, searchString} = result;
+  
   //tokens
   let tokensNode = {c: "tokens", children: [
     {c: "header", text: "Tokens"},
@@ -1399,56 +1371,29 @@ function queryTestUI(result) {
     ]}
   ]};
 
-  //plan
-  let planNode;
+  // Format the plan for display
+  let planDisplay = plan.map((step) => {
+    let args = "";
+    if(step.argArray) {
+      args = " (" + step.argArray.map((arg) => arg.found).join(", ") + ")";
+    }
+    let deselected = step.deselected ? "!" : "";
+    return {c: `step v${step.valid}`, text: `${StepType[step.type]} ${deselected}${step.subject}${args}`};
+  });
+  
+  let planNode = {c: "tokens", children: [
+    {c: "header", text: "Plan"},
+    {c: "kids", children: planDisplay}
+  ]};
 
-  if(valid !== Validated.UNVALIDATED) {
-
-    // Format the expected plan for output
-    var planDisplay = expectedPlan.map((info, ix) => {
-      let actual = plan[ix];
-      if(actual === undefined) {
-        return {c: ``, text: ``};
-      }
-      let message = "";
-      if(actual.valid !== Validated.VALID) {
-        message = ` :: expected ${info.message}`;
-        if(actual.valid === Validated.UNVALIDATED) {
-          return {c: `step v${actual.valid}`, text: `none ${message}`};
-        }
-      }
-      let args = "";
-      if(actual.argArray) {
-        args = " (" + actual.argArray.map((arg) => arg.found).join(", ") + ")";
-      }
-      return {c: `step v${actual.valid}`, text: `${StepType[actual.type]} ${actual.deselected ? "!" : ""}${actual.subject}${args}${message}`};
-    });
-
-    planNode = {c: "tokens", children: [
-      {c: "header", text: "Plan"},
-      {c: "kids", children: planDisplay}
-    ]};
-  } else {
-    planNode = {c: "tokens", children: [
-      {c: "header", text: "Plan"},
-      {c: "kids", children: plan.map((step) => {
-        let deselected = step.deselected ? "!" : "";
-        let args = "";
-        if(step.argArray) {
-          args = " (" + step.argArray.map((arg) => arg.found).join(", ") + ")";
-        }
-        return {c: "step", text: `${StepType[step.type]} ${deselected}${step.subject}${args}`}
-      })}
-    ]};
-  }
-
+  /*
   // If the parser produced more steps than we expected, display those as well
   if(plan.length > expectedPlan.length) {
     var extraPlans = plan.slice(expectedPlan.length);
     for(var extraPlan of extraPlans) {
       planDisplay.push({c: `step v0`, text: `${StepType[extraPlan.type]} ${extraPlan.deselected ? "!" : ""}${extraPlan.subject}:: expected none`});
     }
-  }
+  }*/
 
   // The final display for rendering
   return {c: `search v${valid}`, click: toggleQueryResult, children: [
