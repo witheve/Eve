@@ -24,5 +24,6 @@ body { color: #ccc; }
 
 .step { padding-left: 5px; }
 .step + .step { margin-top:5px; }
-.step.v0, .step.v2 { border-left:5px solid #FF3666; }
+.step.v0 { border-left:5px solid #FF3666; } 
+.step.v2 { border-left:5px solid #777; }
 .step.v1 { border-left:5px solid #9fa; }

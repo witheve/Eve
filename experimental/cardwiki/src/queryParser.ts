@@ -5,6 +5,7 @@ import * as app from "./app";
 
 declare var pluralize;
 declare var uuid;
+declare var nlp;
 
 window["eve"] = eve;
 
@@ -935,6 +936,9 @@ function validatePlan(actualPlan: Plan, expectedPlan: Step[]) {
   // which were found.
   if(expectedPlan.length === 0) {
     actualPlan.valid = Validated.UNVALIDATED;
+    for(let actualStep of actualPlan) {
+      actualStep.valid = Validated.UNVALIDATED;
+    }
     return;
   } 
   
@@ -1054,7 +1058,9 @@ var tests: TestQuery[] = [
   },
   {
     query: "people older than chris granger and younger than edward norton",
-    expected: [],
+    expected: [
+      
+    ],
   },
   {
     query: "people between 50 and 65 years old",
@@ -1445,7 +1451,9 @@ function queryTestUI(result) {
     for(var extraPlan of extraPlans) {
       planDisplay.push({c: `step v0`, text: `${StepType[extraPlan.type]} ${extraPlan.deselected ? "!" : ""}${extraPlan.subject}:: expected none`});
     }
-  }*/
+  }
+  // Also display unmatched expected steps
+  */
 
   // The final display for rendering
   return {c: `search v${valid}`, click: toggleQueryResult, children: [
@@ -1469,6 +1477,7 @@ function toggleQueryResult(evt, elem) {
 }
 
 export function root() {
+  console.log(nlp.noun("dinosaur").pluralize());
   let results = [];
   let resultStats = {unvalidated: 0, succeeded: 0, failed: 0};
   for(let test of tests) {
