@@ -946,6 +946,8 @@ function validatePlan(actualPlan: Plan, expectedPlan: Step[]) {
   // Loop through the steps of the actual plan and test it against candidate steps.
   // When a match is found, remove it from the canditate steps. Continue until all
   // actual steps are validated.
+  // @HACK: this is not entirely correct. We still need to check that the step is
+  // attached to the correct root
   // @TODO: remove matched steps
   for(let actualStep of actualPlan) {
     for(let expectedStep of expectedPlan) {
@@ -1386,15 +1388,14 @@ function validateTestQuery(test: TestQuery) : any {
   let tokens = getTokens(test.query);
   let tree = tokensToTree(tokens);
   let plan = treeToPlan(tree);
-  let expectedPlan:any;
-
+  
   validatePlan(plan, test.expected);
   
-  return { valid: plan.valid, tokens, tree, plan, searchString: test.query, time: performance.now() - start };
+  return { valid: plan.valid, tokens, tree, plan, expectedPlan: test.expected, searchString: test.query, time: performance.now() - start };
 }
 
 function queryTestUI(result) {
-  let {tokens, tree, plan, valid, searchString} = result;
+  let {tokens, tree, plan, expectedPlan, valid, searchString} = result;
   
   //tokens
   let tokensNode = {c: "tokens", children: [
@@ -1442,17 +1443,15 @@ function queryTestUI(result) {
     {c: "header", text: "Plan"},
     {c: "kids", children: planDisplay}
   ]};
-
-  /*
-  // If the parser produced more steps than we expected, display those as well
-  if(plan.length > expectedPlan.length) {
-    var extraPlans = plan.slice(expectedPlan.length);
-    for(var extraPlan of extraPlans) {
-      planDisplay.push({c: `step v0`, text: `${StepType[extraPlan.type]} ${extraPlan.deselected ? "!" : ""}${extraPlan.subject}:: expected none`});
-    }
+  
+  // @TODO Display extra steps
+  let extraStepsNode = {};
+  if(plan.length != expectedPlan.length) {
+    extraStepsNode = {c: "tokens", children: [
+      {c: "header", text: "Unused Steps"},
+      {c: "kids", children: []}
+    ]};  
   }
-  // Also display unmatched expected steps
-  */
 
   // The final display for rendering
   return {c: `search v${valid}`, click: toggleQueryResult, children: [
@@ -1461,6 +1460,7 @@ function queryTestUI(result) {
     tokensNode,
     treeNode,
     planNode,
+    extraStepsNode,
     {c: "tokens", children: [
       {c: "header", text: "Performance"},
       {c: "kids", children: [
