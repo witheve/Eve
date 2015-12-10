@@ -21,7 +21,7 @@ function queryFromSearch(search:string):runtime.Query {
 export function queryFromPlanDSL(str:string):runtime.Query {
   return planToQuery(parsePlan(str));
 }
-export function queryFromQueryDSL(ixer:runtime.Indexer, str:string):runtime.Query {
+export function queryFromQueryDSL(str:string):runtime.Query {
   let plan = parseQuery(str);
   let query = new runtime.Query(ixer);
   let ix = 0;
@@ -43,7 +43,7 @@ export function queryFromQueryDSL(ixer:runtime.Indexer, str:string):runtime.Quer
 export function UIFromDSL(str:string):UI {
   function processElem(data:UIElem):UI {
     let elem = new UI(data.id || uuid());
-    if(data.binding) elem.bind(queryFromPlanDSL(data.binding));
+    if(data.binding) elem.bind(data.bindingKind === "query" ? queryFromQueryDSL(data.binding) : queryFromPlanDSL(data.binding));
     if(data.embedded) elem.embed(data.embedded);
     if(data.attributes) elem.attributes(data.attributes);
     if(data.events) elem.events(data.events);
@@ -94,15 +94,24 @@ class BSPhase {
 
   addEntity(entity:string, name:string, kinds:string[], attributes?:{}, extraContent?:string) {
     this._entities.push(entity);
+    let isAs = kinds.map((kind) => `{is a: ${kind}}`);
+    let collectionsText = "";
+    if(isAs.length)
+      collectionsText = `${titlecase(name)} is a ${isAs.slice(0, -1).join(", ")} ${isAs.length > 1 ? "and" : ""} ${isAs[isAs.length - 1]}.`;
     let content = unpad(6) `
-      # ${titlecase(name)} (${kinds.map((kind) => `{is a: ${kind}}`).join(", ")})
+      # ${name}
+      ${collectionsText}
     `;
     if(attributes) {
-      content += "## Attributes\n";
+      content += "Attributes\n";
       for(let attr in attributes) content += `${attr}: {${attr}: ${attributes[attr]}}\n      `;
     }
     if(extraContent) content += "\n" + extraContent;
-    this.addFact("builtin entity", {entity, content});
+    let block = `${entity}|manual content block`;
+    this.addFact("manual eav", {entity: block, attribute: "is a", value: "content block"}); // @FIXME: builtin entity eavs
+    this.addFact("manual eav", {entity: block, attribute: "source", value: "manual"}); // @FIXME: builtin entity eavs
+    this.addFact("manual eav", {entity: block, attribute: "associated entity", value: entity}); // @FIXME: builtin entity eavs
+    this.addFact("manual eav", {entity: block, attribute: "content", value: content}); // @FIXME: builtin entity eavs
     return this;
   }
 
@@ -130,6 +139,7 @@ class BSPhase {
       this.addTable(table, fields);
       this.addUnionMember(view, table);
     }
+
     return this;
   }
 
@@ -180,6 +190,17 @@ class BSPhase {
   }
 }
 
+//-----------------------------------------------------------------------------
+// Runtime Setup
+//-----------------------------------------------------------------------------
+runtime.define("parse natural", {multi: true}, function(text:string) {
+  return naturalSearch(text).plan;
+});
+
+runtime.define("parse plan", {multi: true}, function(text:string) {
+  return parsePlan(text);
+});
+
 app.init("bootstrap", function bootstrap() {
   //-----------------------------------------------------------------------------
   // Entity System
@@ -195,26 +216,12 @@ app.init("bootstrap", function bootstrap() {
     .addEntity("table", "table", ["system", "collection"])
     .addEntity("ui", "ui", ["system", "collection"]);
 
-//   phase.addUnion("entity", ["entity", "content"], false)
-//     .addUnionMember("entity", "manual entity")
-//     .addUnionMember("entity", "action entity")
-//     .addUnionMember("entity", "unmodified added bits")
-//     .addUnionMember("entity", "automatic collection entities")
-//     .addTable("builtin entity", ["entity", "content"])
-//     .addQuery("unmodified builtin entities", queryFromQueryDSL(phase.ixer, unpad(4) `
-//       select builtin entity as [builtin]
-//       deselect manual entity {entity: [builtin, entity]}
-//       deselect action entity {entity: [builtin, entity]}
-//       project {entity: [builtin, entity]; content: [builtin, content]}
-//     `))
-//     .addUnionMember("entity", "unmodified builtin entities");
-
-  phase.addQuery("entity", queryFromQueryDSL(phase.ixer, unpad(4) `
+  phase.addQuery("entity", queryFromQueryDSL(unpad(4) `
     select content blocks as [blocks]
     project {entity: [blocks, entity]; content: [blocks, content]}
   `));
 
-  phase.addQuery("unmodified added bits", queryFromQueryDSL(phase.ixer, unpad(4) `
+  phase.addQuery("unmodified added bits", queryFromQueryDSL(unpad(4) `
     select added bits as [added]
     deselect manual entity {entity: [added, entity]}
     project {entity: [added, entity]; content: [added, content]}
@@ -225,7 +232,7 @@ app.init("bootstrap", function bootstrap() {
 //          :content content)
 //   (-> content-blocks :block block, :entity entity, :content content)
 
-  phase.addQuery("content blocks", queryFromQueryDSL(phase.ixer, unpad(4) `
+  phase.addQuery("content blocks", queryFromQueryDSL(unpad(4) `
     select entity eavs {attribute: is a; value: content block} as [eav]
     select entity eavs {entity: [eav, entity]; attribute: associated entity} as [assoc]
     select entity eavs {entity: [eav, entity]; attribute: content} as [content]
@@ -236,19 +243,19 @@ app.init("bootstrap", function bootstrap() {
 //   (parse-eavs :entity entity :text content :attribute attr :value value)
 //   (-> entity-eavs :entity entity :attribute attr :value value)
 
-  phase.addQuery("parsed content blocks", queryFromQueryDSL(phase.ixer, unpad(4) `
+  phase.addQuery("parsed content blocks", queryFromQueryDSL(unpad(4) `
      select content blocks as [blocks]
      calculate parse eavs {entity: [blocks, entity]; text: [blocks, content]} as [parsed]
      project {entity: [blocks, entity]; attribute: [parsed, attribute]; value: [parsed, value]}
    `));
 
-  phase.addQuery("parsed eavs", queryFromQueryDSL(phase.ixer, unpad(4) `
+  phase.addQuery("parsed eavs", queryFromQueryDSL(unpad(4) `
     select entity as [entity]
     calculate parse eavs {entity: [entity, entity]; text: [entity, content]} as [parsed]
     project {entity: [entity, entity]; attribute: [parsed, attribute]; value: [parsed, value]}
   `));
 
-  phase.addUnion("entity eavs", ["entity", "attribute", "value"])
+  phase.addUnion("entity eavs", ["entity", "attribute", "value"], true)
     .addUnionMember("entity eavs", "manual eav")
     .addUnionMember("entity eavs", "generated eav", {entity: "entity", attribute: "attribute", value: "value"})
     .addUnionMember("entity eavs", "parsed content blocks")
@@ -257,20 +264,20 @@ app.init("bootstrap", function bootstrap() {
     // push them into eavs, e.g. sum salaries per department -> [total salary = *]
     .addUnionMember("entity eavs", "added eavs");
 
-  phase.addQuery("is a attributes", queryFromQueryDSL(phase.ixer, unpad(4) `
+  phase.addQuery("is a attributes", queryFromQueryDSL(unpad(4) `
     select entity eavs {attribute: is a} as [is a]
     project {collection: [is a, value]; entity: [is a, entity]}
   `));
 
   // @HACK: this view is required because you can't currently join a select on the result of a function.
   // so we create a version of the eavs table that already has everything lowercased.
-  phase.addQuery("lowercase eavs", queryFromQueryDSL(phase.ixer, unpad(4) `
+  phase.addQuery("lowercase eavs", queryFromQueryDSL(unpad(4) `
     select entity eavs as [eav]
     calculate lowercase {text: [eav, value]} as [lower]
     project {entity: [eav, entity];  attribute: [eav, attribute]; value: [lower, result]}
   `));
 
-  phase.addQuery("eav entity links", queryFromQueryDSL(phase.ixer, unpad(4) `
+  phase.addQuery("eav entity links", queryFromQueryDSL(unpad(4) `
     select lowercase eavs as [eav]
     select entity {entity: [eav, value]} as [entity]
     project {entity: [eav, entity]; link: [entity, entity]; type: [eav, attribute]}
@@ -287,20 +294,13 @@ app.init("bootstrap", function bootstrap() {
   phase.addUnion("collection entities", ["entity", "collection"])
     .addUnionMember("collection entities", "is a attributes");
 
-  phase.addQuery("collection", queryFromQueryDSL(phase.ixer, unpad(4) `
+
+  phase.addQuery("collection", queryFromQueryDSL(unpad(4) `
     select is a attributes as [coll]
     group {[coll, collection]}
     aggregate count as [count]
     project {collection: [coll, collection]; count: [count, count]}
   `));
-
-//   phase.addQuery("automatic collection entities", queryFromQueryDSL(phase.ixer, unpad(4) `
-//     select collection as [coll]
-//     deselect manual entity {entity: [coll, collection]}
-//     deselect builtin entity {entity: [coll, collection]}
-//     calculate collection content {collection: [coll, collection]} as [content]
-//     project {entity: [coll, collection]; content: [content,content]}
-//   `));
 
   phase.apply(true);
 
@@ -310,10 +310,10 @@ app.init("bootstrap", function bootstrap() {
   phase = new BSPhase(eve);
   phase.addUnion("search", ["id", "top", "left"]);
   phase.addUnion("search query", ["id", "search"]);
-  phase.addQuery("searches to entities shim", queryFromQueryDSL(eve, unpad(4) `
+  phase.addQuery("searches to entities shim", queryFromQueryDSL(unpad(4) `
     select search as [search]
     select search query {id: [search, id]} as [query]
-    project {id: [search, id]; search: [query, search]; top: [search, top]; left: [search, left]}
+    project {id: [search, id]; text: [query, search]; top: [search, top]; left: [search, left]}
   `));
 //   phase.generateBitAction("searches to entities shim", "searches to entities shim", unpad(4) `
 //     # {id}
@@ -346,51 +346,6 @@ app.init("bootstrap", function bootstrap() {
   phase.addTable("ui event state binding", resolve("ui event state binding", ["template", "event", "key", "source", "alias"]));
 
   phase.addTable("system ui", ["template"]);
-  phase.addFact("system ui", {template: "wiki root"});
-
-  let wikiRoot = UIFromDSL(unpad(4) `
-    div wiki-root {color: red}
-      header
-        > perf stats
-      content
-        search container search-container {top: [search, top]; left: [search, left]}
-          ~ gather search as [search]
-          ~   lookup top
-          ~   lookup left
-          ~   lookup search
-          header search-header
-            div search-input { text: [search, search 2]}
-          content
-          footer search-actions
-            row
-              button {text: + entity}
-                @ click {kind: add entity action; id: [search, id]}
-              button {text: + attribute}
-                @ click {kind: add attribute action; id: [search, id]}
-              button {text: + collection}
-                @ click {kind: add collection action; id: [search, id]}
-  `);
-  phase.addUI("wiki root", wikiRoot);
-  window["uu"] = wikiRoot;
-
-  phase.addUI("perf stats", UIFromDSL(unpad(4) `
-    row perf-stats
-      ~ find render performance statistics as [perf stats]
-      ~   # Horrible hack (finds don't create source fields), disregard this
-      ~   lookup perf stats
-      ~   lookup root
-      ~   lookup ui compile
-      ~   lookup render
-      ~   lookup update
-      label {text: root}
-        span {text: [perf stats, root]}
-      label {text: ui compile}
-        span {text: [perf stats, ui compile]}
-      label {text: render}
-        span {text: [perf stats, render]}
-      label {text: update}
-        span {text: [perf stats, update]}
-  `));
 
   phase.apply(true);
 
@@ -411,7 +366,20 @@ app.init("bootstrap", function bootstrap() {
     sloth: ["pet", "exotic"],
     kangaroo: ["exotic"],
     giraffe: ["exotic"],
-    gorilla: ["exotic", "dangerous"]
+    gorilla: ["exotic", "dangerous"],
+
+    kodowa: ["company"],
+
+    engineering: ["department"],
+    operations: ["department"],
+    magic: ["department"],
+
+    josh: ["employee"],
+    corey: ["employee"],
+    jamie: ["employee"],
+    chris: ["employee"],
+    rob: ["employee"],
+    eric: ["employee"],
   };
   let testAttrs = {
     cat: {length: 4},
@@ -419,36 +387,31 @@ app.init("bootstrap", function bootstrap() {
     fish: {length: 1},
     snake: {length: 4},
     koala: {length: 3},
-    sloth: {length: 3}
+    sloth: {length: 3},
+    engineering: {company: "kodowa"},
+    operations: {company: "kodowa"},
+    magic: {company: "kodowa"},
+
+    josh: {department: "engineering"},
+    corey: {department: "engineering"},
+    jamie: {department: "engineering"},
+    chris: {department: "engineering"},
+    eric: {department: "engineering"},
+    rob: {department: "operations"},
   };
   for(let entity in testData) phase.addEntity(entity, entity, ["test data"].concat(testData[entity]), testAttrs[entity]);
 
-  phase.addQuery("exotic pet", queryFromPlanDSL(unpad(4) `
-    gather pet as [animal]
-      intersect exotic
-      lookup length as [animal length]
-      filterByEntity ! snake
-      filter > { a: [animal length, value]; b: 1 }
-  `));
-  let example = UIFromDSL(unpad(4) `
-    div example {color: fuchsia}
-      header {text: header}
-      content
-        div pet
-          ~ gather pet as [pet]
-          ~   lookup length
-          ~# calculate + {a: [pet, pet]; b: [pet, length]} as [label]
-          span {text: [pet, pet]}
-            @ click {foo: bar; baz: [pet, pet]}
-          label {text: enemy}
-            input
-              @ change {pet: [pet, pet]; enemy: [*event*, value]}
-          span {text: [pet, length]}
-      footer {text: footer}
-  `);
-  phase.addUI("example ui", example);
+  // phase.addTable("department", ["department"])
+  //   .addFact("department", {department: "engineering"})
+  //   .addFact("department", {department: "operations"})
+  //   .addFact("department", {department: "magic"});
+  // phase.addTable("employee", ["department", "employee", "salary"])
+  //   .addFact("employee", {department: "engineering", employee: "josh", salary: 10})
+  //   .addFact("employee", {department: "engineering", employee: "corey", salary: 11})
+  //   .addFact("employee", {department: "engineering", employee: "chris", salary: 7})
+  //   .addFact("employee", {department: "operations", employee: "rob", salary: 7});
 
-  // phase.apply(true);
+  //phase.apply(true);
   window["p"] = phase;
 });
 

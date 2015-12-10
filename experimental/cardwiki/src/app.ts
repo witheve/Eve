@@ -3,8 +3,8 @@
 import * as microReact from "./microReact";
 import * as runtime from "./runtime";
 import {UIRenderer} from "./uiRenderer";
+import {ENV, DEBUG, uuid} from "./utils";
 
-declare var uuid;
 
 export var syncedTables = ["manual entity", "view", "action", "action source", "action mapping", "action mapping constant", "action mapping sorted", "action mapping limit", "add collection action", "add eav action", "add bit action"];
 export var eveLocalStorageKey = "eve";
@@ -28,7 +28,7 @@ function initRenderer() {
   document.body.appendChild(perfStatsUi);
 }
 
-var performance = window["performance"] || { now: () => (new Date()).getTime() }
+if(ENV === "browser") var performance = window["performance"] || { now: () => (new Date()).getTime() }
 
 export var renderRoots = {};
 export function render() {
@@ -44,17 +44,17 @@ export function render() {
     }
 
     stats.root = (performance.now() - start).toFixed(2);
-    if (+stats.root > 10) console.log("Slow root: " + stats.root);
+    if (+stats.root > 10) console.info("Slow root: " + stats.root);
 
     start = performance.now();
     let dynamicUI = eve.find("system ui").map((ui) => ui["template"]);
-    if(window["DEBUG"] && window["DEBUG"].UI_COMPILE) {
-      console.log("compiling", dynamicUI);
-      console.log("*", uiRenderer.compile(dynamicUI));
+    if(DEBUG && DEBUG.UI_COMPILE) {
+      console.info("compiling", dynamicUI);
+      console.info("*", uiRenderer.compile(dynamicUI));
     }
     trees.push.apply(trees, uiRenderer.compile(dynamicUI));
     stats.uiCompile = (performance.now() - start).toFixed(2);
-    if (+stats.uiCompile > 10) console.log("Slow ui compile: " + stats.uiCompile);
+    if (+stats.uiCompile > 10) console.info("Slow ui compile: " + stats.uiCompile);
 
     start = performance.now();
     renderer.render(trees);
@@ -170,8 +170,11 @@ function executeInitializers() {
 // Websocket
 //---------------------------------------------------------
 
-var me = localStorage["me"] || uuid();
-localStorage["me"] = me;
+var me = uuid();
+if(this.localStorage) {
+  if(localStorage["me"]) me = localStorage["me"];
+  else localStorage["me"] = me;
+}
 
 export var socket;
 function connectToServer() {
@@ -223,12 +226,13 @@ function sendChangeSet(changeset) {
 //---------------------------------------------------------
 // Go
 //---------------------------------------------------------
-
-document.addEventListener("DOMContentLoaded", function(event) {
-  initRenderer();
-  connectToServer();
-  render();
-});
+if(ENV === "browser") {
+  document.addEventListener("DOMContentLoaded", function(event) {
+    initRenderer();
+    connectToServer();
+    render();
+  });
+}
 
 init("load data",function() {
   let stored = localStorage[eveLocalStorageKey];

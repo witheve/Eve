@@ -1003,7 +1003,7 @@ export class Query {
       // if we are actually joining on something
       let joinMap = join.join;
       this.applyAliases(joinMap);
-      if(Object.keys(joinMap).length !== 0) {
+      if(joinMap && Object.keys(joinMap).length !== 0) {
         root.children.unshift({type: "declaration", var: `query${ix}`, value: "{}"});
         cur.join = joinMap;
       }
@@ -1918,3 +1918,6 @@ export const FAIL = [];
 export function indexer() {
   return addProvenanceTable(new Indexer());
 }
+
+declare var exports;
+if(this.window) window["runtime"] = exports;

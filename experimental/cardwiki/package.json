@@ -13,7 +13,10 @@
     "watchify": "^3.6.1",
     "ws": "^0.8.0"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "chai": "^3.4.1",
+    "mocha": "^2.3.4"
+  },
   "scripts": {
     "server": "node bin/server.js",
     "test": "./test.sh"

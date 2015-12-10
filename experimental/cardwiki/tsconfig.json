@@ -2,7 +2,9 @@
     "compilerOptions":
     {
         "sourceMap": true,
-        "outDir": "bin"
+        "outDir": "bin",
+        "target": "es5",
+        "module": "commonjs"
     },
-    "exclude": [ "node_modules" ]
+    "exclude": [ "node_modules", "bin" ]
 }
