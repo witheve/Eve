@@ -103,7 +103,7 @@ class BSPhase {
       ${collectionsText}
     `;
     if(attributes) {
-      content += "## Attributes\n";
+      content += "Attributes\n";
       for(let attr in attributes) content += `${attr}: {${attr}: ${attributes[attr]}}\n      `;
     }
     if(extraContent) content += "\n" + extraContent;
