@@ -4,6 +4,7 @@ import * as runtime from "./runtime";
 import * as queryParser from "./queryParser";
 import {eve} from "./app";
 import * as app from "./app";
+import * as utils from "./utils";
 
 declare var CodeMirror;
 declare var pluralize;
@@ -15,21 +16,7 @@ const MAX_NUMBER = runtime.MAX_NUMBER;
 // Entity
 //---------------------------------------------------------
 
-export function coerceInput(input) {
-  if (input.match(/^-?[\d]+$/gim)) {
-    return parseInt(input);
-  }
-  else if (input.match(/^-?[\d]+\.[\d]+$/gim)) {
-    return parseFloat(input);
-  }
-  else if (input === "true") {
-    return true;
-  }
-  else if (input === "false") {
-    return false;
-  }
-  return input;
-}
+export var coerceInput = utils.coerceInput;
 
 var breaks = /[{}\|:\n#]/;
 var types = {
@@ -2043,3 +2030,6 @@ app.init("wiki", function() {
   app.activeSearches = {};
   initEve();
 });
+
+declare var exports;
+window["wiki"] = exports;

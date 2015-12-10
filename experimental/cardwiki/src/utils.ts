@@ -56,3 +56,19 @@ export function tail(arr) {
 export var array = {
   tail
 };
+
+export function coerceInput(input) {
+  if (input.match(/^-?[\d]+$/gim)) {
+    return parseInt(input);
+  }
+  else if (input.match(/^-?[\d]+\.[\d]+$/gim)) {
+    return parseFloat(input);
+  }
+  else if (input === "true") {
+    return true;
+  }
+  else if (input === "false") {
+    return false;
+  }
+  return input;
+}
