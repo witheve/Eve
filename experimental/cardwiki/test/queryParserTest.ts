@@ -80,6 +80,10 @@ var tests: TestQuery[] = [
     expected: [
       {type: StepType.GATHER, subject: "person"},
       {type: StepType.LOOKUP, subject: "age"},
+      {type: StepType.FIND, subject: "chris granger"},
+      {type: StepType.LOOKUP, subject: "age"},
+      {type: StepType.FIND, subject: "edward norton"},
+      {type: StepType.LOOKUP, subject: "age"},
     ],
   },
   {
@@ -526,7 +530,13 @@ function queryTestUI(result) {
   function StepToDisplay(step) {
     let args = "";
     if(step.argArray) {
-      args = " (" + step.argArray.map((arg) => arg.found).join(", ") + ")";
+      args = " (" + step.argArray.map((arg) => {
+        let parent = "";
+        if(arg.parent != undefined) {
+          parent = arg.parent.found + ".";
+        }
+        return parent + arg.found;
+      }).join(", ") + ")";
     }
     let deselected = step.deselected ? "!" : "";
     return {c: `step v${step.valid}`, text: `${StepType[step.type]} ${deselected}${step.subject}${args}`};  
