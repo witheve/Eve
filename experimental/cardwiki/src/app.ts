@@ -5,6 +5,8 @@ import * as runtime from "./runtime";
 import {UIRenderer} from "./uiRenderer";
 
 declare var uuid;
+// @FIXME:
+uuid = this.uuid || (() => Math.random.toString());
 
 export var syncedTables = ["manual entity", "view", "action", "action source", "action mapping", "action mapping constant", "action mapping sorted", "action mapping limit", "add collection action", "add eav action", "add bit action"];
 export var eveLocalStorageKey = "eve";
@@ -28,7 +30,7 @@ function initRenderer() {
   document.body.appendChild(perfStatsUi);
 }
 
-var performance = window["performance"] || { now: () => (new Date()).getTime() }
+if(this.window) var performance = window["performance"] || { now: () => (new Date()).getTime() }
 
 export var renderRoots = {};
 export function render() {
@@ -157,8 +159,11 @@ function executeInitializers() {
 // Websocket
 //---------------------------------------------------------
 
-var me = localStorage["me"] || uuid();
-localStorage["me"] = me;
+var me = uuid();
+if(this.localStorage) {
+  if(localStorage["me"]) me = localStorage["me"];
+  else localStorage["me"] = me;
+}
 
 export var socket;
 function connectToServer() {
@@ -210,12 +215,13 @@ function sendChangeSet(changeset) {
 //---------------------------------------------------------
 // Go
 //---------------------------------------------------------
-
-document.addEventListener("DOMContentLoaded", function(event) {
-  initRenderer();
-  connectToServer();
-  render();
-});
+if(this.document) {
+  document.addEventListener("DOMContentLoaded", function(event) {
+    initRenderer();
+    connectToServer();
+    render();
+  });
+}
 
 init("load data",function() {
   let stored = localStorage[eveLocalStorageKey];

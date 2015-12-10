@@ -1315,4 +1315,4 @@ export function indexer() {
 }
 
 declare var exports;
-window["runtime"] = exports;
+if(this.window) window["runtime"] = exports;
