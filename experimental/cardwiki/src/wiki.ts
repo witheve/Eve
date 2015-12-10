@@ -596,11 +596,11 @@ function nodeToPlanSteps(node, parent, parentPlan) {
         var curParent = parentPlan;
         for(let node of rel.nodes) {
           let coll = ignoreHiddenCollections(node);
-          let item = {type: "gather", relatedTo: curParent, collection: coll, id: uuid()};
+          let item = {type: "gather", relatedTo: curParent, collection: coll, subject: coll, id: uuid()};
           plan.push(item);
           curParent = item;
         }
-        plan.push({type: "lookup", relatedTo: curParent, attribute: node.found, id, deselect});
+        plan.push({type: "lookup", relatedTo: curParent, attribute: node.found, subject: node.found, id, deselect});
         return plan;
         break;
       case "coll->ent":
@@ -608,33 +608,33 @@ function nodeToPlanSteps(node, parent, parentPlan) {
         var curParent = parentPlan;
         for(let node of rel.nodes) {
           let coll = ignoreHiddenCollections(node);
-          let item = {type: "gather", relatedTo: curParent, collection: coll, id: uuid()};
+          let item = {type: "gather", relatedTo: curParent, collection: coll, subject: coll, id: uuid()};
           plan.push(item);
           curParent = item;
         }
-        plan.push({type: "filter by entity", relatedTo: curParent, entity: node.found, id, deselect});
+        plan.push({type: "filter by entity", relatedTo: curParent, entity: node.found, subject: node.found, id, deselect});
         return plan;
         break;
       case "coll->coll":
         if(rel.distance === 0) {
-          return [{type: "intersect", relatedTo: parentPlan, collection: node.found, id, deselect}];
+          return [{type: "intersect", relatedTo: parentPlan, collection: node.found, subject: node.found, id, deselect}];
         } else {
-          return [{type: "gather", relatedTo: parentPlan, collection: node.found, id, deselect}];
+          return [{type: "gather", relatedTo: parentPlan, collection: node.found, subject: node.found, id, deselect}];
         }
         break;
       case "ent->eav":
         if(rel.distance === 0) {
-          return [{type: "lookup", relatedTo: parentPlan, attribute: node.found, id, deselect}];
+          return [{type: "lookup", relatedTo: parentPlan, attribute: node.found, subject: node.found, id, deselect}];
         } else {
           let plan = [];
           let curParent = parentPlan;
           for(let node of rel.nodes) {
             let coll = ignoreHiddenCollections(node);
-            let item = {type: "gather", relatedTo: curParent, collection: coll, id: uuid()};
+            let item = {type: "gather", relatedTo: curParent, collection: coll, subject: coll, id: uuid()};
             plan.push(item);
             curParent = item;
           }
-          plan.push({type: "lookup", relatedTo: curParent, attribute: node.found, id, deselect});
+          plan.push({type: "lookup", relatedTo: curParent, attribute: node.found, subject: node.found, id, deselect});
           return plan;
         }
         break;
@@ -643,11 +643,11 @@ function nodeToPlanSteps(node, parent, parentPlan) {
     }
   } else {
     if(node.type === "collection") {
-      return [{type: "gather", collection: node.found, id, deselect}];
+      return [{type: "gather", collection: node.found, subject: node.found, id, deselect}];
     } else if(node.type === "entity") {
-      return [{type: "find", entity: node.found, id, deselect}];
+      return [{type: "find", entity: node.found, subject: node.found, id, deselect}];
     } else if(node.type === "attribute") {
-      return [{type: "lookup", attribute: node.found, id, deselect}];
+      return [{type: "lookup", attribute: node.found, subject: node.found, id, deselect}];
     }
     return [];
   }
@@ -1374,9 +1374,9 @@ function searchDescription(tokens, plan) {
     } else if(step.type === "filter") {
       planChildren.push({c: "text operation", text: `filter those by ${step.func}`});
     } else if(step.type === "sort") {
-      planChildren.push({c: "text operation", text: `sort them by `});
+      planChildren.push({c: "text operation", text: `sort them`});
     } else if(step.type === "group") {
-      planChildren.push({c: "text operation", text: `group them by `});
+      planChildren.push({c: "text operation", text: `group them`});
     } else if(step.type === "limit") {
       let limit;
       if(step.limit.results) {

@@ -71,6 +71,11 @@ var patterns = {
     op: "sum",
     args: ["a"],
   },
+  "count": {
+    type: "aggregate",
+    op: "count",
+    args: ["a"],
+  },
   "average": {
     type: "aggregate",
     op: "average",
