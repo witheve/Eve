@@ -160,16 +160,20 @@ function checkForToken(token): any {
   return {};
 }
 
-export function getTokens(string) {
+export function getTokens(queryString: string) {
 
-  // let start = performance.now();
-  // nlp.pos(string);
-  // let stop = performance.now();
-  // let time = stop - start;
-  // console.log(`POS tag time: ${time.toFixed(2)}`);
+  
+  /*let start = performance.now();
+  let tags = nlp.pos(queryString,{dont_combine:true}).tags();
+  let stop = performance.now();
+  let time = stop - start;
+  console.log(`POS tag time: ${time.toFixed(2)}`);
+  console.log(`Sentence ${queryString}`);
+  console.log(`Tags: ${tags}`);*/
+  
 
   // remove all non-word non-space characters
-  let cleaned = string.replace(/'s/gi, "  ").toLowerCase();
+  let cleaned = queryString.replace(/'s/gi, "  ").toLowerCase();
   cleaned = cleaned.replace(/[,.?!]/gi, " , ");
   let words = cleaned.split(" ");
   let front = 0;
