@@ -347,7 +347,7 @@ app.init("bootstrap", function bootstrap() {
       ~   lookup top
       ~   lookup left
       ~   lookup text
-      ~ calculate search {id: [search, search]} as [result]
+      ~# calculate search {id: [search, search]} as [result]
       header search-header
         div search-input { text: [search, text]}
       content {text: its a singleton yo.}
