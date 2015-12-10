@@ -358,58 +358,58 @@ app.init("bootstrap", function bootstrap() {
   phase.addTable("ui event state binding", resolve("ui event state binding", ["template", "event", "key", "source", "alias"]));
 
   phase.addTable("system ui", ["template"]);
-  phase.addFact("system ui", {template: "wiki root"});
+  // phase.addFact("system ui", {template: "wiki root"});
 
-  let wikiRoot = UIFromDSL(unpad(4) `
-    div wiki-root {color: red}
-      header
-        > perf stats
-      content
-        > search pane
-  `);
-  phase.addUI("wiki root", wikiRoot);
-  window["uu"] = wikiRoot;
+  // let wikiRoot = UIFromDSL(unpad(4) `
+  //   div wiki-root {color: red}
+  //     header
+  //       > perf stats
+  //     content
+  //       > search pane
+  // `);
+  // phase.addUI("wiki root", wikiRoot);
+  // window["uu"] = wikiRoot;
 
-  phase.addUI("search pane", UIFromDSL(unpad(4) `
-    search-pane container search-container {top: [search, top]; left: [search, left]}
-      ~ gather search as [search]
-      ~   lookup top
-      ~   lookup left
-      ~   lookup text
-      ~# calculate search {id: [search, search]} as [result]
-      header search-header
-        div search-input { text: [search, text]}
-      content {text: its a singleton yo.}
-        ~# filter = {a: [result, kind]; b: singleton}
+  // phase.addUI("search pane", UIFromDSL(unpad(4) `
+  //   search-pane container search-container {top: [search, top]; left: [search, left]}
+  //     ~ gather search as [search]
+  //     ~   lookup top
+  //     ~   lookup left
+  //     ~   lookup text
+  //     ~# calculate search {id: [search, search]} as [result]
+  //     header search-header
+  //       div search-input { text: [search, text]}
+  //     content {text: its a singleton yo.}
+  //       ~# filter = {a: [result, kind]; b: singleton}
 
-      footer search-actions
-        row add-action
-          button {text: + entity}
-            @ click {kind: add entity action; id: [search, search]}
-          button {text: + attribute}
-            @ click {kind: add attribute action; id: [search, search]}
-          button {text: + collection}
-            @ click {kind: add collection action; id: [search, search]}
-  `));
+  //     footer search-actions
+  //       row add-action
+  //         button {text: + entity}
+  //           @ click {kind: add entity action; id: [search, search]}
+  //         button {text: + attribute}
+  //           @ click {kind: add attribute action; id: [search, search]}
+  //         button {text: + collection}
+  //           @ click {kind: add collection action; id: [search, search]}
+  // `));
 
-  phase.addUI("perf stats", UIFromDSL(unpad(4) `
-    row perf-stats
-      ~ find render performance statistics as [perf stats]
-      ~   # Horrible hack (finds don't create source fields), disregard this
-      ~   lookup perf stats
-      ~   lookup root
-      ~   lookup ui compile
-      ~   lookup render
-      ~   lookup update
-      label {text: root}
-        span {text: [perf stats, root]}
-      label {text: ui compile}
-        span {text: [perf stats, ui compile]}
-      label {text: render}
-        span {text: [perf stats, render]}
-      label {text: update}
-        span {text: [perf stats, update]}
-  `));
+  // phase.addUI("perf stats", UIFromDSL(unpad(4) `
+  //   row perf-stats
+  //     ~ find render performance statistics as [perf stats]
+  //     ~   # Horrible hack (finds don't create source fields), disregard this
+  //     ~   lookup perf stats
+  //     ~   lookup root
+  //     ~   lookup ui compile
+  //     ~   lookup render
+  //     ~   lookup update
+  //     label {text: root}
+  //       span {text: [perf stats, root]}
+  //     label {text: ui compile}
+  //       span {text: [perf stats, ui compile]}
+  //     label {text: render}
+  //       span {text: [perf stats, render]}
+  //     label {text: update}
+  //       span {text: [perf stats, update]}
+  // `));
 
   phase.apply(true);
 
