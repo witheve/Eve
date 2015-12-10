@@ -34,12 +34,16 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .entity span { display:inline; }
 .link { cursor:default; border-bottom:1px solid transparent;  }
 
+.list-row .sub-group { align-items:flex-start; }
+
 .bit { -webkit-user-select:auto; text-align:left; justify-content:center; padding:10px;  box-shadow:0 0px 0px #111; border-radius:0px; align-items:flex-start; }
 .bit.small { height:30px; width:30px; text-transform:uppercase; }
 
 .related-bits { flex-direction:row; flex-wrap: wrap; max-width:600px; }
-.related-bits .bit { flex:1 0 auto; border-top:1px solid #222; }
-.related-bits .bit + .bit { border-left:1px solid #222; }
+.related-bits * { display:inline; }
+.related-bits .related-list { flex-direction:row; margin-left: 5px; }
+.related-bits .entity { flex-direction:row; }
+.related-bits .entity + .entity:before { content: ","; margin-right:5px; }
 
 .actions-container > .actions-header { padding:10px 10px; flex-direction:row; }
 .action { flex-direction: row;  margin:0;  padding:10px; white-space:pre; justify-content:center; }
@@ -153,6 +157,9 @@ body.light { background: rgb(71,72,75); font-family: Helvetica Neue; font-weight
 .light .modifier { color: #888; }
 .light .link:hover { border-bottom-color:#B74F4F; }
 .light .link.found:hover { border-bottom-color:rgb(53, 105, 183); }
+.light .link.entity:hover { border-bottom-color:rgb(53, 105, 183); }
+.light .collection:hover { border-bottom-color: rgb(86, 156, 127); }
+.light .list-item:hover { border-bottom-color:rgb(53, 105, 183); }
 
 .light .bit { background: #eee; }
 .light .bit.collection { background: rgb(115, 173, 149); color: #fff; }

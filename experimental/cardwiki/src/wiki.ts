@@ -176,11 +176,11 @@ function entityToHTML(lines, searchId, full) {
         if(found) {
           lineChildren.push({t: "span", c: `link found`, text: item.value, linkText: link, click: followLink, searchId});
         } else {
-          lineChildren.push({t: "span", c: `${item.type}`, text: item.value});
+          lineChildren.push({t: "span", c: `link ${item.type}`, text: item.value});
         }
       } else {
         let type = item.type === "eav" && item.attribute !== "is a" ? "link" : item.type;
-        lineChildren.push({t: "span", c: `${type} ${found ? 'found' : ""}`, text: item.link, linkText: link, click: followLink, searchId});
+        lineChildren.push({t: "span", c: `link ${type} ${found ? 'found' : ""}`, text: item.link, linkText: link, click: followLink, searchId});
       }
     }
     if(line.header) {
@@ -1318,12 +1318,12 @@ function entityUi(entityId, instance:string|number = "", searchId) {
     if(incoming.entity === entityId) continue;
     if(eve.findOne("entity eavs", {entity: incoming.entity, attribute: "is a", value: "content block"})) continue;
     if(eve.findOne("entity eavs", {entity: incoming.entity, attribute: "is a", value: entityId})) continue;
-    relatedBits.push({c: "entity", click: followLink, searchId, linkText: incoming.entity, text: incoming.entity});
+    relatedBits.push({c: "entity link", click: followLink, searchId, linkText: incoming.entity, text: incoming.entity});
   }
   if(relatedBits.length) {
     entityViews.push({c: "entity related-bits", children: [
       {text: "Related cards: "},
-      {children: relatedBits}
+      {c: "related-list", children: relatedBits}
     ]});
   }
 
@@ -1452,7 +1452,7 @@ export function newSearchResults(searchId) {
             text = JSON.stringify(resultPart);
           }
           if(text) {
-            klass += planLength > 1 ? " bit" : " list-item";
+            klass += planLength > 1 ? " bit" : " link list-item";
             let item = {id: `${searchId} ${ix} ${planIx}`, c: `${klass}`, text, click, searchId, linkText: link};
             if(groupedFields[planItem.name] && !resultItem.children[planIx]) {
               resultItem.children[planIx] = {c: "sub-group", children: [item]};
