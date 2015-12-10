@@ -582,12 +582,22 @@ export function root() {
     }
   }
   let resultItems = results.map(queryTestUI);
+  let totalParseTime = 0;
+  let minParseTime = 99999;
+  let maxParseTime = 0;
+  for(let result of results) {
+    totalParseTime += result.time;
+    if(minParseTime > result.time) minParseTime = result.time;
+    if(maxParseTime < result.time) maxParseTime = result.time; 
+  }
+  let averageParseTime = totalParseTime / results.length;
   return {id: "root", c: "test-root", children: [
     {c: "stats row", children: [
       {c: "failed", text: resultStats.failed},
       {c: "succeeded", text: resultStats.succeeded},
       {c: "unvalidated", text: resultStats.unvalidated},
     ]},
+    {c: "perf", text: `min: ${minParseTime.toFixed(2)}ms | max: ${maxParseTime.toFixed(2)}ms | average: ${averageParseTime.toFixed(2)}ms` },    
     {children: resultItems}
   ]};
 }
