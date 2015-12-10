@@ -102,7 +102,7 @@ var docs = {
   "editor.css": new CodeMirror.Doc(fs.readFileSync("editor.css").toString(), "css"),
   "../cardwiki/src/wiki.ts": new CodeMirror.Doc(fs.readFileSync("../cardwiki/src/wiki.ts").toString(), "application/typescript"),
   "../cardwiki/css/editor.css": new CodeMirror.Doc(fs.readFileSync("../cardwiki/css/editor.css").toString(), "css"),
-  "../../ui/src/editor.ts": new CodeMirror.Doc(fs.readFileSync("../../ui/src/editor.ts").toString(), "application/typescript"),
+  "../cardwiki/src/bootstrap.ts": new CodeMirror.Doc(fs.readFileSync("../cardwiki/src/bootstrap.ts").toString(), "application/typescript"),
 }
 
 var editor = new CodeMirror(editorContainer, {
@@ -206,7 +206,7 @@ document.addEventListener("keydown", (e) => {
   } else if(e.keyCode === keycode("4")) {
     loadDoc("../cardwiki/css/editor.css");
   } else if(e.keyCode === keycode("5")) {
-    loadDoc("../../ui/src/editor.ts");
+    loadDoc("../cardwiki/src/bootstrap.ts");
   } else if(e.keyCode === keycode("R")) {
     if(!e.shiftKey) {
       webView.reload();

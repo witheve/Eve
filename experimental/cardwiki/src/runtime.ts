@@ -6,6 +6,7 @@ declare var exports;
 let runtime = exports;
 
 export var MAX_NUMBER = 9007199254740991;
+export var INCREMENTAL = false;
 
 function objectsIdentical(a:{[key:string]: any}, b:{[key:string]: any}):boolean {
   var aKeys = Object.keys(a);
@@ -16,10 +17,10 @@ function objectsIdentical(a:{[key:string]: any}, b:{[key:string]: any}):boolean 
   return true;
 }
 
-function indexOfFact(haystack, needle, equals = objectsIdentical) {
+function indexOfFact(haystack, needle) {
   let ix = 0;
   for(let fact of haystack) {
-    if(equals(fact, needle)) {
+    if(fact.__id === needle.__id) {
       return ix;
     }
     ix++;
@@ -27,16 +28,57 @@ function indexOfFact(haystack, needle, equals = objectsIdentical) {
   return -1;
 }
 
-export function removeFact(haystack, needle, equals?) {
-  let ix = indexOfFact(haystack, needle, equals);
+export function removeFact(haystack, needle) {
+  let ix = indexOfFact(haystack, needle);
   if(ix > -1) haystack.splice(ix, 1);
   return haystack;
+}
+
+function diffAddsAndRemoves(adds, removes) {
+  let localHash = {};
+  let hashToFact = {};
+  let hashes = [];
+  for(let add of adds) {
+    let hash = add.__id;
+    if(localHash[hash] === undefined) {
+      localHash[hash] = 1;
+      hashToFact[hash] = add;
+      hashes.push(hash);
+    } else {
+      localHash[hash]++;
+    }
+    add.__id = hash;
+  }
+  for(let remove of removes) {
+    let hash = remove.__id;
+    if(localHash[hash] === undefined) {
+      localHash[hash] = -1;
+      hashToFact[hash] = remove;
+      hashes.push(hash);
+    } else {
+      localHash[hash]--;
+    }
+    remove.__id = hash;
+  }
+  let realAdds = [];
+  let realRemoves = [];
+  for(let hash of hashes) {
+    let count = localHash[hash];
+    if(count > 0) {
+      let fact = hashToFact[hash];
+      realAdds.push(fact);
+    } else if(count < 0) {
+      let fact = hashToFact[hash];
+      realRemoves.push(fact);
+    }
+  }
+  return {adds:realAdds, removes:realRemoves};
 }
 
 function generateEqualityFn(keys) {
   return new Function("a", "b",  `return ${keys.map(function(key, ix) {
     if(key.constructor === Array) {
-      return `a[${key[0]}]['${key[1]}'] === b[${key[0]}]['${key[1]}']`;
+      return `a['${key[0]}']['${key[1]}'] === b['${key[0]}']['${key[1]}']`;
     } else {
       return `a["${key}"] === b["${key}"]`;
     }
@@ -47,7 +89,7 @@ function generateStringFn(keys) {
   let keyStrings = [];
   for(let key of keys) {
     if(key.constructor === Array) {
-      keyStrings.push(`a[${key[0]}]['${key[1]}']`);
+      keyStrings.push(`a['${key[0]}']['${key[1]}']`);
     } else {
       keyStrings.push(`a['${key}']`);
     }
@@ -99,16 +141,16 @@ function generateCollector(keys) {
   let removes = "var cur = index";
   for(let key of keys) {
     if(key.constructor === Array) {
-      removes += `[remove[${key[0]}]['${key[1]}']]`;
+      removes += `[remove['${key[0]}']['${key[1]}']]`;
     } else {
       removes += `[remove['${key}']]`;
     }
   }
-  removes += ";\nruntime.removeFact(cur, remove, equals);";
+  removes += ";\nruntime.removeFact(cur, remove);";
   for(let key of keys) {
     ix++;
     if(key.constructor === Array) {
-      checks += `value = add[${key[0]}]['${key[1]}']\n`;
+      checks += `value = add['${key[0]}']['${key[1]}']\n`;
     } else {
       checks += `value = add['${key}']\n`;
     }
@@ -133,7 +175,49 @@ var value;
 ${checks}  cursor.push(add);
 }
 return index;`
-  return (new Function("index", "adds", "removes", "equals", code)).bind(runtime);
+  return (new Function("index", "adds", "removes", code)).bind(runtime);
+}
+
+function generateCollector2(keys) {
+  let hashParts = [];
+  for(let key of keys) {
+    if(key.constructor === Array) {
+      hashParts.push(`add['${key[0]}']['${key[1]}']`);
+    } else {
+      hashParts.push(`add['${key}']`);
+    }
+  }
+  let code = `
+    var ixCache = cache.ix;
+    var idCache = cache.id;
+    for(var ix = 0, len = removes.length; ix < len; ix++) {
+      var remove = removes[ix];
+      var id = remove.__id;
+      var key = idCache[id];
+      var factIx = ixCache[id];
+      var facts = index[key];
+      //swap the last fact with this one to prevent holes
+      var lastFact = facts.pop();
+      if(lastFact && lastFact.__id !== remove.__id) {
+        facts[factIx] = lastFact;
+        ixCache[lastFact.__id] = factIx;
+      } else if(facts.length === 0) {
+        delete index[key];
+      }
+      delete idCache[id];
+      delete ixCache[id];
+    }
+    for(var ix = 0, len = adds.length; ix < len; ix++) {
+      var add = adds[ix];
+      var id = add.__id;
+      var key = idCache[id] = ${hashParts.join(" + '|' + ")};
+      if(index[key] === undefined) index[key] = [];
+      var arr = index[key];
+      ixCache[id] = arr.length;
+      arr.push(add);
+    }
+    return index;`;
+    return new Function("index", "adds", "removes", "cache", code);
 }
 
 function mergeArrays(as, bs) {
@@ -146,7 +230,7 @@ function mergeArrays(as, bs) {
   return as;
 }
 
-class Diff {
+export class Diff {
   tables;
   length;
   ixer;
@@ -210,17 +294,29 @@ class Diff {
 
 export class Indexer {
   tables;
+  globalCount;
+  edbTables;
   constructor() {
     this.tables = {};
+    this.globalCount = 0;
+    this.edbTables = {};
   }
   addTable(name, keys = []) {
     let table = this.tables[name];
+    keys = keys.filter((key) => key !== "__id");
     if(table && keys.length) {
       table.fields = keys;
       table.stringify = generateStringFn(keys);
-      table.equals = generateEqualityFn(keys);
     } else {
-      table = this.tables[name] = {table: [], factHash: {}, indexes: {}, triggers: {}, fields: keys, stringify: generateStringFn(keys), equals: generateEqualityFn(keys)};
+      table = this.tables[name] = {table: [], hashToIx: {}, factHash: {}, indexes: {}, triggers: {}, fields: keys, stringify: generateStringFn(keys), keyLookup: {}};
+      this.edbTables[name] = true;
+    }
+    for(let key of keys) {
+      if(key.constructor === Array) {
+        table.keyLookup[key[0]] = key;
+      } else {
+        table.keyLookup[key] = key;
+      }
     }
     return table;
   }
@@ -232,6 +328,7 @@ export class Indexer {
     table.factHash = {};
     for(let indexName in table.indexes) {
       table.indexes[indexName].index = {};
+      table.indexes[indexName].cache = {id: {}, ix: {}};
     }
   }
   updateTable(tableId, adds, removes) {
@@ -243,11 +340,12 @@ export class Indexer {
     let stringify = table.stringify;
     let facts = table.table;
     let factHash = table.factHash;
+    let hashToIx = table.hashToIx;
     let localHash = {};
     let hashToFact = {};
     let hashes = [];
     for(let add of adds) {
-      let hash = stringify(add);
+      let hash = add.__id || stringify(add);
       if(localHash[hash] === undefined) {
         localHash[hash] = 1;
         hashToFact[hash] = add;
@@ -255,9 +353,10 @@ export class Indexer {
       } else {
         localHash[hash]++;
       }
+      add.__id = hash;
     }
     for(let remove of removes) {
-      let hash = stringify(remove);
+      let hash = remove.__id || stringify(remove);
       if(localHash[hash] === undefined) {
         localHash[hash] = -1;
         hashToFact[hash] = remove;
@@ -265,6 +364,7 @@ export class Indexer {
       } else {
         localHash[hash]--;
       }
+      remove.__id = hash;
     }
     let realAdds = [];
     let realRemoves = [];
@@ -274,12 +374,20 @@ export class Indexer {
         let fact = hashToFact[hash];
         realAdds.push(fact);
         facts.push(fact);
-        factHash[hash] = true;
+        factHash[hash] = fact;
+        hashToIx[hash] = facts.length - 1;
       } else if(count < 0 && factHash[hash]) {
         let fact = hashToFact[hash];
+        let ix = hashToIx[hash];
+        //swap the last fact with this one to prevent holes
+        let lastFact = facts.pop();
+        if(lastFact && lastFact.__id !== fact.__id) {
+          facts[ix] = lastFact;
+          hashToIx[lastFact.__id] = ix;
+        }
         realRemoves.push(fact);
-        removeFact(facts, fact, table.equals);
-        factHash[hash] = undefined;
+        delete factHash[hash];
+        delete hashToIx[hash];
       }
     }
     return {adds:realAdds, removes:realRemoves};
@@ -288,33 +396,38 @@ export class Indexer {
   collector(keys) {
     return {
       index: {},
-      collect: generateCollector(keys),
+      cache: {id: {}, ix: {}},
+      hasher: generateStringFn(keys),
+      collect: generateCollector2(keys),
     }
   }
   factToIndex(table, fact) {
     let keys = Object.keys(fact);
-    if(!keys.length) return table.table;
-    let cursor = this.index(table, keys);
-    for(let key of keys) {
-      cursor = cursor[fact[key]];
-      if(!cursor) return [];
+    if(!keys.length) return table.table.slice();
+    let index = this.index(table, keys);
+    let result = index.index[index.hasher(fact)];
+    if(result) {
+      return result.slice();
     }
-    return cursor;
+    return [];
   }
-  execDiff(diff) {
+  execDiff(diff: Diff): {triggers: any, realDiffs: any} {
     let triggers = {};
     let realDiffs = {};
-    for(let tableId in diff.tables) {
+    let tableIds = Object.keys(diff.tables);
+    for(let tableId of tableIds) {
       let tableDiff = diff.tables[tableId];
-      if(!tableDiff.adds.length && !tableDiff.removes.length) continue;
+      if(tableDiff.adds.length === 0 && tableDiff.removes.length === 0) continue;
       let realDiff = this.updateTable(tableId, tableDiff.adds, tableDiff.removes);
       // go through all the indexes and update them.
       let table = this.tables[tableId];
-      for(let indexName in table.indexes) {
+      let indexes = Object.keys(table.indexes);
+      for(let indexName of indexes) {
         let index = table.indexes[indexName];
-        index.collect(index.index, realDiff.adds, realDiff.removes, table.equals);
+        index.collect(index.index, realDiff.adds, realDiff.removes, index.cache);
       }
-      for(let triggerName in table.triggers) {
+      let curTriggers = Object.keys(table.triggers);
+      for(let triggerName of curTriggers) {
         let trigger = table.triggers[triggerName];
         triggers[triggerName] = trigger;
       }
@@ -405,12 +518,19 @@ export class Indexer {
     for(let tableName in dump) {
       diff.addMany(tableName, dump[tableName]);
     }
-    this.applyDiff(diff);
+    if(INCREMENTAL) {
+      this.applyDiffIncremental(diff);
+    } else {
+      this.applyDiff(diff);
+    }
   }
   diff() {
     return new Diff(this);
   }
   applyDiff(diff:Diff) {
+    if(INCREMENTAL) {
+      return this.applyDiffIncremental(diff);
+    }
     let {triggers, realDiffs} = this.execDiff(diff);
     let cleared;
     let round = 0;
@@ -442,20 +562,24 @@ export class Indexer {
     if(typeof tableOrId === "string") table = this.table(tableOrId);
     else table = tableOrId;
     keys.sort();
-    let indexName = keys.join("|");
+    let indexName = keys.filter((key) => key !== "__id").join("|");
     let index = table.indexes[indexName];
     if(!index) {
-      index = table.indexes[indexName] = this.collector(keys);
-      index.collect(index.index, table.table, [], table.equals);
+      let tableKeys = [];
+      for(let key of keys) {
+        tableKeys.push(table.keyLookup[key] || key);
+      }
+      index = table.indexes[indexName] = this.collector(tableKeys);
+      index.collect(index.index, table.table, [], index.cache);
     }
-    return index.index;
+    return index;
   }
   find(tableId, query?) {
     let table = this.tables[tableId];
     if(!table) {
       return [];
     } else if(!query) {
-      return table.table;
+      return table.table.slice();
     } else {
       return this.factToIndex(table, query);
     }
@@ -469,25 +593,38 @@ export class Indexer {
   union(name) {
     return new Union(this, name);
   }
-  trigger(name:string, table:string|string[], exec:(ixer:Indexer) => void) {
+  trigger(name:string, table:string|string[], exec:(ixer:Indexer) => void, execIncremental?:(changes:any) => any) {
     let tables = (typeof table === "string") ? [table] : table;
-    let trigger = {name, tables, exec};
+    let trigger = {name, tables, exec, execIncremental};
     for(let tableId of tables) {
       let table = this.table(tableId);
       table.triggers[name] = trigger;
     }
-    let nextRound = this.execTrigger(trigger);
-    while(nextRound) {
-      nextRound = this.execTriggers(nextRound);
-    };
+    if(!INCREMENTAL) {
+      let nextRound = this.execTrigger(trigger);
+      while(nextRound) {
+        nextRound = this.execTriggers(nextRound);
+      };
+    } else {
+      if(!tables.length) { return exec(this); }
+      let initial = {[tables[0]]: {adds: this.tables[tables[0]].table, removes: []}};
+      let {triggers, changes} = this.execTriggerIncremental(trigger, initial);
+      while(triggers) {
+        let results = this.execTriggersIncremental(triggers, changes);
+        if(!results) break
+        triggers = results.triggers;
+        changes = results.changes;
+      }
+    }
   }
 
   asView(query:Query|Union) {
     let name = query.name;
     let view = this.table(name);
+    this.edbTables[name] = false;
     view.view = query;
     view.isView = true;
-    this.trigger(name, query.tables, query.exec.bind(query));
+    this.trigger(name, query.tables, query.exec.bind(query), query.execIncremental.bind(query));
   }
   removeView(id:string) {
     for(let table of this.tables) {
@@ -501,8 +638,98 @@ export class Indexer {
     }
     return total;
   }
+  factsPerTable() {
+    let info = {};
+    for(let tableName in this.tables) {
+      info[tableName] = this.tables[tableName].table.length;
+    }
+    return info;
+  }
+
+  applyDiffIncremental(diff:Diff) {
+    if(diff.length === 0) return;
+    // console.log("DIFF SIZE: ", diff.length, diff);
+		let {triggers, realDiffs} = this.execDiff(diff);
+		let round = 0;
+    let changes = realDiffs;
+		while(triggers) {
+		  // console.group(`ROUND ${round}`);
+      // console.log("CHANGES: ", changes);
+		  let results = this.execTriggersIncremental(triggers, changes);
+      // console.groupEnd();
+      if(!results) break
+      triggers = results.triggers;
+      changes = results.changes
+		  round++;
+		}
+	}
+
+  execTriggerIncremental(trigger, changes):any {
+    let table = this.table(trigger.name);
+    let adds, provenance, removes, info;
+    if(trigger.execIncremental) {
+      info = trigger.execIncremental(changes, table) || {};
+      adds = info.adds;
+      removes = info.removes;
+    } else {
+      trigger.exec();
+      return;
+    }
+    let diff = new runtime.Diff(this);
+    if(adds.length) {
+      diff.addMany(trigger.name, adds);
+    }
+    if(removes.length) {
+      diff.removeFacts(trigger.name, removes);
+    }
+    let updated = this.execDiff(diff);
+    let {realDiffs} = updated;
+    if(realDiffs[trigger.name] && (realDiffs[trigger.name].adds.length || realDiffs[trigger.name].removes)) {
+      return {changes: realDiffs[trigger.name], triggers: updated.triggers};
+    } else {
+      return {};
+    }
+  }
+
+  execTriggersIncremental(triggers, changes) {
+    let newTriggers = {};
+    let nextChanges = {};
+    let retrigger = false;
+    let triggerKeys = Object.keys(triggers);
+    for(let triggerName of triggerKeys) {
+      // console.log("Calling:", triggerName);
+      let trigger = triggers[triggerName];
+      let nextRound = this.execTriggerIncremental(trigger, changes);
+      if(nextRound && nextRound.changes) {
+        nextChanges[triggerName] = nextRound.changes;
+        if(nextRound.triggers) {
+
+          let nextRoundKeys = Object.keys(nextRound.triggers);
+          for(let trigger of nextRoundKeys) {
+            if(trigger && nextRound.triggers[trigger]) {
+              retrigger = true;
+              // console.log("Queuing:", trigger);
+              newTriggers[trigger] = nextRound.triggers[trigger];
+            }
+          }
+        }
+      }
+    }
+    if(retrigger) {
+      return {changes: nextChanges, triggers: newTriggers};
+    }
+  }
 }
 
+export function addProvenanceTable(ixer) {
+  let table = ixer.addTable("provenance", ["table", ["row", "__id"], "row instance", "source", ["source row", "__id"]]);
+  // generate some indexes that we know we're going to need upfront
+  ixer.index("provenance", ["table", "row"]);
+  ixer.index("provenance", ["table", "row instance"]);
+  ixer.index("provenance", ["table", "source", "source row"]);
+  ixer.index("provenance", ["table"]);
+  return ixer;
+}
 
 function mappingToDiff(diff, action, mapping, aliases, reverseLookup) {
   for(let from in mapping) {
@@ -556,6 +783,7 @@ export class Query {
   aggregates;
   unprojectedSize;
   hasOrdinal;
+  incrementalRowFinder;
 
   static remove(view: string, ixer:Indexer) {
     let diff = ixer.diff();
@@ -751,10 +979,12 @@ export class Query {
     let root = cursor;
     let results = [];
     // by default the only thing we return are the unprojected results
-    let returns = ["unprojected"];
+    let returns = ["unprojected", "provenance"];
 
     // we need an array to store our unprojected results
     root.children.push({type: "declaration", var: "unprojected", value: "[]"});
+    root.children.push({type: "declaration", var: "provenance", value: "[]"});
+    root.children.push({type: "declaration", var: "projected", value: "{}"});
 
     // run through each table nested in the order they were given doing pairwise
     // joins along the way.
@@ -763,6 +993,7 @@ export class Query {
       let cur = {
         type: "select",
         table,
+        passed: ix === 0,
         ix,
         negated,
         children: [],
@@ -858,6 +1089,9 @@ export class Query {
     if(this.projectionMap) {
       this.applyAliases(this.projectionMap);
       root.children.unshift({type: "declaration", var: "results", value: "[]"});
+      if(INCREMENTAL) {
+        cursor.children.push({type: "provenance"});
+      }
       cursor.children.push({type: "projection", projectionMap: this.projectionMap, unprojected: this.aggregates.length});
       returns.push("results");
     }
@@ -925,7 +1159,9 @@ export class Query {
         break;
       case "select":
         var ix = root.ix;
-        if(root.join) {
+        if(root.passed) {
+          code += `var rows${ix} = rootRows;\n`;
+        } else if(root.join) {
           for(let key in root.join) {
             let mapping = root.join[key];
             if(mapping.constructor === Array) {
@@ -972,6 +1208,7 @@ export class Query {
         var aggregateResets = [];
         var unprojected = {};
         var ordinal:string|boolean = false;
+        var provenanceCode;
         for(let agg of root.children) {
           if(agg.type === "functionCall") {
             unprojected[agg.ix] = true;
@@ -985,6 +1222,8 @@ export class Query {
             projection = this.compileAST(agg);
           } else if(agg.type === "ordinal") {
             ordinal = `unprojected[ix+${this.unprojectedSize - 1}] = resultCount;\n`;
+          } else if(agg.type === "provenance") {
+            provenanceCode = this.compileAST(agg);
           }
         }
         var aggregateCallsCode = aggregateCalls.join("");
@@ -1065,6 +1304,7 @@ export class Query {
                   while(ix < len) {
                     ${resultsCheck}
                     ${ordinal || ""}
+                    ${provenanceCode}
                     ${projection}
                     groupInfo[ix] = resultCount;
                     resultCount++;
@@ -1082,6 +1322,7 @@ export class Query {
                   ${aggregateCallsCode}
                   ${groupInfo}
                   ${ordinal || ""}
+                  ${provenanceCode}
                   if(ix + ${root.size} === len) {
                     ${projection}
                     break;
@@ -1094,6 +1335,7 @@ export class Query {
         break;
       case "projection":
         var projectedVars = [];
+        var idStringParts = [];
         for(let newField in root.projectionMap) {
           let mapping = root.projectionMap[newField];
           let value = "";
@@ -1108,9 +1350,25 @@ export class Query {
           } else {
             value = JSON.stringify(mapping);
           }
-          projectedVars.push(`'${newField}': ${value}`);
+          projectedVars.push(`projected['${newField}'] = ${value}`);
+          idStringParts.push(value);
         }
-        code += `results.push({ ${projectedVars.join(", ")} });\n`;
+        code += projectedVars.join(";\n") + "\n";
+        code += `projected.__id = ${idStringParts.join(` + "|" + `)};\n`;
+        code += `results.push(projected);\n`;
+        code += `projected = {};\n`;
+        break;
+      case "provenance":
+        var provenance = "var provenance__id = '';\n";
+        var ids = [];
+        for(let join of this.joins) {
+          if(join.negated) continue;
+          provenance += `provenance__id = tableId + '|' + projected.__id + '|' + rowInstance + '|${join.table}|' + row${join.ix}.__id; \n`;
+          provenance += `provenance.push({table: tableId, row: projected, "row instance": rowInstance, source: "${join.table}", "source row": row${join.ix}});\n`;
+          ids.push(`row${join.ix}.__id`);
+        }
+        code = `var rowInstance = ${ids.join(" + '|' + ")};
+        ${provenance}`;
         break;
       case "return":
         var returns = [];
@@ -1122,10 +1380,152 @@ export class Query {
     }
     return code;
   }
+  // given a set of changes and a join order, determine the root facts that need
+	// to be joined again to cover all the adds
+	reverseJoin(joins) {
+    let changed = joins[0];
+    let reverseJoinMap = {};
+    // collect all the constraints and reverse them
+    for (let join of joins) {
+      for (let key in join.join) {
+        let [source, field] = join.join[key];
+        if (source <= changed.ix) {
+          if (!reverseJoinMap[source]) {
+            reverseJoinMap[source] = {};
+          }
+          if(!reverseJoinMap[source][field]) reverseJoinMap[source][field] = [join.ix, key];
+        }
+      }
+    }
+    var recurse = (joins, joinIx) => {
+      var code = "";
+      if (joinIx >= joins.length) {
+        return "others.push(row0)";
+      }
+      let {table, ix, negated} = joins[joinIx];
+      let joinMap = joins[joinIx].join;
+      // we only care about this guy if he's joined with at least one thing
+      if (!reverseJoinMap[ix] && joinIx < joins.length - 1) return recurse(joins, joinIx + 1);
+      else if(!reverseJoinMap) return "";
+      let mappings = [];
+      for (let key in reverseJoinMap[ix]) {
+        let [sourceIx, field] = reverseJoinMap[ix][key];
+        if(sourceIx === changed.ix || reverseJoinMap[sourceIx] !== undefined) {
+          mappings.push(`'${key}': row${sourceIx}['${field}']`);
+        }
+      }
+      for(let key in joinMap) {
+        let value = joinMap[key];
+        if(value.constructor !== Array) {
+          mappings.push(`'${key}': ${JSON.stringify(value)}`);
+        }
+      }
+      if (negated) {
+        //@TODO: deal with negation;
+      }
+      code += `
+            var rows${ix} = eve.find('${table}', {${mappings.join(", ") }});
+            for(var rowsIx${ix} = 0, rowsLen${ix} = rows${ix}.length; rowsIx${ix} < rowsLen${ix}; rowsIx${ix}++) {
+                var row${ix} = rows${ix}[rowsIx${ix}];
+                ${recurse(joins, joinIx + 1) }
+            }
+            `;
+      return code;
+    }
+    return recurse(joins, 1);
+	}
+	compileIncrementalRowFinderCode() {
+		let code = "var others = [];\n";
+		let reversed = this.joins.slice().reverse();
+    let checks = [];
+		let ix = 0;
+		for(let join of reversed) {
+      // we don't want to do this for the root
+			if(ix === reversed.length - 1) break;
+			checks.push(`
+			if(changes["${join.table}"] && changes["${join.table}"].adds) {
+                var curChanges${join.ix} = changes["${join.table}"].adds;
+                for(var changeIx${join.ix} = 0, changeLen${join.ix} = curChanges${join.ix}.length; changeIx${join.ix} < changeLen${join.ix}; changeIx${join.ix}++) {
+                    var row${join.ix} = curChanges${join.ix}[changeIx${join.ix}];
+					${this.reverseJoin(reversed.slice(ix))}
+				}
+			}`);
+			ix++;
+		}
+    code += checks.join(" else");
+		var last = reversed[ix];
+		code += `
+			if(changes["${last.table}"] && changes["${last.table}"].adds) {
+                var curChanges = changes["${last.table}"].adds;
+				for(var changeIx = 0, changeLen = curChanges.length; changeIx < changeLen; changeIx++) {
+					others.push(curChanges[changeIx]);
+				}
+			}
+			return others;`;
+		return code;
+	}
+  incrementalRemove(changes) {
+    let ixer = this.ixer;
+    let rowsToPostCheck = [];
+    let provenanceDiff = this.ixer.diff();
+    let removes = [];
+    let indexes = ixer.table("provenance").indexes;
+    let sourceRowLookup = indexes["source|source row|table"].index;
+    let rowInstanceLookup = indexes["row instance|table"].index;
+    let tableRowLookup = indexes["row|table"].index;
+    let provenanceRemoves = [];
+    let visited = {}
+    for(let join of this.joins) {
+      let change = changes[join.table];
+      if(!visited[join.table] && change && change.removes.length) {
+        visited[join.table] = true;
+        for(let remove of change.removes) {
+          let provenances = sourceRowLookup[join.table + '|' + remove.__id + '|' + this.name]
+          if(provenances) {
+            for(let provenance of provenances) {
+              if(!visited[provenance["row instance"]]) {
+                visited[provenance["row instance"]] = true;
+                let relatedProvenance = rowInstanceLookup[provenance["row instance"] + '|' + provenance.table];
+                for(let related of relatedProvenance) {
+                  provenanceRemoves.push(related);
+                }
+              }
+              rowsToPostCheck.push(provenance);
+            }
+          }
+        }
+      }
+    }
+    provenanceDiff.removeFacts("provenance", provenanceRemoves);
+    ixer.applyDiffIncremental(provenanceDiff);
+    let isEdb = ixer.edbTables;
+    for(let row of rowsToPostCheck) {
+      let supports = tableRowLookup[row.row.__id + '|' + row.table];
+      if(!supports || supports.length === 0) {
+        removes.push(row.row);
+      }
+    }
+    return removes;
+  }
+  canBeIncremental() {
+    if(this.aggregates.length) return false;
+    if(this.sorts) return false;
+    if(this.groups) return false;
+    if(this.limitInfo) return false;
+    for(let join of this.joins) {
+      if(join.negated) return false;
+    }
+    return true;
+  }
   compile() {
     let ast = this.toAST();
     let code = this.compileAST(ast);
-    this.compiled = new Function("ixer", "QueryFunctions", code);
+    this.compiled = new Function("ixer", "QueryFunctions", "tableId", "rootRows", code);
+    if(this.canBeIncremental()) {
+      this.incrementalRowFinder = new Function("changes", this.compileIncrementalRowFinderCode());
+    } else {
+      this.incrementalRowFinder = undefined;
+    }
     this.dirty = false;
     return this;
   }
@@ -1133,7 +1533,77 @@ export class Query {
     if(this.dirty) {
       this.compile();
     }
-    return this.compiled(this.ixer, QueryFunctions);
+    let root = this.joins[0];
+    let rows = this.ixer.find(root.table, root.join);
+    return this.compiled(this.ixer, QueryFunctions, this.name, rows);
+  }
+  execIncremental(changes, table): {provenance: any[], adds: any[], removes: any[]} {
+    if(this.dirty) {
+      this.compile();
+    }
+    if(this.incrementalRowFinder) {
+      let potentialRows = this.incrementalRowFinder(changes);
+      // if the root select has some constant filters, then
+      // the above rows need to be filtered down to only those that
+      // match.
+      let rows = [];
+      let root = this.joins[0];
+      let rootKeys = Object.keys(root.join);
+      if(rootKeys.length > 0) {
+        rowLoop: for(let row of potentialRows) {
+          for(let key of rootKeys) {
+            if(row[key] !== root.join[key]) continue rowLoop;
+          }
+          rows.push(row);
+        }
+      } else {
+        rows = potentialRows;
+      }
+      let results = this.compiled(this.ixer, QueryFunctions, this.name, rows);
+      let adds = [];
+      let prevHashes = table.factHash;
+      let prevKeys = Object.keys(prevHashes);
+      let suggestedRemoves = this.incrementalRemove(changes);
+      let realDiff = diffAddsAndRemoves(results.results, suggestedRemoves);
+      for(let result of realDiff.adds) {
+        let id = result.__id;
+        if(prevHashes[id] === undefined) {
+          adds.push(result);
+        }
+      }
+      let diff = this.ixer.diff();
+      diff.addMany("provenance", results.provenance);
+      this.ixer.applyDiffIncremental(diff);
+      // console.log("INC PROV DIFF", this.name, diff.length);
+      return {provenance: results.provenance, adds, removes: realDiff.removes};
+    } else {
+      let results = this.exec();
+      let adds = [];
+      let removes = [];
+      let prevHashes = table.factHash;
+      let prevKeys = Object.keys(prevHashes);
+      let newHashes = {};
+      for(let result of results.results) {
+        let id = result.__id;
+        newHashes[id] = result;
+        if(prevHashes[id] === undefined) {
+          adds.push(result);
+        }
+      }
+      for(let hash of prevKeys) {
+        let value = newHashes[hash];
+        if(value === undefined) {
+           removes.push(prevHashes[hash]);
+        }
+      }
+      let realDiff = diffAddsAndRemoves(adds, removes);
+      let diff = this.ixer.diff();
+      diff.remove("provenance", {table: this.name});
+      diff.addMany("provenance", results.provenance);
+      this.ixer.applyDiffIncremental(diff);
+      // console.log("FULL PROV SIZE", this.name, diff.length);
+      return {provenance: results.provenance, adds: realDiff.adds, removes: realDiff.removes};
+    }
   }
   debug() {
     console.log(this.compileAST(this.toAST()));
@@ -1164,11 +1634,6 @@ export class Union {
     this.prev = {results: [], hashes: {}};
     this.dirty = true;
   }
-  stateful() {
-    this.dirty = true;
-    this.isStateful = true;
-    return this;
-  }
   ensureHasher(mapping) {
     if(!this.hasher) {
       this.hasher = generateStringFn(Object.keys(mapping));
@@ -1181,16 +1646,10 @@ export class Union {
     this.sources.push({type: "+", table: tableName, mapping});
     return this;
   }
-  ununion(tableName, mapping) {
-    this.dirty = true;
-    this.ensureHasher(mapping);
-    this.tables.push(tableName);
-    this.sources.push({type: "-", table: tableName, mapping});
-    return this;
-  }
   toAST() {
     let root = {type: "union", children: []};
     root.children.push({type: "declaration", var: "results", value: "[]"});
+    root.children.push({type: "declaration", var: "provenance", value: "[]"});
 
     let hashesValue = "{}";
     if(this.isStateful) {
@@ -1202,9 +1661,7 @@ export class Union {
     for(let source of this.sources) {
       let action;
       if(source.type === "+") {
-        action = {type: "result", ix};
-      } else {
-        action = {type: "removeResult", ix};
+        action = {type: "result", ix, children: [{type: "provenance", source, ix}]};
       }
       root.children.push({
         type: "source",
@@ -1216,7 +1673,7 @@ export class Union {
       ix++;
     }
     root.children.push({type: "hashesToResults"});
-    root.children.push({type: "return", vars: ["results", "hashes"]});
+    root.children.push({type: "return", vars: ["results", "hashes", "provenance"]});
     return root;
   }
   compileAST(root) {
@@ -1248,7 +1705,7 @@ export class Union {
           }
           mappingItems.push(`'${key}': ${value}`)
         }
-        code += `var sourceRows${ix} = ixer.table('${root.table}').table;\n`;
+        code += `var sourceRows${ix} = changes['${root.table}'];\n`;
         code += `for(var rowIx${ix} = 0, rowsLen${ix} = sourceRows${ix}.length; rowIx${ix} < rowsLen${ix}; rowIx${ix}++) {\n`
         code += `var sourceRow${ix} = sourceRows${ix}[rowIx${ix}];\n`;
         code += `var mappedRow${ix} = {${mappingItems.join(", ")}};\n`
@@ -1259,7 +1716,12 @@ export class Union {
         break;
       case "result":
         var ix = root.ix;
-        code += `hashes[hasher(mappedRow${ix})] = mappedRow${ix};\n`;
+        code += `var hash${ix} = hasher(mappedRow${ix});\n`;
+        code += `mappedRow${ix}.__id = hash${ix};\n`;
+        code += `hashes[hash${ix}] = mappedRow${ix};\n`;
+        for(var child of root.children) {
+          code += this.compileAST(child);
+        }
         break;
       case "removeResult":
         var ix = root.ix;
@@ -1268,11 +1730,22 @@ export class Union {
       case "hashesToResults":
         code += "var hashKeys = Object.keys(hashes);\n";
         code += "for(var hashKeyIx = 0, hashKeyLen = hashKeys.length; hashKeyIx < hashKeyLen; hashKeyIx++) {\n";
-        code += "var value = hashes[hashKeys[hashKeyIx]];\n";
+        code += "var curHashKey = hashKeys[hashKeyIx];"
+        code += "var value = hashes[curHashKey];\n";
         code += "if(value !== false) {\n";
-        code += "results.push(value);\n"
-        code += "}\n"
-        code += "}\n"
+        code += "value.__id = curHashKey;\n";
+        code += "results.push(value);\n";
+        code += "}\n";
+        code += "}\n";
+        break;
+      case "provenance":
+        var source = root.source.table;
+        var ix = root.ix;
+        var provenance = "var provenance__id = '';\n";
+        provenance += `provenance__id = '${this.name}|' + mappedRow${ix}.__id + '|' + rowInstance + '|${source}|' + sourceRow${ix}.__id; \n`;
+        provenance += `provenance.push({table: '${this.name}', row: mappedRow${ix}, "row instance": rowInstance, source: "${source}", "source row": sourceRow${ix}});\n`;
+        code = `var rowInstance = "${source}|" + mappedRow${ix}.__id;
+        ${provenance}`;
         break;
       case "return":
         code += `return {${root.vars.join(", ")}};`;
@@ -1283,7 +1756,7 @@ export class Union {
   compile() {
     let ast = this.toAST();
     let code = this.compileAST(ast);
-    this.compiled = new Function("ixer", "hasher", "prevHashes", code);
+    this.compiled = new Function("ixer", "hasher", "changes", code);
     this.dirty = false;
     return this;
   }
@@ -1296,11 +1769,143 @@ export class Union {
     if(this.dirty) {
       this.compile();
     }
-    let results = this.compiled(this.ixer, this.hasher, this.prev.hashes);
-    this.prev = results;
+    let changes = {}
+    for(let source of this.sources) {
+      changes[source.table] = this.ixer.table(source.table).table;
+    }
+    let results = this.compiled(this.ixer, this.hasher, changes);
     return results;
   }
+  incrementalRemove(changes) {
+    let ixer = this.ixer;
+    let rowsToPostCheck = [];
+    let provenanceDiff = this.ixer.diff();
+    let removes = [];
+    let indexes = ixer.table("provenance").indexes;
+    let sourceRowLookup = indexes["source|source row|table"].index;
+    let rowInstanceLookup = indexes["row instance|table"].index;
+    let tableRowLookup = indexes["row|table"].index;
+    let provenanceRemoves = [];
+    let visited = {}
+    for(let source of this.sources) {
+      let change = changes[source.table];
+      if(!visited[source.table] && change && change.removes.length) {
+        visited[source.table] = true;
+        for(let remove of change.removes) {
+          let provenances = sourceRowLookup[source.table + '|' + remove.__id + '|' + this.name]
+          if(provenances) {
+            for(let provenance of provenances) {
+              if(!visited[provenance["row instance"]]) {
+                visited[provenance["row instance"]] = true;
+                let relatedProvenance = rowInstanceLookup[provenance["row instance"] + '|' + provenance.table];
+                for(let related of relatedProvenance) {
+                  provenanceRemoves.push(related);
+                }
+              }
+              rowsToPostCheck.push(provenance);
+            }
+          }
+        }
+      }
+    }
+    provenanceDiff.removeFacts("provenance", provenanceRemoves);
+    ixer.applyDiffIncremental(provenanceDiff);
+    let isEdb = ixer.edbTables;
+    for(let row of rowsToPostCheck) {
+      let supports = tableRowLookup[row.row.__id + '|' + row.table];
+      if(!supports || supports.length === 0) {
+        removes.push(row.row);
+      } else if(this.sources.length > 2) {
+        let supportsToRemove = [];
+        // otherwise if there are supports, then we need to walk the support
+        // graph backwards and make sure every supporting row terminates at an
+        // edb value. If not, then that support also needs to be removed
+        for(let support of supports) {
+          // if the support is already an edb, we're good to go.
+          if(isEdb[support.source]) continue;
+          if(!tableRowLookup[support["source row"].__id + '|' + support.source]) {
+            supportsToRemove.push(support);
+            continue;
+          }
+          // get all the supports for this support
+          let nodes = tableRowLookup[support["source row"].__id + '|' + support.source].slice();
+          let nodeIx = 0;
+          // iterate through all the nodes, if they have further supports then
+          // assume this node is ok and add those supports to the list of nodes to
+          // check. If we run into a node with no supports it must either be an edb
+          // or it's unsupported and this row instance needs to be removed.
+          while(nodeIx < nodes.length) {
+            let node = nodes[nodeIx];
+            if(isEdb[node.source]) {
+              nodeIx++;
+              continue;
+            }
+            let nodeSupports = tableRowLookup[node["source row"].__id + '|' + node.source];
+            if(!nodeSupports || nodeSupports.length === 0) {
+              supportsToRemove.push(support);
+              break;
+            } else {
+              for(let nodeSupport of nodeSupports) {
+                nodes.push(nodeSupport);
+              }
+              nodeIx++;
+            }
+          }
+        }
+        if(supportsToRemove.length) {
+          // we need to remove all the supports
+          let provenanceRemoves = [];
+          for(let support of supportsToRemove) {
+            let relatedProvenance = rowInstanceLookup[support["row instance"] + '|' + support.table];
+            for(let related of relatedProvenance) {
+              provenanceRemoves.push(related);
+            }
+          }
+          let diff = ixer.diff();
+          diff.removeFacts("provenance", provenanceRemoves);
+          ixer.applyDiffIncremental(diff);
+          // now that all the unsupported provenances have been removed, check if there's anything
+          // left.
+          if(!tableRowLookup[row.row.__id + '|' + row.table] || tableRowLookup[row.row.__id + '|' + row.table].length === 0) {
+            removes.push(row.row);
+          }
+        }
+      }
+    }
+    return removes;
+  }
+  execIncremental(changes, table): {provenance: any[], adds: any[], removes: any[]} {
+    if(this.dirty) {
+      this.compile();
+    }
 
+    let sourceChanges = {}
+    for(let source of this.sources) {
+      let value;
+      if(!changes[source.table]) {
+        value = [];
+      } else {
+        value = changes[source.table].adds;
+      }
+      sourceChanges[source.table] = value;
+    }
+    let results = this.compiled(this.ixer, this.hasher, sourceChanges);
+    let adds = [];
+    let prevHashes = table.factHash;
+    let prevKeys = Object.keys(prevHashes);
+    let suggestedRemoves = this.incrementalRemove(changes);
+    let realDiff = diffAddsAndRemoves(results.results, suggestedRemoves);
+    for(let result of realDiff.adds) {
+      let id = result.__id;
+      if(prevHashes[id] === undefined) {
+        adds.push(result);
+      }
+    }
+    let diff = this.ixer.diff();
+    diff.addMany("provenance", results.provenance);
+    this.ixer.applyDiffIncremental(diff);
+    return {provenance: results.provenance, adds, removes: realDiff.removes};
+  }
 }
 
 //---------------------------------------------------------
@@ -1311,7 +1916,7 @@ export const SUCCEED = [{success: true}];
 export const FAIL = [];
 
 export function indexer() {
-  return new Indexer();
+  return addProvenanceTable(new Indexer());
 }
 
 declare var exports;

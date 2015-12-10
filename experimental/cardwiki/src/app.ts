@@ -71,11 +71,24 @@ export function render() {
     perfStats = stats;
 
     renderer.queued = false;
-
-    let changeset = eve.diff();
-
-    // eve.applyDiff(changeset);
   });
+}
+
+var storeQueued = false;
+function storeLocally() {
+  if(storeQueued) return;
+  storeQueued = true;
+  setTimeout(() => {
+    let serialized = eve.serialize(true);
+    if (eveLocalStorageKey === "eve") {
+      for (let synced of syncedTables) {
+        delete serialized[synced];
+      }
+    }
+    delete serialized["provenance"];
+    localStorage[eveLocalStorageKey] = JSON.stringify(serialized);
+    storeQueued = false;
+  }, 1000);
 }
 
 //---------------------------------------------------------
@@ -112,19 +125,19 @@ export function dispatch(event: string, info?: { [key: string]: any }, dispatchI
     update: {update: ${perfStats.update}}
     Horrible hack, disregard this: {perf stats: render performance statistics}
     `});
-    eve.applyDiff(result);
+    if(!runtime.INCREMENTAL) {
+      eve.applyDiff(result);
+    } else {
+      eve.applyDiffIncremental(result);
+    }
     if (result.meta.render) {
       render();
     }
     if (result.meta.store) {
-      let serialized = eve.serialize(true);
+      storeLocally();
       if (eveLocalStorageKey === "eve") {
-        for (let synced of syncedTables) {
-          delete serialized[synced];
-        }
         sendChangeSet(result);
       }
-      localStorage[eveLocalStorageKey] = JSON.stringify(serialized);
     }
     updateStat = performance.now() - start;
   }

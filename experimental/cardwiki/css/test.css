@@ -2,11 +2,12 @@ body { color: #ccc; }
 
 .test-root { overflow:auto; flex:1; }
 
-.search { padding: 20px 30px; background: #333; margin:30px; flex-shrink:0; border-left:20px solid #444; }
-.search.failed { border-left-color: #FF3666; }
-.search.succeeded { border-left-color: #9fa; }
+.search { padding: 20px 30px; background: #333; margin:15 30; flex-shrink:0; border-left:20px solid #444; }
+.search.v0 { border-left-color: #FF3666; }
+.search.v1 { border-left-color: #9fa; }
 .search-header { font-size:16pt; color: #fff; }
 .header { font-size: 14pt; margin-top:20px; margin-bottom: 10px; }
+.hidden { display: none; }
 .header2 { font-size: 12pt; }
 .kids { margin-left: 30px; }
 
@@ -20,8 +21,10 @@ body { color: #ccc; }
 .stats .succeeded { background: #9fa; }
 .stats .unvalidated { background: #777; }
 
+.perf { font-size: 12pt; padding: 0 30px; margin-top:20px; flex:none; justify-content: center; text-align: center;  }
 
 .step { padding-left: 5px; }
 .step + .step { margin-top:5px; }
-.invalid, .missing { border-left:5px solid #FF3666; }
-.valid { border-left:5px solid #9fa; }
+.step.v0 { border-left:5px solid #FF3666; } 
+.step.v2 { border-left:5px solid #777; }
+.step.v1 { border-left:5px solid #9fa; }
