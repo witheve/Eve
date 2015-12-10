@@ -102,6 +102,34 @@ var patterns = {
     resultingIndirectObject: 0,
     args: ["a", "b"],
   },
+  "+": {
+    type: "calculate",
+    op: "+",
+    infix: true,
+    resultingIndirectObject: 0,
+    args: ["a", "b"],
+  },
+  "-": {
+    type: "calculate",
+    op: "+",
+    infix: true,
+    resultingIndirectObject: 0,
+    args: ["a", "b"],
+  },
+  "*": {
+    type: "calculate",
+    op: "+",
+    infix: true,
+    resultingIndirectObject: 0,
+    args: ["a", "b"],
+  },
+  "/": {
+    type: "calculate",
+    op: "+",
+    infix: true,
+    resultingIndirectObject: 0,
+    args: ["a", "b"],
+  }
 };
 
 //---------------------------------------------------------
@@ -881,7 +909,7 @@ function treeToPlan(tree) : Plan {
   for (let step of plan) {
     pplan.push(step);
   }
-  
+
   return pplan;
 }
 
@@ -1152,7 +1180,7 @@ var tests: TestQuery[] = [
     ]
   },
   /*
-  { 
+  {
     query: "top 2 salaries of the first 3 departments",
   },
   "departments where all the employees are male": {
@@ -1333,13 +1361,13 @@ function validateTestQuery(test: TestQuery) : any {
   let expectedPlan:any;
 
   validatePlan(plan, test.expected);
-  
+
   return { valid: plan.valid, tokens, tree, plan, searchString: test.query, time: performance.now() - start };
 }
 
 function queryTestUI(result) {
   let {tokens, tree, plan, valid, searchString} = result;
-  
+
   //tokens
   let tokensNode = {c: "tokens", children: [
     {c: "header", text: "Tokens"},
@@ -1381,7 +1409,7 @@ function queryTestUI(result) {
     let deselected = step.deselected ? "!" : "";
     return {c: `step v${step.valid}`, text: `${StepType[step.type]} ${deselected}${step.subject}${args}`};
   });
-  
+
   let planNode = {c: "tokens", children: [
     {c: "header", text: "Plan"},
     {c: "kids", children: planDisplay}

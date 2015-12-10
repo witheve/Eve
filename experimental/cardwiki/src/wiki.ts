@@ -87,7 +87,6 @@ function tokenize(entity) {
   tokens.push(cur);
   return tokens;
 }
-console.log(tokenize("{foo: \"bar baz{}\"}"));
 
 function parse(tokens) {
   let links = [];
@@ -675,7 +674,7 @@ function opToPlan(op, groupLookup) {
       let value = op.children[ix];
       if(value === undefined) continue;
       if(value.type && value.type === "value") {
-        args[arg] = JSON.parse(value.value);
+        args[arg] = JSON.parse(value.found);
       } else if(value.type) {
         args[arg] = [value.id, "value"];
       } else {
@@ -1309,20 +1308,20 @@ function entityUi(entityId, instance:string|number = "", searchId) {
     let entityView;
     if(isManual) {
       if(!eve.findOne("editing", {search: searchId})) {
-        entityView = {id: `${block.block}${instance}`, c: "entity", searchId, entity: entityId, children: entityToHTML(parseEntity(entityId, block.content).lines, searchId, isManual), dblclick: editEntity, enter: {display: "flex", opacity: 1, duration: 300}};
+        entityView = {id: `${block.block}${instance}`, c: "entity", searchId, entity: entityId, children: entityToHTML(parseEntity(entityId, block.content).lines, searchId, false), dblclick: editEntity};
       } else {
         entityView = {id: `${block.block}${instance}|editor`, c: "entity editor", entity: entityId, searchId, postRender: CodeMirrorElement, value: block.content, blur: commitEntity};
       }
       entityViews.unshift(entityView);
     } else {
       let source = eve.findOne("entity eavs", {entity: block.block, attribute: "source"}).value;
-      entityView = {id: `${block.block}${instance}`, c: "entity", searchId, entity: entityId, children: entityToHTML(parseEntity(entityId, block.content).lines, searchId, isManual), click: followLink, linkText: source, enter: {display: "flex", opacity: 1, duration: 300}};
+      entityView = {id: `${block.block}${instance}`, c: "entity", searchId, entity: entityId, children: entityToHTML(parseEntity(entityId, block.content).lines, searchId, false), click: followLink, linkText: source};
       entityViews.push(entityView);
     }
   }
   if(entityViews.length === 0) {
     if(!eve.findOne("editing", {search: searchId})) {
-      entityViews.push({id: `${entityId}${instance}`, c: "entity", searchId, entity: entityId, children: [{c: "placeholder", text: "Add a description"}], dblclick: editEntity, enter: {display: "flex", opacity: 1, duration: 300}});
+      entityViews.push({id: `${entityId}${instance}`, c: "entity", searchId, entity: entityId, children: [{c: "placeholder", text: "Add a description"}], dblclick: editEntity});
     } else {
       entityViews.push({id: `${entityId}${instance}|editor`, c: "entity editor", entity: entityId, searchId, postRender: CodeMirrorElement, value: "", blur: commitEntity});
     }
@@ -1387,7 +1386,7 @@ function searchDescription(tokens, plan) {
       }
       planChildren.push({c: "text operation", text: `limit ${limit}`});
     } else if(step.type === "calculate") {
-      planChildren.push({c: "text operation", text: `${step.type}->`});
+      planChildren.push({c: "text operation", text: `${step.type} ${step.func}`});
     } else if(step.type === "aggregate") {
       planChildren.push({c: "text operation", text: `${step.aggregate}`});
     } else {
@@ -1451,25 +1450,23 @@ export function newSearchResults(searchId) {
             klass = "entity";
             click = followLink;
             link = resultPart["entity"];
-            if(planIx > 0) {
-//                 klass += " small";
-//                 text = first2Letters(text);
-            }
           } else if(planItem.type === "lookup") {
             text = resultPart["value"];
             klass = "attribute";
-
           } else if(planItem.type === "aggregate") {
             text = resultPart[planItem.aggregate];
             klass = "value";
           } else if(planItem.type === "filter by entity") {
             // we don't really want these to show up.
+          } else if(planItem.type === "calculate") {
+            text = JSON.stringify(resultPart.result);
+            klass = "value";
           } else {
             text = JSON.stringify(resultPart);
           }
           if(text) {
-            let rand = Math.floor(Math.random() * 20) + 1;
-            let item = {id: `${searchId} ${ix} ${planIx}`, c: `bit ${klass}`, text, click, searchId, linkText: link, enter: {opacity:1, duration: rand * 100, delay: ix * 0}};
+            klass += planLength > 1 ? " bit" : " list-item";
+            let item = {id: `${searchId} ${ix} ${planIx}`, c: `${klass}`, text, click, searchId, linkText: link};
             if(groupedFields[planItem.name] && !resultItem.children[planIx]) {
               resultItem.children[planIx] = {c: "sub-group", children: [item]};
             } else if(!groupedFields[planItem.name] && !resultItem.children[planIx]) {
@@ -1477,21 +1474,42 @@ export function newSearchResults(searchId) {
             } else if(!groupedFields[planItem.name]) {
               resultItem.children[planIx].children.push(item);
             }
+            if(planLength === 1) {
+              resultItem.c = "path list-row";
+            }
           }
           planOffset += planItem.size;
         }
       }
     }
   }
+  let entityContent = [];
   let noHeaders = false;
   if(plan.length === 1 && plan[0].type === "find") {
-    resultItems.push({c: "singleton", children: [entityUi(plan[0].entity, searchId, searchId)]});
+    entityContent.push({c: "singleton", children: [entityUi(plan[0].entity, searchId, searchId)]});
   } else if(plan.length === 1 && plan[0].type === "gather") {
-    resultItems.unshift({c: "singleton", children: [entityUi(plan[0].collection, searchId, searchId)]});
+    entityContent.unshift({c: "singleton", children: [entityUi(plan[0].collection, searchId, searchId)]});
+    let text = `There are no ${pluralize(plan[0].collection, resultItems.length)} in the system.`;
+    if(resultItems.length > 0) {
+      text = `There ${pluralize("are", resultItems.length)} ${resultItems.length} ${pluralize(plan[0].collection, resultItems.length)}:`;
+    }
+    resultItems.unshift({c: "description", text});
     noHeaders = true;
   } else if(plan.length === 0) {
-    resultItems.push({c: "singleton", children: [entityUi(search.toLowerCase(), searchId, searchId)]});
+    entityContent.push({c: "singleton", children: [entityUi(search.toLowerCase(), searchId, searchId)]});
+  } else {
+    let headers = []
+    // figure out what the headers are
+    if(!noHeaders) {
+      for(let step of plan) {
+        if(step.type === "filter by entity") continue;
+        if(step.size === 0) continue;
+        headers.push({text: step.name});
+      }
+    }
+    resultItems.unshift({c: "search-headers", children: headers});
   }
+
   let actions = [];
   for(let bitAction of eve.find("add bit action", {view: search})) {
     let {template, action} = bitAction;
@@ -1524,15 +1542,6 @@ export function newSearchResults(searchId) {
     ]};
   }
 
-  let headers = []
-  // figure out what the headers are
-  if(!noHeaders) {
-    for(let step of plan) {
-      if(step.type === "filter by entity") continue;
-      if(step.size === 0) continue;
-      headers.push({text: step.name});
-    }
-  }
   let isDragging = dragging && dragging.id === searchId ? "dragging" : "";
   let showPlan = eve.findOne("showPlan", {search: searchId}) ? searchDescription(tokens, plan) : undefined;
   return {id: `${searchId}|container`, c: `container search-container ${isDragging}`, top, left, children: [
@@ -1543,9 +1552,8 @@ export function newSearchResults(searchId) {
       {c: "ion-android-close close", click: removeSearch, searchId},
     ]},
     showPlan,
-    {c: "search-headers", children: headers},
-    {c: "search-results", children: resultItems},
-//       randomlyLetter(`I found ${resultItems.length} results.`),
+    {c: "entity-content", children: entityContent},
+    resultItems.length ? {c: "search-results", children: resultItems} : undefined,
     actionContainer,
     {c: "add-action", children: addActionChildren}
   ]};
