@@ -1,3 +1,19 @@
+import {v4 as _uuid} from "../vendor/uuid";
+export var uuid = _uuid;
+
+export var ENV = "browser";
+try {
+  window
+} catch(err) {
+  ENV = "node";
+}
+
+export var DEBUG:any = {
+
+};
+
+if(ENV === "browser") window["DEBUG"] = DEBUG;
+
 type TemplateStringTag = (strings:string[], ...values:any[]) => string
 interface unpad {
   (indent:number): TemplateStringTag
@@ -56,3 +72,19 @@ export function tail(arr) {
 export var array = {
   tail
 };
+
+export function coerceInput(input) {
+  if (input.match(/^-?[\d]+$/gim)) {
+    return parseInt(input);
+  }
+  else if (input.match(/^-?[\d]+\.[\d]+$/gim)) {
+    return parseFloat(input);
+  }
+  else if (input === "true") {
+    return true;
+  }
+  else if (input === "false") {
+    return false;
+  }
+  return input;
+}
