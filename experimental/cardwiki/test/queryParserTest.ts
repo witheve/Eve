@@ -583,7 +583,7 @@ export function root() {
   }
   let resultItems = results.map(queryTestUI);
   let totalParseTime = 0;
-  let minParseTime = 99999;
+  let minParseTime = Infinity;
   let maxParseTime = 0;
   for(let result of results) {
     totalParseTime += result.time;
