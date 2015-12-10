@@ -94,15 +94,24 @@ class BSPhase {
 
   addEntity(entity:string, name:string, kinds:string[], attributes?:{}, extraContent?:string) {
     this._entities.push(entity);
+    let isAs = kinds.map((kind) => `{is a: ${kind}}`);
+    let collectionsText = "";
+    if(isAs.length)
+      collectionsText = `${titlecase(name)} is a ${isAs.slice(0, -1).join(", ")} ${isAs.length > 1 ? "and" : ""} ${isAs[isAs.length - 1]}.`;
     let content = unpad(6) `
-      # ${titlecase(name)} (${kinds.map((kind) => `{is a: ${kind}}`).join(", ")})
+      # ${name}
+      ${collectionsText}
     `;
     if(attributes) {
       content += "## Attributes\n";
       for(let attr in attributes) content += `${attr}: {${attr}: ${attributes[attr]}}\n      `;
     }
     if(extraContent) content += "\n" + extraContent;
-    this.addFact("builtin entity", {entity, content});
+    let block = `${entity}|block`;
+    this.addFact("builtin entity eavs", {entity: block, attribute: "is a", value: "content block"});
+    this.addFact("builtin entity eavs", {entity: block, attribute: "source", value: "manual"});
+    this.addFact("builtin entity eavs", {entity: block, attribute: "associated entity", value: entity});
+    this.addFact("builtin entity eavs", {entity: block, attribute: "content", value: content});
     return this;
   }
 
@@ -130,6 +139,7 @@ class BSPhase {
       this.addTable(table, fields);
       this.addUnionMember(view, table);
     }
+
     return this;
   }
 
@@ -206,20 +216,6 @@ app.init("bootstrap", function bootstrap() {
     .addEntity("table", "table", ["system", "collection"])
     .addEntity("ui", "ui", ["system", "collection"]);
 
-  // phase.addUnion("entity", ["entity", "content"], false)
-  //   .addUnionMember("entity", "manual entity")
-  //   .addUnionMember("entity", "action entity")
-  //   .addUnionMember("entity", "unmodified added bits")
-  //   .addUnionMember("entity", "automatic collection entities")
-  //   .addTable("builtin entity", ["entity", "content"])
-  //   .addQuery("unmodified builtin entities", queryFromQueryDSL(unpad(4) `
-  //     select builtin entity as [builtin]
-  //     deselect manual entity {entity: [builtin, entity]}
-  //     deselect action entity {entity: [builtin, entity]}
-  //     project {entity: [builtin, entity]; content: [builtin, content]}
-  //   `))
-  //   .addUnionMember("entity", "unmodified builtin entities");
-
   phase.addQuery("entity", queryFromQueryDSL(unpad(4) `
     select content blocks as [blocks]
     project {entity: [blocks, entity]; content: [blocks, content]}
@@ -259,7 +255,7 @@ app.init("bootstrap", function bootstrap() {
     project {entity: [entity, entity]; attribute: [parsed, attribute]; value: [parsed, value]}
   `));
 
-  phase.addUnion("entity eavs", ["entity", "attribute", "value"])
+  phase.addUnion("entity eavs", ["entity", "attribute", "value"], true)
     .addUnionMember("entity eavs", "manual eav")
     .addUnionMember("entity eavs", "generated eav", {entity: "entity", attribute: "attribute", value: "value"})
     .addUnionMember("entity eavs", "parsed content blocks")
@@ -306,14 +302,6 @@ app.init("bootstrap", function bootstrap() {
     project {collection: [coll, collection]; count: [count, count]}
   `));
 
-//   phase.addQuery("automatic collection entities", queryFromQueryDSL(unpad(4) `
-//     select collection as [coll]
-//     deselect manual entity {entity: [coll, collection]}
-//     deselect builtin entity {entity: [coll, collection]}
-//     calculate collection content {collection: [coll, collection]} as [content]
-//     project {entity: [coll, collection]; content: [content,content]}
-//   `));
-
   phase.apply(true);
 
   //-----------------------------------------------------------------------------
@@ -358,58 +346,6 @@ app.init("bootstrap", function bootstrap() {
   phase.addTable("ui event state binding", resolve("ui event state binding", ["template", "event", "key", "source", "alias"]));
 
   phase.addTable("system ui", ["template"]);
-  // phase.addFact("system ui", {template: "wiki root"});
-
-  // let wikiRoot = UIFromDSL(unpad(4) `
-  //   div wiki-root {color: red}
-  //     header
-  //       > perf stats
-  //     content
-  //       > search pane
-  // `);
-  // phase.addUI("wiki root", wikiRoot);
-  // window["uu"] = wikiRoot;
-
-  // phase.addUI("search pane", UIFromDSL(unpad(4) `
-  //   search-pane container search-container {top: [search, top]; left: [search, left]}
-  //     ~ gather search as [search]
-  //     ~   lookup top
-  //     ~   lookup left
-  //     ~   lookup text
-  //     ~# calculate search {id: [search, search]} as [result]
-  //     header search-header
-  //       div search-input { text: [search, text]}
-  //     content {text: its a singleton yo.}
-  //       ~# filter = {a: [result, kind]; b: singleton}
-
-  //     footer search-actions
-  //       row add-action
-  //         button {text: + entity}
-  //           @ click {kind: add entity action; id: [search, search]}
-  //         button {text: + attribute}
-  //           @ click {kind: add attribute action; id: [search, search]}
-  //         button {text: + collection}
-  //           @ click {kind: add collection action; id: [search, search]}
-  // `));
-
-  // phase.addUI("perf stats", UIFromDSL(unpad(4) `
-  //   row perf-stats
-  //     ~ find render performance statistics as [perf stats]
-  //     ~   # Horrible hack (finds don't create source fields), disregard this
-  //     ~   lookup perf stats
-  //     ~   lookup root
-  //     ~   lookup ui compile
-  //     ~   lookup render
-  //     ~   lookup update
-  //     label {text: root}
-  //       span {text: [perf stats, root]}
-  //     label {text: ui compile}
-  //       span {text: [perf stats, ui compile]}
-  //     label {text: render}
-  //       span {text: [perf stats, render]}
-  //     label {text: update}
-  //       span {text: [perf stats, update]}
-  // `));
 
   phase.apply(true);
 
@@ -430,7 +366,20 @@ app.init("bootstrap", function bootstrap() {
     sloth: ["pet", "exotic"],
     kangaroo: ["exotic"],
     giraffe: ["exotic"],
-    gorilla: ["exotic", "dangerous"]
+    gorilla: ["exotic", "dangerous"],
+
+    kodowa: ["company"],
+
+    engineering: ["department"],
+    operations: ["department"],
+    magic: ["department"],
+
+    josh: ["employee"],
+    corey: ["employee"],
+    jamie: ["employee"],
+    chris: ["employee"],
+    rob: ["employee"],
+    eric: ["employee"],
   };
   let testAttrs = {
     cat: {length: 4},
@@ -438,49 +387,31 @@ app.init("bootstrap", function bootstrap() {
     fish: {length: 1},
     snake: {length: 4},
     koala: {length: 3},
-    sloth: {length: 3}
+    sloth: {length: 3},
+    engineering: {company: "kodowa"},
+    operations: {company: "kodowa"},
+    magic: {company: "kodowa"},
+
+    josh: {department: "engineering"},
+    corey: {department: "engineering"},
+    jamie: {department: "engineering"},
+    chris: {department: "engineering"},
+    eric: {department: "engineering"},
+    rob: {department: "operations"},
   };
   for(let entity in testData) phase.addEntity(entity, entity, ["test data"].concat(testData[entity]), testAttrs[entity]);
 
-  phase.addTable("department", ["department"])
-    .addFact("department", {department: "engineering"})
-    .addFact("department", {department: "operations"})
-    .addFact("department", {department: "magic"});
-  phase.addTable("employee", ["department", "employee", "salary"])
-    .addFact("employee", {department: "engineering", employee: "josh", salary: 10})
-    .addFact("employee", {department: "engineering", employee: "corey", salary: 11})
-    .addFact("employee", {department: "engineering", employee: "chris", salary: 7})
-    .addFact("employee", {department: "operations", employee: "rob", salary: 7});
+  // phase.addTable("department", ["department"])
+  //   .addFact("department", {department: "engineering"})
+  //   .addFact("department", {department: "operations"})
+  //   .addFact("department", {department: "magic"});
+  // phase.addTable("employee", ["department", "employee", "salary"])
+  //   .addFact("employee", {department: "engineering", employee: "josh", salary: 10})
+  //   .addFact("employee", {department: "engineering", employee: "corey", salary: 11})
+  //   .addFact("employee", {department: "engineering", employee: "chris", salary: 7})
+  //   .addFact("employee", {department: "operations", employee: "rob", salary: 7});
 
-  phase.addTable("laid off", ["employee"])
-    .addFact("laid off", {employee: "josh"});
-
-  phase.addQuery("exotic pet", queryFromPlanDSL(unpad(4) `
-    gather pet as [animal]
-      intersect exotic
-      lookup length as [animal length]
-      filterByEntity ! snake
-      filter > { a: [animal length, value]; b: 1 }
-  `));
-  let example = UIFromDSL(unpad(4) `
-    div example {color: fuchsia}
-      header {text: header}
-      content
-        div pet
-          ~ gather pet as [pet]
-          ~   lookup length
-          ~# calculate + {a: [pet, pet]; b: [pet, length]} as [label]
-          span {text: [pet, pet]}
-            @ click {foo: bar; baz: [pet, pet]}
-          label {text: enemy}
-            input
-              @ change {pet: [pet, pet]; enemy: [*event*, value]}
-          span {text: [pet, length]}
-      footer {text: footer}
-  `);
-  phase.addUI("example ui", example);
-
-  phase.apply(true);
+  //phase.apply(true);
   window["p"] = phase;
 });
 
