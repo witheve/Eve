@@ -3,10 +3,8 @@
 import * as microReact from "./microReact";
 import * as runtime from "./runtime";
 import {UIRenderer} from "./uiRenderer";
+import {ENV, DEBUG, uuid} from "./utils";
 
-declare var uuid;
-// @FIXME:
-uuid = this.uuid || (() => Math.random.toString());
 
 export var syncedTables = ["manual entity", "view", "action", "action source", "action mapping", "action mapping constant", "action mapping sorted", "action mapping limit", "add collection action", "add eav action", "add bit action"];
 export var eveLocalStorageKey = "eve";
@@ -30,7 +28,7 @@ function initRenderer() {
   document.body.appendChild(perfStatsUi);
 }
 
-if(this.window) var performance = window["performance"] || { now: () => (new Date()).getTime() }
+if(ENV === "browser") var performance = window["performance"] || { now: () => (new Date()).getTime() }
 
 export var renderRoots = {};
 export function render() {
@@ -46,17 +44,17 @@ export function render() {
     }
 
     stats.root = (performance.now() - start).toFixed(2);
-    if (+stats.root > 10) console.log("Slow root: " + stats.root);
+    if (+stats.root > 10) console.info("Slow root: " + stats.root);
 
     start = performance.now();
     let dynamicUI = eve.find("system ui").map((ui) => ui["template"]);
-    if(window["DEBUG"] && window["DEBUG"].UI_COMPILE) {
-      console.log("compiling", dynamicUI);
-      console.log("*", uiRenderer.compile(dynamicUI));
+    if(DEBUG && DEBUG.UI_COMPILE) {
+      console.info("compiling", dynamicUI);
+      console.info("*", uiRenderer.compile(dynamicUI));
     }
     trees.push.apply(trees, uiRenderer.compile(dynamicUI));
     stats.uiCompile = (performance.now() - start).toFixed(2);
-    if (+stats.uiCompile > 10) console.log("Slow ui compile: " + stats.uiCompile);
+    if (+stats.uiCompile > 10) console.info("Slow ui compile: " + stats.uiCompile);
 
     start = performance.now();
     renderer.render(trees);
@@ -228,7 +226,7 @@ function sendChangeSet(changeset) {
 //---------------------------------------------------------
 // Go
 //---------------------------------------------------------
-if(this.document) {
+if(ENV === "browser") {
   document.addEventListener("DOMContentLoaded", function(event) {
     initRenderer();
     connectToServer();

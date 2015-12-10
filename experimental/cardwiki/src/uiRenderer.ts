@@ -1,9 +1,6 @@
-import {unpad, repeat} from "./utils";
+import {unpad, repeat, DEBUG, uuid} from "./utils";
 import {Element, Handler} from "./microReact";
 import {Indexer, Query} from "./runtime";
-declare var uuid;
-declare var DEBUG;
-if(this.window) window["DEBUG"] = window["DEBUG"] || {};
 
 function resolve(table, fact) {
   let neue = {};

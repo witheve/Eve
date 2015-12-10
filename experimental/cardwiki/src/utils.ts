@@ -1,3 +1,19 @@
+import {v4 as _uuid} from "../vendor/uuid";
+export var uuid = _uuid;
+
+export var ENV = "browser";
+try {
+  window
+} catch(err) {
+  ENV = "node";
+}
+
+export var DEBUG:any = {
+
+};
+
+if(ENV === "browser") window["DEBUG"] = DEBUG;
+
 type TemplateStringTag = (strings:string[], ...values:any[]) => string
 interface unpad {
   (indent:number): TemplateStringTag

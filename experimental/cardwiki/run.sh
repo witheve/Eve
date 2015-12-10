@@ -75,6 +75,9 @@ function bundle {
 echo "# Updating node_modules..."
 npm i
 
+echo "# Symlinking vendor for node execution..."
+ln -s ../vendor bin/vendor
+
 echo "# Starting watchers..."
 mkdir -p "bin"
 node_modules/tsify/node_modules/typescript/bin/tsc --watch -m commonjs 2>&1 | tag "typescript" "$blue" &
