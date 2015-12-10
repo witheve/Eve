@@ -73,21 +73,23 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .search-container { position:absolute; min-width: 300px; z-index:1; }
 
 
-.search-headers { flex-direction:row; margin-bottom:1px; }
+.search-headers { flex-direction:row; border:1px solid #ccc; margin:0 10px; }
 .search-headers:empty { margin:0; }
-.search-headers > * { flex:1; align-items:center;  font-size:11pt;  padding:10px 10px; }
-.search-headers > * + * { margin-left:1px; }
+.search-headers > * { flex:1; align-items:flex-start;  font-size:11pt;  padding:5px 10px; }
+.search-headers > * + * { border-left:1px solid #ccc; }
 
-.search-results { flex:none; max-height: 60vh; overflow:auto; padding:10px 10px; }
+.search-results { flex:none; max-height: 60vh; overflow:auto; padding:10px 10px; margin-top:10px; }
 .search-results .path > * { flex:1; }
 .search-results .sub-group { margin:0 0px; min-width:100px; }
 .search-results .sub-group + .sub-group { border-left: 1px solid #222; }
 .search-results .sub-group .bit { margin:0 0; flex: 1 0 0; overflow:hidden; min-height:35px; }
 .search-results .path + .path { border-top:1px solid #222; }
+.search-results .path.list-row { border:none; }
 .search-results .list-row::before { content: "-"; margin-right:5px;  }
 .search-results .path.list-row + .path.list-row { border:none; margin-top:5px; }
 .search-results .sub-group .bit + .bit { border-top:1px solid #222; }
-.search-results .path { flex-direction:row; margin:0 10px; }
+.search-results .path { flex-direction:row; margin:0 10px; border-left: 1px solid #ccc; border-right:1px solid #ccc; }
+.search-results .path:last-child { border-bottom:1px solid #ccc; }
 .search-results .description { margin-bottom:10px; }
 
 .CodeMirror div { display:block; }
@@ -162,13 +164,13 @@ body.light { background: rgb(71,72,75); font-family: Helvetica Neue; font-weight
 .light .list-item:hover { border-bottom-color:rgb(53, 105, 183); }
 
 .light .bit { background: #eee; }
-.light .bit.collection { background: rgb(115, 173, 149); color: #fff; }
+/* .light .bit.collection { background: rgb(115, 173, 149); color: #fff; }
 .light .bit.collection .collection { color: #fff; }
 .light .bit.entity { background: #6E89B1; color: #FFF; }
 .light .new-bit .bit.entity { background: #eee; color: #555; }
 .light .header.entity { color: #fff; }
 .light .bit.value { background: #779BA9; color: #fff; }
-.light .bit.attribute { background: #AA88AD; color: #fff; }
+.light .bit.attribute { background: #AA88AD; color: #fff; } */
 
 .light .actions-container {  }
 .light .actions-container > * { background: #eee; }
@@ -179,10 +181,10 @@ body.light { background: rgb(71,72,75); font-family: Helvetica Neue; font-weight
 
 .light .search-input { background: #eee; color: #555; border-color: #bbb; }
 .light .search-plan * { background: rgb(203, 206, 214); }
-.light .search-headers > * { color: #555; background: #eee; }
-.light .search-results .sub-group { border-color:#666; }
-.light .search-results .sub-group .bit + .bit { border-color: #666; }
-.light .search-results .path + .path { border-color: #666; }
+.light .search-headers > * { color: #555; background: #ddd; }
+.light .search-results .sub-group { border-color:#ccc; }
+.light .search-results .sub-group .bit + .bit { border-color: #ccc; }
+.light .search-results .path + .path  { border-top-color: #ccc; }
 
 .light .related-bits .bit { border-color:#999; color: rgb(53, 105, 183); }
 
