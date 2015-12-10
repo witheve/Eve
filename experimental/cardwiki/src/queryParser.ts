@@ -162,11 +162,11 @@ function checkForToken(token): any {
 
 export function getTokens(string) {
 
-  let start = performance.now();
-  nlp.pos(string);
-  let stop = performance.now();
-  let time = stop - start;
-  console.log(`POS tag time: ${time.toFixed(2)}`);
+  // let start = performance.now();
+  // nlp.pos(string);
+  // let stop = performance.now();
+  // let time = stop - start;
+  // console.log(`POS tag time: ${time.toFixed(2)}`);
 
   // remove all non-word non-space characters
   let cleaned = string.replace(/'s/gi, "  ").toLowerCase();
