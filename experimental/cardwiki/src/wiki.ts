@@ -2040,6 +2040,8 @@ function initSearches() {
 
 // @TODO: KILL ME
 import "./bootstrap";
+window["wiki"] = this;
+window["queryParser"] = queryParser;
 
 function initEve() {
   let stored = localStorage[app.eveLocalStorageKey];
