@@ -107,11 +107,11 @@ class BSPhase {
       for(let attr in attributes) content += `${attr}: {${attr}: ${attributes[attr]}}\n      `;
     }
     if(extraContent) content += "\n" + extraContent;
-    let block = `${entity}|block`;
-    this.addFact("builtin entity eavs", {entity: block, attribute: "is a", value: "content block"});
-    this.addFact("builtin entity eavs", {entity: block, attribute: "source", value: "manual"});
-    this.addFact("builtin entity eavs", {entity: block, attribute: "associated entity", value: entity});
-    this.addFact("builtin entity eavs", {entity: block, attribute: "content", value: content});
+    let block = `${entity}|manual content block`;
+    this.addFact("manual eav", {entity: block, attribute: "is a", value: "content block"}); // @FIXME: builtin entity eavs
+    this.addFact("manual eav", {entity: block, attribute: "source", value: "manual"}); // @FIXME: builtin entity eavs
+    this.addFact("manual eav", {entity: block, attribute: "associated entity", value: entity}); // @FIXME: builtin entity eavs
+    this.addFact("manual eav", {entity: block, attribute: "content", value: content}); // @FIXME: builtin entity eavs
     return this;
   }
 
