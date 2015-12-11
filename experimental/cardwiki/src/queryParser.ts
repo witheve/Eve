@@ -108,6 +108,10 @@ var patterns = {
     direction: "ascending",
     args: ["attribute"],
   },
+  "between": {
+    type: "bounds",
+    args: ["lower bound","upper bound","attribute"],
+  },
   "<": {
     type: "filter",
     op: "<",
@@ -267,7 +271,6 @@ export function getTokens(queryString: string) : Token[] {
       front++;
     }
   }
-  console.log(results);
   return results;
 }
 
@@ -465,10 +468,10 @@ function findCollectionToCollectionRelationship(coll, coll2) {
 //---------------------------------------------------------
 
 interface Tree {
-  directObject?: any;
-  groups?: Array<any>;
-  operations?: Array<any>;
-  roots?: Array<any>;
+  directObject: any;
+  roots: Array<any>;
+  operations: Array<any>;
+  groups: Array<any>;
 }
 
 function tokensToTree(origTokens: Token[]) : Tree {
@@ -535,7 +538,7 @@ function tokensToTree(origTokens: Token[]) : Tree {
     if (type === TokenTypes.MODIFIER) {
       // if this is a deselect modifier, we need to roll forward through the tokens
       // to figure out roughly how far the deselection should go. Also if we run into
-      // an and or an or, we need to deal with that specially.
+      // an "and"" or an "or", we need to deal with that specially.
       if (info.deselect) {
         // we're going to move forward from this token and deselect as we go
         let localTokenIx = tokenIx + 1;
@@ -618,7 +621,7 @@ function tokensToTree(origTokens: Token[]) : Tree {
           // @TODO: we have to go through every possibility and deal with it
           newText = info.rewrites[0].text;
         }
-        // Tokenize the new string
+        // Tokenize the new string.
         let newTokens: any = getTokens(newText);
         // Splice in the new tokens, adjust the length and make sure we revisit this token.
         len += newTokens.length;
@@ -659,7 +662,7 @@ function tokensToTree(origTokens: Token[]) : Tree {
     if (type === TokenTypes.TEXT) continue;
 
     // once modifiers and patterns have been applied, we don't need to worry
-    // about the directObject as it's already been asigned to the first root.
+    // about the directObject as it's already been assigned to the first root.
     if (directObject === token) {
       indirectObject = directObject;
       continue;
@@ -767,7 +770,6 @@ function tokensToTree(origTokens: Token[]) : Tree {
       args.push(newArg);
     }
   }
-  console.log(tree);
   return tree;
 }
 
@@ -966,6 +968,10 @@ function opToPlan(op, groups): any {
     var sortStep = { type: StepType.SORT, subject: subject, direction: info.direction, field: sortField, id: uuid() };
     var limitStep = { type: StepType.LIMIT, subject: subject, value: sortLimitArgs[0], id: uuid() };
     return [sortStep, limitStep];
+  } else if (info.type === "bounds") {
+    var lowerBounds = { type: StepType.FILTER, subject: ">", id: uuid(), argArray: [op.args[2], op.args[0]]};
+    var upperBounds = { type: StepType.FILTER, subject: "<", id: uuid(), argArray: [op.args[2], op.args[1]]};
+    return [lowerBounds, upperBounds];
   } else if (info.type === "filter") {
     return [{ type: StepType.FILTER, subject: info.op, args, id: uuid(), argArray: op.args }];
   } else {
