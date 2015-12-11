@@ -464,9 +464,7 @@ function findCollectionToCollectionRelationship(coll, coll2) {
 //---------------------------------------------------------
 
 function tokensToTree(origTokens: Token[]) {
-  
-  console.log(origTokens);
-  
+    
   let tokens = origTokens;
   let roots = [];
   let operations = [];
