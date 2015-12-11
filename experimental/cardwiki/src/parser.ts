@@ -863,23 +863,14 @@ enum VALUE { NULL, SCALAR, SET, VIEW };
 type Artifacts = {[query:string]: runtime.Query|runtime.Union};
 type Variable = {name: string, type: VALUE, static?: boolean, value?: any};
 type VariableContext = Variable[];
-type VariableStack = VariableContext[];
 
 export function parseDSL(text:string):Artifacts {
-  let queries:Artifacts = {};
+  let artifacts:Artifacts = {};
   let lines = text.split("\n");
   let root = readSexprs(text);
 
-  for(let raw of Sexpr.asSexprs(root.arguments)) {
-    let sexpr = macroexpandDSL(raw);
-    let op = sexpr.operator;
-    let stack = [];
-    if(op.value === "query") parseDSLQuery(sexpr, stack, queries);
-    else if(op.value === "union") parseDSLUnion(sexpr, stack, queries);
-    else throw new ParseError(`All top level expressions must define queries or unions`, lines[raw.lineIx], raw.lineIx, raw.charIx);
-  }
-
-  return queries;
+  for(let raw of Sexpr.asSexprs(root.arguments)) parseDSLSexpr(raw, artifacts);
+  return artifacts;
 }
 const primitives = {
   "+": "calculate",
@@ -895,90 +886,111 @@ const primitives = {
   //@TODO: Finish me.
 };
 
-// @FIXME: Need id to lookup variable aliases...
-function parseDSLQuery(root:Sexpr, stack:VariableStack, queries:Artifacts) {
-  let context:VariableContext = [];
-  stack.push(context);
-  let queryId = uuid();
-  let query = new runtime.Query(eve, queryId);
-  if(DEBUG.instrumentQuery) instrumentQuery(query, DEBUG.instrumentQuery);
-  queries[queryId] = query;
-  for(let raw of Sexpr.asSexprs(root.arguments)) {
-    let sexpr = macroexpandDSL(raw);
-    let op = sexpr.operator;
+function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext, query?:runtime.Query) {
+  let sexpr = macroexpandDSL(raw);
+  let op = sexpr.operator;
+  if(op.type !== Token.TYPE.IDENTIFIER)
+    throw new ParseError(`Evaluated sexpr must begin with an identifier ('${op}' is a ${Token.TYPE[op.type]})`, "", raw.lineIx, raw.charIx);
 
-    if(op.value === "select") {
-      let selectId = uuid();
-      let args = parseArguments(sexpr, ["$$view"]);
-      let {$$view, $$negated} = args;
-      let view = resolveTokenValue("view", $$view, context, VALUE.SCALAR);
-      if(view === undefined) throw new ParseError("Must specify a view to be selected", "", raw.lineIx, raw.charIx);
+  if(op.value === "query") {
+    let neueContext:VariableContext = [];
+    let queryId = uuid();
+    let neue = new runtime.Query(eve, queryId);
+    if(DEBUG.instrumentQuery) instrumentQuery(neue, DEBUG.instrumentQuery);
+    artifacts[queryId] = neue;
+    for(let raw of Sexpr.asSexprs(sexpr.arguments)) parseDSLSexpr(raw, artifacts, neueContext, neue);
 
-      let join = {};
-      for(let arg in args) {
-        let value = args[arg];
-        if(arg === "$$view" || arg === "$$negated") continue;
-        if(value.type !== Token.TYPE.IDENTIFIER) {
-          join[arg] = args[arg].value;
-          continue;
+    let projectionMap = {};
+    for(let variable of neueContext) projectionMap[variable.name] = variable.value;
+    if(Object.keys(projectionMap).length) neue.project(projectionMap);
+
+    // Join subquery to parent.
+    if(query) {
+      let select = new Sexpr([Token.identifier("select"), Token.string(queryId)], raw.lineIx, raw.charIx);
+      let groups = [];
+      for(let variable of neueContext) {
+        select.push(Token.keyword(variable.name));
+        select.push(Token.identifier(variable.name));
+
+        for(let parentVar of context) {
+          if(parentVar.name === variable.name) groups.push(variable.value);
         }
-
-        let variable = getDSLVariable(value.value, context);
-        if(variable) join[arg] = variable.value;
-        else if($$negated && $$negated.value)
-          throw new ParseError(`Cannot bind field in negated select to undefined variable '${value.value}'`, "", raw.lineIx, raw.charIx);
-        else context.push({name: value.value, type: VALUE.SCALAR, value: [selectId, arg]});
       }
+      console.log("GROUPS", groups);
+      if(groups.length) neue.group(groups);
 
-      if(primitives[view]) {
-        if(primitives[view] === "aggregate") query.aggregate(view, join, selectId);
-        else query.calculate(view, join, selectId);
-      } else if($$negated) query.deselect(view, join);
-      else query.select(view, join, selectId);
 
-    } else if(op.value === "project!") {
-      let args = parseArguments(sexpr, ["$$view"]);
-      let {$$view, $$negated} = args;
-      let view = resolveTokenValue("view", $$view, context, VALUE.SCALAR);
-      if(view === undefined) throw new ParseError("Must specify a view to project into", "", raw.lineIx, raw.charIx);
-      let union = new runtime.Union(eve, view);
-      queries[uuid()] = union; // @NOTE: This is super weird. This should probably just be an array of stuff.
-      if(DEBUG.instrumentQuery) instrumentQuery(union, DEBUG.instrumentQuery);
-      let projectionMap = {};
-      for(let arg in args) {
-        let value = args[arg];
-        if(arg === "$$view" || arg === "$$negated") continue;
-        if(value.type !== Token.TYPE.IDENTIFIER) {
-          projectionMap[arg] = args[arg].value;
-          continue;
-        }
-
-        let variable = getDSLVariable(value.value, context);
-        if(variable) {
-          if(variable.static) projectionMap[arg] = variable.value;
-          else projectionMap[arg] = [variable.name];
-        } else throw new ParseError(`Cannot bind projected field to undefined variable '${value.value}'`, "", raw.lineIx, raw.charIx);
-      }
-      // if($$negated.value) union.ununion(queryId, projectionMap);
-      if($$negated && $$negated.value)
-        throw new ParseError(`Union projections may not be negated in the current runtime`, "", raw.lineIx, raw.charIx);
-      else union.union(queryId, projectionMap);
+      console.log("JOIN", select.toString());
+      parseDSLSexpr(select, artifacts, context, query);
     }
-    //@TODO: Union.changeset()
-    //@TODO: union macro
-    //@TOD: subquery variable translation (select "subQueryId" {[variable.name]: variable.value})
+
+    return queryId;
   }
 
-  let projectionMap = {};
-  for(let variable of context) projectionMap[variable.name] = variable.value;
-  if(Object.keys(projectionMap).length) query.project(projectionMap);
-}
+  if(!query) throw new ParseError(`Non-query sexprs must be contained within a query`, "", raw.lineIx, raw.charIx);
 
-function parseDSLUnion(root:Sexpr, stack:VariableStack, queries:Artifacts) {
-  for(let raw of Sexpr.asSexprs(root.arguments)) {
-    let sexpr = macroexpandDSL(raw);
-    let op = sexpr.operator;
+  if(op.value === "select") {
+    let selectId = uuid();
+    let args = parseArguments(sexpr, ["$$view"]);
+    let {$$view, $$negated} = args;
+    let view = resolveTokenValue("view", $$view, context, VALUE.SCALAR);
+    if(view === undefined) throw new ParseError("Must specify a view to be selected", "", raw.lineIx, raw.charIx);
+
+    let join = {};
+    for(let arg in args) {
+      let value = args[arg];
+      if(arg === "$$view" || arg === "$$negated") continue;
+      if(value.type !== Token.TYPE.IDENTIFIER) {
+        join[arg] = args[arg].value;
+        continue;
+      }
+
+      let variable = getDSLVariable(value.value, context);
+      if(variable) join[arg] = variable.value;
+      else if($$negated && $$negated.value)
+        throw new ParseError(`Cannot bind field in negated select to undefined variable '${value.value}'`, "", raw.lineIx, raw.charIx);
+      else context.push({name: value.value, type: VALUE.SCALAR, value: [selectId, arg]});
+    }
+
+    if(primitives[view]) {
+      if(primitives[view] === "aggregate") query.aggregate(view, join, selectId);
+      else query.calculate(view, join, selectId);
+    } else if($$negated) query.deselect(view, join);
+    else query.select(view, join, selectId);
+    return;
   }
+
+  if(op.value === "project!") {
+    let args = parseArguments(sexpr, ["$$view"]);
+    let {$$view, $$negated} = args;
+    let view = resolveTokenValue("view", $$view, context, VALUE.SCALAR);
+    if(view === undefined) throw new ParseError("Must specify a view to project into", "", raw.lineIx, raw.charIx);
+    let union = new runtime.Union(eve, view);
+    artifacts[uuid()] = union; // @NOTE: This is super weird. This should probably just be an array of stuff.
+    if(DEBUG.instrumentQuery) instrumentQuery(union, DEBUG.instrumentQuery);
+    let projectionMap = {};
+    for(let arg in args) {
+      let value = args[arg];
+      if(arg === "$$view" || arg === "$$negated") continue;
+      if(value.type !== Token.TYPE.IDENTIFIER) {
+        projectionMap[arg] = args[arg].value;
+        continue;
+      }
+
+      let variable = getDSLVariable(value.value, context);
+      if(variable) {
+        if(variable.static) projectionMap[arg] = variable.value;
+        else projectionMap[arg] = [variable.name];
+      } else throw new ParseError(`Cannot bind projected field to undefined variable '${value.value}'`, "", raw.lineIx, raw.charIx);
+    }
+    // if($$negated.value) union.ununion(queryId, projectionMap);
+    if($$negated && $$negated.value)
+      throw new ParseError(`Union projections may not be negated in the current runtime`, "", raw.lineIx, raw.charIx);
+    else union.union(query.name, projectionMap);
+    return view;
+  }
+
+  throw new ParseError(`Unknown DSL operator '${op.value}'`, "", raw.lineIx, raw.charIx);
 }
 
 function resolveTokenValue(name:string, token:Token, context:VariableContext, type?:VALUE) {
