@@ -87,6 +87,26 @@ var patterns = {
     direction: "descending",
     args: ["limit", "attribute"],
   },
+  "bottom": {
+    type: "sort and limit",
+    resultingIndirectObject: 1,
+    direction: "ascending",
+    args: ["limit", "attribute"],
+  },
+  "highest": {
+    type: "sort and limit",
+    limit: 1,
+    resultingIndirectObject: 0,
+    direction: "descending",
+    args: ["attribute"],
+  },
+  "lowest": {
+    type: "sort and limit",
+    limit: 1,
+    resultingIndirectObject: 0,
+    direction: "ascending",
+    args: ["attribute"],
+  },
   "<": {
     type: "filter",
     op: "<",
@@ -97,6 +117,20 @@ var patterns = {
   ">": {
     type: "filter",
     op: ">",
+    infix: true,
+    resultingIndirectObject: 0,
+    args: ["a", "b"],
+  },
+  "<=": {
+    type: "filter",
+    op: "<=",
+    infix: true,
+    resultingIndirectObject: 0,
+    args: ["a", "b"],
+  },
+  ">=": {
+    type: "filter",
+    op: ">=",
     infix: true,
     resultingIndirectObject: 0,
     args: ["a", "b"],
