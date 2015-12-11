@@ -18,6 +18,7 @@ export enum TokenTypes {
   COLLECTION,
   ATTRIBUTE,
   MODIFIER,
+  OPERATION,
   PATTERN,
   VALUE,
   TEXT,
@@ -201,12 +202,12 @@ function checkForToken(token): any {
 
 
 export interface Token {
-  id: any;
-  found?: any;
-  orig?: any;
-  pos?: number;
-  type?: any;
-  info?: any;
+  id: string;
+  found: string;
+  orig: string;
+  pos: number;
+  type: TokenTypes;
+  info: any;
   deselect?: boolean;
   and?: boolean;
   or?: boolean;
@@ -220,7 +221,6 @@ export interface Token {
 }
 
 export function getTokens(queryString: string) : Token[] {
-
   
   /*let start = performance.now();
   let tags = nlp.pos(queryString,{dont_combine:true}).tags();
@@ -267,6 +267,7 @@ export function getTokens(queryString: string) : Token[] {
       front++;
     }
   }
+  console.log(results);
   return results;
 }
 
@@ -463,7 +464,14 @@ function findCollectionToCollectionRelationship(coll, coll2) {
 // Token tree
 //---------------------------------------------------------
 
-function tokensToTree(origTokens: Token[]) {
+interface Tree {
+  directObject?: any;
+  groups?: Array<any>;
+  operations?: Array<any>;
+  roots?: Array<any>;
+}
+
+function tokensToTree(origTokens: Token[]) : Tree {
     
   let tokens = origTokens;
   let roots = [];
@@ -759,6 +767,7 @@ function tokensToTree(origTokens: Token[]) {
       args.push(newArg);
     }
   }
+  console.log(tree);
   return tree;
 }
 
@@ -993,7 +1002,7 @@ function dedupePlan(plan) {
   })
 }
 
-function treeToPlan(tree): Plan {
+function treeToPlan(tree: Tree): Plan {
   let steps: Step[] = [];
   for (let root of tree.roots) {
     steps = steps.concat(nodeToPlan(root));

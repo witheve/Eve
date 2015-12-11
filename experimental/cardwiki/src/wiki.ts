@@ -1,7 +1,7 @@
 "use strict"
 import {Element} from "./microReact";
 import * as runtime from "./runtime";
-import * as queryParser from "./queryParser";
+import {TokenTypes, getTokens} from "./queryParser";
 import {eve} from "./app";
 import * as app from "./app";
 import * as utils from "./utils";
@@ -240,17 +240,16 @@ var operations = {
 }
 function newSearchTokens(searchString) {
   let cleaned = searchString.toLowerCase();
-  let all = queryParser.getTokens(cleaned);
+  let all = getTokens(cleaned);
   all.forEach((token) => {
-    token.type = queryParser.TokenTypes[token.type].toLowerCase();
-    if(token.type === "modifier") {
+    if(token.type === TokenTypes.MODIFIER) {
       token.modifier = modifiers[token.found];
-    } else if(token.type === "pattern") {
-      token.type = "operation";
+    } else if(token.type === TokenTypes.PATTERN) {
+      token.type = TokenTypes.OPERATION;
       token.operation = operations[token.found];
     }
   });
-  return all.filter((token) => token.type !== "text");
+  return all.filter((token) => token.type !== TokenTypes.TEXT);
 }
 
 function walk(tree, indent = 0) {
@@ -297,14 +296,14 @@ function planTree(searchString) {
   // find the root subject which is either the first collection found
   // or if there are not collections, the first entity
   for(let token of tokens) {
-    if(token.type === "collection") {
+    if(token.type === TokenTypes.COLLECTION) {
       token.children = [];
       root = token;
       break;
-    } else if(token.type === "entity" && (!root || root.type === "attribute")) {
+    } else if(token.type === TokenTypes.ENTITY && (!root || root.type === TokenTypes.ATTRIBUTE)) {
       token.children = [];
       root = token;
-    } else if(token.type === "attribute" && !root) {
+    } else if(token.type === TokenTypes.ATTRIBUTE && !root) {
       token.children = [];
       root = token;
     }
@@ -315,21 +314,21 @@ function planTree(searchString) {
     token.id = uuid();
     let {type} = token;
 
-    if(state.group && (type === "collection" || type === "attribute")) {
+    if(state.group && (type === TokenTypes.COLLECTION || type === TokenTypes.ATTRIBUTE)) {
       token.group = true;
       tree.groups.push(token);
     }
 
     if(token === root) continue;
 
-    if(type === "modifier") {
+    if(type === TokenTypes.MODIFIER) {
       state[token.modifier] = true;
       continue;
     }
 
     token.children = [];
 
-    if(type === "operation") {
+    if(type === TokenTypes.OPERATION) {
       if(state.lastValue) {
         state.lastValue = null;
         token.children.push(state.lastValue);
@@ -341,12 +340,12 @@ function planTree(searchString) {
       continue;
     }
 
-    if(!state.consuming && type === "value") {
+    if(!state.consuming && type === TokenTypes.VALUE) {
       state.lastValue = token;
       continue;
     }
 
-    let maybeSubject = (type === "collection" || type === "entity");
+    let maybeSubject = (type === TokenTypes.COLLECTION || type === TokenTypes.ENTITY);
     if(state.deselect && maybeSubject) {
       token.deselect = true;
       state.deselect = false;
@@ -440,12 +439,12 @@ function planTree(searchString) {
       activeRoot.children.push(token);
     }
     // all values just get pushed onto the activeRoot
-    else if(type === "value") {
+    else if(type === TokenTypes.VALUE) {
       activeRoot.children.push(token);
     }
     // if the current cursor is an entity and this is anything other than an attribute, this is related
     // to the root.
-    else if(cursor.type === "entity" && type !== "attribute") {
+    else if(cursor.type === "entity" && type !== TokenTypes.ATTRIBUTE) {
       activeRoot.children.push(token);
     }
     // if the current cursor is an entity or a collection, we have to check if it should go to the cursor
@@ -456,7 +455,7 @@ function planTree(searchString) {
       // if this token is an entity and either root or cursor has a direct relationship
       // we don't really want to use that as it's most likely meant to filter a set down
       // instead of reduce the set to exactly one ent
-      if(token.type === "entity") {
+      if(token.type === TokenTypes.ENTITY) {
         if(cursorRel && cursorRel.distance === 0) cursorRel = null;
         if(rootRel && rootRel.distance === 0) rootRel = null;
       }
