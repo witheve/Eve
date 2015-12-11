@@ -11,6 +11,7 @@ interface TestQuery {
 }
 
 var tests: TestQuery[] = [
+  /*
   {
     query: "chris granger's age",
     expected: [
@@ -78,15 +79,45 @@ var tests: TestQuery[] = [
   {
     query: "people older than chris granger and younger than edward norton",
     expected: [
-      
+      {type: StepType.GATHER, subject: "person"},
+      {type: StepType.LOOKUP, subject: "age"},
+      {type: StepType.FIND, subject: "chris granger"},
+      {type: StepType.LOOKUP, subject: "age"},
+      {type: StepType.FIND, subject: "edward norton"},
+      {type: StepType.LOOKUP, subject: "age"},
+      {type: StepType.FILTER, subject: ">", args: [
+        {parent: "person", subject: "age"},
+        {parent: "chris granger", subject: "age"}
+      ]},
+      {type: StepType.FILTER, subject: "<", args: [
+        {parent: "person", subject: "age"},
+        {parent: "edward norton", subject: "age"}
+      ]}
     ],
   },
+  */
   {
     query: "people between 50 and 65 years old",
+    expected: [
+      {type: StepType.GATHER, subject: "person"},
+      {type: StepType.LOOKUP, subject: "age"},
+      {type: StepType.FILTER, subject: ">", args: [
+        {parent: "person", subject: "age"},
+        {subject: "50"}
+      ]},
+      {type: StepType.FILTER, subject: "<", args: [
+        {parent: "person", subject: "age"},
+        {subject: "65"}
+      ]},
+    ],
+  },
+  /*
+  {
+    query: "people whose age is between 50 and 65",
     expected: [],
   },
   {
-    query: "people whose age is between 50 and 65",
+    query: "people whose ages are between 50 and 65",
     expected: [],
   },
   {
@@ -367,6 +398,7 @@ var tests: TestQuery[] = [
     query: "What jobs as a senior software developer are available in houston but not san antonio?",
     expected: [],
   },
+  */
 ];
 
 //---------------------------------------------------------
@@ -415,38 +447,38 @@ function validateStep(actualStep, expectedStep) : boolean {
 // indicating its validitity state
 function validatePlan(actualPlan: Plan, expectedPlan: Step[]) {
   
+  let expectedPlanLength = expectedPlan.length;
+  
+  // Mark all steps as Unvalidated
+  actualPlan.map((step) => step.valid = Validated.UNVALIDATED);
+  
   // If no expected plan is provided, we cannot validate any steps
-  // which were found.
   if(expectedPlan.length === 0) {
     actualPlan.valid = Validated.UNVALIDATED;
-    for(let actualStep of actualPlan) {
-      actualStep.valid = Validated.UNVALIDATED;
-    }
     return;
   } 
   
-  let invalidSteps = actualPlan.length;
   // Loop through the steps of the actual plan and test it against candidate steps.
   // When a match is found, remove it from the canditate steps. Continue until all
   // actual steps are validated.
   // @HACK: this is not entirely correct. We still need to check that the step is
   // attached to the correct root
-  // @TODO: remove matched steps
+  let invalidSteps = actualPlan.length;
   for(let actualStep of actualPlan) {
-    for(let expectedStep of expectedPlan) {
-      if(validateStep(actualStep,expectedStep)) {
+    for(let ix in expectedPlan) {
+      if(validateStep(actualStep,expectedPlan[ix])) {
         actualStep.valid = Validated.VALID;
         invalidSteps--;
+        expectedPlan.splice(ix,1);
         break;
       }
       actualStep.valid = Validated.INVALID;
     }
   }
-  // If every step is validated, the plan is valid
-  if(actualPlan.length === 0 && expectedPlan.length !== 0) {
-    actualPlan.valid = Validated.INVALID; 
-  }
-  else if(invalidSteps === 0 && actualPlan.length === expectedPlan.length) {
+  let consumedPlanSteps = expectedPlanLength - expectedPlan.length;
+  
+  // If every expected step is consumed, and all found steps are valid, the plan is valid
+  if(consumedPlanSteps === expectedPlanLength && invalidSteps === 0) {
     actualPlan.valid = Validated.VALID;
   } else {
     actualPlan.valid = Validated.INVALID;
@@ -521,27 +553,36 @@ function queryTestUI(result) {
     ]}
   ]};
 
-  // Format the plan for display
-  let planDisplay = plan.map((step) => {
+  // Format a step for display
+  function StepToDisplay(step) {
     let args = "";
     if(step.argArray) {
-      args = " (" + step.argArray.map((arg) => arg.found).join(", ") + ")";
+      args = " (" + step.argArray.map((arg) => {
+        let parent = "";
+        if(arg.parent != undefined) {
+          parent = arg.parent.found + ".";
+        }
+        return parent + arg.found;
+      }).join(", ") + ")";
     }
     let deselected = step.deselected ? "!" : "";
-    return {c: `step v${step.valid}`, text: `${StepType[step.type]} ${deselected}${step.subject}${args}`};
-  });
+    return {c: `step v${step.valid}`, text: `${StepType[step.type]} ${deselected}${step.subject}${args}`};  
+  }
   
+  // Format the plan for display
+  let planDisplay = plan.map(StepToDisplay);
   let planNode = {c: "tokens", children: [
     {c: "header", text: "Plan"},
     {c: "kids", children: planDisplay}
   ]};
   
-  // @TODO Display extra steps
+  // Display extra steps
   let extraStepsNode = {};
-  if(plan.length != expectedPlan.length) {
+  if(expectedPlan.length != 0) {
+    let unusedPlanDisplay = expectedPlan.map(StepToDisplay);
     extraStepsNode = {c: "tokens", children: [
       {c: "header", text: "Unused Steps"},
-      {c: "kids", children: []}
+      {c: "kids", children: unusedPlanDisplay}
     ]};  
   }
 
@@ -583,7 +624,7 @@ export function root() {
   }
   let resultItems = results.map(queryTestUI);
   let totalParseTime = 0;
-  let minParseTime = 99999;
+  let minParseTime = Infinity;
   let maxParseTime = 0;
   for(let result of results) {
     totalParseTime += result.time;
