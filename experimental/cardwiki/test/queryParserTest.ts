@@ -11,6 +11,7 @@ interface TestQuery {
 }
 
 var tests: TestQuery[] = [
+  /*
   {
     query: "chris granger's age",
     expected: [
@@ -84,14 +85,39 @@ var tests: TestQuery[] = [
       {type: StepType.LOOKUP, subject: "age"},
       {type: StepType.FIND, subject: "edward norton"},
       {type: StepType.LOOKUP, subject: "age"},
+      {type: StepType.FILTER, subject: ">", args: [
+        {parent: "person", subject: "age"},
+        {parent: "chris granger", subject: "age"}
+      ]},
+      {type: StepType.FILTER, subject: "<", args: [
+        {parent: "person", subject: "age"},
+        {parent: "edward norton", subject: "age"}
+      ]}
     ],
   },
+  */
   {
     query: "people between 50 and 65 years old",
+    expected: [
+      {type: StepType.GATHER, subject: "person"},
+      {type: StepType.LOOKUP, subject: "age"},
+      {type: StepType.FILTER, subject: ">", args: [
+        {parent: "person", subject: "age"},
+        {subject: "50"}
+      ]},
+      {type: StepType.FILTER, subject: "<", args: [
+        {parent: "person", subject: "age"},
+        {subject: "65"}
+      ]},
+    ],
+  },
+  /*
+  {
+    query: "people whose age is between 50 and 65",
     expected: [],
   },
   {
-    query: "people whose age is between 50 and 65",
+    query: "people whose ages are between 50 and 65",
     expected: [],
   },
   {
@@ -372,6 +398,7 @@ var tests: TestQuery[] = [
     query: "What jobs as a senior software developer are available in houston but not san antonio?",
     expected: [],
   },
+  */
 ];
 
 //---------------------------------------------------------
@@ -526,7 +553,7 @@ function queryTestUI(result) {
     ]}
   ]};
 
-
+  // Format a step for display
   function StepToDisplay(step) {
     let args = "";
     if(step.argArray) {
@@ -541,7 +568,7 @@ function queryTestUI(result) {
     let deselected = step.deselected ? "!" : "";
     return {c: `step v${step.valid}`, text: `${StepType[step.type]} ${deselected}${step.subject}${args}`};  
   }
-
+  
   // Format the plan for display
   let planDisplay = plan.map(StepToDisplay);
   let planNode = {c: "tokens", children: [
@@ -549,7 +576,7 @@ function queryTestUI(result) {
     {c: "kids", children: planDisplay}
   ]};
   
-  // @TODO Display extra steps
+  // Display extra steps
   let extraStepsNode = {};
   if(expectedPlan.length != 0) {
     let unusedPlanDisplay = expectedPlan.map(StepToDisplay);

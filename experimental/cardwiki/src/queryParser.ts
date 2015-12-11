@@ -30,11 +30,11 @@ export enum TokenTypes {
 var modifiers = {
   "and": { and: true },
   "or": { or: true },
-  "without": { deselected: true },
-  "aren't": { deselected: true },
-  "don't": { deselected: true },
-  "not": { deselected: true },
-  "isn't": { deselected: true },
+  "without": { deselect: true },
+  "aren't": { deselect: true },
+  "don't": { deselect: true },
+  "not": { deselect: true },
+  "isn't": { deselect: true },
   "per": { group: true },
   ",": { separator: true },
   "all": { every: true },
@@ -160,7 +160,27 @@ function checkForToken(token): any {
   return {};
 }
 
-export function getTokens(queryString: string) {
+
+export interface Token {
+  id: any;
+  found?: any;
+  orig?: any;
+  pos?: number;
+  type?: any;
+  info?: any;
+  deselect?: boolean;
+  and?: boolean;
+  or?: boolean;
+  group?: any;
+  modifier?: any;
+  children?: any;  
+  operation?: any;
+  parent?: any;
+  relationship?: any;
+  grouped?: any;
+}
+
+export function getTokens(queryString: string) : Token[] {
 
   
   /*let start = performance.now();
@@ -404,7 +424,10 @@ function findCollectionToCollectionRelationship(coll, coll2) {
 // Token tree
 //---------------------------------------------------------
 
-function tokensToTree(origTokens) {
+function tokensToTree(origTokens: Token[]) {
+  
+  console.log(origTokens);
+  
   let tokens = origTokens;
   let roots = [];
   let operations = [];
@@ -468,7 +491,7 @@ function tokensToTree(origTokens) {
       // if this is a deselect modifier, we need to roll forward through the tokens
       // to figure out roughly how far the deselection should go. Also if we run into
       // an and or an or, we need to deal with that specially.
-      if (info.deselected) {
+      if (info.deselect) {
         // we're going to move forward from this token and deselect as we go
         let localTokenIx = tokenIx + 1;
         // get to the first non-text token
@@ -481,7 +504,7 @@ function tokensToTree(origTokens) {
           if (localToken.type === TokenTypes.TEXT) {
             break;
           }
-          localToken.deselected = true;
+          localToken.deselect = true;
           localTokenIx++;
         }
       }
@@ -489,7 +512,7 @@ function tokensToTree(origTokens) {
       // or a split. If this is a deselected or, we don't really need to do anything because that
       // means we just do a deselected join. If it's not negated though, we're now dealing with
       // a second query context. e.g. people who are employees or spouses of employees
-      if (info.or && !token.deslected) {
+      if (info.or && !token.deselect) {
         let localTokenIx = tokenIx + 1;
         // get to the first non-text token
         while (localTokenIx < len && tokens[localTokenIx].type === TokenTypes.TEXT) {
@@ -551,13 +574,13 @@ function tokensToTree(origTokens) {
           newText = info.rewrites[0].text;
         }
         // Tokenize the new string
-        let newTokens = getTokens(newText);
+        let newTokens: any = getTokens(newText);
         // Splice in the new tokens, adjust the length and make sure we revisit this token.
         len += newTokens.length;
         tokens.splice.apply(tokens, [tokenIx + 1, 0].concat(newTokens));
         // apply any deselects, or's, or and's to this token
         for (let newToken of newTokens) {
-          newToken.deselected = token.deselected;
+          newToken.deselect = token.deselect;
           newToken.and = token.and;
           newToken.or = token.or;
         }
@@ -916,7 +939,7 @@ function dedupePlan(plan) {
     for (let dupeIx = planIx - 1; dupeIx > -1; dupeIx--) {
       let dupe = plan[dupeIx];
       // equivalency requires the same type, subject, deselect, and parent
-      if (step.type === dupe.type && step.subject === dupe.subject && step.deselected === dupe.deselected && step.relatedTo === dupe.relatedTo) {
+      if (step.type === dupe.type && step.subject === dupe.subject && step.deselect === dupe.deselect && step.relatedTo === dupe.relatedTo) {
         // store the dupe and what node will replace it
         dupes[step.id] = dupe.id;
       }
