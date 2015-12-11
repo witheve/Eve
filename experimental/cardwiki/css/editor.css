@@ -98,12 +98,12 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .search-results .sub-group + .sub-group { border-left: 1px solid #222; }
 .search-results .sub-group .bit { margin:0 0; flex: 1 0 0; overflow:hidden; min-height:35px; }
 .search-results .path + .path { border-top:1px solid #222; }
-.search-results .path.list-row { border:none; }
-.search-results .list-row::before { content: "-"; margin-right:5px;  }
-.search-results .path.list-row + .path.list-row { border:none; margin-top:5px; }
 .search-results .sub-group .bit + .bit { border-top:1px solid #222; }
 .search-results .path { flex-direction:row; margin:0 10px; border-left: 1px solid #ccc; border-right:1px solid #ccc; }
 .search-results .path:last-child { border-bottom:1px solid #ccc; }
+.search-results .path.list-row { border:none; }
+.search-results .list-row::before { content: "-"; margin-right:5px;  }
+.search-results .path.list-row + .path.list-row { border:none; margin-top:5px; }
 .search-results .description { margin-bottom:10px; }
 
 .CodeMirror div { display:block; }
@@ -195,7 +195,8 @@ body.light { background: rgb(71,72,75); font-family: Helvetica Neue; font-weight
 .light .add-card-link:hover { border-color:rgb(53, 105, 183); }
 
 .light .search-input { background: #eee; color: #555; border-color: #bbb; }
-.light .search-plan * { background: rgb(203, 206, 214); }
+.light .search-plan * { border-left:1px solid #ccc; align-items:center; }
+.light .search-plan { border-bottom:1px solid #ccc; border-right:1px solid #ccc; }
 .light .search-headers > * { color: #555; background: #ddd; }
 .light .search-results .sub-group { border-color:#ccc; }
 .light .search-results .sub-group .bit + .bit { border-color: #ccc; }

@@ -1378,9 +1378,9 @@ function searchDescription(tokens, plan) {
     } else if(step.type === "filter") {
       planChildren.push({c: "text operation", text: `filter those by ${step.func}`});
     } else if(step.type === "sort") {
-      planChildren.push({c: "text operation", text: `sort them by `});
+      planChildren.push({c: "text operation", text: `sort them`});
     } else if(step.type === "group") {
-      planChildren.push({c: "text operation", text: `group them by `});
+      planChildren.push({c: "text operation", text: `group them`});
     } else if(step.type === "limit") {
       let limit;
       if(step.limit.results) {
