@@ -861,7 +861,7 @@ export function macroexpandDSL(sexpr:Sexpr):Sexpr {
 }
 enum VALUE { NULL, SCALAR, SET, VIEW };
 type Artifacts = {[query:string]: runtime.Query|runtime.Union};
-type Variable = {name: string, type: VALUE, static?: boolean, value?: any};
+type Variable = {name: string, type: VALUE, static?: boolean, value?: any, projection?: string};
 type VariableContext = Variable[];
 
 export function parseDSL(text:string):Artifacts {
@@ -894,34 +894,60 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
 
   if(op.value === "query") {
     let neueContext:VariableContext = [];
-    let queryId = uuid();
+    let {$$view, $$negated, $$body} = parseArguments(sexpr, undefined, "$$body");
+    let queryId = $$view ? resolveTokenValue("view", $$view, context, VALUE.SCALAR) : uuid();
     let neue = new runtime.Query(eve, queryId);
     if(DEBUG.instrumentQuery) instrumentQuery(neue, DEBUG.instrumentQuery);
     artifacts[queryId] = neue;
-    for(let raw of Sexpr.asSexprs(sexpr.arguments)) parseDSLSexpr(raw, artifacts, neueContext, neue);
+    for(let raw of Sexpr.asSexprs(<any>$$body)) parseDSLSexpr(raw, artifacts, neueContext, neue);
 
-    let projectionMap = {};
-    for(let variable of neueContext) projectionMap[variable.name] = variable.value;
+    let projectionMap = neue.projectionMap;
+    let projected = true;
+    if(!projectionMap) {
+      projectionMap = {};
+      projected = false;
+      for(let variable of neueContext) projectionMap[variable.name] = variable.value;
+    }
     if(Object.keys(projectionMap).length) neue.project(projectionMap);
 
     // Join subquery to parent.
     if(query) {
-      // @TODO: Macroize queries to make them negateable? Or add special handling for $$negated passthrough on query.
       let select = new Sexpr([Token.identifier("select"), Token.string(queryId)], raw.lineIx, raw.charIx);
       let groups = [];
+
       for(let variable of neueContext) {
-        select.push(Token.keyword(variable.name));
+        if(projected && !variable.projection) continue;
+        let field = variable.projection || variable.name;
+        select.push(Token.keyword(field));
         select.push(Token.identifier(variable.name));
 
         for(let parentVar of context) {
           if(parentVar.name === variable.name) groups.push(variable.value);
         }
       }
+
+      if($$negated) {
+        select.push(Token.keyword("$$negated"));
+        select.push($$negated);
+      }
       if(groups.length) neue.group(groups);
       parseDSLSexpr(select, artifacts, context, query);
     }
 
     return queryId;
+  }
+
+  if(op.value === "union") {
+    let {$$view, $$body, $$negated} = parseArguments(sexpr, undefined, "$$body");
+    let unionId = $$view ? resolveTokenValue("view", $$view, context, VALUE.SCALAR) : uuid();
+    let neue = new runtime.Union(eve, unionId);
+    if(DEBUG.instrumentQuery) instrumentQuery(neue, DEBUG.instrumentQuery);
+    artifacts[unionId] = neue;
+    for(let raw of Sexpr.asSexprs(<any>$$body)) {
+      throw new Error("@TODO implement me selects w queries w/ union id macroed into project!");
+    }
+
+    throw new Error("@TODO: figure out mapping to expose from projections");
   }
 
   if(!query) throw new ParseError(`Non-query sexprs must be contained within a query`, "", raw.lineIx, raw.charIx);
@@ -960,11 +986,7 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
   if(op.value === "project!") {
     let args = parseArguments(sexpr, ["$$view"]);
     let {$$view, $$negated} = args;
-    let view = resolveTokenValue("view", $$view, context, VALUE.SCALAR);
-    if(view === undefined) throw new ParseError("Must specify a view to project into", "", raw.lineIx, raw.charIx);
-    let union = new runtime.Union(eve, view);
-    artifacts[uuid()] = union; // @NOTE: This is super weird. This should probably just be an array of stuff.
-    if(DEBUG.instrumentQuery) instrumentQuery(union, DEBUG.instrumentQuery);
+
     let projectionMap = {};
     for(let arg in args) {
       let value = args[arg];
@@ -977,14 +999,30 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
       let variable = getDSLVariable(value.value, context);
       if(variable) {
         if(variable.static) projectionMap[arg] = variable.value;
-        else projectionMap[arg] = [variable.name];
+        else if(!$$view) {
+          variable.projection = arg;
+          projectionMap[arg] = variable.value;
+        } else projectionMap[arg] = [variable.name];
       } else throw new ParseError(`Cannot bind projected field to undefined variable '${value.value}'`, "", raw.lineIx, raw.charIx);
     }
-    // if($$negated.value) union.ununion(queryId, projectionMap);
-    if($$negated && $$negated.value)
-      throw new ParseError(`Union projections may not be negated in the current runtime`, "", raw.lineIx, raw.charIx);
-    else union.union(query.name, projectionMap);
-    return view;
+
+    let view = resolveTokenValue("view", $$view, context, VALUE.SCALAR);
+    if(view === undefined) {
+      if(query.projectionMap) throw new ParseError("Query can only self-project once", "", raw.lineIx, raw.charIx);
+      if($$negated && $$negated.value) throw new ParseError(`Cannot negate self-projection`, "", raw.lineIx, raw.charIx);
+      // Project self
+      query.project(projectionMap);
+    } else {
+      let union = new runtime.Union(eve, view);
+      artifacts[uuid()] = union; // @NOTE: This is super weird. This should probably just be an array of stuff.
+      if(DEBUG.instrumentQuery) instrumentQuery(union, DEBUG.instrumentQuery);
+
+      // if($$negated.value) union.ununion(queryId, projectionMap);
+      if($$negated && $$negated.value)
+        throw new ParseError(`Union projections may not be negated in the current runtime`, "", raw.lineIx, raw.charIx);
+      else union.union(query.name, projectionMap);
+    }
+    return;
   }
 
   throw new ParseError(`Unknown DSL operator '${op.value}'`, "", raw.lineIx, raw.charIx);
@@ -1012,7 +1050,7 @@ function getDSLVariable(name:string, context:VariableContext, type?:VALUE):Varia
   }
 }
 
-export function parseArguments(root:Sexpr, defaults?:string[]):{[keyword:string]: Token} {
+  export function parseArguments(root:Sexpr, defaults?:string[], rest?:string):{[keyword:string]: Token|Sexpr} {
   let args:any = {};
   let defaultIx = 0;
   let keyword;
@@ -1029,10 +1067,13 @@ export function parseArguments(root:Sexpr, defaults?:string[]):{[keyword:string]
         args[keyword].push(raw);
       }
       keyword = undefined;
-      defaultIx = defaults.length;
+      defaultIx = defaults ? defaults.length : 0;
       kwarg = true;
     } else if(defaults && defaultIx < defaults.length) {
       args[defaults[defaultIx++]] = raw;
+    } else if(rest) {
+      args[rest] = args[rest] || [];
+      args[rest].push(raw);
     } else {
       if(kwarg) throw new Error("Cannot specify an arg after a kwarg");
       else if(defaultIx) throw new Error(`Too many args, expected: ${defaults.length}, got: ${defaultIx + 1}`);
