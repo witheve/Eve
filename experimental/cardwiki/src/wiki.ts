@@ -1397,7 +1397,9 @@ function searchDescription(tokens, plan) {
       planChildren.push({c: "text", text: `${step.type}->`});
     }
   }
-  return {c: "container", children: [
+  planChildren.unshift();
+  return {c: "plan-container", children: [
+    {c: "description", text: "Search plan:"},
     {c: "search-plan", children: planChildren}
   ]};
 }

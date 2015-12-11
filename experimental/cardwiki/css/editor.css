@@ -80,9 +80,11 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .search-description { display: block; }
 .search-description * { display:inline; }
 
-.search-plan { flex-direction:row; margin-bottom:1px; }
-.search-plan * { flex:1; padding: 5px;  }
-.search-plan > * + * { margin-left:1px; }
+.plan-container { padding: 5px 10px; margin-top:10px; }
+.search-plan { margin-left: 10px; margin-top:5px; }
+.search-plan * { flex-direction:row; }
+.search-plan *:before { content: "-"; margin-right:5px; }
+.search-plan > * + * { margin-top:3px; }
 
 .search-container { position:absolute; min-width: 300px; z-index:1; }
 
@@ -195,8 +197,6 @@ body.light { background: rgb(71,72,75); font-family: Helvetica Neue; font-weight
 .light .add-card-link:hover { border-color:rgb(53, 105, 183); }
 
 .light .search-input { background: #eee; color: #555; border-color: #bbb; }
-.light .search-plan * { border-left:1px solid #ccc; align-items:center; }
-.light .search-plan { border-bottom:1px solid #ccc; border-right:1px solid #ccc; }
 .light .search-headers > * { color: #555; background: #ddd; }
 .light .search-results .sub-group { border-color:#ccc; }
 .light .search-results .sub-group .bit + .bit { border-color: #ccc; }
