@@ -21,9 +21,10 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 - Article Editor
 ---------------------------------------------------------*/
 
-.search-container { width:600px; padding:0 10px; }
+.search-container { width:600px; padding:0 10px; max-height:80%; }
 .search-container > *:last-child { padding-bottom:10px; }
 
+.entity-content { overflow: auto; }
 .entity-blocks > .entity { -webkit-user-select:auto;  padding:5px 10px; overflow:auto; max-width: 600px; min-width: 300px; line-height: 25px; }
 .entity-blocks:first-child { padding-top:10px; }
 .entity-blocks > .entity + .entity { }
