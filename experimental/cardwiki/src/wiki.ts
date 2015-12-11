@@ -123,6 +123,11 @@ function parse(tokens) {
         state = {items: []};
         break;
       case "assignment":
+        if(!state.capturing) {
+          token.type = "text";
+          line.items.push(token);
+          break;
+        }
         state.mode = "assignment";
         state.attribute = state.link;
         break;
@@ -213,8 +218,8 @@ var operations = {
   "mean": {op: "average", argCount: 1, aggregate: true, args: ["value"]},
   "top": {op: "sort limit", argCount: 2, direction: "descending"},
   "bottom": {op: "sort limit", argCount: 2, direction: "ascending"},
-  "highest": {op: "sort limit", argCount: 1, direction: "descending"},
-  "lowest": {op: "sort limit", argCount: 1, direction: "ascending"},
+  "highest": {op: "sort limit", argCount: 1, direction: "descending", limit: 1},
+  "lowest": {op: "sort limit", argCount: 1, direction: "ascending", limit: 1},
   ">": {op: ">", argCount: 2, infix: true, args: ["a", "b"], filter: true},
   ">=": {op: ">=", argCount: 2, infix: true, args: ["a", "b"], filter: true},
   "greater": {op: ">", argCount: 2, infix: true, args: ["a", "b"], filter: true},
@@ -569,7 +574,6 @@ function ignoreHiddenCollections(colls) {
 }
 
 function nodeToPlanSteps(node, parent, parentPlan) {
-  //TODO: figure out what to do with operations
   let id = node.id || uuid();
   let {deselect} = node;
   if(parent) {
@@ -674,9 +678,10 @@ function opToPlan(op, groupLookup) {
     return [{type: "aggregate", aggregate: info.op, args, id: uuid()}];
   } else if(info.op === "sort limit") {
     let sort, limit, grouped;
+    limit = info.limit;
     for(let child of op.children) {
       if(child.type && child.type === "value") {
-        limit = child.value;
+        limit = coerceInput(child.found);
       } else {
         sort = [child.id, "value", info.direction];
         grouped = groupLookup[child];
@@ -1070,7 +1075,7 @@ function NewBitEditor(node, elem) {
         "Cmd-Enter": (cm) => {
           let latest = app.renderer.tree[elem.id];
           submitAction(cm, latest);
-          },
+        },
         "Ctrl-Enter": (cm) => {
             let latest = app.renderer.tree[elem.id];
             submitAction(cm, latest);
@@ -1087,6 +1092,12 @@ function NewBitEditor(node, elem) {
       cm.on("blur", (cm) => { elem.blur(cm, elem); });
     }
     cm.focus();
+    cm.setValue("\n");
+    // create a line widget
+    let widget = document.createElement("div");
+    widget.className = "header-line";
+    cm.addLineWidget(0, widget);
+    cm.addLineClass(0, "text", "header");
   }
   if(cm.getValue() !== elem.value) {
     cm.setValue(elem.value);
@@ -1191,7 +1202,11 @@ app.handle("submitAction", (result, info) => {
   } else if(info.type === "collection") {
     result.merge(addToCollectionAction(search, info.entity, info.collection));
   } else if(info.type === "bit") {
-    result.merge(addBitAction(search, info.template));
+    let template = info.template.trim();
+    if(template[0] !== "#") {
+      template = "#" + template;
+    }
+    result.merge(addBitAction(search, template));
   }
 });
 
@@ -1302,7 +1317,9 @@ function entityUi(entityId, instance:string|number = "", searchId) {
       entityViews.unshift(entityView);
     } else {
       let source = eve.findOne("entity eavs", {entity: block.block, attribute: "source"}).value;
-      entityView = {id: `${block.block}${instance}`, c: "entity", searchId, entity: entityId, children: entityToHTML(parseEntity(entityId, block.content).lines, searchId, false), click: followLink, linkText: source};
+      let children = entityToHTML(parseEntity(entityId, block.content).lines, searchId, false);
+      children.push({c: "source-link ion-help", text: "", click: followLink, linkText: source, searchId});
+      entityView = {id: `${block.block}${instance}`, c: "entity generated", searchId, entity: entityId, children};
       entityViews.push(entityView);
     }
   }
@@ -1380,7 +1397,9 @@ function searchDescription(tokens, plan) {
       planChildren.push({c: "text", text: `${step.type}->`});
     }
   }
-  return {c: "container", children: [
+  planChildren.unshift();
+  return {c: "plan-container", children: [
+    {c: "description", text: "Search plan:"},
     {c: "search-plan", children: planChildren}
   ]};
 }
@@ -1511,19 +1530,24 @@ export function newSearchResults(searchId) {
   let adding = eve.findOne("adding action", {search: searchId});
   if(adding) {
     if(adding.type === "bit") {
-      addActionChildren.push({c: "add-collection", children: [
-        {c: "new-bit-editor", searchId, value: "hi!", postRender: NewBitEditor},
+      addActionChildren.push({c: "add-card-editor", children: [
+        {c: "new-bit-editor", searchId, value: "\n", postRender: NewBitEditor},
         {c: "spacer"},
         //         {c: "button", text: "submit", click: submitAction},
-        {c: "button", text: "cancel", click: stopAddingAction},
+        {c: "ion-android-close close", click: stopAddingAction},
       ]});
     }
-  } else if(plan.length && plan[0].type !== "find") {
+  }
+  if(plan.length && plan[0].type !== "find") {
+    let text = "Add a card";
+    if(actions.length) {
+      text = "Add another card"
+    }
     actionContainer = {c: "actions-container", children: [
       {c: "actions-header", children: [
-        {c: "", text: "Added cards", actionType: "bit", searchId, click: startAddingAction},
-        {c: "spacer"},
-        {c: "", text: "+", actionType: "bit", searchId, click: startAddingAction}
+        {c: "add-card-link", text: text, actionType: "bit", searchId, click: startAddingAction},
+//         {c: "spacer"},
+//         {c: "", text: "+", actionType: "bit", searchId, click: startAddingAction}
       ]},
       actions.length ? {c: "actions", children: actions} : undefined,
     ]};
@@ -1540,7 +1564,7 @@ export function newSearchResults(searchId) {
     ]},
     showPlan,
     {c: "entity-content", children: entityContent},
-    resultItems.length ? {c: "search-results", children: resultItems} : undefined,
+    resultItems.length ? {c: "search-results", children: resultItems} : {},
     actionContainer,
     {c: "add-action", children: addActionChildren}
   ]};
@@ -2027,8 +2051,6 @@ function initSearches() {
 
 // @TODO: KILL ME
 import "./bootstrap";
-window["wiki"] = this;
-window["queryParser"] = queryParser;
 
 function initEve() {
   let stored = localStorage[app.eveLocalStorageKey];
