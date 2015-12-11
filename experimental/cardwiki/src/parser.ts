@@ -906,6 +906,7 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
 
     // Join subquery to parent.
     if(query) {
+      // @TODO: Macroize queries to make them negateable? Or add special handling for $$negated passthrough on query.
       let select = new Sexpr([Token.identifier("select"), Token.string(queryId)], raw.lineIx, raw.charIx);
       let groups = [];
       for(let variable of neueContext) {
@@ -916,11 +917,7 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
           if(parentVar.name === variable.name) groups.push(variable.value);
         }
       }
-      console.log("GROUPS", groups);
       if(groups.length) neue.group(groups);
-
-
-      console.log("JOIN", select.toString());
       parseDSLSexpr(select, artifacts, context, query);
     }
 
