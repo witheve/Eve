@@ -245,7 +245,7 @@ describe("macroexpandDSL()", () => {
   });
 
   describe("negate", () => {
-    it("should splat into the child form", () => {
+    it("should expand (negate (...)) => (... $$negated true)", () => {
       let expanded = macroexpandDSL(<Sexpr>readSexprs(`(negate (select "foo" :a a))`).nth(1));
       let expected = <Sexpr>readSexprs(`(select "foo" :a a :$$negated true)`).nth(1);
       assertSexprEqual(expanded, expected);
