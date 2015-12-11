@@ -1,7 +1,8 @@
+import {ENV, uuid} from "./utils";
+
 //---------------------------------------------------------
 // Runtime
 //---------------------------------------------------------
-declare var uuid;
 declare var exports;
 let runtime = exports;
 
@@ -1634,6 +1635,24 @@ export class Union {
     this.prev = {results: [], hashes: {}};
     this.dirty = true;
   }
+  changeset(ixer:Indexer) {
+    let diff = ixer.diff();
+    diff.add("view", {view: this.name, kind: "union"});
+    for(let source of this.sources) {
+      if(source.type === "+") {
+        let action = uuid();
+        diff.add("action", {view: this.name, action, kind: "union",  ix: 0});
+        diff.add("action source", {action, "source view": source.table});
+        for(let field in source.mapping) {
+          let mapped = source.mapping[field];
+          if(mapped.constructor === Array) diff.add("action mapping", {action, from: field, "to source": source.table, "to field": mapped[0]})
+          else diff.add("action mapping constant", {action, from: field, value: mapped});
+        }
+
+      } else throw new Error(`Unknown source type: '${source.type}'`);
+    }
+    return diff;
+  }
   ensureHasher(mapping) {
     if(!this.hasher) {
       this.hasher = generateStringFn(Object.keys(mapping));
@@ -1919,5 +1938,4 @@ export function indexer() {
   return addProvenanceTable(new Indexer());
 }
 
-declare var exports;
-if(this.window) window["runtime"] = exports;
+if(ENV === "browser") window["runtime"] = exports;
