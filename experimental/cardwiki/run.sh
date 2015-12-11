@@ -76,6 +76,7 @@ echo "# Updating node_modules..."
 npm i
 
 echo "# Symlinking vendor for node execution..."
+rm bin/vendor
 ln -s ../vendor bin/vendor
 
 echo "# Starting watchers..."
