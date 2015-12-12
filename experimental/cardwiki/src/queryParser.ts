@@ -18,6 +18,7 @@ export enum TokenTypes {
   COLLECTION,
   ATTRIBUTE,
   MODIFIER,
+  OPERATION,
   PATTERN,
   VALUE,
   TEXT,
@@ -106,6 +107,10 @@ var patterns = {
     resultingIndirectObject: 0,
     direction: "ascending",
     args: ["attribute"],
+  },
+  "between": {
+    type: "bounds",
+    args: ["lower bound","upper bound","attribute"],
   },
   "<": {
     type: "filter",
@@ -201,12 +206,12 @@ function checkForToken(token): any {
 
 
 export interface Token {
-  id: any;
-  found?: any;
-  orig?: any;
-  pos?: number;
-  type?: any;
-  info?: any;
+  id: string;
+  found: string;
+  orig: string;
+  pos: number;
+  type: TokenTypes;
+  info: any;
   deselect?: boolean;
   and?: boolean;
   or?: boolean;
@@ -219,8 +224,7 @@ export interface Token {
   grouped?: any;
 }
 
-export function getTokens(queryString: string) : Token[] {
-
+export function getTokens(queryString: string) : Array<Token> {
   
   /*let start = performance.now();
   let tags = nlp.pos(queryString,{dont_combine:true}).tags();
@@ -296,9 +300,12 @@ var tokenRelationships = {
   },
 }
 
-function determineRelationship(parent, child) {
-  if (!tokenRelationships[parent.type] || !tokenRelationships[parent.type][child.type]) return { distance: Infinity, type: RelationshipTypes.NONE };
-  return tokenRelationships[parent.type][child.type](parent.found, child.found);
+function determineRelationship(parent: Token, child: Token) {
+  if (!tokenRelationships[parent.type] || !tokenRelationships[parent.type][child.type]) { 
+    return { distance: Infinity, type: RelationshipTypes.NONE };
+  } else {
+    return tokenRelationships[parent.type][child.type](parent.found, child.found);  
+  }
 }
 
 function entityTocollectionsArray(entity) {
@@ -463,7 +470,14 @@ function findCollectionToCollectionRelationship(coll, coll2) {
 // Token tree
 //---------------------------------------------------------
 
-function tokensToTree(origTokens: Token[]) {
+interface Tree {
+  directObject: any;
+  roots: Array<any>;
+  operations: Array<any>;
+  groups: Array<any>;
+}
+
+function tokensToTree(origTokens: Array<Token>) : Tree {
     
   let tokens = origTokens;
   let roots = [];
@@ -496,6 +510,7 @@ function tokensToTree(origTokens: Token[]) {
   // related to that or the directObject
   let indirectObject = directObject;
 
+  // Main token loop
   for (let tokenIx = 0, len = tokens.length; tokenIx < len; tokenIx++) {
     let token = tokens[tokenIx];
     let {type, info, found} = token;
@@ -527,7 +542,7 @@ function tokensToTree(origTokens: Token[]) {
     if (type === TokenTypes.MODIFIER) {
       // if this is a deselect modifier, we need to roll forward through the tokens
       // to figure out roughly how far the deselection should go. Also if we run into
-      // an and or an or, we need to deal with that specially.
+      // an "and"" or an "or", we need to deal with that specially.
       if (info.deselect) {
         // we're going to move forward from this token and deselect as we go
         let localTokenIx = tokenIx + 1;
@@ -610,7 +625,7 @@ function tokensToTree(origTokens: Token[]) {
           // @TODO: we have to go through every possibility and deal with it
           newText = info.rewrites[0].text;
         }
-        // Tokenize the new string
+        // Tokenize the new string.
         let newTokens: any = getTokens(newText);
         // Splice in the new tokens, adjust the length and make sure we revisit this token.
         len += newTokens.length;
@@ -651,7 +666,7 @@ function tokensToTree(origTokens: Token[]) {
     if (type === TokenTypes.TEXT) continue;
 
     // once modifiers and patterns have been applied, we don't need to worry
-    // about the directObject as it's already been asigned to the first root.
+    // about the directObject as it's already been assigned to the first root.
     if (directObject === token) {
       indirectObject = directObject;
       continue;
@@ -740,6 +755,13 @@ function tokensToTree(origTokens: Token[]) {
       }
     }
   }
+  // End main token loop
+
+  // If the current pattern is satisfied, mark it as null
+  /*if(state.currentPattern && state.currentPattern.args.length === state.currentPattern.info.args.length) {
+    state.currentPattern = null;
+  }*/
+    
   // if we've run out of tokens and are still looking to fill in a pattern,
   // we might need to carry the attribute through.
   if (state.currentPattern && state.currentPattern.args.length) {
@@ -757,6 +779,21 @@ function tokensToTree(origTokens: Token[]) {
       latestArg.children.push(newArg);
       args.pop();
       args.push(newArg);
+    }
+    // e.g. people whose age is between 50 and 65
+    // @HACK special case this for now
+    else if(state.currentPattern.found === "between" && state.currentPattern.args.length < state.currentPattern.info.args.length) {
+      // Backtrack from the pattern start until we find an attribute
+      let patternStart = tokens.lastIndexOf(state.currentPattern);
+      let arg;
+      for(let ix = patternStart; ix > 0; ix--){
+        if(tokens[ix].type === TokenTypes.ATTRIBUTE) {
+          arg = tokens[ix];
+          break;
+        }
+      }
+      // We found an attribute, now add it to the arglist for the pattern
+      state.currentPattern.args.push(arg);
     }
   }
   return tree;
@@ -957,6 +994,10 @@ function opToPlan(op, groups): any {
     var sortStep = { type: StepType.SORT, subject: subject, direction: info.direction, field: sortField, id: uuid() };
     var limitStep = { type: StepType.LIMIT, subject: subject, value: sortLimitArgs[0], id: uuid() };
     return [sortStep, limitStep];
+  } else if (info.type === "bounds") {
+    var lowerBounds = { type: StepType.FILTER, subject: ">", id: uuid(), argArray: [op.args[2], op.args[0]]};
+    var upperBounds = { type: StepType.FILTER, subject: "<", id: uuid(), argArray: [op.args[2], op.args[1]]};
+    return [lowerBounds, upperBounds];
   } else if (info.type === "filter") {
     return [{ type: StepType.FILTER, subject: info.op, args, id: uuid(), argArray: op.args }];
   } else {
@@ -993,7 +1034,7 @@ function dedupePlan(plan) {
   })
 }
 
-function treeToPlan(tree): Plan {
+function treeToPlan(tree: Tree): Plan {
   let steps: Step[] = [];
   for (let root of tree.roots) {
     steps = steps.concat(nodeToPlan(root));
