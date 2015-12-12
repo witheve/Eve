@@ -11,7 +11,6 @@ interface TestQuery {
 }
 
 var tests: TestQuery[] = [
-  /*
   {
     query: "chris granger's age",
     expected: [
@@ -95,7 +94,6 @@ var tests: TestQuery[] = [
       ]}
     ],
   },
-  */
   {
     query: "people between 50 and 65 years old",
     expected: [
@@ -126,7 +124,6 @@ var tests: TestQuery[] = [
       ]},
     ],
   },
-  /*
   {
     query: "people whose ages are between 50 and 65",
     expected: [
@@ -142,6 +139,7 @@ var tests: TestQuery[] = [
       ]},
     ],
   },
+  /*
   {
     query: "people who are 50-65 years old",
     expected: [
