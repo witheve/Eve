@@ -224,7 +224,7 @@ export interface Token {
   grouped?: any;
 }
 
-export function getTokens(queryString: string) : Token[] {
+export function getTokens(queryString: string) : Array<Token> {
   
   /*let start = performance.now();
   let tags = nlp.pos(queryString,{dont_combine:true}).tags();
@@ -300,9 +300,12 @@ var tokenRelationships = {
   },
 }
 
-function determineRelationship(parent, child) {
-  if (!tokenRelationships[parent.type] || !tokenRelationships[parent.type][child.type]) return { distance: Infinity, type: RelationshipTypes.NONE };
-  return tokenRelationships[parent.type][child.type](parent.found, child.found);
+function determineRelationship(parent: Token, child: Token) {
+  if (!tokenRelationships[parent.type] || !tokenRelationships[parent.type][child.type]) { 
+    return { distance: Infinity, type: RelationshipTypes.NONE };
+  } else {
+    return tokenRelationships[parent.type][child.type](parent.found, child.found);  
+  }
 }
 
 function entityTocollectionsArray(entity) {
@@ -474,7 +477,7 @@ interface Tree {
   groups: Array<any>;
 }
 
-function tokensToTree(origTokens: Token[]) : Tree {
+function tokensToTree(origTokens: Array<Token>) : Tree {
     
   let tokens = origTokens;
   let roots = [];
@@ -507,6 +510,7 @@ function tokensToTree(origTokens: Token[]) : Tree {
   // related to that or the directObject
   let indirectObject = directObject;
 
+  // Main token loop
   for (let tokenIx = 0, len = tokens.length; tokenIx < len; tokenIx++) {
     let token = tokens[tokenIx];
     let {type, info, found} = token;
@@ -751,6 +755,8 @@ function tokensToTree(origTokens: Token[]) : Tree {
       }
     }
   }
+  // End main token loop
+  
   // if we've run out of tokens and are still looking to fill in a pattern,
   // we might need to carry the attribute through.
   if (state.currentPattern && state.currentPattern.args.length) {
@@ -769,6 +775,22 @@ function tokensToTree(origTokens: Token[]) : Tree {
       args.pop();
       args.push(newArg);
     }
+    // e.g. people whose age is between 50 and 65
+    // @HACK special case this for now
+    /*
+    else if(state.currentPattern.found === "between") {
+      // Backtrack from the pattern start until we find an attribute
+      let patternStart = tokens.lastIndexOf(state.currentPattern);
+      let arg;
+      for(let ix = patternStart; ix > 0; ix--){
+        if(tokens[ix].type === TokenTypes.ATTRIBUTE) {
+          arg = tokens[ix];
+          break;
+        }
+      }
+      // We found an attribute, now add it to the arglist for the pattern
+      state.currentPattern.args.push(arg);
+    }*/
   }
   return tree;
 }
