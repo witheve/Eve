@@ -1928,6 +1928,79 @@ export class Union {
 }
 
 //---------------------------------------------------------
+// Builtin Primitives
+//---------------------------------------------------------
+runtime.define("count", {}, function(prev) {
+  if(!prev.count) {
+    prev.count = 0;
+  }
+  prev.count++;
+  return prev;
+});
+
+runtime.define("sum", {}, function(prev, value) {
+  if(!prev.sum) {
+    prev.sum = 0;
+  }
+  prev.sum += value;
+  return prev;
+});
+
+runtime.define("average", {}, function(prev, value) {
+  if(!prev.sum) {
+    prev.sum = 0;
+    prev.count = 0;
+  }
+  prev.count++;
+  prev.sum += value;
+  prev.average = prev.sum / prev.count;
+  return prev;
+});
+
+runtime.define("lowercase", {}, function(text) {
+  if(typeof text === "string") {
+    return {result: text.toLowerCase()};
+  }
+  return {result: text};
+})
+
+runtime.define("=", {filter: true}, function(a, b) {
+  return a === b ? runtime.SUCCEED : runtime.FAIL;
+});
+
+runtime.define(">", {filter: true}, function(a, b) {
+  return a > b ? runtime.SUCCEED : runtime.FAIL;
+});
+
+runtime.define("<", {filter: true}, function(a, b) {
+  return a < b ? runtime.SUCCEED : runtime.FAIL;
+});
+
+runtime.define(">=", {filter: true}, function(a, b) {
+  return a >= b ? runtime.SUCCEED : runtime.FAIL;
+});
+
+runtime.define("<=", {filter: true}, function(a, b) {
+  return a <= b ? runtime.SUCCEED : runtime.FAIL;
+});
+
+runtime.define("+", {}, function(a, b) {
+  return {result: a + b};
+});
+
+runtime.define("-", {}, function(a, b) {
+  return {result: a - b};
+});
+
+runtime.define("*", {}, function(a, b) {
+  return {result: a * b};
+});
+
+runtime.define("/", {}, function(a, b) {
+  return {result: a / b};
+});
+
+//---------------------------------------------------------
 // Public API
 //---------------------------------------------------------
 
