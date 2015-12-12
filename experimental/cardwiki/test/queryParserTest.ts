@@ -26,7 +26,7 @@ var tests: TestQuery[] = [
       {type: StepType.LOOKUP, subject: "age"}
     ]
   },
-  {
+  { 
     query: "people older than chris granger",
     expected: [
       {type: StepType.GATHER, subject: "person"},
@@ -111,18 +111,51 @@ var tests: TestQuery[] = [
       ]},
     ],
   },
-  /*
   {
     query: "people whose age is between 50 and 65",
-    expected: [],
+    expected: [
+      {type: StepType.GATHER, subject: "person"},
+      {type: StepType.LOOKUP, subject: "age"},
+      {type: StepType.FILTER, subject: ">", args: [
+        {parent: "person", subject: "age"},
+        {subject: "50"}
+      ]},
+      {type: StepType.FILTER, subject: "<", args: [
+        {parent: "person", subject: "age"},
+        {subject: "65"}
+      ]},
+    ],
   },
+  /*
   {
     query: "people whose ages are between 50 and 65",
-    expected: [],
+    expected: [
+      {type: StepType.GATHER, subject: "person"},
+      {type: StepType.LOOKUP, subject: "age"},
+      {type: StepType.FILTER, subject: ">", args: [
+        {parent: "person", subject: "age"},
+        {subject: "50"}
+      ]},
+      {type: StepType.FILTER, subject: "<", args: [
+        {parent: "person", subject: "age"},
+        {subject: "65"}
+      ]},
+    ],
   },
   {
     query: "people who are 50-65 years old",
-    expected: [],
+    expected: [
+      {type: StepType.GATHER, subject: "person"},
+      {type: StepType.LOOKUP, subject: "age"},
+      {type: StepType.FILTER, subject: ">", args: [
+        {parent: "person", subject: "age"},
+        {subject: "50"}
+      ]},
+      {type: StepType.FILTER, subject: "<", args: [
+        {parent: "person", subject: "age"},
+        {subject: "65"}
+      ]},
+    ],
   },
   {
     query: "people older than chris granger's spouse",
@@ -541,6 +574,7 @@ function queryTestUI(result) {
         return {c: "tokens", children: [
           {c: `node ${TokenTypes[root.type]}`, text: `${root.found}`},
           {c: "kids", children: root.args.map((token) => {
+            //console.log(token);
             let parent = token.parent ? token.parent.found + "." : "";
             return {c: `node ${TokenTypes[token.type]}`, text: `${parent}${token.found}`}
           })}

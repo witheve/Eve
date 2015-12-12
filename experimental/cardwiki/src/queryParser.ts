@@ -756,7 +756,12 @@ function tokensToTree(origTokens: Array<Token>) : Tree {
     }
   }
   // End main token loop
-  
+
+  // If the current pattern is satisfied, mark it as null
+  if(state.currentPattern.args.length === state.currentPattern.info.args.length) {
+    state.currentPattern = null;
+  }
+    
   // if we've run out of tokens and are still looking to fill in a pattern,
   // we might need to carry the attribute through.
   if (state.currentPattern && state.currentPattern.args.length) {
@@ -777,7 +782,7 @@ function tokensToTree(origTokens: Array<Token>) : Tree {
     }
     // e.g. people whose age is between 50 and 65
     // @HACK special case this for now
-    /*
+    
     else if(state.currentPattern.found === "between") {
       // Backtrack from the pattern start until we find an attribute
       let patternStart = tokens.lastIndexOf(state.currentPattern);
@@ -790,7 +795,7 @@ function tokensToTree(origTokens: Array<Token>) : Tree {
       }
       // We found an attribute, now add it to the arglist for the pattern
       state.currentPattern.args.push(arg);
-    }*/
+    }
   }
   return tree;
 }
