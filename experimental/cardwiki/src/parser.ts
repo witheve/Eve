@@ -1,8 +1,7 @@
-import {ENV, DEBUG, unpad, underline, coerceInput} from "./utils"
+import {ENV, DEBUG, uuid, unpad, underline, coerceInput} from "./utils"
 import * as runtime from "./runtime"
 import {eve} from "./app"
 import {repeat} from "./utils"
-declare var uuid;
 
 type SourceAttr = [string, string];
 interface MapArgs {
@@ -18,7 +17,7 @@ interface ListArgs {
 class ParseError extends Error {
   name: string = "Parse Error";
 
-  constructor(public message:string, public line:string, public lineIx?:number, public charIx:number = 0, public length:number = line.length - charIx) {
+  constructor(public message:string, public line:string, public lineIx?:number, public charIx:number = 0, public length:number = line && (line.length - charIx)) {
     super(message);
   }
   toString() {
@@ -70,7 +69,7 @@ function readUntilAny(str:string, sentinels:string[], startIx:number, unsatisfie
 }
 
 function getAlias(line:string, lineIx: number, charIx: number):[string, number] {
-  let alias = uuid();
+  let alias:any = uuid();
   let aliasIx = line.lastIndexOf("as [");
   if(aliasIx !== -1) {
     alias = readUntil(line, "]", aliasIx + 4, new ParseError(`Alias must terminate in a closing ']'`, line, lineIx, line.length));
@@ -663,7 +662,7 @@ export class Sexpr {
   }
   static asSexprs(values:(Token|Sexpr)[]):Sexpr[] {
     for(let raw of values) {
-     if(!(raw instanceof Sexpr)) throw new ParseError(`All top level entries must be expressions`, undefined, raw.lineIx, raw.charIx);
+     if(!(raw instanceof Sexpr)) throw new ParseError(`All top level entries must be expressions (got ${raw})`, undefined, raw.lineIx, raw.charIx);
       else {
         let op = raw.operator;
         if(op.type !== Token.TYPE.IDENTIFIER)
@@ -847,7 +846,7 @@ export function macroexpandDSL(sexpr:Sexpr):Sexpr {
     select.push(Token.literal(true));
     return select;
 
-  } else if(["hash", "list", "get", "def", "query", "union", "select", "project!"].indexOf(op.value) === -1) {
+  } else if(["hash", "list", "get", "def", "query", "union", "select", "member", "project!"].indexOf(op.value) === -1) {
     // (foo-bar :a 5) => (select "foo bar" :a 5)
     let source = op;
     source.type = Token.TYPE.STRING;
@@ -886,11 +885,23 @@ const primitives = {
   //@TODO: Finish me.
 };
 
-function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext, query?:runtime.Query) {
+function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext, parent?:runtime.Query|runtime.Union):any {
+  if(parent instanceof runtime.Query) var query = parent;
+  else var union = <runtime.Union>parent;
   let sexpr = macroexpandDSL(raw);
   let op = sexpr.operator;
   if(op.type !== Token.TYPE.IDENTIFIER)
     throw new ParseError(`Evaluated sexpr must begin with an identifier ('${op}' is a ${Token.TYPE[op.type]})`, "", raw.lineIx, raw.charIx);
+
+  if(op.value === "list") {
+    let {$$body} = parseArguments(sexpr, undefined, "$$body");
+    return (<any>$$body).map((token, ix) => resolveTokenValue(`list item ${ix}`, token, context));
+  }
+  if(op.value === "hash") {
+    let args = parseArguments(sexpr);
+    for(let arg in args) args[arg] = resolveTokenValue(`hash item ${arg}`, args[arg], context);
+    return args;
+  }
 
   if(op.value === "query") {
     let neueContext:VariableContext = [];
@@ -911,18 +922,21 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
     if(Object.keys(projectionMap).length) neue.project(projectionMap);
 
     // Join subquery to parent.
-    if(query) {
-      let select = new Sexpr([Token.identifier("select"), Token.string(queryId)], raw.lineIx, raw.charIx);
+    if(parent) {
+      let select = new Sexpr([Token.identifier(query ? "select" : "member"), Token.string(queryId)], raw.lineIx, raw.charIx);
       let groups = [];
 
       for(let variable of neueContext) {
         if(projected && !variable.projection) continue;
         let field = variable.projection || variable.name;
         select.push(Token.keyword(field));
-        select.push(Token.identifier(variable.name));
+        if(query) select.push(Token.identifier(variable.name));
+        else select.push(Sexpr.list([Token.string(field)]));
 
-        for(let parentVar of context) {
-          if(parentVar.name === variable.name) groups.push(variable.value);
+        if(context) {
+          for(let parentVar of context) {
+            if(parentVar.name === variable.name) groups.push(variable.value);
+          }
         }
       }
 
@@ -931,10 +945,11 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
         select.push($$negated);
       }
       if(groups.length) neue.group(groups);
-      parseDSLSexpr(select, artifacts, context, query);
+      console.log("query select", select.toString());
+      parseDSLSexpr(select, artifacts, context, parent);
     }
 
-    return queryId;
+    return {id: queryId, projected, context: neueContext};
   }
 
   if(op.value === "union") {
@@ -943,16 +958,61 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
     let neue = new runtime.Union(eve, unionId);
     if(DEBUG.instrumentQuery) instrumentQuery(neue, DEBUG.instrumentQuery);
     artifacts[unionId] = neue;
+    let mappings = {};
     for(let raw of Sexpr.asSexprs(<any>$$body)) {
-      throw new Error("@TODO implement me selects w queries w/ union id macroed into project!");
+      let child = macroexpandDSL(raw);
+      if(child.operator.value !== "query" && child.operator.value !== "union")
+        throw new ParseError("Unions may only contain queries", "", raw.lineIx, raw.charIx);
+      let res = parseDSLSexpr(child, artifacts, context, neue);
+      for(let variable of res.context) {
+        if(res.projected && !variable.projection) continue;
+        let field = variable.projection || variable.name;
+        if(!mappings[field]) mappings[field] = [];
+        mappings[field].push(variable.name);
+      }
     }
 
-    throw new Error("@TODO: figure out mapping to expose from projections");
+    console.log("MAPPINGS", mappings);
+
+    // Join subunion to parent
+    if(parent) {
+      let select = new Sexpr([Token.identifier(query ? "select" : "member"), Token.string(unionId)], raw.lineIx, raw.charIx);
+       for(let field in mappings) {
+         if(mappings[field].length > 1)
+          throw new ParseError(
+            `All variables projected to a single union field must have the same name. Field '${field}' has ${mappings[field].length} fields (${mappings[field].join(", ")})`, "", raw.lineIx, raw.charIx);
+        select.push(Token.keyword(field));
+        select.push(Sexpr.list([Token.string(mappings[field][0])]));
+      }
+
+      console.log("union select", select.toString());
+      parseDSLSexpr(select, artifacts,context, parent);
+    }
+
+    return {id: unionId, mappings};
   }
 
-  if(!query) throw new ParseError(`Non-query sexprs must be contained within a query`, "", raw.lineIx, raw.charIx);
+  if(op.value === "member") {
+    if(!union) throw new ParseError(`Cannot add member to non-union parent`, "", raw.lineIx, raw.charIx);
+    let args = parseArguments(sexpr, ["$$view"]);
+    let {$$view, $$negated} = args;
+    let view = resolveTokenValue("view", $$view, context, VALUE.SCALAR);
+    if(view === undefined) throw new ParseError("Must specify a view to be unioned", "", raw.lineIx, raw.charIx);
+
+    let join = {};
+    for(let arg in args) {
+      if(arg === "$$view" || arg === "$$negated") continue;
+      join[arg] = resolveTokenValue("member field", args[arg], context);
+    }
+    if(primitives[view]) throw new ParseError(`Cannot union primitive view '${view}'`, "", raw.lineIx, raw.charIx);
+    union.union(view, join);
+    return;
+  }
+
+  if(!parent) throw new ParseError(`Non-query or union sexprs must be contained within a query or union`, "", raw.lineIx, raw.charIx);
 
   if(op.value === "select") {
+    if(!query) throw new ParseError(`Cannot add select to non-query parent`, "", raw.lineIx, raw.charIx);
     let selectId = uuid();
     let args = parseArguments(sexpr, ["$$view"]);
     let {$$view, $$negated} = args;
@@ -1028,9 +1088,10 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
   throw new ParseError(`Unknown DSL operator '${op.value}'`, "", raw.lineIx, raw.charIx);
 }
 
-function resolveTokenValue(name:string, token:Token, context:VariableContext, type?:VALUE) {
+function resolveTokenValue(name:string, token:Token|Sexpr, context:VariableContext, type?:VALUE) {
   if(!token) return;
-  if(token.type === Token.TYPE.IDENTIFIER) {
+  if(token instanceof Sexpr) return parseDSLSexpr(token, undefined, context);
+  if(token instanceof Token && token.type === Token.TYPE.IDENTIFIER) {
     let variable = getDSLVariable(token.value, context, VALUE.SCALAR);
     if(!variable) throw new Error(`Cannot bind ${name} to undefined variable '${token.value}'`);
     if(!variable.static) throw new Error(`Cannot bind ${name} to dynamic variable '${token.value}'`);
@@ -1040,6 +1101,7 @@ function resolveTokenValue(name:string, token:Token, context:VariableContext, ty
 }
 
 function getDSLVariable(name:string, context:VariableContext, type?:VALUE):Variable {
+  if(!context) return;
   for(let variable of context) {
     if(variable.name === name) {
       if(variable.static === false) throw new Error(`Cannot statically look up dynamic variable '${name}'`);
