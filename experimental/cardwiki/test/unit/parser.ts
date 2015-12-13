@@ -1,7 +1,9 @@
 /// <reference path="../../typings/chai/chai.d.ts" />
 /// <reference path="../../typings/mocha/mocha.d.ts" />
 import {expect} from "chai";
-import {Token, Sexpr, readSexprs, macroexpandDSL, parseDSL} from "../../src/parser";
+import {eve} from "../../src/app";
+import {Query, Union} from "../../src/runtime";
+import {Token, Sexpr, readSexprs, macroexpandDSL, parseDSL, applyAsDiffs} from "../../src/parser";
 
 function assertSexprEqual(a:Sexpr, b:Sexpr) {
   expect(a).length(b.length);
@@ -14,6 +16,10 @@ function assertSexprEqual(a:Sexpr, b:Sexpr) {
       expect(arg).property("value").to.equal(other.value);
     } else assertSexprEqual(<Sexpr>arg, <Sexpr>other);
   }
+}
+
+function applyAsViews(views:{[view:string]: Query|Union}) {
+  for(let viewId in views) eve.asView(views[viewId]);
 }
 
 //-----------------------------------------------------------------------------
@@ -213,7 +219,7 @@ describe("readSexprs()", () => {
 });
 
 //-----------------------------------------------------------------------------
-// Macro expansion
+// Macro Expansion
 //-----------------------------------------------------------------------------
 describe("macroexpandDSL()", () => {
   let testCases:{macro?: boolean, input: string, output: string}[] = [
@@ -259,8 +265,140 @@ describe("macroexpandDSL()", () => {
 
 });
 
-  describe("parseDSL()", () => {
-    it("should", () => {
+//-----------------------------------------------------------------------------
+// DSL Parser
+//-----------------------------------------------------------------------------
+describe("parseDSL()", () => {
+  eve.clearTable("test:employee");
+  eve.clearTable("test:department");
+  let changeset = eve.diff();
+  changeset.addMany("test:department", [
+    {department: "engineering", head: "chris"},
+    {department: "distinction", head: "josh"},
+    {department: "operations", head: "rob"},
+    {department: "magic", head: "hermione"}
+  ]);
+  changeset.addMany("test:employee", [
+    {"employee": "Hazel Bernier", "department": "engineering", "salary": 78.99},
+    {"employee": "Candice Will", "department": "distinction", "salary": 233.73},
+    {"employee": "Celine Hauck", "department": "operations", "salary": 973.00},
+    {"employee": "Loyal Ullrich", "department": "engineering", "salary": 109.03},
+    {"employee": "Gregorio Wolf", "department": "operations", "salary": 971.28},
+    {"employee": "Adalberto Feil", "department": "distinction", "salary": 986.62},
+    {"employee": "Ettie Bergstrom", "department": "engineering", "salary": 990.50},
+    {"employee": "Adam Von", "department": "distinction", "salary": 874.19},
+    {"employee": "Baby Hintz", "department": "engineering", "salary": 666.23},
+    {"employee": "Anibal Fahey", "department": "distinction", "salary": 353.84}
+  ]);
 
-    });
+  eve.applyDiff(changeset);
+
+  function idSort(facts:any[]) {
+    return facts.slice().sort((a, b) => a.__id === b.__id ? 0 : (a.__id > b.__id ? 1 : -1));
+  }
+
+  it("should select all departments", () => {
+    let artifacts = parseDSL(`(query :$$view "test:1" (test:department :department department :head head))`);
+    let results = artifacts["test:1"].exec().results;
+    expect(results).to.deep.equal(eve.find("test:department"));
   });
+
+  it("should select all employees", () => {
+    let artifacts = parseDSL(`(query :$$view "test:2" (test:employee :employee employee :department department :salary salary))`);
+    let results = artifacts["test:2"].exec().results;
+    expect(results).to.deep.equal(eve.find("test:employee"));
+  });
+
+  it("should project itself", () => {
+    let artifacts = parseDSL(`(query :$$view "test:3"
+      (test:employee :employee emp :department dept :salary sal)
+      (project! :employee emp :department dept :salary sal))
+    `);
+    let results = artifacts["test:3"].exec().results;
+    expect(results).to.deep.equal(eve.find("test:employee"));
+  });
+
+  it("should join selects sharing variables", () => {
+    let artifacts = parseDSL(`(query :$$view "test:3"
+      (test:department :department dept :head head)
+      (test:employee :employee emp :department dept)
+      (project! :employee emp :head head))
+    `);
+    let results = artifacts["test:3"].exec().results;
+
+    let expected = [];
+    for(let employee of eve.find("test:employee")) {
+      let fact:any = {employee: employee.employee, head: eve.findOne("test:department", {department: employee.department}).head};
+      fact.__id = fact.employee + "|" + fact.head;
+      expected.push(fact);
+    }
+    expect(idSort(results)).to.deep.equal(idSort(expected));
+  });
+
+    it("should product selects not sharing variables", () => {
+    let artifacts = parseDSL(`(query :$$view "test:4"
+      (test:department :head head)
+      (test:department :head other-guy)
+      (project! :employee head :coworker other-guy))
+    `);
+    let results = artifacts["test:4"].exec().results;
+
+    let departments = eve.find("test:department");
+    let expected = [];
+    for(let department of departments) {
+      for(let department2 of departments) {
+        let fact:any = {employee: department.head, coworker: department2.head, __id: department.head + "|" + department2.head};
+        expected.push(fact);
+      }
+    }
+    expect(idSort(results)).to.deep.equal(idSort(expected));
+  });
+
+  it("should calculate selects on primitives", () => {
+     let artifacts = parseDSL(`(query :$$view "test:5"
+      (test:employee :employee emp :salary sal)
+      (+ :a sal :b 1 :result res)
+      (project! :employee emp :sal-and-one res))
+    `);
+    let results = artifacts["test:5"].exec().results;
+
+    let expected = [];
+    for(let employee of eve.find("test:employee")) {
+      let fact:any = {employee: employee.employee, "sal-and-one": employee.salary + 1};
+      fact.__id = fact.employee + "|" + fact["sal-and-one"];
+      expected.push(fact);
+    }
+    expect(idSort(results)).to.deep.equal(idSort(expected));
+  });
+
+  it("should aggregate selects on aggregation primitives", () => {
+    let artifacts = parseDSL(`(query :$$view "test:6"
+      (test:employee :employee emp :salary sal)
+      (sum :value sal :sum res)
+      (project! :total res))
+    `);
+    let results = artifacts["test:6"].exec().results;
+
+    let total = 0;
+    for(let employee of eve.find("test:employee")) total += employee.salary;
+    let expected = [{total, __id: total}];
+    expect(idSort(results)).to.deep.equal(idSort(expected));
+  });
+
+  it.skip("should auto-select all projected vars from subqueries", () => {
+    let artifacts = parseDSL(`(query :$$view "test:7"
+      (test:department :department dept)
+      (query :$$view "test:7-1"
+        (test:employee :department dept :employee emp :salary sal))
+      (project! :department dept :employee emp :salary sal))
+    `);
+    // @FIXME: Cannot use fact-based query storage until compiler moved into runtime or app.
+    applyAsViews(artifacts);
+    let results = eve.find("test:7");
+    console.log(eve.find("test:7"));
+    expect(idSort(results)).to.deep.equal(idSort(eve.find("test:employee")));
+  });
+
+  it("should group subqueries by their parent's context");
+
+});
