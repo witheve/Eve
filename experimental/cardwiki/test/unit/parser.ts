@@ -1,6 +1,7 @@
 /// <reference path="../../typings/chai/chai.d.ts" />
 /// <reference path="../../typings/mocha/mocha.d.ts" />
 import {expect} from "chai";
+import {copy} from "../../src/utils";
 import {eve} from "../../src/app";
 import {Query, Union} from "../../src/runtime";
 import {Token, Sexpr, readSexprs, macroexpandDSL, parseDSL, applyAsDiffs} from "../../src/parser";
@@ -20,6 +21,15 @@ function assertSexprEqual(a:Sexpr, b:Sexpr) {
 
 function applyAsViews(views:{[view:string]: Query|Union}) {
   for(let viewId in views) eve.asView(views[viewId]);
+}
+
+function applyIds(facts:any[], fields:string[]):any[] {
+  for(let fact of facts) {
+    let parts = [];
+    for(let field of fields) parts.push(fact[field]);
+    fact.__id = parts.join("|");
+  }
+  return facts;
 }
 
 //-----------------------------------------------------------------------------
@@ -385,7 +395,7 @@ describe("parseDSL()", () => {
     expect(idSort(results)).to.deep.equal(idSort(expected));
   });
 
-  it.skip("should auto-select all projected vars from subqueries", () => {
+  it("should auto-select all projected vars from subqueries", () => {
     let artifacts = parseDSL(`(query :$$view "test:7"
       (test:department :department dept)
       (query :$$view "test:7-1"
@@ -395,10 +405,30 @@ describe("parseDSL()", () => {
     // @FIXME: Cannot use fact-based query storage until compiler moved into runtime or app.
     applyAsViews(artifacts);
     let results = eve.find("test:7");
-    console.log(eve.find("test:7"));
-    expect(idSort(results)).to.deep.equal(idSort(eve.find("test:employee")));
+    let expected = applyIds(eve.find("test:employee").map(copy), ["department", "employee", "salary"]);
+    expect(idSort(results)).to.deep.equal(idSort(expected));
   });
 
-  it("should group subqueries by their parent's context");
+  it("should group subqueries by their parent's context", () => {
+    let artifacts = parseDSL(`(query :$$view "test:8"
+      (test:department :department dept)
+      (query :$$view "test:8-1"
+        (test:employee :department dept :salary sal)
+        (sum :value sal :sum sum))
+      (project! :department dept :cost sum))
+    `);
+    // @FIXME: Cannot use fact-based query storage until compiler moved into runtime or app.
+    applyAsViews(artifacts);
+    let results = eve.find("test:8");
+    let costs = {};
+    for(let employee of eve.find("test:employee")) {
+      if(!costs[employee.department]) costs[employee.department] = employee.salary;
+      else costs[employee.department] += employee.salary;
+    }
+    let expected = [];
+    for(let dept in costs) expected.push({department: dept, cost: costs[dept]});
+    applyIds(expected, ["department", "cost"]);
+    expect(idSort(results)).to.deep.equal(idSort(expected));
+  });
 
 });
