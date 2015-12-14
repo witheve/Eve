@@ -88,3 +88,12 @@ export function coerceInput(input) {
   }
   return input;
 }
+
+// Shallow copy the given object.
+export function copy(obj) {
+  if(!obj || typeof obj !== "object") return obj;
+  if(obj instanceof Array) return obj.slice();
+  let res = {};
+  for(let key in obj) res[key] = obj[key];
+  return res;
+}
