@@ -910,7 +910,11 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
     let neue = new runtime.Query(eve, queryId);
     if(DEBUG.instrumentQuery) instrumentQuery(neue, DEBUG.instrumentQuery);
     artifacts[queryId] = neue;
-    for(let raw of Sexpr.asSexprs(<any>$$body)) parseDSLSexpr(raw, artifacts, neueContext, neue);
+    let aggregated = false;
+    for(let raw of Sexpr.asSexprs(<any>$$body)) {
+      let state = parseDSLSexpr(raw, artifacts, neueContext, neue);
+      if(state && state.aggregated) aggregated = true;
+    }
 
     let projectionMap = neue.projectionMap;
     let projected = true;
@@ -944,7 +948,7 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
         select.push(Token.keyword("$$negated"));
         select.push($$negated);
       }
-      if(groups.length) neue.group(groups);
+      if(groups.length && aggregated) neue.group(groups);
       console.log("query select", select.toString());
       parseDSLSexpr(select, artifacts, context, parent);
     }
@@ -1040,7 +1044,9 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
       else query.calculate(view, join, selectId);
     } else if($$negated) query.deselect(view, join);
     else query.select(view, join, selectId);
-    return;
+    return {
+      aggregated: primitives[view] === "aggregate"
+    };
   }
 
   if(op.value === "project!") {
