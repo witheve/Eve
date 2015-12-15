@@ -477,9 +477,7 @@ interface Tree {
 }
 
 function tokensToTree(origTokens: Array<Token>) : Tree {
-    
-  console.log(origTokens);   
-    
+  
   let tokens = origTokens;
   let roots = [];
   let operations = [];
@@ -655,10 +653,7 @@ function tokensToTree(origTokens: Array<Token>) : Tree {
     }
 
     // deal with values
-    if (type === TokenTypes.VALUE) {
-      
-      console.log(token);
-      
+    if (type === TokenTypes.VALUE) {           
       // if we still have a currentPattern to fill
       if (state.currentPattern && state.currentPattern.args.length < state.currentPattern.info.args.length) {
         state.currentPattern.args.push(token);
