@@ -1,8 +1,10 @@
 declare interface marked {
   (md: string, options?: MarkedOptions, callback?: (err:Error, content: string) => void): string;
   setOptions: (options: MarkedOptions) => void;
+  parse(md: string, options?: MarkedOptions, callback?: (err:Error, content: string) => void): string;
 }
 declare var marked:marked;
+export var parse:(md: string, options?: MarkedOptions, callback?: (err:Error, content: string) => void) => string;
 
 interface MarkedOptions {
   renderer?: any;
