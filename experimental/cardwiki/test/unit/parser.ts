@@ -431,4 +431,27 @@ describe("parseDSL()", () => {
     expect(idSort(results)).to.deep.equal(idSort(expected));
   });
 
+  it("should project into a named union", () => {
+    let artifacts = parseDSL(`
+      (query :$$view "test:9-1"
+        (test:department :head head)
+        (project! "test:9" :person head))
+      (query :$$view "test:9-2"
+        (test:employee :employee employee)
+        (project! "test:9" :person employee))
+    `);
+    applyAsViews(artifacts);
+    let results = eve.find("test:9");
+
+    let expected = [];
+    for(let {head} of eve.find("test:department")) {
+      if(expected.indexOf(head) === -1) expected.push({person: head});
+    }
+    for(let {employee} of eve.find("test:employee")) {
+      if(expected.indexOf(employee) === -1) expected.push({person: employee});
+    }
+    applyIds(expected, ["person"]);
+    expect(idSort(results)).to.deep.equal(idSort(expected));
+  });
+
 });
