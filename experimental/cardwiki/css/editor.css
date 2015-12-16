@@ -21,7 +21,7 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 - Article Editor
 ---------------------------------------------------------*/
 
-.search-container { width:600px; padding:0 10px; max-height:60%; }
+.search-container { width:600px; padding:0 10px; max-height:60%; overflow:hidden; }
 .search-container > *:last-child { padding-bottom:10px; }
 
 .entity-content { overflow: auto; }
@@ -94,7 +94,7 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .search-headers > * { flex:1; align-items:flex-start;  font-size:11pt;  padding:5px 10px; }
 .search-headers > * + * { border-left:1px solid #ccc; }
 
-.search-results { flex:none; max-height: 60vh; overflow:auto; padding:10px 10px; }
+.search-results { flex:1; overflow:auto; padding:10px 10px; }
 .search-results .path > * { flex:1; }
 .search-results .sub-group { margin:0 0px; min-width:100px; }
 .search-results .sub-group + .sub-group { border-left: 1px solid #222; }
