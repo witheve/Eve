@@ -270,13 +270,13 @@ function walk(tree, indent = 0) {
 
 
 var tokenRelationships = {
-  "collection": {
-    "collection": findCollectionToCollectionRelationship,
-    "attribute": findCollectionToAttrRelationship,
-    "entity": findCollectionToEntRelationship,
+  [TokenTypes.COLLECTION]: {
+    [TokenTypes.COLLECTION]: findCollectionToCollectionRelationship,
+    [TokenTypes.ATTRIBUTE]: findCollectionToAttrRelationship,
+    [TokenTypes.ENTITY]: findCollectionToEntRelationship,
   },
-  "entity": {
-    "attribute": findEntToAttrRelationship,
+  [TokenTypes.ENTITY]: {
+    [TokenTypes.ATTRIBUTE]: findEntToAttrRelationship,
   },
 }
 function tokensToRelationship(token1, token2) {
@@ -370,17 +370,17 @@ function planTree(searchString) {
         let operatorChildren = state.operator.children;
         let ix = 0;
         for(let child of operatorChildren) {
-          if(child.type === "attribute") {
+          if(child.type === TokenTypes.ATTRIBUTE) {
             cursor.children.push(child);
             operatorChildren[ix] = child;
-          } else if(child.type !== "value") {
+          } else if(child.type !== TokenTypes.VALUE) {
             // we have something that could nest.
             let tip = child;
             while(tip.children.length) {
               tip = tip.children[tip.children.length - 1];
             }
             if(operation.attribute) {
-              tip.children.push({type: "attribute", found: operation.attribute, orig: operation.attribute, id: uuid(), children: []});
+              tip.children.push({type: TokenTypes.ATTRIBUTE, found: operation.attribute, orig: operation.attribute, id: uuid(), children: []});
             }
             // if this is an infix operation, then this is an entirely different root now
             if(operation.infix) {
@@ -396,7 +396,7 @@ function planTree(searchString) {
         // if this is an infix operator that invokes an attribute, e.g. "older", push
         // that attribute onto the cursor
         if(operation.infix && operation.attribute) {
-          let attr = {type: "attribute", found: operation.attribute, orig: operation.attribute, id: uuid(), children: []};
+          let attr = {type: TokenTypes.ATTRIBUTE, found: operation.attribute, orig: operation.attribute, id: uuid(), children: []};
           cursor.children.push(attr);
           // we also need to add this as the first arg to the function
           state.operator.children.unshift(attr);
@@ -444,12 +444,12 @@ function planTree(searchString) {
     }
     // if the current cursor is an entity and this is anything other than an attribute, this is related
     // to the root.
-    else if(cursor.type === "entity" && type !== TokenTypes.ATTRIBUTE) {
+    else if(cursor.type === TokenTypes.ENTITY && type !== TokenTypes.ATTRIBUTE) {
       activeRoot.children.push(token);
     }
     // if the current cursor is an entity or a collection, we have to check if it should go to the cursor
     // or the root
-    else if(cursor.type === "entity" || cursor.type === "collection") {
+    else if(cursor.type === TokenTypes.ENTITY || cursor.type === TokenTypes.COLLECTION) {
       let cursorRel = tokensToRelationship(cursor, token);
       let rootRel = tokensToRelationship(root, token);
       // if this token is an entity and either root or cursor has a direct relationship
@@ -471,7 +471,7 @@ function planTree(searchString) {
         // following an entity are related to that entity and not something else.
         activeRoot.children.push(token);
       }
-    } else if(cursor.type === "operation") {
+    } else if(cursor.type === TokenTypes.OPERATION) {
       activeRoot.children.push(token);
     }
     // if this was a subject, then this is now the cursor
@@ -497,17 +497,17 @@ function planTree(searchString) {
       let operatorChildren = state.operator.children;
       let ix = 0;
       for(let child of operatorChildren) {
-        if(child.type === "attribute") {
+        if(child.type === TokenTypes.ATTRIBUTE) {
           cursor.children.push(child);
           operatorChildren[ix] = child;
-        } else if(child.type && child.type !== "value") {
+        } else if(child.type && child.type !== TokenTypes.VALUE) {
           // we have something that could nest.
           let tip = child;
           while(tip.children.length) {
             tip = tip.children[0];
           }
           if(operation.attribute) {
-            let neueAttr = {type: "attribute", found: operation.attribute, orig: operation.attribute, id: uuid(), children: []};
+            let neueAttr = {type: TokenTypes.ATTRIBUTE, found: operation.attribute, orig: operation.attribute, id: uuid(), children: []};
             tip.children.push(neueAttr);
             tip = neueAttr;
           }
@@ -525,7 +525,7 @@ function planTree(searchString) {
       // if this is an infix operator that invokes an attribute, e.g. "older", push
       // that attribute onto the cursor
       if(operation.infix && operation.attribute) {
-        let attr = {type: "attribute", found: operation.attribute, orig: operation.attribute, id: uuid(), children: []};
+        let attr = {type: TokenTypes.ATTRIBUTE, found: operation.attribute, orig: operation.attribute, id: uuid(), children: []};
         cursor.children.push(attr);
         // we also need to add this as the first arg to the function
         state.operator.children.unshift(attr);
@@ -632,11 +632,11 @@ function nodeToPlanSteps(node, parent, parentPlan) {
         break;
     }
   } else {
-    if(node.type === "collection") {
+    if(node.type === TokenTypes.COLLECTION) {
       return [{type: "gather", collection: node.found, subject: node.found, id, deselect}];
-    } else if(node.type === "entity") {
+    } else if(node.type === TokenTypes.ENTITY) {
       return [{type: "find", entity: node.found, subject: node.found, id, deselect}];
-    } else if(node.type === "attribute") {
+    } else if(node.type === TokenTypes.ATTRIBUTE) {
       return [{type: "lookup", attribute: node.found, subject: node.found, id, deselect}];
     }
     return [];
@@ -663,7 +663,7 @@ function opToPlan(op, groupLookup) {
     for(let arg of info.args) {
       let value = op.children[ix];
       if(value === undefined) continue;
-      if(value.type && value.type === "value") {
+      if(value.type && value.type === TokenTypes.VALUE) {
         args[arg] = JSON.parse(value.found);
       } else if(value.type) {
         args[arg] = [value.id, "value"];
@@ -679,7 +679,7 @@ function opToPlan(op, groupLookup) {
     let sort, limit, grouped;
     limit = info.limit;
     for(let child of op.children) {
-      if(child.type && child.type === "value") {
+      if(child.type && child.type === TokenTypes.ATTRIBUTE) {
         limit = coerceInput(child.found);
       } else {
         sort = [child.id, "value", info.direction];
@@ -711,9 +711,9 @@ function groupsToPlan(nodes) {
   if(!nodes.length) return [];
   let groups = [];
   for(let node of nodes) {
-    if(node.type === "collection") {
+    if(node.type === TokenTypes.COLLECTION) {
       groups.push([node.id, "entity"]);
-    } else if(node.type === "attribute") {
+    } else if(node.type === TokenTypes.ATTRIBUTE) {
       groups.push([node.id, "value"]);
     } else {
       throw new Error("Invalid node to group on: " + JSON.stringify(nodes));
@@ -1126,7 +1126,7 @@ function CMSearchBox(node, elem) {
       for(let token of tokens) {
         let start = cm.posFromIndex(token.pos);
         let stop = cm.posFromIndex(token.pos + token.orig.length);
-        state.marks.push(cm.markText(start, stop, {className: token.type}));
+        state.marks.push(cm.markText(start, stop, {className: TokenTypes[token.type].toLowerCase()}));
       }
     });
     cm.focus();
@@ -1211,10 +1211,17 @@ app.handle("submitAction", (result, info) => {
 
 app.handle("addNewSearch", (result, info) => {
   let id = uuid();
-  let search = info.search || "foo";
+  let search = info.search || "";
   app.activeSearches[id] = newSearch(search);
   result.add("builtin search", {id, top: info.top || 100, left: info.left || 100});
   result.add("builtin search query", {id, search});
+});
+
+app.handle("addNewSyntaxSearch", (result, info) => {
+  let id = uuid();
+  let code = info.search || "";
+  result.add("builtin syntax search", {id, top: info.top || 100, left: info.left || 100});
+  result.add("builtin syntax search code", {id, code});
 });
 
 app.handle("removeSearch", (result, info) => {
@@ -1222,6 +1229,8 @@ app.handle("removeSearch", (result, info) => {
   if(!searchId) return;
   result.remove("builtin search", {id: searchId});
   result.remove("builtin search query", {id: searchId});
+  result.remove("builtin syntax search", {id: searchId});
+  result.remove("builtin syntax search code", {id: searchId});
   app.activeSearches[searchId] = null;
 });
 
@@ -1247,6 +1256,9 @@ app.handle("removeAction", (result, info) => {
 app.handle("startDragging", (result, info) => {
   let {searchId, x, y} = info;
   let pos = eve.findOne("search", {id: searchId});
+  if(!pos) {
+    pos = eve.findOne("builtin syntax search");
+  }
   dragging = {id: searchId, offsetTop: y - pos.top, offsetLeft: x - pos.left};
 });
 
@@ -1256,8 +1268,14 @@ app.handle("stopDragging", (result, info) => {
 
 app.handle("moveSearch", (result, info) => {
   let {searchId, x, y} = info;
-  result.remove("builtin search", {id: searchId});
-  result.add("builtin search", {id: searchId, top: y - dragging.offsetTop, left: x - dragging.offsetLeft});
+  if(eve.findOne("builtin search", {id: searchId})) {
+    result.remove("builtin search", {id: searchId});
+    result.add("builtin search", {id: searchId, top: y - dragging.offsetTop, left: x - dragging.offsetLeft});
+  } else {
+    result.remove("builtin syntax search", {id: searchId});
+    result.add("builtin syntax search", {id: searchId, top: y - dragging.offsetTop, left: x - dragging.offsetLeft});
+  }
+
 });
 
 app.handle("toggleShowPlan", (result, info) => {
@@ -1281,6 +1299,9 @@ export function eveRoot():Element {
   for(let search of eve.find("search")) {
     searchers.push(newSearchResults(search.id));
   }
+  for(let search of eve.find("builtin syntax search")) {
+    searchers.push(syntaxSearch(search.id));
+  }
   return {id: "root", c: "root", dblclick: addNewSearch, children: [
 //       slideControls(),
     {c: "canvas", mousemove: maybeDrag, children: searchers},
@@ -1296,7 +1317,11 @@ function maybeDrag(e, elem) {
 
 function addNewSearch(e, elem) {
   if(e.target.classList.contains("canvas")) {
-    app.dispatch("addNewSearch", {top: e.clientY, left: e.clientX}).commit();
+    if(e.shiftKey) {
+      app.dispatch("addNewSyntaxSearch", {top: e.clientY, left: e.clientX}).commit();
+    } else {
+      app.dispatch("addNewSearch", {top: e.clientY, left: e.clientX}).commit();
+    }
     e.preventDefault();
   }
 }
@@ -1752,6 +1777,103 @@ export function clearSaved() {
   return diff;
 }
 
+//---------------------------------------------------------
+// Syntax search
+//---------------------------------------------------------
+
+app.handle("setSyntaxSearch", (result, info) => {
+  let searchId = info.searchId;
+  let code = eve.findOne("builtin syntax search code", {id: searchId})["code"];
+  if(code === info.code) return;
+
+  let newSearchValue = info.code.trim();
+  let wrapped = newSearchValue;
+  if(wrapped.indexOf("(query") !== 0) {
+    wrapped = `(query :$$view "${searchId}" ${wrapped})`;
+  }
+  // remove the old one
+  for(let view of eve.find("builtin syntax search view", {id: searchId})) {
+    let diff = removeView(view.view);
+    result.merge(diff);
+  }
+  result.remove("builtin syntax search view", {id: searchId});
+
+  var parsed = window["parser"].parseDSL(wrapped);
+  for(let view in parsed) {
+    result.add("builtin syntax search view", {id: searchId, view});
+  }
+  result.merge(window["parser"].asDiff(eve, parsed));
+
+  result.remove("builtin syntax search code", {id: searchId});
+  result.add("builtin syntax search code", {id: searchId, code: newSearchValue});
+});
+
+
+function CMSyntaxEditor(node, elem) {
+  let cm = node.editor;
+  if(!cm) {
+    let state = {marks: []};
+    cm = node.editor = new CodeMirror(node, {
+      mode: "clojure",
+      lineWrapping: true,
+      extraKeys: {
+        "Ctrl-Enter": (cm) => {
+          app.dispatch("setSyntaxSearch", {searchId:elem.searchId, code: cm.getValue()}).commit();
+        },
+        "Cmd-Enter": (cm) => {
+          app.dispatch("setSyntaxSearch", {searchId:elem.searchId, code: cm.getValue()}).commit();
+        }
+      }
+    });
+    cm.on("change", (cm) => {
+//       let value = cm.getValue();
+//       let tokens = newSearchTokens(value);
+//       for(let mark of state.marks) {
+//         mark.clear();
+//       }
+//       state.marks = [];
+//       for(let token of tokens) {
+//         let start = cm.posFromIndex(token.pos);
+//         let stop = cm.posFromIndex(token.pos + token.orig.length);
+//         state.marks.push(cm.markText(start, stop, {className: token.type}));
+//       }
+    });
+    cm.focus();
+  }
+  if(cm.getValue() !== elem.value) {
+    cm.setValue(elem.value);
+  }
+}
+
+function syntaxSearch(searchId) {
+  let {top, left} = eve.findOne("builtin syntax search", {id: searchId});
+  let code = eve.findOne("builtin syntax search code", {id: searchId})["code"];
+  let isDragging = dragging && dragging.id === searchId ? "dragging" : "";
+  let results = eve.find(searchId);
+  let fields = Object.keys(results[0] || {}).filter((field) => field !== "__id");
+  let headers = [];
+  for(let field of fields) {
+    headers.push({c: "header", text: field});
+  }
+  let resultItems = [];
+  for(let result of results) {
+    let fieldItems = [];
+    for(let field of fields) {
+      fieldItems.push({c: "field", text: result[field]});
+    }
+    resultItems.push({c: "row", children: fieldItems});
+  }
+  return {id: `${searchId}|container`, c: `container search-container ${isDragging} syntax-search`, top, left, children: [
+    {c: "search-input", mousedown: startDragging, mouseup: stopDragging, searchId, children: [
+      {c: "search-box syntax-editor", value: code, postRender: CMSyntaxEditor, searchId},
+      {c: "ion-android-close close", click: removeSearch, searchId},
+    ]},
+    {c: "results", children: [
+      {c: "headers", children: headers},
+      {c: "rows", children: resultItems}
+    ]}
+  ]};
+}
 
 
 //---------------------------------------------------------

@@ -1079,11 +1079,11 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
       // Project self
       query.project(projectionMap);
     } else {
-      let union = new runtime.Union(eve, view);
-      artifacts[uuid()] = union; // @NOTE: This is super weird. This should probably just be an array of stuff.
-      if(DEBUG.instrumentQuery) instrumentQuery(union, DEBUG.instrumentQuery);
+      let union = <runtime.Union>artifacts[view] || new runtime.Union(eve, view);
+      if(DEBUG.instrumentQuery && !artifacts[view]) instrumentQuery(union, DEBUG.instrumentQuery);
+      artifacts[view] = union;
 
-      // if($$negated.value) union.ununion(queryId, projectionMap);
+      // if($$negated && $$negated.value) union.ununion(queryId, projectionMap);
       if($$negated && $$negated.value)
         throw new ParseError(`Union projections may not be negated in the current runtime`, "", raw.lineIx, raw.charIx);
       else union.union(query.name, projectionMap);
@@ -1169,6 +1169,12 @@ export function instrumentQuery(q:any, instrument?:Function|boolean) {
     }
   });
   return q;
+}
+
+export function asDiff(ixer, views:{[id:string]:runtime.Query|runtime.Union}) {
+  let diff = ixer.diff();
+  for(let id in views) diff.merge(views[id].changeset(eve));
+  return diff;
 }
 
 export function applyAsDiffs(views:{[id:string]:runtime.Query|runtime.Union}) {
