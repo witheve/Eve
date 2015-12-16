@@ -1257,7 +1257,7 @@ app.handle("startDragging", (result, info) => {
   let {searchId, x, y} = info;
   let pos = eve.findOne("search", {id: searchId});
   if(!pos) {
-    pos = eve.findOne("builtin syntax search");
+    pos = eve.findOne("builtin syntax search", {id: searchId});
   }
   dragging = {id: searchId, offsetTop: y - pos.top, offsetLeft: x - pos.left};
 });
