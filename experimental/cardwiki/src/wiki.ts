@@ -1,4 +1,5 @@
 "use strict"
+import {parse as marked} from "../vendor/marked";
 import {Element} from "./microReact";
 import * as runtime from "./runtime";
 import {TokenTypes, getTokens} from "./queryParser";
@@ -159,6 +160,7 @@ function parseEntity(entityId, content) {
 function entityToHTML(lines, searchId, full) {
   let children = [];
   let started = false;
+
   for (let line of lines) {
     let lineChildren = [];
     let items = line.items;
