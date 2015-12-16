@@ -125,7 +125,7 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .syntax-search .header { flex: 1 0; padding:5px; background: #ddd; }
 .syntax-search .header + .header { border-left: 1px solid #ccc; }
 .syntax-search .rows { overflow:auto; }
-.syntax-search .row { flex-direction:row; flex:1; align-items:stretch; }
+.syntax-search .row { flex-direction:row; flex:none; align-items:stretch; }
 .syntax-search .row + .row { border-top: 1px solid #ccc; }
 .syntax-search .field { flex: 1 0; padding:5px; justify-content:center; }
 .syntax-search .field + .field { border-left: 1px solid #ccc; }
