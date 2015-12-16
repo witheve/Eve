@@ -1265,7 +1265,7 @@ app.handle("startDragging", (result, info) => {
   if(!pos) {
     pos = eve.findOne("builtin syntax search", {id: searchId});
   }
-  dragging = {id: searchId, offsetTop: y - pos.top, offsetLeft: x - pos.left};
+  dragging = {id: searchId, offsetTop: y - pos.top, offsetLeft: x - pos.left, action: info.action || "moveSearch"};
 });
 
 app.handle("stopDragging", (result, info) => {
@@ -1281,7 +1281,25 @@ app.handle("moveSearch", (result, info) => {
     result.remove("builtin syntax search", {id: searchId});
     result.add("builtin syntax search", {id: searchId, top: y - dragging.offsetTop, left: x - dragging.offsetLeft});
   }
+});
 
+app.handle("resizeSearch", (result, info) => {
+  let {searchId, x, y} = info;
+  let type = "builtin search size";
+  let pos = eve.findOne("builtin search", {id: searchId});
+  if(!pos) {
+    pos = eve.findOne("builtin syntax search", {id: searchId});
+  }
+  result.remove("builtin search size", {id: searchId});
+  let height = y - pos.top + 5;
+  let width = x - pos.left + 5;
+  if(width <= 100) {
+    width = 100;
+  }
+  if(height <= 100) {
+    height = 100;
+  }
+  result.add(type, {id: searchId, width, height});
 });
 
 app.handle("toggleShowPlan", (result, info) => {
@@ -1316,7 +1334,7 @@ export function eveRoot():Element {
 
 function maybeDrag(e, elem) {
   if(dragging) {
-    app.dispatch("moveSearch", {searchId: dragging.id, x: e.clientX, y: e.clientY}).commit();
+    app.dispatch(dragging.action, {searchId: dragging.id, x: e.clientX, y: e.clientY}).commit();
     e.preventDefault();
   }
 }
@@ -1583,9 +1601,16 @@ export function newSearchResults(searchId) {
     ]};
   }
 
+  let size = eve.findOne("builtin search size", {id: searchId});
+  let width, height;
+  if(size) {
+    width = size.width;
+    height = size.height;
+  }
+
   let isDragging = dragging && dragging.id === searchId ? "dragging" : "";
   let showPlan = eve.findOne("showPlan", {search: searchId}) ? searchDescription(tokens, plan) : undefined;
-  return {id: `${searchId}|container`, c: `container search-container ${isDragging}`, top, left, children: [
+  return {id: `${searchId}|container`, c: `container search-container ${isDragging}`, top, left, width, height, children: [
     {c: "search-input", mousedown: startDragging, mouseup: stopDragging, searchId, children: [
       {c: "search-box", value: search, postRender: CMSearchBox, searchId},
       {c: "spacer"},
@@ -1596,7 +1621,8 @@ export function newSearchResults(searchId) {
     {c: "entity-content", children: entityContent},
     resultItems.length ? {c: "search-results", children: resultItems} : {},
     actionContainer,
-    {c: "add-action", children: addActionChildren}
+    {c: "add-action", children: addActionChildren},
+    {c: "resize", mousedown: startDragging, mouseup: stopDragging, searchId, action: "resizeSearch"}
   ]};
 }
 
@@ -1610,7 +1636,7 @@ function toggleShowPlan(e, elem) {
 
 function startDragging(e, elem) {
   if(e.target === e.currentTarget) {
-    app.dispatch("startDragging", {searchId: elem.searchId, x: e.clientX, y: e.clientY}).commit();
+    app.dispatch("startDragging", {searchId: elem.searchId, x: e.clientX, y: e.clientY, action: elem.action}).commit();
   }
 }
 
@@ -1884,12 +1910,20 @@ function syntaxSearch(searchId) {
   } else {
     resultUi = {c: "error", text: error.error};
   }
-  return {id: `${searchId}|container`, c: `container search-container ${isDragging} syntax-search`, top, left, children: [
+
+  let size = eve.findOne("builtin search size", {id: searchId});
+  let width, height;
+  if(size) {
+    width = size.width;
+    height = size.height;
+  }
+  return {id: `${searchId}|container`, c: `container search-container ${isDragging} syntax-search`, top, left, width, height, children: [
     {c: "search-input", mousedown: startDragging, mouseup: stopDragging, searchId, children: [
       {c: "search-box syntax-editor", value: code, postRender: CMSyntaxEditor, searchId},
       {c: "ion-android-close close", click: removeSearch, searchId},
     ]},
-    resultUi
+    resultUi,
+    {c: "resize", mousedown: startDragging, mouseup: stopDragging, searchId, action: "resizeSearch"}
   ]};
 }
 

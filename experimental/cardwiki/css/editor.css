@@ -24,6 +24,8 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .search-container { width:600px; padding:0 10px; max-height:60%; overflow:hidden; }
 .search-container > *:last-child { padding-bottom:10px; }
 
+.search-container .resize { position:absolute; bottom:0; right:0; width:18px; height:18px; cursor:nwse-resize; }
+
 .entity-content { overflow: auto; }
 .entity-blocks > .entity { -webkit-user-select:auto;  padding:5px 10px; overflow:auto; max-width: 600px; min-width: 300px; line-height: 25px; }
 .entity-blocks:first-child { padding-top:10px; }
