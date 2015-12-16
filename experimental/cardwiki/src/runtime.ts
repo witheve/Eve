@@ -1775,7 +1775,7 @@ export class Union {
         ${provenance}`;
         break;
       case "return":
-        code += `return {${root.vars.join(", ")}};`;
+        code += `return {${root.vars.map((name) => `${name}: ${name}`).join(", ")}};`;
         break;
     }
     return code;

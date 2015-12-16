@@ -402,7 +402,6 @@ describe("parseDSL()", () => {
         (test:employee :department dept :employee emp :salary sal))
       (project! :department dept :employee emp :salary sal))
     `);
-    // @FIXME: Cannot use fact-based query storage until compiler moved into runtime or app.
     applyAsViews(artifacts);
     let results = eve.find("test:7");
     let expected = applyIds(eve.find("test:employee").map(copy), ["department", "employee", "salary"]);
@@ -417,7 +416,6 @@ describe("parseDSL()", () => {
         (sum :value sal :sum sum))
       (project! :department dept :cost sum))
     `);
-    // @FIXME: Cannot use fact-based query storage until compiler moved into runtime or app.
     applyAsViews(artifacts);
     let results = eve.find("test:8");
     let costs = {};
@@ -431,4 +429,31 @@ describe("parseDSL()", () => {
     expect(idSort(results)).to.deep.equal(idSort(expected));
   });
 
+  it("should project into a named union", () => {
+    let artifacts = parseDSL(`
+      (query :$$view "test:9-1"
+        (test:department :head head)
+        (project! "test:9" :person head))
+      (query :$$view "test:9-2"
+        (test:employee :employee employee)
+        (project! "test:9" :person employee))
+    `);
+    applyAsViews(artifacts);
+    let results = eve.find("test:9");
+
+    let expected = [];
+    for(let {head} of eve.find("test:department")) {
+      if(expected.indexOf(head) === -1) expected.push({person: head});
+    }
+    for(let {employee} of eve.find("test:employee")) {
+      if(expected.indexOf(employee) === -1) expected.push({person: employee});
+    }
+    applyIds(expected, ["person"]);
+    expect(idSort(results)).to.deep.equal(idSort(expected));
+  });
+
+  it("should map all fields from union members when they are unprojected");
+  it("should map all fields from union members when they are explicitly self-projected");
+  it("should group member queries by its parent query");
+  it("should select its entire mapping into the parent query based on ...?");
 });
