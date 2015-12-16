@@ -107,6 +107,12 @@ Solution: In a terminal, run:
 ```
 brew link --force openssl
 ```
+
+Additionally, OSX El Capitan no longer ships with the required headers, so you might have to download and link to them:
+```
+export OPENSSL_INCLUDE_DIR=/usr/local/opt/openssl/include
+```
+
 See https://github.com/sfackler/rust-openssl/issues/255 for more details
 
 ### Install fails on Ubuntu with error: 
