@@ -910,7 +910,7 @@ export class Query {
     let table = this.ixer.table(tableName);
     for (let field in joinObject) {
       if (table.fields.length && !table.keyLookup[field]) {
-        throw new Error(`Table '${tableName}' doesn't have a field '${field}'`);
+        throw new Error(`Table '${tableName}' doesn't have a field '${field}'.\n\nAvailable fields: ${table.fields.join(", ")}`);
       }
       let joinInfo = joinObject[field];
       if(joinInfo.constructor === Array) {
@@ -923,7 +923,7 @@ export class Query {
           let referencedTable = this.ixer.table(join.table);
           if (!referencedTable.fields.length) continue;
           if (!referencedTable.keyLookup[referencedField]) {
-            throw new Error(`Table '${join.table}' doesn't have a field '${referencedField}'`);
+            throw new Error(`Table '${join.table}' doesn't have a field '${referencedField}'.\n\nAvailable fields: ${referencedTable.fields.join(", ")}`);
           }
         }
       }
