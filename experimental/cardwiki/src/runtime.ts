@@ -437,8 +437,13 @@ export class Indexer {
     return {triggers, realDiffs};
   }
   execTrigger(trigger) {
-    let table = this.table(trigger.name);
-    let {results, unprojected} = trigger.exec() || {};
+    let table = this.table(trigger.name)
+    // since views might be changed during the triggering process, we want to favor
+    // just using the view itself as the trigger if it is one. Otherwise, we use the
+    // trigger's exec function. This ensures that if a view is recompiled and added
+    // that any already queued triggers will use the updated version of the view instead
+    // of the old queued one.
+    let {results, unprojected} = (table.view ? table.view.exec() : trigger.exec()) || {};
     if(!results) return;
     let prevResults = table.factHash;
     let prevHashes = Object.keys(prevResults);
@@ -621,6 +626,9 @@ export class Indexer {
 
   asView(query:Query|Union) {
     let name = query.name;
+    if(this.tables[name]) {
+      this.removeView(name);
+    }
     let view = this.table(name);
     this.edbTables[name] = false;
     view.view = query;

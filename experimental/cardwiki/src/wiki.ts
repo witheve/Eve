@@ -1211,10 +1211,17 @@ app.handle("submitAction", (result, info) => {
 
 app.handle("addNewSearch", (result, info) => {
   let id = uuid();
-  let search = info.search || "foo";
+  let search = info.search || "";
   app.activeSearches[id] = newSearch(search);
   result.add("builtin search", {id, top: info.top || 100, left: info.left || 100});
   result.add("builtin search query", {id, search});
+});
+
+app.handle("addNewSyntaxSearch", (result, info) => {
+  let id = uuid();
+  let code = info.search || "";
+  result.add("builtin syntax search", {id, top: info.top || 100, left: info.left || 100});
+  result.add("builtin syntax search code", {id, code});
 });
 
 app.handle("removeSearch", (result, info) => {
@@ -1222,6 +1229,8 @@ app.handle("removeSearch", (result, info) => {
   if(!searchId) return;
   result.remove("builtin search", {id: searchId});
   result.remove("builtin search query", {id: searchId});
+  result.remove("builtin syntax search", {id: searchId});
+  result.remove("builtin syntax search code", {id: searchId});
   app.activeSearches[searchId] = null;
 });
 
@@ -1247,6 +1256,9 @@ app.handle("removeAction", (result, info) => {
 app.handle("startDragging", (result, info) => {
   let {searchId, x, y} = info;
   let pos = eve.findOne("search", {id: searchId});
+  if(!pos) {
+    pos = eve.findOne("builtin syntax search");
+  }
   dragging = {id: searchId, offsetTop: y - pos.top, offsetLeft: x - pos.left};
 });
 
@@ -1256,8 +1268,14 @@ app.handle("stopDragging", (result, info) => {
 
 app.handle("moveSearch", (result, info) => {
   let {searchId, x, y} = info;
-  result.remove("builtin search", {id: searchId});
-  result.add("builtin search", {id: searchId, top: y - dragging.offsetTop, left: x - dragging.offsetLeft});
+  if(eve.findOne("builtin search", {id: searchId})) {
+    result.remove("builtin search", {id: searchId});
+    result.add("builtin search", {id: searchId, top: y - dragging.offsetTop, left: x - dragging.offsetLeft});
+  } else {
+    result.remove("builtin syntax search", {id: searchId});
+    result.add("builtin syntax search", {id: searchId, top: y - dragging.offsetTop, left: x - dragging.offsetLeft});
+  }
+
 });
 
 app.handle("toggleShowPlan", (result, info) => {
@@ -1281,6 +1299,9 @@ export function eveRoot():Element {
   for(let search of eve.find("search")) {
     searchers.push(newSearchResults(search.id));
   }
+  for(let search of eve.find("builtin syntax search")) {
+    searchers.push(syntaxSearch(search.id));
+  }
   return {id: "root", c: "root", dblclick: addNewSearch, children: [
 //       slideControls(),
     {c: "canvas", mousemove: maybeDrag, children: searchers},
@@ -1296,7 +1317,11 @@ function maybeDrag(e, elem) {
 
 function addNewSearch(e, elem) {
   if(e.target.classList.contains("canvas")) {
-    app.dispatch("addNewSearch", {top: e.clientY, left: e.clientX}).commit();
+    if(e.shiftKey) {
+      app.dispatch("addNewSyntaxSearch", {top: e.clientY, left: e.clientX}).commit();
+    } else {
+      app.dispatch("addNewSearch", {top: e.clientY, left: e.clientX}).commit();
+    }
     e.preventDefault();
   }
 }
@@ -1752,6 +1777,103 @@ export function clearSaved() {
   return diff;
 }
 
+//---------------------------------------------------------
+// Syntax search
+//---------------------------------------------------------
+
+app.handle("setSyntaxSearch", (result, info) => {
+  let searchId = info.searchId;
+  let code = eve.findOne("builtin syntax search code", {id: searchId})["code"];
+  if(code === info.code) return;
+
+  let newSearchValue = info.code.trim();
+  let wrapped = newSearchValue;
+  if(wrapped.indexOf("(query") !== 0) {
+    wrapped = `(query :$$view "${searchId}" ${wrapped})`;
+  }
+  // remove the old one
+  for(let view of eve.find("builtin syntax search view", {id: searchId})) {
+    let diff = removeView(view.view);
+    result.merge(diff);
+  }
+  result.remove("builtin syntax search view", {id: searchId});
+
+  var parsed = window["parser"].parseDSL(wrapped);
+  for(let view in parsed) {
+    result.add("builtin syntax search view", {id: searchId, view});
+  }
+  result.merge(window["parser"].asDiff(eve, parsed));
+
+  result.remove("builtin syntax search code", {id: searchId});
+  result.add("builtin syntax search code", {id: searchId, code: newSearchValue});
+});
+
+
+function CMSyntaxEditor(node, elem) {
+  let cm = node.editor;
+  if(!cm) {
+    let state = {marks: []};
+    cm = node.editor = new CodeMirror(node, {
+      mode: "clojure",
+      lineWrapping: true,
+      extraKeys: {
+        "Ctrl-Enter": (cm) => {
+
+        },
+        "Cmd-Enter": (cm) => {
+          app.dispatch("setSyntaxSearch", {searchId:elem.searchId, code: cm.getValue()}).commit();
+        }
+      }
+    });
+    cm.on("change", (cm) => {
+//       let value = cm.getValue();
+//       let tokens = newSearchTokens(value);
+//       for(let mark of state.marks) {
+//         mark.clear();
+//       }
+//       state.marks = [];
+//       for(let token of tokens) {
+//         let start = cm.posFromIndex(token.pos);
+//         let stop = cm.posFromIndex(token.pos + token.orig.length);
+//         state.marks.push(cm.markText(start, stop, {className: token.type}));
+//       }
+    });
+    cm.focus();
+  }
+  if(cm.getValue() !== elem.value) {
+    cm.setValue(elem.value);
+  }
+}
+
+function syntaxSearch(searchId) {
+  let {top, left} = eve.findOne("builtin syntax search", {id: searchId});
+  let code = eve.findOne("builtin syntax search code", {id: searchId})["code"];
+  let isDragging = dragging && dragging.id === searchId ? "dragging" : "";
+  let results = eve.find(searchId);
+  let fields = Object.keys(results[0] || {}).filter((field) => field !== "__id");
+  let headers = [];
+  for(let field of fields) {
+    headers.push({c: "header", text: field});
+  }
+  let resultItems = [];
+  for(let result of results) {
+    let fieldItems = [];
+    for(let field of fields) {
+      fieldItems.push({c: "field", text: result[field]});
+    }
+    resultItems.push({c: "row", children: fieldItems});
+  }
+  return {id: `${searchId}|container`, c: `container search-container ${isDragging} syntax-search`, top, left, children: [
+    {c: "search-input", mousedown: startDragging, mouseup: stopDragging, searchId, children: [
+      {c: "search-box syntax-editor", value: code, postRender: CMSyntaxEditor, searchId},
+      {c: "ion-android-close close", click: removeSearch, searchId},
+    ]},
+    {c: "results", children: [
+      {c: "headers", children: headers},
+      {c: "rows", children: resultItems}
+    ]}
+  ]};
+}
 
 
 //---------------------------------------------------------
