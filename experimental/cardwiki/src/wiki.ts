@@ -1818,7 +1818,7 @@ function CMSyntaxEditor(node, elem) {
       lineWrapping: true,
       extraKeys: {
         "Ctrl-Enter": (cm) => {
-
+          app.dispatch("setSyntaxSearch", {searchId:elem.searchId, code: cm.getValue()}).commit();
         },
         "Cmd-Enter": (cm) => {
           app.dispatch("setSyntaxSearch", {searchId:elem.searchId, code: cm.getValue()}).commit();

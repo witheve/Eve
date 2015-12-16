@@ -21,7 +21,7 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 - Article Editor
 ---------------------------------------------------------*/
 
-.search-container { width:600px; padding:0 10px; max-height:80%; }
+.search-container { width:600px; padding:0 10px; max-height:60%; }
 .search-container > *:last-child { padding-bottom:10px; }
 
 .entity-content { overflow: auto; }
@@ -118,10 +118,11 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 - Syntax editor
 ---------------------------------------------------------*/
 
-.syntax-search .results { margin:20px 10px; border:1px solid #ccc; padding: 0; }
+.syntax-search .results { margin:20px 10px; border:1px solid #ccc; padding: 0; overflow:hidden; }
 .syntax-search .headers { flex-direction:row; border-bottom:1px solid #ccc; }
 .syntax-search .header { flex: 1 0; padding:5px; background: #ddd; }
 .syntax-search .header + .header { border-left: 1px solid #ccc; }
+.syntax-search .rows { overflow:auto; }
 .syntax-search .row { flex-direction:row; flex:1; align-items:stretch; }
 .syntax-search .row + .row { border-top: 1px solid #ccc; }
 .syntax-search .field { flex: 1 0; padding:5px; justify-content:center; }
