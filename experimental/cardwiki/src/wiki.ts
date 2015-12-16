@@ -270,13 +270,13 @@ function walk(tree, indent = 0) {
 
 
 var tokenRelationships = {
-  "collection": {
-    "collection": findCollectionToCollectionRelationship,
-    "attribute": findCollectionToAttrRelationship,
-    "entity": findCollectionToEntRelationship,
+  [TokenTypes.COLLECTION]: {
+    [TokenTypes.COLLECTION]: findCollectionToCollectionRelationship,
+    [TokenTypes.ATTRIBUTE]: findCollectionToAttrRelationship,
+    [TokenTypes.ENTITY]: findCollectionToEntRelationship,
   },
-  "entity": {
-    "attribute": findEntToAttrRelationship,
+  [TokenTypes.ENTITY]: {
+    [TokenTypes.ATTRIBUTE]: findEntToAttrRelationship,
   },
 }
 function tokensToRelationship(token1, token2) {
@@ -370,17 +370,17 @@ function planTree(searchString) {
         let operatorChildren = state.operator.children;
         let ix = 0;
         for(let child of operatorChildren) {
-          if(child.type === "attribute") {
+          if(child.type === TokenTypes.ATTRIBUTE) {
             cursor.children.push(child);
             operatorChildren[ix] = child;
-          } else if(child.type !== "value") {
+          } else if(child.type !== TokenTypes.VALUE) {
             // we have something that could nest.
             let tip = child;
             while(tip.children.length) {
               tip = tip.children[tip.children.length - 1];
             }
             if(operation.attribute) {
-              tip.children.push({type: "attribute", found: operation.attribute, orig: operation.attribute, id: uuid(), children: []});
+              tip.children.push({type: TokenTypes.ATTRIBUTE, found: operation.attribute, orig: operation.attribute, id: uuid(), children: []});
             }
             // if this is an infix operation, then this is an entirely different root now
             if(operation.infix) {
@@ -396,7 +396,7 @@ function planTree(searchString) {
         // if this is an infix operator that invokes an attribute, e.g. "older", push
         // that attribute onto the cursor
         if(operation.infix && operation.attribute) {
-          let attr = {type: "attribute", found: operation.attribute, orig: operation.attribute, id: uuid(), children: []};
+          let attr = {type: TokenTypes.ATTRIBUTE, found: operation.attribute, orig: operation.attribute, id: uuid(), children: []};
           cursor.children.push(attr);
           // we also need to add this as the first arg to the function
           state.operator.children.unshift(attr);
@@ -444,12 +444,12 @@ function planTree(searchString) {
     }
     // if the current cursor is an entity and this is anything other than an attribute, this is related
     // to the root.
-    else if(cursor.type === "entity" && type !== TokenTypes.ATTRIBUTE) {
+    else if(cursor.type === TokenTypes.ENTITY && type !== TokenTypes.ATTRIBUTE) {
       activeRoot.children.push(token);
     }
     // if the current cursor is an entity or a collection, we have to check if it should go to the cursor
     // or the root
-    else if(cursor.type === "entity" || cursor.type === "collection") {
+    else if(cursor.type === TokenTypes.ENTITY || cursor.type === TokenTypes.COLLECTION) {
       let cursorRel = tokensToRelationship(cursor, token);
       let rootRel = tokensToRelationship(root, token);
       // if this token is an entity and either root or cursor has a direct relationship
@@ -471,7 +471,7 @@ function planTree(searchString) {
         // following an entity are related to that entity and not something else.
         activeRoot.children.push(token);
       }
-    } else if(cursor.type === "operation") {
+    } else if(cursor.type === TokenTypes.OPERATION) {
       activeRoot.children.push(token);
     }
     // if this was a subject, then this is now the cursor
@@ -497,17 +497,17 @@ function planTree(searchString) {
       let operatorChildren = state.operator.children;
       let ix = 0;
       for(let child of operatorChildren) {
-        if(child.type === "attribute") {
+        if(child.type === TokenTypes.ATTRIBUTE) {
           cursor.children.push(child);
           operatorChildren[ix] = child;
-        } else if(child.type && child.type !== "value") {
+        } else if(child.type && child.type !== TokenTypes.VALUE) {
           // we have something that could nest.
           let tip = child;
           while(tip.children.length) {
             tip = tip.children[0];
           }
           if(operation.attribute) {
-            let neueAttr = {type: "attribute", found: operation.attribute, orig: operation.attribute, id: uuid(), children: []};
+            let neueAttr = {type: TokenTypes.ATTRIBUTE, found: operation.attribute, orig: operation.attribute, id: uuid(), children: []};
             tip.children.push(neueAttr);
             tip = neueAttr;
           }
@@ -525,7 +525,7 @@ function planTree(searchString) {
       // if this is an infix operator that invokes an attribute, e.g. "older", push
       // that attribute onto the cursor
       if(operation.infix && operation.attribute) {
-        let attr = {type: "attribute", found: operation.attribute, orig: operation.attribute, id: uuid(), children: []};
+        let attr = {type: TokenTypes.ATTRIBUTE, found: operation.attribute, orig: operation.attribute, id: uuid(), children: []};
         cursor.children.push(attr);
         // we also need to add this as the first arg to the function
         state.operator.children.unshift(attr);
@@ -632,11 +632,11 @@ function nodeToPlanSteps(node, parent, parentPlan) {
         break;
     }
   } else {
-    if(node.type === "collection") {
+    if(node.type === TokenTypes.COLLECTION) {
       return [{type: "gather", collection: node.found, subject: node.found, id, deselect}];
-    } else if(node.type === "entity") {
+    } else if(node.type === TokenTypes.ENTITY) {
       return [{type: "find", entity: node.found, subject: node.found, id, deselect}];
-    } else if(node.type === "attribute") {
+    } else if(node.type === TokenTypes.ATTRIBUTE) {
       return [{type: "lookup", attribute: node.found, subject: node.found, id, deselect}];
     }
     return [];
@@ -663,7 +663,7 @@ function opToPlan(op, groupLookup) {
     for(let arg of info.args) {
       let value = op.children[ix];
       if(value === undefined) continue;
-      if(value.type && value.type === "value") {
+      if(value.type && value.type === TokenTypes.VALUE) {
         args[arg] = JSON.parse(value.found);
       } else if(value.type) {
         args[arg] = [value.id, "value"];
@@ -679,7 +679,7 @@ function opToPlan(op, groupLookup) {
     let sort, limit, grouped;
     limit = info.limit;
     for(let child of op.children) {
-      if(child.type && child.type === "value") {
+      if(child.type && child.type === TokenTypes.ATTRIBUTE) {
         limit = coerceInput(child.found);
       } else {
         sort = [child.id, "value", info.direction];
@@ -711,9 +711,9 @@ function groupsToPlan(nodes) {
   if(!nodes.length) return [];
   let groups = [];
   for(let node of nodes) {
-    if(node.type === "collection") {
+    if(node.type === TokenTypes.COLLECTION) {
       groups.push([node.id, "entity"]);
-    } else if(node.type === "attribute") {
+    } else if(node.type === TokenTypes.ATTRIBUTE) {
       groups.push([node.id, "value"]);
     } else {
       throw new Error("Invalid node to group on: " + JSON.stringify(nodes));
@@ -1126,7 +1126,7 @@ function CMSearchBox(node, elem) {
       for(let token of tokens) {
         let start = cm.posFromIndex(token.pos);
         let stop = cm.posFromIndex(token.pos + token.orig.length);
-        state.marks.push(cm.markText(start, stop, {className: token.type}));
+        state.marks.push(cm.markText(start, stop, {className: TokenTypes[token.type].toLowerCase()}));
       }
     });
     cm.focus();
