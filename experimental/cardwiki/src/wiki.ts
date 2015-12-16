@@ -1231,6 +1231,12 @@ app.handle("removeSearch", (result, info) => {
   result.remove("builtin search query", {id: searchId});
   result.remove("builtin syntax search", {id: searchId});
   result.remove("builtin syntax search code", {id: searchId});
+  for(let view of eve.find("builtin syntax search view", {id: searchId})) {
+    let diff = removeView(view.view);
+    result.merge(diff);
+  }
+  result.remove("builtin syntax search view", {id: searchId});
+  result.remove("builtin syntax search error", {id: searchId});
   app.activeSearches[searchId] = null;
 });
 
@@ -1789,7 +1795,7 @@ app.handle("setSyntaxSearch", (result, info) => {
   let newSearchValue = info.code.trim();
   let wrapped = newSearchValue;
   if(wrapped.indexOf("(query") !== 0) {
-    wrapped = `(query :$$view "${searchId}" ${wrapped})`;
+    wrapped = `(query :$$view "${searchId}"\n${wrapped})`;
   }
   // remove the old one
   for(let view of eve.find("builtin syntax search view", {id: searchId})) {
@@ -1797,12 +1803,17 @@ app.handle("setSyntaxSearch", (result, info) => {
     result.merge(diff);
   }
   result.remove("builtin syntax search view", {id: searchId});
+  result.remove("builtin syntax search error", {id: searchId});
 
-  var parsed = window["parser"].parseDSL(wrapped);
-  for(let view in parsed) {
-    result.add("builtin syntax search view", {id: searchId, view});
+  try {
+    var parsed = window["parser"].parseDSL(wrapped);
+    for(let view in parsed) {
+      result.add("builtin syntax search view", {id: searchId, view});
+    }
+    result.merge(window["parser"].asDiff(eve, parsed));
+  } catch(e) {
+    result.add("builtin syntax search error", {id: searchId, error: e.toString()})
   }
-  result.merge(window["parser"].asDiff(eve, parsed));
 
   result.remove("builtin syntax search code", {id: searchId});
   result.add("builtin syntax search code", {id: searchId, code: newSearchValue});
@@ -1849,29 +1860,36 @@ function syntaxSearch(searchId) {
   let {top, left} = eve.findOne("builtin syntax search", {id: searchId});
   let code = eve.findOne("builtin syntax search code", {id: searchId})["code"];
   let isDragging = dragging && dragging.id === searchId ? "dragging" : "";
-  let results = eve.find(searchId);
-  let fields = Object.keys(results[0] || {}).filter((field) => field !== "__id");
-  let headers = [];
-  for(let field of fields) {
-    headers.push({c: "header", text: field});
-  }
-  let resultItems = [];
-  for(let result of results) {
-    let fieldItems = [];
+  let error = eve.findOne("builtin syntax search error", {id: searchId});
+  let resultUi;
+  if(!error) {
+    let results = eve.find(searchId);
+    let fields = Object.keys(results[0] || {}).filter((field) => field !== "__id");
+    let headers = [];
     for(let field of fields) {
-      fieldItems.push({c: "field", text: result[field]});
+      headers.push({c: "header", text: field});
     }
-    resultItems.push({c: "row", children: fieldItems});
+    let resultItems = [];
+    for(let result of results) {
+      let fieldItems = [];
+      for(let field of fields) {
+        fieldItems.push({c: "field", text: result[field]});
+      }
+      resultItems.push({c: "row", children: fieldItems});
+    }
+    resultUi = {c: "results", children: [
+      {c: "headers", children: headers},
+      {c: "rows", children: resultItems}
+    ]};
+  } else {
+    resultUi = {c: "error", text: error.error};
   }
   return {id: `${searchId}|container`, c: `container search-container ${isDragging} syntax-search`, top, left, children: [
     {c: "search-input", mousedown: startDragging, mouseup: stopDragging, searchId, children: [
       {c: "search-box syntax-editor", value: code, postRender: CMSyntaxEditor, searchId},
       {c: "ion-android-close close", click: removeSearch, searchId},
     ]},
-    {c: "results", children: [
-      {c: "headers", children: headers},
-      {c: "rows", children: resultItems}
-    ]}
+    resultUi
   ]};
 }
 

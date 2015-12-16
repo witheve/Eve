@@ -128,8 +128,10 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .syntax-search .field { flex: 1 0; padding:5px; justify-content:center; }
 .syntax-search .field + .field { border-left: 1px solid #ccc; }
 
+.syntax-search .error { margin:10px 0; padding:10px; white-space:pre; font-family: "inconsolata", "menlo", "consolas", monospace; color: #a00; }
+
 .search-input .syntax-editor { flex: 1; margin-top:10px; }
-.search-input .syntax-editor .CodeMirror.cm-s-default { font-family: "inconsolata", "menlo", "consolas"; font-size: 12pt; }
+.search-input .syntax-editor .CodeMirror.cm-s-default { font-family: "inconsolata", "menlo", "consolas", monospace; font-size: 12pt; }
 
 /*---------------------------------------------------------
 - Dark
