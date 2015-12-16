@@ -437,8 +437,13 @@ export class Indexer {
     return {triggers, realDiffs};
   }
   execTrigger(trigger) {
-    let table = this.table(trigger.name);
-    let {results, unprojected} = trigger.exec() || {};
+    let table = this.table(trigger.name)
+    // since views might be changed during the triggering process, we want to favor
+    // just using the view itself as the trigger if it is one. Otherwise, we use the
+    // trigger's exec function. This ensures that if a view is recompiled and added
+    // that any already queued triggers will use the updated version of the view instead
+    // of the old queued one.
+    let {results, unprojected} = (table.view ? table.view.exec() : trigger.exec()) || {};
     if(!results) return;
     let prevResults = table.factHash;
     let prevHashes = Object.keys(prevResults);
@@ -621,6 +626,9 @@ export class Indexer {
 
   asView(query:Query|Union) {
     let name = query.name;
+    if(this.tables[name]) {
+      this.removeView(name);
+    }
     let view = this.table(name);
     this.edbTables[name] = false;
     view.view = query;
@@ -898,7 +906,29 @@ export class Query {
     }
     return diff;
   }
-
+  validateFields(tableName, joinObject) {
+    let table = this.ixer.table(tableName);
+    for (let field in joinObject) {
+      if (table.fields.length && !table.keyLookup[field]) {
+        throw new Error(`Table '${tableName}' doesn't have a field '${field}'.\n\nAvailable fields: ${table.fields.join(", ")}`);
+      }
+      let joinInfo = joinObject[field];
+      if(joinInfo.constructor === Array) {
+        let [joinNumber, referencedField] = joinInfo;
+        if (typeof joinNumber !== "number") {
+          joinNumber = this.aliases[joinNumber];
+        }
+        let join = this.joins[joinNumber];
+        if (join) {
+          let referencedTable = this.ixer.table(join.table);
+          if (!referencedTable.fields.length) continue;
+          if (!referencedTable.keyLookup[referencedField]) {
+            throw new Error(`Table '${join.table}' doesn't have a field '${referencedField}'.\n\nAvailable fields: ${referencedTable.fields.join(", ")}`);
+          }
+        }
+      }
+    }
+  }
   select(table, join, as?) {
     this.dirty = true;
     if(as) {
@@ -906,12 +936,14 @@ export class Query {
     }
     this.unprojectedSize++;
     this.tables.push(table);
+    this.validateFields(table, join);
     this.joins.push({negated: false, table, join, as, ix: this.aliases[as]});
     return this;
   }
   deselect(table, join) {
     this.dirty = true;
     this.tables.push(table);
+    this.validateFields(table, join);
     this.joins.push({negated: true, table, join, ix: this.joins.length * 1000});
     return this;
   }
@@ -928,6 +960,7 @@ export class Query {
   }
   project(projectionMap) {
     this.projectionMap = projectionMap;
+    this.validateFields(this.name, projectionMap);
     return this;
   }
   group(groups) {
