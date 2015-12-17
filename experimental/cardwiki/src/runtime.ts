@@ -960,7 +960,7 @@ export class Query {
   }
   project(projectionMap) {
     this.projectionMap = projectionMap;
-    this.validateFields(this.name, projectionMap);
+    this.validateFields(undefined, projectionMap);
     return this;
   }
   group(groups) {

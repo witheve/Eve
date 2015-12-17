@@ -310,11 +310,11 @@ app.init("bootstrap", function bootstrap() {
   phase = new BSPhase(eve);
   phase.addUnion("search", ["id", "top", "left"]);
   phase.addUnion("search query", ["id", "search"]);
-  phase.addQuery("searches to entities shim", queryFromQueryDSL(unpad(4) `
-    select search as [search]
-    select search query {id: [search, id]} as [query]
-    project {id: [search, id]; text: [query, search]; top: [search, top]; left: [search, left]}
-  `));
+  // phase.addQuery("searches to entities shim", queryFromQueryDSL(unpad(4) `
+  //   select search as [search]
+  //   select search query {id: [search, id]} as [query]
+  //   project {id: [search, id]; text: [query, search]; top: [search, top]; left: [search, left]}
+  // `));
 //   phase.generateBitAction("searches to entities shim", "searches to entities shim", unpad(4) `
 //     # {id}
 //     ({is a: search}, {is a: system})
