@@ -11,7 +11,7 @@ interface TestQuery {
 }
 
 var tests: TestQuery[] = [
-  {
+  /*{
     query: "chris granger's age",
     expected: [
       {type: StepType.FIND, subject: "chris granger"},
@@ -24,7 +24,7 @@ var tests: TestQuery[] = [
       {type: StepType.FIND, subject: "robert attorri"},
       {type: StepType.LOOKUP, subject: "age"}
     ]
-  },
+  },*/
   { 
     query: "people older than chris granger",
     expected: [
@@ -38,7 +38,7 @@ var tests: TestQuery[] = [
       ]}
     ]
   },
-  { 
+  /*{ 
     query: "people whose age < 30",
     expected: [
       {type: StepType.GATHER, subject: "person"},
@@ -139,9 +139,8 @@ var tests: TestQuery[] = [
       ]},
     ],
   },
-  /*
   {
-    query: "people who are 50-65 years old",
+    query: "people 50-65 years old",
     expected: [
       {type: StepType.GATHER, subject: "person"},
       {type: StepType.LOOKUP, subject: "age"},
@@ -155,6 +154,22 @@ var tests: TestQuery[] = [
       ]},
     ],
   },
+  {
+    query: "people with age 50-65",
+    expected: [
+      {type: StepType.GATHER, subject: "person"},
+      {type: StepType.LOOKUP, subject: "age"},
+      {type: StepType.FILTER, subject: ">", args: [
+        {parent: "person", subject: "age"},
+        {subject: "50"}
+      ]},
+      {type: StepType.FILTER, subject: "<", args: [
+        {parent: "person", subject: "age"},
+        {subject: "65"}
+      ]},
+    ],
+  },
+  /*
   {
     query: "people older than chris granger's spouse",
     expected: [],
@@ -264,10 +279,6 @@ var tests: TestQuery[] = [
         {parent: "department", subject: "salary"}
       ]}
     ]
-  },
-  { 
-    query: "top 2 salaries of the first 3 departments",
-    expected: [],
   },
   {
     query: "departments where all the employees are male",
@@ -587,14 +598,19 @@ function queryTestUI(result) {
 
   // Format a step for display
   function StepToDisplay(step) {
+    if(step.argArray === undefined && step.args !== undefined) {
+      step.argArray = step.args;
+    }
     let args = "";
     if(step.argArray) {
       args = " (" + step.argArray.map((arg) => {
         let parent = "";
-        if(arg.parent != undefined) {
+        if(arg.parent !== undefined && arg.parent.found !== undefined) {
           parent = arg.parent.found + ".";
+        } else if (arg.parent !== undefined && arg.parent.found === undefined) {
+          parent = arg.parent + ".";
         }
-        return parent + arg.found;
+        return parent + (arg.found !== undefined ? arg.found : arg.subject);
       }).join(", ") + ")";
     }
     let deselected = step.deselected ? "!" : "";

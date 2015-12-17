@@ -195,11 +195,11 @@ function checkForToken(token): any {
   } else if (found = patterns[token]) {
     return { found, type: TokenTypes.PATTERN };
   } else if (token.match(/^-?[\d]+$/gm)) {
-    return { type: TokenTypes.VALUE, found: JSON.parse(token), valueType: "number" };
+    return { found: JSON.parse(token), type: TokenTypes.VALUE, valueType: "number" };
   } else if (token.match(/^["][^"]*["]$/gm)) {
-    return { type: TokenTypes.VALUE, found: JSON.parse(token), valueType: "string" };
-  } else if (found = token.match(/^([\d]+)-([\d]+)$/gm)) {
-    return { type: TokenTypes.VALUE, found: token, valueType: "range", start: found[1], stop: found[2] };
+    return { found: JSON.parse(token), type: TokenTypes.VALUE, valueType: "string" };
+  } else if (found = /^([\d]+)-([\d]+)$/gm.exec(token)) {
+    return { found: token, type: TokenTypes.VALUE, valueType: "range", start: found[1], stop: found[2] };
   }
   return {};
 }
@@ -222,19 +222,14 @@ export interface Token {
   parent?: any;
   relationship?: any;
   grouped?: any;
+  valueType?: any;
+  start?: any;
+  stop?: any;
+  args?: any;
 }
 
 export function getTokens(queryString: string) : Array<Token> {
-  
-  /*let start = performance.now();
-  let tags = nlp.pos(queryString,{dont_combine:true}).tags();
-  let stop = performance.now();
-  let time = stop - start;
-  console.log(`POS tag time: ${time.toFixed(2)}`);
-  console.log(`Sentence ${queryString}`);
-  console.log(`Tags: ${tags}`);*/
-  
-
+     
   // remove all non-word non-space characters
   let cleaned = queryString.replace(/'s/gi, "  ").toLowerCase();
   cleaned = cleaned.replace(/[,.?!]/gi, " , ");
@@ -246,17 +241,21 @@ export function getTokens(queryString: string) : Array<Token> {
   while (front < words.length) {
     let str = words.slice(front, back).join(" ");
     let orig = str;
-    var {found, type} = checkForToken(str);
+    // Check for the word directly
+    var {found, type, valueType, start, stop} = checkForToken(str);
     if (!found) {
       str = pluralize(str, 1);
-      var {found, type} = checkForToken(str);
+      // Check the singular version of the word
+      var {found, type, valueType, start, stop} = checkForToken(str);
       if (!found) {
+        // Check the plural version of the word
         str = pluralize(str, 2);
-        var {found, type} = checkForToken(str);
+        var {found, type, valueType, start, stop} = checkForToken(str);
       }
     }
     if (found) {
-      results.push({ found: str, orig, pos, type, info: found, id: uuid(), children: [] });
+      // Create a new token
+      results.push({ found: str, orig, pos, type, valueType, start, stop, info: found, id: uuid(), children: []});
       front = back;
       pos += orig.length + 1;
       back = words.length;
@@ -264,6 +263,7 @@ export function getTokens(queryString: string) : Array<Token> {
       back--;
     } else {
       if (orig) {
+        // Default case: the token is plain text
         results.push({ found: orig, orig, pos, type: TokenTypes.TEXT });
       }
       back = words.length;
@@ -478,7 +478,7 @@ interface Tree {
 }
 
 function tokensToTree(origTokens: Array<Token>) : Tree {
-    
+  
   let tokens = origTokens;
   let roots = [];
   let operations = [];
@@ -654,7 +654,25 @@ function tokensToTree(origTokens: Array<Token>) : Tree {
     }
 
     // deal with values
-    if (type === TokenTypes.VALUE) {
+    if (type === TokenTypes.VALUE) {  
+      
+      // Deal with a range value. It's really a pattern         
+      if(token.valueType === "range") {
+        token.found = "between";
+        token.info = patterns["between"];
+        token.args = [];
+        var start: Token = {id: uuid(), found: token.start, orig: token.start, pos: token.pos, type: TokenTypes.VALUE, info: parseFloat(token.start), valueType: "number"};
+        var stop: Token = {id: uuid(), found: token.stop, orig: token.stop, pos: token.pos, type: TokenTypes.VALUE, info: parseFloat(token.stop), valueType: "number"};
+        token.args.push(start);
+        token.args.push(stop);
+        operations.push(token);
+        state.patternStack.push(token);
+        if(state.currentPattern === null) {
+          state.currentPattern = state.patternStack.pop();
+        }
+        continue;
+      }
+      
       // if we still have a currentPattern to fill
       if (state.currentPattern && state.currentPattern.args.length < state.currentPattern.info.args.length) {
         state.currentPattern.args.push(token);
@@ -756,15 +774,10 @@ function tokensToTree(origTokens: Array<Token>) : Tree {
     }
   }
   // End main token loop
-
-  // If the current pattern is satisfied, mark it as null
-  /*if(state.currentPattern && state.currentPattern.args.length === state.currentPattern.info.args.length) {
-    state.currentPattern = null;
-  }*/
-    
+  
   // if we've run out of tokens and are still looking to fill in a pattern,
   // we might need to carry the attribute through.
-  if (state.currentPattern && state.currentPattern.args.length) {
+  if (state.currentPattern && state.currentPattern.args.length < state.currentPattern.info.args.length) {
     let args = state.currentPattern.args;
     let infoArgs = state.currentPattern.info.args;
     let latestArg = args[args.length - 1];
@@ -782,18 +795,20 @@ function tokensToTree(origTokens: Array<Token>) : Tree {
     }
     // e.g. people whose age is between 50 and 65
     // @HACK special case this for now
-    else if(state.currentPattern.found === "between" && state.currentPattern.args.length < state.currentPattern.info.args.length) {
+    else if(state.currentPattern.found === "between") {
       // Backtrack from the pattern start until we find an attribute
       let patternStart = tokens.lastIndexOf(state.currentPattern);
-      let arg;
+      let arg = null;
       for(let ix = patternStart; ix > 0; ix--){
         if(tokens[ix].type === TokenTypes.ATTRIBUTE) {
           arg = tokens[ix];
           break;
         }
       }
-      // We found an attribute, now add it to the arglist for the pattern
-      state.currentPattern.args.push(arg);
+      // If we found an attribute, now add it to the arglist for the pattern
+      if(arg != null) {
+        state.currentPattern.args.push(arg);  
+      }
     }
   }
   return tree;
