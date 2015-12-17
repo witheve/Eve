@@ -906,7 +906,29 @@ export class Query {
     }
     return diff;
   }
-
+  validateFields(tableName, joinObject) {
+    let table = this.ixer.table(tableName);
+    for (let field in joinObject) {
+      if (table.fields.length && !table.keyLookup[field]) {
+        throw new Error(`Table '${tableName}' doesn't have a field '${field}'.\n\nAvailable fields: ${table.fields.join(", ")}`);
+      }
+      let joinInfo = joinObject[field];
+      if(joinInfo.constructor === Array) {
+        let [joinNumber, referencedField] = joinInfo;
+        if (typeof joinNumber !== "number") {
+          joinNumber = this.aliases[joinNumber];
+        }
+        let join = this.joins[joinNumber];
+        if (join) {
+          let referencedTable = this.ixer.table(join.table);
+          if (!referencedTable.fields.length) continue;
+          if (!referencedTable.keyLookup[referencedField]) {
+            throw new Error(`Table '${join.table}' doesn't have a field '${referencedField}'.\n\nAvailable fields: ${referencedTable.fields.join(", ")}`);
+          }
+        }
+      }
+    }
+  }
   select(table, join, as?) {
     this.dirty = true;
     if(as) {
@@ -914,12 +936,14 @@ export class Query {
     }
     this.unprojectedSize++;
     this.tables.push(table);
+    this.validateFields(table, join);
     this.joins.push({negated: false, table, join, as, ix: this.aliases[as]});
     return this;
   }
   deselect(table, join) {
     this.dirty = true;
     this.tables.push(table);
+    this.validateFields(table, join);
     this.joins.push({negated: true, table, join, ix: this.joins.length * 1000});
     return this;
   }
@@ -936,6 +960,7 @@ export class Query {
   }
   project(projectionMap) {
     this.projectionMap = projectionMap;
+    this.validateFields(undefined, projectionMap);
     return this;
   }
   group(groups) {

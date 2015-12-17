@@ -1,4 +1,5 @@
 "use strict"
+import {parse as marked, Renderer as MarkedRenderer} from "../vendor/marked";
 import {Element} from "./microReact";
 import * as runtime from "./runtime";
 import {TokenTypes, getTokens} from "./queryParser";
@@ -155,50 +156,6 @@ function parseEntity(entityId, content) {
     cached = parseCache[entityId] = [content, parse(tokenize(content))];
   }
   return cached[1];
-}
-function entityToHTML(lines, searchId, full) {
-  let children = [];
-  let started = false;
-  for (let line of lines) {
-    let lineChildren = [];
-    let items = line.items;
-    if(!full && line.header) continue;
-    for (var item of items) {
-      if(item.type === "text") {
-        if(item.text !== "") {
-            lineChildren.push({t: "span", text: item.text});
-        }
-        continue;
-      }
-      if(typeof item.value === "number") {
-        lineChildren.push({t: "span", c: `${item.type}`, text: item.value});
-        continue;
-      }
-      if(!item.value && !item.link) continue;
-      let link = item.type === "eav" ? item.value.toLowerCase() : item.link.toLowerCase();
-      let found = eve.findOne("entity", {entity: link}) || eve.findOne("collection", {entity: link});
-      if(item.type === "eav" && item.attribute !== "generic related to") {
-        if(found) {
-          lineChildren.push({t: "span", c: `link found`, text: item.value, linkText: link, click: followLink, searchId});
-        } else {
-          lineChildren.push({t: "span", c: `link ${item.type}`, text: item.value});
-        }
-      } else {
-        let type = item.type === "eav" && item.attribute !== "is a" ? "link" : item.type;
-        lineChildren.push({t: "span", c: `link ${type} ${found ? 'found' : ""}`, text: item.link, linkText: link, click: followLink, searchId});
-      }
-    }
-    if(line.header) {
-      lineChildren = [{t: "h1", children: lineChildren}];
-    }
-    if(lineChildren.length) {
-      started = true;
-    }
-    if(started) {
-      children.push({t: "pre", c: `${line.header ? 'header' : ''}`, children: lineChildren});
-    }
-  }
-  return children;
 }
 
 var modifiers = {
@@ -1231,6 +1188,12 @@ app.handle("removeSearch", (result, info) => {
   result.remove("builtin search query", {id: searchId});
   result.remove("builtin syntax search", {id: searchId});
   result.remove("builtin syntax search code", {id: searchId});
+  for(let view of eve.find("builtin syntax search view", {id: searchId})) {
+    let diff = removeView(view.view);
+    result.merge(diff);
+  }
+  result.remove("builtin syntax search view", {id: searchId});
+  result.remove("builtin syntax search error", {id: searchId});
   app.activeSearches[searchId] = null;
 });
 
@@ -1257,9 +1220,9 @@ app.handle("startDragging", (result, info) => {
   let {searchId, x, y} = info;
   let pos = eve.findOne("search", {id: searchId});
   if(!pos) {
-    pos = eve.findOne("builtin syntax search");
+    pos = eve.findOne("builtin syntax search", {id: searchId});
   }
-  dragging = {id: searchId, offsetTop: y - pos.top, offsetLeft: x - pos.left};
+  dragging = {id: searchId, offsetTop: y - pos.top, offsetLeft: x - pos.left, action: info.action || "moveSearch"};
 });
 
 app.handle("stopDragging", (result, info) => {
@@ -1275,7 +1238,25 @@ app.handle("moveSearch", (result, info) => {
     result.remove("builtin syntax search", {id: searchId});
     result.add("builtin syntax search", {id: searchId, top: y - dragging.offsetTop, left: x - dragging.offsetLeft});
   }
+});
 
+app.handle("resizeSearch", (result, info) => {
+  let {searchId, x, y} = info;
+  let type = "builtin search size";
+  let pos = eve.findOne("builtin search", {id: searchId});
+  if(!pos) {
+    pos = eve.findOne("builtin syntax search", {id: searchId});
+  }
+  result.remove("builtin search size", {id: searchId});
+  let height = y - pos.top + 5;
+  let width = x - pos.left + 5;
+  if(width <= 100) {
+    width = 100;
+  }
+  if(height <= 100) {
+    height = 100;
+  }
+  result.add(type, {id: searchId, width, height});
 });
 
 app.handle("toggleShowPlan", (result, info) => {
@@ -1310,7 +1291,7 @@ export function eveRoot():Element {
 
 function maybeDrag(e, elem) {
   if(dragging) {
-    app.dispatch("moveSearch", {searchId: dragging.id, x: e.clientX, y: e.clientY}).commit();
+    app.dispatch(dragging.action, {searchId: dragging.id, x: e.clientX, y: e.clientY}).commit();
     e.preventDefault();
   }
 }
@@ -1326,6 +1307,62 @@ function addNewSearch(e, elem) {
   }
 }
 
+var markedEntityRenderer = new MarkedRenderer();
+markedEntityRenderer.heading = function(text:string, level: number) {
+  return `<h${level}>${text}</h${level}>`; // override auto-setting an id based on content.
+};
+function entityToHTML(entityId:string, searchId:string, content:string):string {
+  let md = marked(content, {renderer: markedEntityRenderer});
+  let ix = md.indexOf("{");
+  let stack = [];
+  while(ix !== -1) {
+    console.log(ix, md[ix]);
+    if(md[ix - 1] === "\\") {
+      md = md.slice(0, ix - 1) + md.slice(ix);
+      ix--;
+
+    } else if(md[ix] === "{") stack.push(ix);
+    else if(md[ix] === "}") {
+      let startIx = stack.pop();
+      let content = md.slice(startIx + 1, ix);
+      let colonIx = content.indexOf(":");
+      if(colonIx === -1) {
+        // content is an embedded query
+        throw new Error("@TODO: Implement embedded projections");
+      } else {
+        // content is an attribute
+        let attr = content.slice(0, colonIx).trim();
+        let value = content.slice(colonIx + 1).trim();
+        // @FIXME: Check if value is an entity, if so make this an entity link.
+        if(eve.find("entity", {entity: value})) {
+          // @NOTE: Need to get searchId in here.
+          let onClick = `app.dispatch('setSearch', {value: '${value}', searchId: '${searchId}'}).commit();`;
+          console.log(onClick);
+          var replacement = `<a class="attribute entity" data-attribute="${attr}" onclick="${onClick}">${value}</a>`;
+        } else {
+          var replacement = `<span class="attribute" data-attribute="${attr}">${value}</span>`;
+        }
+        md = md.slice(0, startIx) + replacement + md.slice(ix + 1);
+        let oldIx = ix;
+        ix += replacement.length - content.length - 2;
+        console.log("* REPLACED", "{" + content + "}", "=>", md.slice(startIx, ix));
+      }
+    } else {
+      throw new Error(`Unexpected character '${md[ix]}' at index ${ix}`);
+    }
+
+    // @NOTE: There has got to be a more elegant solution for (min if > 0) here.
+    let nextCloseIx = md.indexOf("}", ix + 1);
+    let nextOpenIx = md.indexOf("{", ix + 1);
+    if(nextCloseIx === -1) ix = nextOpenIx;
+    else if(nextOpenIx === -1) ix = nextCloseIx;
+    else if(nextCloseIx < nextOpenIx) ix = nextCloseIx;
+    else ix = nextOpenIx;
+  }
+
+  return md;
+}
+
 function entityUi(entityId, instance:string|number = "", searchId) {
   let entityBlocks = eve.find("content blocks", {entity: entityId});
   let entityViews = [];
@@ -1334,14 +1371,14 @@ function entityUi(entityId, instance:string|number = "", searchId) {
     let entityView;
     if(isManual) {
       if(!eve.findOne("editing", {search: searchId})) {
-        entityView = {id: `${block.block}${instance}`, c: "entity", searchId, entity: entityId, children: entityToHTML(parseEntity(entityId, block.content).lines, searchId, false), dblclick: editEntity};
+        entityView = {id: `${block.block}${instance}`, c: "entity", searchId, entity: entityId, dangerouslySetInnerHTML: entityToHTML(entityId, searchId, block.content), dblclick: editEntity};
       } else {
         entityView = {id: `${block.block}${instance}|editor`, c: "entity editor", entity: entityId, searchId, postRender: CodeMirrorElement, value: block.content, blur: commitEntity};
       }
       entityViews.unshift(entityView);
     } else {
       let source = eve.findOne("entity eavs", {entity: block.block, attribute: "source"}).value;
-      let children = entityToHTML(parseEntity(entityId, block.content).lines, searchId, false);
+      let children:Element[] = [{dangerouslySetInnerHTML: entityToHTML(entityId, searchId, block.content)}];
       children.push({c: "source-link ion-help", text: "", click: followLink, linkText: source, searchId});
       entityView = {id: `${block.block}${instance}`, c: "entity generated", searchId, entity: entityId, children};
       entityViews.push(entityView);
@@ -1544,7 +1581,7 @@ export function newSearchResults(searchId) {
   for(let bitAction of eve.find("add bit action", {view: search})) {
     let {template, action} = bitAction;
     actions.push({c: "action new-bit", children: [
-      {c: "bit entity", children: entityToHTML(parseEntity(action, template).lines, null, true)},
+      {c: "bit entity", dangerouslySetInnerHTML: entityToHTML(action, searchId, template)},
       {c: "remove ion-android-close", click: removeAction, actionType: "bit", actionId: bitAction.action}
     ]})
   }
@@ -1577,9 +1614,16 @@ export function newSearchResults(searchId) {
     ]};
   }
 
+  let size = eve.findOne("builtin search size", {id: searchId});
+  let width, height;
+  if(size) {
+    width = size.width;
+    height = size.height;
+  }
+
   let isDragging = dragging && dragging.id === searchId ? "dragging" : "";
   let showPlan = eve.findOne("showPlan", {search: searchId}) ? searchDescription(tokens, plan) : undefined;
-  return {id: `${searchId}|container`, c: `container search-container ${isDragging}`, top, left, children: [
+  return {id: `${searchId}|container`, c: `container search-container ${isDragging}`, top, left, width, height, children: [
     {c: "search-input", mousedown: startDragging, mouseup: stopDragging, searchId, children: [
       {c: "search-box", value: search, postRender: CMSearchBox, searchId},
       {c: "spacer"},
@@ -1590,7 +1634,8 @@ export function newSearchResults(searchId) {
     {c: "entity-content", children: entityContent},
     resultItems.length ? {c: "search-results", children: resultItems} : {},
     actionContainer,
-    {c: "add-action", children: addActionChildren}
+    {c: "add-action", children: addActionChildren},
+    {c: "resize", mousedown: startDragging, mouseup: stopDragging, searchId, action: "resizeSearch"}
   ]};
 }
 
@@ -1604,7 +1649,7 @@ function toggleShowPlan(e, elem) {
 
 function startDragging(e, elem) {
   if(e.target === e.currentTarget) {
-    app.dispatch("startDragging", {searchId: elem.searchId, x: e.clientX, y: e.clientY}).commit();
+    app.dispatch("startDragging", {searchId: elem.searchId, x: e.clientX, y: e.clientY, action: elem.action}).commit();
   }
 }
 
@@ -1658,7 +1703,7 @@ function editEntity(e, elem) {
   e.preventDefault();
 }
 
-function followLink(e, elem) {
+function followLink(e, elem) { // @DEPRECATED
   app.dispatch("setSearch", {value: elem.linkText, searchId: elem.searchId}).commit();
 }
 
@@ -1789,7 +1834,7 @@ app.handle("setSyntaxSearch", (result, info) => {
   let newSearchValue = info.code.trim();
   let wrapped = newSearchValue;
   if(wrapped.indexOf("(query") !== 0) {
-    wrapped = `(query :$$view "${searchId}" ${wrapped})`;
+    wrapped = `(query :$$view "${searchId}"\n${wrapped})`;
   }
   // remove the old one
   for(let view of eve.find("builtin syntax search view", {id: searchId})) {
@@ -1797,12 +1842,17 @@ app.handle("setSyntaxSearch", (result, info) => {
     result.merge(diff);
   }
   result.remove("builtin syntax search view", {id: searchId});
+  result.remove("builtin syntax search error", {id: searchId});
 
-  var parsed = window["parser"].parseDSL(wrapped);
-  for(let view in parsed) {
-    result.add("builtin syntax search view", {id: searchId, view});
+  try {
+    var parsed = window["parser"].parseDSL(wrapped);
+    for(let view in parsed) {
+      result.add("builtin syntax search view", {id: searchId, view});
+    }
+    result.merge(window["parser"].asDiff(eve, parsed));
+  } catch(e) {
+    result.add("builtin syntax search error", {id: searchId, error: e.toString()})
   }
-  result.merge(window["parser"].asDiff(eve, parsed));
 
   result.remove("builtin syntax search code", {id: searchId});
   result.add("builtin syntax search code", {id: searchId, code: newSearchValue});
@@ -1849,29 +1899,44 @@ function syntaxSearch(searchId) {
   let {top, left} = eve.findOne("builtin syntax search", {id: searchId});
   let code = eve.findOne("builtin syntax search code", {id: searchId})["code"];
   let isDragging = dragging && dragging.id === searchId ? "dragging" : "";
-  let results = eve.find(searchId);
-  let fields = Object.keys(results[0] || {}).filter((field) => field !== "__id");
-  let headers = [];
-  for(let field of fields) {
-    headers.push({c: "header", text: field});
-  }
-  let resultItems = [];
-  for(let result of results) {
-    let fieldItems = [];
+  let error = eve.findOne("builtin syntax search error", {id: searchId});
+  let resultUi;
+  if(!error) {
+    let results = eve.find(searchId);
+    let fields = Object.keys(results[0] || {}).filter((field) => field !== "__id");
+    let headers = [];
     for(let field of fields) {
-      fieldItems.push({c: "field", text: result[field]});
+      headers.push({c: "header", text: field});
     }
-    resultItems.push({c: "row", children: fieldItems});
+    let resultItems = [];
+    for(let result of results) {
+      let fieldItems = [];
+      for(let field of fields) {
+        fieldItems.push({c: "field", text: result[field]});
+      }
+      resultItems.push({c: "row", children: fieldItems});
+    }
+    resultUi = {c: "results", children: [
+      {c: "headers", children: headers},
+      {c: "rows", children: resultItems}
+    ]};
+  } else {
+    resultUi = {c: "error", text: error.error};
   }
-  return {id: `${searchId}|container`, c: `container search-container ${isDragging} syntax-search`, top, left, children: [
+
+  let size = eve.findOne("builtin search size", {id: searchId});
+  let width, height;
+  if(size) {
+    width = size.width;
+    height = size.height;
+  }
+  return {id: `${searchId}|container`, c: `container search-container ${isDragging} syntax-search`, top, left, width, height, children: [
     {c: "search-input", mousedown: startDragging, mouseup: stopDragging, searchId, children: [
       {c: "search-box syntax-editor", value: code, postRender: CMSyntaxEditor, searchId},
       {c: "ion-android-close close", click: removeSearch, searchId},
     ]},
-    {c: "results", children: [
-      {c: "headers", children: headers},
-      {c: "rows", children: resultItems}
-    ]}
+    resultUi,
+    {c: "resize", mousedown: startDragging, mouseup: stopDragging, searchId, action: "resizeSearch"}
   ]};
 }
 

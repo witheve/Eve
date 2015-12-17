@@ -1,11 +1,11 @@
 declare interface marked {
   (md: string, options?: MarkedOptions, callback?: (err:Error, content: string) => void): string;
   setOptions: (options: MarkedOptions) => void;
+  parse(md: string, options?: MarkedOptions, callback?: (err:Error, content: string) => void): string;
 }
-declare var marked:marked;
 
 interface MarkedOptions {
-  renderer?: any;
+  renderer?: Renderer;
   gfm?: boolean;
   tables?: boolean;
   breaks?: boolean;
@@ -17,7 +17,7 @@ interface MarkedOptions {
   highlight?: (code: string, lang?: string,  callback?: (err:Error, code: string) => void) => string;
 }
 
-interface MarkedRenderer {
+export class Renderer {
   // Block
   code: (code: string, lang?: string) => string;
   blockquote: (quote: string) => string;
@@ -40,3 +40,6 @@ interface MarkedRenderer {
   link: (href: string, title?: string, text?: string) => string;
   image: (href: string, title?: string, text?: string) => string;
 }
+
+declare var marked:marked;
+export var parse:(md: string, options?: MarkedOptions, callback?: (err:Error, content: string) => void) => string;

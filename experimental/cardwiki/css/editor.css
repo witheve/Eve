@@ -21,10 +21,13 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 - Article Editor
 ---------------------------------------------------------*/
 
-.search-container { width:600px; padding:0 10px; max-height:60%; }
+.search-container { width:600px; padding:0 10px; max-height:60%; overflow:hidden; }
 .search-container > *:last-child { padding-bottom:10px; }
 
+.search-container .resize { position:absolute; bottom:0; right:0; width:18px; height:18px; cursor:nwse-resize; }
+
 .entity-content { overflow: auto; }
+.entity-content .entity-blocks h1 { display: none; }
 .entity-blocks > .entity { -webkit-user-select:auto;  padding:5px 10px; overflow:auto; max-width: 600px; min-width: 300px; line-height: 25px; }
 .entity-blocks:first-child { padding-top:10px; }
 .entity-blocks > .entity + .entity { }
@@ -94,7 +97,7 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .search-headers > * { flex:1; align-items:flex-start;  font-size:11pt;  padding:5px 10px; }
 .search-headers > * + * { border-left:1px solid #ccc; }
 
-.search-results { flex:none; max-height: 60vh; overflow:auto; padding:10px 10px; }
+.search-results { flex:1; overflow:auto; padding:10px 10px; }
 .search-results .path > * { flex:1; }
 .search-results .sub-group { margin:0 0px; min-width:100px; }
 .search-results .sub-group + .sub-group { border-left: 1px solid #222; }
@@ -123,13 +126,15 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .syntax-search .header { flex: 1 0; padding:5px; background: #ddd; }
 .syntax-search .header + .header { border-left: 1px solid #ccc; }
 .syntax-search .rows { overflow:auto; }
-.syntax-search .row { flex-direction:row; flex:1; align-items:stretch; }
+.syntax-search .row { flex-direction:row; flex:none; align-items:stretch; }
 .syntax-search .row + .row { border-top: 1px solid #ccc; }
 .syntax-search .field { flex: 1 0; padding:5px; justify-content:center; }
 .syntax-search .field + .field { border-left: 1px solid #ccc; }
 
+.syntax-search .error { margin:10px 0; padding:10px; white-space:pre; font-family: "inconsolata", "menlo", "consolas", monospace; color: #a00; }
+
 .search-input .syntax-editor { flex: 1; margin-top:10px; }
-.search-input .syntax-editor .CodeMirror.cm-s-default { font-family: "inconsolata", "menlo", "consolas"; font-size: 12pt; }
+.search-input .syntax-editor .CodeMirror.cm-s-default { font-family: "inconsolata", "menlo", "consolas", monospace; font-size: 12pt; }
 
 /*---------------------------------------------------------
 - Dark

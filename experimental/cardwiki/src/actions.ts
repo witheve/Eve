@@ -1,4 +1,5 @@
 declare var uuid;
+import {parse as marked} from "../vendor/marked";
 import {Indexer}  from "./runtime";
 import {eve, render} from "./app";
 

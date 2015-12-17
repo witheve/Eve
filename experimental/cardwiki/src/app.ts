@@ -240,3 +240,6 @@ init("load data",function() {
     eve.load(stored);
   }
 });
+
+declare var exports;
+if(ENV === "browser") window["app"] = exports;
