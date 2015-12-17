@@ -665,6 +665,7 @@ function tokensToTree(origTokens: Array<Token>) : Tree {
         var stop: Token = {id: uuid(), found: token.stop, orig: token.stop, pos: token.pos, type: TokenTypes.VALUE, info: parseFloat(token.stop), valueType: "number"};
         token.args.push(start);
         token.args.push(stop);
+        operations.push(token);
         state.patternStack.push(token);
         if(state.currentPattern === null) {
           state.currentPattern = state.patternStack.pop();
@@ -770,18 +771,13 @@ function tokensToTree(origTokens: Array<Token>) : Tree {
         args.push(indirectObject);
         latestArg = indirectObject;
       }
-      // if we filled the pattern
-      if(args.length === infoArgs.length) {
-        operations.push(state.currentPattern);
-        state.patternStack.push(state.currentPattern);
-      }
     }
   }
   // End main token loop
   
   // if we've run out of tokens and are still looking to fill in a pattern,
   // we might need to carry the attribute through.
-  if (state.currentPattern && state.currentPattern.args.length) {
+  if (state.currentPattern && state.currentPattern.args.length < state.currentPattern.info.args.length) {
     let args = state.currentPattern.args;
     let infoArgs = state.currentPattern.info.args;
     let latestArg = args[args.length - 1];
@@ -799,7 +795,7 @@ function tokensToTree(origTokens: Array<Token>) : Tree {
     }
     // e.g. people whose age is between 50 and 65
     // @HACK special case this for now
-    else if(state.currentPattern.found === "between" && state.currentPattern.args.length < state.currentPattern.info.args.length) {
+    else if(state.currentPattern.found === "between") {
       // Backtrack from the pattern start until we find an attribute
       let patternStart = tokens.lastIndexOf(state.currentPattern);
       let arg = null;
@@ -810,7 +806,7 @@ function tokensToTree(origTokens: Array<Token>) : Tree {
         }
       }
       // If we found an attribute, now add it to the arglist for the pattern
-      if(args != null) {
+      if(arg != null) {
         state.currentPattern.args.push(arg);  
       }
     }
