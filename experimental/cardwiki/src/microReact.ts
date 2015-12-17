@@ -34,6 +34,7 @@ export interface Element {
   strictText?: boolean
   type?:string
   value?:string
+  dangerouslySetInnerHTML?:string
 
   style?: string,
 
@@ -329,6 +330,8 @@ export class Renderer {
       if(cur.transform !== prev.transform) style.transform = cur.transform || "none";
       if(cur.style !== prev.style) div.setAttribute("style", cur.style);
 
+      if(cur.dangerouslySetInnerHTML !== prev.dangerouslySetInnerHTML) div.innerHTML = cur.dangerouslySetInnerHTML;
+
       // debug/programmatic properties
       if(cur.semantic !== prev.semantic) div.setAttribute("data-semantic", cur.semantic);
       if(cur.debug !== prev.debug) div.setAttribute("data-debug", cur.debug);
@@ -422,6 +425,7 @@ export class Renderer {
       if(!curB.dirty
           && curA.c === curB.c
           && curA.key === curB.key
+          && curA.dangerouslySetInnerHTML === curB.dangerouslySetInnerHTML
           && curA.tabindex === curB.tabindex
           && curA.href === curB.href
           && curA.placeholder === curB.placeholder
