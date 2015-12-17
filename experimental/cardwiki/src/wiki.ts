@@ -1,5 +1,5 @@
 "use strict"
-import {parse as marked} from "../vendor/marked";
+import {parse as marked, Renderer as MarkedRenderer} from "../vendor/marked";
 import {Element} from "./microReact";
 import * as runtime from "./runtime";
 import {TokenTypes, getTokens} from "./queryParser";
@@ -1307,8 +1307,12 @@ function addNewSearch(e, elem) {
   }
 }
 
+var markedEntityRenderer = new MarkedRenderer();
+markedEntityRenderer.heading = function(text:string, level: number) {
+  return `<h${level}>${text}</h${level}>`; // override auto-setting an id based on content.
+};
 function entityToHTML(entityId:string, searchId:string, content:string):string {
-  let md = marked(content);
+  let md = marked(content, {renderer: markedEntityRenderer});
   let ix = md.indexOf("{");
   let stack = [];
   while(ix !== -1) {
