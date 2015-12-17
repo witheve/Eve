@@ -11,8 +11,7 @@ interface TestQuery {
 }
 
 var tests: TestQuery[] = [
-  /*
-  {
+  /*{
     query: "chris granger's age",
     expected: [
       {type: StepType.FIND, subject: "chris granger"},
@@ -25,7 +24,7 @@ var tests: TestQuery[] = [
       {type: StepType.FIND, subject: "robert attorri"},
       {type: StepType.LOOKUP, subject: "age"}
     ]
-  },
+  },*/
   { 
     query: "people older than chris granger",
     expected: [
@@ -39,7 +38,7 @@ var tests: TestQuery[] = [
       ]}
     ]
   },
-  { 
+  /*{ 
     query: "people whose age < 30",
     expected: [
       {type: StepType.GATHER, subject: "person"},
@@ -95,7 +94,6 @@ var tests: TestQuery[] = [
       ]}
     ],
   },
-  */
   {
     query: "people between 50 and 65 years old",
     expected: [
@@ -600,14 +598,19 @@ function queryTestUI(result) {
 
   // Format a step for display
   function StepToDisplay(step) {
+    if(step.argArray === undefined && step.args !== undefined) {
+      step.argArray = step.args;
+    }
     let args = "";
     if(step.argArray) {
       args = " (" + step.argArray.map((arg) => {
         let parent = "";
-        if(arg.parent != undefined) {
+        if(arg.parent !== undefined && arg.parent.found !== undefined) {
           parent = arg.parent.found + ".";
+        } else if (arg.parent !== undefined && arg.parent.found === undefined) {
+          parent = arg.parent + ".";
         }
-        return parent + arg.found;
+        return parent + (arg.found !== undefined ? arg.found : arg.subject);
       }).join(", ") + ")";
     }
     let deselected = step.deselected ? "!" : "";
