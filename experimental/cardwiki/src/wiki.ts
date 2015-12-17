@@ -1316,7 +1316,6 @@ function entityToHTML(entityId:string, searchId:string, content:string):string {
   let ix = md.indexOf("{");
   let stack = [];
   while(ix !== -1) {
-    console.log(ix, md[ix]);
     if(md[ix - 1] === "\\") {
       md = md.slice(0, ix - 1) + md.slice(ix);
       ix--;
@@ -1337,7 +1336,6 @@ function entityToHTML(entityId:string, searchId:string, content:string):string {
         if(eve.find("entity", {entity: value})) {
           // @NOTE: Need to get searchId in here.
           let onClick = `app.dispatch('setSearch', {value: '${value}', searchId: '${searchId}'}).commit();`;
-          console.log(onClick);
           var replacement = `<a class="attribute entity" data-attribute="${attr}" onclick="${onClick}">${value}</a>`;
         } else {
           var replacement = `<span class="attribute" data-attribute="${attr}">${value}</span>`;
@@ -1345,7 +1343,6 @@ function entityToHTML(entityId:string, searchId:string, content:string):string {
         md = md.slice(0, startIx) + replacement + md.slice(ix + 1);
         let oldIx = ix;
         ix += replacement.length - content.length - 2;
-        console.log("* REPLACED", "{" + content + "}", "=>", md.slice(startIx, ix));
       }
     } else {
       throw new Error(`Unexpected character '${md[ix]}' at index ${ix}`);
