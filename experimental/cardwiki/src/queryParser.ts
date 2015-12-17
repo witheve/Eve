@@ -775,7 +775,6 @@ function tokensToTree(origTokens: Array<Token>) : Tree {
         operations.push(state.currentPattern);
         state.patternStack.push(state.currentPattern);
       }
-      
     }
   }
   // End main token loop
@@ -803,15 +802,17 @@ function tokensToTree(origTokens: Array<Token>) : Tree {
     else if(state.currentPattern.found === "between" && state.currentPattern.args.length < state.currentPattern.info.args.length) {
       // Backtrack from the pattern start until we find an attribute
       let patternStart = tokens.lastIndexOf(state.currentPattern);
-      let arg;
+      let arg = null;
       for(let ix = patternStart; ix > 0; ix--){
         if(tokens[ix].type === TokenTypes.ATTRIBUTE) {
           arg = tokens[ix];
           break;
         }
       }
-      // We found an attribute, now add it to the arglist for the pattern
-      state.currentPattern.args.push(arg);
+      // If we found an attribute, now add it to the arglist for the pattern
+      if(args != null) {
+        state.currentPattern.args.push(arg);  
+      }
     }
   }
   return tree;
