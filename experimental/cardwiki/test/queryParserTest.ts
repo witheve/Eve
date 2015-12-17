@@ -11,6 +11,7 @@ interface TestQuery {
 }
 
 var tests: TestQuery[] = [
+  /*
   {
     query: "chris granger's age",
     expected: [
@@ -94,6 +95,7 @@ var tests: TestQuery[] = [
       ]}
     ],
   },
+  */
   {
     query: "people between 50 and 65 years old",
     expected: [
@@ -139,9 +141,8 @@ var tests: TestQuery[] = [
       ]},
     ],
   },
-  /*
   {
-    query: "people who are 50-65 years old",
+    query: "people 50-65 years old",
     expected: [
       {type: StepType.GATHER, subject: "person"},
       {type: StepType.LOOKUP, subject: "age"},
@@ -155,6 +156,22 @@ var tests: TestQuery[] = [
       ]},
     ],
   },
+  {
+    query: "people with age 50-65",
+    expected: [
+      {type: StepType.GATHER, subject: "person"},
+      {type: StepType.LOOKUP, subject: "age"},
+      {type: StepType.FILTER, subject: ">", args: [
+        {parent: "person", subject: "age"},
+        {subject: "50"}
+      ]},
+      {type: StepType.FILTER, subject: "<", args: [
+        {parent: "person", subject: "age"},
+        {subject: "65"}
+      ]},
+    ],
+  },
+  /*
   {
     query: "people older than chris granger's spouse",
     expected: [],
@@ -264,10 +281,6 @@ var tests: TestQuery[] = [
         {parent: "department", subject: "salary"}
       ]}
     ]
-  },
-  { 
-    query: "top 2 salaries of the first 3 departments",
-    expected: [],
   },
   {
     query: "departments where all the employees are male",
