@@ -157,51 +157,6 @@ function parseEntity(entityId, content) {
   }
   return cached[1];
 }
-function entityToHTML(lines, searchId, full) {
-  let children = [];
-  let started = false;
-
-  for (let line of lines) {
-    let lineChildren = [];
-    let items = line.items;
-    if(!full && line.header) continue;
-    for (var item of items) {
-      if(item.type === "text") {
-        if(item.text !== "") {
-            lineChildren.push({t: "span", text: item.text});
-        }
-        continue;
-      }
-      if(typeof item.value === "number") {
-        lineChildren.push({t: "span", c: `${item.type}`, text: item.value});
-        continue;
-      }
-      if(!item.value && !item.link) continue;
-      let link = item.type === "eav" ? item.value.toLowerCase() : item.link.toLowerCase();
-      let found = eve.findOne("entity", {entity: link}) || eve.findOne("collection", {entity: link});
-      if(item.type === "eav" && item.attribute !== "generic related to") {
-        if(found) {
-          lineChildren.push({t: "span", c: `link found`, text: item.value, linkText: link, click: followLink, searchId});
-        } else {
-          lineChildren.push({t: "span", c: `link ${item.type}`, text: item.value});
-        }
-      } else {
-        let type = item.type === "eav" && item.attribute !== "is a" ? "link" : item.type;
-        lineChildren.push({t: "span", c: `link ${type} ${found ? 'found' : ""}`, text: item.link, linkText: link, click: followLink, searchId});
-      }
-    }
-    if(line.header) {
-      lineChildren = [{t: "h1", children: lineChildren}];
-    }
-    if(lineChildren.length) {
-      started = true;
-    }
-    if(started) {
-      children.push({t: "pre", c: `${line.header ? 'header' : ''}`, children: lineChildren});
-    }
-  }
-  return children;
-}
 
 var modifiers = {
   "per": "group",
@@ -1334,6 +1289,58 @@ function addNewSearch(e, elem) {
   }
 }
 
+function entityToHTML(entityId:string, searchId:string, content:string):string {
+  let md = marked(content);
+  let ix = md.indexOf("{");
+  let stack = [];
+  while(ix !== -1) {
+    console.log(ix, md[ix]);
+    if(md[ix - 1] === "\\") {
+      md = md.slice(0, ix - 1) + md.slice(ix);
+      ix--;
+
+    } else if(md[ix] === "{") stack.push(ix);
+    else if(md[ix] === "}") {
+      let startIx = stack.pop();
+      let content = md.slice(startIx + 1, ix);
+      let colonIx = content.indexOf(":");
+      if(colonIx === -1) {
+        // content is an embedded query
+        throw new Error("@TODO: Implement embedded projections");
+      } else {
+        // content is an attribute
+        let attr = content.slice(0, colonIx).trim();
+        let value = content.slice(colonIx + 1).trim();
+        // @FIXME: Check if value is an entity, if so make this an entity link.
+        if(eve.find("entity", {entity: value})) {
+          // @NOTE: Need to get searchId in here.
+          let onClick = `app.dispatch('setSearch', {value: '${value}', searchId: '${searchId}'}).commit();`;
+          console.log(onClick);
+          var replacement = `<a class="attribute entity" data-attribute="${attr}" onclick="${onClick}">${value}</a>`;
+        } else {
+          var replacement = `<span class="attribute" data-attribute="${attr}">${value}</span>`;
+        }
+        md = md.slice(0, startIx) + replacement + md.slice(ix + 1);
+        let oldIx = ix;
+        ix += replacement.length - content.length - 2;
+        console.log("* REPLACED", "{" + content + "}", "=>", md.slice(startIx, ix));
+      }
+    } else {
+      throw new Error(`Unexpected character '${md[ix]}' at index ${ix}`);
+    }
+
+    // @NOTE: There has got to be a more elegant solution for (min if > 0) here.
+    let nextCloseIx = md.indexOf("}", ix + 1);
+    let nextOpenIx = md.indexOf("{", ix + 1);
+    if(nextCloseIx === -1) ix = nextOpenIx;
+    else if(nextOpenIx === -1) ix = nextCloseIx;
+    else if(nextCloseIx < nextOpenIx) ix = nextCloseIx;
+    else ix = nextOpenIx;
+  }
+
+  return md;
+}
+
 function entityUi(entityId, instance:string|number = "", searchId) {
   let entityBlocks = eve.find("content blocks", {entity: entityId});
   let entityViews = [];
@@ -1342,14 +1349,14 @@ function entityUi(entityId, instance:string|number = "", searchId) {
     let entityView;
     if(isManual) {
       if(!eve.findOne("editing", {search: searchId})) {
-        entityView = {id: `${block.block}${instance}`, c: "entity", searchId, entity: entityId, children: entityToHTML(parseEntity(entityId, block.content).lines, searchId, false), dblclick: editEntity};
+        entityView = {id: `${block.block}${instance}`, c: "entity", searchId, entity: entityId, dangerouslySetInnerHTML: entityToHTML(entityId, searchId, block.content), dblclick: editEntity};
       } else {
         entityView = {id: `${block.block}${instance}|editor`, c: "entity editor", entity: entityId, searchId, postRender: CodeMirrorElement, value: block.content, blur: commitEntity};
       }
       entityViews.unshift(entityView);
     } else {
       let source = eve.findOne("entity eavs", {entity: block.block, attribute: "source"}).value;
-      let children = entityToHTML(parseEntity(entityId, block.content).lines, searchId, false);
+      let children:Element[] = [{dangerouslySetInnerHTML: entityToHTML(entityId, searchId, block.content)}];
       children.push({c: "source-link ion-help", text: "", click: followLink, linkText: source, searchId});
       entityView = {id: `${block.block}${instance}`, c: "entity generated", searchId, entity: entityId, children};
       entityViews.push(entityView);
@@ -1552,7 +1559,7 @@ export function newSearchResults(searchId) {
   for(let bitAction of eve.find("add bit action", {view: search})) {
     let {template, action} = bitAction;
     actions.push({c: "action new-bit", children: [
-      {c: "bit entity", children: entityToHTML(parseEntity(action, template).lines, null, true)},
+      {c: "bit entity", dangerouslySetInnerHTML: entityToHTML(action, searchId, template)},
       {c: "remove ion-android-close", click: removeAction, actionType: "bit", actionId: bitAction.action}
     ]})
   }
@@ -1666,7 +1673,7 @@ function editEntity(e, elem) {
   e.preventDefault();
 }
 
-function followLink(e, elem) {
+function followLink(e, elem) { // @DEPRECATED
   app.dispatch("setSearch", {value: elem.linkText, searchId: elem.searchId}).commit();
 }
 
