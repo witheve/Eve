@@ -225,6 +225,7 @@ export interface Token {
   valueType?: any;
   start?: any;
   stop?: any;
+  args?: any;
 }
 
 export function getTokens(queryString: string) : Array<Token> {
@@ -653,7 +654,24 @@ function tokensToTree(origTokens: Array<Token>) : Tree {
     }
 
     // deal with values
-    if (type === TokenTypes.VALUE) {           
+    if (type === TokenTypes.VALUE) {  
+      
+      // Deal with a range value. It's really a pattern         
+      if(token.valueType === "range") {
+        token.found = "between";
+        token.info = patterns["between"];
+        token.args = [];
+        var start: Token = {id: uuid(), found: token.start, orig: token.start, pos: token.pos, type: TokenTypes.VALUE, info: parseFloat(token.start), valueType: "number"};
+        var stop: Token = {id: uuid(), found: token.stop, orig: token.stop, pos: token.pos, type: TokenTypes.VALUE, info: parseFloat(token.stop), valueType: "number"};
+        token.args.push(start);
+        token.args.push(stop);
+        state.patternStack.push(token);
+        if(state.currentPattern === null) {
+          state.currentPattern = state.patternStack.pop();
+        }
+        continue;
+      }
+      
       // if we still have a currentPattern to fill
       if (state.currentPattern && state.currentPattern.args.length < state.currentPattern.info.args.length) {
         state.currentPattern.args.push(token);
@@ -752,10 +770,16 @@ function tokensToTree(origTokens: Array<Token>) : Tree {
         args.push(indirectObject);
         latestArg = indirectObject;
       }
+      // if we filled the pattern
+      if(args.length === infoArgs.length) {
+        operations.push(state.currentPattern);
+        state.patternStack.push(state.currentPattern);
+      }
+      
     }
   }
   // End main token loop
-
+  
   // if we've run out of tokens and are still looking to fill in a pattern,
   // we might need to carry the attribute through.
   if (state.currentPattern && state.currentPattern.args.length) {
