@@ -1311,8 +1311,8 @@ var markedEntityRenderer = new MarkedRenderer();
 markedEntityRenderer.heading = function(text:string, level: number) {
   return `<h${level}>${text}</h${level}>`; // override auto-setting an id based on content.
 };
-function entityToHTML(entityId:string, searchId:string, content:string):string {
-  let md = marked(content, {renderer: markedEntityRenderer});
+function entityToHTML(entityId:string, searchId:string, content:string, passthrough?: string[]):string {
+  let md = marked(content, {breaks: true, renderer: markedEntityRenderer});
   let ix = md.indexOf("{");
   let stack = [];
   while(ix !== -1) {
@@ -1325,31 +1325,32 @@ function entityToHTML(entityId:string, searchId:string, content:string):string {
       let startIx = stack.pop();
       let content = md.slice(startIx + 1, ix);
       let colonIx = content.indexOf(":");
-      if(colonIx === -1) {
-        // content is an embedded query
-        // throw new Error("@TODO: Implement embedded projections");
-        let value = content.slice(colonIx + 1).trim();
-        let onClick = `app.dispatch('setSearch', {value: '${value}', searchId: '${searchId}'}).commit();`;
-        var replacement = `<a class="attribute entity" data-attribute="generic related to" onclick="${onClick}">${value}</a>`;
-        md = md.slice(0, startIx) + replacement + md.slice(ix + 1);
-        let oldIx = ix;
-        ix += replacement.length - content.length - 2;
-      } else {
-        // content is an attribute
+
+      let value = (colonIx !== -1 ? content.slice(colonIx + 1) : content).trim();
+      let replacement;
+      let type = "attribute";
+      if(eve.find("entity", {entity: value})) type = "entity";
+      else if(passthrough && passthrough.indexOf(value) !== -1) type = "passthrough";
+      else if(colonIx === -1) type = "query";
+
+      if(type === "attribute") {
         let attr = content.slice(0, colonIx).trim();
-        let value = content.slice(colonIx + 1).trim();
-        // @FIXME: Check if value is an entity, if so make this an entity link.
-        if(eve.find("entity", {entity: value})) {
-          // @NOTE: Need to get searchId in here.
-          let onClick = `app.dispatch('setSearch', {value: '${value}', searchId: '${searchId}'}).commit();`;
-          var replacement = `<a class="attribute entity" data-attribute="${attr}" onclick="${onClick}">${value}</a>`;
-        } else {
-          var replacement = `<span class="attribute" data-attribute="${attr}">${value}</span>`;
-        }
+        replacement = `<span class="attribute" data-attribute="${attr}">${value}</span>`;
+
+      } else if(type === "entity") {
+        let attr = content.slice(0, colonIx).trim();
+        let onClick = `app.dispatch('setSearch', {value: '${value}', searchId: '${searchId}'}).commit();`;
+        replacement = `<a class="attribute entity" data-attribute="${attr}" onclick="${onClick}">${value}</a>`;
+
+      } else if(type === "query") {
+        throw new Error("@TODO: Implement embedded projections");
+      }
+
+      if(type !== "passthrough") {
         md = md.slice(0, startIx) + replacement + md.slice(ix + 1);
-        let oldIx = ix;
         ix += replacement.length - content.length - 2;
       }
+
     } else {
       throw new Error(`Unexpected character '${md[ix]}' at index ${ix}`);
     }
@@ -1584,7 +1585,7 @@ export function newSearchResults(searchId) {
   for(let bitAction of eve.find("add bit action", {view: search})) {
     let {template, action} = bitAction;
     actions.push({c: "action new-bit", children: [
-      {c: "bit entity", dangerouslySetInnerHTML: entityToHTML(action, searchId, template)},
+      {c: "bit entity", dangerouslySetInnerHTML: entityToHTML(action, searchId, template, Object.keys(query.projectionMap))},
       {c: "remove ion-android-close", click: removeAction, actionType: "bit", actionId: bitAction.action}
     ]})
   }
@@ -1785,7 +1786,7 @@ export function addBitAction(name, template) {
                   .calculate("bit template", {row: ["table"], name, template: ["action", "template"], action: ["action", "action"]}, "result")
                   .project({entity: ["result", "entity"], attribute: ["result", "attribute"], value: ["result", "value"]});
   diff.merge(queryObjectToDiff(bitQuery));
-//   diff.merge(removeView(bitQueryId));
+  // diff.merge(removeView(bitQueryId));
   diff.add("action", {view: "generated eav", action, kind: "union", ix: 1});
   // a source
   diff.add("action source", {action, "source view": bitQueryId});
