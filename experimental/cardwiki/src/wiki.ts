@@ -1324,7 +1324,13 @@ function entityToHTML(entityId:string, searchId:string, content:string):string {
       let colonIx = content.indexOf(":");
       if(colonIx === -1) {
         // content is an embedded query
-        throw new Error("@TODO: Implement embedded projections");
+        // throw new Error("@TODO: Implement embedded projections");
+        let value = content.slice(colonIx + 1).trim();
+        let onClick = `app.dispatch('setSearch', {value: '${value}', searchId: '${searchId}'}).commit();`;
+        var replacement = `<a class="attribute entity" data-attribute="generic related to" onclick="${onClick}">${value}</a>`;
+        md = md.slice(0, startIx) + replacement + md.slice(ix + 1);
+        let oldIx = ix;
+        ix += replacement.length - content.length - 2;
       } else {
         // content is an attribute
         let attr = content.slice(0, colonIx).trim();
