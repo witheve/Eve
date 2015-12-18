@@ -1314,6 +1314,7 @@ markedEntityRenderer.heading = function(text:string, level: number) {
 function entityToHTML(entityId:string, searchId:string, content:string, passthrough?: string[]):string {
   let md = marked(content, {breaks: true, renderer: markedEntityRenderer});
   let ix = md.indexOf("{");
+  let queryCount = 0;
   let stack = [];
   while(ix !== -1) {
     if(md[ix - 1] === "\\") {
@@ -1329,7 +1330,7 @@ function entityToHTML(entityId:string, searchId:string, content:string, passthro
       let value = (colonIx !== -1 ? content.slice(colonIx + 1) : content).trim();
       let replacement;
       let type = "attribute";
-      if(eve.find("entity", {entity: value})) type = "entity";
+      if(eve.findOne("entity", {entity: value})) type = "entity";
       else if(passthrough && passthrough.indexOf(value) !== -1) type = "passthrough";
       else if(colonIx === -1) type = "query";
 
@@ -1338,12 +1339,15 @@ function entityToHTML(entityId:string, searchId:string, content:string, passthro
         replacement = `<span class="attribute" data-attribute="${attr}">${value}</span>`;
 
       } else if(type === "entity") {
-        let attr = content.slice(0, colonIx).trim();
+        let attr = content.slice(0, colonIx !== -1 ? colonIx : undefined).trim();
         let onClick = `app.dispatch('setSearch', {value: '${value}', searchId: '${searchId}'}).commit();`;
         replacement = `<a class="attribute entity" data-attribute="${attr}" onclick="${onClick}">${value}</a>`;
 
       } else if(type === "query") {
-        throw new Error("@TODO: Implement embedded projections");
+        //throw new Error("@TODO: Implement embedded projections");
+        // add postRender to newSearch pane container that checks for data-search attribute. If it exists, compile the search template for each of them and insert.
+        let containerId = `${searchId}|${content}|${queryCount++}`;
+        replacement = `<div class="embedded-query" id="${containerId}" data-search="${content}">@TODO: Implement embedded projections</div>`;
       }
 
       if(type !== "passthrough") {
