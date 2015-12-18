@@ -5,6 +5,7 @@ import * as runtime from "./runtime";
 import {TokenTypes, getTokens} from "./queryParser";
 import {eve} from "./app";
 import * as app from "./app";
+import * as microreact from "./microreact";
 import * as utils from "./utils";
 
 declare var CodeMirror;
@@ -818,7 +819,7 @@ export function newSearch(searchString) {
   let tree = planTree(searchString);
   let plan = treeToPlan(tree);
   let query = planToQuery(plan);
-  return {tokens: all, plan, query};
+  return {text: searchString, tokens: all, plan, query};
 }
 
 function arrayIntersect(a, b) {
@@ -1307,6 +1308,28 @@ function addNewSearch(e, elem) {
   }
 }
 
+function injectEmbeddedSearches(node:HTMLElement, elem:Element) {
+  let embedded:HTMLElement[] = <any>node.querySelectorAll("[data-embedded-search]");
+  for(let embed of embedded) {
+    let search, searchId, searchText = embed.getAttribute("data-embedded-search");
+    for(let id in app.activeSearches) {
+      if(app.activeSearches[id].text === searchText) {
+        searchId = id;
+        break;
+      }
+    }
+    if(searchId) search = app.activeSearches[searchId];
+    else {
+      searchId = uuid();
+      search = app.activeSearches[searchId] = newSearch(searchText);
+    }
+    // @FIXME: Horrible, horrible kludge.
+    let subRenderer = new microreact.Renderer();
+    subRenderer.render(entityContents(elem["searchId"], searchId, search));
+    embed.appendChild(subRenderer.content);
+  }
+}
+
 var markedEntityRenderer = new MarkedRenderer();
 markedEntityRenderer.heading = function(text:string, level: number) {
   return `<h${level}>${text}</h${level}>`; // override auto-setting an id based on content.
@@ -1347,7 +1370,7 @@ function entityToHTML(entityId:string, searchId:string, content:string, passthro
         //throw new Error("@TODO: Implement embedded projections");
         // add postRender to newSearch pane container that checks for data-search attribute. If it exists, compile the search template for each of them and insert.
         let containerId = `${searchId}|${content}|${queryCount++}`;
-        replacement = `<div class="embedded-query" id="${containerId}" data-search="${content}">@TODO: Implement embedded projections</div>`;
+        replacement = `<div class="embedded-query search-results" id="${containerId}" data-embedded-search="${content}"></div>`;
       }
 
       if(type !== "passthrough") {
@@ -1379,7 +1402,15 @@ function entityUi(entityId, instance:string|number = "", searchId) {
     let entityView;
     if(isManual) {
       if(!eve.findOne("editing", {search: searchId})) {
-        entityView = {id: `${block.block}${instance}`, c: "entity", searchId, entity: entityId, dangerouslySetInnerHTML: entityToHTML(entityId, searchId, block.content), dblclick: editEntity};
+        entityView = {
+        id: `${block.block}${instance}`,
+        c: "entity",
+        searchId,
+        entity: entityId,
+        dangerouslySetInnerHTML: entityToHTML(entityId, searchId, block.content),
+        postRender: injectEmbeddedSearches,
+        dblclick: editEntity
+      };
       } else {
         entityView = {id: `${block.block}${instance}|editor`, c: "entity editor", entity: entityId, searchId, postRender: CodeMirrorElement, value: block.content, blur: commitEntity};
       }
@@ -1471,6 +1502,102 @@ function searchDescription(tokens, plan) {
     {c: "description", text: "Search plan:"},
     {c: "search-plan", children: planChildren}
   ]};
+}
+
+export function entityContents(paneId:string, searchId:string, search) {
+  let plan = search.plan;
+  if(!plan.length)
+    return [{c: "singleton", children: [entityUi(search.toLowerCase(), searchId, searchId)]}];
+
+  let contents = [];
+  let singleton = true;
+  if(plan.length === 1 && (plan.type === "find" || plan.type === "gather")) {
+    contents.push({c: "singleton", children: [entityUi(plan[0].collection || plan[0].entity, searchId, searchId)]});
+  } else singleton = false;
+
+  if(singleton) return contents;
+  let resultItems = [];
+  contents.push({c: "results", children: resultItems});
+  let headers = []
+  // figure out what the headers are
+  for(let step of plan) {
+    if(step.type === "filter by entity") continue;
+    if(step.size === 0) continue;
+    headers.push({text: step.name});
+  }
+
+  let groupedFields = {};
+  // figure out what fields are grouped, if any
+  for(let step of plan) {
+    if(step.type === "group") {
+      for(let node of step.groupNodes) {
+        for(let searchStep of plan) {
+          if(searchStep.id === node.id) {
+            groupedFields[searchStep.name] = true;
+            break;
+          }
+        }
+      }
+    } else if(step.type === "aggregate") {
+      groupedFields[step.name] = true;
+    }
+  }
+
+  let results = search.query.exec();
+  let groupInfo = results.groupInfo;
+  let planLength = plan.length;
+  let itemClass = planLength > 1 ? " bit" : " link list-item";
+  row: for(let ix = 0, len = results.unprojected.length; ix < len; ix += search.query.unprojectedSize) {
+    if(groupInfo && ix > groupInfo.length) break;
+    if(groupInfo && groupInfo[ix] === undefined) continue;
+
+    // Get content row to insert into
+    let resultItem;
+    if(groupInfo && resultItems[groupInfo[ix]]) resultItem = resultItems[groupInfo[ix]];
+    else if(groupInfo) resultItem = resultItems[groupInfo[ix]] = {c: "path", children: []};
+    else {
+      resultItem = {c: "path", children: []};
+      resultItems.push(resultItem);
+    }
+
+    let planOffset = 0;
+    for(let planIx = 0; planIx < planLength; planIx++) {
+      let planItem = plan[planIx];
+      let item, id = `${searchId} ${ix} ${planIx}`;
+      if(planItem.size) {
+        let resultPart = results.unprojected[ix + planOffset + planItem.size - 1];
+        if(!resultPart) continue row;
+        let text, klass, click, link;
+        if(planItem.type === "gather") {
+          item = {id, c: `${itemClass} entity bit`, text: resultPart["entity"], click: followLink, searchId: paneId, linkText: resultPart["entity"]};
+        } else if(planItem.type === "lookup") {
+          item = {id, c: `${itemClass} attribute`, text: resultPart["value"]};
+        } else if(planItem.type === "aggregate") {
+          item = {id, c: `${itemClass} value`, text: resultPart[planItem.aggregate]};
+        } else if(planItem.type === "filter by entity") {
+          // we don't really want these to show up.
+        } else if(planItem.type === "calculate") {
+          item = {id, c: `${itemClass} value`, text: resultPart["result"]};
+        } else {
+          item = {id, c: itemClass, text: JSON.stringify(resultPart)};
+        }
+        if(item) {
+          if(groupedFields[planItem.name] && !resultItem.children[planIx]) {
+            resultItem.children[planIx] = {c: "sub-group", children: [item]};
+          } else if(!groupedFields[planItem.name] && !resultItem.children[planIx]) {
+            resultItem.children[planIx] = {c: "sub-group", children: [item]};
+          } else if(!groupedFields[planItem.name]) {
+            resultItem.children[planIx].children.push(item);
+          }
+          if(planLength === 1) resultItem.c = "path list-row";
+        }
+        planOffset += planItem.size;
+      }
+    }
+  }
+  resultItems.unshift({c: "search-headers", children: headers});
+
+  return contents;
 }
 
 export function newSearchResults(searchId) {
