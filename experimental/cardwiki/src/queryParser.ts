@@ -31,11 +31,11 @@ export enum TokenTypes {
 var modifiers = {
   "and": { and: true },
   "or": { or: true },
-  "without": { deselect: true },
-  "aren't": { deselect: true },
-  "don't": { deselect: true },
-  "not": { deselect: true },
-  "isn't": { deselect: true },
+  "without": { deselected: true },
+  "aren't": { deselected: true },
+  "don't": { deselected: true },
+  "not": { deselected: true },
+  "isn't": { deselected: true },
   "per": { group: true },
   ",": { separator: true },
   "all": { every: true },
@@ -70,7 +70,7 @@ var patterns = {
   "sum": {
     type: "aggregate",
     op: "sum",
-    args: ["a"],
+    args: ["value"],
   },
   "count": {
     type: "aggregate",
@@ -212,12 +212,12 @@ export interface Token {
   pos: number;
   type: TokenTypes;
   info: any;
-  deselect?: boolean;
+  deselected?: boolean;
   and?: boolean;
   or?: boolean;
   group?: any;
   modifier?: any;
-  children?: any;  
+  children?: any;
   operation?: any;
   parent?: any;
   relationship?: any;
@@ -229,7 +229,7 @@ export interface Token {
 }
 
 export function getTokens(queryString: string) : Array<Token> {
-     
+
   // remove all non-word non-space characters
   let cleaned = queryString.replace(/'s/gi, "  ").toLowerCase();
   cleaned = cleaned.replace(/[,.?!]/gi, " , ");
@@ -301,10 +301,10 @@ var tokenRelationships = {
 }
 
 function determineRelationship(parent: Token, child: Token) {
-  if (!tokenRelationships[parent.type] || !tokenRelationships[parent.type][child.type]) { 
+  if (!tokenRelationships[parent.type] || !tokenRelationships[parent.type][child.type]) {
     return { distance: Infinity, type: RelationshipTypes.NONE };
   } else {
-    return tokenRelationships[parent.type][child.type](parent.found, child.found);  
+    return tokenRelationships[parent.type][child.type](parent.found, child.found);
   }
 }
 
@@ -442,9 +442,9 @@ function findCollectionToCollectionRelationship(coll, coll2) {
     .select("collection entities", { collection: coll }, "coll1")
     .select("directionless links", { entity: ["coll1", "entity"] }, "links")
     .select("collection entities", { collection: coll2, entity: ["links", "link"] }, "coll2")
-    .group([["links", "type"]])
+    .group([["links", "link"]])
     .aggregate("count", {}, "count")
-    .project({ type: ["links", "type"], count: ["count", "count"] })
+    .project({ type: ["links", "link"], count: ["count", "count"] })
     .exec();
 
   let maxRel = { count: 0 };
@@ -478,7 +478,7 @@ interface Tree {
 }
 
 function tokensToTree(origTokens: Array<Token>) : Tree {
-  
+
   let tokens = origTokens;
   let roots = [];
   let operations = [];
@@ -543,7 +543,7 @@ function tokensToTree(origTokens: Array<Token>) : Tree {
       // if this is a deselect modifier, we need to roll forward through the tokens
       // to figure out roughly how far the deselection should go. Also if we run into
       // an "and"" or an "or", we need to deal with that specially.
-      if (info.deselect) {
+      if (info.deselected) {
         // we're going to move forward from this token and deselect as we go
         let localTokenIx = tokenIx + 1;
         // get to the first non-text token
@@ -556,7 +556,7 @@ function tokensToTree(origTokens: Array<Token>) : Tree {
           if (localToken.type === TokenTypes.TEXT) {
             break;
           }
-          localToken.deselect = true;
+          localToken.deselected = true;
           localTokenIx++;
         }
       }
@@ -564,7 +564,7 @@ function tokensToTree(origTokens: Array<Token>) : Tree {
       // or a split. If this is a deselected or, we don't really need to do anything because that
       // means we just do a deselected join. If it's not negated though, we're now dealing with
       // a second query context. e.g. people who are employees or spouses of employees
-      if (info.or && !token.deselect) {
+      if (info.or && !token.deselected) {
         let localTokenIx = tokenIx + 1;
         // get to the first non-text token
         while (localTokenIx < len && tokens[localTokenIx].type === TokenTypes.TEXT) {
@@ -632,7 +632,7 @@ function tokensToTree(origTokens: Array<Token>) : Tree {
         tokens.splice.apply(tokens, [tokenIx + 1, 0].concat(newTokens));
         // apply any deselects, or's, or and's to this token
         for (let newToken of newTokens) {
-          newToken.deselect = token.deselect;
+          newToken.deselected = token.deselected;
           newToken.and = token.and;
           newToken.or = token.or;
         }
@@ -654,9 +654,9 @@ function tokensToTree(origTokens: Array<Token>) : Tree {
     }
 
     // deal with values
-    if (type === TokenTypes.VALUE) {  
-      
-      // Deal with a range value. It's really a pattern         
+    if (type === TokenTypes.VALUE) {
+
+      // Deal with a range value. It's really a pattern
       if(token.valueType === "range") {
         token.found = "between";
         token.info = patterns["between"];
@@ -672,7 +672,7 @@ function tokensToTree(origTokens: Array<Token>) : Tree {
         }
         continue;
       }
-      
+
       // if we still have a currentPattern to fill
       if (state.currentPattern && state.currentPattern.args.length < state.currentPattern.info.args.length) {
         state.currentPattern.args.push(token);
@@ -774,10 +774,10 @@ function tokensToTree(origTokens: Array<Token>) : Tree {
     }
   }
   // End main token loop
-  
+
   // if we've run out of tokens and are still looking to fill in a pattern,
   // we might need to carry the attribute through.
-  if (state.currentPattern && state.currentPattern.args.length < state.currentPattern.info.args.length) {
+  if (state.currentPattern && state.currentPattern.args.length <= state.currentPattern.info.args.length) {
     let args = state.currentPattern.args;
     let infoArgs = state.currentPattern.info.args;
     let latestArg = args[args.length - 1];
@@ -807,7 +807,7 @@ function tokensToTree(origTokens: Array<Token>) : Tree {
       }
       // If we found an attribute, now add it to the arglist for the pattern
       if(arg != null) {
-        state.currentPattern.args.push(arg);  
+        state.currentPattern.args.push(arg);
       }
     }
   }
@@ -972,7 +972,7 @@ function groupsToPlan(nodes) {
       throw new Error("Invalid node to group on: " + JSON.stringify(nodes));
     }
   }
-  return [{ type: "group", id: uuid(), groups, groupNodes: nodes }];
+  return [{ type: StepType.GROUP, id: uuid(), groups, groupNodes: nodes }];
 }
 
 function opToPlan(op, groups): any {
@@ -997,7 +997,7 @@ function opToPlan(op, groups): any {
     return [{ type: StepType.AGGREGATE, subject: info.op, args, id: uuid(), argArray: op.args }];
   } else if (info.type === "sort and limit") {
     var sortLimitArgs = op.args.map((arg) => arg.found);
-    var sortField = { parent: op.args[1].parent.found, subject: op.args[1].found };
+    var sortField = { parentId: op.args[1].id, parent: op.args[1].parent.found, subject: op.args[1].found };
     var subject = "results";
     // If groups are formed, check if we are sorting on one of them
     for (var group of groups) {
@@ -1032,7 +1032,7 @@ function dedupePlan(plan) {
     for (let dupeIx = planIx - 1; dupeIx > -1; dupeIx--) {
       let dupe = plan[dupeIx];
       // equivalency requires the same type, subject, deselect, and parent
-      if (step.type === dupe.type && step.subject === dupe.subject && step.deselect === dupe.deselect && step.relatedTo === dupe.relatedTo) {
+      if (step.type === dupe.type && step.subject === dupe.subject && step.deselected === dupe.deselected && step.relatedTo === dupe.relatedTo) {
         // store the dupe and what node will replace it
         dupes[step.id] = dupe.id;
       }
@@ -1072,6 +1072,139 @@ function treeToPlan(tree: Tree): Plan {
 }
 
 //---------------------------------------------------------
+// Plan to query
+//---------------------------------------------------------
+
+function safeProjectionName(name, projection) {
+  if(!projection[name]) {
+    return name;
+  }
+  let ix = 2;
+  while(projection[name]) {
+    name = `${name} ${ix}`;
+    ix++;
+  }
+  return name;
+}
+
+export function planToExecutable(plan) {
+  let projection = {};
+  let query = eve.query();
+  for(var step of plan) {
+    switch(step.type) {
+      case StepType.FIND:
+        // find is a no-op
+        step.size = 0;
+        break;
+      case StepType.GATHER:
+        var join:any = {};
+        if(step.subject) {
+          join.collection = step.subject;
+        }
+        var related = step.relatedTo;
+        if(related) {
+          if(related.type === StepType.FIND) {
+            step.size = 2;
+            let linkId = `${step.id} | link`;
+            query.select("directionless links", {entity: related.subject}, linkId);
+            join.entity = [linkId, "link"];
+            query.select("collection entities", join, step.id);
+          } else {
+            step.size = 2;
+            let linkId = `${step.id} | link`;
+            query.select("directionless links", {entity: [related.id, "entity"]}, linkId);
+            join.entity = [linkId, "link"];
+            query.select("collection entities", join, step.id);
+          }
+        } else {
+          step.size = 1;
+          query.select("collection entities", join, step.id);
+        }
+        step.name = safeProjectionName(step.subject, projection);
+        projection[step.name] = [step.id, "entity"];
+        break;
+      case StepType.LOOKUP:
+        var join:any = {attribute: step.subject};
+        var related = step.relatedTo;
+        if(related) {
+          if(related.type === StepType.FIND) {
+            join.entity = related.subject;
+          } else {
+            join.entity = [related.id, "entity"];
+          }
+        }
+        step.size = 1;
+        query.select("entity eavs", join, step.id);
+        step.name = safeProjectionName(step.subject, projection);
+        projection[step.name] = [step.id, "value"];
+        break;
+      case StepType.INTERSECT:
+        var related = step.relatedTo;
+        if(step.deselected) {
+          step.size = 0;
+          query.deselect("collection entities", {collection: step.subject, entity: [related.id, "entity"]});
+        } else {
+          step.size = 0;
+          query.select("collection entities", {collection: step.subject, entity: [related.id, "entity"]}, step.id);
+        }
+        break;
+      case StepType.FILTERBYENTITY:
+        var related = step.relatedTo;
+        var linkId = `${step.id} | link`;
+        if(step.deselected) {
+          step.size = 0;
+          query.deselect("directionless links", {entity: [related.id, "entity"], link: step.subject});
+        } else {
+          step.size = 1;
+          query.select("directionless links", {entity: [related.id, "entity"], link: step.subject}, step.id);
+        }
+        break;
+      case StepType.FILTER:
+        step.size = 0;
+        query.calculate(step.subject, step.args, step.id);
+        break;
+      case StepType.CALCULATE:
+        step.size = 1;
+        query.calculate(step.subject, step.args, step.id);
+        step.name = safeProjectionName(step.subject, projection);
+        projection[step.name] = [step.id, "result"];
+        break;
+      case StepType.AGGREGATE:
+        step.size = 1;
+        query.aggregate(step.subject, step.args, step.id);
+        step.name = safeProjectionName(step.subject, projection);
+        projection[step.name] = [step.id, step.subject];
+        break;
+      case StepType.GROUP:
+        step.size = 0;
+        var field = "entity";
+        if(step.subjectNode.type === StepType.LOOKUP) {
+          field = "value";
+        }
+        query.group([step.subjectNode.id, field]);
+        break;
+      case StepType.SORT:
+        step.size = 0;
+        query.sort([step.field.parentId, "value", step.direction]);
+        break;
+      case StepType.LIMIT:
+        step.size = 0;
+        query.limit(step.limit);
+        break;
+    }
+  }
+  query.project(projection);
+  return query;
+}
+
+export function queryToExecutable(query) {
+  let planInfo:any = queryToPlan(query);
+  let executable = planToExecutable(planInfo.plan);
+  planInfo.executable = executable;
+  return planInfo;
+}
+
+//---------------------------------------------------------
 // Utils
 //---------------------------------------------------------
 
@@ -1090,3 +1223,6 @@ function arrayIntersect(a, b) {
   }
   return result;
 }
+
+declare var exports;
+window["queryParser"] = exports;

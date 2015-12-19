@@ -1,8 +1,9 @@
 import {unpad, titlecase} from "./utils"
 import * as runtime from "./runtime"
-import {newSearch as naturalSearch, planToQuery, addBitAction} from "./wiki"
+import {addBitAction} from "./wiki"
 import * as app from "./app"
 import {eve} from "./app"
+import {queryToExecutable} from "./queryParser.ts"
 import {parsePlan, PlanStep, parseQuery, QueryStep, parseUI, UIElem} from "./parser"
 import {UI} from "./uiRenderer"
 
@@ -14,12 +15,12 @@ declare var uuid;
 //-----------------------------------------------------------------------------
 
 function queryFromSearch(search:string):runtime.Query {
-  let result = naturalSearch(search);
-  result.query.ordinal()
-  return result.query;
+  let result = queryToExecutable(search);
+  result.executable.ordinal()
+  return result.executable;
 }
 export function queryFromPlanDSL(str:string):runtime.Query {
-  return planToQuery(parsePlan(str));
+  return queryToExecutable(parsePlan(str));
 }
 export function queryFromQueryDSL(str:string):runtime.Query {
   let plan = parseQuery(str);
@@ -194,7 +195,7 @@ class BSPhase {
 // Runtime Setup
 //-----------------------------------------------------------------------------
 runtime.define("parse natural", {multi: true}, function(text:string) {
-  return naturalSearch(text).plan;
+  return queryToExecutable(text).plan;
 });
 
 runtime.define("parse plan", {multi: true}, function(text:string) {

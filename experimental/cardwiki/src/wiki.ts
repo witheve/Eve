@@ -2,7 +2,7 @@
 import {parse as marked, Renderer as MarkedRenderer} from "../vendor/marked";
 import {Element} from "./microReact";
 import * as runtime from "./runtime";
-import {TokenTypes, getTokens} from "./queryParser";
+import {TokenTypes, StepType, getTokens, queryToExecutable} from "./queryParser";
 import {eve} from "./app";
 import * as app from "./app";
 import * as utils from "./utils";
@@ -158,836 +158,6 @@ function parseEntity(entityId, content) {
   return cached[1];
 }
 
-var modifiers = {
-  "per": "group",
-  "each": "group",
-  "grouped": "group",
-  "without": "deselect",
-  "not": "deselect",
-  "aren't": "deselect",
-  "except": "deselect",
-  "don't": "deselect",
-}
-var operations = {
-  "sum": {op: "sum", argCount: 1, aggregate: true, args: ["value"]},
-  "count": {op: "count", argCount: 0, aggregate: true, args: []},
-  "average": {op: "average", argCount: 1, aggregate: true, args: ["value"]},
-  "mean": {op: "average", argCount: 1, aggregate: true, args: ["value"]},
-  "top": {op: "sort limit", argCount: 2, direction: "descending"},
-  "bottom": {op: "sort limit", argCount: 2, direction: "ascending"},
-  "highest": {op: "sort limit", argCount: 1, direction: "descending", limit: 1},
-  "lowest": {op: "sort limit", argCount: 1, direction: "ascending", limit: 1},
-  ">": {op: ">", argCount: 2, infix: true, args: ["a", "b"], filter: true},
-  ">=": {op: ">=", argCount: 2, infix: true, args: ["a", "b"], filter: true},
-  "greater": {op: ">", argCount: 2, infix: true, args: ["a", "b"], filter: true},
-  "bigger": {op: ">", argCount: 2, infix: true, args: ["a", "b"], filter: true},
-  "<": {op: "<", argCount: 2, infix: true, args: ["a", "b"], filter: true},
-  "<=": {op: "<=", argCount: 2, infix: true, args: ["a", "b"], filter: true},
-  "lower": {op: "<", argCount: 2, infix: true, args: ["a", "b"], filter: true},
-  "smaller": {op: "<", argCount: 2, infix: true, args: ["a", "b"], filter: true},
-  "=": {op: "=", argCount: 2, infix: true, args: ["a", "b"], filter: true},
-  "equal": {op: "=", argCount: 2, infix: true, args: ["a", "b"], filter: true},
-  "contains": {op: "contains", argCount: 2, infix: true, args: ["haystack", "needle"]},
-  "older": {op: ">", argCount: 2, infix: true, attribute: "age", args: ["a", "b"], filter: true},
-  "younger": {op: "<", argCount: 2, infix: true, attribute: "age", args: ["a", "b"], filter: true},
-  "+": {op: "+", argCount: 2, infix: true, args: ["a", "b"]},
-  "-": {op: "-", argCount: 2, infix: true, args: ["a", "b"]},
-  "/": {op: "/", argCount: 2, infix: true, args: ["a", "b"]},
-  "*": {op: "*", argCount: 2, infix: true, args: ["a", "b"]},
-}
-function newSearchTokens(searchString) {
-  let cleaned = searchString.toLowerCase();
-  let all = getTokens(cleaned);
-  all.forEach((token) => {
-    if(token.type === TokenTypes.MODIFIER) {
-      token.modifier = modifiers[token.found];
-    } else if(token.type === TokenTypes.PATTERN) {
-      token.type = TokenTypes.OPERATION;
-      token.operation = operations[token.found];
-    }
-  });
-  return all.filter((token) => token.type !== TokenTypes.TEXT);
-}
-
-function walk(tree, indent = 0) {
-  if(!tree) return console.log("UNDEFINED TREE");
-  let text = tree.found;
-  if(!text && tree.operation) {
-    text = tree.operation.op;
-  } else if(!text && tree.value) {
-    text = tree.value;
-  }
-  if(tree.children) {
-    for(let child of tree.children) {
-      walk(child, indent+1);
-    }
-  }
-  console.groupEnd();
-}
-
-
-var tokenRelationships = {
-  [TokenTypes.COLLECTION]: {
-    [TokenTypes.COLLECTION]: findCollectionToCollectionRelationship,
-    [TokenTypes.ATTRIBUTE]: findCollectionToAttrRelationship,
-    [TokenTypes.ENTITY]: findCollectionToEntRelationship,
-  },
-  [TokenTypes.ENTITY]: {
-    [TokenTypes.ATTRIBUTE]: findEntToAttrRelationship,
-  },
-}
-function tokensToRelationship(token1, token2) {
-  let func = tokenRelationships[token1.type];
-  if(func) func = func[token2.type];
-  if(func) {
-    return func(token1.found, token2.found);
-  }
-}
-
-function planTree(searchString) {
-  let tokens = newSearchTokens(searchString);
-  var tree = {roots: [], operations: [], groups: []}
-  let root:any;
-  let cursor:any;
-  let state:any = {operationStack: []};
-  // find the root subject which is either the first collection found
-  // or if there are not collections, the first entity
-  for(let token of tokens) {
-    if(token.type === TokenTypes.COLLECTION) {
-      token.children = [];
-      root = token;
-      break;
-    } else if(token.type === TokenTypes.ENTITY && (!root || root.type === TokenTypes.ATTRIBUTE)) {
-      token.children = [];
-      root = token;
-    } else if(token.type === TokenTypes.ATTRIBUTE && !root) {
-      token.children = [];
-      root = token;
-    }
-  }
-  tree.roots.push(root);
-  for(let tokenIx = 0, len = tokens.length; tokenIx < len; tokenIx++) {
-    let token = tokens[tokenIx];
-    token.id = uuid();
-    let {type} = token;
-
-    if(state.group && (type === TokenTypes.COLLECTION || type === TokenTypes.ATTRIBUTE)) {
-      token.group = true;
-      tree.groups.push(token);
-    }
-
-    if(token === root) continue;
-
-    if(type === TokenTypes.MODIFIER) {
-      state[token.modifier] = true;
-      continue;
-    }
-
-    token.children = [];
-
-    if(type === TokenTypes.OPERATION) {
-      if(state.lastValue) {
-        state.lastValue = null;
-        token.children.push(state.lastValue);
-      }
-      state.operationStack.push({cursor, operator: state.operator});
-      state.consuming = true;
-      state.operator = token;
-      cursor = token;
-      continue;
-    }
-
-    if(!state.consuming && type === TokenTypes.VALUE) {
-      state.lastValue = token;
-      continue;
-    }
-
-    let maybeSubject = (type === TokenTypes.COLLECTION || type === TokenTypes.ENTITY);
-    if(state.deselect && maybeSubject) {
-      token.deselect = true;
-      state.deselect = false;
-    }
-
-    let activeRoot = root;
-    if(state.consuming) {
-      activeRoot = state.operator;
-      let argCount = state.operator.operation.argCount;
-      if(state.operator.operation.infix) argCount--;
-      while(state.operator.children.length > argCount) {
-        let item = state.operationStack.pop();
-        cursor = item.cursor;
-        // we consumed one too many, so push that onto either the parent operator or
-        // the root
-        let overflowCursor = item.operator ? item.operator : root;
-        overflowCursor.children.push(state.operator.children.pop());
-
-        // run through the items, determine if they're a totally different root,
-        // or if they belong to the current cursor/root
-        let operation = state.operator.operation;
-        let operatorChildren = state.operator.children;
-        let ix = 0;
-        for(let child of operatorChildren) {
-          if(child.type === TokenTypes.ATTRIBUTE) {
-            cursor.children.push(child);
-            operatorChildren[ix] = child;
-          } else if(child.type !== TokenTypes.VALUE) {
-            // we have something that could nest.
-            let tip = child;
-            while(tip.children.length) {
-              tip = tip.children[tip.children.length - 1];
-            }
-            if(operation.attribute) {
-              tip.children.push({type: TokenTypes.ATTRIBUTE, found: operation.attribute, orig: operation.attribute, id: uuid(), children: []});
-            }
-            // if this is an infix operation, then this is an entirely different root now
-            if(operation.infix) {
-              tree.roots.push(child);
-            } else {
-              throw new Error("Non infix operation with a non-attribute child: " + JSON.stringify(state.operator));
-            }
-            operatorChildren[ix] = tip;
-          }
-          ix++;
-        }
-
-        // if this is an infix operator that invokes an attribute, e.g. "older", push
-        // that attribute onto the cursor
-        if(operation.infix && operation.attribute) {
-          let attr = {type: TokenTypes.ATTRIBUTE, found: operation.attribute, orig: operation.attribute, id: uuid(), children: []};
-          cursor.children.push(attr);
-          // we also need to add this as the first arg to the function
-          state.operator.children.unshift(attr);
-        } else if(operation.infix) {
-          // we need to add the closest thing before this as the first arg to the function.
-          let tip = cursor || root;
-          while(tip.children.length) {
-            tip = tip.children[tip.children.length - 1];
-          }
-          state.operator.children.unshift(tip);
-          // if we don't have an attribute to attach to the right side, let's assume
-          // that it mirrors the left.
-//             var rightSide = state.operator.children[state.operator.children.length - 1];
-//             if(rightSide.type !== "attribute") {
-//               let attr = {type: "attribute", found: tip.found, orig: tip.found, id: uuid(), children: []};
-//               rightSide.children.push(attr);
-//               state.operator.children[state.operator.children.length - 1] = attr;
-//             }
-        }
-
-        tree.operations.push(state.operator);
-
-        if(item.operator) {
-          activeRoot = state.operator = item.operator;
-          argCount = state.operator.operation.argCount;
-          if(state.operator.operation.infix) argCount--;
-        } else {
-          // we're done consuming now
-          state.consuming = false;
-          state.operator = null;
-          state.lastValue = false;
-          activeRoot = root;
-          break;
-        }
-      }
-    }
-
-    // if we don't have a cursor, then associate to the root
-    if(!cursor) {
-      activeRoot.children.push(token);
-    }
-    // all values just get pushed onto the activeRoot
-    else if(type === TokenTypes.VALUE) {
-      activeRoot.children.push(token);
-    }
-    // if the current cursor is an entity and this is anything other than an attribute, this is related
-    // to the root.
-    else if(cursor.type === TokenTypes.ENTITY && type !== TokenTypes.ATTRIBUTE) {
-      activeRoot.children.push(token);
-    }
-    // if the current cursor is an entity or a collection, we have to check if it should go to the cursor
-    // or the root
-    else if(cursor.type === TokenTypes.ENTITY || cursor.type === TokenTypes.COLLECTION) {
-      let cursorRel = tokensToRelationship(cursor, token);
-      let rootRel = tokensToRelationship(root, token);
-      // if this token is an entity and either root or cursor has a direct relationship
-      // we don't really want to use that as it's most likely meant to filter a set down
-      // instead of reduce the set to exactly one ent
-      if(token.type === TokenTypes.ENTITY) {
-        if(cursorRel && cursorRel.distance === 0) cursorRel = null;
-        if(rootRel && rootRel.distance === 0) rootRel = null;
-      }
-      if(!cursorRel) {
-        activeRoot.children.push(token);
-      } else if(!rootRel) {
-        cursor.children.push(token);
-      } else if(cursorRel.distance <= rootRel.distance) {
-        cursor.children.push(token);
-      } else {
-        // @TODO: maybe if there's a cursorRel we should just always ignore the rootRel even if it
-        // is a "better" relationship. Sentence structure-wise it seems pretty likely that attributes
-        // following an entity are related to that entity and not something else.
-        activeRoot.children.push(token);
-      }
-    } else if(cursor.type === TokenTypes.OPERATION) {
-      activeRoot.children.push(token);
-    }
-    // if this was a subject, then this is now the cursor
-    if(maybeSubject) {
-      cursor = token;
-    }
-
-  }
-  if(state.consuming) {
-    let item = state.operationStack.pop();
-    while(item) {
-      cursor = item.cursor || root;
-      if(state.operator.children.length > state.operator.operation.argCount) {
-        // we consumed one too many, so push that onto either the parent operator or
-        // the root
-        let overflowCursor = item.operator ? item.operator : root;
-        overflowCursor.children.push(state.operator.children.pop());
-      }
-
-      // run through the items, determine if they're a totally different root,
-      // or if they belong to the current cursor/root
-      let operation = state.operator.operation;
-      let operatorChildren = state.operator.children;
-      let ix = 0;
-      for(let child of operatorChildren) {
-        if(child.type === TokenTypes.ATTRIBUTE) {
-          cursor.children.push(child);
-          operatorChildren[ix] = child;
-        } else if(child.type && child.type !== TokenTypes.VALUE) {
-          // we have something that could nest.
-          let tip = child;
-          while(tip.children.length) {
-            tip = tip.children[0];
-          }
-          if(operation.attribute) {
-            let neueAttr = {type: TokenTypes.ATTRIBUTE, found: operation.attribute, orig: operation.attribute, id: uuid(), children: []};
-            tip.children.push(neueAttr);
-            tip = neueAttr;
-          }
-          // if this is an infix operation, then this is an entirely different root now
-          if(operation.infix) {
-            tree.roots.push(child);
-          } else {
-            throw new Error("Non infix operation with a non-attribute child: " + JSON.stringify(state.operator));
-          }
-          operatorChildren[ix] = tip;
-        }
-        ix++;
-      }
-
-      // if this is an infix operator that invokes an attribute, e.g. "older", push
-      // that attribute onto the cursor
-      if(operation.infix && operation.attribute) {
-        let attr = {type: TokenTypes.ATTRIBUTE, found: operation.attribute, orig: operation.attribute, id: uuid(), children: []};
-        cursor.children.push(attr);
-        // we also need to add this as the first arg to the function
-        state.operator.children.unshift(attr);
-      } else if(operation.infix) {
-        // we need to add the closest thing before this as the first arg to the function.
-        let tip = cursor || root;
-        while(tip.children.length) {
-          tip = tip.children[tip.children.length - 1];
-        }
-        state.operator.children.unshift(tip);
-        // if we don't have an attribute to attach to the right side, let's assume
-        // that it mirrors the left.
-//           var rightSide = state.operator.children[state.operator.children.length - 1];
-//           if(rightSide.type !== "attribute") {
-//             let attr = {type: "attribute", found: tip.found, orig: tip.found, id: uuid(), children: []};
-//             rightSide.children.push(attr);
-//             state.operator.children[state.operator.children.length - 1] = attr;
-//           }
-      }
-
-      tree.operations.push(state.operator);
-
-      if(item.operator) {
-        state.operator = item.operator;
-      } else {
-        // we're done consuming now
-        state.consuming = false;
-        state.operator = null;
-        state.lastValue = false;
-        break;
-      }
-      item = state.operationStack.pop();
-    }
-  }
-  if(root) walk(root);
-  return tree;
-}
-
-function ignoreHiddenCollections(colls) {
-  for(let coll of colls) {
-    if(coll !== "unknown" && coll !== "history" && coll !== "collection") {
-      return coll;
-    }
-  }
-}
-
-function nodeToPlanSteps(node, parent, parentPlan) {
-  let id = node.id || uuid();
-  let {deselect} = node;
-  if(parent) {
-    let rel = tokensToRelationship(parent, node);
-    if(!rel) {
-      return [];
-    }
-    switch(rel.type) {
-      case "coll->eav":
-        var plan = [];
-        var curParent = parentPlan;
-        for(let node of rel.nodes) {
-          let coll = ignoreHiddenCollections(node);
-          let item = {type: "gather", relatedTo: curParent, collection: coll, subject: coll, id: uuid()};
-          plan.push(item);
-          curParent = item;
-        }
-        plan.push({type: "lookup", relatedTo: curParent, attribute: node.found, subject: node.found, id, deselect});
-        return plan;
-        break;
-      case "coll->ent":
-        var plan = [];
-        var curParent = parentPlan;
-        for(let node of rel.nodes) {
-          let coll = ignoreHiddenCollections(node);
-          let item = {type: "gather", relatedTo: curParent, collection: coll, subject: coll, id: uuid()};
-          plan.push(item);
-          curParent = item;
-        }
-        plan.push({type: "filter by entity", relatedTo: curParent, entity: node.found, subject: node.found, id, deselect});
-        return plan;
-        break;
-      case "coll->coll":
-        if(rel.distance === 0) {
-          return [{type: "intersect", relatedTo: parentPlan, collection: node.found, subject: node.found, id, deselect}];
-        } else {
-          return [{type: "gather", relatedTo: parentPlan, collection: node.found, subject: node.found, id, deselect}];
-        }
-        break;
-      case "ent->eav":
-        if(rel.distance === 0) {
-          return [{type: "lookup", relatedTo: parentPlan, attribute: node.found, subject: node.found, id, deselect}];
-        } else {
-          let plan = [];
-          let curParent = parentPlan;
-          for(let node of rel.nodes) {
-            let coll = ignoreHiddenCollections(node);
-            let item = {type: "gather", relatedTo: curParent, collection: coll, subject: coll, id: uuid()};
-            plan.push(item);
-            curParent = item;
-          }
-          plan.push({type: "lookup", relatedTo: curParent, attribute: node.found, subject: node.found, id, deselect});
-          return plan;
-        }
-        break;
-      case "collection->ent":
-        break;
-    }
-  } else {
-    if(node.type === TokenTypes.COLLECTION) {
-      return [{type: "gather", collection: node.found, subject: node.found, id, deselect}];
-    } else if(node.type === TokenTypes.ENTITY) {
-      return [{type: "find", entity: node.found, subject: node.found, id, deselect}];
-    } else if(node.type === TokenTypes.ATTRIBUTE) {
-      return [{type: "lookup", attribute: node.found, subject: node.found, id, deselect}];
-    }
-    return [];
-  }
-}
-
-function nodeToPlan(tree, parent = null, parentPlan = null) {
-  if(!tree) return [];
-  let plan = [];
-  //process you, then your children
-  plan.push.apply(plan, nodeToPlanSteps(tree, parent, parentPlan));
-  let neueParentPlan = plan[plan.length - 1];
-  for(let child of tree.children) {
-    plan.push.apply(plan, nodeToPlan(child, tree, neueParentPlan));
-  }
-  return plan;
-}
-
-function opToPlan(op, groupLookup) {
-  let info = op.operation;
-  let args = {};
-  let ix = 0;
-  if(info.args) {
-    for(let arg of info.args) {
-      let value = op.children[ix];
-      if(value === undefined) continue;
-      if(value.type && value.type === TokenTypes.VALUE) {
-        args[arg] = JSON.parse(value.found);
-      } else if(value.type) {
-        args[arg] = [value.id, "value"];
-      } else {
-        throw new Error("Invalid operation argument: " + JSON.stringify(op));
-      }
-      ix++;
-    }
-  }
-  if(info.aggregate) {
-    return [{type: "aggregate", aggregate: info.op, args, id: uuid()}];
-  } else if(info.op === "sort limit") {
-    let sort, limit, grouped;
-    limit = info.limit;
-    for(let child of op.children) {
-      if(child.type && child.type === TokenTypes.ATTRIBUTE) {
-        limit = coerceInput(child.found);
-      } else {
-        sort = [child.id, "value", info.direction];
-        grouped = groupLookup[child];
-      }
-    }
-    let plan = [];
-    if(sort) {
-      plan.push({type: "sort", id: uuid(), sort: [sort]});
-    }
-    if(limit) {
-      let limitInfo:any = {};
-      if(grouped || Object.keys(groupLookup).length === 0) {
-        limitInfo.results = limit;
-      } else {
-        limitInfo.perGroup = limit;
-      }
-      plan.push({type: "limit", id: uuid(), limit: limitInfo});
-    }
-    return plan;
-  } else if(info.filter) {
-    return [{type: "filter", func: info.op, args, id: uuid()}];
-  } else {
-    return [{type: "calculate", func: info.op, args, id: uuid()}];
-  }
-}
-
-function groupsToPlan(nodes) {
-  if(!nodes.length) return [];
-  let groups = [];
-  for(let node of nodes) {
-    if(node.type === TokenTypes.COLLECTION) {
-      groups.push([node.id, "entity"]);
-    } else if(node.type === TokenTypes.ATTRIBUTE) {
-      groups.push([node.id, "value"]);
-    } else {
-      throw new Error("Invalid node to group on: " + JSON.stringify(nodes));
-    }
-  }
-  return [{type: "group", id: uuid(), groups, groupNodes: nodes}];
-}
-
-function treeToPlan(tree) {
-  let plan = [];
-  for(let root of tree.roots) {
-    plan.push.apply(plan, nodeToPlan(root));
-  }
-  plan.push.apply(plan, groupsToPlan(tree.groups));
-  let groupLookup = {};
-  for(let node of tree.groups) {
-    groupLookup[node.id] = true;
-  }
-  for(let op of tree.operations) {
-    plan.push.apply(plan, opToPlan(op, groupLookup));
-  }
-  return plan;
-}
-
-function safeProjectionName(name, projection) {
-  if(!projection[name]) {
-    return name;
-  }
-  let ix = 2;
-  while(projection[name]) {
-    name = `${name} ${ix}`;
-    ix++;
-  }
-  return name;
-}
-
-export function planToQuery(plan) {
-  let projection = {};
-  let query = eve.query();
-  for(var step of plan) {
-    switch(step.type) {
-      case "find":
-        // find is a no-op
-        step.size = 0;
-        break;
-      case "gather":
-        var join:any = {};
-        if(step.collection) {
-          join.collection = step.collection;
-        }
-        var related = step.relatedTo;
-        if(related) {
-          if(related.type === "find") {
-            step.size = 2;
-            let linkId = `${step.id} | link`;
-            query.select("directionless links", {entity: related.entity}, linkId);
-            join.entity = [linkId, "link"];
-            query.select("collection entities", join, step.id);
-          } else {
-            step.size = 2;
-            let linkId = `${step.id} | link`;
-            query.select("directionless links", {entity: [related.id, "entity"]}, linkId);
-            join.entity = [linkId, "link"];
-            query.select("collection entities", join, step.id);
-          }
-        } else {
-          step.size = 1;
-          query.select("collection entities", join, step.id);
-        }
-        step.name = safeProjectionName(step.collection, projection);
-        projection[step.name] = [step.id, "entity"];
-        break;
-      case "lookup":
-        var join:any = {attribute: step.attribute};
-        var related = step.relatedTo;
-        if(related) {
-          if(related.type === "find") {
-            join.entity = related.entity;
-          } else {
-            join.entity = [related.id, "entity"];
-          }
-        }
-        step.size = 1;
-        query.select("entity eavs", join, step.id);
-        step.name = safeProjectionName(step.attribute, projection);
-        projection[step.name] = [step.id, "value"];
-        break;
-      case "intersect":
-        var related = step.relatedTo;
-        if(step.deselect) {
-          step.size = 0;
-          query.deselect("collection entities", {collection: step.collection, entity: [related.id, "entity"]});
-        } else {
-          step.size = 0;
-          query.select("collection entities", {collection: step.collection, entity: [related.id, "entity"]}, step.id);
-        }
-        break;
-      case "filter by entity":
-        var related = step.relatedTo;
-        var linkId = `${step.id} | link`;
-        if(step.deselect) {
-          step.size = 0;
-          query.deselect("directionless links", {entity: [related.id, "entity"], link: step.entity});
-        } else {
-          step.size = 1;
-          query.select("directionless links", {entity: [related.id, "entity"], link: step.entity}, step.id);
-        }
-        break;
-      case "filter":
-        step.size = 0;
-        query.calculate(step.func, step.args, step.id);
-        break;
-      case "calculate":
-        step.size = 1;
-        query.calculate(step.func, step.args, step.id);
-        step.name = safeProjectionName(step.func, projection);
-        projection[step.name] = [step.id, "result"];
-        break;
-      case "aggregate":
-        step.size = 1;
-        query.aggregate(step.aggregate, step.args, step.id);
-        step.name = safeProjectionName(step.aggregate, projection);
-        projection[step.name] = [step.id, step.aggregate];
-        break;
-      case "group":
-        step.size = 0;
-        query.group(step.groups);
-        break;
-      case "sort":
-        step.size = 0;
-        query.sort(step.sort);
-        break;
-      case "limit":
-        step.size = 0;
-        query.limit(step.limit);
-        break;
-    }
-  }
-  query.project(projection);
-  return query;
-}
-
-export function newSearch(searchString) {
-  let all = newSearchTokens(searchString);
-  let tree = planTree(searchString);
-  let plan = treeToPlan(tree);
-  let query = planToQuery(plan);
-  return {tokens: all, plan, query};
-}
-
-function arrayIntersect(a, b) {
-  let ai = 0;
-  let bi = 0;
-  let result = [];
-  while(ai < a.length && bi < b.length){
-      if (a[ai] < b[bi] ) ai++;
-      else if (a[ai] > b[bi] ) bi++;
-      else {
-        result.push(a[ai]);
-        ai++;
-        bi++;
-      }
-  }
-  return result;
-}
-
-function entityTocollectionsArray(entity) {
-  let entities = eve.find("collection entities", {entity});
-  return entities.map((a) => a["collection"]);
-}
-
-function extractFromUnprojected(coll, ix, field, size) {
-  let results = [];
-  for(var i = 0, len = coll.length; i < len; i += size) {
-    results.push(coll[i + ix][field]);
-  }
-  return results;
-}
-
-function findCommonCollections(ents) {
-  let intersection = entityTocollectionsArray(ents[0]);
-  intersection.sort();
-  for(let entId of ents.slice(1)) {
-    let cur = entityTocollectionsArray(entId);
-    cur.sort();
-    arrayIntersect(intersection, cur);
-  }
-  intersection.sort((a, b) => {
-    return eve.findOne("collection", {collection: b})["count"] - eve.findOne("collection", {collection: a})["count"];
-  })
-  return intersection;
-}
-
-// e.g. "salaries in engineering"
-// e.g. "chris's age"
-function findEntToAttrRelationship(ent, attr):any {
-  // check if this ent has that attr
-  let directAttribute = eve.findOne("entity eavs", {entity: ent, attribute: attr});
-  if(directAttribute) {
-    return {distance: 0, type: "ent->eav"};
-  }
-  let relationships = eve.query(``)
-                .select("entity links", {entity: ent}, "links")
-                .select("entity eavs", {entity: ["links", "link"], attribute: attr}, "eav")
-                .exec();
-  if(relationships.unprojected.length) {
-    let entities = extractFromUnprojected(relationships.unprojected, 0, "link", 2);
-    return {distance: 1, type: "ent->eav", nodes: [findCommonCollections(entities)]};
-  }
-  let relationships2 = eve.query(``)
-                .select("entity links", {entity: ent}, "links")
-                .select("entity links", {entity: ["links", "link"]}, "links2")
-                .select("entity eavs", {entity: ["links2", "link"], attribute: attr}, "eav")
-                .exec();
-  if(relationships2.unprojected.length) {
-    let entities = extractFromUnprojected(relationships2.unprojected, 0, "link", 3);
-    let entities2 = extractFromUnprojected(relationships2.unprojected, 1, "link", 3);
-    return {distance: 2, type: "ent->eav", nodes: [findCommonCollections(entities), findCommonCollections(entities2)]};
-  }
-}
-
-// e.g. "salaries per department"
-function findCollectionToAttrRelationship(coll, attr) {
-  let direct = eve.query(``)
-                .select("collection entities", {collection: coll}, "collection")
-                .select("entity eavs", {entity: ["collection", "entity"], attribute: attr}, "eav")
-                .exec();
-  if(direct.unprojected.length) {
-    return {distance: 0, type: "coll->eav", nodes: []};
-  }
-  let relationships = eve.query(``)
-                .select("collection entities", {collection: coll}, "collection")
-                .select("directionless links", {entity: ["collection", "entity"]}, "links")
-                .select("entity eavs", {entity: ["links", "link"], attribute: attr}, "eav")
-                .exec();
-  if(relationships.unprojected.length) {
-    let entities = extractFromUnprojected(relationships.unprojected, 1, "link", 3);
-    return {distance: 1, type: "coll->eav", nodes: [findCommonCollections(entities)]};
-  }
-  let relationships2 = eve.query(``)
-                .select("collection entities", {collection: coll}, "collection")
-                .select("directionless links", {entity: ["collection", "entity"]}, "links")
-                .select("directionless links", {entity: ["links", "link"]}, "links2")
-                .select("entity eavs", {entity: ["links2", "link"], attribute: attr}, "eav")
-                .exec();
-  if(relationships2.unprojected.length) {
-    let entities = extractFromUnprojected(relationships2.unprojected, 1, "link", 4);
-    let entities2 = extractFromUnprojected(relationships2.unprojected, 2, "link", 4);
-    return {distance: 2, type: "coll->eav", nodes: [findCommonCollections(entities), findCommonCollections(entities2)]};
-  }
-}
-
-// e.g. "meetings john was in"
-function findCollectionToEntRelationship(coll, ent):any {
-  if(coll === "collections") {
-    if(eve.findOne("collection entities", {entity: ent})) {
-      return {distance: 0, type: "ent->collection"};
-    }
-  }
-  if(eve.findOne("collection entities", {collection: coll, entity: ent})) {
-    return {distance: 0, type: "coll->ent", nodes: []};
-  }
-  let relationships = eve.query(``)
-                .select("collection entities", {collection: coll}, "collection")
-                .select("directionless links", {entity: ["collection", "entity"], link: ent}, "links")
-                .exec();
-  if(relationships.unprojected.length) {
-    return {distance: 1, type: "coll->ent", nodes: []};
-  }
-  // e.g. events with chris granger (events -> meetings -> chris granger)
-  let relationships2 = eve.query(``)
-                .select("collection entities", {collection: coll}, "collection")
-                .select("directionless links", {entity: ["collection", "entity"]}, "links")
-                .select("directionless links", {entity: ["links", "link"], link: ent}, "links2")
-                .exec();
-  if(relationships2.unprojected.length) {
-    let entities = extractFromUnprojected(relationships2.unprojected, 1, "link", 3);
-    return {distance: 2, type: "coll->ent", nodes: [findCommonCollections(entities)]};
-  }
-}
-
-// e.g. "authors and papers"
-function findCollectionToCollectionRelationship(coll, coll2) {
-  // are there things in both sets?
-  let intersection = eve.query(`${coll}->${coll2}`)
-                    .select("collection entities", {collection: coll}, "coll1")
-                    .select("collection entities", {collection: coll2, entity: ["coll1", "entity"]}, "coll2")
-                    .exec();
-  //is there a relationship between things in both sets
-  let relationships = eve.query(`relationships between ${coll} and ${coll2}`)
-                .select("collection entities", {collection: coll}, "coll1")
-                .select("directionless links", {entity: ["coll1", "entity"]}, "links")
-                .select("collection entities", {collection: coll2, entity: ["links", "link"]}, "coll2")
-                .group([["links", "type"]])
-                .aggregate("count", {}, "count")
-                .project({type: ["links", "type"], count: ["count", "count"]})
-                .exec();
-
-  let maxRel = {count: 0};
-  for(let result of relationships.results) {
-    if(result.count > maxRel.count) maxRel = result;
-  }
-
-  // we divide by two because unprojected results pack rows next to eachother
-  // and we have two selects.
-  let intersectionSize = intersection.unprojected.length / 2;
-  if(maxRel.count > intersectionSize) {
-    return {distance: 1, type: "coll->coll"};
-  } else if(intersectionSize > maxRel.count) {
-    return {distance: 0, type: "coll->coll"};
-  } else if(maxRel.count === 0 && intersectionSize === 0) {
-    return;
-  } else {
-    return {distance: 1, type: "coll->coll"};
-  }
-}
-
 function CodeMirrorElement(node, elem) {
   let cm = node.editor;
   if(!cm) {
@@ -1075,7 +245,7 @@ function CMSearchBox(node, elem) {
     });
     cm.on("change", (cm) => {
       let value = cm.getValue();
-      let tokens = newSearchTokens(value);
+      let tokens = getTokens(value);
       for(let mark of state.marks) {
         mark.clear();
       }
@@ -1143,7 +313,7 @@ app.handle("setSearch", (result, info) => {
     result.add("history stack", {entity: search, pos: stack.length});
   }
   let newSearchValue = info.value.trim();
-  app.activeSearches[searchId] = newSearch(newSearchValue);
+  app.activeSearches[searchId] = queryToExecutable(newSearchValue);
   result.remove("builtin search query", {id: searchId});
   result.add("builtin search query", {id: searchId, search: newSearchValue});
 });
@@ -1169,7 +339,7 @@ app.handle("submitAction", (result, info) => {
 app.handle("addNewSearch", (result, info) => {
   let id = uuid();
   let search = info.search || "";
-  app.activeSearches[id] = newSearch(search);
+  app.activeSearches[id] = queryToExecutable(search);
   result.add("builtin search", {id, top: info.top || 100, left: info.left || 100});
   result.add("builtin search query", {id, search});
 });
@@ -1421,36 +591,36 @@ function entityUi(entityId, instance:string|number = "", searchId) {
 function searchDescription(tokens, plan) {
   let planChildren = [];
   for(let step of plan) {
-    if(step.type === "gather") {
+    if(step.type === StepType.GATHER) {
       let related = step.relatedTo ? "related to those" : "";
       let coll = "anything"
-      if(step.collection) {
-        coll = pluralize(step.collection, 2);
+      if(step.subject) {
+        coll = pluralize(step.subject, 2);
       }
       planChildren.push({c: "text collection", text: `gather ${coll} ${related}`});
-    } else if(step.type === "intersect") {
-      if(step.deselect) {
-        planChildren.push({c: "text", text: `remove the ${pluralize(step.collection, 2)}`});
+    } else if(step.type === StepType.INTERSECT) {
+      if(step.deselected) {
+        planChildren.push({c: "text", text: `remove the ${pluralize(step.subject, 2)}`});
       } else {
-        planChildren.push({c: "text", text: `keep only the ${pluralize(step.collection, 2)}`});
+        planChildren.push({c: "text", text: `keep only the ${pluralize(step.subject, 2)}`});
       }
-    } else if(step.type === "lookup") {
-      planChildren.push({c: "text attribute", text: `lookup ${step.attribute}`});
-    } else if(step.type === "find") {
-      planChildren.push({c: "text entity", text: `find ${step.entity}`});
-    } else if(step.type === "filter by entity") {
-      if(step.deselect) {
-        planChildren.push({c: "text entity", text: `remove anything related to ${step.entity}`});
+    } else if(step.type === StepType.LOOKUP) {
+      planChildren.push({c: "text attribute", text: `lookup ${step.subject}`});
+    } else if(step.type === StepType.FIND) {
+      planChildren.push({c: "text entity", text: `find ${step.subject}`});
+    } else if(step.type === StepType.FILTERBYENTITY) {
+      if(step.deselected) {
+        planChildren.push({c: "text entity", text: `remove anything related to ${step.subject}`});
       } else {
-        planChildren.push({c: "text entity", text: `related to ${step.entity}`});
+        planChildren.push({c: "text entity", text: `related to ${step.subject}`});
       }
-    } else if(step.type === "filter") {
-      planChildren.push({c: "text operation", text: `filter those by ${step.func}`});
-    } else if(step.type === "sort") {
+    } else if(step.type === StepType.FILTER) {
+      planChildren.push({c: "text operation", text: `filter those by ${step.subject}`});
+    } else if(step.type === StepType.SORT) {
       planChildren.push({c: "text operation", text: `sort them`});
-    } else if(step.type === "group") {
+    } else if(step.type === StepType.GROUP) {
       planChildren.push({c: "text operation", text: `group them`});
-    } else if(step.type === "limit") {
+    } else if(step.type === StepType.LIMIT) {
       let limit;
       if(step.limit.results) {
         limit = `to ${step.limit.results} results`;
@@ -1458,10 +628,10 @@ function searchDescription(tokens, plan) {
         limit = `to ${step.limit.perGroup} items per group`;
       }
       planChildren.push({c: "text operation", text: `limit ${limit}`});
-    } else if(step.type === "calculate") {
-      planChildren.push({c: "text operation", text: `${step.type} ${step.func}`});
-    } else if(step.type === "aggregate") {
-      planChildren.push({c: "text operation", text: `${step.aggregate}`});
+    } else if(step.type === StepType.CALCULATE) {
+      planChildren.push({c: "text operation", text: `calculate ${step.func}`});
+    } else if(step.type === StepType.AGGREGATE) {
+      planChildren.push({c: "text operation", text: `${step.subject}`});
     } else {
       planChildren.push({c: "text", text: `${step.type}->`});
     }
@@ -1476,32 +646,25 @@ function searchDescription(tokens, plan) {
 export function newSearchResults(searchId) {
   let {top, left} = eve.findOne("search", {id: searchId});
   let search = eve.findOne("search query", {id: searchId})["search"];
-  let {tokens, plan, query} = app.activeSearches[searchId];
+  let {tokens, plan, executable} = app.activeSearches[searchId];
+  console.log(plan, plan.map((step) => StepType[step.type]));
   let resultItems = [];
   let groupedFields = {};
-  if(query && plan.length && (plan.length > 1 || plan[0].type === "gather")) {
+  if(executable && plan.length && (plan.length > 1 || plan[0].type === StepType.GATHER)) {
     // figure out what fields are grouped, if any
     for(let step of plan) {
-      if(step.type === "group") {
-        for(let node of step.groupNodes) {
-          let name;
-          for(let searchStep of plan) {
-            if(searchStep.id === node.id) {
-              name = searchStep.name;
-              break;
-            }
-          }
-          groupedFields[name] = true;
-        }
-      } else if(step.type === "aggregate") {
+      if(step.type === StepType.GROUP) {
+        groupedFields[step.subjectNode.name] = true;
+      } else if(step.type === StepType.AGGREGATE) {
         groupedFields[step.name] = true;
       }
     }
 
-    let results = query.exec();
+    let results = executable.exec();
+    console.log(results);
     let groupInfo = results.groupInfo;
     let planLength = plan.length;
-    row: for(let ix = 0, len = results.unprojected.length; ix < len; ix += query.unprojectedSize) {
+    row: for(let ix = 0, len = results.unprojected.length; ix < len; ix += executable.unprojectedSize) {
       if(groupInfo && ix > groupInfo.length) break;
       if(groupInfo && groupInfo[ix] === undefined) continue;
       let resultItem;
@@ -1520,20 +683,20 @@ export function newSearchResults(searchId) {
           let resultPart = results.unprojected[ix + planOffset + planItem.size - 1];
           if(!resultPart) continue row;
           let text, klass, click, link;
-          if(planItem.type === "gather") {
+          if(planItem.type === StepType.GATHER) {
             text = resultPart["entity"];
             klass = "entity";
             click = followLink;
             link = resultPart["entity"];
-          } else if(planItem.type === "lookup") {
+          } else if(planItem.type === StepType.LOOKUP) {
             text = resultPart["value"];
             klass = "attribute";
-          } else if(planItem.type === "aggregate") {
-            text = resultPart[planItem.aggregate];
+          } else if(planItem.type === StepType.AGGREGATE) {
+            text = resultPart[planItem.subject];
             klass = "value";
-          } else if(planItem.type === "filter by entity") {
+          } else if(planItem.type === StepType.FILTERBYENTITY) {
             // we don't really want these to show up.
-          } else if(planItem.type === "calculate") {
+          } else if(planItem.type === StepType.CALCULATE) {
             text = JSON.stringify(resultPart.result);
             klass = "value";
           } else {
@@ -1560,13 +723,13 @@ export function newSearchResults(searchId) {
   }
   let entityContent = [];
   let noHeaders = false;
-  if(plan.length === 1 && plan[0].type === "find") {
-    entityContent.push({c: "singleton", children: [entityUi(plan[0].entity, searchId, searchId)]});
-  } else if(plan.length === 1 && plan[0].type === "gather") {
-    entityContent.unshift({c: "singleton", children: [entityUi(plan[0].collection, searchId, searchId)]});
-    let text = `There are no ${pluralize(plan[0].collection, resultItems.length)} in the system.`;
+  if(plan.length === 1 && plan[0].type === StepType.FIND) {
+    entityContent.push({c: "singleton", children: [entityUi(plan[0].subject, searchId, searchId)]});
+  } else if(plan.length === 1 && plan[0].type === StepType.GATHER) {
+    entityContent.unshift({c: "singleton", children: [entityUi(plan[0].subject, searchId, searchId)]});
+    let text = `There are no ${pluralize(plan[0].subject, resultItems.length)} in the system.`;
     if(resultItems.length > 0) {
-      text = `There ${pluralize("are", resultItems.length)} ${resultItems.length} ${pluralize(plan[0].collection, resultItems.length)}:`;
+      text = `There ${pluralize("are", resultItems.length)} ${resultItems.length} ${pluralize(plan[0].subject, resultItems.length)}:`;
     }
     resultItems.unshift({c: "description", text});
     noHeaders = true;
@@ -1577,7 +740,7 @@ export function newSearchResults(searchId) {
     // figure out what the headers are
     if(!noHeaders) {
       for(let step of plan) {
-        if(step.type === "filter by entity") continue;
+        if(step.type === StepType.FILTERBYENTITY) continue;
         if(step.size === 0) continue;
         headers.push({text: step.name});
       }
@@ -1589,7 +752,7 @@ export function newSearchResults(searchId) {
   for(let bitAction of eve.find("add bit action", {view: search})) {
     let {template, action} = bitAction;
     actions.push({c: "action new-bit", children: [
-      {c: "bit entity", dangerouslySetInnerHTML: entityToHTML(action, searchId, template, Object.keys(query.projectionMap))},
+      {c: "bit entity", dangerouslySetInnerHTML: entityToHTML(action, searchId, template, Object.keys(executable.projectionMap))},
       {c: "remove ion-android-close", click: removeAction, actionType: "bit", actionId: bitAction.action}
     ]})
   }
@@ -1607,7 +770,7 @@ export function newSearchResults(searchId) {
       ]});
     }
   }
-  if(plan.length && plan[0].type !== "find") {
+  if(plan.length && plan[0].type !== StepType.FIND) {
     let text = "Add a card";
     if(actions.length) {
       text = "Add another card"
@@ -2170,7 +1333,7 @@ runtime.define("collection content", {}, function(collection) {
 
 function initSearches() {
   for(let search of eve.find("builtin search")) {
-    app.activeSearches[search.id] = newSearch(eve.findOne("builtin search query", {id: search.id})["search"]);
+    app.activeSearches[search.id] = queryToExecutable(eve.findOne("builtin search query", {id: search.id})["search"]);
   }
 }
 

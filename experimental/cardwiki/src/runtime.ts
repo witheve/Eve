@@ -965,17 +965,32 @@ export class Query {
   }
   group(groups) {
     this.dirty = true;
-    this.groups = groups;
+    if(groups[0] && groups[0].constructor === Array) {
+      this.groups = groups;
+    } else {
+      if(!this.groups) this.groups = [];
+      this.groups.push(groups);
+    }
     return this;
   }
   sort(sorts) {
     this.dirty = true;
-    this.sorts = sorts;
+    if(sorts[0] && sorts[0].constructor === Array) {
+      this.sorts = sorts;
+    } else {
+      if(!this.sorts) this.sorts = [];
+      this.sorts.push(sorts);
+    }
     return this;
   }
   limit(limitInfo:any) {
     this.dirty = true;
-    this.limitInfo = limitInfo;
+    if(!this.limitInfo) {
+      this.limitInfo = {};
+    }
+    for(let key in limitInfo) {
+      this.limitInfo[key] = limitInfo[key];
+    }
     return this;
   }
   aggregate(funcName, args, as?) {
