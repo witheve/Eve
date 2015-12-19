@@ -31,11 +31,15 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .entity-blocks > .entity { -webkit-user-select:auto;  padding:5px 10px; overflow:auto; max-width: 600px; min-width: 300px; line-height: 25px; }
 .entity-blocks:first-child { padding-top:10px; }
 .entity-blocks > .entity + .entity { }
+.entity-blocks p + p { margin-top:10px; }
 .entity .placeholder { font-style:italic; }
 .entity pre { flex:none; display:block; white-space: pre-wrap; min-height:25px; }
 .entity .header { width:100%; text-align:left; }
 .entity h1 { font-size:16pt; border-bottom:1px solid #222; padding-bottom:8px; margin-bottom:10px; }
 .entity span { display:inline; }
+.entity strong { font-weight: bold; }
+.entity em { font-style: italic; }
+
 .link { cursor:default; border-bottom:1px solid transparent;  }
 
 .entity { position: relative; }
@@ -110,6 +114,8 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .search-results .list-row::before { content: "-"; margin-right:5px;  }
 .search-results .path.list-row + .path.list-row { border:none; margin-top:5px; }
 .search-results .description { margin-bottom:10px; }
+
+.search-results.inline { padding: 0; }
 
 .CodeMirror div { display:block; }
 .CodeMirror.cm-s-default { font-family: "Lato"; font-size: 12pt; height: auto;   }

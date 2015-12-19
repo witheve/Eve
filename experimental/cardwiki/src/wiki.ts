@@ -495,8 +495,18 @@ function injectEmbeddedSearches(node:HTMLElement, elem:Element) {
     }
     // @FIXME: Horrible, horrible kludge.
     let subRenderer = new microreact.Renderer();
-    subRenderer.render(entityContents(elem["searchId"], searchId, search));
-    embed.appendChild(subRenderer.content);
+    let contents = entityContents(elem["searchId"], searchId, search);
+    subRenderer.render(contents.elems);
+    let node = subRenderer.content;
+    if(contents.inline) {
+        embed.classList.add("inline");
+        let inlineContainer = document.createElement("span");
+        while(node.children.length) {
+            inlineContainer.appendChild(node.firstChild);
+        }
+        node = inlineContainer;
+    }
+    embed.appendChild(node);
   }
 }
 
@@ -524,6 +534,7 @@ function entityToHTML(entityId:string, searchId:string, content:string, passthro
       let replacement;
       let type = "attribute";
       if(eve.findOne("entity", {entity: value})) type = "entity";
+      else if(eve.findOne("collection", {collection: value})) type = "collection";
       else if(passthrough && passthrough.indexOf(value) !== -1) type = "passthrough";
       else if(colonIx === -1) type = "query";
 
@@ -534,13 +545,18 @@ function entityToHTML(entityId:string, searchId:string, content:string, passthro
       } else if(type === "entity") {
         let attr = content.slice(0, colonIx !== -1 ? colonIx : undefined).trim();
         let onClick = `app.dispatch('setSearch', {value: '${value}', searchId: '${searchId}'}).commit();`;
-        replacement = `<a class="attribute entity" data-attribute="${attr}" onclick="${onClick}">${value}</a>`;
+        replacement = `<a class="link attribute entity" data-attribute="${attr}" onclick="${onClick}">${value}</a>`;
+
+      } else if(type === "collection") {
+        let attr = content.slice(0, colonIx !== -1 ? colonIx : undefined).trim();
+        let onClick = `app.dispatch('setSearch', {value: '${value}', searchId: '${searchId}'}).commit();`;
+        replacement = `<a class="link attribute collection" data-attribute="${attr}" onclick="${onClick}">${value}</a>`;
 
       } else if(type === "query") {
         //throw new Error("@TODO: Implement embedded projections");
         // add postRender to newSearch pane container that checks for data-search attribute. If it exists, compile the search template for each of them and insert.
         let containerId = `${searchId}|${content}|${queryCount++}`;
-        replacement = `<div class="embedded-query search-results" id="${containerId}" data-embedded-search="${content}"></div>`;
+        replacement = `<span class="embedded-query search-results" id="${containerId}" data-embedded-search="${content}"></span>`;
       }
 
       if(type !== "passthrough") {
@@ -674,18 +690,30 @@ function searchDescription(tokens, plan) {
   ]};
 }
 
-export function entityContents(paneId:string, searchId:string, search) {
+export function entityContents(paneId:string, searchId:string, search): {elems: Element[], inline?: boolean} {
   let plan = search.plan;
   if(!plan.length)
-    return [{c: "singleton", children: [entityUi(search.queryString.toLowerCase(), searchId, searchId)]}];
+    return {inline: true, elems: [{t: "span", c: "link", text: search.queryString, linkText: search.queryString, click:followLink, searchId: paneId}]};
 
   let contents = [];
   let singleton = true;
-  if(plan.length === 1 && (plan.type === StepType.FIND || plan.type === StepType.GATHER)) {
+  if(plan.length === 1 && (plan[0].type === StepType.FIND || plan[0].type === StepType.GATHER)) {
     contents.push({c: "singleton", children: [entityUi(plan[0].subject || plan[0].subject, searchId, searchId)]});
   } else singleton = false;
 
-  if(singleton) return contents;
+  // If we're just looking up an attribute for a specific entity, embed that value
+  if(plan.length === 2 && plan[0].type === StepType.FIND && plan[1].type === StepType.LOOKUP) {
+    let results = search.executable.exec();
+    let text;
+    if(!results.results.length) {
+        text = `('${search.queryString}' was not found)`;
+    } else {
+        text = results.results[0][plan[1].name];
+    }
+    return {inline: true, elems: [{t: "span", c: "attribute", text}]};
+  }
+
+  if(singleton) return {elems: contents};
   let resultItems = [];
   contents.push({c: "results", children: resultItems});
   let headers = []
@@ -760,7 +788,7 @@ export function entityContents(paneId:string, searchId:string, search) {
   }
   resultItems.unshift({c: "search-headers", children: headers});
 
-  return contents;
+  return {elems: contents};
 }
 
 export function newSearchResults(searchId) {
