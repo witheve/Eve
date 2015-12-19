@@ -647,7 +647,6 @@ export function newSearchResults(searchId) {
   let {top, left} = eve.findOne("search", {id: searchId});
   let search = eve.findOne("search query", {id: searchId})["search"];
   let {tokens, plan, executable} = app.activeSearches[searchId];
-  console.log(plan, plan.map((step) => StepType[step.type]));
   let resultItems = [];
   let groupedFields = {};
   if(executable && plan.length && (plan.length > 1 || plan[0].type === StepType.GATHER)) {
@@ -661,7 +660,6 @@ export function newSearchResults(searchId) {
     }
 
     let results = executable.exec();
-    console.log(results);
     let groupInfo = results.groupInfo;
     let planLength = plan.length;
     row: for(let ix = 0, len = results.unprojected.length; ix < len; ix += executable.unprojectedSize) {
