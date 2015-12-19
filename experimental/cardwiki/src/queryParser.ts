@@ -75,12 +75,12 @@ var patterns = {
   "count": {
     type: "aggregate",
     op: "count",
-    args: ["a"],
+    args: ["value"],
   },
   "average": {
     type: "aggregate",
     op: "average",
-    args: ["a"],
+    args: ["value"],
   },
   "top": {
     type: "sort and limit",

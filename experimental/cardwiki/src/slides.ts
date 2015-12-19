@@ -1,9 +1,9 @@
-
 import {Element} from "./microReact";
 import * as app from "./app";
 import {eve} from "./app";
 import * as wiki from "./wiki";
-var newSearch = wiki.newSearch;
+import {queryToExecutable} from "./queryParser";
+var newSearch = queryToExecutable;
 var newSearchResults = wiki.newSearchResults;
 
 function randomlyLetter(phrase, klass = "") {
