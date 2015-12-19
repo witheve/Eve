@@ -677,12 +677,12 @@ function searchDescription(tokens, plan) {
 export function entityContents(paneId:string, searchId:string, search) {
   let plan = search.plan;
   if(!plan.length)
-    return [{c: "singleton", children: [entityUi(search.toLowerCase(), searchId, searchId)]}];
+    return [{c: "singleton", children: [entityUi(search.queryString.toLowerCase(), searchId, searchId)]}];
 
   let contents = [];
   let singleton = true;
-  if(plan.length === 1 && (plan.type === "find" || plan.type === "gather")) {
-    contents.push({c: "singleton", children: [entityUi(plan[0].collection || plan[0].entity, searchId, searchId)]});
+  if(plan.length === 1 && (plan.type === StepType.FIND || plan.type === StepType.GATHER)) {
+    contents.push({c: "singleton", children: [entityUi(plan[0].subject || plan[0].subject, searchId, searchId)]});
   } else singleton = false;
 
   if(singleton) return contents;
@@ -691,7 +691,7 @@ export function entityContents(paneId:string, searchId:string, search) {
   let headers = []
   // figure out what the headers are
   for(let step of plan) {
-    if(step.type === "filter by entity") continue;
+    if(step.type === StepType.FILTERBYENTITY) continue;
     if(step.size === 0) continue;
     headers.push({text: step.name});
   }
@@ -699,16 +699,9 @@ export function entityContents(paneId:string, searchId:string, search) {
   let groupedFields = {};
   // figure out what fields are grouped, if any
   for(let step of plan) {
-    if(step.type === "group") {
-      for(let node of step.groupNodes) {
-        for(let searchStep of plan) {
-          if(searchStep.id === node.id) {
-            groupedFields[searchStep.name] = true;
-            break;
-          }
-        }
-      }
-    } else if(step.type === "aggregate") {
+    if(step.type === StepType.GROUP) {
+      groupedFields[step.subjectNode.name] = true;
+    } else if(step.type === StepType.AGGREGATE) {
       groupedFields[step.name] = true;
     }
   }
@@ -738,7 +731,6 @@ export function entityContents(paneId:string, searchId:string, search) {
         let resultPart = results.unprojected[ix + planOffset + planItem.size - 1];
         if(!resultPart) continue row;
         let text, klass, click, link;
-        console.log("PLAN:", planItem);
         if(planItem.type === StepType.GATHER) {
           item = {id, c: `${itemClass} entity bit`, text: resultPart["entity"], click: followLink, searchId: paneId, linkText: resultPart["entity"]};
         } else if(planItem.type === StepType.LOOKUP) {

@@ -844,6 +844,7 @@ export class Plan extends Array<Step> {
 }
 
 export interface Step {
+  id: string;
   type: StepType;
   subject?: string;
   direction?: string;
@@ -1056,7 +1057,14 @@ function treeToPlan(tree: Tree): Plan {
   }
   steps = dedupePlan(steps);
   for (let group of tree.groups) {
-    steps.push({ type: StepType.GROUP, subject: group.found, subjectNode: group });
+      let node;
+      for(let step of steps) {
+          if(step.id === group.id) {
+              node = step;
+              break;
+          }
+      }
+    steps.push({ id: uuid(), type: StepType.GROUP, subject: group.found, subjectNode: node });
   }
   for (let op of tree.operations) {
     steps = steps.concat(opToPlan(op, tree.groups));
@@ -1181,6 +1189,7 @@ export function planToExecutable(plan) {
         if(step.subjectNode.type === StepType.LOOKUP) {
           field = "value";
         }
+        step.name = step.subjectNode.name;
         query.group([step.subjectNode.id, field]);
         break;
       case StepType.SORT:
@@ -1201,6 +1210,7 @@ export function queryToExecutable(query) {
   let planInfo:any = queryToPlan(query);
   let executable = planToExecutable(planInfo.plan);
   planInfo.executable = executable;
+  planInfo.queryString = query;
   return planInfo;
 }
 

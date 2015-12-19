@@ -193,7 +193,7 @@ body.light { background: rgb(71,72,75); font-family: Helvetica Neue; font-weight
 .light .link.found, .light .entity { color: rgb(53, 105, 183); }
 .light .collection { color: rgb(86, 156, 127); }
 .light .eav, .attribute { color: #A062A0; }
-.light .operation, .value { color: rgb(0, 127, 175); }
+.light .pattern, .value { color: rgb(0, 127, 175); }
 .light .modifier { color: #888; }
 .light .link:hover { border-bottom-color:#B74F4F; }
 .light .link.found:hover { border-bottom-color:rgb(53, 105, 183); }
