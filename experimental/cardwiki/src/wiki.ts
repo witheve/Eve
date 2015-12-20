@@ -322,7 +322,7 @@ app.handle("setSearch", (result, info) => {
 app.handle("submitAction", (result, info) => {
   let searchId = info.searchId;
   let search = eve.findOne("search query", {id: searchId})["search"];
-  result.merge(saveSearch(search, app.activeSearches[searchId].query));
+  result.merge(saveSearch(search, app.activeSearches[searchId].executable));
   if(info.type === "attribute") {
     if(!info.entity || !info.attribute || !info.value) return;
     result.merge(addEavAction(search, info.entity, info.attribute, info.value));
@@ -331,7 +331,7 @@ app.handle("submitAction", (result, info) => {
   } else if(info.type === "bit") {
     let template = info.template.trim();
     if(template[0] !== "#") {
-      template = "#" + template;
+      template = "# " + template;
     }
     result.merge(addBitAction(search, template));
   }
@@ -533,8 +533,8 @@ function entityToHTML(entityId:string, searchId:string, content:string, passthro
       let value = (colonIx !== -1 ? content.slice(colonIx + 1) : content).trim();
       let replacement;
       let type = "attribute";
-      if(eve.findOne("entity", {entity: value})) type = "entity";
-      else if(eve.findOne("collection", {collection: value})) type = "collection";
+      if(eve.findOne("collection", {collection: value.toLowerCase()})) type = "collection";
+      else if(eve.findOne("entity", {entity: value.toLowerCase()})) type = "entity";
       else if(passthrough && passthrough.indexOf(value) !== -1) type = "passthrough";
       else if(colonIx === -1) type = "query";
 
@@ -603,7 +603,11 @@ function entityUi(entityId, instance:string|number = "", searchId) {
       entityViews.unshift(entityView);
     } else {
       let source = eve.findOne("entity eavs", {entity: block.block, attribute: "source"}).value;
-      let children:Element[] = [{dangerouslySetInnerHTML: entityToHTML(entityId, searchId, block.content)}];
+      //strip the header
+      let content = block.content;
+      content = content.substring(content.indexOf("\n"));
+
+      let children:Element[] = [{dangerouslySetInnerHTML: entityToHTML(entityId, searchId, content)}];
       children.push({c: "source-link ion-help", text: "", click: followLink, linkText: source, searchId});
       entityView = {id: `${block.block}${instance}`, c: "entity generated", searchId, entity: entityId, children};
       entityViews.push(entityView);
@@ -715,7 +719,7 @@ export function entityContents(paneId:string, searchId:string, search): {elems: 
 
   if(singleton) return {elems: contents};
   let resultItems = [];
-  contents.push({c: "results", children: resultItems});
+  contents.push({c: "results", id: "root", children: resultItems});
   let headers = []
   // figure out what the headers are
   for(let step of plan) {

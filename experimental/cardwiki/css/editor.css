@@ -35,7 +35,7 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .entity .placeholder { font-style:italic; }
 .entity pre { flex:none; display:block; white-space: pre-wrap; min-height:25px; }
 .entity .header { width:100%; text-align:left; }
-.entity h1 { font-size:16pt; border-bottom:1px solid #222; padding-bottom:8px; margin-bottom:10px; }
+.entity h1 { font-size:16pt; border-bottom:1px solid #222; padding-bottom:8px; margin-bottom:10px; width:100%; }
 .entity span { display:inline; }
 .entity strong { font-weight: bold; }
 .entity em { font-style: italic; }
@@ -194,6 +194,7 @@ body.light { background: rgb(71,72,75); font-family: Helvetica Neue; font-weight
 .light .placeholder { color: #aaa; }
 
 .light .entity .header h1 { border-color: #ccc; }
+.light .entity h1 { border-color:#ccc; }
 
 .light .link { color: #B74F4F; }
 .light .link.found, .light .entity { color: rgb(53, 105, 183); }
