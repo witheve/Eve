@@ -781,6 +781,7 @@ function tokensToTree(origTokens: Array<Token>) : Tree {
     let args = state.currentPattern.args;
     let infoArgs = state.currentPattern.info.args;
     let latestArg = args[args.length - 1];
+    if(!latestArg) return tree;
     let latestArgComplete = latestArg.type === TokenTypes.ATTRIBUTE || latestArg.type === TokenTypes.VALUE;
     let firstArg = args[0];
     // e.g. people older than chris granger => people age > chris granger age

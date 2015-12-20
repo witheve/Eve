@@ -102,13 +102,13 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .search-headers > * + * { border-left:1px solid #ccc; }
 
 .search-results { flex:1; overflow:auto; padding:10px 10px; }
-.search-results .path > * { flex:1; }
+.search-results .path > * { flex:1 0; }
 .search-results .sub-group { margin:0 0px; min-width:100px; }
 .search-results .sub-group + .sub-group { border-left: 1px solid #222; }
 .search-results .sub-group .bit { margin:0 0; flex: 1 0 0; overflow:hidden; min-height:35px; }
 .search-results .path + .path { border-top:1px solid #222; }
 .search-results .sub-group .bit + .bit { border-top:1px solid #222; }
-.search-results .path { flex-direction:row; margin:0 10px; border-left: 1px solid #ccc; border-right:1px solid #ccc; }
+.search-results .path { flex:1 0; flex-direction:row; margin:0 10px; border-left: 1px solid #ccc; border-right:1px solid #ccc; }
 .search-results .path:last-child { border-bottom:1px solid #ccc; }
 .search-results .path.list-row { border:none; }
 .search-results .list-row::before { content: "-"; margin-right:5px;  }
