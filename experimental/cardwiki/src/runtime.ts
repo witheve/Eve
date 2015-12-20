@@ -919,7 +919,7 @@ export class Query {
           joinNumber = this.aliases[joinNumber];
         }
         let join = this.joins[joinNumber];
-        if (join) {
+        if (join && join.ix === joinNumber) {
           let referencedTable = this.ixer.table(join.table);
           if (!referencedTable.fields.length) continue;
           if (!referencedTable.keyLookup[referencedField]) {
