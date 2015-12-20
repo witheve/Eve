@@ -971,8 +971,8 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
       for(let variable of res.context) {
         if(res.projected && !variable.projection) continue;
         let field = variable.projection || variable.name;
-        if(!mappings[field]) mappings[field] = [];
-        mappings[field].push(variable.name);
+        if(!mappings[field]) mappings[field] = {};
+        mappings[field][variable.name] = true;
       }
     }
 
@@ -982,15 +982,16 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
     if(parent) {
       let select = new Sexpr([Token.identifier(query ? "select" : "member"), Token.string(unionId)], raw.lineIx, raw.charIx);
        for(let field in mappings) {
-         if(mappings[field].length > 1)
+         let mappingVariables = Object.keys(mappings[field]);
+         if(mappingVariables.length > 1)
           throw new ParseError(
-            `All variables projected to a single union field must have the same name. Field '${field}' has ${mappings[field].length} fields (${mappings[field].join(", ")})`, "", raw.lineIx, raw.charIx);
+            `All variables projected to a single union field must have the same name. Field '${field}' has ${mappingVariables.length} fields (${mappingVariables.join(", ")})`, "", raw.lineIx, raw.charIx);
         select.push(Token.keyword(field));
-        select.push(Sexpr.list([Token.string(mappings[field][0])]));
+        select.push(Token.identifier(mappingVariables[0]));
       }
 
       console.log("union select", select.toString());
-      parseDSLSexpr(select, artifacts,context, parent);
+      parseDSLSexpr(select, artifacts, context, parent);
     }
 
     return {id: unionId, mappings};
