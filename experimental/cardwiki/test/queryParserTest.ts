@@ -6,7 +6,7 @@ app.renderRoots["wiki"] = root;
 
 interface TestQuery {
   query: string;
-  expected: Step[];
+  expected: any[];
   shouldFail?: boolean;
 }
 
@@ -25,7 +25,7 @@ var tests: TestQuery[] = [
       {type: StepType.LOOKUP, subject: "age"}
     ]
   },*/
-  { 
+  {
     query: "people older than chris granger",
     expected: [
       {type: StepType.GATHER, subject: "person"},
@@ -38,7 +38,7 @@ var tests: TestQuery[] = [
       ]}
     ]
   },
-  /*{ 
+  /*{
     query: "people whose age < 30",
     expected: [
       {type: StepType.GATHER, subject: "person"},
@@ -364,7 +364,7 @@ var tests: TestQuery[] = [
     query: "friends older than the average age of people with pets",
     expected: [],
   },
-  { 
+  {
     query: "meetings john was in in the last 10 days",
     expected: [],
   },
@@ -488,18 +488,18 @@ function validateStep(actualStep, expectedStep) : boolean {
 // Doesn't return anything, adds a `valid` member to the plan and each step
 // indicating its validitity state
 function validatePlan(actualPlan: Plan, expectedPlan: Step[]) {
-  
+
   let expectedPlanLength = expectedPlan.length;
-  
+
   // Mark all steps as Unvalidated
   actualPlan.map((step) => step.valid = Validated.UNVALIDATED);
-  
+
   // If no expected plan is provided, we cannot validate any steps
   if(expectedPlan.length === 0) {
     actualPlan.valid = Validated.UNVALIDATED;
     return;
-  } 
-  
+  }
+
   // Loop through the steps of the actual plan and test it against candidate steps.
   // When a match is found, remove it from the canditate steps. Continue until all
   // actual steps are validated.
@@ -518,7 +518,7 @@ function validatePlan(actualPlan: Plan, expectedPlan: Step[]) {
     }
   }
   let consumedPlanSteps = expectedPlanLength - expectedPlan.length;
-  
+
   // If every expected step is consumed, and all found steps are valid, the plan is valid
   if(consumedPlanSteps === expectedPlanLength && invalidSteps === 0) {
     actualPlan.valid = Validated.VALID;
@@ -562,7 +562,7 @@ function validateTestQuery(test: TestQuery) : any {
 
 function queryTestUI(result) {
   let {tokens, tree, plan, expectedPlan, valid, searchString} = result;
-  
+
   //tokens
   let tokensNode = {c: "tokens", children: [
     {c: "header", text: "Tokens"},
@@ -614,16 +614,16 @@ function queryTestUI(result) {
       }).join(", ") + ")";
     }
     let deselected = step.deselected ? "!" : "";
-    return {c: `step v${step.valid}`, text: `${StepType[step.type]} ${deselected}${step.subject}${args}`};  
+    return {c: `step v${step.valid}`, text: `${StepType[step.type]} ${deselected}${step.subject}${args}`};
   }
-  
+
   // Format the plan for display
   let planDisplay = plan.map(StepToDisplay);
   let planNode = {c: "tokens", children: [
     {c: "header", text: "Plan"},
     {c: "kids", children: planDisplay}
   ]};
-  
+
   // Display extra steps
   let extraStepsNode = {};
   if(expectedPlan.length != 0) {
@@ -631,7 +631,7 @@ function queryTestUI(result) {
     extraStepsNode = {c: "tokens", children: [
       {c: "header", text: "Unused Steps"},
       {c: "kids", children: unusedPlanDisplay}
-    ]};  
+    ]};
   }
 
   // The final display for rendering
@@ -677,7 +677,7 @@ export function root() {
   for(let result of results) {
     totalParseTime += result.time;
     if(minParseTime > result.time) minParseTime = result.time;
-    if(maxParseTime < result.time) maxParseTime = result.time; 
+    if(maxParseTime < result.time) maxParseTime = result.time;
   }
   let averageParseTime = totalParseTime / results.length;
   return {id: "root", c: "test-root", children: [
@@ -686,7 +686,7 @@ export function root() {
       {c: "succeeded", text: resultStats.succeeded},
       {c: "unvalidated", text: resultStats.unvalidated},
     ]},
-    {c: "perf", text: `min: ${minParseTime.toFixed(2)}ms | max: ${maxParseTime.toFixed(2)}ms | average: ${averageParseTime.toFixed(2)}ms` },    
+    {c: "perf", text: `min: ${minParseTime.toFixed(2)}ms | max: ${maxParseTime.toFixed(2)}ms | average: ${averageParseTime.toFixed(2)}ms` },
     {children: resultItems}
   ]};
 }

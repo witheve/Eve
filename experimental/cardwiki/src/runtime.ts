@@ -1978,6 +1978,7 @@ export class Union {
 //---------------------------------------------------------
 // Builtin Primitives
 //---------------------------------------------------------
+
 runtime.define("count", {}, function(prev) {
   if(!prev.count) {
     prev.count = 0;

@@ -819,7 +819,7 @@ export function readSexprs(text:string):Sexpr {
     }
     lineIx++;
   }
-  if(token) throw new ParseError(`Unterminated ${token.type} token`, lines[lineIx - 1], lineIx - 1);
+  if(token) throw new ParseError(`Unterminated ${TOKEN_TYPE[token.type]} token`, lines[lineIx - 1], lineIx - 1);
   let lastIx = lines.length - 1;
   if(sexprs.length > 1) throw new ParseError(`Too few closing parens`, lines[lastIx], lastIx, lines[lastIx].length);
 
@@ -846,7 +846,7 @@ export function macroexpandDSL(sexpr:Sexpr):Sexpr {
     select.push(Token.literal(true));
     return select;
 
-  } else if(["hash", "list", "get", "def", "query", "union", "select", "member", "project!"].indexOf(op.value) === -1) {
+  } else if(["hash", "list", "get", "def", "query", "union", "select", "member", "project!", "insert!", "remove!", "load!"].indexOf(op.value) === -1) {
     // (foo-bar :a 5) => (select "foo bar" :a 5)
     let source = op;
     source.type = Token.TYPE.STRING;
@@ -901,6 +901,19 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
     let args = parseArguments(sexpr);
     for(let arg in args) args[arg] = resolveTokenValue(`hash item ${arg}`, args[arg], context);
     return args;
+  }
+
+  if(op.value === "insert!") {
+      console.log("INSERT!", sexpr.arguments);
+      throw new Error("(insert! ..) has not been implemented yet");
+  }
+
+  if(op.value === "remove!") {
+      throw new Error("(remove! ..) has not been implemented yet");
+  }
+
+  if(op.value === "load!") {
+      throw new Error("(load! ..) has not been implemented yet");
   }
 
   if(op.value === "query") {

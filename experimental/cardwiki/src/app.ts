@@ -6,7 +6,7 @@ import {UIRenderer} from "./uiRenderer";
 import {ENV, DEBUG, uuid} from "./utils";
 
 
-export var syncedTables = ["manual entity", "view", "action", "action source", "action mapping", "action mapping constant", "action mapping sorted", "action mapping limit", "add collection action", "add eav action", "add bit action"];
+export var syncedTables = ["manual eav", "view", "action", "action source", "action mapping", "action mapping constant", "action mapping sorted", "action mapping limit", "add collection action", "add eav action", "add bit action"];
 export var eveLocalStorageKey = "eve";
 
 //---------------------------------------------------------

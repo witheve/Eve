@@ -1,17 +1,24 @@
 import fs = require("fs");
 import path = require("path");
 import express = require('express');
+import * as app from "./app";
 import * as runtime from "./runtime";
+import * as parser from "./parser";
+import * as bootstrap from "./bootstrap";
 
 let WebSocketServer = require('ws').Server;
 let wss = new WebSocketServer({ port: 8080 });
 
-let eve = runtime.indexer();
+let eve = app.eve;
 
 try {
   fs.statSync("server.evedb");
   eve.load(fs.readFileSync("server.evedb").toString());
 } catch(err) {}
+
+let diff = eve.diff();
+diff.addMany("foo", [{a: "bar"}, {a: "baz"}]);
+eve.applyDiff(diff);
 
 let clients = {};
 
@@ -27,7 +34,26 @@ wss.on('connection', function connection(ws) {
   ws.on('message', function incoming(message) {
     console.log('received: %s', message);
     let parsed = JSON.parse(message);
-    if(parsed.kind === "changeset") {
+    if(parsed.kind === "code") {
+      try {
+          let views = parser.parseDSL(parsed.data);
+          let viewIds = Object.keys(views);
+          for(let viewId of viewIds) {
+              let view = views[viewId];
+              eve.asView(view);
+          }
+          let results = eve.find(viewIds[0]);
+          console.log(eve.tables[viewIds[0]], results, views[viewIds[0]].exec(), eve.find("foo"));
+          ws.send(JSON.stringify({kind: "code result", me: "server", data: results}));
+          for(let viewId of viewIds) {
+              let view = views[viewId];
+              eve.removeView(viewId);
+          }
+      } catch(e) {
+          console.log(e.stack);
+          ws.send(JSON.stringify({kind: "code error", me: "server", data: e.message}));
+      }
+    } else if(parsed.kind === "changeset") {
       let diff = eve.diff();
       diff.tables = parsed.data;
       eve.applyDiff(diff);
@@ -46,15 +72,15 @@ wss.on('connection', function connection(ws) {
   });
 });
 
-var app = express();
-app.use("/bin", express.static(__dirname + '/../bin'));
-app.use("/css", express.static(__dirname + '/../css'));
-app.use("/node_modules", express.static(__dirname + '/../node_modules'));
-app.use("/vendor", express.static(__dirname + '/../vendor'));
-app.use("/fonts", express.static(__dirname + '/../fonts'));
+var httpserver = express();
+httpserver.use("/bin", express.static(__dirname + '/../bin'));
+httpserver.use("/css", express.static(__dirname + '/../css'));
+httpserver.use("/node_modules", express.static(__dirname + '/../node_modules'));
+httpserver.use("/vendor", express.static(__dirname + '/../vendor'));
+httpserver.use("/fonts", express.static(__dirname + '/../fonts'));
 
-app.get("/", (req, res) => {
+httpserver.get("/", (req, res) => {
   res.sendFile(path.resolve(__dirname + "/../editor.html"));
 })
 
-app.listen(process.env.PORT || 3000);
+httpserver.listen(process.env.PORT || 3000);
