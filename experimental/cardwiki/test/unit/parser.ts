@@ -4,7 +4,7 @@ import {expect} from "chai";
 import {copy} from "../../src/utils";
 import {eve} from "../../src/app";
 import {Query, Union} from "../../src/runtime";
-import {Token, Sexpr, readSexprs, macroexpandDSL, parseDSL, applyAsDiffs} from "../../src/parser";
+import {Token, Sexpr, readSexprs, macroexpandDSL, parseDSL, applyAsDiffs, Artifacts} from "../../src/parser";
 
 function assertSexprEqual(a:Sexpr, b:Sexpr) {
   expect(a).length(b.length);
@@ -19,7 +19,8 @@ function assertSexprEqual(a:Sexpr, b:Sexpr) {
   }
 }
 
-function applyAsViews(views:{[view:string]: Query|Union}) {
+function applyAsViews(artifacts:Artifacts) {
+  let views = artifacts.views;
   for(let viewId in views) eve.asView(views[viewId]);
 }
 
@@ -309,13 +310,13 @@ describe("parseDSL()", () => {
 
   it("should select all departments", () => {
     let artifacts = parseDSL(`(query :$$view "test:1" (test:department :department department :head head))`);
-    let results = artifacts["test:1"].exec().results;
+    let results = artifacts.views["test:1"].exec().results;
     expect(results).to.deep.equal(eve.find("test:department"));
   });
 
   it("should select all employees", () => {
     let artifacts = parseDSL(`(query :$$view "test:2" (test:employee :employee employee :department department :salary salary))`);
-    let results = artifacts["test:2"].exec().results;
+    let results = artifacts.views["test:2"].exec().results;
     expect(results).to.deep.equal(eve.find("test:employee"));
   });
 
@@ -324,7 +325,7 @@ describe("parseDSL()", () => {
       (test:employee :employee emp :department dept :salary sal)
       (project! :employee emp :department dept :salary sal))
     `);
-    let results = artifacts["test:3"].exec().results;
+    let results = artifacts.views["test:3"].exec().results;
     expect(results).to.deep.equal(eve.find("test:employee"));
   });
 
@@ -334,7 +335,7 @@ describe("parseDSL()", () => {
       (test:employee :employee emp :department dept)
       (project! :employee emp :head head))
     `);
-    let results = artifacts["test:3"].exec().results;
+    let results = artifacts.views["test:3"].exec().results;
 
     let expected = [];
     for(let employee of eve.find("test:employee")) {
@@ -351,7 +352,7 @@ describe("parseDSL()", () => {
       (test:department :head other-guy)
       (project! :employee head :coworker other-guy))
     `);
-    let results = artifacts["test:4"].exec().results;
+    let results = artifacts.views["test:4"].exec().results;
 
     let departments = eve.find("test:department");
     let expected = [];
@@ -370,7 +371,7 @@ describe("parseDSL()", () => {
       (+ :a sal :b 1 :result res)
       (project! :employee emp :sal-and-one res))
     `);
-    let results = artifacts["test:5"].exec().results;
+    let results = artifacts.views["test:5"].exec().results;
 
     let expected = [];
     for(let employee of eve.find("test:employee")) {
@@ -387,7 +388,7 @@ describe("parseDSL()", () => {
       (sum :value sal :sum res)
       (project! :total res))
     `);
-    let results = artifacts["test:6"].exec().results;
+    let results = artifacts.views["test:6"].exec().results;
 
     let total = 0;
     for(let employee of eve.find("test:employee")) total += employee.salary;

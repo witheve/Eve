@@ -1,8 +1,7 @@
 import * as parser from "./parser";
 
-
-
 let uuid = require("uuid");
+let pluralize = require("pluralize");
 let WebSocket = require('ws');
 var Table = require('cli-table');
 var server, ws;
@@ -16,7 +15,6 @@ function connectToServer() {
         recurse();
     });
 
-
     ws.on("error", () => {
         console.log(colors.red("No server running."));
         console.log(colors.magenta("Starting server.."));
@@ -25,20 +23,22 @@ function connectToServer() {
     });
 
     ws.on('message', function(data, flags) {
-    // flags.binary will be set if a binary data is received.
-    // flags.masked will be set if the data was masked.
-    let parsed = JSON.parse(data);
-    if(parsed.kind === "code error") {
-        console.error(colors.red(parsed.data));
-    } else if(parsed.kind === "code result") {
-        console.log(resultsTable(parsed.data));
-    } else {
-        return;
-    }
-    console.log("");
-    console.log(separator);
-    console.log("");
-    recurse();
+        // flags.binary will be set if a binary data is received.
+        // flags.masked will be set if the data was masked.
+        let parsed = JSON.parse(data);
+        if(parsed.kind === "code error") {
+            console.error(colors.red(parsed.data));
+        } else if(parsed.kind === "code result") {
+            console.log(resultsTable(parsed.data));
+        } else if(parsed.kind === "code changeset") {
+            console.log(`${parsed.data} ${pluralize("row", parsed.data)} added/removed`);
+        } else {
+            return;
+        }
+        console.log("");
+        console.log(separator);
+        console.log("");
+        recurse();
     });
 }
 connectToServer();
@@ -70,7 +70,7 @@ function complete(line) {
 var rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout,
-  completer: complete,
+//   completer: complete,
 });
 
 var ix = 1;

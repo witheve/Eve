@@ -859,12 +859,12 @@ export function macroexpandDSL(sexpr:Sexpr):Sexpr {
   return sexpr;
 }
 enum VALUE { NULL, SCALAR, SET, VIEW };
-type Artifacts = {[query:string]: runtime.Query|runtime.Union};
+export type Artifacts = {changeset?: runtime.Diff, views: {[query:string]: runtime.Query|runtime.Union}};
 type Variable = {name: string, type: VALUE, static?: boolean, value?: any, projection?: string};
 type VariableContext = Variable[];
 
 export function parseDSL(text:string):Artifacts {
-  let artifacts:Artifacts = {};
+  let artifacts:Artifacts = {views: {}};
   let lines = text.split("\n");
   let root = readSexprs(text);
 
@@ -904,12 +904,35 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
   }
 
   if(op.value === "insert!") {
-      console.log("INSERT!", sexpr.arguments);
-      throw new Error("(insert! ..) has not been implemented yet");
+      let changeset = artifacts.changeset || eve.diff();
+      for(let arg of sexpr.arguments) {
+          let table = arg.value[0];
+          let fact = {};
+          for(let ix = 1; ix < arg.value.length; ix += 2) {
+              let key = arg.value[ix];
+              let value = arg.value[ix+1];
+              fact[key.value] = value.value;
+          }
+          changeset.add(table.value, fact);
+      }
+      artifacts.changeset = changeset;
+      return;
   }
 
   if(op.value === "remove!") {
-      throw new Error("(remove! ..) has not been implemented yet");
+      let changeset = artifacts.changeset || eve.diff();
+      for(let arg of sexpr.arguments) {
+          let table = arg.value[0];
+          let fact = {};
+          for(let ix = 1; ix < arg.value.length; ix += 2) {
+              let key = arg.value[ix];
+              let value = arg.value[ix+1];
+              fact[key.value] = value.value;
+          }
+          changeset.remove(table.value, fact);
+      }
+      artifacts.changeset = changeset;
+      return;
   }
 
   if(op.value === "load!") {
@@ -922,7 +945,7 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
     let queryId = $$view ? resolveTokenValue("view", $$view, context, VALUE.SCALAR) : uuid();
     let neue = new runtime.Query(eve, queryId);
     if(DEBUG.instrumentQuery) instrumentQuery(neue, DEBUG.instrumentQuery);
-    artifacts[queryId] = neue;
+    artifacts.views[queryId] = neue;
     let aggregated = false;
     for(let raw of Sexpr.asSexprs(<any>$$body)) {
       let state = parseDSLSexpr(raw, artifacts, neueContext, neue);
@@ -974,7 +997,7 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
     let unionId = $$view ? resolveTokenValue("view", $$view, context, VALUE.SCALAR) : uuid();
     let neue = new runtime.Union(eve, unionId);
     if(DEBUG.instrumentQuery) instrumentQuery(neue, DEBUG.instrumentQuery);
-    artifacts[unionId] = neue;
+    artifacts.views[unionId] = neue;
     let mappings = {};
     for(let raw of Sexpr.asSexprs(<any>$$body)) {
       let child = macroexpandDSL(raw);
@@ -1093,9 +1116,9 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
       // Project self
       query.project(projectionMap);
     } else {
-      let union = <runtime.Union>artifacts[view] || new runtime.Union(eve, view);
-      if(DEBUG.instrumentQuery && !artifacts[view]) instrumentQuery(union, DEBUG.instrumentQuery);
-      artifacts[view] = union;
+      let union = <runtime.Union>artifacts.views[view] || new runtime.Union(eve, view);
+      if(DEBUG.instrumentQuery && !artifacts.views[view]) instrumentQuery(union, DEBUG.instrumentQuery);
+      artifacts.views[view] = union;
 
       // if($$negated && $$negated.value) union.ununion(queryId, projectionMap);
       if($$negated && $$negated.value)
@@ -1191,7 +1214,8 @@ export function asDiff(ixer, views:{[id:string]:runtime.Query|runtime.Union}) {
   return diff;
 }
 
-export function applyAsDiffs(views:{[id:string]:runtime.Query|runtime.Union}) {
+export function applyAsDiffs(artifacts:Artifacts) {
+  let views = artifacts.views;
   for(let id in views) eve.applyDiff(views[id].changeset(eve));
   console.log("Applied diffs for:");
   for(let id in views) console.log("  * ", views[id] instanceof runtime.Query ? "Query" : "Union", views[id].name);

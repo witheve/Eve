@@ -35,17 +35,25 @@ wss.on('connection', function connection(ws) {
     let parsed = JSON.parse(message);
     if(parsed.kind === "code") {
       try {
-          let views = parser.parseDSL(parsed.data);
-          let viewIds = Object.keys(views);
-          for(let viewId of viewIds) {
-              let view = views[viewId];
-              eve.asView(view);
+          let artifacts = parser.parseDSL(parsed.data);
+          if(artifacts.changeset) {
+              eve.applyDiff(artifacts.changeset);
+              fs.writeFileSync("server.evedb", eve.serialize());
+              ws.send(JSON.stringify({kind: "code changeset", me: "server", data: artifacts.changeset.length}));
           }
-          let results = eve.find(viewIds[0]);
-          ws.send(JSON.stringify({kind: "code result", me: "server", data: results}));
-          for(let viewId of viewIds) {
-              let view = views[viewId];
-              eve.removeView(viewId);
+          if(Object.keys(artifacts.views).length) {
+              let views = artifacts.views;
+              let viewIds = Object.keys(views);
+              for(let viewId of viewIds) {
+                  let view = views[viewId];
+                  eve.asView(view);
+              }
+              let results = eve.find(viewIds[0]);
+              ws.send(JSON.stringify({kind: "code result", me: "server", data: results}));
+              for(let viewId of viewIds) {
+                  let view = views[viewId];
+                  eve.removeView(viewId);
+              }
           }
       } catch(e) {
           ws.send(JSON.stringify({kind: "code error", me: "server", data: e.message}));
