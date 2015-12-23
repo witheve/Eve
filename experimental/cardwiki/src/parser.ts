@@ -1208,7 +1208,8 @@ export function instrumentQuery(q:any, instrument?:Function|boolean) {
   return q;
 }
 
-export function asDiff(ixer, views:{[id:string]:runtime.Query|runtime.Union}) {
+export function asDiff(ixer, artifacts:Artifacts) {
+  let views = artifacts.views;
   let diff = ixer.diff();
   for(let id in views) diff.merge(views[id].changeset(eve));
   return diff;

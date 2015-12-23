@@ -1165,7 +1165,7 @@ app.handle("setSyntaxSearch", (result, info) => {
 
   try {
     var parsed = window["parser"].parseDSL(wrapped);
-    for(let view in parsed) {
+    for(let view in parsed.views) {
       result.add("builtin syntax search view", {id: searchId, view});
     }
     result.merge(window["parser"].asDiff(eve, parsed));
