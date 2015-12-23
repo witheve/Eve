@@ -32,7 +32,6 @@ wss.on('connection', function connection(ws) {
   });
 
   ws.on('message', function incoming(message) {
-    console.log('received: %s', message);
     let parsed = JSON.parse(message);
     if(parsed.kind === "code") {
       try {
@@ -43,14 +42,12 @@ wss.on('connection', function connection(ws) {
               eve.asView(view);
           }
           let results = eve.find(viewIds[0]);
-          console.log(eve.tables[viewIds[0]], results, views[viewIds[0]].exec(), eve.find("foo"));
           ws.send(JSON.stringify({kind: "code result", me: "server", data: results}));
           for(let viewId of viewIds) {
               let view = views[viewId];
               eve.removeView(viewId);
           }
       } catch(e) {
-          console.log(e.stack);
           ws.send(JSON.stringify({kind: "code error", me: "server", data: e.message}));
       }
     } else if(parsed.kind === "changeset") {

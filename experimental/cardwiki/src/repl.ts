@@ -1,33 +1,47 @@
 import * as parser from "./parser";
 
+
+
 let uuid = require("uuid");
 let WebSocket = require('ws');
-let ws = new WebSocket("ws://localhost:8080");
 var Table = require('cli-table');
+var server, ws;
 
-ws.on('open', function open() {
-  console.log("Connected to ws://localhost:8080");
-  console.log(separator);
-  console.log("");
-  recurse();
-});
+function connectToServer() {
+    ws = new WebSocket("ws://localhost:8080");
+    ws.on('open', function open() {
+        console.log(colors.magenta("Connected to ws://localhost:8080"));
+        console.log(separator);
+        console.log("");
+        recurse();
+    });
 
-ws.on('message', function(data, flags) {
-  // flags.binary will be set if a binary data is received.
-  // flags.masked will be set if the data was masked.
-  let parsed = JSON.parse(data);
-  if(parsed.kind === "code error") {
-      console.error(colors.red(parsed.data));
-  } else if(parsed.kind === "code result") {
-      console.log(resultsTable(parsed.data));
-  } else {
-      return;
-  }
-  console.log("");
-  console.log(separator);
-  console.log("");
-  recurse();
-});
+
+    ws.on("error", () => {
+        console.log(colors.red("No server running."));
+        console.log(colors.magenta("Starting server.."));
+        server = require("./server");
+        connectToServer();
+    });
+
+    ws.on('message', function(data, flags) {
+    // flags.binary will be set if a binary data is received.
+    // flags.masked will be set if the data was masked.
+    let parsed = JSON.parse(data);
+    if(parsed.kind === "code error") {
+        console.error(colors.red(parsed.data));
+    } else if(parsed.kind === "code result") {
+        console.log(resultsTable(parsed.data));
+    } else {
+        return;
+    }
+    console.log("");
+    console.log(separator);
+    console.log("");
+    recurse();
+    });
+}
+connectToServer();
 
 function resultsTable(rows) {
     let result = "No results";
