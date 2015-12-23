@@ -5,7 +5,7 @@ import * as runtime from "./runtime";
 import {TokenTypes, StepType, getTokens, queryToExecutable} from "./queryParser";
 import {eve} from "./app";
 import * as app from "./app";
-import * as microreact from "./microreact";
+import * as microReact from "./microReact";
 import * as utils from "./utils";
 
 declare var CodeMirror;
@@ -494,7 +494,7 @@ function injectEmbeddedSearches(node:HTMLElement, elem:Element) {
       search = app.activeSearches[searchId] = queryToExecutable(searchText);
     }
     // @FIXME: Horrible, horrible kludge.
-    let subRenderer = new microreact.Renderer();
+    let subRenderer = new microReact.Renderer();
     let contents = entityContents(elem["searchId"], searchId, search);
     subRenderer.render(contents.elems);
     let node = subRenderer.content;
