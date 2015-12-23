@@ -22,7 +22,8 @@
   },
   "scripts": {
     "server": "node bin/server.js",
-    "test": "./test.sh"
+    "test": "./test.sh",
+    "repl": "node bin/src/repl.js"
   },
   "repository": {
     "type": "git",
