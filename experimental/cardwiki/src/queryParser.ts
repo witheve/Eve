@@ -182,26 +182,28 @@ var patterns = {
 //---------------------------------------------------------
 
 function checkForToken(token): any {
-  var found;
-  if (!token) return {};
-  if (found = eve.findOne("collection", { collection: token })) {
-    return { found, type: TokenTypes.COLLECTION };
-  } else if (found = eve.findOne("entity", { entity: token })) {
-    return { found, type: TokenTypes.ENTITY };
-  } else if (found = eve.findOne("entity eavs", { attribute: token })) {
-    return { found, type: TokenTypes.ATTRIBUTE };
-  } else if (found = modifiers[token]) {
-    return { found, type: TokenTypes.MODIFIER };
-  } else if (found = patterns[token]) {
-    return { found, type: TokenTypes.PATTERN };
+  var info;
+  if (!token) return;
+  if (info = eve.findOne("collection", { collection: token })) {
+    return { found: token, info, type: TokenTypes.COLLECTION };
+  } else if (info = eve.findOne("entity", { entity: token })) {
+    return { found: token, info, type: TokenTypes.ENTITY };
+  } else if (info = eve.findOne("entity eavs", { attribute: token })) {
+    return { found: token, info, type: TokenTypes.ATTRIBUTE };
+  } else if (info = modifiers[token]) {
+    return { found: token, info, type: TokenTypes.MODIFIER };
+  } else if (info = patterns[token]) {
+    return { found: token, info, type: TokenTypes.PATTERN };
+  } else if (token === "true" || token === "false" || token === '"true"' || token === '"false"') {
+    return { found: (token === "true" || token === '"true"' ? true : false), type: TokenTypes.VALUE, valueType: "boolean" };
   } else if (token.match(/^-?[\d]+$/gm)) {
     return { found: JSON.parse(token), type: TokenTypes.VALUE, valueType: "number" };
   } else if (token.match(/^["][^"]*["]$/gm)) {
     return { found: JSON.parse(token), type: TokenTypes.VALUE, valueType: "string" };
-  } else if (found = /^([\d]+)-([\d]+)$/gm.exec(token)) {
-    return { found: token, type: TokenTypes.VALUE, valueType: "range", start: found[1], stop: found[2] };
+  } else if (info = /^([\d]+)-([\d]+)$/gm.exec(token)) {
+    return { found: token, type: TokenTypes.VALUE, valueType: "range", start: info[1], stop: info[2] };
   }
-  return {};
+  return;
 }
 
 
@@ -238,24 +240,27 @@ export function getTokens(queryString: string) : Array<Token> {
   let back = words.length;
   let results = [];
   let pos = 0;
+
   while (front < words.length) {
+    let info = undefined;
     let str = words.slice(front, back).join(" ");
     let orig = str;
     // Check for the word directly
-    var {found, type, valueType, start, stop} = checkForToken(str);
-    if (!found) {
+    info = checkForToken(str);
+    if (!info) {
       str = pluralize(str, 1);
       // Check the singular version of the word
-      var {found, type, valueType, start, stop} = checkForToken(str);
-      if (!found) {
+      info = checkForToken(str);
+      if (!info) {
         // Check the plural version of the word
         str = pluralize(str, 2);
-        var {found, type, valueType, start, stop} = checkForToken(str);
+        info = checkForToken(str);
       }
     }
-    if (found) {
+    if (info) {
+      let {found, type, valueType, start, stop} = info;
       // Create a new token
-      results.push({ found: str, orig, pos, type, valueType, start, stop, info: found, id: uuid(), children: []});
+      results.push({ found, orig, pos, type, valueType, start, stop, info: info.info, id: uuid(), children: []});
       front = back;
       pos += orig.length + 1;
       back = words.length;
@@ -986,7 +991,7 @@ function opToPlan(op, groups): any {
       let argValue = op.args[ix];
       if (argValue === undefined) continue;
       if (argValue.type === TokenTypes.VALUE) {
-        args[arg] = JSON.parse(argValue.orig);
+        args[arg] = argValue.found;
       } else if (argValue.type === TokenTypes.ATTRIBUTE) {
         args[arg] = [argValue.id, "value"];
       } else {
@@ -1142,10 +1147,15 @@ export function planToExecutable(plan) {
             join.entity = [related.id, "entity"];
           }
         }
-        step.size = 1;
-        query.select("entity eavs", join, step.id);
-        step.name = safeProjectionName(step.subject, projection);
-        projection[step.name] = [step.id, "value"];
+        if(step.deselected) {
+            step.size = 0;
+            query.deselect("entity eavs", join, step.id);
+        } else {
+            step.size = 1;
+            query.select("entity eavs", join, step.id);
+            step.name = safeProjectionName(step.subject, projection);
+            projection[step.name] = [step.id, "value"];
+        }
         break;
       case StepType.INTERSECT:
         var related = step.relatedTo;
