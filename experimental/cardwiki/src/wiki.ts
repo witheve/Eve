@@ -454,7 +454,7 @@ export function eveRoot():Element {
   }
   return {id: "root", c: "root", dblclick: addNewSearch, children: [
 //       slideControls(),
-    {c: "canvas", mousemove: maybeDrag, children: searchers},
+    {c: "canvas", mousemove: maybeDrag, mouseup:stopDragging, children: searchers},
   ]};
 }
 
@@ -973,9 +973,8 @@ function startDragging(e, elem) {
 }
 
 function stopDragging(e, elem) {
-  if(e.target === e.currentTarget) {
-    app.dispatch("stopDragging", {}).commit();
-  }
+  if(!dragging) return;
+  app.dispatch("stopDragging", {}).commit();
 }
 
 function removeSearch(e, elem) {
@@ -1250,12 +1249,12 @@ function syntaxSearch(searchId) {
     height = size.height;
   }
   return {id: `${searchId}|container`, c: `container search-container ${isDragging} syntax-search`, top, left, width, height, children: [
-    {c: "search-input", mousedown: startDragging, mouseup: stopDragging, searchId, children: [
+    {c: "search-input", mousedown: startDragging, searchId, children: [
       {c: "search-box syntax-editor", value: code, postRender: CMSyntaxEditor, searchId},
       {c: "ion-android-close close", click: removeSearch, searchId},
     ]},
     resultUi,
-    {c: "resize", mousedown: startDragging, mouseup: stopDragging, searchId, action: "resizeSearch"}
+    {c: "resize", mousedown: startDragging, searchId, action: "resizeSearch"}
   ]};
 }
 
