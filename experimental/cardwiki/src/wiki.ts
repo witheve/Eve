@@ -949,11 +949,13 @@ export function newSearchResults(searchId) {
       {c: `ion-ios-arrow-${showPlan ? 'up' : 'down'} plan`, click: toggleShowPlan, searchId},
       {c: "ion-android-close close", click: removeSearch, searchId},
     ]},
-    showPlan,
-    {c: "entity-content", children: entityContent},
-    resultItems.length ? {c: "search-results", children: resultItems} : {},
-    actionContainer,
-    {c: "add-action", children: addActionChildren},
+    {c: "container-content", children: [
+        showPlan,
+        {c: "entity-content", children: entityContent},
+        resultItems.length ? {c: "search-results", children: resultItems} : {},
+        actionContainer,
+        {c: "add-action", children: addActionChildren},
+    ]},
     {c: "resize", mousedown: startDragging, mouseup: stopDragging, searchId, action: "resizeSearch"}
   ]};
 }

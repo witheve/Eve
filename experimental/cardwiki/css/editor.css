@@ -21,10 +21,12 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 - Article Editor
 ---------------------------------------------------------*/
 
-.search-container { width:600px; padding:0 10px; max-height:60%; overflow:auto; }
+.search-container { width:600px; padding:0 10px; max-height:60%; overflow:hidden; }
 .search-container > *:last-child { padding-bottom:10px; }
 
 .search-container .resize { position:absolute; bottom:0; right:0; width:18px; height:18px; cursor:nwse-resize; }
+
+.container-content { overflow:auto; }
 
 .entity-content { overflow: auto; }
 .entity-content .entity-blocks h1 { display: none; }
@@ -101,11 +103,11 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .search-headers > * { flex:1; align-items:flex-start;  font-size:11pt;  padding:5px 10px; }
 .search-headers > * + * { border-left:1px solid #ccc; }
 
-.search-results { overflow:hidden; padding:10px 10px; }
+.search-results { margin:10px 10px; }
 .search-results .path > * { flex:1 0; }
 .search-results .sub-group { margin:0 0px; min-width:100px; }
 .search-results .sub-group + .sub-group { border-left: 1px solid #222; }
-.search-results .sub-group .bit { margin:0 0; flex: 1 0 auto; overflow:hidden; min-height:35px; }
+.search-results .sub-group .bit { margin:0 0; flex: 1 0 auto; min-height:35px; }
 .search-results .path + .path { border-top:1px solid #222; }
 .search-results .sub-group .bit + .bit { border-top:1px solid #222; }
 .search-results .path { flex:1 0 auto; flex-direction:row; margin:0 10px; border-left: 1px solid #ccc; border-right:1px solid #ccc; }
