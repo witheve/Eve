@@ -721,7 +721,7 @@ export function entityContents(paneId:string, searchId:string, search): {elems: 
   let headers = []
   // figure out what the headers are
   for(let step of plan) {
-    if(step.type === StepType.FILTERBYENTITY) continue;
+    if(step.type === StepType.FILTERBYENTITY || step.type === StepType.INTERSECT) continue;
     if(step.size === 0) continue;
     headers.push({text: step.name});
   }
@@ -767,7 +767,7 @@ export function entityContents(paneId:string, searchId:string, search): {elems: 
           item = {id, c: `${itemClass} attribute`, text: resultPart["value"]};
         } else if(planItem.type === StepType.AGGREGATE) {
           item = {id, c: `${itemClass} value`, text: resultPart[planItem.name]};
-        } else if(planItem.type === StepType.FILTERBYENTITY) {
+        } else if(planItem.type === StepType.FILTERBYENTITY || planItem.type === StepType.INTERSECT) {
           // we don't really want these to show up.
         } else if(planItem.type === StepType.CALCULATE) {
           item = {id, c: `${itemClass} value`, text: resultPart["result"]};
@@ -842,7 +842,7 @@ export function newSearchResults(searchId) {
           } else if(planItem.type === StepType.AGGREGATE) {
             text = resultPart[planItem.subject];
             klass = "value";
-          } else if(planItem.type === StepType.FILTERBYENTITY) {
+          } else if(planItem.type === StepType.FILTERBYENTITY || planItem.type === StepType.INTERSECT) {
             // we don't really want these to show up.
           } else if(planItem.type === StepType.CALCULATE) {
             text = JSON.stringify(resultPart.result);
@@ -850,7 +850,7 @@ export function newSearchResults(searchId) {
           } else {
             text = JSON.stringify(resultPart);
           }
-          if(text) {
+          if(text !== undefined) {
             klass += planLength > 1 ? " bit" : " link list-item";
             let item = {id: `${searchId} ${ix} ${planIx}`, c: `${klass}`, text, click, searchId, linkText: link};
             if(groupedFields[planItem.name] && !resultItem.children[planIx]) {
@@ -888,7 +888,7 @@ export function newSearchResults(searchId) {
     // figure out what the headers are
     if(!noHeaders) {
       for(let step of plan) {
-        if(step.type === StepType.FILTERBYENTITY) continue;
+        if(step.type === StepType.FILTERBYENTITY || step.type === StepType.INTERSECT) continue;
         if(step.size === 0) continue;
         headers.push({text: step.name});
       }

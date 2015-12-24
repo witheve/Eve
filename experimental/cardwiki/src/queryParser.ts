@@ -1153,7 +1153,7 @@ export function planToExecutable(plan) {
           step.size = 0;
           query.deselect("collection entities", {collection: step.subject, entity: [related.id, "entity"]});
         } else {
-          step.size = 0;
+          step.size = 1;
           query.select("collection entities", {collection: step.subject, entity: [related.id, "entity"]}, step.id);
         }
         break;
