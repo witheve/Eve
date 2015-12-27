@@ -290,7 +290,8 @@ app.handle("stopEditingEntity", (result, info) => {
   if(!eve.findOne("editing")) return;
   result.remove("editing");
   let {entity, value} = info;
-  entity = entity.toLowerCase();
+  entity = entity.trim().toLowerCase();
+  if(!entity) return;
   var blockId = entity + "|manual content block";
   if(!eve.findOne("manual eav", {entity: blockId})) {
     result.add("manual eav", {entity: blockId, attribute: "is a", value: "content block"});
