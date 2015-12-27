@@ -1386,7 +1386,7 @@ runtime.define("bit template", {multi: true}, function(row, name, template, acti
   let content = template;
   for(let key in row) {
     let item = row[key];
-    content = content.replace(new RegExp(`{${key}}`, "gi"), item);
+    content = content.replace(new RegExp(`{${key.replace(/([.*+?^=!:${}()|\[\]\/\\])/g, "\\$1")}}`, "gi"), item);
   }
   let entity;
   let header = content.match(/#.*$/mgi);

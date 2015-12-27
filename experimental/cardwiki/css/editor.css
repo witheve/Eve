@@ -117,7 +117,7 @@ body div { display: flex; display: -webkit-flex; flex-direction:column; -webkit-
 .search-results .path.list-row + .path.list-row { border:none; margin-top:5px; }
 .search-results .description { margin-bottom:10px; }
 
-.search-results.inline { padding: 0; }
+.search-results.inline { padding: 0; margin: 0; }
 
 .CodeMirror div { display:block; }
 .CodeMirror.cm-s-default { font-family: "Lato"; font-size: 12pt; height: auto;   }
