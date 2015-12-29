@@ -1979,7 +1979,7 @@ export class Union {
 // Builtin Primitives
 //---------------------------------------------------------
 
-runtime.define("count", {}, function(prev) {
+runtime.define("count", {result: "count"}, function(prev) {
   if(!prev.count) {
     prev.count = 0;
   }
@@ -1987,7 +1987,7 @@ runtime.define("count", {}, function(prev) {
   return prev;
 });
 
-runtime.define("sum", {}, function(prev, value) {
+runtime.define("sum", {result: "sum"}, function(prev, value) {
   if(!prev.sum) {
     prev.sum = 0;
   }
@@ -1995,7 +1995,7 @@ runtime.define("sum", {}, function(prev, value) {
   return prev;
 });
 
-runtime.define("average", {}, function(prev, value) {
+runtime.define("average", {result: "average"}, function(prev, value) {
   if(!prev.sum) {
     prev.sum = 0;
     prev.count = 0;
@@ -2006,7 +2006,7 @@ runtime.define("average", {}, function(prev, value) {
   return prev;
 });
 
-runtime.define("lowercase", {}, function(text) {
+runtime.define("lowercase", {result: "lowercase"}, function(text) {
   if(typeof text === "string") {
     return {result: text.toLowerCase()};
   }
@@ -2033,19 +2033,19 @@ runtime.define("<=", {filter: true}, function(a, b) {
   return a <= b ? runtime.SUCCEED : runtime.FAIL;
 });
 
-runtime.define("+", {}, function(a, b) {
+runtime.define("+", {result: "result"}, function(a, b) {
   return {result: a + b};
 });
 
-runtime.define("-", {}, function(a, b) {
+runtime.define("-", {result: "result"}, function(a, b) {
   return {result: a - b};
 });
 
-runtime.define("*", {}, function(a, b) {
+runtime.define("*", {result: "result"}, function(a, b) {
   return {result: a * b};
 });
 
-runtime.define("/", {}, function(a, b) {
+runtime.define("/", {result: "result"}, function(a, b) {
   return {result: a / b};
 });
 
