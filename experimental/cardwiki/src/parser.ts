@@ -884,8 +884,8 @@ const primitives = {
   "max": "aggregate"
   //@TODO: Finish me.
 };
-
-function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext, parent?:runtime.Query|runtime.Union):any {
+type SexprResult = {type:VALUE, value?:any, projected?:any, context?:any, mappings?:any, aggregated?:boolean};
+function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext, parent?:runtime.Query|runtime.Union):SexprResult {
   if(parent instanceof runtime.Query) var query = parent;
   else var union = <runtime.Union>parent;
   let sexpr = macroexpandDSL(raw);
@@ -895,12 +895,12 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
 
   if(op.value === "list") {
     let {$$body} = parseArguments(sexpr, undefined, "$$body");
-    return (<any>$$body).map((token, ix) => resolveTokenValue(`list item ${ix}`, token, context));
+    return {type: VALUE.SCALAR, value: (<any>$$body).map((token, ix) => resolveTokenValue(`list item ${ix}`, token, context))};
   }
   if(op.value === "hash") {
     let args = parseArguments(sexpr);
     for(let arg in args) args[arg] = resolveTokenValue(`hash item ${arg}`, args[arg], context);
-    return args;
+    return {type: VALUE.SET, value: args};
   }
 
   if(op.value === "insert!") {
@@ -985,11 +985,10 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
         select.push($$negated);
       }
       if(groups.length && aggregated) neue.group(groups);
-      console.log("query select", select.toString());
       parseDSLSexpr(select, artifacts, context, parent);
     }
 
-    return {id: queryId, projected, context: neueContext};
+    return {value: queryId, type: VALUE.VIEW, projected, context: neueContext};
   }
 
   if(op.value === "union") {
@@ -1012,8 +1011,6 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
       }
     }
 
-    console.log("MAPPINGS", mappings);
-
     // Join subunion to parent
     if(parent) {
       let select = new Sexpr([Token.identifier(query ? "select" : "member"), Token.string(unionId)], raw.lineIx, raw.charIx);
@@ -1030,7 +1027,7 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
       parseDSLSexpr(select, artifacts, context, parent);
     }
 
-    return {id: unionId, mappings};
+    return {type: VALUE.VIEW, value: unionId, mappings};
   }
 
   if(op.value === "member") {
@@ -1055,10 +1052,12 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
   if(op.value === "select") {
     if(!query) throw new ParseError(`Cannot add select to non-query parent`, "", raw.lineIx, raw.charIx);
     let selectId = uuid();
-    let args = parseArguments(sexpr, ["$$view"]);
-    let {$$view, $$negated} = args;
+    let $$view = getArgument(sexpr, "$$view", ["$$view"]);
     let view = resolveTokenValue("view", $$view, context, VALUE.SCALAR);
     if(view === undefined) throw new ParseError("Must specify a view to be selected", "", raw.lineIx, raw.charIx);
+    //@TODO: Move this to an eve table to allow user defined defaults
+    let args = parseArguments(sexpr, ["$$view"].concat(getDefaults(view)));
+    let {$$negated} = args;
 
     let join = {};
     for(let arg in args) {
@@ -1082,6 +1081,7 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
     } else if($$negated) query.deselect(view, join);
     else query.select(view, join, selectId);
     return {
+      type: VALUE.NULL,
       aggregated: primitives[view] === "aggregate"
     };
   }
@@ -1155,7 +1155,30 @@ function getDSLVariable(name:string, context:VariableContext, type?:VALUE):Varia
   }
 }
 
-  export function parseArguments(root:Sexpr, defaults?:string[], rest?:string):{[keyword:string]: Token|Sexpr} {
+function getDefaults(view:string):string[] {
+  return (runtime.QueryFunctions[view] && runtime.QueryFunctions[view].params) || [];
+}
+
+export function getArgument(root:Sexpr, param:string, defaults?: string[]):Token|Sexpr {
+  let ix = 1;
+  let defaultIx = 0;
+  for(let ix = 1, cur = root.nth(ix); ix < root.length; ix++) {
+    if(cur.type === Token.TYPE.KEYWORD) {
+      if(cur.value === param) return root.nth(ix + 1);
+      else ix + 1;
+    } else {
+      if(defaults && defaultIx < defaults.length) {
+        let keyword = defaults[defaultIx++];
+        if(keyword === param) return cur;
+        else ix + 1;
+      }
+      throw new Error(`Param '${param}' not in sexpr ${root.toString()}`);
+    }
+  }
+  throw new Error(`Param '${param}' not in sexpr ${root.toString()}`);
+}
+
+export function parseArguments(root:Sexpr, defaults?:string[], rest?:string):{[keyword:string]: Token|Sexpr} {
   let args:any = {};
   let defaultIx = 0;
   let keyword;
