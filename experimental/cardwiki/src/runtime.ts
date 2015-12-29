@@ -1430,8 +1430,8 @@ export class Query {
     return code;
   }
   // given a set of changes and a join order, determine the root facts that need
-	// to be joined again to cover all the adds
-	reverseJoin(joins) {
+  // to be joined again to cover all the adds
+  reverseJoin(joins) {
     let changed = joins[0];
     let reverseJoinMap = {};
     // collect all the constraints and reverse them
@@ -1483,15 +1483,15 @@ export class Query {
     }
     return recurse(joins, 1);
 	}
-	compileIncrementalRowFinderCode() {
-		let code = "var others = [];\n";
-		let reversed = this.joins.slice().reverse();
-    let checks = [];
-		let ix = 0;
-		for(let join of reversed) {
-      // we don't want to do this for the root
-			if(ix === reversed.length - 1) break;
-			checks.push(`
+  compileIncrementalRowFinderCode() {
+      let code = "var others = [];\n";
+      let reversed = this.joins.slice().reverse();
+      let checks = [];
+      let ix = 0;
+      for (let join of reversed) {
+          // we don't want to do this for the root
+          if (ix === reversed.length - 1) break;
+          checks.push(`
 			if(changes["${join.table}"] && changes["${join.table}"].adds) {
                 var curChanges${join.ix} = changes["${join.table}"].adds;
                 for(var changeIx${join.ix} = 0, changeLen${join.ix} = curChanges${join.ix}.length; changeIx${join.ix} < changeLen${join.ix}; changeIx${join.ix}++) {
@@ -1499,11 +1499,11 @@ export class Query {
 					${this.reverseJoin(reversed.slice(ix))}
 				}
 			}`);
-			ix++;
-		}
-    code += checks.join(" else");
-		var last = reversed[ix];
-		code += `
+          ix++;
+      }
+      code += checks.join(" else");
+      var last = reversed[ix];
+      code += `
 			if(changes["${last.table}"] && changes["${last.table}"].adds) {
                 var curChanges = changes["${last.table}"].adds;
 				for(var changeIx = 0, changeLen = curChanges.length; changeIx < changeLen; changeIx++) {
@@ -1511,8 +1511,8 @@ export class Query {
 				}
 			}
 			return others;`;
-		return code;
-	}
+      return code;
+  }
   incrementalRemove(changes) {
     let ixer = this.ixer;
     let rowsToPostCheck = [];
@@ -1564,6 +1564,7 @@ export class Query {
     for(let join of this.joins) {
       if(join.negated) return false;
     }
+    if(!this.joins.length) return false;
     return true;
   }
   compile() {
@@ -1583,7 +1584,12 @@ export class Query {
       this.compile();
     }
     let root = this.joins[0];
-    let rows = this.ixer.find(root.table, root.join);
+    let rows;
+    if(root) {
+      rows = this.ixer.find(root.table, root.join);
+    } else {
+      rows = [];
+    }
     return this.compiled(this.ixer, QueryFunctions, this.name, rows);
   }
   execIncremental(changes, table): {provenance: any[], adds: any[], removes: any[]} {
