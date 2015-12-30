@@ -726,6 +726,8 @@ const TOKEN_TO_TYPE = {
   "}": "hash"
 };
 
+let hygienicSymbolCounter = 0;
+
 export function readSexprs(text:string):Sexpr {
   let root = Sexpr.list();
   let token:Token;
@@ -860,7 +862,7 @@ export function macroexpandDSL(sexpr:Sexpr):Sexpr {
 }
 enum VALUE { NULL, SCALAR, SET, VIEW };
 export type Artifacts = {changeset?: runtime.Diff, views: {[query:string]: runtime.Query|runtime.Union}};
-type Variable = {name: string, type: VALUE, static?: boolean, value?: any, projection?: string};
+type Variable = {name: string, type: VALUE, static?: boolean, value?: any, projection?: string, constraints: [string, string][]};
 type VariableContext = Variable[];
 
 export function parseDSL(text:string):Artifacts {
@@ -885,7 +887,7 @@ const primitives = {
   //@TODO: Finish me.
 };
 type SexprResult = {type:VALUE, value?:any, projected?:any, context?:any, mappings?:any, aggregated?:boolean};
-function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext, parent?:runtime.Query|runtime.Union):SexprResult {
+function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext, parent?:runtime.Query|runtime.Union, resultVariable?:string):SexprResult {
   if(parent instanceof runtime.Query) var query = parent;
   else var union = <runtime.Union>parent;
   let sexpr = macroexpandDSL(raw);
@@ -1062,17 +1064,45 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
     let join = {};
     for(let arg in args) {
       let value = args[arg];
+      let variable;
       if(arg === "$$view" || arg === "$$negated") continue;
-      if(value.type !== Token.TYPE.IDENTIFIER) {
+
+      if(value instanceof Token && value.type !== Token.TYPE.IDENTIFIER) {
         join[arg] = args[arg].value;
         continue;
       }
 
-      let variable = getDSLVariable(value.value, context);
-      if(variable) join[arg] = variable.value;
+      if(value instanceof Sexpr) {
+        let result = parseDSLSexpr(value, artifacts, context, parent, `$$temp-${hygienicSymbolCounter++}-${arg}`);
+        if(!result || result.type === VALUE.NULL) throw new Error(`Cannot set parameter '${arg}' to null value '${value.toString()}'`);
+        if(result.type === VALUE.VIEW) {
+          let view = result.value;
+          let resultField = getResult(view);
+          if(!resultField) throw new Error(`Cannot set parameter '${arg}' to select without default result field`);
+          for(let curVar of context) {
+            for(let constraint of curVar.constraints) {
+              if(constraint[0] === view && constraint[1] === resultField) {
+                variable = curVar;
+                break;
+              }
+            }
+          }
+        }
+      } else variable = getDSLVariable(value.value, context);
+
+      if(variable) {
+        join[arg] = variable.value;
+        variable.constraints.push([view, arg]);
+      }
       else if($$negated && $$negated.value)
         throw new ParseError(`Cannot bind field in negated select to undefined variable '${value.value}'`, "", raw.lineIx, raw.charIx);
-      else context.push({name: value.value, type: VALUE.SCALAR, value: [selectId, arg]});
+      else context.push({name: value.value, type: VALUE.SCALAR, value: [selectId, arg], constraints: [[view, arg]]}); // @TODO: does this not need to add to the join map?
+    }
+
+    let resultField = getResult(view);
+    if(resultVariable && resultField && !join[resultField]) {
+      join[resultField] = [selectId, resultField];
+      context.push({name: resultVariable, type: VALUE.SCALAR, value: [selectId, resultField], constraints: [[view, resultField]]});
     }
 
     if(primitives[view]) {
@@ -1081,7 +1111,8 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
     } else if($$negated) query.deselect(view, join);
     else query.select(view, join, selectId);
     return {
-      type: VALUE.NULL,
+      type: VALUE.VIEW,
+      value: view,
       aggregated: primitives[view] === "aggregate"
     };
   }
@@ -1157,6 +1188,9 @@ function getDSLVariable(name:string, context:VariableContext, type?:VALUE):Varia
 
 function getDefaults(view:string):string[] {
   return (runtime.QueryFunctions[view] && runtime.QueryFunctions[view].params) || [];
+}
+function getResult(view:string):string {
+  return runtime.QueryFunctions[view] && runtime.QueryFunctions[view].result;
 }
 
 export function getArgument(root:Sexpr, param:string, defaults?: string[]):Token|Sexpr {
@@ -1243,4 +1277,9 @@ export function applyAsDiffs(artifacts:Artifacts) {
   for(let id in views) eve.applyDiff(views[id].changeset(eve));
   console.log("Applied diffs for:");
   for(let id in views) console.log("  * ", views[id] instanceof runtime.Query ? "Query" : "Union", views[id].name);
+  return artifacts;
+}
+
+export function logArtifacts(artifacts:Artifacts) {
+  for(let view in artifacts.views) console.log(view, "\n", eve.find(view));
 }
