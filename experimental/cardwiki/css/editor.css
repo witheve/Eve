@@ -260,7 +260,7 @@ body.light { background: rgb(71,72,75); font-family: Helvetica Neue; font-weight
 .slide-controls div:hover { color: #ccc; }
 
 .slide > div > .bit { flex:none; align-self:center; margin-top:20px; }
-.slide .search-container { position:relative;  }
+.slide .search-container { position:relative; display:flex !important;  }
 /*.slide .search-container:hover .add-action { display:none; }*/
 .slide .list .phrase { font-size:20pt; }
 .slide .phrase + .list { margin-top: 40px; }
