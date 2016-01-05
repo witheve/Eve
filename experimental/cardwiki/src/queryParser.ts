@@ -1051,7 +1051,7 @@ function dedupePlan(plan) {
       step.relatedTo = dupes[step.relatedTo];
     }
     return true;
-  })
+  });
 }
 
 function treeToPlan(tree: Tree): Plan {
@@ -1062,8 +1062,8 @@ function treeToPlan(tree: Tree): Plan {
   steps = dedupePlan(steps);
   for (let group of tree.groups) {
       let node;
-      for(let step of steps) {
-          if(step.id === group.id) {
+      for (let step of steps) {
+          if (step.id === group.id) {
               node = step;
               break;
           }
@@ -1088,11 +1088,11 @@ function treeToPlan(tree: Tree): Plan {
 // ---------------------------------------------------------
 
 function safeProjectionName(name, projection) {
-  if(!projection[name]) {
+  if (!projection[name]) {
     return name;
   }
   let ix = 2;
-  while(projection[name]) {
+  while (projection[name]) {
     name = `${name} ${ix}`;
     ix++;
   }
@@ -1115,7 +1115,7 @@ export function planToExecutable(plan) {
         }
         var related = step.relatedTo;
         if (related) {
-          if(related.type === StepType.FIND) {
+          if (related.type === StepType.FIND) {
             step.size = 2;
             let linkId = `${step.id} | link`;
             query.select("directionless links", {entity: related.subject}, linkId);
@@ -1145,7 +1145,7 @@ export function planToExecutable(plan) {
             join.entity = [related.id, "entity"];
           }
         }
-        if(step.deselected) {
+        if (step.deselected) {
             step.size = 0;
             query.deselect("entity eavs", join, step.id);
         } else {
@@ -1157,7 +1157,7 @@ export function planToExecutable(plan) {
         break;
       case StepType.INTERSECT:
         var related = step.relatedTo;
-        if(step.deselected) {
+        if (step.deselected) {
           step.size = 0;
           query.deselect("collection entities", {collection: step.subject, entity: [related.id, "entity"]});
         } else {
@@ -1168,7 +1168,7 @@ export function planToExecutable(plan) {
       case StepType.FILTERBYENTITY:
         var related = step.relatedTo;
         var linkId = `${step.id} | link`;
-        if(step.deselected) {
+        if (step.deselected) {
           step.size = 0;
           query.deselect("directionless links", {entity: [related.id, "entity"], link: step.subject});
         } else {
@@ -1195,7 +1195,7 @@ export function planToExecutable(plan) {
       case StepType.GROUP:
         step.size = 0;
         var field = "entity";
-        if(step.subjectNode.type === StepType.LOOKUP) {
+        if (step.subjectNode.type === StepType.LOOKUP) {
           field = "value";
         }
         step.name = step.subjectNode.name;
@@ -1216,7 +1216,7 @@ export function planToExecutable(plan) {
 }
 
 export function queryToExecutable(query) {
-  let planInfo:any = queryToPlan(query);
+  let planInfo: any = queryToPlan(query);
   let executable = planToExecutable(planInfo.plan);
   planInfo.executable = executable;
   planInfo.queryString = query;
