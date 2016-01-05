@@ -9,9 +9,9 @@ declare var nlp;
 
 window["eve"] = eve;
 
-//---------------------------------------------------------
+// ---------------------------------------------------------
 // Token types
-//---------------------------------------------------------
+// ---------------------------------------------------------
 
 export enum TokenTypes {
   ENTITY,
@@ -24,11 +24,11 @@ export enum TokenTypes {
   TEXT,
 }
 
-//---------------------------------------------------------
+// ---------------------------------------------------------
 // Modifiers
-//---------------------------------------------------------
+// ---------------------------------------------------------
 
-var modifiers = {
+let modifiers = {
   "and": { and: true },
   "or": { or: true },
   "without": { deselected: true },
@@ -42,11 +42,11 @@ var modifiers = {
   "every": { every: true },
 };
 
-//---------------------------------------------------------
+// ---------------------------------------------------------
 // Patterns
-//---------------------------------------------------------
+// ---------------------------------------------------------
 
-var patterns = {
+let patterns = {
   "older": {
     type: "rewrite",
     rewrites: [{ attribute: "age", text: "age >" }],
@@ -110,7 +110,7 @@ var patterns = {
   },
   "between": {
     type: "bounds",
-    args: ["lower bound","upper bound","attribute"],
+    args: ["lower bound", "upper bound", "attribute"],
   },
   "<": {
     type: "filter",
@@ -177,12 +177,12 @@ var patterns = {
   }
 };
 
-//---------------------------------------------------------
+// ---------------------------------------------------------
 // Tokenizer
-//---------------------------------------------------------
+// ---------------------------------------------------------
 
 function checkForToken(token): any {
-  var info;
+  let info;
   if (!token) return;
   if (info = eve.findOne("collection", { collection: token })) {
     return { found: token, info, type: TokenTypes.COLLECTION };
@@ -194,8 +194,8 @@ function checkForToken(token): any {
     return { found: token, info, type: TokenTypes.MODIFIER };
   } else if (info = patterns[token]) {
     return { found: token, info, type: TokenTypes.PATTERN };
-  } else if (token === "true" || token === "false" || token === '"true"' || token === '"false"') {
-    return { found: (token === "true" || token === '"true"' ? true : false), type: TokenTypes.VALUE, valueType: "boolean" };
+  } else if (token === "true" || token === "false" || token === "true" || token === "false") {
+    return { found: (token === "true" || token === "true" ? true : false), type: TokenTypes.VALUE, valueType: "boolean" };
   } else if (token.match(/^-?[\d]+$/gm)) {
     return { found: JSON.parse(token), type: TokenTypes.VALUE, valueType: "number" };
   } else if (token.match(/^["][^"]*["]$/gm)) {
@@ -230,7 +230,7 @@ export interface Token {
   args?: any;
 }
 
-export function getTokens(queryString: string) : Array<Token> {
+export function getTokens(queryString: string): Array<Token> {
 
   // remove all non-word non-space characters
   let cleaned = queryString.replace(/'s/gi, "  ").toLowerCase();
@@ -279,9 +279,9 @@ export function getTokens(queryString: string) : Array<Token> {
   return results;
 }
 
-//---------------------------------------------------------
+// ---------------------------------------------------------
 // Relationships between tokens
-//---------------------------------------------------------
+// ---------------------------------------------------------
 
 export enum RelationshipTypes {
   NONE,
@@ -293,7 +293,7 @@ export enum RelationshipTypes {
   COLLECTION_ATTRIBUTE,
 }
 
-var tokenRelationships = {
+let tokenRelationships = {
   [TokenTypes.COLLECTION]: {
     [TokenTypes.COLLECTION]: findCollectionToCollectionRelationship,
     [TokenTypes.ENTITY]: findCollectionToEntRelationship,
@@ -303,7 +303,7 @@ var tokenRelationships = {
     [TokenTypes.ENTITY]: findEntToEntRelationship,
     [TokenTypes.ATTRIBUTE]: findEntToAttrRelationship,
   },
-}
+};
 
 function determineRelationship(parent: Token, child: Token) {
   if (!tokenRelationships[parent.type] || !tokenRelationships[parent.type][child.type]) {
@@ -320,7 +320,7 @@ function entityTocollectionsArray(entity) {
 
 function extractFromUnprojected(coll, ix, field, size) {
   let results = [];
-  for (var i = 0, len = coll.length; i < len; i += size) {
+  for (let i = 0, len = coll.length; i < len; i += size) {
     results.push(coll[i + ix][field]);
   }
   return results;
@@ -336,7 +336,7 @@ function findCommonCollections(ents) {
   }
   intersection.sort((a, b) => {
     return eve.findOne("collection", { collection: b })["count"] - eve.findOne("collection", { collection: a })["count"];
-  })
+  });
   return intersection;
 }
 
@@ -371,7 +371,7 @@ function findEntToAttrRelationship(ent, attr): any {
     return { distance: 2, type: RelationshipTypes.ENTITY_ATTRIBUTE, nodes: [findCommonCollections(entities), findCommonCollections(entities2)] };
   }
 
-  //otherwise we assume it's direct and mark it as unfound.
+  // otherwise we assume it's direct and mark it as unfound.
   return { distance: 0, type: RelationshipTypes.ENTITY_ATTRIBUTE, unfound: true };
 }
 
@@ -442,7 +442,7 @@ function findCollectionToCollectionRelationship(coll, coll2) {
     .select("collection entities", { collection: coll }, "coll1")
     .select("collection entities", { collection: coll2, entity: ["coll1", "entity"] }, "coll2")
     .exec();
-  //is there a relationship between things in both sets
+  // is there a relationship between things in both sets
   let relationships = eve.query(`relationships between ${coll} and ${coll2}`)
     .select("collection entities", { collection: coll }, "coll1")
     .select("directionless links", { entity: ["coll1", "entity"] }, "links")
@@ -471,9 +471,9 @@ function findCollectionToCollectionRelationship(coll, coll2) {
   }
 }
 
-//---------------------------------------------------------
+// ---------------------------------------------------------
 // Token tree
-//---------------------------------------------------------
+// ---------------------------------------------------------
 
 interface Tree {
   directObject: any;
@@ -482,7 +482,7 @@ interface Tree {
   groups: Array<any>;
 }
 
-function tokensToTree(origTokens: Array<Token>) : Tree {
+function tokensToTree(origTokens: Array<Token>): Tree {
 
   let tokens = origTokens;
   let roots = [];
@@ -662,17 +662,17 @@ function tokensToTree(origTokens: Array<Token>) : Tree {
     if (type === TokenTypes.VALUE) {
 
       // Deal with a range value. It's really a pattern
-      if(token.valueType === "range") {
+      if (token.valueType === "range") {
         token.found = "between";
         token.info = patterns["between"];
         token.args = [];
-        var start: Token = {id: uuid(), found: token.start, orig: token.start, pos: token.pos, type: TokenTypes.VALUE, info: parseFloat(token.start), valueType: "number"};
-        var stop: Token = {id: uuid(), found: token.stop, orig: token.stop, pos: token.pos, type: TokenTypes.VALUE, info: parseFloat(token.stop), valueType: "number"};
+        let start: Token = {id: uuid(), found: token.start, orig: token.start, pos: token.pos, type: TokenTypes.VALUE, info: parseFloat(token.start), valueType: "number"};
+        let stop: Token = {id: uuid(), found: token.stop, orig: token.stop, pos: token.pos, type: TokenTypes.VALUE, info: parseFloat(token.stop), valueType: "number"};
         token.args.push(start);
         token.args.push(stop);
         operations.push(token);
         state.patternStack.push(token);
-        if(state.currentPattern === null) {
+        if (state.currentPattern === null) {
           state.currentPattern = state.patternStack.pop();
         }
         continue;
@@ -685,7 +685,7 @@ function tokensToTree(origTokens: Array<Token>) : Tree {
       continue;
     }
 
-    //We don't do anything with text nodes at this point
+    // We don't do anything with text nodes at this point
     if (type === TokenTypes.TEXT) continue;
 
     // once modifiers and patterns have been applied, we don't need to worry
@@ -786,7 +786,7 @@ function tokensToTree(origTokens: Array<Token>) : Tree {
     let args = state.currentPattern.args;
     let infoArgs = state.currentPattern.info.args;
     let latestArg = args[args.length - 1];
-    if(!latestArg) return tree;
+    if (!latestArg) return tree;
     let latestArgComplete = latestArg.type === TokenTypes.ATTRIBUTE || latestArg.type === TokenTypes.VALUE;
     let firstArg = args[0];
     // e.g. people older than chris granger => people age > chris granger age
@@ -801,18 +801,18 @@ function tokensToTree(origTokens: Array<Token>) : Tree {
     }
     // e.g. people whose age is between 50 and 65
     // @HACK special case this for now
-    else if(state.currentPattern.found === "between") {
+    else if (state.currentPattern.found === "between") {
       // Backtrack from the pattern start until we find an attribute
       let patternStart = tokens.lastIndexOf(state.currentPattern);
       let arg = null;
-      for(let ix = patternStart; ix > 0; ix--){
-        if(tokens[ix].type === TokenTypes.ATTRIBUTE) {
+      for (let ix = patternStart; ix > 0; ix--) {
+        if (tokens[ix].type === TokenTypes.ATTRIBUTE) {
           arg = tokens[ix];
           break;
         }
       }
       // If we found an attribute, now add it to the arglist for the pattern
-      if(arg != null) {
+      if (arg != null) {
         state.currentPattern.args.push(arg);
       }
     }
@@ -820,9 +820,9 @@ function tokensToTree(origTokens: Array<Token>) : Tree {
   return tree;
 }
 
-//---------------------------------------------------------
+// ---------------------------------------------------------
 // Query plans
-//---------------------------------------------------------
+// ---------------------------------------------------------
 
 export enum StepType {
   FIND,
@@ -878,15 +878,15 @@ function ignoreHiddenCollections(colls) {
 }
 
 function nodeToPlanSteps(node, parent, parentPlan) {
-  //TODO: figure out what to do with operations
+  // TODO: figure out what to do with operations
   let id = node.id || uuid();
   let {deselected} = node;
   let rel = node.relationship;
+  let plan = [];
+  let curParent = parentPlan;
   if (parent && rel) {
     switch (rel.type) {
       case RelationshipTypes.COLLECTION_ATTRIBUTE:
-        var plan = [];
-        var curParent = parentPlan;
         for (let node of rel.nodes) {
           let coll = ignoreHiddenCollections(node);
           let item = { type: StepType.GATHER, relatedTo: curParent, subject: coll, id: uuid() };
@@ -897,8 +897,6 @@ function nodeToPlanSteps(node, parent, parentPlan) {
         return plan;
         break;
       case RelationshipTypes.COLLECTION_ENTITY:
-        var plan = [];
-        var curParent = parentPlan;
         for (let node of rel.nodes) {
           let coll = ignoreHiddenCollections(node);
           let item = { type: StepType.GATHER, relatedTo: curParent, subject: coll, id: uuid() };
@@ -946,7 +944,7 @@ function nodeToPlanSteps(node, parent, parentPlan) {
 function nodeToPlan(tree, parent = null, parentPlan = null) {
   if (!tree) return [];
   let plan = [];
-  //process you, then your children
+  // process you, then your children
   plan.push.apply(plan, nodeToPlanSteps(tree, parent, parentPlan));
   let neueParentPlan = plan[plan.length - 1];
   for (let child of tree.children) {
@@ -1003,22 +1001,22 @@ function opToPlan(op, groups): any {
   if (info.type === "aggregate") {
     return [{ type: StepType.AGGREGATE, subject: info.op, args, id: uuid(), argArray: op.args }];
   } else if (info.type === "sort and limit") {
-    var sortLimitArgs = op.args.map((arg) => arg.found);
-    var sortField = { parentId: op.args[1].id, parent: op.args[1].parent.found, subject: op.args[1].found };
-    var subject = "results";
+    let sortLimitArgs = op.args.map((arg) => arg.found);
+    let sortField = { parentId: op.args[1].id, parent: op.args[1].parent.found, subject: op.args[1].found };
+    let subject = "results";
     // If groups are formed, check if we are sorting on one of them
-    for (var group of groups) {
+    for (let group of groups) {
       if (group.found === sortField.parent) {
         subject = "per group";
         break;
       }
     }
-    var sortStep = { type: StepType.SORT, subject: subject, direction: info.direction, field: sortField, id: uuid() };
-    var limitStep = { type: StepType.LIMIT, subject: subject, value: sortLimitArgs[0], id: uuid() };
+    let sortStep = { type: StepType.SORT, subject: subject, direction: info.direction, field: sortField, id: uuid() };
+    let limitStep = { type: StepType.LIMIT, subject: subject, value: sortLimitArgs[0], id: uuid() };
     return [sortStep, limitStep];
   } else if (info.type === "bounds") {
-    var lowerBounds = { type: StepType.FILTER, subject: ">", id: uuid(), argArray: [op.args[2], op.args[0]]};
-    var upperBounds = { type: StepType.FILTER, subject: "<", id: uuid(), argArray: [op.args[2], op.args[1]]};
+    let lowerBounds = { type: StepType.FILTER, subject: ">", id: uuid(), argArray: [op.args[2], op.args[0]]};
+    let upperBounds = { type: StepType.FILTER, subject: "<", id: uuid(), argArray: [op.args[2], op.args[1]]};
     return [lowerBounds, upperBounds];
   } else if (info.type === "filter") {
     return [{ type: StepType.FILTER, subject: info.op, args, id: uuid(), argArray: op.args }];
@@ -1085,9 +1083,9 @@ function treeToPlan(tree: Tree): Plan {
   return plan;
 }
 
-//---------------------------------------------------------
+// ---------------------------------------------------------
 // Plan to query
-//---------------------------------------------------------
+// ---------------------------------------------------------
 
 function safeProjectionName(name, projection) {
   if(!projection[name]) {
@@ -1104,19 +1102,19 @@ function safeProjectionName(name, projection) {
 export function planToExecutable(plan) {
   let projection = {};
   let query = eve.query();
-  for(var step of plan) {
-    switch(step.type) {
+  for (let step of plan) {
+    switch (step.type) {
       case StepType.FIND:
         // find is a no-op
         step.size = 0;
         break;
       case StepType.GATHER:
-        var join:any = {};
-        if(step.subject) {
+        var join: any = {};
+        if (step.subject) {
           join.collection = step.subject;
         }
         var related = step.relatedTo;
-        if(related) {
+        if (related) {
           if(related.type === StepType.FIND) {
             step.size = 2;
             let linkId = `${step.id} | link`;
@@ -1138,10 +1136,10 @@ export function planToExecutable(plan) {
         projection[step.name] = [step.id, "entity"];
         break;
       case StepType.LOOKUP:
-        var join:any = {attribute: step.subject};
+        var join: any = {attribute: step.subject};
         var related = step.relatedTo;
-        if(related) {
-          if(related.type === StepType.FIND) {
+        if (related) {
+          if (related.type === StepType.FIND) {
             join.entity = related.subject;
           } else {
             join.entity = [related.id, "entity"];
@@ -1225,9 +1223,9 @@ export function queryToExecutable(query) {
   return planInfo;
 }
 
-//---------------------------------------------------------
+// ---------------------------------------------------------
 // Utils
-//---------------------------------------------------------
+// ---------------------------------------------------------
 
 function arrayIntersect(a, b) {
   let ai = 0;
