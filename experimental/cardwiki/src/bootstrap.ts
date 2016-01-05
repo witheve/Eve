@@ -4,7 +4,7 @@ import {addBitAction} from "./wiki"
 import * as app from "./app"
 import {eve} from "./app"
 import {queryToExecutable} from "./queryParser.ts"
-import {parsePlan, PlanStep, parseQuery, QueryStep, parseUI, UIElem} from "./parser"
+import {parsePlan, PlanStep, parseQuery, QueryStep, parseUI, UIElem, parseDSL, Artifacts} from "./parser"
 import {UI} from "./uiRenderer"
 
 export var ixer = eve;
@@ -174,6 +174,13 @@ class BSPhase {
     return this;
   }
 
+  addArtifacts(artifacts:Artifacts) {
+    let views = artifacts.views;
+    console.log("adding artifacts", views);
+    for(let id in views) this.changeset.merge(views[id].changeset(eve));
+    return this;
+  }
+
   addUI(id:string, ui:UI) {
     ui.id = id;
     this._uis[id] = ui;
@@ -301,6 +308,13 @@ app.init("bootstrap", function bootstrap() {
     group {[coll, collection]}
     aggregate count as [count]
     project {collection: [coll, collection]; count: [count, count]}
+  `));
+
+  phase.addArtifacts(parseDSL(unpad(4) `
+    (query
+      (is-a-attributes :entity entity :collection "ui pane")
+      (entity-eavs :attribute "contains" :value contains)
+      (project! "ui pane" :pane entity :contains contains))
   `));
 
   phase.apply(true);
