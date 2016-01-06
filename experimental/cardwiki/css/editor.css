@@ -255,12 +255,12 @@ body.light { background: rgb(71,72,75); font-family: Helvetica Neue; font-weight
 .row .phrase { font-size: 18pt; max-width: 350px; line-height: 30px; }
 .phrase-container { width: 380px; }
 
-.slide-controls { position: absolute; bottom: 15px; left: calc(50% - 46px); flex-direction: row; font-size: 32pt; color: #555; z-index: 10; }
+.slide-controls { position: absolute; bottom: 15px; left: calc(50% - 46px); flex-direction: row; font-size: 32pt; color: #999; z-index: 10; }
 .slide-controls * {margin-right: 0px; padding:0 15px; }
-.slide-controls div:hover { color: #ccc; }
+.slide-controls div:hover { color: #eee; }
 
 .slide > div > .bit { flex:none; align-self:center; margin-top:20px; }
-.slide .search-container { position:relative;  }
+.slide .search-container { position:relative; display:flex !important;  }
 /*.slide .search-container:hover .add-action { display:none; }*/
 .slide .list .phrase { font-size:20pt; }
 .slide .phrase + .list { margin-top: 40px; }
