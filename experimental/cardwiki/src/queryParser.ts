@@ -194,8 +194,8 @@ function checkForToken(token): any {
     return { found: token, info, type: TokenTypes.MODIFIER };
   } else if (info = patterns[token]) {
     return { found: token, info, type: TokenTypes.PATTERN };
-  } else if (token === "true" || token === "false" || token === "true" || token === "false") {
-    return { found: (token === "true" || token === "true" ? true : false), type: TokenTypes.VALUE, valueType: "boolean" };
+  } else if (token === "true" || token === "false" || token === '"true"' || token === '"false"') {
+    return { found: (token === "true" || token === '"true"' ? true : false), type: TokenTypes.VALUE, valueType: "boolean" };
   } else if (token.match(/^-?[\d]+$/gm)) {
     return { found: JSON.parse(token), type: TokenTypes.VALUE, valueType: "number" };
   } else if (token.match(/^["][^"]*["]$/gm)) {
