@@ -1,7 +1,10 @@
 import {parse as marked, Renderer as MarkedRenderer} from "../vendor/marked";
-import {Element} from "./microReact";
+/// <reference path="codemirror/codemirror.d.ts" />
+import * as CodeMirror from "codemirror";
+import {Element, Handler, RenderHandler} from "./microReact";
 import {eve} from "./app";
 
+enum PANE { WINDOW, POPOUT, FULL };
 enum BLOCK { TEXT, PROJECTION };
 
 //---------------------------------------------------------
@@ -76,7 +79,7 @@ function entityToHTML(paneId:string, content:string, passthrough?: string[]):str
 }
 
 //---------------------------------------------------------
-// Wiki UI
+// Wiki Containers
 //---------------------------------------------------------
 export function root():Element {
   let panes = [];
@@ -86,38 +89,145 @@ export function root():Element {
   return {c: "wiki-root test", children: panes};
 }
 
-// Add search functionality + Pane Chrome
-export function pane(paneId:string):Element {
-  let {contains:entityId} = eve.findOne("ui pane", {pane: paneId}) || {};
-  return {c: "wiki-pane", children: [
-    {c: "header", children: [
-      {c: "title", text: "some title here"},
-      {c: "controls pane-controls", children: [
-        {c: "icon-search"},
-        {c: "icon-minimize"},
-        {c: "icon-close"}
+// @TODO: Add search functionality + Pane Chrome
+let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, header?:Element, footer?:Element}} = {
+  [PANE.FULL]: (paneId) => ({
+    c: "fullscreen",
+    header: {t: "header", c: "flex-row", children: [{c: "logo eve-logo"}, search(paneId)]}
+  }),
+  [PANE.POPOUT]: (paneId, entityId) => ({
+    header: {t: "header", c: "flex-row", children: [
+      {c: "flex-grow title", text: entityId},
+      {c: "flex-row controls", children: [{c: "ion-close-round"}]}
+    ]}
+  }),
+  [PANE.WINDOW]: (paneId, entityId) => ({
+    header: {t: "header", c: "flex-row", children: [
+      {c: "flex-grow title", text: entityId},
+      {c: "flex-row controls", children: [
+        {c: "ion-android-search"},
+        {c: "ion-minus-round"},
+        {c: "ion-close-round"}
       ]}
-    ]},
-    entity(entityId, paneId)
+    ]}
+  })
+};
+
+export function pane(paneId:string):Element {
+  // @FIXME: Add kind to ui panes
+  let {contains:entityId = undefined, kind = PANE.FULL} = eve.findOne("ui pane", {pane: paneId}) || {};
+  let makeChrome = paneChrome[kind];
+  if(!makeChrome) throw new Error(`Unknown pane kind: '${kind}' (${PANE[kind]})`);
+  let {c:klass, header, footer} = makeChrome(paneId, entityId);
+  return {c: `wiki-pane ${klass || ""}`, children: [
+    header,
+    entity(entityId, paneId),
+    footer
   ]};
 }
 
 export function entity(entityId:string, paneId:string):Element {
+  // @TODO: This is where the new editor gets injected
   let blocks = [];
   for(let {block:blockId} of eve.find("content blocks", {entity: entityId})) blocks.push(block(blockId, paneId));
   return {c: "wiki-entity", children: blocks};
 }
 
 export function block(blockId:string, paneId:string):Element {
-  let {content, kind} = eve.findOne("content blocks", {block: blockId}) || {};
-  // @FIXME: Add kind to content blocks;
-  kind = BLOCK.TEXT;
+  // @FIXME: Add kind to content blocks
+  let {content = "", kind = BLOCK.TEXT} = eve.findOne("content blocks", {block: blockId}) || {};
   let html = "";
   if(kind === BLOCK.TEXT) {
     html = entityToHTML(paneId, content);
-  } else {
-    throw new Error(`UNKNOWN BLOCK KIND: '${kind}' (${BLOCK[kind]})`);
-  }
+  } else throw new Error(`Unknown block kind: '${kind}' (${BLOCK[kind]})`);
 
   return {c: "wiki-block", dangerouslySetInnerHTML: html};
 }
+
+//---------------------------------------------------------
+// Wiki Widgets
+//---------------------------------------------------------
+export function search(paneId:string):Element {
+  return {
+    c: "flex-grow wiki-search",
+    children: [
+      codeMirrorElement({
+        c: "flex-grow search-box",
+        paneId,
+        placeholder: "search...",
+        blur: setSearch,
+        change: updateSearch,
+        shortcuts: {"Enter": setSearch}
+      }),
+      //{c: `ion-ios-arrow-${showPlan ? 'up' : 'down'} plan`, click: toggleShowPlan, searchId},
+      {c: "controls", children: [{c: "ion-android-search", paneId, click: setSearch}]},
+    ]
+  };
+}
+
+function setSearch(event, elem) {
+  // @TODO: Implement me!
+  console.log("set", event, elem);
+}
+function updateSearch(event, elem) {
+  // @TODO: Implement me!
+  console.log("update", event, elem);
+}
+
+//---------------------------------------------------------
+// UITK
+//---------------------------------------------------------
+interface CMNode extends HTMLElement { cm: any }
+interface CMElement extends Element {
+  autofocus?: boolean
+  lineNumbers?: boolean,
+  lineWrapping?: boolean,
+  mode?: string,
+  shortcuts?: {[shortcut:string]: Handler<any>}
+};
+interface CMEvent extends Event {
+  editor:CodeMirror.Editor
+}
+export function codeMirrorElement(elem:CMElement):CMElement {
+  elem.postRender = codeMirrorPostRender(elem.postRender);
+  return elem;
+}
+
+let _codeMirrorPostRenderMemo = {};
+function handleCMEvent(handler:Handler<Event>, elem:CMElement):(cm:CodeMirror.Editor) => void {
+  return (cm:CodeMirror.Editor) => {
+    let evt = <CMEvent><any>(new CustomEvent("CMEvent"));
+    evt.editor = cm;
+    handler(evt, elem);
+  }
+}
+function codeMirrorPostRender(postRender?:RenderHandler):RenderHandler {
+  let key = postRender ? postRender.toString() : "";
+  if(_codeMirrorPostRenderMemo[key]) return _codeMirrorPostRenderMemo[key];
+  return _codeMirrorPostRenderMemo[key] = (node:CMNode, elem:CMElement) => {
+    let cm = node.cm;
+    if(!cm) {
+      let extraKeys = {};
+      if(elem.shortcuts) {
+        for(let shortcut in elem.shortcuts)
+          extraKeys[shortcut] = handleCMEvent(elem.shortcuts[shortcut], elem);
+      }
+      cm = node.cm = CodeMirror(node, {
+        lineWrapping: elem.lineWrapping !== false ? true : false,
+        lineNumbers: elem.lineNumbers,
+        mode: elem.mode || "gfm",
+        extraKeys
+      });
+      if(elem.change) cm.on("change", handleCMEvent(elem.change, elem));
+      if(elem.blur) cm.on("blur", handleCMEvent(elem.blur, elem));
+      if(elem.focus) cm.on("focus", handleCMEvent(elem.focus, elem));
+      if(elem.autofocus) cm.focus();
+    }
+
+    if(cm.getValue() !== elem.value) cm.setValue(elem.value || "");
+    if(postRender) postRender(node, elem);
+  }
+}
+
+// @NOTE: Uncomment this to enable the new UI, or type `window["NEUE_UI"] = true; app.render()` into the console to enable it transiently.
+// window["NEUE_UI"] = true;

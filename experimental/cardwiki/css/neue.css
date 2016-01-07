@@ -1,0 +1,37 @@
+.test { border: 2px solid pink; }
+
+.flex-grow { flex: 1; }
+.flex-row { display: flex; flex-direction: row; }
+.flex-column { display: flex; flex-direction: column; }
+.fullscreen { width: 100vw; height: 100vh; }
+
+/*---------------------------------------------------------
+- Root
+---------------------------------------------------------*/
+.logo { width: 48px; height: 48px; background-size: contain; background-position: top center; background-repeat: no-repeat; }
+.eve-logo { height: 56px; background-size: cover; background-image: url("http://www.witheve.com/logo.png"); }
+
+/*---------------------------------------------------------
+- Pane
+---------------------------------------------------------*/
+.wiki-pane { background: #eee; }
+.wiki-pane > header { padding: 0.25em; align-items: center; }
+.wiki-pane.fullscreen {}
+
+/*---------------------------------------------------------
+- Controls
+---------------------------------------------------------*/
+
+div > header > .controls { opacity: 0; }
+div:hover > header > .controls { opacity: 1; }
+.controls > div { padding: 0.25em; border-radius: 2px; }
+.controls > div:hover { background: rgba(255, 255, 255, 0.25); }
+
+/*---------------------------------------------------------
+- Search
+---------------------------------------------------------*/
+.wiki-search { flex-direction:row; font-family: "Lato"; font-size: 14pt; margin:0px; padding:5px 5px; border-bottom:1px solid #222; outline:none; justify-content:flex-start; align-items:center; }
+.wiki-search .search-box { min-width: 100px; }
+.wiki-search .plan {display:none; }
+.search-container:hover .plan { display:flex; }
+.wiki-search .CodeMirror.cm-s-default { font-size: 16pt; }
