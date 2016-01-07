@@ -852,7 +852,7 @@ export function macroexpandDSL(sexpr:Sexpr):Sexpr {
     // (foo-bar :a 5) => (select "foo bar" :a 5)
     let source = op;
     source.type = Token.TYPE.STRING;
-    source.value = source.value.replace(/([^\s])-([^\s])/g, "$1 $2");
+    source.value = source.value.replace(/(.?)-(.)/g, "$1 $2");
     let args = sexpr.arguments;
     args.unshift(source);
     sexpr.arguments = args;
