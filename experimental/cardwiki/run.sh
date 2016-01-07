@@ -72,6 +72,10 @@ function bundle {
   node_modules/watchify/bin/cmd.js -e "typings/codemirror/codemirror.d.ts" -dv $3 -p tsify "$1" -o "$2"
 }
 
+function codeplace {
+  awk 'match($0, /%%%CODEPLACE%%%/) {print "*CP:" FILENAME ":" FNR ":" RSTART "*"}' "$1"
+}
+
 echo "# Updating node_modules..."
 npm i
 
@@ -82,7 +86,7 @@ ln -s ../vendor bin/vendor
 echo "# Starting watchers..."
 mkdir -p "bin"
 node_modules/tsify/node_modules/typescript/bin/tsc --watch -m commonjs 2>&1 | tag "typescript" "$blue" &
-bundle "src/wiki.ts" "bin/wikiBundle.js" 2>&1 | tag "editor" "$purple" &
+bundle "src/wiki.ts" "bin/wiki.bundle.js" 2>&1 | tag "editor" "$purple" &
 bundle "src/slides.ts" "bin/slidesBundle.js" 2>&1 | tag "slides" "$purple" &
 bundle "test/queryParserTest.ts" "bin/queryParserTestBundle.js" 2>&1 | tag "queryParserTest" "$purple" &
 bundle "test/runtimeTest.ts" "bin/runtimeTestBundle.js" 2>&1 | tag "runtimeTest" "$purple" &
