@@ -161,7 +161,6 @@ function CMSearchBox(node, elem) {
   }
   formatHeader(cm);
   cm.refresh();
-  console.log(cm.getWrapperElement());
   cm.getWrapperElement().setAttribute("style", "flex: 1; font-family: 'Helvetica Neue'; font-weight:400; ");
 }
 
