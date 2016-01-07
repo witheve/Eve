@@ -69,7 +69,7 @@ function tag {
 }
 
 function bundle {
-  node_modules/watchify/bin/cmd.js -dv $3 -p [tsify -m commonjs] "$1" -o "$2"
+  node_modules/watchify/bin/cmd.js -dv $3 -p tsify "$1" -o "$2"
 }
 
 echo "# Updating node_modules..."

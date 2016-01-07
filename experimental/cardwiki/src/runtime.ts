@@ -443,7 +443,7 @@ export class Indexer {
     // trigger's exec function. This ensures that if a view is recompiled and added
     // that any already queued triggers will use the updated version of the view instead
     // of the old queued one.
-    let {results, unprojected} = (table.view ? table.view.exec() : trigger.exec()) || {};
+    let {results = undefined, unprojected = undefined} = (table.view ? table.view.exec() : trigger.exec()) || {};
     if(!results) return;
     let prevResults = table.factHash;
     let prevHashes = Object.keys(prevResults);

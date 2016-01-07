@@ -1,6 +1,7 @@
 {
     "compilerOptions":
     {
+        "moduleResolution": "node",
         "sourceMap": true,
         "outDir": "bin",
         "target": "es5",
