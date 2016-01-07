@@ -9,19 +9,21 @@
 - Root
 ---------------------------------------------------------*/
 .logo { width: 48px; height: 48px; background-size: contain; background-position: top center; background-repeat: no-repeat; }
-.eve-logo { height: 56px; background-size: cover; background-image: url("http://www.witheve.com/logo.png"); }
+.eve-logo { width: 58px; height: 67px; background-size: cover; background-image: url("http://www.witheve.com/logo.png"); }
 
 /*---------------------------------------------------------
 - Pane
 ---------------------------------------------------------*/
 .wiki-pane { background: #eee; }
-.wiki-pane > header { padding: 0.25em; align-items: center; }
+.wiki-pane > header { padding: 0.25em 0.5em; align-items: center; }
+.wiki-pane > header > * { margin: 0 0.5em;}
 .wiki-pane.fullscreen {}
 
 /*---------------------------------------------------------
 - Controls
 ---------------------------------------------------------*/
 
+.controls { flex-direction: row; }
 div > header > .controls { opacity: 0; }
 div:hover > header > .controls { opacity: 1; }
 .controls > div { padding: 0.25em; border-radius: 2px; }
@@ -30,8 +32,18 @@ div:hover > header > .controls { opacity: 1; }
 /*---------------------------------------------------------
 - Search
 ---------------------------------------------------------*/
-.wiki-search { flex-direction:row; font-family: "Lato"; font-size: 14pt; margin:0px; padding:5px 5px; border-bottom:1px solid #222; outline:none; justify-content:flex-start; align-items:center; }
-.wiki-search .search-box { min-width: 100px; }
-.wiki-search .plan {display:none; }
+.wiki-search-wrapper {
+  flex-direction: row;
+  margin: 0;
+  position: relative;
+  font-size: 14pt;
+  font-family: "Lato";
+}
+
+.wiki-search-wrapper .wiki-search-input { padding: 0.25em; padding-right: 1.25em; border-radius: 2px; border: 1px solid transparent; border-bottom: 1px solid #999; outline: none; transition: all 0.1s; }
+.wiki-search-wrapper .wiki-search-input.selected, .wiki-search-wrapper .wiki-search-input:hover { background: #f9f9f9; border: 1px solid #999; box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.2); }
+.wiki-search-wrapper .wiki-search-input .CodeMirror-vscrollbar, .wiki-search-wrapper .wiki-search-input .CodeMirror-hscrollbar { visibility: hidden; }
+.wiki-search-wrapper .controls { position: absolute; right: 0; top: 0; bottom: 0; align-items: center; }
+.wiki-search .plan { display:none; }
 .search-container:hover .plan { display:flex; }
 .wiki-search .CodeMirror.cm-s-default { font-size: 16pt; }

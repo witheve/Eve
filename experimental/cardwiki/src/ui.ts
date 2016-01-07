@@ -1,11 +1,22 @@
 import {parse as marked, Renderer as MarkedRenderer} from "../vendor/marked";
 /// <reference path="codemirror/codemirror.d.ts" />
 import * as CodeMirror from "codemirror";
+import {Diff} from "./runtime";
 import {Element, Handler, RenderHandler} from "./microReact";
-import {eve} from "./app";
+import {eve, handle as appHandle, dispatch} from "./app";
 
 enum PANE { WINDOW, POPOUT, FULL };
 enum BLOCK { TEXT, PROJECTION };
+
+export let uiState:{
+  widget: {
+    search: {[paneId:string]: {value:string, focused?:boolean}}
+  }
+} = {
+  widget: {
+    search: {}
+  }
+};
 
 //---------------------------------------------------------
 // Utils
@@ -79,6 +90,19 @@ function entityToHTML(paneId:string, content:string, passthrough?: string[]):str
 }
 
 //---------------------------------------------------------
+// Dispatches
+//---------------------------------------------------------
+appHandle("ui focus search", (_, {paneId, value}:{paneId:string, value:string}, changes:Diff) => {
+  let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value};
+  state.focused = true;
+});
+appHandle("ui set search", (_, {paneId, value}:{paneId:string, value:string}, changes:Diff) => {
+  let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value};
+  state.value = value;
+  state.focused = false;
+});
+
+//---------------------------------------------------------
 // Wiki Containers
 //---------------------------------------------------------
 export function root():Element {
@@ -91,9 +115,9 @@ export function root():Element {
 
 // @TODO: Add search functionality + Pane Chrome
 let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, header?:Element, footer?:Element}} = {
-  [PANE.FULL]: (paneId) => ({
+  [PANE.FULL]: (paneId, entityId) => ({
     c: "fullscreen",
-    header: {t: "header", c: "flex-row", children: [{c: "logo eve-logo"}, search(paneId)]}
+    header: {t: "header", c: "flex-row", children: [{c: "logo eve-logo"}, search(paneId, entityId)]}
   }),
   [PANE.POPOUT]: (paneId, entityId) => ({
     header: {t: "header", c: "flex-row", children: [
@@ -147,14 +171,16 @@ export function block(blockId:string, paneId:string):Element {
 //---------------------------------------------------------
 // Wiki Widgets
 //---------------------------------------------------------
-export function search(paneId:string):Element {
+export function search(paneId:string, value:string):Element {
+  let state = uiState.widget.search[paneId] || {focused: false};
   return {
-    c: "flex-grow wiki-search",
+    c: "flex-grow wiki-search-wrapper",
     children: [
       codeMirrorElement({
-        c: "flex-grow search-box",
+        c: `flex-grow wiki-search-input ${state.focused ? "selected": ""}`,
         paneId,
         placeholder: "search...",
+        focus: focusSearch,
         blur: setSearch,
         change: updateSearch,
         shortcuts: {"Enter": setSearch}
@@ -165,13 +191,14 @@ export function search(paneId:string):Element {
   };
 }
 
+function focusSearch(event, elem) {
+  dispatch("ui focus search", elem).commit();
+}
 function setSearch(event, elem) {
-  // @TODO: Implement me!
-  console.log("set", event, elem);
+  dispatch("ui set search", elem).commit();
 }
 function updateSearch(event, elem) {
-  // @TODO: Implement me!
-  console.log("update", event, elem);
+  dispatch("ui update search", elem).commit();
 }
 
 //---------------------------------------------------------
