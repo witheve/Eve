@@ -7,6 +7,7 @@ import {eve} from "./app";
 import * as app from "./app";
 import * as microReact from "./microReact";
 import * as utils from "./utils";
+import * as ui from "./ui";
 
 declare var CodeMirror;
 declare var pluralize;
@@ -438,11 +439,9 @@ app.handle("toggleShowPlan", (result, info) => {
 });
 
 export function root() {
-  if(window["slides"]) {
-    return window["slides"].root();
-  } else {
-    return eveRoot();
-  }
+  if(window["slides"]) return window["slides"].root();
+  else if(window["NEUE_UI"]) return ui.root();
+  else return eveRoot();
 }
 
 export function eveRoot():Element {
