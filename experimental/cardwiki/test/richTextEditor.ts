@@ -23,7 +23,7 @@ function CMSearchBox(node, elem) {
         let start = cm.indexFromPos(change.from);
         let text = change.text.join("\n");
         let length = text.length - change.removed.join("\n").length
-        let info = {pos: start, length, text, obj: change};
+        let info = {pos: start, length, absLength: Math.abs(length), text, obj: change};
         normalizedChanges.push(info);
       }
       let value = cm.getValue();
@@ -37,7 +37,7 @@ function CMSearchBox(node, elem) {
       var curChange = normalizedChanges[changesIndex];
       for(let token of tokens) {
         pos += token.offset;
-        if(curChange) console.log(curChange.pos, pos);
+        if(curChange) console.log("INFO", curChange.pos, curChange.length, pos, token.length);
         // if the change is wholly contained in the full span
         if(curChange && pos < curChange.pos && pos + token.length >= curChange.pos) {
           console.log("INTERSECTION", curChange);
@@ -45,10 +45,10 @@ function CMSearchBox(node, elem) {
           changesIndex++;
           curChange = normalizedChanges[changesIndex];
         // if the span is wholly contained in the change
-        } else if(curChange && pos > curChange.pos && pos + token.length <= curChange.pos) {
+        } else if(curChange && curChange.pos < pos && curChange.pos + curChange.absLength >= pos + token.length) {
           console.log("NUKE", token);
         // if the change intersects the left side of a span
-        } else if(curChange && curChange.pos < pos && curChange.pos + curChange.length > pos && curChange.pos + curChange.length <= pos + token.length) {
+        } else if(curChange && curChange.pos < pos && curChange.pos + curChange.absLength > pos && curChange.pos + curChange.absLength <= pos + token.length) {
           // find the intersection
           let intersectedLength = curChange.length - (curChange.pos - pos);
           console.log("LEFT", curChange.pos - pos, intersectedLength);
@@ -58,10 +58,10 @@ function CMSearchBox(node, elem) {
           changesIndex++;
           curChange = normalizedChanges[changesIndex];
         // if the change intersects the right side of a span
-        } else if(curChange && curChange.pos > pos && pos + token.length < curChange.pos && pos + token.length >= curChange.pos + curChange.length) {
+        } else if(curChange && curChange.pos > pos && pos + token.length > curChange.pos && pos + token.length >= curChange.pos + curChange.absLength) {
           console.log("RIGHT");
         // if the change is entirely oustide of the span
-        } else if(curChange && (curChange.pos + curChange.length <= pos || curChange.pos === pos)) {
+        } else if(curChange && (curChange.pos + curChange.absLength <= pos || curChange.pos === pos)) {
           console.log("SHIFT", curChange);
           pos += curChange.length;
           token.offset += curChange.length;
