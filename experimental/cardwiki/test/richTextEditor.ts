@@ -168,7 +168,7 @@ var testText = `Engineering
 Engineering is a department at Kodowa and stuff.
 `;
 
-var spans = [{offset: 30, length: 4, type: "bold link", to: "department"}, {offset: 0, length: "rtment".length, type: "link", to: "department"}, {offset: 4, length: "kodowa".length, type: "link", to: "kodowa"}];
+var spans = [{offset: 29, length: 4, type: "bold link", to: "department"}, {offset: 0, length: "rtment".length, type: "link", to: "department"}, {offset: 4, length: "kodowa".length, type: "link", to: "kodowa"}];
 
 function root() {
   return {id: "root", style: "flex: 1; background: #666; align-items: stretch;", children: [
@@ -177,7 +177,7 @@ function root() {
       .bold { font-weight: bold; }
       .CodeMirror .header { font-size:20pt; }
       .header-padding { height:20px; }
-      .placeholder { color: #bbb; position:absolute; }
+      .placeholder { color: #bbb; position:absolute; pointer-events:none; }
     `},
     {style: " background: #fff; padding:10px 10px; margin: 100px auto; width: 800px; flex: 1;", postRender: CMSearchBox, value: testText},
   ]};
