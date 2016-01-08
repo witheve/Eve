@@ -5,7 +5,8 @@ import {parse as marked, Renderer as MarkedRenderer} from "../vendor/marked";
 import * as CodeMirror from "codemirror";
 import {Diff} from "./runtime";
 import {Element, Handler, RenderHandler} from "./microReact";
-import {eve, handle as appHandle, dispatch} from "./app";
+import {eve, handle as appHandle, dispatch, activeSearches} from "./app";
+import {StepType, queryToExecutable} from "./queryParser";
 import {copy} from "./utils";
 
 enum PANE { FULL, WINDOW, POPOUT };
@@ -108,6 +109,8 @@ appHandle("ui set search", (changes:Diff, {paneId, value}:{paneId:string, value:
   fact.contains = value;
   changes.remove("ui pane", {pane: paneId})
     .add("ui pane", fact);
+
+  if(!eve.findOne("entity", {entity: value})) activeSearches[value] = queryToExecutable(value);
 });
 appHandle("ui toggle search plan", (changes:Diff, {paneId}:{paneId:string}) => {
   let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value: ""};
@@ -129,7 +132,7 @@ export function root():Element {
 let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, header?:Element, footer?:Element}} = {
   [PANE.FULL]: (paneId, entityId) => ({
     c: "fullscreen",
-    header: {t: "header", c: "flex-row", children: [{c: "logo eve-logo"}, search(paneId, entityId)]}
+    header: {t: "header", c: "flex-row", children: [{c: "logo eve-logo"}, searchInput(paneId, entityId)]}
   }),
   [PANE.POPOUT]: (paneId, entityId) => ({
     c: "window",
@@ -153,15 +156,93 @@ let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, 
 
 export function pane(paneId:string):Element {
   // @FIXME: Add kind to ui panes
-  let {contains:entityId = undefined, kind = PANE.FULL} = eve.findOne("ui pane", {pane: paneId}) || {};
+  let {contains = undefined, kind = PANE.FULL} = eve.findOne("ui pane", {pane: paneId}) || {};
   let makeChrome = paneChrome[kind];
   if(!makeChrome) throw new Error(`Unknown pane kind: '${kind}' (${PANE[kind]})`);
-  let {c:klass, header, footer} = makeChrome(paneId, entityId);
-  return {c: `wiki-pane ${klass || ""}`, children: [
-    header,
-    entity(entityId, paneId),
-    footer
-  ]};
+  let {c:klass, header, footer} = makeChrome(paneId, contains);
+  let content;
+  if(eve.findOne("entity", {entity: contains})) content = entity(contains, paneId);
+  else if(activeSearches[contains] && activeSearches[contains].plan.length) content = search(contains, paneId);
+  else content = {text: "No results found..."}; // @ TODO: Editor to create new entity
+
+  return {c: `wiki-pane ${klass || ""}`, children: [header, content, footer]};
+}
+
+export function search(search:string, paneId:string):Element {
+  let {tokens, plan, executable} = activeSearches[search];
+  // figure out what the headers are
+  let headers = [];
+  for(let step of plan) {
+    if(step.size === 0 || step.type === StepType.FILTERBYENTITY || step.type === StepType.INTERSECT) continue;
+    headers.push({c: "column field", value: step.name, text: step.name});
+  }
+
+  // figure out what fields are grouped, if any
+  let groupedFields = {};
+  for(let step of plan) {
+    if(step.type === StepType.GROUP) groupedFields[step.subjectNode.name] = true;
+    else if(step.type === StepType.AGGREGATE) groupedFields[step.name] = true;
+  }
+
+  let results = executable.exec();
+  let groupInfo = results.groupInfo;
+  let planLength = plan.length;
+  let isBit = planLength > 1;
+  let groups = [];
+  nextResult: for(let ix = 0, len = results.unprojected.length; ix < len; ix += executable.unprojectedSize) {
+    if(groupInfo && ix > groupInfo.length) break;
+    if(groupInfo && groupInfo[ix] === undefined) continue;
+
+    let group;
+    if(!groupInfo) groups.push(group = {c: "group", children: []});
+    else if(!groups[groupInfo[ix]]) groups[groupInfo[ix]] = group = {c: "group", children: []};
+    else group = groups[groupInfo[ix]];
+
+    let offset = 0;
+    for(let stepIx = 0; stepIx < planLength; stepIx++) {
+      let step = plan[stepIx];
+      if(!step.size) continue;
+      let chunk = results.unprojected[ix + offset + step.size - 1];
+      if(!chunk) continue nextResult;
+      offset += step.size;
+
+      let text, link, kind, click;
+      if(step.type === StepType.GATHER) {
+        text = link = chunk["entity"];
+        kind = "entity";
+      } else if(step.type === StepType.LOOKUP) {
+        text = chunk["value"];
+        kind = "attribute";
+      } else if(step.type === StepType.AGGREGATE) {
+        text = chunk[step.subject];
+        kind = "value";
+      } else if(step.type = StepType.CALCULATE) {
+        text = JSON.stringify(chunk.result);
+        kind = "value";
+      } else if(step.type === StepType.FILTERBYENTITY || step.type === StepType.INTERSECT) {
+      } else text = JSON.stringify(chunk);
+
+      if(text === undefined) continue;
+      let item = {id: `${paneId} ${ix} ${stepIx}`, c: "field " + kind, text, data: {paneId}, link, click: link ? navigate : undefined};
+      if(!group.children[stepIx]) group.children[stepIx] = {c: "column", value: step.name, children: [item]};
+      else if(!groupedFields[step.name]) group.children[stepIx].children.push(item);
+
+      if(planLength === 1) group.c = "list-row"; // @FIXME: Is this still needed?
+    }
+  }
+  // @FIXME: This is inexplicably picking up text node = "undefined" when going from entity -> search, e.g. josh -> employees per department
+  groups.unshift({t: "header", key: paneId + "|" + search, c: "flex-row", children: headers});
+  return {t: "content", c: "wiki-search", key: JSON.stringify(results.unprojected), children: groups, postRender: sizeColumns};
+}
+function sizeColumns(node:HTMLElement, elem:Element) {
+  let widths = {};
+  let columns = <HTMLElement[]><any>node.querySelectorAll(".column");
+  for(let column of columns) {
+    column.style.width = "auto";
+    widths[column["value"]] = widths[column["value"]] || 0;
+    if(column.offsetWidth > widths[column["value"]]) widths[column["value"]] = column.offsetWidth;
+  }
+  for(let column of columns) column.style.width = widths[column["value"]];
 }
 
 export function entity(entityId:string, paneId:string):Element {
@@ -175,7 +256,7 @@ export function entity(entityId:string, paneId:string):Element {
 
 function navigate(event, elem) {
   let {paneId} = elem.data;
-  dispatch("ui set search", {paneId, value: elem.entity}).commit();
+  dispatch("ui set search", {paneId, value: elem.link}).commit();
 }
 
 export function block(blockId:string, paneId:string):Element {
@@ -192,7 +273,7 @@ export function block(blockId:string, paneId:string):Element {
 //---------------------------------------------------------
 // Wiki Widgets
 //---------------------------------------------------------
-export function search(paneId:string, value:string):Element {
+export function searchInput(paneId:string, value:string):Element {
   let state = uiState.widget.search[paneId] || {focused: false, plan: false};
   return {
     c: "flex-grow wiki-search-wrapper",
@@ -236,7 +317,7 @@ export function index(elem:IndexElement):IndexElement {
   elem.t = "p";
   elem.children = [
     {t: "h2", text: `There ${pluralize("are", facts.length)} ${facts.length} ${pluralize(elem.collectionId, facts.length)}:`},
-    {t: "ul", children: facts.map((fact) => ({t: "li", c: "entity link", text: fact.entity, data: elem.data, entity: fact.entity, click}))}
+    {t: "ul", children: facts.map((fact) => ({t: "li", c: "entity link", text: fact.entity, data: elem.data, link: fact.entity, click}))}
   ];
   return elem;
 }
@@ -251,7 +332,7 @@ export function related(elem:RelatedElement):RelatedElement {
 
   if(facts.length) elem.children = [
     {t: "h2", text: `${elem.entityId} is related to:`},
-  ].concat(facts.map((fact) => ({c: "entity link", text: fact.link, data: elem.data, entity: fact.link, click})));
+  ].concat(facts.map((fact) => ({c: "entity link", text: fact.link, data: elem.data, link: fact.link, click})));
   else elem.text = `${elem.entityId} is not related to any other entities.`;
   return elem;
 }
