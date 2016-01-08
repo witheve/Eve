@@ -268,17 +268,13 @@ function updateSpans(normalizedChanges, spans) {
   var removes = [];
   for (let token of tokens) {
     pos += token.offset;
-    // if (curChange) console.log("INFO", curChange.pos, curChange.length, pos, token.length);
+    if (curChange) console.log("INFO", curChange.pos, curChange.length, pos, token.length, token);
     // if the change is wholly contained in the full span
     if (curChange && pos < curChange.pos && pos + token.length >= curChange.pos + curChange.absLength) {
       console.log("INTERSECTION", curChange, token);
-      // if the next token is not a clear, then we add it to this guy, but otherwise this
-      // change really needs to be handled by the clear.
-      if (!tokens[ix + 1] || tokens[ix + 1].type !== "clear") {
-        token.length += curChange.length;
-        changesIndex++;
-        curChange = normalizedChanges[changesIndex];
-      }
+      token.length += curChange.length;
+      changesIndex++;
+      curChange = normalizedChanges[changesIndex];
       // if we're typing at the end of a zero length span
     } else if (curChange && curChange.pos === pos && curChange.length > 0 && token.length === 0) {
       // if it's a clear span then we just nuke it and adjust the offset of the next guy.
@@ -319,16 +315,27 @@ function updateSpans(normalizedChanges, spans) {
       // if the change intersects the right side of a span
     } else if (curChange && curChange.pos >= pos && pos + token.length >= curChange.pos && curChange.pos + curChange.absLength >= pos + token.length) {
       // console.log("RIGHT");
-      let intersectedLength = (pos + token.length) - curChange.pos;
-      if(intersectedLength === 0) {
-        token.length += curChange.length;
-      } else {
-        token.length -= intersectedLength;
+      // if the next token is not a clear, then we add it to this guy, but otherwise this
+      // change really needs to be handled by the clear.
+      if (!tokens[ix + 1] || tokens[ix + 1].type !== "clear" || curChange.pos !== pos + token.length) {
+        let intersectedLength = (pos + token.length) - curChange.pos;
+        if(intersectedLength === 0) {
+          if(curChange.length > 0) {
+            token.length += curChange.length;
+          }
+        } else {
+          token.length -= intersectedLength;
+          // we insert a clear span here as you just replaced the right side of the span
+          // beyond the span itself which almost assuredly means you don't want to start typing
+          // in the same span as what you just removed.
+          spans.splice(ix + 1,0,{offset:0, length: 0, type:"clear"});
+          console.log("ADDED CLEAR", spans);
+        }
+        console.log("RIGHT", intersectedLength);
+        pos += curChange.length - intersectedLength;
+        changesIndex++;
+        curChange = normalizedChanges[changesIndex];
       }
-      console.log("RIGHT", intersectedLength);
-      pos += curChange.length - intersectedLength;
-      changesIndex++;
-      curChange = normalizedChanges[changesIndex];
     } else if (curChange && (curChange.pos + curChange.absLength <= pos || curChange.pos === pos)) {
       console.log("SHIFT", curChange);
       pos += curChange.length;
