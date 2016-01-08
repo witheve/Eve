@@ -53,11 +53,16 @@ content li { flex: 0 0 auto; }
 /*---------------------------------------------------------
 - Search Pane
 ---------------------------------------------------------*/
-.wiki-search { display: flex; flex-direction: column; align-items: center; }
-.wiki-search > header { font-weight: bold;  }
-.wiki-search .group, .wiki-search > header { flex-direction: row; }
-/* .wiki-search .column { flex: 1; } */
-.wiki-search .field { padding: 0.25em 0.5em; flex: 0 0 auto; }
+.wiki-search { display: flex; flex-direction: column; align-items: center; padding: 1rem 0; }
+.table .group, .table > header { flex-direction: row; }
+.table .column { justify-content: center; }
+.table .field { max-width: 254px; min-width: 80px; padding: 0.25em 0.5em; flex: 0 0 auto; }
+
+.table { border: 1px solid #ccc; border-radius: 2px; }
+.table > header { border-bottom: 1px solid #ccc; background: #ddd; }
+.table .group + .group, .table .sub-group + .sub-group { border-top: 1px solid #ccc; }
+.table .column + .column { border-left: 1px solid #ccc; }
+.table .column .field + .field { border-top: 1px solid #ccc; }
 
 /*---------------------------------------------------------
 - Search Input
