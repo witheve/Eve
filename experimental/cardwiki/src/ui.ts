@@ -200,13 +200,12 @@ export function search(paneId:string, value:string):Element {
       codeMirrorElement({
         c: `flex-grow wiki-search-input ${state.focused ? "selected": ""}`,
         paneId,
-        placeholder: "search...",
+        value,
         focus: focusSearch,
         blur: setSearch,
-        change: updateSearch,
+        // change: updateSearch,
         shortcuts: {"Enter": setSearch}
       }),
-      //
       {c: "controls", children: [
         {c: `ion-ios-arrow-${state.plan ? 'up' : 'down'} plan`, click: toggleSearchPlan, paneId},
         {c: "ion-android-search", paneId, click: setSearch}
@@ -219,7 +218,7 @@ function focusSearch(event, elem) {
   dispatch("ui focus search", elem).commit();
 }
 function setSearch(event, elem) {
-  dispatch("ui set search", elem).commit();
+  dispatch("ui set search", {paneId: elem.paneId, value: event.value}).commit();
 }
 function updateSearch(event, elem) {
   dispatch("ui update search", elem).commit();
@@ -269,7 +268,8 @@ interface CMElement extends Element {
   shortcuts?: {[shortcut:string]: Handler<any>}
 };
 interface CMEvent extends Event {
-  editor:CodeMirror.Editor
+  editor: CodeMirror.Editor
+  value: string
 }
 export function codeMirrorElement(elem:CMElement):CMElement {
   elem.postRender = codeMirrorPostRender(elem.postRender);
@@ -281,6 +281,7 @@ function handleCMEvent(handler:Handler<Event>, elem:CMElement):(cm:CodeMirror.Ed
   return (cm:CodeMirror.Editor) => {
     let evt = <CMEvent><any>(new CustomEvent("CMEvent"));
     evt.editor = cm;
+    evt.value = cm.getDoc().getValue();
     handler(evt, elem);
   }
 }
@@ -307,7 +308,7 @@ function codeMirrorPostRender(postRender?:RenderHandler):RenderHandler {
       if(elem.autofocus) cm.focus();
     }
 
-    if(cm.getValue() !== elem.value) cm.setValue(elem.value || "");
+    if(cm.getDoc().getValue() !== elem.value) cm.setValue(elem.value || "");
     if(postRender) postRender(node, elem);
   }
 }
