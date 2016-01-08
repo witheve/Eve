@@ -718,7 +718,7 @@ export function entityContents(paneId:string, searchId:string, search): {elems: 
   if(singleton) return {elems: contents};
   let resultItems = [];
   contents.push({c: "results", id: "root", children: resultItems});
-  let headers = []
+  let headers = [];
   // figure out what the headers are
   for(let step of plan) {
     if(step.type === StepType.FILTERBYENTITY || step.type === StepType.INTERSECT) continue;
@@ -1482,7 +1482,12 @@ runtime.define("collection content", {}, function(collection) {
 
 function initSearches() {
   for(let search of eve.find("builtin search")) {
-    app.activeSearches[search.id] = queryToExecutable(eve.findOne("builtin search query", {id: search.id})["search"]);
+    let value = eve.findOne("builtin search query", {id: search.id})["search"];
+    app.activeSearches[search.id] = queryToExecutable(value);
+  }
+  for(let pane of eve.find("ui pane")) {
+    if(eve.findOne("entity", {entity: pane.contains})) continue;
+    app.activeSearches[pane.contains] = queryToExecutable(pane.contains);
   }
 }
 
