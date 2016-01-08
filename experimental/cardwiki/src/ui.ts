@@ -235,6 +235,13 @@ export function search(search:string, paneId:string):Element {
   return {t: "content", c: "wiki-search", key: JSON.stringify(results.unprojected), children: groups, postRender: sizeColumns};
 }
 function sizeColumns(node:HTMLElement, elem:Element) {
+  // @FIXME: Horrible hack to get around randomly added "undefined" text node that's coming from in microreact.
+  let child:Node, ix = 0;
+  let header = node.querySelector("header");
+  while(child = header.childNodes[ix]) {
+    if(child.nodeType === 3) header.removeChild(child);
+    else ix++;
+  }
   let widths = {};
   let columns = <HTMLElement[]><any>node.querySelectorAll(".column");
   for(let column of columns) {
