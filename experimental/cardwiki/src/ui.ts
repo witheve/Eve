@@ -1,16 +1,19 @@
+declare var pluralize; // @TODO: import me.
+
 import {parse as marked, Renderer as MarkedRenderer} from "../vendor/marked";
 /// <reference path="codemirror/codemirror.d.ts" />
 import * as CodeMirror from "codemirror";
 import {Diff} from "./runtime";
 import {Element, Handler, RenderHandler} from "./microReact";
 import {eve, handle as appHandle, dispatch} from "./app";
+import {copy} from "./utils";
 
-enum PANE { WINDOW, POPOUT, FULL };
+enum PANE { FULL, WINDOW, POPOUT };
 enum BLOCK { TEXT, PROJECTION };
 
 export let uiState:{
   widget: {
-    search: {[paneId:string]: {value:string, focused?:boolean}}
+    search: {[paneId:string]: {value:string, plan?:boolean, focused?:boolean}}
   }
 } = {
   widget: {
@@ -55,12 +58,12 @@ function entityToHTML(paneId:string, content:string, passthrough?: string[]):str
 
       } else if(type === "entity") {
         let attr = content.slice(0, colonIx !== -1 ? colonIx : undefined).trim();
-        let onClick = `app.dispatch('setSearch', {value: '${value}', searchId: '${paneId}'}).commit();`;
+        let onClick = `app.dispatch('ui set search', {value: '${value}', paneId: '${paneId}'}).commit();`;
         replacement = `<a class="link attribute entity" data-attribute="${attr}" onclick="${onClick}">${value}</a>`;
 
       } else if(type === "collection") {
         let attr = content.slice(0, colonIx !== -1 ? colonIx : undefined).trim();
-        let onClick = `app.dispatch('setSearch', {value: '${value}', searchId: '${paneId}'}).commit();`;
+        let onClick = `app.dispatch('ui set search', {value: '${value}', paneId: '${paneId}'}).commit();`;
         replacement = `<a class="link attribute collection" data-attribute="${attr}" onclick="${onClick}">${value}</a>`;
 
       } else if(type === "query") {
@@ -92,14 +95,23 @@ function entityToHTML(paneId:string, content:string, passthrough?: string[]):str
 //---------------------------------------------------------
 // Dispatches
 //---------------------------------------------------------
-appHandle("ui focus search", (_, {paneId, value}:{paneId:string, value:string}, changes:Diff) => {
+appHandle("ui focus search", (changes:Diff, {paneId, value}:{paneId:string, value:string}) => {
   let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value};
   state.focused = true;
 });
-appHandle("ui set search", (_, {paneId, value}:{paneId:string, value:string}, changes:Diff) => {
+appHandle("ui set search", (changes:Diff, {paneId, value}:{paneId:string, value:string}) => {
   let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value};
   state.value = value;
   state.focused = false;
+  let fact = copy(eve.findOne("ui pane", {pane: paneId}));
+  fact.__id = undefined;
+  fact.contains = value;
+  changes.remove("ui pane", {pane: paneId})
+    .add("ui pane", fact);
+});
+appHandle("ui toggle search plan", (changes:Diff, {paneId}:{paneId:string}) => {
+  let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value: ""};
+  state.plan = !state.plan;
 });
 
 //---------------------------------------------------------
@@ -120,12 +132,14 @@ let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, 
     header: {t: "header", c: "flex-row", children: [{c: "logo eve-logo"}, search(paneId, entityId)]}
   }),
   [PANE.POPOUT]: (paneId, entityId) => ({
+    c: "window",
     header: {t: "header", c: "flex-row", children: [
       {c: "flex-grow title", text: entityId},
       {c: "flex-row controls", children: [{c: "ion-close-round"}]}
     ]}
   }),
   [PANE.WINDOW]: (paneId, entityId) => ({
+    c: "window",
     header: {t: "header", c: "flex-row", children: [
       {c: "flex-grow title", text: entityId},
       {c: "flex-row controls", children: [
@@ -154,7 +168,14 @@ export function entity(entityId:string, paneId:string):Element {
   // @TODO: This is where the new editor gets injected
   let blocks = [];
   for(let {block:blockId} of eve.find("content blocks", {entity: entityId})) blocks.push(block(blockId, paneId));
-  return {c: "wiki-entity", children: blocks};
+  if(eve.findOne("collection", {collection: entityId})) blocks.push({c: "wiki-block", children: [index({collectionId: entityId, data: {paneId}, click: navigate})]});
+  blocks.push({c: "wiki-block", children: [related({entityId, data: {paneId}, click: navigate})]});
+  return {t: "content", c: "wiki-entity", children: blocks};
+}
+
+function navigate(event, elem) {
+  let {paneId} = elem.data;
+  dispatch("ui set search", {paneId, value: elem.entity}).commit();
 }
 
 export function block(blockId:string, paneId:string):Element {
@@ -172,7 +193,7 @@ export function block(blockId:string, paneId:string):Element {
 // Wiki Widgets
 //---------------------------------------------------------
 export function search(paneId:string, value:string):Element {
-  let state = uiState.widget.search[paneId] || {focused: false};
+  let state = uiState.widget.search[paneId] || {focused: false, plan: false};
   return {
     c: "flex-grow wiki-search-wrapper",
     children: [
@@ -185,8 +206,11 @@ export function search(paneId:string, value:string):Element {
         change: updateSearch,
         shortcuts: {"Enter": setSearch}
       }),
-      //{c: `ion-ios-arrow-${showPlan ? 'up' : 'down'} plan`, click: toggleShowPlan, searchId},
-      {c: "controls", children: [{c: "ion-android-search", paneId, click: setSearch}]},
+      //
+      {c: "controls", children: [
+        {c: `ion-ios-arrow-${state.plan ? 'up' : 'down'} plan`, click: toggleSearchPlan, paneId},
+        {c: "ion-android-search", paneId, click: setSearch}
+      ]},
     ]
   };
 }
@@ -199,6 +223,38 @@ function setSearch(event, elem) {
 }
 function updateSearch(event, elem) {
   dispatch("ui update search", elem).commit();
+}
+function toggleSearchPlan(event, elem) {
+  console.log("toggle search plan", elem);
+  dispatch("ui toggle search plan", elem).commit();
+}
+
+interface IndexElement extends Element {collectionId:string, data?:{}}
+export function index(elem:IndexElement):IndexElement {
+  let facts = eve.find("is a attributes", {collection: elem.collectionId});
+  let click = elem.click;
+  delete elem.click;
+  elem.t = "p";
+  elem.children = [
+    {t: "h2", text: `There ${pluralize("are", facts.length)} ${facts.length} ${pluralize(elem.collectionId, facts.length)}:`},
+    {t: "ul", children: facts.map((fact) => ({t: "li", c: "entity link", text: fact.entity, data: elem.data, entity: fact.entity, click}))}
+  ];
+  return elem;
+}
+
+interface RelatedElement extends Element {entityId:string, data?:{}}
+export function related(elem:RelatedElement):RelatedElement {
+  let facts = eve.find("directionless links", {entity: elem.entityId});
+  elem.t = "p";
+  elem.c = "flex-row flex-wrap csv" + (elem.c || "");
+  let click = elem.click;
+  delete elem.click;
+
+  if(facts.length) elem.children = [
+    {t: "h2", text: `${elem.entityId} is related to:`},
+  ].concat(facts.map((fact) => ({c: "entity link", text: fact.link, data: elem.data, entity: fact.link, click})));
+  else elem.text = `${elem.entityId} is not related to any other entities.`;
+  return elem;
 }
 
 //---------------------------------------------------------
@@ -257,4 +313,4 @@ function codeMirrorPostRender(postRender?:RenderHandler):RenderHandler {
 }
 
 // @NOTE: Uncomment this to enable the new UI, or type `window["NEUE_UI"] = true; app.render()` into the console to enable it transiently.
-// window["NEUE_UI"] = true;
+window["NEUE_UI"] = true;

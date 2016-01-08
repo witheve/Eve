@@ -1,34 +1,52 @@
-.test { border: 2px solid pink; }
+.test { border: 2px solid red; }
 
 .flex-grow { flex: 1; }
 .flex-row { display: flex; flex-direction: row; }
 .flex-column { display: flex; flex-direction: column; }
+.flex-wrap { flex-wrap: wrap; }
 .fullscreen { width: 100vw; height: 100vh; }
 
+.csv, .csv > div { flex-direction: row; }
+.csv > * + div { margin-left: 0.4em; }
+.csv > div + div:before { position: relative; left: -0.4em; content: ","; }
 /*---------------------------------------------------------
 - Root
 ---------------------------------------------------------*/
 .logo { width: 48px; height: 48px; background-size: contain; background-position: top center; background-repeat: no-repeat; }
 .eve-logo { width: 58px; height: 67px; background-size: cover; background-image: url("http://www.witheve.com/logo.png"); }
 
-/*---------------------------------------------------------
-- Pane
----------------------------------------------------------*/
-.wiki-pane { background: #eee; }
-.wiki-pane > header { padding: 0.25em 0.5em; align-items: center; }
-.wiki-pane > header > * { margin: 0 0.5em;}
-.wiki-pane.fullscreen {}
+#perfStats { top: 4px; }
 
 /*---------------------------------------------------------
 - Controls
 ---------------------------------------------------------*/
-
 .controls { flex-direction: row; }
 div > header > .controls { opacity: 0; }
 div:hover > header > .controls { opacity: 1; }
 .controls > div { padding: 0.25em; border-radius: 2px; }
 .controls > div:hover { background: rgba(255, 255, 255, 0.25); }
 
+/*---------------------------------------------------------
+- Pane
+---------------------------------------------------------*/
+.wiki-pane { background: #eee; }
+.wiki-pane.fullscreen {}
+.wiki-pane.window { position: absolute; min-width: 128px; }
+.wiki-pane > header { padding: 0.25em 0.5em; align-items: center; }
+.wiki-pane > header > * { margin: 0 0.5em;}
+.wiki-pane > content { width: 960px; align-self: center; background: #f9f9f9 } /* @TODO: Breakpoints */
+
+/*---------------------------------------------------------
+- Content
+---------------------------------------------------------*/
+content h1 { font-size: 1.5em; margin: 1rem; margin-bottom: 0.5rem; }
+content h2 { font-weight: bold; }
+content h3 { font-style: italic; }
+content p { margin: 0.5rem 1rem; }
+content ul, content ol { display: flex; flex-direction: column; margin-left: 1.5rem; justify-content: flex-start; align-items: flex-start; }
+content ul { list-style-type: disc; }
+content ol { list-style-type: decimal; }
+content li { flex: 0 0 auto; }
 /*---------------------------------------------------------
 - Search
 ---------------------------------------------------------*/
@@ -40,8 +58,8 @@ div:hover > header > .controls { opacity: 1; }
   font-family: "Lato";
 }
 
-.wiki-search-wrapper .wiki-search-input { padding: 0.25em; padding-right: 1.25em; border-radius: 2px; border: 1px solid transparent; border-bottom: 1px solid #999; outline: none; transition: all 0.1s; }
-.wiki-search-wrapper .wiki-search-input.selected, .wiki-search-wrapper .wiki-search-input:hover { background: #f9f9f9; border: 1px solid #999; box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.2); }
+.wiki-search-wrapper .wiki-search-input { padding: 0.25em; padding-right: 2.5em; border-radius: 2px; border: 1px solid transparent; border-bottom: 1px solid #999; outline: none; transition: all 0.1s; }
+.wiki-search-wrapper .wiki-search-input.selected, .wiki-search-wrapper:hover .wiki-search-input { background: #f9f9f9; border: 1px solid #999; box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.2); }
 .wiki-search-wrapper .wiki-search-input .CodeMirror-vscrollbar, .wiki-search-wrapper .wiki-search-input .CodeMirror-hscrollbar { visibility: hidden; }
 .wiki-search-wrapper .controls { position: absolute; right: 0; top: 0; bottom: 0; align-items: center; }
 .wiki-search .plan { display:none; }

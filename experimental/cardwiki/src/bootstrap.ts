@@ -310,12 +310,15 @@ app.init("bootstrap", function bootstrap() {
     project {collection: [coll, collection]; count: [count, count]}
   `));
 
-  phase.addArtifacts(parseDSL(unpad(4) `
-    (query
-      (is-a-attributes :entity entity :collection "ui pane")
-      (entity-eavs :attribute "contains" :value contains)
-      (project! "ui pane" :pane entity :contains contains))
-  `));
+  phase.addTable("ui pane", ["pane", "contains", "kind"]);
+  if(eve.find("ui pane").length === 0) phase.addFact("ui pane", {pane: "p1", contains: "pet", kind: 0});
+
+  // phase.addArtifacts(parseDSL(unpad(4) `
+  //   (query
+  //     (is-a-attributes :entity entity :collection "ui pane")
+  //     (entity-eavs :attribute "contains" :value contains)
+  //     (project! "ui pane" :pane entity :contains contains))
+  // `));
 
   phase.apply(true);
 
