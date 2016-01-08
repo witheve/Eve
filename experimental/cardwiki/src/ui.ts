@@ -7,7 +7,7 @@ import {Diff} from "./runtime";
 import {Element, Handler, RenderHandler} from "./microReact";
 import {eve, handle as appHandle, dispatch, activeSearches} from "./app";
 import {StepType, queryToExecutable} from "./queryParser";
-import {copy} from "./utils";
+import {copy, uuid} from "./utils";
 
 enum PANE { FULL, WINDOW, POPOUT };
 enum BLOCK { TEXT, PROJECTION };
@@ -125,7 +125,7 @@ export function root():Element {
   for(let {pane:paneId} of eve.find("ui pane")) {
     panes.push(pane(paneId));
   }
-  return {c: "wiki-root test", children: panes};
+  return {c: "wiki-root", id: "root", children: panes};
 }
 
 // @TODO: Add search functionality + Pane Chrome
@@ -161,7 +161,7 @@ export function pane(paneId:string):Element {
   if(!makeChrome) throw new Error(`Unknown pane kind: '${kind}' (${PANE[kind]})`);
   let {c:klass, header, footer} = makeChrome(paneId, contains);
   let content;
-  if(eve.findOne("entity", {entity: contains})) content = entity(contains, paneId);
+  if(eve.findOne("entity", {entity: contains}) || eve.findOne("collection", {collection: contains})) content = entity(contains, paneId);
   else if(activeSearches[contains] && activeSearches[contains].plan.length) content = search(contains, paneId);
   else content = {text: "No results found..."}; // @ TODO: Editor to create new entity
 
@@ -230,18 +230,14 @@ export function search(search:string, paneId:string):Element {
       if(planLength === 1) group.c = "list-row"; // @FIXME: Is this still needed?
     }
   }
-  // @FIXME: This is inexplicably picking up text node = "undefined" when going from entity -> search, e.g. josh -> employees per department
-  groups.unshift({t: "header", key: paneId + "|" + search, c: "flex-row", children: headers});
-  return {t: "content", c: "wiki-search", key: JSON.stringify(results.unprojected), children: groups, postRender: sizeColumns};
+  // @TODO: Without this ID, a bug occurs when reusing elements that injects a text node containing "undefined" after certain scenarios.
+  groups.unshift({t: "header", id: `${paneId}|header`, c: "flex-row", children: headers});
+  return {t: "content", c: "wiki-search", key: JSON.stringify(results.unprojected), children: [{id: `${paneId}|table`, c: "results table", children: groups}], postRender: sizeColumns };
 }
 function sizeColumns(node:HTMLElement, elem:Element) {
   // @FIXME: Horrible hack to get around randomly added "undefined" text node that's coming from in microreact.
   let child:Node, ix = 0;
   let header = node.querySelector("header");
-  while(child = header.childNodes[ix]) {
-    if(child.nodeType === 3) header.removeChild(child);
-    else ix++;
-  }
   let widths = {};
   let columns = <HTMLElement[]><any>node.querySelectorAll(".column");
   for(let column of columns) {
@@ -249,7 +245,7 @@ function sizeColumns(node:HTMLElement, elem:Element) {
     widths[column["value"]] = widths[column["value"]] || 0;
     if(column.offsetWidth > widths[column["value"]]) widths[column["value"]] = column.offsetWidth;
   }
-  for(let column of columns) column.style.width = widths[column["value"]];
+  for(let column of columns) column.style.width = widths[column["value"]] + 1;
 }
 
 export function entity(entityId:string, paneId:string):Element {
