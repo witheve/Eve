@@ -410,12 +410,12 @@ app.init("bootstrap", function bootstrap() {
     operations: {company: "kodowa"},
     magic: {company: "kodowa"},
 
-    josh: {department: "engineering"},
-    corey: {department: "engineering"},
-    jamie: {department: "engineering"},
-    chris: {department: "engineering"},
-    eric: {department: "engineering"},
-    rob: {department: "operations"},
+    josh: {department: "engineering", salary: 7},
+    corey: {department: "engineering", salary: 10},
+    jamie: {department: "engineering", salary: 7},
+    chris: {department: "engineering", salary: 10},
+    eric: {department: "engineering", salary: 7},
+    rob: {department: "operations", salary: 10},
   };
   for(let entity in testData) phase.addEntity(entity, entity, ["test data"].concat(testData[entity]), testAttrs[entity]);
 
