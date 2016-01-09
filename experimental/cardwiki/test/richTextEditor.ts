@@ -1,6 +1,7 @@
 import * as app from "../src/app";
 
 declare var CodeMirror;
+declare var uuid;
 
 function formatHeader(cm) {
     if(cm.lineCount() < 2) {
@@ -104,18 +105,24 @@ function toggleSpan2(spans, toToggle) {
       && toToggle.pos === beforeEndPos
       && spanJustBefore.type.indexOf(toToggle.type) > -1) {
     console.log("CLEAR");
-    // if it is exactly the same type, we're going to add a clear span
-    let type = "clear";
-    // but if the types aren't the same, we create a span that has a type
+    let newSpan;
+    // if the types aren't the same, we create a span that has a type
     // with the toToggle.type removed
     if(spanJustBefore.type !== toToggle.type) {
-      type = spanJustBefore.type.replace(toToggle.type, "");
+      let type = spanJustBefore.type.replace(toToggle.type, "");
+      newSpan = {offset: toToggleOffset, length: 0, type};
+      newSpans.push(newSpan);
+    // otherwise, we need to toggle the expansion of the current span
+    } else {
+      // replace justBefore
+      let cloned = cloneSpan(spanJustBefore);
+      cloned.fixedRight = !cloned.fixedRight;
+      before[before.length - 1] = cloned;
     }
-    let newSpan = {offset: toToggleOffset, length: 0, type};
-    newSpans.push(newSpan);
   // if there are no intersecting spans
   } else if(intersection.length === 0) {
-    let newSpan = {offset: toToggleOffset, length: toToggle.length, type: toToggle.type};
+    let newSpan = cloneSpan(toToggle);
+    newSpan.offset = toToggleOffset;
     newSpans.push(newSpan);
     if(after.length > 0) {
       let cloned = cloneSpan(after[0]);
@@ -276,23 +283,11 @@ function updateSpans(normalizedChanges, spans) {
       changesIndex++;
       curChange = normalizedChanges[changesIndex];
       // if we're typing at the end of a zero length span
-    } else if (curChange && curChange.pos === pos && curChange.length > 0 && token.length === 0) {
-      // if it's a clear span then we just nuke it and adjust the offset of the next guy.
-      if (token.type === "clear") {
-        if (tokens[ix + 1]) {
-          tokens[ix + 1].offset += token.offset + curChange.length;
-        }
-        removes.push(ix);
-        ix++;
-        changesIndex++;
-        curChange = normalizedChanges[changesIndex];
-        continue;
-      } else {
-        token.length += curChange.length;
-        changesIndex++;
-        curChange = normalizedChanges[changesIndex];
-      }
-      // if the span is wholly contained in the change
+    } else if (curChange && curChange.pos === pos && curChange.length > 0 && token.length === 0 && !token.fixedRight) {
+      token.length += curChange.length;
+      changesIndex++;
+      curChange = normalizedChanges[changesIndex];
+    // if the span is wholly contained in the change
     } else if (curChange && curChange.pos <= pos && curChange.pos + curChange.absLength >= pos + token.length) {
       console.log("NUKE", token);
       pos -= token.offset;
@@ -317,7 +312,7 @@ function updateSpans(normalizedChanges, spans) {
       // console.log("RIGHT");
       // if the next token is not a clear, then we add it to this guy, but otherwise this
       // change really needs to be handled by the clear.
-      if (!tokens[ix + 1] || tokens[ix + 1].type !== "clear" || curChange.pos !== pos + token.length) {
+      if (!token.fixedRight) {
         let intersectedLength = (pos + token.length) - curChange.pos;
         if(intersectedLength === 0) {
           if(curChange.length > 0) {
@@ -328,8 +323,7 @@ function updateSpans(normalizedChanges, spans) {
           // we insert a clear span here as you just replaced the right side of the span
           // beyond the span itself which almost assuredly means you don't want to start typing
           // in the same span as what you just removed.
-          spans.splice(ix + 1,0,{offset:0, length: 0, type:"clear"});
-          console.log("ADDED CLEAR", spans);
+          token.fixedRight = true;
         }
         console.log("RIGHT", intersectedLength);
         pos += curChange.length - intersectedLength;
@@ -361,10 +355,22 @@ function renderSpans(cm, spans, previousMarks = []) {
   let marks = [];
   let pos = 0;
   for (let token of tokens) {
+    console.log(token);
     pos += token.offset;
     let start = cm.posFromIndex(pos);
     let stop = cm.posFromIndex(pos + token.length);
-    let mark = cm.markText(start, stop, { className: token.type });
+    let replacedWith;
+    if(token.replacedWith) {
+      replacedWith = token.replacedWith(token);
+    }
+    let mark;
+    if(token.length > 0) {
+      mark = cm.markText(start, stop, { className: token.type, replacedWith });
+    } else if(token.replacedWith) {
+      mark = cm.setBookmark(start, { className: token.type, widget: replacedWith });
+    } else {
+      continue;
+    }
     mark.info = token;
     marks.push(mark);
     pos += token.length;
@@ -397,16 +403,41 @@ function CMSearchBox(node, elem) {
           spans = toggleSpan2(spans, span);
           state.marks = renderSpans(cm, spans, state.marks);
           console.log(spans);
+        },
+        "Cmd-K": (cm) => {
+          cm.operation(() => {
+            let span = spanFromSelection(cm);
+            span.id = uuid();
+            span.type = "link";
+            span.length = 1;
+            span.fixedRight = true;
+            span.replacedWith = () => {
+              let ui = document.createElement("span");
+              ui.textContent = "YO YO YO";
+              ui.classList.add("link");
+              return ui;
+            }
+            // console.log(span);
+            spans = toggleSpan2(spans, span);
+            state.marks = renderSpans(cm, spans, state.marks);
+            let cursor = cm.getCursor("from");
+            cm.replaceRange(" ", cursor, cursor, "handled");
+            if(cm.somethingSelected()) {
+              cm.replaceRange("", cm.getCursor("from"), cm.getCursor("to"), "handled");
+            }
+            console.log(spans);
+          })
         }
       }
     });
     cm.on("changes", (cm, changes) => {
       cm.operation(() => {
+        console.log("CHANGES");
         formatHeader(cm);
         // console.log(changes);
         let normalizedChanges = [];
         for(let change of changes) {
-            if(change.origin === "setValue") continue;
+            if(change.origin === "setValue" || change.origin === "handled") continue;
             //update the spans.
             let start = cm.indexFromPos(change.from);
             let text = change.text.join("\n");
@@ -416,6 +447,7 @@ function CMSearchBox(node, elem) {
         }
         spans = updateSpans(normalizedChanges, spans);
         state.marks = renderSpans(cm, spans, state.marks);
+        console.log("CHANGE SPANS:", spans);
       });
     });
 
@@ -448,11 +480,80 @@ function CMSearchBox(node, elem) {
   cm.getWrapperElement().setAttribute("style", "flex: 1; font-family: 'Helvetica Neue'; font-weight:400; ");
 }
 
+function CMSearchBox2(node, elem) {
+  let cm = node.editor;
+  if(!cm) {
+    let state = {marks: []};
+    cm = node.editor = new CodeMirror(node, {
+      lineWrapping: true,
+      extraKeys: {
+        "Cmd-Enter": (cm) => {
+          return CodeMirror.Pass;
+        },
+        "Cmd-B": (cm) => {
+
+        },
+        "Cmd-I": (cm) => {
+
+        },
+        "Cmd-K": (cm) => {
+          cm.operation(() => {
+
+          })
+        }
+      }
+    });
+    cm.on("changes", (cm, changes) => {
+      cm.operation(() => {
+        let content = cm.getValue();
+        let ix = 0;
+        while((ix = content.indexOf("**", ix)) > -1) {
+          let pos = cm.posFromIndex(ix);
+          let end = cm.posFromIndex(ix+2);
+          var replaced = document.createElement("span");
+          // state.marks.push(cm.markText(pos, end, {collapsed: true}));
+          ix += 2;
+        }
+      });
+    });
+
+    cm.focus();
+    var timeout;
+    cm.on("cursorActivity", (cm) => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        if(cm.somethingSelected()) {
+          // console.log("TIME TO SHOW!");
+        }
+      }, 1000);
+    });
+    cm.on("mousedown", (cm, e) => {
+      let cursor = cm.coordsChar({left: e.clientX, top: e.clientY});
+      let pos = cm.indexFromPos(cursor);
+      let marks = cm.findMarksAt(cursor);
+      for(let mark of marks) {
+        if(mark.info && mark.info.to) {
+          // console.log("GOTO: ", mark.info.to);
+        }
+      }
+    });
+  }
+  if(cm.getValue() !== elem.value) {
+    cm.setValue(elem.value || "");
+  }
+  cm.refresh();
+  cm.getWrapperElement().setAttribute("style", "flex: 1; font-family: 'Helvetica Neue'; font-weight:400; ");
+}
+
 var testText = `Engineering
 Engineering is a department at Kodowa and stuff.
 `;
 
-var spans = [{offset: 29, length: 4, type: "bold link", to: "department"}, {offset: 0, length: "rtment".length, type: "link", to: "department"}, {offset: 4, length: "kodowa".length, type: "link", to: "kodowa"}];
+var testText2 = `Engineering
+Engineering is a {**depart**ment} at {Kodowa} and stuff.
+`;
+
+var spans:any = [{offset: 29, length: 4, type: "bold link", to: "department"}, {offset: 0, length: "rtment".length, type: "link", to: "department"}, {offset: 4, length: "kodowa".length, type: "link", to: "kodowa"}];
 
 function root() {
   return {id: "root", style: "flex: 1; background: #666; align-items: stretch;", children: [
@@ -464,7 +565,7 @@ function root() {
       .header-padding { height:20px; }
       .placeholder { color: #bbb; position:absolute; pointer-events:none; }
     `},
-    {style: " background: #fff; padding:10px 10px; margin: 100px auto; width: 800px; flex: 1;", postRender: CMSearchBox, value: testText},
+    {style: " background: #fff; padding:10px 10px; margin: 100px auto; width: 800px; flex: 1;", postRender: CMSearchBox2, value: testText2},
   ]};
 }
 
