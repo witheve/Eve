@@ -15,33 +15,36 @@
 - Root
 ---------------------------------------------------------*/
 .logo { width: 48px; height: 48px; background-size: contain; background-position: top center; background-repeat: no-repeat; }
-.eve-logo { width: 58px; height: 67px; background-size: cover; background-image: url("http://www.witheve.com/logo.png"); }
+.eve-logo { width: 56px; height: 65px; background-size: cover; background-image: url("http://www.witheve.com/logo.png"); }
 
-#perfStats { top: 4px; }
+#perfStats { top: 0.25em; right: 1.25em; }
 
 /*---------------------------------------------------------
 - Controls
 ---------------------------------------------------------*/
 .controls { flex-direction: row; }
+.controls > div { padding: 0.25em; border-radius: 2px; }
+
 div > header > .controls { opacity: 0; }
 div:hover > header > .controls { opacity: 1; }
-.controls > div { padding: 0.25em; border-radius: 2px; }
 .controls > div:hover { background: rgba(255, 255, 255, 0.25); }
 
 /*---------------------------------------------------------
 - Pane
 ---------------------------------------------------------*/
-.wiki-pane { background: #eee; }
 .wiki-pane.fullscreen {}
 .wiki-pane.window { position: absolute; min-width: 128px; }
 .wiki-pane > header { padding: 0.25em 0.5em; align-items: center; }
 .wiki-pane > header > * { margin: 0 0.5em;}
-.wiki-pane > content { width: 960px; align-self: center; background: #f9f9f9 } /* @TODO: Breakpoints */
+.wiki-pane > content { width: 960px; align-self: center; } /* @TODO: Breakpoints */
+
+.wiki-pane { background: #eee; }
+.wiki-pane > content { background: #f9f9f9; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2); }
 
 /*---------------------------------------------------------
 - Content
 ---------------------------------------------------------*/
-content h1 { font-size: 1.5em; margin: 1rem; margin-bottom: 0.5rem; }
+content h1 { font-size: 1.5em; margin: 1rem; margin-bottom: 0.5rem; text-transform: capitalize; }
 content h2 { font-weight: bold; }
 content h3 { font-style: italic; }
 content p { margin: 0.5rem 1rem; }
@@ -49,6 +52,8 @@ content ul, content ol { display: flex; flex-direction: column; margin-left: 1.5
 content ul { list-style-type: disc; }
 content ol { list-style-type: decimal; }
 content li { flex: 0 0 auto; }
+
+content h1 { border-bottom: 1px solid #ccc; }
 
 /*---------------------------------------------------------
 - Search Pane
@@ -67,17 +72,12 @@ content li { flex: 0 0 auto; }
 /*---------------------------------------------------------
 - Search Input
 ---------------------------------------------------------*/
-.wiki-search-wrapper {
-  flex-direction: row;
-  margin: 0;
-  position: relative;
-  font-size: 14pt;
-  font-family: "Lato";
-}
-
-.wiki-search-wrapper .wiki-search-input { padding: 0 0.25em; padding-right: 2.75em; border-radius: 2px; border: 1px solid transparent; border-bottom: 1px solid #999; outline: none; transition: all 0.1s; }
-.wiki-search-wrapper .wiki-search-input.selected, .wiki-search-wrapper:hover .wiki-search-input { background: #f9f9f9; border: 1px solid #999; box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.2); }
-.wiki-search-wrapper .wiki-search-input .CodeMirror-vscrollbar, .wiki-search-wrapper .wiki-search-input .CodeMirror-hscrollbar { visibility: hidden; }
-.wiki-search-wrapper .controls { opacity: 0; position: absolute; right: 0.25em; top: 0; bottom: 0; align-items: center; transition: all 0.1s; }
-.wiki-search-wrapper:hover .controls { opacity: 1; }
+.wiki-search-wrapper { flex-direction: row; position: relative; margin: 0; font-size: 16pt; font-family: "Lato"; }
 .wiki-search-wrapper .CodeMirror.cm-s-default { font-size: 16pt; }
+.wiki-search-wrapper .wiki-search-input .CodeMirror-vscrollbar, .wiki-search-wrapper .wiki-search-input .CodeMirror-hscrollbar { visibility: hidden; }
+.wiki-search-wrapper .wiki-search-input { padding: 0 0.25em; padding-right: 2.75em; border-radius: 2px; }
+.wiki-search-wrapper .controls { position: absolute; right: 0.25em; top: 0; bottom: 0; align-items: center; }
+
+.wiki-search-wrapper .wiki-search-input { background: #f9f9f9; border: 1px solid #999; box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.2); }
+.wiki-search-wrapper .controls div { opacity: 0; transition: 0.2s all; }
+.wiki-search-wrapper:hover .controls div, .wiki-search-wrapper .controls .visible { opacity: 1; }

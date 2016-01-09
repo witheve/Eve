@@ -252,8 +252,12 @@ export function entity(entityId:string, paneId:string):Element {
   // @TODO: This is where the new editor gets injected
   let blocks = [];
   for(let {block:blockId} of eve.find("content blocks", {entity: entityId})) blocks.push(block(blockId, paneId));
-  if(eve.findOne("collection", {collection: entityId})) blocks.push({c: "wiki-block", children: [index({collectionId: entityId, data: {paneId}, click: navigate})]});
-  blocks.push({c: "wiki-block", children: [related({entityId, data: {paneId}, click: navigate})]});
+  if(!blocks.length) {
+    blocks.push({id: `${paneId}|title`, c: "wiki-block", children: [{t: "h1", text: entityId}]});
+  }
+  // @TODO: Move these into blocks
+  if(eve.findOne("collection", {collection: entityId})) blocks.push({id: `${paneId}|index`, c: "wiki-block", children: [index({collectionId: entityId, data: {paneId}, click: navigate})]});
+  blocks.push({id: `${paneId}|related`, c: "wiki-block", children: [related({entityId, data: {paneId}, click: navigate})]});
   return {t: "content", c: "wiki-entity", children: blocks};
 }
 
@@ -292,7 +296,7 @@ export function searchInput(paneId:string, value:string):Element {
       }),
       {c: "controls", children: [
         {c: `ion-ios-arrow-${state.plan ? 'up' : 'down'} plan`, click: toggleSearchPlan, paneId},
-        {c: "ion-android-search", paneId, click: setSearch}
+        {c: "ion-android-search visible", paneId, click: setSearch}
       ]},
     ]
   };
