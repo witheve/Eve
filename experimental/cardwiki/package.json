@@ -4,21 +4,23 @@
   "description": "Better tools for thought.",
   "main": "./ui/editor.html",
   "dependencies": {
-    "browserify": "^12.0.1",
     "cli-table": "^0.3.1",
     "codemirror": "^5.7.0",
     "colors": "^1.1.2",
     "express": "^4.13.3",
     "faker": "^3.0.1",
     "pluralize": "^1.2.1",
-    "tsify": "^0.13.1",
     "uuid": "^2.0.1",
-    "watchify": "^3.6.1",
     "ws": "^0.8.0"
   },
   "devDependencies": {
+    "blessed": "^0.1.81",
+    "browserify": "^12.0.2",
     "chai": "^3.4.1",
-    "mocha": "^2.3.4"
+    "commander": "^2.9.0",
+    "mocha": "^2.3.4",
+    "tsify": "^0.13.2",
+    "watchify": "^3.7.0"
   },
   "scripts": {
     "server": "node bin/server.js",
