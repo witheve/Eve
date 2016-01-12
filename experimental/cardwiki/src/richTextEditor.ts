@@ -42,14 +42,14 @@ export class RichTextEditor {
     onUpdate: (meta: any, content: string) => void;
     getEmbed: (meta: any, query: string) => Element;
     getInlineAttribute: (meta: any, query: string) => string;
-    removeInlineAttribute: (meta: any, sourceId: string) => void;
+    removeInline: (meta: any, query: string) => void;
 
-    constructor(node, getEmbed, getInlineAttribute, removeInlineAttribute) {
+    constructor(node, getEmbed, getInlineAttribute, removeInline) {
         this.marks = [];
         this.meta = {};
         this.getEmbed = getEmbed;
         this.getInlineAttribute = getInlineAttribute;
-        this.removeInlineAttribute = removeInlineAttribute;
+        this.removeInline = removeInline;
         let cm = this.cmInstance = new CodeMirror(node, {
             lineWrapping: true,
             autoCloseBrackets: true,
@@ -76,6 +76,14 @@ export class RichTextEditor {
 
     onChanges(cm, changes) {
         let self = this;
+        for(let change of changes) {
+            let removed = change.removed.join("\n");
+            let matches = removed.match(/({[^]*?})/gm);
+            if(!matches) continue;
+            for(let match of matches) {
+                this.removeInline(this.meta, match);
+            }
+        }
         cm.operation(() => {
             let content = cm.getValue();
             let parts = content.split(/({[^]*?})/gm);
@@ -156,12 +164,12 @@ export class RichTextEditor {
 
 export function createEditor(getEmbed: (meta: any, query: string) => Element,
                              getInlineAttribute: (meta: any, query: string) => string,
-                             removeInlineAttribute: (meta: any, sourceId: string) => void) {
+                             removeInline: (meta: any, query: string) => void) {
     return function wrapRichTextEditor(node, elem) {
         let editor = node.editor;
         let cm;
         if (!editor) {
-            editor = node.editor = new RichTextEditor(node, getEmbed, getInlineAttribute, removeInlineAttribute);
+            editor = node.editor = new RichTextEditor(node, getEmbed, getInlineAttribute, removeInline);
             cm = node.editor.cmInstance;
             cm.focus();
         } else {

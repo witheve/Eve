@@ -122,6 +122,10 @@ appHandle("add sourced eav", (changes:Diff, eav:{entity:string, attribute:string
     changes.add("sourced eav", eav);
 });
 
+appHandle("remove sourced eav", (changes:Diff, eav:{entity:string, source:string}) => {
+    changes.remove("sourced eav", eav);
+});
+
 appHandle("update page", (changes:Diff, {page, content}: {page: string, content: string}) => {
     changes.remove("page content", {page});
     changes.add("page content", {page, content});
@@ -299,11 +303,14 @@ function getInlineAttribute(meta, query) {
   return `{${entity}'s ${attribute}|${sourceId}}`;
 }
 
-function removeInlineAttribute(meta, sourceId) {
-
+function removeInline(meta, query) {
+    let [search, source] = query.substring(1, query.length - 1).split("|");
+    if(eve.findOne("sourced eav", {source})) {
+        dispatch("remove sourced eav", {entity: meta.entity, source}).commit();
+    }
 }
 
-var wikiEditor = createEditor(getEmbed, getInlineAttribute, removeInlineAttribute);
+var wikiEditor = createEditor(getEmbed, getInlineAttribute, removeInline);
 
 //---------------------------------------------------------
 
