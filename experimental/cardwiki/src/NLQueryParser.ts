@@ -102,7 +102,9 @@ function getTokens(queryString: string): Array<Token> {
     });
               
     // Form a token for each word
+    let i = 0;
     let tokens: Array<Token> = wordsnTags.map((wordnTag) => {
+      i++;
       let word = wordnTag[0];
       let tag: string = wordnTag[1];
       let minorPOS = MinorPartsOfSpeech[tag];
@@ -141,6 +143,10 @@ function getTokens(queryString: string): Array<Token> {
         } else {
           minorPOS = MinorPartsOfSpeech.NNP;
         }
+      // Heuristic: if the word is not the first word and it had capitalization, then it is probably a proper noun {
+      } else if (before !== normalizedWord && i !== 1) {
+        majorPOS = MajorPartsOfSpeech.NOUN;
+        minorPOS = MinorPartsOfSpeech.NNP;
       }
       // if the word is a noun, singularize
       if (majorPOS === MajorPartsOfSpeech.NOUN) {
@@ -313,7 +319,8 @@ function formTree(tokens: any): any {
   // here, the noun phrase "the yellow dog who lived in the town" is a noun phrase consisting of the noun
   // groups "the yellow dog" and "the town"
   // Modifiers that come before a noun: articles, possessive nouns/pronouns, adjectives, participles
-  // 
+  // Modifiers that come after a noun: prepositional phrases, adjective clauses, participle phrases, infinitives
+  // Less frequently, noun phrases have pronouns as a base
   
   
   // Find adjective phrases. These are analagous to noun phrases but for adjectives. E.g. "very tall person",
@@ -324,6 +331,14 @@ function formTree(tokens: any): any {
   //   Discontinuous modifiers can be before and after the adjective.
   
   // Heuristic: Adjective phrases exist in proximity to a noun group and within a noun phrase
+  
+  
+  
+  // Linking verbs: be [am is ar was wer has been are being etc.], become, seem. These are always linking verbs
+  // Linking verb test: replace with am, is, or are and the sentence should still parse
+  
+  
+  
   
   
   // Find prepositional phrases. These begin with a preposition and end with a noun, pronoun, gerund, or clause.
@@ -410,7 +425,7 @@ function zip(array1: Array<any>, array2: Array<any>): Array<Array<any>> {
 
 // ----------------------------------
 
-let query = "official knowledge";
+let query = "my favorite months are April, May, and June.";
 parse(query);
 
 let start = performance.now();
