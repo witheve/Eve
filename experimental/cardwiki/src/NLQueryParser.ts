@@ -51,13 +51,8 @@ enum MinorPartsOfSpeech {
   RBS,  // superlative adverb (coolest (looking))
   // Noun
   NN,   // noun, singular (dog) 
-  NNP,  // singular proper noun (Edinburgh)
   NNPA, // acronym (FBI)
   NNAB, // abbreviation (jr.)
-  NNPS, // plural proper noun (Smiths)
-  NNS,  // plural noun (dogs)
-  NNO,  // possessive noun (dog's)
-  NNOP, // possessive proper noun (John's)
   NG,   // gerund noun (eating, winning, but used as a noun)
   PRP,  // personal pronoun (I, you, she)
   PP,   // possessive pronoun (my, one's)
@@ -85,6 +80,10 @@ interface Token {
   normalizedWord: string;
   majorPOS: MajorPartsOfSpeech;
   minorPOS: MinorPartsOfSpeech;
+  // Attributes for nouns only
+  isPossessive?: boolean;
+  isProper?: boolean;
+  isPlural?: boolean;
 }
 
 function tokenToString(token: Token): string {
@@ -119,7 +118,7 @@ function getTokens(queryString: string): Array<Token> {
       before = normalizedWord;
       normalizedWord = normalizedWord.replace(/'s|'$/,'');
       // Heuristic: If the word has a possessive ending, it has to be a possessive noun of some sort      
-      if (before !== normalizedWord) {
+      /*if (before !== normalizedWord) {
         // tag the word in isolation
         let a: string = nlp.pos(normalizedWord).tags()[0]; // @HACK: done in 2 lines to coerce the type checker
         let singleTag: MinorPartsOfSpeech = MinorPartsOfSpeech[a];
@@ -131,20 +130,20 @@ function getTokens(queryString: string): Array<Token> {
           minorPOS = MinorPartsOfSpeech.NNO;
           majorPOS = MajorPartsOfSpeech.NOUN;
         }
-      }
+      }*/
       // convert to lowercase
       before = normalizedWord;
       normalizedWord = normalizedWord.toLowerCase();
       // Heuristic: infer some tag information from the case of the word
       // e.g. nouns beginning with a capital letter are usually proper nouns
-      if (before !== normalizedWord && majorPOS === MajorPartsOfSpeech.NOUN) {
+      /*if (before !== normalizedWord && majorPOS === MajorPartsOfSpeech.NOUN) {
         if (minorPOS === MinorPartsOfSpeech.NNO) {
           //minorPOS = MinorPartsOfSpeech.NNOP;
         } else {
           //minorPOS = MinorPartsOfSpeech.NNP;
         }
       // Heuristic: if the word is not the first word and it had capitalization, then it is probably a proper noun {
-      } /*else if (before !== normalizedWord && i !== 1) {
+      } else if (before !== normalizedWord && i !== 1) {
         majorPOS = MajorPartsOfSpeech.NOUN;
         minorPOS = MinorPartsOfSpeech.NNP;
       }*/
@@ -153,14 +152,14 @@ function getTokens(queryString: string): Array<Token> {
         before = normalizedWord;
         normalizedWord = pluralize(normalizedWord, 1);
         // Heuristic: If the word changed after singularizing it, then it was plural to begin with
-        if (before !== normalizedWord && (minorPOS !== MinorPartsOfSpeech.NNS && minorPOS !== MinorPartsOfSpeech.NNPS)) {
+        /*if (before !== normalizedWord && (minorPOS !== MinorPartsOfSpeech.NNS && minorPOS !== MinorPartsOfSpeech.NNPS)) {
           if (minorPOS === MinorPartsOfSpeech.NN) {
             minorPOS = MinorPartsOfSpeech.NNS;
           }
           else if (minorPOS === MinorPartsOfSpeech.NNP) {
             minorPOS = MinorPartsOfSpeech.NNPS;
           }
-        }
+        }*/
       }      
       return {originalWord: word, normalizedWord: normalizedWord, majorPOS: majorPOS, minorPOS: minorPOS};
     });
@@ -236,13 +235,8 @@ function minorToMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpe
   }
   // Noun
   if (minorPartOfSpeech === MinorPartsOfSpeech.NN   ||
-      minorPartOfSpeech === MinorPartsOfSpeech.NNP  ||
       minorPartOfSpeech === MinorPartsOfSpeech.NNPA ||
       minorPartOfSpeech === MinorPartsOfSpeech.NNAB ||
-      minorPartOfSpeech === MinorPartsOfSpeech.NNPS ||
-      minorPartOfSpeech === MinorPartsOfSpeech.NNS  ||
-      minorPartOfSpeech === MinorPartsOfSpeech.NNO  ||
-      minorPartOfSpeech === MinorPartsOfSpeech.NNOP ||
       minorPartOfSpeech === MinorPartsOfSpeech.NG   ||
       minorPartOfSpeech === MinorPartsOfSpeech.PRP  ||
       minorPartOfSpeech === MinorPartsOfSpeech.PP) {
@@ -270,28 +264,6 @@ function minorToMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpe
       minorPartOfSpeech === MinorPartsOfSpeech.WPO ||
       minorPartOfSpeech === MinorPartsOfSpeech.WRB) {
         return MajorPartsOfSpeech.WHWORD;
-  }
-}
-
-function isPossessive(minorPOS: MinorPartsOfSpeech): boolean {
-  if (minorPOS === MinorPartsOfSpeech.NNOP ||
-      minorPOS === MinorPartsOfSpeech.NNO  ||
-      minorPOS === MinorPartsOfSpeech.PP   || 
-      minorPOS === MinorPartsOfSpeech.WPO) {
-    return true;
-  }
-  else {
-    return false;
-  }
-}
-
-function isPlural(minorPOS: MinorPartsOfSpeech): boolean {
-  if (minorPOS === MinorPartsOfSpeech.NNS ||
-      minorPOS === MinorPartsOfSpeech.NNPS) {
-    return true;
-  }
-  else {
-    return false;
   }
 }
 
@@ -373,7 +345,7 @@ function formTree(tokens: any): any {
   if (firstNoun !== undefined) {
     let expectedChildren = 0;
     // If the noun is possessive, we might expect a dependency exists between it and another noun
-    if (isPossessive(firstNoun.minorPOS)) {
+    if (firstNoun.isPossessive) {
         expectedChildren = 1;
     }
     tree = {node: firstNoun, parent: null, children: undefined, nominalChildrenCount: expectedChildren};
