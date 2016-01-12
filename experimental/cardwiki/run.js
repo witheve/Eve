@@ -78,6 +78,14 @@ function build(bundles) {
 //------------------------------------------------------------
 // UI
 //------------------------------------------------------------
+function formatTag(tag) {
+  var fmt;
+  if(tag === "livereload") fmt = "#784C97-fg";
+  else if(tag in pkgs) fmt = "#0087DD-fg";
+
+  if(!fmt) return tag;
+  else return "{" + fmt + "}" + tag + "{/" + fmt + "}";
+};
 var _logTarget;
 function pad(str, padding, length) {
   str = ""+str;
@@ -107,7 +115,7 @@ function tagLog(tag) {
   else if(msg.match(warnRegex)) state = "orange-fg";
   else if(msg.match(infoRegex)) state = "gray-fg";
   var timestamp = (state ? "{" + state + "}" : "") + time() + (state ? "{/" + state + "}" : "");
-  _logTarget.add(timestamp + " [{bold}{blue-fg}" + tag + "{/blue-fg}{/bold}] " + msg);
+  _logTarget.add(timestamp + " [{bold}" + formatTag(tag) + "{/bold}] " + msg);
 }
 
 function root(program, state) {
@@ -123,9 +131,18 @@ function root(program, state) {
     process.exit(0);
   });
   screen.program.enableMouse();
+  screen.width = screen.cols = 20;
+
+  var frame = blessed.box({
+    parent: screen,
+    top: 0,
+    left: 0,
+    width: program.width || screen.width,
+    height: program.height || screen.height
+  })
 
   var logBox = _logTarget = blessed.log({
-    parent: screen,
+    parent: frame,
     top: 0,
     left: 0,
     bottom: 0,
@@ -137,7 +154,7 @@ function root(program, state) {
   });
 
   var logo = blessed.box({
-    parent: screen,
+    parent: frame,
     tags: true,
     bottom: 0,
     right: 1,
@@ -160,7 +177,7 @@ function root(program, state) {
   });
 
   var status = blessed.box({
-    parent: screen,
+    parent: frame,
     top: 0,
     right: 1,
     height: "shrink",
@@ -208,7 +225,7 @@ function root(program, state) {
   });
 
   var spacer = blessed.box({
-    parent: screen,
+    parent: frame,
     top: program.bundles.length + 3,
     bottom: logo.content.split("\n").length,
     right: 0,
@@ -225,12 +242,16 @@ function root(program, state) {
 function asList(str) {
   return str.split(",");
 }
+function asNumber(str) {
+  return +str;
+}
 
 program
   .version(pkg.version)
   .option("-b, --bundles [bundles...]", "Whitelist packages to bundle [" + pkgList.join(",") + "]", asList, pkgList)
   .option("-w, --watch", "Watch bundles for changes", false)
   .option("-v, --verbose", "Log informational events", false)
+  .option("--width <number>", "Set explicit screen width", asNumber)
   .parse(process.argv);
 var screen = root(program, state);
 
@@ -246,7 +267,7 @@ if(program.watch) {
   server.watch(["./*.html", "css/**/*.css", "bin/*.bundle.js", "vendor/**/*.js", "vendor/**/*.css"]);
   if(program.verbose) server.watcher.on("change", function(path) {
     log(path)
-    tagLog("livereload", "Reloading " + path + "...")
+    tagLog("livereload", "Reloading " + path)
   })
 }
 
