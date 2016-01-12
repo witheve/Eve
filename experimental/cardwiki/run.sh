@@ -69,7 +69,7 @@ function tag {
 }
 
 function bundle {
-  node_modules/watchify/bin/cmd.js -e "typings/codemirror/codemirror.d.ts" -dv $3 -p tsify "$1" -o "$2"
+  node_modules/watchify/bin/cmd.js -e "typings/codemirror/codemirror.d.ts" -e "typings/marked-ast/marked.d.ts" -dv $3 -p tsify "$1" -o "$2"
 }
 
 function codeplace {

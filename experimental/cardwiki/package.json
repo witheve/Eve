@@ -10,6 +10,7 @@
     "colors": "^1.1.2",
     "express": "^4.13.3",
     "faker": "^3.0.1",
+    "marked-ast": "^0.2.2",
     "pluralize": "^1.2.1",
     "tsify": "^0.13.1",
     "uuid": "^2.0.1",
