@@ -39,7 +39,7 @@ function makeBundler(name, opts) {
     bundler.bundle()
       .on("error", function(err) {
 	state[name].errors.push(err);
-	tagLog(name, err);
+	tagLog(name, err.message);
 	this.emit("end");
       })
       .on("end", function() {
@@ -52,7 +52,7 @@ function makeBundler(name, opts) {
   if(opts.verbose) {
     if(opts.watch) bundler.on("log", function(msg) { tagLog(name, msg); });
   }
-    if(opts.watch) {
+  if(opts.watch) {
     bundler.plugin(watchify);
     bundler.on("update", bundler.run);
   }
@@ -95,11 +95,19 @@ function log() {
   var args = [].slice.call(arguments);
   _logTarget.add(time() + " " + args.map(maybeInspect).join(" "));
 }
+var errorRegex = /error/gi;
+var warnRegex = /warn/gi;
+var infoRegex = /info/gi;
 function tagLog(tag) {
   var args = [].slice.call(arguments, 1);
-  _logTarget.add(time() + " [" + tag + "] " + args.map(maybeInspect).join(" "));
+  var msg = args.map(maybeInspect).join(" ");
+  var state;
+  if(msg.match(errorRegex)) state = "red-fg";
+  else if(msg.match(warnRegex)) state = "orange-fg";
+  else if(msg.match(infoRegex)) state = "gray-fg";
+  var timestamp = (state ? "{" + state + "}" : "") + time() + (state ? "{/" + state + "}" : "");
+  _logTarget.add(timestamp + " [{bold}{blue-fg}" + tag + "{/blue-fg}{/bold}] " + msg);
 }
-  
 
 function root(program, state) {
   var screen = blessed.screen({
@@ -120,18 +128,43 @@ function root(program, state) {
     top: 0,
     left: 0,
     bottom: 0,
+    width: "100%-26",
     scrollable: true,
     scrollbar: {ch: "#", inverse: true},
-    keys: true
+    keys: true,
+    tags: true
   });
-  
+
+  var logo = blessed.box({
+    parent: screen,
+    tags: true,
+    bottom: 0,
+    right: 1,
+    width: "shrink",
+    height: "shrink",
+    content:
+      "          ,'`.         \n" +
+      "       ,'      `.      \n" +
+      "    ,'`.        | `.   \n" +
+      " ,'      `.     |    `.\n" +
+      "|`.     ,' |    |     |\n" +
+      "|   `.'    |    |     |\n" +
+      "|    |     |  ,'`.    |\n" +
+      "|    |     |'      `. |\n" +
+      " `.  |     `.        ;'\n" +
+      "    `|,       `.  ,'   \n" +
+      "       `.      ,'      \n" +
+      "          `.,'         \n",
+    style: {fg: "gray"}
+  });
+
   var status = blessed.box({
     parent: screen,
     top: 0,
     right: 1,
     height: "shrink",
     width: "shrink",
-    border: {type: "line"},
+    border: {type: "line"}
   });
 
   var statusLines = {
@@ -144,7 +177,7 @@ function root(program, state) {
       height: 1,
       padding: {left: 1, right: 1},
       content: "all",
-      style: {hover: {}, focus: {bold: true}},
+      style: {hover: {bold: true}, focus: {bold: true, fg: "blue"}},
     })
   };
   var statusLights = {};
@@ -158,7 +191,7 @@ function root(program, state) {
       height: 1,
       padding: {left: 1, right: 1},
       content: bundleName,
-      style: {hover: {}, focus: {bold: true}},
+      style: {hover: {bold: true}, focus: {bold: true, fg: "blue"}},
     });
     statusLights[bundleName] = blessed.box({
       parent: statusLines[bundleName],
@@ -172,7 +205,16 @@ function root(program, state) {
       this.style.fg = state[bundleName] && state[bundleName].completed ? (state[bundleName].errors.length ? "red" : "green") : "yellow";
     });
   });
-  
+
+  var spacer = blessed.box({
+    parent: screen,
+    top: program.bundles.length + 3,
+    bottom: logo.content.split("\n").length,
+    right: 0,
+    width: 26,
+    style: {}
+  });
+
   return screen;
 }
 
@@ -198,5 +240,5 @@ function render() {
 }
 render();
 
-//if(program.bundles) build(program.bundles);
+if(program.bundles) build(program.bundles);
 
