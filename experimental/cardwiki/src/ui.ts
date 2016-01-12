@@ -176,7 +176,7 @@ export function pane(paneId:string):Element {
   let {c:klass, header, footer} = makeChrome(paneId, contains);
   let content;
   if(eve.findOne("entity", {entity: contains}) || eve.findOne("collection", {collection: contains})) content = entity(contains, paneId);
-  else if(activeSearches[contains] && activeSearches[contains].plan.length) content = search(contains, paneId);
+  else if(activeSearches[contains] && activeSearches[contains].plan.length > 1) content = search(contains, paneId);
   else content = {text: "No results found..."}; // @ TODO: Editor to create new entity
 
   return {c: `wiki-pane ${klass || ""}`, children: [header, content, footer]};

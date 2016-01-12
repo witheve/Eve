@@ -178,6 +178,7 @@ export function createEditor(getEmbed: (meta: any, query: string) => Element,
     editor.meta = elem.meta || editor.meta;
     if (cm.getValue() !== elem.value) {
       cm.setValue(elem.value || "");
+      cm.clearHistory();
     }
     cm.refresh();
   }
