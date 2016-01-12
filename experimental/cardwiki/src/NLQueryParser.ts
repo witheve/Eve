@@ -139,15 +139,15 @@ function getTokens(queryString: string): Array<Token> {
       // e.g. nouns beginning with a capital letter are usually proper nouns
       if (before !== normalizedWord && majorPOS === MajorPartsOfSpeech.NOUN) {
         if (minorPOS === MinorPartsOfSpeech.NNO) {
-          minorPOS = MinorPartsOfSpeech.NNOP;
+          //minorPOS = MinorPartsOfSpeech.NNOP;
         } else {
-          minorPOS = MinorPartsOfSpeech.NNP;
+          //minorPOS = MinorPartsOfSpeech.NNP;
         }
       // Heuristic: if the word is not the first word and it had capitalization, then it is probably a proper noun {
-      } else if (before !== normalizedWord && i !== 1) {
+      } /*else if (before !== normalizedWord && i !== 1) {
         majorPOS = MajorPartsOfSpeech.NOUN;
         minorPOS = MinorPartsOfSpeech.NNP;
-      }
+      }*/
       // if the word is a noun, singularize
       if (majorPOS === MajorPartsOfSpeech.NOUN) {
         before = normalizedWord;
@@ -273,11 +273,11 @@ function minorToMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpe
   }
 }
 
-function isPossessive(token: Token): boolean {
-  if (token.minorPOS === MinorPartsOfSpeech.NNOP ||
-      token.minorPOS === MinorPartsOfSpeech.NNO  ||
-      token.minorPOS === MinorPartsOfSpeech.PP   || 
-      token.minorPOS === MinorPartsOfSpeech.WPO) {
+function isPossessive(minorPOS: MinorPartsOfSpeech): boolean {
+  if (minorPOS === MinorPartsOfSpeech.NNOP ||
+      minorPOS === MinorPartsOfSpeech.NNO  ||
+      minorPOS === MinorPartsOfSpeech.PP   || 
+      minorPOS === MinorPartsOfSpeech.WPO) {
     return true;
   }
   else {
@@ -285,9 +285,9 @@ function isPossessive(token: Token): boolean {
   }
 }
 
-function isPlural(token: Token): boolean {
-  if (token.minorPOS === MinorPartsOfSpeech.NNS ||
-      token.minorPOS === MinorPartsOfSpeech.NNPS) {
+function isPlural(minorPOS: MinorPartsOfSpeech): boolean {
+  if (minorPOS === MinorPartsOfSpeech.NNS ||
+      minorPOS === MinorPartsOfSpeech.NNPS) {
     return true;
   }
   else {
@@ -373,7 +373,7 @@ function formTree(tokens: any): any {
   if (firstNoun !== undefined) {
     let expectedChildren = 0;
     // If the noun is possessive, we might expect a dependency exists between it and another noun
-    if (isPossessive(firstNoun)) {
+    if (isPossessive(firstNoun.minorPOS)) {
         expectedChildren = 1;
     }
     tree = {node: firstNoun, parent: null, children: undefined, nominalChildrenCount: expectedChildren};
@@ -425,7 +425,7 @@ function zip(array1: Array<any>, array2: Array<any>): Array<Array<any>> {
 
 // ----------------------------------
 
-let query = "my favorite months are April, May, and June.";
+let query = "Corey's age";
 parse(query);
 
 let start = performance.now();
