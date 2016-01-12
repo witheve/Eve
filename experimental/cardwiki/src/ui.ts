@@ -268,6 +268,11 @@ function getEmbed(meta, query) {
   span.textContent = `${parts[0]}`;
   span.classList.add("link")
   span.classList.add("found");
+  if(eve.findOne("entity", {entity: parts[0]})) {
+      span.onclick = () => {
+            dispatch("ui set search", {paneId: meta.paneId, value: parts[0]}).commit();
+      }
+  }
   return span;
 }
 
@@ -296,7 +301,7 @@ export function entity(entityId:string, paneId:string):Element {
 //   if(eve.findOne("collection", {collection: entityId})) blocks.push({id: `${paneId}|index`, c: "wiki-block", children: [index({collectionId: entityId, data: {paneId}, click: navigate})]});
 //   blocks.push({id: `${paneId}|related`, c: "wiki-block", children: [related({entityId, data: {paneId}, click: navigate})]});
   return {t: "content", c: "wiki-entity", children: [
-      {c: "wiki-editor", postRender: wikiEditor, change: updatePage, meta: {entity: entityId, page}, value: content}
+      {c: "wiki-editor", postRender: wikiEditor, change: updatePage, meta: {entity: entityId, page, paneId}, value: content}
   ]};
 }
 
