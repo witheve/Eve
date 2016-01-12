@@ -38,12 +38,15 @@ export class RichTextEditor {
     cmInstance;
     marks: any[];
     timeout;
-    getEmbed: (query: string) => Element;
-    getInlineAttribute: (query: string) => string;
-    removeInlineAttribute: (sourceId: string) => void;
+    meta: any;
+    onUpdate: (meta: any, content: string) => void;
+    getEmbed: (meta: any, query: string) => Element;
+    getInlineAttribute: (meta: any, query: string) => string;
+    removeInlineAttribute: (meta: any, sourceId: string) => void;
 
     constructor(node, getEmbed, getInlineAttribute, removeInlineAttribute) {
         this.marks = [];
+        this.meta = {};
         this.getEmbed = getEmbed;
         this.getInlineAttribute = getInlineAttribute;
         this.removeInlineAttribute = removeInlineAttribute;
@@ -61,7 +64,12 @@ export class RichTextEditor {
         });
 
         var self = this;
-        cm.on("changes", (cm, changes) => { self.onChanges(cm, changes); });
+        cm.on("changes", (cm, changes) => {
+            self.onChanges(cm, changes);
+            if(self.onUpdate) {
+                self.onUpdate(self.meta, cm.getValue());
+            }
+        });
         cm.on("cursorActivity", (cm) => { self.onCursorActivity(cm) });
         cm.on("mousedown", (cm, e) => { self.onMouseDown(cm, e) });
     }
@@ -134,9 +142,9 @@ export class RichTextEditor {
             if (query.indexOf(":") > -1) {
                 let start = cm.posFromIndex(ix);
                 let stop = cm.posFromIndex(ix + query.length);
-                cm.replaceRange(this.getInlineAttribute(query), start, stop);
+                cm.replaceRange(this.getInlineAttribute(this.meta, query), start, stop);
             } else {
-                mark = cm.markText(start, stop, { replacedWith: this.getEmbed(query.substring(1, query.length - 1)) });
+                mark = cm.markText(start, stop, { replacedWith: this.getEmbed(this.meta, query.substring(1, query.length - 1)) });
             }
         } else {
             mark = cm.markText(start, stop, { className: "bold" });
@@ -146,17 +154,21 @@ export class RichTextEditor {
     }
 }
 
-export function createEditor(getEmbed: (query: string) => Element,
-                             getInlineAttribute: (query: string) => string,
-                             removeInlineAttribute: (sourceId: string) => void) {
+export function createEditor(getEmbed: (meta: any, query: string) => Element,
+                             getInlineAttribute: (meta: any, query: string) => string,
+                             removeInlineAttribute: (meta: any, sourceId: string) => void) {
     return function wrapRichTextEditor(node, elem) {
         let editor = node.editor;
         let cm;
         if (!editor) {
-            node.editor = new RichTextEditor(node, getEmbed, getInlineAttribute, removeInlineAttribute);
+            editor = node.editor = new RichTextEditor(node, getEmbed, getInlineAttribute, removeInlineAttribute);
             cm = node.editor.cmInstance;
             cm.focus();
+        } else {
+            cm = node.editor.cmInstance;
         }
+        editor.onUpdate = elem.change;
+        editor.meta = elem.meta || editor.meta;
         if (cm.getValue() !== elem.value) {
             cm.setValue(elem.value || "");
         }

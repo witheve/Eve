@@ -114,15 +114,15 @@ export function dispatch(event: string, info?: { [key: string]: any }, dispatchI
   };
   result.commit = () => {
     var start = performance.now();
-    result.remove("builtin entity", {entity: "render performance statistics"});
-    result.add("builtin entity", {entity: "render performance statistics", content: `
-    # Render performance statistics ({is a: system})
-    root: {root: ${perfStats.root}}
-    ui compile: {ui compile: ${perfStats.uiCompile}}
-    render: {render: ${perfStats.render}}
-    update: {update: ${perfStats.update}}
-    Horrible hack, disregard this: {perf stats: render performance statistics}
-    `});
+    // result.remove("builtin entity", {entity: "render performance statistics"});
+    // result.add("builtin entity", {entity: "render performance statistics", content: `
+    // # Render performance statistics ({is a: system})
+    // root: {root: ${perfStats.root}}
+    // ui compile: {ui compile: ${perfStats.uiCompile}}
+    // render: {render: ${perfStats.render}}
+    // update: {update: ${perfStats.update}}
+    // Horrible hack, disregard this: {perf stats: render performance statistics}
+    // `});
     if(!runtime.INCREMENTAL) {
       eve.applyDiff(result);
     } else {

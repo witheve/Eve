@@ -4,10 +4,11 @@ import {parse as marked, Renderer as MarkedRenderer} from "../vendor/marked";
 /// <reference path="codemirror/codemirror.d.ts" />
 import * as CodeMirror from "codemirror";
 import {Diff} from "./runtime";
+import {createEditor} from "./richTextEditor";
 import {Element, Handler, RenderHandler} from "./microReact";
 import {eve, handle as appHandle, dispatch, activeSearches} from "./app";
 import {StepType, queryToExecutable} from "./queryParser";
-import {copy, uuid} from "./utils";
+import {copy, uuid, coerceInput} from "./utils";
 
 enum PANE { FULL, WINDOW, POPOUT };
 enum BLOCK { TEXT, PROJECTION };
@@ -115,6 +116,15 @@ appHandle("ui set search", (changes:Diff, {paneId, value}:{paneId:string, value:
 appHandle("ui toggle search plan", (changes:Diff, {paneId}:{paneId:string}) => {
   let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value: ""};
   state.plan = !state.plan;
+});
+
+appHandle("add sourced eav", (changes:Diff, eav:{entity:string, attribute:string, value:string|number, source:string}) => {
+    changes.add("sourced eav", eav);
+});
+
+appHandle("update page", (changes:Diff, {page, content}: {page: string, content: string}) => {
+    changes.remove("page content", {page});
+    changes.add("page content", {page, content});
 });
 
 //---------------------------------------------------------
@@ -248,17 +258,50 @@ function sizeColumns(node:HTMLElement, elem:Element) {
   for(let column of columns) column.style.width = widths[column["value"]] + 1;
 }
 
+//---------------------------------------------------------
+// CHRIS
+//---------------------------------------------------------
+
+function getEmbed(meta, query) {
+  var parts = query.split("|");
+  var span = document.createElement("span");
+  span.textContent = `${parts[0]}`;
+  span.classList.add("link")
+  span.classList.add("found");
+  return span;
+}
+
+function getInlineAttribute(meta, query) {
+  let sourceId = uuid();
+  let entity = meta.entity;
+  let [attribute, value] = query.substring(1, query.length - 1).split(":");
+  value = coerceInput(value.trim());
+  dispatch("add sourced eav", {entity, attribute, value, source: sourceId}).commit();
+  return `{${entity}'s ${attribute}|${sourceId}}`;
+}
+
+function removeInlineAttribute(meta, sourceId) {
+
+}
+
+var wikiEditor = createEditor(getEmbed, getInlineAttribute, removeInlineAttribute);
+
+//---------------------------------------------------------
+
+
 export function entity(entityId:string, paneId:string):Element {
-  // @TODO: This is where the new editor gets injected
-  let blocks = [];
-  for(let {block:blockId} of eve.find("content blocks", {entity: entityId})) blocks.push(block(blockId, paneId));
-  if(!blocks.length) {
-    blocks.push({id: `${paneId}|title`, c: "wiki-block", children: [{t: "h1", text: entityId}]});
-  }
+  let content = eve.findOne("entity", {entity: entityId})["content"];
+  let page = eve.findOne("entity page", {entity: entityId})["page"];
   // @TODO: Move these into blocks
-  if(eve.findOne("collection", {collection: entityId})) blocks.push({id: `${paneId}|index`, c: "wiki-block", children: [index({collectionId: entityId, data: {paneId}, click: navigate})]});
-  blocks.push({id: `${paneId}|related`, c: "wiki-block", children: [related({entityId, data: {paneId}, click: navigate})]});
-  return {t: "content", c: "wiki-entity", children: blocks};
+//   if(eve.findOne("collection", {collection: entityId})) blocks.push({id: `${paneId}|index`, c: "wiki-block", children: [index({collectionId: entityId, data: {paneId}, click: navigate})]});
+//   blocks.push({id: `${paneId}|related`, c: "wiki-block", children: [related({entityId, data: {paneId}, click: navigate})]});
+  return {t: "content", c: "wiki-entity", children: [
+      {c: "wiki-editor", postRender: wikiEditor, change: updatePage, meta: {entity: entityId, page}, value: content}
+  ]};
+}
+
+function updatePage(meta, content) {
+    dispatch("update page", {page: meta.page, content}).commit();
 }
 
 function navigate(event, elem) {
