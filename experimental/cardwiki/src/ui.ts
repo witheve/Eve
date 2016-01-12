@@ -368,11 +368,13 @@ export function searchInput(paneId:string, value:string):Element {
       }),
       {c: "controls", children: [
         {c: `ion-ios-arrow-${state.plan ? 'up' : 'down'} plan`, click: toggleSearchPlan, paneId},
-        {c: "ion-android-search visible", paneId, click: setSearch}
+        // while technically a button, we don't need to do anything as clicking it will blur the editor
+        // which will execute the search
+        {c: "ion-android-search visible", paneId}
       ]},
     ]
   };
-}
+};
 
 function focusSearch(event, elem) {
   dispatch("ui focus search", elem).commit();
