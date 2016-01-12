@@ -1,6 +1,7 @@
 var browserify = require("browserify");
 var blessed = require("blessed");
 var fs = require("fs");
+var livereload = require("livereload");
 var program = require("commander");
 var pkg = require("./package.json");
 var tsify = require("tsify");
@@ -239,6 +240,15 @@ function render() {
   screen.program.flush();
 }
 render();
+
+if(program.watch) {
+  var server = livereload.createServer({exts: ["html", "js", "css"]});
+  server.watch(["./*.html", "css/**/*.css", "bin/*.bundle.js", "vendor/**/*.js", "vendor/**/*.css"]);
+  if(program.verbose) server.watcher.on("change", function(path) {
+    log(path)
+    tagLog("livereload", "Reloading " + path + "...")
+  })
+}
 
 if(program.bundles) build(program.bundles);
 
