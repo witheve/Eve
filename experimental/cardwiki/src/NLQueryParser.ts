@@ -56,6 +56,10 @@ enum MinorPartsOfSpeech {
   NG,   // gerund noun (eating, winning, but used as a noun)
   PRP,  // personal pronoun (I, you, she)
   PP,   // possessive pronoun (my, one's)
+  // Legacy Noun
+  NNP,  // Singular proper noun 
+  NNPS, // Plural proper noun
+  NNO,  // Possessive noun
   // Glue
   FW,   // foreign word (voila) 
   IN,   // preposition (of, in, by)
@@ -237,6 +241,9 @@ function minorToMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpe
   if (minorPartOfSpeech === MinorPartsOfSpeech.NN   ||
       minorPartOfSpeech === MinorPartsOfSpeech.NNPA ||
       minorPartOfSpeech === MinorPartsOfSpeech.NNAB ||
+      minorPartOfSpeech === MinorPartsOfSpeech.NNP  ||
+      minorPartOfSpeech === MinorPartsOfSpeech.NNPS ||
+      minorPartOfSpeech === MinorPartsOfSpeech.NNO  ||
       minorPartOfSpeech === MinorPartsOfSpeech.NG   ||
       minorPartOfSpeech === MinorPartsOfSpeech.PRP  ||
       minorPartOfSpeech === MinorPartsOfSpeech.PP) {
