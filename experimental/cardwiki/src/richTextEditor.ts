@@ -41,14 +41,14 @@ export class RichTextEditor {
     meta: any;
     onUpdate: (meta: any, content: string) => void;
     getEmbed: (meta: any, query: string) => Element;
-    getInlineAttribute: (meta: any, query: string) => string;
+    getInline: (meta: any, query: string) => string;
     removeInline: (meta: any, query: string) => void;
 
-    constructor(node, getEmbed, getInlineAttribute, removeInline) {
+    constructor(node, getEmbed, getInline, removeInline) {
         this.marks = [];
         this.meta = {};
         this.getEmbed = getEmbed;
-        this.getInlineAttribute = getInlineAttribute;
+        this.getInline = getInline;
         this.removeInline = removeInline;
         let cm = this.cmInstance = new CodeMirror(node, {
             lineWrapping: true,
@@ -147,10 +147,9 @@ export class RichTextEditor {
         if (cursorIx < ix || cursorIx >= ix + query.length) {
             // check if this is a query that's defining an inline attribute
             // e.g. {age: 30}
-            if (query.indexOf(":") > -1) {
-                let start = cm.posFromIndex(ix);
-                let stop = cm.posFromIndex(ix + query.length);
-                cm.replaceRange(this.getInlineAttribute(this.meta, query), start, stop);
+            let adjusted = this.getInline(this.meta, query)
+            if (adjusted !== query) {
+                cm.replaceRange(adjusted, start, stop);
             } else {
                 mark = cm.markText(start, stop, { replacedWith: this.getEmbed(this.meta, query.substring(1, query.length - 1)) });
             }
@@ -163,13 +162,13 @@ export class RichTextEditor {
 }
 
 export function createEditor(getEmbed: (meta: any, query: string) => Element,
-                             getInlineAttribute: (meta: any, query: string) => string,
+                             getInline: (meta: any, query: string) => string,
                              removeInline: (meta: any, query: string) => void) {
     return function wrapRichTextEditor(node, elem) {
         let editor = node.editor;
         let cm;
         if (!editor) {
-            editor = node.editor = new RichTextEditor(node, getEmbed, getInlineAttribute, removeInline);
+            editor = node.editor = new RichTextEditor(node, getEmbed, getInline, removeInline);
             cm = node.editor.cmInstance;
             cm.focus();
         } else {

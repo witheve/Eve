@@ -294,13 +294,16 @@ function getEmbed(meta, query) {
     return span;
 }
 
-function getInlineAttribute(meta, query) {
-  let sourceId = uuid();
-  let entity = meta.entity;
-  let [attribute, value] = query.substring(1, query.length - 1).split(":");
-  value = coerceInput(value.trim());
-  dispatch("add sourced eav", {entity, attribute, value, source: sourceId}).commit();
-  return `{${entity}'s ${attribute}|${sourceId}}`;
+function getInline(meta, query) {
+    if(query.indexOf(":") > -1) {
+        let sourceId = uuid();
+        let entity = meta.entity;
+        let [attribute, value] = query.substring(1, query.length - 1).split(":");
+        value = coerceInput(value.trim());
+        dispatch("add sourced eav", {entity, attribute, value, source: sourceId}).commit();
+        return `{${entity}'s ${attribute}|${sourceId}}`;
+    }
+    return query;
 }
 
 function removeInline(meta, query) {
@@ -310,7 +313,7 @@ function removeInline(meta, query) {
     }
 }
 
-var wikiEditor = createEditor(getEmbed, getInlineAttribute, removeInline);
+var wikiEditor = createEditor(getEmbed, getInline, removeInline);
 
 //---------------------------------------------------------
 
