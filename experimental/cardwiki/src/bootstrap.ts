@@ -95,7 +95,12 @@ class BSPhase {
 
   addEntity(entity:string, name:string, kinds:string[], attributes?:{}, extraContent?:string) {
     this._entities.push(entity);
-    let isAs = kinds.map((kind) => `{is a: ${kind}}`);
+    let isAs = [];
+    for(let kind of kinds) {
+        let sourceId = `${entity},is a,${kind}`;
+        isAs.push(`{${kind}|${sourceId}}`);
+        this.addFact("sourced eav", {entity, attribute: "is a", value: kind, sourceId})
+    }
     let collectionsText = "";
     if(isAs.length)
       collectionsText = `${titlecase(name)} is a ${isAs.slice(0, -1).join(", ")} ${isAs.length > 1 ? "and" : ""} ${isAs[isAs.length - 1]}.`;
@@ -105,14 +110,16 @@ class BSPhase {
     `;
     if(attributes) {
       content += "Attributes\n";
-      for(let attr in attributes) content += `${attr}: {${attr}: ${attributes[attr]}}\n      `;
+      for(let attr in attributes) {
+          let sourceId = `${entity},${attr},${attributes[attr]}`;
+          content += `${attr}: {${name}'s ${attr}|${sourceId}}\n      `;
+          this.addFact("sourced eav", {entity, attribute: attr, value: attributes[attr], source: sourceId});
+      }
     }
     if(extraContent) content += "\n" + extraContent;
-    let block = `${entity}|manual content block`;
-    this.addFact("manual eav", {entity: block, attribute: "is a", value: "content block"}); // @FIXME: builtin entity eavs
-    this.addFact("manual eav", {entity: block, attribute: "source", value: "manual"}); // @FIXME: builtin entity eavs
-    this.addFact("manual eav", {entity: block, attribute: "associated entity", value: entity}); // @FIXME: builtin entity eavs
-    this.addFact("manual eav", {entity: block, attribute: "content", value: content}); // @FIXME: builtin entity eavs
+    let page = `${entity}|root`;
+    this.addFact("page content", {page, content});
+    this.addFact("entity page", {entity, page});
     return this;
   }
 
@@ -216,6 +223,9 @@ app.init("bootstrap", function bootstrap() {
   let phase = new BSPhase(eve);
   phase.addTable("manual entity", ["entity", "content"]);
   phase.addTable("manual eav", ["entity", "attribute", "value"]);
+  phase.addTable("sourced eav", ["entity", "attribute", "value", "source"]);
+  phase.addTable("page content", ["page", "content"]);
+  phase.addTable("entity page", ["entity", "page"]);
   phase.addTable("action entity", ["entity", "content", "source"]);
   phase.addEntity("collection", "collection", ["system"])
     .addEntity("system", "system", ["collection"])
@@ -225,8 +235,9 @@ app.init("bootstrap", function bootstrap() {
     .addEntity("ui", "ui", ["system", "collection"]);
 
   phase.addQuery("entity", queryFromQueryDSL(unpad(4) `
-    select content blocks as [blocks]
-    project {entity: [blocks, entity]; content: [blocks, content]}
+    select entity page as [ent]
+    select page content {page: [ent, page]} as [page]
+    project {entity: [ent, entity]; content: [page, content]}
   `));
 
   phase.addQuery("unmodified added bits", queryFromQueryDSL(unpad(4) `
@@ -235,39 +246,10 @@ app.init("bootstrap", function bootstrap() {
     project {entity: [added, entity]; content: [added, content]}
   `));
 
-//   (block :is-a "block"
-//          :associated-entity entity
-//          :content content)
-//   (-> content-blocks :block block, :entity entity, :content content)
-
-  phase.addQuery("content blocks", queryFromQueryDSL(unpad(4) `
-    select entity eavs {attribute: is a; value: content block} as [eav]
-    select entity eavs {entity: [eav, entity]; attribute: associated entity} as [assoc]
-    select entity eavs {entity: [eav, entity]; attribute: content} as [content]
-    project {block: [eav, entity]; entity: [assoc, value]; content: [content, value]}
-  `));
-
-//   (content-blocks :entity entity :content content)
-//   (parse-eavs :entity entity :text content :attribute attr :value value)
-//   (-> entity-eavs :entity entity :attribute attr :value value)
-
-  phase.addQuery("parsed content blocks", queryFromQueryDSL(unpad(4) `
-     select content blocks as [blocks]
-     calculate parse eavs {entity: [blocks, entity]; text: [blocks, content]} as [parsed]
-     project {entity: [blocks, entity]; attribute: [parsed, attribute]; value: [parsed, value]}
-   `));
-
-  phase.addQuery("parsed eavs", queryFromQueryDSL(unpad(4) `
-    select entity as [entity]
-    calculate parse eavs {entity: [entity, entity]; text: [entity, content]} as [parsed]
-    project {entity: [entity, entity]; attribute: [parsed, attribute]; value: [parsed, value]}
-  `));
-
   phase.addUnion("entity eavs", ["entity", "attribute", "value"], true)
     .addUnionMember("entity eavs", "manual eav")
     .addUnionMember("entity eavs", "generated eav", {entity: "entity", attribute: "attribute", value: "value"})
-    .addUnionMember("entity eavs", "parsed content blocks")
-    .addUnionMember("entity eavs", "parsed eavs")
+    .addUnionMember("entity eavs", "sourced eav", {entity: "entity", attribute: "attribute", value: "value"})
     // this is a stored union that is used by the add eav action to take query results and
     // push them into eavs, e.g. sum salaries per department -> [total salary = *]
     .addUnionMember("entity eavs", "added eavs");
@@ -429,7 +411,7 @@ app.init("bootstrap", function bootstrap() {
   //   .addFact("employee", {department: "engineering", employee: "chris", salary: 7})
   //   .addFact("employee", {department: "operations", employee: "rob", salary: 7});
 
-  //phase.apply(true);
+//   phase.apply(true);
   window["p"] = phase;
 });
 
