@@ -263,17 +263,31 @@ function sizeColumns(node:HTMLElement, elem:Element) {
 //---------------------------------------------------------
 
 function getEmbed(meta, query) {
-  var parts = query.split("|");
-  var span = document.createElement("span");
-  span.textContent = `${parts[0]}`;
-  span.classList.add("link")
-  span.classList.add("found");
-  if(eve.findOne("entity", {entity: parts[0]})) {
-      span.onclick = () => {
-            dispatch("ui set search", {paneId: meta.paneId, value: parts[0]}).commit();
-      }
-  }
-  return span;
+    var parts = query.split("|");
+    var span = document.createElement("span");
+    span.textContent = `${parts[0]}`;
+    span.classList.add("link")
+    span.classList.add("found");
+    let link;
+    if (eve.findOne("entity", { entity: parts[0] })) {
+        link = parts[0];
+    } else if (parts[1]) {
+        let eav = eve.findOne("sourced eav", { source: parts[1] });
+        if (eav) {
+            let {attribute, value} = eav;
+            console.log(JSON.stringify(parts[1]), attribute, value);
+            if (attribute === "is a" || eve.findOne("entity", { entity: value })) {
+                link = value;
+            }
+            span.textContent = value;
+        }
+    }
+    if (link) {
+        span.onclick = () => {
+            dispatch("ui set search", { paneId: meta.paneId, value: link }).commit();
+        }
+    }
+    return span;
 }
 
 function getInlineAttribute(meta, query) {
