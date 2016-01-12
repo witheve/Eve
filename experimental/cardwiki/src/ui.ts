@@ -267,50 +267,50 @@ function sizeColumns(node:HTMLElement, elem:Element) {
 //---------------------------------------------------------
 
 function getEmbed(meta, query) {
-    var parts = query.split("|");
-    var span = document.createElement("span");
-    span.textContent = `${parts[0]}`;
-    span.classList.add("link")
-    span.classList.add("found");
-    let link;
-    if (eve.findOne("entity", { entity: parts[0] })) {
-        link = parts[0];
-    } else if (parts[1]) {
-        let eav = eve.findOne("sourced eav", { source: parts[1] });
-        if (eav) {
-            let {attribute, value} = eav;
-            console.log(JSON.stringify(parts[1]), attribute, value);
-            if (attribute === "is a" || eve.findOne("entity", { entity: value })) {
-                link = value;
-            }
-            span.textContent = value;
-        }
+  var parts = query.split("|");
+  var span = document.createElement("span");
+  span.textContent = `${parts[0]}`;
+  span.classList.add("link")
+  span.classList.add("found");
+  let link;
+  if (eve.findOne("entity", { entity: parts[0] })) {
+    link = parts[0];
+  } else if (parts[1]) {
+    let eav = eve.findOne("sourced eav", { source: parts[1] });
+    if (eav) {
+      let {attribute, value} = eav;
+      console.log(JSON.stringify(parts[1]), attribute, value);
+      if (attribute === "is a" || eve.findOne("entity", { entity: value })) {
+        link = value;
+      }
+      span.textContent = value;
     }
-    if (link) {
-        span.onclick = () => {
-            dispatch("ui set search", { paneId: meta.paneId, value: link }).commit();
-        }
+  }
+  if (link) {
+    span.onclick = () => {
+      dispatch("ui set search", { paneId: meta.paneId, value: link }).commit();
     }
-    return span;
+  }
+  return span;
 }
 
 function getInline(meta, query) {
-    if(query.indexOf(":") > -1) {
-        let sourceId = uuid();
-        let entity = meta.entity;
-        let [attribute, value] = query.substring(1, query.length - 1).split(":");
-        value = coerceInput(value.trim());
-        dispatch("add sourced eav", {entity, attribute, value, source: sourceId}).commit();
-        return `{${entity}'s ${attribute}|${sourceId}}`;
-    }
-    return query;
+  if (query.indexOf(":") > -1) {
+    let sourceId = uuid();
+    let entity = meta.entity;
+    let [attribute, value] = query.substring(1, query.length - 1).split(":");
+    value = coerceInput(value.trim());
+    dispatch("add sourced eav", { entity, attribute, value, source: sourceId }).commit();
+    return `{${entity}'s ${attribute}|${sourceId}}`;
+  }
+  return query;
 }
 
 function removeInline(meta, query) {
-    let [search, source] = query.substring(1, query.length - 1).split("|");
-    if(eve.findOne("sourced eav", {source})) {
-        dispatch("remove sourced eav", {entity: meta.entity, source}).commit();
-    }
+  let [search, source] = query.substring(1, query.length - 1).split("|");
+  if (eve.findOne("sourced eav", { source })) {
+    dispatch("remove sourced eav", { entity: meta.entity, source }).commit();
+  }
 }
 
 var wikiEditor = createEditor(getEmbed, getInline, removeInline);
