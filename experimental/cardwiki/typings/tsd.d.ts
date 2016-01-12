@@ -3,3 +3,4 @@
 /// <reference path="mime/mime.d.ts" />
 /// <reference path="serve-static/serve-static.d.ts" />
 /// <reference path="codemirror/codemirror.d.ts" />
+/// <reference path="marked-ast/marked.d.ts" />
