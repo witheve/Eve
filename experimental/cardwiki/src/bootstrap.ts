@@ -98,8 +98,8 @@ class BSPhase {
     let isAs = [];
     for(let kind of kinds) {
         let sourceId = `${entity},is a,${kind}`;
-        isAs.push(`{${kind}|${sourceId}}`);
-        this.addFact("sourced eav", {entity, attribute: "is a", value: kind, sourceId})
+        isAs.push(`{${kind}|eav source = ${sourceId}}`);
+        this.addFact("sourced eav", {entity, attribute: "is a", value: kind, source: sourceId})
     }
     let collectionsText = "";
     if(isAs.length)
@@ -112,7 +112,7 @@ class BSPhase {
       content += "Attributes\n";
       for(let attr in attributes) {
           let sourceId = `${entity},${attr},${attributes[attr]}`;
-          content += `${attr}: {${name}'s ${attr}|${sourceId}}\n      `;
+          content += `${attr}: {${name}'s ${attr}|eav source = ${sourceId}}\n      `;
           this.addFact("sourced eav", {entity, attribute: attr, value: attributes[attr], source: sourceId});
       }
     }

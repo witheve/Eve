@@ -1,3 +1,7 @@
+body { background: #fff; color: rgb(76, 85, 90); font-family: "Lato", sans-serif; font-weight: 300; }
+* { box-sizing: border-box; }
+div { display: flex; flex-direction: column; }
+
 .test { border: 2px solid red; }
 
 .light .bit { background: transparent; }
@@ -14,10 +18,11 @@
 /*---------------------------------------------------------
 - Root
 ---------------------------------------------------------*/
-.logo { width: 48px; height: 48px; background-size: contain; background-position: top center; background-repeat: no-repeat; }
-.eve-logo { width: 56px; height: 65px; background-size: cover; background-image: url("http://www.witheve.com/logo.png"); }
 
-#perfStats { top: 0.25em; right: 1.25em; }
+.logo { width: 48px; height: 48px; background-size: contain; background-position: top center; background-repeat: no-repeat; }
+.eve-logo { width: 28px; height: 32.5px; background-size: cover; background-image: url("http://www.witheve.com/logo.png"); }
+
+#perfStats { position:absolute; background:#fff; padding:10px; bottom: 0px; right: 0; color: #888; z-index:20; }
 
 /*---------------------------------------------------------
 - Controls
@@ -34,12 +39,28 @@ div:hover > header > .controls { opacity: 1; }
 ---------------------------------------------------------*/
 .wiki-pane.fullscreen {}
 .wiki-pane.window { position: absolute; min-width: 128px; }
-.wiki-pane > header { padding: 0.25em 0.5em; align-items: center; }
+.wiki-pane > header { padding: 10px 0.5em; align-items: center; border-bottom:1px solid #ccc; }
 .wiki-pane > header > * { margin: 0 0.5em;}
-.wiki-pane > content { width: 960px; align-self: center; } /* @TODO: Breakpoints */
+.wiki-pane > content {  } /* @TODO: Breakpoints */
 
-.wiki-pane { background: #eee; }
-.wiki-pane > content { background: #f9f9f9; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2); }
+.wiki-pane { background: #fff; }
+.wiki-pane > content { display:flex; justify-content: center; }
+
+.wiki-entity { flex:1; overflow:auto; }
+
+/*---------------------------------------------------------
+- Wiki editor
+---------------------------------------------------------*/
+
+.wiki-editor { width: 680px; }
+.wiki-editor .CodeMirror { font-family: "Lato"; font-size: 18px; color: rgb(76, 85, 90); font-weight:300; }
+.wiki-editor .CodeMirror-lines { padding:50px 0; }
+.wiki-editor .cm-header { color: rgb(76, 85, 90); font-weight:normal; }
+.wiki-editor .cm-header-1 { font-size: 20pt; line-height: 40px; }
+.wiki-editor .link { color: #008cdd; cursor: pointer; }
+.wiki-editor .link:hover { border-bottom:1px solid #008cdd; }
+.wiki-editor .embed-code { background: #C7E7FF; }
+.wiki-editor .cm-variable-2 { padding-left:15px; }
 
 /*---------------------------------------------------------
 - Content
@@ -72,12 +93,19 @@ content h1 { border-bottom: 1px solid #ccc; }
 /*---------------------------------------------------------
 - Search Input
 ---------------------------------------------------------*/
-.wiki-search-wrapper { flex-direction: row; position: relative; margin: 0; font-size: 16pt; font-family: "Lato"; }
+.wiki-search-wrapper { flex-direction: row; position: relative; margin: 0; font-size: 16pt; font-family: "Lato"; font-weight:300; }
 .wiki-search-wrapper .CodeMirror.cm-s-default { font-size: 16pt; }
 .wiki-search-wrapper .wiki-search-input .CodeMirror-vscrollbar, .wiki-search-wrapper .wiki-search-input .CodeMirror-hscrollbar { visibility: hidden; }
 .wiki-search-wrapper .wiki-search-input { padding: 0 0.25em; padding-right: 2.75em; border-radius: 2px; }
 .wiki-search-wrapper .controls { position: absolute; right: 0.25em; top: 0; bottom: 0; align-items: center; }
 
-.wiki-search-wrapper .wiki-search-input { background: #f9f9f9; border: 1px solid #999; box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.2); }
+.wiki-search-wrapper .wiki-search-input { }
 .wiki-search-wrapper .controls div { opacity: 0; transition: 0.2s all; }
 .wiki-search-wrapper:hover .controls div, .wiki-search-wrapper .controls .visible { opacity: 1; }
+
+/*---------------------------------------------------------
+- CodeMirror general
+---------------------------------------------------------*/
+
+.CodeMirror { font-family: "Lato", sans-serif; overflow:visible; height: auto; font-weight:300; line-height: 1.4em; color: rgb(76, 85, 90); }
+.CodeMirror-scroll { height: auto; }
