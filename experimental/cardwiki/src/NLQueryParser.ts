@@ -214,12 +214,21 @@ function getTokens(queryString: string): Array<Token> {
         token.POS = MinorPartsOfSpeech.IN;
       }
       
-      // Heuristic: Special case forms of "be" that NLPC. gets wrong.
-      if (token.normalizedWord === "is" && getMajorPOS(token.POS) !== MajorPartsOfSpeech.NOUN) {
-        token.POS = MinorPartsOfSpeech.VBZ;
-      } else if (token.normalizedWord === "was" && getMajorPOS(token.POS) !== MajorPartsOfSpeech.NOUN) {
-        token.POS = MinorPartsOfSpeech.VBD;
+      // Heuristic: Special case verbs that get classified as adjectives
+      if (getMajorPOS(token.POS) !== MajorPartsOfSpeech.NOUN) {
+        switch (token.normalizedWord) {
+          case "is": 
+            token.POS = MinorPartsOfSpeech.VBZ;
+            break;
+          case "was":
+            token.POS = MinorPartsOfSpeech.VBD;
+            break;
+          case "will":
+            token.POS = MinorPartsOfSpeech.MD;
+            break;
+        }
       }
+
       
       return token;
     });
@@ -490,7 +499,7 @@ function zip(array1: Array<any>, array2: Array<any>): Array<Array<any>> {
 // ----------------------------------------------------------------------------
 
 let n = 1;
-parseTest("What was Corey's age",n);
+parseTest("What is Corey's age?",n);
 parseTest("Corey's age",n);
 parseTest("Corey Montella's sales",n);
 parseTest("People older than Corey Montella",n);
