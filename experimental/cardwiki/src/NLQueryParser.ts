@@ -92,9 +92,9 @@ interface Token {
 }
 
 function tokenToString(token: Token): string {
-  let isPossessive = token.isPossessive === undefined ? "" : "possessive";
-  let isProper = token.isProper === undefined ? "" : "proper";
-  let isPlural = token.isPlural === undefined ? "" : "plural";
+  let isPossessive = token.isPossessive === undefined ? "" : token.isPossessive === true ? "possessive": "";
+  let isProper = token.isProper === undefined ? "" : token.isProper === true ? "proper": "";
+  let isPlural = token.isPlural === undefined ? "" : token.isPlural === true ? "plural": "";
   let tokenString = `${token.originalWord} | ${token.normalizedWord} | ${MajorPartsOfSpeech[token.majorPOS]} | ${MinorPartsOfSpeech[token.minorPOS]} ${isPossessive} ${isProper} ${isPlural}` ;
   return tokenString;
 }
@@ -109,9 +109,7 @@ function getTokens(queryString: string): Array<Token> {
     });
               
     // Form a token for each word
-    let i = 0;
-    let tokens: Array<Token> = wordsnTags.map((wordnTag) => {
-      i++;
+    let tokens: Array<Token> = wordsnTags.map((wordnTag, i) => {
       let word = wordnTag[0];
       let tag: string = wordnTag[1];
       let minorPOS = MinorPartsOfSpeech[tag];
@@ -148,7 +146,7 @@ function getTokens(queryString: string): Array<Token> {
         token.isProper = true;
       }
       // Heuristic: if the word is not the first word in the sentence and it had capitalization, then it is probably a proper noun
-      else if (before !== normalizedWord && i !== 1) {
+      else if (before !== normalizedWord && i !== 0) {
         token.majorPOS = MajorPartsOfSpeech.NOUN;
         token.minorPOS = MinorPartsOfSpeech.NNP;
         token.isProper = true;        
@@ -195,6 +193,8 @@ function getTokens(queryString: string): Array<Token> {
       if (token.normalizedWord === "whose") {
         token.minorPOS = MinorPartsOfSpeech.WPO;
         token.majorPOS = MajorPartsOfSpeech.WHWORD;
+        token.isProper = false;
+        token.isPossessive = true;
         continue;
       }
       // adverbs become wh- adverbs
@@ -403,7 +403,7 @@ function zip(array1: Array<any>, array2: Array<any>): Array<Array<any>> {
 
 // ----------------------------------
 
-let query = "Corey Montella's ages in april, may, and june.";
+let query = "Whose ages in april, may, and June were greater than 20?";
 parse(query);
 
 let start = performance.now();
