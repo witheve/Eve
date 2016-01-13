@@ -74,18 +74,10 @@ export var array = {
 };
 
 export function coerceInput(input) {
-  if (input.match(/^-?[\d]+$/gim)) {
-    return parseInt(input);
-  }
-  else if (input.match(/^-?[\d]+\.[\d]+$/gim)) {
-    return parseFloat(input);
-  }
-  else if (input === "true") {
-    return true;
-  }
-  else if (input === "false") {
-    return false;
-  }
+  // http://jsperf.com/regex-vs-plus-coercion
+  if (!isNaN(+input)) return +input;
+  else if (input === "true") return true;
+  else if (input === "false") return false;
   return input;
 }
 
