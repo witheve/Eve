@@ -140,9 +140,7 @@ function getTokens(queryString: string): Array<Token> {
     let tokens: Array<Token> = wordsnTags.map((wordnTag, i) => {
       let word = wordnTag[0];
       let tag: string = wordnTag[1];
-      let minorPOS = MinorPartsOfSpeech[tag];
-      let majorPOS = getMajorPOS(minorPOS);
-      let token: Token = {originalWord: word, normalizedWord: word, POS: minorPOS, used: false};
+      let token: Token = {originalWord: word, normalizedWord: word, POS: MinorPartsOfSpeech[tag], used: false};
       let before = "";
       
       // Add default attribute markers to nouns
@@ -186,19 +184,13 @@ function getTokens(queryString: string): Array<Token> {
       // --- convert to lowercase
       before = normalizedWord;
       normalizedWord = normalizedWord.toLowerCase();
-      // Heuristic: infer some tag information from the case of the word
-      // e.g. nouns beginning with a capital letter are usually proper nouns
-      if (before !== normalizedWord && majorPOS === MajorPartsOfSpeech.NOUN) {
-        token.POS = MinorPartsOfSpeech.NNP;
-        token.isProper = true;
-      }
       // Heuristic: if the word is not the first word in the sentence and it had capitalization, then it is probably a proper noun
-      else if (before !== normalizedWord && i !== 0) {
+      if (before !== normalizedWord && i !== 0) {
         token.POS = MinorPartsOfSpeech.NNP;
         token.isProper = true;        
       }
       // --- if the word is a noun, singularize
-      if (majorPOS === MajorPartsOfSpeech.NOUN) {
+      if (getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN) {
         before = normalizedWord;
         normalizedWord = singularize(normalizedWord);
         // Heuristic: If the word changed after singularizing it, then it was plural to begin with
@@ -228,8 +220,6 @@ function getTokens(queryString: string): Array<Token> {
             break;
         }
       }
-
-      
       return token;
     });
     
@@ -402,6 +392,7 @@ function formTree(tokens: any): any {
       
       // Now we need to pull in other words to attach to the noun. 
       // Search to the left
+      
       // Search to the right
       
       
@@ -476,8 +467,6 @@ function formTree(tokens: any): any {
     return token.majorPOS === MajorPartsOfSpeech.ADJECTIVE;   
   });
   
-
-    
 }
 
 // ----------------------------------------------------------------------------
@@ -510,8 +499,8 @@ function zip(array1: Array<any>, array2: Array<any>): Array<Array<any>> {
 // ----------------------------------------------------------------------------
 
 let n = 1;
-parseTest("When will corey write his will?",n);
+parseTest("When will corey be 30 years old?",n);
 parseTest("Corey's age",n);
-parseTest("Corey Montella's sales",n);
+parseTest("Corey Montella's 1st sale",n);
 parseTest("People older than Corey Montella",n);
 parseTest("How many 4 star restaurants are in San Francisco?",n);
