@@ -267,23 +267,27 @@ function sizeColumns(node:HTMLElement, elem:Element) {
 //---------------------------------------------------------
 
 function getEmbed(meta, query) {
-  var parts = query.split("|");
+  var [content, rawParams] = query.split("|");
   var span = document.createElement("span");
-  span.textContent = `${parts[0]}`;
+  let link = span.textContent = content.toString();
   span.classList.add("link")
   span.classList.add("found");
-  let link;
-  if (eve.findOne("entity", { entity: parts[0] })) {
-    link = parts[0];
-  } else if (parts[1]) {
-    let eav = eve.findOne("sourced eav", { source: parts[1] });
-    if (eav) {
-      let {attribute, value} = eav;
-      console.log(JSON.stringify(parts[1]), attribute, value);
-      if (attribute === "is a" || eve.findOne("entity", { entity: value })) {
-        link = value;
+  if(!eve.findOne("entity", {entity: link})) link = undefined;
+  if (rawParams) {
+    let params = {};
+    for(let kv of rawParams.split(";")) {
+      let [key, value] = kv.split("=");
+      params[key.trim()] = coerceInput(value.trim());
+    }
+    if(params["eav source"]) {
+      let eav = eve.findOne("sourced eav", { source: params["eav source"] });
+      if (eav) {
+        let {attribute, value} = eav;
+        if (attribute === "is a" || eve.findOne("entity", { entity: value })) {
+          link = value;
+        }
+        span.textContent = value;
       }
-      span.textContent = value;
     }
   }
   if (link) {
@@ -301,7 +305,7 @@ function getInline(meta, query) {
     let [attribute, value] = query.substring(1, query.length - 1).split(":");
     value = coerceInput(value.trim());
     dispatch("add sourced eav", { entity, attribute, value, source: sourceId }).commit();
-    return `{${entity}'s ${attribute}|${sourceId}}`;
+    return `{${entity}'s ${attribute}|eav source = ${sourceId}}`;
   }
   return query;
 }
