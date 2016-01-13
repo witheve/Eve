@@ -169,6 +169,13 @@ function getTokens(queryString: string): Array<Token> {
         token.isPlural = true;
       }
       
+      // Heuristic: Special case "in" classified as an adjective. e.g. "the in crowd". This is an uncommon usage
+      if (token.normalizedWord === "in" && token.majorPOS === MajorPartsOfSpeech.ADJECTIVE) 
+      {
+        token.majorPOS = MajorPartsOfSpeech.GLUE;
+        token.minorPOS = MinorPartsOfSpeech.IN;
+      }
+      
       return token;
     });
     
@@ -289,7 +296,6 @@ interface Tree {
   node: Token;
   parent: Token;
   children: Array<Token>;
-  nominalChildrenCount: number; // the number of children this node is expected to have. A heuristic for where to stick leftover tokens 
 }
 
 // take tokens, form a parse tree
@@ -298,7 +304,7 @@ function formTree(tokens: any): any {
   let tree: Tree;
   let processedTokens = 0;
   
-  // Entity types ORGANIZATION, PERSON, THING, ANIMAL, LOCATION, DATE, TIME, MONEY, and GPE 
+  // Entity types ORGANIZATION, PERSON, THING, ANIMAL, LOCATION, DATE, TIME, MONEY, and GEOPOLITICAL
   
   // Find noun groups. These are like noun phrases, but smaller. A noun phrase may be a single noun group
   // or it may consist of several noun groups. e.g. "the yellow dog who lived in the town ran away from home".
@@ -307,6 +313,44 @@ function formTree(tokens: any): any {
   // Modifiers that come before a noun: articles, possessive nouns/pronouns, adjectives, participles
   // Modifiers that come after a noun: prepositional phrases, adjective clauses, participle phrases, infinitives
   // Less frequently, noun phrases have pronouns as a base
+  
+  
+    let firstNoun = tokens.find((token) => {
+      return token.majorPOS === MajorPartsOfSpeech.NOUN;   
+    });
+    if (firstNoun !== undefined) {
+    let expectedChildren = 0;
+    // If the noun is possessive, we might expect a dependency exists between it and another noun
+    if (firstNoun.isPossessive) {
+        expectedChildren = 1;
+    }
+    tree = {node: firstNoun, parent: null, children: undefined};
+    processedTokens++;  
+  }
+  // Heuristic: If there are no nouns, the root of the tree is just the first token
+  // @TODO
+  else {
+    
+  }
+  
+  
+  
+  // Find noun phrases. Noun phrases are a group of words that describe a root noun
+  // e.g. "4-star restaurant" "the united states of america"
+  // Heuristic: CD, DT, and JJ typically preceed a noun phrase
+  // Heuristic: All noun phrases contain nouns. Corollary: all nouns belong to some noun phrase
+  // common error: JJ/VB
+  
+  // Find relationships between noun groups. In the previous example, "the yellow dog" is related to "the town"
+  // by the words "lived in"
+  // Heuristic: relationships often exist between noun groups 
+  
+  
+  // Heuristic: The skeleton of the sentence can be constructed by looking only at nouns. All other words are achored to those nouns.
+  // Once that is done, you can form noun phrases  
+  
+  
+  
   
   
   // Find adjective phrases. These are analagous to noun phrases but for adjectives. E.g. "very tall person",
@@ -336,49 +380,24 @@ function formTree(tokens: any): any {
   // Heuristic: Prepositional phrase will NEVER contain the subject of the sentence 
   // Heuristic: Prepositional phrases begin with a preposition, and end with a noun group
   
-  // Find relationships between noun groups. In the previous example, "the yellow dog" is related to "the town"
-  // by the words "lived in"
-  
-  // Heuristic: relationships often exist between noun groups 
+
   
   
   
-  
-  // Find noun phrases. Noun phrases are a group of words that describe a root noun
-  // e.g. "4-star restaurant" "the united states of america"
-  // Heuristic: CD, DT, and JJ typically preceed a noun phrase
-  // Heuristic: All noun phrases contain nouns
-  // common error: JJ/VB
+
 
   // Heuristic: The first noun is usually the subject
   // breaks this heuristic: "How many 4 star restaurants are in San Francisco?"
   // Here, star is the first noun, but 4-star is an adjective
-  let firstNoun = tokens.find((token) => {
-    return token.majorPOS === MajorPartsOfSpeech.NOUN;   
-  });
-  if (firstNoun !== undefined) {
-    let expectedChildren = 0;
-    // If the noun is possessive, we might expect a dependency exists between it and another noun
-    if (firstNoun.isPossessive) {
-        expectedChildren = 1;
-    }
-    tree = {node: firstNoun, parent: null, children: undefined, nominalChildrenCount: expectedChildren};
-    processedTokens++;  
-  }
-  // Heuristic: If there are no nouns, the root of the tree is just the first token
-  // @TODO
-  else {
-    
-  }
+
+
 
   // Heuristic: attributes to a noun exist in close proximity to it
   let firstAdjective = tokens.find((token) => {
     return token.majorPOS === MajorPartsOfSpeech.ADJECTIVE;   
   });
   
-  // Heuristic: all nouns belong to a noun phrase
-  // Heuristic: The skeleton of the sentence can be constructed by looking only at nouns. All other words are achored to those nouns.
-  // Once that is done, you can form noun phrases  
+
     
 }
 
@@ -411,7 +430,7 @@ function zip(array1: Array<any>, array2: Array<any>): Array<Array<any>> {
 
 // ----------------------------------
 
-let query = "Whose ages in April, May, and June were greater than 20?";
+let query = "How many 4 star restaurants are in San Francisco?";
 parse(query);
 
 let start = performance.now();
@@ -419,11 +438,11 @@ let parseResult = parse(query);
 let stop = performance.now();
 
 // Display result
-let tokens = parseResult["tokens"];
+let tokens = parseResult.tokens;
 let tokenStrings = tokens.map((token) => {
   return tokenToString(token);
-});
+}).join("\n");
 console.log("===============================");
 console.log(query);
-console.log(tokenStrings.join("\n"));
+console.log(tokenStrings);
 console.log(stop-start);
