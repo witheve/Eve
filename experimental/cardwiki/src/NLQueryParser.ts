@@ -253,7 +253,8 @@ function getTokens(queryString: string): Array<Token> {
         continue;
       }
       // adverbs become wh- adverbs
-      if (token.normalizedWord === "how"  ||
+      if (token.normalizedWord === "how"      ||
+          token.normalizedWord === "when"     ||
           token.normalizedWord === "however"  || 
           token.normalizedWord === "whenever" ||
           token.normalizedWord === "where"    ||
