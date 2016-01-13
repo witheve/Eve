@@ -17,7 +17,7 @@ function parseTest(queryString: string) {
   let minTime;
   
   // Parse string and time it
-  let n = 100;
+  let n = 1;
   for (let i = 0; i < n; i++) {
     let start = performance.now();
     parseResult = parse(queryString);
@@ -37,10 +37,10 @@ function parseTest(queryString: string) {
   let tokenStrings = parseResult.tokens.map((token) => {
     return tokenToString(token);
   }).join("\n");
-  console.log("===============================");
+  let timingDisplay = `Timing (avg, max, min): ${(avgTime/n).toFixed(2)} | ${maxTime.toFixed(2)} | ${minTime.toFixed(2)} `;
+  console.log("==============================================================");
   console.log(queryString);
   console.log(tokenStrings);
-  let timingDisplay = `Timing (avg, max, min): ${(avgTime/n).toFixed(2)} | ${maxTime.toFixed(2)} | ${minTime.toFixed(2)} `;
   console.log(timingDisplay);
 }
 
@@ -84,10 +84,10 @@ enum MinorPartsOfSpeech {
   PRP,  // personal pronoun (I, you, she)
   PP,   // possessive pronoun (my, one's)
   // Legacy Noun
-  NNP,  // Singular proper noun 
-  NNPS, // Plural proper noun
-  NNO,  // Possessive noun
-  NNS,  // Plural noun
+  NNP,  // Singular proper noun (Smith)
+  NNPS, // Plural proper noun (Smiths)
+  NNO,  // Possessive noun (people's)
+  NNS,  // Plural noun (people)
   // Glue
   FW,   // foreign word (voila) 
   IN,   // preposition (of, in, by)
@@ -116,7 +116,7 @@ interface Token {
   isPossessive?: boolean;
   isProper?: boolean;
   isPlural?: boolean;
-  // Properties for parsing
+  // Properties relevant to parsing
   used: boolean;
 }
 
@@ -220,7 +220,6 @@ function getTokens(queryString: string): Array<Token> {
       
       return token;
     });
-    
     
     // Correct wh- tokens
     for (let token of tokens) {
@@ -357,15 +356,19 @@ function formTree(tokens: any): any {
   // Modifiers that come before a noun: articles, possessive nouns/pronouns, adjectives, participles
   // Modifiers that come after a noun: prepositional phrases, adjective clauses, participle phrases, infinitives
   // Less frequently, noun phrases have pronouns as a base
-  
-  
   let foundNoun = tokens.find((token) => {
     return (token.majorPOS === MajorPartsOfSpeech.NOUN && token.used === false);   
   });
-  if (foundNoun !== undefined) {
+  while (foundNoun !== undefined) {
+    console.log(foundNoun)
     tree = {node: foundNoun, parent: null, children: undefined};
     foundNoun.used = true;
+    
+    foundNoun = tokens.find((token) => {
+      return (token.majorPOS === MajorPartsOfSpeech.NOUN && token.used === false);   
+    });
   }
+  console.log("found all nouns");
   
   
   // Find noun phrases. Noun phrases are a group of words that describe a root noun
