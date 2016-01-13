@@ -1,13 +1,5 @@
-import * as microReact from "./microReact";
-import * as runtime from "./runtime";
-import {eve} from "./app";
-import * as app from "./app";
-
 declare var pluralize;
-declare var uuid;
 declare var nlp;
-
-//window["eve"] = eve;
 
 // Entry point for NLQP
 export function parse(queryString: string) {
