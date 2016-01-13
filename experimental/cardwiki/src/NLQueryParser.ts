@@ -11,10 +11,28 @@ export function parse(queryString: string) {
 }
 
 function parseTest(queryString: string) {
+  let parseResult;
+  let avgTime = 0;
+  let maxTime = 0;
+  let minTime;
+  
   // Parse string and time it
-  let start = performance.now();
-  let parseResult = parse(queryString);
-  let stop = performance.now();
+  let n = 100;
+  for (let i = 0; i < n; i++) {
+    let start = performance.now();
+    parseResult = parse(queryString);
+    let stop = performance.now();
+    avgTime += stop-start;
+    if (stop-start > maxTime) {
+      maxTime = stop-start;
+    }  
+    if (minTime === undefined) {
+      minTime = stop-start;
+    }
+    else if (stop-start < minTime) {
+      minTime = stop-start;
+    }  
+  }
   // Display result
   let tokenStrings = parseResult.tokens.map((token) => {
     return tokenToString(token);
@@ -22,7 +40,8 @@ function parseTest(queryString: string) {
   console.log("===============================");
   console.log(queryString);
   console.log(tokenStrings);
-  console.log(stop-start);
+  let timingDisplay = `Timing (avg, max, min): ${(avgTime/n).toFixed(2)} | ${maxTime.toFixed(2)} | ${minTime.toFixed(2)} `;
+  console.log(timingDisplay);
 }
 
 // ----------------------------------
@@ -445,4 +464,6 @@ function zip(array1: Array<any>, array2: Array<any>): Array<Array<any>> {
 // ----------------------------------
 
 parseTest("Corey's age");
+parseTest("Corey Montella's age");
+parseTest("People older than Corey Montella");
 parseTest("How many 4 star restaurants are in San Francisco?");
