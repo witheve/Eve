@@ -176,7 +176,7 @@ export function pane(paneId:string):Element {
   let {c:klass, header, footer} = makeChrome(paneId, contains);
   let content;
   if(eve.findOne("entity", {entity: contains}) || eve.findOne("collection", {collection: contains})) content = entity(contains, paneId);
-  else if(activeSearches[contains] && activeSearches[contains].plan.length) content = search(contains, paneId);
+  else if(activeSearches[contains] && activeSearches[contains].plan.length > 1) content = search(contains, paneId);
   else content = {text: "No results found..."}; // @ TODO: Editor to create new entity
 
   return {c: `wiki-pane ${klass || ""}`, children: [header, content, footer]};
@@ -372,11 +372,13 @@ export function searchInput(paneId:string, value:string):Element {
       }),
       {c: "controls", children: [
         {c: `ion-ios-arrow-${state.plan ? 'up' : 'down'} plan`, click: toggleSearchPlan, paneId},
-        {c: "ion-android-search visible", paneId, click: setSearch}
+        // while technically a button, we don't need to do anything as clicking it will blur the editor
+        // which will execute the search
+        {c: "ion-android-search visible", paneId}
       ]},
     ]
   };
-}
+};
 
 function focusSearch(event, elem) {
   dispatch("ui focus search", elem).commit();
