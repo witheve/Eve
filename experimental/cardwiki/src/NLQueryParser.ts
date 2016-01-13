@@ -10,14 +10,13 @@ export function parse(queryString: string) {
   return {tokens: tokens, tree: tree, ast: ast};
 }
 
-function parseTest(queryString: string) {
+function parseTest(queryString: string, n: number) {
   let parseResult;
   let avgTime = 0;
   let maxTime = 0;
   let minTime;
   
   // Parse string and time it
-  let n = 1;
   for (let i = 0; i < n; i++) {
     let start = performance.now();
     parseResult = parse(queryString);
@@ -131,7 +130,7 @@ function tokenToString(token: Token): string {
 // take an input string, extract tokens
 function getTokens(queryString: string): Array<Token> {
     
-    // get parts of speach with sentence information. It's okay if they're wrong, as we will correct them as we create the tree.    
+    // get parts of speach with sentence information. It's okay if they're wrong; they will be corrected as we create the tree.    
     let nlpTokens = nlp.pos(queryString, {dont_combine: true}).sentences[0].tokens;
     let wordsnTags = nlpTokens.map((token) => {
       return [token.text,token.pos.tag];
@@ -356,11 +355,12 @@ function formTree(tokens: any): any {
   // Modifiers that come before a noun: articles, possessive nouns/pronouns, adjectives, participles
   // Modifiers that come after a noun: prepositional phrases, adjective clauses, participle phrases, infinitives
   // Less frequently, noun phrases have pronouns as a base
+  /*
   let foundNoun = tokens.find((token) => {
     return (token.majorPOS === MajorPartsOfSpeech.NOUN && token.used === false);   
   });
   while (foundNoun !== undefined) {
-    console.log(foundNoun)
+    //console.log(foundNoun)
     tree = {node: foundNoun, parent: null, children: undefined};
     foundNoun.used = true;
     
@@ -368,7 +368,23 @@ function formTree(tokens: any): any {
       return (token.majorPOS === MajorPartsOfSpeech.NOUN && token.used === false);   
     });
   }
-  console.log("found all nouns");
+  //console.log("found all nouns");
+  */
+  
+  let i = 0;
+  let nounGroups = [];
+  for (let token of tokens) {
+    // If the token is a noun, start a tree
+    if (token.majorPOS === MajorPartsOfSpeech.NOUN && token.used === false) {
+      let tree = {node: token, parent: null, children: undefined};
+      nounGroups.push(tree);
+      token.used = true;
+    }
+    i++;
+  }
+  
+  console.log(nounGroups);
+  
   
   
   // Find noun phrases. Noun phrases are a group of words that describe a root noun
@@ -466,7 +482,8 @@ function zip(array1: Array<any>, array2: Array<any>): Array<Array<any>> {
 
 // ----------------------------------
 
-parseTest("Corey's age");
-parseTest("Corey Montella's age");
-parseTest("People older than Corey Montella");
-parseTest("How many 4 star restaurants are in San Francisco?");
+let n = 100;
+parseTest("Corey's age",n);
+parseTest("Corey Montella's sales",n);
+parseTest("People older than Corey Montella",n);
+parseTest("How many 4 star restaurants are in SF?",n);
