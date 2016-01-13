@@ -60,6 +60,7 @@ enum MinorPartsOfSpeech {
   NNP,  // Singular proper noun 
   NNPS, // Plural proper noun
   NNO,  // Possessive noun
+  NNS,  // Plural noun
   // Glue
   FW,   // foreign word (voila) 
   IN,   // preposition (of, in, by)
@@ -91,7 +92,10 @@ interface Token {
 }
 
 function tokenToString(token: Token): string {
-  let tokenString = `${token.originalWord} | ${token.normalizedWord} | ${MajorPartsOfSpeech[token.majorPOS]} | ${MinorPartsOfSpeech[token.minorPOS]}` ;
+  let isPossessive = token.isPossessive === undefined ? "" : "possessive";
+  let isProper = token.isProper === undefined ? "" : "proper";
+  let isPlural = token.isPlural === undefined ? "" : "plural";
+  let tokenString = `${token.originalWord} | ${token.normalizedWord} | ${MajorPartsOfSpeech[token.majorPOS]} | ${MinorPartsOfSpeech[token.minorPOS]} ${isPossessive} ${isProper} ${isPlural}` ;
   return tokenString;
 }
 
@@ -112,60 +116,54 @@ function getTokens(queryString: string): Array<Token> {
       let tag: string = wordnTag[1];
       let minorPOS = MinorPartsOfSpeech[tag];
       let majorPOS = minorToMajorPOS(minorPOS);
+      let token: Token = {originalWord: word, normalizedWord: word, majorPOS: majorPOS, minorPOS: minorPOS};
       let before = "";
       
-      // normalize the word
+      // normalize the word with the following transformations: 
+      // --- strip punctuation
+      // --- get rid of possessive ending 
+      // --- convert to lower case
+      // --- singularize
       let normalizedWord = word;
-      // strip punctuation
+      // --- strip punctuation
       normalizedWord = normalizedWord.replace(/\.|\?|\!|\,/g,'');
-      // get rid of possessive ending
+      // --- get rid of possessive ending
       before = normalizedWord;
       normalizedWord = normalizedWord.replace(/'s|'$/,'');
-      // Heuristic: If the word has a possessive ending, it has to be a possessive noun of some sort      
-      /*if (before !== normalizedWord) {
-        // tag the word in isolation
-        let a: string = nlp.pos(normalizedWord).tags()[0]; // @HACK: done in 2 lines to coerce the type checker
-        let singleTag: MinorPartsOfSpeech = MinorPartsOfSpeech[a];
-        if (singleTag === MinorPartsOfSpeech.NNP) {
-          minorPOS = MinorPartsOfSpeech.NNOP;
-          majorPOS = MajorPartsOfSpeech.NOUN;
+      // Heuristic: If the word had a possessive ending, it has to be a possessive noun of some sort      
+      if (before !== normalizedWord) {
+        if (token.majorPOS !== MajorPartsOfSpeech.NOUN) {
+          token.majorPOS = MajorPartsOfSpeech.NOUN;
+          token.minorPOS = MinorPartsOfSpeech.NN;
         }
-        else {
-          minorPOS = MinorPartsOfSpeech.NNO;
-          majorPOS = MajorPartsOfSpeech.NOUN;
-        }
-      }*/
-      // convert to lowercase
+        token.isPossessive = true;
+      }
+      // --- convert to lowercase
       before = normalizedWord;
       normalizedWord = normalizedWord.toLowerCase();
       // Heuristic: infer some tag information from the case of the word
       // e.g. nouns beginning with a capital letter are usually proper nouns
-      /*if (before !== normalizedWord && majorPOS === MajorPartsOfSpeech.NOUN) {
-        if (minorPOS === MinorPartsOfSpeech.NNO) {
-          //minorPOS = MinorPartsOfSpeech.NNOP;
-        } else {
-          //minorPOS = MinorPartsOfSpeech.NNP;
-        }
-      // Heuristic: if the word is not the first word and it had capitalization, then it is probably a proper noun {
-      } else if (before !== normalizedWord && i !== 1) {
-        majorPOS = MajorPartsOfSpeech.NOUN;
-        minorPOS = MinorPartsOfSpeech.NNP;
-      }*/
-      // if the word is a noun, singularize
+      if (before !== normalizedWord && majorPOS === MajorPartsOfSpeech.NOUN) {
+        token.minorPOS = MinorPartsOfSpeech.NNP;
+        token.isProper = true;
+      }
+      // Heuristic: if the word is not the first word in the sentence and it had capitalization, then it is probably a proper noun
+      else if (before !== normalizedWord && i !== 1) {
+        token.majorPOS = MajorPartsOfSpeech.NOUN;
+        token.minorPOS = MinorPartsOfSpeech.NNP;
+        token.isProper = true;        
+      }
+      // --- if the word is a noun, singularize
       if (majorPOS === MajorPartsOfSpeech.NOUN) {
         before = normalizedWord;
         normalizedWord = pluralize(normalizedWord, 1);
         // Heuristic: If the word changed after singularizing it, then it was plural to begin with
-        /*if (before !== normalizedWord && (minorPOS !== MinorPartsOfSpeech.NNS && minorPOS !== MinorPartsOfSpeech.NNPS)) {
-          if (minorPOS === MinorPartsOfSpeech.NN) {
-            minorPOS = MinorPartsOfSpeech.NNS;
-          }
-          else if (minorPOS === MinorPartsOfSpeech.NNP) {
-            minorPOS = MinorPartsOfSpeech.NNPS;
-          }
-        }*/
+        if (before !== normalizedWord) {
+          token.isPlural = true;
+        }
       }      
-      return {originalWord: word, normalizedWord: normalizedWord, majorPOS: majorPOS, minorPOS: minorPOS};
+      token.normalizedWord = normalizedWord;
+      return token;
     });
     
     // Correct wh- tokens
@@ -243,6 +241,7 @@ function minorToMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpe
       minorPartOfSpeech === MinorPartsOfSpeech.NNAB ||
       minorPartOfSpeech === MinorPartsOfSpeech.NNP  ||
       minorPartOfSpeech === MinorPartsOfSpeech.NNPS ||
+      minorPartOfSpeech === MinorPartsOfSpeech.NNS  ||
       minorPartOfSpeech === MinorPartsOfSpeech.NNO  ||
       minorPartOfSpeech === MinorPartsOfSpeech.NG   ||
       minorPartOfSpeech === MinorPartsOfSpeech.PRP  ||
@@ -371,7 +370,7 @@ function formTree(tokens: any): any {
   
   // Heuristic: all nouns belong to a noun phrase
   // Heuristic: The skeleton of the sentence can be constructed by looking only at nouns. All other words are achored to those nouns.
-  // Onnce that is done, you can form noun phrases  
+  // Once that is done, you can form noun phrases  
     
 }
 
@@ -404,7 +403,7 @@ function zip(array1: Array<any>, array2: Array<any>): Array<Array<any>> {
 
 // ----------------------------------
 
-let query = "Corey's age";
+let query = "Corey Montella's ages in april, may, and june.";
 parse(query);
 
 let start = performance.now();
