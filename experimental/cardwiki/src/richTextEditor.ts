@@ -53,6 +53,7 @@ export class RichTextEditor {
     let cm = this.cmInstance = new CodeMirror(node, {
       lineWrapping: true,
       autoCloseBrackets: true,
+      viewportMargin: Infinity,
       extraKeys: {
         "Cmd-B": (cm) => {
           wrapWithMarkdown(cm, "**");
@@ -154,7 +155,7 @@ export class RichTextEditor {
         mark = cm.markText(start, stop, { replacedWith: this.getEmbed(this.meta, query.substring(1, query.length - 1)) });
       }
     } else {
-      mark = cm.markText(start, stop, { className: "bold" });
+      mark = cm.markText(start, stop, { className: "embed-code" });
       mark.needsReplacement = true;
     }
     return mark;
