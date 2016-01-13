@@ -109,8 +109,7 @@ enum MinorPartsOfSpeech {
 interface Token {
   originalWord: string;
   normalizedWord: string;
-  majorPOS: MajorPartsOfSpeech;
-  minorPOS: MinorPartsOfSpeech;
+  POS: MinorPartsOfSpeech;
   // Attributes for nouns only
   isPossessive?: boolean;
   isProper?: boolean;
@@ -123,7 +122,7 @@ function tokenToString(token: Token): string {
   let isPossessive = token.isPossessive === undefined ? "" : token.isPossessive === true ? "possessive ": "";
   let isProper = token.isProper === undefined ? "" : token.isProper === true ? "proper ": "";
   let isPlural = token.isPlural === undefined ? "" : token.isPlural === true ? "plural ": "";
-  let tokenString = `${token.originalWord} | ${token.normalizedWord} | ${MajorPartsOfSpeech[token.majorPOS]} | ${MinorPartsOfSpeech[token.minorPOS]} | ${isPossessive}${isProper}${isPlural}` ;
+  let tokenString = `${token.originalWord} | ${token.normalizedWord} | ${MajorPartsOfSpeech[getMajorPOS(token.POS)]} | ${MinorPartsOfSpeech[token.POS]} | ${isPossessive}${isProper}${isPlural}` ;
   return tokenString;
 }
 
@@ -141,26 +140,26 @@ function getTokens(queryString: string): Array<Token> {
       let word = wordnTag[0];
       let tag: string = wordnTag[1];
       let minorPOS = MinorPartsOfSpeech[tag];
-      let majorPOS = minorToMajorPOS(minorPOS);
-      let token: Token = {originalWord: word, normalizedWord: word, majorPOS: majorPOS, minorPOS: minorPOS, used: false};
+      let majorPOS = getMajorPOS(minorPOS);
+      let token: Token = {originalWord: word, normalizedWord: word, POS: minorPOS, used: false};
       let before = "";
       
       // Add default attribute markers to nouns
-      if (token.majorPOS === MajorPartsOfSpeech.NOUN) {
+      if (getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN) {
         token.isPossessive = false;
         token.isPlural = false;
         token.isProper = false;
-        if (token.minorPOS === MinorPartsOfSpeech.NNO || 
-            token.minorPOS === MinorPartsOfSpeech.PP) {
+        if (token.POS === MinorPartsOfSpeech.NNO || 
+            token.POS === MinorPartsOfSpeech.PP) {
          token.isPossessive = true;
         }
-        if (token.minorPOS === MinorPartsOfSpeech.NNP  ||
-            token.minorPOS === MinorPartsOfSpeech.NNPS ||
-            token.minorPOS === MinorPartsOfSpeech.NNPA) {
+        if (token.POS === MinorPartsOfSpeech.NNP  ||
+            token.POS === MinorPartsOfSpeech.NNPS ||
+            token.POS === MinorPartsOfSpeech.NNPA) {
           token.isProper = true;
         }
-        if (token.minorPOS === MinorPartsOfSpeech.NNPS  ||
-            token.minorPOS === MinorPartsOfSpeech.NNS) {
+        if (token.POS === MinorPartsOfSpeech.NNPS  ||
+            token.POS === MinorPartsOfSpeech.NNS) {
           token.isPlural = true;
         }
       }
@@ -178,9 +177,8 @@ function getTokens(queryString: string): Array<Token> {
       normalizedWord = normalizedWord.replace(/'s|'$/,'');
       // Heuristic: If the word had a possessive ending, it has to be a possessive noun of some sort      
       if (before !== normalizedWord) {
-        if (token.majorPOS !== MajorPartsOfSpeech.NOUN) {
-          token.majorPOS = MajorPartsOfSpeech.NOUN;
-          token.minorPOS = MinorPartsOfSpeech.NN;
+        if (getMajorPOS(token.POS) !== MajorPartsOfSpeech.NOUN) {
+          token.POS = MinorPartsOfSpeech.NN;
         }
         token.isPossessive = true;
       }
@@ -190,13 +188,12 @@ function getTokens(queryString: string): Array<Token> {
       // Heuristic: infer some tag information from the case of the word
       // e.g. nouns beginning with a capital letter are usually proper nouns
       if (before !== normalizedWord && majorPOS === MajorPartsOfSpeech.NOUN) {
-        token.minorPOS = MinorPartsOfSpeech.NNP;
+        token.POS = MinorPartsOfSpeech.NNP;
         token.isProper = true;
       }
       // Heuristic: if the word is not the first word in the sentence and it had capitalization, then it is probably a proper noun
       else if (before !== normalizedWord && i !== 0) {
-        token.majorPOS = MajorPartsOfSpeech.NOUN;
-        token.minorPOS = MinorPartsOfSpeech.NNP;
+        token.POS = MinorPartsOfSpeech.NNP;
         token.isProper = true;        
       }
       // --- if the word is a noun, singularize
@@ -211,10 +208,9 @@ function getTokens(queryString: string): Array<Token> {
       token.normalizedWord = normalizedWord;
            
       // Heuristic: Special case "in" classified as an adjective. e.g. "the in crowd". This is an uncommon usage
-      if (token.normalizedWord === "in" && token.majorPOS === MajorPartsOfSpeech.ADJECTIVE) 
+      if (token.normalizedWord === "in" && getMajorPOS(token.POS) === MajorPartsOfSpeech.ADJECTIVE) 
       {
-        token.majorPOS = MajorPartsOfSpeech.GLUE;
-        token.minorPOS = MinorPartsOfSpeech.IN;
+        token.POS = MinorPartsOfSpeech.IN;
       }
       
       return token;
@@ -227,28 +223,24 @@ function getTokens(queryString: string): Array<Token> {
           token.normalizedWord === "whatever" ||
           token.normalizedWord === "which") {
         // determiners become wh- determiners
-        if (token.minorPOS === MinorPartsOfSpeech.DT) {
-          token.minorPOS = MinorPartsOfSpeech.WDT;
-          token.majorPOS = MajorPartsOfSpeech.WHWORD;
+        if (token.POS === MinorPartsOfSpeech.DT) {
+          token.POS = MinorPartsOfSpeech.WDT;
         }
         // pronouns become wh- pronouns
-        else if (token.minorPOS === MinorPartsOfSpeech.PRP || token.minorPOS === MinorPartsOfSpeech.PP) {
-          token.minorPOS = MinorPartsOfSpeech.WP;
-          token.majorPOS = MajorPartsOfSpeech.WHWORD;
+        else if (token.POS === MinorPartsOfSpeech.PRP || token.POS === MinorPartsOfSpeech.PP) {
+          token.POS = MinorPartsOfSpeech.WP;
         }
         continue;
       }
       // who and whom are wh- pronouns
       if (token.normalizedWord === "who" || 
           token.normalizedWord === "whom") {
-        token.minorPOS = MinorPartsOfSpeech.WP;
-        token.majorPOS = MajorPartsOfSpeech.WHWORD;
+        token.POS = MinorPartsOfSpeech.WP;
         continue;
       }
       // whose is the only wh- possessive pronoun
       if (token.normalizedWord === "whose") {
-        token.minorPOS = MinorPartsOfSpeech.WPO;
-        token.majorPOS = MajorPartsOfSpeech.WHWORD;
+        token.POS = MinorPartsOfSpeech.WPO;
         token.isProper = false;
         token.isPossessive = true;
         continue;
@@ -259,8 +251,7 @@ function getTokens(queryString: string): Array<Token> {
           token.normalizedWord === "whenever" ||
           token.normalizedWord === "where"    ||
           token.normalizedWord === "why") {
-        token.minorPOS = MinorPartsOfSpeech.WRB;
-        token.majorPOS = MajorPartsOfSpeech.WHWORD;
+        token.POS = MinorPartsOfSpeech.WRB;;
         continue;
       }
     }
@@ -268,7 +259,7 @@ function getTokens(queryString: string): Array<Token> {
     return tokens;
 }
 
-function minorToMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech {
+function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech {
   // Verb
   if (minorPartOfSpeech === MinorPartsOfSpeech.VB  ||
       minorPartOfSpeech === MinorPartsOfSpeech.VBD ||
@@ -375,7 +366,7 @@ function formTree(tokens: any): any {
   let nounGroups = [];
   for (let token of tokens) {
     // If the token is a noun, start a tree
-    if (token.majorPOS === MajorPartsOfSpeech.NOUN && token.used === false) {
+    if (getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN && token.used === false) {
       let tree = {node: token, parent: null, children: undefined};
       nounGroups.push(tree);
       token.used = true;
@@ -383,7 +374,7 @@ function formTree(tokens: any): any {
     i++;
   }
   
-  console.log(nounGroups);
+  //console.log(nounGroups);
   
   
   
@@ -482,8 +473,8 @@ function zip(array1: Array<any>, array2: Array<any>): Array<Array<any>> {
 
 // ----------------------------------
 
-let n = 100;
+let n = 1;
 parseTest("Corey's age",n);
 parseTest("Corey Montella's sales",n);
 parseTest("People older than Corey Montella",n);
-parseTest("How many 4 star restaurants are in SF?",n);
+parseTest("How many 4 star restaurants are in San Francisco?",n);
