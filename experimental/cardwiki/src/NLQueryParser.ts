@@ -3,10 +3,26 @@ declare var nlp;
 
 // Entry point for NLQP
 export function parse(queryString: string) {
-    let tokens = getTokens(queryString);
-    let tree = formTree(tokens);
-    let ast = formDSL(tree);
-    return {tokens: tokens, tree: tree, ast: ast};
+  let tokens = getTokens(queryString);
+  let tree = formTree(tokens);
+  let ast = formDSL(tree);
+      
+  return {tokens: tokens, tree: tree, ast: ast};
+}
+
+function parseTest(queryString: string) {
+  // Parse string and time it
+  let start = performance.now();
+  let parseResult = parse(queryString);
+  let stop = performance.now();
+  // Display result
+  let tokenStrings = parseResult.tokens.map((token) => {
+    return tokenToString(token);
+  }).join("\n");
+  console.log("===============================");
+  console.log(queryString);
+  console.log(tokenStrings);
+  console.log(stop-start);
 }
 
 // ----------------------------------
@@ -81,6 +97,8 @@ interface Token {
   isPossessive?: boolean;
   isProper?: boolean;
   isPlural?: boolean;
+  // Properties for parsing
+  used: boolean;
 }
 
 function tokenToString(token: Token): string {
@@ -99,17 +117,17 @@ function getTokens(queryString: string): Array<Token> {
     let wordsnTags = nlpTokens.map((token) => {
       return [token.text,token.pos.tag];
     });
-              
+    
     // Form a token for each word
     let tokens: Array<Token> = wordsnTags.map((wordnTag, i) => {
       let word = wordnTag[0];
       let tag: string = wordnTag[1];
       let minorPOS = MinorPartsOfSpeech[tag];
       let majorPOS = minorToMajorPOS(minorPOS);
-      let token: Token = {originalWord: word, normalizedWord: word, majorPOS: majorPOS, minorPOS: minorPOS};
+      let token: Token = {originalWord: word, normalizedWord: word, majorPOS: majorPOS, minorPOS: minorPOS, used: false};
       let before = "";
       
-      // Add attribute markers to nouns
+      // Add default attribute markers to nouns
       if (token.majorPOS === MajorPartsOfSpeech.NOUN) {
         token.isPossessive = false;
         token.isPlural = false;
@@ -183,6 +201,7 @@ function getTokens(queryString: string): Array<Token> {
       
       return token;
     });
+    
     
     // Correct wh- tokens
     for (let token of tokens) {
@@ -321,24 +340,13 @@ function formTree(tokens: any): any {
   // Less frequently, noun phrases have pronouns as a base
   
   
-    let firstNoun = tokens.find((token) => {
-      return token.majorPOS === MajorPartsOfSpeech.NOUN;   
-    });
-    if (firstNoun !== undefined) {
-    let expectedChildren = 0;
-    // If the noun is possessive, we might expect a dependency exists between it and another noun
-    if (firstNoun.isPossessive) {
-        expectedChildren = 1;
-    }
-    tree = {node: firstNoun, parent: null, children: undefined};
-    processedTokens++;  
+  let foundNoun = tokens.find((token) => {
+    return (token.majorPOS === MajorPartsOfSpeech.NOUN && token.used === false);   
+  });
+  if (foundNoun !== undefined) {
+    tree = {node: foundNoun, parent: null, children: undefined};
+    foundNoun.used = true;
   }
-  // Heuristic: If there are no nouns, the root of the tree is just the first token
-  // @TODO
-  else {
-    
-  }
-  
   
   
   // Find noun phrases. Noun phrases are a group of words that describe a root noun
@@ -436,19 +444,5 @@ function zip(array1: Array<any>, array2: Array<any>): Array<Array<any>> {
 
 // ----------------------------------
 
-let query = "How many 4 star restaurants are in San Francisco?";
-parse(query);
-
-let start = performance.now();
-let parseResult = parse(query);
-let stop = performance.now();
-
-// Display result
-let tokens = parseResult.tokens;
-let tokenStrings = tokens.map((token) => {
-  return tokenToString(token);
-}).join("\n");
-console.log("===============================");
-console.log(query);
-console.log(tokenStrings);
-console.log(stop-start);
+parseTest("Corey's age");
+parseTest("How many 4 star restaurants are in San Francisco?");
