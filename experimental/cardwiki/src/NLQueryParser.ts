@@ -109,6 +109,26 @@ function getTokens(queryString: string): Array<Token> {
       let token: Token = {originalWord: word, normalizedWord: word, majorPOS: majorPOS, minorPOS: minorPOS};
       let before = "";
       
+      // Add attribute markers to nouns
+      if (token.majorPOS === MajorPartsOfSpeech.NOUN) {
+        token.isPossessive = false;
+        token.isPlural = false;
+        token.isProper = false;
+        if (token.minorPOS === MinorPartsOfSpeech.NNO || 
+            token.minorPOS === MinorPartsOfSpeech.PP) {
+         token.isPossessive = true;
+        }
+        if (token.minorPOS === MinorPartsOfSpeech.NNP  ||
+            token.minorPOS === MinorPartsOfSpeech.NNPS ||
+            token.minorPOS === MinorPartsOfSpeech.NNPA) {
+          token.isProper = true;
+        }
+        if (token.minorPOS === MinorPartsOfSpeech.NNPS  ||
+            token.minorPOS === MinorPartsOfSpeech.NNS) {
+          token.isPlural = true;
+        }
+      }
+      
       // normalize the word with the following transformations: 
       // --- strip punctuation
       // --- get rid of possessive ending 
@@ -153,22 +173,7 @@ function getTokens(queryString: string): Array<Token> {
         }
       }      
       token.normalizedWord = normalizedWord;
-      
-      // Add attribute markers to nouns
-      if (token.minorPOS === MinorPartsOfSpeech.NNO || 
-          token.minorPOS === MinorPartsOfSpeech.PP) {
-        token.isPossessive = true;
-      }
-      if (token.minorPOS === MinorPartsOfSpeech.NNP  ||
-          token.minorPOS === MinorPartsOfSpeech.NNPS ||
-          token.minorPOS === MinorPartsOfSpeech.NNPA) {
-        token.isProper = true;
-      }
-      if (token.minorPOS === MinorPartsOfSpeech.NNPS  ||
-          token.minorPOS === MinorPartsOfSpeech.NNS) {
-        token.isPlural = true;
-      }
-      
+           
       // Heuristic: Special case "in" classified as an adjective. e.g. "the in crowd". This is an uncommon usage
       if (token.normalizedWord === "in" && token.majorPOS === MajorPartsOfSpeech.ADJECTIVE) 
       {
@@ -213,7 +218,8 @@ function getTokens(queryString: string): Array<Token> {
         continue;
       }
       // adverbs become wh- adverbs
-      if (token.normalizedWord === "however"  || 
+      if (token.normalizedWord === "how"  ||
+          token.normalizedWord === "however"  || 
           token.normalizedWord === "whenever" ||
           token.normalizedWord === "where"    ||
           token.normalizedWord === "why") {
