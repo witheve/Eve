@@ -200,7 +200,7 @@ function getTokens(queryString: string): Array<Token> {
       // --- if the word is a noun, singularize
       if (majorPOS === MajorPartsOfSpeech.NOUN) {
         before = normalizedWord;
-        normalizedWord = pluralize(normalizedWord, 1);
+        normalizedWord = singularize(normalizedWord);
         // Heuristic: If the word changed after singularizing it, then it was plural to begin with
         if (before !== normalizedWord) {
           token.isPlural = true;
@@ -335,6 +335,17 @@ function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech 
       minorPartOfSpeech === MinorPartsOfSpeech.WPO ||
       minorPartOfSpeech === MinorPartsOfSpeech.WRB) {
         return MajorPartsOfSpeech.WHWORD;
+  }
+}
+
+// Wrap pluralize to special case certain words it gets wrong
+function singularize(word: string): string {
+  switch (word) {
+    case "his":
+      return word;
+      break;
+    default:
+      return pluralize(word, 1);
   }
 }
 
@@ -499,7 +510,7 @@ function zip(array1: Array<any>, array2: Array<any>): Array<Array<any>> {
 // ----------------------------------------------------------------------------
 
 let n = 1;
-parseTest("What is Corey's age?",n);
+parseTest("When will corey write his will?",n);
 parseTest("Corey's age",n);
 parseTest("Corey Montella's sales",n);
 parseTest("People older than Corey Montella",n);
