@@ -2,6 +2,7 @@ declare var pluralize;
 declare var nlp;
 
 // Entry point for NLQP
+// @TODO as an input argument, take a list of nominal tags generated as the user types the query
 export function parse(queryString: string) {
   let tokens = getTokens(queryString);
   let tree = formTree(tokens);
@@ -43,9 +44,9 @@ function parseTest(queryString: string, n: number) {
   console.log(timingDisplay);
 }
 
-// ----------------------------------
+// ----------------------------------------------------------------------------
 // Token functions
-// ----------------------------------
+// ----------------------------------------------------------------------------
 
 enum MajorPartsOfSpeech {
   VERB,
@@ -213,6 +214,13 @@ function getTokens(queryString: string): Array<Token> {
         token.POS = MinorPartsOfSpeech.IN;
       }
       
+      // Heuristic: Special case forms of "be" that NLPC. gets wrong.
+      if (token.normalizedWord === "is" && getMajorPOS(token.POS) !== MajorPartsOfSpeech.NOUN) {
+        token.POS = MinorPartsOfSpeech.VBZ;
+      } else if (token.normalizedWord === "was" && getMajorPOS(token.POS) !== MajorPartsOfSpeech.NOUN) {
+        token.POS = MinorPartsOfSpeech.VBD;
+      }
+      
       return token;
     });
     
@@ -321,9 +329,9 @@ function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech 
   }
 }
 
-// ----------------------------------
+// ----------------------------------------------------------------------------
 // Tree functions
-// ----------------------------------
+// ----------------------------------------------------------------------------
 
 interface Tree {
   node: Token;
@@ -364,12 +372,20 @@ function formTree(tokens: any): any {
   
   let i = 0;
   let nounGroups = [];
+  let lastFoundNounIx = 0;
   for (let token of tokens) {
-    // If the token is a noun, start a tree
+    // If the token is a noun, start a node group
     if (getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN && token.used === false) {
       let tree = {node: token, parent: null, children: undefined};
       nounGroups.push(tree);
       token.used = true;
+      
+      // Now we need to pull in other words to attach to the noun. 
+      // Search to the left
+      // Search to the right
+      
+      
+      lastFoundNounIx = i;
     }
     i++;
   }
@@ -444,18 +460,18 @@ function formTree(tokens: any): any {
     
 }
 
-// ----------------------------------
+// ----------------------------------------------------------------------------
 // DSL functions
-// ----------------------------------
+// ----------------------------------------------------------------------------
 
 // take a parse tree, form a DSL AST
 function formDSL(tree: Tree): any {
 
 }
 
-// ----------------------------------
+// ----------------------------------------------------------------------------
 // Utility functions
-// ----------------------------------
+// ----------------------------------------------------------------------------
 
 // combines two arrays into a single array
 function zip(array1: Array<any>, array2: Array<any>): Array<Array<any>> {
@@ -471,9 +487,10 @@ function zip(array1: Array<any>, array2: Array<any>): Array<Array<any>> {
   return returnArray;
 }
 
-// ----------------------------------
+// ----------------------------------------------------------------------------
 
 let n = 1;
+parseTest("What was Corey's age",n);
 parseTest("Corey's age",n);
 parseTest("Corey Montella's sales",n);
 parseTest("People older than Corey Montella",n);
