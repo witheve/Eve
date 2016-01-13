@@ -92,10 +92,10 @@ interface Token {
 }
 
 function tokenToString(token: Token): string {
-  let isPossessive = token.isPossessive === undefined ? "" : token.isPossessive === true ? "possessive": "";
-  let isProper = token.isProper === undefined ? "" : token.isProper === true ? "proper": "";
-  let isPlural = token.isPlural === undefined ? "" : token.isPlural === true ? "plural": "";
-  let tokenString = `${token.originalWord} | ${token.normalizedWord} | ${MajorPartsOfSpeech[token.majorPOS]} | ${MinorPartsOfSpeech[token.minorPOS]} ${isPossessive} ${isProper} ${isPlural}` ;
+  let isPossessive = token.isPossessive === undefined ? "" : token.isPossessive === true ? "possessive ": "";
+  let isProper = token.isProper === undefined ? "" : token.isProper === true ? "proper ": "";
+  let isPlural = token.isPlural === undefined ? "" : token.isPlural === true ? "plural ": "";
+  let tokenString = `${token.originalWord} | ${token.normalizedWord} | ${MajorPartsOfSpeech[token.majorPOS]} | ${MinorPartsOfSpeech[token.minorPOS]} | ${isPossessive}${isProper}${isPlural}` ;
   return tokenString;
 }
 
@@ -161,6 +161,22 @@ function getTokens(queryString: string): Array<Token> {
         }
       }      
       token.normalizedWord = normalizedWord;
+      
+      // Add attribute markers to nouns
+      if (token.minorPOS === MinorPartsOfSpeech.NNO || 
+          token.minorPOS === MinorPartsOfSpeech.PP) {
+        token.isPossessive = true;
+      }
+      if (token.minorPOS === MinorPartsOfSpeech.NNP  ||
+          token.minorPOS === MinorPartsOfSpeech.NNPS ||
+          token.minorPOS === MinorPartsOfSpeech.NNPA) {
+        token.isProper = true;
+      }
+      if (token.minorPOS === MinorPartsOfSpeech.NNPS  ||
+          token.minorPOS === MinorPartsOfSpeech.NNS) {
+        token.isPlural = true;
+      }
+      
       return token;
     });
     
@@ -403,7 +419,7 @@ function zip(array1: Array<any>, array2: Array<any>): Array<Array<any>> {
 
 // ----------------------------------
 
-let query = "Whose ages in april, may, and June were greater than 20?";
+let query = "Whose ages in April, May, and June were greater than 20?";
 parse(query);
 
 let start = performance.now();
