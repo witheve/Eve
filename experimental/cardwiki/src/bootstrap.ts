@@ -1,6 +1,5 @@
 import {unpad, titlecase} from "./utils"
 import * as runtime from "./runtime"
-import {addBitAction} from "./wiki"
 import * as app from "./app"
 import {eve} from "./app"
 import {queryToExecutable} from "./queryParser.ts"
@@ -203,13 +202,6 @@ class BSPhase {
     return this;
   }
 
-  generateBitAction(name:string, queryOrName:string|runtime.Query, template:string) {
-    let query:runtime.Query;
-    if(typeof queryOrName === "string") query = this._queries[queryOrName];
-    else query = queryOrName;
-    this.changeset.merge(addBitAction(name, template));
-    return this;
-  }
 }
 
 //-----------------------------------------------------------------------------

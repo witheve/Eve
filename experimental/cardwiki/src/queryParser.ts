@@ -1148,7 +1148,7 @@ export function planToExecutable(plan) {
         }
         if (step.deselected) {
             step.size = 0;
-            query.deselect("entity eavs", join, step.id);
+            query.deselect("entity eavs", join);
         } else {
             step.size = 1;
             query.select("entity eavs", join, step.id);
