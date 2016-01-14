@@ -393,6 +393,7 @@ interface NounGroup {
   isPossessive: boolean;
   isProper: boolean;
   isPlural: boolean;
+  subsumed: boolean;
 }
 
 // take tokens, form a parse tree
@@ -423,7 +424,8 @@ function formTree(tokens: any): any {
         end: i, 
         isPlural: token.isPlural, 
         isPossessive: token.isPossessive, 
-        isProper: token.isProper
+        isProper: token.isProper,
+        subsumed: false
       };
       token.used = true;
       
@@ -456,9 +458,29 @@ function formTree(tokens: any): any {
   }
   
   // Heuristic: combine adjacent proper noun groups
-  let properNounGroups = findAll(tokens,(ng: NounGroup) => { return ng.isProper === true; })
-  //console.log(properNounGroups);
-  
+  let properNounGroups = findAll(nounGroups,(ng: NounGroup) => { return ng.isProper === true; });
+  for (let i = 0; i < properNounGroups.length - 1; i++) {
+    let thisNG: NounGroup = properNounGroups[i];
+    let nextNG: NounGroup = properNounGroups[++i];    
+    // Combine adjacent proper noun groups
+    while (nextNG.isProper && nextNG.begin === thisNG.end + 1) {
+      thisNG.noun.push(nextNG.noun[0]);
+      // @TODO subsume children.
+      thisNG.end = nextNG.end;
+      // Inherit noun properties from nextNG
+      if (nextNG.isPlural) { thisNG.isPlural = true; }
+      if (nextNG.isPossessive) { thisNG.isPossessive = true; }
+      // Mark the absobed NG as subsumed for filtering later 
+      nextNG.subsumed = true;
+      i++;
+      if (i < properNounGroups.length) {
+        nextNG = properNounGroups[i];  
+      }
+    }
+    i--;
+  }
+  // Remove the superfluous
+  nounGroups = findAll(nounGroups,(ng: NounGroup) => { return ng.subsumed === false});
   
   // Get unused tokens
   let unusedTokens = findAll(tokens,(token: Token) => { return token.used === false; });
@@ -571,9 +593,9 @@ function findAll(array: Array<any>, condition: Function): Array<any> {
 // ----------------------------------------------------------------------------
 
 let n = 1;
-parseTest("Ages of Chris Granger, Corey Montella, and Josh Cole",n);
+//parseTest("Ages of Chris Steve Granger, Corey James Irvine Montella, and Josh Cole",n);
 //parseTest("Corey's age",n);
-//parseTest("Corey Montella's age",n);
+parseTest("Corey Montella's age",n);
 //parseTest("People older than Chris Granger and younger than Edward Norton",n);
 //parseTest("Sum of the salaries per department",n);
 //parseTest("Dishes with eggs and chicken",n);
