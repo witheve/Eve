@@ -501,6 +501,7 @@ export class Renderer {
     for(var elemIx = 0; elemIx < elemLen; elemIx++) {
       elem = elements[elemIx];
       if(elem.parent === undefined) elem.parent = "__root";
+      if(elem.id === undefined) elem.id = "__root__" + elemIx;
       tree[elem.id] = elem;
       if(elem.postRender !== undefined) {
         this.postRenders.push(elem);

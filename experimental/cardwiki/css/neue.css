@@ -55,6 +55,10 @@ div:hover > header > .controls { opacity: 1; }
 .wiki-editor { width: 680px; }
 .wiki-editor .CodeMirror { font-family: "Lato"; font-size: 18px; color: rgb(76, 85, 90); font-weight:300; }
 .wiki-editor .CodeMirror-lines { padding:50px 0; }
+
+.wiki-editor .CodeMirror-widget > div { display:inline-block; }
+.wiki-editor .CodeMirror-widget content { align-items:flex-start; padding:0; }
+
 .wiki-editor .cm-header { color: rgb(76, 85, 90); font-weight:normal; }
 .wiki-editor .cm-header-1 { font-size: 20pt; line-height: 40px; }
 .wiki-editor .link { color: #008cdd; cursor: pointer; }
@@ -82,7 +86,7 @@ content h1 { border-bottom: 1px solid #ccc; }
 .wiki-search { display: flex; flex-direction: column; align-items: center; padding: 1rem 0; }
 .table .group, .table > header { flex-direction: row; }
 .table .column { justify-content: center; }
-.table .field { max-width: 254px; min-width: 80px; padding: 0.25em 0.5em; flex: 0 0 auto; }
+.table .field { display: block; max-width: 254px; min-width: 80px; padding: 0.5em 0.5em; width: 160px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
 .table { border: 1px solid #ccc; border-radius: 2px; }
 .table > header { border-bottom: 1px solid #ccc; background: #ddd; }

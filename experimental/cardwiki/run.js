@@ -266,7 +266,6 @@ if(program.watch) {
   var server = livereload.createServer({exts: ["html", "js", "css"]});
   server.watch(["./*.html", "css/**/*.css", "bin/*.bundle.js", "vendor/**/*.js", "vendor/**/*.css"]);
   if(program.verbose) server.watcher.on("change", function(path) {
-    log(path)
     tagLog("livereload", "Reloading " + path)
   })
 }
