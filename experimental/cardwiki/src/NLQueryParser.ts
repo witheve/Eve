@@ -88,6 +88,7 @@ enum MinorPartsOfSpeech {
   NNPS, // Plural proper noun (Smiths)
   NNO,  // Possessive noun (people's)
   NNS,  // Plural noun (people)
+  NNA,  // @TODO figure out what NNA is.
   // Glue
   FW,   // foreign word (voila) 
   IN,   // preposition (of, in, by)
@@ -293,6 +294,7 @@ function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech 
   }
   // Noun
   if (minorPartOfSpeech === MinorPartsOfSpeech.NN   ||
+      minorPartOfSpeech === MinorPartsOfSpeech.NNA  ||
       minorPartOfSpeech === MinorPartsOfSpeech.NNPA ||
       minorPartOfSpeech === MinorPartsOfSpeech.NNAB ||
       minorPartOfSpeech === MinorPartsOfSpeech.NNP  ||
@@ -350,6 +352,13 @@ interface Tree {
   children: Array<Token>;
 }
 
+interface NounGroup {
+  noun: Token;
+  children: Array<Token>;
+  begin: number; // Index of the first token in the noun group
+  end: number;   // Index of the last token in the noun group
+}
+
 // take tokens, form a parse tree
 function formTree(tokens: any): any {
  
@@ -385,14 +394,15 @@ function formTree(tokens: any): any {
   let nounGroups = [];
   let lastFoundNounIx = 0;
   for (let token of tokens) {
-    // If the token is a noun, start a node group
+    // If the token is a noun, start a noun group
     if (getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN && token.used === false) {
-      let tree = {node: token, parent: null, children: undefined};
+      let nounGroup = {noun: token, children: null, begin: i, end: i};
       nounGroups.push(tree);
       token.used = true;
       
-      // Now we need to pull in other words to attach to the noun. 
-      // Search to the left
+      // Now we need to pull in other words to attach to the noun.
+      // Heuristic: search to the left only.
+      // Heuristic: don't include verbs at this stage
       
       // Search to the right
       
@@ -500,8 +510,8 @@ function zip(array1: Array<any>, array2: Array<any>): Array<Array<any>> {
 // ----------------------------------------------------------------------------
 
 let n = 1;
-parseTest("When will corey be 30 years old?",n);
-parseTest("Corey's age",n);
-parseTest("Corey Montella's 1st sale",n);
-parseTest("People older than Corey Montella",n);
-parseTest("How many 4 star restaurants are in San Francisco?",n);
+//parseTest("When will corey be 30 years old?",n);
+//parseTest("Corey's age",n);
+parseTest("The running dog escaped the dog catcher",n);
+//parseTest("People older than Corey Montella",n);
+//parseTest("How many 4 star restaurants are in San Francisco?",n);
