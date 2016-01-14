@@ -5,7 +5,7 @@ import {parse as marked, Renderer as MarkedRenderer} from "../vendor/marked";
 import * as CodeMirror from "codemirror";
 import {Diff} from "./runtime";
 import {createEditor} from "./richTextEditor";
-import {Element, Handler, RenderHandler} from "./microReact";
+import {Element, Handler, RenderHandler, Renderer} from "./microReact";
 import {eve, handle as appHandle, dispatch, activeSearches} from "./app";
 import {StepType, queryToExecutable} from "./queryParser";
 import {copy, uuid, coerceInput} from "./utils";
@@ -265,47 +265,72 @@ function sizeColumns(node:HTMLElement, elem:Element) {
 //---------------------------------------------------------
 // CHRIS
 //---------------------------------------------------------
-
-function getEmbed(meta, query) {
-  var [content, rawParams] = query.split("|");
-  var span = document.createElement("span");
-  let link = span.textContent = content.toString();
-  span.classList.add("link")
-  span.classList.add("found");
-  if(!eve.findOne("entity", {entity: link})) link = undefined;
-  if (rawParams) {
-    let params = {};
-    for(let kv of rawParams.split(";")) {
-      let [key, value] = kv.split("=");
-      params[key.trim()] = coerceInput(value.trim());
-    }
-    if(params["eav source"]) {
-      let eav = eve.findOne("sourced eav", { source: params["eav source"] });
-      if (eav) {
-        let {attribute, value} = eav;
-        if (attribute === "is a" || eve.findOne("entity", { entity: value })) {
-          link = value;
-        }
-        span.textContent = value;
-      }
-    }
+function parseParams(rawParams:string) {
+  let params = {};
+  if(!rawParams) return params;
+  for(let kv of rawParams.split(";")) {
+    let [key, value] = kv.split("=");
+    params[key.trim()] = coerceInput(value.trim());
   }
+  return params;
+}
+
+function getEmbed(meta:{entity: string, page: string, paneId:string}, query:string) {
+  let [content, rawParams] = query.split("|");
+  let node = document.createElement("span");
+  let link;
+  node.textContent = content;
+  let params = parseParams(rawParams);
+
+  // @TODO: Figure out what to do for {age: {current year - birth year}}
+  if(params["eav source"]) {
+    // Attribute reference
+    node.classList.add("attribute");
+    let eav = eve.findOne("sourced eav", { source: params["eav source"] });
+    if (!eav) {
+      node.classList.add("invalid");
+    } else {
+      let {attribute, value} = eav;
+      if (attribute === "is a" || eve.findOne("entity", { entity: value })) {
+        link = value;
+      }
+      node.textContent = value;
+    }
+    
+  } else if(eve.findOne("entity", {entity: content})) {
+    // Entity reference
+    node.classList.add("entity");
+    link = content;
+  } else {
+    // Embedded queries
+    node.classList.add("query");
+    // @FIXME: Horrible kludge, need a microReact.compile(...)
+    let subRenderer = new Renderer();
+    subRenderer.render([search(content, meta.paneId)]);
+    node = subRenderer.content;
+  }
+
   if (link) {
-    span.onclick = () => {
+    node.classList.add("link");
+    node.onclick = () => {
       dispatch("ui set search", { paneId: meta.paneId, value: link }).commit();
     }
   }
-  return span;
+  return node;
 }
 
 function getInline(meta, query) {
-  if (query.indexOf(":") > -1) {
+  let [content, rawParams] = query.slice(1, -1).split("|");
+  let params = parseParams(rawParams);
+  if (content.indexOf(":") > -1) {
     let sourceId = uuid();
     let entity = meta.entity;
     let [attribute, value] = query.substring(1, query.length - 1).split(":");
     value = coerceInput(value.trim());
     dispatch("add sourced eav", { entity, attribute, value, source: sourceId }).commit();
     return `{${entity}'s ${attribute}|eav source = ${sourceId}}`;
+  } else if(!params["eav source"]) {
+    activeSearches[content] = queryToExecutable(content);
   }
   return query;
 }
@@ -314,6 +339,7 @@ function removeInline(meta, query) {
   let [search, source] = query.substring(1, query.length - 1).split("|");
   if (eve.findOne("sourced eav", { source })) {
     dispatch("remove sourced eav", { entity: meta.entity, source }).commit();
+  } else {
   }
 }
 
