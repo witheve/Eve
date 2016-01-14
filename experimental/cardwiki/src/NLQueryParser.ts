@@ -203,7 +203,7 @@ function getTokens(queryString: string): Array<Token> {
         token.POS = MinorPartsOfSpeech.NNP;
         token.isProper = true;        
       }
-      // --- if the word is a noun, singularize
+      // --- if the word is a (not proper) noun, singularize
       if (getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN) {
         before = normalizedWord;
         normalizedWord = singularize(normalizedWord);
@@ -219,6 +219,8 @@ function getTokens(queryString: string): Array<Token> {
       {
         token.POS = MinorPartsOfSpeech.IN;
       }
+      
+      // Special cases!
       
       // Heuristic: Special case verbs that get classified as adjectives
       if (getMajorPOS(token.POS) !== MajorPartsOfSpeech.NOUN) {
@@ -428,13 +430,19 @@ function formTree(tokens: any): any {
       };
       token.used = true;
       
+      console.log("-----------------------------------------------------------");
+      console.log(token.normalizedWord);
+      console.log(i);
+      
       // Now we need to pull in other words to attach to the noun.
       // Heuristic: search left until we find a determiner. Everything between is part of the noun group
-      for (let j = i-1; j > lastFoundNounIx; j--) {
+      console.log("before:");
+      for (let j = i-1; j >= lastFoundNounIx; j--) {
         let backtrackToken: Token = tokens[j];
         // If we found a determiner, add it and all tokens in between to the noun group
         // i.e.: nounGroup = [DT, ...., NN]
         if (backtrackToken.POS === MinorPartsOfSpeech.DT) {
+          console.log(backtrackToken);
           nounGroup.begin = j;
           for (j; j < nounGroup.end; j++) {
             let nounGroupToken: Token = tokens[j];
@@ -444,8 +452,17 @@ function formTree(tokens: any): any {
           break;
         }
       }
-      
-      // Heuristic: search to the left only.
+      console.log("after:");
+      // Heuristic: search to the right for a preposition
+      if (i + 1 < tokens.length) {
+        let nextToken: Token = tokens[i+1];
+        if (nextToken.POS === MinorPartsOfSpeech.IN) {
+          nounGroup.children.push(nextToken);
+          nextToken.used = true;
+          nounGroup.end = i+1;
+          console.log(nextToken)
+        }  
+      }
       // Heuristic: don't include verbs at this stage
       
       // Search to the right
@@ -453,6 +470,7 @@ function formTree(tokens: any): any {
       nounGroups.push(nounGroup);
       lastFoundNounIx = i;
     }
+    // End noun group formation
     i++;
   }
   
@@ -482,6 +500,7 @@ function formTree(tokens: any): any {
   nounGroups = findAll(nounGroups,(ng: NounGroup) => { return ng.subsumed === false});
   
   console.log(nounGroups)
+  console.log(tokens);
   
   // Get unused tokens
   let unusedTokens = findAll(tokens,(token: Token) => { return token.used === false; });
@@ -594,9 +613,9 @@ function findAll(array: Array<any>, condition: Function): Array<any> {
 // ----------------------------------------------------------------------------
 
 let n = 1;
-//parseTest("Ages of Chris Steve Granger, Corey James Irvine Montella, and Josh Cole",n);
-//parseTest("Corey's age",n);
-parseTest("States in the United States of America",n);
+parseTest("Ages of Chris Steve Granger, Corey James Irvine Montella, and Josh Cole",n);
+//parseTest("The book on the bathroom floor is swollen from shower steam.",n);
+//parseTest("States in the United States of America",n);
 //parseTest("People older than Chris Granger and younger than Edward Norton",n);
 //parseTest("Sum of the salaries per department",n);
 //parseTest("Dishes with eggs and chicken",n);
