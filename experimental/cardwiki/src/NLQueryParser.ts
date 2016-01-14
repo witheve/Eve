@@ -56,6 +56,7 @@ enum MajorPartsOfSpeech {
   GLUE,
   VALUE,
   WHWORD,
+  SYMBOL,
 }
 
 enum MinorPartsOfSpeech {
@@ -101,6 +102,9 @@ enum MinorPartsOfSpeech {
   CD,   // cardinal value (one, two, first)
   DA,   // date (june 5th 1998)
   NU,   // number (100, one hundred)
+  // Symbol
+  LT, // Symbol (<)
+  GT, // Symbol (>)
   // Wh- word
   WDT,  // Wh-determiner (that what whatever which whichever)
   WP,   // Wh-pronoun (that what whatever which who whom)
@@ -221,6 +225,17 @@ function getTokens(queryString: string): Array<Token> {
             break;
         }
       }
+      
+      // Special case symbols
+      switch (token.normalizedWord) {
+        case ">": 
+          token.POS = MinorPartsOfSpeech.GT;
+          break;
+        case "<":
+          token.POS = MinorPartsOfSpeech.LT;
+          break;
+      }
+        
       return token;
     });
     
@@ -307,14 +322,19 @@ function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech 
         return MajorPartsOfSpeech.NOUN;
   }
   // Glue
-  if (minorPartOfSpeech === MinorPartsOfSpeech.FW ||
-      minorPartOfSpeech === MinorPartsOfSpeech.IN ||
-      minorPartOfSpeech === MinorPartsOfSpeech.MD ||
-      minorPartOfSpeech === MinorPartsOfSpeech.CC ||
-      minorPartOfSpeech === MinorPartsOfSpeech.DT ||
-      minorPartOfSpeech === MinorPartsOfSpeech.UH ||
+  if (minorPartOfSpeech === MinorPartsOfSpeech.FW  ||
+      minorPartOfSpeech === MinorPartsOfSpeech.IN  ||
+      minorPartOfSpeech === MinorPartsOfSpeech.MD  ||
+      minorPartOfSpeech === MinorPartsOfSpeech.CC  ||
+      minorPartOfSpeech === MinorPartsOfSpeech.DT  ||
+      minorPartOfSpeech === MinorPartsOfSpeech.UH  ||
       minorPartOfSpeech === MinorPartsOfSpeech.EX) {
         return MajorPartsOfSpeech.GLUE;
+  }
+  // Symbol
+  if (minorPartOfSpeech === MinorPartsOfSpeech.LT  ||
+      minorPartOfSpeech === MinorPartsOfSpeech.GT) {
+        return MajorPartsOfSpeech.SYMBOL;
   }
   // Value
   if (minorPartOfSpeech === MinorPartsOfSpeech.CD ||
@@ -527,7 +547,7 @@ let n = 1;
 //parseTest("People older than Chris Granger and younger than Edward Norton",n);
 //parseTest("Sum of the salaries per department",n);
 //parseTest("Dishes with eggs and chicken",n);
-//parseTest("People whose age < 30",n);
+parseTest("People whose age < 30",n);
 //parseTest("People between 50 and 60 years old",n);
 //parseTest("Dishes that don't have eggs or chicken",n);
 //parseTest("What is Corey Montella's age?",n);
