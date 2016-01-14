@@ -353,7 +353,7 @@ interface Tree {
 }
 
 interface NounGroup {
-  noun: Token;
+  noun: Array<Token>;
   children: Array<Token>;
   begin: number; // Index of the first token in the noun group
   end: number;   // Index of the last token in the noun group
@@ -384,7 +384,7 @@ function formTree(tokens: any): any {
     // If the token is a noun, start a noun group
     if (getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN && token.used === false) {
       let nounGroup: NounGroup = {
-        noun: token, 
+        noun: [token], 
         children: [], 
         begin: i, 
         end: i, 
@@ -421,7 +421,11 @@ function formTree(tokens: any): any {
     }
     i++;
   }
+  
+  // Heuristic: combine adjacent proper noun groups
   console.log(nounGroups);
+  
+  
     
   
   // Find noun phrases. Noun phrases are a group of words that describe a root noun
@@ -518,8 +522,14 @@ function zip(array1: Array<any>, array2: Array<any>): Array<Array<any>> {
 // ----------------------------------------------------------------------------
 
 let n = 1;
-//parseTest("When will corey be 30 years old?",n);
 //parseTest("Corey's age",n);
-parseTest("Where can I eat in San Francisco",n);
+//parseTest("Corey Montella's age",n);
+//parseTest("People older than Chris Granger and younger than Edward Norton",n);
+//parseTest("Sum of the salaries per department",n);
+//parseTest("Dishes with eggs and chicken",n);
+//parseTest("People whose age < 30",n);
+//parseTest("People between 50 and 60 years old",n);
+//parseTest("Dishes that don't have eggs or chicken",n);
+//parseTest("What is Corey Montella's age?",n);
 //parseTest("People older than Corey Montella",n);
 //parseTest("How many 4 star restaurants are in San Francisco?",n);
