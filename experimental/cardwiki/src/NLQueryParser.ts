@@ -357,6 +357,9 @@ interface NounGroup {
   children: Array<Token>;
   begin: number; // Index of the first token in the noun group
   end: number;   // Index of the last token in the noun group
+  isPossessive: boolean;
+  isProper: boolean;
+  isPlural: boolean;
 }
 
 // take tokens, form a parse tree
@@ -373,48 +376,53 @@ function formTree(tokens: any): any {
   // groups "the yellow dog" and "the town"
   // Modifiers that come before a noun: articles, possessive nouns/pronouns, adjectives, participles
   // Modifiers that come after a noun: prepositional phrases, adjective clauses, participle phrases, infinitives
-  // Less frequently, noun phrases have pronouns as a base
-  /*
-  let foundNoun = tokens.find((token) => {
-    return (token.majorPOS === MajorPartsOfSpeech.NOUN && token.used === false);   
-  });
-  while (foundNoun !== undefined) {
-    //console.log(foundNoun)
-    tree = {node: foundNoun, parent: null, children: undefined};
-    foundNoun.used = true;
-    
-    foundNoun = tokens.find((token) => {
-      return (token.majorPOS === MajorPartsOfSpeech.NOUN && token.used === false);   
-    });
-  }
-  //console.log("found all nouns");
-  */
-  
+  // Less frequently, noun phrases have pronouns as a base 
   let i = 0;
-  let nounGroups = [];
+  let nounGroups: Array<NounGroup> = [];
   let lastFoundNounIx = 0;
   for (let token of tokens) {
     // If the token is a noun, start a noun group
     if (getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN && token.used === false) {
-      let nounGroup = {noun: token, children: null, begin: i, end: i};
-      nounGroups.push(tree);
+      let nounGroup: NounGroup = {
+        noun: token, 
+        children: [], 
+        begin: i, 
+        end: i, 
+        isPlural: token.isPlural, 
+        isPossessive: token.isPossessive, 
+        isProper: token.isProper
+      };
       token.used = true;
       
       // Now we need to pull in other words to attach to the noun.
+      // Heuristic: search left until we find a determiner. Everything between is part of the noun group
+      for (let j = i-1; j > lastFoundNounIx; j--) {
+        let backtrackToken: Token = tokens[j];
+        // If we found a determiner, add it and all tokens in between to the noun group
+        // i.e.: nounGroup = [DT, ...., NN]
+        if (backtrackToken.POS === MinorPartsOfSpeech.DT) {
+          nounGroup.begin = j;
+          for (j; j < nounGroup.end; j++) {
+            let nounGroupToken: Token = tokens[j];
+            nounGroup.children.push(nounGroupToken);
+            nounGroupToken.used = true;
+          }
+          break;
+        }
+      }
+      
       // Heuristic: search to the left only.
       // Heuristic: don't include verbs at this stage
       
       // Search to the right
       
-      
+      nounGroups.push(nounGroup);
       lastFoundNounIx = i;
     }
     i++;
   }
-  
-  //console.log(nounGroups);
-  
-  
+  console.log(nounGroups);
+    
   
   // Find noun phrases. Noun phrases are a group of words that describe a root noun
   // e.g. "4-star restaurant" "the united states of america"
@@ -512,6 +520,6 @@ function zip(array1: Array<any>, array2: Array<any>): Array<Array<any>> {
 let n = 1;
 //parseTest("When will corey be 30 years old?",n);
 //parseTest("Corey's age",n);
-parseTest("The running dog escaped the dog catcher",n);
+parseTest("Where can I eat in San Francisco",n);
 //parseTest("People older than Corey Montella",n);
 //parseTest("How many 4 star restaurants are in San Francisco?",n);
