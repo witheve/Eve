@@ -301,7 +301,7 @@ function getEmbed(meta:{entity: string, page: string, paneId:string}, query:stri
       }
       node.textContent = value;
     }
-    
+
   } else if(eve.findOne("entity", {entity: content})) {
     // Entity reference
     node.classList.add("entity");
@@ -341,8 +341,10 @@ function getInline(meta, query) {
 }
 
 function removeInline(meta, query) {
-  let [search, source] = query.substring(1, query.length - 1).split("|");
-  if (eve.findOne("sourced eav", { source })) {
+  let [search, rawParams] = query.substring(1, query.length - 1).split("|");
+  let params = parseParams(rawParams);
+  let source = params["eav source"];
+  if (source && eve.findOne("sourced eav", { source })) {
     dispatch("remove sourced eav", { entity: meta.entity, source }).commit();
   } else {
   }
