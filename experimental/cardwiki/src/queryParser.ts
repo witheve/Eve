@@ -184,10 +184,11 @@ let patterns = {
 function checkForToken(token): any {
   let info;
   if (!token) return;
-  if (info = eve.findOne("collection", { collection: token })) {
-    return { found: token, info, type: TokenTypes.COLLECTION };
-  } else if (info = eve.findOne("entity", { entity: token })) {
-    return { found: token, info, type: TokenTypes.ENTITY };
+  let display = eve.findOne("display name", {name: token})
+  if (display && (info = eve.findOne("collection", { collection: display.id }))) {
+    return { found: display.id, info, type: TokenTypes.COLLECTION };
+  } else if (display && (info = eve.findOne("entity", { entity: display.id }))) {
+    return { found: display.id, info, type: TokenTypes.ENTITY };
   } else if (info = eve.findOne("entity eavs", { attribute: token })) {
     return { found: token, info, type: TokenTypes.ATTRIBUTE };
   } else if (info = modifiers[token]) {

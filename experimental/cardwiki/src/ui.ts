@@ -26,73 +26,6 @@ export let uiState:{
 //---------------------------------------------------------
 // Utils
 //---------------------------------------------------------
-var markedEntityRenderer = new MarkedRenderer();
-markedEntityRenderer.heading = function(text:string, level: number) {
-  return `<h${level}>${text}</h${level}>`; // override auto-setting an id based on content.
-};
-function entityToHTML(paneId:string, content:string, passthrough?: string[]):string {
-  let md = marked(content, {breaks: true, renderer: markedEntityRenderer});
-  let ix = md.indexOf("{");
-  let queryCount = 0;
-  let stack = [];
-  while(ix !== -1) {
-    if(md[ix - 1] === "\\") {
-      md = md.slice(0, ix - 1) + md.slice(ix);
-      ix--;
-
-    } else if(md[ix] === "{") stack.push(ix);
-    else if(md[ix] === "}") {
-      let startIx = stack.pop();
-      let content = md.slice(startIx + 1, ix);
-      let colonIx = content.indexOf(":");
-
-      let value = (colonIx !== -1 ? content.slice(colonIx + 1) : content).trim();
-      let replacement;
-      let type = "attribute";
-      if(passthrough && passthrough.indexOf(value) !== -1) type = "passthrough";
-      else if(eve.findOne("collection", {collection: value.toLowerCase()})) type = "collection";
-      else if(eve.findOne("entity", {entity: value.toLowerCase()})) type = "entity";
-      else if(colonIx === -1) type = "query";
-
-      if(type === "attribute") {
-        let attr = content.slice(0, colonIx).trim();
-        replacement = `<span class="attribute" data-attribute="${attr}">${value}</span>`;
-
-      } else if(type === "entity") {
-        let attr = content.slice(0, colonIx !== -1 ? colonIx : undefined).trim();
-        let onClick = `app.dispatch('ui set search', {value: '${value}', paneId: '${paneId}'}).commit();`;
-        replacement = `<a class="link attribute entity" data-attribute="${attr}" onclick="${onClick}">${value}</a>`;
-
-      } else if(type === "collection") {
-        let attr = content.slice(0, colonIx !== -1 ? colonIx : undefined).trim();
-        let onClick = `app.dispatch('ui set search', {value: '${value}', paneId: '${paneId}'}).commit();`;
-        replacement = `<a class="link attribute collection" data-attribute="${attr}" onclick="${onClick}">${value}</a>`;
-
-      } else if(type === "query") {
-        let containerId = `${paneId}|${content}|${queryCount++}`;
-        replacement = `<span class="embedded-query search-results" id="${containerId}" data-embedded-search="${content}"></span>`;
-      }
-
-      if(type !== "passthrough") {
-        md = md.slice(0, startIx) + replacement + md.slice(ix + 1);
-        ix += replacement.length - content.length - 2;
-      }
-
-    } else {
-      throw new Error(`Unexpected character '${md[ix]}' at index ${ix}`);
-    }
-
-    // @NOTE: There has got to be a more elegant solution for (min if > 0) here.
-    let nextCloseIx = md.indexOf("}", ix + 1);
-    let nextOpenIx = md.indexOf("{", ix + 1);
-    if(nextCloseIx === -1) ix = nextOpenIx;
-    else if(nextOpenIx === -1) ix = nextCloseIx;
-    else if(nextCloseIx < nextOpenIx) ix = nextCloseIx;
-    else ix = nextOpenIx;
-  }
-
-  return md;
-}
 
 //---------------------------------------------------------
 // Dispatches
@@ -111,7 +44,7 @@ appHandle("ui set search", (changes:Diff, {paneId, value}:{paneId:string, value:
   changes.remove("ui pane", {pane: paneId})
     .add("ui pane", fact);
 
-  if(!eve.findOne("entity", {entity: value})) activeSearches[value] = queryToExecutable(value);
+  if(!eve.findOne("display name", {name: value})) activeSearches[value] = queryToExecutable(value);
 });
 appHandle("ui toggle search plan", (changes:Diff, {paneId}:{paneId:string}) => {
   let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value: ""};
@@ -175,7 +108,8 @@ export function pane(paneId:string):Element {
   if(!makeChrome) throw new Error(`Unknown pane kind: '${kind}' (${PANE[kind]})`);
   let {c:klass, header, footer} = makeChrome(paneId, contains);
   let content;
-  if(eve.findOne("entity", {entity: contains}) || eve.findOne("collection", {collection: contains})) content = entity(contains, paneId);
+  let display = eve.findOne("display name", {name: contains}) || eve.findOne("display name", {id: contains});
+  if(display) content = entity(display.id, paneId);
   else if(activeSearches[contains] && activeSearches[contains].plan.length > 1) content = search(contains, paneId);
   else content = {text: "No results found..."}; // @ TODO: Editor to create new entity
 
@@ -187,14 +121,17 @@ export function search(search:string, paneId:string):Element {
   // figure out what the headers are
   let headers = [];
   for(let step of plan) {
+    let name = step.name;
     if(step.size === 0 || step.type === StepType.FILTERBYENTITY || step.type === StepType.INTERSECT) continue;
-    headers.push({c: "column field", value: step.name, text: step.name});
+    if(step.type === StepType.GATHER) name = eve.findOne("display name", {id: name}).name;
+    headers.push({c: "column field", value: step.name, text: name});
   }
 
   // figure out what fields are grouped, if any
   let groupedFields = {};
   for(let step of plan) {
     if(step.type === StepType.GROUP) groupedFields[step.subjectNode.name] = true;
+
     else if(step.type === StepType.AGGREGATE) groupedFields[step.name] = true;
   }
 
@@ -222,7 +159,8 @@ export function search(search:string, paneId:string):Element {
 
       let text, link, kind, click;
       if(step.type === StepType.GATHER) {
-        text = link = chunk["entity"];
+        text = eve.findOne("display name", {id: chunk["entity"]}).name;
+        link = chunk["entity"];
         kind = "entity";
       } else if(step.type === StepType.LOOKUP) {
         text = chunk["value"];
@@ -286,6 +224,7 @@ function getEmbed(meta:{entity: string, page: string, paneId:string}, query:stri
   let link;
   node.textContent = content;
   let params = parseParams(rawParams);
+  let contentDisplay = eve.findOne("display name", {id: content});
 
   // @TODO: Figure out what to do for {age: {current year - birth year}}
   if(params["eav source"]) {
@@ -296,15 +235,18 @@ function getEmbed(meta:{entity: string, page: string, paneId:string}, query:stri
       node.classList.add("invalid");
     } else {
       let {attribute, value} = eav;
-      if (attribute === "is a" || eve.findOne("entity", { entity: value })) {
+      let display = eve.findOne("display name", { id: value });
+      if (attribute === "is a" || display) {
         link = value;
       }
-      node.textContent = value;
+      node.textContent = display ? display.name : value
+
     }
 
-  } else if(eve.findOne("entity", {entity: content})) {
+  } else if(contentDisplay) {
     // Entity reference
     node.classList.add("entity");
+    node.textContent = contentDisplay.name;
     link = content;
   } else {
     // Embedded queries
@@ -332,6 +274,10 @@ function getInline(meta, query) {
     let entity = meta.entity;
     let [attribute, value] = query.substring(1, query.length - 1).split(":");
     value = coerceInput(value.trim());
+    let display = eve.findOne("display name", {name: value});
+    if(display) {
+      value = display.id;
+    }
     dispatch("add sourced eav", { entity, attribute, value, source: sourceId }).commit();
     return `{${entity}'s ${attribute}|eav source = ${sourceId}}`;
   } else if(!params["eav source"]) {
@@ -375,21 +321,15 @@ function navigate(event, elem) {
   dispatch("ui set search", {paneId, value: elem.link}).commit();
 }
 
-export function block(blockId:string, paneId:string):Element {
-  // @FIXME: Add kind to content blocks
-  let {content = "", kind = BLOCK.TEXT} = eve.findOne("content blocks", {block: blockId}) || {};
-  let html = "";
-  if(kind === BLOCK.TEXT) {
-    html = entityToHTML(paneId, content);
-  } else throw new Error(`Unknown block kind: '${kind}' (${BLOCK[kind]})`);
-
-  return {c: "wiki-block", dangerouslySetInnerHTML: html};
-}
-
 //---------------------------------------------------------
 // Wiki Widgets
 //---------------------------------------------------------
 export function searchInput(paneId:string, value:string):Element {
+  let display = eve.findOne("display name", {id: value});
+  let name = value;
+  if(display) {
+    name = display.name;
+  }
   let state = uiState.widget.search[paneId] || {focused: false, plan: false};
   return {
     c: "flex-grow wiki-search-wrapper",
@@ -397,7 +337,7 @@ export function searchInput(paneId:string, value:string):Element {
       codeMirrorElement({
         c: `flex-grow wiki-search-input ${state.focused ? "selected": ""}`,
         paneId,
-        value,
+        value: name,
         focus: focusSearch,
         blur: setSearch,
         // change: updateSearch,

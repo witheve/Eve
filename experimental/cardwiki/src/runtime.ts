@@ -1399,7 +1399,7 @@ export class Query {
           } else {
             value = JSON.stringify(mapping);
           }
-          projectedVars.push(`projected['${newField}'] = ${value}`);
+          projectedVars.push(`projected['${newField.replace(/'/g, "\\'")}'] = ${value}`);
           idStringParts.push(value);
         }
         code += projectedVars.join(";\n") + "\n";
