@@ -456,17 +456,13 @@ function formTree(tokens: any): any {
   }
   
   // Heuristic: combine adjacent proper noun groups
-  console.log(nounGroups);
+  let properNounGroups = findAll(tokens,(ng: NounGroup) => { return ng.isProper === true; })
+  //console.log(properNounGroups);
+  
   
   // Get unused tokens
-  let unusedTokens: Array<Token> = [];
-  for (let token of tokens) {
-    if (token.used === false) {
-      unusedTokens.push(token.normalizedWord);
-    }
-  }
-  console.log(unusedTokens);
-  
+  let unusedTokens = findAll(tokens,(token: Token) => { return token.used === false; });
+  //console.log(unusedTokens);
   
     
   
@@ -559,6 +555,17 @@ function zip(array1: Array<any>, array2: Array<any>): Array<Array<any>> {
     returnArray.push([el1, el2]);
   }
   return returnArray;
+}
+
+// Finds all elements in an array matching a specified condition
+function findAll(array: Array<any>, condition: Function): Array<any> {
+  let matchingElements: Array<any> = [];
+  for (let element of array) {
+    if (condition(element)) {
+      matchingElements.push(element);
+    }
+  }
+  return matchingElements;  
 }
 
 // ----------------------------------------------------------------------------
