@@ -145,7 +145,7 @@ export class RichTextEditor {
     let start = cm.posFromIndex(ix);
     let stop = cm.posFromIndex(ix + query.length);
     // as long as our cursor isn't in this span
-    if (cursorIx < ix || cursorIx >= ix + query.length) {
+    if (query !== "{}" && (cursorIx <= ix || cursorIx >= ix + query.length)) {
       // check if this is a query that's defining an inline attribute
       // e.g. {age: 30}
       let adjusted = this.getInline(this.meta, query)
