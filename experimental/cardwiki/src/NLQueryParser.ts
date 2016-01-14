@@ -366,12 +366,11 @@ function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech 
 
 // Wrap pluralize to special case certain words it gets wrong
 function singularize(word: string): string {
-  switch (word) {
-    case "his":
-      return word;
-      break;
-    default:
-      return pluralize(word, 1);
+  if (word === "his" || 
+      word === "united states") {
+      return word;  
+  } else { 
+    return pluralize(word, 1);
   }
 }
 
@@ -481,6 +480,8 @@ function formTree(tokens: any): any {
   }
   // Remove the superfluous
   nounGroups = findAll(nounGroups,(ng: NounGroup) => { return ng.subsumed === false});
+  
+  console.log(nounGroups)
   
   // Get unused tokens
   let unusedTokens = findAll(tokens,(token: Token) => { return token.used === false; });
@@ -595,7 +596,7 @@ function findAll(array: Array<any>, condition: Function): Array<any> {
 let n = 1;
 //parseTest("Ages of Chris Steve Granger, Corey James Irvine Montella, and Josh Cole",n);
 //parseTest("Corey's age",n);
-parseTest("Corey Montella's age",n);
+parseTest("States in the United States of America",n);
 //parseTest("People older than Chris Granger and younger than Edward Norton",n);
 //parseTest("Sum of the salaries per department",n);
 //parseTest("Dishes with eggs and chicken",n);
