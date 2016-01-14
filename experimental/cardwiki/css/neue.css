@@ -55,6 +55,10 @@ div:hover > header > .controls { opacity: 1; }
 .wiki-editor { width: 680px; }
 .wiki-editor .CodeMirror { font-family: "Lato"; font-size: 18px; color: rgb(76, 85, 90); font-weight:300; }
 .wiki-editor .CodeMirror-lines { padding:50px 0; }
+
+.wiki-editor .CodeMirror-widget > div { display:inline-block; }
+.wiki-editor .CodeMirror-widget content { align-items:flex-start; padding:0; }
+
 .wiki-editor .cm-header { color: rgb(76, 85, 90); font-weight:normal; }
 .wiki-editor .cm-header-1 { font-size: 20pt; line-height: 40px; }
 .wiki-editor .link { color: #008cdd; cursor: pointer; }
