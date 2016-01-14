@@ -204,7 +204,7 @@ function getTokens(queryString: string): Array<Token> {
         token.isProper = true;        
       }
       // --- if the word is a (not proper) noun, singularize
-      if (getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN) {
+      if (getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN && token.isProper === false) {
         before = normalizedWord;
         normalizedWord = singularize(normalizedWord);
         // Heuristic: If the word changed after singularizing it, then it was plural to begin with
