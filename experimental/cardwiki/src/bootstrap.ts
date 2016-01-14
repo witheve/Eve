@@ -275,7 +275,7 @@ app.init("bootstrap", function bootstrap() {
   `));
 
   phase.addQuery("eav entity links", queryFromQueryDSL(unpad(4) `
-    select lowercase eavs as [eav]
+    select entity eavs as [eav]
     select entity {entity: [eav, value]} as [entity]
     project {entity: [eav, entity]; link: [entity, entity]; type: [eav, attribute]}
   `));

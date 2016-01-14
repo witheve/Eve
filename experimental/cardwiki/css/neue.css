@@ -61,6 +61,7 @@ div:hover > header > .controls { opacity: 1; }
 
 .wiki-editor .cm-header { color: rgb(76, 85, 90); font-weight:normal; }
 .wiki-editor .cm-header-1 { font-size: 20pt; line-height: 40px; }
+.wiki-editor .attribute { color:#2C00FD; }
 .wiki-editor .link { color: #008cdd; cursor: pointer; }
 .wiki-editor .link:hover { border-bottom:1px solid #008cdd; }
 .wiki-editor .embed-code { background: #C7E7FF; }

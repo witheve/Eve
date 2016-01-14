@@ -336,7 +336,7 @@ function findCommonCollections(ents) {
     arrayIntersect(intersection, cur);
   }
   intersection.sort((a, b) => {
-    return eve.findOne("collection", { collection: b })["count"] - eve.findOne("collection", { collection: a })["count"];
+    return eve.findOne("collection", { collection: a })["count"] - eve.findOne("collection", { collection: b })["count"];
   });
   return intersection;
 }
@@ -354,7 +354,7 @@ function findEntToAttrRelationship(ent, attr): any {
     return { distance: 0, type: RelationshipTypes.ENTITY_ATTRIBUTE };
   }
   let relationships = eve.query(``)
-    .select("entity links", { entity: ent }, "links")
+    .select("directionless links", { entity: ent }, "links")
     .select("entity eavs", { entity: ["links", "link"], attribute: attr }, "eav")
     .exec();
   if (relationships.unprojected.length) {
@@ -362,8 +362,8 @@ function findEntToAttrRelationship(ent, attr): any {
     return { distance: 1, type: RelationshipTypes.ENTITY_ATTRIBUTE, nodes: [findCommonCollections(entities)] };
   }
   let relationships2 = eve.query(``)
-    .select("entity links", { entity: ent }, "links")
-    .select("entity links", { entity: ["links", "link"] }, "links2")
+    .select("directionless links", { entity: ent }, "links")
+    .select("directionless links", { entity: ["links", "link"] }, "links2")
     .select("entity eavs", { entity: ["links2", "link"], attribute: attr }, "eav")
     .exec();
   if (relationships2.unprojected.length) {
