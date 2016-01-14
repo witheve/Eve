@@ -86,7 +86,7 @@ content h1 { border-bottom: 1px solid #ccc; }
 .wiki-search { display: flex; flex-direction: column; align-items: center; padding: 1rem 0; }
 .table .group, .table > header { flex-direction: row; }
 .table .column { justify-content: center; }
-.table .field { display: block; max-width: 254px; min-width: 80px; padding: 0.5em 0.5em; width: 160px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.table .field { display: block; max-width: 254px; min-width: 80px; padding: 0.5em 0.5em; width: 160qpx; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
 .table { border: 1px solid #ccc; border-radius: 2px; }
 .table > header { border-bottom: 1px solid #ccc; background: #ddd; }
@@ -99,7 +99,9 @@ content h1 { border-bottom: 1px solid #ccc; }
 ---------------------------------------------------------*/
 .wiki-search-wrapper { flex-direction: row; position: relative; margin: 0; font-size: 16pt; font-family: "Lato"; font-weight:300; }
 .wiki-search-wrapper .CodeMirror.cm-s-default { font-size: 16pt; }
-.wiki-search-wrapper .wiki-search-input .CodeMirror-vscrollbar, .wiki-search-wrapper .wiki-search-input .CodeMirror-hscrollbar { visibility: hidden; }
+.wiki-search-wrapper .wiki-search-input .CodeMirror-vscrollbar,
+.wiki-search-wrapper .wiki-search-input .CodeMirror-hscrollbar,
+{ /*visibility: hidden;*/ }
 .wiki-search-wrapper .wiki-search-input { padding: 0 0.25em; padding-right: 2.75em; border-radius: 2px; }
 .wiki-search-wrapper .controls { position: absolute; right: 0.25em; top: 0; bottom: 0; align-items: center; }
 
@@ -112,4 +114,4 @@ content h1 { border-bottom: 1px solid #ccc; }
 ---------------------------------------------------------*/
 
 .CodeMirror { font-family: "Lato", sans-serif; overflow:visible; height: auto; font-weight:300; line-height: 1.4em; color: rgb(76, 85, 90); }
-.CodeMirror-scroll { height: auto; }
+.CodeMirror-scroll { height: auto; overflow: visible !important; }
