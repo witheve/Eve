@@ -246,12 +246,15 @@ export function search(search:string, paneId:string):Element {
   }
   // @TODO: Without this ID, a bug occurs when reusing elements that injects a text node containing "undefined" after certain scenarios.
   groups.unshift({t: "header", id: `${paneId}|header`, c: "flex-row", children: headers});
-  return {t: "content", c: "wiki-search", key: JSON.stringify(results.unprojected), children: [{id: `${paneId}|table`, c: "results table", children: groups}], postRender: sizeColumns };
+  return {t: "content", c: "wiki-search", key: JSON.stringify(results.unprojected), children: [{id: `${paneId}|table`, c: "results table", children: groups}], /*postRender: sizeColumns*/ };
 }
 function sizeColumns(node:HTMLElement, elem:Element) {
   // @FIXME: Horrible hack to get around randomly added "undefined" text node that's coming from in microreact.
+  let cur = node;
+  while(cur.parentElement) cur = cur.parentElement;
+  if(cur.tagName !== "HTML") document.body.appendChild(cur);
+
   let child:Node, ix = 0;
-  let header = node.querySelector("header");
   let widths = {};
   let columns = <HTMLElement[]><any>node.querySelectorAll(".column");
   for(let column of columns) {
@@ -260,6 +263,8 @@ function sizeColumns(node:HTMLElement, elem:Element) {
     if(column.offsetWidth > widths[column["value"]]) widths[column["value"]] = column.offsetWidth;
   }
   for(let column of columns) column.style.width = widths[column["value"]] + 1;
+
+  if(cur.tagName !== "HTML") document.body.removeChild(cur);
 }
 
 //---------------------------------------------------------
@@ -306,7 +311,7 @@ function getEmbed(meta:{entity: string, page: string, paneId:string}, query:stri
     node.classList.add("query");
     // @FIXME: Horrible kludge, need a microReact.compile(...)
     let subRenderer = new Renderer();
-    subRenderer.render([search(content, meta.paneId)]);
+    subRenderer.render([{id: "root", children: [search(content, meta.paneId)]}]);
     node = subRenderer.content;
   }
 
