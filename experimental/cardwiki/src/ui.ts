@@ -240,7 +240,6 @@ function getEmbed(meta:{entity: string, page: string, paneId:string}, query:stri
         link = value;
       }
       node.textContent = display ? display.name : value
-
     }
 
   } else if(contentDisplay) {
@@ -254,6 +253,14 @@ function getEmbed(meta:{entity: string, page: string, paneId:string}, query:stri
     // @FIXME: Horrible kludge, need a microReact.compile(...)
     let subRenderer = new Renderer();
     subRenderer.render([{id: "root", children: [search(content, meta.paneId)]}]);
+    node = subRenderer.content;
+  }
+
+  if(params["rep"]) {
+    let subRenderer = new Renderer();
+    let {executable} = activeSearches[content];
+    let results = executable.exec();
+    subRenderer.render([{id: "root", children: [represent(params["rep"], results, params)]}]);
     node = subRenderer.content;
   }
 
@@ -481,5 +488,20 @@ function codeMirrorPostRender(postRender?:RenderHandler):RenderHandler {
   }
 }
 
+function represent(rep:string, results, params:{}):Element {
+  console.log("repping:", results, " as", rep, " with params ", params);
+  if(rep === "value") return valueRep(results.results, params);
+  else console.error("Unknown representation: " + rep);
+}
+
+function valueRep(results:{}[], params:{}):Element {
+  let rows = results;
+  if(!params["field"]) throw new Error("Value representation requires a 'field' param indicating which field to represent");
+  if(rows.length > 1) throw new Error("Value representation on field '" + params["field"] + "' expects 1 row, but given multiple");
+  let row = rows[0];
+  let val = row[params["field"]];
+  return {c: "value inline", text: val};
+}
+    
 // @NOTE: Uncomment this to enable the new UI, or type `window["NEUE_UI"] = true; app.render()` into the console to enable it transiently.
 window["NEUE_UI"] = true;
