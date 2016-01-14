@@ -4,11 +4,19 @@ declare var nlp;
 // Entry point for NLQP
 // @TODO as an input argument, take a list of nominal tags generated as the user types the query
 export function parse(queryString: string) {
+  queryString = preprocessQueryString(queryString)
   let tokens = getTokens(queryString);
   let tree = formTree(tokens);
   let ast = formDSL(tree);
       
   return {tokens: tokens, tree: tree, ast: ast};
+}
+
+// Performs some transformations to the query string before tokenizing
+export function preprocessQueryString(queryString: string): string {
+  // Add whitespace before commas
+  let processedString = queryString.replace(new RegExp(",", 'g')," ,");
+  return processedString;
 }
 
 function parseTest(queryString: string, n: number) {
@@ -103,8 +111,9 @@ enum MinorPartsOfSpeech {
   DA,   // date (june 5th 1998)
   NU,   // number (100, one hundred)
   // Symbol
-  LT, // Symbol (<)
-  GT, // Symbol (>)
+  LT,   // Symbol (<)
+  GT,   // Symbol (>)
+  SEP,  // Separator (,)
   // Wh- word
   WDT,  // Wh-determiner (that what whatever which whichever)
   WP,   // Wh-pronoun (that what whatever which who whom)
@@ -175,7 +184,7 @@ function getTokens(queryString: string): Array<Token> {
       // --- singularize
       let normalizedWord = word;
       // --- strip punctuation
-      normalizedWord = normalizedWord.replace(/\.|\?|\!|\,/g,'');
+      normalizedWord = normalizedWord.replace(/\.|\?|\!|/g,'');
       // --- get rid of possessive ending
       before = normalizedWord;
       normalizedWord = normalizedWord.replace(/'s|'$/,'');
@@ -233,6 +242,9 @@ function getTokens(queryString: string): Array<Token> {
           break;
         case "<":
           token.POS = MinorPartsOfSpeech.LT;
+          break;
+        case ",":
+          token.POS = MinorPartsOfSpeech.SEP;
           break;
       }
         
@@ -332,8 +344,9 @@ function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech 
         return MajorPartsOfSpeech.GLUE;
   }
   // Symbol
-  if (minorPartOfSpeech === MinorPartsOfSpeech.LT  ||
-      minorPartOfSpeech === MinorPartsOfSpeech.GT) {
+  if (minorPartOfSpeech === MinorPartsOfSpeech.LT ||
+      minorPartOfSpeech === MinorPartsOfSpeech.GT ||
+      minorPartOfSpeech === MinorPartsOfSpeech.SEP) {
         return MajorPartsOfSpeech.SYMBOL;
   }
   // Value
@@ -445,6 +458,15 @@ function formTree(tokens: any): any {
   // Heuristic: combine adjacent proper noun groups
   console.log(nounGroups);
   
+  // Get unused tokens
+  let unusedTokens: Array<Token> = [];
+  for (let token of tokens) {
+    if (token.used === false) {
+      unusedTokens.push(token.normalizedWord);
+    }
+  }
+  console.log(unusedTokens);
+  
   
     
   
@@ -542,12 +564,13 @@ function zip(array1: Array<any>, array2: Array<any>): Array<Array<any>> {
 // ----------------------------------------------------------------------------
 
 let n = 1;
+parseTest("Ages of Chris Granger, Corey Montella, and Josh Cole",n);
 //parseTest("Corey's age",n);
 //parseTest("Corey Montella's age",n);
 //parseTest("People older than Chris Granger and younger than Edward Norton",n);
 //parseTest("Sum of the salaries per department",n);
 //parseTest("Dishes with eggs and chicken",n);
-parseTest("People whose age < 30",n);
+//parseTest("People whose age < 30",n);
 //parseTest("People between 50 and 60 years old",n);
 //parseTest("Dishes that don't have eggs or chicken",n);
 //parseTest("What is Corey Montella's age?",n);
