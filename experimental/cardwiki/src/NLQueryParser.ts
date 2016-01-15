@@ -753,6 +753,22 @@ function findAll(array: Array<any>, condition: Function): Array<any> {
 
 let n = 1;
 let phrases = [
+  "dishes that take 30 minutes to an hour",
+  //"people who live alone",
+  //"everyone in this room speaks at least two languages",
+  //"Birds can fly, but penguins can not, but Harry the Rocket Penguin can.",
+  //"at least two languages are spoken by everyone in this room",
+  //"friends older than the average age of people with pets",
+  //"meetings john was in in the last 10 days",
+  //"parts that have a color of red, green, blue, or yellow",
+  //"employee salary / employee's department total cost",
+  //"Return the average number of publications by Bob in each year",
+  //"Return the conference in each area whose papers have the most total citations",
+  //"return all conferences in the database area",
+  //"return all the organizations, where the number of papers by the organization is more than the number of authors in IBM",
+  //"return the authors, where the number of papers by each author in VLDB is more than the number of papers in ICDE",
+  //"What are the populations of cities that are located in California?",
+  //"What jobs as a senior software developer are available in Houston but not San Antonio?",
   /*
   "Neither of these boys wants to try a piece of pineapple pizza.",
   "Shortest flight between New York and San Francisco",  
