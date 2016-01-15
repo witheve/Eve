@@ -224,7 +224,6 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
       }
 
       // Heuristic: Special case words with no ambiguous POS that NLPC misclassifies
-      
       switch (token.normalizedWord) {
         case "all":
           token.POS = MinorPartsOfSpeech.PDT;
@@ -492,8 +491,6 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
       if (latestAdjectiveIx !== null && latestAdjectiveIx < nounGroup.begin) {
         nounGroup = subsumeTokens(nounGroup,latestAdjectiveIx,tokens);
       }
-            
-      // Heuristic: don't include verbs at this stage
       
       nounGroups.push(nounGroup);
       lastFoundNounIx = i;
@@ -502,7 +499,7 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
     i++;
   }
   
-  // Now we have some noun groups. Are there any adjectives 
+  // Heuristic: Now we have some noun groups. Are there any adjectives 
   // left over? Attach them to the closest noun group to the left
   let unusedAdjectives = findAll(tokens,(token: Token) => { return token.used === false && getMajorPOS(token.POS) === MajorPartsOfSpeech.ADJECTIVE});
   for (let adj of unusedAdjectives) {
@@ -518,7 +515,7 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
     targetNG.end = adj.ix;
   }
   
-  // Leftover determiners are themselves a noun group 
+  // Heuristic: Leftover determiners are themselves a noun group 
   // e.g. neither of these boys. ng = ([neither],[of these boys])
   let unusedDeterminers = findAll(tokens, (token: Token) => {return token.used === false && token.POS === MinorPartsOfSpeech.DT});
   for (let token of unusedDeterminers) {
@@ -560,14 +557,28 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
   
   // Remove the superfluous noun groups
   nounGroups = findAll(nounGroups,(ng: NounGroup) => { return ng.subsumed === false});
-  
+  // Sort the noun groups to reflect their order in the root sentence
+  nounGroups = nounGroups.sort((ngA: NounGroup, ngB: NounGroup) => {return ngA.begin - ngB.begin;});
   return nounGroups;
+}
+
+function formTree(tokens: Array<Token>): any {
+  let nounGroups = formNounGroups(tokens);
+  
+  // Get unused tokens
+  let unusedTokens = findAll(tokens,(token: Token) => { return token.used === false; });
+  
+  
+  
+  console.log(nounGroupArrayToString(nounGroups));
+  console.log(tokenArrayToString(unusedTokens));
+  
   
   
   //console.log(nounGroupArrayToString(nounGroups));
   
 
-  
+  // Heuristic: don't include verbs at this stage
   
   // Find noun phrases. Noun phrases are a group of words that describe a root noun
   // e.g. "4-star restaurant" "the united states of america"
@@ -608,18 +619,6 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
   //let firstAdjective = tokens.find((token) => {
   //  return token.majorPOS === MajorPartsOfSpeech.ADJECTIVE;   
   //});
-}
-
-function formTree(tokens: Array<Token>): any {
-  let nounGroups = formNounGroups(tokens);
-  
-  // Get unused tokens
-  let unusedTokens = findAll(tokens,(token: Token) => { return token.used === false; });
-  
-  
-  
-  console.log(nounGroupArrayToString(nounGroups));
-  console.log(tokenArrayToString(unusedTokens));
   
   
 }
