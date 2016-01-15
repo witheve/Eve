@@ -96,8 +96,9 @@ export class RichTextEditor {
       let cursorIx = cm.indexFromPos(cm.getCursor("from"));
       for (let part of parts) {
         if (part[0] === "{") {
-          let mark = self.markEmbeddedQuery(cm, part, ix);
+          let {mark, replacement} = self.markEmbeddedQuery(cm, part, ix);
           if (mark) self.marks.push(mark);
+          if(replacement) part = replacement;
         }
         ix += part.length;
       }
@@ -114,7 +115,7 @@ export class RichTextEditor {
           let ix = cm.indexFromPos(from);
           let text = cm.getRange(from, to);
           mark.clear();
-          let newMark = this.markEmbeddedQuery(cm, text, ix);
+          let {mark:newMark} = this.markEmbeddedQuery(cm, text, ix);
           if (newMark) this.marks.push(newMark);
         }
       }
@@ -141,7 +142,7 @@ export class RichTextEditor {
 
   markEmbeddedQuery(cm, query, ix) {
     let cursorIx = cm.indexFromPos(cm.getCursor("from"));
-    let mark;
+    let mark, replacement;
     let start = cm.posFromIndex(ix);
     let stop = cm.posFromIndex(ix + query.length);
     // as long as our cursor isn't in this span
@@ -150,17 +151,16 @@ export class RichTextEditor {
       // e.g. {age: 30}
       let adjusted = this.getInline(this.meta, query)
       if (adjusted !== query) {
-        console.log("CM:R", query, "=>", adjusted);
+        replacement = adjusted;
         cm.replaceRange(adjusted, start, stop);
       } else {
-        console.log("CM:M", query);
         mark = cm.markText(start, stop, { replacedWith: this.getEmbed(this.meta, query.substring(1, query.length - 1)) });
       }
     } else {
       mark = cm.markText(start, stop, { className: "embed-code" });
       mark.needsReplacement = true;
     }
-    return mark;
+    return {mark, replacement};
   }
 }
 
