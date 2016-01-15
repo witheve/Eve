@@ -25,7 +25,7 @@ function parseTest(queryString: string, n: number) {
   let maxTime = 0;
   let minTime;
   
-  // Parse string and time it
+  // Parse string and measure how long it takes
   for (let i = 0; i < n; i++) {
     let start = performance.now();
     parseResult = parse(queryString);
@@ -120,6 +120,7 @@ enum MinorPartsOfSpeech {
 }
 
 interface Token {
+  ix: number;
   originalWord: string;
   normalizedWord: string;
   POS: MinorPartsOfSpeech;
@@ -144,7 +145,7 @@ function getTokens(queryString: string): Array<Token> {
     let tokens: Array<Token> = wordsnTags.map((wordnTag, i) => {
       let word = wordnTag[0];
       let tag: string = wordnTag[1];
-      let token: Token = {originalWord: word, normalizedWord: word, POS: MinorPartsOfSpeech[tag], used: false};
+      let token: Token = {ix: i, originalWord: word, normalizedWord: word, POS: MinorPartsOfSpeech[tag], used: false};
       let before = "";
       
       // Heuritic: queries cannot begin or end with a verb. These are most likely nouns
@@ -492,6 +493,11 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
     i++;
   }
   
+  // Now we have some noun groups. Are there any adjectives 
+  // left over? Attach them to the closest noun group to the left
+  let unusedAdjectives = findAll(tokens,(token: Token) => { return token.used === false && getMajorPOS(token.POS) === MajorPartsOfSpeech.ADJECTIVE});
+  
+  
   // Heuristic: combine adjacent proper noun groups
   let properNounGroups = findAll(nounGroups,(ng: NounGroup) => { return ng.isProper === true; });
   for (let i = 0; i < properNounGroups.length - 1; i++) {
@@ -609,7 +615,7 @@ function tokenToString(token: Token): string {
   let isPossessive = token.isPossessive === undefined ? "" : token.isPossessive === true ? "possessive ": "";
   let isProper = token.isProper === undefined ? "" : token.isProper === true ? "proper ": "";
   let isPlural = token.isPlural === undefined ? "" : token.isPlural === true ? "plural ": "";
-  let tokenString = `${token.originalWord} | ${token.normalizedWord} | ${MajorPartsOfSpeech[getMajorPOS(token.POS)]} | ${MinorPartsOfSpeech[token.POS]} | ${isPossessive}${isProper}${isPlural}` ;
+  let tokenString = `${token.ix}.: ${token.originalWord} | ${token.normalizedWord} | ${MajorPartsOfSpeech[getMajorPOS(token.POS)]} | ${MinorPartsOfSpeech[token.POS]} | ${isPossessive}${isProper}${isPlural}` ;
   return tokenString;
 }
 
