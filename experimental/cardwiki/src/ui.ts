@@ -523,6 +523,6 @@ function represent(rep:string, results, params:{}):Element {
   console.log("repping:", results, " as", rep, " with params ", params);
   if(rep in _reps) return _reps[rep](results.results, <any>params);
 }
-    
+
 // @NOTE: Uncomment this to enable the new UI, or type `window["NEUE_UI"] = true; app.render()` into the console to enable it transiently.
 window["NEUE_UI"] = true;
