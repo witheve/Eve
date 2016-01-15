@@ -44,10 +44,10 @@ function parseTest(queryString: string, n: number) {
   // Display result
   let tokenStrings = tokenArrayToString(parseResult.tokens);
   let timingDisplay = `Timing (avg, max, min): ${(avgTime/n).toFixed(2)} | ${maxTime.toFixed(2)} | ${minTime.toFixed(2)} `;
-  console.log("==============================================================");
   console.log(queryString);
   console.log(tokenStrings);
   console.log(timingDisplay);
+  console.log("==============================================================");
 }
 
 // ----------------------------------------------------------------------------
@@ -101,7 +101,8 @@ enum MinorPartsOfSpeech {
   IN,   // preposition (of, in, by)
   MD,   // modal verb (can, should)
   CC,   // coordinating conjunction (and, but, or)
-  DT,   // determiner (the, some)
+  PDT,  // predeterminer (some, all, any)
+  DT,   // determiner (the)
   UH,   // interjection (oh, oops)
   EX,   // existential there (there)
   // Value
@@ -342,6 +343,7 @@ function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech 
       minorPartOfSpeech === MinorPartsOfSpeech.IN  ||
       minorPartOfSpeech === MinorPartsOfSpeech.MD  ||
       minorPartOfSpeech === MinorPartsOfSpeech.CC  ||
+      minorPartOfSpeech === MinorPartsOfSpeech.PDT ||
       minorPartOfSpeech === MinorPartsOfSpeech.DT  ||
       minorPartOfSpeech === MinorPartsOfSpeech.UH  ||
       minorPartOfSpeech === MinorPartsOfSpeech.EX) {
@@ -457,9 +459,13 @@ function formTree(tokens: any): any {
           nounGroup.end = i+1;
         }  
       }
+      // Heuristic: search to the left again for an adjective phrase
+      
+      
+      
       // Heuristic: don't include verbs at this stage
       
-      // Search to the right
+
       
       nounGroups.push(nounGroup);
       lastFoundNounIx = i;
@@ -644,12 +650,14 @@ let phrases = [
   //"States in the United States of America",
   //"People older than Chris Granger and younger than Edward Norton",
   //"Sum of the salaries per department",
-  "Dishes with eggs and chicken",
+  //"Dishes with eggs and chicken",
   //"People whose age < 30",
   //"People between 50 and 60 years old",
+  //"salaries per department, employee, and age",
   //"Where are the restaurants in San Francisco that serve good French food?",
   //"Dishes that do not have eggs or chicken",
   //"Who had the most sales last year?",
+  "departments where any of the employees are male",
   //"sum of the top 2 salaries per department",
   //"What is Corey Montella's age?",
   //"People older than Corey Montella",
