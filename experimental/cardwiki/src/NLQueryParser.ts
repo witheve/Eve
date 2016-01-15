@@ -60,7 +60,6 @@ enum MajorPartsOfSpeech {
   ADVERB,
   NOUN,
   GLUE,
-  VALUE,
   WHWORD,
   SYMBOL,
 }
@@ -219,17 +218,20 @@ function getTokens(queryString: string): Array<Token> {
       // Heuristic: Special case words with no ambiguous POS that NLPC misclassifies
       
       switch (token.normalizedWord) {
-        case "is": 
-          token.POS = MinorPartsOfSpeech.VBZ;
-          break;
-        case "was":
-          token.POS = MinorPartsOfSpeech.VBD;
+        case "all":
+          token.POS = MinorPartsOfSpeech.PDT;
           break;
         case "had":
           token.POS = MinorPartsOfSpeech.VBD;
           break;
-        case "all":
-          token.POS = MinorPartsOfSpeech.PDT;
+        case "is": 
+          token.POS = MinorPartsOfSpeech.VBZ;
+          break;
+        case "not":
+          token.POS = MinorPartsOfSpeech.RB;
+          break;
+        case "was":
+          token.POS = MinorPartsOfSpeech.VBD;
           break;
         case "will":
           // will can be a noun
@@ -237,11 +239,12 @@ function getTokens(queryString: string): Array<Token> {
             token.POS = MinorPartsOfSpeech.MD;
           }
           break;
-        case "not":
-          token.POS = MinorPartsOfSpeech.RB;
+        case "years":
+          token.POS = MinorPartsOfSpeech.NN;
+          token.normalizedWord = "year";
+          token.isPlural = true;
           break;
       }
-      
       
       // Special case symbols
       switch (token.normalizedWord) {
@@ -335,6 +338,9 @@ function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech 
       minorPartOfSpeech === MinorPartsOfSpeech.NNP  ||
       minorPartOfSpeech === MinorPartsOfSpeech.NNPS ||
       minorPartOfSpeech === MinorPartsOfSpeech.NNS  ||
+      minorPartOfSpeech === MinorPartsOfSpeech.CD ||
+      minorPartOfSpeech === MinorPartsOfSpeech.DA ||
+      minorPartOfSpeech === MinorPartsOfSpeech.NU ||
       minorPartOfSpeech === MinorPartsOfSpeech.NNO  ||
       minorPartOfSpeech === MinorPartsOfSpeech.NG   ||
       minorPartOfSpeech === MinorPartsOfSpeech.PRP  ||
@@ -357,12 +363,6 @@ function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech 
       minorPartOfSpeech === MinorPartsOfSpeech.GT ||
       minorPartOfSpeech === MinorPartsOfSpeech.SEP) {
         return MajorPartsOfSpeech.SYMBOL;
-  }
-  // Value
-  if (minorPartOfSpeech === MinorPartsOfSpeech.CD ||
-      minorPartOfSpeech === MinorPartsOfSpeech.DA ||
-      minorPartOfSpeech === MinorPartsOfSpeech.NU) {
-        return MajorPartsOfSpeech.VALUE;
   }
   // Wh-Word
   if (minorPartOfSpeech === MinorPartsOfSpeech.WDT ||
@@ -437,13 +437,14 @@ function formTree(tokens: any): any {
       };
       token.used = true;
       
-      // Now we need to pull in other words to attach to the noun. We have some hueristics for that
+      // Now we need to pull in other words to attach to the noun. We have some hueristics for that!
       
       // Heuristic: search left until we find a predeterminer. Everything between is part of the noun group
       let latestDeterminerIx = null;
       let latestPrepositionIx = null;
       let latestAdjectiveIx = null;
       let verbBoundary = null;
+      let conjunctionBoundary = null;
       for (let j = i-1; j >= lastFoundNounIx; j--) {
         let backtrackToken: Token = tokens[j];
         // First look for a predeterminer.
@@ -463,6 +464,10 @@ function formTree(tokens: any): any {
         } else if (getMajorPOS(backtrackToken.POS) === MajorPartsOfSpeech.VERB) {
           verbBoundary = j;
           break;
+        // If we find a conjuntion, we've gone too far
+        } else if (backtrackToken.POS === MinorPartsOfSpeech.CC) {
+          conjunctionBoundary = j;
+          break;
         }
       }
       // If we found a determiner, gobble up tokens between the latest determiner and the noun
@@ -477,7 +482,7 @@ function formTree(tokens: any): any {
       if (latestAdjectiveIx !== null && latestAdjectiveIx < nounGroup.begin) {
         nounGroup = subsumeTokens(nounGroup,latestAdjectiveIx,tokens);
       }
-      
+            
       // Heuristic: don't include verbs at this stage
       
       nounGroups.push(nounGroup);
@@ -486,7 +491,6 @@ function formTree(tokens: any): any {
     // End noun group formation
     i++;
   }
-  
   
   // Heuristic: combine adjacent proper noun groups
   let properNounGroups = findAll(nounGroups,(ng: NounGroup) => { return ng.isProper === true; });
@@ -511,8 +515,7 @@ function formTree(tokens: any): any {
     i--;
   }
   
-  
-  // Remove the superfluous
+  // Remove the superfluous noun groups
   nounGroups = findAll(nounGroups,(ng: NounGroup) => { return ng.subsumed === false});
   
   
@@ -656,15 +659,16 @@ function findAll(array: Array<any>, condition: Function): Array<any> {
 
 let n = 1;
 let phrases = [
-  "Ages of Chris Steve Granger, Corey James Irvine Montella, and Josh Cole",  
+  /*"Ages of Chris Steve Granger, Corey James Irvine Montella, and Josh Cole",  
   "The sweet potatoes in the vegetable bin are green with mold.",
   "States in the United States of America",
   "People older than Chris Granger and younger than Edward Norton",
   "Sum of the salaries per department",
-  "Dishes with eggs and chicken",
+  "Dishes with eggs and chicken",*/
   "People whose age < 30",
   "People between 50 and 60 years old",
-  "salaries per department, employee, and age",
+  "Steve is 10 years old and Sven is 12 years old",
+  /*"salaries per department, employee, and age",
   "Where are the restaurants in San Francisco that serve good French food?",
   "Dishes that do not have eggs or chicken",
   "Who had the most sales last year?",
@@ -674,7 +678,7 @@ let phrases = [
   "People older than Corey Montella",
   "How many 4 star restaurants are in San Francisco?",
   "What is the average elevation of the highest points in each state?",
-  "What is the name of the longest river in the state that has the largest city in the United States of America?"
+  "What is the name of the longest river in the state that has the largest city in the United States of America?"*/
 ];
 
 phrases.map((phrase) => {parseTest(phrase,n)});
