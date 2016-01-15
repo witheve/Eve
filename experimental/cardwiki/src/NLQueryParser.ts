@@ -638,19 +638,24 @@ function findAll(array: Array<any>, condition: Function): Array<any> {
 // ----------------------------------------------------------------------------
 
 let n = 1;
-//parseTest("Ages of Chris Steve Granger, Corey James Irvine Montella, and Josh Cole",n);
-//parseTest("The sweet potatoes in the vegetable bin are green with mold.",n);
-//parseTest("States in the United States of America",n);
-//parseTest("People older than Chris Granger and younger than Edward Norton",n);
-//parseTest("Sum of the salaries per department",n);
-//parseTest("Dishes with eggs and chicken",n);
-//parseTest("People whose age < 30",n);
-//parseTest("People between 50 and 60 years old",n);
-console.log(nlp.pos("Steve had coke").tags());
-parseTest("Dishes that do not have eggs or chicken",n);
-parseTest("Who had the most sales last year?",n);
-//parseTest("What is Corey Montella's age?",n);
-//parseTest("People older than Corey Montella",n);
-//parseTest("How many 4 star restaurants are in San Francisco?",n);
-parseTest("What is the average elevation of the highest points in each state?",n);
-//parseTest("What are the names of rivers in the state that has the largest city in the United States of America?",n);
+let phrases = [
+  //"Ages of Chris Steve Granger, Corey James Irvine Montella, and Josh Cole",  
+  //"The sweet potatoes in the vegetable bin are green with mold.",
+  //"States in the United States of America",
+  //"People older than Chris Granger and younger than Edward Norton",
+  //"Sum of the salaries per department",
+  "Dishes with eggs and chicken",
+  //"People whose age < 30",
+  //"People between 50 and 60 years old",
+  //"Where are the restaurants in San Francisco that serve good French food?",
+  //"Dishes that do not have eggs or chicken",
+  //"Who had the most sales last year?",
+  //"sum of the top 2 salaries per department",
+  //"What is Corey Montella's age?",
+  //"People older than Corey Montella",
+  //"How many 4 star restaurants are in San Francisco?",
+  //"What is the average elevation of the highest points in each state?",
+  //"What are the names of rivers in the state that has the largest city in the United States of America?"
+];
+
+phrases.map((phrase) => {parseTest(phrase,n)});
