@@ -141,6 +141,7 @@ interface Token {
   isPossessive?: boolean;
   isProper?: boolean;
   isPlural?: boolean;
+  isQuantity?: boolean;
   // Properties relevant to parsing
   used: boolean;
 }
@@ -177,6 +178,11 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
         if (token.POS === MinorPartsOfSpeech.NNPS  ||
             token.POS === MinorPartsOfSpeech.NNS) {
           token.isPlural = true;
+        }
+        if (token.POS === MinorPartsOfSpeech.CD ||
+            token.POS === MinorPartsOfSpeech.CD ||
+            token.POS === MinorPartsOfSpeech.CD) {
+          token.isQuantity = true;     
         }
       }
       
@@ -408,6 +414,7 @@ interface NounGroup {
   isPossessive: boolean;
   isProper: boolean;
   isPlural: boolean;
+  isQuantity: boolean;
   subsumed: boolean;
 }
 
@@ -432,16 +439,7 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
   for (let token of tokens) {
     // If the token is a noun, start a noun group
     if (getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN && token.used === false) {
-      let nounGroup: NounGroup = {
-        noun: [token], 
-        children: [], 
-        begin: i, 
-        end: i, 
-        isPlural: token.isPlural, 
-        isPossessive: token.isPossessive, 
-        isProper: token.isProper,
-        subsumed: false
-      };
+      let nounGroup: NounGroup = newNounGroup(token);
       token.used = true;
       
       // Now we need to pull in other words to attach to the noun. We have some hueristics for that!
@@ -539,16 +537,7 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
       if (targetVB !== null) {
         targetVB.POS = MinorPartsOfSpeech.NN;
         // Start a new noun group
-        let nounGroup: NounGroup = {
-          noun: [targetVB], 
-          children: [], 
-          begin: targetVB.ix, 
-          end: targetVB.ix, 
-          isPlural: false, 
-          isPossessive: false, 
-          isProper: false,
-          subsumed: false
-        };
+        let nounGroup: NounGroup = newNounGroup(targetVB);
         targetVB.used = true;
         // Add adjective and everything inbeetween as children to this new noun group
         for (let i = adj.ix; i < targetVB.ix; i++) {
@@ -565,16 +554,7 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
   // e.g. neither of these boys. ng = ([neither],[of these boys])
   let unusedDeterminers = findAll(tokens, (token: Token) => {return token.used === false && token.POS === MinorPartsOfSpeech.DT});
   for (let token of unusedDeterminers) {
-    nounGroups.push({
-      noun: [token], 
-      children: [], 
-      begin: token.ix, 
-      end: token.ix, 
-      isPlural: token.isPlural, 
-      isPossessive: token.isPossessive, 
-      isProper: token.isProper,
-      subsumed: false
-    });  
+    nounGroups.push(newNounGroup(token));  
     token.used = true;
   }
   
@@ -606,6 +586,20 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
   // Sort the noun groups to reflect their order in the root sentence
   nounGroups = nounGroups.sort((ngA: NounGroup, ngB: NounGroup) => {return ngA.begin - ngB.begin;});
   return nounGroups;
+}
+
+function newNounGroup(token: Token): NounGroup {
+return {
+         noun: [token], 
+         children: [], 
+         begin: token.ix, 
+         end: token.ix, 
+         isPlural: token.isPlural === undefined ? false : token.isPlural, 
+         isPossessive: token.isPossessive === undefined ? false : token.isPossessive,
+         isProper: token.isProper === undefined ? false : token.isProper,
+         isQuantity: token.isQuantity === undefined ? false : token.isQuantity,
+         subsumed: false
+       }  
 }
 
 function formTree(tokens: Array<Token>): any {
@@ -754,22 +748,21 @@ function findAll(array: Array<any>, condition: Function): Array<any> {
 let n = 1;
 let phrases = [
   "dishes that take 30 minutes to an hour",
-  //"people who live alone",
-  //"everyone in this room speaks at least two languages",
-  //"Birds can fly, but penguins can not, but Harry the Rocket Penguin can.",
-  //"at least two languages are spoken by everyone in this room",
-  //"friends older than the average age of people with pets",
-  //"meetings john was in in the last 10 days",
-  //"parts that have a color of red, green, blue, or yellow",
-  //"employee salary / employee's department total cost",
-  //"Return the average number of publications by Bob in each year",
-  //"Return the conference in each area whose papers have the most total citations",
-  //"return all conferences in the database area",
-  //"return all the organizations, where the number of papers by the organization is more than the number of authors in IBM",
-  //"return the authors, where the number of papers by each author in VLDB is more than the number of papers in ICDE",
-  //"What are the populations of cities that are located in California?",
-  //"What jobs as a senior software developer are available in Houston but not San Antonio?",
-  /*
+  "people who live alone",
+  "everyone in this room speaks at least two languages",
+  "Birds can fly, but penguins can not, but Harry the Rocket Penguin can.",
+  "at least two languages are spoken by everyone in this room",
+  "friends older than the average age of people with pets",
+  "meetings john was in in the last 10 days",
+  "parts that have a color of red, green, blue, or yellow",
+  "employee salary / employee's department total cost",
+  "Return the average number of publications by Bob in each year",
+  "Return the conference in each area whose papers have the most total citations",
+  "return all conferences in the database area",
+  "return all the organizations, where the number of papers by the organization is more than the number of authors in IBM",
+  "return the authors, where the number of papers by each author in VLDB is more than the number of papers in ICDE",
+  "What are the populations of cities that are located in California?",
+  "What jobs as a senior software developer are available in Houston but not San Antonio?",
   "Neither of these boys wants to try a piece of pineapple pizza.",
   "Shortest flight between New York and San Francisco",  
   "When did Corey Montella marry his spouse?",
@@ -794,7 +787,6 @@ let phrases = [
   "How many 4 star restaurants are in San Francisco?",
   "What is the average elevation of the highest points in each state?",
   "What is the name of the longest river in the state that has the largest city in the United States of America?"
-  */  
 ];
 
 phrases.map((phrase) => {parseTest(phrase,n)});
