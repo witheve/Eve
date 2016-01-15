@@ -228,6 +228,9 @@ function getTokens(queryString: string): Array<Token> {
         case "had":
           token.POS = MinorPartsOfSpeech.VBD;
           break;
+        case "all":
+          token.POS = MinorPartsOfSpeech.PDT;
+          break;
         case "will":
           // will can be a noun
           if (getMajorPOS(token.POS) !== MajorPartsOfSpeech.NOUN) {
@@ -434,20 +437,32 @@ function formTree(tokens: any): any {
       };
       token.used = true;
       
-      // Now we need to pull in other words to attach to the noun.
+      // Now we need to pull in other words to attach to the noun. We have some hueristics for that
+      
       // Heuristic: search left until we find a determiner. Everything between is part of the noun group
+      let latestDeterminerIx = null;
       for (let j = i-1; j >= lastFoundNounIx; j--) {
         let backtrackToken: Token = tokens[j];
-        // If we found a determiner, add it and all tokens in between to the noun group
-        // i.e.: nounGroup = [DT, ...., NN]
-        if (backtrackToken.POS === MinorPartsOfSpeech.DT) {
-          nounGroup.begin = j;
-          for (j; j < nounGroup.end; j++) {
-            let nounGroupToken: Token = tokens[j];
-            nounGroup.children.push(nounGroupToken);
-            nounGroupToken.used = true;
-          }
+        // First look for a predeterminer.
+        if (backtrackToken.POS === MinorPartsOfSpeech.PDT) {
+          latestDeterminerIx = j;
           break;
+        // Keep track of the ix of the latest determiner
+        } else if (backtrackToken.POS === MinorPartsOfSpeech.DT) {
+          latestDeterminerIx = j;
+        // If we hit a verb, we've gone too far
+        } else if (getMajorPOS(backtrackToken.POS) === MajorPartsOfSpeech.VERB) {
+          break;
+        }
+      }
+      // If we found a determiner, gobble up tokens between the latest determiner and the noun
+      // i.e.: nounGroup = [DT, ... , NN]
+      if (latestDeterminerIx !== null) {
+        nounGroup.begin = latestDeterminerIx;
+        for (let j = latestDeterminerIx; j < nounGroup.end; j++) {
+          let nounGroupToken: Token = tokens[j];
+          nounGroup.children.push(nounGroupToken);
+          nounGroupToken.used = true;
         }
       }
       // Heuristic: search to the right for a preposition
@@ -459,13 +474,10 @@ function formTree(tokens: any): any {
           nounGroup.end = i+1;
         }  
       }
+      
       // Heuristic: search to the left again for an adjective phrase
       
-      
-      
       // Heuristic: don't include verbs at this stage
-      
-
       
       nounGroups.push(nounGroup);
       lastFoundNounIx = i;
@@ -507,7 +519,8 @@ function formTree(tokens: any): any {
   let unusedTokens = findAll(tokens,(token: Token) => { return token.used === false; });
   console.log(tokenArrayToString(unusedTokens));
   
-    
+  
+  
   
   // Find noun phrases. Noun phrases are a group of words that describe a root noun
   // e.g. "4-star restaurant" "the united states of america"
@@ -519,13 +532,8 @@ function formTree(tokens: any): any {
   // by the words "lived in"
   // Heuristic: relationships often exist between noun groups 
   
-  
   // Heuristic: The skeleton of the sentence can be constructed by looking only at nouns. All other words are achored to those nouns.
   // Once that is done, you can form noun phrases  
-  
-  
-  
-  
   
   // Find adjective phrases. These are analagous to noun phrases but for adjectives. E.g. "very tall person",
   // "very tall" is an adjective group
@@ -536,14 +544,8 @@ function formTree(tokens: any): any {
   
   // Heuristic: Adjective phrases exist in proximity to a noun group and within a noun phrase
   
-  
-  
   // Linking verbs: be [am is ar was wer has been are being etc.], become, seem. These are always linking verbs
   // Linking verb test: replace with am, is, or are and the sentence should still parse
-  
-  
-  
-  
   
   // Find prepositional phrases. These begin with a preposition and end with a noun, pronoun, gerund, or clause.
   // The object of the preposition will have zero or more modifiers describing it.
@@ -554,23 +556,16 @@ function formTree(tokens: any): any {
   // Heuristic: Prepositional phrase will NEVER contain the subject of the sentence 
   // Heuristic: Prepositional phrases begin with a preposition, and end with a noun group
   
-
-  
-  
-  
-
-
   // Heuristic: The first noun is usually the subject
   // breaks this heuristic: "How many 4 star restaurants are in San Francisco?"
-  // Here, star is the first noun, but 4-star is an adjective
-
-
+  // Here, star is the first noun, but 4-star is an adjective modifying restaurants,
+  // which is the subject of the sentence.
+  // Consider this alternative: the first noun group is the subject
 
   // Heuristic: attributes to a noun exist in close proximity to it
-  let firstAdjective = tokens.find((token) => {
-    return token.majorPOS === MajorPartsOfSpeech.ADJECTIVE;   
-  });
-  
+  //let firstAdjective = tokens.find((token) => {
+  //  return token.majorPOS === MajorPartsOfSpeech.ADJECTIVE;   
+  //});
 }
 
 // ----------------------------------------------------------------------------
@@ -645,25 +640,25 @@ function findAll(array: Array<any>, condition: Function): Array<any> {
 
 let n = 1;
 let phrases = [
-  //"Ages of Chris Steve Granger, Corey James Irvine Montella, and Josh Cole",  
-  //"The sweet potatoes in the vegetable bin are green with mold.",
-  //"States in the United States of America",
-  //"People older than Chris Granger and younger than Edward Norton",
-  //"Sum of the salaries per department",
-  //"Dishes with eggs and chicken",
-  //"People whose age < 30",
-  //"People between 50 and 60 years old",
-  //"salaries per department, employee, and age",
-  //"Where are the restaurants in San Francisco that serve good French food?",
-  //"Dishes that do not have eggs or chicken",
-  //"Who had the most sales last year?",
-  "departments where any of the employees are male",
-  //"sum of the top 2 salaries per department",
-  //"What is Corey Montella's age?",
-  //"People older than Corey Montella",
-  //"How many 4 star restaurants are in San Francisco?",
-  //"What is the average elevation of the highest points in each state?",
-  //"What are the names of rivers in the state that has the largest city in the United States of America?"
+  "Ages of Chris Steve Granger, Corey James Irvine Montella, and Josh Cole",  
+  "The sweet potatoes in the vegetable bin are green with mold.",
+  "States in the United States of America",
+  "People older than Chris Granger and younger than Edward Norton",
+  "Sum of the salaries per department",
+  "Dishes with eggs and chicken",
+  "People whose age < 30",
+  "People between 50 and 60 years old",
+  "salaries per department, employee, and age",
+  "Where are the restaurants in San Francisco that serve good French food?",
+  "Dishes that do not have eggs or chicken",
+  "Who had the most sales last year?",
+  "departments where all of the employees are male",
+  "sum of the top 2 salaries per department",
+  "What is Corey Montella's age?",
+  "People older than Corey Montella",
+  "How many 4 star restaurants are in San Francisco?",
+  "What is the average elevation of the highest points in each state?",
+  "What is the name of the longest river in the state that has the largest city in the United States of America?"
 ];
 
 phrases.map((phrase) => {parseTest(phrase,n)});
