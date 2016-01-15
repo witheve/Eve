@@ -448,7 +448,7 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
       // Now we need to pull in other words to attach to the noun. We have some hueristics for that!
       
       // Heuristic: search left until we find a predeterminer. Everything between is part of the noun group
-      let latestDeterminerIx = null;
+      let firstDeterminerIx = null;
       let latestPrepositionIx = null;
       let latestAdjectiveIx = null;
       let verbBoundary = null;
@@ -457,11 +457,13 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
         let backtrackToken: Token = tokens[j];
         // First look for a predeterminer.
         if (backtrackToken.POS === MinorPartsOfSpeech.PDT) {
-          latestDeterminerIx = j;
+          firstDeterminerIx = j;
           break;
         // Keep track of the ix of the latest determiner
         } else if (backtrackToken.POS === MinorPartsOfSpeech.DT) {
-          latestDeterminerIx = j;
+          if (firstDeterminerIx === null) {
+            firstDeterminerIx = j;  
+          }
         // Keep track of the ix of the latest preposition
         } else if (backtrackToken.POS === MinorPartsOfSpeech.IN) {
           latestPrepositionIx = j;
@@ -479,8 +481,8 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
         }
       }
       // If we found a determiner, gobble up tokens between the latest determiner and the noun
-      if (latestDeterminerIx !== null) {
-        nounGroup = subsumeTokens(nounGroup,latestDeterminerIx,tokens);
+      if (firstDeterminerIx !== null) {
+        nounGroup = subsumeTokens(nounGroup,firstDeterminerIx,tokens);
       }
       // Heuristic: search to the left for a preposition
       if (latestPrepositionIx !== null && latestPrepositionIx < nounGroup.begin) {
@@ -516,6 +518,23 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
     targetNG.end = adj.ix;
   }
   
+  // Leftover determiners are themselves a noun group 
+  // e.g. neither of these boys. ng = ([neither],[of these boys])
+  let unusedDeterminers = findAll(tokens, (token: Token) => {return token.used === false && token.POS === MinorPartsOfSpeech.DT});
+  for (let token of unusedDeterminers) {
+    nounGroups.push({
+      noun: [token], 
+      children: [], 
+      begin: token.ix, 
+      end: token.ix, 
+      isPlural: token.isPlural, 
+      isPossessive: token.isPossessive, 
+      isProper: token.isProper,
+      subsumed: false
+    });  
+    token.used = true;
+  }
+  
   // Heuristic: combine adjacent proper noun groups
   let properNounGroups = findAll(nounGroups,(ng: NounGroup) => { return ng.isProper === true; });
   for (let i = 0; i < properNounGroups.length - 1; i++) {
@@ -542,13 +561,12 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
   // Remove the superfluous noun groups
   nounGroups = findAll(nounGroups,(ng: NounGroup) => { return ng.subsumed === false});
   
-  console.log(nounGroupArrayToString(nounGroups));
-  
-  // Get unused tokens
-  let unusedTokens = findAll(tokens,(token: Token) => { return token.used === false; });
-  //console.log(tokenArrayToString(unusedTokens));
-  
   return nounGroups;
+  
+  
+  //console.log(nounGroupArrayToString(nounGroups));
+  
+
   
   
   // Find noun phrases. Noun phrases are a group of words that describe a root noun
@@ -561,9 +579,6 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
   // by the words "lived in"
   // Heuristic: relationships often exist between noun groups 
   
-  // Heuristic: The skeleton of the sentence can be constructed by looking only at nouns. All other words are achored to those nouns.
-  // Once that is done, you can form noun phrases  
-  
   // Find adjective phrases. These are analagous to noun phrases but for adjectives. E.g. "very tall person",
   // "very tall" is an adjective group
   // Adjective phrases contain modifiers on the adjective: Premodifiers, Postmodifiers, and Discontinuous Modifiers
@@ -571,9 +586,7 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
   //   Postmodifiers can be an adverb phrase, a prepositional phrase, or a clause
   //   Discontinuous modifiers can be before and after the adjective.
   
-  // Heuristic: Adjective phrases exist in proximity to a noun group and within a noun phrase
-  
-  // Linking verbs: be [am is ar was wer has been are being etc.], become, seem. These are always linking verbs
+  // Linking verbs: be [am is are was were has been are being etc.], become, seem. These are always linking verbs
   // Linking verb test: replace with am, is, or are and the sentence should still parse
   
   // Find prepositional phrases. These begin with a preposition and end with a noun, pronoun, gerund, or clause.
@@ -598,7 +611,17 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
 }
 
 function formTree(tokens: Array<Token>): any {
-  formNounGroups(tokens);
+  let nounGroups = formNounGroups(tokens);
+  
+  // Get unused tokens
+  let unusedTokens = findAll(tokens,(token: Token) => { return token.used === false; });
+  
+  
+  
+  console.log(nounGroupArrayToString(nounGroups));
+  console.log(tokenArrayToString(unusedTokens));
+  
+  
 }
 
 function subsumeTokens(nounGroup: NounGroup, ix: number, tokens: Array<Token>): NounGroup {
@@ -685,6 +708,8 @@ function findAll(array: Array<any>, condition: Function): Array<any> {
 
 let n = 1;
 let phrases = [
+  "Neither of these boys wants to try a piece of pineapple pizza.",
+  /*
   "When did Corey Montella marry his spouse?",
   "Ages of Chris Steve Granger, Corey James Irvine Montella, and Josh Cole",  
   "The sweet potatoes in the vegetable bin are green with mold.",
@@ -707,6 +732,7 @@ let phrases = [
   "How many 4 star restaurants are in San Francisco?",
   "What is the average elevation of the highest points in each state?",
   "What is the name of the longest river in the state that has the largest city in the United States of America?"
+  */
 ];
 
 phrases.map((phrase) => {parseTest(phrase,n)});
