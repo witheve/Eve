@@ -442,6 +442,7 @@ function formTree(tokens: any): any {
       // Heuristic: search left until we find a predeterminer. Everything between is part of the noun group
       let latestDeterminerIx = null;
       let latestPrepositionIx = null;
+      let latestAdjectiveIx = null;
       let verbBoundary = null;
       for (let j = i-1; j >= lastFoundNounIx; j--) {
         let backtrackToken: Token = tokens[j];
@@ -455,7 +456,10 @@ function formTree(tokens: any): any {
         // Keep track of the ix of the latest preposition
         } else if (backtrackToken.POS === MinorPartsOfSpeech.IN) {
           latestPrepositionIx = j;
-        // If we hit a verb, we've gone too far
+        // Keep track of the ix of the latest adjective
+        } else if (getMajorPOS(backtrackToken.POS) === MajorPartsOfSpeech.ADJECTIVE) {
+          latestAdjectiveIx = j;
+        // If we find a verb, we've gone too far
         } else if (getMajorPOS(backtrackToken.POS) === MajorPartsOfSpeech.VERB) {
           verbBoundary = j;
           break;
@@ -464,28 +468,16 @@ function formTree(tokens: any): any {
       // If we found a determiner, gobble up tokens between the latest determiner and the noun
       // i.e.: nounGroup = [DT, ... , NN]
       if (latestDeterminerIx !== null) {
-        nounGroup.begin = latestDeterminerIx;
-        for (let j = latestDeterminerIx; j < nounGroup.end; j++) {
-          let nounGroupToken: Token = tokens[j];
-          if (nounGroupToken.used === false) {
-            nounGroup.children.push(nounGroupToken);
-            nounGroupToken.used = true;  
-          }
-        }
+        nounGroup = subsumeTokens(nounGroup,latestDeterminerIx,tokens);
       }
       // Heuristic: search to the left for a preposition
       if (latestPrepositionIx !== null && latestPrepositionIx < nounGroup.begin) {
-        nounGroup.begin = latestPrepositionIx ;
-        for (let j = latestPrepositionIx ; j < nounGroup.end; j++) {
-          let nounGroupToken: Token = tokens[j];
-          if (nounGroupToken.used === false) {
-            nounGroup.children.push(nounGroupToken);
-            nounGroupToken.used = true;  
-          }
-        }
+        nounGroup = subsumeTokens(nounGroup,latestPrepositionIx,tokens);
       }
-      
-      // Heuristic: search to the left again for an adjective phrase
+      // Heuristic: search to the left for an adjective
+      if (latestAdjectiveIx !== null && latestAdjectiveIx < nounGroup.begin) {
+        nounGroup = subsumeTokens(nounGroup,latestAdjectiveIx,tokens);
+      }
       
       // Heuristic: don't include verbs at this stage
       
@@ -578,6 +570,18 @@ function formTree(tokens: any): any {
   //});
 }
 
+function subsumeTokens(nounGroup: NounGroup, ix: number, tokens: Array<Token>): NounGroup {
+  nounGroup.begin = ix ;
+  for (let j = ix ; j < nounGroup.end; j++) {
+    let nounGroupToken: Token = tokens[j];
+    if (nounGroupToken.used === false) {
+      nounGroup.children.push(nounGroupToken);
+      nounGroupToken.used = true;  
+    }
+  }
+  return nounGroup;
+}
+
 // ----------------------------------------------------------------------------
 // DSL functions
 // ----------------------------------------------------------------------------
@@ -651,7 +655,7 @@ function findAll(array: Array<any>, condition: Function): Array<any> {
 let n = 1;
 let phrases = [
   //"Ages of Chris Steve Granger, Corey James Irvine Montella, and Josh Cole",  
-  //"The sweet potatoes in the vegetable bin are green with mold.",
+  "The sweet potatoes in the vegetable bin are green with mold.",
   "States in the United States of America",
   //"People older than Chris Granger and younger than Edward Norton",
   //"Sum of the salaries per department",
