@@ -219,6 +219,12 @@ function parseParams(rawParams:string) {
   }
   return params;
 }
+function stringifyParams(params:{}):string {
+  let rawParams = "";
+  if(!params) return rawParams;
+  for(let key in params) rawParams += `${rawParams.length ? "; " : ""}${key} = ${params[key]}`; 
+  return rawParams;
+}
 
 function getEmbed(meta:{entity: string, page: string, paneId:string}, query:string):HTMLElement {
   let [content, rawParams] = query.split("|");
@@ -228,7 +234,6 @@ function getEmbed(meta:{entity: string, page: string, paneId:string}, query:stri
   let params = parseParams(rawParams);
   params["paneId"] = params["paneId"] || meta.paneId;
   let contentDisplay = eve.findOne("display name", {id: content});
-  console.log("C", content, "N", contentDisplay, "P", params);
 
   // @TODO: Figure out what to do for {age: {current year - birth year}}
   if(params["eav source"]) {
@@ -239,8 +244,7 @@ function getEmbed(meta:{entity: string, page: string, paneId:string}, query:stri
       node.classList.add("invalid");
     } else {
       let {attribute, value} = eav;
-      node.textContent = value;
-      console.log("VAL", value);
+      content = node.textContent = value;
       if(eve.findOne("entity", {entity: value})) params["rep"] = params["rep"] || "name";
     }
 
@@ -276,6 +280,8 @@ function getEmbed(meta:{entity: string, page: string, paneId:string}, query:stri
 
 function getInline(meta, query) {
   let [content, rawParams = ""] = query.slice(1, -1).split("|");
+  content = content.trim();
+  let display = eve.findOne("display name", {name: content});
   let params = parseParams(rawParams);
   if (content.indexOf(":") > -1) {
     let sourceId = uuid();
@@ -284,9 +290,17 @@ function getInline(meta, query) {
     value = coerceInput(value.trim());
     let display = eve.findOne("display name", {name: value});
     if(display) value = display.id;
-
     dispatch("add sourced eav", { entity, attribute, value, source: sourceId }).commit();
     return `{${entity}'s ${attribute}|eav source = ${sourceId}; ${rawParams || ""}}`;
+    
+  } else if(eve.findOne("entity", {entity: content})) {
+    if(!params["rep"]) params["rep"] = "name";
+    return `{${content}|${stringifyParams(params)}}`;
+    
+  } else if(display) {
+    if(!params["rep"]) params["rep"] = "name";
+    return `{${display.id}|${stringifyParams(params)}}`;
+    
   } else if(!params["eav source"]) {
     activeSearches[content] = queryToExecutable(content);
     // @TODO: eventually the information about the requested subjects should come from
@@ -318,13 +332,8 @@ function getInline(meta, query) {
     if(rep) {
       return `{${content}|rep=${rep};field=${field}; ${rawParams || ""}}`;
     }
-  } else {
-    let display = eve.findOne("display name", {name: content});
-    if(display) console.log("GI\n", query, "\n=>\n", `{${display.id}|${rawParams}}`);
-    else console.log("GIN\n", query, "\n=>\n", `{${content}|${rawParams}}`);
-    if(display) return `{${display.id}|${rawParams}}`;
-
   }
+
   return query;
 }
 
@@ -498,8 +507,7 @@ let _reps:{[rep:string]: (results:{}[], params:{paneId?:string}) => Element} = {
   name: (results, params:{field?:string}) => {
     let entityId = results[0][params.field || "entity"];
     let {name = entityId} = eve.findOne("display name", {id: entityId});
-    console.log("NAME", entityId, name);
-    return {t: "span", c: "entity inline", text: name, data: params, link: entityId, click: navigate};
+    return {t: "span", c: "entity link inline", text: name, data: params, link: entityId, click: navigate};
   },
   value: (results, params:{field:string}) => {
     let rows = results;
@@ -510,7 +518,6 @@ let _reps:{[rep:string]: (results:{}[], params:{paneId?:string}) => Element} = {
     return {t: "span", c: "value inline", text: vals.join(", ")};
   },
   related: (results, params:{}) => {
-    console.log(results);
     let entityId = results[0]["entity"];
     let facts = eve.find("directionless links", {entity: entityId});
 
