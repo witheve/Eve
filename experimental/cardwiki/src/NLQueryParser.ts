@@ -216,22 +216,28 @@ function getTokens(queryString: string): Array<Token> {
       }
 
       // Heuristic: Special case words with no ambiguous POS that NLPC misclassifies
-      if (getMajorPOS(token.POS) !== MajorPartsOfSpeech.NOUN) {
-        switch (token.normalizedWord) {
-          case "is": 
-            token.POS = MinorPartsOfSpeech.VBZ;
-            break;
-          case "was":
-            token.POS = MinorPartsOfSpeech.VBD;
-            break;
-          case "will":
+      
+      switch (token.normalizedWord) {
+        case "is": 
+          token.POS = MinorPartsOfSpeech.VBZ;
+          break;
+        case "was":
+          token.POS = MinorPartsOfSpeech.VBD;
+          break;
+        case "had":
+          token.POS = MinorPartsOfSpeech.VBD;
+          break;
+        case "will":
+          // will can be a noun
+          if (getMajorPOS(token.POS) !== MajorPartsOfSpeech.NOUN) {
             token.POS = MinorPartsOfSpeech.MD;
-            break;
-          case "not":
-            token.POS = MinorPartsOfSpeech.RB;
-            break;
-        }
+          }
+          break;
+        case "not":
+          token.POS = MinorPartsOfSpeech.RB;
+          break;
       }
+      
       
       // Special case symbols
       switch (token.normalizedWord) {
