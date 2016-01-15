@@ -42,9 +42,7 @@ function parseTest(queryString: string, n: number) {
     }  
   }
   // Display result
-  let tokenStrings = parseResult.tokens.map((token) => {
-    return tokenToString(token);
-  }).join("\n");
+  let tokenStrings = tokenArrayToString(parseResult.tokens);
   let timingDisplay = `Timing (avg, max, min): ${(avgTime/n).toFixed(2)} | ${maxTime.toFixed(2)} | ${minTime.toFixed(2)} `;
   console.log("==============================================================");
   console.log(queryString);
@@ -133,14 +131,6 @@ interface Token {
   used: boolean;
 }
 
-function tokenToString(token: Token): string {
-  let isPossessive = token.isPossessive === undefined ? "" : token.isPossessive === true ? "possessive ": "";
-  let isProper = token.isProper === undefined ? "" : token.isProper === true ? "proper ": "";
-  let isPlural = token.isPlural === undefined ? "" : token.isPlural === true ? "plural ": "";
-  let tokenString = `${token.originalWord} | ${token.normalizedWord} | ${MajorPartsOfSpeech[getMajorPOS(token.POS)]} | ${MinorPartsOfSpeech[token.POS]} | ${isPossessive}${isProper}${isPlural}` ;
-  return tokenString;
-}
-
 // take an input string, extract tokens
 function getTokens(queryString: string): Array<Token> {
     
@@ -220,7 +210,7 @@ function getTokens(queryString: string): Array<Token> {
         token.POS = MinorPartsOfSpeech.IN;
       }
       
-      // Special cases!
+      // Special cases! Take care of some misc. tagging errors
       
       // Heuristic: Special case verbs that get classified as adjectives
       if (getMajorPOS(token.POS) !== MajorPartsOfSpeech.NOUN) {
@@ -430,19 +420,13 @@ function formTree(tokens: any): any {
       };
       token.used = true;
       
-      console.log("-----------------------------------------------------------");
-      console.log(token.normalizedWord);
-      console.log(i);
-      
       // Now we need to pull in other words to attach to the noun.
       // Heuristic: search left until we find a determiner. Everything between is part of the noun group
-      console.log("before:");
       for (let j = i-1; j >= lastFoundNounIx; j--) {
         let backtrackToken: Token = tokens[j];
         // If we found a determiner, add it and all tokens in between to the noun group
         // i.e.: nounGroup = [DT, ...., NN]
         if (backtrackToken.POS === MinorPartsOfSpeech.DT) {
-          console.log(backtrackToken);
           nounGroup.begin = j;
           for (j; j < nounGroup.end; j++) {
             let nounGroupToken: Token = tokens[j];
@@ -452,7 +436,6 @@ function formTree(tokens: any): any {
           break;
         }
       }
-      console.log("after:");
       // Heuristic: search to the right for a preposition
       if (i + 1 < tokens.length) {
         let nextToken: Token = tokens[i+1];
@@ -460,7 +443,6 @@ function formTree(tokens: any): any {
           nounGroup.children.push(nextToken);
           nextToken.used = true;
           nounGroup.end = i+1;
-          console.log(nextToken)
         }  
       }
       // Heuristic: don't include verbs at this stage
@@ -499,12 +481,13 @@ function formTree(tokens: any): any {
   // Remove the superfluous
   nounGroups = findAll(nounGroups,(ng: NounGroup) => { return ng.subsumed === false});
   
-  console.log(nounGroups)
-  console.log(tokens);
   
+  console.log(nounGroupArrayToString(nounGroups));
+  
+   
   // Get unused tokens
   let unusedTokens = findAll(tokens,(token: Token) => { return token.used === false; });
-  //console.log(unusedTokens);
+  console.log(tokenArrayToString(unusedTokens));
   
     
   
@@ -581,6 +564,36 @@ function formDSL(tree: Tree): any {
 
 }
 
+
+// ----------------------------------------------------------------------------
+// Debug utility functions
+// ---------------------------------------------------------------------------- 
+
+function tokenToString(token: Token): string {
+  let isPossessive = token.isPossessive === undefined ? "" : token.isPossessive === true ? "possessive ": "";
+  let isProper = token.isProper === undefined ? "" : token.isProper === true ? "proper ": "";
+  let isPlural = token.isPlural === undefined ? "" : token.isPlural === true ? "plural ": "";
+  let tokenString = `${token.originalWord} | ${token.normalizedWord} | ${MajorPartsOfSpeech[getMajorPOS(token.POS)]} | ${MinorPartsOfSpeech[token.POS]} | ${isPossessive}${isProper}${isPlural}` ;
+  return tokenString;
+}
+
+function tokenArrayToString(tokens: Array<Token>): string {
+  let tokenArrayString = tokens.map((token) => {return tokenToString(token);}).join("\n");
+  return tokenArrayString;
+}
+
+function nounGroupToString(nounGroup: NounGroup): string {
+  let nouns = nounGroup.noun.map((noun: Token) => {return noun.normalizedWord;}).join(" ");
+  let children = nounGroup.children.map((child: Token) => {return child.normalizedWord;}).join(" ");
+  let nounGroupString = `${nouns} \n  ${children}`;
+  return nounGroupString;
+}
+
+function nounGroupArrayToString(nounGroups: Array<NounGroup>): string {
+  let nounGroupsString =  nounGroups.map((ng: NounGroup)=>{return nounGroupToString(ng);}).join("\n----------------------------------------\n");
+  return "----------------------------------------\nNOUN GROUPS\n----------------------------------------\n" + nounGroupsString + "\n----------------------------------------\n";
+}
+
 // ----------------------------------------------------------------------------
 // Utility functions
 // ----------------------------------------------------------------------------
@@ -613,9 +626,9 @@ function findAll(array: Array<any>, condition: Function): Array<any> {
 // ----------------------------------------------------------------------------
 
 let n = 1;
-parseTest("Ages of Chris Steve Granger, Corey James Irvine Montella, and Josh Cole",n);
-//parseTest("The book on the bathroom floor is swollen from shower steam.",n);
-//parseTest("States in the United States of America",n);
+//parseTest("Ages of Chris Steve Granger, Corey James Irvine Montella, and Josh Cole",n);
+//parseTest("The sweet potatoes in the vegetable bin are green with mold.",n);
+parseTest("States in the United States of America",n);
 //parseTest("People older than Chris Granger and younger than Edward Norton",n);
 //parseTest("Sum of the salaries per department",n);
 //parseTest("Dishes with eggs and chicken",n);
