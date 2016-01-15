@@ -466,7 +466,6 @@ function formTree(tokens: any): any {
         }
       }
       // If we found a determiner, gobble up tokens between the latest determiner and the noun
-      // i.e.: nounGroup = [DT, ... , NN]
       if (latestDeterminerIx !== null) {
         nounGroup = subsumeTokens(nounGroup,latestDeterminerIx,tokens);
       }
@@ -488,6 +487,7 @@ function formTree(tokens: any): any {
     i++;
   }
   
+  
   // Heuristic: combine adjacent proper noun groups
   let properNounGroups = findAll(nounGroups,(ng: NounGroup) => { return ng.isProper === true; });
   for (let i = 0; i < properNounGroups.length - 1; i++) {
@@ -495,8 +495,8 @@ function formTree(tokens: any): any {
     let nextNG: NounGroup = properNounGroups[++i];    
     // Combine adjacent proper noun groups
     while (nextNG.isProper && nextNG.begin === thisNG.end + 1) {
-      thisNG.noun.push(nextNG.noun[0]);
-      // @TODO subsume children.
+      thisNG.noun = thisNG.noun.concat(nextNG.noun);
+      thisNG.children = thisNG.children.concat(nextNG.children);
       thisNG.end = nextNG.end;
       // Inherit noun properties from nextNG
       if (nextNG.isPlural) { thisNG.isPlural = true; }
@@ -510,6 +510,8 @@ function formTree(tokens: any): any {
     }
     i--;
   }
+  
+  
   // Remove the superfluous
   nounGroups = findAll(nounGroups,(ng: NounGroup) => { return ng.subsumed === false});
   
@@ -654,25 +656,25 @@ function findAll(array: Array<any>, condition: Function): Array<any> {
 
 let n = 1;
 let phrases = [
-  //"Ages of Chris Steve Granger, Corey James Irvine Montella, and Josh Cole",  
+  "Ages of Chris Steve Granger, Corey James Irvine Montella, and Josh Cole",  
   "The sweet potatoes in the vegetable bin are green with mold.",
   "States in the United States of America",
-  //"People older than Chris Granger and younger than Edward Norton",
-  //"Sum of the salaries per department",
-  //"Dishes with eggs and chicken",
-  //"People whose age < 30",
-  //"People between 50 and 60 years old",
-  //"salaries per department, employee, and age",
-  //"Where are the restaurants in San Francisco that serve good French food?",
-  //"Dishes that do not have eggs or chicken",
-  //"Who had the most sales last year?",
-  //"departments where all of the employees are male",
-  //"sum of the top 2 salaries per department",
-  //"What is Corey Montella's age?",
-  //"People older than Corey Montella",
-  //"How many 4 star restaurants are in San Francisco?",
-  //"What is the average elevation of the highest points in each state?",
-  //"What is the name of the longest river in the state that has the largest city in the United States of America?"
+  "People older than Chris Granger and younger than Edward Norton",
+  "Sum of the salaries per department",
+  "Dishes with eggs and chicken",
+  "People whose age < 30",
+  "People between 50 and 60 years old",
+  "salaries per department, employee, and age",
+  "Where are the restaurants in San Francisco that serve good French food?",
+  "Dishes that do not have eggs or chicken",
+  "Who had the most sales last year?",
+  "departments where all of the employees are male",
+  "sum of the top 2 salaries per department",
+  "What is Corey Montella's age?",
+  "People older than Corey Montella",
+  "How many 4 star restaurants are in San Francisco?",
+  "What is the average elevation of the highest points in each state?",
+  "What is the name of the longest river in the state that has the largest city in the United States of America?"
 ];
 
 phrases.map((phrase) => {parseTest(phrase,n)});
