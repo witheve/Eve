@@ -497,10 +497,10 @@ function represent(rep:string, results, params:{}):Element {
 function valueRep(results:{}[], params:{}):Element {
   let rows = results;
   if(!params["field"]) throw new Error("Value representation requires a 'field' param indicating which field to represent");
-  if(rows.length > 1) throw new Error("Value representation on field '" + params["field"] + "' expects 1 row, but given multiple");
   let row = rows[0];
-  let val = row[params["field"]];
-  return {c: "value inline", text: val};
+  let vals = [];
+  for(let row of rows) vals.push(row[params["field"]]);
+  return {c: "value inline", text: vals.join(", ")};
 }
     
 // @NOTE: Uncomment this to enable the new UI, or type `window["NEUE_UI"] = true; app.render()` into the console to enable it transiently.
