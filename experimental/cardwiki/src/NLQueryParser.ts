@@ -3,9 +3,9 @@ declare var nlp;
 
 // Entry point for NLQP
 // @TODO as an input argument, take a list of nominal tags generated as the user types the query
-export function parse(queryString: string) {
-  queryString = preprocessQueryString(queryString)
-  let tokens = getTokens(queryString);
+export function parse(preTokens: Array<PreToken>) {
+  
+  let tokens = formTokens(preTokens);
   let tree = formTree(tokens);
   let ast = formDSL(tree);
       
@@ -13,10 +13,16 @@ export function parse(queryString: string) {
 }
 
 // Performs some transformations to the query string before tokenizing
-export function preprocessQueryString(queryString: string): string {
+export function preprocessQueryString(queryString: string): Array<PreToken> {
   // Add whitespace before commas
   let processedString = queryString.replace(new RegExp(",", 'g')," ,");
-  return processedString;
+  // Get parts of speach with sentence information. It's okay if they're wrong; they 
+  // will be corrected as we create the tree and match against the underlying data model    
+  let nlpTokens = nlp.pos(processedString, {dont_combine: true}).sentences[0].tokens;
+  let preTags: Array<PreToken> = nlpTokens.map((token) => {
+    return {text: token.text, tag: token.pos.tag};
+  });
+  return preTags;
 }
 
 function parseTest(queryString: string, n: number) {
@@ -25,10 +31,12 @@ function parseTest(queryString: string, n: number) {
   let maxTime = 0;
   let minTime;
   
+  let wordsnTags = preprocessQueryString(queryString)
+  
   // Parse string and measure how long it takes
   for (let i = 0; i < n; i++) {
     let start = performance.now();
-    parseResult = parse(queryString);
+    parseResult = parse(wordsnTags);
     let stop = performance.now();
     avgTime += stop-start;
     if (stop-start > maxTime) {
@@ -53,6 +61,11 @@ function parseTest(queryString: string, n: number) {
 // ----------------------------------------------------------------------------
 // Token functions
 // ----------------------------------------------------------------------------
+
+export interface PreToken {
+  text: string,
+  tag: string,
+}
 
 enum MajorPartsOfSpeech {
   VERB,
@@ -133,23 +146,17 @@ interface Token {
 }
 
 // take an input string, extract tokens
-function getTokens(queryString: string): Array<Token> {
-    
-    // get parts of speach with sentence information. It's okay if they're wrong; they will be corrected as we create the tree.    
-    let nlpTokens = nlp.pos(queryString, {dont_combine: true}).sentences[0].tokens;
-    let wordsnTags = nlpTokens.map((token) => {
-      return [token.text,token.pos.tag];
-    });
+function formTokens(preTokens: Array<PreToken>): Array<Token> {
     
     // Form a token for each word
-    let tokens: Array<Token> = wordsnTags.map((wordnTag, i) => {
-      let word = wordnTag[0];
-      let tag: string = wordnTag[1];
+    let tokens: Array<Token> = preTokens.map((preToken: PreToken, i: number) => {
+      let word = preToken.text;
+      let tag = preToken.tag;
       let token: Token = {ix: i, originalWord: word, normalizedWord: word, POS: MinorPartsOfSpeech[tag], used: false};
       let before = "";
       
       // Heuritic: queries cannot begin or end with a verb. These are most likely nouns
-      if ((i === 0 || i === wordsnTags.length - 1) && getMajorPOS(token.POS) === MajorPartsOfSpeech.VERB) {
+      if ((i === 0 || i === preTokens.length - 1) && getMajorPOS(token.POS) === MajorPartsOfSpeech.VERB) {
         token.POS = MinorPartsOfSpeech.NN;
       }
       
@@ -539,7 +546,7 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
   
   // Get unused tokens
   let unusedTokens = findAll(tokens,(token: Token) => { return token.used === false; });
-  console.log(tokenArrayToString(unusedTokens));
+  //console.log(tokenArrayToString(unusedTokens));
   
   return nounGroups;
   
@@ -635,7 +642,7 @@ function tokenArrayToString(tokens: Array<Token>): string {
 
 function nounGroupToString(nounGroup: NounGroup): string {
   let nouns = nounGroup.noun.map((noun: Token) => {return noun.normalizedWord;}).join(" ");
-  let children = nounGroup.children.map((child: Token) => {return child.normalizedWord;}).join(" ");
+  let children = nounGroup.children.sort((childA: Token, childB: Token) => {return childA.ix - childB.ix;}).map((child: Token) => {return child.normalizedWord;}).join(" ");
   let nounGroupString = `${nouns} \n  ${children}`;
   return nounGroupString;
 }
@@ -678,6 +685,7 @@ function findAll(array: Array<any>, condition: Function): Array<any> {
 
 let n = 1;
 let phrases = [
+  "When did Corey Montella marry his spouse?",
   "Ages of Chris Steve Granger, Corey James Irvine Montella, and Josh Cole",  
   "The sweet potatoes in the vegetable bin are green with mold.",
   "States in the United States of America",
