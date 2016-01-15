@@ -503,6 +503,7 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
   // left over? Attach them to the closest noun group to the left
   let unusedAdjectives = findAll(tokens,(token: Token) => { return token.used === false && getMajorPOS(token.POS) === MajorPartsOfSpeech.ADJECTIVE});
   for (let adj of unusedAdjectives) {
+    // finds the closest noun group to the left
     let targetNG: NounGroup = null;
     for (let ng of nounGroups) {
       if (adj.ix - ng.end < 0) {
@@ -510,9 +511,54 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
       }
       targetNG = ng;
     }
-    adj.used = true;
-    targetNG.children.push(adj);
-    targetNG.end = adj.ix;
+    if (targetNG !== null) {
+      targetNG.children.push(adj);
+      targetNG.end = adj.ix;
+      adj.used = true;
+    // If the target NG is null, this means there is no noun group to the left. 
+    // This can happen in the case when a sentence begins with an adjective.
+    // e.g. "Shortest flight between New York and San Francisco". Here, "shortest"
+    // should be a child of "flight". But if "flight" is misclassified as a verb,
+    // then the closest noun is "new york". But "new york" is prevented from attaching
+    // "shortest" because it encountered a verb boundary during the left search heuristic.
+    // Heuristic: reclassify the closest verb to the right as a noun
+    } else {
+      let targetVB: Token = null;
+      // Start at the token to the right of the adj, scan for the closest verb
+      for (let i = adj.ix + 1; i < tokens.length; i++) {
+        let token = tokens[i];
+        if (token.used === true) {
+          continue; 
+        }
+        if (getMajorPOS(token.POS) === MajorPartsOfSpeech.VERB) {
+          targetVB = token;
+          // We found a verb, so we are done scanning  
+          break;
+        }
+      }
+      if (targetVB !== null) {
+        targetVB.POS = MinorPartsOfSpeech.NN;
+        // Start a new noun group
+        let nounGroup: NounGroup = {
+          noun: [targetVB], 
+          children: [], 
+          begin: targetVB.ix, 
+          end: targetVB.ix, 
+          isPlural: false, 
+          isPossessive: false, 
+          isProper: false,
+          subsumed: false
+        };
+        targetVB.used = true;
+        // Add adjective and everything inbeetween as children to this new noun group
+        for (let i = adj.ix; i < targetVB.ix; i++) {
+          let token = tokens[i];
+          nounGroup.children.push(token);
+          token.used = true;  
+        }
+        nounGroups.push(nounGroup);
+      }  
+    }
   }
   
   // Heuristic: Leftover determiners are themselves a noun group 
@@ -707,8 +753,9 @@ function findAll(array: Array<any>, condition: Function): Array<any> {
 
 let n = 1;
 let phrases = [
-  "Neither of these boys wants to try a piece of pineapple pizza.",
   /*
+  "Neither of these boys wants to try a piece of pineapple pizza.",
+  "Shortest flight between New York and San Francisco",  
   "When did Corey Montella marry his spouse?",
   "Ages of Chris Steve Granger, Corey James Irvine Montella, and Josh Cole",  
   "The sweet potatoes in the vegetable bin are green with mold.",
@@ -731,7 +778,7 @@ let phrases = [
   "How many 4 star restaurants are in San Francisco?",
   "What is the average elevation of the highest points in each state?",
   "What is the name of the longest river in the state that has the largest city in the United States of America?"
-  */
+  */  
 ];
 
 phrases.map((phrase) => {parseTest(phrase,n)});
