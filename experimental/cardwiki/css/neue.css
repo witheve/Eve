@@ -67,6 +67,11 @@ div:hover > header > .controls { opacity: 1; }
 .wiki-editor .embed-code { background: #C7E7FF; }
 .wiki-editor .cm-variable-2 { padding-left:15px; }
 
+.wiki-editor .formatBar { padding:0 5px; background: #555; color: #ccc; z-index: 10; flex-direction:row; border-radius:3px; }
+.wiki-editor .formatBar .button { padding: 5px; cursor:default; align-items: center; width:35px; -webkit-user-select: none; }
+.wiki-editor .formatBar .button:hover { background: #666; }
+.wiki-editor .formatBar .sep { width:1px; padding:0; background: #333; }
+
 /*---------------------------------------------------------
 - Content
 ---------------------------------------------------------*/
