@@ -502,6 +502,6 @@ function valueRep(results:{}[], params:{}):Element {
   let val = row[params["field"]];
   return {c: "value inline", text: val};
 }
-    
+
 // @NOTE: Uncomment this to enable the new UI, or type `window["NEUE_UI"] = true; app.render()` into the console to enable it transiently.
 window["NEUE_UI"] = true;
