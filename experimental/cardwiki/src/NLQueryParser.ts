@@ -405,7 +405,7 @@ interface NounGroup {
 }
 
 // take tokens, form a parse tree
-function formTree(tokens: any): any {
+function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
  
   let tree: Tree;
   let processedTokens = 0;
@@ -526,7 +526,7 @@ function formTree(tokens: any): any {
   let unusedTokens = findAll(tokens,(token: Token) => { return token.used === false; });
   console.log(tokenArrayToString(unusedTokens));
   
-  
+  return nounGroups;
   
   
   // Find noun phrases. Noun phrases are a group of words that describe a root noun
@@ -573,6 +573,10 @@ function formTree(tokens: any): any {
   //let firstAdjective = tokens.find((token) => {
   //  return token.majorPOS === MajorPartsOfSpeech.ADJECTIVE;   
   //});
+}
+
+function formTree(tokens: Array<Token>): any {
+  formNounGroups(tokens);
 }
 
 function subsumeTokens(nounGroup: NounGroup, ix: number, tokens: Array<Token>): NounGroup {
