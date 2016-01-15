@@ -496,7 +496,18 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
   // Now we have some noun groups. Are there any adjectives 
   // left over? Attach them to the closest noun group to the left
   let unusedAdjectives = findAll(tokens,(token: Token) => { return token.used === false && getMajorPOS(token.POS) === MajorPartsOfSpeech.ADJECTIVE});
-  
+  for (let adj of unusedAdjectives) {
+    let targetNG: NounGroup = null;
+    for (let ng of nounGroups) {
+      if (adj.ix - ng.end < 0) {
+        break; 
+      }
+      targetNG = ng;
+    }
+    adj.used = true;
+    targetNG.children.push(adj);
+    targetNG.end = adj.ix;
+  }
   
   // Heuristic: combine adjacent proper noun groups
   let properNounGroups = findAll(nounGroups,(ng: NounGroup) => { return ng.isProper === true; });
@@ -524,10 +535,8 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
   // Remove the superfluous noun groups
   nounGroups = findAll(nounGroups,(ng: NounGroup) => { return ng.subsumed === false});
   
-  
   console.log(nounGroupArrayToString(nounGroups));
   
-   
   // Get unused tokens
   let unusedTokens = findAll(tokens,(token: Token) => { return token.used === false; });
   console.log(tokenArrayToString(unusedTokens));
@@ -669,26 +678,27 @@ function findAll(array: Array<any>, condition: Function): Array<any> {
 
 let n = 1;
 let phrases = [
-  /*"Ages of Chris Steve Granger, Corey James Irvine Montella, and Josh Cole",  
+  "Ages of Chris Steve Granger, Corey James Irvine Montella, and Josh Cole",  
   "The sweet potatoes in the vegetable bin are green with mold.",
   "States in the United States of America",
   "People older than Chris Granger and younger than Edward Norton",
   "Sum of the salaries per department",
-  "Dishes with eggs and chicken",*/
+  "Dishes with eggs and chicken",
   "People whose age < 30",
   "People between 50 and 60 years old",
   "Steve is 10 years old and Sven is 12 years old",
-  /*"salaries per department, employee, and age",
+  "salaries per department, employee, and age",
   "Where are the restaurants in San Francisco that serve good French food?",
   "Dishes that do not have eggs or chicken",
   "Who had the most sales last year?",
+  "Which salesman had the highest total sales last year?",
   "departments where all of the employees are male",
   "sum of the top 2 salaries per department",
   "What is Corey Montella's age?",
   "People older than Corey Montella",
   "How many 4 star restaurants are in San Francisco?",
   "What is the average elevation of the highest points in each state?",
-  "What is the name of the longest river in the state that has the largest city in the United States of America?"*/
+  "What is the name of the longest river in the state that has the largest city in the United States of America?"
 ];
 
 phrases.map((phrase) => {parseTest(phrase,n)});
