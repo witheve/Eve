@@ -439,8 +439,10 @@ function formTree(tokens: any): any {
       
       // Now we need to pull in other words to attach to the noun. We have some hueristics for that
       
-      // Heuristic: search left until we find a determiner. Everything between is part of the noun group
+      // Heuristic: search left until we find a predeterminer. Everything between is part of the noun group
       let latestDeterminerIx = null;
+      let latestPrepositionIx = null;
+      let verbBoundary = null;
       for (let j = i-1; j >= lastFoundNounIx; j--) {
         let backtrackToken: Token = tokens[j];
         // First look for a predeterminer.
@@ -450,8 +452,12 @@ function formTree(tokens: any): any {
         // Keep track of the ix of the latest determiner
         } else if (backtrackToken.POS === MinorPartsOfSpeech.DT) {
           latestDeterminerIx = j;
+        // Keep track of the ix of the latest preposition
+        } else if (backtrackToken.POS === MinorPartsOfSpeech.IN) {
+          latestPrepositionIx = j;
         // If we hit a verb, we've gone too far
         } else if (getMajorPOS(backtrackToken.POS) === MajorPartsOfSpeech.VERB) {
+          verbBoundary = j;
           break;
         }
       }
@@ -461,18 +467,22 @@ function formTree(tokens: any): any {
         nounGroup.begin = latestDeterminerIx;
         for (let j = latestDeterminerIx; j < nounGroup.end; j++) {
           let nounGroupToken: Token = tokens[j];
-          nounGroup.children.push(nounGroupToken);
-          nounGroupToken.used = true;
+          if (nounGroupToken.used === false) {
+            nounGroup.children.push(nounGroupToken);
+            nounGroupToken.used = true;  
+          }
         }
       }
-      // Heuristic: search to the right for a preposition
-      if (i + 1 < tokens.length) {
-        let nextToken: Token = tokens[i+1];
-        if (nextToken.POS === MinorPartsOfSpeech.IN) {
-          nounGroup.children.push(nextToken);
-          nextToken.used = true;
-          nounGroup.end = i+1;
-        }  
+      // Heuristic: search to the left for a preposition
+      if (latestPrepositionIx !== null && latestPrepositionIx < nounGroup.begin) {
+        nounGroup.begin = latestPrepositionIx ;
+        for (let j = latestPrepositionIx ; j < nounGroup.end; j++) {
+          let nounGroupToken: Token = tokens[j];
+          if (nounGroupToken.used === false) {
+            nounGroup.children.push(nounGroupToken);
+            nounGroupToken.used = true;  
+          }
+        }
       }
       
       // Heuristic: search to the left again for an adjective phrase
@@ -640,25 +650,25 @@ function findAll(array: Array<any>, condition: Function): Array<any> {
 
 let n = 1;
 let phrases = [
-  "Ages of Chris Steve Granger, Corey James Irvine Montella, and Josh Cole",  
-  "The sweet potatoes in the vegetable bin are green with mold.",
+  //"Ages of Chris Steve Granger, Corey James Irvine Montella, and Josh Cole",  
+  //"The sweet potatoes in the vegetable bin are green with mold.",
   "States in the United States of America",
-  "People older than Chris Granger and younger than Edward Norton",
-  "Sum of the salaries per department",
-  "Dishes with eggs and chicken",
-  "People whose age < 30",
-  "People between 50 and 60 years old",
-  "salaries per department, employee, and age",
-  "Where are the restaurants in San Francisco that serve good French food?",
-  "Dishes that do not have eggs or chicken",
-  "Who had the most sales last year?",
-  "departments where all of the employees are male",
-  "sum of the top 2 salaries per department",
-  "What is Corey Montella's age?",
-  "People older than Corey Montella",
-  "How many 4 star restaurants are in San Francisco?",
-  "What is the average elevation of the highest points in each state?",
-  "What is the name of the longest river in the state that has the largest city in the United States of America?"
+  //"People older than Chris Granger and younger than Edward Norton",
+  //"Sum of the salaries per department",
+  //"Dishes with eggs and chicken",
+  //"People whose age < 30",
+  //"People between 50 and 60 years old",
+  //"salaries per department, employee, and age",
+  //"Where are the restaurants in San Francisco that serve good French food?",
+  //"Dishes that do not have eggs or chicken",
+  //"Who had the most sales last year?",
+  //"departments where all of the employees are male",
+  //"sum of the top 2 salaries per department",
+  //"What is Corey Montella's age?",
+  //"People older than Corey Montella",
+  //"How many 4 star restaurants are in San Francisco?",
+  //"What is the average elevation of the highest points in each state?",
+  //"What is the name of the longest river in the state that has the largest city in the United States of America?"
 ];
 
 phrases.map((phrase) => {parseTest(phrase,n)});
