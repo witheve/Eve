@@ -147,6 +147,11 @@ function getTokens(queryString: string): Array<Token> {
       let token: Token = {originalWord: word, normalizedWord: word, POS: MinorPartsOfSpeech[tag], used: false};
       let before = "";
       
+      // Heuritic: queries cannot begin or end with a verb. These are most likely nouns
+      if ((i === 0 || i === wordsnTags.length - 1) && getMajorPOS(token.POS) === MajorPartsOfSpeech.VERB) {
+        token.POS = MinorPartsOfSpeech.NN;
+      }
+      
       // Add default attribute markers to nouns
       if (getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN) {
         token.isPossessive = false;
@@ -209,10 +214,8 @@ function getTokens(queryString: string): Array<Token> {
       {
         token.POS = MinorPartsOfSpeech.IN;
       }
-      
-      // Special cases! Take care of some misc. tagging errors
-      
-      // Heuristic: Special case verbs that get classified as adjectives
+
+      // Heuristic: Special case words with no ambiguous POS that NLPC misclassifies
       if (getMajorPOS(token.POS) !== MajorPartsOfSpeech.NOUN) {
         switch (token.normalizedWord) {
           case "is": 
@@ -223,6 +226,9 @@ function getTokens(queryString: string): Array<Token> {
             break;
           case "will":
             token.POS = MinorPartsOfSpeech.MD;
+            break;
+          case "not":
+            token.POS = MinorPartsOfSpeech.RB;
             break;
         }
       }
@@ -246,7 +252,6 @@ function getTokens(queryString: string): Array<Token> {
     // Correct wh- tokens
     for (let token of tokens) {
       if (token.normalizedWord === "that"     || 
-          token.normalizedWord === "what"     ||
           token.normalizedWord === "whatever" ||
           token.normalizedWord === "which") {
         // determiners become wh- determiners
@@ -260,7 +265,8 @@ function getTokens(queryString: string): Array<Token> {
         continue;
       }
       // who and whom are wh- pronouns
-      if (token.normalizedWord === "who" || 
+      if (token.normalizedWord === "who"  || 
+          token.normalizedWord === "what" ||
           token.normalizedWord === "whom") {
         token.POS = MinorPartsOfSpeech.WP;
         continue;
@@ -279,7 +285,7 @@ function getTokens(queryString: string): Array<Token> {
           token.normalizedWord === "whenever" ||
           token.normalizedWord === "where"    ||
           token.normalizedWord === "why") {
-        token.POS = MinorPartsOfSpeech.WRB;;
+        token.POS = MinorPartsOfSpeech.WRB;
         continue;
       }
     }
@@ -628,13 +634,17 @@ function findAll(array: Array<any>, condition: Function): Array<any> {
 let n = 1;
 //parseTest("Ages of Chris Steve Granger, Corey James Irvine Montella, and Josh Cole",n);
 //parseTest("The sweet potatoes in the vegetable bin are green with mold.",n);
-parseTest("States in the United States of America",n);
+//parseTest("States in the United States of America",n);
 //parseTest("People older than Chris Granger and younger than Edward Norton",n);
 //parseTest("Sum of the salaries per department",n);
 //parseTest("Dishes with eggs and chicken",n);
 //parseTest("People whose age < 30",n);
 //parseTest("People between 50 and 60 years old",n);
-//parseTest("Dishes that don't have eggs or chicken",n);
+console.log(nlp.pos("Steve had coke").tags());
+parseTest("Dishes that do not have eggs or chicken",n);
+parseTest("Who had the most sales last year?",n);
 //parseTest("What is Corey Montella's age?",n);
 //parseTest("People older than Corey Montella",n);
 //parseTest("How many 4 star restaurants are in San Francisco?",n);
+parseTest("What is the average elevation of the highest points in each state?",n);
+//parseTest("What are the names of rivers in the state that has the largest city in the United States of America?",n);
