@@ -150,8 +150,10 @@ export class RichTextEditor {
       // e.g. {age: 30}
       let adjusted = this.getInline(this.meta, query)
       if (adjusted !== query) {
+        console.log("CM:R", query, "=>", adjusted);
         cm.replaceRange(adjusted, start, stop);
       } else {
+        console.log("CM:M", query);
         mark = cm.markText(start, stop, { replacedWith: this.getEmbed(this.meta, query.substring(1, query.length - 1)) });
       }
     } else {
