@@ -8,6 +8,10 @@ import {queryToExecutable} from "./queryParser";
 
 app.renderRoots["wiki"] = ui.root;
 
+// @HACK: we have to use bootstrap in some way to get it to actually be included and
+// executed
+var ixer = bootstrap.ixer;
+
 function initSearches(eve) {
   for(let search of eve.find("builtin search")) {
     let value = eve.findOne("builtin search query", {id: search.id})["search"];
