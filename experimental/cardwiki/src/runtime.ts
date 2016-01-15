@@ -2056,6 +2056,110 @@ runtime.define("/", {result: "result"}, function(a, b) {
 });
 
 //---------------------------------------------------------
+// AST and compiler
+//---------------------------------------------------------
+
+// view: view, kind[union|query|table]
+// action: view, action, kind[select|calculate|project|union|ununion|stateful|limit|sort|group|aggregate], ix
+// action source: action, source view
+// action mapping: action, from, to source, to field
+// action mapping constant: action, from, value
+
+function addRecompileTriggers(eve) {
+
+  var recompileTrigger = {
+    exec: () => {
+      for(let view of eve.find("view")) {
+        if(view.kind === "table") continue;
+        let query = compile(eve, view.view);
+        eve.asView(query);
+      }
+      return {};
+    }
+  }
+
+  eve.addTable("view", ["view", "kind"]);
+  eve.addTable("action", ["view", "action", "kind", "ix"]);
+  eve.addTable("action source", ["action", "source view"]);
+  eve.addTable("action mapping", ["action", "from", "to source", "to field"]);
+  eve.addTable("action mapping constant", ["action", "from", "value"]);
+  eve.addTable("action mapping sorted", ["action", "ix", "source", "field", "direction"]);
+  eve.addTable("action mapping limit", ["action", "limit type", "value"]);
+
+  eve.table("view").triggers["recompile"] = recompileTrigger;
+  eve.table("action").triggers["recompile"] = recompileTrigger;
+  eve.table("action source").triggers["recompile"] = recompileTrigger;
+  eve.table("action mapping").triggers["recompile"] = recompileTrigger;
+  eve.table("action mapping constant").triggers["recompile"] = recompileTrigger;
+  eve.table("action mapping sorted").triggers["recompile"] = recompileTrigger;
+  eve.table("action mapping limit").triggers["recompile"] = recompileTrigger;
+
+  return eve;
+}
+
+export function compile(ixer, viewId) {
+  let view = ixer.findOne("view", {view: viewId});
+  if(!view) {
+    throw new Error(`No view found for ${viewId}.`);
+  }
+  let compiled = ixer[view.kind](viewId);
+  let actions = ixer.find("action", {view: viewId});
+  if(!actions) {
+    throw new Error(`View ${viewId} has no actions.`);
+  }
+  // sort actions by ix
+  actions.sort((a, b) => a.ix - b.ix);
+  for(let action of actions) {
+    let actionKind = action.kind;
+    if(actionKind === "limit") {
+      let limit = {};
+      for(let limitMapping of ixer.find("action mapping limit", {action: action.action})) {
+        limit[limitMapping["limit type"]] = limitMapping["value"];
+      }
+      compiled.limit(limit);
+    } else if(actionKind === "sort" || actionKind === "group") {
+      let sorted = [];
+      let mappings = ixer.find("action mapping sorted", {action: action.action});
+      mappings.sort((a, b) => a.ix - b.ix);
+      for(let mapping of mappings) {
+        sorted.push([mapping["source"], mapping["field"], mapping["direction"]]);
+      }
+      if(sorted.length) {
+        compiled[actionKind](sorted);
+      } else {
+        throw new Error(`${actionKind} without any mappings: ${action.action}`)
+      }
+    } else {
+      let mappings = ixer.find("action mapping", {action: action.action});
+      let mappingObject = {};
+      for(let mapping of mappings) {
+        let source = mapping["to source"];
+        let field = mapping["to field"];
+        if(actionKind === "union" || actionKind === "ununion") {
+          mappingObject[mapping.from] = [field];
+        } else {
+          mappingObject[mapping.from] = [source, field];
+        }
+      }
+      let constants = ixer.find("action mapping constant", {action: action.action});
+      for(let constant of constants) {
+        mappingObject[constant.from] = constant.value;
+      }
+      let source = ixer.findOne("action source", {action: action.action});
+      if(!source && actionKind !== "project") {
+        throw new Error(`${actionKind} action without a source in '${viewId}'`);
+      }
+      if(actionKind !== "project") {
+        compiled[actionKind](source["source view"], mappingObject, action.action);
+      } else {
+        compiled[actionKind](mappingObject);
+      }
+    }
+  }
+  return compiled;
+}
+
+//---------------------------------------------------------
 // Public API
 //---------------------------------------------------------
 
@@ -2063,7 +2167,10 @@ export const SUCCEED = [{success: true}];
 export const FAIL = [];
 
 export function indexer() {
-  return addProvenanceTable(new Indexer());
+  let ixer = new Indexer();
+  addProvenanceTable(ixer);
+  addRecompileTriggers(ixer);
+  return ixer;
 }
 
 if(ENV === "browser") window["runtime"] = exports;

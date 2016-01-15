@@ -1,4 +1,5 @@
 import * as app from "./app";
+import {Renderer} from "./microReact";
 /// <reference path="marked-ast/marked.d.ts" />
 import * as marked from "marked-ast";
 
@@ -39,6 +40,11 @@ export class RichTextEditor {
   marks: any[];
   timeout;
   meta: any;
+  //format bar
+  formatBarDelay = 600;
+  showingFormatBar = false;
+  formatBarElement:Element = null;
+  // events
   onUpdate: (meta: any, content: string) => void;
   getEmbed: (meta: any, query: string) => Element;
   getInline: (meta: any, query: string) => string;
@@ -73,6 +79,49 @@ export class RichTextEditor {
     });
     cm.on("cursorActivity", (cm) => { self.onCursorActivity(cm) });
     cm.on("mousedown", (cm, e) => { self.onMouseDown(cm, e) });
+
+
+  }
+
+  showFormatBar() {
+    this.showingFormatBar = true;
+    var renderer = new Renderer();
+    var cm = this.cmInstance;
+    let head = cm.getCursor("head");
+    let from = cm.getCursor("from");
+    let to = cm.getCursor("to");
+    let start = cm.cursorCoords(head, "local");
+    let top = start.bottom + 5;
+    console.log(head, from, to);
+    if((head.line === from.line && head.ch === from.ch)
+       || (cm.cursorCoords(from, "local").top === cm.cursorCoords(to, "local").top)) {
+      top = start.top - 40;
+    }
+    let barSize = 300 / 2;
+    var item = {c: "formatBar", style: `position:absolute; left: ${start.left - barSize}px; top:${top}px;`, children: [
+      {c: "button ", text: "H1"},
+      {c: "button ", text: "H2"},
+      {c: "sep"},
+      {c: "button bold", text: "B", click: () => { wrapWithMarkdown(cm, "**"); }},
+      {c: "button italic", text: "I", click: () => { wrapWithMarkdown(cm, "_"); }},
+      {c: "sep"},
+      {c: "button ", text: "-"},
+      {c: "button ", text: "1."},
+      {c: "button ", text: "[ ]"},
+      {c: "sep"},
+      {c: "button ", text: "link"},
+    ]};
+    renderer.render([item]);
+    let elem = <Element>renderer.content.firstChild;
+    this.formatBarElement = elem;
+    cm.getWrapperElement().appendChild(elem);
+    // this.cmInstance.addWidget(pos, elem);
+  }
+
+  hideFormatBar() {
+    this.showingFormatBar = false;
+    this.formatBarElement.parentNode.removeChild(this.formatBarElement);
+    this.formatBarElement = null;
   }
 
   onChanges(cm, changes) {
@@ -120,12 +169,17 @@ export class RichTextEditor {
       }
     }
 
-    clearTimeout(this.timeout);
-    this.timeout = setTimeout(() => {
-      if (cm.somethingSelected()) {
-        // console.log("TIME TO SHOW!");
-      }
-    }, 1000);
+    if(!this.showingFormatBar) {
+      var self = this;
+      clearTimeout(this.timeout);
+      this.timeout = setTimeout(() => {
+        if (cm.somethingSelected()) {
+          self.showFormatBar();
+        }
+      }, this.formatBarDelay);
+    } else if(!cm.somethingSelected()) {
+      this.hideFormatBar();
+    }
   }
 
   onMouseDown(cm, e) {

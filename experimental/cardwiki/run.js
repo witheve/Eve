@@ -10,7 +10,6 @@ var util = require("util");
 
 var pkgs = {
   wiki: {entries: ["src/wiki.ts"], adds: ["typings/tsd.d.ts"]},
-  slides: {entries: ["src/slides.ts"], adds: ["typings/tsd.d.ts"]},
   queryParserTest: {entries: ["test/queryParserTest.ts"], adds: ["typings/tsd.d.ts"]},
   runtimeTest: {entries: ["test/runtimeTest.ts"], adds: ["typings/tsd.d.ts"]},
   richTextEditorTest: {entries: ["test/richTextEditor.ts"], adds: ["typings/tsd.d.ts"]}

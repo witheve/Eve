@@ -240,7 +240,6 @@ function getEmbed(meta:{entity: string, page: string, paneId:string}, query:stri
         link = value;
       }
       node.textContent = display ? display.name : value
-
     }
 
   } else if(contentDisplay) {
@@ -254,6 +253,14 @@ function getEmbed(meta:{entity: string, page: string, paneId:string}, query:stri
     // @FIXME: Horrible kludge, need a microReact.compile(...)
     let subRenderer = new Renderer();
     subRenderer.render([{id: "root", children: [search(content, meta.paneId)]}]);
+    node = subRenderer.content;
+  }
+
+  if(params["rep"]) {
+    let subRenderer = new Renderer();
+    let {executable} = activeSearches[content];
+    let results = executable.exec();
+    subRenderer.render([{id: "root", children: [represent(params["rep"], results, params)]}]);
     node = subRenderer.content;
   }
 
@@ -282,6 +289,35 @@ function getInline(meta, query) {
     return `{${entity}'s ${attribute}|eav source = ${sourceId}}`;
   } else if(!params["eav source"]) {
     activeSearches[content] = queryToExecutable(content);
+    // @TODO: eventually the information about the requested subjects should come from
+    // the NLP side or projection. But for now..
+    let plan = activeSearches[content].plan;
+    let info = {};
+    for(let step of plan) {
+      if(!info[step.type]) info[step.type] = 0;
+      info[step.type] += 1;
+    }
+    let field;
+    let rep;
+    // if there is an aggregate without grouping then we just return the aggregate value
+    if(info[StepType.AGGREGATE] === 1 && !info[StepType.GROUP]) {
+      let aggregate = plan.filter((step) => step.type === StepType.AGGREGATE)[0];
+      rep = "value";
+      field = aggregate.name;
+    // if there's a lookup without a collection then we're just looking up a single attribute
+    } else if(!info[StepType.GATHER] && info[StepType.LOOKUP] === 1) {
+      let lookup = plan.filter((step) => step.type === StepType.LOOKUP)[0];
+      rep = "value";
+      field = lookup.name;
+    // if there's a calculation without a collection we just want the result
+    } else if(!info[StepType.GATHER] && info[StepType.CALCULATE] === 1) {
+      let calculation = plan.filter((step) => step.type === StepType.CALCULATE)[0];
+      rep = "value";
+      field = calculation.name;
+    }
+    if(rep) {
+      return `{${content}|rep=${rep};field=${field}}`;
+    }
   }
   return query;
 }
@@ -450,6 +486,21 @@ function codeMirrorPostRender(postRender?:RenderHandler):RenderHandler {
     if(cm.getDoc().getValue() !== elem.value) cm.setValue(elem.value || "");
     if(postRender) postRender(node, elem);
   }
+}
+
+function represent(rep:string, results, params:{}):Element {
+  console.log("repping:", results, " as", rep, " with params ", params);
+  if(rep === "value") return valueRep(results.results, params);
+  else console.error("Unknown representation: " + rep);
+}
+
+function valueRep(results:{}[], params:{}):Element {
+  let rows = results;
+  if(!params["field"]) throw new Error("Value representation requires a 'field' param indicating which field to represent");
+  if(rows.length > 1) throw new Error("Value representation on field '" + params["field"] + "' expects 1 row, but given multiple");
+  let row = rows[0];
+  let val = row[params["field"]];
+  return {c: "value inline", text: val};
 }
 
 // @NOTE: Uncomment this to enable the new UI, or type `window["NEUE_UI"] = true; app.render()` into the console to enable it transiently.
