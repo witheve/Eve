@@ -221,7 +221,7 @@ function parseParams(rawParams:string) {
 function getEmbed(meta:{entity: string, page: string, paneId:string}, query:string) {
   let [content, rawParams] = query.split("|");
   let node = document.createElement("span");
-  let link;
+  let link, embedType;
   node.textContent = content;
   let params = parseParams(rawParams);
   let contentDisplay = eve.findOne("display name", {id: content});
@@ -229,7 +229,7 @@ function getEmbed(meta:{entity: string, page: string, paneId:string}, query:stri
   // @TODO: Figure out what to do for {age: {current year - birth year}}
   if(params["eav source"]) {
     // Attribute reference
-    node.classList.add("attribute");
+    embedType = "attribute";
     let eav = eve.findOne("sourced eav", { source: params["eav source"] });
     if (!eav) {
       node.classList.add("invalid");
@@ -244,12 +244,12 @@ function getEmbed(meta:{entity: string, page: string, paneId:string}, query:stri
 
   } else if(contentDisplay) {
     // Entity reference
-    node.classList.add("entity");
+    embedType = "entity";
     node.textContent = contentDisplay.name;
     link = content;
   } else {
     // Embedded queries
-    node.classList.add("query");
+    embedType = "query";
     // @FIXME: Horrible kludge, need a microReact.compile(...)
     let subRenderer = new Renderer();
     subRenderer.render([{id: "root", children: [search(content, meta.paneId)]}]);
@@ -258,12 +258,18 @@ function getEmbed(meta:{entity: string, page: string, paneId:string}, query:stri
 
   if(params["rep"]) {
     let subRenderer = new Renderer();
-    let {executable} = activeSearches[content];
-    let results = executable.exec();
+    
+    let results;
+    if(embedType === "query") {
+      let {executable} = activeSearches[content];
+      results = executable.exec();
+    } else {
+      results = {unprojected: [{entity: content}], results: [{entity: content}], provenance: [], groupInfo: []};
+    }
     subRenderer.render([{id: "root", children: [represent(params["rep"], results, params)]}]);
     node = subRenderer.content;
   }
-
+  node.classList.add(embedType);
   if (link) {
     node.classList.add("link");
     node.onclick = () => {
@@ -282,9 +288,8 @@ function getInline(meta, query) {
     let [attribute, value] = query.substring(1, query.length - 1).split(":");
     value = coerceInput(value.trim());
     let display = eve.findOne("display name", {name: value});
-    if(display) {
-      value = display.id;
-    }
+    if(display) value = display.id;
+
     dispatch("add sourced eav", { entity, attribute, value, source: sourceId }).commit();
     return `{${entity}'s ${attribute}|eav source = ${sourceId}}`;
   } else if(!params["eav source"]) {
@@ -318,6 +323,10 @@ function getInline(meta, query) {
     if(rep) {
       return `{${content}|rep=${rep};field=${field}}`;
     }
+  } else {
+    let display = eve.findOne("display name", {name: content});
+    if(display) content = display.id;
+    //return `{${content}|${rawParams}}`;
   }
   return query;
 }
@@ -488,19 +497,31 @@ function codeMirrorPostRender(postRender?:RenderHandler):RenderHandler {
   }
 }
 
+let _reps:{[rep:string]: (results:{}[], params:{}) => Element} = {
+  value: (results, params:{field:string}) => {
+    let rows = results;
+    if(!params.field) throw new Error("Value representation requires a 'field' param indicating which field to represent");
+    let row = rows[0];
+    let vals = [];
+    for(let row of rows) vals.push(row[params.field]);
+    return {t: "span", c: "value inline", text: vals.join(", ")};
+  },
+  related: (results, params:{paneId:string}) => {
+    console.log(results);
+    let entityId = results[0]["entity"];
+    let facts = eve.find("directionless links", {entity: entityId});
+
+    let elem:Element = {c: "flex-row flex-wrap csv"};
+    if(facts.length) elem.children = [
+      {t: "h2", text: `${entityId} is related to:`},
+    ].concat(facts.map((fact) => ({c: "entity link", text: fact.link, data: params, link: fact.link, click: navigate})));
+    else elem.text = `${entityId} is not related to any other entities.`;
+    return elem;
+  }
+};
 function represent(rep:string, results, params:{}):Element {
   console.log("repping:", results, " as", rep, " with params ", params);
-  if(rep === "value") return valueRep(results.results, params);
-  else console.error("Unknown representation: " + rep);
-}
-
-function valueRep(results:{}[], params:{}):Element {
-  let rows = results;
-  if(!params["field"]) throw new Error("Value representation requires a 'field' param indicating which field to represent");
-  let row = rows[0];
-  let vals = [];
-  for(let row of rows) vals.push(row[params["field"]]);
-  return {c: "value inline", text: vals.join(", ")};
+  if(rep in _reps) return _reps[rep](results.results, <any>params);
 }
     
 // @NOTE: Uncomment this to enable the new UI, or type `window["NEUE_UI"] = true; app.render()` into the console to enable it transiently.
