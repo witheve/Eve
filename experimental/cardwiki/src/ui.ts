@@ -301,7 +301,7 @@ function getInline(meta, query) {
     if(!params["rep"]) params["rep"] = "name";
     return `{${display.id}|${stringifyParams(params)}}`;
     
-  } else if(!params["eav source"]) {
+  } else if(!params["eav source"] && !params["rep"]) {
     activeSearches[content] = queryToExecutable(content);
     // @TODO: eventually the information about the requested subjects should come from
     // the NLP side or projection. But for now..
@@ -330,7 +330,9 @@ function getInline(meta, query) {
       field = calculation.name;
     }
     if(rep) {
-      return `{${content}|rep=${rep};field=${field}; ${rawParams || ""}}`;
+      params["rep"] = rep;
+      params["field"] = field;
+      return `{${content}|${stringifyParams(params)}}`;
     }
   }
 
