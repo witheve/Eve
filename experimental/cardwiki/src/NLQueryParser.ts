@@ -705,7 +705,8 @@ function tokenArrayToString(tokens: Array<Token>): string {
 function nounGroupToString(nounGroup: NounGroup): string {
   let nouns = nounGroup.noun.map((noun: Token) => {return noun.normalizedWord;}).join(" ");
   let children = nounGroup.children.sort((childA: Token, childB: Token) => {return childA.ix - childB.ix;}).map((child: Token) => {return child.normalizedWord;}).join(" ");
-  let nounGroupString = `${nouns} \n  ${children}`;
+  let propertiesString = `Properties:\n${nounGroup.isPlural ? `-plural\n` : ``}${nounGroup.isPossessive ? `-possessive\n` : ``}${nounGroup.isProper ? `-proper\n` : ``}${nounGroup.isQuantity ? `-quantity\n` : ``}`;
+  let nounGroupString = `${nouns}\n  ${children}\n\n${propertiesString}`;
   return nounGroupString;
 }
 
@@ -747,13 +748,15 @@ function findAll(array: Array<any>, condition: Function): Array<any> {
 
 let n = 1;
 let phrases = [
-  "people who are under 30 years old",
+  //"I want that bird to be really big",
+  /*"people who are under 30 years old",
   "people who are under 30 pounds",
   "people who are under 30",
   "people whose age < Chris Granger's",
   "people whose age < Chris Granger's age",
   "people whose age is less than Chris Granger's age",
-  "people who are younger than Chris Granger",
+  */
+  "people who are younger than Chris Granger",/*
   "people older than Corey Montella's spouse",
   "people older than their spouse",
   "people who are either heads or spouses of heads",
@@ -814,7 +817,7 @@ let phrases = [
   "People older than Corey Montella",
   "How many 4 star restaurants are in San Francisco?",
   "What is the average elevation of the highest points in each state?",
-  "What is the name of the longest river in the state that has the largest city in the United States of America?"
+  "What is the name of the longest river in the state that has the largest city in the United States of America?"*/
 ];
-
+console.log(`Running ${phrases.length} tests...`);
 phrases.map((phrase) => {parseTest(phrase,n)});
