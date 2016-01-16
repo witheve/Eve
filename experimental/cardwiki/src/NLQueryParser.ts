@@ -635,10 +635,8 @@ function formTree(tokens: Array<Token>): any {
   // Get unused tokens
   let unusedTokens = findAll(tokens,(token: Token) => { return token.used === false; });
   
-  
-  console.log(nounGroups)
-  console.log(nounGroupArrayToString(nounGroups));
-  console.log(tokenArrayToString(unusedTokens));
+  //console.log(nounGroupArrayToString(nounGroups));
+  //console.log(tokenArrayToString(unusedTokens));
   
   
   
@@ -774,9 +772,12 @@ function findAll(array: Array<any>, condition: Function): Array<any> {
 
 // ----------------------------------------------------------------------------
 
-let n = 1;
+let n = 100;
 let phrases = [
-  //"I want that bird to be really big",
+  "how often does chase have lunch with his wife or her friends",
+  
+  "return the authors, where the number of papers by each author in VLDB is more than the number of papers in ICDE",
+  "I want that bird to be really big",
   "people who are under 30 years old",
   "people who are under 30 pounds",
   "people who are under 30",
@@ -822,7 +823,7 @@ let phrases = [
   "What are the populations of cities that are located in California?",
   "What jobs as a senior software developer are available in Houston but not San Antonio?",
   "Neither of these boys wants to try a piece of pineapple pizza.",
-  "Shortest flight between New York and San Francisco",  
+  "Shortest flight between New York and San Francisco",
   "When did Corey Montella marry his spouse?",
   "Ages of Chris Steve Granger, Corey James Irvine Montella, and Josh Cole",  
   "The sweet potatoes in the vegetable bin are green with mold.",
