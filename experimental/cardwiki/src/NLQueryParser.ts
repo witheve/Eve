@@ -142,6 +142,9 @@ interface Token {
   isProper?: boolean;
   isPlural?: boolean;
   isQuantity?: boolean;
+  // Attributes for adjectives and adverbs
+  isComparative?: boolean;
+  isSuperlative?: boolean;
   // Properties relevant to parsing
   used: boolean;
 }
@@ -184,6 +187,14 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
             token.POS === MinorPartsOfSpeech.CD) {
           token.isQuantity = true;     
         }
+      }
+      
+      // Add default attribute markers to adjectives and adverbs
+      if (token.POS === MinorPartsOfSpeech.JJR || token.POS === MinorPartsOfSpeech.RBR) {
+        token.isComparative = true;
+      }
+      else if (token.POS === MinorPartsOfSpeech.JJS || token.POS === MinorPartsOfSpeech.RBS) {
+        token.isSuperlative = true;
       }
       
       // normalize the word with the following transformations: 
@@ -415,6 +426,8 @@ interface NounGroup {
   isProper: boolean;
   isPlural: boolean;
   isQuantity: boolean;
+  isComparative: boolean;
+  isSuperlative: boolean;
   subsumed: boolean;
 }
 
@@ -510,9 +523,8 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
       targetNG = ng;
     }
     if (targetNG !== null) {
-      targetNG.children.push(adj);
+      addChildToNounGroup(targetNG,adj);
       targetNG.end = adj.ix;
-      adj.used = true;
     // If the target NG is null, this means there is no noun group to the left. 
     // This can happen in the case when a sentence begins with an adjective.
     // e.g. "Shortest flight between New York and San Francisco". Here, "shortest"
@@ -542,8 +554,7 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
         // Add adjective and everything inbeetween as children to this new noun group
         for (let i = adj.ix; i < targetVB.ix; i++) {
           let token = tokens[i];
-          nounGroup.children.push(token);
-          token.used = true;  
+          addChildToNounGroup(nounGroup,token);
         }
         nounGroups.push(nounGroup);
       }  
@@ -566,7 +577,9 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
     // Combine adjacent proper noun groups
     while (nextNG.isProper && nextNG.begin === thisNG.end + 1) {
       thisNG.noun = thisNG.noun.concat(nextNG.noun);
-      thisNG.children = thisNG.children.concat(nextNG.children);
+      for (let child of nextNG.children) {
+        addChildToNounGroup(thisNG,child);  
+      }
       thisNG.end = nextNG.end;
       // Inherit noun properties from nextNG
       if (nextNG.isPlural) { thisNG.isPlural = true; }
@@ -588,18 +601,32 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
   return nounGroups;
 }
 
+// Adds a child token to a noun group and subsumes its properties. Marks token as used
+function addChildToNounGroup(nounGroup: NounGroup, token: Token) {
+  nounGroup.children.push(token);
+  if(token.isComparative !== undefined) {
+    nounGroup.isComparative = token.isComparative;
+  }
+  if(token.isSuperlative !== undefined) {
+    nounGroup.isSuperlative = token.isSuperlative;
+  }
+  token.used = true;
+}
+
 function newNounGroup(token: Token): NounGroup {
-return {
-         noun: [token], 
-         children: [], 
-         begin: token.ix, 
-         end: token.ix, 
-         isPlural: token.isPlural === undefined ? false : token.isPlural, 
-         isPossessive: token.isPossessive === undefined ? false : token.isPossessive,
-         isProper: token.isProper === undefined ? false : token.isProper,
-         isQuantity: token.isQuantity === undefined ? false : token.isQuantity,
-         subsumed: false
-       }  
+  return {
+    noun: [token], 
+    children: [], 
+    begin: token.ix, 
+    end: token.ix, 
+    isPlural: token.isPlural === undefined ? false : token.isPlural, 
+    isPossessive: token.isPossessive === undefined ? false : token.isPossessive,
+    isProper: token.isProper === undefined ? false : token.isProper,
+    isQuantity: token.isQuantity === undefined ? false : token.isQuantity,
+    isComparative: token.isComparative === undefined ? false : token.isComparative,
+    isSuperlative: token.isSuperlative === undefined ? false : token.isSuperlative,
+    subsumed: false
+  }  
 }
 
 function formTree(tokens: Array<Token>): any {
@@ -609,7 +636,7 @@ function formTree(tokens: Array<Token>): any {
   let unusedTokens = findAll(tokens,(token: Token) => { return token.used === false; });
   
   
-  
+  console.log(nounGroups)
   console.log(nounGroupArrayToString(nounGroups));
   console.log(tokenArrayToString(unusedTokens));
   
@@ -668,8 +695,7 @@ function subsumeTokens(nounGroup: NounGroup, ix: number, tokens: Array<Token>): 
   for (let j = ix ; j < nounGroup.end; j++) {
     let nounGroupToken: Token = tokens[j];
     if (nounGroupToken.used === false) {
-      nounGroup.children.push(nounGroupToken);
-      nounGroupToken.used = true;  
+      addChildToNounGroup(nounGroup,nounGroupToken);  
     }
   }
   return nounGroup;
@@ -693,7 +719,9 @@ function tokenToString(token: Token): string {
   let isPossessive = token.isPossessive === undefined ? "" : token.isPossessive === true ? "possessive ": "";
   let isProper = token.isProper === undefined ? "" : token.isProper === true ? "proper ": "";
   let isPlural = token.isPlural === undefined ? "" : token.isPlural === true ? "plural ": "";
-  let tokenString = `${token.ix}.: ${token.originalWord} | ${token.normalizedWord} | ${MajorPartsOfSpeech[getMajorPOS(token.POS)]} | ${MinorPartsOfSpeech[token.POS]} | ${isPossessive}${isProper}${isPlural}` ;
+  let isComparative = token.isComparative === undefined ? "" : token.isComparative === true ? "comparative ": "";
+  let isSuperlative = token.isSuperlative === undefined ? "" : token.isSuperlative === true ? "superlative ": "";
+  let tokenString = `${token.ix}.: ${token.originalWord} | ${token.normalizedWord} | ${MajorPartsOfSpeech[getMajorPOS(token.POS)]} | ${MinorPartsOfSpeech[token.POS]} | ${isPossessive}${isProper}${isPlural}${isComparative}${isSuperlative}` ;
   return tokenString;
 }
 
@@ -705,7 +733,7 @@ function tokenArrayToString(tokens: Array<Token>): string {
 function nounGroupToString(nounGroup: NounGroup): string {
   let nouns = nounGroup.noun.map((noun: Token) => {return noun.normalizedWord;}).join(" ");
   let children = nounGroup.children.sort((childA: Token, childB: Token) => {return childA.ix - childB.ix;}).map((child: Token) => {return child.normalizedWord;}).join(" ");
-  let propertiesString = `Properties:\n${nounGroup.isPlural ? `-plural\n` : ``}${nounGroup.isPossessive ? `-possessive\n` : ``}${nounGroup.isProper ? `-proper\n` : ``}${nounGroup.isQuantity ? `-quantity\n` : ``}`;
+  let propertiesString = `Properties:\n${nounGroup.isPlural ? `-plural\n` : ``}${nounGroup.isPossessive ? `-possessive\n` : ``}${nounGroup.isProper ? `-proper\n` : ``}${nounGroup.isQuantity ? `-quantity\n` : ``}${nounGroup.isComparative ? `-comparative\n` : ``}${nounGroup.isSuperlative ? `-superlative\n` : ``}`;
   let nounGroupString = `${nouns}\n  ${children}\n\n${propertiesString}`;
   return nounGroupString;
 }
@@ -749,14 +777,13 @@ function findAll(array: Array<any>, condition: Function): Array<any> {
 let n = 1;
 let phrases = [
   //"I want that bird to be really big",
-  /*"people who are under 30 years old",
+  "people who are under 30 years old",
   "people who are under 30 pounds",
   "people who are under 30",
   "people whose age < Chris Granger's",
   "people whose age < Chris Granger's age",
   "people whose age is less than Chris Granger's age",
-  */
-  "people who are younger than Chris Granger",/*
+  "people who are younger than Chris Granger",
   "people older than Corey Montella's spouse",
   "people older than their spouse",
   "people who are either heads or spouses of heads",
@@ -817,7 +844,7 @@ let phrases = [
   "People older than Corey Montella",
   "How many 4 star restaurants are in San Francisco?",
   "What is the average elevation of the highest points in each state?",
-  "What is the name of the longest river in the state that has the largest city in the United States of America?"*/
+  "What is the name of the longest river in the state that has the largest city in the United States of America?"
 ];
 console.log(`Running ${phrases.length} tests...`);
 phrases.map((phrase) => {parseTest(phrase,n)});
