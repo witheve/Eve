@@ -34,6 +34,31 @@ function wrapWithMarkdown(cm, wrapping) {
   })
 }
 
+function prefixWithMarkdown(cm, prefix) {
+  cm.operation(() => {
+    let from = cm.getCursor("from");
+    let to = cm.getCursor("to");
+    let toPrefix = [];
+    for(let lineIx = from.line; lineIx <= to.line; lineIx++) {
+      var currentPrefix = cm.getRange({line: lineIx, ch: 0}, {line: lineIx, ch: prefix.length});
+      if(currentPrefix !== prefix) {
+        toPrefix.push(lineIx);
+      }
+    }
+
+    // if everything in the selection has been prefixed, then we need to unprefix
+    if(toPrefix.length === 0) {
+     for(let lineIx = from.line; lineIx <= to.line; lineIx++) {
+       cm.replaceRange("", {line: lineIx, ch: 0}, {line: lineIx, ch: prefix.length});
+      }
+    } else {
+      for(let lineIx of toPrefix) {
+        cm.replaceRange(prefix, {line: lineIx, ch: 0});
+      }
+    }
+  });
+}
+
 export class RichTextEditor {
 
   cmInstance;
@@ -41,7 +66,7 @@ export class RichTextEditor {
   timeout;
   meta: any;
   //format bar
-  formatBarDelay = 600;
+  formatBarDelay = 500;
   showingFormatBar = false;
   formatBarElement:Element = null;
   // events
@@ -99,15 +124,15 @@ export class RichTextEditor {
     }
     let barSize = 300 / 2;
     var item = {c: "formatBar", style: `position:absolute; left: ${start.left - barSize}px; top:${top}px;`, children: [
-      {c: "button ", text: "H1"},
-      {c: "button ", text: "H2"},
+      {c: "button ", text: "H1", click: () => { prefixWithMarkdown(cm, "# "); }},
+      {c: "button ", text: "H2", click: () => { prefixWithMarkdown(cm, "## "); }},
       {c: "sep"},
       {c: "button bold", text: "B", click: () => { wrapWithMarkdown(cm, "**"); }},
       {c: "button italic", text: "I", click: () => { wrapWithMarkdown(cm, "_"); }},
       {c: "sep"},
-      {c: "button ", text: "-"},
-      {c: "button ", text: "1."},
-      {c: "button ", text: "[ ]"},
+      {c: "button ", text: "-", click: () => { prefixWithMarkdown(cm, "- "); }},
+      {c: "button ", text: "1.", click: () => { prefixWithMarkdown(cm, "1. "); }},
+      {c: "button ", text: "[ ]", click: () => { prefixWithMarkdown(cm, "[ ] "); }},
       {c: "sep"},
       {c: "button ", text: "link"},
     ]};
