@@ -418,34 +418,6 @@ function toggleSearchPlan(event, elem) {
   dispatch("ui toggle search plan", elem).commit();
 }
 
-interface IndexElement extends Element {collectionId:string, data?:{}}
-export function index(elem:IndexElement):IndexElement {
-  let facts = eve.find("is a attributes", {collection: elem.collectionId});
-  let click = elem.click;
-  delete elem.click;
-  elem.t = "p";
-  elem.children = [
-    {t: "h2", text: `There ${pluralize("are", facts.length)} ${facts.length} ${pluralize(elem.collectionId, facts.length)}:`},
-    {t: "ul", children: facts.map((fact) => ({t: "li", c: "entity link", text: fact.entity, data: elem.data, link: fact.entity, click}))}
-  ];
-  return elem;
-}
-
-interface RelatedElement extends Element {entityId:string, data?:{}}
-export function related(elem:RelatedElement):RelatedElement {
-  let facts = eve.find("directionless links", {entity: elem.entityId});
-  elem.t = "p";
-  elem.c = "flex-row flex-wrap csv" + (elem.c || "");
-  let click = elem.click;
-  delete elem.click;
-
-  if(facts.length) elem.children = [
-    {t: "h2", text: `${elem.entityId} is related to:`},
-  ].concat(facts.map((fact) => ({c: "entity link", text: fact.link, data: elem.data, link: fact.link, click})));
-  else elem.text = `${elem.entityId} is not related to any other entities.`;
-  return elem;
-}
-
 //---------------------------------------------------------
 // UITK
 //---------------------------------------------------------
@@ -519,18 +491,36 @@ let _reps:{[rep:string]: (results:{}[], params:{paneId?:string}) => Element} = {
   },
   related: (results, params:{}) => {
     let entityId = results[0]["entity"];
+    let {name = entityId} = eve.findOne("display name", {id: entityId}) || {};
     let facts = eve.find("directionless links", {entity: entityId});
 
     let elem:Element = {c: "flex-row flex-wrap csv"};
     if(facts.length) elem.children = [
-      {t: "h2", text: `${entityId} is related to:`},
-    ].concat(facts.map((fact) => ({c: "entity link", text: fact.link, data: params, link: fact.link, click: navigate})));
-    else elem.text = `${entityId} is not related to any other entities.`;
+      {t: "h2", text: `${name} is related to:`},
+    ].concat(facts.map((fact) => {
+      let {name = fact.link} = eve.findOne("display name", {id: fact.link}) || {};
+      return {c: "entity link", text: name, data: params, link: fact.link, click: navigate};
+    }));
+    else elem.text = `${name} is not related to any other entities.`;
     return elem;
-  }
+  },
+  index: (results, params:{}) => {
+    let entityId = results[0]["entity"];
+    let {name = entityId} = eve.findOne("display name", {id: entityId}) || {};
+
+    let facts = eve.find("is a attributes", {collection: entityId});
+    return {children: [
+      {t: "h2", text: `There ${pluralize("are", facts.length)} ${facts.length} ${pluralize(name, facts.length)}:`},
+      {t: "ul", children: facts.map((fact) => {
+        let {name = fact.entity} = eve.findOne("display name", {id: fact.entity}) || {};
+        return {t: "li", c: "entity link", text: name, data: params, link: fact.entity, click: navigate};
+      })}
+    ]};
+  },
 };
+// @TODO: Include translation layer instead of passing results directly into rep, to make rep reuse easier.
 function represent(rep:string, results, params:{}):Element {
-  console.log("repping:", results, " as", rep, " with params ", params);
+  //console.log("repping:", results, " as", rep, " with params ", params);
   if(rep in _reps) return _reps[rep](results.results, <any>params);
 }
 
