@@ -41,7 +41,7 @@ function prefixWithMarkdown(cm, prefix) {
     let toPrefix = [];
     for(let lineIx = from.line; lineIx <= to.line; lineIx++) {
       var currentPrefix = cm.getRange({line: lineIx, ch: 0}, {line: lineIx, ch: prefix.length});
-      if(currentPrefix !== prefix) {
+      if(currentPrefix !== prefix && currentPrefix !== "") {
         toPrefix.push(lineIx);
       }
     }
@@ -66,7 +66,7 @@ export class RichTextEditor {
   timeout;
   meta: any;
   //format bar
-  formatBarDelay = 500;
+  formatBarDelay = 100;
   showingFormatBar = false;
   formatBarElement:Element = null;
   // events
@@ -104,8 +104,9 @@ export class RichTextEditor {
     });
     cm.on("cursorActivity", (cm) => { self.onCursorActivity(cm) });
     cm.on("mousedown", (cm, e) => { self.onMouseDown(cm, e) });
-
-
+    cm.getWrapperElement().addEventListener("mouseup", (e) => {
+      self.onMouseUp(cm, e);
+    });
   }
 
   showFormatBar() {
@@ -194,7 +195,12 @@ export class RichTextEditor {
         }
       }
     }
+    if(this.showingFormatBar && !cm.somethingSelected()) {
+      this.hideFormatBar();
+    }
+  }
 
+  onMouseUp(cm, e) {
     if(!this.showingFormatBar) {
       var self = this;
       clearTimeout(this.timeout);
@@ -203,8 +209,6 @@ export class RichTextEditor {
           self.showFormatBar();
         }
       }, this.formatBarDelay);
-    } else if(!cm.somethingSelected()) {
-      this.hideFormatBar();
     }
   }
 
