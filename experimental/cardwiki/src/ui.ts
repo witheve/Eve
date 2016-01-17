@@ -477,53 +477,70 @@ function codeMirrorPostRender(postRender?:RenderHandler):RenderHandler {
   }
 }
 
-let _reps:{[rep:string]: (results:{}[], params:{paneId?:string}) => Element} = {
-  name: (results, params:{field?:string}) => {
-    let entityId = results[0][params.field || "entity"];
-    let {name = entityId} = eve.findOne("display name", {id: entityId});
-    return {t: "span", c: "entity link inline", text: name, data: params, link: entityId, click: navigate};
+let _reps:{[rep:string]: {embed: (results:{}[], params:{paneId?:string}) => any, represent: (params:any) => Element}} = {
+  name: {
+    embed(results, params:{field?:string}) {
+      let entityId = results[0][params.field || "entity"];
+      return {id: entityId, data: params};
+    },
+    represent({id, data, t = undefined}) {
+      let {name = id} = eve.findOne("display name", {id});
+      let isEntity = eve.findOne("entity", {entity: id});
+      return {t: t || "span", c: "entity link inline", text: name, data, link: isEntity? id : undefined, click: navigate};
+    }
   },
-  value: (results, params:{field:string}) => {
-    let rows = results;
-    if(!params.field) throw new Error("Value representation requires a 'field' param indicating which field to represent");
-    let row = rows[0];
-    let vals = [];
-    for(let row of rows) vals.push(row[params.field]);
-    return {t: "span", c: "value inline", text: vals.join(", ")};
+  value: {
+    embed(results, params:{field:string}) {
+      if(!params.field) throw new Error("Value representation requires a 'field' param indicating which field to represent");
+      return {results, field: params.field};
+    },
+    represent({results, field}:{results:{}[], field:string}) {
+      let vals = [];
+      for(let row of results) vals.push(row[field]);
+      return {t: "span", c: "value inline", text: vals.join(", ")};
+    }
   },
-  related: (results, params:{}) => {
-    let entityId = results[0]["entity"];
-    let {name = entityId} = eve.findOne("display name", {id: entityId}) || {};
-    let facts = eve.find("directionless links", {entity: entityId});
+    related: {
+      embed(results, params:{}) {
+        let entityId = results[0]["entity"];
+        return {entityId, data: params};
+      },
+      represent({entityId, data}) {
+        let {name = entityId} = eve.findOne("display name", {id: entityId});
+        let facts = eve.find("directionless links", {entity: entityId});
+        let elem:Element = {c: "flex-row flex-wrap csv"};
+        if(facts.length) {
+          return {c: "flex-row flex-wrap csv", children: [
+            {t: "h2", text: `${name} is related to:`},
+          ].concat(facts.map((fact) => _reps["name"].represent({id: fact.link, data})))};
+        }
+        return {text: `${name} is not related to any other entities.`};
+      }
+  },
+  index: {
+    embed(results, params:{}) {
+      let entityId = results[0]["entity"];
+      return {entityId, data: params};
+    },
+    represent({entityId, data}) {
+      let {name = entityId} = eve.findOne("display name", {id: entityId}) || {};
 
-    let elem:Element = {c: "flex-row flex-wrap csv"};
-    if(facts.length) elem.children = [
-      {t: "h2", text: `${name} is related to:`},
-    ].concat(facts.map((fact) => {
-      let {name = fact.link} = eve.findOne("display name", {id: fact.link}) || {};
-      return {c: "entity link", text: name, data: params, link: fact.link, click: navigate};
-    }));
-    else elem.text = `${name} is not related to any other entities.`;
-    return elem;
-  },
-  index: (results, params:{}) => {
-    let entityId = results[0]["entity"];
-    let {name = entityId} = eve.findOne("display name", {id: entityId}) || {};
-
-    let facts = eve.find("is a attributes", {collection: entityId});
-    return {children: [
-      {t: "h2", text: `There ${pluralize("are", facts.length)} ${facts.length} ${pluralize(name, facts.length)}:`},
-      {t: "ul", children: facts.map((fact) => {
-        let {name = fact.entity} = eve.findOne("display name", {id: fact.entity}) || {};
-        return {t: "li", c: "entity link", text: name, data: params, link: fact.entity, click: navigate};
-      })}
-    ]};
+      let facts = eve.find("is a attributes", {collection: entityId});
+      return {children: [
+        {t: "h2", text: `There ${pluralize("are", facts.length)} ${facts.length} ${pluralize(name, facts.length)}:`},
+        {t: "ul", children: facts.map((fact) => _reps["name"].represent({t: "li", id: fact.entity, data}))}
+      ]};
+    }
   },
 };
+
 // @TODO: Include translation layer instead of passing results directly into rep, to make rep reuse easier.
 function represent(rep:string, results, params:{}):Element {
   //console.log("repping:", results, " as", rep, " with params ", params);
-  if(rep in _reps) return _reps[rep](results.results, <any>params);
+  if(rep in _reps) {
+    let embedParams = _reps[rep].embed(results.results, <any>params);
+    return _reps[rep].represent(embedParams);
+  }
 }
 
 // @NOTE: Uncomment this to enable the new UI, or type `window["NEUE_UI"] = true; app.render()` into the console to enable it transiently.

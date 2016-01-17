@@ -12,9 +12,9 @@ div { display: flex; flex-direction: column; }
 .flex-wrap { flex-wrap: wrap; }
 .fullscreen { width: 100vw; height: 100vh; }
 
-.csv, .csv > div { flex-direction: row; }
-.csv > * + div { margin-left: 0.4em; }
-.csv > div + div:before { position: relative; left: -0.4em; content: ","; }
+.csv { flex-direction: row; }
+.csv > * + span { margin-left: 0.4em; }
+.csv > span + span:before { position: relative; left: -0.4em; content: ","; }
 /*---------------------------------------------------------
 - Root
 ---------------------------------------------------------*/
@@ -62,7 +62,7 @@ div:hover > header > .controls { opacity: 1; }
 .wiki-editor .cm-header { color: rgb(76, 85, 90); font-weight:normal; }
 .wiki-editor .cm-header-1 { font-size: 20pt; line-height: 40px; }
 .wiki-editor .attribute, .wiki-editor .value { color:#2C00FD; }
-.wiki-editor .link { color: #008cdd; cursor: pointer; }
+.wiki-editor .link { color: #008cdd; cursor: pointer; border-bottom: 1px solid transparent; }
 .wiki-editor .link:hover { border-bottom:1px solid #008cdd; }
 .wiki-editor .embed-code { background: #C7E7FF; }
 .wiki-editor .cm-variable-2 { padding-left:15px; }
