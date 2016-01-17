@@ -301,8 +301,10 @@ function getInline(meta, query) {
     if(!params["rep"]) params["rep"] = "name";
     return `{${display.id}|${stringifyParams(params)}}`;
     
-  } else if(!params["eav source"] && !params["rep"]) {
+  } else if(!params["eav source"]) {
     activeSearches[content] = queryToExecutable(content);
+    if(params["rep"]) return query;
+    
     // @TODO: eventually the information about the requested subjects should come from
     // the NLP side or projection. But for now..
     let plan = activeSearches[content].plan;
@@ -484,38 +486,64 @@ let _reps:{[rep:string]: {embed: (results:{}[], params:{paneId?:string}) => any,
       return {id: entityId, data: params};
     },
     represent({id, data, t = undefined}) {
-      let {name = id} = eve.findOne("display name", {id});
+      let {name = id} = eve.findOne("display name", {id}) || {};
       let isEntity = eve.findOne("entity", {entity: id});
       return {t: t || "span", c: "entity link inline", text: name, data, link: isEntity? id : undefined, click: navigate};
     }
   },
   value: {
-    embed(results, params:{field:string}) {
+    embed(results, params:{field:string, type?:string}) {
       if(!params.field) throw new Error("Value representation requires a 'field' param indicating which field to represent");
-      return {results, field: params.field};
+      let field = params.field;
+      // If field isn't in results, try to resolve it as a field name, otherwise error out
+      if(results.length && results[0][field] === undefined) {
+        let potentialIds = eve.find("display name", {name: field});
+        let neueField;
+        for(let display of potentialIds) {
+          if(results[0][display.id] !== undefined) {
+            if(neueField === undefined) neueField = display.id;
+            else {
+              neueField = undefined;
+              break
+            }
+          }
+        }
+        if(!neueField) throw new Error(`Unable to uniquely resolve field name ${field} in result fields ${Object.keys(results[0])}`);
+        else field = neueField;
+      }
+        
+      let values = [];
+      for(let row of results) values.push(row[field]);
+      return {values, type: params.type || "inline", data: params};
     },
-    represent({results, field}:{results:{}[], field:string}) {
-      let vals = [];
-      for(let row of results) vals.push(row[field]);
-      return {t: "span", c: "value inline", text: vals.join(", ")};
+    represent({values, type = "inline", data}:{values:any[], type:string, data:{}}) {
+      let children = [];
+      for(let val of values) {
+        if(eve.findOne("entity", {entity: val})) children.push(_reps["name"].represent({id: val, data, t: type === "list" ? "li" : undefined}));
+        else children.push({t: type === "list" ? "li" : "span", text: val});
+      }
+      if(type === "inline") return {t: "span", c: "flex-row flex-wrap csv value inline", children};
+      if(type === "list") return {t: "ul", c: "value", children};
     }
   },
-    related: {
-      embed(results, params:{}) {
-        let entityId = results[0]["entity"];
-        return {entityId, data: params};
-      },
-      represent({entityId, data}) {
-        let {name = entityId} = eve.findOne("display name", {id: entityId});
-        let facts = eve.find("directionless links", {entity: entityId});
-        let elem:Element = {c: "flex-row flex-wrap csv"};
-        if(facts.length) {
-          return {c: "flex-row flex-wrap csv", children: [
-            {t: "h2", text: `${name} is related to:`},
-          ].concat(facts.map((fact) => _reps["name"].represent({id: fact.link, data})))};
-        }
-        return {text: `${name} is not related to any other entities.`};
+  related: {
+    embed(results, params:{}) {
+      let entityId = results[0]["entity"];
+      return {entityId, data: params};
+    },
+    represent({entityId, data}) {
+      let {name = entityId} = eve.findOne("display name", {id: entityId}) || {};
+      let relations = [];
+      for(let link of eve.find("directionless links", {entity: entityId})) relations.push(link.link);
+      let elem:Element = {c: "flex-row flex-wrap csv"};
+      if(relations.length) {
+        return {c: "flex-row flex-wrap csv", children: [
+          {t: "h2", text: `${name} is related to:`},
+          _reps["value"].represent({values: relations})
+        ]};
       }
+      return {text: `${name} is not related to any other entities.`};
+    }
   },
   index: {
     embed(results, params:{}) {
@@ -534,7 +562,6 @@ let _reps:{[rep:string]: {embed: (results:{}[], params:{paneId?:string}) => any,
   },
 };
 
-// @TODO: Include translation layer instead of passing results directly into rep, to make rep reuse easier.
 function represent(rep:string, results, params:{}):Element {
   //console.log("repping:", results, " as", rep, " with params ", params);
   if(rep in _reps) {
