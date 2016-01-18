@@ -426,7 +426,7 @@ interface Tree {
 
 interface NounGroup {
   noun: Array<Token>;
-  refersTo?: NounGroup,
+  refersTo?: NounGroup, // noun group to which a pronoun refers
   children: Array<Token>;
   begin: number; // Index of the first token in the noun group
   end: number;   // Index of the last token in the noun group
@@ -640,6 +640,11 @@ function resolveCoreferences(nounGroups: Array<NounGroup>): Array<NounGroup>  {
 
   // Heuristic: Find the closest antecedent, set that as the noun group reference
   for (let png of pronounGroups) {
+    // If the png already has a reference, we don't need to find one.
+    // This will come in handy when the user specifies this with autocomplete    
+    if (png.refersTo != undefined) {
+      continue;
+    }
     let closestAntecedent = null;
     for (let ng of antecedents) {
       if(ng.begin >= png.end) {
@@ -656,7 +661,6 @@ function resolveCoreferences(nounGroups: Array<NounGroup>): Array<NounGroup>  {
 
   // Heuristic: joining singular nouns with "and" creates a plural antecedent
   // e.g. "The beetle and baby snake were thankful they escaped the lawnmower blade."
-  
   
   return nounGroups;
 }
@@ -697,8 +701,8 @@ function formTree(tokens: Array<Token>): any {
   // Get unused tokens
   let unusedTokens = findAll(tokens,(token: Token) => { return token.used === false; });
   
-  //console.log(nounGroupArrayToString(nounGroups));
-  //console.log(tokenArrayToString(unusedTokens));
+  console.log(nounGroupArrayToString(nounGroups));
+  console.log(tokenArrayToString(unusedTokens));
   
   
   
@@ -793,9 +797,11 @@ function tokenArrayToString(tokens: Array<Token>): string {
 
 function nounGroupToString(nounGroup: NounGroup): string {
   let nouns = nounGroup.noun.map((noun: Token) => {return noun.normalizedWord;}).join(" ");
+  let refersTo: NounGroup = nounGroup.refersTo;
+  let reference = refersTo === undefined ? "" : " (" + refersTo.noun.map((noun:Token) => {return noun.normalizedWord;}).join(" ") + ")";
   let children = nounGroup.children.sort((childA: Token, childB: Token) => {return childA.ix - childB.ix;}).map((child: Token) => {return child.normalizedWord;}).join(" ");
   let propertiesString = `Properties:\n${nounGroup.isPlural ? `-plural\n` : ``}${nounGroup.isPossessive ? `-possessive\n` : ``}${nounGroup.isProper ? `-proper\n` : ``}${nounGroup.isQuantity ? `-quantity\n` : ``}${nounGroup.isReference ? `-reference\n` : ``}${nounGroup.isComparative ? `-comparative\n` : ``}${nounGroup.isSuperlative ? `-superlative\n` : ``}`;
-  let nounGroupString = `(${nounGroup.begin}-${nounGroup.end})\n${nouns}\n  ${children}\n\n${propertiesString}`;
+  let nounGroupString = `(${nounGroup.begin}-${nounGroup.end})\n${nouns}${reference}\n  ${children}\n\n${propertiesString}`;
   return nounGroupString;
 }
 
@@ -837,7 +843,7 @@ function findAll(array: Array<any>, condition: Function): Array<any> {
 
 let n = 1;
 let phrases = [
-  "When did Corey go out with his wife or his friends?",
+  "When did Corey go out with his wife or her friends?",
   //"What is the name of the longest river in the state that has the largest city in the United States of America?",
   /*"how often does chase have lunch with his wife or her friends",
   "people who are under 30 years old",
