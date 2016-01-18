@@ -183,8 +183,8 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
           token.isPlural = true;
         }
         if (token.POS === MinorPartsOfSpeech.CD ||
-            token.POS === MinorPartsOfSpeech.CD ||
-            token.POS === MinorPartsOfSpeech.CD) {
+            token.POS === MinorPartsOfSpeech.DA ||
+            token.POS === MinorPartsOfSpeech.NU) {
           token.isQuantity = true;     
         }
       }
@@ -632,11 +632,12 @@ function newNounGroup(token: Token): NounGroup {
 function formTree(tokens: Array<Token>): any {
   let nounGroups = formNounGroups(tokens);
   
+  
   // Get unused tokens
   let unusedTokens = findAll(tokens,(token: Token) => { return token.used === false; });
   
-  //console.log(nounGroupArrayToString(nounGroups));
-  //console.log(tokenArrayToString(unusedTokens));
+  console.log(nounGroupArrayToString(nounGroups));
+  console.log(tokenArrayToString(unusedTokens));
   
   
   
@@ -772,18 +773,17 @@ function findAll(array: Array<any>, condition: Function): Array<any> {
 
 // ----------------------------------------------------------------------------
 
-let n = 100;
+let n = 1;
 let phrases = [
-  "how often does chase have lunch with his wife or her friends",
-  
-  "return the authors, where the number of papers by each author in VLDB is more than the number of papers in ICDE",
-  "I want that bird to be really big",
+  "When did Corey marry his wife?",
+  //"What is the name of the longest river in the state that has the largest city in the United States of America?",
+  /*"how often does chase have lunch with his wife or her friends",
   "people who are under 30 years old",
   "people who are under 30 pounds",
   "people who are under 30",
   "people whose age < Chris Granger's",
   "people whose age < Chris Granger's age",
-  "people whose age is less than Chris Granger's age",
+  "people whose age is less than Chris Granger's",
   "people who are younger than Chris Granger",
   "people older than Corey Montella's spouse",
   "people older than their spouse",
@@ -845,7 +845,7 @@ let phrases = [
   "People older than Corey Montella",
   "How many 4 star restaurants are in San Francisco?",
   "What is the average elevation of the highest points in each state?",
-  "What is the name of the longest river in the state that has the largest city in the United States of America?"
+  "What is the name of the longest river in the state that has the largest city in the United States of America?"*/
 ];
 console.log(`Running ${phrases.length} tests...`);
 phrases.map((phrase) => {parseTest(phrase,n)});
