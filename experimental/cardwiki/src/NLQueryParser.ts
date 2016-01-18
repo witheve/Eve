@@ -636,30 +636,27 @@ function resolveCoreferences(nounGroups: Array<NounGroup>): Array<NounGroup>  {
 
   // Get all the pronouns
   let pronounGroups: Array<NounGroup> = findAll(nounGroups,(ng: NounGroup) => {return ng.isReference;});
+  let antecedents: Array<NounGroup> = findAll(nounGroups,(ng: NounGroup) => {return ng.isReference === false;});
 
-  // Find the closest noungroup to the left of each pronoun, set that as the noun group reference
+  // Heuristic: Find the closest antecedent, set that as the noun group reference
   for (let png of pronounGroups) {
-    for (let ng of nounGroups) {
-      console.log(nounGroupToString(ng));
-      console.log(nounGroupToString(png));  
-      console.log("-------------------");
+    let closestAntecedent = null;
+    for (let ng of antecedents) {
       if(ng.begin >= png.end) {
         break;
       }
+      // Heuristic: possessive nouns are never antecedents
+      if (ng.isPossessive) {
+        continue;
+      }
+      closestAntecedent = ng;
     }
-    console.log("==========================");
+    png.refersTo = closestAntecedent;
   }
-  
 
-
-  // Heuristic: pronouns refer to the closest preceeding non-possessive antecendent,
-  // keeping in mind agreement between the cardinality of the noun group and the pronoun
-  // i.e. "they" is plural, so it should match with a plural noun group
+  // Heuristic: joining singular nouns with "and" creates a plural antecedent
+  // e.g. "The beetle and baby snake were thankful they escaped the lawnmower blade."
   
-  
-  
-  // Heuristic: joining singular nouns with and creates a plural antecedent
-  // e.g. "The beetle and baby snake were thankful they escaped the lawnmower blade.""
   
   return nounGroups;
 }
