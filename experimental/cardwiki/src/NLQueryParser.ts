@@ -606,22 +606,61 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
   // Remove the superfluous noun groups
   nounGroups = findAll(nounGroups,(ng: NounGroup) => { return ng.subsumed === false});
   
-  // Third-person personal pronouns  
-  let personalPronouns = ["he","him","his","himself",
-                          "she","her","hers","herself",
-                          "it","its","itself",
-                          "they","them","their","theirs","themselves"];
-  
-  // Heuristic: pronouns refer to the closest preceeding non-possessive antecendent,
-  // keeping in mind agreement between the cardinality of the noun group and the pronoun
-  // i.e. "they" is plural, so it shoul match with a plural noun group
-  // e.g. 1 "When did Corey go out with his wife and her friends?"
-  // e.g. 2 "When did Corey go out with his brother and his friends?"
-  // In the first sentence, it is clear "his" refers to Corey and "her" refers to wife.
-  // In the second sentence, it is not clear who the second "his" refers to: Corey or his brother? 
+  // Resolve pronoun coreferences
+  nounGroups = resolveCoreferences(nounGroups);
   
   // Sort the noun groups to reflect their order in the root sentence
   nounGroups = nounGroups.sort((ngA: NounGroup, ngB: NounGroup) => {return ngA.begin - ngB.begin;});
+  return nounGroups;
+}
+
+
+function resolveCoreferences(nounGroups: Array<NounGroup>): Array<NounGroup>  {
+  
+  // Define some pronouns  
+  let thirdPersonPersonal = ["he","him","his","himself",
+                             "she","her","hers","herself",
+                             "it","its","itself",
+                             "they","them","their","theirs","themselves"];
+                          
+  let demonstrative= ["this","that","these","those"];
+  
+  let relative = ["who","whom","whose","that","which"];
+  
+  // Attach to a singular antecedent
+  let singularIndefinite = ["each","either","neither",
+                            "anybody","anyone","anything",
+                            "everybody","everyone","everything",
+                            "nobody","no one","nothing",
+                            "somebody","someone","something"];
+
+  // Get all the pronouns
+  let pronounGroups: Array<NounGroup> = findAll(nounGroups,(ng: NounGroup) => {return ng.isReference;});
+
+  // Find the closest noungroup to the left of each pronoun, set that as the noun group reference
+  for (let png of pronounGroups) {
+    for (let ng of nounGroups) {
+      console.log(nounGroupToString(ng));
+      console.log(nounGroupToString(png));  
+      console.log("-------------------");
+      if(ng.begin >= png.end) {
+        break;
+      }
+    }
+    console.log("==========================");
+  }
+  
+
+
+  // Heuristic: pronouns refer to the closest preceeding non-possessive antecendent,
+  // keeping in mind agreement between the cardinality of the noun group and the pronoun
+  // i.e. "they" is plural, so it should match with a plural noun group
+  
+  
+  
+  // Heuristic: joining singular nouns with and creates a plural antecedent
+  // e.g. "The beetle and baby snake were thankful they escaped the lawnmower blade.""
+  
   return nounGroups;
 }
 
@@ -661,8 +700,8 @@ function formTree(tokens: Array<Token>): any {
   // Get unused tokens
   let unusedTokens = findAll(tokens,(token: Token) => { return token.used === false; });
   
-  console.log(nounGroupArrayToString(nounGroups));
-  console.log(tokenArrayToString(unusedTokens));
+  //console.log(nounGroupArrayToString(nounGroups));
+  //console.log(tokenArrayToString(unusedTokens));
   
   
   
@@ -759,7 +798,7 @@ function nounGroupToString(nounGroup: NounGroup): string {
   let nouns = nounGroup.noun.map((noun: Token) => {return noun.normalizedWord;}).join(" ");
   let children = nounGroup.children.sort((childA: Token, childB: Token) => {return childA.ix - childB.ix;}).map((child: Token) => {return child.normalizedWord;}).join(" ");
   let propertiesString = `Properties:\n${nounGroup.isPlural ? `-plural\n` : ``}${nounGroup.isPossessive ? `-possessive\n` : ``}${nounGroup.isProper ? `-proper\n` : ``}${nounGroup.isQuantity ? `-quantity\n` : ``}${nounGroup.isReference ? `-reference\n` : ``}${nounGroup.isComparative ? `-comparative\n` : ``}${nounGroup.isSuperlative ? `-superlative\n` : ``}`;
-  let nounGroupString = `${nouns}\n  ${children}\n\n${propertiesString}`;
+  let nounGroupString = `(${nounGroup.begin}-${nounGroup.end})\n${nouns}\n  ${children}\n\n${propertiesString}`;
   return nounGroupString;
 }
 
