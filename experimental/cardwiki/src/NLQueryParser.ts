@@ -142,6 +142,7 @@ interface Token {
   isProper?: boolean;
   isPlural?: boolean;
   isQuantity?: boolean;
+  isReference?: boolean;
   // Attributes for adjectives and adverbs
   isComparative?: boolean;
   isSuperlative?: boolean;
@@ -169,6 +170,8 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
         token.isPossessive = false;
         token.isPlural = false;
         token.isProper = false;
+        token.isQuantity = false;
+        token.isReference = false;
         if (token.POS === MinorPartsOfSpeech.NNO || 
             token.POS === MinorPartsOfSpeech.PP) {
          token.isPossessive = true;
@@ -186,6 +189,10 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
             token.POS === MinorPartsOfSpeech.DA ||
             token.POS === MinorPartsOfSpeech.NU) {
           token.isQuantity = true;     
+        }
+        if (token.POS === MinorPartsOfSpeech.PP ||
+            token.POS === MinorPartsOfSpeech.PRP) {
+          token.isReference = true;
         }
       }
       
@@ -419,6 +426,7 @@ interface Tree {
 
 interface NounGroup {
   noun: Array<Token>;
+  refersTo?: NounGroup,
   children: Array<Token>;
   begin: number; // Index of the first token in the noun group
   end: number;   // Index of the last token in the noun group
@@ -428,6 +436,7 @@ interface NounGroup {
   isQuantity: boolean;
   isComparative: boolean;
   isSuperlative: boolean;
+  isReference: boolean;
   subsumed: boolean;
 }
 
@@ -596,6 +605,21 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
   
   // Remove the superfluous noun groups
   nounGroups = findAll(nounGroups,(ng: NounGroup) => { return ng.subsumed === false});
+  
+  // Third-person personal pronouns  
+  let personalPronouns = ["he","him","his","himself",
+                          "she","her","hers","herself",
+                          "it","its","itself",
+                          "they","them","their","theirs","themselves"];
+  
+  // Heuristic: pronouns refer to the closest preceeding non-possessive antecendent,
+  // keeping in mind agreement between the cardinality of the noun group and the pronoun
+  // i.e. "they" is plural, so it shoul match with a plural noun group
+  // e.g. 1 "When did Corey go out with his wife and her friends?"
+  // e.g. 2 "When did Corey go out with his brother and his friends?"
+  // In the first sentence, it is clear "his" refers to Corey and "her" refers to wife.
+  // In the second sentence, it is not clear who the second "his" refers to: Corey or his brother? 
+  
   // Sort the noun groups to reflect their order in the root sentence
   nounGroups = nounGroups.sort((ngA: NounGroup, ngB: NounGroup) => {return ngA.begin - ngB.begin;});
   return nounGroups;
@@ -615,14 +639,15 @@ function addChildToNounGroup(nounGroup: NounGroup, token: Token) {
 
 function newNounGroup(token: Token): NounGroup {
   return {
-    noun: [token], 
-    children: [], 
-    begin: token.ix, 
-    end: token.ix, 
+    noun: [token],
+    children: [],
+    begin: token.ix,
+    end: token.ix,
     isPlural: token.isPlural === undefined ? false : token.isPlural, 
     isPossessive: token.isPossessive === undefined ? false : token.isPossessive,
     isProper: token.isProper === undefined ? false : token.isProper,
     isQuantity: token.isQuantity === undefined ? false : token.isQuantity,
+    isReference: token.isReference === undefined ? false : token.isReference,
     isComparative: token.isComparative === undefined ? false : token.isComparative,
     isSuperlative: token.isSuperlative === undefined ? false : token.isSuperlative,
     subsumed: false
@@ -718,9 +743,10 @@ function tokenToString(token: Token): string {
   let isPossessive = token.isPossessive === undefined ? "" : token.isPossessive === true ? "possessive ": "";
   let isProper = token.isProper === undefined ? "" : token.isProper === true ? "proper ": "";
   let isPlural = token.isPlural === undefined ? "" : token.isPlural === true ? "plural ": "";
+  let isReference = token.isReference === undefined ? "" : token.isReference === true ? "reference ": "";
   let isComparative = token.isComparative === undefined ? "" : token.isComparative === true ? "comparative ": "";
   let isSuperlative = token.isSuperlative === undefined ? "" : token.isSuperlative === true ? "superlative ": "";
-  let tokenString = `${token.ix}.: ${token.originalWord} | ${token.normalizedWord} | ${MajorPartsOfSpeech[getMajorPOS(token.POS)]} | ${MinorPartsOfSpeech[token.POS]} | ${isPossessive}${isProper}${isPlural}${isComparative}${isSuperlative}` ;
+  let tokenString = `${token.ix}.: ${token.originalWord} | ${token.normalizedWord} | ${MajorPartsOfSpeech[getMajorPOS(token.POS)]} | ${MinorPartsOfSpeech[token.POS]} | ${isPossessive}${isProper}${isPlural}${isReference}${isComparative}${isSuperlative}` ;
   return tokenString;
 }
 
@@ -732,7 +758,7 @@ function tokenArrayToString(tokens: Array<Token>): string {
 function nounGroupToString(nounGroup: NounGroup): string {
   let nouns = nounGroup.noun.map((noun: Token) => {return noun.normalizedWord;}).join(" ");
   let children = nounGroup.children.sort((childA: Token, childB: Token) => {return childA.ix - childB.ix;}).map((child: Token) => {return child.normalizedWord;}).join(" ");
-  let propertiesString = `Properties:\n${nounGroup.isPlural ? `-plural\n` : ``}${nounGroup.isPossessive ? `-possessive\n` : ``}${nounGroup.isProper ? `-proper\n` : ``}${nounGroup.isQuantity ? `-quantity\n` : ``}${nounGroup.isComparative ? `-comparative\n` : ``}${nounGroup.isSuperlative ? `-superlative\n` : ``}`;
+  let propertiesString = `Properties:\n${nounGroup.isPlural ? `-plural\n` : ``}${nounGroup.isPossessive ? `-possessive\n` : ``}${nounGroup.isProper ? `-proper\n` : ``}${nounGroup.isQuantity ? `-quantity\n` : ``}${nounGroup.isReference ? `-reference\n` : ``}${nounGroup.isComparative ? `-comparative\n` : ``}${nounGroup.isSuperlative ? `-superlative\n` : ``}`;
   let nounGroupString = `${nouns}\n  ${children}\n\n${propertiesString}`;
   return nounGroupString;
 }
@@ -775,7 +801,7 @@ function findAll(array: Array<any>, condition: Function): Array<any> {
 
 let n = 1;
 let phrases = [
-  "When did Corey marry his wife?",
+  "When did Corey go out with his wife or his friends?",
   //"What is the name of the longest river in the state that has the largest city in the United States of America?",
   /*"how often does chase have lunch with his wife or her friends",
   "people who are under 30 years old",
