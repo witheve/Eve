@@ -620,7 +620,7 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
   nounGroups = findAll(nounGroups,(ng: NounGroup) => { return ng.subsumed === false});
   
   // Resolve pronoun coreferences
-  nounGroups = resolveCoreferences(nounGroups);
+  nounGroups = resolveReferences(nounGroups);
   
   // Sort the noun groups to reflect their order in the root sentence
   nounGroups = nounGroups.sort((ngA: NounGroup, ngB: NounGroup) => {return ngA.begin - ngB.begin;});
@@ -628,7 +628,7 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
 }
 
 
-function resolveCoreferences(nounGroups: Array<NounGroup>): Array<NounGroup>  {
+function resolveReferences(nounGroups: Array<NounGroup>): Array<NounGroup>  {
   
   // Define some pronouns
   let firstPersonPersonal: any = ["I","my","mine","myself"]
@@ -651,7 +651,7 @@ function resolveCoreferences(nounGroups: Array<NounGroup>): Array<NounGroup>  {
 
   // Get all the non personal pronouns
   let pronounGroups: Array<NounGroup> = findAll(nounGroups,(ng: NounGroup) => {
-    let isPersonal = intersect(firstPersonPersonal,ng.noun.map((token:Token)=>{return token.normalizedWord}));
+    let isPersonal = intersect(firstPersonPersonal,ng.noun.map((token:Token)=>{return token.normalizedWord})).length > 0;
     return (ng.isReference && !isPersonal);
   });
   let antecedents: Array<NounGroup> = findAll(nounGroups,(ng: NounGroup) => {return ng.isReference === false;});
@@ -875,6 +875,7 @@ function intersect(arr1: Array<any>, arr2: Array<any>): Array<any> {
 
 let n = 1;
 let phrases = [
+  "Did the groundhog see its shadow?",
   "When did Corey go out with his wife or her friends?",
   /*
   "What is the name of the longest river in the state that has the largest city in the United States of America?",
