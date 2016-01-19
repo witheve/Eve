@@ -6,8 +6,8 @@ declare var nlp;
 export function parse(preTokens: Array<PreToken>) {
   
   let tokens = formTokens(preTokens);
-  let tree = [];//formTree(tokens);
-  let ast = [];//formDSL(tree);
+  let tree = formTree(tokens);
+  let ast = formDSL(tree);
       
   return {tokens: tokens, tree: tree, ast: ast};
 }
@@ -253,6 +253,9 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
         case "had":
           token.POS = MinorPartsOfSpeech.VBD;
           break;
+        case "has":
+          token.POS = MinorPartsOfSpeech.VBZ;
+          break;
         case "is": 
           token.POS = MinorPartsOfSpeech.VBZ;
           break;
@@ -261,6 +264,17 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
           break;
         case "was":
           token.POS = MinorPartsOfSpeech.VBD;
+          break;
+        case "do":
+          token.POS = MinorPartsOfSpeech.VBP;
+          break;
+        case "most":
+          token.POS = MinorPartsOfSpeech.JJS;
+          token.isSuperlative = true;
+          break;
+        case "best":
+          token.POS = MinorPartsOfSpeech.JJS;
+          token.isSuperlative = true;
           break;
         case "will":
           // will can be a noun
@@ -404,8 +418,9 @@ function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech 
 
 // Wrap pluralize to special case certain words it gets wrong
 function singularize(word: string): string {
-  if (word === "his" || 
-      word === "united states") {
+  let specialCases = ["his","has","downstairs","united states","its"];
+  let isSpecial = intersect([word],specialCases).length > 0;
+  if (isSpecial) {
       return word;  
   } else { 
     return pluralize(word, 1);
@@ -937,13 +952,13 @@ let phrases = [
 
 
 let siriphrases = [
-  
-  //"Find videos I took at Iva's birthday party",
+  "Find videos I took at Iva's birthday party",
   "Find pics from my trip to Aspen in 2014",
+  "Find a table for four people tonight in Chicago",
   "Find a table for four tonight in Chicago",
   "How is the weather tomorrow?",
   "Wake me up at 7AM tomorrow",
-  /*"Move my 2PM meeting to 2:30",
+  "Move my 2PM meeting to 2:30",
   "Do I have any new texts from Rick?",
   "Show my selfies from New Year's Eve",
   "Call Dad at work",
@@ -953,7 +968,7 @@ let siriphrases = [
   "What is trending on Twitter?",
   "Call back my last missed call.",
   "Where is Brian?",
-  "Find tweets with teh hashtag BayBridge",
+  "Find tweets with the hashtag BayBridge",
   "Read my last message from Andrew",
   "Do I have any new voicemail?",
   "FaceTime Sarah",
@@ -963,11 +978,11 @@ let siriphrases = [
   "Get my call history",
   "Mark the third one complete",
   "Add Greg to my 2:30 meeting on Thursday",
-  "Remind me about this email Friday at noon",
-  "Create a new list called Groceries",
-  "Where is my neext meeting?",
-  "Set an alarm for 9 AM every Friday",
-  "Cancel my meetings on Friday",
+  "Remind me about this email Friday at noon", // noon should be a quantity
+  "Create a new list called Groceries", // why isn't a|DT includeded in "a new list"
+  "Where is my next meeting?", // How can we make meeting a noun?
+  "Set an alarm for 9 AM every Friday", // AM needs to be special cased to attach to 9
+  "Cancel my meetings on Friday", // Cancel needs to be a verb
   "Turn off all my alarms",
   "Add brussels sprouts to my grocery list",
   "Remind me to pay Noah back tomorrow morning",
@@ -975,24 +990,24 @@ let siriphrases = [
   "When is the next Mavericks home game?",
   "Who is the quarterback for Dallas?",
   "Who has the most RBIs",
-  "Who whon the NBA finals?",
+  "Who won the NBA finals?",
   "Where is Wrigley Field?",
   "How many regular-season games does each NBA team play?",
   "When is the LA Galaxy's next home game?",
-  "Who do the Chicago Cubs play on September 21?",
+  "Who do the Chicago Cubs play on September 21?", // 21 needs to merge with September
   "When does the football season start?",
   "What hockey teams play today?",
   "Did the Chicago cubs win on Thursday?",
   // Entertainment
-  "Play Ryn Weaver's album",
+  "Play Third Eye Blind's new album",
   "Play more like this",
-  "Play the number one song right now",
-  "What song is playing right now?",
+  "Play the number one song right now", // Needs help with noun grouping tag accuracy
+  "What song is playing right now?", // right now is problematic
   "What movies are playing today?",
-  "Where is Unbroken playing around here?",
+  "Where is Unbroken playing around here?", // playing around here is problematic
   "I like this song",
   "What are some PG movies playing this afternoon",
-  "Who sings this?",
+  "Who sings this?", // tags are all wrong, heuristics don't help it
   "I want to hear the live version of this song",
   "Play only songs by Nicki Minaj",
   "What won best picture in 2000?",
@@ -1000,16 +1015,15 @@ let siriphrases = [
   "Who directed A Perfect World?",
   "Do people like The Theory of Everything?",
   // Out and about (aka Foursquare queries)
-  "Where is a good Indian place around here?",
+  "Where is a good Indian place around here?", // "place around here" is tagged wrong, heuristics don't help
   "I am running low on gas",
-  "Where do you live?",
   "What time does Whole Foods close?",
-  "Guve me public transit direction to the De Young Museum",
-  "Where is a good inexpensive place to eat around here?",
+  "Give me public transit direction to the De Young Museum", // Public is tagged a verb
+  "Where is a good inexpensive place to eat around here?", // "To eat aroung here" is not recognized
   "Make a reservation at a romantic restaurant tonight at 7PM",
-  "Find a happy hour nearby",
+  "Find a happy hour nearby", // nearby should be an adverb?
   "Find coffee near me",
-  "What planes are flying above me?",
+  "What planes are flying above me?", // Tags are all wrong: planes is a verb, flying is an adverb
   "I need some aspirin",
   "How are the reviews for Long Bridge Pizza in San Francisco?",
   "Where is a good hair salon?",
@@ -1017,45 +1031,44 @@ let siriphrases = [
   "I need a good electrician",
   "Where am I?",
   "What is my ETA?",
-  "Find a table for four in Chicago",
   // Homekit
   "Turn the lights blue",
-  "Turn off the radio",
-  "Turn off the printer in the office",
-  "Lock the front door",
+  "Turn off the radio", // "off" should be a particle
+  "Turn off the printer in the office", // "off" should be a particle
+  "Lock the front door", // front is classified a noun, should be an adhective
   "Set the brightness of the downstairs lights to 50%",
-  "Set the Tahoe house to 72 degrees",
-  "Turn off Chloe's light",
-  "Turn the living room lights all the way up",
+  "Set the Tahoe house to 72 degrees", // house is a verb
+  "Turn off Chloe's light", // "off" should be a particle 
+  "Turn the living room lights all the way up", // lights is a verb
   "Turn on the bathroom heater",
   // Getting answers
-  "Do I need an umbress today?",
+  "Do I need an umbrella today?",
   "How is the Nikkei doing?",
   "When is daylight saving time?",
-  "What is the definition of pragmatic?",
+  "What is the definition of pragmatic?", // "pragmatic is an adjective"
   "What's the latest in San Francisco?",
   "Did the groundhog see its shadow?",
-  "When is sunset in Paris",
+  "When is sunset in Paris", // sunset should be a noun
   "What is the population of Jamaica?",
   "What is the square root of 128?",
-  "What is 40 degrees Farenheit in Celsius",
-  "What is the temperature outside?",
+  "What is 40 degrees Farenheit in Celsius", // Here is an example where the proper noun combining heuristic fails
+  "What is the temperature outside?", // outside is a preposition
   "What time is it in Berlin",
-  "When was Abraham Lincoln born?",
+  "When was Abraham Lincoln born?", // This will get Abraham Lincoln, but we need to use "when" and "born" to figure out a date is expected
   "Show me the Orion constellation",
-  "What's the high for Anchorage on Thursday?",
+  "What's the high for Anchorage on Thursday?", // This breaks noun combining heuristic 
   "How many dollars is 45 Euros",
   "What day is it?",
   "How many calories in a bagel?",
   "What is Apple's P/E ratio?",
   "Compare AAPL and NASDAQ",
-  "How humid is it in New York right now",
+  "How humid is it in New York right now", // Heuristics mess up tagging, "is" is a noun in order to use "humid" as an adjective
   "What's an 18% tip on $85?",
   "What is the UV index outside?",
   "How many cups in a liter",
-  "Is it going to snow next week?",*/
+  "Is it going to snow next week?",
   ];
 
 console.log(`Running ${phrases.length} tests...`);
-//phrases.map((phrase) => {parseTest(phrase,n)});
-siriphrases.map((phrase) => {parseTest(phrase,n)});
+phrases.map((phrase) => {parseTest(phrase,n)});
+//siriphrases.map((phrase) => {parseTest(phrase,n)});
