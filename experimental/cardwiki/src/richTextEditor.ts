@@ -252,7 +252,7 @@ export function createEditor(getEmbed: (meta: any, query: string) => Element,
   removeInline: (meta: any, query: string) => void) {
   return function wrapRichTextEditor(node, elem) {
     let editor = node.editor;
-    let cm;
+    let cm:CodeMirror.Editor;
     if (!editor) {
       editor = node.editor = new RichTextEditor(node, getEmbed, getInline, removeInline);
       cm = node.editor.cmInstance;
@@ -262,9 +262,11 @@ export function createEditor(getEmbed: (meta: any, query: string) => Element,
     }
     editor.onUpdate = elem.change;
     editor.meta = elem.meta || editor.meta;
-    if (cm.getValue() !== elem.value) {
-      cm.setValue(elem.value || "");
-      cm.clearHistory();
+    let doc = cm.getDoc();
+    if (doc.getValue() !== elem.value) {
+      doc.setValue(elem.value || "");
+      doc.clearHistory();
+      doc.setCursor({line: 1, ch: 0});
     }
     cm.refresh();
   }

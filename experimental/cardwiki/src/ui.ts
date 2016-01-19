@@ -63,6 +63,16 @@ appHandle("update page", (changes:Diff, {page, content}: {page: string, content:
     changes.remove("page content", {page});
     changes.add("page content", {page, content});
 });
+appHandle("create entity", (changes:Diff, {entity, page, name = "Untitled"}) => {
+  changes
+    .add("entity page", {entity, page})
+    .add("display name", {id: entity, name});
+  
+});
+appHandle("create page", (changes:Diff, {page, content = undefined}: {page: string, content?:string}) => {
+  if(content === undefined) content = "This page is empty. Type something to add some content!";
+  changes.add("page content", {page, content});
+});
 
 //---------------------------------------------------------
 // Wiki Containers
@@ -109,14 +119,28 @@ export function pane(paneId:string):Element {
   let {c:klass, header, footer} = makeChrome(paneId, contains);
   let content;
   let display = eve.findOne("display name", {name: contains}) || eve.findOne("display name", {id: contains});
-  if(display) content = entity(display.id, paneId);
+  
+  if(contains.indexOf("search: ") === 0) content = search(contains.substring("search: ".length), paneId);
+  else if(display) content = entity(display.id, paneId);
   else if(activeSearches[contains] && activeSearches[contains].plan.length > 1) content = search(contains, paneId);
-  else content = {text: "No results found..."}; // @ TODO: Editor to create new entity
+  else content = {c: "flex-row spaced-row", children: [
+    {t: "span", text: `The page ${contains} does not exist. Would you like to`},
+    {t: "a", c: "link btn add-btn", text: "create it?", href: "#", name: contains, paneId, click: createPage }
+  ]};
 
   return {c: `wiki-pane ${klass || ""}`, children: [header, content, footer]};
 }
+function createPage(evt:Event, elem:Element) {
+  let name = elem["name"];
+  let entity = uuid();
+  let page = uuid();
+  dispatch("create page", {page, content: `# ${name}\n`})
+    .dispatch("create entity", {entity, page, name})
+    .dispatch("ui set search", {paneId: elem["paneId"], value: name}).commit();
+}
 
 export function search(search:string, paneId:string):Element {
+  if(!activeSearches[search]) activeSearches[search] = queryToExecutable(search);
   let {tokens, plan, executable} = activeSearches[search];
   // figure out what the headers are
   let headers = [];
@@ -184,7 +208,14 @@ export function search(search:string, paneId:string):Element {
   }
   // @TODO: Without this ID, a bug occurs when reusing elements that injects a text node containing "undefined" after certain scenarios.
   groups.unshift({t: "header", id: `${paneId}|header`, c: "flex-row", children: headers});
-  return {t: "content", c: "wiki-search", key: JSON.stringify(results.unprojected), children: [{id: `${paneId}|table`, c: "results table", children: groups}], /*postRender: sizeColumns*/ };
+  return {t: "content", c: "wiki-search", key: JSON.stringify(results.unprojected), children: [
+    {id: "search-disambiguation", c: "flex-row spaced-row disambiguation", children: [
+      {text: "Did you mean to"},
+      {t: "a", c: "link btn add-btn", text: "create a new page", href: "#", name: search, paneId, click: createPage},
+      {text: "with this name?"}
+    ]},
+    {id: `${paneId}|table`, c: "results table", children: groups}
+  ], /*postRender: sizeColumns*/ };
 }
 function sizeColumns(node:HTMLElement, elem:Element) {
   // @FIXME: Horrible hack to get around randomly added "undefined" text node that's coming from in microreact.
@@ -359,11 +390,16 @@ var wikiEditor = createEditor(getEmbed, getInline, removeInline);
 export function entity(entityId:string, paneId:string):Element {
   let content = eve.findOne("entity", {entity: entityId})["content"];
   let page = eve.findOne("entity page", {entity: entityId})["page"];
-  // @TODO: Move these into blocks
-//   if(eve.findOne("collection", {collection: entityId})) blocks.push({id: `${paneId}|index`, c: "wiki-block", children: [index({collectionId: entityId, data: {paneId}, click: navigate})]});
-//   blocks.push({id: `${paneId}|related`, c: "wiki-block", children: [related({entityId, data: {paneId}, click: navigate})]});
+  let {name} = eve.findOne("display name", {id: entityId});
   return {t: "content", c: "wiki-entity", children: [
-      {c: "wiki-editor", postRender: wikiEditor, change: updatePage, meta: {entity: entityId, page, paneId}, value: content}
+    /* This is disabled because searching for just the name of a single entity resolves to a single find step which blows up on query compilation
+    {c: "flex-row spaced-row disambiguation", children: [
+      {text: "Did you mean to"},
+      {t: "a", c: "link btn add-btn", text: `search for '${name}'`, href: "#", name: search, data: {paneId}, link: `search: ${name}`, click: navigate},
+      {text: "instead?"}
+    ]},
+    */
+    {c: "wiki-editor", postRender: wikiEditor, change: updatePage, meta: {entity: entityId, page, paneId}, value: content}
   ]};
 }
 
@@ -481,9 +517,9 @@ function codeMirrorPostRender(postRender?:RenderHandler):RenderHandler {
 
 let _reps:{[rep:string]: {embed: (results:{}[], params:{paneId?:string}) => any, represent: (params:any) => Element}} = {
   name: {
-    embed(results, params:{field?:string}) {
+    embed(results, params:{field?:string, data?:{}}) {
       let entityId = results[0][params.field || "entity"];
-      return {id: entityId, data: params};
+      return {id: entityId, data: params.data};
     },
     represent({id, data, t = undefined}) {
       let {name = id} = eve.findOne("display name", {id}) || {};
@@ -492,7 +528,7 @@ let _reps:{[rep:string]: {embed: (results:{}[], params:{paneId?:string}) => any,
     }
   },
   value: {
-    embed(results, params:{field:string, type?:string}) {
+    embed(results, params:{field:string, type?:string, data?:{}}) {
       if(!params.field) throw new Error("Value representation requires a 'field' param indicating which field to represent");
       let field = params.field;
       // If field isn't in results, try to resolve it as a field name, otherwise error out
@@ -514,7 +550,7 @@ let _reps:{[rep:string]: {embed: (results:{}[], params:{paneId?:string}) => any,
         
       let values = [];
       for(let row of results) values.push(row[field]);
-      return {values, type: params.type || "inline", data: params};
+      return {values, type: params.type || "inline", data: params.data};
     },
     represent({values, type = "inline", data}:{values:any[], type:string, data:{}}) {
       let children = [];
@@ -527,9 +563,9 @@ let _reps:{[rep:string]: {embed: (results:{}[], params:{paneId?:string}) => any,
     }
   },
   related: {
-    embed(results, params:{}) {
+    embed(results, params:{data?:{}}) {
       let entityId = results[0]["entity"];
-      return {entityId, data: params};
+      return {entityId, data: params.data};
     },
     represent({entityId, data}) {
       let {name = entityId} = eve.findOne("display name", {id: entityId}) || {};
@@ -539,7 +575,7 @@ let _reps:{[rep:string]: {embed: (results:{}[], params:{paneId?:string}) => any,
       if(relations.length) {
         return {c: "flex-row flex-wrap csv", children: [
           {t: "h2", text: `${name} is related to:`},
-          _reps["value"].represent({values: relations})
+          _reps["value"].represent({values: relations, data})
         ]};
       }
       return {text: `${name} is not related to any other entities.`};
@@ -566,6 +602,7 @@ function represent(rep:string, results, params:{}):Element {
   //console.log("repping:", results, " as", rep, " with params ", params);
   if(rep in _reps) {
     let embedParams = _reps[rep].embed(results.results, <any>params);
+    embedParams["data"] = embedParams["data"] = params;
     return _reps[rep].represent(embedParams);
   }
 }
