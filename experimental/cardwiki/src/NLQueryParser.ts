@@ -31,12 +31,16 @@ function parseTest(queryString: string, n: number) {
   let maxTime = 0;
   let minTime;
   
-  let wordsnTags = preprocessQueryString(queryString)
+  let preTags = preprocessQueryString(queryString)
+  let pretagsToString = preTags.map((pt) => {return `(${pt.text}|${pt.tag})`}).join("");
+  
+  console.log(queryString);
+  console.log(pretagsToString);
   
   // Parse string and measure how long it takes
   for (let i = 0; i < n; i++) {
     let start = performance.now();
-    parseResult = parse(wordsnTags);
+    parseResult = parse(preTags);
     let stop = performance.now();
     avgTime += stop-start;
     if (stop-start > maxTime) {
@@ -51,8 +55,7 @@ function parseTest(queryString: string, n: number) {
   }
   // Display result
   let tokenStrings = tokenArrayToString(parseResult.tokens);
-  let timingDisplay = `Timing (avg, max, min): ${(avgTime/n).toFixed(2)} | ${maxTime.toFixed(2)} | ${minTime.toFixed(2)} `;
-  console.log(queryString);
+  let timingDisplay = `Timing (avg, max, min): ${(avgTime/n).toFixed(2)} | ${maxTime.toFixed(2)} | ${minTime.toFixed(2)} `;  
   console.log(tokenStrings);
   console.log(timingDisplay);
   console.log("==============================================================");
@@ -945,9 +948,8 @@ let siriphrases = [
   
   //"Find videos I took at Iva's birthday party",
   "Find pics from my trip to Aspen in 2014",
-  /*
   "Find a table for four tonight in Chicago",
-  "How's the weather tomorrow?",
+  "How is the weather tomorrow?",
   "Wake me up at 7AM tomorrow",
   "Move my 2PM meeting to 2:30",
   "Do I have any new texts from Rick?",
@@ -996,9 +998,7 @@ let siriphrases = [
   "What song is playing right now?",
   "What movies are playing today?",
   "Where is Unbroken playing around here?",
-  
   "I like this song",
-  
   "What are some PG movies playing this afternoon",
   "Who sings this?",
   "I want to hear the live version of this song",
@@ -1061,7 +1061,7 @@ let siriphrases = [
   "What's an 18% tip on $85?",
   "What is the UV index outside?",
   "How many cups in a liter",
-  "Is it going to snow next week?",*/
+  "Is it going to snow next week?",
   ];
 
 console.log(`Running ${phrases.length} tests...`);
