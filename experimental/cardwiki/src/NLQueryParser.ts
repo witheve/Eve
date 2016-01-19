@@ -656,7 +656,9 @@ function resolveCoreferences(nounGroups: Array<NounGroup>): Array<NounGroup>  {
       }
       closestAntecedent = ng;
     }
-    png.refersTo = closestAntecedent;
+    if (closestAntecedent != null)  {
+      png.refersTo = closestAntecedent;  
+    }
   }
 
   // Heuristic: joining singular nouns with "and" creates a plural antecedent
@@ -844,6 +846,7 @@ function findAll(array: Array<any>, condition: Function): Array<any> {
 let n = 1;
 let phrases = [
   "When did Corey go out with his wife or her friends?",
+  /*
   "What is the name of the longest river in the state that has the largest city in the United States of America?",
   "how often does chase have lunch with his wife or her friends",
   "people who are under 30 years old",
@@ -914,10 +917,12 @@ let phrases = [
   "How many 4 star restaurants are in San Francisco?",
   "What is the average elevation of the highest points in each state?",
   "What is the name of the longest river in the state that has the largest city in the United States of America?"
+  */
 ];
 
 
 let siriphrases = [
+  /*
   "Find videos I took at Iva's birthday party",
   "Find pics from my trip to Aspen in 2014",
   "Find a table for four tonight in Chicago",
@@ -970,7 +975,9 @@ let siriphrases = [
   "What song is playing right now?",
   "What movies are playing today?",
   "Where is Unbroken playing around here?",
+  */
   "I like this song",
+  /*
   "What are some PG movies playing this afternoon",
   "Who sings this?",
   "I want to hear the live version of this song",
@@ -1033,8 +1040,9 @@ let siriphrases = [
   "What's an 18% tip on $85?",
   "What is the UV index outside?",
   "How many cups in a liter",
-  "Is it going to snow next week?",
+  "Is it going to snow next week?",*/
   ];
 
 console.log(`Running ${phrases.length} tests...`);
-phrases.map((phrase) => {parseTest(phrase,n)});
+//phrases.map((phrase) => {parseTest(phrase,n)});
+siriphrases.map((phrase) => {parseTest(phrase,n)});
