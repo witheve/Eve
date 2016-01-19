@@ -32,7 +32,7 @@ function parseTest(queryString: string, n: number) {
   let minTime;
   
   let preTags = preprocessQueryString(queryString)
-  let pretagsToString = preTags.map((pt) => {return `(${pt.text}|${pt.tag})`}).join("");
+  let pretagsToString = preTags.map((pt) => `(${pt.text}|${pt.tag})`).join("");
   
   console.log(queryString);
   console.log(pretagsToString);
@@ -534,7 +534,7 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
   
   // Heuristic: Now we have some noun groups. Are there any adjectives 
   // left over? Attach them to the closest noun group to the left
-  let unusedAdjectives = findAll(tokens,(token: Token) => { return token.used === false && getMajorPOS(token.POS) === MajorPartsOfSpeech.ADJECTIVE});
+  let unusedAdjectives = findAll(tokens,(token: Token) => token.used === false && getMajorPOS(token.POS) === MajorPartsOfSpeech.ADJECTIVE);
   for (let adj of unusedAdjectives) {
     // finds the closest noun group to the left
     let targetNG: NounGroup = null;
@@ -585,14 +585,15 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
   
   // Heuristic: Leftover determiners are themselves a noun group 
   // e.g. neither of these boys. ng = ([neither],[of these boys])
-  let unusedDeterminers = findAll(tokens, (token: Token) => {return token.used === false && token.POS === MinorPartsOfSpeech.DT});
+  let unusedDeterminers = findAll(tokens, (token: Token) => token.used === false && token.POS === MinorPartsOfSpeech.DT);
   for (let token of unusedDeterminers) {
     nounGroups.push(newNounGroup(token));  
     token.used = true;
   }
-  
+    
   // Heuristic: combine adjacent proper noun groups
-  let properNounGroups = findAll(nounGroups,(ng: NounGroup) => { return ng.isProper === true; });
+  /*
+  let properNounGroups = findAll(nounGroups,(ng: NounGroup) => ng.isProper === true);
   for (let i = 0; i < properNounGroups.length - 1; i++) {
     let thisNG: NounGroup = properNounGroups[i];
     let nextNG: NounGroup = properNounGroups[++i];    
@@ -614,16 +615,16 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
       }
     }
     i--;
-  }
+  }*/
   
   // Remove the superfluous noun groups
-  nounGroups = findAll(nounGroups,(ng: NounGroup) => { return ng.subsumed === false});
+  nounGroups = findAll(nounGroups,(ng: NounGroup) => ng.subsumed === false);
   
   // Resolve pronoun coreferences
   nounGroups = resolveReferences(nounGroups);
   
   // Sort the noun groups to reflect their order in the root sentence
-  nounGroups = nounGroups.sort((ngA: NounGroup, ngB: NounGroup) => {return ngA.begin - ngB.begin;});
+  nounGroups = nounGroups.sort((ngA: NounGroup, ngB: NounGroup) => ngA.begin - ngB.begin);
   return nounGroups;
 }
 
@@ -651,10 +652,10 @@ function resolveReferences(nounGroups: Array<NounGroup>): Array<NounGroup>  {
 
   // Get all the non personal pronouns
   let pronounGroups: Array<NounGroup> = findAll(nounGroups,(ng: NounGroup) => {
-    let isPersonal = intersect(firstPersonPersonal,ng.noun.map((token:Token)=>{return token.normalizedWord})).length > 0;
+    let isPersonal = intersect(firstPersonPersonal,ng.noun.map((token:Token) => token.normalizedWord)).length > 0;
     return (ng.isReference && !isPersonal);
   });
-  let antecedents: Array<NounGroup> = findAll(nounGroups,(ng: NounGroup) => {return ng.isReference === false;});
+  let antecedents: Array<NounGroup> = findAll(nounGroups,(ng: NounGroup) => ng.isReference === false);
 
   // Heuristic: Find the closest antecedent, set that as the noun group reference
   for (let png of pronounGroups) {
@@ -718,7 +719,7 @@ function formTree(tokens: Array<Token>): any {
   let nounGroups = formNounGroups(tokens);
   
   // Get unused tokens
-  let unusedTokens = findAll(tokens,(token: Token) => { return token.used === false; });
+  let unusedTokens = findAll(tokens,(token: Token) => token.used === false);
   
   console.log(nounGroupArrayToString(nounGroups));
   console.log(tokenArrayToString(unusedTokens));
@@ -807,22 +808,22 @@ function tokenToString(token: Token): string {
 }
 
 function tokenArrayToString(tokens: Array<Token>): string {
-  let tokenArrayString = tokens.map((token) => {return tokenToString(token);}).join("\n");
+  let tokenArrayString = tokens.map((token) => tokenToString(token)).join("\n");
   return tokenArrayString;
 }
 
 function nounGroupToString(nounGroup: NounGroup): string {
-  let nouns = nounGroup.noun.map((noun: Token) => {return noun.normalizedWord;}).join(" ");
+  let nouns = nounGroup.noun.map((noun: Token) => noun.normalizedWord).join(" ");
   let refersTo: NounGroup = nounGroup.refersTo;
-  let reference = refersTo === undefined ? "" : " (" + refersTo.noun.map((noun:Token) => {return noun.normalizedWord;}).join(" ") + ")";
-  let children = nounGroup.children.sort((childA: Token, childB: Token) => {return childA.ix - childB.ix;}).map((child: Token) => {return child.normalizedWord;}).join(" ");
+  let reference = refersTo === undefined ? "" : " (" + refersTo.noun.map((noun:Token) => noun.normalizedWord).join(" ") + ")";
+  let children = nounGroup.children.sort((childA: Token, childB: Token) => childA.ix - childB.ix).map((child: Token) => child.normalizedWord).join(" ");
   let propertiesString = `Properties:\n${nounGroup.isPlural ? `-plural\n` : ``}${nounGroup.isPossessive ? `-possessive\n` : ``}${nounGroup.isProper ? `-proper\n` : ``}${nounGroup.isQuantity ? `-quantity\n` : ``}${nounGroup.isReference ? `-reference\n` : ``}${nounGroup.isComparative ? `-comparative\n` : ``}${nounGroup.isSuperlative ? `-superlative\n` : ``}`;
   let nounGroupString = `(${nounGroup.begin}-${nounGroup.end})\n${nouns}${reference}\n  ${children}\n\n${propertiesString}`;
   return nounGroupString;
 }
 
 function nounGroupArrayToString(nounGroups: Array<NounGroup>): string {
-  let nounGroupsString =  nounGroups.map((ng: NounGroup)=>{return nounGroupToString(ng);}).join("\n----------------------------------------\n");
+  let nounGroupsString =  nounGroups.map((ng: NounGroup)=> nounGroupToString(ng)).join("\n----------------------------------------\n");
   return "----------------------------------------\nNOUN GROUPS\n----------------------------------------\n" + nounGroupsString + "\n----------------------------------------\n";
 }
 
@@ -875,10 +876,16 @@ function intersect(arr1: Array<any>, arr2: Array<any>): Array<any> {
 
 let n = 1;
 let phrases = [
+  "Corey Montella",
+  "Corey",
+  "Montella",
+  "Corey Montella's age",
+  "Corey's age",
+  "People younger than Corey Montella",
+  /*
   "Did the groundhog see its shadow?",
   "When did Corey go out with his wife or her friends?",
-  /*
-  "What is the name of the longest river in the state that has the largest city in the United States of America?",
+  "People younger than Corey Montella",
   "how often does chase have lunch with his wife or her friends",
   "people who are under 30 years old",
   "people who are under 30 pounds",
