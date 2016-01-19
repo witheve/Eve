@@ -617,7 +617,9 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
 
 function resolveCoreferences(nounGroups: Array<NounGroup>): Array<NounGroup>  {
   
-  // Define some pronouns  
+  // Define some pronouns
+  let firstPersonPersonal: any = ["I","my","mine","myself"]
+    
   let thirdPersonPersonal = ["he","him","his","himself",
                              "she","her","hers","herself",
                              "it","its","itself",
@@ -634,8 +636,11 @@ function resolveCoreferences(nounGroups: Array<NounGroup>): Array<NounGroup>  {
                             "nobody","no one","nothing",
                             "somebody","someone","something"];
 
-  // Get all the pronouns
-  let pronounGroups: Array<NounGroup> = findAll(nounGroups,(ng: NounGroup) => {return ng.isReference;});
+  // Get all the non personal pronouns
+  let pronounGroups: Array<NounGroup> = findAll(nounGroups,(ng: NounGroup) => {
+    let isPersonal = intersect(firstPersonPersonal,ng.noun.map((token:Token)=>{return token.normalizedWord}));
+    return (ng.isReference && !isPersonal);
+  });
   let antecedents: Array<NounGroup> = findAll(nounGroups,(ng: NounGroup) => {return ng.isReference === false;});
 
   // Heuristic: Find the closest antecedent, set that as the noun group reference
@@ -705,7 +710,6 @@ function formTree(tokens: Array<Token>): any {
   
   console.log(nounGroupArrayToString(nounGroups));
   console.log(tokenArrayToString(unusedTokens));
-  
   
   
   //console.log(nounGroupArrayToString(nounGroups));
@@ -841,6 +845,22 @@ function findAll(array: Array<any>, condition: Function): Array<any> {
   return matchingElements;  
 }
 
+// Finds the intersection of two arrays
+function intersect(arr1: Array<any>, arr2: Array<any>): Array<any> {
+     var r = [], o = {}, l = arr2.length, i, v;
+     for (i = 0; i < l; i++) {
+         o[arr2[i]] = true;
+     }
+     l = arr1.length;
+     for (i = 0; i < l; i++) {
+         v = arr1[i];
+         if (v in o) {
+             r.push(v);
+         }
+     }
+     return r;
+}
+
 // ----------------------------------------------------------------------------
 
 let n = 1;
@@ -922,9 +942,10 @@ let phrases = [
 
 
 let siriphrases = [
-  /*
-  "Find videos I took at Iva's birthday party",
+  
+  //"Find videos I took at Iva's birthday party",
   "Find pics from my trip to Aspen in 2014",
+  /*
   "Find a table for four tonight in Chicago",
   "How's the weather tomorrow?",
   "Wake me up at 7AM tomorrow",
@@ -975,9 +996,9 @@ let siriphrases = [
   "What song is playing right now?",
   "What movies are playing today?",
   "Where is Unbroken playing around here?",
-  */
+  
   "I like this song",
-  /*
+  
   "What are some PG movies playing this afternoon",
   "Who sings this?",
   "I want to hear the live version of this song",
