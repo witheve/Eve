@@ -6,8 +6,8 @@ declare var nlp;
 export function parse(preTokens: Array<PreToken>) {
   
   let tokens = formTokens(preTokens);
-  let tree = formTree(tokens);
-  let ast = formDSL(tree);
+  let tree = [];//formTree(tokens);
+  let ast = [];//formDSL(tree);
       
   return {tokens: tokens, tree: tree, ast: ast};
 }
@@ -162,12 +162,7 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
       let tag = preToken.tag;
       let token: Token = {ix: i, originalWord: word, normalizedWord: word, POS: MinorPartsOfSpeech[tag], used: false};
       let before = "";
-      
-      // Heuritic: queries cannot begin or end with a verb. These are most likely nouns
-      if ((i === 0 || i === preTokens.length - 1) && getMajorPOS(token.POS) === MajorPartsOfSpeech.VERB) {
-        token.POS = MinorPartsOfSpeech.NN;
-      }
-      
+           
       // Add default attribute markers to nouns
       if (getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN) {
         token.isPossessive = false;
@@ -707,17 +702,14 @@ function newNounGroup(token: Token): NounGroup {
 function formTree(tokens: Array<Token>): any {
   let nounGroups = formNounGroups(tokens);
   
-  
   // Get unused tokens
   let unusedTokens = findAll(tokens,(token: Token) => { return token.used === false; });
   
   console.log(nounGroupArrayToString(nounGroups));
   console.log(tokenArrayToString(unusedTokens));
   
-  
   //console.log(nounGroupArrayToString(nounGroups));
   
-
   // Heuristic: don't include verbs at this stage
   
   // Find noun phrases. Noun phrases are a group of words that describe a root noun
@@ -795,7 +787,7 @@ function tokenToString(token: Token): string {
   let isReference = token.isReference === undefined ? "" : token.isReference === true ? "reference ": "";
   let isComparative = token.isComparative === undefined ? "" : token.isComparative === true ? "comparative ": "";
   let isSuperlative = token.isSuperlative === undefined ? "" : token.isSuperlative === true ? "superlative ": "";
-  let tokenString = `${token.ix}.: ${token.originalWord} | ${token.normalizedWord} | ${MajorPartsOfSpeech[getMajorPOS(token.POS)]} | ${MinorPartsOfSpeech[token.POS]} | ${isPossessive}${isProper}${isPlural}${isReference}${isComparative}${isSuperlative}` ;
+  let tokenString = `${token.ix}: ${token.originalWord} | ${token.normalizedWord} | ${MajorPartsOfSpeech[getMajorPOS(token.POS)]} | ${MinorPartsOfSpeech[token.POS]} | ${isPossessive}${isProper}${isPlural}${isReference}${isComparative}${isSuperlative}` ;
   return tokenString;
 }
 
@@ -951,7 +943,7 @@ let siriphrases = [
   "Find a table for four tonight in Chicago",
   "How is the weather tomorrow?",
   "Wake me up at 7AM tomorrow",
-  "Move my 2PM meeting to 2:30",
+  /*"Move my 2PM meeting to 2:30",
   "Do I have any new texts from Rick?",
   "Show my selfies from New Year's Eve",
   "Call Dad at work",
@@ -1061,7 +1053,7 @@ let siriphrases = [
   "What's an 18% tip on $85?",
   "What is the UV index outside?",
   "How many cups in a liter",
-  "Is it going to snow next week?",
+  "Is it going to snow next week?",*/
   ];
 
 console.log(`Running ${phrases.length} tests...`);
