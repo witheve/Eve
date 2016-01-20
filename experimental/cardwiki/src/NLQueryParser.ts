@@ -791,14 +791,16 @@ interface Attribute {
 
 // take a parse tree, form a DSL AST
 function formDSL(tree: Array<NounGroup>): string {
-
+  
   let entities: Array<Entity> = [];
   // Walk the tree and create the query
   tree.forEach((ng: NounGroup) => {
     let entity = findEntity(ng.noun.normalizedWord);
-    entities.push(entity);
+    if (entity !== undefined) {
+      entities.push(entity);  
+    }
   });
-  
+
   // Create a query term for each entity
   let query: Query = entities.map((entity: Entity) => {
     let field: Field = {name: "Entity", value: entity.id};
@@ -828,7 +830,6 @@ function queryToString(query: Query): string {
   
   // Close out the query
   queryString += ")";
-  console.log(queryString);
   return queryString;
 }
 
