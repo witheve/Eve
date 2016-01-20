@@ -680,7 +680,7 @@ function newNounGroup(token: Token): NounGroup {
   }  
 }
 
-function formTree(tokens: Array<Token>): any {
+function formTree(tokens: Array<Token>): Array<NounGroup> {
   let nounGroups = formNounGroups(tokens);
   
   // Get unused tokens
@@ -690,6 +690,8 @@ function formTree(tokens: Array<Token>): any {
   return nounGroups;
   
 
+  //console.log(nounGroupArrayToString(tree));
+  //console.log(tokenArrayToString(unusedTokens));
   
   //let token = "corey";
   //let display = eve.findOne("display name", {name: token})
@@ -770,32 +772,74 @@ interface Entity {
   content: string;
 }
 
+interface Field {
+  name: string,
+  value: string | number,
+}
+
+interface Term {
+  type: string,
+  table: string,
+  fields: Array<Field>
+}
+
+type Query = Array<Term>;
+
 interface Attribute {
   
 }
 
-
 // take a parse tree, form a DSL AST
-function formDSL(tree: Array<NounGroup>): any {
+function formDSL(tree: Array<NounGroup>): string {
 
-
+  let entities: Array<Entity> = [];
+  // Walk the tree and create the query
   tree.forEach((ng: NounGroup) => {
     let entity = findEntity(ng.noun.normalizedWord);
-    console.log(entity);
+    entities.push(entity);
   });
- 
-  //console.log(nounGroupArrayToString(tree));
-  //console.log(tokenArrayToString(unusedTokens));
+  
+  // Create a query term for each entity
+  let query: Query = entities.map((entity: Entity) => {
+    let field: Field = {name: "Entity", value: entity.id};
+    let queryTerm: Term = {
+      type: "select",
+      table: "Entity",
+      fields: [field],
+    };
+    return queryTerm;
+  });
+  return queryToString(query);
+}
+
+// Converts the AST into a string for parsing
+function queryToString(query: Query): string {
+  let queryString = "(query "
+  
+  // Map each term to a string
+  queryString += query.map((term: Term)=>{
+    let termString = "(";
+    termString += `${term.type} `;
+    termString += `${term.table} `;
+    termString += term.fields.map((field) => `:${field.name} ${field.value}`).join(" ");
+    termString += ")";
+    return termString;
+  }).join("");
+  
+  // Close out the query
+  queryString += ")";
+  console.log(queryString);
+  return queryString;
 }
 
 // Returns the entity with the given display name.
 // If the entity is not found, returns undefined
 // Two error modes here: 
 // 1) the name is not found in "display name"
-// 2) the name is found in "display name" but not found in "entity".
+// 2) the name is found in "display name" but not found in "entity"
 // can 2) ever happen?
-function findEntity(displayName: string): Object {
-  let display = eve.findOne("display name",{name: displayName});
+function findEntity(displayName: string): Entity {
+  let display = eve.findOne("display name",{ name: displayName });
   if (display !== undefined) {
     let foundEntity = eve.findOne("entity", { entity: display.id });
     if (foundEntity !== undefined) {
@@ -810,7 +854,7 @@ function findEntity(displayName: string): Object {
   return undefined;
 }
 
-// Returns the 
+// Returns an attribute associated with an entity
 function findAttrubute(displayName: string) {
   
 }
