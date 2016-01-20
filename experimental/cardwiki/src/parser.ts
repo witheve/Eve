@@ -873,19 +873,7 @@ export function parseDSL(text:string):Artifacts {
   for(let raw of Sexpr.asSexprs(root.arguments)) parseDSLSexpr(raw, artifacts);
   return artifacts;
 }
-const primitives = {
-  "+": "calculate",
-  "-": "calculate",
-  "*": "calculate",
-  "/": "calculate",
-  "=": "filter",
-  "<": "filter",
-  "<=": "filter",
-  "sum": "aggregate",
-  "count": "aggregate",
-  "max": "aggregate"
-  //@TODO: Finish me.
-};
+
 type SexprResult = {type:VALUE, value?:any, projected?:any, context?:any, mappings?:any, aggregated?:boolean};
 function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext, parent?:runtime.Query|runtime.Union, resultVariable?:string):SexprResult {
   if(parent instanceof runtime.Query) var query = parent;
@@ -1044,7 +1032,7 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
       if(arg === "$$view" || arg === "$$negated") continue;
       join[arg] = resolveTokenValue("member field", args[arg], context);
     }
-    if(primitives[view]) throw new ParseError(`Cannot union primitive view '${view}'`, "", raw.lineIx, raw.charIx);
+    if(runtime.QueryFunctions[view]) throw new ParseError(`Cannot union primitive view '${view}'`, "", raw.lineIx, raw.charIx);
     union.union(view, join);
     return;
   }
@@ -1057,6 +1045,7 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
     let $$view = getArgument(sexpr, "$$view", ["$$view"]);
     let view = resolveTokenValue("view", $$view, context, VALUE.SCALAR);
     if(view === undefined) throw new ParseError("Must specify a view to be selected", "", raw.lineIx, raw.charIx);
+    let primitive = runtime.QueryFunctions[view]
     //@TODO: Move this to an eve table to allow user defined defaults
     let args = parseArguments(sexpr, ["$$view"].concat(getDefaults(view)));
     let {$$negated} = args;
@@ -1105,15 +1094,15 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
       context.push({name: resultVariable, type: VALUE.SCALAR, value: [selectId, resultField], constraints: [[view, resultField]]});
     }
 
-    if(primitives[view]) {
-      if(primitives[view] === "aggregate") query.aggregate(view, join, selectId);
+    if(primitive) {
+      if(primitive.aggregate) query.aggregate(view, join, selectId);
       else query.calculate(view, join, selectId);
     } else if($$negated) query.deselect(view, join);
     else query.select(view, join, selectId);
     return {
       type: VALUE.VIEW,
       value: view,
-      aggregated: primitives[view] === "aggregate"
+      aggregated: primitive && primitive.aggregate
     };
   }
 

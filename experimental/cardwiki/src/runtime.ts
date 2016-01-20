@@ -1985,7 +1985,7 @@ export class Union {
 // Builtin Primitives
 //---------------------------------------------------------
 
-runtime.define("count", {result: "count"}, function(prev) {
+runtime.define("count", {aggregate: true, result: "count"}, function(prev) {
   if(!prev.count) {
     prev.count = 0;
   }
@@ -1993,7 +1993,7 @@ runtime.define("count", {result: "count"}, function(prev) {
   return prev;
 });
 
-runtime.define("sum", {result: "sum"}, function(prev, value) {
+runtime.define("sum", {aggregate: true, result: "sum"}, function(prev, value) {
   if(!prev.sum) {
     prev.sum = 0;
   }
@@ -2001,7 +2001,7 @@ runtime.define("sum", {result: "sum"}, function(prev, value) {
   return prev;
 });
 
-runtime.define("average", {result: "average"}, function(prev, value) {
+runtime.define("average", {aggregate: true, result: "average"}, function(prev, value) {
   if(!prev.sum) {
     prev.sum = 0;
     prev.count = 0;
