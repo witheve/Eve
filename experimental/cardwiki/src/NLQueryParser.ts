@@ -4,7 +4,6 @@ declare var pluralize;
 declare var nlp;
 
 // Entry point for NLQP
-// @TODO as an input argument, take a list of nominal tags generated as the user types the query
 export function parse(preTokens: Array<PreToken>) {
   
   let tokens = formTokens(preTokens);
@@ -1083,6 +1082,24 @@ let siriphrases = [
   "Is it going to snow next week?",
   ];
 
+/*
+let token = "corey";
+let display = eve.findOne("display name", {name: token})
+let info = eve.findOne("entity", { entity: display.id });
+
+console.log(display);
+console.log(info);
+
+
+token = "salary";
+info = eve.findOne("entity eavs", { attribute: token });
+console.log(info);
+*/
+
+
 //console.log(`Running ${phrases.length} tests...`);
 //phrases.map((phrase) => {parseTest(phrase,n)});
 //siriphrases.map((phrase) => {parseTest(phrase,n)});
+
+declare var exports;
+window["NLQP"] = exports;
