@@ -403,7 +403,7 @@ interface Tree {
 }
 
 interface NounGroup {
-  noun: Array<Token>;
+  noun: Token;
   refersTo?: NounGroup, // noun group to which a pronoun refers
   children: Array<Token>;
   begin: number; // Index of the first token in the noun group
@@ -617,7 +617,7 @@ function resolveReferences(nounGroups: Array<NounGroup>): Array<NounGroup>  {
 
   // Get all the non personal pronouns
   let pronounGroups: Array<NounGroup> = findAll(nounGroups,(ng: NounGroup) => {
-    let isPersonal = intersect(firstPersonPersonal,ng.noun.map((token:Token) => token.normalizedWord)).length > 0;
+    let isPersonal = intersect(firstPersonPersonal,[ng.noun.normalizedWord]).length > 0;
     return (ng.isReference && !isPersonal);
   });
   let antecedents: Array<NounGroup> = findAll(nounGroups,(ng: NounGroup) => ng.isReference === false);
@@ -665,7 +665,7 @@ function addChildToNounGroup(nounGroup: NounGroup, token: Token) {
 
 function newNounGroup(token: Token): NounGroup {
   return {
-    noun: [token],
+    noun: token,
     children: [],
     begin: token.ix,
     end: token.ix,
@@ -686,8 +686,21 @@ function formTree(tokens: Array<Token>): any {
   // Get unused tokens
   let unusedTokens = findAll(tokens,(token: Token) => token.used === false);
   
-  console.log(nounGroupArrayToString(nounGroups));
-  console.log(tokenArrayToString(unusedTokens));
+
+  return nounGroups;
+  
+
+  
+  //let token = "corey";
+  //let display = eve.findOne("display name", {name: token})
+  //let info = eve.findOne("entity", { entity: display.id });
+  //console.log(token);
+  //console.log(display);
+  
+  //let nouns = nounGroups.map((ng: NounGroup) => ng.noun);
+  //console.log(nouns);
+  
+  //let display = eve.findOne("display name", {name: token})
   
   //console.log(nounGroupArrayToString(nounGroups));
   
@@ -752,8 +765,23 @@ function subsumeTokens(nounGroup: NounGroup, ix: number, tokens: Array<Token>): 
 // ----------------------------------------------------------------------------
 
 // take a parse tree, form a DSL AST
-function formDSL(tree: Tree): any {
+function formDSL(tree: Array<NounGroup>): any {
 
+
+  tree.forEach((ng: NounGroup) => {
+    //let displayName = //ng.noun.map()
+    //findEntity();
+  });
+ 
+
+  
+  
+  //console.log(nounGroupArrayToString(tree));
+  //console.log(tokenArrayToString(unusedTokens));
+}
+
+function findEntity(displayName:string): any {
+  
 }
 
 
@@ -778,12 +806,12 @@ export function tokenArrayToString(tokens: Array<Token>): string {
 }
 
 export function nounGroupToString(nounGroup: NounGroup): string {
-  let nouns = nounGroup.noun.map((noun: Token) => noun.normalizedWord).join(" ");
+  let noun = nounGroup.noun.normalizedWord;
   let refersTo: NounGroup = nounGroup.refersTo;
-  let reference = refersTo === undefined ? "" : " (" + refersTo.noun.map((noun:Token) => noun.normalizedWord).join(" ") + ")";
+  let reference = refersTo === undefined ? "" : " (" + refersTo.noun.normalizedWord + ")";
   let children = nounGroup.children.sort((childA: Token, childB: Token) => childA.ix - childB.ix).map((child: Token) => child.normalizedWord).join(" ");
   let propertiesString = `Properties:\n${nounGroup.isPlural ? `-plural\n` : ``}${nounGroup.isPossessive ? `-possessive\n` : ``}${nounGroup.isProper ? `-proper\n` : ``}${nounGroup.isQuantity ? `-quantity\n` : ``}${nounGroup.isReference ? `-reference\n` : ``}${nounGroup.isComparative ? `-comparative\n` : ``}${nounGroup.isSuperlative ? `-superlative\n` : ``}`;
-  let nounGroupString = `(${nounGroup.begin}-${nounGroup.end})\n${nouns}${reference}\n  ${children}\n\n${propertiesString}`;
+  let nounGroupString = `(${nounGroup.begin}-${nounGroup.end})\n${noun}${reference}\n  ${children}\n\n${propertiesString}`;
   return nounGroupString;
 }
 
@@ -838,22 +866,6 @@ function intersect(arr1: Array<any>, arr2: Array<any>): Array<any> {
 }
 
 // ----------------------------------------------------------------------------
-
-
-
-/*
-let token = "corey";
-let display = eve.findOne("display name", {name: token})
-let info = eve.findOne("entity", { entity: display.id });
-
-console.log(display);
-console.log(info);
-
-
-token = "salary";
-info = eve.findOne("entity eavs", { attribute: token });
-console.log(info);
-*/
 
 declare var exports;
 window["NLQP"] = exports;
