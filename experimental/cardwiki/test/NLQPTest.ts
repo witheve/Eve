@@ -2,7 +2,7 @@ import * as app from "../src/app";
 import * as nlqp from  "../src/NLQueryParser";
 import "../src/wiki";
 
-app.renderRoots["wiki"] = root;
+app.renderRoots["nlqp"];
 
 function parseTest(queryString: string, n: number) {
   let parseResult;
@@ -42,14 +42,13 @@ function parseTest(queryString: string, n: number) {
 
 let n = 1;
 let phrases = [
-  "Corey Montella",
   "Corey",
-  "Montella",
+  /*"Montella",
   "Corey Montella's age",
   "Corey's age",
   "People younger than Corey Montella",
   "Modern Family episode withs Edward Norton",
-  "Sum of the lengths of the pets",
+  "Sum of the lengths of the pets",*/
   //"Who loves Corey?",
   //"Who does Corey love?",
   /*
@@ -247,10 +246,7 @@ let siriphrases = [
   "Is it going to snow next week?",
   ];
 
-export function root() {
-
+app.init("nlqp", function () {
   console.log(`Running ${phrases.length} tests...`);
   phrases.map((phrase) => {parseTest(phrase,n)});
-  //siriphrases.map((phrase) => {parseTest(phrase,n)});
-
-}
+});
