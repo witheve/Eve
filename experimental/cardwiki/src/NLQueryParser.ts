@@ -1,3 +1,5 @@
+import {eve} from "./app";
+
 declare var pluralize;
 declare var nlp;
 
@@ -882,6 +884,10 @@ let phrases = [
   "Corey Montella's age",
   "Corey's age",
   "People younger than Corey Montella",
+  "Modern Family episode withs Edward Norton",
+  "Sum of the lengths of the pets",
+  //"Who loves Corey?",
+  //"Who does Corey love?",
   /*
   "Did the groundhog see its shadow?",
   "When did Corey go out with his wife or her friends?",
@@ -1077,6 +1083,6 @@ let siriphrases = [
   "Is it going to snow next week?",
   ];
 
-console.log(`Running ${phrases.length} tests...`);
-phrases.map((phrase) => {parseTest(phrase,n)});
+//console.log(`Running ${phrases.length} tests...`);
+//phrases.map((phrase) => {parseTest(phrase,n)});
 //siriphrases.map((phrase) => {parseTest(phrase,n)});
