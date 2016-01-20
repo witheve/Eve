@@ -799,9 +799,8 @@ function findEntity(displayName: string): Object {
   if (display !== undefined) {
     let foundEntity = eve.findOne("entity", { entity: display.id });
     if (foundEntity !== undefined) {
-      console.log(foundEntity)
       let entity: Entity = {
-        id: foundEntity.__id,
+        id: foundEntity.entity,
         displayName: displayName,
         content: foundEntity.content,
       }
