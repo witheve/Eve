@@ -769,19 +769,30 @@ function formDSL(tree: Array<NounGroup>): any {
 
 
   tree.forEach((ng: NounGroup) => {
-    //let displayName = //ng.noun.map()
-    //findEntity();
+    let entity = findEntity(ng.noun.normalizedWord);
+    console.log(entity);
   });
  
-
-  
-  
   //console.log(nounGroupArrayToString(tree));
   //console.log(tokenArrayToString(unusedTokens));
 }
 
-function findEntity(displayName:string): any {
-  
+// Returns the entity with the given display name.
+// If the entity is not found, returns undefined
+// Two error modes here: 
+// 1) the name is not found in "display name"
+// 2) the name is found in "display name" but not found in "entity".
+// can 2) ever happen?
+function findEntity(displayName:string): Object {
+  let display = eve.findOne("display name",{name: displayName});
+  let entity;
+  if (display !== undefined) {
+    entity = eve.findOne("entity", { entity: display.id });
+    return entity;
+  }
+  else {
+    return undefined;  
+  }
 }
 
 
