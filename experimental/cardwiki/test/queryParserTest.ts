@@ -11,20 +11,20 @@ interface TestQuery {
 }
 
 var tests: TestQuery[] = [
-  /*{
-    query: "chris granger's age",
+  {
+    query: "corey's salary",
     expected: [
-      {type: StepType.FIND, subject: "chris granger"},
-      {type: StepType.LOOKUP, subject: "age"}
+      {type: StepType.FIND, subject: "corey"},
+      {type: StepType.LOOKUP, subject: "salary"}
     ],
-  },
+  },/*
   {
     query: "robert attorri's age",
     expected: [
       {type: StepType.FIND, subject: "robert attorri"},
       {type: StepType.LOOKUP, subject: "age"}
     ]
-  },*/
+  },
   {
     query: "people older than chris granger",
     expected: [
