@@ -9,11 +9,11 @@ var watchify = require("watchify");
 var util = require("util");
 
 var pkgs = {
-  //wiki: {entries: ["src/wiki.ts"], adds: ["typings/tsd.d.ts"]},
-  //queryParserTest: {entries: ["test/queryParserTest.ts"], adds: ["typings/tsd.d.ts"]},
+  wiki: {entries: ["src/wiki.ts"], adds: ["typings/tsd.d.ts"]},
+  queryParserTest: {entries: ["test/queryParserTest.ts"], adds: ["typings/tsd.d.ts"]},
   nlqpTest: {entries: ["test/NLQPTest.ts"], adds: ["typings/tsd.d.ts"]},
-  //runtimeTest: {entries: ["test/runtimeTest.ts"], adds: ["typings/tsd.d.ts"]},
-  //richTextEditorTest: {entries: ["test/richTextEditor.ts"], adds: ["typings/tsd.d.ts"]}
+  runtimeTest: {entries: ["test/runtimeTest.ts"], adds: ["typings/tsd.d.ts"]},
+  richTextEditorTest: {entries: ["test/richTextEditor.ts"], adds: ["typings/tsd.d.ts"]}
 };
 var pkgList = Object.keys(pkgs);
 
