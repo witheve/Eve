@@ -320,7 +320,6 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
     } else {
       // Heuristic: Adverbs are located close to verbs
       // Get the distance from each adverb to the closest verb as a percentage of the length of the sentence.
-      // Threshold the distance an adverb can be from the verb, make an adjective otherwise.
       let adverbs: Array<Token> = tokens.filter((token: Token) => getMajorPOS(token.POS) === MajorPartsOfSpeech.ADVERB);
       adverbs.forEach((adverb: Token) => {
           let closestVerb = tokens.length;
@@ -331,6 +330,8 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
             }
           });
           let distRatio = closestVerb/tokens.length;
+          // Threshold the distance an adverb can be from the verb
+          // if it is too far, make it an adjective instead
           if (distRatio > .25) {
             adverbToAdjective(adverb);
           }
@@ -440,7 +441,8 @@ function singularize(word: string): string {
 interface NounGroup {
   noun: Token;
   refersTo?: NounGroup, // noun group to which a pronoun refers
-  children: Array<Token>;
+  preModifiers: Array<Token>,
+  postModifiers: Array<Token>,
   begin: number; // Index of the first token in the noun group
   end: number;   // Index of the last token in the noun group
   isPossessive: boolean;
@@ -688,7 +690,11 @@ function resolveReferences(nounGroups: Array<NounGroup>): Array<NounGroup>  {
 
 // Adds a child token to a noun group and subsumes its properties. Marks token as used
 function addChildToNounGroup(nounGroup: NounGroup, token: Token) {
-  nounGroup.children.push(token);
+  if (token.ix < nounGroup.noun.ix) {
+    nounGroup.preModifiers.push(token);
+  } else {
+    nounGroup.postModifiers.push(token);
+  }
   if(token.isComparative !== undefined) {
     nounGroup.isComparative = token.isComparative;
   }
@@ -701,7 +707,8 @@ function addChildToNounGroup(nounGroup: NounGroup, token: Token) {
 function newNounGroup(token: Token): NounGroup {
   return {
     noun: token,
-    children: [],
+    preModifiers: [],
+    postModifiers: [],
     begin: token.ix,
     end: token.ix,
     isPlural: token.isPlural === undefined ? false : token.isPlural, 
@@ -723,7 +730,7 @@ interface Tree {
 
 function formTree(tokens: Array<Token>): Array<NounGroup> {
   let nounGroups = formNounGroups(tokens);
-  
+  /*
   console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
   
   // Build a tree from noungroups
@@ -742,7 +749,7 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
   console.log(nounGroupArrayToString(nounGroups));
   console.log(tokenArrayToString(unusedTokens));
   console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-  
+  */
   
   return nounGroups;
   
@@ -804,21 +811,6 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
   
 }
 
-function subsumeTokens(nounGroup: NounGroup, ix: number, tokens: Array<Token>): NounGroup {
-  nounGroup.begin = ix ;
-  for (let j = ix ; j < nounGroup.end; j++) {
-    let nounGroupToken: Token = tokens[j];
-    if (nounGroupToken.used === false) {
-      addChildToNounGroup(nounGroup,nounGroupToken);  
-    }
-  }
-  return nounGroup;
-}
-
-// ----------------------------------------------------------------------------
-// DSL functions
-// ----------------------------------------------------------------------------
-
 interface Entity {
   id: string;
   displayName: string;
@@ -837,6 +829,76 @@ interface Attribute {
   entity: Entity;
   value: string | number; 
 }
+
+// Returns the entity with the given display name.
+// If the entity is not found, returns undefined
+// Two error modes here: 
+// 1) the name is not found in "display name"
+// 2) the name is found in "display name" but not found in "entity"
+// can 2) ever happen?
+function findEntity(token: Token): Entity {
+  let display = eve.findOne("display name",{ name: token.normalizedWord });
+  if (display !== undefined) {
+    let foundEntity = eve.findOne("entity", { entity: display.id });
+    if (foundEntity !== undefined) {
+      let entity: Entity = {
+        id: foundEntity.entity,
+        displayName: token.normalizedWord,
+        content: foundEntity.content,
+      }
+      return entity;
+    }
+  }
+  return undefined;
+}
+
+// Returns the collection with the given display name.
+function findCollection(token: Token): Collection {
+  let display = eve.findOne("display name",{ name: token.normalizedWord });
+  if (display !== undefined) {
+    let foundCollection = eve.findOne("collection", { collection: display.id });
+    if (foundCollection !== undefined) {
+      let collection: Collection = {
+        id: foundCollection.collection,
+        displayName: token.normalizedWord,
+        count: foundCollection.count,
+      }
+      return collection;
+    }
+  }
+  return undefined;
+}
+
+// Returns the attribute with the given display name attached to the given entity
+// If the entity does not have that attribute, or the entity does not exist, returns undefined
+function findAttribute(token: Token, entity: Entity): Attribute {
+  let foundAttribute = eve.findOne("entity eavs", { entity: entity.id, attribute: token.normalizedWord });
+  if (foundAttribute !== undefined) {
+    let attribute: Attribute = {
+      id: foundAttribute,
+      displayName: token.normalizedWord,
+      entity: entity,
+      value: foundAttribute.value,
+    }
+    return attribute;
+  }
+  return undefined;
+}
+
+function subsumeTokens(nounGroup: NounGroup, ix: number, tokens: Array<Token>): NounGroup {
+  nounGroup.begin = ix ;
+  for (let j = ix ; j < nounGroup.end; j++) {
+    let nounGroupToken: Token = tokens[j];
+    if (nounGroupToken.used === false) {
+      addChildToNounGroup(nounGroup,nounGroupToken);  
+    }
+  }
+  return nounGroup;
+}
+
+// ----------------------------------------------------------------------------
+// DSL functions
+// ----------------------------------------------------------------------------
 
 interface Field {
   name: string,
@@ -923,61 +985,6 @@ function queryToString(query: Query): string {
   return queryString;
 }
 
-// Returns the entity with the given display name.
-// If the entity is not found, returns undefined
-// Two error modes here: 
-// 1) the name is not found in "display name"
-// 2) the name is found in "display name" but not found in "entity"
-// can 2) ever happen?
-function findEntity(token: Token): Entity {
-  let display = eve.findOne("display name",{ name: token.normalizedWord });
-  if (display !== undefined) {
-    let foundEntity = eve.findOne("entity", { entity: display.id });
-    if (foundEntity !== undefined) {
-      let entity: Entity = {
-        id: foundEntity.entity,
-        displayName: token.normalizedWord,
-        content: foundEntity.content,
-      }
-      return entity;
-    }
-  }
-  return undefined;
-}
-
-// Returns the collection with the given display name.
-function findCollection(token: Token): Collection {
-  let display = eve.findOne("display name",{ name: token.normalizedWord });
-  if (display !== undefined) {
-    let foundCollection = eve.findOne("collection", { collection: display.id });
-    if (foundCollection !== undefined) {
-      let collection: Collection = {
-        id: foundCollection.collection,
-        displayName: token.normalizedWord,
-        count: foundCollection.count,
-      }
-      return collection;
-    }
-  }
-  return undefined;
-}
-
-// Returns the attribute with the given display name attached to the given entity
-// If the entity does not have that attribute, or the entity does not exist, returns undefined
-function findAttribute(token: Token, entity: Entity): Attribute {
-  let foundAttribute = eve.findOne("entity eavs", { entity: entity.id, attribute: token.normalizedWord });
-  if (foundAttribute !== undefined) {
-    let attribute: Attribute = {
-      id: foundAttribute,
-      displayName: token.normalizedWord,
-      entity: entity,
-      value: foundAttribute.value,
-    }
-    return attribute;
-  }
-  return undefined;
-}
-
 // ----------------------------------------------------------------------------
 // Debug utility functions
 // ---------------------------------------------------------------------------- 
@@ -1002,9 +1009,10 @@ export function nounGroupToString(nounGroup: NounGroup): string {
   let noun = nounGroup.noun.normalizedWord;
   let refersTo: NounGroup = nounGroup.refersTo;
   let reference = refersTo === undefined ? "" : " (" + refersTo.noun.normalizedWord + ")";
-  let children = nounGroup.children.sort((childA: Token, childB: Token) => childA.ix - childB.ix).map((child: Token) => child.normalizedWord).join(" ");
+  let preMods = nounGroup.preModifiers.sort((childA: Token, childB: Token) => childA.ix - childB.ix).map((child: Token) => child.normalizedWord).join(" ");
+  let postMods = nounGroup.postModifiers.sort((childA: Token, childB: Token) => childA.ix - childB.ix).map((child: Token) => child.normalizedWord).join(" ");
   let propertiesString = `Properties:\n${nounGroup.isPlural ? `-plural\n` : ``}${nounGroup.isPossessive ? `-possessive\n` : ``}${nounGroup.isProper ? `-proper\n` : ``}${nounGroup.isQuantity ? `-quantity\n` : ``}${nounGroup.isReference ? `-reference\n` : ``}${nounGroup.isComparative ? `-comparative\n` : ``}${nounGroup.isSuperlative ? `-superlative\n` : ``}`;
-  let nounGroupString = `(${nounGroup.begin}-${nounGroup.end})\n${noun}${reference}\n  ${children}\n\n${propertiesString}`;
+  let nounGroupString = `(${nounGroup.begin}-${nounGroup.end})\n  ${preMods}\n${noun}${reference}\n  ${postMods}\n\n${propertiesString}`;
   return nounGroupString;
 }
 
