@@ -117,6 +117,8 @@ appHandle("create query", (changes:Diff, {id, content}) => {
   if(artifacts.changeset) changes.merge(artifacts.changeset);
   for(let viewId in artifacts.views) {
     changes.add("sourced eav", {entity: id, attribute: "artifact", value: viewId});
+    let name = artifacts.views[viewId]["displayName"];
+    if(!eve.findOne("display name", {id: viewId}) && name) changes.add("display name", {id: viewId, name});
     changes.merge(artifacts.views[viewId].changeset(eve));
   }
 });
@@ -727,8 +729,11 @@ let _reps:{[rep:string]: {embed: (results:{}[], params:{paneId?:string}) => any,
     },
     represent({query, artifacts, data}) {
       return {children: [
-        {t: "h3", text: eve.findOne("entity eavs", {entity: query, attribute: "content"}).value},
-        {c: "artifacts", children: artifacts.map((view) => _reps["table"].represent({results: eve.find(view), data}))}
+        //{t: "h3", text: eve.findOne("entity eavs", {entity: query, attribute: "content"}).value},
+        {c: "artifacts", children: artifacts.map((view) => ({c: "artifact", children: [
+          {t: "h4", text: `${(eve.findOne("display name", {id: view}) || {name: ""}).name} (${view})`},
+          _reps["table"].represent({results: eve.find(view), data})
+        ]}))}
       ]};
     }
   }
