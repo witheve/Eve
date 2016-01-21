@@ -129,7 +129,7 @@ let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, 
       shade: {c: "pane-shade", paneId, click: removePopup, children: []},
       header: {t: "header", c: "flex-row", children: [
         {c: "flex-grow", click: navigateParent, link: entityId, paneId: paneId, parentId: parent, text: "Click here to navigate"},
-        {c: "flex-row controls", children: [{c: "ion-close-round"}]}
+        {c: "flex-row controls", children: [{c: "ion-close-round", click: removePopup, paneId: paneId}]}
       ]}
     };
   },
