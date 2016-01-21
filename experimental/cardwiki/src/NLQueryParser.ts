@@ -778,6 +778,13 @@ interface Collection {
   count: number;
 }
 
+interface Attribute {
+  id: string;
+  displayName: string;
+  entity: Entity;
+  value: string | number; 
+}
+
 interface Field {
   name: string,
   value: string | number,
@@ -791,9 +798,7 @@ interface Term {
 
 type Query = Array<Term>;
 
-interface Attribute {
-  
-}
+
 
 // take a parse tree, form a DSL AST
 function formDSL(tree: Array<NounGroup>): string {
@@ -801,7 +806,7 @@ function formDSL(tree: Array<NounGroup>): string {
   let entities: Array<Entity> = [];
   let collections: Array<Collection> = [];
   // Walk the tree and create the query
-  tree.forEach((ng: NounGroup) => {
+  tree.forEach((ng: NounGroup) => {    
     if (ng.isPlural) {
       let collection = findCollection(ng.noun);
       if (collection !== undefined) {
@@ -904,11 +909,21 @@ function findCollection(token: Token): Collection {
   return undefined;
 }
 
-// Returns an attribute associated with an entity
-function findAttrubute(displayName: string) {
-  
+// Returns the attribute with the given display name attached to the given entity
+// If the entity does not have that attribute, or the entity does not exist, returns undefined
+function findAttribute(token: Token, entity: Entity): Attribute {
+  let foundAttribute = eve.findOne("entity eavs", { entity: entity.id, attribute: token.normalizedWord });
+  if (foundAttribute !== undefined) {
+    let attribute: Attribute = {
+      id: foundAttribute,
+      displayName: token.normalizedWord,
+      entity: entity,
+      value: foundAttribute.value,
+    }
+    return attribute;
+  }
+  return undefined;
 }
-
 
 // ----------------------------------------------------------------------------
 // Debug utility functions
