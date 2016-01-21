@@ -349,12 +349,15 @@ app.init("bootstrap", function bootstrap() {
     giraffe: ["exotic"],
     gorilla: ["exotic", "dangerous"],
 
+    company: [],
     kodowa: ["company"],
 
+    department: [],
     engineering: ["department"],
     operations: ["department"],
     magic: ["department"],
 
+    employee: [],
     josh: ["employee"],
     corey: ["employee"],
     jamie: ["employee"],
