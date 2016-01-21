@@ -51,18 +51,20 @@ appHandle("ui set search", (changes:Diff, {paneId, value, peek, x, y}:{paneId:st
     changes.remove("ui pane", {pane: paneId});
   } else {
     let popout = eve.findOne("ui pane", {kind: PANE.POPOUT});
-    let paneId;
+    let neuePaneId;
     if(!popout) {
-      paneId = uuid();
+      neuePaneId = uuid();
     } else {
-      paneId = popout.pane;
+      neuePaneId = popout.pane;
       changes.remove("ui pane", {pane: paneId});
     }
-    let state = uiState.widget.search[paneId] = {value};
-    fact = {contains: value, pane: paneId, kind: PANE.POPOUT};
-    if(!popout || popout.pane !== paneId) {
-      changes.remove("ui pane position", {pane: paneId});
-      changes.add("ui pane position", {pane: paneId, x, y});
+    let state = uiState.widget.search[neuePaneId] = {value};
+    fact = {contains: value, pane: neuePaneId, kind: PANE.POPOUT};
+    if(!popout || popout.pane !== neuePaneId) {
+      changes.remove("ui pane position", {pane: neuePaneId});
+      changes.add("ui pane position", {pane: neuePaneId, x, y});
+      changes.remove("ui pane parent", {parent: paneId});
+      changes.add("ui pane parent", {pane: neuePaneId, parent: paneId});
     }
   }
   changes.add("ui pane", fact);
@@ -88,7 +90,7 @@ appHandle("add sourced eav", (changes:Diff, eav:{entity:string, attribute:string
 appHandle("remove sourced eav", (changes:Diff, eav:{entity:string, source:string}) => {
     changes.remove("sourced eav", eav);
 });
-
+ 
 appHandle("update page", (changes:Diff, {page, content}: {page: string, content: string}) => {
     changes.remove("page content", {page});
     changes.add("page content", {page, content});
@@ -120,14 +122,17 @@ let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, 
     c: "fullscreen",
     header: {t: "header", c: "flex-row", children: [{c: "logo eve-logo"}, searchInput(paneId, entityId)]}
   }),
-  [PANE.POPOUT]: (paneId, entityId) => ({
-    c: "window",
-    shade: {c: "pane-shade", paneId, click: removePopup, children: []},
-    header: {t: "header", c: "flex-row", children: [
-      {c: "flex-grow", text: "Click here to navigate"},
-      {c: "flex-row controls", children: [{c: "ion-close-round"}]}
-    ]}
-  }),
+  [PANE.POPOUT]: (paneId, entityId) => {
+    let parent = eve.findOne("ui pane parent", {pane: paneId})["parent"];
+    return {
+      c: "window",
+      shade: {c: "pane-shade", paneId, click: removePopup, children: []},
+      header: {t: "header", c: "flex-row", children: [
+        {c: "flex-grow", click: navigateParent, link: entityId, paneId: paneId, parentId: parent, text: "Click here to navigate"},
+        {c: "flex-row controls", children: [{c: "ion-close-round"}]}
+      ]}
+    };
+  },
   [PANE.WINDOW]: (paneId, entityId) => ({
     c: "window",
     header: {t: "header", c: "flex-row", children: [
@@ -140,6 +145,12 @@ let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, 
     ]}
   })
 };
+
+function navigateParent(event, elem) {
+  dispatch("remove popup", {paneId: elem.paneId})
+  .dispatch("ui set search", {paneId: elem.parentId, value: elem.link})
+  .commit();
+}
 
 function removePopup(event, elem) {
   if(!event.defaultPrevented) {
