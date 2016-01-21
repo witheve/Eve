@@ -494,6 +494,7 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
     let {$$view, $$negated, $$body} = parseArguments(sexpr, undefined, "$$body");
     let queryId = $$view ? resolveTokenValue("view", $$view, context, VALUE.SCALAR) : uuid();
     let neue = new runtime.Query(eve, queryId);
+    neue["displayName"] = sexpr.toString();
     if(DEBUG.instrumentQuery) instrumentQuery(neue, DEBUG.instrumentQuery);
     artifacts.views[queryId] = neue;
     let aggregated = false;
