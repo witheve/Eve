@@ -19,9 +19,9 @@ class ParseError extends Error {
   }
 }
 
-function readWhile(str:string, substring:string, startIx:number):string {
+function readWhile(str:string, pattern:RegExp, startIx:number):string {
   let endIx = startIx;
-  while(str[endIx] === substring) endIx++;
+  while(str[endIx] !== undefined && str[endIx].match(pattern)) endIx++;
   return str.slice(startIx, endIx);
 }
 
@@ -315,7 +315,7 @@ export function readSexprs(text:string):Sexpr {
         continue;
       }
 
-      let padding = readWhile(line, " ", charIx);
+      let padding = readWhile(line, /\s/, charIx);
       charIx += padding.length;
       if(padding.length) {
         if(token) sexpr.push(token);
