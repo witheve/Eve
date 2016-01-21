@@ -685,12 +685,12 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
   
   // Get unused tokens
   let unusedTokens = findAll(tokens,(token: Token) => token.used === false);
-  
+  //console.log(nounGroupArrayToString(nounGroups));
 
   return nounGroups;
   
 
-  //console.log(nounGroupArrayToString(tree));
+  
   //console.log(tokenArrayToString(unusedTokens));
   
   //let token = "corey";
@@ -772,6 +772,12 @@ interface Entity {
   content: string;
 }
 
+interface Collection {
+  id: string;
+  displayName: string;
+  count: number;
+}
+
 interface Field {
   name: string,
   value: string | number,
@@ -793,24 +799,50 @@ interface Attribute {
 function formDSL(tree: Array<NounGroup>): string {
   
   let entities: Array<Entity> = [];
+  let collections: Array<Collection> = [];
   // Walk the tree and create the query
   tree.forEach((ng: NounGroup) => {
-    let entity = findEntity(ng.noun.normalizedWord);
-    if (entity !== undefined) {
-      entities.push(entity);  
+    if (ng.isPlural) {
+      let collection = findCollection(ng.noun);
+      if (collection !== undefined) {
+        collections.push(collection);  
+      } 
+    } else if (ng.isProper) {
+      let entity = findEntity(ng.noun);
+      if (entity !== undefined) {
+        entities.push(entity);  
+      }  
+    } else {
+      let entity = findEntity(ng.noun);
+      if (entity !== undefined) {
+        entities.push(entity);  
+      }
     }
   });
 
   // Create a query term for each entity
-  let query: Query = entities.map((entity: Entity) => {
-    let field: Field = {name: "Entity", value: entity.id};
+  let selectEntities: Query = entities.map((entity: Entity) => {
+    let field: Field = {name: "entity", value: entity.id};
     let queryTerm: Term = {
       type: "select",
-      table: "Entity",
+      table: "entity",
       fields: [field],
     };
     return queryTerm;
   });
+  
+  // Create a query term for each collection
+  let selectCollections: Query = collections.map((collection: Collection) => {
+    let field: Field = {name: "collection", value: collection.id};
+    let queryTerm: Term = {
+      type: "select",
+      table: "collection",
+      fields: [field],
+    }
+    return queryTerm;
+  });
+  
+  let query = selectEntities.concat(selectCollections);
   return queryToString(query);
 }
 
@@ -822,8 +854,8 @@ function queryToString(query: Query): string {
   queryString += query.map((term: Term)=>{
     let termString = "(";
     termString += `${term.type} `;
-    termString += `${term.table} `;
-    termString += term.fields.map((field) => `:${field.name} ${field.value}`).join(" ");
+    termString += `"${term.table}" `;
+    termString += term.fields.map((field) => `:${field.name} "${field.value}"`).join(" ");
     termString += ")";
     return termString;
   }).join("");
@@ -839,17 +871,34 @@ function queryToString(query: Query): string {
 // 1) the name is not found in "display name"
 // 2) the name is found in "display name" but not found in "entity"
 // can 2) ever happen?
-function findEntity(displayName: string): Entity {
-  let display = eve.findOne("display name",{ name: displayName });
+function findEntity(token: Token): Entity {
+  let display = eve.findOne("display name",{ name: token.normalizedWord });
   if (display !== undefined) {
     let foundEntity = eve.findOne("entity", { entity: display.id });
     if (foundEntity !== undefined) {
       let entity: Entity = {
         id: foundEntity.entity,
-        displayName: displayName,
+        displayName: token.normalizedWord,
         content: foundEntity.content,
       }
       return entity;
+    }
+  }
+  return undefined;
+}
+
+// Returns the collection with the given display name.
+function findCollection(token: Token): Collection {
+  let display = eve.findOne("display name",{ name: token.normalizedWord });
+  if (display !== undefined) {
+    let foundCollection = eve.findOne("collection", { collection: display.id });
+    if (foundCollection !== undefined) {
+      let collection: Collection = {
+        id: foundCollection.collection,
+        displayName: token.normalizedWord,
+        count: foundCollection.count,
+      }
+      return collection;
     }
   }
   return undefined;
