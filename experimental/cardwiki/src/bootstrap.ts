@@ -3,7 +3,7 @@ import * as runtime from "./runtime"
 import * as app from "./app"
 import {eve} from "./app"
 import {queryToExecutable} from "./queryParser.ts"
-import {parsePlan, PlanStep, parseQuery, QueryStep, parseUI, UIElem, parseDSL, Artifacts} from "./parser"
+import {UIElem, parseDSL, Artifacts} from "./parser"
 import {UI} from "./uiRenderer"
 
 export var ixer = eve;
@@ -18,42 +18,20 @@ function queryFromSearch(search:string):runtime.Query {
   result.executable.ordinal()
   return result.executable;
 }
-export function queryFromPlanDSL(str:string):runtime.Query {
-  return queryToExecutable(parsePlan(str));
-}
-export function queryFromQueryDSL(str:string):runtime.Query {
-  let plan = parseQuery(str);
-  let query = new runtime.Query(ixer);
-  let ix = 0;
-  for(let step of plan) {
-    let id = step.id || `${step.type}||${ix}`;
-    if(step.type === "select") query.select(step["view"], step["join"] || {}, step.id);
-    else if(step.type === "deselect") query.deselect(step["view"], step["join"] || {});
-    else if(step.type === "calculate") query.calculate(step["func"], step["args"], step.id);
-    else if(step.type === "aggregate") query.aggregate(step["func"], step["args"], step.id);
-    else if(step.type === "ordinal") query.ordinal();
-    else if(step.type === "group") query.group(step["groups"]);
-    else if(step.type === "sort") query.sort(step["sorts"]);
-    else if(step.type === "limit") query.limit(step["limit"]);
-    else if(step.type === "project") query.project(step["mapping"]);
-    else throw new Error(`Unknown query step type '${step.type}'`);
-  }
-  return query;
-}
-export function UIFromDSL(str:string):UI {
-  function processElem(data:UIElem):UI {
-    let elem = new UI(data.id || uuid());
-    if(data.binding) elem.bind(data.bindingKind === "query" ? queryFromQueryDSL(data.binding) : queryFromPlanDSL(data.binding));
-    if(data.embedded) elem.embed(data.embedded);
-    if(data.attributes) elem.attributes(data.attributes);
-    if(data.events) elem.events(data.events);
-    if(data.children) {
-      for(let child of data.children) elem.child(processElem(child));
-    }
-    return elem;
-  }
-  return processElem(parseUI(str));
-}
+// export function UIFromDSL(str:string):UI {
+//   function processElem(data:UIElem):UI {
+//     let elem = new UI(data.id || uuid());
+//     if(data.binding) elem.bind(data.bindingKind === "query" ? parseDSL(data.binding);
+//     if(data.embedded) elem.embed(data.embedded);
+//     if(data.attributes) elem.attributes(data.attributes);
+//     if(data.events) elem.events(data.events);
+//     if(data.children) {
+//       for(let child of data.children) elem.child(processElem(child));
+//     }
+//     return elem;
+//   }
+//   return processElem(parseUI(str));
+// }
 
 class BSPhase {
   protected _views:{[view:string]: string} = {};
@@ -212,10 +190,6 @@ runtime.define("parse natural", {multi: true}, function(text:string) {
   return queryToExecutable(text).plan;
 });
 
-runtime.define("parse plan", {multi: true}, function(text:string) {
-  return parsePlan(text);
-});
-
 app.init("bootstrap", function bootstrap() {
   //-----------------------------------------------------------------------------
   // Entity System
@@ -236,18 +210,6 @@ app.init("bootstrap", function bootstrap() {
     .addEntity("table", "table", ["system", "collection"])
     .addEntity("ui", "ui", ["system", "collection"]);
 
-  phase.addQuery("entity", queryFromQueryDSL(unpad(4) `
-    select entity page as [ent]
-    select page content {page: [ent, page]} as [page]
-    project {entity: [ent, entity]; content: [page, content]}
-  `));
-
-  phase.addQuery("unmodified added bits", queryFromQueryDSL(unpad(4) `
-    select added bits as [added]
-    deselect manual entity {entity: [added, entity]}
-    project {entity: [added, entity]; content: [added, content]}
-  `));
-
   phase.addUnion("entity eavs", ["entity", "attribute", "value"], true)
     .addUnionMember("entity eavs", "manual eav")
     .addUnionMember("entity eavs", "generated eav", {entity: "entity", attribute: "attribute", value: "value"})
@@ -255,25 +217,6 @@ app.init("bootstrap", function bootstrap() {
     // this is a stored union that is used by the add eav action to take query results and
     // push them into eavs, e.g. sum salaries per department -> [total salary = *]
     .addUnionMember("entity eavs", "added eavs");
-
-  phase.addQuery("is a attributes", queryFromQueryDSL(unpad(4) `
-    select entity eavs {attribute: is a} as [is a]
-    project {collection: [is a, value]; entity: [is a, entity]}
-  `));
-
-  // @HACK: this view is required because you can't currently join a select on the result of a function.
-  // so we create a version of the eavs table that already has everything lowercased.
-  phase.addQuery("lowercase eavs", queryFromQueryDSL(unpad(4) `
-    select entity eavs as [eav]
-    calculate lowercase {text: [eav, value]} as [lower]
-    project {entity: [eav, entity];  attribute: [eav, attribute]; value: [lower, result]}
-  `));
-
-  phase.addQuery("eav entity links", queryFromQueryDSL(unpad(4) `
-    select entity eavs as [eav]
-    select entity {entity: [eav, value]} as [entity]
-    project {entity: [eav, entity]; link: [entity, entity]; type: [eav, attribute]}
-  `));
 
   phase.addUnion("entity links", ["entity", "link", "type"])
     .addUnionMember("entity links", "eav entity links")
@@ -286,24 +229,53 @@ app.init("bootstrap", function bootstrap() {
   phase.addUnion("collection entities", ["entity", "collection"])
     .addUnionMember("collection entities", "is a attributes");
 
+  phase.addArtifacts(parseDSL(`
+    (query
+      (entity-page :entity entity :page page)
+      (page-content :page page :content content)
+      (project! "entity" :entity entity :content content))
+  `));
 
-  phase.addQuery("collection", queryFromQueryDSL(unpad(4) `
-    select is a attributes as [coll]
-    group {[coll, collection]}
-    aggregate count as [count]
-    project {collection: [coll, collection]; count: [count, count]}
+  phase.addArtifacts(parseDSL(`
+    (query
+      (added-bits :entity entity :content content)
+      (negate (manual-entity :entity entity))
+      (project! "unmodified added bits" :entity entity :content content))
+  `));
+
+  phase.addArtifacts(parseDSL(`
+    (query
+      (entity-eavs :attribute "is a" :entity entity :value value)
+      (project! "is a attributes" :collection value :entity entity))
+  `));
+
+  // @HACK: this view is required because you can't currently join a select on the result of a function.
+  // so we create a version of the eavs table that already has everything lowercased.
+  phase.addArtifacts(parseDSL(`
+    (query
+      (entity-eavs :entity entity :attribute attribute :value value)
+      (lowercase :text value :result lowercased)
+      (project! "lowercase eavs" :entity entity :attribute attribute :value lowercased))
+  `));
+
+  phase.addArtifacts(parseDSL(`
+    (query
+      (entity-eavs :entity entity :attribute attribute :value value)
+      (entity :entity value)
+      (project! "eav entity links" :entity entity :type attribute :link value))
+  `));
+
+  phase.addArtifacts(parseDSL(`
+    (query
+      (is-a-attributes :collection entity)
+      (query
+        (is-a-attributes :collection entity :entity child)
+        (count :count childCount))
+      (project! "collection" :collection entity :count childCount))
   `));
 
   phase.addTable("ui pane", ["pane", "contains", "kind"]);
   if(eve.find("ui pane").length === 0) phase.addFact("ui pane", {pane: "p1", contains: "pet", kind: 0});
-
-  // phase.addArtifacts(parseDSL(unpad(4) `
-  //   (query
-  //     (is-a-attributes :entity entity :collection "ui pane")
-  //     (entity-eavs :attribute "contains" :value contains)
-  //     (project! "ui pane" :pane entity :contains contains))
-  // `));
-
   phase.apply(true);
 
   //-----------------------------------------------------------------------------
@@ -322,29 +294,18 @@ app.init("bootstrap", function bootstrap() {
       (is-a-attributes :collection coll)
       (project! "entity eavs" :entity coll :attribute "is a" :value "AUTOGENERATED collection THIS SHOULDN'T SHOW UP ANYWHERE"))
 `));
+/*  phase.addArtifacts(parseDSL(unpad(4) `
+    (query
+      (entity :entity entity)
+      (negate (query
+        (directionless-links :entity entity :link link)
+        (!= link "AUTOGENERATED entity THIS SHOULDN'T SHOW UP ANYWHERE")
+        (!= link "AUTOGENERATED orphaned THIS SHOULDN'T SHOW UP ANYWHERE")
+        ))
+      (project! "entity eavs" :entity coll :attribute "is a" :value "AUTOGENERATED collection THIS SHOULDN'T SHOW UP ANYWHERE"))
+`));*/
   phase.apply(true);
   
-  //-----------------------------------------------------------------------------
-  // Wiki Logic
-  //-----------------------------------------------------------------------------
-  phase = new BSPhase(eve);
-  phase.addUnion("search", ["id", "top", "left"]);
-  phase.addUnion("search query", ["id", "search"]);
-  // phase.addQuery("searches to entities shim", queryFromQueryDSL(unpad(4) `
-  //   select search as [search]
-  //   select search query {id: [search, id]} as [query]
-  //   project {id: [search, id]; text: [query, search]; top: [search, top]; left: [search, left]}
-  // `));
-//   phase.generateBitAction("searches to entities shim", "searches to entities shim", unpad(4) `
-//     # {id}
-//     ({is a: search}, {is a: system})
-//     search: {search: {search}}
-//     left: {left: {left}}
-//     top: {top: {top}}
-//   `);
-
-  phase.apply(true);
-
   //-----------------------------------------------------------------------------
   // UI
   //-----------------------------------------------------------------------------
@@ -388,12 +349,15 @@ app.init("bootstrap", function bootstrap() {
     giraffe: ["exotic"],
     gorilla: ["exotic", "dangerous"],
 
+    company: [],
     kodowa: ["company"],
 
+    department: [],
     engineering: ["department"],
     operations: ["department"],
     magic: ["department"],
 
+    employee: [],
     josh: ["employee"],
     corey: ["employee"],
     jamie: ["employee"],

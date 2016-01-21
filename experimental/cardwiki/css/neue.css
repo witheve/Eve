@@ -10,7 +10,7 @@ div { display: flex; flex-direction: column; }
 .flex-row { display: flex; flex-direction: row; }
 .flex-column { display: flex; flex-direction: column; }
 .flex-wrap { flex-wrap: wrap; }
-.fullscreen { width: 100vw; min-height: calc(100vh - 1.5rem); }
+.fullscreen { width: 100vw; min-height: 100vh; }
 
 .spaced-row > * + * { margin-left: 0.4em; }
 .csv { flex-direction: row; }
@@ -19,11 +19,11 @@ div { display: flex; flex-direction: column; }
 /*---------------------------------------------------------
 - Root
 ---------------------------------------------------------*/
-
+body { height: 100vh; }
 .logo { width: 48px; height: 48px; background-size: contain; background-position: top center; background-repeat: no-repeat; }
 .eve-logo { width: 28px; height: 32.5px; background-size: cover; background-image: url("http://www.witheve.com/logo.png"); }
 
-#perfStats { position:absolute; background:#fff; padding:10px; bottom: 0px; right: 0; color: #888; z-index:20; }
+#perfStats { position: absolute; background: rgba(255, 255, 255, 0.5); padding:10px; bottom: 0px; right: 15px; color: #888; z-index: 20; }
 
 /*---------------------------------------------------------
 - Controls
@@ -39,10 +39,9 @@ div:hover > header > .controls { opacity: 1; }
 - Pane
 ---------------------------------------------------------*/
 .wiki-pane.fullscreen {}
-.wiki-pane.window { position: absolute; min-width: 128px; }
 .wiki-pane > header { padding: 10px 0.5em; align-items: center; border-bottom: 1px solid #ccc; }
 .wiki-pane > header > * { margin: 0 0.5em;}
-.wiki-pane > content { display: flex; justify-content: center; } /* @TODO: Breakpoints */
+.wiki-pane > content { display: flex; justify-content: center; align-items: center; } /* @TODO: Breakpoints overflow-y: auto*/
 
 .wiki-pane { background: #fff; }
 
@@ -50,10 +49,23 @@ div:hover > header > .controls { opacity: 1; }
 .disambiguation { align-self: stretch; flex-direction: row; padding: 0.25em 0.5em; margin-bottom: 1rem; color: #999; }
 
 /*---------------------------------------------------------
+- Popout pane
+---------------------------------------------------------*/
+
+.pane-shade { position: absolute; top:0; left:0; right:0; bottom: 0; z-index:10; background:none; }
+
+.wiki-pane.window { position:absolute; max-height:40%; box-shadow:0 5px 9px #ccc; background: #fff; }
+.wiki-pane.window header { background: #eee; border:none; padding:5px 0px; }
+.wiki-pane.window header .controls { opacity:1; color: #777; }
+.wiki-pane.window .wiki-entity { padding:20px;  }
+.wiki-pane.window .wiki-entity .CodeMirror { flex: 1; overflow:hidden; }
+.wiki-pane.window .wiki-editor { padding: 0;  }
+
+/*---------------------------------------------------------
 - Wiki editor
 ---------------------------------------------------------*/
 
-.wiki-editor { flex-grow: 1; width: 680px; }
+.wiki-editor { flex: 1; width: 680px; padding-top: 50px; }
 .wiki-editor .CodeMirror { font-family: "Lato"; font-size: 18px; color: rgb(76, 85, 90); font-weight:300; }
 .wiki-editor .CodeMirror-lines { padding: 0; }
 
@@ -68,7 +80,7 @@ div:hover > header > .controls { opacity: 1; }
 .wiki-editor .embed-code { background: #C7E7FF; }
 .wiki-editor .cm-variable-2 { padding-left:15px; }
 
-.wiki-editor .formatBar { padding:0 5px; background: #555; color: #ccc; z-index: 10; flex-direction:row; border-radius:3px; }
+.wiki-editor .formatBar { padding:0 5px; background: #555; color: #ccc; z-index: 20; flex-direction:row; border-radius:3px; }
 .wiki-editor .formatBar .button { padding: 5px; cursor:default; align-items: center; width:35px; -webkit-user-select: none; }
 .wiki-editor .formatBar .button:hover { background: #666; }
 .wiki-editor .formatBar .sep { width:1px; padding:0; background: #333; }
@@ -91,6 +103,8 @@ content h1 { border-bottom: 1px solid #ccc; }
 - Search Pane
 ---------------------------------------------------------*/
 .wiki-search { display: flex; flex-direction: column; align-items: center; }
+.table { display: flex; }
+.table div, .table header { display: flex !important; }
 .table .group, .table > header { flex-direction: row; }
 .table .column { justify-content: center; }
 .table .field { display: block; max-width: 254px; min-width: 80px; padding: 0.5em 0.5em; width: 160qpx; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
