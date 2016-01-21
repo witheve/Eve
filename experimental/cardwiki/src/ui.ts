@@ -27,6 +27,11 @@ export let uiState:{
 // Utils
 //---------------------------------------------------------
 
+function preventDefault(event) {
+  console.log("DEFAULT PREVENTED");
+  event.preventDefault();
+}
+
 //---------------------------------------------------------
 // Dispatches
 //---------------------------------------------------------
@@ -34,18 +39,43 @@ appHandle("ui focus search", (changes:Diff, {paneId, value}:{paneId:string, valu
   let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value};
   state.focused = true;
 });
-appHandle("ui set search", (changes:Diff, {paneId, value}:{paneId:string, value:string}) => {
-  let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value};
-  state.value = value;
-  state.focused = false;
-  let fact = copy(eve.findOne("ui pane", {pane: paneId}));
-  fact.__id = undefined;
-  fact.contains = value;
-  changes.remove("ui pane", {pane: paneId})
-    .add("ui pane", fact);
+appHandle("ui set search", (changes:Diff, {paneId, value, peek, x, y}:{paneId:string, value:string, peek: boolean, x?: number, y?: number}) => {
+  let fact;
+  if(!peek) {
+    let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value};
+    state.value = value;
+    state.focused = false;
+    fact = copy(eve.findOne("ui pane", {pane: paneId}));
+    fact.__id = undefined;
+    fact.contains = value;
+    changes.remove("ui pane", {pane: paneId});
+  } else {
+    let popout = eve.findOne("ui pane", {kind: PANE.POPOUT});
+    let paneId;
+    if(!popout) {
+      paneId = uuid();
+    } else {
+      paneId = popout.pane;
+      changes.remove("ui pane", {pane: paneId});
+    }
+    let state = uiState.widget.search[paneId] = {value};
+    fact = {contains: value, pane: paneId, kind: PANE.POPOUT};
+    if(!popout || popout.pane !== paneId) {
+      changes.remove("ui pane position", {pane: paneId});
+      changes.add("ui pane position", {pane: paneId, x, y});
+    }
+  }
+  changes.add("ui pane", fact);
 
   if(!eve.findOne("display name", {name: value})) activeSearches[value] = queryToExecutable(value);
 });
+
+appHandle("remove popup", (changes:Diff, {paneId}:{paneId:string}) => {
+  changes.remove("ui pane", {pane: paneId});
+  changes.remove("ui pane position", {pane: paneId});
+  console.log(changes, paneId);
+});
+
 appHandle("ui toggle search plan", (changes:Diff, {paneId}:{paneId:string}) => {
   let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value: ""};
   state.plan = !state.plan;
@@ -67,7 +97,6 @@ appHandle("create entity", (changes:Diff, {entity, page, name = "Untitled"}) => 
   changes
     .add("entity page", {entity, page})
     .add("display name", {id: entity, name});
-  
 });
 appHandle("create page", (changes:Diff, {page, content = undefined}: {page: string, content?:string}) => {
   if(content === undefined) content = "This page is empty. Type something to add some content!";
@@ -86,15 +115,16 @@ export function root():Element {
 }
 
 // @TODO: Add search functionality + Pane Chrome
-let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, header?:Element, footer?:Element}} = {
+let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, header?:Element, footer?:Element, shade?:Element}} = {
   [PANE.FULL]: (paneId, entityId) => ({
     c: "fullscreen",
     header: {t: "header", c: "flex-row", children: [{c: "logo eve-logo"}, searchInput(paneId, entityId)]}
   }),
   [PANE.POPOUT]: (paneId, entityId) => ({
     c: "window",
+    shade: {c: "pane-shade", paneId, click: removePopup, children: []},
     header: {t: "header", c: "flex-row", children: [
-      {c: "flex-grow title", text: entityId},
+      {c: "flex-grow", text: "Click here to navigate"},
       {c: "flex-row controls", children: [{c: "ion-close-round"}]}
     ]}
   }),
@@ -111,15 +141,21 @@ let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, 
   })
 };
 
+function removePopup(event, elem) {
+  if(!event.defaultPrevented) {
+    dispatch("remove popup", {paneId: elem.paneId}).commit();
+  }
+}
+
 export function pane(paneId:string):Element {
   // @FIXME: Add kind to ui panes
   let {contains = undefined, kind = PANE.FULL} = eve.findOne("ui pane", {pane: paneId}) || {};
   let makeChrome = paneChrome[kind];
   if(!makeChrome) throw new Error(`Unknown pane kind: '${kind}' (${PANE[kind]})`);
-  let {c:klass, header, footer} = makeChrome(paneId, contains);
+  let {c:klass, header, footer, shade} = makeChrome(paneId, contains);
   let content;
   let display = eve.findOne("display name", {name: contains}) || eve.findOne("display name", {id: contains});
-  
+
   if(contains.indexOf("search: ") === 0) content = search(contains.substring("search: ".length), paneId);
   else if(display) content = entity(display.id, paneId);
   else if(activeSearches[contains] && activeSearches[contains].plan.length > 1) content = search(contains, paneId);
@@ -127,8 +163,17 @@ export function pane(paneId:string):Element {
     {t: "span", text: `The page ${contains} does not exist. Would you like to`},
     {t: "a", c: "link btn add-btn", text: "create it?", href: "#", name: contains, paneId, click: createPage }
   ]};
-
-  return {c: `wiki-pane ${klass || ""}`, children: [header, content, footer]};
+  let pane:Element = {c: `wiki-pane ${klass || ""}`, paneId, children: [header, content, footer]};
+  let pos = eve.findOne("ui pane position", {pane: paneId});
+  if(pos) {
+    pane.style = `left: ${pos.x}px; top: ${pos.y + 20}px;`;
+  }
+  if(shade) {
+    shade.children.push(pane);
+    pane.click = preventDefault;
+    pane = shade;
+  }
+  return pane;
 }
 function createPage(evt:Event, elem:Element) {
   let name = elem["name"];
@@ -199,7 +244,7 @@ export function search(search:string, paneId:string):Element {
       } else text = JSON.stringify(chunk);
 
       if(text === undefined) continue;
-      let item = {id: `${paneId} ${ix} ${stepIx}`, c: "field " + kind, text, data: {paneId}, link, click: link ? navigate : undefined};
+      let item = {id: `${paneId} ${ix} ${stepIx}`, c: "field " + kind, text, data: {paneId}, link, click: link ? navigate : undefined, peek: true};
       if(!group.children[stepIx]) group.children[stepIx] = {c: "column", value: step.name, children: [item]};
       else if(!groupedFields[step.name]) group.children[stepIx].children.push(item);
 
@@ -253,7 +298,7 @@ function parseParams(rawParams:string) {
 function stringifyParams(params:{}):string {
   let rawParams = "";
   if(!params) return rawParams;
-  for(let key in params) rawParams += `${rawParams.length ? "; " : ""}${key} = ${params[key]}`; 
+  for(let key in params) rawParams += `${rawParams.length ? "; " : ""}${key} = ${params[key]}`;
   return rawParams;
 }
 
@@ -294,7 +339,7 @@ function getEmbed(meta:{entity: string, page: string, paneId:string}, query:stri
   }
 
   if(params["rep"]) {
-    let subRenderer = new Renderer();    
+    let subRenderer = new Renderer();
     let results;
     if(embedType === "query") {
       let {executable} = activeSearches[content];
@@ -323,19 +368,19 @@ function getInline(meta, query) {
     if(display) value = display.id;
     dispatch("add sourced eav", { entity, attribute, value, source: sourceId }).commit();
     return `{${entity}'s ${attribute}|eav source = ${sourceId}; ${rawParams || ""}}`;
-    
+
   } else if(eve.findOne("entity", {entity: content})) {
     if(!params["rep"]) params["rep"] = "name";
     return `{${content}|${stringifyParams(params)}}`;
-    
+
   } else if(display) {
     if(!params["rep"]) params["rep"] = "name";
     return `{${display.id}|${stringifyParams(params)}}`;
-    
+
   } else if(!params["eav source"]) {
     activeSearches[content] = queryToExecutable(content);
     if(params["rep"]) return query;
-    
+
     // @TODO: eventually the information about the requested subjects should come from
     // the NLP side or projection. But for now..
     let plan = activeSearches[content].plan;
@@ -386,19 +431,18 @@ var wikiEditor = createEditor(getEmbed, getInline, removeInline);
 
 //---------------------------------------------------------
 
-
 export function entity(entityId:string, paneId:string):Element {
   let content = eve.findOne("entity", {entity: entityId})["content"];
   let page = eve.findOne("entity page", {entity: entityId})["page"];
   let {name} = eve.findOne("display name", {id: entityId});
   return {t: "content", c: "wiki-entity", children: [
     /* This is disabled because searching for just the name of a single entity resolves to a single find step which blows up on query compilation
-    {c: "flex-row spaced-row disambiguation", children: [
-      {text: "Did you mean to"},
-      {t: "a", c: "link btn add-btn", text: `search for '${name}'`, href: "#", name: search, data: {paneId}, link: `search: ${name}`, click: navigate},
-      {text: "instead?"}
-    ]},
-    */
+       {c: "flex-row spaced-row disambiguation", children: [
+       {text: "Did you mean to"},
+       {t: "a", c: "link btn add-btn", text: `search for '${name}'`, href: "#", name: search, data: {paneId}, link: `search: ${name}`, click: navigate},
+       {text: "instead?"}
+       ]},
+     */
     {c: "wiki-editor", postRender: wikiEditor, change: updatePage, meta: {entity: entityId, page, paneId}, value: content}
   ]};
 }
@@ -409,7 +453,13 @@ function updatePage(meta, content) {
 
 function navigate(event, elem) {
   let {paneId} = elem.data;
-  dispatch("ui set search", {paneId, value: elem.link}).commit();
+  let info:any = {paneId, value: elem.link, peek: elem.peek};
+  if(event.clientX) {
+    info.x = event.clientX;
+    info.y = event.clientY;
+  }
+  dispatch("ui set search", info).commit();
+  event.preventDefault();
 }
 
 //---------------------------------------------------------
@@ -524,7 +574,7 @@ let _reps:{[rep:string]: {embed: (results:{}[], params:{paneId?:string}) => any,
     represent({id, data, t = undefined}) {
       let {name = id} = eve.findOne("display name", {id}) || {};
       let isEntity = eve.findOne("entity", {entity: id});
-      return {t: t || "span", c: "entity link inline", text: name, data, link: isEntity? id : undefined, click: navigate};
+      return {t: t || "span", c: "entity link inline", text: name, data, link: isEntity? id : undefined, click: navigate, peek: true};
     }
   },
   value: {
@@ -547,7 +597,7 @@ let _reps:{[rep:string]: {embed: (results:{}[], params:{paneId?:string}) => any,
         if(!neueField) throw new Error(`Unable to uniquely resolve field name ${field} in result fields ${Object.keys(results[0])}`);
         else field = neueField;
       }
-        
+
       let values = [];
       for(let row of results) values.push(row[field]);
       return {values, type: params.type || "inline", data: params.data};
