@@ -39,10 +39,9 @@ div:hover > header > .controls { opacity: 1; }
 - Pane
 ---------------------------------------------------------*/
 .wiki-pane.fullscreen {}
-.wiki-pane.window { position: absolute; min-width: 128px; }
 .wiki-pane > header { padding: 10px 0.5em; align-items: center; border-bottom: 1px solid #ccc; }
 .wiki-pane > header > * { margin: 0 0.5em;}
-.wiki-pane > content { display: flex; justify-content: center; overflow-y: auto; } /* @TODO: Breakpoints */
+.wiki-pane > content { display: flex; justify-content: center; align-items: center; } /* @TODO: Breakpoints overflow-y: auto*/
 
 .wiki-pane { background: #fff; }
 
@@ -50,10 +49,23 @@ div:hover > header > .controls { opacity: 1; }
 .disambiguation { align-self: stretch; flex-direction: row; padding: 0.25em 0.5em; margin-bottom: 1rem; color: #999; }
 
 /*---------------------------------------------------------
+- Popout pane
+---------------------------------------------------------*/
+
+.pane-shade { position: absolute; top:0; left:0; right:0; bottom: 0; z-index:10; background:none; }
+
+.wiki-pane.window { position:absolute; max-height:40%; box-shadow:0 5px 9px #ccc; background: #fff; }
+.wiki-pane.window header { background: #eee; border:none; padding:5px 0px; }
+.wiki-pane.window header .controls { opacity:1; color: #777; }
+.wiki-pane.window .wiki-entity { padding:20px;  }
+.wiki-pane.window .wiki-entity .CodeMirror { flex: 1; overflow:hidden; }
+.wiki-pane.window .wiki-editor { padding: 0;  }
+
+/*---------------------------------------------------------
 - Wiki editor
 ---------------------------------------------------------*/
 
-.wiki-editor { flex: 1; width: 680px; }
+.wiki-editor { flex: 1; width: 680px; padding-top: 50px; }
 .wiki-editor .CodeMirror { font-family: "Lato"; font-size: 18px; color: rgb(76, 85, 90); font-weight:300; }
 .wiki-editor .CodeMirror-lines { padding: 0; }
 
@@ -68,7 +80,7 @@ div:hover > header > .controls { opacity: 1; }
 .wiki-editor .embed-code { background: #C7E7FF; }
 .wiki-editor .cm-variable-2 { padding-left:15px; }
 
-.wiki-editor .formatBar { padding:0 5px; background: #555; color: #ccc; z-index: 10; flex-direction:row; border-radius:3px; }
+.wiki-editor .formatBar { padding:0 5px; background: #555; color: #ccc; z-index: 20; flex-direction:row; border-radius:3px; }
 .wiki-editor .formatBar .button { padding: 5px; cursor:default; align-items: center; width:35px; -webkit-user-select: none; }
 .wiki-editor .formatBar .button:hover { background: #666; }
 .wiki-editor .formatBar .sep { width:1px; padding:0; background: #333; }
@@ -92,7 +104,7 @@ content h1 { border-bottom: 1px solid #ccc; }
 ---------------------------------------------------------*/
 .wiki-search { display: flex; flex-direction: column; align-items: center; }
 .table { display: flex; }
-.table div { display: flex !important; }
+.table div, .table header { display: flex !important; }
 .table .group, .table > header { flex-direction: row; }
 .table .column { justify-content: center; }
 .table .field { display: block; max-width: 254px; min-width: 80px; padding: 0.5em 0.5em; width: 160qpx; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
