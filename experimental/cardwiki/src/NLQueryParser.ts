@@ -310,8 +310,49 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
         continue;
       }
     }
-
+    
+    // Sentence-level POS corrections
+    // Heuristic: If there are no verbs in the sentence, there can be no adverbs. Turn them into adjectives
+    let verbs = tokens.filter((token: Token) => getMajorPOS(token.POS) === MajorPartsOfSpeech.VERB );
+    if (verbs.length === 0) {
+      let adverbs: Array<Token> = tokens.filter((token: Token) => getMajorPOS(token.POS) === MajorPartsOfSpeech.ADVERB);
+      adverbs.forEach((adverb: Token) => adverbToAdjective(adverb));
+    } else {
+      // Heuristic: Adverbs are located close to verbs
+      // Get the distance from each adverb to the closest verb as a percentage of the length of the sentence.
+      // Threshold the distance an adverb can be from the verb, make an adjective otherwise.
+      let adverbs: Array<Token> = tokens.filter((token: Token) => getMajorPOS(token.POS) === MajorPartsOfSpeech.ADVERB);
+      adverbs.forEach((adverb: Token) => {
+          let closestVerb = tokens.length;
+          verbs.forEach((verb: Token) => {
+            let dist = Math.abs(adverb.ix - verb.ix);
+            if (dist < closestVerb) {
+              closestVerb = dist;
+            }
+          });
+          let distRatio = closestVerb/tokens.length;
+          if (distRatio > .25) {
+            adverbToAdjective(adverb);
+          }
+      });
+    }
     return tokens;
+}
+
+function adverbToAdjective(token: Token): Token {
+  let word = token.normalizedWord;
+  // Heuristic: Words that end in -est are superlative
+  if (word.substr(word.length-3,word.length) === "est") {
+    token.POS = MinorPartsOfSpeech.JJS;
+    token.isSuperlative = true;
+  // Heuristic: Words that end in -er are comaprative
+  } else if (word.substr(word.length-2,word.length) === "er"){
+    token.POS = MinorPartsOfSpeech.JJR;
+    token.isComparative = true;
+  } else {
+    token.POS = MinorPartsOfSpeech.JJ;
+  }  
+  return token;
 }
 
 function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech {
@@ -396,12 +437,6 @@ function singularize(word: string): string {
 // Tree functions
 // ----------------------------------------------------------------------------
 
-interface Tree {
-  node: Token;
-  parent: Token;
-  children: Array<Token>;
-}
-
 interface NounGroup {
   noun: Token;
   refersTo?: NounGroup, // noun group to which a pronoun refers
@@ -424,7 +459,7 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
   let tree: Tree;
   let processedTokens = 0;
   
-  // Entity types ORGANIZATION, PERSON, THING, ANIMAL, LOCATION, DATE, TIME, MONEY, and GEOPOLITICAL
+  // noun types ORGANIZATION, PERSON, THING, ANIMAL, LOCATION, DATE, TIME, MONEY, and GEOPOLITICAL
   
   // Find noun groups. These are like noun phrases, but smaller. A noun phrase may be a single noun group
   // or it may consist of several noun groups. e.g. "the yellow dog who lived in the town ran away from home".
@@ -676,22 +711,40 @@ function newNounGroup(token: Token): NounGroup {
     isReference: token.isReference === undefined ? false : token.isReference,
     isComparative: token.isComparative === undefined ? false : token.isComparative,
     isSuperlative: token.isSuperlative === undefined ? false : token.isSuperlative,
-    subsumed: false
+    subsumed: false,
   }  
+}
+
+interface Tree {
+  node: Token;
+  parent: Token;
+  attributes: Array<Array<Token>>;
 }
 
 function formTree(tokens: Array<Token>): Array<NounGroup> {
   let nounGroups = formNounGroups(tokens);
   
+  console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+  
+  // Build a tree from noungroups
+  for (let i = 0; i < nounGroups.length; i++) {
+    let ng = nounGroups[i];
+    
+  }
+  
+  
+  
+  
+  
   // Get unused tokens
   let unusedTokens = findAll(tokens,(token: Token) => token.used === false);
-  //console.log(nounGroupArrayToString(nounGroups));
 
+  console.log(nounGroupArrayToString(nounGroups));
+  console.log(tokenArrayToString(unusedTokens));
+  console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+  
+  
   return nounGroups;
-  
-
-  
-  //console.log(tokenArrayToString(unusedTokens));
   
   //let token = "corey";
   //let display = eve.findOne("display name", {name: token})
