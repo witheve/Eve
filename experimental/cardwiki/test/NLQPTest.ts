@@ -1,6 +1,8 @@
 import * as app from "../src/app";
 import * as nlqp from  "../src/NLQueryParser";
 import "../src/wiki";
+import * as dslparser from "../src/parser";
+import {eve} from "../src/app";
 
 app.renderRoots["nlqp"];
 
@@ -34,15 +36,31 @@ function parseTest(queryString: string, n: number) {
   }
   // Display result
   let tokenStrings = nlqp.tokenArrayToString(parseResult.tokens);
-  let timingDisplay = `Timing (avg, max, min): ${(avgTime/n).toFixed(2)} | ${maxTime.toFixed(2)} | ${minTime.toFixed(2)} `;  
+  let timingDisplay = `Timing (avg, max, min): ${(avgTime/n).toFixed(2)} | ${maxTime.toFixed(2)} | ${minTime.toFixed(2)} `;
+  console.log("-------------------------------------------------------------------------------------------");  
   console.log(tokenStrings);
+  console.log("-------------------------------------------------------------------------------------------");
+  console.log(nlqp.nounGroupArrayToString(parseResult.tree));
+  console.log("-------------------------------------------------------------------------------------------");
+  console.log(parseResult.ast);
+  /*let artifacts = dslparser.parseDSL(parseResult.ast);
+  //let changeset = eve.diff();;
+  for (let id in artifacts.views) {
+    //changeset.merge(artifacts.views[id].changeset(eve));
+    //eve.asView(artifacts.views[id]); 
+    //console.log(id);
+    //console.log(artifacts.views[id])
+    //artifacts.views[id].debug();
+  }
+  //eve.applyDiff(changeset);*/
+  console.log("-------------------------------------------------------------------------------------------");
   console.log(timingDisplay);
-  console.log("==============================================================");
+  console.log("===========================================================================================");
 }
 
 let n = 1;
 let phrases = [
-  "Corey",
+  "Corey's age",
   /*"Montella",
   "Corey Montella's age",
   "Corey's age",
@@ -248,5 +266,6 @@ let siriphrases = [
 
 app.init("nlqp", function () {
   console.log(`Running ${phrases.length} tests...`);
+  console.log("===========================================================================================");
   phrases.map((phrase) => {parseTest(phrase,n)});
 });
