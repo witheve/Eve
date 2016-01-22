@@ -443,7 +443,7 @@ export class Indexer {
     // trigger's exec function. This ensures that if a view is recompiled and added
     // that any already queued triggers will use the updated version of the view instead
     // of the old queued one.
-    let {results = undefined, unprojected = undefined} = (table.view ? table.view.exec() : trigger.exec()) || {};
+    let {results = undefined, unprojected = undefined} = (table.view ? table.view.exec() : trigger.exec(this)) || {};
     if(!results) return;
     let prevResults = table.factHash;
     let prevHashes = Object.keys(prevResults);
@@ -2068,11 +2068,11 @@ runtime.define("/", {result: "result"}, function(a, b) {
 function addRecompileTriggers(eve) {
 
   var recompileTrigger = {
-    exec: () => {
-      for(let view of eve.find("view")) {
+    exec: (ixer) => {
+      for(let view of ixer.find("view")) {
         if(view.kind === "table") continue;
-        let query = compile(eve, view.view);
-        eve.asView(query);
+        let query = compile(ixer, view.view);
+        ixer.asView(query);
       }
       return {};
     }

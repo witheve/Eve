@@ -360,7 +360,6 @@ app.init("bootstrap", function bootstrap() {
     employee: [],
     josh: ["employee"],
     corey: ["employee"],
-    jamie: ["employee"],
     chris: ["employee"],
     rob: ["employee"],
     eric: ["employee"],
@@ -378,7 +377,6 @@ app.init("bootstrap", function bootstrap() {
 
     josh: {department: "engineering", salary: 7},
     corey: {department: "engineering", salary: 10},
-    jamie: {department: "engineering", salary: 7},
     chris: {department: "engineering", salary: 10},
     eric: {department: "engineering", salary: 7},
     rob: {department: "operations", salary: 10},

@@ -164,9 +164,18 @@ let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, 
       c: "window",
       shade: {c: "pane-shade", paneId, click: removePopup, children: []},
       header: {t: "header", c: "flex-row", children: [
-        {c: "flex-grow", click: navigateParent, link: entityId, paneId: paneId, parentId: parent, text: "Click here to navigate"},
+        {t: "button", c: "", click: navigateParent, link: entityId, paneId: paneId, parentId: parent, text: `Go to ${eve.findOne("display name", {id: entityId})["name"]}`},
+        {c: "labeled-input", children: [
+          {t: "label", text: "Property"},
+          {t: "input", type: "text", placeholder: "related to, is a, ...", value: ""},
+        ]},
+        {c: "labeled-input", children: [
+          {t: "label", text: "Value"},
+          {t: "input", type: "text", placeholder: "value", value: ""},
+        ]},
+        {c: "flex-grow"},
         {c: "flex-row controls", children: [{c: "ion-close-round", click: removePopup, paneId: paneId}]}
-      ]}
+      ]},
     };
   },
   [PANE.WINDOW]: (paneId, entityId) => ({
@@ -181,6 +190,15 @@ let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, 
     ]}
   })
 };
+
+function sizeOnChange(event, elem) {
+  autoSizeInput(event.currentTarget, elem);
+}
+
+function autoSizeInput(node, elem) {
+  let length = Math.max(node.value.length, node.placeholder.length, 5);
+  node.setAttribute("size",length);
+}
 
 function navigateParent(event, elem) {
   dispatch("remove popup", {paneId: elem.paneId})
