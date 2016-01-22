@@ -722,10 +722,11 @@ enum TokenProperties {
 }
 
 interface Node {
-  parent: Node;
-  children: Array<Node>;
-  nounGroups: Array<NounGroup>
-  entity: Entity;
+  ix: number,
+  parent: Node,
+  children: Array<Node>,
+  nounGroups: Array<NounGroup>,
+  entity: Entity,
   attributes: Array<Attribute>,
   properties: Array<TokenProperties>,
 }
@@ -768,8 +769,8 @@ function subsumeProperties(node: Node, nounGroup: NounGroup) {
   node.properties = node.properties.filter(onlyUnique);
 }
 
-function isPossessive(obj: any): boolean {
-  let found = obj.properties.find((property: TokenProperties) => property === TokenProperties.POSSESSIVE);
+function hasPropery(obj: any, property: TokenProperties): boolean {
+  let found = obj.properties.find((property: TokenProperties) => property === property);
   if (found === undefined) {
     return false;
   }
@@ -777,7 +778,8 @@ function isPossessive(obj: any): boolean {
 }
 
 function newNode(ng: NounGroup): Node {
-  let node = {
+  let node: Node = {
+    ix: ng.begin,
     nounGroups: [ng], 
     entity: undefined, 
     attributes: undefined, 
@@ -841,10 +843,15 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
   unusedNG.forEach((ng) => {
     nodes.push(newNode(ng));
   });
+  nodes.sort((a, b) => a.ix - b.ix);
+
+  // Now all NGs are nodes, let's start connecting them together.
+  // Start with proper possessive nodes
 
 
   console.log("Nodes:");
   console.log(nodes.map((node) => nodeToString(node)).join("\n"));
+ 
   //console.log(nounGroupArrayToString(nounGroups));
 
   /*
@@ -1148,8 +1155,13 @@ function queryToString(query: Query): string {
 export function nodeToString(node: Node): string {
   let noun = flattenNounGroups(node.nounGroups);
   let properties = `(${node.properties.map((property: TokenProperties) => TokenProperties[property]).join("|")})`;
-  let nodeString = `${noun} ${properties.length === 2 ? "" : properties}`; 
+  let nodeString = `${node.ix}: ${noun} ${properties.length === 2 ? "" : properties}`; 
   return nodeString;
+}
+
+export function nodeArrayToString(nodes: Array<Node>): string {
+  let nodesString = nodes.map((node) => nodeToString(node)).join("\n");
+  return "----------------------------------------\nNODES\n----------------------------------------\n" + nodesString + "\n----------------------------------------\n";  
 }
 
 export function tokenToString(token: Token): string {
