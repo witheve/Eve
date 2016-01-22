@@ -23,4 +23,8 @@ app.init("wiki", function() {
   document.body.classList.add(localStorage["theme"] || "light");
   app.activeSearches = {};
   initSearches(app.eve);
+
+  let mainPane = app.eve.findOne("ui pane", {pane: "p1"});
+  // @FIXME: why is this not exported
+  ui.setURL("p1", mainPane.contains, true);
 });

@@ -33,6 +33,23 @@ function preventDefault(event) {
   event.preventDefault();
 }
 
+export function setURL(paneId:string, contains:string, replace?:boolean) {
+  let {name = undefined} = eve.findOne("display name", {id: contains}) || {};
+  if(!name) {
+    let maybeId = eve.findOne("display name", {name: contains});
+    if(maybeId) {
+      name = contains;
+      contains = maybeId.id;
+    }
+  }
+  let url;
+  if(name === undefined) url = `/search/${contains.replace(" ", "_")}`;
+  else url = `/${name.replace(/ /g, "_")}/${contains.replace(/ /g, "_")}`;
+  let state = {paneId, contains};
+  if(replace)window.history.replaceState(state, null, url);
+  else window.history.pushState(state, null, url);
+}
+
 //---------------------------------------------------------
 // Dispatches
 //---------------------------------------------------------
@@ -40,7 +57,7 @@ appHandle("ui focus search", (changes:Diff, {paneId, value}:{paneId:string, valu
   let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value};
   state.focused = true;
 });
-appHandle("ui set search", (changes:Diff, {paneId, value, peek, x, y}:{paneId:string, value:string, peek: boolean, x?: number, y?: number}) => {
+appHandle("ui set search", (changes:Diff, {paneId, value, peek, x, y, popState}:{paneId:string, value:string, peek: boolean, x?: number, y?: number, popState?: boolean}) => {
   let fact;
   if(!peek) {
     let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value};
@@ -71,22 +88,8 @@ appHandle("ui set search", (changes:Diff, {paneId, value, peek, x, y}:{paneId:st
   }
   changes.add("ui pane", fact);
 
-  // If this is the primary pane, update the url.
-  if(paneId === "p1") {
-    console.log("navigating pane p1 to ", value);
-    let {name = undefined} = eve.findOne("display name", {id: value}) || {};
-    if(!name) {
-      let maybeId = eve.findOne("display name", {name: value});
-      if(maybeId) {
-        name = value;
-        value = maybeId.id;
-      }
-    }
-    let url;
-    if(name === undefined) url = `/search/${value.replace(" ", "_")}`;
-    else url = `/${name.replace(/ /g, "_")}/${value.replace(/ /g, "_")}`;
-    window.history.pushState({paneId, contains: value}, null, url);
-  }
+  // If this is the primary pane, and we aren't popping a previous state, update the url.
+  if(paneId === "p1" && !popState) setURL(paneId, value);
 
   if(!eve.findOne("display name", {name: value})) activeSearches[value] = queryToExecutable(value);
 });
@@ -94,7 +97,6 @@ appHandle("ui set search", (changes:Diff, {paneId, value, peek, x, y}:{paneId:st
 appHandle("remove popup", (changes:Diff, {paneId}:{paneId:string}) => {
   changes.remove("ui pane", {pane: paneId});
   changes.remove("ui pane position", {pane: paneId});
-  console.log(changes, paneId);
 });
 
 appHandle("ui toggle search plan", (changes:Diff, {paneId}:{paneId:string}) => {
@@ -783,6 +785,11 @@ function represent(rep:string, results, params:{}):Element {
     return _reps[rep].represent(embedParams);
   }
 }
+
+window.addEventListener("popstate", function(evt) {
+  let {paneId = "p1", contains = ""} = evt.state || {};
+  dispatch("ui set search", {paneId, value: contains, popState: true}).commit();
+});
 
 // @NOTE: Uncomment this to enable the new UI, or type `window["NEUE_UI"] = true; app.render()` into the console to enable it transiently.
 window["NEUE_UI"] = true;
