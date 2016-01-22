@@ -78,14 +78,15 @@ wss.on('connection', function connection(ws) {
 });
 
 var httpserver = express();
-httpserver.use("/bin", express.static(__dirname + '/../bin'));
-httpserver.use("/css", express.static(__dirname + '/../css'));
-httpserver.use("/node_modules", express.static(__dirname + '/../node_modules'));
-httpserver.use("/vendor", express.static(__dirname + '/../vendor'));
-httpserver.use("/fonts", express.static(__dirname + '/../fonts'));
+httpserver.use("/bin", express.static(__dirname + '/../../bin'));
+httpserver.use("/css", express.static(__dirname + '/../../css'));
+httpserver.use("/node_modules", express.static(__dirname + '/../../node_modules'));
+httpserver.use("/vendor", express.static(__dirname + '/../../vendor'));
+httpserver.use("/fonts", express.static(__dirname + '/../../fonts'));
 
 httpserver.get("/", (req, res) => {
-  res.sendFile(path.resolve(__dirname + "/../editor.html"));
+  console.log("PATH", path.resolve(__dirname + "/../../editor.html"));
+  res.sendFile(path.resolve(__dirname + "/../../editor.html"));
 })
 
 httpserver.listen(process.env.PORT || 3000);
