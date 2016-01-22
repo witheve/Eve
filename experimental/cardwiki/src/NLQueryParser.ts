@@ -592,32 +592,6 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
     nounGroups.push(newNounGroup(token));  
     token.used = true;
   }
-    
-  // Heuristic: combine adjacent proper noun groups
-  /*
-  let properNounGroups = findAll(nounGroups,(ng: NounGroup) => ng.isProper === true);
-  for (let i = 0; i < properNounGroups.length - 1; i++) {
-    let thisNG: NounGroup = properNounGroups[i];
-    let nextNG: NounGroup = properNounGroups[++i];    
-    // Combine adjacent proper noun groups
-    while (nextNG.isProper && nextNG.begin === thisNG.end + 1) {
-      thisNG.noun = thisNG.noun.concat(nextNG.noun);
-      for (let child of nextNG.children) {
-        addChildToNounGroup(thisNG,child);  
-      }
-      thisNG.end = nextNG.end;
-      // Inherit noun properties from nextNG
-      if (nextNG.isPlural) { thisNG.isPlural = true; }
-      if (nextNG.isPossessive) { thisNG.isPossessive = true; }
-      // Mark the absobed NG as subsumed for filtering later 
-      nextNG.subsumed = true;
-      i++;
-      if (i < properNounGroups.length) {
-        nextNG = properNounGroups[i];  
-      }
-    }
-    i--;
-  }*/
   
   // Remove the superfluous noun groups
   nounGroups = findAll(nounGroups,(ng: NounGroup) => ng.subsumed === false);
@@ -723,6 +697,7 @@ function newNounGroup(token: Token): NounGroup {
 }
 
 interface Node {
+  nounGroups: Array<NounGroup>
   entity: Entity;
   attributes: Array<Attribute>;
 }
@@ -739,7 +714,32 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
   
   let nounGroups = formNounGroups(tokens);
   
-  
+  // First, let's combine adjacent proper groups
+  let properNouns = nounGroups.filter((ng) => ng.isProper);
+  let properNounGroups: Array<Node> = [];
+  let node: Node = undefined;
+  let lastIx = 0;
+  properNouns.forEach((ng,i) => {
+    if (node === undefined) {
+      node = {nounGroups: [ng], entity: undefined, attributes: undefined};
+      lastIx = ng.noun.ix;
+    } else if (ng.noun.ix === lastIx + 1) {
+      node.nounGroups.push(ng);
+      lastIx = ng.noun.ix; 
+    } else {
+      properNounGroups.push(node);
+      node = {nounGroups: [ng], entity: undefined, attributes: undefined};
+      lastIx = ng.noun.ix;
+    }
+    if (ng.isPossessive) {
+      properNounGroups.push(node);
+      node = undefined
+    }
+    if (i+1 === properNouns.length) {
+      properNounGroups.push(node);
+    }
+  });
+
   console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
   console.log(nounGroupArrayToString(nounGroups));
   
@@ -787,7 +787,6 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
     // Heuristic: if the noun is not proper, search for the entity directly
     else {
       let entity = findEntity(ng.noun.normalizedWord);
-      console.log(entity); 
     }
   }
   
