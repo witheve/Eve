@@ -43,7 +43,7 @@ export function setURL(paneId:string, contains:string, replace?:boolean) {
     }
   }
   let url;
-  if(name === undefined) url = `/search/${contains.replace(" ", "_")}`;
+  if(name === undefined) url = `/search/${contains.replace(/ /g, "_")}`;
   else url = `/${name.replace(/ /g, "_")}/${contains.replace(/ /g, "_")}`;
   let state = {paneId, contains};
   if(replace)window.history.replaceState(state, null, url);
