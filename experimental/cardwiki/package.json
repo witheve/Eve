@@ -25,7 +25,7 @@
     "watchify": "^3.7.0"
   },
   "scripts": {
-    "server": "node bin/server.js",
+    "server": "node bin/src/server.js",
     "test": "./test.sh",
     "repl": "node bin/src/repl.js"
   },
