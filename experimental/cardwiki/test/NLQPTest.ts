@@ -37,7 +37,7 @@ function parseTest(queryString: string, n: number) {
   // Display result
   let tokenStrings = nlqp.tokenArrayToString(parseResult.tokens);
   let timingDisplay = `Timing (avg, max, min): ${(avgTime/n).toFixed(2)} | ${maxTime.toFixed(2)} | ${minTime.toFixed(2)} `;
-  console.log("-------------------------------------------------------------------------------------------");  
+  /*console.log("-------------------------------------------------------------------------------------------");  
   console.log(tokenStrings);
   console.log("-------------------------------------------------------------------------------------------");
   console.log(nlqp.nounGroupArrayToString(parseResult.tree));
@@ -60,16 +60,21 @@ function parseTest(queryString: string, n: number) {
 
 let n = 1;
 let phrases = [
-  "Corey's age",
-  /*"Montella",
+  "Corey Montella's Spouse's age",
+  /*
+  "Corey Montella's age",
+  "Corey Montella's hair color",
+  "What was Corey Montella's lowest salary",
+  "What was Corey's first car",
+  /*
   "Corey Montella's age",
   "Corey's age",
   "People younger than Corey Montella",
-  "Modern Family episode withs Edward Norton",
-  "Sum of the lengths of the pets",*/
-  //"Who loves Corey?",
-  //"Who does Corey love?",
-  /*
+  "Modern Family episode with Edward Norton",
+  "Sum of the lengths of the pets",
+  "Who loves Corey?",
+  "Who does Corey love?",
+  
   "Did the groundhog see its shadow?",
   "When did Corey go out with his wife or her friends?",
   "People younger than Corey Montella",
@@ -141,7 +146,7 @@ let phrases = [
   "People older than Corey Montella",
   "How many 4 star restaurants are in San Francisco?",
   "What is the average elevation of the highest points in each state?",
-  "What is the name of the longest river in the state that has the largest city in the United States of America?"
+  "What is the name of the longest river in the state that has the largest city in the United States of America?",
   */
 ];
 

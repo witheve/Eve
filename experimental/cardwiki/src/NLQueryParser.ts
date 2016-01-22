@@ -739,7 +739,9 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
   
   let nounGroups = formNounGroups(tokens);
   
+  
   console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+  console.log(nounGroupArrayToString(nounGroups));
   
   let entities: Array<Entity> = [];
   let attributes: Array<Attribute> = [];
@@ -752,11 +754,17 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
       let properNoun = [];
       while (ng !== undefined && ng.isProper) {
         properNoun.push(ng);
+        if (ng.isPossessive) {
+          i++;
+          break;
+        }
         ng = nounGroups[++i];
       }
+      i--;
       var entity = findEntity(flattenNounGroups(properNoun));
       // We found an entity! check pre and post modifiers for attributes
       if (entity !== undefined) {
+        entities.push(entity);
         properNoun.forEach((ng: NounGroup) => ng.noun.matched = true);
         properNoun.forEach((ng: NounGroup) => {
           ng.preModifiers.forEach((preMod: Token) => {
@@ -775,7 +783,6 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
           });
         });
       }
-      i--;
     }
     // Heuristic: if the noun is not proper, search for the entity directly
     else {
@@ -792,7 +799,8 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
   let unusedTokens = findAll(tokens,(token: Token) => token.used === false);
   let unmatcdhedTokens = findAll(tokens,(token: Token) => token.matched === false);
 
-  console.log(nounGroupArrayToString(nounGroups));
+  console.log(entities);
+  console.log(attributes);
   console.log("Unused Tokens:");
   console.log(tokenArrayToString(unusedTokens));
   console.log("Unmatched Tokens:");
