@@ -794,6 +794,7 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
   let node: Node = undefined;
   let lastIx = 0;
   properNouns.forEach((ng,i) => {
+    // Start a new node, add the ng
     if (node === undefined) {
       node = {
         nounGroups: [ng], 
@@ -806,11 +807,14 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
       subsumeProperties(node,ng);
       ng.used = true;
       lastIx = ng.noun.ix;
+    // Add a ng if it is adjacent
     } else if (ng.noun.ix === lastIx + 1) {
       node.nounGroups.push(ng);
       subsumeProperties(node,ng);
       ng.used = true;
-      lastIx = ng.noun.ix; 
+      lastIx = ng.noun.ix;
+    // If the next ng is not adjacent, push the node
+    // and start a new one 
     } else {
       properNounNodes.push(node);
       node = {
@@ -825,19 +829,18 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
       ng.used = true;
       lastIx = ng.noun.ix;
     }
+    // Break on a possessive ng
     if (ng.isPossessive) {
       properNounNodes.push(node);
       node = undefined
     }
-    if (i + 1 === properNouns.length) {
+    // If we've gotten to the last token, push the node
+    if (node !== undefined && i + 1 === properNouns.length) {
       properNounNodes.push(node);
     }
   });
 
-  
-  
-
-  console.log(nodeToString(properNounNodes[0]));
+  console.log(properNounNodes.map((node) => nodeToString(node)).join("\n"));
   //console.log(nounGroupArrayToString(nounGroups));
 
   /*
