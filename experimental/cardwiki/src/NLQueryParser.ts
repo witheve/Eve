@@ -453,7 +453,7 @@ interface NounGroup {
   isComparative: boolean;
   isSuperlative: boolean;
   isReference: boolean;
-  subsumed: boolean;
+  used: boolean;
 }
 
 // take tokens, form a parse tree
@@ -536,17 +536,31 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
   
   // Heuristic: Now we have some noun groups. Are there any adjectives 
   // left over? Attach them to the closest noun group to the left
-  let unusedAdjectives = findAll(tokens,(token: Token) => token.used === false && getMajorPOS(token.POS) === MajorPartsOfSpeech.ADJECTIVE);
+  let unusedAdjectives = findAll(tokens,(token: Token) => token.used === false && getMajorPOS(token.POS) === MajorPartsOfSpeech.ADJECTIVE)  
+  let targetNG: NounGroup;
+  let foundConjunction: boolean;
+  let adjIx = undefined 
   for (let adj of unusedAdjectives) {
     // finds the closest noun group to the left
-    let targetNG: NounGroup = null;
+    targetNG = null;
+    foundConjunction = false;
+    adjIx = adj.ix;
     for (let ng of nounGroups) {
       if (adj.ix - ng.end < 0) {
         break; 
       }
       targetNG = ng;
-    }
-    if (targetNG !== null) {
+    }   
+    // Are any conjunctions between the adjective and the targetNG?
+    let conjunctions = tokens.filter((token) => token.POS === MinorPartsOfSpeech.CC);
+    conjunctions.forEach((conj) => {
+      if (conj.ix < adjIx && conj.ix > targetNG.end) {
+        foundConjunction = true;
+      } 
+    });
+    // If we found a NG to the left, and there are no CC inbetween
+    // e.g. "Steve's age and salary". Salary should not be added as a child to age
+    if (targetNG !== null && !foundConjunction) {
       addChildToNounGroup(targetNG,adj);
       targetNG.end = adj.ix;
     // If the target NG is null, this means there is no noun group to the left. 
@@ -594,7 +608,7 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
   }
   
   // Remove the superfluous noun groups
-  nounGroups = findAll(nounGroups,(ng: NounGroup) => ng.subsumed === false);
+  nounGroups = findAll(nounGroups,(ng: NounGroup) => ng.used === false);
   
   // Resolve pronoun coreferences
   nounGroups = resolveReferences(nounGroups);
@@ -692,10 +706,11 @@ function newNounGroup(token: Token): NounGroup {
     isReference: token.isReference === undefined ? false : token.isReference,
     isComparative: token.isComparative === undefined ? false : token.isComparative,
     isSuperlative: token.isSuperlative === undefined ? false : token.isSuperlative,
-    subsumed: false,
+    used: false,
   }  
 }
 
+// @TODO Add token properties to everything else
 enum TokenProperties {
   PROPER,
   PLURAL,
@@ -708,7 +723,7 @@ enum TokenProperties {
 
 interface Node {
   parent: Node;
-  children: Node;
+  children: Array<Node>;
   nounGroups: Array<NounGroup>
   entity: Entity;
   attributes: Array<Attribute>,
@@ -723,6 +738,7 @@ function flattenNounGroups(nounGroups: Array<NounGroup>): string {
   return flatString;
 }
 
+// Transfer noun group properties to a node
 function subsumeProperties(node: Node, nounGroup: NounGroup) {
   if (nounGroup.isPlural) {
     node.properties.push(TokenProperties.PLURAL);
@@ -752,13 +768,29 @@ function subsumeProperties(node: Node, nounGroup: NounGroup) {
   node.properties = node.properties.filter(onlyUnique);
 }
 
+function isPossessive(obj: any): boolean {
+  let found = obj.properties.find((property: TokenProperties) => property === TokenProperties.POSSESSIVE);
+  if (found === undefined) {
+    return false;
+  }
+  return true;
+}
+
 function formTree(tokens: Array<Token>): Array<NounGroup> {
   
   let nounGroups = formNounGroups(tokens);
   
+  console.log(nounGroupArrayToString(nounGroups));
+  
+  
+  console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
   // First, let's combine adjacent proper nouns into nodes
+  // Here, adjacent means there are no tokens between noun groups
+  // e.g. [Steve] [Smith] -> [Steve Smith]
+  // But [United States] [of America] does not combine. We do this
+  // at another step
   let properNouns = nounGroups.filter((ng) => ng.isProper);
-  let properNounGroups: Array<Node> = [];
+  let properNounNodes: Array<Node> = [];
   let node: Node = undefined;
   let lastIx = 0;
   properNouns.forEach((ng,i) => {
@@ -768,7 +800,7 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
         entity: undefined, 
         attributes: undefined, 
         parent: undefined, 
-        children: undefined, 
+        children: [], 
         properties: [],
       };
       subsumeProperties(node,ng);
@@ -778,33 +810,35 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
       subsumeProperties(node,ng);
       lastIx = ng.noun.ix; 
     } else {
-      properNounGroups.push(node);
+      properNounNodes.push(node);
       node = {
         nounGroups: [ng], 
         entity: undefined, 
         attributes: undefined, 
         parent: undefined, 
-        children: undefined,
+        children: [],
         properties: [],
       };
       subsumeProperties(node,ng);
       lastIx = ng.noun.ix;
     }
     if (ng.isPossessive) {
-      properNounGroups.push(node);
+      properNounNodes.push(node);
       node = undefined
     }
     if (i + 1 === properNouns.length) {
-      properNounGroups.push(node);
+      properNounNodes.push(node);
     }
   });
 
-  console.log(properNounGroups);
+  
+  
 
-  console.log(nounGroupArrayToString(nounGroups));
+  console.log(nodeToString(properNounNodes[0]));
+  //console.log(nounGroupArrayToString(nounGroups));
 
   /*
-  console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+  
   
   
   let entities: Array<Entity> = [];
@@ -868,7 +902,7 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
   console.log(tokenArrayToString(unusedTokens));
   console.log("Unmatched Tokens:");
   console.log(tokenArrayToString(unmatcdhedTokens));
-  console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+  console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
   
   
   return nounGroups;
@@ -1097,6 +1131,13 @@ function queryToString(query: Query): string {
 // ----------------------------------------------------------------------------
 // Debug utility functions
 // ---------------------------------------------------------------------------- 
+
+export function nodeToString(node: Node): string {
+  let noun = flattenNounGroups(node.nounGroups);
+  let properties = `(${node.properties.map((property: TokenProperties) => TokenProperties[property]).join("|")})`;
+  let nodeString = `${noun} ${properties}`; 
+  return nodeString;
+}
 
 export function tokenToString(token: Token): string {
   let isPossessive = token.isPossessive === undefined ? "" : token.isPossessive === true ? "possessive ": "";
