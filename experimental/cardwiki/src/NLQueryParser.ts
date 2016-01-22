@@ -796,7 +796,7 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
   
   let nounGroups = formNounGroups(tokens);
   
-  console.log(nounGroupArrayToString(nounGroups));
+  //console.log(nounGroupArrayToString(nounGroups));
   
   
   console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
@@ -884,7 +884,11 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
       }
     }
   }
-    
+  
+  let foo = nodeArrays.map((na) => nodeArrayToString(na)).join("\n");
+  console.log(foo);
+  
+  
   //console.log(nodeGroups);
   //[Corey James Montella] [wife], [Rachel Romain Montella] [husband], and [Chris Granger] [age]
 
@@ -1256,13 +1260,7 @@ function zip(array1: Array<any>, array2: Array<any>): Array<Array<any>> {
 
 // Finds all elements in an array matching a specified condition
 function findAll(array: Array<any>, condition: Function): Array<any> {
-  let matchingElements: Array<any> = [];
-  for (let element of array) {
-    if (condition(element)) {
-      matchingElements.push(element);
-    }
-  }
-  return matchingElements;  
+  return array.filter((element) => condition(element));
 }
 
 // Finds the intersection of two arrays
