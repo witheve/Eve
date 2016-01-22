@@ -67,8 +67,26 @@ appHandle("ui set search", (changes:Diff, {paneId, value, peek, x, y}:{paneId:st
       changes.remove("ui pane parent", {parent: paneId});
       changes.add("ui pane parent", {pane: neuePaneId, parent: paneId});
     }
+    paneId = neuePaneId;
   }
   changes.add("ui pane", fact);
+
+  // If this is the primary pane, update the url.
+  if(paneId === "p1") {
+    console.log("navigating pane p1 to ", value);
+    let {name = undefined} = eve.findOne("display name", {id: value}) || {};
+    if(!name) {
+      let maybeId = eve.findOne("display name", {name: value});
+      if(maybeId) {
+        name = value;
+        value = maybeId.id;
+      }
+    }
+    let url;
+    if(name === undefined) url = `/search/${value.replace(" ", "_")}`;
+    else url = `/${name.replace(/ /g, "_")}/${value.replace(/ /g, "_")}`;
+    window.history.pushState({paneId, contains: value}, null, url);
+  }
 
   if(!eve.findOne("display name", {name: value})) activeSearches[value] = queryToExecutable(value);
 });
