@@ -845,12 +845,52 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
   });
   nodes.sort((a, b) => a.ix - b.ix);
 
-  // Now all NGs are nodes, let's start connecting them together.
-  // Start with proper possessive nodes
+  // Break nodes at separator and CC boundaries
+  let nodeArrays: Array<Array<Node>> = []; 
+  let separatorIxes = tokens.filter((token) => token.POS === MinorPartsOfSpeech.SEP).map((token) => token.ix);
+  let conjunctionIxes = tokens.filter((token) => token.POS === MinorPartsOfSpeech.CC).map((token) => token.ix);;
+  let boundaryIxes = separatorIxes.concat(conjunctionIxes);
+  let thisNodeIx;
+  let nextNodeIx;
+  let lastBoundary = 0;
+  let lastNode = 0;
+  for (let i = 0; i < nodes.length - 1; i++) {
+    thisNodeIx = nodes[i].ix;
+    nextNodeIx = nodes[i + 1].ix;
+    // Any separators or CC inbetween?
+    for (let j = lastBoundary; j < boundaryIxes.length; j++) {
+      let bIx = boundaryIxes[j];
+      if (bIx > thisNodeIx && bIx < nextNodeIx) {
+        // Add nodes until boundary to node group
+        let nodeArray: Array<Node> = [];
+        for (let k = lastNode; k < i + 1; k++) {
+            nodeArray.push(nodes[k]);
+        }
+        if (nodeArray.length > 0) {
+          nodeArrays.push(nodeArray);  
+        }
+        lastBoundary = j + 1;
+        lastNode = i + 1;
+        break;
+      }
+    };
+    if (nextNodeIx === tokens.length-1) {
+      let nodeGroup: Array<Node> = [];
+      for (let k = lastNode; k <= i + 1; k++) {
+        nodeGroup.push(nodes[k]);
+      }
+      if (nodeGroup.length > 0) {
+        nodeArrays.push(nodeGroup);  
+      }
+    }
+  }
+    
+  //console.log(nodeGroups);
+  //[Corey James Montella] [wife], [Rachel Romain Montella] [husband], and [Chris Granger] [age]
 
 
-  console.log("Nodes:");
-  console.log(nodes.map((node) => nodeToString(node)).join("\n"));
+  //console.log("Nodes:");
+  //console.log(nodes.map((node) => nodeToString(node)).join("\n"));
  
   //console.log(nounGroupArrayToString(nounGroups));
 
