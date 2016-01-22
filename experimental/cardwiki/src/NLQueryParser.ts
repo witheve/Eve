@@ -776,6 +776,20 @@ function isPossessive(obj: any): boolean {
   return true;
 }
 
+function newNode(ng: NounGroup): Node {
+  let node = {
+    nounGroups: [ng], 
+    entity: undefined, 
+    attributes: undefined, 
+    parent: undefined, 
+    children: [],
+    properties: [],
+  };
+  subsumeProperties(node,ng);
+  ng.used = true;
+  return node;
+}
+
 function formTree(tokens: Array<Token>): Array<NounGroup> {
   
   let nounGroups = formNounGroups(tokens);
@@ -790,22 +804,13 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
   // But [United States] [of America] does not combine. We do this
   // at another step
   let properNouns = nounGroups.filter((ng) => ng.isProper);
-  let properNounNodes: Array<Node> = [];
+  let nodes: Array<Node> = [];
   let node: Node = undefined;
   let lastIx = 0;
   properNouns.forEach((ng,i) => {
     // Start a new node, add the ng
     if (node === undefined) {
-      node = {
-        nounGroups: [ng], 
-        entity: undefined, 
-        attributes: undefined, 
-        parent: undefined, 
-        children: [], 
-        properties: [],
-      };
-      subsumeProperties(node,ng);
-      ng.used = true;
+      node = newNode(ng);
       lastIx = ng.noun.ix;
     // Add a ng if it is adjacent
     } else if (ng.noun.ix === lastIx + 1) {
@@ -816,31 +821,30 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
     // If the next ng is not adjacent, push the node
     // and start a new one 
     } else {
-      properNounNodes.push(node);
-      node = {
-        nounGroups: [ng], 
-        entity: undefined, 
-        attributes: undefined, 
-        parent: undefined, 
-        children: [],
-        properties: [],
-      };
-      subsumeProperties(node,ng);
-      ng.used = true;
+      nodes.push(node);
+      node = newNode(ng);
       lastIx = ng.noun.ix;
     }
     // Break on a possessive ng
     if (ng.isPossessive) {
-      properNounNodes.push(node);
+      nodes.push(node);
       node = undefined
     }
     // If we've gotten to the last token, push the node
     if (node !== undefined && i + 1 === properNouns.length) {
-      properNounNodes.push(node);
+      nodes.push(node);
     }
   });
 
-  console.log(properNounNodes.map((node) => nodeToString(node)).join("\n"));
+  // Form nodes from the remaining noun groups
+  let unusedNG = nounGroups.filter((ng: NounGroup) => ng.used === false);
+  unusedNG.forEach((ng) => {
+    nodes.push(newNode(ng));
+  });
+
+
+  console.log("Nodes:");
+  console.log(nodes.map((node) => nodeToString(node)).join("\n"));
   //console.log(nounGroupArrayToString(nounGroups));
 
   /*
@@ -900,7 +904,7 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
   
   // Get unused tokens
   let unusedTokens = findAll(tokens,(token: Token) => token.used === false);
-  let unusedNG = nounGroups.filter((ng: NounGroup) => ng.used === false);
+  unusedNG = nounGroups.filter((ng: NounGroup) => ng.used === false);
   let unmatcdhedTokens = findAll(tokens,(token: Token) => token.matched === false);
 
   //console.log(entities);
@@ -1144,7 +1148,7 @@ function queryToString(query: Query): string {
 export function nodeToString(node: Node): string {
   let noun = flattenNounGroups(node.nounGroups);
   let properties = `(${node.properties.map((property: TokenProperties) => TokenProperties[property]).join("|")})`;
-  let nodeString = `${noun} ${properties}`; 
+  let nodeString = `${noun} ${properties.length === 2 ? "" : properties}`; 
   return nodeString;
 }
 
