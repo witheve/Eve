@@ -804,10 +804,12 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
         properties: [],
       };
       subsumeProperties(node,ng);
+      ng.used = true;
       lastIx = ng.noun.ix;
     } else if (ng.noun.ix === lastIx + 1) {
       node.nounGroups.push(ng);
       subsumeProperties(node,ng);
+      ng.used = true;
       lastIx = ng.noun.ix; 
     } else {
       properNounNodes.push(node);
@@ -820,6 +822,7 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
         properties: [],
       };
       subsumeProperties(node,ng);
+      ng.used = true;
       lastIx = ng.noun.ix;
     }
     if (ng.isPossessive) {
@@ -894,12 +897,15 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
   
   // Get unused tokens
   let unusedTokens = findAll(tokens,(token: Token) => token.used === false);
+  let unusedNG = nounGroups.filter((ng: NounGroup) => ng.used === false);
   let unmatcdhedTokens = findAll(tokens,(token: Token) => token.matched === false);
 
   //console.log(entities);
   //console.log(attributes);
   console.log("Unused Tokens:");
   console.log(tokenArrayToString(unusedTokens));
+  console.log("Unused Noun Groups:");
+  console.log(nounGroupArrayToString(unusedNG));
   console.log("Unmatched Tokens:");
   console.log(tokenArrayToString(unmatcdhedTokens));
   console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
