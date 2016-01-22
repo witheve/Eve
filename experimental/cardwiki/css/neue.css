@@ -1,6 +1,7 @@
 body { position: relative; padding-bottom: 1.5em; background: #fff; color: rgb(76, 85, 90); font-family: "Lato", sans-serif; font-weight: 300; }
 * { box-sizing: border-box; }
 div { display: flex; flex-direction: column; }
+button, input { outline: none; }
 
 .test { border: 2px solid red; }
 
@@ -54,12 +55,37 @@ div:hover > header > .controls { opacity: 1; }
 
 .pane-shade { position: absolute; top:0; left:0; right:0; bottom: 0; z-index:10; background:none; }
 
-.wiki-pane.window { position:absolute; max-height:40%; box-shadow:0 5px 9px #ccc; background: #fff; }
-.wiki-pane.window header { background: #eee; border:none; padding:5px 0px; }
+.wiki-pane.window > header > * + * { margin-left:0;}
+.wiki-pane.window { position:absolute; max-height:40%; box-shadow:0 5px 9px #ccc; background: #fff; border:1px solid #e5e5e5; border-radius:3px; }
+.wiki-pane.window header { background: #fff; border-bottom:1px solid #ddd; padding: 8px 0px; }
+.wiki-pane.window header button { border:1px solid #ddd; border-radius:3px; background:none; font-size: 10pt; font-weight:300; color:#555; padding:5px 5px; background:#f0f0f0;  }
 .wiki-pane.window header .controls { opacity:1; color: #777; }
 .wiki-pane.window .wiki-entity { padding:20px;  }
 .wiki-pane.window .wiki-entity .CodeMirror { flex: 1; overflow:hidden; }
 .wiki-pane.window .wiki-editor { padding: 0;  }
+
+/*---------------------------------------------------------
+- Form
+---------------------------------------------------------*/
+
+.form-row + .form-row { margin-left:10px;  }
+.form-row label { display:none; margin-bottom:3px; font-size: 10pt; }
+
+
+.labeled-input { flex-direction:row; }
+.labeled-input { border:1px solid #ccc; border-radius:3px; align-items: center; background: #eee; }
+.labeled-input label { font-size: 10pt; padding:5px 4px; }
+.labeled-input input { font-size: 10pt; border-radius:0 3px 3px 0; border:none; border-left: 1px solid #ddd; padding: 5px; }
+
+/*---------------------------------------------------------
+- Selector
+---------------------------------------------------------*/
+
+.selector { flex-direction:row; background:#fff; border:1px solid #ccc; border-radius:3px; }
+.selector *:nth-child(2) { background: orange; color: #333; text-shadow:none; }
+.selector * { justify-content:center; background:none; border:none; color: #666; font-size: 11pt; font-family: "Lato"; font-weight: 300; padding:3px 8px; }
+.selector * + * { margin-left: 5px; }
+.selector button { background: ; }
 
 /*---------------------------------------------------------
 - Wiki editor
@@ -73,7 +99,7 @@ div:hover > header > .controls { opacity: 1; }
 .wiki-editor .CodeMirror-widget content { align-items:flex-start; padding:0; }
 
 .wiki-editor .cm-header { color: rgb(76, 85, 90); font-weight:normal; }
-.wiki-editor .cm-header-1 { font-size: 20pt; line-height: 40px; }
+.wiki-editor .cm-header-1 { font-size: 24pt; line-height: 40px; }
 .wiki-editor .attribute, .wiki-editor .value { color:#2C00FD; }
 .wiki-editor .link { color: #008cdd; cursor: pointer; border-bottom: 1px solid transparent; }
 .wiki-editor .link:hover { border-bottom:1px solid #008cdd; }
