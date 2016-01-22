@@ -116,6 +116,7 @@ interface Token {
   isSuperlative?: boolean;
   // Properties relevant to parsing
   used: boolean;
+  matched: boolean;
 }
 
 // take an input string, extract tokens
@@ -125,7 +126,7 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
     let tokens: Array<Token> = preTokens.map((preToken: PreToken, i: number) => {
       let word = preToken.text;
       let tag = preToken.tag;
-      let token: Token = {ix: i, originalWord: word, normalizedWord: word, POS: MinorPartsOfSpeech[tag], used: false};
+      let token: Token = {ix: i, originalWord: word, normalizedWord: word, POS: MinorPartsOfSpeech[tag], used: false, matched: false};
       let before = "";
            
       // Add default attribute markers to nouns
@@ -457,8 +458,7 @@ interface NounGroup {
 
 // take tokens, form a parse tree
 function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
- 
-  let tree: Tree;
+
   let processedTokens = 0;
   
   // noun types ORGANIZATION, PERSON, THING, ANIMAL, LOCATION, DATE, TIME, MONEY, and GEOPOLITICAL
@@ -722,21 +722,66 @@ function newNounGroup(token: Token): NounGroup {
   }  
 }
 
-interface Tree {
-  node: Token;
-  parent: Token;
-  attributes: Array<Array<Token>>;
+interface Node {
+  entity: Entity;
+  attributes: Array<Attribute>;
+}
+
+function flattenNounGroups(nounGroups: Array<NounGroup>): string {
+  let flatString: string = nounGroups.map((ng: NounGroup) => {
+    let noun = ng.noun.normalizedWord;
+    return `${noun}`;
+  }).join(" ");
+  return flatString;
 }
 
 function formTree(tokens: Array<Token>): Array<NounGroup> {
+  
   let nounGroups = formNounGroups(tokens);
-  /*
+  
   console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+  
+  let entities: Array<Entity> = [];
+  let attributes: Array<Attribute> = [];
   
   // Build a tree from noungroups
   for (let i = 0; i < nounGroups.length; i++) {
     let ng = nounGroups[i];
-    
+    // Heuristic: search for full proper strings first
+    if (ng.isProper) {
+      let properNoun = [];
+      while (ng !== undefined && ng.isProper) {
+        properNoun.push(ng);
+        ng = nounGroups[++i];
+      }
+      var entity = findEntity(flattenNounGroups(properNoun));
+      // We found an entity! check pre and post modifiers for attributes
+      if (entity !== undefined) {
+        properNoun.forEach((ng: NounGroup) => ng.noun.matched = true);
+        properNoun.forEach((ng: NounGroup) => {
+          ng.preModifiers.forEach((preMod: Token) => {
+            var attribute = findAttribute(preMod.normalizedWord,entity);
+            if (attribute !== undefined) {
+              preMod.matched = true;
+              attributes.push(attribute);
+            }
+          });
+          ng.postModifiers.forEach((postMod: Token) => {
+            var attribute = findAttribute(postMod.normalizedWord,entity);
+            if (attribute !== undefined) {
+              postMod.matched = true;
+              attributes.push(attribute);
+            }
+          });
+        });
+      }
+      i--;
+    }
+    // Heuristic: if the noun is not proper, search for the entity directly
+    else {
+      let entity = findEntity(ng.noun.normalizedWord);
+      console.log(entity); 
+    }
   }
   
   
@@ -745,11 +790,15 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
   
   // Get unused tokens
   let unusedTokens = findAll(tokens,(token: Token) => token.used === false);
+  let unmatcdhedTokens = findAll(tokens,(token: Token) => token.matched === false);
 
   console.log(nounGroupArrayToString(nounGroups));
+  console.log("Unused Tokens:");
   console.log(tokenArrayToString(unusedTokens));
+  console.log("Unmatched Tokens:");
+  console.log(tokenArrayToString(unmatcdhedTokens));
   console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-  */
+  
   
   return nounGroups;
   
@@ -836,16 +885,18 @@ interface Attribute {
 // 1) the name is not found in "display name"
 // 2) the name is found in "display name" but not found in "entity"
 // can 2) ever happen?
-function findEntity(token: Token): Entity {
-  let display = eve.findOne("display name",{ name: token.normalizedWord });
+function findEntity(name: string): Entity {
+  console.log("Searching for entity: " + name);
+  let display = eve.findOne("display name",{ name: name });
   if (display !== undefined) {
     let foundEntity = eve.findOne("entity", { entity: display.id });
     if (foundEntity !== undefined) {
       let entity: Entity = {
         id: foundEntity.entity,
-        displayName: token.normalizedWord,
+        displayName: name,
         content: foundEntity.content,
       }
+      console.log("found: " + name);
       return entity;
     }
   }
@@ -853,16 +904,17 @@ function findEntity(token: Token): Entity {
 }
 
 // Returns the collection with the given display name.
-function findCollection(token: Token): Collection {
-  let display = eve.findOne("display name",{ name: token.normalizedWord });
+function findCollection(name: string): Collection {
+  let display = eve.findOne("display name",{ name: name });
   if (display !== undefined) {
     let foundCollection = eve.findOne("collection", { collection: display.id });
     if (foundCollection !== undefined) {
       let collection: Collection = {
         id: foundCollection.collection,
-        displayName: token.normalizedWord,
+        displayName: name,
         count: foundCollection.count,
       }
+      console.log("found: " + name);
       return collection;
     }
   }
@@ -871,15 +923,17 @@ function findCollection(token: Token): Collection {
 
 // Returns the attribute with the given display name attached to the given entity
 // If the entity does not have that attribute, or the entity does not exist, returns undefined
-function findAttribute(token: Token, entity: Entity): Attribute {
-  let foundAttribute = eve.findOne("entity eavs", { entity: entity.id, attribute: token.normalizedWord });
+function findAttribute(name: string, entity: Entity): Attribute {
+  console.log("Searching for attribute: " + name);
+  let foundAttribute = eve.findOne("entity eavs", { entity: entity.id, attribute: name });
   if (foundAttribute !== undefined) {
     let attribute: Attribute = {
       id: foundAttribute,
-      displayName: token.normalizedWord,
+      displayName: name,
       entity: entity,
       value: foundAttribute.value,
     }
+    console.log("found: " + name);
     return attribute;
   }
   return undefined;
@@ -918,27 +972,9 @@ type Query = Array<Term>;
 // take a parse tree, form a DSL AST
 function formDSL(tree: Array<NounGroup>): string {
   
+  /*
   let entities: Array<Entity> = [];
   let collections: Array<Collection> = [];
-  // Walk the tree and create the query
-  tree.forEach((ng: NounGroup) => {    
-    if (ng.isPlural) {
-      let collection = findCollection(ng.noun);
-      if (collection !== undefined) {
-        collections.push(collection);  
-      } 
-    } else if (ng.isProper) {
-      let entity = findEntity(ng.noun);
-      if (entity !== undefined) {
-        entities.push(entity);  
-      }  
-    } else {
-      let entity = findEntity(ng.noun);
-      if (entity !== undefined) {
-        entities.push(entity);  
-      }
-    }
-  });
 
   // Create a query term for each entity
   let selectEntities: Query = entities.map((entity: Entity) => {
@@ -964,6 +1000,8 @@ function formDSL(tree: Array<NounGroup>): string {
   
   let query = selectEntities.concat(selectCollections);
   return queryToString(query);
+  */
+  return "(Coming Soon)";
 }
 
 // Converts the AST into a string for parsing
