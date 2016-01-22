@@ -148,7 +148,7 @@ let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, 
       header: {t: "header", c: "flex-row", children: [
         {t: "button", c: "", click: navigateParent, link: entityId, paneId: paneId, parentId: parent, text: `Go to ${eve.findOne("display name", {id: entityId})["name"]}`},
         {c: "labeled-input", children: [
-          {t: "label", text: "Relationship"},
+          {t: "label", text: "Property"},
           {t: "input", type: "text", placeholder: "related to, is a, ...", value: ""},
         ]},
         {c: "labeled-input", children: [

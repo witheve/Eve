@@ -1,7 +1,8 @@
 body { position: relative; padding-bottom: 1.5em; background: #fff; color: rgb(76, 85, 90); font-family: "Lato", sans-serif; font-weight: 300; }
 * { box-sizing: border-box; }
 div { display: flex; flex-direction: column; }
-button, input { outline: none; }
+button, input { outline: none; font-family: "Lato", sans-serif; font-weight: 300; color: rgb(76,85,90); }
+
 
 .test { border: 2px solid red; }
 
@@ -56,10 +57,10 @@ div:hover > header > .controls { opacity: 1; }
 .pane-shade { position: absolute; top:0; left:0; right:0; bottom: 0; z-index:10; background:none; }
 
 .wiki-pane.window > header > * + * { margin-left:0;}
-.wiki-pane.window { position:absolute; max-height:40%; box-shadow:0 5px 9px #ccc; background: #fff; border:1px solid #e5e5e5; border-radius:3px; }
-.wiki-pane.window header { background: #fff; border-bottom:1px solid #ddd; padding: 8px 0px; }
-.wiki-pane.window header button { border:1px solid #ddd; border-radius:3px; background:none; font-size: 10pt; font-weight:300; color:#555; padding:5px 5px; background:#f0f0f0;  }
-.wiki-pane.window header .controls { opacity:1; color: #777; }
+.wiki-pane.window { position:absolute; max-height:40%; box-shadow:0 0 0 1px rgba(0,0,0,0.1),0 7px 15px rgba(0,0,0,0.1); background: #fff; border-radius:3px; }
+.wiki-pane.window > header { background: #fff; border-bottom:1px solid #eee; padding: 10px 5px; }
+.wiki-pane.window > header button { border:1px solid #ddd; border-radius:3px; background:none; font-size: 10pt; font-weight:300; color:#555; padding:8px 10px; }
+.wiki-pane.window > header .controls { opacity:1; color: #777; }
 .wiki-pane.window .wiki-entity { padding:20px;  }
 .wiki-pane.window .wiki-entity .CodeMirror { flex: 1; overflow:hidden; }
 .wiki-pane.window .wiki-editor { padding: 0;  }
@@ -73,9 +74,9 @@ div:hover > header > .controls { opacity: 1; }
 
 
 .labeled-input { flex-direction:row; }
-.labeled-input { border:1px solid #ccc; border-radius:3px; align-items: center; background: #eee; }
-.labeled-input label { font-size: 10pt; padding:5px 4px; }
-.labeled-input input { font-size: 10pt; border-radius:0 3px 3px 0; border:none; border-left: 1px solid #ddd; padding: 5px; }
+.labeled-input { border:1px solid #ddd; border-radius:3px; align-items: center; background: none; }
+.labeled-input label { font-size: 10pt; padding:8px 6px; }
+.labeled-input input { font-size: 10pt; border-radius:0 3px 3px 0; border:none; border-left: 1px solid #ddd; padding: 8px 10px; }
 
 /*---------------------------------------------------------
 - Selector
@@ -106,6 +107,8 @@ div:hover > header > .controls { opacity: 1; }
 .wiki-editor .embed-code { background: #C7E7FF; }
 .wiki-editor .cm-variable-2 { padding-left:15px; }
 
+.wiki-editor .table .field { width: 160px; }
+
 .wiki-editor .formatBar { padding:0 5px; background: #555; color: #ccc; z-index: 20; flex-direction:row; border-radius:3px; }
 .wiki-editor .formatBar .button { padding: 5px; cursor:default; align-items: center; width:35px; -webkit-user-select: none; }
 .wiki-editor .formatBar .button:hover { background: #666; }
@@ -135,11 +138,11 @@ content h1 { border-bottom: 1px solid #ccc; }
 .table .column { justify-content: center; }
 .table .field { display: block; max-width: 254px; min-width: 80px; padding: 0.5em 0.5em; width: 160qpx; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
-.table { border: 1px solid #ccc; border-radius: 2px; }
-.table > header { border-bottom: 1px solid #ccc; background: #ddd; }
-.table .group + .group, .table .sub-group + .sub-group { border-top: 1px solid #ccc; }
-.table .column + .column { border-left: 1px solid #ccc; }
-.table .column .field + .field { border-top: 1px solid #ccc; }
+.table { border: 1px solid #ddd; border-radius: 2px; }
+.table > header { border-bottom: 1px solid #ddd; background: #f5f5f5; }
+.table .group + .group, .table .sub-group + .sub-group { border-top: 1px solid #ddd; }
+.table .column + .column { border-left: 1px solid #ddd; }
+.table .column .field + .field { border-top: 1px solid #ddd; }
 
 /*---------------------------------------------------------
 - Search Input
