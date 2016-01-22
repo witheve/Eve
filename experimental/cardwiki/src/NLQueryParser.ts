@@ -696,10 +696,23 @@ function newNounGroup(token: Token): NounGroup {
   }  
 }
 
+enum TokenProperties {
+  PROPER,
+  PLURAL,
+  POSSESSIVE,
+  QUANTITY,
+  COMPARATIVE,
+  SUPERLATIVE,
+  REFERENCE,  
+}
+
 interface Node {
+  parent: Node;
+  children: Node;
   nounGroups: Array<NounGroup>
   entity: Entity;
-  attributes: Array<Attribute>;
+  attributes: Array<Attribute>,
+  properties: Array<TokenProperties>,
 }
 
 function flattenNounGroups(nounGroups: Array<NounGroup>): string {
@@ -710,38 +723,89 @@ function flattenNounGroups(nounGroups: Array<NounGroup>): string {
   return flatString;
 }
 
+function subsumeProperties(node: Node, nounGroup: NounGroup) {
+  if (nounGroup.isPlural) {
+    node.properties.push(TokenProperties.PLURAL);
+  }
+  if (nounGroup.isPossessive) {
+    node.properties.push(TokenProperties.POSSESSIVE);
+  }
+  if (nounGroup.isProper) {
+    node.properties.push(TokenProperties.PROPER);
+  }
+  if (nounGroup.isComparative) {
+    node.properties.push(TokenProperties.COMPARATIVE);
+  }
+  if (nounGroup.isSuperlative) {
+    node.properties.push(TokenProperties.SUPERLATIVE);
+  }
+  if (nounGroup.isReference) {
+    node.properties.push(TokenProperties.REFERENCE);
+  }
+  if (nounGroup.isQuantity) {
+    node.properties.push(TokenProperties.QUANTITY);
+  }
+  // Make sure the properties are unique  
+  function onlyUnique(value, index, self) { 
+    return self.indexOf(value) === index;
+  }
+  node.properties = node.properties.filter(onlyUnique);
+}
+
 function formTree(tokens: Array<Token>): Array<NounGroup> {
   
   let nounGroups = formNounGroups(tokens);
   
-  // First, let's combine adjacent proper groups
+  // First, let's combine adjacent proper nouns into nodes
   let properNouns = nounGroups.filter((ng) => ng.isProper);
   let properNounGroups: Array<Node> = [];
   let node: Node = undefined;
   let lastIx = 0;
   properNouns.forEach((ng,i) => {
     if (node === undefined) {
-      node = {nounGroups: [ng], entity: undefined, attributes: undefined};
+      node = {
+        nounGroups: [ng], 
+        entity: undefined, 
+        attributes: undefined, 
+        parent: undefined, 
+        children: undefined, 
+        properties: [],
+      };
+      subsumeProperties(node,ng);
       lastIx = ng.noun.ix;
     } else if (ng.noun.ix === lastIx + 1) {
       node.nounGroups.push(ng);
+      subsumeProperties(node,ng);
       lastIx = ng.noun.ix; 
     } else {
       properNounGroups.push(node);
-      node = {nounGroups: [ng], entity: undefined, attributes: undefined};
+      node = {
+        nounGroups: [ng], 
+        entity: undefined, 
+        attributes: undefined, 
+        parent: undefined, 
+        children: undefined,
+        properties: [],
+      };
+      subsumeProperties(node,ng);
       lastIx = ng.noun.ix;
     }
     if (ng.isPossessive) {
       properNounGroups.push(node);
       node = undefined
     }
-    if (i+1 === properNouns.length) {
+    if (i + 1 === properNouns.length) {
       properNounGroups.push(node);
     }
   });
 
-  console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+  console.log(properNounGroups);
+
   console.log(nounGroupArrayToString(nounGroups));
+
+  /*
+  console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+  
   
   let entities: Array<Entity> = [];
   let attributes: Array<Attribute> = [];
@@ -789,7 +853,7 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
       let entity = findEntity(ng.noun.normalizedWord);
     }
   }
-  
+  */
   
   
   
@@ -798,8 +862,8 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
   let unusedTokens = findAll(tokens,(token: Token) => token.used === false);
   let unmatcdhedTokens = findAll(tokens,(token: Token) => token.matched === false);
 
-  console.log(entities);
-  console.log(attributes);
+  //console.log(entities);
+  //console.log(attributes);
   console.log("Unused Tokens:");
   console.log(tokenArrayToString(unusedTokens));
   console.log("Unmatched Tokens:");
