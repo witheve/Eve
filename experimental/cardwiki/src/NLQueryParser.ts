@@ -770,7 +770,7 @@ function subsumeProperties(node: Node, nounGroup: NounGroup) {
 }
 
 function hasPropery(obj: any, property: TokenProperties): boolean {
-  let found = obj.properties.find((property: TokenProperties) => property === property);
+  let found = obj.properties.find((p: TokenProperties) => p === property);
   if (found === undefined) {
     return false;
   }
@@ -782,7 +782,7 @@ function newNode(ng: NounGroup): Node {
     ix: ng.begin,
     nounGroups: [ng], 
     entity: undefined, 
-    attributes: undefined, 
+    attributes: [], 
     parent: undefined, 
     children: [],
     properties: [],
@@ -885,8 +885,42 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
     }
   }
   
-  let foo = nodeArrays.map((na) => nodeArrayToString(na)).join("\n");
-  console.log(foo);
+  // Go through each node array and try to resolve entities
+  let entities: Array<Entity> = [];
+  for (let i = 0; i < nodeArrays.length; i++) {
+    let nodeArray = nodeArrays[i];
+    console.log(nodeArrayToString(nodeArray));
+    for (let j = 0; j < nodeArray.length; j++) {
+      let node = nodeArray[j];
+      var entity: Entity;
+      // If the node is a reference, the entity is the most recently found
+      if (hasPropery(node,TokenProperties.REFERENCE)) {
+        entity = entities.pop();
+      } else {
+        entity = findEntity(flattenNounGroups(node.nounGroups))  
+      }
+      // We found an entity!
+      if (entity !== undefined) {
+        node.entity = entity;
+        entities.push(entity);
+        // if the node is possessive, check if the next node is an attribute
+        if (hasPropery(node,TokenProperties.POSSESSIVE)) {
+          let maybeAttr = nodeArray[++j];
+          if (maybeAttr) {
+            let attribute = findAttribute(flattenNounGroups(maybeAttr.nounGroups),entity);
+            node.attributes.push(attribute); 
+            console.log(attribute);
+          }
+        } 
+      }
+    }
+    console.log("--------------------------");
+  }
+  
+  
+  
+  //let foo = nodeArrays.map((na) => nodeArrayToString(na)).join("\n");
+  //console.log(foo);
   
   
   //console.log(nodeGroups);

@@ -60,7 +60,12 @@ function parseTest(queryString: string, n: number) {
 
 let n = 1;
 let phrases = [
-  "Corey Montella's Spouse's age",
+  "Corey Montella's age and his height",
+  "sum of the lengths of the pets and the count of friends older than 30",
+  "sum of the lengths of the pets divided by their average age",
+  //"Corey Montella's wife, Rachel Montella's husband's age, and Josh's pet turtle or Chris Steve Granger's pet dog",
+  //"Corey James Montella's age or his wife's height",
+  //"People younger than Corey Montella"
   /*
   "Corey Montella's age",
   "Corey Montella's hair color",
@@ -74,7 +79,6 @@ let phrases = [
   "Sum of the lengths of the pets",
   "Who loves Corey?",
   "Who does Corey love?",
-  
   "Did the groundhog see its shadow?",
   "When did Corey go out with his wife or her friends?",
   "People younger than Corey Montella",
