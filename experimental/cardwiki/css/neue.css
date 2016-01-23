@@ -56,10 +56,11 @@ div:hover > header > .controls { opacity: 1; }
 
 .pane-shade { position: absolute; top:0; left:0; right:0; bottom: 0; z-index:10; background:none; }
 
-.wiki-pane.window > header > * + * { margin-left:0;}
+.wiki-pane.window > header > * { margin:0;}
 .wiki-pane.window { position:absolute; max-height:40%; box-shadow:0 0 0 1px rgba(0,0,0,0.1),0 7px 15px rgba(0,0,0,0.1); background: #fff; border-radius:3px; }
-.wiki-pane.window > header { background: #fff; border-bottom:1px solid #eee; padding: 10px 5px; }
-.wiki-pane.window > header button { border:1px solid #ddd; border-radius:3px; background:none; font-size: 10pt; font-weight:300; color:#555; padding:8px 10px; }
+.wiki-pane.window > header { background: #fff; border-bottom:1px solid #ddd; padding: 10px 5px; padding: 0; }
+.wiki-pane.window > header button { border:none; border-right:1px solid #ddd; border-radius:0px; background:none; font-size: 10pt; font-weight:300; color:#555; padding:8px 10px; color: #008cdd; }
+.wiki-pane.window > header button:hover { background: rgba(0, 140, 221, 0.15); }
 .wiki-pane.window > header .controls { opacity:1; color: #777; }
 .wiki-pane.window .wiki-entity { padding:20px;  }
 .wiki-pane.window .wiki-entity .CodeMirror { flex: 1; overflow:hidden; }
@@ -74,9 +75,10 @@ div:hover > header > .controls { opacity: 1; }
 
 
 .labeled-input { flex-direction:row; }
-.labeled-input { border:1px solid #ddd; border-radius:3px; align-items: center; background: none; }
+.labeled-input { border-radius:0px; align-items: center; background: none; }
 .labeled-input label { font-size: 10pt; padding:8px 6px; }
-.labeled-input input { font-size: 10pt; border-radius:0 3px 3px 0; border:none; border-left: 1px solid #ddd; padding: 8px 10px; }
+.labeled-input input { font-size: 10pt; border-radius:0; border:none; border-left: 1px solid #ddd; border-right:1px solid #ddd; padding: 8px 10px; }
+.labeled-input input + label {}
 
 /*---------------------------------------------------------
 - Selector
@@ -109,7 +111,7 @@ div:hover > header > .controls { opacity: 1; }
 
 .wiki-editor .table .field { width: 160px; }
 
-.wiki-editor .formatBar { padding:0 5px; background: #555; color: #ccc; z-index: 20; flex-direction:row; border-radius:3px; }
+.wiki-editor .formatBar { display:flex; padding:0 5px; background: #555; color: #ccc; z-index: 20; flex-direction:row; border-radius:3px; }
 .wiki-editor .formatBar .button { padding: 5px; cursor:default; align-items: center; width:35px; -webkit-user-select: none; }
 .wiki-editor .formatBar .button:hover { background: #666; }
 .wiki-editor .formatBar .sep { width:1px; padding:0; background: #333; }
