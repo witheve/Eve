@@ -951,9 +951,12 @@ function formTree(tokens: Array<Token>): any {
             let attribute = findAttribute(maybeAttr.name,entity);
             if (attribute !== undefined) {
               node.attributes.push(attribute);    
+              // If the token is possessive, check if it is an entity in the system
               if (hasPropery(maybeAttr,TokenProperties.POSSESSIVE)) {
                 entity = findEntityByID(`${attribute.value}`);
-                entities.push(entity);
+                if (entity !== undefined) {
+                  entities.push(entity);
+                }
               }
             }
           }
@@ -972,7 +975,7 @@ function formTree(tokens: Array<Token>): any {
     }
     console.log("--------------------------");
   }
-  
+
   // Pull out comparator nodes
   let comparatorNodes: Array<Node> = nodeArrays.map((nodeArray) => {
     let nodes = nodeArray.filter((node) => {
