@@ -725,8 +725,10 @@ enum TokenProperties {
 
 interface Node {
   ix: number,
+  name: string,
   parent: Node,
   children: Array<Node>,
+  function: any,
   nounGroups: Array<NounGroup>,
   entity: Entity,
   attributes: Array<Attribute>,
@@ -782,8 +784,10 @@ function hasPropery(obj: any, property: TokenProperties): boolean {
 function newNode(ng: NounGroup): Node {
   let node: Node = {
     ix: ng.begin,
+    name: flattenNounGroups([ng]),
     nounGroups: [ng], 
-    entity: undefined, 
+    entity: undefined,
+    function: undefined, 
     attributes: [], 
     parent: undefined, 
     children: [],
@@ -797,8 +801,6 @@ function newNode(ng: NounGroup): Node {
 
 function tokenToFunction(token: Token) {
   let word = token.normalizedWord;
-  
-  
   switch (word) {
     case "taller":
       return {function: ">", attribute: "height"};
@@ -836,6 +838,7 @@ function formTree(tokens: Array<Token>): any {
     // Add a ng if it is adjacent
     } else if (ng.noun.ix === lastIx + 1) {
       node.nounGroups.push(ng);
+      node.name = flattenNounGroups(node.nounGroups);
       subsumeProperties(node,ng);
       ng.used = true;
       lastIx = ng.noun.ix;
@@ -924,7 +927,7 @@ function formTree(tokens: Array<Token>): any {
       var collection: Collection;
       // If the node is plural, check for a collection first
       if (hasPropery(node,TokenProperties.PLURAL)) {
-        collection = findCollection(flattenNounGroups(node.nounGroups));
+        collection = findCollection(node.name);
         if (collection !== undefined) {          
           collections.push(collection);
           continue;
@@ -935,7 +938,7 @@ function formTree(tokens: Array<Token>): any {
       if (hasPropery(node,TokenProperties.REFERENCE)) {
         entity = entities[entities.length];
       } else {
-        entity = findEntity(flattenNounGroups(node.nounGroups))  
+        entity = findEntity(node.name);  
       }
       // We found an entity!
       if (entity !== undefined) {
@@ -945,9 +948,12 @@ function formTree(tokens: Array<Token>): any {
         if (hasPropery(node,TokenProperties.POSSESSIVE)) {
           let maybeAttr = nodeArray[++j];
           if (maybeAttr) {
-            let attribute = findAttribute(flattenNounGroups(maybeAttr.nounGroups),entity);
+            let attribute = findAttribute(maybeAttr.name,entity);
             if (attribute !== undefined) {
-              node.attributes.push(attribute);               
+              node.attributes.push(attribute);    
+              if (hasPropery(maybeAttr,TokenProperties.POSSESSIVE)) {
+                entity = findEntity(maybeAttr.name);
+              }
             }
           }
         }
@@ -996,9 +1002,21 @@ function formTree(tokens: Array<Token>): any {
     if (attribute !== undefined) {
       node.attributes.push(attribute);
       // Create a node for the function
-      //let comparatorNode = newNode();
-      
-      
+      let comparatorNode: Node = {
+        ix: undefined,
+        name: comparator.function,
+        parent: undefined,
+        children: [node],
+        nounGroups: [],
+        function: comparator,
+        entity: undefined,
+        attributes: [],
+        properties: [TokenProperties.COMPARATIVE],        
+      };
+      node.parent = comparatorNode;
+      // Heuristic: node to compare to is to the left of the comparator's index
+      let boundary = comparativeTokens[0].ix;
+      console.log(boundary);
     }
   }
   
@@ -1020,19 +1038,6 @@ function formTree(tokens: Array<Token>): any {
   console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
   
   return nodeArrays;
-  
-  //let token = "corey";
-  //let display = eve.findOne("display name", {name: token})
-  //let info = eve.findOne("entity", { entity: display.id });
-  //console.log(token);
-  //console.log(display);
-  
-  //let nouns = nounGroups.map((ng: NounGroup) => ng.noun);
-  //console.log(nouns);
-  
-  //let display = eve.findOne("display name", {name: token})
-  
-  //console.log(nounGroupArrayToString(nounGroups));
   
   // Heuristic: don't include verbs at this stage
   
@@ -1072,9 +1077,6 @@ function formTree(tokens: Array<Token>): any {
   // Consider this alternative: the first noun group is the subject
 
   // Heuristic: attributes to a noun exist in close proximity to it
-  //let firstAdjective = tokens.find((token) => {
-  //  return token.majorPOS === MajorPartsOfSpeech.ADJECTIVE;   
-  //});
 }
 
 interface Entity {
@@ -1155,7 +1157,6 @@ function findAttribute(name: string, entity: Entity): Attribute {
       value: foundAttribute.value,
     }
     console.log(` Found: ${name} ${attribute.value}`);
-    console.log(attribute);
     return attribute;
   }
   console.log(" Not found: " + name);
