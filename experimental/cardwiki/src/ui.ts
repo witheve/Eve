@@ -166,17 +166,18 @@ let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, 
       c: "window",
       shade: {c: "pane-shade", paneId, click: removePopup, children: []},
       header: {t: "header", c: "flex-row", children: [
-        {t: "button", c: "", click: navigateParent, link: entityId, paneId: paneId, parentId: parent, text: `Go to ${eve.findOne("display name", {id: entityId})["name"]}`},
-        {c: "labeled-input", children: [
-          {t: "label", text: "Property"},
-          {t: "input", type: "text", placeholder: "related to, is a, ...", value: ""},
+        {t: "button", c: "ion-android-open", click: navigateParent, link: entityId, paneId: paneId, parentId: parent, text:""},
+        {c: "labeled-input flex-grow", children: [
+          // {t: "label", text: "Embed:"},
+          {t: "input", c: "flex-grow", type: "text", placeholder: "related to, is a, ...", value: ""},
+          {t: "label", text: "as a link"},
         ]},
-        {c: "labeled-input", children: [
-          {t: "label", text: "Value"},
-          {t: "input", type: "text", placeholder: "value", value: ""},
-        ]},
-        {c: "flex-grow"},
-        {c: "flex-row controls", children: [{c: "ion-close-round", click: removePopup, paneId: paneId}]}
+        // {c: "labeled-input", children: [
+        //   {t: "label", text: "Value"},
+        //   {t: "input", type: "text", placeholder: "value", value: ""},
+        // ]},
+        // {c: "flex-grow"},
+        // {c: "flex-row controls", children: [{c: "ion-close-round", click: removePopup, paneId: paneId}]}
       ]},
     };
   },
@@ -487,16 +488,16 @@ function getInline(meta, query) {
       let aggregate = plan.filter((step) => step.type === StepType.AGGREGATE)[0];
       rep = "value";
       field = aggregate.name;
-    // if there's a lookup without a collection then we're just looking up a single attribute
-    } else if(!info[StepType.GATHER] && info[StepType.LOOKUP] === 1) {
-      let lookup = plan.filter((step) => step.type === StepType.LOOKUP)[0];
-      rep = "value";
-      field = lookup.name;
     // if there's a calculation without a collection we just want the result
     } else if(!info[StepType.GATHER] && info[StepType.CALCULATE] === 1) {
       let calculation = plan.filter((step) => step.type === StepType.CALCULATE)[0];
       rep = "value";
       field = calculation.name;
+    // if there's a lookup without a collection then we're just looking up a single attribute
+    } else if(!info[StepType.GATHER] && info[StepType.LOOKUP] === 1) {
+      let lookup = plan.filter((step) => step.type === StepType.LOOKUP)[0];
+      rep = "value";
+      field = lookup.name;
     }
     if(rep) {
       params["rep"] = rep;

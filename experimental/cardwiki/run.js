@@ -7,6 +7,8 @@ var pkg = require("./package.json");
 var tsify = require("tsify");
 var watchify = require("watchify");
 var util = require("util");
+var exec = require("child_process").exec;
+var spawn = require("child_process").spawn;
 
 var pkgs = {
   wiki: {entries: ["src/wiki.ts"], adds: ["typings/tsd.d.ts"]},
@@ -238,6 +240,9 @@ function root(program, state) {
 //------------------------------------------------------------
 // Go!
 //------------------------------------------------------------
+
+var procs = [];
+
 function asList(str) {
   return str.split(",");
 }
@@ -248,6 +253,7 @@ function asNumber(str) {
 program
   .version(pkg.version)
   .option("-b, --bundles [bundles...]", "Whitelist packages to bundle [" + pkgList.join(",") + "]", asList, pkgList)
+  .option("-s, --server", "Start the server", false)
   .option("-w, --watch", "Watch bundles for changes", false)
   .option("-v, --verbose", "Log informational events", false)
   .option("--width <number>", "Set explicit screen width", asNumber)
@@ -269,5 +275,31 @@ if(program.watch) {
   })
 }
 
+if(program.server) {
+  exec("node_modules/tsify/node_modules/typescript/bin/tsc", ["-m", "commonjs"], function(out,err) {
+    var server = spawn("node", ["bin/src/server.js"]);
+    tagLog("server", "Server started at http://localhost:3000");
+    server.stdout.on("data", function(data) {
+      tagLog("server", data.toString());
+    });
+    server.stderr.on("data", function(data) {
+      tagLog("server", data.toString());
+    });
+    procs.push(server);
+  });
+}
+
 if(program.bundles) build(program.bundles);
 
+var killProcs = function() {
+  console.log("KILLING PROCS");
+  procs.forEach(function(proc) {
+    console.log("KILLED");
+    proc.kill();
+  });
+}
+
+process.on("uncaughtException", killProcs);
+process.on("SIGINT", killProcs);
+process.on("SIGTERM", killProcs);
+process.on("exit", killProcs);
