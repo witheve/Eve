@@ -1226,36 +1226,8 @@ function formDSL(tree: any): string {
     }
   }
   terms.push(project);
-  /*
-  let entities: Array<Entity> = [];
-  let collections: Array<Collection> = [];
 
-  // Create a query term for each entity
-  let selectEntities: Query = entities.map((entity: Entity) => {
-    let field: Field = {name: "entity", value: entity.id};
-    let queryTerm: Term = {
-      type: "select",
-      table: "entity",
-      fields: [field],
-    };
-    return queryTerm;
-  });
-  /*
-  // Create a query term for each collection
-  let selectCollections: Query = collections.map((collection: Collection) => {
-    let field: Field = {name: "collection", value: collection.id};
-    let queryTerm: Term = {
-      type: "select",
-      table: "collection",
-      fields: [field],
-    }
-    return queryTerm;
-  });
-  
-  let query = selectEntities.concat(selectCollections);
-  */
   let queryString = queryToString(terms);
-  console.log(queryString);
   return queryString;
 }
 
