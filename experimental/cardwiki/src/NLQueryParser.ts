@@ -731,6 +731,7 @@ interface Node {
   function: any,
   nounGroups: Array<NounGroup>,
   entity: Entity,
+  collection: Collection,
   attributes: Array<Attribute>,
   properties: Array<TokenProperties>,
 }
@@ -787,6 +788,7 @@ function newNode(ng: NounGroup): Node {
     name: flattenNounGroups([ng]),
     nounGroups: [ng], 
     entity: undefined,
+    collection: undefined,
     function: undefined, 
     attributes: [], 
     parent: undefined, 
@@ -928,7 +930,8 @@ function formTree(tokens: Array<Token>): any {
       // If the node is plural, check for a collection first
       if (hasPropery(node,TokenProperties.PLURAL)) {
         collection = findCollection(node.name);
-        if (collection !== undefined) {          
+        if (collection !== undefined) {
+          node.collection = collection;          
           collections.push(collection);
           continue;
         }
@@ -1014,13 +1017,25 @@ function formTree(tokens: Array<Token>): any {
         nounGroups: [],
         function: comparator,
         entity: undefined,
+        collection: undefined,
         attributes: [],
         properties: [TokenProperties.COMPARATIVE],        
       };
       node.parent = comparatorNode;
       // Heuristic: node to compare to is to the left of the comparator's index
       let boundary = comparativeTokens[0].ix;
-      console.log(boundary);
+      let lhsNode: Node;
+      loop1:
+      for (let nodeArray of nodeArrays) {
+        for (let node of nodeArray) {
+          if (node.ix < boundary) {
+            lhsNode = node;
+          } else {
+            break loop1; 
+          }  
+        }
+      }
+      console.log(lhsNode);
     }
   }
   
