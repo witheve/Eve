@@ -43,16 +43,14 @@ function parseTest(queryString: string, n: number) {
   //console.log(nlqp.nounGroupArrayToString(parseResult.tree));
   console.log("-------------------------------------------------------------------------------------------");
   console.log(parseResult.ast);
-  //let artifacts = dslparser.parseDSL(parseResult.ast);
-  //let changeset = eve.diff();;
-  //for (let id in artifacts.views) {
-    //changeset.merge(artifacts.views[id].changeset(eve));
-    //eve.asView(artifacts.views[id]); 
-    //console.log(id);
-    //console.log(artifacts.views[id])
-    //artifacts.views[id].debug();
-  //}
-  //eve.applyDiff(changeset);
+  let artifacts = dslparser.parseDSL(parseResult.ast);
+  let changeset = eve.diff();;
+  for (let id in artifacts.views) {
+    changeset.merge(artifacts.views[id].changeset(eve));
+    eve.asView(artifacts.views[id]); 
+    artifacts.views[id].debug();
+  }
+  eve.applyDiff(changeset);
   console.log("-------------------------------------------------------------------------------------------");
   console.log(timingDisplay);
   console.log("===========================================================================================");
@@ -60,8 +58,11 @@ function parseTest(queryString: string, n: number) {
 
 let n = 1;
 let phrases = [
+  //"Corey Montella's age and height"
+  "Pets longer than snakes",
+  //"sum of the length of snakes",
   //"Corey Montella's Height",
-  "People younger than Corey Montella",
+  //"People taller than Corey Montella",
   //"People younger than Corey Montella"
   //"sum of the lengths of the pets and the count of friends older than 30",
   //"sum of the lengths of the pets divided by their average age",

@@ -995,6 +995,10 @@ function formTree(tokens: Array<Token>): any {
     let attribute = findAttribute(comparator.attribute,node.entity);
     if (attribute !== undefined) {
       node.attributes.push(attribute);
+      // Create a node for the function
+      //let comparatorNode = newNode();
+      
+      
     }
   }
   
@@ -1145,7 +1149,7 @@ function findAttribute(name: string, entity: Entity): Attribute {
   let foundAttribute = eve.findOne("entity eavs", { entity: entity.id, attribute: name });
   if (foundAttribute !== undefined) {
     let attribute: Attribute = {
-      id: foundAttribute.__id,
+      id: foundAttribute.attribute,
       displayName: name,
       entity: entity,
       value: foundAttribute.value,
@@ -1181,7 +1185,7 @@ interface Field {
 
 interface Term {
   type: string,
-  table: string,
+  table?: string,
   fields: Array<Field>
 }
 
@@ -1192,7 +1196,6 @@ function formDSL(tree: any): string {
   
   let project = {
     type: "project!",
-    table: uuid(),
     fields: [],
   };
   
@@ -1203,9 +1206,9 @@ function formDSL(tree: any): string {
       let _node: Node = node;
       for (let attr of _node.attributes) {
         let _attr = attr;
-        let entityField: Field = {name: "Entity", value: _attr.entity.id, variable: false};
-        let attrField: Field = {name: "Attribute", value: _attr.id, variable: false};
-        let valueField: Field = {name: "Value", value: _attr.displayName, variable: true};
+        let entityField: Field = {name: "entity", value: _attr.entity.id, variable: false};
+        let attrField: Field = {name: "attribute", value: _attr.id, variable: false};
+        let valueField: Field = {name: "value", value: _attr.displayName, variable: true};
         let fields: Array<Field> = [entityField, attrField, valueField];
         let term: Term = {
           type: "select",
@@ -1236,7 +1239,7 @@ function queryToString(query: Query): string {
   queryString += query.map((term: Term)=>{
     let termString = "(";
     termString += `${term.type} `;
-    termString += `"${term.table}" `;
+    termString += `${term.table === undefined ? "" : `"${term.table}"`}`;
     termString += term.fields.map((field) => `:${field.name} ${field.variable ? field.value : `"${field.value}"`}`).join(" ");
     termString += ")";
     return termString;
