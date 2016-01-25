@@ -719,6 +719,7 @@ enum TokenProperties {
   COMPARATIVE,
   SUPERLATIVE,
   REFERENCE,  
+  SEPARATED,
 }
 
 interface Node {
@@ -792,11 +793,11 @@ function newNode(ng: NounGroup): Node {
   return node;
 }
 
-function formTree(tokens: Array<Token>): Array<NounGroup> {
+function formTree(tokens: Array<Token>): any {
   
   let nounGroups = formNounGroups(tokens);
   
-  //console.log(nounGroupArrayToString(nounGroups));
+  console.log(nounGroupArrayToString(nounGroups));
   
   
   console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
@@ -845,6 +846,8 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
   });
   nodes.sort((a, b) => a.ix - b.ix);
 
+  console.log(nodeArrayToString(nodes));
+
   // Break nodes at separator and CC boundaries
   let nodeArrays: Array<Array<Node>> = []; 
   let separatorIxes = tokens.filter((token) => token.POS === MinorPartsOfSpeech.SEP).map((token) => token.ix);
@@ -874,13 +877,15 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
         break;
       }
     };
+    // If we've reached the end of the tokens, take the remaining nodes
     if (nextNodeIx === tokens.length-1) {
-      let nodeGroup: Array<Node> = [];
+      let nodeArray: Array<Node> = [];
       for (let k = lastNode; k <= i + 1; k++) {
-        nodeGroup.push(nodes[k]);
+        nodeArray.push(nodes[k]);
       }
-      if (nodeGroup.length > 0) {
-        nodeArrays.push(nodeGroup);  
+      // prevents empty node array getting added
+      if (nodeArray.length > 0) {
+        nodeArrays.push(nodeArray);  
       }
     }
   }
@@ -889,13 +894,12 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
   let entities: Array<Entity> = [];
   for (let i = 0; i < nodeArrays.length; i++) {
     let nodeArray = nodeArrays[i];
-    console.log(nodeArrayToString(nodeArray));
     for (let j = 0; j < nodeArray.length; j++) {
       let node = nodeArray[j];
       var entity: Entity;
       // If the node is a reference, the entity is the most recently found
       if (hasPropery(node,TokenProperties.REFERENCE)) {
-        entity = entities.pop();
+        entity = entities[entities.length];
       } else {
         entity = findEntity(flattenNounGroups(node.nounGroups))  
       }
@@ -908,14 +912,24 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
           let maybeAttr = nodeArray[++j];
           if (maybeAttr) {
             let attribute = findAttribute(flattenNounGroups(maybeAttr.nounGroups),entity);
-            node.attributes.push(attribute); 
-            console.log(attribute);
+            if (attribute !== undefined) {
+              node.attributes.push(attribute);               
+            }
           }
-        } 
+        }
+      // We didn't find an entity, use the most current one and treat the current node as an attribute  
+      } else {
+        entity = entities[entities.length-1];
+        let attribute = findAttribute(flattenNounGroups(node.nounGroups),entity);
+        if (attribute !== undefined) {
+          node.entity = entity;
+          node.attributes.push(attribute);
+        }
       }
     }
     console.log("--------------------------");
   }
+  
   
   
   
@@ -1059,8 +1073,7 @@ function formTree(tokens: Array<Token>): Array<NounGroup> {
   //let firstAdjective = tokens.find((token) => {
   //  return token.majorPOS === MajorPartsOfSpeech.ADJECTIVE;   
   //});
-  
-  
+  return nodeArrays;
 }
 
 interface Entity {
@@ -1099,15 +1112,17 @@ function findEntity(name: string): Entity {
         displayName: name,
         content: foundEntity.content,
       }
-      console.log("found: " + name);
+      console.log(" Found: " + name);
       return entity;
     }
   }
+  console.log(" Not found: " + name);
   return undefined;
 }
 
 // Returns the collection with the given display name.
 function findCollection(name: string): Collection {
+  console.log("Searching for collection: " + name);
   let display = eve.findOne("display name",{ name: name });
   if (display !== undefined) {
     let foundCollection = eve.findOne("collection", { collection: display.id });
@@ -1117,10 +1132,11 @@ function findCollection(name: string): Collection {
         displayName: name,
         count: foundCollection.count,
       }
-      console.log("found: " + name);
+      console.log(" Found: " + name);
       return collection;
     }
   }
+  console.log(" Not found: " + name);
   return undefined;
 }
 
@@ -1128,6 +1144,7 @@ function findCollection(name: string): Collection {
 // If the entity does not have that attribute, or the entity does not exist, returns undefined
 function findAttribute(name: string, entity: Entity): Attribute {
   console.log("Searching for attribute: " + name);
+  console.log(" Entity: " + entity.displayName);
   let foundAttribute = eve.findOne("entity eavs", { entity: entity.id, attribute: name });
   if (foundAttribute !== undefined) {
     let attribute: Attribute = {
@@ -1136,9 +1153,10 @@ function findAttribute(name: string, entity: Entity): Attribute {
       entity: entity,
       value: foundAttribute.value,
     }
-    console.log("found: " + name);
+    console.log(` Found: ${name} ${attribute.value}`);
     return attribute;
   }
+  console.log(" Not found: " + name);
   return undefined;
 }
 
@@ -1173,7 +1191,7 @@ type Query = Array<Term>;
 
 
 // take a parse tree, form a DSL AST
-function formDSL(tree: Array<NounGroup>): string {
+function formDSL(tree: any): string {
   
   /*
   let entities: Array<Entity> = [];
@@ -1233,12 +1251,12 @@ function queryToString(query: Query): string {
 export function nodeToString(node: Node): string {
   let noun = flattenNounGroups(node.nounGroups);
   let properties = `(${node.properties.map((property: TokenProperties) => TokenProperties[property]).join("|")})`;
-  let nodeString = `${node.ix}: ${noun} ${properties.length === 2 ? "" : properties}`; 
+  let nodeString = `| ${node.ix}: ${noun} ${properties.length === 2 ? "" : properties}`; 
   return nodeString;
 }
 
 export function nodeArrayToString(nodes: Array<Node>): string {
-  let nodesString = nodes.map((node) => nodeToString(node)).join("\n");
+  let nodesString = nodes.map((node) => nodeToString(node)).join("\n----------------------------------------\n");
   return "----------------------------------------\nNODES\n----------------------------------------\n" + nodesString + "\n----------------------------------------\n";  
 }
 
