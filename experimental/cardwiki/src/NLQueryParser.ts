@@ -1035,7 +1035,11 @@ function formTree(tokens: Array<Token>): any {
           }  
         }
       }
-      console.log(lhsNode);
+      if (lhsNode !== undefined) {
+        lhsNode.parent = comparatorNode;
+        comparatorNode.children.push(lhsNode); 
+      }
+      nodeArrays.push([comparatorNode]);
     }
   }
   
@@ -1056,7 +1060,18 @@ function formTree(tokens: Array<Token>): any {
   console.log(tokenArrayToString(unmatcdhedTokens));
   console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
   
-  return nodeArrays;
+  // Remove nodes with parents
+  let roots: Array<Node> = [];
+  for (let nodeArray of nodeArrays) {
+    for (let node of nodeArray) {
+      if (node.parent === undefined) {
+        roots.push(node);
+      }
+    }
+  }
+  console.log(roots);
+  
+  return roots;
   
   // Heuristic: don't include verbs at this stage
   
@@ -1230,6 +1245,45 @@ interface Term {
 
 type Query = Array<Term>;
 
+
+
+function buildTerm(node: Node) {
+  console.log(node);
+  
+  // Build a term for each of the children
+  let childTerms = node.children.map((childNode) => buildTerm(childNode));
+  
+  // Function terms
+  if (node.function !== undefined) {
+
+  }
+  // Attribute terms
+  else if (node.attributes.length > 0) {
+    let attributeTerms = node.attributes.map((attr: Attribute) => {
+      let entityField: Field = {name: "entity", value: attr.entity.id, variable: false};
+      let attrField: Field = {name: "attribute", value: attr.id, variable: false};
+      let valueField: Field = {name: "value", value: attr.displayName, variable: true};
+      let fields: Array<Field> = [entityField, attrField, valueField];
+      let term: Term = {
+        type: "select",
+        table: "entity eavs",
+        fields: fields,  
+      }      
+      return term;
+    });
+    console.log(attributeTerms.map(termToString).join("\n"));
+  }
+  // Entity terms
+  else if (node.entity !== undefined) {
+    
+  }
+  
+ 
+  
+  
+} 
+
+
 // take a parse tree, form a DSL AST
 function formDSL(tree: any): string {
   
@@ -1239,6 +1293,13 @@ function formDSL(tree: any): string {
   };
   
   let query: Query = [];
+  // Walk the tree, parsing each node as we go along
+  for (let node of tree) {
+    buildTerm(node);
+  }
+  
+  
+  /*
   for (let nodes of tree) {
     nodes = nodes.filter((node: Node) => node.entity !== undefined);
     for (let node of nodes) {
@@ -1263,7 +1324,7 @@ function formDSL(tree: any): string {
         project.fields.push(projectField);
       }
     }
-  }
+  }*/
   query.push(project);
 
   let queryString = queryToString(query);
@@ -1275,18 +1336,20 @@ function queryToString(query: Query): string {
   let queryString = "(query \n\t"
   
   // Map each term to a string
-  queryString += query.map((term: Term)=>{
-    let termString = "(";
-    termString += `${term.type} `;
-    termString += `${term.table === undefined ? "" : `"${term.table}"`}`;
-    termString += term.fields.map((field) => `:${field.name} ${field.variable ? field.value : `"${field.value}"`}`).join(" ");
-    termString += ")";
-    return termString;
-  }).join("\n\t");
+  queryString += query.map(termToString).join("\n\t");
   
   // Close out the query
   queryString += "\n)";
   return queryString;
+}
+
+function termToString(term: Term): string {
+  let termString = "(";
+  termString += `${term.type} `;
+  termString += `${term.table === undefined ? "" : `"${term.table}"`}`;
+  termString += term.fields.map((field) => `:${field.name} ${field.variable ? field.value : `"${field.value}"`}`).join(" ");
+  termString += ")";
+  return termString;
 }
 
 // ----------------------------------------------------------------------------
