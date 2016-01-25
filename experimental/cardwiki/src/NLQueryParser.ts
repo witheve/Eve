@@ -938,7 +938,7 @@ function formTree(tokens: Array<Token>): any {
       if (hasPropery(node,TokenProperties.REFERENCE)) {
         entity = entities[entities.length];
       } else {
-        entity = findEntity(node.name);  
+        entity = findEntityByDisplayName(node.name);  
       }
       // We found an entity!
       if (entity !== undefined) {
@@ -952,7 +952,8 @@ function formTree(tokens: Array<Token>): any {
             if (attribute !== undefined) {
               node.attributes.push(attribute);    
               if (hasPropery(maybeAttr,TokenProperties.POSSESSIVE)) {
-                entity = findEntity(maybeAttr.name);
+                entity = findEntityByID(`${attribute.value}`);
+                console.log(entity);
               }
             }
           }
@@ -1104,7 +1105,7 @@ interface Attribute {
 // 1) the name is not found in "display name"
 // 2) the name is found in "display name" but not found in "entity"
 // can 2) ever happen?
-function findEntity(name: string): Entity {
+function findEntityByDisplayName(name: string): Entity {
   console.log("Searching for entity: " + name);
   let display = eve.findOne("display name",{ name: name });
   if (display !== undefined) {
@@ -1120,6 +1121,25 @@ function findEntity(name: string): Entity {
     }
   }
   console.log(" Not found: " + name);
+  return undefined;
+}
+
+function findEntityByID(id: string): Entity {  
+  console.log("Searching for entity: " + id);
+  let foundEntity = eve.findOne("entity", { entity: id });
+  if (foundEntity !== undefined) {
+    let display = eve.findOne("display name",{ id: id });
+    if (display !== undefined) {
+      let entity: Entity = {
+        id: foundEntity.entity,
+        displayName: display.name,
+        content: foundEntity.content,
+      }
+      console.log(" Found: " + display.name);
+      return entity; 
+    }
+  }
+  console.log(" Not found: " + id);
   return undefined;
 }
 
