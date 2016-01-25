@@ -37,22 +37,22 @@ function parseTest(queryString: string, n: number) {
   // Display result
   let tokenStrings = nlqp.tokenArrayToString(parseResult.tokens);
   let timingDisplay = `Timing (avg, max, min): ${(avgTime/n).toFixed(2)} | ${maxTime.toFixed(2)} | ${minTime.toFixed(2)} `;
-  /*console.log("-------------------------------------------------------------------------------------------");  
+  console.log("-------------------------------------------------------------------------------------------");  
   console.log(tokenStrings);
   console.log("-------------------------------------------------------------------------------------------");
-  console.log(nlqp.nounGroupArrayToString(parseResult.tree));
+  //console.log(nlqp.nounGroupArrayToString(parseResult.tree));
   console.log("-------------------------------------------------------------------------------------------");
   console.log(parseResult.ast);
-  /*let artifacts = dslparser.parseDSL(parseResult.ast);
+  //let artifacts = dslparser.parseDSL(parseResult.ast);
   //let changeset = eve.diff();;
-  for (let id in artifacts.views) {
+  //for (let id in artifacts.views) {
     //changeset.merge(artifacts.views[id].changeset(eve));
     //eve.asView(artifacts.views[id]); 
     //console.log(id);
     //console.log(artifacts.views[id])
     //artifacts.views[id].debug();
-  }
-  //eve.applyDiff(changeset);*/
+  //}
+  //eve.applyDiff(changeset);
   console.log("-------------------------------------------------------------------------------------------");
   console.log(timingDisplay);
   console.log("===========================================================================================");
@@ -60,9 +60,11 @@ function parseTest(queryString: string, n: number) {
 
 let n = 1;
 let phrases = [
-  "Corey Montella's age and his height",
-  "sum of the lengths of the pets and the count of friends older than 30",
-  "sum of the lengths of the pets divided by their average age",
+  //"Corey Montella's Height",
+  "People younger than Corey Montella",
+  //"People younger than Corey Montella"
+  //"sum of the lengths of the pets and the count of friends older than 30",
+  //"sum of the lengths of the pets divided by their average age",
   //"Corey Montella's wife, Rachel Montella's husband's age, and Josh's pet turtle or Chris Steve Granger's pet dog",
   //"Corey James Montella's age or his wife's height",
   //"People younger than Corey Montella"

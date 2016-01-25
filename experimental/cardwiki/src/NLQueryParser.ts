@@ -907,9 +907,9 @@ function formTree(tokens: Array<Token>): any {
       // If the node is plural, check for a collection first
       if (hasPropery(node,TokenProperties.PLURAL)) {
         collection = findCollection(flattenNounGroups(node.nounGroups));
-        if (collection !== undefined) {
-          console.log(collection);
+        if (collection !== undefined) {          
           collections.push(collection);
+          continue;
         }
       }
       var entity: Entity;
