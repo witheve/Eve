@@ -953,7 +953,7 @@ function formTree(tokens: Array<Token>): any {
               node.attributes.push(attribute);    
               if (hasPropery(maybeAttr,TokenProperties.POSSESSIVE)) {
                 entity = findEntityByID(`${attribute.value}`);
-                console.log(entity);
+                entities.push(entity);
               }
             }
           }
