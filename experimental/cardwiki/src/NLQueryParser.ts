@@ -793,6 +793,21 @@ function newNode(ng: NounGroup): Node {
   return node;
 }
 
+
+function tokenToFunction(token: Token) {
+  let word = token.normalizedWord;
+  
+  
+  switch (word) {
+    case "taller":
+      return {function: ">", attribute: "height"};
+    case "younger":
+      return {function: "<", attribute: "age"};
+    default:
+      return {function: "", attribute: ""};
+  }
+}
+
 function formTree(tokens: Array<Token>): any {
   
   let nounGroups = formNounGroups(tokens);
@@ -947,6 +962,35 @@ function formTree(tokens: Array<Token>): any {
     }
     console.log("--------------------------");
   }
+  
+  // Pull out comparator nodes
+  let comparatorNodes: Array<Node> = nodeArrays.map((nodeArray) => {
+    let nodes = nodeArray.filter((node) => {
+      return hasPropery(node,TokenProperties.COMPARATIVE);
+    });
+    if (nodes !== undefined) {
+      return nodes[0];
+    }
+  });
+  
+  // Identify the comparative functions for each node
+  for (let node of comparatorNodes) {
+    let cng = node.nounGroups.filter((ng) => ng.isComparative);
+    let comparativeTokens = cng.map((ng) => {
+      let premods = ng.preModifiers.filter((token: Token) => token.isComparative);
+      let postmods = ng.postModifiers.filter((token: Token) => token.isComparative);
+      let compTokens = premods.concat(postmods);
+      if (compTokens.length > 0) {
+        return compTokens[0];  
+      }
+    });
+    let functions = comparativeTokens.map((token) => tokenToFunction(token));
+    // find the appropriate attribute for the node's entity
+    let comparator = functions[0];
+    let attribute = findAttribute(comparator.attribute,node.entity);
+  }  
+  
+  
   
   
   
