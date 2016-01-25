@@ -2,6 +2,7 @@ import {eve} from "./app";
 
 declare var pluralize;
 declare var nlp;
+declare var uuid;
 
 // Entry point for NLQP
 export function parse(preTokens: Array<PreToken>) {
@@ -801,6 +802,8 @@ function tokenToFunction(token: Token) {
   switch (word) {
     case "taller":
       return {function: ">", attribute: "height"};
+    case "longer":
+      return {function: ">", attribute: "length"};
     case "younger":
       return {function: "<", attribute: "age"};
     default:
@@ -968,13 +971,15 @@ function formTree(tokens: Array<Token>): any {
     let nodes = nodeArray.filter((node) => {
       return hasPropery(node,TokenProperties.COMPARATIVE);
     });
-    if (nodes !== undefined) {
+    if (nodes.length > 0) {
       return nodes[0];
     }
   });
-  
   // Identify the comparative functions for each node
   for (let node of comparatorNodes) {
+    if (node === undefined) {
+      continue;
+    }
     let cng = node.nounGroups.filter((ng) => ng.isComparative);
     let comparativeTokens = cng.map((ng) => {
       let premods = ng.preModifiers.filter((token: Token) => token.isComparative);
@@ -988,10 +993,12 @@ function formTree(tokens: Array<Token>): any {
     // find the appropriate attribute for the node's entity
     let comparator = functions[0];
     let attribute = findAttribute(comparator.attribute,node.entity);
-  }  
+    if (attribute !== undefined) {
+      node.attributes.push(attribute);
+    }
+  }
   
-  
-  
+  // Identify any aggregates
   
   
   
@@ -1255,7 +1262,7 @@ function formDSL(tree: any): string {
   
   let project = {
     type: "project!",
-    table: "####",
+    table: uuid(),
     fields: [],
   };
   
