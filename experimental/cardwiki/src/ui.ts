@@ -787,7 +787,8 @@ function represent(rep:string, results, params:{}):Element {
 }
 
 window.addEventListener("popstate", function(evt) {
-  let {paneId = "p1", contains = ""} = evt.state || {};
+  let {paneId = undefined, contains = undefined} = evt.state || {};
+  if(paneId === undefined || contains === undefined) return;
   dispatch("ui set search", {paneId, value: contains, popState: true}).commit();
 });
 
