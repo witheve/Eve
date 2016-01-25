@@ -890,12 +890,28 @@ function formTree(tokens: Array<Token>): any {
     }
   }
   
+  // @HACK: Do something smarter here... push only unpushed nodes
+  if (nodeArrays.length === 0 ) { 
+    nodeArrays.push(nodes);
+  }
+  
   // Go through each node array and try to resolve entities
   let entities: Array<Entity> = [];
+  let collections: Array<Collection> = [];
   for (let i = 0; i < nodeArrays.length; i++) {
     let nodeArray = nodeArrays[i];
     for (let j = 0; j < nodeArray.length; j++) {
       let node = nodeArray[j];
+      console.log(nodeToString(node));
+      var collection: Collection;
+      // If the node is plural, check for a collection first
+      if (hasPropery(node,TokenProperties.PLURAL)) {
+        collection = findCollection(flattenNounGroups(node.nounGroups));
+        if (collection !== undefined) {
+          console.log(collection);
+          collections.push(collection);
+        }
+      }
       var entity: Entity;
       // If the node is a reference, the entity is the most recently found
       if (hasPropery(node,TokenProperties.REFERENCE)) {
@@ -920,10 +936,12 @@ function formTree(tokens: Array<Token>): any {
       // We didn't find an entity, use the most current one and treat the current node as an attribute  
       } else {
         entity = entities[entities.length-1];
-        let attribute = findAttribute(flattenNounGroups(node.nounGroups),entity);
-        if (attribute !== undefined) {
-          node.entity = entity;
-          node.attributes.push(attribute);
+        if (entity !== undefined) {
+          let attribute = findAttribute(flattenNounGroups(node.nounGroups),entity);
+          if (attribute !== undefined) {
+            node.entity = entity;
+            node.attributes.push(attribute);
+          }  
         }
       }
     }
@@ -1188,8 +1206,6 @@ interface Term {
 
 type Query = Array<Term>;
 
-
-
 // take a parse tree, form a DSL AST
 function formDSL(tree: any): string {
   
@@ -1199,7 +1215,7 @@ function formDSL(tree: any): string {
     fields: [],
   };
   
-  let terms: Array<Term> = [];
+  let query: Query = [];
   for (let nodes of tree) {
     nodes = nodes.filter((node: Node) => node.entity !== undefined);
     for (let node of nodes) {
@@ -1215,7 +1231,7 @@ function formDSL(tree: any): string {
           table: "entity eavs",
           fields: fields,  
         }
-        terms.push(term);
+        query.push(term);
         // Add field to the project
         if (project.fields.length === 0) {
           project.fields.push(entityField);
@@ -1225,9 +1241,9 @@ function formDSL(tree: any): string {
       }
     }
   }
-  terms.push(project);
+  query.push(project);
 
-  let queryString = queryToString(terms);
+  let queryString = queryToString(query);
   return queryString;
 }
 
