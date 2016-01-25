@@ -25,6 +25,13 @@ app.init("wiki", function() {
   initSearches(app.eve);
 
   let mainPane = app.eve.findOne("ui pane", {pane: "p1"});
-  // @FIXME: why is this not exported
-  ui.setURL("p1", mainPane.contains, true);
+  let path = window.location.pathname;
+  if(path !== "/") {
+    let [_, kind, content] = path.split("/");
+    content = content.replace(/_/g, " ");
+    app.dispatch("ui set search", {paneId: mainPane.pane, value: content, popState: true}).commit();
+    ui.setURL("p1", content, true);
+  } else {
+    ui.setURL("p1", mainPane.contains, true);
+  }
 });
