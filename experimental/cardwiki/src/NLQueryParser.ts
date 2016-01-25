@@ -1016,8 +1016,7 @@ function formTree(tokens: Array<Token>): any {
   console.log(tokenArrayToString(unmatcdhedTokens));
   console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
   
-  
-  return nounGroups;
+  return nodeArrays;
   
   //let token = "corey";
   //let display = eve.findOne("display name", {name: token})
@@ -1073,7 +1072,6 @@ function formTree(tokens: Array<Token>): any {
   //let firstAdjective = tokens.find((token) => {
   //  return token.majorPOS === MajorPartsOfSpeech.ADJECTIVE;   
   //});
-  return nodeArrays;
 }
 
 interface Entity {
@@ -1148,12 +1146,13 @@ function findAttribute(name: string, entity: Entity): Attribute {
   let foundAttribute = eve.findOne("entity eavs", { entity: entity.id, attribute: name });
   if (foundAttribute !== undefined) {
     let attribute: Attribute = {
-      id: foundAttribute,
+      id: foundAttribute.__id,
       displayName: name,
       entity: entity,
       value: foundAttribute.value,
     }
     console.log(` Found: ${name} ${attribute.value}`);
+    console.log(attribute);
     return attribute;
   }
   console.log(" Not found: " + name);
@@ -1178,6 +1177,7 @@ function subsumeTokens(nounGroup: NounGroup, ix: number, tokens: Array<Token>): 
 interface Field {
   name: string,
   value: string | number,
+  variable: boolean;
 }
 
 interface Term {
@@ -1193,6 +1193,39 @@ type Query = Array<Term>;
 // take a parse tree, form a DSL AST
 function formDSL(tree: any): string {
   
+  let project = {
+    type: "project!",
+    table: "####",
+    fields: [],
+  };
+  
+  let terms: Array<Term> = [];
+  for (let nodes of tree) {
+    nodes = nodes.filter((node: Node) => node.entity !== undefined);
+    for (let node of nodes) {
+      let _node: Node = node;
+      for (let attr of _node.attributes) {
+        let _attr = attr;
+        let entityField: Field = {name: "Entity", value: _attr.entity.id, variable: false};
+        let attrField: Field = {name: "Attribute", value: _attr.id, variable: false};
+        let valueField: Field = {name: "Value", value: _attr.displayName, variable: true};
+        let fields: Array<Field> = [entityField, attrField, valueField];
+        let term: Term = {
+          type: "select",
+          table: "entity eavs",
+          fields: fields,  
+        }
+        terms.push(term);
+        // Add field to the project
+        if (project.fields.length === 0) {
+          project.fields.push(entityField);
+        }
+        let projectField = {name: _attr.displayName, value: _attr.displayName, variable: true};
+        project.fields.push(projectField);
+      }
+    }
+  }
+  terms.push(project);
   /*
   let entities: Array<Entity> = [];
   let collections: Array<Collection> = [];
@@ -1207,7 +1240,7 @@ function formDSL(tree: any): string {
     };
     return queryTerm;
   });
-  
+  /*
   // Create a query term for each collection
   let selectCollections: Query = collections.map((collection: Collection) => {
     let field: Field = {name: "collection", value: collection.id};
@@ -1220,27 +1253,28 @@ function formDSL(tree: any): string {
   });
   
   let query = selectEntities.concat(selectCollections);
-  return queryToString(query);
   */
-  return "(Coming Soon)";
+  let queryString = queryToString(terms);
+  console.log(queryString);
+  return queryString;
 }
 
 // Converts the AST into a string for parsing
 function queryToString(query: Query): string {
-  let queryString = "(query "
+  let queryString = "(query \n\t"
   
   // Map each term to a string
   queryString += query.map((term: Term)=>{
     let termString = "(";
     termString += `${term.type} `;
     termString += `"${term.table}" `;
-    termString += term.fields.map((field) => `:${field.name} "${field.value}"`).join(" ");
+    termString += term.fields.map((field) => `:${field.name} ${field.variable ? field.value : `"${field.value}"`}`).join(" ");
     termString += ")";
     return termString;
-  }).join("");
+  }).join("\n\t");
   
   // Close out the query
-  queryString += ")";
+  queryString += "\n)";
   return queryString;
 }
 
