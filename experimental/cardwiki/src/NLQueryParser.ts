@@ -1082,8 +1082,7 @@ function formTree(tokens: Array<Token>): any {
       }
     }
   }
-  console.log(roots);
-  
+
   return roots;
   
   // Heuristic: don't include verbs at this stage
@@ -1220,7 +1219,7 @@ function findAttribute(name: string, entity: Entity): Attribute {
       id: foundAttribute.attribute,
       displayName: name,
       entity: entity,
-      value: `${entity.displayName}|${name}`,
+      value: `${entity.displayName}|${name}`.replace(/ /g,''),
     }
     console.log(` Found: ${name} ${attribute.value}`);
     return attribute;
@@ -1355,34 +1354,6 @@ function formDSL(tree: any): string {
   for (let node of tree) {
     query = buildTerm(node);
   }
-  
-  
-  /*
-  for (let nodes of tree) {
-    nodes = nodes.filter((node: Node) => node.entity !== undefined);
-    for (let node of nodes) {
-      let _node: Node = node;
-      for (let attr of _node.attributes) {
-        let _attr = attr;
-        let entityField: Field = {name: "entity", value: _attr.entity.id, variable: false};
-        let attrField: Field = {name: "attribute", value: _attr.id, variable: false};
-        let valueField: Field = {name: "value", value: _attr.displayName, variable: true};
-        let fields: Array<Field> = [entityField, attrField, valueField];
-        let term: Term = {
-          type: "select",
-          table: "entity eavs",
-          fields: fields,  
-        }
-        query.push(term);
-        // Add field to the project
-        if (project.fields.length === 0) {
-          project.fields.push(entityField);
-        }
-        let projectField = {name: _attr.displayName, value: _attr.displayName, variable: true};
-        project.fields.push(projectField);
-      }
-    }
-  }*/
   query.push(project);
 
   let queryString = queryToString(query);

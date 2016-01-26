@@ -58,8 +58,8 @@ function parseTest(queryString: string, n: number) {
 
 let n = 1;
 let phrases = [
-  //"Rachel Montella's wife's height",
-  "Pets longer than snakes",
+  "Corey Montella's height",
+  //"Pets longer than snakes",
   //"sum of the length of snakes",
   //"Corey Montella's Height",
   //"People taller than Corey Montella",
