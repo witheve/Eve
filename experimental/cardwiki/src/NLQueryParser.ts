@@ -961,8 +961,9 @@ function formTree(tokens: Array<Token>): any {
               node.children.push(maybeAttr);    
               // If the token is possessive, check if it is an entity in the system
               if (hasPropery(maybeAttr,TokenProperties.POSSESSIVE)) {
-                entity = findEntityByID(`${attribute.value}`);
+                entity = findEntityByID(`${attribute.dbValue}`);
                 if (entity !== undefined) {
+                  entity.node = maybeAttr;
                   entities.push(entity);
                 }
               }
@@ -1012,10 +1013,21 @@ function formTree(tokens: Array<Token>): any {
         return compTokens[0];  
       }
     });
-    let functions = comparativeTokens.map((token) => tokenToFunction(token));
+    let functions = comparativeTokens.map(tokenToFunction);
     // find the appropriate attribute for the node's entity
     let comparator = functions[0];
-    let attribute = findAttribute(comparator.attribute,node.entity);
+    let attribute: Attribute;
+    if (node.entity !== undefined) {
+      attribute = findAttribute(comparator.attribute,node.entity);  
+    // TODO FIX THIS! It's not complete
+    } else if (hasPropery(node,TokenProperties.QUANTITY)) {
+      attribute = {
+        id: comparator.attribute,
+        displayName: comparator.attribute,
+        entity: "",
+        value: "",
+      }
+    }
     if (attribute !== undefined) {
       node.attributes.push(attribute);
       // Create a node for the function
@@ -1056,7 +1068,7 @@ function formTree(tokens: Array<Token>): any {
             id: attribute.id,
             displayName: attribute.displayName,
             entity: lhsNode.collection.displayName,
-            value: `${lhsNode.collection.displayName}|${attribute.displayName}`, 
+            value: `${lhsNode.collection.displayName}|${attribute.displayName}`,
           }
         }
         lhsNode.attributes.push(lhsAttribute);
@@ -1152,7 +1164,8 @@ interface Attribute {
   id: string,
   displayName: string,
   entity: Entity | string,
-  value: string | number,
+  value: string,
+  dbValue?: string | number,
 }
 
 // Returns the entity with the given display name.
@@ -1231,6 +1244,7 @@ function findAttribute(name: string, entity: Entity): Attribute {
       displayName: name,
       entity: entity,
       value: `${entity.displayName}|${name}`.replace(/ /g,''),
+      dbValue: foundAttribute.value,
     }
     console.log(` Found: ${name} ${attribute.value}`);
     return attribute;
@@ -1363,7 +1377,7 @@ function formDSL(tree: any): string {
   let query: Query = [];
   // Walk the tree, parsing each node as we go along
   for (let node of tree) {
-    query = buildTerm(node);
+    query = query.concat(buildTerm(node));
   }
   query.push(project);
 
