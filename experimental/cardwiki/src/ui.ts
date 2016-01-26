@@ -187,32 +187,6 @@ let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, 
   })
 };
 
-function embedKeys(event, elem) {
-  let value = event.currentTarget.value;
-  let state = uiState.widget.search[elem.paneId];
-  let parent = eve.findOne("ui pane parent", {pane: elem.paneId})["parent"];
-  if(event.keyCode === KEYS.ESC) {
-    removePopup(event, elem);
-    paneEditors[parent].cmInstance.focus();
-  } else if(event.keyCode === KEYS.ENTER && state.submitted !== value) {
-    state.submitted = value;
-    dispatch("ui set search", {paneId: elem.paneId, value}).commit();
-  } else if(event.keyCode === KEYS.ENTER) {
-    console.log("DO THE EMBED");
-    let cm = paneEditors[parent].cmInstance;
-    let from = cm.getCursor("from");
-    if(cm.somethingSelected()) {
-      cm.replaceRange(`{${value}}`, from);
-    } else {
-      let to = cm.getCursor("to");
-      cm.replaceRange(`{${value}}`, from, to);
-    }
-    paneEditors[parent].cmInstance.focus();
-    removePopup(event, elem);
-    event.preventDefault();
-  }
-}
-
 function navigateParent(event, elem) {
   dispatch("remove popup", {paneId: elem.paneId})
   .dispatch("ui set search", {paneId: elem.parentId, value: elem.link})
@@ -576,7 +550,7 @@ function createEmbedPopout(cm, paneId) {
     setTimeout(() => {
       widget.focus()
       setEndOfContentEditable(widget);
-    }, 10);
+    }, 0);
     console.log("HERE!");
   });
 }
@@ -584,9 +558,10 @@ function createEmbedPopout(cm, paneId) {
 function embeddedCellKeys(event, paneId, mark) {
   let value = event.currentTarget.textContent;
   let parent = paneId;
-  if(event.keyCode === KEYS.ESC) {
+  if(event.keyCode === KEYS.ESC || (event.keyCode === KEYS.ENTER && value.trim() === "=")) {
     mark.clear();
     paneEditors[parent].cmInstance.focus();
+    event.preventDefault();
   } else if(event.keyCode === KEYS.ENTER) {
     if(value[0] === "=") {
       value = value.substring(1);
