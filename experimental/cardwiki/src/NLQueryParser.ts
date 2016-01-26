@@ -918,6 +918,7 @@ function formTree(tokens: Array<Token>): any {
     nodeArrays.push(nodes);
   }
   
+  // THIS IS WHERE THE MAGIC HAPPENS!
   // Go through each node array and try to resolve entities
   let entities: Array<Entity> = [];
   let collections: Array<Collection> = [];
@@ -946,6 +947,7 @@ function formTree(tokens: Array<Token>): any {
       // We found an entity!
       if (entity !== undefined) {
         node.entity = entity;
+        entity.node = node;
         entities.push(entity);
         // if the node is possessive, check if the next node is an attribute
         if (hasPropery(node,TokenProperties.POSSESSIVE)) {
@@ -953,7 +955,10 @@ function formTree(tokens: Array<Token>): any {
           if (maybeAttr) {
             let attribute = findAttribute(maybeAttr.name,entity);
             if (attribute !== undefined) {
-              node.attributes.push(attribute);    
+              node.attributes.push(attribute);
+              // Link nodes
+              maybeAttr.parent = node;
+              node.children.push(maybeAttr);    
               // If the token is possessive, check if it is an entity in the system
               if (hasPropery(maybeAttr,TokenProperties.POSSESSIVE)) {
                 entity = findEntityByID(`${attribute.value}`);
@@ -964,14 +969,19 @@ function formTree(tokens: Array<Token>): any {
             }
           }
         }
-      // We didn't find an entity, use the most current one and treat the current node as an attribute  
+      // We didn't find an entity, use the most recent one and treat the current node as an attribute  
       } else {
         entity = entities[entities.length-1];
         if (entity !== undefined) {
-          let attribute = findAttribute(flattenNounGroups(node.nounGroups),entity);
+          let attribute = findAttribute(node.name,entity);
           if (attribute !== undefined) {
             node.entity = entity;
             node.attributes.push(attribute);
+            // Link this node to the entities' node
+            if (entity.node !== undefined) {
+              entity.node.children.push(node);
+              node.parent = entity.node;
+            }
           }  
         }
       }
@@ -1126,22 +1136,23 @@ function formTree(tokens: Array<Token>): any {
 }
 
 interface Entity {
-  id: string;
-  displayName: string;
-  content: string;
+  id: string,
+  displayName: string,
+  content: string,
+  node?: Node,
 }
 
 interface Collection {
-  id: string;
-  displayName: string;
-  count: number;
+  id: string,
+  displayName: string,
+  count: number,
 }
 
 interface Attribute {
-  id: string;
-  displayName: string;
-  entity: Entity | string;
-  value: string | number; 
+  id: string,
+  displayName: string,
+  entity: Entity | string,
+  value: string | number,
 }
 
 // Returns the entity with the given display name.
@@ -1257,17 +1268,16 @@ interface Term {
 
 type Query = Array<Term>;
 
-
-
+// Build terms from a node using a DFS algorithm
 function buildTerm(node: Node): Array<Term> {
-
   let terms: Array<Term> = [];
   // Build a term for each of the children
-  let childTerms = node.children.map((childNode) => buildTerm(childNode));
+  let childTerms = node.children.map(buildTerm);
+  // Fold the child terms into the term array
   childTerms.forEach((cTerms) => {
     terms = terms.concat(cTerms);
   });
-  
+  // Now take care of the node itself.
   // Function terms
   if (node.function !== undefined) {
     // Get variables from the already formed terms
@@ -1281,6 +1291,7 @@ function buildTerm(node: Node): Array<Term> {
         }
       })
     });
+    // @HACK: Will break with more than 6 attributes :(
     let names = ["a","b","c","d","e","f"];
     let fields = vars.reverse().map((variable,i) => {
       let field: Field = {
@@ -1335,7 +1346,7 @@ function buildTerm(node: Node): Array<Term> {
   }
   // Entity terms
   else if (node.entity !== undefined) {
-    
+    // We don't do anything with entities right now
   }
   return terms;
 } 
