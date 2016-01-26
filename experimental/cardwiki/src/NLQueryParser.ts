@@ -1260,15 +1260,43 @@ type Query = Array<Term>;
 
 
 
-function buildTerm(node: Node) {
-  console.log(node);
-  
+function buildTerm(node: Node): Array<Term> {
+
+  let terms: Array<Term> = [];
   // Build a term for each of the children
   let childTerms = node.children.map((childNode) => buildTerm(childNode));
+  childTerms.forEach((cTerms) => {
+    terms = terms.concat(cTerms);
+  });
   
   // Function terms
   if (node.function !== undefined) {
-    
+    // Get variables from the already formed terms
+    let vars: Array<string> = [];
+    terms.forEach((term) => {
+      let variables = term.fields.filter((field) => (field.name === "value" && field.variable));
+      variables.forEach((variable) => {
+        let value = variable.value;
+        if (typeof value === "string") {
+          vars.push(value);  
+        }
+      })
+    });
+    let names = ["a","b","c","d","e","f"];
+    let fields = vars.reverse().map((variable,i) => {
+      let field: Field = {
+        name: names[i],
+        value: variable,
+        variable: true,
+      };
+      return field;
+    })
+    let term: Term = {
+      type: "select",
+      table: node.function.function,
+      fields: fields,
+    }
+    terms.push(term);
   }
   // Attribute terms
   else if (node.attributes.length > 0) {
@@ -1293,10 +1321,10 @@ function buildTerm(node: Node) {
       }      
       return term;
     });
-    console.log(attributeTerms.map(termToString).join("\n"));
+    terms = terms.concat(attributeTerms);
   }
   // Collection terms
-  else if (node.collection !== undefined) {
+  if (node.collection !== undefined) {
     let entityField: Field = {name: "entity", value: node.collection.displayName, variable: true};
     let collectionField: Field = {name: "collection", value: node.collection.id, variable: false};
     let term: Term = {
@@ -1304,16 +1332,13 @@ function buildTerm(node: Node) {
       table: "is a attributes",
       fields: [entityField, collectionField],
     }
-    console.log(termToString(term));
+    terms.push(term);
   }
   // Entity terms
   else if (node.entity !== undefined) {
     
   }
-  
- 
-  
-  
+  return terms;
 } 
 
 
@@ -1328,7 +1353,7 @@ function formDSL(tree: any): string {
   let query: Query = [];
   // Walk the tree, parsing each node as we go along
   for (let node of tree) {
-    buildTerm(node);
+    query = buildTerm(node);
   }
   
   
