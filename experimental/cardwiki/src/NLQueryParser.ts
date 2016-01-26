@@ -937,18 +937,20 @@ function formTree(tokens: Array<Token>): any {
           continue;
         }
       }
-      var entity: Entity;
+      let entity: Entity;
       // If the node is a reference, the entity is the most recently found
       if (hasPropery(node,TokenProperties.REFERENCE)) {
-        entity = entities[entities.length];
+        entity = entities[entities.length-1];
       } else {
         entity = findEntityByDisplayName(node.name);  
+        if (entity !== undefined) {
+          entities.push(entity);
+        }
       }
       // We found an entity!
       if (entity !== undefined) {
         node.entity = entity;
         entity.node = node;
-        entities.push(entity);
         // if the node is possessive, check if the next node is an attribute
         if (hasPropery(node,TokenProperties.POSSESSIVE)) {
           let maybeAttr = nodeArray[++j];
