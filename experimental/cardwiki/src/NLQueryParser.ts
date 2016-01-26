@@ -390,9 +390,9 @@ function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech 
       minorPartOfSpeech === MinorPartsOfSpeech.NNP  ||
       minorPartOfSpeech === MinorPartsOfSpeech.NNPS ||
       minorPartOfSpeech === MinorPartsOfSpeech.NNS  ||
-      minorPartOfSpeech === MinorPartsOfSpeech.CD ||
-      minorPartOfSpeech === MinorPartsOfSpeech.DA ||
-      minorPartOfSpeech === MinorPartsOfSpeech.NU ||
+      minorPartOfSpeech === MinorPartsOfSpeech.CD   ||
+      minorPartOfSpeech === MinorPartsOfSpeech.DA   ||
+      minorPartOfSpeech === MinorPartsOfSpeech.NU   ||
       minorPartOfSpeech === MinorPartsOfSpeech.NNO  ||
       minorPartOfSpeech === MinorPartsOfSpeech.NG   ||
       minorPartOfSpeech === MinorPartsOfSpeech.PRP  ||
@@ -716,6 +716,7 @@ enum TokenProperties {
   PROPER,
   PLURAL,
   POSSESSIVE,
+  BACKRELATIONSHIP,
   QUANTITY,
   COMPARATIVE,
   SUPERLATIVE,
@@ -767,6 +768,14 @@ function subsumeProperties(node: Node, nounGroup: NounGroup) {
   if (nounGroup.isQuantity) {
     node.properties.push(TokenProperties.QUANTITY);
   }
+  // If the noungroup contains "of" this implies a backward
+  // relationship between this NG and a previous NG
+  // e.g. age of Corey => Corey's age
+  let ofTokens = nounGroup.preModifiers.filter((token) => token.normalizedWord === "of");
+  if (ofTokens.length > 0) {
+    node.properties.push(TokenProperties.BACKRELATIONSHIP);
+  }
+  
   // Make sure the properties are unique  
   function onlyUnique(value, index, self) { 
     return self.indexOf(value) === index;
@@ -774,7 +783,7 @@ function subsumeProperties(node: Node, nounGroup: NounGroup) {
   node.properties = node.properties.filter(onlyUnique);
 }
 
-function hasPropery(obj: any, property: TokenProperties): boolean {
+function hasProperty(obj: any, property: TokenProperties): boolean {
   let found = obj.properties.find((p: TokenProperties) => p === property);
   if (found === undefined) {
     return false;
@@ -929,17 +938,25 @@ function formTree(tokens: Array<Token>): any {
       console.log(nodeToString(node));
       var collection: Collection;
       // If the node is plural, check for a collection first
-      if (hasPropery(node,TokenProperties.PLURAL)) {
+      if (hasProperty(node,TokenProperties.PLURAL)) {
         collection = findCollection(node.name);
         if (collection !== undefined) {
           node.collection = collection;          
           collections.push(collection);
-          continue;
+          // If the node is possessive, check if there is a relationship between the
+          // next node and the collection
+          if (hasProperty(node,TokenProperties.POSSESSIVE)) {
+            let maybeAttr = nodeArray[++j];
+            if (maybeAttr) {
+              findCollectionToAttrRelationship(collection.id,maybeAttr.name);
+            }
+          }
         }
+        continue;
       }
       let entity: Entity;
       // If the node is a reference, the entity is the most recently found
-      if (hasPropery(node,TokenProperties.REFERENCE)) {
+      if (hasProperty(node,TokenProperties.REFERENCE)) {
         entity = entities[entities.length-1];
       } else {
         entity = findEntityByDisplayName(node.name);  
@@ -952,22 +969,25 @@ function formTree(tokens: Array<Token>): any {
         node.entity = entity;
         entity.node = node;
         // if the node is possessive, check if the next node is an attribute
-        if (hasPropery(node,TokenProperties.POSSESSIVE)) {
-          let maybeAttr = nodeArray[++j];
-          if (maybeAttr) {
-            let attribute = findAttribute(maybeAttr.name,entity);
-            if (attribute !== undefined) {
-              node.attributes.push(attribute);
-              // Link nodes
-              maybeAttr.parent = node;
-              node.children.push(maybeAttr);    
-              // If the token is possessive, check if it is an entity in the system
-              if (hasPropery(maybeAttr,TokenProperties.POSSESSIVE)) {
-                entity = findEntityByID(`${attribute.dbValue}`);
-                if (entity !== undefined) {
-                  entity.node = maybeAttr;
-                  entities.push(entity);
-                }
+        let maybeAttr: Node;
+        if (hasProperty(node,TokenProperties.POSSESSIVE)) {
+          maybeAttr = nodeArray[++j];
+        } else if (hasProperty(node,TokenProperties.BACKRELATIONSHIP)) {
+          maybeAttr = nodeArray[j - 1];
+        }
+        if (maybeAttr !== undefined) {
+          let attribute = findAttribute(maybeAttr.name,entity);
+          if (attribute !== undefined) {
+            node.attributes.push(attribute);
+            // Link nodes
+            maybeAttr.parent = node;
+            node.children.push(maybeAttr);    
+            // If the token is possessive, check if it is an entity in the system
+            if (hasProperty(maybeAttr,TokenProperties.POSSESSIVE)) {
+              entity = findEntityByID(`${attribute.dbValue}`);
+              if (entity !== undefined) {
+                entity.node = maybeAttr;
+                entities.push(entity);
               }
             }
           }
@@ -995,7 +1015,7 @@ function formTree(tokens: Array<Token>): any {
   // Pull out comparator nodes
   let comparatorNodes: Array<Node> = nodeArrays.map((nodeArray) => {
     let nodes = nodeArray.filter((node) => {
-      return hasPropery(node,TokenProperties.COMPARATIVE);
+      return hasProperty(node,TokenProperties.COMPARATIVE);
     });
     if (nodes.length > 0) {
       return nodes[0];
@@ -1022,7 +1042,7 @@ function formTree(tokens: Array<Token>): any {
     if (node.entity !== undefined) {
       attribute = findAttribute(comparator.attribute,node.entity);  
     // TODO FIX THIS! It's not complete
-    } else if (hasPropery(node,TokenProperties.QUANTITY)) {
+    } else if (hasProperty(node,TokenProperties.QUANTITY)) {
       attribute = {
         id: comparator.attribute,
         displayName: comparator.attribute,
@@ -1253,6 +1273,40 @@ function findAttribute(name: string, entity: Entity): Attribute {
   }
   console.log(" Not found: " + name);
   return undefined;
+}
+
+function findCollectionToAttrRelationship(coll: string, attr: string): any {
+  // Finds a direct relationship between collection and attribute
+  // e.g. "pets' lengths"" => pet -> snake -> length
+  let relationship = eve.query(``)
+    .select("collection entities", { collection: coll }, "collection")
+    .select("entity eavs", { entity: ["collection", "entity"], attribute: attr }, "eav")
+    .exec();
+  if (relationship.unprojected.length > 0) {
+    console.log(relationship);
+    return
+  }
+  // Finds a one hop relationship
+  relationship = eve.query(``)
+    .select("collection entities", { collection: coll }, "collection")
+    .select("directionless links", { entity: ["collection", "entity"] }, "links")
+    .select("entity eavs", { entity: ["links", "link"], attribute: attr }, "eav")
+    .exec();
+  if (relationship.unprojected.length > 0) {
+    return
+  }
+  // Not sure if this one works... using the entity table, a 2 hop link can
+  // be found almost anywhere, yielding results like
+  // e.g. "Pets heights" => pets -> snake -> entity -> corey -> height
+  relationship = eve.query(``)
+    .select("collection entities", { collection: coll }, "collection")
+    .select("directionless links", { entity: ["collection", "entity"] }, "links")
+    .select("directionless links", { entity: ["links", "link"] }, "links2")
+    .select("entity eavs", { entity: ["links2", "link"], attribute: attr }, "eav")
+    .exec();
+  if (relationship.unprojected.length > 0) {
+    return
+  }
 }
 
 function subsumeTokens(nounGroup: NounGroup, ix: number, tokens: Array<Token>): NounGroup {
