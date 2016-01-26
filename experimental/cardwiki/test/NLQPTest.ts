@@ -43,14 +43,14 @@ function parseTest(queryString: string, n: number) {
   //console.log(nlqp.nounGroupArrayToString(parseResult.tree));
   console.log("-------------------------------------------------------------------------------------------");
   console.log(parseResult.ast);
-  let artifacts = dslparser.parseDSL(parseResult.ast);
+  /*let artifacts = dslparser.parseDSL(parseResult.ast);
   let changeset = eve.diff();;
   for (let id in artifacts.views) {
     changeset.merge(artifacts.views[id].changeset(eve));
     eve.asView(artifacts.views[id]); 
     artifacts.views[id].debug();
   }
-  eve.applyDiff(changeset);
+  eve.applyDiff(changeset);*/
   console.log("-------------------------------------------------------------------------------------------");
   console.log(timingDisplay);
   console.log("===========================================================================================");
@@ -58,7 +58,7 @@ function parseTest(queryString: string, n: number) {
 
 let n = 1;
 let phrases = [
-  //"Corey Montella's age and height"
+  //"Rachel Montella's wife's height",
   "Pets longer than snakes",
   //"sum of the length of snakes",
   //"Corey Montella's Height",

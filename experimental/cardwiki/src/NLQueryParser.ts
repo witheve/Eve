@@ -1037,6 +1037,19 @@ function formTree(tokens: Array<Token>): any {
       }
       if (lhsNode !== undefined) {
         lhsNode.parent = comparatorNode;
+        // If the lhs node is an entity, add an entity attribute
+        let lhsAttribute: Attribute;
+        if (lhsNode.entity !== undefined) {
+          // TODO
+        } else if (lhsNode.collection !== undefined) {
+          lhsAttribute = {
+            id: attribute.id,
+            displayName: attribute.displayName,
+            entity: lhsNode.collection.displayName,
+            value: `${lhsNode.collection.displayName}|${attribute.displayName}`, 
+          }
+        }
+        lhsNode.attributes.push(lhsAttribute);
         comparatorNode.children.push(lhsNode); 
       }
       nodeArrays.push([comparatorNode]);
@@ -1128,7 +1141,7 @@ interface Collection {
 interface Attribute {
   id: string;
   displayName: string;
-  entity: Entity;
+  entity: Entity | string;
   value: string | number; 
 }
 
@@ -1207,7 +1220,7 @@ function findAttribute(name: string, entity: Entity): Attribute {
       id: foundAttribute.attribute,
       displayName: name,
       entity: entity,
-      value: foundAttribute.value,
+      value: `${entity.displayName}|${name}`,
     }
     console.log(` Found: ${name} ${attribute.value}`);
     return attribute;
@@ -1255,14 +1268,23 @@ function buildTerm(node: Node) {
   
   // Function terms
   if (node.function !== undefined) {
-
+    
   }
   // Attribute terms
   else if (node.attributes.length > 0) {
     let attributeTerms = node.attributes.map((attr: Attribute) => {
-      let entityField: Field = {name: "entity", value: attr.entity.id, variable: false};
+      let entity = attr.entity;
+      let entityID: string;
+      let entityVariable = false;
+      if (typeof entity === 'object') {
+        entityID = entity.id;
+      } else if (typeof entity === 'string') {
+        entityID = entity;
+        entityVariable = true;
+      }
+      let entityField: Field = {name: "entity", value: entityID, variable: entityVariable};
       let attrField: Field = {name: "attribute", value: attr.id, variable: false};
-      let valueField: Field = {name: "value", value: attr.displayName, variable: true};
+      let valueField: Field = {name: "value", value: attr.value, variable: true};
       let fields: Array<Field> = [entityField, attrField, valueField];
       let term: Term = {
         type: "select",
@@ -1272,6 +1294,17 @@ function buildTerm(node: Node) {
       return term;
     });
     console.log(attributeTerms.map(termToString).join("\n"));
+  }
+  // Collection terms
+  else if (node.collection !== undefined) {
+    let entityField: Field = {name: "entity", value: node.collection.displayName, variable: true};
+    let collectionField: Field = {name: "collection", value: node.collection.id, variable: false};
+    let term: Term = {
+      type: "select",
+      table: "is a attributes",
+      fields: [entityField, collectionField],
+    }
+    console.log(termToString(term));
   }
   // Entity terms
   else if (node.entity !== undefined) {
@@ -1346,7 +1379,7 @@ function queryToString(query: Query): string {
 function termToString(term: Term): string {
   let termString = "(";
   termString += `${term.type} `;
-  termString += `${term.table === undefined ? "" : `"${term.table}"`}`;
+  termString += `${term.table === undefined ? "" : `"${term.table}" `}`;
   termString += term.fields.map((field) => `:${field.name} ${field.variable ? field.value : `"${field.value}"`}`).join(" ");
   termString += ")";
   return termString;
