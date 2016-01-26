@@ -566,6 +566,7 @@ function embeddedCellKeys(event, paneId, mark) {
     if(value[0] === "=") {
       value = value.substring(1);
     }
+    value = value.trim();
     console.log("DO THE EMBED");
     let cm = paneEditors[parent].cmInstance;
     let from = cm.getCursor("from");
