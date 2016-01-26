@@ -89,3 +89,38 @@ export function copy(obj) {
   for(let key in obj) res[key] = obj[key];
   return res;
 }
+
+export function mergeObject(root, obj) {
+  for(let key in obj) {
+    root[key] = obj[key];
+  }
+  return root;
+}
+
+export function autoFocus(node, elem) {
+  if(!node.focused) {
+    node.focused = true;
+    node.focus();
+  }
+}
+
+export var KEYS = {
+  ESC: 27,
+  ENTER: 13,
+  "]": 221,
+}
+
+// FROM: http://stackoverflow.com/questions/1125292/how-to-move-cursor-to-end-of-contenteditable-entity/3866442#3866442
+export function setEndOfContentEditable(contentEditableElement)
+{
+    var range,selection;
+    if(document.createRange)//Firefox, Chrome, Opera, Safari, IE 9+
+    {
+        range = document.createRange();//Create a range (a range is a like the selection but invisible)
+        range.selectNodeContents(contentEditableElement);//Select the entire contents of the element with the range
+        range.collapse(false);//collapse the range to the end point. false means collapse to end rather than the start
+        selection = window.getSelection();//get the selection object (allows you to change selection)
+        selection.removeAllRanges();//remove any selections already made
+        selection.addRange(range);//make the range you have just created the visible selection
+    }
+}

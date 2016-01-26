@@ -1,5 +1,6 @@
 import * as app from "./app";
 import {Renderer} from "./microReact";
+import {copy, mergeObject} from "./utils";
 /// <reference path="marked-ast/marked.d.ts" />
 import * as marked from "marked-ast";
 
@@ -59,6 +60,15 @@ function prefixWithMarkdown(cm, prefix) {
   });
 }
 
+var defaultKeys = {
+  "Cmd-B": (cm) => {
+    wrapWithMarkdown(cm, "**");
+  },
+  "Cmd-I": (cm) => {
+    wrapWithMarkdown(cm, "_");
+  },
+};
+
 export class RichTextEditor {
 
   cmInstance;
@@ -75,24 +85,18 @@ export class RichTextEditor {
   getInline: (meta: any, query: string) => string;
   removeInline: (meta: any, query: string) => void;
 
-  constructor(node, getEmbed, getInline, removeInline) {
+  constructor(node, getEmbed, getInline, removeInline, options) {
     this.marks = [];
     this.meta = {};
     this.getEmbed = getEmbed;
     this.getInline = getInline;
     this.removeInline = removeInline;
+    let extraKeys = mergeObject(copy(defaultKeys), options.keys || {});
     let cm = this.cmInstance = new CodeMirror(node, {
       lineWrapping: true,
       autoCloseBrackets: true,
       viewportMargin: Infinity,
-      extraKeys: {
-        "Cmd-B": (cm) => {
-          wrapWithMarkdown(cm, "**");
-        },
-        "Cmd-I": (cm) => {
-          wrapWithMarkdown(cm, "_");
-        },
-      }
+      extraKeys
     });
 
     var self = this;
@@ -118,7 +122,6 @@ export class RichTextEditor {
     let to = cm.getCursor("to");
     let start = cm.cursorCoords(head, "local");
     let top = start.bottom + 5;
-    console.log(head, from, to);
     if((head.line === from.line && head.ch === from.ch)
        || (cm.cursorCoords(from, "local").top === cm.cursorCoords(to, "local").top)) {
       top = start.top - 40;
@@ -251,12 +254,15 @@ export function createEditor(getEmbed: (meta: any, query: string) => Element,
   getInline: (meta: any, query: string) => string,
   removeInline: (meta: any, query: string) => void) {
   return function wrapRichTextEditor(node, elem) {
+    let options = elem.options || {};
     let editor = node.editor;
     let cm:CodeMirror.Editor;
     if (!editor) {
-      editor = node.editor = new RichTextEditor(node, getEmbed, getInline, removeInline);
+      editor = node.editor = new RichTextEditor(node, getEmbed, getInline, removeInline, options);
       cm = node.editor.cmInstance;
-      cm.focus();
+      if(!options.noFocus) {
+        cm.focus();
+      }
     } else {
       cm = node.editor.cmInstance;
     }
