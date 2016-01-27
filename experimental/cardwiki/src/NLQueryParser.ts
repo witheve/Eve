@@ -738,7 +738,7 @@ interface Node {
   nounGroups: Array<NounGroup>,
   entity: Entity,
   collection: Collection,
-  attributes: Array<Attribute>,
+  attribute: Attribute,
   properties: Array<TokenProperties>,
 }
 
@@ -804,7 +804,7 @@ function blankNode(): Node {
     entity: undefined,
     collection: undefined,
     function: undefined, 
-    attributes: [], 
+    attribute: undefined, 
     parent: undefined, 
     children: [],
     properties: [],
@@ -820,7 +820,7 @@ function newNode(ng: NounGroup): Node {
     entity: undefined,
     collection: undefined,
     function: undefined, 
-    attributes: [], 
+    attribute: undefined, 
     parent: undefined, 
     children: [],
     properties: [],
@@ -1048,7 +1048,7 @@ function formTree(tokens: Array<Token>): Array<any> {
       if (hasProperty(node,TokenProperties.BACKRELATIONSHIP)) {
         for (let maybeAttr of maybeAttributes) {
           let attribute = findAttribute(maybeAttr.name,node.entity);
-          maybeAttr.attributes.push(attribute);
+          maybeAttr.attribute = attribute;
           attributes.push(attribute);
         }
       }
@@ -1068,7 +1068,7 @@ function formTree(tokens: Array<Token>): Array<any> {
   
   console.log("???????");
 
-
+  /*
   // Pull out comparator nodes
   let comparatorNodes: Array<Node> = nodeArrays.map((nodeArray) => {
     let nodes = nodeArray.filter((node) => {
@@ -1156,6 +1156,7 @@ function formTree(tokens: Array<Token>): Array<any> {
       nodeArrays.push([comparatorNode]);
     }
   }
+  */
   
   // Identify any aggregates
   
@@ -1436,8 +1437,8 @@ function buildTerm(node: Node): Array<Term> {
     terms.push(term);
   }
   // Attribute terms
-  else if (node.attributes.length > 0) {
-    let attributeTerms = node.attributes.map((attr: Attribute) => {
+  /*else if (node.attribute != undefined) {
+    let attributeTerm = node.attributes.map((attr: Attribute) => {
       let entity = attr.entity;
       let entityID: string;
       let entityVariable = false;
@@ -1459,7 +1460,7 @@ function buildTerm(node: Node): Array<Term> {
       return term;
     });
     terms = terms.concat(attributeTerms);
-  }
+  }*/
   // Collection terms
   if (node.collection !== undefined) {
     let entityField: Field = {name: "entity", value: node.collection.displayName, variable: true};
