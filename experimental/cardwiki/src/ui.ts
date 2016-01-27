@@ -698,11 +698,23 @@ function codeMirrorPostRender(postRender?:RenderHandler):RenderHandler {
   }
 }
 
+function getEntitiesFromResults(results:{[field:string]: any}[], {fields = ["entity"]} = {}):string[] {
+  let entities = [];
+  if(!results.length) return entities;
+  
+  for(let field of fields) {
+    if(results[0][field] === undefined) field = builtinId(field);
+    for(let fact of results) entities.push(fact[field]);
+  }
+  return entities;
+}
+
 let _reps:{[rep:string]: {embed: (results:{}[], params:{paneId?:string, [p:string]: any}) => any, represent: (params:any) => Element}} = {
   name: {
     embed(results, params:{field?:string, data?:{}}) {
-      let entityId = results[0][params.field || "entity"];
-      return {id: entityId, data: params.data};
+      let entities = getEntitiesFromResults(results, {fields: params.field ? [params.field] : undefined});
+      if(entities.length > 1) return entities.map((entity) => ({id: entity, data: params.data}));
+      else return {id: entities[0], data: params.data};
     },
     represent({id, data, t = undefined}) {
       let {name = id} = eve.findOne("display name", {id}) || {};
@@ -746,9 +758,10 @@ let _reps:{[rep:string]: {embed: (results:{}[], params:{paneId?:string, [p:strin
     }
   },
   related: {
-    embed(results, params:{data?:{}}) {
-      let entityId = results[0]["entity"];
-      return {entityId, data: params.data};
+    embed(results, params:{data?:{}, field?:string}) {
+      let entities = getEntitiesFromResults(results, {fields: params.field ? [params.field] : undefined});
+      if(entities.length > 1) return entities.map((entity) => ({entityId: entity, data: params.data}));
+      else return {entityId: entities[0], data: params.data};
     },
     represent({entityId, data}) {
       let {name = entityId} = eve.findOne("display name", {id: entityId}) || {};
@@ -765,9 +778,10 @@ let _reps:{[rep:string]: {embed: (results:{}[], params:{paneId?:string, [p:strin
     }
   },
   index: {
-    embed(results, params:{}) {
-      let entityId = results[0]["entity"];
-      return {entityId, data: params};
+    embed(results, params:{data?:{}, field?:string}) {
+      let entities = getEntitiesFromResults(results, {fields: params.field ? [params.field] : undefined});
+      if(entities.length > 1) return entities.map((entity) => ({entityId: entity, data: params.data}));
+      else return {entityId: entities[0], data: params.data};
     },
     represent({entityId, data}) {
       let {name = entityId} = eve.findOne("display name", {id: entityId}) || {};
@@ -802,10 +816,15 @@ let _reps:{[rep:string]: {embed: (results:{}[], params:{paneId?:string, [p:strin
     }
   },
   results: {
-    embed(results, params:{data?: {}, fields?: string}) {
-      let query = results[0]["entity"];
-      let artifacts = eve.find("entity eavs", {entity: query, attribute: "artifact"}).map((fact) => fact.value);
-      return {query, artifacts, data: params.data};
+    embed(results, params:{data?: {}, field?: string}) {
+      let entities = getEntitiesFromResults(results, {fields: params.field ? [params.field] : undefined});
+      let opts = entities.map((query) => {
+        let artifacts = eve.find("entity eavs", {entity: query, attribute: "artifact"}).map((fact) => fact.value)
+        return {query, artifacts, data: params.data};
+      });
+      
+      if(opts.length > 1) return opts;
+      else return opts[0];
     },
     represent({query, artifacts, data}) {
       return {children: [
@@ -818,11 +837,14 @@ let _reps:{[rep:string]: {embed: (results:{}[], params:{paneId?:string, [p:strin
     }
   },
   directory: {
-    embed(results, params:{data?}) {
-      let entityId = results[0]["entity"];
-      let entities = [];
-      for (let fact of eve.find("is a attributes", {collection: entityId})) entities.push(fact.entity);
-      return {entities, entityId, data: params.data};
+    embed(results, params:{data?:{}, field?:string}) {
+      let entities = getEntitiesFromResults(results, {fields: params.field ? [params.field] : undefined});
+      if(entities.length === 1) {
+        let collection = entities[0];
+        entities.length = 0;
+        for (let fact of eve.find("is a attributes", {collection})) entities.push(fact.entity);
+      }
+      return {entities, data: params.data};
     },
     represent({entities:rawEntities, data}:{entities:string[], data:{}}) {
       let {systems, collections, entities, relatedness, collectionSize} = classifyEntities(rawEntities);
@@ -894,9 +916,19 @@ function classifyEntities(rawEntities:string[]) {
 function represent(rep:string, results, params:{}):Element {
   //console.log("repping:", results, " as", rep, " with params ", params);
   if(rep in _reps) {
-    let embedParams = _reps[rep].embed(results.results, <any>params);
-    embedParams["data"] = embedParams["data"] = params;
-    return _reps[rep].represent(embedParams);
+    let embedParamSets = _reps[rep].embed(results.results, <any>params);
+    if(embedParamSets.constructor === Array) {
+      let wrapper = {c: "flex-column", children: []};
+      for(let embedParams of embedParamSets) {
+        embedParams["data"] = embedParams["data"] = params;
+        wrapper.children.push(_reps[rep].represent(embedParams));
+      }
+      return wrapper;
+    } else {
+      let embedParams = embedParamSets;
+      embedParams["data"] = embedParams["data"] = params;
+      return _reps[rep].represent(embedParams);
+    }
   }
 }
 
