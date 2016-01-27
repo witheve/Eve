@@ -919,7 +919,7 @@ function formTree(tokens: Array<Token>): Array<any> {
         if (boundary === undefined) {
           break;
         } else if (boundary.POS === MinorPartsOfSpeech.CC) {
-          // The conjunction node already has a name
+          // The conjunction node already has a name, push it to the root stack
           if (conjunctionNode.name !== "") {
             roots.push(conjunctionNode)
             conjunctionNode = blankNode();
@@ -928,57 +928,27 @@ function formTree(tokens: Array<Token>): Array<any> {
           }
         }
       }
+      // A boundary has been identified! Push the nodes onto the conjunction tree
       if (boundary === undefined || (thisNodeIx < boundary.ix && nextNodeIx > boundary.ix)) {
         // Add nodes from the last boundary until this one
         let separatorNode = blankNode();
-        for (let j = lastBoundary; j <= i; j++) {
-          separatorNode.children.push(nodes[j]);
-        }
-        if (separatorNode.children.length === 1) {
-          conjunctionNode.children.push(nodes[lastBoundary]);  
+        if (i-lastBoundary === 0) {
+          conjunctionNode.children.push(nodes[lastBoundary]);
         } else {
+          for (let j = lastBoundary; j <= i; j++) {
+            separatorNode.children.push(nodes[j]);
+            nodes[j].parent = separatorNode;
+          }
           conjunctionNode.children.push(separatorNode);
+          separatorNode.parent = conjunctionNode;  
         }
         lastBoundary = i+1;
       }
     }
     roots.push(conjunctionNode);
-  }
-  
-  console.log(roots);
-  
-  /*for (let i = 0; i < nodes.length - 1; i++) {
-    thisNodeIx = nodes[i].ix;
-    nextNodeIx = nodes[i + 1].ix;
-    // Any separators or CC inbetween?
-    for (let j = lastBoundary; j < boundaryIxes.length; j++) {
-      let bIx = boundaryIxes[j];
-      if (bIx > thisNodeIx && bIx < nextNodeIx) {
-        // Add nodes until boundary to node group
-        let nodeArray: Array<Node> = [];
-        for (let k = lastNode; k < i + 1; k++) {
-            nodeArray.push(nodes[k]);
-        }
-        if (nodeArray.length > 0) {
-          nodeArrays.push(nodeArray);  
-        }
-        lastBoundary = j + 1;
-        lastNode = i + 1;
-        break;
-      }
-    };
-    // If we've reached the end of the tokens, take the remaining nodes
-    if (nextNodeIx === tokens.length-1) {
-      let nodeArray: Array<Node> = [];
-      for (let k = lastNode; k <= i + 1; k++) {
-        nodeArray.push(nodes[k]);
-      }
-      // prevents empty node array getting added
-      if (nodeArray.length > 0) {
-        nodeArrays.push(nodeArray);  
-      }
-    }
-  }*/
+  }  
+  console.log(roots)
+  console.log(nodeArrayToString(roots));
   console.log(nodeArrays.map(nodeArrayToString).join("\n"));
   return [];
   // @HACK: Do something smarter here... push only unpushed nodes
@@ -1529,9 +1499,20 @@ function termToString(term: Term): string {
 // ---------------------------------------------------------------------------- 
 
 export function nodeToString(node: Node): string {
-  let noun = flattenNounGroups(node.nounGroups);
+  function getDepth(node: Node): number {
+    if (node.parent === undefined) {
+      return 0;
+    } else {
+      return 1 + getDepth(node.parent);
+    }
+  }
+  
+  let childrenStrings = node.children.map(nodeToString).join("\n");
+  
+  console.log(getDepth(node));
+  
   let properties = `(${node.properties.map((property: TokenProperties) => TokenProperties[property]).join("|")})`;
-  let nodeString = `| ${node.ix}: ${noun} ${properties.length === 2 ? "" : properties}`; 
+  let nodeString = `| ${node.ix}: ${node.name} ${properties.length === 2 ? "" : properties}${childrenStrings}`; 
   return nodeString;
 }
 
