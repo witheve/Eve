@@ -791,6 +791,22 @@ function hasProperty(obj: any, property: TokenProperties): boolean {
   return true;
 }
 
+function blankNode(): Node {
+  let node: Node = {
+    ix: undefined,
+    name: "",
+    nounGroups: [], 
+    entity: undefined,
+    collection: undefined,
+    function: undefined, 
+    attributes: [], 
+    parent: undefined, 
+    children: [],
+    properties: [],
+  };
+  return node;
+}
+
 function newNode(ng: NounGroup): Node {
   let node: Node = {
     ix: ng.begin,
@@ -824,7 +840,7 @@ function tokenToFunction(token: Token) {
   }
 }
 
-function formTree(tokens: Array<Token>): any {
+function formTree(tokens: Array<Token>): Array<any> {
   
   let nounGroups = formNounGroups(tokens);
   
@@ -877,19 +893,61 @@ function formTree(tokens: Array<Token>): any {
     nodes.push(newNode(ng));
   });
   nodes.sort((a, b) => a.ix - b.ix);
+  // Push a blank node to the end of the node array, helps with corner cases
+  let endOfNodes = blankNode();
+  endOfNodes.ix = tokens.length;
+  nodes.push(endOfNodes);
 
   console.log(nodeArrayToString(nodes));
+  
+  let roots: Array<Node> = [];
 
   // Break nodes at separator and CC boundaries
   let nodeArrays: Array<Array<Node>> = []; 
-  let separatorIxes = tokens.filter((token) => token.POS === MinorPartsOfSpeech.SEP).map((token) => token.ix);
-  let conjunctionIxes = tokens.filter((token) => token.POS === MinorPartsOfSpeech.CC).map((token) => token.ix);;
-  let boundaryIxes = separatorIxes.concat(conjunctionIxes);
-  let thisNodeIx;
-  let nextNodeIx;
-  let lastBoundary = 0;
-  let lastNode = 0;
-  for (let i = 0; i < nodes.length - 1; i++) {
+  let boundaries = tokens.filter((token) => token.POS === MinorPartsOfSpeech.SEP || token.POS === MinorPartsOfSpeech.CC).reverse();
+  if (boundaries.length > 0) {
+    let boundary = boundaries.pop();
+    let lastBoundary = 0;  
+    let conjunctionNode = blankNode();
+    for (let i = 0; i < nodes.length - 1; i++) {
+      let thisNodeIx = nodes[i].ix;
+      let nextNodeIx = nodes[i+1].ix;
+      // Advance the boundary past the current node
+      // Takes care of double boundaries such as ", and"
+      while (boundary.ix < thisNodeIx) {
+        boundary = boundaries.pop();
+        if (boundary === undefined) {
+          break;
+        } else if (boundary.POS === MinorPartsOfSpeech.CC) {
+          // The conjunction node already has a name
+          if (conjunctionNode.name !== "") {
+            roots.push(conjunctionNode)
+            conjunctionNode = blankNode();
+          } else {
+            conjunctionNode.name = boundary.normalizedWord;  
+          }
+        }
+      }
+      if (boundary === undefined || (thisNodeIx < boundary.ix && nextNodeIx > boundary.ix)) {
+        // Add nodes from the last boundary until this one
+        let separatorNode = blankNode();
+        for (let j = lastBoundary; j <= i; j++) {
+          separatorNode.children.push(nodes[j]);
+        }
+        if (separatorNode.children.length === 1) {
+          conjunctionNode.children.push(nodes[lastBoundary]);  
+        } else {
+          conjunctionNode.children.push(separatorNode);
+        }
+        lastBoundary = i+1;
+      }
+    }
+    roots.push(conjunctionNode);
+  }
+  
+  console.log(roots);
+  
+  /*for (let i = 0; i < nodes.length - 1; i++) {
     thisNodeIx = nodes[i].ix;
     nextNodeIx = nodes[i + 1].ix;
     // Any separators or CC inbetween?
@@ -920,13 +978,14 @@ function formTree(tokens: Array<Token>): any {
         nodeArrays.push(nodeArray);  
       }
     }
-  }
-  
+  }*/
+  console.log(nodeArrays.map(nodeArrayToString).join("\n"));
+  return [];
   // @HACK: Do something smarter here... push only unpushed nodes
   if (nodeArrays.length === 0 ) { 
     nodeArrays.push(nodes);
   }
-  
+  console.log(nodeArrays);
   // THIS IS WHERE THE MAGIC HAPPENS!
   // Go through each node array and try to resolve entities
   let entities: Array<Entity> = [];
@@ -1011,6 +1070,9 @@ function formTree(tokens: Array<Token>): any {
     }
     console.log("--------------------------");
   }
+
+  console.log("???????");
+
 
   // Pull out comparator nodes
   let comparatorNodes: Array<Node> = nodeArrays.map((nodeArray) => {
@@ -1118,14 +1180,14 @@ function formTree(tokens: Array<Token>): any {
   console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
   
   // Remove nodes with parents
-  let roots: Array<Node> = [];
+  /*let roots: Array<Node> = [];
   for (let nodeArray of nodeArrays) {
     for (let node of nodeArray) {
       if (node.parent === undefined) {
         roots.push(node);
       }
     }
-  }
+  }*/
 
   return roots;
   
