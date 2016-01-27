@@ -9,8 +9,8 @@ button, input { outline: none; font-family: "Lato", sans-serif; font-weight: 300
 .light .bit { background: transparent; }
 
 .flex-grow { flex: 1; }
-.flex-row { display: flex; flex-direction: row; }
-.flex-column { display: flex; flex-direction: column; }
+.flex-row { display: flex !important; flex-direction: row; }
+.flex-column { display: flex !important; flex-direction: column; }
 .flex-wrap { flex-wrap: wrap; }
 .fullscreen { width: 100vw; min-height: 100vh; }
 
