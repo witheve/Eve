@@ -234,21 +234,21 @@ app.init("bootstrap", function bootstrap() {
     .addUnionMember("collection entities", "is a attributes");
 
   phase.addArtifacts(parseDSL(`
-    (query
+    (query :$$view "bs: entity"
       (entity-page :entity entity :page page)
       (page-content :page page :content content)
       (project! "entity" :entity entity :content content))
   `));
 
   phase.addArtifacts(parseDSL(`
-    (query
+    (query :$$view "bs: unmodified added bits"
       (added-bits :entity entity :content content)
       (negate (manual-entity :entity entity))
       (project! "unmodified added bits" :entity entity :content content))
   `));
 
   phase.addArtifacts(parseDSL(`
-    (query
+    (query :$$view "bs: is a attributes"
       (entity-eavs :attribute "is a" :entity entity :value value)
       (project! "is a attributes" :collection value :entity entity))
   `));
@@ -256,23 +256,23 @@ app.init("bootstrap", function bootstrap() {
   // @HACK: this view is required because you can't currently join a select on the result of a function.
   // so we create a version of the eavs table that already has everything lowercased.
   phase.addArtifacts(parseDSL(`
-    (query
+    (query :$$view "bs: lowercase eavs"
       (entity-eavs :entity entity :attribute attribute :value value)
       (lowercase :text value :result lowercased)
       (project! "lowercase eavs" :entity entity :attribute attribute :value lowercased))
   `));
 
   phase.addArtifacts(parseDSL(`
-    (query
+    (query :$$view "bs: eav entity links"
       (entity-eavs :entity entity :attribute attribute :value value)
       (entity :entity value)
       (project! "eav entity links" :entity entity :type attribute :link value))
   `));
 
   phase.addArtifacts(parseDSL(`
-    (query
+    (query :$$view "bs: collection"
       (is-a-attributes :collection entity)
-      (query
+      (query :$$view "bs: collection count"
         (is-a-attributes :collection entity :entity child)
         (count :count childCount))
       (project! "collection" :collection entity :count childCount))
@@ -289,15 +289,15 @@ app.init("bootstrap", function bootstrap() {
   phase.addEntity("entity", "entity", ["system"]);
   phase.addEntity("collection", "collection", ["system"]);
   phase.addArtifacts(parseDSL(unpad(4) `
-    (query
+    (query :$$view "bs: entity eavs from entities"
       (entity :entity entity)
       (project! "entity eavs" :entity entity :attribute "is a" :value "${builtinId("entity")}"))
   `));
   phase.addArtifacts(parseDSL(unpad(4) `
-    (query
+    (query :$$view "bs: entity eavs from collections"
       (is-a-attributes :collection coll)
       (project! "entity eavs" :entity coll :attribute "is a" :value "${builtinId("collection")}"))
-`));
+  `));
 /*  phase.addArtifacts(parseDSL(unpad(4) `
     (query
       (entity :entity entity)
