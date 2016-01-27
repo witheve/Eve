@@ -401,10 +401,7 @@ function getEmbed(meta:{entity: string, page: string, paneId:string}, query:stri
   } else {
     // Embedded queries
     embedType = "query";
-    // @FIXME: Horrible kludge, need a microReact.compile(...)
-    let subRenderer = new Renderer();
-    subRenderer.render([{id: "root", children: [search(content, meta.paneId)]}]);
-    node = subRenderer.content;
+    node = Renderer.compile({id: `root|${meta.paneId}|${content}`, children: [search(content, meta.paneId)]});
   }
 
   if(params["rep"]) {
