@@ -117,7 +117,7 @@ interface Token {
   isComparative?: boolean;
   isSuperlative?: boolean;
   // Properties relevant to parsing
-  properties?: Array<TokenProperties>,
+  properties: Array<TokenProperties>,
   node?: Node,
   used: boolean;
   matched: boolean;
@@ -233,6 +233,9 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
 
       // Heuristic: Special case words with no ambiguous POS that NLPC misclassifies
       switch (token.normalizedWord) {
+        case "of":
+          token.properties.push(TokenProperties.BACKRELATIONSHIP); 
+          break;
         case "all":
           token.POS = MinorPartsOfSpeech.PDT;
           break;
@@ -740,6 +743,7 @@ function newNounGroup(token: Token): NounGroup {
     isReference: token.isReference === undefined ? false : token.isReference,
     isComparative: token.isComparative === undefined ? false : token.isComparative,
     isSuperlative: token.isSuperlative === undefined ? false : token.isSuperlative,
+    properties: token.properties,
     used: false,
   }  
 }
@@ -1110,7 +1114,7 @@ function formTree(tokens: Array<Token>): Array<any> {
   }
   console.log("Finding Entities!");
   for (let root of roots) {
-    root = resolveEntities(root);
+    //root = resolveEntities(root);
   }
   
   // Pull out comparator nodes
@@ -1585,7 +1589,8 @@ export function nodeToString(node: Node): string {
   let spacing = Array(getDepth(node)+1).join(" ");
   let index = node.ix === undefined ? "+ " : `${node.ix}: `;
   let properties = `(${node.properties.map((property: TokenProperties) => TokenProperties[property]).join("|")})`;
-  let nodeString = `| ${spacing}${index}${node.name} ${properties.length === 2 ? "" : properties}${children}`; 
+  properties = properties.length === 2 ? "" : properties;
+  let nodeString = `| ${spacing}${index}${node.name} ${properties}${children}`; 
   return nodeString;
 }
 
@@ -1617,7 +1622,11 @@ export function nounGroupToString(nounGroup: NounGroup): string {
   let preMods = nounGroup.preModifiers.sort((childA: Token, childB: Token) => childA.ix - childB.ix).map((child: Token) => child.normalizedWord).join(" ");
   let postMods = nounGroup.postModifiers.sort((childA: Token, childB: Token) => childA.ix - childB.ix).map((child: Token) => child.normalizedWord).join(" ");
   let propertiesString = `Properties:\n${nounGroup.isPlural ? `-plural\n` : ``}${nounGroup.isPossessive ? `-possessive\n` : ``}${nounGroup.isProper ? `-proper\n` : ``}${nounGroup.isQuantity ? `-quantity\n` : ``}${nounGroup.isReference ? `-reference\n` : ``}${nounGroup.isComparative ? `-comparative\n` : ``}${nounGroup.isSuperlative ? `-superlative\n` : ``}`;
-  let nounGroupString = `(${nounGroup.begin}-${nounGroup.end})\n  ${preMods}\n${noun}${reference}\n  ${postMods}\n\n${propertiesString}`;
+  
+  let properties = `(${nounGroup.properties.map((property: TokenProperties) => TokenProperties[property]).join("|")})`;
+  properties = properties.length === 2 ? "" : properties;
+  
+  let nounGroupString = `(${nounGroup.begin}-${nounGroup.end})\n  ${preMods}\n${noun}${reference}\n  ${postMods}\n\n${propertiesString}\n${properties}`;
   return nounGroupString;
 }
 
