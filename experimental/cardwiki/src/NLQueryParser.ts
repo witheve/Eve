@@ -117,6 +117,8 @@ interface Token {
   isComparative?: boolean;
   isSuperlative?: boolean;
   // Properties relevant to parsing
+  properties?: Array<TokenProperties>,
+  node?: Node,
   used: boolean;
   matched: boolean;
 }
@@ -128,7 +130,15 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
     let tokens: Array<Token> = preTokens.map((preToken: PreToken, i: number) => {
       let word = preToken.text;
       let tag = preToken.tag;
-      let token: Token = {ix: i, originalWord: word, normalizedWord: word, POS: MinorPartsOfSpeech[tag], used: false, matched: false};
+      let token: Token = {
+        ix: i, 
+        originalWord: word, 
+        normalizedWord: word, 
+        POS: MinorPartsOfSpeech[tag],
+        properties: [], 
+        used: false, 
+        matched: false
+      };
       let before = "";
            
       // Add default attribute markers to nouns
@@ -141,24 +151,29 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
         if (token.POS === MinorPartsOfSpeech.NNO || 
             token.POS === MinorPartsOfSpeech.PP) {
          token.isPossessive = true;
+         token.properties.push(TokenProperties.POSSESSIVE);
         }
         if (token.POS === MinorPartsOfSpeech.NNP  ||
             token.POS === MinorPartsOfSpeech.NNPS ||
             token.POS === MinorPartsOfSpeech.NNPA) {
           token.isProper = true;
+          token.properties.push(TokenProperties.PROPER);
         }
         if (token.POS === MinorPartsOfSpeech.NNPS  ||
             token.POS === MinorPartsOfSpeech.NNS) {
           token.isPlural = true;
+          token.properties.push(TokenProperties.PLURAL);
         }
         if (token.POS === MinorPartsOfSpeech.CD ||
             token.POS === MinorPartsOfSpeech.DA ||
             token.POS === MinorPartsOfSpeech.NU) {
           token.isQuantity = true;     
+          token.properties.push(TokenProperties.QUANTITY);
         }
         if (token.POS === MinorPartsOfSpeech.PP ||
             token.POS === MinorPartsOfSpeech.PRP) {
           token.isReference = true;
+          token.properties.push(TokenProperties.REFERENCE);
         }
       }
       
@@ -187,6 +202,7 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
           token.POS = MinorPartsOfSpeech.NN;
         }
         token.isPossessive = true;
+        token.properties.push(TokenProperties.POSSESSIVE);
       }
       // --- convert to lowercase
       before = normalizedWord;
@@ -194,7 +210,8 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
       // Heuristic: if the word is not the first word in the sentence and it had capitalization, then it is probably a proper noun
       if (before !== normalizedWord && i !== 0) {
         token.POS = MinorPartsOfSpeech.NNP;
-        token.isProper = true;        
+        token.isProper = true;   
+        token.properties.push(TokenProperties.PROPER);     
       }
       // --- if the word is a (not proper) noun, singularize
       if (getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN && token.isProper === false) {
@@ -203,6 +220,7 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
         // Heuristic: If the word changed after singularizing it, then it was plural to begin with
         if (before !== normalizedWord) {
           token.isPlural = true;
+          token.properties.push(TokenProperties.PLURAL);
         }
       }      
       token.normalizedWord = normalizedWord;
@@ -239,13 +257,15 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
         case "most":
           token.POS = MinorPartsOfSpeech.JJS;
           token.isSuperlative = true;
+          token.properties.push(TokenProperties.SUPERLATIVE);
           break;
         case "best":
           token.POS = MinorPartsOfSpeech.JJS;
           token.isSuperlative = true;
+          token.properties.push(TokenProperties.SUPERLATIVE);
           break;
         case "will":
-          // will can be a noun
+          // 'will' can be a noun
           if (getMajorPOS(token.POS) !== MajorPartsOfSpeech.NOUN) {
             token.POS = MinorPartsOfSpeech.MD;
           }
@@ -254,6 +274,7 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
           token.POS = MinorPartsOfSpeech.NN;
           token.normalizedWord = "year";
           token.isPlural = true;
+          token.properties.push(TokenProperties.PLURAL);
           break;
       }
       
@@ -303,6 +324,7 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
         token.POS = MinorPartsOfSpeech.WPO;
         token.isProper = false;
         token.isPossessive = true;
+        token.properties.push(TokenProperties.POSSESSIVE);
         continue;
       }
       // adverbs become wh- adverbs
@@ -352,10 +374,12 @@ function adverbToAdjective(token: Token): Token {
   if (word.substr(word.length-3,word.length) === "est") {
     token.POS = MinorPartsOfSpeech.JJS;
     token.isSuperlative = true;
+    token.properties.push(TokenProperties.SUPERLATIVE);
   // Heuristic: Words that end in -er are comaprative
   } else if (word.substr(word.length-2,word.length) === "er"){
     token.POS = MinorPartsOfSpeech.JJR;
     token.isComparative = true;
+    token.properties.push(TokenProperties.COMPARATIVE);
   } else {
     token.POS = MinorPartsOfSpeech.JJ;
   }  
@@ -449,16 +473,21 @@ interface NounGroup {
   refersTo?: NounGroup, // noun group to which a pronoun refers
   preModifiers: Array<Token>,
   postModifiers: Array<Token>,
-  begin: number; // Index of the first token in the noun group
-  end: number;   // Index of the last token in the noun group
-  isPossessive: boolean;
-  isProper: boolean;
-  isPlural: boolean;
-  isQuantity: boolean;
-  isComparative: boolean;
-  isSuperlative: boolean;
-  isReference: boolean;
-  used: boolean;
+  begin: number, // Index of the first token in the noun group
+  end: number,   // Index of the last token in the noun group
+  isPossessive: boolean,
+  isProper: boolean,
+  isPlural: boolean,
+  isQuantity: boolean,
+  isComparative: boolean,
+  isSuperlative: boolean,
+  isReference: boolean,
+  children?: Array<Node>,
+  parent?: Array<Node>,
+  name?: string,
+  properties?: Array<TokenProperties>,
+  token?: Token,
+  used: boolean,
 }
 
 // take tokens, form a parse tree
@@ -733,12 +762,14 @@ interface Node {
   ix: number,
   name: string,
   parent: Node,
+  parents?: Array<Node>,
   children: Array<Node>,
-  function: any,
   nounGroups: Array<NounGroup>,
-  entity: Entity,
-  collection: Collection,
-  attribute: Attribute,
+  entity?: Entity,
+  collection?: Collection,
+  attribute?: Attribute,
+  function?: any,
+  token?: Token,
   properties: Array<TokenProperties>,
 }
 
@@ -986,10 +1017,12 @@ function formTree(tokens: Array<Token>): Array<any> {
     
     // Skip certain nodes
     if (hasProperty(node,TokenProperties.SEPARATOR)) {
+      console.log("Skipping");
       found = true;
     }
     // If the node is possessive or proper, it's probably an entity
     if (!found && (hasProperty(node,TokenProperties.POSSESSIVE) || hasProperty(node,TokenProperties.PROPER))) {
+      console.log("Possessive: finding entity");
       let entity = findEntityByDisplayName(node.name);
       if (entity !== undefined) {
         entities.push(entity);
@@ -999,6 +1032,7 @@ function formTree(tokens: Array<Token>): Array<any> {
     }
     // If the node is plural, it's probably a collection
     if (!found && hasProperty(node,TokenProperties.PLURAL)) {
+      console.log("Plural: finding collection");
       let collection = findCollection(node.name);
       if (collection !== undefined) {
         collections.push(collection);
@@ -1007,6 +1041,7 @@ function formTree(tokens: Array<Token>): Array<any> {
     }
     // Try to find an attribute
     if (!found && (entities.length !== 0 || collections.length !== 0)) {
+      console.log("Entity/Collection already found: finding attribute");
       let entity = entities[entities.length - 1];
       if (entity !== undefined) {
         let attribute = findAttribute(node.name,entity);
@@ -1024,9 +1059,11 @@ function formTree(tokens: Array<Token>): Array<any> {
           found = true;
         }
       }      
+      
     }
     // Attempt to match a function
     if (!found) {
+      console.log("Search for a built in function")
       let fxn = wordToFunction(node.name);
       if (fxn.function !== "") {
         console.log(fxn);
@@ -1036,13 +1073,15 @@ function formTree(tokens: Array<Token>): Array<any> {
     
     // If we've gotten here and we haven't found anything, go crazy with searching
     if (!found) {
+      console.log("Find this thing anywhere we can");
       let entity = findEntityByDisplayName(node.name);
       if (entity !== undefined) {
         found = true;
-      }
-      let collection = findCollection(node.name);
-      if (collection !== undefined) {
-        found = true;
+      } else {
+        let collection = findCollection(node.name);
+        if (collection !== undefined) {
+          found = true;
+        }  
       }
     }
     
@@ -1334,7 +1373,7 @@ function findAttribute(name: string, entity: Entity): Attribute {
       value: `${entity.displayName}|${name}`.replace(/ /g,''),
       dbValue: foundAttribute.value,
     }
-    console.log(` Found: ${name} ${attribute.value}`);
+    console.log(` Found: ${name} ${attribute.dbValue} => ${attribute.value}`);
     return attribute;
   }
   console.log(" Not found: " + name);
