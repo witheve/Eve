@@ -107,16 +107,6 @@ interface Token {
   originalWord: string;
   normalizedWord: string;
   POS: MinorPartsOfSpeech;
-  // Attributes for nouns only
-  isPossessive?: boolean;
-  isProper?: boolean;
-  isPlural?: boolean;
-  isQuantity?: boolean;
-  isReference?: boolean;
-  // Attributes for adjectives and adverbs
-  isComparative?: boolean;
-  isSuperlative?: boolean;
-  // Properties relevant to parsing
   properties: Array<TokenProperties>,
   node?: Node,
   used: boolean;
@@ -143,46 +133,36 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
            
       // Add default attribute markers to nouns
       if (getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN) {
-        token.isPossessive = false;
-        token.isPlural = false;
-        token.isProper = false;
-        token.isQuantity = false;
-        token.isReference = false;
         if (token.POS === MinorPartsOfSpeech.NNO || 
             token.POS === MinorPartsOfSpeech.PP) {
-         token.isPossessive = true;
          token.properties.push(TokenProperties.POSSESSIVE);
         }
         if (token.POS === MinorPartsOfSpeech.NNP  ||
             token.POS === MinorPartsOfSpeech.NNPS ||
             token.POS === MinorPartsOfSpeech.NNPA) {
-          token.isProper = true;
           token.properties.push(TokenProperties.PROPER);
         }
         if (token.POS === MinorPartsOfSpeech.NNPS  ||
             token.POS === MinorPartsOfSpeech.NNS) {
-          token.isPlural = true;
           token.properties.push(TokenProperties.PLURAL);
         }
         if (token.POS === MinorPartsOfSpeech.CD ||
             token.POS === MinorPartsOfSpeech.DA ||
             token.POS === MinorPartsOfSpeech.NU) {
-          token.isQuantity = true;     
           token.properties.push(TokenProperties.QUANTITY);
         }
         if (token.POS === MinorPartsOfSpeech.PP ||
             token.POS === MinorPartsOfSpeech.PRP) {
-          token.isReference = true;
           token.properties.push(TokenProperties.REFERENCE);
         }
       }
       
       // Add default attribute markers to adjectives and adverbs
       if (token.POS === MinorPartsOfSpeech.JJR || token.POS === MinorPartsOfSpeech.RBR) {
-        token.isComparative = true;
+        token.properties.push(TokenProperties.COMPARATIVE);
       }
-      else if (token.POS === MinorPartsOfSpeech.JJS || token.POS === MinorPartsOfSpeech.RBS) {
-        token.isSuperlative = true;
+      else if (token.POS === MinorPartsOfSpeech.JJS || token.POS === MinorPartsOfSpeech.RBS) {        
+        token.properties.push(TokenProperties.SUPERLATIVE);
       }
       
       // normalize the word with the following transformations: 
@@ -201,7 +181,6 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
         if (getMajorPOS(token.POS) !== MajorPartsOfSpeech.NOUN) {
           token.POS = MinorPartsOfSpeech.NN;
         }
-        token.isPossessive = true;
         token.properties.push(TokenProperties.POSSESSIVE);
       }
       // --- convert to lowercase
@@ -210,16 +189,14 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
       // Heuristic: if the word is not the first word in the sentence and it had capitalization, then it is probably a proper noun
       if (before !== normalizedWord && i !== 0) {
         token.POS = MinorPartsOfSpeech.NNP;
-        token.isProper = true;   
         token.properties.push(TokenProperties.PROPER);     
       }
       // --- if the word is a (not proper) noun, singularize
-      if (getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN && token.isProper === false) {
+      if (getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN && !hasProperty(token,TokenProperties.PROPER)) {
         before = normalizedWord;
         normalizedWord = singularize(normalizedWord);
         // Heuristic: If the word changed after singularizing it, then it was plural to begin with
         if (before !== normalizedWord) {
-          token.isPlural = true;
           token.properties.push(TokenProperties.PLURAL);
         }
       }      
@@ -259,12 +236,10 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
           break;
         case "most":
           token.POS = MinorPartsOfSpeech.JJS;
-          token.isSuperlative = true;
           token.properties.push(TokenProperties.SUPERLATIVE);
           break;
         case "best":
           token.POS = MinorPartsOfSpeech.JJS;
-          token.isSuperlative = true;
           token.properties.push(TokenProperties.SUPERLATIVE);
           break;
         case "will":
@@ -276,7 +251,6 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
         case "years":
           token.POS = MinorPartsOfSpeech.NN;
           token.normalizedWord = "year";
-          token.isPlural = true;
           token.properties.push(TokenProperties.PLURAL);
           break;
       }
@@ -325,8 +299,6 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
       // whose is the only wh- possessive pronoun
       if (token.normalizedWord === "whose") {
         token.POS = MinorPartsOfSpeech.WPO;
-        token.isProper = false;
-        token.isPossessive = true;
         token.properties.push(TokenProperties.POSSESSIVE);
         continue;
       }
@@ -376,12 +348,10 @@ function adverbToAdjective(token: Token): Token {
   // Heuristic: Words that end in -est are superlative
   if (word.substr(word.length-3,word.length) === "est") {
     token.POS = MinorPartsOfSpeech.JJS;
-    token.isSuperlative = true;
     token.properties.push(TokenProperties.SUPERLATIVE);
   // Heuristic: Words that end in -er are comaprative
   } else if (word.substr(word.length-2,word.length) === "er"){
     token.POS = MinorPartsOfSpeech.JJR;
-    token.isComparative = true;
     token.properties.push(TokenProperties.COMPARATIVE);
   } else {
     token.POS = MinorPartsOfSpeech.JJ;
@@ -478,13 +448,7 @@ interface NounGroup {
   postModifiers: Array<Token>,
   begin: number, // Index of the first token in the noun group
   end: number,   // Index of the last token in the noun group
-  isPossessive: boolean,
-  isProper: boolean,
-  isPlural: boolean,
-  isQuantity: boolean,
-  isComparative: boolean,
-  isSuperlative: boolean,
-  isReference: boolean,
+  ix: number,
   children?: Array<Node>,
   parent?: Array<Node>,
   name?: string,
@@ -680,9 +644,9 @@ function resolveReferences(nounGroups: Array<NounGroup>): Array<NounGroup>  {
   // Get all the non personal pronouns
   let pronounGroups: Array<NounGroup> = findAll(nounGroups,(ng: NounGroup) => {
     let isPersonal = intersect(firstPersonPersonal,[ng.noun.normalizedWord]).length > 0;
-    return (ng.isReference && !isPersonal);
+    return (hasProperty(ng,TokenProperties.REFERENCE) && !isPersonal);
   });
-  let antecedents: Array<NounGroup> = findAll(nounGroups,(ng: NounGroup) => ng.isReference === false);
+  let antecedents: Array<NounGroup> = findAll(nounGroups,(ng: NounGroup) => hasProperty(ng,TokenProperties.REFERENCE) === false);
 
   // Heuristic: Find the closest antecedent, set that as the noun group reference
   for (let png of pronounGroups) {
@@ -697,7 +661,7 @@ function resolveReferences(nounGroups: Array<NounGroup>): Array<NounGroup>  {
         break;
       }
       // Heuristic: possessive nouns are never antecedents
-      if (ng.isPossessive) {
+      if (hasProperty(ng,TokenProperties.POSSESSIVE) === true) {
         continue;
       }
       closestAntecedent = ng;
@@ -720,29 +684,18 @@ function addChildToNounGroup(nounGroup: NounGroup, token: Token) {
   } else {
     nounGroup.postModifiers.push(token);
   }
-  if(token.isComparative !== undefined) {
-    nounGroup.isComparative = token.isComparative;
-  }
-  if(token.isSuperlative !== undefined) {
-    nounGroup.isSuperlative = token.isSuperlative;
-  }
+  nounGroup.properties = nounGroup.properties.concat(token.properties);
   token.used = true;
 }
 
 function newNounGroup(token: Token): NounGroup {
   return {
+    ix: token.ix,
     noun: token,
     preModifiers: [],
     postModifiers: [],
     begin: token.ix,
     end: token.ix,
-    isPlural: token.isPlural === undefined ? false : token.isPlural, 
-    isPossessive: token.isPossessive === undefined ? false : token.isPossessive,
-    isProper: token.isProper === undefined ? false : token.isProper,
-    isQuantity: token.isQuantity === undefined ? false : token.isQuantity,
-    isReference: token.isReference === undefined ? false : token.isReference,
-    isComparative: token.isComparative === undefined ? false : token.isComparative,
-    isSuperlative: token.isSuperlative === undefined ? false : token.isSuperlative,
     properties: token.properties,
     used: false,
   }  
@@ -787,27 +740,7 @@ function flattenNounGroups(nounGroups: Array<NounGroup>): string {
 
 // Transfer noun group properties to a node
 function subsumeProperties(node: Node, nounGroup: NounGroup) {
-  if (nounGroup.isPlural) {
-    node.properties.push(TokenProperties.PLURAL);
-  }
-  if (nounGroup.isPossessive) {
-    node.properties.push(TokenProperties.POSSESSIVE);
-  }
-  if (nounGroup.isProper) {
-    node.properties.push(TokenProperties.PROPER);
-  }
-  if (nounGroup.isComparative) {
-    node.properties.push(TokenProperties.COMPARATIVE);
-  }
-  if (nounGroup.isSuperlative) {
-    node.properties.push(TokenProperties.SUPERLATIVE);
-  }
-  if (nounGroup.isReference) {
-    node.properties.push(TokenProperties.REFERENCE);
-  }
-  if (nounGroup.isQuantity) {
-    node.properties.push(TokenProperties.QUANTITY);
-  }
+  node.properties = nounGroup.properties;
   // If the noungroup contains "of" this implies a backward
   // relationship between this NG and a previous NG
   // e.g. age of Corey => Corey's age
@@ -897,7 +830,7 @@ function formTree(tokens: Array<Token>): Array<any> {
   // e.g. [Steve] [Smith] -> [Steve Smith]
   // But [United States] [of America] does not combine. We do this
   // at another step
-  let properNouns = nounGroups.filter((ng) => ng.isProper);
+  let properNouns = nounGroups.filter((ng) => hasProperty(ng,TokenProperties.PROPER));
   let nodes: Array<Node> = [];
   let node: Node = undefined;
   let lastIx = 0;
@@ -921,7 +854,7 @@ function formTree(tokens: Array<Token>): Array<any> {
       lastIx = ng.noun.ix;
     }
     // Break on a possessive ng
-    if (ng.isPossessive) {
+    if (hasProperty(ng,TokenProperties.POSSESSIVE)) {
       nodes.push(node);
       node = undefined
     }
@@ -1600,13 +1533,9 @@ export function nodeArrayToString(nodes: Array<Node>): string {
 }
 
 export function tokenToString(token: Token): string {
-  let isPossessive = token.isPossessive === undefined ? "" : token.isPossessive === true ? "possessive ": "";
-  let isProper = token.isProper === undefined ? "" : token.isProper === true ? "proper ": "";
-  let isPlural = token.isPlural === undefined ? "" : token.isPlural === true ? "plural ": "";
-  let isReference = token.isReference === undefined ? "" : token.isReference === true ? "reference ": "";
-  let isComparative = token.isComparative === undefined ? "" : token.isComparative === true ? "comparative ": "";
-  let isSuperlative = token.isSuperlative === undefined ? "" : token.isSuperlative === true ? "superlative ": "";
-  let tokenString = `${token.ix}: ${token.originalWord} | ${token.normalizedWord} | ${MajorPartsOfSpeech[getMajorPOS(token.POS)]} | ${MinorPartsOfSpeech[token.POS]} | ${isPossessive}${isProper}${isPlural}${isReference}${isComparative}${isSuperlative}` ;
+  let properties = `(${token.properties.map((property: TokenProperties) => TokenProperties[property]).join("|")})`;
+  properties = properties.length === 2 ? "" : properties;
+  let tokenString = `${token.ix}: ${token.originalWord} | ${token.normalizedWord} | ${MajorPartsOfSpeech[getMajorPOS(token.POS)]} | ${MinorPartsOfSpeech[token.POS]} | ${properties}` ;
   return tokenString;
 }
 
@@ -1621,12 +1550,11 @@ export function nounGroupToString(nounGroup: NounGroup): string {
   let reference = refersTo === undefined ? "" : " (" + refersTo.noun.normalizedWord + ")";
   let preMods = nounGroup.preModifiers.sort((childA: Token, childB: Token) => childA.ix - childB.ix).map((child: Token) => child.normalizedWord).join(" ");
   let postMods = nounGroup.postModifiers.sort((childA: Token, childB: Token) => childA.ix - childB.ix).map((child: Token) => child.normalizedWord).join(" ");
-  let propertiesString = `Properties:\n${nounGroup.isPlural ? `-plural\n` : ``}${nounGroup.isPossessive ? `-possessive\n` : ``}${nounGroup.isProper ? `-proper\n` : ``}${nounGroup.isQuantity ? `-quantity\n` : ``}${nounGroup.isReference ? `-reference\n` : ``}${nounGroup.isComparative ? `-comparative\n` : ``}${nounGroup.isSuperlative ? `-superlative\n` : ``}`;
   
   let properties = `(${nounGroup.properties.map((property: TokenProperties) => TokenProperties[property]).join("|")})`;
   properties = properties.length === 2 ? "" : properties;
   
-  let nounGroupString = `(${nounGroup.begin}-${nounGroup.end})\n  ${preMods}\n${noun}${reference}\n  ${postMods}\n\n${propertiesString}\n${properties}`;
+  let nounGroupString = `(${nounGroup.begin}-${nounGroup.end})\n  ${preMods}\n${noun}${reference}\n  ${postMods}\n${properties}`;
   return nounGroupString;
 }
 
