@@ -18,6 +18,7 @@ export function parse(preTokens: Array<PreToken>) {
 export function preprocessQueryString(queryString: string): Array<PreToken> {
   // Add whitespace before commas
   let processedString = queryString.replace(new RegExp(",", 'g')," ,");
+  processedString = processedString.replace(new RegExp(";", 'g')," ;");
   // Get parts of speach with sentence information. It's okay if they're wrong; they 
   // will be corrected as we create the tree and match against the underlying data model    
   let nlpTokens = nlp.pos(processedString, {dont_combine: true}).sentences[0].tokens;
@@ -94,6 +95,7 @@ enum MinorPartsOfSpeech {
   LT,   // Symbol (<)
   GT,   // Symbol (>)
   SEP,  // Separator (,)
+  SEM,  // Separator (;)
   // Wh- word
   WDT,  // Wh-determiner (that what whatever which whichever)
   WP,   // Wh-pronoun (that what whatever which who whom)
@@ -267,6 +269,9 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
         case ",":
           token.POS = MinorPartsOfSpeech.SEP;
           break;
+        case ";":
+          token.POS = MinorPartsOfSpeech.SEM;
+          break;
       }
         
       return token;
@@ -411,8 +416,9 @@ function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech 
         return MajorPartsOfSpeech.GLUE;
   }
   // Symbol
-  if (minorPartOfSpeech === MinorPartsOfSpeech.LT ||
-      minorPartOfSpeech === MinorPartsOfSpeech.GT ||
+  if (minorPartOfSpeech === MinorPartsOfSpeech.LT  ||
+      minorPartOfSpeech === MinorPartsOfSpeech.GT  ||
+      minorPartOfSpeech === MinorPartsOfSpeech.SEM ||
       minorPartOfSpeech === MinorPartsOfSpeech.SEP) {
         return MajorPartsOfSpeech.SYMBOL;
   }
@@ -904,7 +910,9 @@ function formTree(tokens: Array<Token>): Array<any> {
 
   // Break nodes at separator and CC boundaries
   let nodeArrays: Array<Array<Node>> = []; 
-  let boundaries = tokens.filter((token) => token.POS === MinorPartsOfSpeech.SEP || token.POS === MinorPartsOfSpeech.CC).reverse();
+  let boundaries = tokens.filter((token) => token.POS === MinorPartsOfSpeech.SEP || 
+                                            token.POS === MinorPartsOfSpeech.SEM ||
+                                            token.POS === MinorPartsOfSpeech.CC).reverse();
   if (boundaries.length > 0) {
     let boundary = boundaries.pop();
     let lastBoundary = 0;  
@@ -918,14 +926,6 @@ function formTree(tokens: Array<Token>): Array<any> {
         boundary = boundaries.pop();
         if (boundary === undefined) {
           break;
-        } else if (boundary.POS === MinorPartsOfSpeech.CC) {
-          // The conjunction node already has a name, push it to the root stack
-          if (conjunctionNode.name !== "") {
-            roots.push(conjunctionNode)
-            conjunctionNode = blankNode();
-          } else {
-            conjunctionNode.name = boundary.normalizedWord;  
-          }
         }
       }
       // A boundary has been identified! Push the nodes onto the conjunction tree
@@ -943,6 +943,11 @@ function formTree(tokens: Array<Token>): Array<any> {
           }
           conjunctionNode.children.push(separatorNode);
           separatorNode.parent = conjunctionNode;  
+        }
+        // If the boundary is a semicolon or end of the sentence, push the tree to the roots stack
+        if (boundary === undefined || boundary.POS === MinorPartsOfSpeech.SEM) {
+          roots.push(conjunctionNode);
+          conjunctionNode = blankNode();
         }
         lastBoundary = i+1;
       }
