@@ -108,7 +108,7 @@ interface Token {
   normalizedWord: string;
   POS: MinorPartsOfSpeech;
   properties: Array<TokenProperties>,
-  node?: Node,
+  node?: any,
   used: boolean;
   matched: boolean;
 }
@@ -449,11 +449,11 @@ interface NounGroup {
   begin: number, // Index of the first token in the noun group
   end: number,   // Index of the last token in the noun group
   ix: number,
-  children?: Array<Node>,
-  parent?: Array<Node>,
-  name?: string,
-  properties?: Array<TokenProperties>,
-  token?: Token,
+  children: Array<Node>,
+  parents: Array<Node>,
+  name: string,
+  properties: Array<TokenProperties>,
+  token: Token,
   used: boolean,
 }
 
@@ -689,19 +689,24 @@ function addChildToNounGroup(nounGroup: NounGroup, token: Token) {
 }
 
 function newNounGroup(token: Token): NounGroup {
-  return {
+  let ng: NounGroup =  {
     ix: token.ix,
     noun: token,
     preModifiers: [],
     postModifiers: [],
     begin: token.ix,
     end: token.ix,
+    name: token.normalizedWord,
+    parents: [],
+    children: [],
+    token: token,
     properties: token.properties,
     used: false,
-  }  
+  };
+  token.node = ng;
+  return ng;
 }
 
-// @TODO Add token properties to everything else
 enum TokenProperties {
   PROPER,
   PLURAL,
