@@ -72,7 +72,7 @@ var defaultKeys = {
 export class RichTextEditor {
 
   cmInstance;
-  marks: any[];
+  marks: {};
   timeout;
   meta: any;
   //format bar
@@ -81,16 +81,10 @@ export class RichTextEditor {
   formatBarElement:Element = null;
   // events
   onUpdate: (meta: any, content: string) => void;
-  getEmbed: (meta: any, query: string) => Element;
-  getInline: (meta: any, query: string) => string;
-  removeInline: (meta: any, query: string) => void;
 
-  constructor(node, getEmbed, getInline, removeInline, options) {
-    this.marks = [];
+  constructor(node, options) {
+    this.marks = {};
     this.meta = {};
-    this.getEmbed = getEmbed;
-    this.getInline = getInline;
-    this.removeInline = removeInline;
     let extraKeys = mergeObject(copy(defaultKeys), options.keys || {});
     let cm = this.cmInstance = new CodeMirror(node, {
       lineWrapping: true,
@@ -155,49 +149,9 @@ export class RichTextEditor {
 
   onChanges(cm, changes) {
     let self = this;
-    for (let change of changes) {
-      let removed = change.removed.join("\n");
-      let matches = removed.match(/({[^]*?})/gm);
-      if (!matches) continue;
-      for (let match of matches) {
-        this.removeInline(this.meta, match);
-      }
-    }
-    cm.operation(() => {
-      let content = cm.getValue();
-      let parts = content.split(/({[^]*?})/gm);
-      let ix = 0;
-      for (let mark of self.marks) {
-        mark.clear();
-      }
-      self.marks = [];
-      let cursorIx = cm.indexFromPos(cm.getCursor("from"));
-      for (let part of parts) {
-        if (part[0] === "{") {
-          let {mark, replacement} = self.markEmbeddedQuery(cm, part, ix);
-          if (mark) self.marks.push(mark);
-          if(replacement) part = replacement;
-        }
-        ix += part.length;
-      }
-    });
   }
 
   onCursorActivity(cm) {
-    if (!cm.somethingSelected()) {
-      let cursor = cm.getCursor("from");
-      let marks = cm.findMarksAt(cursor);
-      for (let mark of marks) {
-        if (mark.needsReplacement) {
-          let {from, to} = mark.find();
-          let ix = cm.indexFromPos(from);
-          let text = cm.getRange(from, to);
-          mark.clear();
-          let {mark:newMark} = this.markEmbeddedQuery(cm, text, ix);
-          if (newMark) this.marks.push(newMark);
-        }
-      }
-    }
     if(this.showingFormatBar && !cm.somethingSelected()) {
       this.hideFormatBar();
     }
@@ -219,61 +173,60 @@ export class RichTextEditor {
     let cursor = cm.coordsChar({ left: e.clientX, top: e.clientY });
     let pos = cm.indexFromPos(cursor);
     let marks = cm.findMarksAt(cursor);
-    for (let mark of this.marks) {
-      if (mark.info && mark.info.to) {
-        // console.log("GOTO: ", mark.info.to);
-      }
-    }
   }
 
-  markEmbeddedQuery(cm, query, ix) {
-    let cursorIx = cm.indexFromPos(cm.getCursor("from"));
-    let mark, replacement;
-    let start = cm.posFromIndex(ix);
-    let stop = cm.posFromIndex(ix + query.length);
-    // as long as our cursor isn't in this span
-    if (query !== "{}" && (cursorIx <= ix || cursorIx >= ix + query.length)) {
-      // check if this is a query that's defining an inline attribute
-      // e.g. {age: 30}
-      let adjusted = this.getInline(this.meta, query)
-      if (adjusted !== query) {
-        replacement = adjusted;
-        cm.replaceRange(adjusted, start, stop);
-      } else {
-        mark = cm.markText(start, stop, { replacedWith: this.getEmbed(this.meta, query.substring(1, query.length - 1)) });
-      }
-    } else {
-      mark = cm.markText(start, stop, { className: "embed-code" });
-      mark.needsReplacement = true;
-    }
-    return {mark, replacement};
-  }
 }
 
-export function createEditor(getEmbed: (meta: any, query: string) => Element,
-  getInline: (meta: any, query: string) => string,
-  removeInline: (meta: any, query: string) => void) {
-  return function wrapRichTextEditor(node, elem) {
-    let options = elem.options || {};
-    let editor = node.editor;
-    let cm:CodeMirror.Editor;
-    if (!editor) {
-      editor = node.editor = new RichTextEditor(node, getEmbed, getInline, removeInline, options);
-      cm = node.editor.cmInstance;
-      if(!options.noFocus) {
-        cm.focus();
-      }
-    } else {
-      cm = node.editor.cmInstance;
+export function createEditor(node, elem) {
+  let options = elem.options || {};
+  let editor = node.editor;
+  let cm:any;
+  if (!editor) {
+    editor = node.editor = new RichTextEditor(node, options);
+    cm = node.editor.cmInstance;
+    if(!options.noFocus) {
+      cm.focus();
     }
-    editor.onUpdate = elem.change;
-    editor.meta = elem.meta || editor.meta;
-    let doc = cm.getDoc();
-    if (doc.getValue() !== elem.value) {
-      doc.setValue(elem.value || "");
-      doc.clearHistory();
-      doc.setCursor({line: 1, ch: 0});
-    }
-    cm.refresh();
+  } else {
+    cm = node.editor.cmInstance;
   }
+  editor.onUpdate = elem.change;
+  editor.meta = elem.meta || editor.meta;
+  let doc = cm.getDoc();
+  if (doc.getValue() !== elem.value) {
+    doc.setValue(elem.value || "");
+    doc.clearHistory();
+    doc.setCursor({line: 1, ch: 0});
+  }
+  if(elem.cells) {
+    let cellIds = {};
+    for(let cell of elem.cells) {
+      cellIds[cell.id] = true;
+      let mark = editor.marks[cell.id];
+      let add = false;
+      if(!mark) {
+        add = true;
+      } else {
+        // if the mark doesn't contain the correct text, we need to nuke it.
+        let {from, to} = mark.find();
+        if(cm.getRange(from, to) !== cell.value) {
+          mark.clear();
+          add = true;
+        }
+      }
+      if(add) {
+        let dom = document.createElement("div");
+        dom.id = `${elem["meta"].paneId}|${cell.id}|container`;
+        let mark = cm.markText(cm.posFromIndex(cell.start), cm.posFromIndex(cell.start + cell.length), {replacedWith: dom});
+        editor.marks[cell.id] = mark;
+      }
+    }
+    for(let markId in editor.marks) {
+      if(!cellIds[markId]) {
+        editor.marks[markId].clear();
+        delete editor.marks[markId];
+      }
+    }
+  }
+  cm.refresh();
 }
