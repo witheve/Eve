@@ -9,14 +9,14 @@ import {Element, Handler, RenderHandler, Renderer} from "./microReact";
 import {eve, handle as appHandle, dispatch, activeSearches} from "./app";
 import {StepType, queryToExecutable} from "./queryParser";
 import {parseDSL} from "./parser";
-import {copy, uuid, coerceInput, builtinId} from "./utils";
+import {copy, uuid, coerceInput, builtinId, autoFocus, KEYS, mergeObject, setEndOfContentEditable} from "./utils";
 
 enum PANE { FULL, WINDOW, POPOUT };
 enum BLOCK { TEXT, PROJECTION };
 
 export let uiState:{
   widget: {
-    search: {[paneId:string]: {value:string, plan?:boolean, focused?:boolean}}
+    search: {[paneId:string]: {value:string, plan?:boolean, focused?:boolean, submitted?:string}}
   }
 } = {
   widget: {
@@ -169,16 +169,9 @@ let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, 
       header: {t: "header", c: "flex-row", children: [
         {t: "button", c: "ion-android-open", click: navigateParent, link: entityId, paneId: paneId, parentId: parent, text:""},
         {c: "labeled-input flex-grow", children: [
-          // {t: "label", text: "Embed:"},
-          {t: "input", c: "flex-grow", type: "text", placeholder: "related to, is a, ...", value: ""},
+          {t: "input", c: "flex-grow", type: "text", placeholder: "Search to embed", value: "", postRender: autoFocus},
           {t: "label", text: "as a link"},
         ]},
-        // {c: "labeled-input", children: [
-        //   {t: "label", text: "Value"},
-        //   {t: "input", type: "text", placeholder: "value", value: ""},
-        // ]},
-        // {c: "flex-grow"},
-        // {c: "flex-row controls", children: [{c: "ion-close-round", click: removePopup, paneId: paneId}]}
       ]},
     };
   },
@@ -194,15 +187,6 @@ let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, 
     ]}
   })
 };
-
-function sizeOnChange(event, elem) {
-  autoSizeInput(event.currentTarget, elem);
-}
-
-function autoSizeInput(node, elem) {
-  let length = Math.max(node.value.length, node.placeholder.length, 5);
-  node.setAttribute("size",length);
-}
 
 function navigateParent(event, elem) {
   dispatch("remove popup", {paneId: elem.paneId})
@@ -232,16 +216,18 @@ export function pane(paneId:string):Element {
   } else if(contains.indexOf("search: ") === 0) {
     contentType = "search";
     content = search(contains.substring("search: ".length), paneId);
-    
-  } else if(display) content = entity(display.id, paneId);
-  else if(activeSearches[contains] && activeSearches[contains].plan.length > 1) {
+  } else if(display) {
+    let options:any = {};
+    content = entity(display.id, paneId, options);
+  } else if(activeSearches[contains] && activeSearches[contains].plan.length > 1) {
     contentType = "search";
     content = search(contains, paneId);
+  } else if(contains !== "") {
+    content = {c: "flex-row spaced-row", children: [
+      {t: "span", text: `The page ${contains} does not exist. Would you like to`},
+      {t: "a", c: "link btn add-btn", text: "create it?", href: "#", name: contains, paneId, click: createPage }
+    ]};
   }
-  else content = {c: "flex-row spaced-row", children: [
-    {t: "span", text: `The page ${contains} does not exist. Would you like to`},
-    {t: "a", c: "link btn add-btn", text: "create it?", href: "#", name: contains, paneId, click: createPage }
-  ]};
 
   if(contentType === "search") {
     var disambiguation = {id: "search-disambiguation", c: "flex-row spaced-row disambiguation", children: [
@@ -523,14 +509,22 @@ function removeInline(meta, query) {
   }
 }
 
-var wikiEditor = createEditor(getEmbed, getInline, removeInline);
+var paneEditors = {};
+var createWikiEditor = createEditor(getEmbed, getInline, removeInline);
+function wikiEditor(node, elem) {
+  createWikiEditor(node, elem);
+  paneEditors[elem.meta.paneId] = node.editor;
+}
 
 //---------------------------------------------------------
 
-export function entity(entityId:string, paneId:string):Element {
+export function entity(entityId:string, paneId:string, options:any = {}):Element {
   let content = eve.findOne("entity", {entity: entityId})["content"];
   let page = eve.findOne("entity page", {entity: entityId})["page"];
   let {name} = eve.findOne("display name", {id: entityId});
+  let finalOptions = mergeObject({keys: {
+    "=": (cm) => createEmbedPopout(cm, paneId)
+  }}, options);
   return {t: "content", c: "wiki-entity", children: [
     /* This is disabled because searching for just the name of a single entity resolves to a single find step which blows up on query compilation
        {c: "flex-row spaced-row disambiguation", children: [
@@ -539,8 +533,54 @@ export function entity(entityId:string, paneId:string):Element {
        {text: "instead?"}
        ]},
      */
-    {c: "wiki-editor", postRender: wikiEditor, change: updatePage, meta: {entity: entityId, page, paneId}, value: content}
+    {c: "wiki-editor", postRender: wikiEditor, change: updatePage, meta: {entity: entityId, page, paneId}, value: content, options: finalOptions}
   ]};
+}
+
+function createEmbedPopout(cm, paneId) {
+  let coords = cm.cursorCoords("head", "page");
+  // dispatch("createEmbedPopout", {paneId, x: coords.left, y: coords.top - 20}).commit();
+  cm.operation(() => {
+    let from = cm.getCursor("from");
+    cm.replaceRange("=", from, cm.getCursor("to"));
+    let widget = document.createElement("span");
+    widget.textContent = "= ";
+    widget.contentEditable = "true";
+    widget.classList.add("embedded-cell");
+    let to = copy(from);
+    to.ch++;
+    var mark = cm.markText(from, to, {replacedWith: widget});
+    widget.onkeydown = (event) => embeddedCellKeys(event, paneId, mark);
+    setTimeout(() => {
+      widget.focus()
+      setEndOfContentEditable(widget);
+    }, 0);
+    console.log("HERE!");
+  });
+}
+
+function embeddedCellKeys(event, paneId, mark) {
+  let value = event.currentTarget.textContent;
+  let parent = paneId;
+  if(event.keyCode === KEYS.ESC || (event.keyCode === KEYS.ENTER && value.trim() === "=")) {
+    mark.clear();
+    paneEditors[parent].cmInstance.focus();
+    event.preventDefault();
+  } else if(event.keyCode === KEYS.ENTER) {
+    if(value[0] === "=") {
+      value = value.substring(1);
+    }
+    value = value.trim();
+    console.log("DO THE EMBED");
+    let cm = paneEditors[parent].cmInstance;
+    let from = cm.getCursor("from");
+    let to = cm.getCursor("to");
+    from.ch--;
+    cm.replaceRange(`{${value}}`, from, to);
+    paneEditors[parent].cmInstance.focus();
+    mark.clear();
+    event.preventDefault();
+  }
 }
 
 function updatePage(meta, content) {
