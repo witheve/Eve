@@ -932,8 +932,10 @@ function formTree(tokens: Array<Token>): Array<any> {
       if (boundary === undefined || (thisNodeIx < boundary.ix && nextNodeIx > boundary.ix)) {
         // Add nodes from the last boundary until this one
         let separatorNode = blankNode();
+        separatorNode.name = "separator";
         if (i-lastBoundary === 0) {
           conjunctionNode.children.push(nodes[lastBoundary]);
+          nodes[lastBoundary].parent = conjunctionNode;
         } else {
           for (let j = lastBoundary; j <= i; j++) {
             separatorNode.children.push(nodes[j]);
@@ -1508,11 +1510,11 @@ export function nodeToString(node: Node): string {
   }
   
   let childrenStrings = node.children.map(nodeToString).join("\n");
-  
-  console.log(getDepth(node));
-  
+  let children = childrenStrings.length > 0 ? "\n" + childrenStrings : "";
+  let spacing = Array(getDepth(node)+1).join(" ");
+  let index = node.ix === undefined ? "+ " : `${node.ix}: `;
   let properties = `(${node.properties.map((property: TokenProperties) => TokenProperties[property]).join("|")})`;
-  let nodeString = `| ${node.ix}: ${node.name} ${properties.length === 2 ? "" : properties}${childrenStrings}`; 
+  let nodeString = `| ${spacing}${index}${node.name} ${properties.length === 2 ? "" : properties}${children}`; 
   return nodeString;
 }
 
