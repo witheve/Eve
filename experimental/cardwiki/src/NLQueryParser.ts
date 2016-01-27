@@ -441,24 +441,8 @@ function singularize(word: string): string {
 // Tree functions
 // ----------------------------------------------------------------------------
 
-interface NounGroup {
-  noun: Token;
-  refersTo?: NounGroup, // noun group to which a pronoun refers
-  preModifiers: Array<Token>,
-  postModifiers: Array<Token>,
-  begin: number, // Index of the first token in the noun group
-  end: number,   // Index of the last token in the noun group
-  ix: number,
-  children: Array<Node>,
-  parents: Array<Node>,
-  name: string,
-  properties: Array<TokenProperties>,
-  token: Token,
-  used: boolean,
-}
-
 // take tokens, form a parse tree
-function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
+function formNounGroups(tokens: Array<Token>): Array<Node> {
 
   let processedTokens = 0;
   
@@ -472,12 +456,12 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
   // Modifiers that come after a noun: prepositional phrases, adjective clauses, participle phrases, infinitives
   // Less frequently, noun phrases have pronouns as a base 
   let i = 0;
-  let nounGroups: Array<NounGroup> = [];
+  let nounGroups: Array<Node> = [];
   let lastFoundNounIx = 0;
   for (let token of tokens) {
     // If the token is a noun, start a noun group
     if (getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN && token.used === false) {
-      let nounGroup: NounGroup = newNounGroup(token);
+      let nounGroup: Node = newNode(token);
       token.used = true;
       
       // Now we need to pull in other words to attach to the noun. We have some hueristics for that!
@@ -488,13 +472,15 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
       let latestAdjectiveIx = null;
       let verbBoundary = null;
       let conjunctionBoundary = null;
+      let separatorBoundary = null;
       for (let j = i-1; j >= lastFoundNounIx; j--) {
+        // We look backwards from the current noun token
         let backtrackToken: Token = tokens[j];
-        // First look for a predeterminer.
+        // First look for a predeterminer "such (PDT) a(DT) good time".
         if (backtrackToken.POS === MinorPartsOfSpeech.PDT) {
           firstDeterminerIx = j;
           break;
-        // Keep track of the ix of the latest determiner
+        // Keep track of the ix of the latest determiner "the (DT) golden dog"
         } else if (backtrackToken.POS === MinorPartsOfSpeech.DT) {
           if (firstDeterminerIx === null) {
             firstDeterminerIx = j;  
@@ -514,17 +500,22 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
           conjunctionBoundary = j;
           break;
         }
+        // If we find a separator, we've gone to far
+        else if (backtrackToken.POS === MinorPartsOfSpeech.SEP) {
+          separatorBoundary = j;
+          break;
+        }
       }
       // If we found a determiner, gobble up tokens between the latest determiner and the noun
       if (firstDeterminerIx !== null) {
         nounGroup = subsumeTokens(nounGroup,firstDeterminerIx,tokens);
       }
       // Heuristic: search to the left for a preposition
-      if (latestPrepositionIx !== null && latestPrepositionIx < nounGroup.begin) {
+      if (latestPrepositionIx !== null && latestPrepositionIx < nounGroup.ix) {
         nounGroup = subsumeTokens(nounGroup,latestPrepositionIx,tokens);
       }
       // Heuristic: search to the left for an adjective
-      if (latestAdjectiveIx !== null && latestAdjectiveIx < nounGroup.begin) {
+      if (latestAdjectiveIx !== null && latestAdjectiveIx < nounGroup.ix) {
         nounGroup = subsumeTokens(nounGroup,latestAdjectiveIx,tokens);
       }
       
@@ -537,7 +528,9 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
   
   // Heuristic: Now we have some noun groups. Are there any adjectives 
   // left over? Attach them to the closest noun group to the left
-  let unusedAdjectives = findAll(tokens,(token: Token) => token.used === false && getMajorPOS(token.POS) === MajorPartsOfSpeech.ADJECTIVE)  
+  /*
+  let unusedAdjectives = findAll(tokens,(token: Token) => token.node !== undefined && getMajorPOS(token.POS) === MajorPartsOfSpeech.ADJECTIVE);
+  console.log(unusedAdjectives);
   let targetNG: NounGroup;
   let foundConjunction: boolean;
   let adjIx = undefined 
@@ -598,29 +591,29 @@ function formNounGroups(tokens: Array<Token>): Array<NounGroup> {
         nounGroups.push(nounGroup);
       }  
     }
-  }
+  }*/
   
   // Heuristic: Leftover determiners are themselves a noun group 
   // e.g. neither of these boys. ng = ([neither],[of these boys])
   let unusedDeterminers = findAll(tokens, (token: Token) => token.used === false && token.POS === MinorPartsOfSpeech.DT);
   for (let token of unusedDeterminers) {
-    nounGroups.push(newNounGroup(token));  
+    nounGroups.push(newNode(token));  
     token.used = true;
   }
   
   // Remove the superfluous noun groups
-  nounGroups = findAll(nounGroups,(ng: NounGroup) => ng.used === false);
+  //nounGroups = findAll(nounGroups,(ng: NounGroup) => ng.used === false);
   
   // Resolve pronoun coreferences
-  nounGroups = resolveReferences(nounGroups);
+  // nounGroups = resolveReferences(nounGroups);
   
   // Sort the noun groups to reflect their order in the root sentence
-  nounGroups = nounGroups.sort((ngA: NounGroup, ngB: NounGroup) => ngA.begin - ngB.begin);
+  nounGroups = nounGroups.sort((ngA, ngB) => ngA.ix - ngB.ix);
   return nounGroups;
 }
 
 
-function resolveReferences(nounGroups: Array<NounGroup>): Array<NounGroup>  {
+/*function resolveReferences(nounGroups: Array<NounGroup>): Array<NounGroup>  {
   
   // Define some pronouns
   let firstPersonPersonal: any = ["I","my","mine","myself"]
@@ -643,7 +636,7 @@ function resolveReferences(nounGroups: Array<NounGroup>): Array<NounGroup>  {
 
   // Get all the non personal pronouns
   let pronounGroups: Array<NounGroup> = findAll(nounGroups,(ng: NounGroup) => {
-    let isPersonal = intersect(firstPersonPersonal,[ng.noun.normalizedWord]).length > 0;
+    let isPersonal = intersect(firstPersonPersonal,[ng.token.normalizedWord]).length > 0;
     return (hasProperty(ng,TokenProperties.REFERENCE) && !isPersonal);
   });
   let antecedents: Array<NounGroup> = findAll(nounGroups,(ng: NounGroup) => hasProperty(ng,TokenProperties.REFERENCE) === false);
@@ -675,36 +668,15 @@ function resolveReferences(nounGroups: Array<NounGroup>): Array<NounGroup>  {
   // e.g. "The beetle and baby snake were thankful they escaped the lawnmower blade."
   
   return nounGroups;
-}
+}*/
 
 // Adds a child token to a noun group and subsumes its properties. Marks token as used
-function addChildToNounGroup(nounGroup: NounGroup, token: Token) {
-  if (token.ix < nounGroup.noun.ix) {
-    nounGroup.preModifiers.push(token);
-  } else {
-    nounGroup.postModifiers.push(token);
-  }
-  nounGroup.properties = nounGroup.properties.concat(token.properties);
+function addChildToNounGroup(nounGroup: Node, token: Token) {
+  let tokenNode = newNode(token);
+  nounGroup.children.push(tokenNode);
+  tokenNode.parents.push(nounGroup);
+  //nounGroup.properties = nounGroup.properties.concat(token.properties);
   token.used = true;
-}
-
-function newNounGroup(token: Token): NounGroup {
-  let ng: NounGroup =  {
-    ix: token.ix,
-    noun: token,
-    preModifiers: [],
-    postModifiers: [],
-    begin: token.ix,
-    end: token.ix,
-    name: token.normalizedWord,
-    parents: [],
-    children: [],
-    token: token,
-    properties: token.properties,
-    used: false,
-  };
-  token.node = ng;
-  return ng;
 }
 
 enum TokenProperties {
@@ -723,36 +695,34 @@ enum TokenProperties {
 interface Node {
   ix: number,
   name: string,
-  parent: Node,
-  parents?: Array<Node>,
+  parents: Array<Node>,
   children: Array<Node>,
-  nounGroups: Array<NounGroup>,
   entity?: Entity,
   collection?: Collection,
   attribute?: Attribute,
   function?: any,
-  token?: Token,
+  token: Token,
   properties: Array<TokenProperties>,
 }
 
-function flattenNounGroups(nounGroups: Array<NounGroup>): string {
+/*function flattenNounGroups(nounGroups: Array<NounGroup>): string {
   let flatString: string = nounGroups.map((ng: NounGroup) => {
-    let noun = ng.noun.normalizedWord;
+    let noun = ng.token.normalizedWord;
     return `${noun}`;
   }).join(" ");
   return flatString;
-}
+}*/
 
 // Transfer noun group properties to a node
-function subsumeProperties(node: Node, nounGroup: NounGroup) {
+function subsumeProperties(node: Node, nounGroup: Node) {
   node.properties = nounGroup.properties;
   // If the noungroup contains "of" this implies a backward
   // relationship between this NG and a previous NG
   // e.g. age of Corey => Corey's age
-  let ofTokens = nounGroup.preModifiers.filter((token) => token.normalizedWord === "of");
-  if (ofTokens.length > 0) {
-    node.properties.push(TokenProperties.BACKRELATIONSHIP);
-  }
+  //let ofTokens = nounGroup.preModifiers.filter((token) => token.normalizedWord === "of");
+  //if (ofTokens.length > 0) {
+  //  node.properties.push(TokenProperties.BACKRELATIONSHIP);
+  //}
   
   // Make sure the properties are unique  
   function onlyUnique(value, index, self) { 
@@ -769,37 +739,16 @@ function hasProperty(obj: any, property: TokenProperties): boolean {
   return true;
 }
 
-function blankNode(): Node {
+function newNode(token: Token): Node {
   let node: Node = {
-    ix: undefined,
-    name: "",
-    nounGroups: [], 
-    entity: undefined,
-    collection: undefined,
-    function: undefined, 
-    attribute: undefined, 
-    parent: undefined, 
+    ix: token.ix,
+    name: token.normalizedWord,
+    parents: [],
     children: [],
-    properties: [],
+    token: token, 
+    properties: token.properties,
   };
-  return node;
-}
-
-function newNode(ng: NounGroup): Node {
-  let node: Node = {
-    ix: ng.begin,
-    name: flattenNounGroups([ng]),
-    nounGroups: [ng], 
-    entity: undefined,
-    collection: undefined,
-    function: undefined, 
-    attribute: undefined, 
-    parent: undefined, 
-    children: [],
-    properties: [],
-  };
-  subsumeProperties(node,ng);
-  ng.used = true;
+  token.node = node;
   return node;
 }
 
@@ -824,10 +773,10 @@ function wordToFunction(word: string): builtinFunction {
 }
 
 function formTree(tokens: Array<Token>): Array<any> {
-
+  let nodes: Array<Node> = [];
   let nounGroups = formNounGroups(tokens);
-  
-  console.log(nounGroupArrayToString(nounGroups));
+  nodes = nodes.concat(nounGroups);
+  console.log(nodeArrayToString(nounGroups));
   
   console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
   // First, let's combine adjacent proper nouns into nodes
@@ -835,7 +784,7 @@ function formTree(tokens: Array<Token>): Array<any> {
   // e.g. [Steve] [Smith] -> [Steve Smith]
   // But [United States] [of America] does not combine. We do this
   // at another step
-  let properNouns = nounGroups.filter((ng) => hasProperty(ng,TokenProperties.PROPER));
+  /*let properNouns = nounGroups.filter((ng) => hasProperty(ng,TokenProperties.PROPER));
   let nodes: Array<Node> = [];
   let node: Node = undefined;
   let lastIx = 0;
@@ -867,15 +816,15 @@ function formTree(tokens: Array<Token>): Array<any> {
     if (node !== undefined && i + 1 === properNouns.length) {
       nodes.push(node);
     }
-  });
+  });*/
 
   // Form nodes from the remaining noun groups
-  let unusedNG = nounGroups.filter((ng: NounGroup) => ng.used === false);
+  /*let unusedNG = nounGroups.filter((ng: NounGroup) => ng.used === false);
   unusedNG.forEach((ng) => {
     nodes.push(newNode(ng));
   });
-  nodes.sort((a, b) => a.ix - b.ix);
-
+  nodes.sort((a, b) => a.ix - b.ix);*/
+  
   console.log(nodeArrayToString(nodes));
   
   let roots: Array<Node> = [];
@@ -884,19 +833,10 @@ function formTree(tokens: Array<Token>): Array<any> {
   let nodeArrays: Array<Array<Node>> = []; 
   let boundaries = tokens.filter((token) => token.POS === MinorPartsOfSpeech.SEP || 
                                             token.POS === MinorPartsOfSpeech.CC);
-  let boundaryNodes = boundaries.map((token) => {
-    token.used = true;
-    let node = blankNode();
-    node.ix = token.ix;
-    node.name = token.normalizedWord;
-    if (token.POS === MinorPartsOfSpeech.CC) {
-      node.properties.push(TokenProperties.CONJUNCTION);  
-    } else {
-      node.properties.push(TokenProperties.SEPARATOR);
-    }
-    return node;
-  });
+  let boundaryNodes = boundaries.map(newNode);
   nodes = nodes.concat(boundaryNodes).sort((nodeA,nodeB) => nodeA.ix - nodeB.ix);
+  
+  console.log(nodeArrayToString(nodes));
   
   // Break nodes at separator boundaries
   let nodeStack: Array<Node> = [];
@@ -908,13 +848,13 @@ function formTree(tokens: Array<Token>): Array<any> {
     // If the node is a separator, empty the node stack
     if (hasProperty(node,TokenProperties.SEPARATOR) && node.name === ",") {
       node.children = nodeStack;
-      node.children.map((child) => child.parent = n);
+      node.children.map((child) => child.parents.push(n));
       nodeStack = [];
       separatorStack.push(node);
     // If the node is a conjunction, empty the separator stack
     } else if (hasProperty(node,TokenProperties.CONJUNCTION)) {
       node.children = separatorStack;
-      node.children.map((child) => child.parent = n);
+      node.children.map((child) => child.parents.push(n));
       separatorStack = [];
       conjunctionStack.push(node);
     // If the node is a semicolon, empty the node stack into the most recent conjunction's children
@@ -923,7 +863,7 @@ function formTree(tokens: Array<Token>): Array<any> {
       if (conjunctionNode !== undefined) {
         n = conjunctionNode;
         conjunctionNode.children = conjunctionNode.children.concat(nodeStack);
-        conjunctionNode.children.map((child) => child.parent = n);
+        conjunctionNode.children.map((child) => child.parents.push(n));
         nodeStack = [];
       }
     // if the node is anything else, push it onto the node stack
@@ -936,7 +876,7 @@ function formTree(tokens: Array<Token>): Array<any> {
     let conjunctionNode = conjunctionStack[conjunctionStack.length - 1];
     conjunctionNode.children = conjunctionNode.children.concat(nodeStack);
     nodeStack = [];
-    conjunctionNode.children.map((child) => child.parent = conjunctionNode);
+    conjunctionNode.children.map((child) => child.parents.push(conjunctionNode));
   }
   
   roots = roots.concat(conjunctionStack);
@@ -1151,15 +1091,15 @@ function formTree(tokens: Array<Token>): Array<any> {
   
   // Get unused tokens
   let unusedTokens = findAll(tokens,(token: Token) => token.used === false);
-  unusedNG = nounGroups.filter((ng: NounGroup) => ng.used === false);
+  //unusedNG = nounGroups.filter((ng: NounGroup) => ng.used === false);
   let unmatcdhedTokens = findAll(tokens,(token: Token) => token.matched === false);
 
   //console.log(entities);
   //console.log(attributes);
   console.log("Unused Tokens:");
   console.log(tokenArrayToString(unusedTokens));
-  console.log("Unused Noun Groups:");
-  console.log(nounGroupArrayToString(unusedNG));
+  //console.log("Unused Noun Groups:");
+  //console.log(nounGroupArrayToString(unusedNG));
   console.log("Unmatched Tokens:");
   console.log(tokenArrayToString(unmatcdhedTokens));
   console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
@@ -1356,12 +1296,14 @@ function findCollectionToAttrRelationship(coll: string, attr: string): any {
   }
 }
 
-function subsumeTokens(nounGroup: NounGroup, ix: number, tokens: Array<Token>): NounGroup {
-  nounGroup.begin = ix ;
-  for (let j = ix ; j < nounGroup.end; j++) {
-    let nounGroupToken: Token = tokens[j];
-    if (nounGroupToken.used === false) {
-      addChildToNounGroup(nounGroup,nounGroupToken);  
+function subsumeTokens(nounGroup: Node, ix: number, tokens: Array<Token>): Node {
+  for (let j = ix ; j < nounGroup.ix; j++) {
+    let token: Token = tokens[j];
+    let tokenNode = newNode(token);
+    nounGroup.children.push(tokenNode);
+    tokenNode.parents.push(nounGroup);
+    if (token.used === false) {
+      addChildToNounGroup(nounGroup,token);  
     }
   }
   return nounGroup;
@@ -1513,18 +1455,11 @@ function termToString(term: Term): string {
 // Debug utility functions
 // ---------------------------------------------------------------------------- 
 
-export function nodeToString(node: Node): string {
-  function getDepth(node: Node): number {
-    if (node.parent === undefined) {
-      return 0;
-    } else {
-      return 1 + getDepth(node.parent);
-    }
-  }
+export function nodeToString(node: Node, depth: number): string {
   
-  let childrenStrings = node.children.map(nodeToString).join("\n");
+  let childrenStrings = node.children.map((childNode) => nodeToString(childNode,depth+1)).join("\n");
   let children = childrenStrings.length > 0 ? "\n" + childrenStrings : "";
-  let spacing = Array(getDepth(node)+1).join(" ");
+  let spacing = Array(depth+1).join(" ");
   let index = node.ix === undefined ? "+ " : `${node.ix}: `;
   let properties = `(${node.properties.map((property: TokenProperties) => TokenProperties[property]).join("|")})`;
   properties = properties.length === 2 ? "" : properties;
@@ -1533,7 +1468,7 @@ export function nodeToString(node: Node): string {
 }
 
 export function nodeArrayToString(nodes: Array<Node>): string {
-  let nodesString = nodes.map((node) => nodeToString(node)).join("\n----------------------------------------\n");
+  let nodesString = nodes.map((node) => nodeToString(node,0)).join("\n----------------------------------------\n");
   return "----------------------------------------\nNODES\n----------------------------------------\n" + nodesString + "\n----------------------------------------\n";  
 }
 
@@ -1546,26 +1481,7 @@ export function tokenToString(token: Token): string {
 
 export function tokenArrayToString(tokens: Array<Token>): string {
   let tokenArrayString = tokens.map((token) => tokenToString(token)).join("\n");
-  return tokenArrayString;
-}
-
-export function nounGroupToString(nounGroup: NounGroup): string {
-  let noun = nounGroup.noun.normalizedWord;
-  let refersTo: NounGroup = nounGroup.refersTo;
-  let reference = refersTo === undefined ? "" : " (" + refersTo.noun.normalizedWord + ")";
-  let preMods = nounGroup.preModifiers.sort((childA: Token, childB: Token) => childA.ix - childB.ix).map((child: Token) => child.normalizedWord).join(" ");
-  let postMods = nounGroup.postModifiers.sort((childA: Token, childB: Token) => childA.ix - childB.ix).map((child: Token) => child.normalizedWord).join(" ");
-  
-  let properties = `(${nounGroup.properties.map((property: TokenProperties) => TokenProperties[property]).join("|")})`;
-  properties = properties.length === 2 ? "" : properties;
-  
-  let nounGroupString = `(${nounGroup.begin}-${nounGroup.end})\n  ${preMods}\n${noun}${reference}\n  ${postMods}\n${properties}`;
-  return nounGroupString;
-}
-
-export function nounGroupArrayToString(nounGroups: Array<NounGroup>): string {
-  let nounGroupsString =  nounGroups.map((ng: NounGroup)=> nounGroupToString(ng)).join("\n----------------------------------------\n");
-  return "----------------------------------------\nNOUN GROUPS\n----------------------------------------\n" + nounGroupsString + "\n----------------------------------------\n";
+  return "----------------------------------------\nTOKENS\n----------------------------------------\n" + tokenArrayString + "\n----------------------------------------\n";
 }
 
 // ----------------------------------------------------------------------------
