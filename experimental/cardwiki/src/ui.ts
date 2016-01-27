@@ -710,6 +710,18 @@ function getEntitiesFromResults(results:{[field:string]: any}[], {fields = ["ent
 }
 
 let _reps:{[rep:string]: {embed: (results:{}[], params:{paneId?:string, [p:string]: any}) => any, represent: (params:any) => Element}} = {
+  attributes: {
+    embed(results, params:{field?:string, data?:{}}) {
+      let entities = getEntitiesFromResults(results, {fields: params.field ? [params.field] : undefined});
+      if(entities.length > 1) return entities.map((entity) => ({id: entity, data: params.data}));
+      else return {entityId: entities[0], data: params.data};
+    },
+    represent({entityId, data}) {
+      let attributes = [];
+      for(let eav of eve.find("entity eavs", {entity: entityId})) attributes.push({attribute: eav.attribute, value: eav.value});
+      return _reps["table"].represent({results: attributes, data});
+    }
+  },
   name: {
     embed(results, params:{field?:string, data?:{}}) {
       let entities = getEntitiesFromResults(results, {fields: params.field ? [params.field] : undefined});
@@ -810,7 +822,11 @@ let _reps:{[rep:string]: {embed: (results:{}[], params:{paneId?:string, [p:strin
         {t: "header", children: fields.map((field) => ({c: "column field", text: field}))},
         {c: "body", children: results.map((row) => ({
           c: "group",
-          children: fields.map((field) => ({c: "column field", text: row[field]}))
+          children: fields.map((field) => {
+            let value = _reps["value"].represent({values: [row[field]], data});
+            value.c = (value.c || "") + "column field";
+            return value;
+          })
         }))}
       ]};
     }
