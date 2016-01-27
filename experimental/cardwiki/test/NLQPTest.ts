@@ -59,7 +59,7 @@ function parseTest(queryString: string, n: number) {
 let n = 1;
 let phrases = [
   //"Corey Montella's height, weight, age"
-  "age, height, and gender of Corey Montella; and Rachel Montella's height age and gender; and Olivia Fay's age, gender, and height",
+  "Corey Montella's age, gender, and height" //; and Rachel Montella's height age and gender; and Olivia Fay's age, gender, and height",
   //"What is Corey Montella's wife's age?",
   //"sum of the lengths of the pets",
   //"sum of the length of pets",

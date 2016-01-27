@@ -978,87 +978,94 @@ function formTree(tokens: Array<Token>): Array<any> {
   // Go through each node array and try to resolve entities
   let entities: Array<Entity> = [];
   let collections: Array<Collection> = [];
-  for (let i = 0; i < nodeArrays.length; i++) {
-    let nodeArray = nodeArrays[i];
-    for (let j = 0; j < nodeArray.length; j++) {
-      let node = nodeArray[j];
-      console.log(nodeToString(node));
-      var collection: Collection;
-      // If the node is plural, check for a collection first
-      if (hasProperty(node,TokenProperties.PLURAL)) {
-        collection = findCollection(node.name);
-        if (collection !== undefined) {
-          node.collection = collection;          
-          collections.push(collection);
-          // If the node is possessive, check if there is a relationship between the
-          // next node and the collection
-          if (hasProperty(node,TokenProperties.POSSESSIVE)) {
-            let maybeAttr = nodeArray[++j];
-            if (maybeAttr) {
-              findCollectionToAttrRelationship(collection.id,maybeAttr.name);
-            }
-          }
-        }
-        continue;
-      }
-      let entity: Entity;
-      // If the node is a reference, the entity is the most recently found
-      if (hasProperty(node,TokenProperties.REFERENCE)) {
-        entity = entities[entities.length-1];
-      } else {
-        entity = findEntityByDisplayName(node.name);  
-        if (entity !== undefined) {
-          entities.push(entity);
-        }
-      }
-      // We found an entity!
+  let attributes: Array<Attribute> = [];
+  let maybeAttributes: Array<Node> = [];
+  function resolveEntities(node: Node): Node {
+    console.log(node);
+    let found = false;
+    
+    // Skip certain nodes
+    if (hasProperty(node,TokenProperties.SEPARATOR)) {
+      found = true;
+    }
+    // If the node is possessive or proper, it's probably an entity
+    if (!found && (hasProperty(node,TokenProperties.POSSESSIVE) || hasProperty(node,TokenProperties.PROPER))) {
+      let entity = findEntityByDisplayName(node.name);
       if (entity !== undefined) {
+        entities.push(entity);
         node.entity = entity;
-        entity.node = node;
-        // if the node is possessive, check if the next node is an attribute
-        let maybeAttr: Node;
-        if (hasProperty(node,TokenProperties.POSSESSIVE)) {
-          maybeAttr = nodeArray[++j];
-        } else if (hasProperty(node,TokenProperties.BACKRELATIONSHIP)) {
-          maybeAttr = nodeArray[j - 1];
+        found = true;
+      }
+    }
+    // If the node is plural, it's probably a collection
+    if (!found && hasProperty(node,TokenProperties.PLURAL)) {
+      let collection = findCollection(node.name);
+      if (collection !== undefined) {
+        collections.push(collection);
+        found = true;
+      }
+    }
+    // Try to find an attribute
+    if (!found && (entities.length !== 0 || collections.length !== 0)) {
+      let entity = entities[entities.length - 1];
+      if (entity !== undefined) {
+        let attribute = findAttribute(node.name,entity);
+        if (attribute !== undefined) {
+          found = true;
         }
-        if (maybeAttr !== undefined) {
-          let attribute = findAttribute(maybeAttr.name,entity);
-          if (attribute !== undefined) {
-            node.attributes.push(attribute);
-            // Link nodes
-            maybeAttr.parent = node;
-            node.children.push(maybeAttr);    
-            // If the token is possessive, check if it is an entity in the system
-            if (hasProperty(maybeAttr,TokenProperties.POSSESSIVE)) {
-              entity = findEntityByID(`${attribute.dbValue}`);
-              if (entity !== undefined) {
-                entity.node = maybeAttr;
-                entities.push(entity);
-              }
-            }
-          }
-        }
-      // We didn't find an entity, use the most recent one and treat the current node as an attribute  
-      } else {
-        entity = entities[entities.length-1];
-        if (entity !== undefined) {
-          let attribute = findAttribute(node.name,entity);
-          if (attribute !== undefined) {
-            node.entity = entity;
-            node.attributes.push(attribute);
-            // Link this node to the entities' node
-            if (entity.node !== undefined) {
-              entity.node.children.push(node);
-              node.parent = entity.node;
-            }
-          }  
+      }      
+    }
+    // Attempt to match a function
+    if (!found) {
+      let fxn = wordToFunction(node.name);
+      if (fxn.function !== "") {
+        console.log(fxn);
+        found = true;
+      }
+    }
+    
+    // If we've gotten here and we haven't found anything, go crazy with searching
+    if (!found) {
+      let entity = findEntityByDisplayName(node.name);
+      if (entity !== undefined) {
+        found = true;
+      }
+      let collection = findCollection(node.name);
+      if (collection !== undefined) {
+        found = true;
+      }
+    }
+    
+    // If we still haven't found anything, it's probably an attribute
+    if (!found) {
+      maybeAttributes.push(node);
+    }
+    
+    // We just found an entity or collection! Do something with that information
+    if (found) {
+      // If there is a backward relationship e.g. age of Corey, then try to find attrs
+      // in the maybeAttr stack
+      if (hasProperty(node,TokenProperties.BACKRELATIONSHIP)) {
+        for (let maybeAttr of maybeAttributes) {
+          let attribute = findAttribute(maybeAttr.name,node.entity);
+          maybeAttr.attributes.push(attribute);
+          attributes.push(attribute);
         }
       }
     }
-    console.log("--------------------------");
+    
+    // Do the same for all the children
+    node.children.map(resolveEntities);
+    
+    return node;
   }
-
+  console.log("Finding Entities!");
+  for (let root of roots) {
+    root = resolveEntities(root);
+  }
+  
+  return [];
+  
   console.log("???????");
 
 
