@@ -908,7 +908,7 @@ function formTree(tokens: Array<Token>): Array<any> {
   
   let roots: Array<Node> = [];
 
-  // Break nodes at separator and CC boundaries
+  // Break nodes at separator and CC boundaries before any entities are identified
   let nodeArrays: Array<Array<Node>> = []; 
   let boundaries = tokens.filter((token) => token.POS === MinorPartsOfSpeech.SEP || 
                                             token.POS === MinorPartsOfSpeech.SEM ||
@@ -926,6 +926,9 @@ function formTree(tokens: Array<Token>): Array<any> {
         boundary = boundaries.pop();
         if (boundary === undefined) {
           break;
+        // If the boundary is a conjunction, name the current conjunctionNode
+        } else if (boundary.POS === MinorPartsOfSpeech.CC) {
+          conjunctionNode.name = boundary.normalizedWord;
         }
       }
       // A boundary has been identified! Push the nodes onto the conjunction tree
@@ -954,15 +957,13 @@ function formTree(tokens: Array<Token>): Array<any> {
     }
     roots.push(conjunctionNode);
   }  
-  console.log(roots)
   console.log(nodeArrayToString(roots));
-  console.log(nodeArrays.map(nodeArrayToString).join("\n"));
-  return [];
-  // @HACK: Do something smarter here... push only unpushed nodes
-  if (nodeArrays.length === 0 ) { 
-    nodeArrays.push(nodes);
+
+  // @HACK: Do something smarter here... push only unpushed nodes?
+  if (roots.length === 0 ) { 
+    roots = nodes;
   }
-  console.log(nodeArrays);
+  
   // THIS IS WHERE THE MAGIC HAPPENS!
   // Go through each node array and try to resolve entities
   let entities: Array<Entity> = [];
