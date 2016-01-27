@@ -94,8 +94,7 @@ enum MinorPartsOfSpeech {
   // Symbol
   LT,   // Symbol (<)
   GT,   // Symbol (>)
-  SEP,  // Separator (,)
-  SEM,  // Separator (;)
+  SEP,  // Separator (, ;)
   // Wh- word
   WDT,  // Wh-determiner (that what whatever which whichever)
   WP,   // Wh-pronoun (that what whatever which who whom)
@@ -270,7 +269,7 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
           token.POS = MinorPartsOfSpeech.SEP;
           break;
         case ";":
-          token.POS = MinorPartsOfSpeech.SEM;
+          token.POS = MinorPartsOfSpeech.SEP;
           break;
       }
         
@@ -418,7 +417,6 @@ function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech 
   // Symbol
   if (minorPartOfSpeech === MinorPartsOfSpeech.LT  ||
       minorPartOfSpeech === MinorPartsOfSpeech.GT  ||
-      minorPartOfSpeech === MinorPartsOfSpeech.SEM ||
       minorPartOfSpeech === MinorPartsOfSpeech.SEP) {
         return MajorPartsOfSpeech.SYMBOL;
   }
@@ -727,7 +725,8 @@ enum TokenProperties {
   COMPARATIVE,
   SUPERLATIVE,
   REFERENCE,  
-  SEPARATED,
+  SEPARATOR,
+  CONJUNCTION,
 }
 
 interface Node {
@@ -831,9 +830,12 @@ function newNode(ng: NounGroup): Node {
   return node;
 }
 
+interface builtinFunction {
+  function: string,
+  attribute?: string,
+}
 
-function tokenToFunction(token: Token) {
-  let word = token.normalizedWord;
+function wordToFunction(word: string): builtinFunction {
   switch (word) {
     case "taller":
       return {function: ">", attribute: "height"};
@@ -841,17 +843,18 @@ function tokenToFunction(token: Token) {
       return {function: ">", attribute: "length"};
     case "younger":
       return {function: "<", attribute: "age"};
+    case "and":
+      return {function: "and"};
     default:
-      return {function: "", attribute: ""};
+      return {function: ""};
   }
 }
 
 function formTree(tokens: Array<Token>): Array<any> {
-  
+
   let nounGroups = formNounGroups(tokens);
   
   console.log(nounGroupArrayToString(nounGroups));
-  
   
   console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
   // First, let's combine adjacent proper nouns into nodes
@@ -899,10 +902,6 @@ function formTree(tokens: Array<Token>): Array<any> {
     nodes.push(newNode(ng));
   });
   nodes.sort((a, b) => a.ix - b.ix);
-  // Push a blank node to the end of the node array, helps with corner cases
-  let endOfNodes = blankNode();
-  endOfNodes.ix = tokens.length;
-  nodes.push(endOfNodes);
 
   console.log(nodeArrayToString(nodes));
   
@@ -911,52 +910,63 @@ function formTree(tokens: Array<Token>): Array<any> {
   // Break nodes at separator and CC boundaries before any entities are identified
   let nodeArrays: Array<Array<Node>> = []; 
   let boundaries = tokens.filter((token) => token.POS === MinorPartsOfSpeech.SEP || 
-                                            token.POS === MinorPartsOfSpeech.SEM ||
-                                            token.POS === MinorPartsOfSpeech.CC).reverse();
-  if (boundaries.length > 0) {
-    let boundary = boundaries.pop();
-    let lastBoundary = 0;  
-    let conjunctionNode = blankNode();
-    for (let i = 0; i < nodes.length - 1; i++) {
-      let thisNodeIx = nodes[i].ix;
-      let nextNodeIx = nodes[i+1].ix;
-      // Advance the boundary past the current node
-      // Takes care of double boundaries such as ", and"
-      while (boundary.ix < thisNodeIx) {
-        boundary = boundaries.pop();
-        if (boundary === undefined) {
-          break;
-        // If the boundary is a conjunction, name the current conjunctionNode
-        } else if (boundary.POS === MinorPartsOfSpeech.CC) {
-          conjunctionNode.name = boundary.normalizedWord;
-        }
-      }
-      // A boundary has been identified! Push the nodes onto the conjunction tree
-      if (boundary === undefined || (thisNodeIx < boundary.ix && nextNodeIx > boundary.ix)) {
-        // Add nodes from the last boundary until this one
-        let separatorNode = blankNode();
-        separatorNode.name = "separator";
-        if (i-lastBoundary === 0) {
-          conjunctionNode.children.push(nodes[lastBoundary]);
-          nodes[lastBoundary].parent = conjunctionNode;
-        } else {
-          for (let j = lastBoundary; j <= i; j++) {
-            separatorNode.children.push(nodes[j]);
-            nodes[j].parent = separatorNode;
-          }
-          conjunctionNode.children.push(separatorNode);
-          separatorNode.parent = conjunctionNode;  
-        }
-        // If the boundary is a semicolon or end of the sentence, push the tree to the roots stack
-        if (boundary === undefined || boundary.POS === MinorPartsOfSpeech.SEM) {
-          roots.push(conjunctionNode);
-          conjunctionNode = blankNode();
-        }
-        lastBoundary = i+1;
-      }
+                                            token.POS === MinorPartsOfSpeech.CC);
+  let boundaryNodes = boundaries.map((token) => {
+    token.used = true;
+    let node = blankNode();
+    node.ix = token.ix;
+    node.name = token.normalizedWord;
+    if (token.POS === MinorPartsOfSpeech.CC) {
+      node.properties.push(TokenProperties.CONJUNCTION);  
+    } else {
+      node.properties.push(TokenProperties.SEPARATOR);
     }
-    roots.push(conjunctionNode);
-  }  
+    return node;
+  });
+  nodes = nodes.concat(boundaryNodes).sort((nodeA,nodeB) => nodeA.ix - nodeB.ix);
+  
+  // Break nodes at separator boundaries
+  let nodeStack: Array<Node> = [];
+  let separatorStack: Array<Node> = [];
+  let conjunctionStack: Array<Node> = [];
+  let n: Node; // Hack to get around  restriction on usage of block scoped variables
+  for (let node of nodes) {
+    n = node;
+    // If the node is a separator, empty the node stack
+    if (hasProperty(node,TokenProperties.SEPARATOR) && node.name === ",") {
+      node.children = nodeStack;
+      node.children.map((child) => child.parent = n);
+      nodeStack = [];
+      separatorStack.push(node);
+    // If the node is a conjunction, empty the separator stack
+    } else if (hasProperty(node,TokenProperties.CONJUNCTION)) {
+      node.children = separatorStack;
+      node.children.map((child) => child.parent = n);
+      separatorStack = [];
+      conjunctionStack.push(node);
+    // If the node is a semicolon, empty the node stack into the most recent conjunction's children
+    } else if (hasProperty(node,TokenProperties.SEPARATOR) && node.name === ";") {
+      let conjunctionNode = conjunctionStack[conjunctionStack.length - 1];
+      if (conjunctionNode !== undefined) {
+        n = conjunctionNode;
+        conjunctionNode.children = conjunctionNode.children.concat(nodeStack);
+        conjunctionNode.children.map((child) => child.parent = n);
+        nodeStack = [];
+      }
+    // if the node is anything else, push it onto the node stack
+    } else {
+      nodeStack.push(node); 
+    }
+  }
+  // If there is anything left over in the node stack, add it to the most recent conjunction
+  if (nodeStack.length !== 0 && conjunctionStack.length !== 0) {
+    let conjunctionNode = conjunctionStack[conjunctionStack.length - 1];
+    conjunctionNode.children = conjunctionNode.children.concat(nodeStack);
+    nodeStack = [];
+    conjunctionNode.children.map((child) => child.parent = conjunctionNode);
+  }
+  
+  roots = roots.concat(conjunctionStack);
   console.log(nodeArrayToString(roots));
 
   // @HACK: Do something smarter here... push only unpushed nodes?
@@ -1075,7 +1085,7 @@ function formTree(tokens: Array<Token>): Array<any> {
         return compTokens[0];  
       }
     });
-    let functions = comparativeTokens.map(tokenToFunction);
+    let functions = comparativeTokens.map((token) => wordToFunction(token.normalizedWord));
     // find the appropriate attribute for the node's entity
     let comparator = functions[0];
     let attribute: Attribute;
