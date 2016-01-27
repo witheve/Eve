@@ -1011,6 +1011,16 @@ function formTree(tokens: Array<Token>): Array<any> {
       if (entity !== undefined) {
         let attribute = findAttribute(node.name,entity);
         if (attribute !== undefined) {
+          attributes.push(attribute);
+          node.attribute = attribute;
+          // If the attribute is possessive, check to see if it is an entity
+          if (hasProperty(node,TokenProperties.POSSESSIVE)) {
+            let entity = findEntityByID(`${attribute.dbValue}`); // @HACK force string | number into string
+            if (entity != undefined) {
+              entities.push(entity);
+              node.entity = entity;
+            }
+          }
           found = true;
         }
       }      
@@ -1064,20 +1074,18 @@ function formTree(tokens: Array<Token>): Array<any> {
     root = resolveEntities(root);
   }
   
+  // Pull out comparator nodes
+  
+  
+  /*
+  let comparatorNodes: Array<Node> = roots.map((node) => {
+
+  });*/
+  
   return [];
   
-  console.log("???????");
-
+  
   /*
-  // Pull out comparator nodes
-  let comparatorNodes: Array<Node> = nodeArrays.map((nodeArray) => {
-    let nodes = nodeArray.filter((node) => {
-      return hasProperty(node,TokenProperties.COMPARATIVE);
-    });
-    if (nodes.length > 0) {
-      return nodes[0];
-    }
-  });
   // Identify the comparative functions for each node
   for (let node of comparatorNodes) {
     if (node === undefined) {
