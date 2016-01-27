@@ -135,6 +135,16 @@ function postAnimationRemove(elements) {
 }
 
 export class Renderer {
+  // @TODO: A more performant implementation would have a way of rendering subtrees and just have a lambda Renderer to compile into
+  static _compileRenderer:{[id:string]: Renderer} = {};
+  static compile(elem:Element) {
+    if(!elem.id) throw new Error("Cannot compile element with id " + elem.id);
+    let renderer = Renderer._compileRenderer[elem.id];
+    if(!renderer) renderer = Renderer._compileRenderer[elem.id] = new Renderer();
+    renderer.render([elem]);
+    return renderer.elementCache[elem.id];
+  }
+  
   content: HTMLElement;
   elementCache: {[id:string]: HTMLElement};
   prevTree:{[id:string]: Element};
