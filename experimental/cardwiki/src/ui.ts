@@ -351,7 +351,7 @@ function sizeColumns(node:HTMLElement, elem:Element) {
 }
 
 //---------------------------------------------------------
-// CHRIS
+// Wiki editor functions
 //---------------------------------------------------------
 function parseParams(rawParams:string) {
   let params = {};
@@ -371,52 +371,45 @@ function stringifyParams(params:{}):string {
   return rawParams;
 }
 
-function getEmbed(meta:{entity: string, page: string, paneId:string}, query:string):HTMLElement {
+function embedUI(paneId, query):Element {
   let [content, rawParams] = query.split("|");
-  let node = document.createElement("span");
   let embedType;
-  node.textContent = content;
   let params = parseParams(rawParams);
-  params["paneId"] = params["paneId"] || meta.paneId;
+  params["paneId"] = params["paneId"] || paneId;
   let contentDisplay = eve.findOne("display name", {id: content});
 
   // @TODO: Figure out what to do for {age: {current year - birth year}}
-  if(params["eav source"]) {
-    // Attribute reference
-    embedType = "attribute";
-    let eav = eve.findOne("sourced eav", { source: params["eav source"] });
-    if (!eav) {
-      node.classList.add("invalid");
-    } else {
-      let {attribute, value} = eav;
-      content = node.textContent = value;
-      if(eve.findOne("entity", {entity: value})) params["rep"] = params["rep"] || "name";
-    }
-
-  } else if(contentDisplay) {
+  if(contentDisplay) {
     // Entity reference
     embedType = "entity";
     params["rep"] = params["rep"] || "name";
-    node.textContent = contentDisplay.name;
   } else {
     // Embedded queries
     embedType = "query";
-    node = Renderer.compile({id: `root|${meta.paneId}|${content}`, children: [search(content, meta.paneId)]});
+    params["rep"] = params["rep"] || "table";
   }
 
   if(params["rep"]) {
     let subRenderer = new Renderer();
     let results;
     if(embedType === "query") {
+      if(!activeSearches[content]) {
+        activeSearches[content] = queryToExecutable(content);
+      }
       let {executable} = activeSearches[content];
       results = executable.exec();
     } else {
       results = {unprojected: [{entity: content}], results: [{entity: content}], provenance: [], groupInfo: []};
     }
-    subRenderer.render([{id: "root", children: [represent(params["rep"], results, params)]}]);
-    node = subRenderer.content;
+    return {c: embedType, children: [represent(params["rep"], results, params)]};
   }
-  node.classList.add(embedType);
+
+}
+
+function getEmbed(meta:{entity: string, page: string, paneId:string}, query:string):HTMLElement {
+  let elem = embedUI(meta.paneId, query);
+  elem.id = `${meta.paneId}|${query}`;
+  let node = Renderer.compile(elem);
   return node;
 }
 
@@ -430,14 +423,13 @@ function getInline(meta, query) {
     // Apply artifacts
     // Substitute {resId|rep=table}
     // Make table rep
-    
     let id = uuid();
     let sourceId = uuid();
     params["rep"] = params["rep"] || "results";
     params["eav source"] = sourceId;
     dispatch("create query",  {id, content}).commit();
     return`{${id}|${stringifyParams(params)}}`;
-    
+
   } else if (content.indexOf(":") > -1) {
     let sourceId = uuid();
     let entity = meta.entity;
@@ -456,7 +448,7 @@ function getInline(meta, query) {
     if(!params["rep"]) params["rep"] = "name";
     return `{${display.id}|${stringifyParams(params)}}`;
 
-  } else if(!params["eav source"]) {
+  } else {
     activeSearches[content] = queryToExecutable(content);
     if(params["rep"]) return query;
 
@@ -497,13 +489,12 @@ function getInline(meta, query) {
 }
 
 function removeInline(meta, query) {
-  let [search, rawParams] = query.substring(1, query.length - 1).split("|");
-  let params = parseParams(rawParams);
-  let source = params["eav source"];
-  if (source && eve.findOne("sourced eav", { source })) {
-    dispatch("remove sourced eav", { entity: meta.entity, source }).commit();
-  } else {
-  }
+  // let [search, rawParams] = query.substring(1, query.length - 1).split("|");
+  // let params = parseParams(rawParams);
+  // let source = params["eav source"];
+  // if (source && eve.findOne("sourced eav", { source })) {
+  //   dispatch("remove sourced eav", { entity: meta.entity, source }).commit();
+  // }
 }
 
 var paneEditors = {};
@@ -552,7 +543,6 @@ function createEmbedPopout(cm, paneId) {
       widget.focus()
       setEndOfContentEditable(widget);
     }, 0);
-    console.log("HERE!");
   });
 }
 
@@ -806,8 +796,8 @@ let _reps:{[rep:string]: {embed: (results:{}[], params:{paneId?:string, [p:strin
     }
   },
   table: {
-    embed() {
-      throw new Error("@TODO: Implement me!");
+    embed(results, params:{data?: {}}) {
+      return {results, data: params.data};
     },
     represent({results, data}) {
       if(!results.length) return {text: "<Empty Table>"};
@@ -819,7 +809,7 @@ let _reps:{[rep:string]: {embed: (results:{}[], params:{paneId?:string, [p:strin
         else fieldIx++;
       }
       return {c: "table", children: [
-        {t: "header", children: fields.map((field) => ({c: "column field", text: field}))},
+        {t: "header", children: fields.map((field) => ({c: "column field", children: [_reps["value"].represent({values: [field], data})]}))},
         {c: "body", children: results.map((row) => ({
           c: "group",
           children: fields.map((field) => {
