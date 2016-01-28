@@ -157,12 +157,19 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
         }
       }
       
-      // Add default attribute markers to adjectives and adverbs
+      // Add default properties to adjectives and adverbs
       if (token.POS === MinorPartsOfSpeech.JJR || token.POS === MinorPartsOfSpeech.RBR) {
         token.properties.push(TokenProperties.COMPARATIVE);
       }
       else if (token.POS === MinorPartsOfSpeech.JJS || token.POS === MinorPartsOfSpeech.RBS) {        
         token.properties.push(TokenProperties.SUPERLATIVE);
+      }
+      
+      // Add default properties to separators
+      if (token.POS === MinorPartsOfSpeech.CC) {
+        token.properties.push(TokenProperties.CONJUNCTION);
+      } else if (token.POS === MinorPartsOfSpeech.SEP) {
+        token.properties.push(TokenProperties.SEPARATOR);
       }
       
       // normalize the word with the following transformations: 
@@ -871,21 +878,25 @@ function formTree(tokens: Array<Token>): Array<any> {
   let conjunctionStack: Array<Node> = [];
   let n: Node; // Hack to get around  restriction on usage of block scoped variables
   for (let node of nodes) {
+    console.log(node)
     n = node;
     // If the node is a separator, empty the node stack
     if (hasProperty(node,TokenProperties.SEPARATOR) && node.name === ",") {
+      console.log("Comma")
       node.children = nodeStack;
       node.children.map((child) => child.parents.push(n));
       nodeStack = [];
       separatorStack.push(node);
     // If the node is a conjunction, empty the separator stack
     } else if (hasProperty(node,TokenProperties.CONJUNCTION)) {
+      console.log("Conjunction")
       node.children = separatorStack;
       node.children.map((child) => child.parents.push(n));
       separatorStack = [];
       conjunctionStack.push(node);
     // If the node is a semicolon, empty the node stack into the most recent conjunction's children
     } else if (hasProperty(node,TokenProperties.SEPARATOR) && node.name === ";") {
+      console.log("semicolon!")
       let conjunctionNode = conjunctionStack[conjunctionStack.length - 1];
       if (conjunctionNode !== undefined) {
         n = conjunctionNode;
@@ -905,6 +916,8 @@ function formTree(tokens: Array<Token>): Array<any> {
     nodeStack = [];
     conjunctionNode.children.map((child) => child.parents.push(conjunctionNode));
   }
+  console.log(nodeArrayToString(conjunctionStack));
+  
   
   roots = roots.concat(conjunctionStack);
   console.log(nodeArrayToString(roots));
