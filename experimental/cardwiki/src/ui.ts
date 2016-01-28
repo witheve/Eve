@@ -372,90 +372,47 @@ function stringifyParams(params:{}):string {
   return rawParams;
 }
 
-function embedUI(paneId, query):Element {
+function cellUI(paneId, query):Element {
   let [content, rawParams] = query.split("|");
   let embedType;
-  let params = parseParams(rawParams);
+  let params = getCellParams(content, rawParams);
   params["paneId"] = params["paneId"] || paneId;
-  let contentDisplay = eve.findOne("display name", {id: content});
 
-  // @TODO: Figure out what to do for {age: {current year - birth year}}
-  if(contentDisplay) {
-    // Entity reference
-    embedType = "entity";
-    params["rep"] = params["rep"] || "name";
-  } else {
-    // Embedded queries
-    embedType = "query";
-    params["rep"] = params["rep"] || "table";
-  }
-
-  if(params["rep"]) {
-    let subRenderer = new Renderer();
-    let results;
-    if(embedType === "query") {
-      if(!activeSearches[content]) {
-        activeSearches[content] = queryToExecutable(content);
-      }
-      let {executable} = activeSearches[content];
-      results = executable.exec();
-    } else {
-      results = {unprojected: [{entity: content}], results: [{entity: content}], provenance: [], groupInfo: []};
+  let subRenderer = new Renderer();
+  let results;
+  if(params["noResults"]) {
+    let id = content;
+    let display = eve.findOne("display name", {name: content});
+    if(display) {
+      id = display["id"];
     }
-    return {c: embedType, children: [represent(params["rep"], results, params)]};
+    results = {unprojected: [{entity: id}], results: [{entity: id}], provenance: [], groupInfo: []};
+  } else {
+    let {executable} = activeSearches[content];
+    results = executable.exec();
   }
-
+  return {c: `cell`, children: [represent(params["rep"], results, params)]};
 }
 
-function getEmbed(meta:{entity: string, page: string, paneId:string}, query:string):HTMLElement {
-  let elem = embedUI(meta.paneId, query);
-  elem.id = `${meta.paneId}|${query}`;
-  let node = Renderer.compile(elem);
-  return node;
-}
-
-function getInline(meta, query) {
-  let [content, rawParams = ""] = query.slice(1, -1).split("|");
+function getCellParams(content, rawParams) {
   content = content.trim();
   let display = eve.findOne("display name", {name: content});
   let params = parseParams(rawParams);
-  if(content.indexOf("(query ") === 0 && content[content.length - 1] === ")") {
-    // parseDSL
-    // Apply artifacts
-    // Substitute {resId|rep=table}
-    // Make table rep
-    let id = uuid();
-    let sourceId = uuid();
-    params["rep"] = params["rep"] || "results";
-    params["eav source"] = sourceId;
-    dispatch("create query",  {id, content}).commit();
-    return`{${id}|${stringifyParams(params)}}`;
-
-  } else if (content.indexOf(":") > -1) {
-    let sourceId = uuid();
-    let entity = meta.entity;
-    let [attribute, value] = content.split(":");
-    value = coerceInput(value.trim());
-    let display = eve.findOne("display name", {name: value});
-    if(display) value = display.id;
-    dispatch("add sourced eav", { entity, attribute, value, source: sourceId }).commit();
-    return `{${entity}'s ${attribute}|eav source = ${sourceId}; ${rawParams || ""}}`;
-
-  } else if(eve.findOne("entity", {entity: content})) {
-    if(!params["rep"]) params["rep"] = "name";
-    return `{${content}|${stringifyParams(params)}}`;
-
-  } else if(display) {
-    if(!params["rep"]) params["rep"] = "name";
-    return `{${display.id}|${stringifyParams(params)}}`;
-
+  let contentDisplay = eve.findOne("display name", {id: content}) || eve.findOne("display name", {name: content});
+  if(contentDisplay) {
+    params["rep"] = params["rep"] || "name";
+    params["noResults"] = true;
   } else {
-    activeSearches[content] = queryToExecutable(content);
-    if(params["rep"]) return query;
+    // @TODO: this shouldn't be here
+    if(!activeSearches[content]) {
+      activeSearches[content] = queryToExecutable(content);
+    }
+    if(params["rep"]) return params;
 
     // @TODO: eventually the information about the requested subjects should come from
     // the NLP side or projection. But for now..
     let plan = activeSearches[content].plan;
+    console.log(plan);
     let info = {};
     for(let step of plan) {
       if(!info[step.type]) info[step.type] = 0;
@@ -478,31 +435,28 @@ function getInline(meta, query) {
       let lookup = plan.filter((step) => step.type === StepType.LOOKUP)[0];
       rep = "value";
       field = lookup.name;
+    } else {
+      rep = "table";
     }
     if(rep) {
       params["rep"] = rep;
       params["field"] = field;
-      return `{${content}|${stringifyParams(params)}}`;
     }
   }
-
-  return query;
-}
-
-function removeInline(meta, query) {
-  // let [search, rawParams] = query.substring(1, query.length - 1).split("|");
-  // let params = parseParams(rawParams);
-  // let source = params["eav source"];
-  // if (source && eve.findOne("sourced eav", { source })) {
-  //   dispatch("remove sourced eav", { entity: meta.entity, source }).commit();
-  // }
+  return params;
 }
 
 var paneEditors = {};
-var createWikiEditor = createEditor(getEmbed, getInline, removeInline);
 function wikiEditor(node, elem) {
-  createWikiEditor(node, elem);
+  createEditor(node, elem);
   paneEditors[elem.meta.paneId] = node.editor;
+}
+
+function reparentCell(node, elem) {
+  if(node.parentNode.id !== elem.containerId) {
+    document.getElementById(elem.containerId).appendChild(node);
+  }
+  node.parentNode["mark"].changed();
 }
 
 //---------------------------------------------------------
@@ -511,9 +465,17 @@ export function entity(entityId:string, paneId:string, options:any = {}):Element
   let content = eve.findOne("entity", {entity: entityId})["content"];
   let page = eve.findOne("entity page", {entity: entityId})["page"];
   let {name} = eve.findOne("display name", {id: entityId});
+  let cells = getCells(content);
   let finalOptions = mergeObject({keys: {
     "=": (cm) => createEmbedPopout(cm, paneId)
   }}, options);
+  let cellItems = cells.map((cell) => {
+    let ui = cellUI(paneId, cell.query);
+    ui.id = `${paneId}|${cell.id}`;
+    ui.postRender = reparentCell;
+    ui["containerId"] = `${paneId}|${cell.id}|container`;
+    return ui;
+  });
   return {t: "content", c: "wiki-entity", children: [
     /* This is disabled because searching for just the name of a single entity resolves to a single find step which blows up on query compilation
        {c: "flex-row spaced-row disambiguation", children: [
@@ -522,7 +484,7 @@ export function entity(entityId:string, paneId:string, options:any = {}):Element
        {text: "instead?"}
        ]},
      */
-    {c: "wiki-editor", postRender: wikiEditor, change: updatePage, meta: {entity: entityId, page, paneId}, value: content, options: finalOptions}
+    {c: "wiki-editor", postRender: wikiEditor, change: updatePage, meta: {entity: entityId, page, paneId}, value: content, options: finalOptions, cells, children: cellItems}
   ]};
 }
 
@@ -584,6 +546,26 @@ function navigate(event, elem) {
   }
   dispatch("ui set search", info).commit();
   event.preventDefault();
+}
+
+//---------------------------------------------------------
+// Page parsing
+//---------------------------------------------------------
+
+function getCells(content: string) {
+  let cells = [];
+  let ix = 0;
+  let ids = {};
+  for(let part of content.split(/({[^]*?})/gm)) {
+    if(part[0] === "{") {
+      if(!ids[part]) {
+        ids[part] = 0;
+      }
+      cells.push({start: ix, length: part.length, value: part, query: part.substring(1, part.length - 1), id: part + ids[part]++});
+    }
+    ix += part.length;
+  }
+  return cells;
 }
 
 //---------------------------------------------------------
