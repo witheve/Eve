@@ -108,9 +108,7 @@ interface Token {
   normalizedWord: string;
   POS: MinorPartsOfSpeech;
   properties: Array<TokenProperties>,
-  node?: any,
-  used: boolean;
-  matched: boolean;
+  node?: Node,
 }
 
 // take an input string, extract tokens
@@ -126,8 +124,6 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
         normalizedWord: word, 
         POS: MinorPartsOfSpeech[tag],
         properties: [], 
-        used: false, 
-        matched: false
       };
       let before = "";
            
@@ -470,9 +466,8 @@ function formNounGroups(tokens: Array<Token>): Array<Node> {
   let lastFoundNounIx = 0;
   for (let token of tokens) {
     // If the token is a noun, start a noun group
-    if (getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN && token.used === false) {
+    if (getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN && token.node === undefined) {
       let nounGroup: Node = newNode(token);
-      token.used = true;
       
       // Now we need to pull in other words to attach to the noun. We have some hueristics for that!
       
@@ -606,10 +601,9 @@ function formNounGroups(tokens: Array<Token>): Array<Node> {
   
   // Heuristic: Leftover determiners are themselves a noun group 
   // e.g. neither of these boys. ng = ([neither],[of these boys])
-  let unusedDeterminers = findAll(tokens, (token: Token) => token.used === false && token.POS === MinorPartsOfSpeech.DT);
+  let unusedDeterminers = findAll(tokens, (token: Token) => token.node === undefined && token.POS === MinorPartsOfSpeech.DT);
   for (let token of unusedDeterminers) {
     nounGroups.push(newNode(token));  
-    token.used = true;
   }
   
   // Remove the superfluous noun groups
@@ -687,7 +681,6 @@ function addChildToNounGroup(nounGroup: Node, token: Token) {
   nounGroup.children.push(tokenNode);
   tokenNode.parent = nounGroup;
   //nounGroup.properties = nounGroup.properties.concat(token.properties);
-  token.used = true;
 }
 
 enum TokenProperties {
@@ -711,7 +704,7 @@ interface Node {
   entity?: Entity,
   collection?: Collection,
   attribute?: Attribute,
-  function?: any,
+  function?: BuiltInFunction,
   token: Token,
   properties: Array<TokenProperties>,
 }
@@ -763,12 +756,12 @@ function newNode(token: Token): Node {
   return node;
 }
 
-interface builtinFunction {
+interface BuiltInFunction {
   function: string,
   attribute?: string,
 }
 
-function wordToFunction(word: string): builtinFunction {
+function wordToFunction(word: string): BuiltInFunction {
   switch (word) {
     case "taller":
       return {function: ">", attribute: "height"};
@@ -797,6 +790,14 @@ function formTree(tokens: Array<Token>): Array<any> {
   console.log(tokenArrayToString(unusedTokens));
   
   nodes = nodes.concat(nounGroups);
+  
+  // Fold in all the other tokens
+  let unusedNodes = tokens.filter((token) => token.node === undefined).map(newNode);
+  
+  console.log(nodeArrayToString(nodes));
+  
+  
+  return [];
   
   
   // First, let's combine adjacent proper nouns into nodes
@@ -844,8 +845,6 @@ function formTree(tokens: Array<Token>): Array<any> {
       normalizedWord: newName,
       POS: MinorPartsOfSpeech.NN,
       properties: flatProperties,
-      used: false,
-      matched: false,
     }
     tokens.push(token);
     // Create the new proper noun node
@@ -1207,16 +1206,16 @@ function formTree(tokens: Array<Token>): Array<any> {
   // Identify any aggregates
   
   // Get unused tokens
-  unusedTokens = findAll(tokens,(token: Token) => token.used === false);
+  //unusedTokens = findAll(tokens,(token: Token) => token.used === false);
   //unusedNG = nounGroups.filter((ng: NounGroup) => ng.used === false);
 
   //console.log(entities);
   //console.log(attributes);
-  console.log("Unused Tokens:");
-  console.log(tokenArrayToString(unusedTokens));
+  //console.log("Unused Tokens:");
+  //console.log(tokenArrayToString(unusedTokens));
   //console.log("Unused Noun Groups:");
   //console.log(nounGroupArrayToString(unusedNG));
-  console.log("Unmatched Tokens:");
+  //console.log("Unmatched Tokens:");
   console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
   
   // Remove nodes with parents
