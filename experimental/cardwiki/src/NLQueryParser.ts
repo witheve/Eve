@@ -685,7 +685,7 @@ function formNounGroups(tokens: Array<Token>): Array<Node> {
 function addChildToNounGroup(nounGroup: Node, token: Token) {
   let tokenNode = newNode(token);
   nounGroup.children.push(tokenNode);
-  tokenNode.parents.push(nounGroup);
+  tokenNode.parent = nounGroup;
   //nounGroup.properties = nounGroup.properties.concat(token.properties);
   token.used = true;
 }
@@ -706,7 +706,7 @@ enum TokenProperties {
 interface Node {
   ix: number,
   name: string,
-  parents: Array<Node>,
+  parent: Node,
   children: Array<Node>,
   entity?: Entity,
   collection?: Collection,
@@ -754,7 +754,7 @@ function newNode(token: Token): Node {
   let node: Node = {
     ix: token.ix,
     name: token.normalizedWord,
-    parents: [],
+    parent: undefined,
     children: [],
     token: token, 
     properties: token.properties,
@@ -830,33 +830,43 @@ function formTree(tokens: Array<Token>): Array<any> {
       }
     }
     // Turn adjacent nouns into a node
-    let newName = adjacentPNouns.map((node) => node.name).join(" ");    
+    let newName = adjacentPNouns.map((node) => node.name).join(" ");
+    let newOriginalName = adjacentPNouns.map((node: Node) => node.token.originalWord).join(" ");        
     // Combine all properties
     let properties: Array<Array<TokenProperties>> = adjacentPNouns.map((node) => node.properties);
     let flatProperties: Array<TokenProperties> = [].concat.apply([],properties);
     // Combine all children
     let children: Array<Array<Node>> = adjacentPNouns.map((node) => node.children);
     let flatChildren: Array<Node> = [].concat.apply([],children);
-    let token = adjacentPNouns[0];
+    let token: Token = {
+      ix: adjacentPNouns[0].ix,
+      originalWord: newOriginalName,
+      normalizedWord: newName,
+      POS: MinorPartsOfSpeech.NN,
+      properties: flatProperties,
+      used: false,
+      matched: false,
+    }
+    tokens.push(token);
     // Create the new proper noun node
     pNounNode = {
       ix: token.ix,
       name: newName,
-      parents: [],
+      parent: undefined,
       children: flatChildren,
       token: token, 
       properties: flatProperties,
     };
+    token.node = pNounNode;
     // Rewire children
     adjacentPNouns.map((node) => {
-      node.children.map((child) => child.parents = [pNounNode]);
+      node.children.map((child: Node) => child.parent = pNounNode);
       node.children = []
     });
     // Add new pNoun node to node list
     nodes.push(pNounNode);
     // add subsumed pNouns to an auxilary list
     subsumedNodes = subsumedNodes.concat(adjacentPNouns);
-    nodes.slice
     // Clear the adjacentPNouns for the next set
     adjacentPNouns = [];
   }
@@ -864,6 +874,7 @@ function formTree(tokens: Array<Token>): Array<any> {
   subsumedNodes.forEach((node) => {
     nodes.splice(nodes.indexOf(node),1);
   });
+  tokens.sort((a, b) => a.ix - b.ix);
   nodes.sort((a, b) => a.ix - b.ix);
 
   // Break nodes at separator and CC boundaries before any entities are identified
@@ -885,13 +896,13 @@ function formTree(tokens: Array<Token>): Array<any> {
     // If the node is a separator, empty the node stack
     if (hasProperty(node,TokenProperties.SEPARATOR) && node.name === ",") {
       node.children = nodeStack;
-      node.children.map((child) => child.parents.push(n));
+      node.children.map((child) => child.parent = n);
       nodeStack = [];
       separatorStack.push(node);
     // If the node is a conjunction, empty the separator stack
     } else if (hasProperty(node,TokenProperties.CONJUNCTION)) {
       node.children = separatorStack;
-      node.children.map((child) => child.parents.push(n));
+      node.children.map((child) => child.parent = n);
       separatorStack = [];
       conjunctionStack.push(node);
     // If the node is a semicolon, empty the node stack into the most recent conjunction's children
@@ -900,7 +911,7 @@ function formTree(tokens: Array<Token>): Array<any> {
       if (conjunctionNode !== undefined) {
         n = conjunctionNode;
         conjunctionNode.children = conjunctionNode.children.concat(nodeStack);
-        conjunctionNode.children.map((child) => child.parents.push(n));
+        conjunctionNode.children.map((child) => child.parent = n);
         nodeStack = [];
       }
     // if the node is anything else, push it onto the node stack
@@ -913,7 +924,7 @@ function formTree(tokens: Array<Token>): Array<any> {
     let conjunctionNode = conjunctionStack[conjunctionStack.length - 1];
     conjunctionNode.children = conjunctionNode.children.concat(nodeStack);
     nodeStack = [];
-    conjunctionNode.children.map((child) => child.parents.push(conjunctionNode));
+    conjunctionNode.children.map((child) => child.parent = conjunctionNode);
   }
 
   roots = roots.concat(conjunctionStack);
@@ -947,20 +958,21 @@ function formTree(tokens: Array<Token>): Array<any> {
     // If there is a backward relationship e.g. age of Corey, then try to find attrs
     // in the maybeAttr stack
     if (!found && hasProperty(node,TokenProperties.BACKRELATIONSHIP)) {
+      console.log("Backrelationship: Searching for previously unmatched attributes");
       for (let maybeAttr of maybeAttributes) {
         // Find the parent entities and try to match attributes
-        let parentsEntities = node.parents.map((node) => node.entity);
-        let flatParentsEntities = [].concat.apply([],parentsEntities);
-        for (let entity of flatParentsEntities) {
-          if (entity === undefined) {
-            continue;
-          } else {
-            let attribute = findAttribute(maybeAttr.name,entity);
-            if (attribute !== undefined) {
-              maybeAttr.attribute = attribute;
-              attributes.push(attribute);  
-              found = true;
-            }
+        let entity = node.parent.entity;
+        console.log(entity);
+        if (entity === undefined) {
+          let collection = node.parent.collection;
+          // TODO find relationship between collection and attribute
+        } else {
+          let attribute = findAttribute(maybeAttr.name,entity);
+          if (attribute !== undefined) {
+            maybeAttr.attribute = attribute;
+            attributes.push(attribute);  
+            attribute.node = maybeAttr;
+            found = true;
           }
         }
       }
@@ -973,7 +985,6 @@ function formTree(tokens: Array<Token>): Array<any> {
         let collection = collections[collections.length - 1];
         if (collection !== undefined) {
           console.log(collection.displayName);
-          collection.node = node;
           node.collection = collection;
           found = true;
         }
@@ -981,7 +992,6 @@ function formTree(tokens: Array<Token>): Array<any> {
         let entity = entities[entities.length - 1];
         if (entity !== undefined) {
           console.log(entity.displayName);
-          entity.node = node;
           node.entity = entity;
           found = true;
         }
@@ -1029,7 +1039,6 @@ function formTree(tokens: Array<Token>): Array<any> {
           found = true;
         }
       }      
-      
     }
         
     // If we've gotten here and we haven't found anything, go crazy with searching
@@ -1073,6 +1082,23 @@ function formTree(tokens: Array<Token>): Array<any> {
     collections = [];
     attributes = [];
     maybeAttributes = [];
+  }
+  
+  // rewire nodes
+  for (let token of tokens) {
+    let node = token.node;
+    let attribute: Attribute = node.attribute;
+    if (attribute !== undefined) {
+      let maybeEntity = attribute.entity;
+      if (typeof maybeEntity === "object") {
+        let entity: Entity = maybeEntity;
+        let node = attribute.node;
+        // @HACK Is there a better way to do this?
+        node.parent.children.splice(node.parent.children.indexOf(node),1);
+        node.parent = entity.node;
+        entity.node.children.push(node);
+      }
+    }
   }
   
   console.log(nodeArrayToString(roots));
@@ -1541,8 +1567,10 @@ export function nodeToString(node: Node, depth: number): string {
   let spacing = Array(depth+1).join(" ");
   let index = node.ix === undefined ? "+ " : `${node.ix}: `;
   let properties = `(${node.properties.map((property: TokenProperties) => TokenProperties[property]).join("|")})`;
+  let attribute = node.attribute === undefined ? "" : `[${node.attribute.dbValue}] `;
+  let entity = node.entity === undefined ? "" : `[${node.entity.displayName}] `;
   properties = properties.length === 2 ? "" : properties;
-  let nodeString = `| ${spacing}${index}${node.name} ${properties}${children}`; 
+  let nodeString = `| ${spacing}${index}${node.name} ${entity}${attribute}${properties}${children}`; 
   return nodeString;
 }
 
