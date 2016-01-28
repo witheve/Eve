@@ -1,10 +1,12 @@
 import * as app from "./app";
 import {Renderer} from "./microReact";
 import {copy, mergeObject} from "./utils";
-/// <reference path="marked-ast/marked.d.ts" />
+import * as CodeMirror from "codemirror";
 import * as marked from "marked-ast";
 
-declare var CodeMirror;
+require("codemirror/mode/gfm/gfm");
+require("codemirror/mode/clojure/clojure");
+
 declare var uuid;
 
 function replaceAll(str, find, replace) {
@@ -24,7 +26,8 @@ function wrapWithMarkdown(cm, wrapping) {
         cm.replaceRange(cleaned, from, cm.getCursor("to"));
         cm.setSelection(from, cm.getCursor("from"));
       } else {
-        cm.replaceRange(`${wrapping}${cleaned}${wrapping}`, from, cm.getCursor("to"));
+        let str = `${wrapping}${cleaned}${wrapping}`;
+        cm.replaceRange(str, from, cm.getCursor("to"));
         cm.setSelection(from, cm.getCursor("from"));
       }
     } else {
@@ -71,7 +74,7 @@ var defaultKeys = {
 
 export class RichTextEditor {
 
-  cmInstance;
+  cmInstance: CodeMirror.Editor;
   marks: {};
   timeout;
   meta: any;
@@ -86,12 +89,14 @@ export class RichTextEditor {
     this.marks = {};
     this.meta = {};
     let extraKeys = mergeObject(copy(defaultKeys), options.keys || {});
-    let cm = this.cmInstance = new CodeMirror(node, {
+    this.cmInstance = <CodeMirror.Editor>CodeMirror(node, {
+      mode: "gfm",
       lineWrapping: true,
       autoCloseBrackets: true,
       viewportMargin: Infinity,
       extraKeys
     });
+    let cm = this.cmInstance;
 
     var self = this;
     cm.on("changes", (cm, changes) => {

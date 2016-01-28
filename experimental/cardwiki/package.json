@@ -7,6 +7,7 @@
     "cli-table": "^0.3.1",
     "codemirror": "^5.7.0",
     "colors": "^1.1.2",
+    "compression": "^1.6.1",
     "express": "^4.13.3",
     "faker": "^3.0.1",
     "marked-ast": "^0.2.2",

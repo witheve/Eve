@@ -1,6 +1,7 @@
 import fs = require("fs");
 import path = require("path");
 import express = require('express');
+import compress = require("compression");
 import * as app from "./app";
 import * as runtime from "./runtime";
 import * as parser from "./parser";
@@ -78,6 +79,7 @@ wss.on('connection', function connection(ws) {
 });
 
 var httpserver = express();
+httpserver.use(compress());
 httpserver.use("/bin", express.static(__dirname + '/../../bin'));
 httpserver.use("/css", express.static(__dirname + '/../../css'));
 httpserver.use("/node_modules", express.static(__dirname + '/../../node_modules'));
