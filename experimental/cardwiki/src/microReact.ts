@@ -539,7 +539,7 @@ export class Renderer {
     for(var i = 0, len = postRenders.length; i < len; i++) {
       var elem = postRenders[i];
       var id = elem.id;
-      if(diff[id] === "updated" || diff[id] === "added" || diff[id] === "replaced" || elem.dirty) {
+      if(diff[id] === "updated" || diff[id] === "added" || diff[id] === "replaced" || elem.dirty || diff[id] === "moved") {
         elem.postRender(elementCache[elem.id], elem);
       }
     }
