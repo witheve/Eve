@@ -926,7 +926,6 @@ function formTree(tokens: Array<Token>): Array<any> {
   
   // THIS IS WHERE THE MAGIC HAPPENS!
   // Go through each node array and try to resolve entities
-
   function resolveEntities(node: Node): Node {
     console.log(node);
     let found = false;
@@ -974,6 +973,7 @@ function formTree(tokens: Array<Token>): Array<any> {
         let collection = collections[collections.length - 1];
         if (collection !== undefined) {
           console.log(collection.displayName);
+          collection.node = node;
           node.collection = collection;
           found = true;
         }
@@ -981,6 +981,7 @@ function formTree(tokens: Array<Token>): Array<any> {
         let entity = entities[entities.length - 1];
         if (entity !== undefined) {
           console.log(entity.displayName);
+          entity.node = node;
           node.entity = entity;
           found = true;
         }
@@ -992,6 +993,7 @@ function formTree(tokens: Array<Token>): Array<any> {
       let entity = findEntityByDisplayName(node.name);
       if (entity !== undefined) {
         entities.push(entity);
+        entity.node = node;
         node.entity = entity;
         found = true;
       }
@@ -1014,11 +1016,13 @@ function formTree(tokens: Array<Token>): Array<any> {
         if (attribute !== undefined) {
           attributes.push(attribute);
           node.attribute = attribute;
+          attribute.node = node;
           // If the attribute is possessive, check to see if it is an entity
           if (hasProperty(node,TokenProperties.POSSESSIVE)) {
             let entity = findEntityByID(`${attribute.dbValue}`); // @HACK force string | number into string
             if (entity != undefined) {
               entities.push(entity);
+              entity.node = node;
               node.entity = entity;
             }
           }
@@ -1034,11 +1038,15 @@ function formTree(tokens: Array<Token>): Array<any> {
       let entity = findEntityByDisplayName(node.name);
       if (entity !== undefined) {
         entities.push(entity);
+        entity.node = node;
+        node.entity = entity;
         found = true;
       } else {
         let collection = findCollection(node.name);
         if (collection !== undefined) {
           collections.push(collection);
+          collection.node = node;
+          node.collection = collection;
           found = true;
         }  
       }
@@ -1239,6 +1247,7 @@ interface Collection {
   id: string,
   displayName: string,
   count: number,
+  node?: Node,
 }
 
 interface Attribute {
@@ -1247,6 +1256,7 @@ interface Attribute {
   entity: Entity | string,
   value: string,
   dbValue?: string | number,
+  node?: Node,
 }
 
 // Returns the entity with the given display name.
