@@ -473,6 +473,7 @@ export function entity(entityId:string, paneId:string, options:any = {}):Element
     ui.id = `${paneId}|${cell.id}`;
     ui.postRender = reparentCell;
     ui["containerId"] = `${paneId}|${cell.id}|container`;
+    ui.ix = 0;
     return ui;
   });
   return {t: "content", c: "wiki-entity", children: [
