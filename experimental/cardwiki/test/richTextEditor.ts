@@ -25,7 +25,7 @@ function CMSearchBox2(node, elem) {
   let editor = node.editor;
   let cm;
   if(!editor) {
-    node.editor = new RichTextEditor(node, embedQuery, replaceInlineAttribute, removeAttribute);
+    node.editor = new RichTextEditor(node, {});
     cm = node.editor.cmInstance;
     cm.focus();
   }

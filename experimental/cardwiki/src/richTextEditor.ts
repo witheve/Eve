@@ -1,10 +1,12 @@
 import * as app from "./app";
 import {Renderer} from "./microReact";
 import {copy, mergeObject} from "./utils";
-/// <reference path="marked-ast/marked.d.ts" />
+import * as CodeMirror from "codemirror";
 import * as marked from "marked-ast";
 
-declare var CodeMirror;
+require("codemirror/mode/gfm/gfm");
+require("codemirror/mode/clojure/clojure");
+
 declare var uuid;
 
 function replaceAll(str, find, replace) {
@@ -24,7 +26,8 @@ function wrapWithMarkdown(cm, wrapping) {
         cm.replaceRange(cleaned, from, cm.getCursor("to"));
         cm.setSelection(from, cm.getCursor("from"));
       } else {
-        cm.replaceRange(`${wrapping}${cleaned}${wrapping}`, from, cm.getCursor("to"));
+        let str = `${wrapping}${cleaned}${wrapping}`;
+        cm.replaceRange(str, from, cm.getCursor("to"));
         cm.setSelection(from, cm.getCursor("from"));
       }
     } else {
@@ -71,7 +74,7 @@ var defaultKeys = {
 
 export class RichTextEditor {
 
-  cmInstance;
+  cmInstance: CodeMirror.Editor;
   marks: {};
   timeout;
   meta: any;
@@ -86,12 +89,14 @@ export class RichTextEditor {
     this.marks = {};
     this.meta = {};
     let extraKeys = mergeObject(copy(defaultKeys), options.keys || {});
-    let cm = this.cmInstance = new CodeMirror(node, {
+    this.cmInstance = <CodeMirror.Editor>CodeMirror(node, {
+      mode: "gfm",
       lineWrapping: true,
       autoCloseBrackets: true,
       viewportMargin: Infinity,
       extraKeys
     });
+    let cm = this.cmInstance;
 
     var self = this;
     cm.on("changes", (cm, changes) => {
@@ -199,35 +204,47 @@ export function createEditor(node, elem) {
     doc.setCursor({line: 1, ch: 0});
   }
   if(elem.cells) {
-    let cellIds = {};
-    for(let cell of elem.cells) {
-      cellIds[cell.id] = true;
-      let mark = editor.marks[cell.id];
-      let add = false;
-      if(!mark) {
-        add = true;
-      } else {
-        // if the mark doesn't contain the correct text, we need to nuke it.
-        let {from, to} = mark.find();
-        if(cm.getRange(from, to) !== cell.value) {
-          mark.clear();
+    cm.operation(() => {
+      let cellIds = {};
+      for(let cell of elem.cells) {
+        cellIds[cell.id] = true;
+        let mark = editor.marks[cell.id];
+        let add = false;
+        if(!mark) {
           add = true;
+        } else {
+          let found = mark.find();
+          if(!found) {
+            add = true;
+          } else {
+            // if the mark doesn't contain the correct text, we need to nuke it.
+            let {from, to} = found;
+            if(cm.getRange(from, to) !== cell.value || cell.start !== cm.indexFromPos(from)) {
+              add = true;
+            }
+          }
+        }
+        if(add) {
+          let dom;
+          if(!mark) {
+            dom = document.createElement("div");
+            dom.id = `${elem["meta"].paneId}|${cell.id}|container`;
+          } else {
+            dom = mark.replacedWith;
+            mark.clear();
+          }
+          let newMark = cm.markText(cm.posFromIndex(cell.start), cm.posFromIndex(cell.start + cell.length), {replacedWith: dom});
+          dom["mark"] = newMark;
+          editor.marks[cell.id] = newMark;
         }
       }
-      if(add) {
-        let dom = document.createElement("div");
-        dom.id = `${elem["meta"].paneId}|${cell.id}|container`;
-        let mark = cm.markText(cm.posFromIndex(cell.start), cm.posFromIndex(cell.start + cell.length), {replacedWith: dom});
-        dom["mark"] = mark;
-        editor.marks[cell.id] = mark;
+      for(let markId in editor.marks) {
+        if(!cellIds[markId]) {
+          editor.marks[markId].clear();
+          delete editor.marks[markId];
+        }
       }
-    }
-    for(let markId in editor.marks) {
-      if(!cellIds[markId]) {
-        editor.marks[markId].clear();
-        delete editor.marks[markId];
-      }
-    }
+    });
   }
   cm.refresh();
 }

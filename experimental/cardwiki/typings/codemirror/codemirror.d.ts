@@ -328,7 +328,7 @@ declare module CodeMirror {
         /** Events are registered with the on method (and removed with the off method).
         These are the events that fire on the instance object. The name of the event is followed by the arguments that will be passed to the handler.
         The instance argument always refers to the editor instance. */
-        on(eventName: string, handler: (instance: CodeMirror.Editor) => void ): void;
+        on(eventName: string, handler: (instance: CodeMirror.Editor, event?:any) => void ): void;
         off(eventName: string, handler: (instance: CodeMirror.Editor) => void ): void;
 
         /** Fires every time the content of the editor is changed. */
@@ -393,6 +393,18 @@ declare module CodeMirror {
 
         /** Expose the state object, so that the Editor.state.completionActive property is reachable*/
         state: any;
+
+        /** start is a an optional string indicating which end of the selection to return.
+        It may be "start" , "end" , "head"(the side of the selection that moves when you press shift + arrow),
+        or "anchor"(the fixed side of the selection).Omitting the argument is the same as passing "head".A { line , ch } object will be returned. */
+        getCursor(start?: string): CodeMirror.Position;
+
+        /** Get the current editor content. You can pass it an optional argument to specify the string to be used to separate lines (defaults to "\n"). */
+        getValue(seperator?: string): string;
+
+        /** Replace the part of the document between from and to with the given string.
+        from and to must be {line, ch} objects. to can be left off to simply insert the string at position from. */
+        replaceRange(replacement: string, from: CodeMirror.Position, to: CodeMirror.Position): void;
     }
 
     interface EditorFromTextArea extends Editor {
