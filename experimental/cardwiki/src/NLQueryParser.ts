@@ -38,6 +38,7 @@ export interface PreToken {
 }
 
 enum MajorPartsOfSpeech {
+  ROOT,
   VERB,
   ADJECTIVE,
   ADVERB,
@@ -48,6 +49,7 @@ enum MajorPartsOfSpeech {
 }
 
 enum MinorPartsOfSpeech {
+  ROOT,
   // Verb
   VB,   // verb, generic (eat) s
   VBD,  // past-tense verb (ate)
@@ -111,6 +113,20 @@ interface Token {
   node?: Node,
 }
 
+enum TokenProperties {
+  ROOT,
+  PROPER,
+  PLURAL,
+  POSSESSIVE,
+  BACKRELATIONSHIP,
+  QUANTITY,
+  COMPARATIVE,
+  SUPERLATIVE,
+  PRONOUN,  
+  SEPARATOR,
+  CONJUNCTION,
+}
+
 // take an input string, extract tokens
 function formTokens(preTokens: Array<PreToken>): Array<Token> {
     
@@ -119,7 +135,7 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
       let word = preToken.text;
       let tag = preToken.tag;
       let token: Token = {
-        ix: i, 
+        ix: i+1, 
         originalWord: word, 
         normalizedWord: word, 
         POS: MinorPartsOfSpeech[tag],
@@ -346,6 +362,17 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
           }
       });
     }
+    
+    let rootToken = {
+      ix: 0, 
+      originalWord: "ROOT", 
+      normalizedWord: "ROOT", 
+      POS: MinorPartsOfSpeech.ROOT,
+      properties: [TokenProperties.ROOT], 
+    };
+    
+    tokens = [rootToken].concat(tokens);
+    
     return tokens;
 }
 
@@ -366,6 +393,10 @@ function adverbToAdjective(token: Token): Token {
 }
 
 function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech {
+  // ROOT
+  if (minorPartOfSpeech === MinorPartsOfSpeech.ROOT) {
+    return MajorPartsOfSpeech.ROOT;
+  }
   // Verb
   if (minorPartOfSpeech === MinorPartsOfSpeech.VB  ||
       minorPartOfSpeech === MinorPartsOfSpeech.VBD ||
@@ -679,21 +710,9 @@ function formNounGroups(tokens: Array<Token>): Array<Node> {
 function addChildToNounGroup(nounGroup: Node, token: Token) {
   let tokenNode = newNode(token);
   nounGroup.children.push(tokenNode);
+  nounGroup.children.sort((a,b) => a.ix - b.ix);
   tokenNode.parent = nounGroup;
   //nounGroup.properties = nounGroup.properties.concat(token.properties);
-}
-
-enum TokenProperties {
-  PROPER,
-  PLURAL,
-  POSSESSIVE,
-  BACKRELATIONSHIP,
-  QUANTITY,
-  COMPARATIVE,
-  SUPERLATIVE,
-  PRONOUN,  
-  SEPARATOR,
-  CONJUNCTION,
 }
 
 interface Node {
@@ -784,10 +803,31 @@ function formTree(tokens: Array<Token>): Array<any> {
   
   nodes = nodes.concat(nounGroups);
   
+  console.log(nodeArrayToString(nodes));
+  
   // Fold in all the other tokens
   let unusedNodes = tokens.filter((token) => token.node === undefined).map(newNode);
+  nodes = nodes.concat(unusedNodes);
+  nodes.sort((a,b) => a.ix - b.ix);
+  
+  // Link nodes
+  nodes.forEach((thisNode,i) => {
+    let nextNode = nodes[i + 1];
+    if (nextNode !== undefined) {
+      thisNode.children.push(nextNode);
+      nextNode.parent = thisNode;  
+    }
+  })
+  nodes = nodes.filter((node) => node.parent === undefined);
   
   console.log(nodeArrayToString(nodes));
+  
+  function splitNode() {
+    
+  }
+  
+  
+  
   
   return [];
   
