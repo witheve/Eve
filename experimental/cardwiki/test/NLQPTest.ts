@@ -60,7 +60,10 @@ let n = 1;
 let phrases = [
   //"dogs longer than pets",
   //"Corey Montella's height, weight, age"
-  "Age of Corey Montella and his height; and his wife's height age and gender; and Olivia Fay's age, gender, and height",
+  //"Steve's age and salary",
+  //"Corey Montella's wife's sister's age; and age and gender of Rachel Montella; and Olivia Fay age", // BROKEN
+  "Corey Montella's wife's sister's age, height, gender; and Rachel Montella's height",
+  //"Corey Montella's age, height, and gender; and age and gender of Rachel Montella and her sister's age; and Olivia Fay age",
   //"What is Corey Montella's wife's age?",
   //"sum of the lengths of the pets",
   //"sum of the length of pets",

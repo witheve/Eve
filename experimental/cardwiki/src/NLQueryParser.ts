@@ -899,12 +899,6 @@ function formTree(tokens: Array<Token>): Array<any> {
       node.children.map((child) => child.parent = n);
       nodeStack = [];
       separatorStack.push(node);
-    // If the node is a conjunction, empty the separator stack
-    } else if (hasProperty(node,TokenProperties.CONJUNCTION)) {
-      node.children = separatorStack;
-      node.children.map((child) => child.parent = n);
-      separatorStack = [];
-      conjunctionStack.push(node);
     // If the node is a semicolon, empty the node stack into the most recent conjunction's children
     } else if (hasProperty(node,TokenProperties.SEPARATOR) && node.name === ";") {
       let conjunctionNode = conjunctionStack[conjunctionStack.length - 1];
@@ -913,7 +907,20 @@ function formTree(tokens: Array<Token>): Array<any> {
         conjunctionNode.children = conjunctionNode.children.concat(nodeStack);
         conjunctionNode.children.map((child) => child.parent = n);
         nodeStack = [];
+      // If there is no conjunction stack, just push everything
+      } else {
+        n.children = n.children.concat(separatorStack);
+        n.children = n.children.concat(nodeStack);
+        conjunctionStack.push(n)
+        separatorStack = [];
+        nodeStack = [];
       }
+    // If the node is a conjunction, empty the separator stack
+    } else if (hasProperty(node,TokenProperties.CONJUNCTION)) {
+      node.children = separatorStack;
+      node.children.map((child) => child.parent = n);
+      separatorStack = [];
+      conjunctionStack.push(node);
     // if the node is anything else, push it onto the node stack
     } else {
       nodeStack.push(node); 
@@ -934,7 +941,7 @@ function formTree(tokens: Array<Token>): Array<any> {
   if (roots.length === 0 ) { 
     roots = nodes;
   }
-  
+
   // THIS IS WHERE THE MAGIC HAPPENS!
   // Go through each node array and try to resolve entities
   function resolveEntities(node: Node): Node {
@@ -1094,6 +1101,7 @@ function formTree(tokens: Array<Token>): Array<any> {
         let entity: Entity = maybeEntity;
         let node = attribute.node;
         // @HACK Is there a better way to do this?
+        console.log(node)
         node.parent.children.splice(node.parent.children.indexOf(node),1);
         node.parent = entity.node;
         entity.node.children.push(node);
