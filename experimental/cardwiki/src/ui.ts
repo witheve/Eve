@@ -455,6 +455,10 @@ function reparentCell(node, elem) {
   if(node.parentNode.id !== elem.containerId) {
     document.getElementById(elem.containerId).appendChild(node);
   }
+  if(elem.autoFocus) {
+    autoFocus(node, elem);
+    setEndOfContentEditable(node);
+  }
   node.parentNode["mark"].changed();
 }
 
@@ -468,11 +472,23 @@ export function entity(entityId:string, paneId:string, options:any = {}):Element
   let finalOptions = mergeObject({keys: {
     "=": (cm) => createEmbedPopout(cm, paneId)
   }}, options);
-  let cellItems = cells.map((cell) => {
-    let ui = cellUI(paneId, cell.query);
+  let cellItems = cells.map((cell, ix) => {
+    let ui;
+    if(activeCells[cell.id] || cell.placeholder) {
+      let text = cell.query;
+      if(cell.placeholder && !activeCells[cell.id]) {
+        text = "...";
+      } else if(cell.placeholder) {
+        text = activeCells[cell.id].query;
+      }
+      ui = {t: "span", c:"embedded-cell", contentEditable: "true", text, keydown: embeddedCellKeys, cell, paneId, autoFocus: true};
+    } else {
+      ui = cellUI(paneId, cell.query);
+    }
     ui.id = `${paneId}|${cell.id}`;
     ui.postRender = reparentCell;
     ui["containerId"] = `${paneId}|${cell.id}|container`;
+    ui["cell"] = cell;
     return ui;
   });
   return {t: "content", c: "wiki-entity", children: [
@@ -487,47 +503,51 @@ export function entity(entityId:string, paneId:string, options:any = {}):Element
   ]};
 }
 
+var activeCells = {};
+
+appHandle("addActiveCell", (changes, info) => {
+  let {id} = info;
+  activeCells[id] = info;
+});
+
+appHandle("removeActiveCell", (changes, info) => {
+  let {id} = info;
+  delete activeCells[id];
+});
+
 function createEmbedPopout(cm, paneId) {
   let coords = cm.cursorCoords("head", "page");
   // dispatch("createEmbedPopout", {paneId, x: coords.left, y: coords.top - 20}).commit();
   cm.operation(() => {
     let from = cm.getCursor("from");
-    cm.replaceRange("=", from, cm.getCursor("to"));
-    let widget = document.createElement("span");
-    widget.textContent = "= ";
-    widget.contentEditable = "true";
-    widget.classList.add("embedded-cell");
-    let to = copy(from);
-    to.ch++;
-    var mark = cm.markText(from, to, {replacedWith: widget});
-    widget.onkeydown = (event) => embeddedCellKeys(event, paneId, mark);
-    setTimeout(() => {
-      widget.focus()
-      setEndOfContentEditable(widget);
-    }, 0);
+    let id = uuid();
+    let range = `{=${id}=}`;
+    cm.replaceRange(range, from, cm.getCursor("to"));
+    dispatch("addActiveCell", {id: range, query: "= "});
   });
 }
 
-function embeddedCellKeys(event, paneId, mark) {
-  let value = event.currentTarget.textContent;
-  let parent = paneId;
+function embeddedCellKeys(event, elem) {
+  let {paneId, cell} = elem;
+  let target = event.currentTarget;
+  let value = target.textContent;
+  let mark = target.parentNode["mark"];
+  let cm = paneEditors[paneId].cmInstance;
   if(event.keyCode === KEYS.ESC || (event.keyCode === KEYS.ENTER && value.trim() === "=")) {
-    mark.clear();
-    paneEditors[parent].cmInstance.focus();
+    let {from, to} = mark.find();
+    cm.replaceRange("= ", from, to);
+    paneEditors[paneId].cmInstance.focus();
+    dispatch("removeActiveCell", cell).commit();
     event.preventDefault();
   } else if(event.keyCode === KEYS.ENTER) {
+    let {from, to} = mark.find();
     if(value[0] === "=") {
       value = value.substring(1);
     }
     value = value.trim();
-    console.log("DO THE EMBED");
-    let cm = paneEditors[parent].cmInstance;
-    let from = cm.getCursor("from");
-    let to = cm.getCursor("to");
-    from.ch--;
     cm.replaceRange(`{${value}}`, from, to);
-    paneEditors[parent].cmInstance.focus();
-    mark.clear();
+    paneEditors[paneId].cmInstance.focus();
+    dispatch("removeActiveCell", cell).commit();
     event.preventDefault();
   }
 }
@@ -557,10 +577,18 @@ function getCells(content: string) {
   let ids = {};
   for(let part of content.split(/({[^]*?})/gm)) {
     if(part[0] === "{") {
+      let id = part;
       if(!ids[part]) {
-        ids[part] = 0;
+        ids[part] = 2;
+      } else if(ids[part] >= 2) {
+        id += ids[part];
+        ids[part]++;
       }
-      cells.push({start: ix, length: part.length, value: part, query: part.substring(1, part.length - 1), id: part + ids[part]++});
+      let placeholder = false;
+      if(part.match(/\{\=.*\=\}/)) {
+        placeholder = true;
+      }
+      cells.push({start: ix, length: part.length, value: part, query: part.substring(1, part.length - 1), id, placeholder});
     }
     ix += part.length;
   }
