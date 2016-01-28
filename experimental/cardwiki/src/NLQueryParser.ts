@@ -726,6 +726,7 @@ interface Node {
   function?: BuiltInFunction,
   token: Token,
   properties: Array<TokenProperties>,
+  hasProperty(TokenProperties): boolean;
 }
 
 // Transfer noun group properties to a node
@@ -747,13 +748,14 @@ function subsumeProperties(node: Node, nounGroup: Node) {
   node.properties = node.properties.filter(onlyUnique);
 }
 
-function hasProperty(obj: any, property: TokenProperties): boolean {
-  let found = obj.properties.find((p: TokenProperties) => p === property);
-  if (found === undefined) {
-    return false;
+  function hasProperty(token: Token, property: TokenProperties): boolean {
+    let found = token.properties.filter((p: TokenProperties) => p === property);
+    if (found.length > 0) {
+      return true;
+    } else {
+      return false;
+    }
   }
-  return true;
-}
 
 function newNode(token: Token): Node {
   let node: Node = {
@@ -763,7 +765,16 @@ function newNode(token: Token): Node {
     children: [],
     token: token, 
     properties: token.properties,
+    hasProperty: hasProperty,    
   };
+  function hasProperty(property: TokenProperties): boolean {
+    let found = node.properties.filter((p: TokenProperties) => p === property);
+    if (found.length > 0) {
+      return true;
+    } else {
+      return false;
+    }
+  }
   token.node = node;
   return node;  
 }
@@ -788,21 +799,13 @@ function wordToFunction(word: string): BuiltInFunction {
   }
 }
 
-function formTree(tokens: Array<Token>): Array<any> {
-  let nodes: Array<Node> = [];
-  let roots: Array<Node> = [];
+function formTree(tokens: Array<Token>): Node {  
+  let root: Node;
   let subsumedNodes: Array<Node> = [];
   
-  // Find noun groups
-  let nounGroups = formNounGroups(tokens);
+  // First, find noun groups
+  let nodes = formNounGroups(tokens);
   console.log("NOUN GROUPS");
-  console.log(nodeArrayToString(nounGroups));
-  console.log("Unused Tokens");
-  let unusedTokens = tokens.filter((token) => token.node === undefined);
-  console.log(tokenArrayToString(unusedTokens));
-  
-  nodes = nodes.concat(nounGroups);
-  
   console.log(nodeArrayToString(nodes));
   
   // Fold in all the other tokens
@@ -810,7 +813,7 @@ function formTree(tokens: Array<Token>): Array<any> {
   nodes = nodes.concat(unusedNodes);
   nodes.sort((a,b) => a.ix - b.ix);
   
-  // Link nodes
+  // Link nodes end to end
   nodes.forEach((thisNode,i) => {
     let nextNode = nodes[i + 1];
     if (nextNode !== undefined) {
@@ -818,18 +821,33 @@ function formTree(tokens: Array<Token>): Array<any> {
       nextNode.parent = thisNode;  
     }
   })
+  
+  // At this point we should only have a single root. 
   nodes = nodes.filter((node) => node.parent === undefined);
+  root = nodes.pop();
   
   console.log(nodeArrayToString(nodes));
   
-  function splitNode() {
+  function splitNodes(node: Node): void {
+    console.log(node);
+    
+    let children = node.children;
+    if (node.hasProperty(TokenProperties.ROOT)) {
+      console.log("ROOT!!!");
+    }
+    
+    if (node.hasProperty(TokenProperties.CONJUNCTION)) {
+      console.log("CONJUNCTION!!");
+    }
     
   }
+
+  splitNodes(root);
+  
+  console.log(nodeToString(root,0));
   
   
-  
-  
-  return [];
+  return;
   
   
   // First, let's combine adjacent proper nouns into nodes
@@ -837,7 +855,7 @@ function formTree(tokens: Array<Token>): Array<any> {
   // e.g. [Steve] [Smith] -> [Steve Smith]
   // But [United States] [of America] does not combine. We do this
   // at another step
-  let properNouns = nounGroups.filter((ng) => hasProperty(ng,TokenProperties.PROPER));
+  let properNouns = nodes.filter((ng) => ng.hasProperty(TokenProperties.PROPER));
   let adjacentPNouns = [];
   let pNounNode: Node;
   let pNouns: Array<Node> = [];
@@ -880,15 +898,9 @@ function formTree(tokens: Array<Token>): Array<any> {
     }
     tokens.push(token);
     // Create the new proper noun node
-    pNounNode = {
-      ix: token.ix,
-      name: newName,
-      parent: undefined,
-      children: flatChildren,
-      token: token, 
-      properties: flatProperties,
-    };
-    token.node = pNounNode;
+    pNounNode = newNode(token);
+    pNounNode.properties = flatProperties;
+    pNounNode.children = flatChildren;
     // Rewire children
     adjacentPNouns.map((node) => {
       node.children.map((child: Node) => child.parent = pNounNode);
@@ -925,13 +937,13 @@ function formTree(tokens: Array<Token>): Array<any> {
   for (let node of nodes) {
     n = node;
     // If the node is a separator, empty the node stack
-    if (hasProperty(node,TokenProperties.SEPARATOR) && node.name === ",") {
+    if (node.hasProperty(TokenProperties.SEPARATOR) && node.name === ",") {
       node.children = nodeStack;
       node.children.map((child) => child.parent = n);
       nodeStack = [];
       separatorStack.push(node);
     // If the node is a semicolon, empty the node stack into the most recent conjunction's children
-    } else if (hasProperty(node,TokenProperties.SEPARATOR) && node.name === ";") {
+    } else if (node.hasProperty(TokenProperties.SEPARATOR) && node.name === ";") {
       let conjunctionNode = conjunctionStack[conjunctionStack.length - 1];
       if (conjunctionNode !== undefined) {
         n = conjunctionNode;
@@ -948,7 +960,7 @@ function formTree(tokens: Array<Token>): Array<any> {
         nodeStack = [];
       }
     // If the node is a conjunction, empty the separator stack
-    } else if (hasProperty(node,TokenProperties.CONJUNCTION)) {
+    } else if (node.hasProperty(TokenProperties.CONJUNCTION)) {
       node.children = separatorStack;
       node.children.map((child) => child.parent = n);
       separatorStack = [];
@@ -966,13 +978,13 @@ function formTree(tokens: Array<Token>): Array<any> {
     conjunctionNode.children.map((child) => child.parent = conjunctionNode);
   }
 
-  roots = roots.concat(conjunctionStack);
+  /*roots = roots.concat(conjunctionStack);
   console.log(nodeArrayToString(roots));
 
   // @HACK: Do something smarter here... push only unpushed nodes?
   if (roots.length === 0 ) { 
     roots = nodes;
-  }
+  }*/
 
   // THIS IS WHERE THE MAGIC HAPPENS!
   // Go through each node array and try to resolve entities
@@ -981,7 +993,7 @@ function formTree(tokens: Array<Token>): Array<any> {
     let found = false;
     
     // Skip certain nodes
-    if (hasProperty(node,TokenProperties.SEPARATOR)) {
+    if (node.hasProperty(TokenProperties.SEPARATOR)) {
       console.log("Skipping");
       found = true;
     }
@@ -996,7 +1008,7 @@ function formTree(tokens: Array<Token>): Array<any> {
     }
     // If there is a backward relationship e.g. age of Corey, then try to find attrs
     // in the maybeAttr stack
-    if (!found && hasProperty(node,TokenProperties.BACKRELATIONSHIP)) {
+    if (!found && node.hasProperty(TokenProperties.BACKRELATIONSHIP)) {
       console.log("Backrelationship: Searching for previously unmatched attributes");
       for (let maybeAttr of maybeAttributes) {
         // Find the parent entities and try to match attributes
@@ -1017,10 +1029,10 @@ function formTree(tokens: Array<Token>): Array<any> {
       }
     }
     // If the node is a pronoun, find an entity to substitute
-    if (!found && hasProperty(node,TokenProperties.PRONOUN)) {
+    if (!found && node.hasProperty(TokenProperties.PRONOUN)) {
       console.log("Pronoun: finding reference");
       // If the pronoun is plural, the entity is probably the latest collection
-      if (hasProperty(node,TokenProperties.PLURAL)) {
+      if (node.hasProperty(TokenProperties.PLURAL)) {
         let collection = collections[collections.length - 1];
         if (collection !== undefined) {
           console.log(collection.displayName);
@@ -1037,7 +1049,7 @@ function formTree(tokens: Array<Token>): Array<any> {
       }
     }
     // If the node is possessive or proper, it's probably an entity
-    if (!found && (hasProperty(node,TokenProperties.POSSESSIVE) || hasProperty(node,TokenProperties.PROPER))) {
+    if (!found && (node.hasProperty(TokenProperties.POSSESSIVE) || node.hasProperty(TokenProperties.PROPER))) {
       console.log("Possessive: finding entity");
       let entity = findEntityByDisplayName(node.name);
       if (entity !== undefined) {
@@ -1048,7 +1060,7 @@ function formTree(tokens: Array<Token>): Array<any> {
       }
     }
     // If the node is plural, it's probably a collection
-    if (!found && hasProperty(node,TokenProperties.PLURAL)) {
+    if (!found && node.hasProperty(TokenProperties.PLURAL)) {
       console.log("Plural: finding collection");
       let collection = findCollection(node.name);
       if (collection !== undefined) {
@@ -1067,7 +1079,7 @@ function formTree(tokens: Array<Token>): Array<any> {
           node.attribute = attribute;
           attribute.node = node;
           // If the attribute is possessive, check to see if it is an entity
-          if (hasProperty(node,TokenProperties.POSSESSIVE)) {
+          if (node.hasProperty(TokenProperties.POSSESSIVE)) {
             let entity = findEntityByID(`${attribute.dbValue}`); // @HACK force string | number into string
             if (entity != undefined) {
               entities.push(entity);
@@ -1115,13 +1127,14 @@ function formTree(tokens: Array<Token>): Array<any> {
   let collections: Array<Collection> = [];
   let attributes: Array<Attribute> = [];
   let maybeAttributes: Array<Node> = [];
+  /*
   for (let root of roots) {
     root = resolveEntities(root);
     entities = [];
     collections = [];
     attributes = [];
     maybeAttributes = [];
-  }
+  }*/
   
   // rewire nodes
   for (let token of tokens) {
@@ -1140,9 +1153,6 @@ function formTree(tokens: Array<Token>): Array<any> {
       }
     }
   }
-  
-  console.log(nodeArrayToString(roots));
-  
   // Pull out comparator nodes
   
   
@@ -1150,9 +1160,6 @@ function formTree(tokens: Array<Token>): Array<any> {
   let comparatorNodes: Array<Node> = roots.map((node) => {
 
   });*/
-  
-  return [];
-  
   
   /*
   // Identify the comparative functions for each node
@@ -1260,7 +1267,7 @@ function formTree(tokens: Array<Token>): Array<any> {
     }
   }*/
 
-  return roots;
+  return root;
   
   // Heuristic: don't include verbs at this stage
   
@@ -1557,7 +1564,7 @@ function buildTerm(node: Node): Array<Term> {
 
 
 // take a parse tree, form a DSL AST
-function formDSL(tree: any): string {
+function formDSL(tree: Node): string {
   
   let project = {
     type: "project!",
@@ -1566,9 +1573,9 @@ function formDSL(tree: any): string {
   
   let query: Query = [];
   // Walk the tree, parsing each node as we go along
-  for (let node of tree) {
+  /*for (let node of tree) {
     query = query.concat(buildTerm(node));
-  }
+  }*/
   query.push(project);
 
   let queryString = queryToString(query);
