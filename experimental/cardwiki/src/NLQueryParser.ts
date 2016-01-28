@@ -506,6 +506,7 @@ function formNounGroups(tokens: Array<Token>): Array<Node> {
           break;
         }
       }
+      
       // If we found a determiner, gobble up tokens between the latest determiner and the noun
       if (firstDeterminerIx !== null) {
         nounGroup = subsumeTokens(nounGroup,firstDeterminerIx,tokens);
@@ -774,67 +775,93 @@ function wordToFunction(word: string): builtinFunction {
 
 function formTree(tokens: Array<Token>): Array<any> {
   let nodes: Array<Node> = [];
-  let nounGroups = formNounGroups(tokens);
-  nodes = nodes.concat(nounGroups);
-  console.log(nodeArrayToString(nounGroups));
+  let roots: Array<Node> = [];
+  let subsumedNodes: Array<Node> = [];
   
-  console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+  // Find noun groups
+  let nounGroups = formNounGroups(tokens);
+  console.log("NOUN GROUPS");
+  console.log(nodeArrayToString(nounGroups));
+  console.log("Unused Tokens");
+  let unusedTokens = tokens.filter((token) => token.node === undefined);
+  console.log(tokenArrayToString(unusedTokens));
+  
+  nodes = nodes.concat(nounGroups);
+  
+  
   // First, let's combine adjacent proper nouns into nodes
   // Here, adjacent means there are no tokens between noun groups
   // e.g. [Steve] [Smith] -> [Steve Smith]
   // But [United States] [of America] does not combine. We do this
   // at another step
-  /*let properNouns = nounGroups.filter((ng) => hasProperty(ng,TokenProperties.PROPER));
-  let nodes: Array<Node> = [];
-  let node: Node = undefined;
-  let lastIx = 0;
-  properNouns.forEach((ng,i) => {
-    // Start a new node, add the ng
-    if (node === undefined) {
-      node = newNode(ng);
-      lastIx = ng.noun.ix;
-    // Add a ng if it is adjacent
-    } else if (ng.noun.ix === lastIx + 1) {
-      node.nounGroups.push(ng);
-      node.name = flattenNounGroups(node.nounGroups);
-      subsumeProperties(node,ng);
-      ng.used = true;
-      lastIx = ng.noun.ix;
-    // If the next ng is not adjacent, push the node
-    // and start a new one 
-    } else {
-      nodes.push(node);
-      node = newNode(ng);
-      lastIx = ng.noun.ix;
+  let properNouns = nounGroups.filter((ng) => hasProperty(ng,TokenProperties.PROPER));
+  let adjacentPNouns = [];
+  let pNounNode: Node;
+  let pNouns: Array<Node> = [];
+  for (let i = 0; i < properNouns.length - 1; i++) {
+    let thisPNoun = properNouns[i];
+    let nextPNoun = properNouns[i + 1]
+    // Take this PNoun
+    adjacentPNouns.push(thisPNoun);
+    while (nextPNoun.ix === thisPNoun.ix + 1) {
+      // If the next PNoun is adjacent, add it to the list
+      adjacentPNouns.push(nextPNoun);
+      i++;
+      // Break on possessive nouns
+      /*if (hasProperty(nextPNoun,TokenProperties.POSSESSIVE)) {        
+        break;
+      }*/
+      // Advance the PNouns
+      thisPNoun = properNouns[i];
+      nextPNoun = properNouns[i + 1];
+      // Break on the end of the nouns
+      if (nextPNoun === undefined) {
+        break;
+      }
     }
-    // Break on a possessive ng
-    if (hasProperty(ng,TokenProperties.POSSESSIVE)) {
-      nodes.push(node);
-      node = undefined
-    }
-    // If we've gotten to the last token, push the node
-    if (node !== undefined && i + 1 === properNouns.length) {
-      nodes.push(node);
-    }
-  });*/
-
-  // Form nodes from the remaining noun groups
-  /*let unusedNG = nounGroups.filter((ng: NounGroup) => ng.used === false);
-  unusedNG.forEach((ng) => {
-    nodes.push(newNode(ng));
+    // Turn adjacent nouns into a node
+    let newName = adjacentPNouns.map((node) => node.name).join(" ");    
+    // Combine all properties
+    let properties: Array<Array<TokenProperties>> = adjacentPNouns.map((node) => node.properties);
+    let flatProperties: Array<TokenProperties> = [].concat.apply([],properties);
+    // Combine all children
+    let children: Array<Array<Node>> = adjacentPNouns.map((node) => node.children);
+    let flatChildren: Array<Node> = [].concat.apply([],children);
+    let token = adjacentPNouns[0];
+    // Create the new proper noun node
+    pNounNode = {
+      ix: token.ix,
+      name: newName,
+      parents: [],
+      children: flatChildren,
+      token: token, 
+      properties: [],
+    };
+    // Rewire children
+    adjacentPNouns.map((node) => {
+      node.children.map((child) => child.parents = [pNounNode]);
+      node.children = []
+    });
+    // Add new pNoun node to node list
+    nodes.push(pNounNode);
+    // add subsumed pNouns to an auxilary list
+    subsumedNodes = subsumedNodes.concat(adjacentPNouns);
+    nodes.slice
+    // Clear the adjacentPNouns for the next set
+    adjacentPNouns = [];
+  }
+  // Remove subsumed nouns from the main node list
+  subsumedNodes.forEach((node) => {
+    nodes.splice(nodes.indexOf(node),1);
   });
-  nodes.sort((a, b) => a.ix - b.ix);*/
-  
-  console.log(nodeArrayToString(nodes));
-  
-  let roots: Array<Node> = [];
+  nodes.sort((a, b) => a.ix - b.ix);
 
   // Break nodes at separator and CC boundaries before any entities are identified
   let nodeArrays: Array<Array<Node>> = []; 
   let boundaries = tokens.filter((token) => token.POS === MinorPartsOfSpeech.SEP || 
                                             token.POS === MinorPartsOfSpeech.CC);
   let boundaryNodes = boundaries.map(newNode);
-  nodes = nodes.concat(boundaryNodes).sort((nodeA,nodeB) => nodeA.ix - nodeB.ix);
+  nodes = nodes.concat(boundaryNodes).sort((a,b) => a.ix - b.ix);
   
   console.log(nodeArrayToString(nodes));
   
@@ -1090,9 +1117,8 @@ function formTree(tokens: Array<Token>): Array<any> {
   // Identify any aggregates
   
   // Get unused tokens
-  let unusedTokens = findAll(tokens,(token: Token) => token.used === false);
+  unusedTokens = findAll(tokens,(token: Token) => token.used === false);
   //unusedNG = nounGroups.filter((ng: NounGroup) => ng.used === false);
-  let unmatcdhedTokens = findAll(tokens,(token: Token) => token.matched === false);
 
   //console.log(entities);
   //console.log(attributes);
@@ -1101,7 +1127,6 @@ function formTree(tokens: Array<Token>): Array<any> {
   //console.log("Unused Noun Groups:");
   //console.log(nounGroupArrayToString(unusedNG));
   console.log("Unmatched Tokens:");
-  console.log(tokenArrayToString(unmatcdhedTokens));
   console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
   
   // Remove nodes with parents
@@ -1299,10 +1324,7 @@ function findCollectionToAttrRelationship(coll: string, attr: string): any {
 function subsumeTokens(nounGroup: Node, ix: number, tokens: Array<Token>): Node {
   for (let j = ix ; j < nounGroup.ix; j++) {
     let token: Token = tokens[j];
-    let tokenNode = newNode(token);
-    nounGroup.children.push(tokenNode);
-    tokenNode.parents.push(nounGroup);
-    if (token.used === false) {
+    if (token.node === undefined) {
       addChildToNounGroup(nounGroup,token);  
     }
   }
@@ -1468,8 +1490,9 @@ export function nodeToString(node: Node, depth: number): string {
 }
 
 export function nodeArrayToString(nodes: Array<Node>): string {
-  let nodesString = nodes.map((node) => nodeToString(node,0)).join("\n----------------------------------------\n");
-  return "----------------------------------------\nNODES\n----------------------------------------\n" + nodesString + "\n----------------------------------------\n";  
+  let divider = "\n----------------------------------------\n";
+  let nodesString = nodes.map((node) => nodeToString(node,0)).join("\n----------------------------------------\n");  
+  return divider + nodesString + divider;
 }
 
 export function tokenToString(token: Token): string {
@@ -1480,8 +1503,9 @@ export function tokenToString(token: Token): string {
 }
 
 export function tokenArrayToString(tokens: Array<Token>): string {
+  let divider = "\n----------------------------------------\n";
   let tokenArrayString = tokens.map((token) => tokenToString(token)).join("\n");
-  return "----------------------------------------\nTOKENS\n----------------------------------------\n" + tokenArrayString + "\n----------------------------------------\n";
+  return divider + tokenArrayString + divider;
 }
 
 // ----------------------------------------------------------------------------
