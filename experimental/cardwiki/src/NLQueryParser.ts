@@ -926,10 +926,7 @@ function formTree(tokens: Array<Token>): Array<any> {
   
   // THIS IS WHERE THE MAGIC HAPPENS!
   // Go through each node array and try to resolve entities
-  let entities: Array<Entity> = [];
-  let collections: Array<Collection> = [];
-  let attributes: Array<Attribute> = [];
-  let maybeAttributes: Array<Node> = [];
+
   function resolveEntities(node: Node): Node {
     console.log(node);
     let found = false;
@@ -946,6 +943,27 @@ function formTree(tokens: Array<Token>): Array<any> {
       if (fxn.function !== "") {
         console.log(fxn);
         found = true;
+      }
+    }
+    // If there is a backward relationship e.g. age of Corey, then try to find attrs
+    // in the maybeAttr stack
+    if (!found && hasProperty(node,TokenProperties.BACKRELATIONSHIP)) {
+      for (let maybeAttr of maybeAttributes) {
+        // Find the parent entities and try to match attributes
+        let parentsEntities = node.parents.map((node) => node.entity);
+        let flatParentsEntities = [].concat.apply([],parentsEntities);
+        for (let entity of flatParentsEntities) {
+          if (entity === undefined) {
+            continue;
+          } else {
+            let attribute = findAttribute(maybeAttr.name,entity);
+            if (attribute !== undefined) {
+              maybeAttr.attribute = attribute;
+              attributes.push(attribute);  
+              found = true;
+            }
+          }
+        }
       }
     }
     // If the node is a pronoun, find an entity to substitute
@@ -1026,33 +1044,30 @@ function formTree(tokens: Array<Token>): Array<any> {
       }
     }
     
-    // If we still haven't found anything, it's probably an attribute
+    // If we still haven't found anything, it's probably an attribute we can find later
     if (!found) {
       maybeAttributes.push(node);
     }
-    
-    // We just found an entity or collection! Do something with that information
-    if (found) {
-      // If there is a backward relationship e.g. age of Corey, then try to find attrs
-      // in the maybeAttr stack
-      if (hasProperty(node,TokenProperties.BACKRELATIONSHIP)) {
-        for (let maybeAttr of maybeAttributes) {
-          let attribute = findAttribute(maybeAttr.name,node.entity);
-          maybeAttr.attribute = attribute;
-          attributes.push(attribute);
-        }
-      }
-    }
-    
+
     // Do the same for all the children
     node.children.map(resolveEntities);
     
     return node;
   }
   console.log("Finding Entities!");
+  let entities: Array<Entity> = [];
+  let collections: Array<Collection> = [];
+  let attributes: Array<Attribute> = [];
+  let maybeAttributes: Array<Node> = [];
   for (let root of roots) {
     root = resolveEntities(root);
+    entities = [];
+    collections = [];
+    attributes = [];
+    maybeAttributes = [];
   }
+  
+  console.log(nodeArrayToString(roots));
   
   // Pull out comparator nodes
   
