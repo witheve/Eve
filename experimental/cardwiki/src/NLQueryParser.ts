@@ -909,9 +909,10 @@ function formTree(tokens: Array<Token>): Array<any> {
         nodeStack = [];
       // If there is no conjunction stack, just push everything
       } else {
-        n.children = n.children.concat(separatorStack);
-        n.children = n.children.concat(nodeStack);
-        conjunctionStack.push(n)
+        node.children = node.children.concat(separatorStack);
+        node.children = node.children.concat(nodeStack);
+        node.children.map((child) => child.parent = n);
+        conjunctionStack.push(node)
         separatorStack = [];
         nodeStack = [];
       }
