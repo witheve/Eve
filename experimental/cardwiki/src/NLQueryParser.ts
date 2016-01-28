@@ -153,7 +153,7 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
         }
         if (token.POS === MinorPartsOfSpeech.PP ||
             token.POS === MinorPartsOfSpeech.PRP) {
-          token.properties.push(TokenProperties.REFERENCE);
+          token.properties.push(TokenProperties.PRONOUN);
         }
       }
       
@@ -238,6 +238,9 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
           break;
         case "do":
           token.POS = MinorPartsOfSpeech.VBP;
+          break;
+        case "thier":
+          token.properties.push(TokenProperties.PLURAL);
           break;
         case "most":
           token.POS = MinorPartsOfSpeech.JJS;
@@ -695,7 +698,7 @@ enum TokenProperties {
   QUANTITY,
   COMPARATIVE,
   SUPERLATIVE,
-  REFERENCE,  
+  PRONOUN,  
   SEPARATOR,
   CONJUNCTION,
 }
@@ -842,7 +845,7 @@ function formTree(tokens: Array<Token>): Array<any> {
       parents: [],
       children: flatChildren,
       token: token, 
-      properties: [],
+      properties: flatProperties,
     };
     // Rewire children
     adjacentPNouns.map((node) => {
@@ -936,6 +939,35 @@ function formTree(tokens: Array<Token>): Array<any> {
       console.log("Skipping");
       found = true;
     }
+    // Attempt to match a function
+    if (!found) {
+      console.log("Search for a built in function")
+      let fxn = wordToFunction(node.name);
+      if (fxn.function !== "") {
+        console.log(fxn);
+        found = true;
+      }
+    }
+    // If the node is a pronoun, find an entity to substitute
+    if (!found && hasProperty(node,TokenProperties.PRONOUN)) {
+      console.log("Pronoun: finding reference");
+      // If the pronoun is plural, the entity is probably the latest collection
+      if (hasProperty(node,TokenProperties.PLURAL)) {
+        let collection = collections[collections.length - 1];
+        if (collection !== undefined) {
+          console.log(collection.displayName);
+          node.collection = collection;
+          found = true;
+        }
+      } else {
+        let entity = entities[entities.length - 1];
+        if (entity !== undefined) {
+          console.log(entity.displayName);
+          node.entity = entity;
+          found = true;
+        }
+      }
+    }
     // If the node is possessive or proper, it's probably an entity
     if (!found && (hasProperty(node,TokenProperties.POSSESSIVE) || hasProperty(node,TokenProperties.PROPER))) {
       console.log("Possessive: finding entity");
@@ -977,25 +1009,18 @@ function formTree(tokens: Array<Token>): Array<any> {
       }      
       
     }
-    // Attempt to match a function
-    if (!found) {
-      console.log("Search for a built in function")
-      let fxn = wordToFunction(node.name);
-      if (fxn.function !== "") {
-        console.log(fxn);
-        found = true;
-      }
-    }
-    
+        
     // If we've gotten here and we haven't found anything, go crazy with searching
     if (!found) {
       console.log("Find this thing anywhere we can");
       let entity = findEntityByDisplayName(node.name);
       if (entity !== undefined) {
+        entities.push(entity);
         found = true;
       } else {
         let collection = findCollection(node.name);
         if (collection !== undefined) {
+          collections.push(collection);
           found = true;
         }  
       }
@@ -1026,7 +1051,7 @@ function formTree(tokens: Array<Token>): Array<any> {
   }
   console.log("Finding Entities!");
   for (let root of roots) {
-    //root = resolveEntities(root);
+    root = resolveEntities(root);
   }
   
   // Pull out comparator nodes
