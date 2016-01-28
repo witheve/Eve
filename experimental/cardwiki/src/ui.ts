@@ -682,241 +682,83 @@ function getEntitiesFromResults(results:{[field:string]: any}[], {fields = ["ent
   return entities;
 }
 
-let _reps:{[rep:string]: {embed: (results:{}[], params:{paneId?:string, [p:string]: any}) => any, represent: (params:any) => Element}} = {
-  attributes: {
-    embed(results, params:{field?:string, data?:{}}) {
-      let entities = getEntitiesFromResults(results, {fields: params.field ? [params.field] : undefined});
-      if(entities.length > 1) return entities.map((entity) => ({id: entity, data: params.data}));
-      else return {entityId: entities[0], data: params.data};
-    },
-    represent({entityId, data}) {
-      let attributes = [];
-      for(let eav of eve.find("entity eavs", {entity: entityId})) attributes.push({attribute: eav.attribute, value: eav.value});
-      return _reps["table"].represent({results: attributes, data});
-    }
-  },
-  name: {
-    embed(results, params:{field?:string, data?:{}}) {
-      let entities = getEntitiesFromResults(results, {fields: params.field ? [params.field] : undefined});
-      if(entities.length > 1) return entities.map((entity) => ({id: entity, data: params.data}));
-      else return {id: entities[0], data: params.data};
-    },
-    represent({id, data, t = undefined}) {
-      let {name = id} = eve.findOne("display name", {id}) || {};
-      let isEntity = eve.findOne("entity", {entity: id});
-      return {t: t || "span", c: "entity link inline", text: name, data, link: isEntity? id : undefined, click: navigate, peek: true};
-    }
-  },
-  value: {
-    embed(results, params:{field:string, type?:string, data?:{}}) {
-      if(!params.field) throw new Error("Value representation requires a 'field' param indicating which field to represent");
-      let field = params.field;
-      // If field isn't in results, try to resolve it as a field name, otherwise error out
-      if(results.length && results[0][field] === undefined) {
-        let potentialIds = eve.find("display name", {name: field});
-        let neueField;
-        for(let display of potentialIds) {
-          if(results[0][display.id] !== undefined) {
-            if(neueField === undefined) neueField = display.id;
-            else {
-              neueField = undefined;
-              break
-            }
-          }
-        }
-        if(!neueField) throw new Error(`Unable to uniquely resolve field name ${field} in result fields ${Object.keys(results[0])}`);
-        else field = neueField;
-      }
-
-      let values = [];
-      for(let row of results) values.push(row[field]);
-      return {values, type: params.type || "inline", data: params.data};
-    },
-    represent({values, type = "inline", data}:{values:any[], type:string, data:{}}) {
-      let children = [];
-      for(let val of values) {
-        if(eve.findOne("entity", {entity: val})) children.push(_reps["name"].represent({id: val, data, t: type === "list" ? "li" : undefined}));
-        else children.push({t: type === "list" ? "li" : "span", text: val});
-      }
-      if(type === "inline") return {t: "span", c: "flex-row flex-wrap csv value inline", children};
-      if(type === "list") return {t: "ul", c: "value", children};
-    }
-  },
-  related: {
-    embed(results, params:{data?:{}, field?:string}) {
-      let entities = getEntitiesFromResults(results, {fields: params.field ? [params.field] : undefined});
-      if(entities.length > 1) return entities.map((entity) => ({entityId: entity, data: params.data}));
-      else return {entityId: entities[0], data: params.data};
-    },
-    represent({entityId, data}) {
-      let {name = entityId} = eve.findOne("display name", {id: entityId}) || {};
-      let relations = [];
-      for(let link of eve.find("directionless links", {entity: entityId})) relations.push(link.link);
-      let elem:Element = {c: "flex-row flex-wrap csv"};
-      if(relations.length) {
-        return {c: "flex-row flex-wrap csv", children: [
-          {t: "h2", text: `${name} is related to:`},
-          _reps["value"].represent({values: relations, data})
-        ]};
-      }
-      return {text: `${name} is not related to any other entities.`};
-    }
-  },
-  index: {
-    embed(results, params:{data?:{}, field?:string}) {
-      let entities = getEntitiesFromResults(results, {fields: params.field ? [params.field] : undefined});
-      if(entities.length > 1) return entities.map((entity) => ({entityId: entity, data: params.data}));
-      else return {entityId: entities[0], data: params.data};
-    },
-    represent({entityId, data}) {
-      let {name = entityId} = eve.findOne("display name", {id: entityId}) || {};
-
-      let facts = eve.find("is a attributes", {collection: entityId});
-      return {children: [
-        {t: "h2", text: `There ${pluralize("are", facts.length)} ${facts.length} ${pluralize(name, facts.length)}:`},
-        {t: "ul", children: facts.map((fact) => _reps["name"].represent({t: "li", id: fact.entity, data}))}
-      ]};
-    }
-  },
-  table: {
-    embed(results, params:{data?: {}}) {
-      return {results, data: params.data};
-    },
-    represent({results, data}) {
-      if(!results.length) return {text: "<Empty Table>"};
-      let fields = Object.keys(results[0]);
-      let fieldIx = 0;
-      while(fieldIx < fields.length) {
-        if(fields[fieldIx] === "__id") fields.splice(fieldIx, 1);
-        else if(fields[fieldIx].indexOf("$$temp") === 0) fields.splice(fieldIx, 1);
-        else fieldIx++;
-      }
-      return {c: "table", children: [
-        {t: "header", children: fields.map((field) => ({c: "column field", children: [_reps["value"].represent({values: [field], data})]}))},
-        {c: "body", children: results.map((row) => ({
-          c: "group",
-          children: fields.map((field) => {
-            let value = _reps["value"].represent({values: [row[field]], data});
-            value.c = (value.c || "") + "column field";
-            return value;
-          })
-        }))}
-      ]};
-    }
-  },
-  results: {
-    embed(results, params:{data?: {}, field?: string}) {
-      let entities = getEntitiesFromResults(results, {fields: params.field ? [params.field] : undefined});
-      let opts = entities.map((query) => {
-        let artifacts = eve.find("entity eavs", {entity: query, attribute: "artifact"}).map((fact) => fact.value)
-        return {query, artifacts, data: params.data};
-      });
-      
-      if(opts.length > 1) return opts;
-      else return opts[0];
-    },
-    represent({query, artifacts, data}) {
-      return {children: [
-        //{t: "h3", text: eve.findOne("entity eavs", {entity: query, attribute: "content"}).value},
-        {c: "artifacts", children: artifacts.map((view) => ({c: "artifact", children: [
-          {t: "h4", text: `${(eve.findOne("display name", {id: view}) || {name: ""}).name} (${view})`},
-          _reps["table"].represent({results: eve.find(view), data})
-        ]}))}
-      ]};
-    }
-  },
-  directory: {
-    embed(results, params:{data?:{}, field?:string}) {
-      let entities = getEntitiesFromResults(results, {fields: params.field ? [params.field] : undefined});
-      if(entities.length === 1) {
-        let collection = entities[0];
-        entities.length = 0;
-        for (let fact of eve.find("is a attributes", {collection})) entities.push(fact.entity);
-      }
-      return {entities, data: params.data};
-    },
-    represent({entities:rawEntities, data}:{entities:string[], data:{}}) {
-      let {systems, collections, entities, relatedness, collectionSize} = classifyEntities(rawEntities);
-      collections.sort((a, b) =>
-                    (collectionSize[a] === collectionSize[b]) ? 0 :
-                    (collectionSize[a] === undefined) ? 1 :
-                    (collectionSize[b] === undefined) ? -1 :
-                    (collectionSize[a] > collectionSize[b]) ? -1 : 1);
-
-
-      // @TODO: Highlight important system entities (e.g., entities, collections, orphans, etc.)
-      // @TODO: Include dropdown pane of all other system entities
-      // @TODO: Highlight the X largest user collections. Ghost in examples if not enough (?)
-      // @TODO: Include dropdown pane of all other user collections (sorted alphh or # ?, inc. sorter?)
-      // @TODO: Highlight the X (largest? most related?) entities (ghost examples if not enough (?)
-      // @TODO: Include dropdown pane of other entities
-      
-      
-      return {c: "flex-column", children: [
-        {c: "flex-column", children: collections.map(
-          (entity) => ({c: "spaced-row flex-row", children: [_reps["name"].represent({id: entity, data}), {c: "flex-grow"}, {text: ""+collectionSize[entity]}]})
-        )},
-        {t: "hr"},
-        {c: "flex-column", children: entities.map(
-          (entity) => _reps["name"].represent({id: entity, data})
-        )},
-        {t: "hr"},
-        {c: "flex-column", children: systems.map(
-          (entity) => _reps["name"].represent({id: entity, data})
-        )}
-      ]};
-    }
+function prepareEntity(results:{}[], params:{field?:string}) {
+  let elem = {};
+  let entities = getEntitiesFromResults(results, {fields: params.field ? [params.field] : undefined});
+  let elems = [];
+  for(let entity of entities) {
+    let elem = copy(params);
+    elem.entity = entity;
+    elems.push(elem);
   }
-};
-
-function classifyEntities(rawEntities:string[]) {
-  let entities = rawEntities.slice();
-  let collections:string[] = [];
-  let systems:string[] = [];
-
-  // Measure relatedness of entities
-  let relatedness:{[entity:string]: number} = {};
-  for(let entity of entities) relatedness[entity] = eve.find("directionless links", {entity}).length;
-  
-  // Separate system entities
-  let ix = 0;
-  while(ix < entities.length) {
-    if(eve.findOne("is a attributes", {collection: builtinId("system"), entity: entities[ix]})) {
-      systems.push(entities[ix]);
-      entities.splice(ix, 1);
-    } else ix++;
-  }
-  
-  // Separate user collections from other entities
-  ix = 0;
-  let collectionSize:{[collection:string]: number} = {};
-  while(ix < entities.length) {
-    let fact = eve.findOne("collection", {collection: entities[ix]});
-    if(fact) {
-      collectionSize[entities[ix]] = fact.count;
-      collections.push(entities[ix]);
-      entities.splice(ix, 1);
-    } else ix++;
-  }
-
-  return {systems, collections, entities, relatedness, collectionSize};
+  if(elems.length === 1) return elems[0];
+  else return elems;
 }
+let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: any}) => any} = {
+  name: prepareEntity,
+  link: prepareEntity,
+  attributes: prepareEntity,
+  related: prepareEntity,
+  index: prepareEntity,
+  view: prepareEntity,
+  results: prepareEntity,
+
+  value(results, params:{field:string, data?:{}}) {
+    if(!params.field) throw new Error("Value representation requires a 'field' param indicating which field to represent");
+    let field = params.field;
+    if(!results.length) return [];
+    
+    // If field isn't in results, try to resolve it as a field name, otherwise error out
+    if(results[0][field] === undefined) {
+      let potentialIds = eve.find("display name", {name: field});
+      let neueField;
+      for(let display of potentialIds) {
+        if(results[0][display.id] !== undefined) {
+          if(neueField) {
+            neueField = undefined;
+            break;
+          }
+          neueField = display.id;
+        }
+      }
+      if(!neueField) throw new Error(`Unable to uniquely resolve field name ${field} in result fields ${Object.keys(results[0])}`);
+      else field = neueField;
+    }
+
+    let elems = [];
+    for(let row of results) elems.push({text: row[field], data: params.data});
+    return elems;
+  },
+  table(results, params:{data?: {}}) {
+    return {rows: results, data: params.data};
+  },
+  directory(results, params:{data?:{}, field?:string}) {
+    let entities = getEntitiesFromResults(results, {fields: params.field ? [params.field] : undefined});
+    if(entities.length === 1) {
+      let collection = entities[0];
+      entities.length = 0;
+      for (let fact of eve.find("is a attributes", {collection})) entities.push(fact.entity);
+    }
+    return {entities, data: params.data};
+  },
+};
 
 function represent(rep:string, results, params:{}):Element {
   //console.log("repping:", results, " as", rep, " with params ", params);
-  if(rep in _reps) {
-    let embedParamSets = _reps[rep].embed(results.results, <any>params);
+  if(rep in _prepare) {
+    let embedParamSets = _prepare[rep](results.results, <any>params);
+    console.log(rep, embedParamSets);
     if(embedParamSets.constructor === Array) {
       let wrapper = {c: "flex-column", children: []};
       for(let embedParams of embedParamSets) {
         embedParams["data"] = embedParams["data"] = params;
-        wrapper.children.push(_reps[rep].represent(embedParams));
+        wrapper.children.push(uitk[rep](embedParams));
       }
       return wrapper;
     } else {
       let embedParams = embedParamSets;
       embedParams["data"] = embedParams["data"] = params;
-      return _reps[rep].represent(embedParams);
+      return uitk[rep](embedParams);
     }
   }
 }
