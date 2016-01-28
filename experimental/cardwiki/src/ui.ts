@@ -380,7 +380,12 @@ function cellUI(paneId, query):Element {
   let subRenderer = new Renderer();
   let results;
   if(params["noResults"]) {
-    results = {unprojected: [{entity: content}], results: [{entity: content}], provenance: [], groupInfo: []};
+    let id = content;
+    let display = eve.findOne("display name", {name: content});
+    if(display) {
+      id = display["id"];
+    }
+    results = {unprojected: [{entity: id}], results: [{entity: id}], provenance: [], groupInfo: []};
   } else {
     let {executable} = activeSearches[content];
     results = executable.exec();
@@ -392,7 +397,7 @@ function getCellParams(content, rawParams) {
   content = content.trim();
   let display = eve.findOne("display name", {name: content});
   let params = parseParams(rawParams);
-  let contentDisplay = eve.findOne("display name", {id: content});
+  let contentDisplay = eve.findOne("display name", {id: content}) || eve.findOne("display name", {name: content});
   if(contentDisplay) {
     params["rep"] = params["rep"] || "name";
     params["noResults"] = true;
