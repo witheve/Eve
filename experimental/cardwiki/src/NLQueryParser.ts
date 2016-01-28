@@ -111,6 +111,7 @@ interface Token {
   POS: MinorPartsOfSpeech;
   properties: Array<TokenProperties>,
   node?: Node,
+  toString(): string;
 }
 
 enum TokenProperties {
@@ -800,7 +801,7 @@ function wordToFunction(word: string): BuiltInFunction {
 }
 
 function formTree(tokens: Array<Token>): Node {  
-  let root: Node;
+  let tree: Node;
   let subsumedNodes: Array<Node> = [];
   
   // First, find noun groups
@@ -824,27 +825,81 @@ function formTree(tokens: Array<Token>): Node {
   
   // At this point we should only have a single root. 
   nodes = nodes.filter((node) => node.parent === undefined);
-  root = nodes.pop();
+  tree = nodes.pop();
   
   console.log(nodeArrayToString(nodes));
   
-  function splitNodes(node: Node): void {
-    console.log(node);
-    
-    let children = node.children;
-    if (node.hasProperty(TokenProperties.ROOT)) {
-      console.log("ROOT!!!");
+  // Split nodes
+  tokens.forEach((token, i) => {
+    function reroot(node: Node, target: Node): void {
+      node.parent.children.splice(node.parent.children.indexOf(node),1);  
+      node.parent = target;
+      target.children.push(node);
     }
-    
-    if (node.hasProperty(TokenProperties.CONJUNCTION)) {
-      console.log("CONJUNCTION!!");
+    function findWithProperty(node: Node, property: TokenProperties): Node {
+      if (node.hasProperty(TokenProperties.ROOT)) {
+        return undefined;
+      }
+      if (node.parent.hasProperty(property)) {
+        return node.parent;
+      } else {
+        return findWithProperty(node.parent,property);
+      } 
     }
+    function findWithPOS(node: Node, majorPOS: MajorPartsOfSpeech): Node {
+      if (getMajorPOS(node.token.POS) === MajorPartsOfSpeech.ROOT) {
+        return undefined;
+      }
+      if (getMajorPOS(node.token.POS) === majorPOS) {
+        return node.parent;
+      } else {
+        return findWithPOS(node.parent,majorPOS);
+      } 
+    }
+    function removeNode(node): void {
+      let parent: Node = node.parent;
+      let children: Array<Node> = node.children;
+      // Rewire
+      parent.children = parent.children.concat(children);
+      parent.children.sort((a,b) => a.ix - b.ix);
+      children.map((child) => child.parent = parent);
+      // Get rid of references on current node
+      parent.children.splice(parent.children.indexOf(node),1);
+      node.parent = undefined;
+      node.children = [];
+    }
+    //----------------------------
+    let root = tokens[0].node;
+    let node = token.node;
     
-  }
-
-  splitNodes(root);
-  
-  console.log(nodeToString(root,0));
+    console.log(tokenToString(token));
+    
+    // If the token is a semicolon, break and place the rest on the root
+    if (node.hasProperty(TokenProperties.SEPARATOR) && node.name === ";") {
+      reroot(node,root);
+      removeNode(node);
+    // If the node is a comma, break and place on the nearest proper noun or noun
+    } else if (node.hasProperty(TokenProperties.SEPARATOR) && node.name === ",") {
+      let properNode = findWithProperty(node,TokenProperties.PROPER);
+      if (properNode !== undefined) {
+        // reroot on proper node
+        reroot(node,properNode);
+        removeNode(node);
+      } else {
+        let nounNode = findWithPOS(node,MajorPartsOfSpeech.NOUN);
+        if (nounNode !== undefined) {
+          // if no proper nouns, reroot on noun node
+          reroot(node,nounNode);
+          removeNode(node);
+        }
+      }
+    } else if (node.hasProperty(TokenProperties.PROPER)) {
+    
+    }
+  });
+    
+    
+  console.log(nodeToString(tree,tree.ix));
   
   
   return;
@@ -1267,7 +1322,7 @@ function formTree(tokens: Array<Token>): Node {
     }
   }*/
 
-  return root;
+  return tree;
   
   // Heuristic: don't include verbs at this stage
   
