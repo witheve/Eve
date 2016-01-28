@@ -1,15 +1,16 @@
 declare var pluralize; // @TODO: import me.
 
 import {parse as marked, Renderer as MarkedRenderer} from "../vendor/marked";
-/// <reference path="codemirror/codemirror.d.ts" />
 import * as CodeMirror from "codemirror";
+import {copy, uuid, coerceInput, builtinId, autoFocus, KEYS, mergeObject, setEndOfContentEditable} from "./utils";
 import {Diff} from "./runtime";
 import {createEditor} from "./richTextEditor";
 import {Element, Handler, RenderHandler, Renderer} from "./microReact";
+import * as uitk from "./uitk";
 import {eve, handle as appHandle, dispatch, activeSearches} from "./app";
 import {StepType, queryToExecutable} from "./queryParser";
 import {parseDSL} from "./parser";
-import {copy, uuid, coerceInput, builtinId, autoFocus, KEYS, mergeObject, setEndOfContentEditable} from "./utils";
+
 
 enum PANE { FULL, WINDOW, POPOUT };
 enum BLOCK { TEXT, PROJECTION };
