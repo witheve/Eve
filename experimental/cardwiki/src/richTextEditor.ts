@@ -218,6 +218,7 @@ export function createEditor(node, elem) {
         let dom = document.createElement("div");
         dom.id = `${elem["meta"].paneId}|${cell.id}|container`;
         let mark = cm.markText(cm.posFromIndex(cell.start), cm.posFromIndex(cell.start + cell.length), {replacedWith: dom});
+        dom["mark"] = mark;
         editor.marks[cell.id] = mark;
       }
     }

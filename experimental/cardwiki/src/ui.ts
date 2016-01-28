@@ -450,6 +450,7 @@ function reparentCell(node, elem) {
   if(node.parentNode.id !== elem.containerId) {
     document.getElementById(elem.containerId).appendChild(node);
   }
+  node.parentNode["mark"].changed();
 }
 
 //---------------------------------------------------------
