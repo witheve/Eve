@@ -709,17 +709,10 @@ interface Node {
   properties: Array<TokenProperties>,
 }
 
-/*function flattenNounGroups(nounGroups: Array<NounGroup>): string {
-  let flatString: string = nounGroups.map((ng: NounGroup) => {
-    let noun = ng.token.normalizedWord;
-    return `${noun}`;
-  }).join(" ");
-  return flatString;
-}*/
-
 // Transfer noun group properties to a node
 function subsumeProperties(node: Node, nounGroup: Node) {
   node.properties = nounGroup.properties;
+    
   // If the noungroup contains "of" this implies a backward
   // relationship between this NG and a previous NG
   // e.g. age of Corey => Corey's age
@@ -753,7 +746,7 @@ function newNode(token: Token): Node {
     properties: token.properties,
   };
   token.node = node;
-  return node;
+  return node;  
 }
 
 interface BuiltInFunction {
@@ -795,7 +788,6 @@ function formTree(tokens: Array<Token>): Array<any> {
   let unusedNodes = tokens.filter((token) => token.node === undefined).map(newNode);
   
   console.log(nodeArrayToString(nodes));
-  
   
   return [];
   
