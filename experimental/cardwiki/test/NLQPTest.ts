@@ -52,15 +52,15 @@ function parseTest(queryString: string, n: number) {
   }
   eve.applyDiff(changeset);*/
   //console.log("-------------------------------------------------------------------------------------------");
-  //console.log(timingDisplay);
+  console.log(timingDisplay);
   //console.log("===========================================================================================");
 }
 
 let n = 1;
 let phrases = [
-  "Corey Montella's age, height, and gender; and his wife's height"
+  "age of Corey Montella's wife's",
   //"Pets longer than snakes",
-  //"Corey Montella's height, weight, age",
+  //"Corey Montella's height, gender, age",
   //"Steve's age and salary",
   //`age, height, and gender of "Corey Montella" and his nationality and age; and age and gender of "Rachel Romain Fay Montella" and her husband's wife's sister's height; and Corey's age`,
   //`"Corey Montella's" Wife's sister's age; and age and gender of "Rachel Romain Fay Montella" and her height; and Olivia Fay age, height, and gender; and pets shorter than snakes; and sum of salaries per department`,

@@ -935,6 +935,20 @@ function formTree(tokens: Array<Token>): Node {
       target.children.map((n) => n.parent = node);
       target.children = [node];
     }
+    // Sets node to be a sibling of its parent
+    function promoteNode(node: Node): void {
+      if (node.parent.hasProperty(TokenProperties.ROOT)) {
+        return;
+      }
+      let newSibling = node.parent;
+      let newParent = newSibling.parent;
+      // Set parent
+      node.parent = newParent;
+      // Remove node from parent's children
+      newSibling.children.splice(newSibling.children.indexOf(node),1);
+      // Add node to new parent's children
+      newParent.children.push(node);
+    }
     function swapNodeWithParent(node: Node): void {
       let parent = node.parent;
       // Do not swap with root, instead, set everything as the children of the node
@@ -978,6 +992,10 @@ function formTree(tokens: Array<Token>): Node {
           removeNode(node);
         }
       }
+    // Heuristic: If the node is "of", confer its properties onto its parent and delete the node
+    } else if (node.hasProperty(TokenProperties.BACKRELATIONSHIP) && node.name === "of") {
+      node.parent.properties.push(TokenProperties.BACKRELATIONSHIP);
+      removeNode(node);
     // Heuristic: If the node is proper but not quoted, see if the next node is proper and 
     // if so create a compound node from the two
     } else if (node.hasProperty(TokenProperties.PROPER) && !node.hasProperty(TokenProperties.QUOTED)) {
@@ -1005,9 +1023,8 @@ function formTree(tokens: Array<Token>): Node {
     } else if (node.hasProperty(TokenProperties.COMPARATIVE)) {
       swapNodeWithParent(node);
     } else if (node.hasProperty(TokenProperties.CONJUNCTION)) {
-      swapNodeWithParent(node);
+      promoteNode(node);
     }
-    
     i++;
   }
     
@@ -1022,7 +1039,8 @@ function formTree(tokens: Array<Token>): Node {
 
   // THIS IS WHERE THE MAGIC HAPPENS!
   // Go through each node array and try to resolve entities
-  function resolveEntities(node: Node, context: Context) {
+  function resolveEntities(node: Node, context: Context): Context {
+    console.log(node);
     let found = false;
     
     // Skip certain nodes
@@ -1033,7 +1051,7 @@ function formTree(tokens: Array<Token>): Node {
     }
     // If the node is possessive or proper, it's probably an entity
     if (!found && (node.hasProperty(TokenProperties.POSSESSIVE) || node.hasProperty(TokenProperties.PROPER))) {
-      console.log("Possessive: finding entity");
+      console.log("Possessive or Proper: finding entity");
       let entity = findEntityByDisplayName(node.name);
       if (entity !== undefined) {
         context.entities.push(entity);
@@ -1042,49 +1060,58 @@ function formTree(tokens: Array<Token>): Node {
         found = true;
       }
     }
-    node.children.map((child) => resolveEntities(child,context));
-    
-  }
-  
-  
-  /*
-  function resolveEntities(node: Node, context: Context): Node {
-    function foundEntities(node: Node): Array<Entity> {
-      return [];
-    }
-    
-    console.log(node);
-    let found = false;
-    
-    // Skip certain nodes
-    if (node.hasProperty(TokenProperties.FUNCTION) ||
-        node.hasProperty(TokenProperties.ROOT)) {
-      console.log("Skipping");
-      found = true;
+    // Try to find an attribute
+    if (!found && (context.entities.length !== 0 || context.collections.length !== 0)) {
+      console.log("Entity/Collection already found: finding attribute");
+      let entity = context.entities[context.entities.length - 1];
+      if (entity !== undefined) {
+        let attribute = findAttribute(node.name,entity);
+        if (attribute !== undefined) {
+          context.attributes.push(attribute);
+          node.attribute = attribute;
+          attribute.node = node;
+          // If the attribute is possessive, check to see if it is an entity
+          if (node.hasProperty(TokenProperties.POSSESSIVE) || node.hasProperty(TokenProperties.BACKRELATIONSHIP)) {
+            let entity = findEntityByID(`${attribute.dbValue}`); // @HACK force string | number into string
+            if (entity != undefined) {
+              context.entities.push(entity);
+              entity.node = node;
+              node.entity = entity;
+            }
+          }
+          found = true;
+        }
+      }      
     }
     // If there is a backward relationship e.g. age of Corey, then try to find attrs
     // in the maybeAttr stack
-    if (!found && node.hasProperty(TokenProperties.BACKRELATIONSHIP)) {
+    if (node.hasProperty(TokenProperties.BACKRELATIONSHIP)) {
       console.log("Backrelationship: Searching for previously unmatched attributes");
-      for (let maybeAttr of maybeAttributes) {
+      // If the node is possessive, transfer the backrelationship to its children
+      if (node.hasProperty(TokenProperties.POSSESSIVE)) {
+        node.children.map((child) => child.properties.push(TokenProperties.BACKRELATIONSHIP));
+        node.properties.splice(node.properties.indexOf(TokenProperties.BACKRELATIONSHIP),1);
+      }
+      for (let maybeAttr of context.maybeAttributes) {
         // Find the parent entities and try to match attributes
-        let entity = node.parent.entity;
-        console.log(entity);
+        let entity = node.entity;
         if (entity === undefined) {
           let collection = node.parent.collection;
           // TODO find relationship between collection and attribute
         } else {
-          let attribute = findAttribute(maybeAttr.name,entity);
+          console.log(maybeAttr.normalizedWord);
+          console.log(entity.displayName);
+          let attribute = findAttribute(maybeAttr.normalizedWord,entity);
           if (attribute !== undefined) {
-            maybeAttr.attribute = attribute;
+            maybeAttr.node.attribute = attribute;
             context.attributes.push(attribute);  
-            attribute.node = maybeAttr;
+            attribute.node = maybeAttr.node;
             found = true;
           }
         }
       }
     }
-    // If the node is a pronoun, find an entity to substitute
+    // If the node is a pronoun, try to find the entity it references
     if (!found && node.hasProperty(TokenProperties.PRONOUN)) {
       console.log("Pronoun: finding reference");
       // If the pronoun is plural, the entity is probably the latest collection
@@ -1104,50 +1131,6 @@ function formTree(tokens: Array<Token>): Node {
         }
       }
     }
-    // If the node is possessive or proper, it's probably an entity
-    if (!found && (node.hasProperty(TokenProperties.POSSESSIVE) || node.hasProperty(TokenProperties.PROPER))) {
-      console.log("Possessive: finding entity");
-      let entity = findEntityByDisplayName(node.name);
-      if (entity !== undefined) {
-        context.entities.push(entity);
-        entity.node = node;
-        node.entity = entity;
-        found = true;
-      }
-    }
-    // If the node is plural, it's probably a collection
-    if (!found && node.hasProperty(TokenProperties.PLURAL)) {
-      console.log("Plural: finding collection");
-      let collection = findCollection(node.name);
-      if (collection !== undefined) {
-        context.collections.push(collection);
-        found = true;
-      }
-    }
-    // Try to find an attribute
-    if (!found && (context.entities.length !== 0 || context.collections.length !== 0)) {
-      console.log("Entity/Collection already found: finding attribute");
-      let entity = context.entities[context.entities.length - 1];
-      if (entity !== undefined) {
-        let attribute = findAttribute(node.name,entity);
-        if (attribute !== undefined) {
-          context.attributes.push(attribute);
-          node.attribute = attribute;
-          attribute.node = node;
-          // If the attribute is possessive, check to see if it is an entity
-          if (node.hasProperty(TokenProperties.POSSESSIVE)) {
-            let entity = findEntityByID(`${attribute.dbValue}`); // @HACK force string | number into string
-            if (entity != undefined) {
-              context.entities.push(entity);
-              entity.node = node;
-              node.entity = entity;
-            }
-          }
-          found = true;
-        }
-      }      
-    }
-        
     // If we've gotten here and we haven't found anything, go crazy with searching
     if (!found) {
       console.log("Find this thing anywhere we can");
@@ -1168,17 +1151,25 @@ function formTree(tokens: Array<Token>): Node {
       }
     }
     
-    // If we still haven't found anything, it's probably an attribute we can find later
     if (!found) {
       context.maybeAttributes.push(node.token);
     }
-
-    // Do the same for all the children
+    
+    
+    // Resolve the child nodes
     node.children.map((child) => resolveEntities(child,context));
     
-    return node;
+    
+   
+    
+    return context;
+    
+    // If we're here and we still haven't found anything, maybe
+    // context gained from the children will help identify the node
+    /*if (!found) {
+      
+    } */
   }
-
   
   // rewire matched nodes to the correct parents
   /*for (let token of tokens) {
@@ -1200,6 +1191,7 @@ function formTree(tokens: Array<Token>): Node {
   console.log("Finding Entities!");
   let context = newContext();
   resolveEntities(tree,context);
+  console.log(context);
   
   console.log(nodeToString(tree,0));
   
@@ -1667,7 +1659,7 @@ export function nodeToString(node: Node, depth: number): string {
   let spacing = Array(depth+1).join(" ");
   let index = node.ix === undefined ? "+ " : `${node.ix}: `;
   let properties = `(${node.properties.map((property: TokenProperties) => TokenProperties[property]).join("|")})`;
-  let attribute = node.attribute === undefined ? "" : `[${node.attribute.dbValue}] `;
+  let attribute = node.attribute === undefined ? "" : `[${node.attribute.dbValue} (${node.attribute.value})] `;
   let entity = node.entity === undefined ? "" : `[${node.entity.displayName}] `;
   let collection = node.collection === undefined ? "" : `[${node.collection.displayName}] `;
   let fxn = node.fxn === undefined ? "" : `[${node.fxn.fxn}] `;
