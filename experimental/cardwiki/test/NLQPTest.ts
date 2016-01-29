@@ -41,8 +41,8 @@ function parseTest(queryString: string, n: number) {
   //console.log(tokenStrings);
   //console.log("-------------------------------------------------------------------------------------------");
   //console.log(nlqp.nounGroupArrayToString(parseResult.tree));
-  //console.log("-------------------------------------------------------------------------------------------");
-  //console.log(parseResult.ast);
+  console.log("-------------------------------------------------------------------------------------------");
+  console.log(parseResult.ast);
   /*let artifacts = dslparser.parseDSL(parseResult.ast);
   let changeset = eve.diff();;
   for (let id in artifacts.views) {
@@ -58,7 +58,7 @@ function parseTest(queryString: string, n: number) {
 
 let n = 1;
 let phrases = [
-  "Pets shorter than snakes; or pets longer than dogs",
+  "Pets longer than dogs; and pets shorter than snakes",
   //"Corey Montella's height, gender, age",
   //"Steve's age and salary",
   //`age, height, and gender of "Corey Montella" and his nationality and age; and age and gender of "Rachel Romain Fay Montella" and her husband's wife's sister's height; and Corey's age`,

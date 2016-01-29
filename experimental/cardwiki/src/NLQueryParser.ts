@@ -1017,14 +1017,12 @@ function formTree(tokens: Array<Token>): Node {
     }
   }*/
   
+  // Resolve entities and attributes
   let context = newContext();
   resolveEntities(tree,context);
-  console.log(context);
   
   // Rewrite comparators
-  let comparatorNodes = context.fxns.filter((fxn) => fxn.type === FunctionTypes.COMPARATOR).map((n) => n.node);
-  console.log(comparatorNodes);
-  
+  let comparatorNodes = context.fxns.filter((fxn) => fxn.type === FunctionTypes.COMPARATOR).map((n) => n.node);  
   let comparator: BuiltInFunction;
   for (let compNode of comparatorNodes) {
     comparator = compNode.fxn;
@@ -1032,10 +1030,9 @@ function formTree(tokens: Array<Token>): Node {
     if (compNode.children.length === 1) {
       swapNodeWithParent(compNode);
     }
-    console.log(compNode.children);
     // Check if the children have the requisite attribute, and if so add a node
-    compNode.children.forEach((child) => {
-      console.log(child)
+    compNode.children.forEach((child) => { 
+      // Find relationship for entities
       if (child.entity !== undefined) {
         let attribute = findAttribute(comparator.attribute,child.entity);
         if (attribute !== undefined) {
@@ -1046,21 +1043,24 @@ function formTree(tokens: Array<Token>): Node {
           child.children.push(nNode);
           context.attributes.push(attribute);          
         }
+      // Find relationship for collections
       } else if (child.collection !== undefined) {
-        console.log("Finding relationship")
         let relationship = findCollectionToAttrRelationship(child.collection.id,comparator.attribute);
         if (relationship === true) {
           let nToken = newToken(comparator.attribute);
           let nNode = newNode(nToken);
+          let lhsAttribute: Attribute = {
+            id: comparator.attribute,
+            displayName: comparator.attribute,
+            entity: child.collection.displayName,
+            value: `${child.collection.displayName}|${comparator.attribute}`,
+          }
+          nNode.attribute = lhsAttribute;
           child.children.push(nNode);
         }
       }
     });
   }
-  
-  console.log(nodeToString(tree,0));
-  
-  console.log("Done");
   return tree;
 }
 
@@ -1144,7 +1144,6 @@ function swapNodeWithParent(node: Node): void {
   node.parent.children.push(node);
   node.parent.children.splice(node.parent.children.indexOf(parent),1);
 }
-
 
 interface Entity {
   id: string,
@@ -1358,9 +1357,10 @@ function buildTerm(node: Node): Array<Term> {
     terms.push(term);
   }
   // Attribute terms
-  /*else if (node.attribute != undefined) {
-    let attributeTerm = node.attributes.map((attr: Attribute) => {
-      let entity = attr.entity;
+  else if (node.attribute != undefined && node.children.length === 0) {
+    let attr = node.attribute;
+    let entity = attr.entity;
+    if (entity !== undefined) {
       let entityID: string;
       let entityVariable = false;
       if (typeof entity === 'object') {
@@ -1377,11 +1377,10 @@ function buildTerm(node: Node): Array<Term> {
         type: "select",
         table: "entity eavs",
         fields: fields,  
-      }      
-      return term;
-    });
-    terms = terms.concat(attributeTerms);
-  }*/
+      }
+      terms.push(term);
+    }
+  }
   // Collection terms
   if (node.collection !== undefined) {
     let entityField: Field = {name: "entity", value: node.collection.displayName, variable: true};
@@ -1404,18 +1403,16 @@ function buildTerm(node: Node): Array<Term> {
 // take a parse tree, form a DSL AST
 function formDSL(tree: Node): string {
   
+  console.log("Building a thing!")    
+  console.log(nodeToString(tree,0));
+
   let project = {
     type: "project!",
     fields: [],
   };
   
-  let query: Query = [];
   // Walk the tree, parsing each node as we go along
-  /*for (let node of tree) {
-    query = query.concat(buildTerm(node));
-  }*/
-  query.push(project);
-
+  let query = buildTerm(tree);
   let queryString = queryToString(query);
   return queryString;
 }
