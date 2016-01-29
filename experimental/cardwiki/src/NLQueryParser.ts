@@ -135,6 +135,17 @@ interface Token {
   node?: Node,
 }
 
+function newToken(word: string): Token {
+  let token = {
+    ix: 0,
+    originalWord: word,
+    normalizedWord: word,
+    POS: MinorPartsOfSpeech.NN,
+    properties: [],
+  }
+  return token;
+}
+
 enum TokenProperties {
   ROOT,
   PROPER,
@@ -820,7 +831,7 @@ function formTree(tokens: Array<Token>): Node {
         let newProperNode = newNode(newToken);
         insertAfterNode(newProperNode,pNoun);
         tokens.splice(tokens.indexOf(token)+2,0,newToken);
-      }
+      }    
     // Heuristic: If the node is comaprative, swap with its parent
     } else if (node.hasProperty(TokenProperties.COMPARATIVE)) {
       // We can get rid of "than" or its misspelling "then" the exist as a sibling
@@ -869,6 +880,16 @@ function formTree(tokens: Array<Token>): Node {
         context.entities.push(entity);
         entity.node = node;
         node.entity = entity;
+        found = true;
+      }
+    }
+    // Heuristic: If the node is plural, try to find a collection
+    if (node.hasProperty(TokenProperties.PLURAL)) {
+      let collection = findCollection(node.name);
+      if (collection !== undefined) {
+        node.collection = collection;
+        collection.node= node;
+        context.collections.push(collection);
         found = true;
       }
     }
@@ -1004,100 +1025,42 @@ function formTree(tokens: Array<Token>): Node {
   let comparatorNodes = context.fxns.filter((fxn) => fxn.type === FunctionTypes.COMPARATOR).map((n) => n.node);
   console.log(comparatorNodes);
   
+  let comparator: BuiltInFunction;
   for (let compNode of comparatorNodes) {
+    comparator = compNode.fxn;
     // If a comparator node only has one child, swap with the parent
     if (compNode.children.length === 1) {
       swapNodeWithParent(compNode);
     }
+    console.log(compNode.children);
+    // Check if the children have the requisite attribute, and if so add a node
+    compNode.children.forEach((child) => {
+      console.log(child)
+      if (child.entity !== undefined) {
+        let attribute = findAttribute(comparator.attribute,child.entity);
+        if (attribute !== undefined) {
+          console.log(attribute);
+          let nToken = newToken(comparator.attribute);
+          let nNode = newNode(nToken);
+          nNode.attribute = attribute;
+          child.children.push(nNode);
+          context.attributes.push(attribute);          
+        }
+      } else if (child.collection !== undefined) {
+        console.log("Finding relationship")
+        let relationship = findCollectionToAttrRelationship(child.collection.id,comparator.attribute);
+        if (relationship === true) {
+          let nToken = newToken(comparator.attribute);
+          let nNode = newNode(nToken);
+          child.children.push(nNode);
+        }
+      }
+    });
   }
-  
   
   console.log(nodeToString(tree,0));
   
   console.log("Done");
-  return;
-  
-  /*
-  // Identify the comparative functions for each node
-  for (let node of comparatorNodes) {
-    if (node === undefined) {
-      continue;
-    }
-    let cng = node.nounGroups.filter((ng) => ng.isComparative);
-    let comparativeTokens = cng.map((ng) => {
-      let premods = ng.preModifiers.filter((token: Token) => token.isComparative);
-      let postmods = ng.postModifiers.filter((token: Token) => token.isComparative);
-      let compTokens = premods.concat(postmods);
-      if (compTokens.length > 0) {
-        return compTokens[0];  
-      }
-    });
-    let functions = comparativeTokens.map((token) => wordToFunction(token.normalizedWord));
-    // find the appropriate attribute for the node's entity
-    let comparator = functions[0];
-    let attribute: Attribute;
-    if (node.entity !== undefined) {
-      attribute = findAttribute(comparator.attribute,node.entity);  
-    // TODO FIX THIS! It's not complete
-    } else if (hasProperty(node,TokenProperties.QUANTITY)) {
-      attribute = {
-        id: comparator.attribute,
-        displayName: comparator.attribute,
-        entity: "",
-        value: "",
-      }
-    }
-    if (attribute !== undefined) {
-      node.attributes.push(attribute);
-      // Create a node for the function
-      let comparatorNode: Node = {
-        ix: undefined,
-        name: comparator.function,
-        parent: undefined,
-        children: [node],
-        nounGroups: [],
-        function: comparator,
-        entity: undefined,
-        collection: undefined,
-        attributes: [],
-        properties: [TokenProperties.COMPARATIVE],        
-      };
-      node.parent = comparatorNode;
-      // Heuristic: node to compare to is to the left of the comparator's index
-      let boundary = comparativeTokens[0].ix;
-      let lhsNode: Node;
-      loop1:
-      for (let nodeArray of nodeArrays) {
-        for (let node of nodeArray) {
-          if (node.ix < boundary) {
-            lhsNode = node;
-          } else {
-            break loop1; 
-          }  
-        }
-      }
-      if (lhsNode !== undefined) {
-        lhsNode.parent = comparatorNode;
-        // If the lhs node is an entity, add an entity attribute
-        let lhsAttribute: Attribute;
-        if (lhsNode.entity !== undefined) {
-          // TODO
-        } else if (lhsNode.collection !== undefined) {
-          lhsAttribute = {
-            id: attribute.id,
-            displayName: attribute.displayName,
-            entity: lhsNode.collection.displayName,
-            value: `${lhsNode.collection.displayName}|${attribute.displayName}`,
-          }
-        }
-        lhsNode.attributes.push(lhsAttribute);
-        comparatorNode.children.push(lhsNode); 
-      }
-      nodeArrays.push([comparatorNode]);
-    }
-  }
-  */
-
   return tree;
 }
 
@@ -1299,8 +1262,8 @@ function findCollectionToAttrRelationship(coll: string, attr: string): any {
     .select("entity eavs", { entity: ["collection", "entity"], attribute: attr }, "eav")
     .exec();
   if (relationship.unprojected.length > 0) {
-    console.log(relationship);
-    return
+    console.log("Found Direct Relationship");
+    return true;
   }
   // Finds a one hop relationship
   relationship = eve.query(``)
@@ -1309,6 +1272,7 @@ function findCollectionToAttrRelationship(coll: string, attr: string): any {
     .select("entity eavs", { entity: ["links", "link"], attribute: attr }, "eav")
     .exec();
   if (relationship.unprojected.length > 0) {
+    console.log("Found One-Hop Relationship");
     return
   }
   // Not sure if this one works... using the entity table, a 2 hop link can
