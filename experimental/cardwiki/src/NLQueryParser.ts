@@ -22,10 +22,30 @@ export function preprocessQueryString(queryString: string): Array<PreToken> {
   // Get parts of speach with sentence information. It's okay if they're wrong; they 
   // will be corrected as we create the tree and match against the underlying data model    
   let nlpTokens = nlp.pos(processedString, {dont_combine: true}).sentences[0].tokens;
-  let preTags: Array<PreToken> = nlpTokens.map((token) => {
-    return {text: token.text, tag: token.pos.tag};
+  let preTokens: Array<PreToken> = nlpTokens.map((token,i) => {
+    return {ix: i, text: token.text, tag: token.pos.tag};
   });
-  return preTags;
+  // Group quoted text here
+  let quoteStarts = preTokens.filter((t) => t.text.charAt(0) === `"`);
+  let quoteEnds = preTokens.filter((t) => t.text.charAt(t.text.length-1) === `"`);
+  // If we have balanced quotes, combine tokens
+  if (quoteStarts.length === quoteEnds.length) {
+    let end, start; // @HACK to get around block scoped variable restriction
+    for (let i = 0; i < quoteStarts.length; i++) {
+      start = quoteStarts[i];
+      end = quoteEnds[i];
+      // Get all tokens between quotes (inclusive)
+      let quotedTokens = preTokens.filter((token) => token.ix >= start.ix && token.ix <= end.ix)
+                                  .map((token) => token.text);
+      let quotedText = quotedTokens.join(" ");                  
+      // Remove quotes                           
+      quotedText = quotedText.replace(new RegExp("\"", 'g'),"");
+      // Create a new pretoken
+      let newPreToken: PreToken = {ix: start.ix, text: quotedText, tag: "NNQ"};
+      preTokens.splice(preTokens.indexOf(start),quotedTokens.length,newPreToken);
+    }
+  }
+  return preTokens;
 }
 
 // ----------------------------------------------------------------------------
@@ -33,6 +53,7 @@ export function preprocessQueryString(queryString: string): Array<PreToken> {
 // ----------------------------------------------------------------------------
 
 export interface PreToken {
+  ix: number,
   text: string,
   tag: string,
 }
@@ -80,6 +101,7 @@ enum MinorPartsOfSpeech {
   NNO,  // Possessive noun (people's)
   NNS,  // Plural noun (people)
   NNA,  // @TODO figure out what NNA is.
+  NNQ,  // Quoted text
   // Glue
   FW,   // foreign word (voila) 
   IN,   // preposition (of, in, by)
@@ -126,6 +148,7 @@ enum TokenProperties {
   SEPARATOR,
   CONJUNCTION,
   COMPOUND,
+  QUOTED,
 }
 
 // take an input string, extract tokens
@@ -167,6 +190,10 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
         if (token.POS === MinorPartsOfSpeech.PP ||
             token.POS === MinorPartsOfSpeech.PRP) {
           token.properties.push(TokenProperties.PRONOUN);
+        }
+        if (token.POS === MinorPartsOfSpeech.NNQ) {
+          token.properties.push(TokenProperties.PROPER);
+          token.properties.push(TokenProperties.QUOTED);
         }
       }
       
@@ -429,6 +456,7 @@ function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech 
       minorPartOfSpeech === MinorPartsOfSpeech.NNP  ||
       minorPartOfSpeech === MinorPartsOfSpeech.NNPS ||
       minorPartOfSpeech === MinorPartsOfSpeech.NNS  ||
+      minorPartOfSpeech === MinorPartsOfSpeech.NNQ  ||
       minorPartOfSpeech === MinorPartsOfSpeech.CD   ||
       minorPartOfSpeech === MinorPartsOfSpeech.DA   ||
       minorPartOfSpeech === MinorPartsOfSpeech.NU   ||
@@ -883,10 +911,7 @@ function formTree(tokens: Array<Token>): Node {
     }
     let root = tokens[0].node;
     let node = token.node;
-   
-    console.log(tokenToString(token));
-    //console.log(tokenArrayToString(tokens));
-    
+       
     // If the token is a semicolon, break and place the rest on the root
     if (node.hasProperty(TokenProperties.SEPARATOR) && node.name === ";") {
       reroot(node,root);
@@ -907,7 +932,7 @@ function formTree(tokens: Array<Token>): Node {
         }
       }
     // If the node is proper, see if the next node is proper and if so create a compound node from the two
-    } else if (node.hasProperty(TokenProperties.PROPER)) {
+    } else if (node.hasProperty(TokenProperties.PROPER) && !node.hasProperty(TokenProperties.QUOTED)) {
       let properNouns = node.children.filter((child) => child.hasProperty(TokenProperties.PROPER) && !child.hasProperty(TokenProperties.COMPOUND));
       for (let pNoun of properNouns) {
         let newOriginalName = node.token.originalWord + " " + pNoun.token.originalWord;
@@ -931,7 +956,6 @@ function formTree(tokens: Array<Token>): Node {
     
   console.log(tokenArrayToString(tokens));   
   console.log(nodeToString(tree,tree.ix));
-  console.log(tree);
   
   console.log("Done");
   return;
