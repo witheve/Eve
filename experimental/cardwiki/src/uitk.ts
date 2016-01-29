@@ -231,13 +231,17 @@ export function value(elem:ValueElem):Element {
       let node = <HTMLInputElement>event.target;
       if(_blur) _blur(event, elem);
       if(node.value === `= ${elem.value}`) node.value = elem.value;
+      if(elem.value !== val) node.classList.add("link");
       if(cleanup) cleanup(event, elem);
     };
 
     let _focus = elem.focus;
     elem.focus = (event:FocusEvent, elem:Element) => {
       let node = <HTMLInputElement>event.target;
-      if(elem.value !== val) node.value = `= ${elem.value}`;
+      if(elem.value !== val) {
+        node.value = `= ${elem.value}`;
+        node.classList.remove("link");
+      }
       if(_focus) _focus(event, elem);
     };
   }
