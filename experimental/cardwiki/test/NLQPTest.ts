@@ -51,15 +51,14 @@ function parseTest(queryString: string, n: number) {
     artifacts.views[id].debug();
   }
   eve.applyDiff(changeset);*/
-  //console.log("-------------------------------------------------------------------------------------------");
+  console.log("-------------------------------------------------------------------------------------------");
   console.log(timingDisplay);
-  //console.log("===========================================================================================");
+  console.log("===========================================================================================");
 }
 
 let n = 1;
 let phrases = [
-  "age of Corey Montella's wife's",
-  //"Pets longer than snakes",
+  "Pets shorter than snakes",
   //"Corey Montella's height, gender, age",
   //"Steve's age and salary",
   //`age, height, and gender of "Corey Montella" and his nationality and age; and age and gender of "Rachel Romain Fay Montella" and her husband's wife's sister's height; and Corey's age`,

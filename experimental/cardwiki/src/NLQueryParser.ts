@@ -888,10 +888,6 @@ function formTree(tokens: Array<Token>): Node {
   let i = 0;
   let length = tokens.length * 2;
   while (true) {
-    if (i > length) {
-      console.log("Stopping runaway loop!");
-      break;
-    }
     function reroot(node: Node, target: Node): void {
       node.parent.children.splice(node.parent.children.indexOf(node),1);  
       node.parent = target;
@@ -1021,6 +1017,13 @@ function formTree(tokens: Array<Token>): Node {
       }
     // Heuristic: If the node is comaprative, swap with its parent
     } else if (node.hasProperty(TokenProperties.COMPARATIVE)) {
+      // We can get rid of "than" or its misspelling "then" the exist as a sibling
+      let parent = node.parent;
+      let thanNode = parent.children.filter((n) => n.name === "than" || n.name === "then");
+      console.log(thanNode)
+      for (let n of thanNode) {
+        parent.children.splice(parent.children.indexOf(n),1);
+      }
       swapNodeWithParent(node);
     } else if (node.hasProperty(TokenProperties.CONJUNCTION)) {
       promoteNode(node);
