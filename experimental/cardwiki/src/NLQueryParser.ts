@@ -320,7 +320,7 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
           token.properties.push(TokenProperties.SEPARATOR);
           break;
       }
-        
+      token.properties = token.properties.filter(onlyUnique);
       return token;
     });
     
@@ -805,12 +805,14 @@ function wordToFunction(word: string): BuiltInFunction {
   switch (word) {
     case "taller":
       return {function: ">", attribute: "height"};
+    case "shorter":
+      return {function: "<", attribute: "length"};
     case "longer":
       return {function: ">", attribute: "length"};
     case "younger":
       return {function: "<", attribute: "age"};
     case "and":
-      return {function: "and"};
+      return {function: "AND"};
     default:
       return {function: ""};
   }
@@ -842,7 +844,7 @@ function formTree(tokens: Array<Token>): Node {
   // At this point we should only have a single root. 
   nodes = nodes.filter((node) => node.parent === undefined);
   tree = nodes.pop();
-  
+  console.log(nodeToString(tree,tree.ix));
   // Split nodes
   let i = 0;
   let length = tokens.length * 2;
@@ -870,7 +872,7 @@ function formTree(tokens: Array<Token>): Node {
       if (getMajorPOS(node.token.POS) === MajorPartsOfSpeech.ROOT) {
         return undefined;
       }
-      if (getMajorPOS(node.token.POS) === majorPOS) {
+      if (getMajorPOS(node.parent.token.POS) === majorPOS) {
         return node.parent;
       } else {
         return findWithPOS(node.parent,majorPOS);
@@ -893,6 +895,22 @@ function formTree(tokens: Array<Token>): Node {
       node.children = target.children;
       target.children.map((n) => n.parent = node);
       target.children = [node];
+    }
+    function swapNodeWithParent(node: Node): void {
+      let parent = node.parent;
+      // Do not swap with root, instead, set everything as the children of the node
+      if (parent.hasProperty(TokenProperties.ROOT)) {
+        return;
+      }
+      // Set parents
+      node.parent = parent.parent
+      parent.parent = node;
+      // Remove node as a child from parent
+      parent.children.splice(parent.children.indexOf(node),1);
+      // Set children
+      node.children = node.children.concat(parent);
+      node.parent.children.push(node);
+      node.parent.children.splice(node.parent.children.indexOf(parent),1);
     }
     //----------------------------
     let token = tokens[i];
@@ -936,14 +954,29 @@ function formTree(tokens: Array<Token>): Node {
           properties: node.properties.concat(pNoun.properties),
         };
         newToken.properties.push(TokenProperties.COMPOUND);
+        let childProperties = node.children.map((child) => child.properties);
+        let flatProperties = [].concat.apply([],childProperties);
+        newToken.properties = newToken.properties.concat(flatProperties);
         newToken.properties = newToken.properties.filter(onlyUnique);
         let newProperNode = newNode(newToken);
         insertAfterNode(newProperNode,pNoun);
         tokens.splice(tokens.indexOf(token)+2,0,newToken);
       }
+    // Heuristic: If the node is comaprative, swap with its parent
+    } else if (node.hasProperty(TokenProperties.COMPARATIVE)) {
+      swapNodeWithParent(node);
+    } else if (node.hasProperty(TokenProperties.CONJUNCTION)) {
+      swapNodeWithParent(node);
     }
+    
     i++;
   }
+    
+  function sortChildren(node: Node): void {
+    node.children.sort((a,b) => a.ix - b.ix);
+    node.children.map(sortChildren);    
+  }  
+  sortChildren(tree);  
     
   console.log(tokenArrayToString(tokens));   
   console.log(nodeToString(tree,tree.ix));
