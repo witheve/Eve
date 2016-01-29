@@ -761,17 +761,7 @@ interface Node {
 // Transfer noun group properties to a node
 function subsumeProperties(node: Node, nounGroup: Node) {
   node.properties = nounGroup.properties;
-    
-  // If the noungroup contains "of" this implies a backward
-  // relationship between this NG and a previous NG
-  // e.g. age of Corey => Corey's age
-  //let ofTokens = nounGroup.preModifiers.filter((token) => token.normalizedWord === "of");
-  //if (ofTokens.length > 0) {
-  //  node.properties.push(TokenProperties.BACKRELATIONSHIP);
-  //}
-  
   // Make sure the properties are unique  
-  
   node.properties = node.properties.filter(onlyUnique);
 }
 
@@ -912,11 +902,11 @@ function formTree(tokens: Array<Token>): Node {
     let root = tokens[0].node;
     let node = token.node;
        
-    // If the token is a semicolon, break and place the rest on the root
+    // Heuristic: If the token is a semicolon, break and place the rest on the root
     if (node.hasProperty(TokenProperties.SEPARATOR) && node.name === ";") {
       reroot(node,root);
       removeNode(node);
-    // If the node is a comma, break and place on the nearest proper noun or noun
+    // Heuristic: If the node is a comma, break and place on the nearest proper noun or noun
     } else if (node.hasProperty(TokenProperties.SEPARATOR) && node.name === ",") {
       let properNode = findWithProperty(node,TokenProperties.PROPER);
       if (properNode !== undefined) {
@@ -931,7 +921,8 @@ function formTree(tokens: Array<Token>): Node {
           removeNode(node);
         }
       }
-    // If the node is proper, see if the next node is proper and if so create a compound node from the two
+    // Heuristic: If the node is proper but not quoted, see if the next node is proper and 
+    // if so create a compound node from the two
     } else if (node.hasProperty(TokenProperties.PROPER) && !node.hasProperty(TokenProperties.QUOTED)) {
       let properNouns = node.children.filter((child) => child.hasProperty(TokenProperties.PROPER) && !child.hasProperty(TokenProperties.COMPOUND));
       for (let pNoun of properNouns) {
