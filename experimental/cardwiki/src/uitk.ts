@@ -16,6 +16,15 @@ function resolveId(maybeName:string):string {
   let display = eve.findOne("display name", {name: maybeName});
   return display ? display.id : maybeName;
 }
+function resolveValue(maybeValue:string):string {
+  let val = maybeValue.trim();
+  if(val.indexOf("=") === 0) {
+    // @TODO: Run through the full NLP.
+    let search = val.substring(1).trim();
+    return resolveId(search);
+  }
+  return val;
+}
 function isEntity(maybeId:string):boolean {
   return !!eve.findOne("entity", {entity: maybeId});
 }
@@ -60,6 +69,14 @@ function classifyEntities(rawEntities:string[]) {
 function preventDefault(event) {
   event.preventDefault();
 }
+function preventDefaultUnlessFocused(event) {
+  if(event.target !== document.activeElement) event.preventDefault();
+}
+
+function closePopup() {
+  let popout = eve.findOne("ui pane", {kind: PANE.POPOUT});
+  if(popout) dispatch("remove popup", {paneId: popout.pane}).commit();
+}
 
 function navigate(event, elem) {
   let {paneId} = elem.data;
@@ -75,10 +92,10 @@ function navigate(event, elem) {
 function navigateOrEdit(event, elem) {
   let popout = eve.findOne("ui pane", {kind: PANE.POPOUT});
   let peeking = popout && popout.contains === elem.link;
-  if(!peeking) {
-    navigate(event, elem);
-  } else {
-    dispatch("remove popup", {paneId: popout.pane});
+  if(event.target === document.activeElement) {}
+  else if(!peeking) navigate(event, elem);
+  else {
+    closePopup();
     event.target.focus();
   }
 }
@@ -193,15 +210,16 @@ export function results(elem:EntityElem):Element {
 interface ValueElem extends Element { editable?: boolean, autolink?: boolean }
 export function value(elem:ValueElem):Element {
   let {text:val, autolink = true, editable = false} = elem;
+  elem["original"] = val;
   let cleanup;
   if(isEntity(val)) {
     elem["entity"] = val;
     elem.text = resolveName(val);
     if(autolink) elem = link(<any>elem);
     if(editable && autolink) {
-      elem.mousedown = preventDefault;
+      elem.mousedown = preventDefaultUnlessFocused;
       elem.click = navigateOrEdit;
-      cleanup = navigateOrEdit;
+      cleanup = closePopup;
     }
   }
   if(editable) {
@@ -211,12 +229,16 @@ export function value(elem:ValueElem):Element {
     let _blur = elem.blur;
     elem.blur = (event:FocusEvent, elem:Element) => {
       let node = <HTMLInputElement>event.target;
-      let value = node.value;
-      if(value === elem.text) node.value = val;
-      else if(value.trim().indexOf("=") === 0) elem.value = node.value = resolveId(value.trim().substring(1).trim());
       if(_blur) _blur(event, elem);
+      if(node.value === `= ${elem.value}`) node.value = elem.value;
       if(cleanup) cleanup(event, elem);
-      if(value === elem.text) node.value = value;
+    };
+
+    let _focus = elem.focus;
+    elem.focus = (event:FocusEvent, elem:Element) => {
+      let node = <HTMLInputElement>event.target;
+      if(elem.value !== val) node.value = `= ${elem.value}`;
+      if(_focus) _focus(event, elem);
     };
   }
   return elem;
@@ -234,11 +256,11 @@ export function table(elem:TableElem):Element {
   if(editCell) {
     let _editCell = editCell;
     editCell = function(event:Event, elem) {
-      // @FIXME: Wrap this with the logic for the editing modal, only add/remove on actual completed row
-      let neueEvent = new CustomEvent("editcell", {detail: (<HTMLInputElement>event.target).value});
+      let node = <HTMLInputElement>event.target;
+      let val = resolveValue(node.value);
+      if(val === elem["original"]) return;
+      let neueEvent = new CustomEvent("editcell", {detail: val});
       _editCell(neueEvent, elem);
-      event.stopPropagation();
-      event.preventDefault();
     }
   }
   if(editRow) {

@@ -100,7 +100,6 @@ appHandle("ui set search", (changes:Diff, {paneId, value, peek, x, y, popState}:
 appHandle("remove popup", (changes:Diff, {}:{}) => {
   let popup = eve.findOne("ui pane", {kind: PANE.POPOUT});
   if(popup) {
-    console.log("POPUP", popup);
     let paneId = popup.pane;
     changes.remove("ui pane", {pane: paneId});
     changes.remove("ui pane position", {pane: paneId});
