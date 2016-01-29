@@ -167,12 +167,8 @@ let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, 
     return {
       c: "window",
       shade: {c: "pane-shade", paneId, click: removePopup, children: []},
-      header: {t: "header", c: "flex-row", children: [
+      header: {t: "header", c: "", children: [
         {t: "button", c: "ion-android-open", click: navigateParent, link: entityId, paneId: paneId, parentId: parent, text:""},
-        {c: "labeled-input flex-grow", children: [
-          {t: "input", c: "flex-grow", type: "text", placeholder: "Search to embed", value: "", postRender: autoFocus},
-          {t: "label", text: "as a link"},
-        ]},
       ]},
     };
   },

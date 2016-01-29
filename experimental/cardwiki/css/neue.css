@@ -58,11 +58,11 @@ div:hover > header > .controls { opacity: 1; }
 
 .wiki-pane.window > header > * { margin:0;}
 .wiki-pane.window { position:absolute; max-height:40%; box-shadow:0 0 0 1px rgba(0,0,0,0.1),0 7px 15px rgba(0,0,0,0.1); background: #fff; border-radius:3px; }
-.wiki-pane.window > header { background: #fff; border-bottom:1px solid #ddd; padding: 10px 5px; padding: 0; }
-.wiki-pane.window > header button { border:none; border-radius:0px; background:none; font-size: 12pt; font-weight:300; color:#555; padding:8px 10px; color: #008cdd; }
+.wiki-pane.window > header { background: #fff; padding: 10px 5px; padding: 0; border:none; }
+.wiki-pane.window > header button { border:none; border-radius:0px; background:none; font-size: 20px; font-weight:300; color:#555; padding:8px 10px; color: #008cdd; position:absolute; top:0; right:0; z-index:10;  }
 .wiki-pane.window > header button:hover { background: rgba(0, 140, 221, 0.15); }
 .wiki-pane.window > header .controls { opacity:1; color: #777; }
-.wiki-pane.window .wiki-entity { padding:20px;  }
+.wiki-pane.window .wiki-entity { padding: 15px 20px;  }
 .wiki-pane.window .wiki-entity .CodeMirror { flex: 1; overflow:hidden; }
 .wiki-pane.window .wiki-editor { padding: 0;  }
 
