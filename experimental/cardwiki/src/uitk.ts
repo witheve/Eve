@@ -154,7 +154,7 @@ export function results(elem:EntityElem):Element {
 //------------------------------------------------------------------------------
 interface ValueElem extends Element { autolink?: boolean }
 export function value(elem:ValueElem):Element {
-  let {text:val, autolink = false} = elem;
+  let {text:val, autolink = true} = elem;
   if(isEntity(val)) {
     elem["entity"] = val;
     elem.text = resolveName(val);
@@ -181,7 +181,7 @@ export function table(elem:TableElem):Element {
   }
 
   let header = {t: "header", children: []};
-  for(let field of fields) header.children.push(value({c: "column field", text: field, data}));
+  for(let field of fields) header.children.push(value({c: "column field", text: field, data, autolink: false}));
   
   let body = {c: "body", children: []};
   for(let row of rows) {

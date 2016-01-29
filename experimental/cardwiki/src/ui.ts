@@ -400,7 +400,7 @@ function getCellParams(content, rawParams) {
   let params = parseParams(rawParams);
   let contentDisplay = eve.findOne("display name", {id: content}) || eve.findOne("display name", {name: content});
   if(contentDisplay) {
-    params["rep"] = params["rep"] || "name";
+    params["rep"] = params["rep"] || "link";
     params["noResults"] = true;
   } else {
     // @TODO: this shouldn't be here
@@ -482,6 +482,10 @@ export function entity(entityId:string, paneId:string, options:any = {}):Element
       } else if(cell.placeholder) {
         text = activeCells[cell.id].query;
       }
+      let display = eve.findOne("display name", {id: text});
+      if(display) {
+        text = display["name"];
+      }
       ui = {t: "span", c:"embedded-cell", contentEditable: "true", text, keydown: embeddedCellKeys, cell, paneId, autoFocus: true};
     } else {
       ui = cellUI(paneId, cell.query);
@@ -546,6 +550,11 @@ function embeddedCellKeys(event, elem) {
       value = value.substring(1);
     }
     value = value.trim();
+    // @TODO: this doesn't take disambiguations into account
+    let display = eve.findOne("display name", {name: value});
+    if(display) {
+      value = display.id;
+    }
     cm.replaceRange(`{${value}}`, from, to);
     paneEditors[paneId].cmInstance.focus();
     dispatch("removeActiveCell", cell).commit();
@@ -772,7 +781,7 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
 };
 
 function represent(rep:string, results, params:{}):Element {
-  //console.log("repping:", results, " as", rep, " with params ", params);
+  // console.log("repping:", results, " as", rep, " with params ", params);
   if(rep in _prepare) {
     let embedParamSets = _prepare[rep](results.results, <any>params);
     console.log(rep, embedParamSets);
