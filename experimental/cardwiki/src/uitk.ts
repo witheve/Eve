@@ -209,7 +209,7 @@ export function results(elem:EntityElem):Element {
 //------------------------------------------------------------------------------
 interface ValueElem extends Element { editable?: boolean, autolink?: boolean }
 export function value(elem:ValueElem):Element {
-  let {text:val, autolink = true, editable = false} = elem;
+  let {text:val = "", autolink = true, editable = false} = elem;
   elem["original"] = val;
   let cleanup;
   if(isEntity(val)) {
