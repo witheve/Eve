@@ -845,7 +845,6 @@ function formTree(tokens: Array<Token>): Node {
   tokens.forEach((token) => {
     let node = token.node;
     let fxn = wordToFunction(node.name);
-    console.log(fxn)
     if (fxn.fxn !== "") {
       node.fxn = fxn;
       node.properties.push(TokenProperties.FUNCTION);
@@ -1008,7 +1007,8 @@ function formTree(tokens: Array<Token>): Node {
     let found = false;
     
     // Skip certain nodes
-    if (node.hasProperty(TokenProperties.FUNCTION)) {
+    if (node.hasProperty(TokenProperties.FUNCTION) ||
+        node.hasProperty(TokenProperties.ROOT)) {
       console.log("Skipping");
       found = true;
     }
@@ -1144,10 +1144,7 @@ function formTree(tokens: Array<Token>): Node {
   let maybeAttributes: Array<Node> = [];
   resolveEntities(tree);
   
-  console.log("Done");
-  return;
-
-  // rewire nodes
+  // rewire matched nodes to the correct parents
   for (let token of tokens) {
     let node = token.node;
     let attribute: Attribute = node.attribute;
@@ -1164,6 +1161,12 @@ function formTree(tokens: Array<Token>): Node {
       }
     }
   }
+  
+  console.log(nodeToString(tree,0));
+  
+  console.log("Done");
+  return;
+  
   // Pull out comparator nodes
   
   
