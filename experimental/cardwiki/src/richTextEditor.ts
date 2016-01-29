@@ -195,7 +195,7 @@ export function createEditor(node, elem) {
   } else {
     cm = node.editor.cmInstance;
   }
-  editor.onUpdate = elem.change;
+  editor.onUpdate = elem.onUpdate;
   editor.meta = elem.meta || editor.meta;
   let doc = cm.getDoc();
   if (doc.getValue() !== elem.value) {

@@ -1,5 +1,5 @@
 declare var pluralize; // @TODO: import me.
-import {builtinId} from "./utils";
+import {builtinId, copy} from "./utils";
 import {Element, Handler} from "./microReact";
 import {dispatch, eve} from "./app";
 
@@ -67,6 +67,26 @@ function navigate(event, elem) {
   event.preventDefault();
 }
 
+interface TableRowElem extends Element { table: string, row: any }
+interface TableCellElem extends Element { row: TableRowElem, field: string }
+
+function updateEntityValue(event:CustomEvent, elem:TableCellElem) {
+  let value = event.detail;
+  let {row:rowElem, field} = elem;
+  let {table:tableElem, row} = rowElem;
+  let entity = tableElem["entity"];
+  if(row.attribute !== undefined && field === "value") dispatch("update entity attribute", {entity, attribute: row.attribute, prev: row.value, value}).commit();
+  else if(row.value !== undefined && field === "attribute") dispatch("rename entity attribute", {entity, prev: row.attribute, attribute: value, value: row.value}).commit();
+  rowElem.row = copy(row);
+  rowElem.row[field] = value;
+}
+function updateEntityAttributes(event:CustomEvent, elem:{row: TableRowElem}) {
+  let {table:tableElem, row} = elem.row;
+  let entity = tableElem["entity"];
+  if(event.detail === "add") dispatch("add entity attribute", {entity, attribute: "", value: ""}).commit(); // @FIXME This is dangerous
+  else dispatch("remove entity attribute", {entity, attribute: row.attribute, value: row.value}).commit();
+}
+
 //------------------------------------------------------------------------------
 // Representations for Entities
 //------------------------------------------------------------------------------
@@ -96,6 +116,8 @@ export function attributes(elem:EntityElem):Element {
   let attributes = [];
   for(let eav of eve.find("entity eavs", {entity})) attributes.push({attribute: eav.attribute, value: eav.value});
   elem["rows"] = attributes;
+  elem["editCell"] = updateEntityValue;
+  elem["editRow"] = updateEntityAttributes;
   return table(<any>elem);
 }
 
@@ -139,7 +161,7 @@ export function view(elem:EntityElem):Element {
 
 export function results(elem:EntityElem):Element {
   let {entity, data = undefined} = elem;
-  elem.children = [name({t: "h2", entity, data})];
+  elem.children = [name({entity, data})];
   for(let eav of eve.find("entity eavs", {entity, attribute: "artifact"})) {
     elem.children.push(
       name({t: "h3", entity: eav.value, data}),
@@ -152,23 +174,49 @@ export function results(elem:EntityElem):Element {
 //------------------------------------------------------------------------------
 // Representations for values
 //------------------------------------------------------------------------------
-interface ValueElem extends Element { autolink?: boolean }
+interface ValueElem extends Element { editable?: boolean, autolink?: boolean }
 export function value(elem:ValueElem):Element {
-  let {text:val, autolink = true} = elem;
+  let {text:val, autolink = true, editable = false} = elem;
   if(isEntity(val)) {
     elem["entity"] = val;
     elem.text = resolveName(val);
     if(autolink) elem = link(<any>elem);
   }
+  if(editable) {
+    elem.t = "input";
+    elem.placeholder = "<empty>";
+    elem.value = elem.text;
+  }
   return elem;
 }
 
-interface TableElem extends Element { rows: {}[], ignoreFields?: string[], ignoreTemp?: boolean, data?: any }
+interface TableElem extends Element { rows: {}[], editCell?: Handler<Event>, editRow?: Handler<Event>, editField?: Handler<Event>, ignoreFields?: string[], ignoreTemp?: boolean, data?: any }
 export function table(elem:TableElem):Element {
   let {rows, ignoreFields = ["__id"], ignoreTemp = true, data = undefined} = elem;
   if(!rows.length) {
     elem.text = "<Empty Table>";
     return elem;
+  }
+
+  let {editCell = undefined, editRow = undefined, editField = undefined} = elem;
+  if(editCell) {
+    let _editCell = editCell;
+    editCell = function(event:Event, elem) {
+      // @FIXME: Wrap this with the logic for the editing modal, only add/remove on actual completed row
+      let neueEvent = new CustomEvent("editcell", {detail: (<HTMLInputElement>event.target).value});
+      _editCell(neueEvent, elem);
+      event.stopPropagation();
+      event.preventDefault();
+    }
+  }
+  if(editRow) {
+    var addRow = (evt, elem) => editRow(new CustomEvent("editrow", {detail: "add"}), elem);
+    var removeRow = (evt, elem) => editRow(new CustomEvent("editrow", {detail: "remove"}), elem);
+  }
+  if(editField) {
+    // @FIXME: Wrap these with the logic for the editing modal, only add/remove on actual completed field
+    var addField = (evt, elem) => editRow(new CustomEvent("editfield", {detail: "add"}), elem);
+    var removeField = (evt, elem) => editRow(new CustomEvent("editfield", {detail: "remove"}), elem);
   }
 
   // Collate non-ignored fields
@@ -185,8 +233,14 @@ export function table(elem:TableElem):Element {
   
   let body = {c: "body", children: []};
   for(let row of rows) {
-    let rowElem = {c: "row group", children: []};
-    for(let field of fields) rowElem.children.push(value({c: "column field", text: row[field], autolink: true, data}));
+    let rowElem = {c: "row group", table: elem, row, children: []};
+    for(let field of fields) rowElem.children.push(value({c: "column field", text: row[field], editable: editCell ? true : false, blur: editCell, row: rowElem, field, data}));
+    if(editRow) rowElem.children.push({c: "controls", children: [{c: "remove-row ion-android-close", row: rowElem, click: removeRow}]});
+    body.children.push(rowElem);
+  }
+  if(editRow) {
+    let rowElem = {c: "row group add-row", table: elem, row: [], children: []};
+    for(let field of fields) rowElem.children.push(value({c: "column field", editable: true, blur: editCell, row: rowElem, field, data}));
     body.children.push(rowElem);
   }
 

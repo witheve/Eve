@@ -145,6 +145,24 @@ appHandle("create query", (changes:Diff, {id, content}) => {
   }
 });
 
+appHandle("remove entity attribute", (changes:Diff, {entity, attribute, value}) => {
+  changes.remove("sourced eav", {entity, attribute, value});
+  // @FIXME: Make embeds auto-gc themselves when invalidated.
+});
+appHandle("update entity attribute", (changes:Diff, {entity, attribute, prev, value}) => {
+  // @FIXME: proper unique source id
+  let {source = "<global>"} = eve.findOne("sourced eav", {entity, attribute, value: prev}) || {};
+  if(prev !== undefined) changes.remove("sourced eav", {entity, attribute, value: prev});
+  changes.add("sourced eav", {entity, attribute, value, source});
+});
+appHandle("rename entity attribute", (changes:Diff, {entity, attribute, prev, value}) => {
+  // @FIXME: proper unique source id
+  let {source = "<global>"} = eve.findOne("sourced eav", {entity, attribute: prev, value}) || {};
+  if(prev !== undefined) changes.remove("sourced eav", {entity, attribute: prev, value});
+  changes.add("sourced eav", {entity, attribute, value, source});
+  console.log(changes);
+});
+
 //---------------------------------------------------------
 // Wiki Containers
 //---------------------------------------------------------
@@ -412,7 +430,6 @@ function getCellParams(content, rawParams) {
     // @TODO: eventually the information about the requested subjects should come from
     // the NLP side or projection. But for now..
     let plan = activeSearches[content].plan;
-    console.log(plan);
     let info = {};
     for(let step of plan) {
       if(!info[step.type]) info[step.type] = 0;
@@ -504,7 +521,7 @@ export function entity(entityId:string, paneId:string, options:any = {}):Element
        {text: "instead?"}
        ]},
      */
-    {c: "wiki-editor", postRender: wikiEditor, change: updatePage, meta: {entity: entityId, page, paneId}, value: content, options: finalOptions, cells, children: cellItems}
+    {c: "wiki-editor", postRender: wikiEditor, onUpdate: updatePage, meta: {entity: entityId, page, paneId}, value: content, options: finalOptions, cells, children: cellItems}
   ]};
 }
 
@@ -784,7 +801,6 @@ function represent(rep:string, results, params:{}):Element {
   // console.log("repping:", results, " as", rep, " with params ", params);
   if(rep in _prepare) {
     let embedParamSets = _prepare[rep](results.results, <any>params);
-    console.log(rep, embedParamSets);
     if(embedParamSets.constructor === Array) {
       let wrapper = {c: "flex-column", children: []};
       for(let embedParams of embedParamSets) {

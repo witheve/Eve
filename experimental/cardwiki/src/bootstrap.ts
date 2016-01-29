@@ -168,7 +168,6 @@ class BSPhase {
 
   addArtifacts(artifacts:Artifacts) {
     let views = artifacts.views;
-    console.log("adding artifacts", views);
     for(let id in views) this.changeset.merge(views[id].changeset(eve));
     return this;
   }
