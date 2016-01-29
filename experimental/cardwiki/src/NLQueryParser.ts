@@ -111,7 +111,6 @@ interface Token {
   POS: MinorPartsOfSpeech;
   properties: Array<TokenProperties>,
   node?: Node,
-  toString(): string;
 }
 
 enum TokenProperties {
@@ -126,6 +125,7 @@ enum TokenProperties {
   PRONOUN,  
   SEPARATOR,
   CONJUNCTION,
+  COMPOUND,
 }
 
 // take an input string, extract tokens
@@ -743,9 +743,7 @@ function subsumeProperties(node: Node, nounGroup: Node) {
   //}
   
   // Make sure the properties are unique  
-  function onlyUnique(value, index, self) { 
-    return self.indexOf(value) === index;
-  }
+  
   node.properties = node.properties.filter(onlyUnique);
 }
 
@@ -827,10 +825,14 @@ function formTree(tokens: Array<Token>): Node {
   nodes = nodes.filter((node) => node.parent === undefined);
   tree = nodes.pop();
   
-  console.log(nodeArrayToString(nodes));
-  
   // Split nodes
-  tokens.forEach((token, i) => {
+  let i = 0;
+  let length = tokens.length * 2;
+  while (true) {
+    if (i > length) {
+      console.log("Stopping runaway loop!");
+      break;
+    }
     function reroot(node: Node, target: Node): void {
       node.parent.children.splice(node.parent.children.indexOf(node),1);  
       node.parent = target;
@@ -868,11 +870,22 @@ function formTree(tokens: Array<Token>): Node {
       node.parent = undefined;
       node.children = [];
     }
+    function insertAfterNode(node: Node, target: Node): void {
+      node.parent = target;
+      node.children = target.children;
+      target.children.map((n) => n.parent = node);
+      target.children = [node];
+    }
     //----------------------------
+    let token = tokens[i];
+    if (token === undefined) {
+      break;
+    }
     let root = tokens[0].node;
     let node = token.node;
-    
+   
     console.log(tokenToString(token));
+    //console.log(tokenArrayToString(tokens));
     
     // If the token is a semicolon, break and place the rest on the root
     if (node.hasProperty(TokenProperties.SEPARATOR) && node.name === ";") {
@@ -893,15 +906,34 @@ function formTree(tokens: Array<Token>): Node {
           removeNode(node);
         }
       }
+    // If the node is proper, see if the next node is proper and if so create a compound node from the two
     } else if (node.hasProperty(TokenProperties.PROPER)) {
-    
+      let properNouns = node.children.filter((child) => child.hasProperty(TokenProperties.PROPER) && !child.hasProperty(TokenProperties.COMPOUND));
+      for (let pNoun of properNouns) {
+        let newOriginalName = node.token.originalWord + " " + pNoun.token.originalWord;
+        let newNormalizedName = node.name + " " + pNoun.name;
+        let newToken: Token = {
+          ix: pNoun.ix + 0.5,
+          originalWord: newOriginalName,
+          normalizedWord: newNormalizedName,
+          POS: MinorPartsOfSpeech.NN,
+          properties: node.properties.concat(pNoun.properties),
+        };
+        newToken.properties.push(TokenProperties.COMPOUND);
+        newToken.properties = newToken.properties.filter(onlyUnique);
+        let newProperNode = newNode(newToken);
+        insertAfterNode(newProperNode,pNoun);
+        tokens.splice(tokens.indexOf(token)+2,0,newToken);
+      }
     }
-  });
+    i++;
+  }
     
-    
+  console.log(tokenArrayToString(tokens));   
   console.log(nodeToString(tree,tree.ix));
+  console.log(tree);
   
-  
+  console.log("Done");
   return;
   
   
@@ -1732,6 +1764,10 @@ function intersect(arr1: Array<any>, arr2: Array<any>): Array<any> {
          }
      }
      return r;
+}
+
+function onlyUnique(value, index, self) { 
+  return self.indexOf(value) === index;
 }
 
 // ----------------------------------------------------------------------------
