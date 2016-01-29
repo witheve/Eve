@@ -2,6 +2,7 @@ declare var pluralize; // @TODO: import me.
 import {builtinId, copy} from "./utils";
 import {Element, Handler} from "./microReact";
 import {dispatch, eve} from "./app";
+import {PANE} from "./ui";
 
 
 //------------------------------------------------------------------------------
@@ -13,7 +14,7 @@ function resolveName(maybeId:string):string {
 }
 function resolveId(maybeName:string):string {
   let display = eve.findOne("display name", {name: maybeName});
-  return display ? display.name : maybeName;
+  return display ? display.id : maybeName;
 }
 function isEntity(maybeId:string):boolean {
   return !!eve.findOne("entity", {entity: maybeId});
@@ -56,6 +57,10 @@ function classifyEntities(rawEntities:string[]) {
 //------------------------------------------------------------------------------
 // Handlers
 //------------------------------------------------------------------------------
+function preventDefault(event) {
+  event.preventDefault();
+}
+
 function navigate(event, elem) {
   let {paneId} = elem.data;
   let info:any = {paneId, value: elem.link, peek: elem.peek};
@@ -67,6 +72,17 @@ function navigate(event, elem) {
   event.preventDefault();
 }
 
+function navigateOrEdit(event, elem) {
+  let popout = eve.findOne("ui pane", {kind: PANE.POPOUT});
+  let peeking = popout && popout.contains === elem.link;
+  if(!peeking) {
+    navigate(event, elem);
+  } else {
+    dispatch("remove popup", {paneId: popout.pane});
+    event.target.focus();
+  }
+}
+
 interface TableRowElem extends Element { table: string, row: any }
 interface TableCellElem extends Element { row: TableRowElem, field: string }
 
@@ -75,8 +91,8 @@ function updateEntityValue(event:CustomEvent, elem:TableCellElem) {
   let {row:rowElem, field} = elem;
   let {table:tableElem, row} = rowElem;
   let entity = tableElem["entity"];
-  if(row.attribute !== undefined && field === "value") dispatch("update entity attribute", {entity, attribute: row.attribute, prev: row.value, value}).commit();
-  else if(row.value !== undefined && field === "attribute") dispatch("rename entity attribute", {entity, prev: row.attribute, attribute: value, value: row.value}).commit();
+  if(field === "value" && row.value !== value && row.attribute !== undefined) dispatch("update entity attribute", {entity, attribute: row.attribute, prev: row.value, value}).commit();
+  else if(field === "attribute" && row.attribute !== value && row.value !== undefined) dispatch("rename entity attribute", {entity, prev: row.attribute, attribute: value, value: row.value}).commit();
   rowElem.row = copy(row);
   rowElem.row[field] = value;
 }
@@ -177,15 +193,31 @@ export function results(elem:EntityElem):Element {
 interface ValueElem extends Element { editable?: boolean, autolink?: boolean }
 export function value(elem:ValueElem):Element {
   let {text:val, autolink = true, editable = false} = elem;
+  let cleanup;
   if(isEntity(val)) {
     elem["entity"] = val;
     elem.text = resolveName(val);
     if(autolink) elem = link(<any>elem);
+    if(editable && autolink) {
+      elem.mousedown = preventDefault;
+      elem.click = navigateOrEdit;
+      cleanup = navigateOrEdit;
+    }
   }
   if(editable) {
     elem.t = "input";
     elem.placeholder = "<empty>";
-    elem.value = elem.text;
+    elem.value = elem.text || "";
+    let _blur = elem.blur;
+    elem.blur = (event:FocusEvent, elem:Element) => {
+      let node = <HTMLInputElement>event.target;
+      let value = node.value;
+      if(value === elem.text) node.value = val;
+      else if(value.trim().indexOf("=") === 0) elem.value = node.value = resolveId(value.trim().substring(1).trim());
+      if(_blur) _blur(event, elem);
+      if(cleanup) cleanup(event, elem);
+      if(value === elem.text) node.value = value;
+    };
   }
   return elem;
 }

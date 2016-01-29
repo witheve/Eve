@@ -12,7 +12,7 @@ import {StepType, queryToExecutable} from "./queryParser";
 import {parseDSL} from "./parser";
 
 
-enum PANE { FULL, WINDOW, POPOUT };
+export enum PANE { FULL, WINDOW, POPOUT };
 enum BLOCK { TEXT, PROJECTION };
 
 export let uiState:{
@@ -160,7 +160,6 @@ appHandle("rename entity attribute", (changes:Diff, {entity, attribute, prev, va
   let {source = "<global>"} = eve.findOne("sourced eav", {entity, attribute: prev, value}) || {};
   if(prev !== undefined) changes.remove("sourced eav", {entity, attribute: prev, value});
   changes.add("sourced eav", {entity, attribute, value, source});
-  console.log(changes);
 });
 
 //---------------------------------------------------------
