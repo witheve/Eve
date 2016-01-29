@@ -1000,146 +1000,6 @@ function formTree(tokens: Array<Token>): Node {
     
   console.log(tokenArrayToString(tokens));   
   console.log(nodeToString(tree,tree.ix));
-  
-  console.log("Done");
-  return;
-  
-  
-  // First, let's combine adjacent proper nouns into nodes
-  // Here, adjacent means there are no tokens between noun groups
-  // e.g. [Steve] [Smith] -> [Steve Smith]
-  // But [United States] [of America] does not combine. We do this
-  // at another step
-  let properNouns = nodes.filter((ng) => ng.hasProperty(TokenProperties.PROPER));
-  let adjacentPNouns = [];
-  let pNounNode: Node;
-  let pNouns: Array<Node> = [];
-  for (let i = 0; i < properNouns.length - 1; i++) {
-    let thisPNoun = properNouns[i];
-    let nextPNoun = properNouns[i + 1]
-    // Take this PNoun
-    adjacentPNouns.push(thisPNoun);
-    while (nextPNoun.ix === thisPNoun.ix + 1) {
-      // If the next PNoun is adjacent, add it to the list
-      adjacentPNouns.push(nextPNoun);
-      i++;
-      // Break on possessive nouns
-      /*if (hasProperty(nextPNoun,TokenProperties.POSSESSIVE)) {        
-        break;
-      }*/
-      // Advance the PNouns
-      thisPNoun = properNouns[i];
-      nextPNoun = properNouns[i + 1];
-      // Break on the end of the nouns
-      if (nextPNoun === undefined) {
-        break;
-      }
-    }
-    // Turn adjacent nouns into a node
-    let newName = adjacentPNouns.map((node) => node.name).join(" ");
-    let newOriginalName = adjacentPNouns.map((node: Node) => node.token.originalWord).join(" ");        
-    // Combine all properties
-    let properties: Array<Array<TokenProperties>> = adjacentPNouns.map((node) => node.properties);
-    let flatProperties: Array<TokenProperties> = [].concat.apply([],properties);
-    // Combine all children
-    let children: Array<Array<Node>> = adjacentPNouns.map((node) => node.children);
-    let flatChildren: Array<Node> = [].concat.apply([],children);
-    let token: Token = {
-      ix: adjacentPNouns[0].ix,
-      originalWord: newOriginalName,
-      normalizedWord: newName,
-      POS: MinorPartsOfSpeech.NN,
-      properties: flatProperties,
-    }
-    tokens.push(token);
-    // Create the new proper noun node
-    pNounNode = newNode(token);
-    pNounNode.properties = flatProperties;
-    pNounNode.children = flatChildren;
-    // Rewire children
-    adjacentPNouns.map((node) => {
-      node.children.map((child: Node) => child.parent = pNounNode);
-      node.children = []
-    });
-    // Add new pNoun node to node list
-    nodes.push(pNounNode);
-    // add subsumed pNouns to an auxilary list
-    subsumedNodes = subsumedNodes.concat(adjacentPNouns);
-    // Clear the adjacentPNouns for the next set
-    adjacentPNouns = [];
-  }
-  // Remove subsumed nouns from the main node list
-  subsumedNodes.forEach((node) => {
-    nodes.splice(nodes.indexOf(node),1);
-  });
-  tokens.sort((a, b) => a.ix - b.ix);
-  nodes.sort((a, b) => a.ix - b.ix);
-
-  // Break nodes at separator and CC boundaries before any entities are identified
-  let nodeArrays: Array<Array<Node>> = []; 
-  let boundaries = tokens.filter((token) => token.POS === MinorPartsOfSpeech.SEP || 
-                                            token.POS === MinorPartsOfSpeech.CC);
-  let boundaryNodes = boundaries.map(newNode);
-  nodes = nodes.concat(boundaryNodes).sort((a,b) => a.ix - b.ix);
-  
-  console.log(nodeArrayToString(nodes));
-
-  // Break nodes at separator boundaries
-  let nodeStack: Array<Node> = [];
-  let separatorStack: Array<Node> = [];
-  let conjunctionStack: Array<Node> = [];
-  let n: Node; // Hack to get around  restriction on usage of block scoped variables
-  for (let node of nodes) {
-    n = node;
-    // If the node is a separator, empty the node stack
-    if (node.hasProperty(TokenProperties.SEPARATOR) && node.name === ",") {
-      node.children = nodeStack;
-      node.children.map((child) => child.parent = n);
-      nodeStack = [];
-      separatorStack.push(node);
-    // If the node is a semicolon, empty the node stack into the most recent conjunction's children
-    } else if (node.hasProperty(TokenProperties.SEPARATOR) && node.name === ";") {
-      let conjunctionNode = conjunctionStack[conjunctionStack.length - 1];
-      if (conjunctionNode !== undefined) {
-        n = conjunctionNode;
-        conjunctionNode.children = conjunctionNode.children.concat(nodeStack);
-        conjunctionNode.children.map((child) => child.parent = n);
-        nodeStack = [];
-      // If there is no conjunction stack, just push everything
-      } else {
-        node.children = node.children.concat(separatorStack);
-        node.children = node.children.concat(nodeStack);
-        node.children.map((child) => child.parent = n);
-        conjunctionStack.push(node)
-        separatorStack = [];
-        nodeStack = [];
-      }
-    // If the node is a conjunction, empty the separator stack
-    } else if (node.hasProperty(TokenProperties.CONJUNCTION)) {
-      node.children = separatorStack;
-      node.children.map((child) => child.parent = n);
-      separatorStack = [];
-      conjunctionStack.push(node);
-    // if the node is anything else, push it onto the node stack
-    } else {
-      nodeStack.push(node); 
-    }
-  }
-  // If there is anything left over in the node stack, add it to the most recent conjunction
-  if (nodeStack.length !== 0 && conjunctionStack.length !== 0) {
-    let conjunctionNode = conjunctionStack[conjunctionStack.length - 1];
-    conjunctionNode.children = conjunctionNode.children.concat(nodeStack);
-    nodeStack = [];
-    conjunctionNode.children.map((child) => child.parent = conjunctionNode);
-  }
-
-  /*roots = roots.concat(conjunctionStack);
-  console.log(nodeArrayToString(roots));
-
-  // @HACK: Do something smarter here... push only unpushed nodes?
-  if (roots.length === 0 ) { 
-    roots = nodes;
-  }*/
 
   // THIS IS WHERE THE MAGIC HAPPENS!
   // Go through each node array and try to resolve entities
@@ -1148,7 +1008,7 @@ function formTree(tokens: Array<Token>): Node {
     let found = false;
     
     // Skip certain nodes
-    if (node.hasProperty(TokenProperties.SEPARATOR)) {
+    if (node.hasProperty(TokenProperties.FUNCTION)) {
       console.log("Skipping");
       found = true;
     }
@@ -1282,15 +1142,11 @@ function formTree(tokens: Array<Token>): Node {
   let collections: Array<Collection> = [];
   let attributes: Array<Attribute> = [];
   let maybeAttributes: Array<Node> = [];
-  /*
-  for (let root of roots) {
-    root = resolveEntities(root);
-    entities = [];
-    collections = [];
-    attributes = [];
-    maybeAttributes = [];
-  }*/
+  resolveEntities(tree);
   
+  console.log("Done");
+  return;
+
   // rewire nodes
   for (let token of tokens) {
     let node = token.node;
