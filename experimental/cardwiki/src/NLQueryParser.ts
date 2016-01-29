@@ -149,6 +149,7 @@ enum TokenProperties {
   CONJUNCTION,
   COMPOUND,
   QUOTED,
+  FUNCTION,
 }
 
 // take an input string, extract tokens
@@ -752,7 +753,7 @@ interface Node {
   entity?: Entity,
   collection?: Collection,
   attribute?: Attribute,
-  function?: BuiltInFunction,
+  fxn?: BuiltInFunction,
   token: Token,
   properties: Array<TokenProperties>,
   hasProperty(TokenProperties): boolean;
@@ -797,32 +798,32 @@ function newNode(token: Token): Node {
 }
 
 interface BuiltInFunction {
-  function: string,
+  fxn: string,
   attribute?: string,
 }
 
 function wordToFunction(word: string): BuiltInFunction {
   switch (word) {
     case "taller":
-      return {function: ">", attribute: "height"};
+      return {fxn: ">", attribute: "height"};
     case "shorter":
-      return {function: "<", attribute: "length"};
+      return {fxn: "<", attribute: "length"};
     case "longer":
-      return {function: ">", attribute: "length"};
+      return {fxn: ">", attribute: "length"};
     case "younger":
-      return {function: "<", attribute: "age"};
+      return {fxn: "<", attribute: "age"};
     case "and":
-      return {function: "AND"};
+      return {fxn: "AND"};
     case "or":
-      return {function: "OR"};
+      return {fxn: "OR"};
     case "sum":
-      return {function: "SUM"};
+      return {fxn: "SUM"};
     case "average":
-      return {function: "MEAN"};
+      return {fxn: "MEAN"};
     case "mean":
-      return {function: "MEAN"};
+      return {fxn: "MEAN"};
     default:
-      return {function: ""};
+      return {fxn: ""};
   }
 }
 
@@ -839,6 +840,17 @@ function formTree(tokens: Array<Token>): Node {
   let unusedNodes = tokens.filter((token) => token.node === undefined).map(newNode);
   nodes = nodes.concat(unusedNodes);
   nodes.sort((a,b) => a.ix - b.ix);
+  
+  // Do a quick pass to identify functions
+  tokens.forEach((token) => {
+    let node = token.node;
+    let fxn = wordToFunction(node.name);
+    console.log(fxn)
+    if (fxn.fxn !== "") {
+      node.fxn = fxn;
+      node.properties.push(TokenProperties.FUNCTION);
+    }    
+  });
   
   // Link nodes end to end
   nodes.forEach((thisNode,i) => {
@@ -1071,7 +1083,7 @@ function formTree(tokens: Array<Token>): Node {
   nodes = nodes.concat(boundaryNodes).sort((a,b) => a.ix - b.ix);
   
   console.log(nodeArrayToString(nodes));
-  
+
   // Break nodes at separator boundaries
   let nodeStack: Array<Node> = [];
   let separatorStack: Array<Node> = [];
@@ -1144,7 +1156,7 @@ function formTree(tokens: Array<Token>): Node {
     if (!found) {
       console.log("Search for a built in function")
       let fxn = wordToFunction(node.name);
-      if (fxn.function !== "") {
+      if (fxn.fxn !== "") {
         console.log(fxn);
         found = true;
       }
@@ -1633,7 +1645,7 @@ function buildTerm(node: Node): Array<Term> {
   });
   // Now take care of the node itself.
   // Function terms
-  if (node.function !== undefined) {
+  if (node.fxn !== undefined) {
     // Get variables from the already formed terms
     let vars: Array<string> = [];
     terms.forEach((term) => {
@@ -1657,7 +1669,7 @@ function buildTerm(node: Node): Array<Term> {
     })
     let term: Term = {
       type: "select",
-      table: node.function.function,
+      table: node.fxn.fxn,
       fields: fields,
     }
     terms.push(term);
