@@ -37,12 +37,12 @@ function parseTest(queryString: string, n: number) {
   // Display result
   let tokenStrings = nlqp.tokenArrayToString(parseResult.tokens);
   let timingDisplay = `Timing (avg, max, min): ${(avgTime/n).toFixed(2)} | ${maxTime.toFixed(2)} | ${minTime.toFixed(2)} `;
-  console.log("-------------------------------------------------------------------------------------------");  
-  console.log(tokenStrings);
-  console.log("-------------------------------------------------------------------------------------------");
+  //console.log("-------------------------------------------------------------------------------------------");  
+  //console.log(tokenStrings);
+  //console.log("-------------------------------------------------------------------------------------------");
   //console.log(nlqp.nounGroupArrayToString(parseResult.tree));
-  console.log("-------------------------------------------------------------------------------------------");
-  console.log(parseResult.ast);
+  //console.log("-------------------------------------------------------------------------------------------");
+  //console.log(parseResult.ast);
   /*let artifacts = dslparser.parseDSL(parseResult.ast);
   let changeset = eve.diff();;
   for (let id in artifacts.views) {
@@ -51,20 +51,20 @@ function parseTest(queryString: string, n: number) {
     artifacts.views[id].debug();
   }
   eve.applyDiff(changeset);*/
-  console.log("-------------------------------------------------------------------------------------------");
-  console.log(timingDisplay);
-  console.log("===========================================================================================");
+  //console.log("-------------------------------------------------------------------------------------------");
+  //console.log(timingDisplay);
+  //console.log("===========================================================================================");
 }
 
 let n = 1;
 let phrases = [
-  //"dogs longer than pets",
-  //"Corey Montella's height, weight, age"
+  //"Pets longer than snakes",
+  //"Corey Montella's height, weight, age",
   //"Steve's age and salary",
-  //"Corey Montella's wife's sister's age; and age and gender of Rachel Montella; and Olivia Fay age", // BROKEN
-  "Corey Montella's wife's sister's age, height, gender; and Rachel Montella's height",
+  `age, height, and gender of "Corey Montella" and his nationality and age; and age and gender of "Rachel Romain Fay Montella" and her husband's wife's sister's height; and Corey's age`,
+  //`"Corey Montella's" Wife's sister's age; and age and gender of "Rachel Romain Fay Montella" and her height; and Olivia Fay age, height, and gender; and pets shorter than snakes; and sum of salaries per department`,
   //"Corey Montella's age, height, and gender; and age and gender of Rachel Montella and her sister's age; and Olivia Fay age",
-  //"What is Corey Montella's wife's age?",
+  //"What is Corey Montella's wife's age!",
   //"sum of the lengths of the pets",
   //"sum of the length of pets",
   //"Corey Montella's Height",

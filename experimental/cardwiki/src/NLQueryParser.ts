@@ -813,6 +813,14 @@ function wordToFunction(word: string): BuiltInFunction {
       return {function: "<", attribute: "age"};
     case "and":
       return {function: "AND"};
+    case "or":
+      return {function: "OR"};
+    case "sum":
+      return {function: "SUM"};
+    case "average":
+      return {function: "MEAN"};
+    case "mean":
+      return {function: "MEAN"};
     default:
       return {function: ""};
   }
