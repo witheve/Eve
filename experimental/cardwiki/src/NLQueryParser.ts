@@ -802,6 +802,26 @@ interface BuiltInFunction {
   attribute?: string,
 }
 
+interface Context {
+  entities: Array<Entity>,
+  collections: Array<Collection>,
+  attributes: Array<Attribute>,
+  maybeEntities: Array<Token>
+  maybeAttributes: Array<Token>,
+  maybeCollections: Array<Token>,
+}
+
+function newContext(): Context {
+  return {
+    entities: [],
+    collections: [],
+    attributes: [],
+    maybeEntities: [],
+    maybeAttributes: [],
+    maybeCollections: [],
+  };
+}
+
 function wordToFunction(word: string): BuiltInFunction {
   switch (word) {
     case "taller":
@@ -1002,8 +1022,7 @@ function formTree(tokens: Array<Token>): Node {
 
   // THIS IS WHERE THE MAGIC HAPPENS!
   // Go through each node array and try to resolve entities
-  function resolveEntities(node: Node): Node {
-    console.log(node);
+  function resolveEntities(node: Node, context: Context) {
     let found = false;
     
     // Skip certain nodes
@@ -1012,14 +1031,36 @@ function formTree(tokens: Array<Token>): Node {
       console.log("Skipping");
       found = true;
     }
-    // Attempt to match a function
-    if (!found) {
-      console.log("Search for a built in function")
-      let fxn = wordToFunction(node.name);
-      if (fxn.fxn !== "") {
-        console.log(fxn);
+    // If the node is possessive or proper, it's probably an entity
+    if (!found && (node.hasProperty(TokenProperties.POSSESSIVE) || node.hasProperty(TokenProperties.PROPER))) {
+      console.log("Possessive: finding entity");
+      let entity = findEntityByDisplayName(node.name);
+      if (entity !== undefined) {
+        context.entities.push(entity);
+        entity.node = node;
+        node.entity = entity;
         found = true;
       }
+    }
+    node.children.map((child) => resolveEntities(child,context));
+    
+  }
+  
+  
+  /*
+  function resolveEntities(node: Node, context: Context): Node {
+    function foundEntities(node: Node): Array<Entity> {
+      return [];
+    }
+    
+    console.log(node);
+    let found = false;
+    
+    // Skip certain nodes
+    if (node.hasProperty(TokenProperties.FUNCTION) ||
+        node.hasProperty(TokenProperties.ROOT)) {
+      console.log("Skipping");
+      found = true;
     }
     // If there is a backward relationship e.g. age of Corey, then try to find attrs
     // in the maybeAttr stack
@@ -1036,7 +1077,7 @@ function formTree(tokens: Array<Token>): Node {
           let attribute = findAttribute(maybeAttr.name,entity);
           if (attribute !== undefined) {
             maybeAttr.attribute = attribute;
-            attributes.push(attribute);  
+            context.attributes.push(attribute);  
             attribute.node = maybeAttr;
             found = true;
           }
@@ -1048,14 +1089,14 @@ function formTree(tokens: Array<Token>): Node {
       console.log("Pronoun: finding reference");
       // If the pronoun is plural, the entity is probably the latest collection
       if (node.hasProperty(TokenProperties.PLURAL)) {
-        let collection = collections[collections.length - 1];
+        let collection = context.collections[context.collections.length - 1];
         if (collection !== undefined) {
           console.log(collection.displayName);
           node.collection = collection;
           found = true;
         }
       } else {
-        let entity = entities[entities.length - 1];
+        let entity = context.entities[context.entities.length - 1];
         if (entity !== undefined) {
           console.log(entity.displayName);
           node.entity = entity;
@@ -1068,7 +1109,7 @@ function formTree(tokens: Array<Token>): Node {
       console.log("Possessive: finding entity");
       let entity = findEntityByDisplayName(node.name);
       if (entity !== undefined) {
-        entities.push(entity);
+        context.entities.push(entity);
         entity.node = node;
         node.entity = entity;
         found = true;
@@ -1079,25 +1120,25 @@ function formTree(tokens: Array<Token>): Node {
       console.log("Plural: finding collection");
       let collection = findCollection(node.name);
       if (collection !== undefined) {
-        collections.push(collection);
+        context.collections.push(collection);
         found = true;
       }
     }
     // Try to find an attribute
-    if (!found && (entities.length !== 0 || collections.length !== 0)) {
+    if (!found && (context.entities.length !== 0 || context.collections.length !== 0)) {
       console.log("Entity/Collection already found: finding attribute");
-      let entity = entities[entities.length - 1];
+      let entity = context.entities[context.entities.length - 1];
       if (entity !== undefined) {
         let attribute = findAttribute(node.name,entity);
         if (attribute !== undefined) {
-          attributes.push(attribute);
+          context.attributes.push(attribute);
           node.attribute = attribute;
           attribute.node = node;
           // If the attribute is possessive, check to see if it is an entity
           if (node.hasProperty(TokenProperties.POSSESSIVE)) {
             let entity = findEntityByID(`${attribute.dbValue}`); // @HACK force string | number into string
             if (entity != undefined) {
-              entities.push(entity);
+              context.entities.push(entity);
               entity.node = node;
               node.entity = entity;
             }
@@ -1112,14 +1153,14 @@ function formTree(tokens: Array<Token>): Node {
       console.log("Find this thing anywhere we can");
       let entity = findEntityByDisplayName(node.name);
       if (entity !== undefined) {
-        entities.push(entity);
+        context.entities.push(entity);
         entity.node = node;
         node.entity = entity;
         found = true;
       } else {
         let collection = findCollection(node.name);
         if (collection !== undefined) {
-          collections.push(collection);
+          context.collections.push(collection);
           collection.node = node;
           node.collection = collection;
           found = true;
@@ -1129,23 +1170,18 @@ function formTree(tokens: Array<Token>): Node {
     
     // If we still haven't found anything, it's probably an attribute we can find later
     if (!found) {
-      maybeAttributes.push(node);
+      context.maybeAttributes.push(node.token);
     }
 
     // Do the same for all the children
-    node.children.map(resolveEntities);
+    node.children.map((child) => resolveEntities(child,context));
     
     return node;
   }
-  console.log("Finding Entities!");
-  let entities: Array<Entity> = [];
-  let collections: Array<Collection> = [];
-  let attributes: Array<Attribute> = [];
-  let maybeAttributes: Array<Node> = [];
-  resolveEntities(tree);
+
   
   // rewire matched nodes to the correct parents
-  for (let token of tokens) {
+  /*for (let token of tokens) {
     let node = token.node;
     let attribute: Attribute = node.attribute;
     if (attribute !== undefined) {
@@ -1154,13 +1190,16 @@ function formTree(tokens: Array<Token>): Node {
         let entity: Entity = maybeEntity;
         let node = attribute.node;
         // @HACK Is there a better way to do this?
-        console.log(node)
         node.parent.children.splice(node.parent.children.indexOf(node),1);
         node.parent = entity.node;
         entity.node.children.push(node);
       }
     }
-  }
+  }*/
+  
+  console.log("Finding Entities!");
+  let context = newContext();
+  resolveEntities(tree,context);
   
   console.log(nodeToString(tree,0));
   
@@ -1630,8 +1669,11 @@ export function nodeToString(node: Node, depth: number): string {
   let properties = `(${node.properties.map((property: TokenProperties) => TokenProperties[property]).join("|")})`;
   let attribute = node.attribute === undefined ? "" : `[${node.attribute.dbValue}] `;
   let entity = node.entity === undefined ? "" : `[${node.entity.displayName}] `;
+  let collection = node.collection === undefined ? "" : `[${node.collection.displayName}] `;
+  let fxn = node.fxn === undefined ? "" : `[${node.fxn.fxn}] `;
+  let found = entity !== "" || attribute !== "" || collection !== "" || fxn !== "" ? "*" : " ";
   properties = properties.length === 2 ? "" : properties;
-  let nodeString = `| ${spacing}${index}${node.name} ${entity}${attribute}${properties}${children}`; 
+  let nodeString = `|${found}${spacing}${index}${node.name} ${properties}${fxn}${entity}${collection}${attribute}${children}`; 
   return nodeString;
 }
 
