@@ -888,80 +888,6 @@ function formTree(tokens: Array<Token>): Node {
   let i = 0;
   let length = tokens.length * 2;
   while (true) {
-    function reroot(node: Node, target: Node): void {
-      node.parent.children.splice(node.parent.children.indexOf(node),1);  
-      node.parent = target;
-      target.children.push(node);
-    }
-    function findWithProperty(node: Node, property: TokenProperties): Node {
-      if (node.hasProperty(TokenProperties.ROOT)) {
-        return undefined;
-      }
-      if (node.parent.hasProperty(property)) {
-        return node.parent;
-      } else {
-        return findWithProperty(node.parent,property);
-      } 
-    }
-    function findWithPOS(node: Node, majorPOS: MajorPartsOfSpeech): Node {
-      if (getMajorPOS(node.token.POS) === MajorPartsOfSpeech.ROOT) {
-        return undefined;
-      }
-      if (getMajorPOS(node.parent.token.POS) === majorPOS) {
-        return node.parent;
-      } else {
-        return findWithPOS(node.parent,majorPOS);
-      } 
-    }
-    function removeNode(node): void {
-      let parent: Node = node.parent;
-      let children: Array<Node> = node.children;
-      // Rewire
-      parent.children = parent.children.concat(children);
-      parent.children.sort((a,b) => a.ix - b.ix);
-      children.map((child) => child.parent = parent);
-      // Get rid of references on current node
-      parent.children.splice(parent.children.indexOf(node),1);
-      node.parent = undefined;
-      node.children = [];
-    }
-    function insertAfterNode(node: Node, target: Node): void {
-      node.parent = target;
-      node.children = target.children;
-      target.children.map((n) => n.parent = node);
-      target.children = [node];
-    }
-    // Sets node to be a sibling of its parent
-    function promoteNode(node: Node): void {
-      if (node.parent.hasProperty(TokenProperties.ROOT)) {
-        return;
-      }
-      let newSibling = node.parent;
-      let newParent = newSibling.parent;
-      // Set parent
-      node.parent = newParent;
-      // Remove node from parent's children
-      newSibling.children.splice(newSibling.children.indexOf(node),1);
-      // Add node to new parent's children
-      newParent.children.push(node);
-    }
-    function swapNodeWithParent(node: Node): void {
-      let parent = node.parent;
-      // Do not swap with root, instead, set everything as the children of the node
-      if (parent.hasProperty(TokenProperties.ROOT)) {
-        return;
-      }
-      // Set parents
-      node.parent = parent.parent
-      parent.parent = node;
-      // Remove node as a child from parent
-      parent.children.splice(parent.children.indexOf(node),1);
-      // Set children
-      node.children = node.children.concat(parent);
-      node.parent.children.push(node);
-      node.parent.children.splice(node.parent.children.indexOf(parent),1);
-    }
-    //----------------------------
     let token = tokens[i];
     if (token === undefined) {
       break;
@@ -1158,13 +1084,9 @@ function formTree(tokens: Array<Token>): Node {
       context.maybeAttributes.push(node.token);
     }
     
-    
     // Resolve the child nodes
     node.children.map((child) => resolveEntities(child,context));
-    
-    
-   
-    
+
     return context;
     
     // If we're here and we still haven't found anything, maybe
@@ -1200,14 +1122,6 @@ function formTree(tokens: Array<Token>): Node {
   
   console.log("Done");
   return;
-  
-  // Pull out comparator nodes
-  
-  
-  /*
-  let comparatorNodes: Array<Node> = roots.map((node) => {
-
-  });*/
   
   /*
   // Identify the comparative functions for each node
@@ -1356,6 +1270,88 @@ function formTree(tokens: Array<Token>): Node {
 
   // Heuristic: attributes to a noun exist in close proximity to it
 }
+
+// Various node manipulation functions
+function reroot(node: Node, target: Node): void {
+  node.parent.children.splice(node.parent.children.indexOf(node),1);  
+  node.parent = target;
+  target.children.push(node);
+}
+
+function findWithProperty(node: Node, property: TokenProperties): Node {
+  if (node.hasProperty(TokenProperties.ROOT)) {
+    return undefined;
+  }
+  if (node.parent.hasProperty(property)) {
+    return node.parent;
+  } else {
+    return findWithProperty(node.parent,property);
+  } 
+}
+
+function findWithPOS(node: Node, majorPOS: MajorPartsOfSpeech): Node {
+  if (getMajorPOS(node.token.POS) === MajorPartsOfSpeech.ROOT) {
+    return undefined;
+  }
+  if (getMajorPOS(node.parent.token.POS) === majorPOS) {
+    return node.parent;
+  } else {
+    return findWithPOS(node.parent,majorPOS);
+  } 
+}
+
+function removeNode(node): void {
+  let parent: Node = node.parent;
+  let children: Array<Node> = node.children;
+  // Rewire
+  parent.children = parent.children.concat(children);
+  parent.children.sort((a,b) => a.ix - b.ix);
+  children.map((child) => child.parent = parent);
+  // Get rid of references on current node
+  parent.children.splice(parent.children.indexOf(node),1);
+  node.parent = undefined;
+  node.children = [];
+}
+
+function insertAfterNode(node: Node, target: Node): void {
+  node.parent = target;
+  node.children = target.children;
+  target.children.map((n) => n.parent = node);
+  target.children = [node];
+}
+
+// Sets node to be a sibling of its parent
+function promoteNode(node: Node): void {
+  if (node.parent.hasProperty(TokenProperties.ROOT)) {
+    return;
+  }
+  let newSibling = node.parent;
+  let newParent = newSibling.parent;
+  // Set parent
+  node.parent = newParent;
+  // Remove node from parent's children
+  newSibling.children.splice(newSibling.children.indexOf(node),1);
+  // Add node to new parent's children
+  newParent.children.push(node);
+}
+
+function swapNodeWithParent(node: Node): void {
+  let parent = node.parent;
+  // Do not swap with root, instead, set everything as the children of the node
+  if (parent.hasProperty(TokenProperties.ROOT)) {
+    return;
+  }
+  // Set parents
+  node.parent = parent.parent
+  parent.parent = node;
+  // Remove node as a child from parent
+  parent.children.splice(parent.children.indexOf(node),1);
+  // Set children
+  node.children = node.children.concat(parent);
+  node.parent.children.push(node);
+  node.parent.children.splice(node.parent.children.indexOf(parent),1);
+}
+
 
 interface Entity {
   id: string,
