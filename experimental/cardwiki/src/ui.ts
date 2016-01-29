@@ -76,11 +76,12 @@ appHandle("ui set search", (changes:Diff, {paneId, value, peek, x, y, popState}:
       neuePaneId = uuid();
     } else {
       neuePaneId = popout.pane;
-      changes.remove("ui pane", {pane: paneId});
+      changes.remove("ui pane", {pane: neuePaneId});
+      console.log("reusing pane");
     }
     let state = uiState.widget.search[neuePaneId] = {value};
     fact = {contains: value, pane: neuePaneId, kind: PANE.POPOUT};
-    if(!popout || popout.pane !== neuePaneId) {
+    if(!popout || paneId !== neuePaneId) {
       changes.remove("ui pane position", {pane: neuePaneId});
       changes.add("ui pane position", {pane: neuePaneId, x, y});
       changes.remove("ui pane parent", {parent: paneId});
@@ -96,9 +97,14 @@ appHandle("ui set search", (changes:Diff, {paneId, value, peek, x, y, popState}:
   if(!eve.findOne("display name", {name: value})) activeSearches[value] = queryToExecutable(value);
 });
 
-appHandle("remove popup", (changes:Diff, {paneId}:{paneId:string}) => {
-  changes.remove("ui pane", {pane: paneId});
-  changes.remove("ui pane position", {pane: paneId});
+appHandle("remove popup", (changes:Diff, {}:{}) => {
+  let popup = eve.findOne("ui pane", {kind: PANE.POPOUT});
+  if(popup) {
+    console.log("POPUP", popup);
+    let paneId = popup.pane;
+    changes.remove("ui pane", {pane: paneId});
+    changes.remove("ui pane position", {pane: paneId});
+  }
 });
 
 appHandle("ui toggle search plan", (changes:Diff, {paneId}:{paneId:string}) => {
@@ -170,11 +176,11 @@ export function root():Element {
   for(let {pane:paneId} of eve.find("ui pane")) {
     panes.push(pane(paneId));
   }
-  return {c: "wiki-root", id: "root", children: panes};
+  return {c: "wiki-root", id: "root", children: panes, click: removePopup};
 }
 
 // @TODO: Add search functionality + Pane Chrome
-let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, header?:Element, footer?:Element, shade?:Element}} = {
+let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, header?:Element, footer?:Element, captureClicks?:boolean}} = {
   [PANE.FULL]: (paneId, entityId) => ({
     c: "fullscreen",
     header: {t: "header", c: "flex-row", children: [{c: "logo eve-logo", data: {paneId}, link: "", click: navigate}, searchInput(paneId, entityId)]}
@@ -183,13 +189,9 @@ let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, 
     let parent = eve.findOne("ui pane parent", {pane: paneId})["parent"];
     return {
       c: "window",
-      shade: {c: "pane-shade", paneId, click: removePopup, children: []},
-      header: {t: "header", c: "flex-row", children: [
+      captureClicks: true,
+      header: {t: "header", c: "", children: [
         {t: "button", c: "ion-android-open", click: navigateParent, link: entityId, paneId: paneId, parentId: parent, text:""},
-        {c: "labeled-input flex-grow", children: [
-          {t: "input", c: "flex-grow", type: "text", placeholder: "Search to embed", value: "", postRender: autoFocus},
-          {t: "label", text: "as a link"},
-        ]},
       ]},
     };
   },
@@ -214,7 +216,7 @@ function navigateParent(event, elem) {
 
 function removePopup(event, elem) {
   if(!event.defaultPrevented) {
-    dispatch("remove popup", {paneId: elem.paneId}).commit();
+    dispatch("remove popup", {}).commit();
   }
 }
 
@@ -223,7 +225,7 @@ export function pane(paneId:string):Element {
   let {contains = undefined, kind = PANE.FULL} = eve.findOne("ui pane", {pane: paneId}) || {};
   let makeChrome = paneChrome[kind];
   if(!makeChrome) throw new Error(`Unknown pane kind: '${kind}' (${PANE[kind]})`);
-  let {c:klass, header, footer, shade} = makeChrome(paneId, contains);
+  let {c:klass, header, footer, captureClicks} = makeChrome(paneId, contains);
   let content;
   let display = eve.findOne("display name", {name: contains}) || eve.findOne("display name", {id: contains});
 
@@ -260,10 +262,8 @@ export function pane(paneId:string):Element {
   if(pos) {
     pane.style = `left: ${pos.x}px; top: ${pos.y + 20}px;`;
   }
-  if(shade) {
-    shade.children.push(pane);
+  if(captureClicks) {
     pane.click = preventDefault;
-    pane = shade;
   }
   return pane;
 }
@@ -760,7 +760,7 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
     if(!params.field) throw new Error("Value representation requires a 'field' param indicating which field to represent");
     let field = params.field;
     if(!results.length) return [];
-    
+
     // If field isn't in results, try to resolve it as a field name, otherwise error out
     if(results[0][field] === undefined) {
       let potentialIds = eve.find("display name", {name: field});
