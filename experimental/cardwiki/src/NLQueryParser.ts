@@ -800,12 +800,14 @@ function newNode(token: Token): Node {
 interface BuiltInFunction {
   fxn: string,
   attribute?: string,
+  node?: Node,
 }
 
 interface Context {
   entities: Array<Entity>,
   collections: Array<Collection>,
   attributes: Array<Attribute>,
+  fxns: Array<BuiltInFunction>,
   maybeEntities: Array<Token>
   maybeAttributes: Array<Token>,
   maybeCollections: Array<Token>,
@@ -816,6 +818,7 @@ function newContext(): Context {
     entities: [],
     collections: [],
     attributes: [],
+    fxns: [],
     maybeEntities: [],
     maybeAttributes: [],
     maybeCollections: [],
@@ -867,6 +870,7 @@ function formTree(tokens: Array<Token>): Node {
     let fxn = wordToFunction(node.name);
     if (fxn.fxn !== "") {
       node.fxn = fxn;
+      fxn.node = node;
       node.properties.push(TokenProperties.FUNCTION);
     }    
   });
@@ -1113,7 +1117,6 @@ function formTree(tokens: Array<Token>): Node {
     }
   }*/
   
-  console.log("Finding Entities!");
   let context = newContext();
   resolveEntities(tree,context);
   console.log(context);
