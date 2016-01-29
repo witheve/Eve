@@ -131,6 +131,8 @@ content li { flex: 0 0 auto; }
 
 content h1 { border-bottom: 1px solid #ccc; }
 
+content .error-rep { color: #FF3333; }
+
 /*---------------------------------------------------------
 - Search Pane
 ---------------------------------------------------------*/

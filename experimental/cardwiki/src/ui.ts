@@ -407,7 +407,7 @@ function cellUI(paneId, query):Element {
     let {executable} = activeSearches[content];
     results = executable.exec();
   }
-  return {c: `cell`, children: [represent(params["rep"], results, params)]};
+  return {c: `cell`, children: [represent(content, params["rep"], results, params)]};
 }
 
 function getCellParams(content, rawParams) {
@@ -795,11 +795,14 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
   },
 };
 
-function represent(rep:string, results, params:{}):Element {
+function represent(search: string, rep:string, results, params:{}):Element {
   // console.log("repping:", results, " as", rep, " with params ", params);
   if(rep in _prepare) {
     let embedParamSets = _prepare[rep](results.results, <any>params);
-    if(embedParamSets.constructor === Array) {
+    let isArray = embedParamSets && embedParamSets.constructor === Array;
+    if(!embedParamSets || isArray && embedParamSets.length === 0) {
+      return {c: "error-rep", text: `${search} as ${rep}`};
+    } else if(embedParamSets.constructor === Array) {
       let wrapper = {c: "flex-column", children: []};
       for(let embedParams of embedParamSets) {
         embedParams["data"] = embedParams["data"] = params;
