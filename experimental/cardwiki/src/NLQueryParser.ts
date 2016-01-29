@@ -593,73 +593,6 @@ function formNounGroups(tokens: Array<Token>): Array<Node> {
     i++;
   }
   
-  // Heuristic: Now we have some noun groups. Are there any adjectives 
-  // left over? Attach them to the closest noun group to the left
-  /*
-  let unusedAdjectives = findAll(tokens,(token: Token) => token.node !== undefined && getMajorPOS(token.POS) === MajorPartsOfSpeech.ADJECTIVE);
-  console.log(unusedAdjectives);
-  let targetNG: NounGroup;
-  let foundConjunction: boolean;
-  let adjIx = undefined 
-  for (let adj of unusedAdjectives) {
-    // finds the closest noun group to the left
-    targetNG = null;
-    foundConjunction = false;
-    adjIx = adj.ix;
-    for (let ng of nounGroups) {
-      if (adj.ix - ng.end < 0) {
-        break; 
-      }
-      targetNG = ng;
-    }   
-    // Are any conjunctions between the adjective and the targetNG?
-    let conjunctions = tokens.filter((token) => token.POS === MinorPartsOfSpeech.CC);
-    conjunctions.forEach((conj) => {
-      if (conj.ix < adjIx && conj.ix > targetNG.end) {
-        foundConjunction = true;
-      } 
-    });
-    // If we found a NG to the left, and there are no CC inbetween
-    // e.g. "Steve's age and salary". Salary should not be added as a child to age
-    if (targetNG !== null && !foundConjunction) {
-      addChildToNounGroup(targetNG,adj);
-      targetNG.end = adj.ix;
-    // If the target NG is null, this means there is no noun group to the left. 
-    // This can happen in the case when a sentence begins with an adjective.
-    // e.g. "Shortest flight between New York and San Francisco". Here, "shortest"
-    // should be a child of "flight". But if "flight" is misclassified as a verb,
-    // then the closest noun is "new york". But "new york" is prevented from attaching
-    // "shortest" because it encountered a verb boundary during the left search heuristic.
-    // Heuristic: reclassify the closest verb to the right as a noun
-    } else {
-      let targetVB: Token = null;
-      // Start at the token to the right of the adj, scan for the closest verb
-      for (let i = adj.ix + 1; i < tokens.length; i++) {
-        let token = tokens[i];
-        if (token.used === true) {
-          continue; 
-        }
-        if (getMajorPOS(token.POS) === MajorPartsOfSpeech.VERB) {
-          targetVB = token;
-          // We found a verb, so we are done scanning  
-          break;
-        }
-      }
-      if (targetVB !== null) {
-        targetVB.POS = MinorPartsOfSpeech.NN;
-        // Start a new noun group
-        let nounGroup: NounGroup = newNounGroup(targetVB);
-        targetVB.used = true;
-        // Add adjective and everything inbeetween as children to this new noun group
-        for (let i = adj.ix; i < targetVB.ix; i++) {
-          let token = tokens[i];
-          addChildToNounGroup(nounGroup,token);
-        }
-        nounGroups.push(nounGroup);
-      }  
-    }
-  }*/
-  
   // Heuristic: Leftover determiners are themselves a noun group 
   // e.g. neither of these boys. ng = ([neither],[of these boys])
   let unusedDeterminers = findAll(tokens, (token: Token) => token.node === undefined && token.POS === MinorPartsOfSpeech.DT);
@@ -667,74 +600,10 @@ function formNounGroups(tokens: Array<Token>): Array<Node> {
     nounGroups.push(newNode(token));  
   }
   
-  // Remove the superfluous noun groups
-  //nounGroups = findAll(nounGroups,(ng: NounGroup) => ng.used === false);
-  
-  // Resolve pronoun coreferences
-  // nounGroups = resolveReferences(nounGroups);
-  
   // Sort the noun groups to reflect their order in the root sentence
   nounGroups = nounGroups.sort((ngA, ngB) => ngA.ix - ngB.ix);
   return nounGroups;
 }
-
-
-/*function resolveReferences(nounGroups: Array<NounGroup>): Array<NounGroup>  {
-  
-  // Define some pronouns
-  let firstPersonPersonal: any = ["I","my","mine","myself"]
-    
-  let thirdPersonPersonal = ["he","him","his","himself",
-                             "she","her","hers","herself",
-                             "it","its","itself",
-                             "they","them","their","theirs","themselves"];
-                          
-  let demonstrative= ["this","that","these","those"];
-  
-  let relative = ["who","whom","whose","that","which"];
-  
-  // Attach to a singular antecedent
-  let singularIndefinite = ["each","either","neither",
-                            "anybody","anyone","anything",
-                            "everybody","everyone","everything",
-                            "nobody","no one","nothing",
-                            "somebody","someone","something"];
-
-  // Get all the non personal pronouns
-  let pronounGroups: Array<NounGroup> = findAll(nounGroups,(ng: NounGroup) => {
-    let isPersonal = intersect(firstPersonPersonal,[ng.token.normalizedWord]).length > 0;
-    return (hasProperty(ng,TokenProperties.REFERENCE) && !isPersonal);
-  });
-  let antecedents: Array<NounGroup> = findAll(nounGroups,(ng: NounGroup) => hasProperty(ng,TokenProperties.REFERENCE) === false);
-
-  // Heuristic: Find the closest antecedent, set that as the noun group reference
-  for (let png of pronounGroups) {
-    // If the png already has a reference, we don't need to find one.
-    // This will come in handy when the user specifies this with autocomplete    
-    if (png.refersTo != undefined) {
-      continue;
-    }
-    let closestAntecedent = null;
-    for (let ng of antecedents) {
-      if(ng.begin >= png.end) {
-        break;
-      }
-      // Heuristic: possessive nouns are never antecedents
-      if (hasProperty(ng,TokenProperties.POSSESSIVE) === true) {
-        continue;
-      }
-      closestAntecedent = ng;
-    }
-    if (closestAntecedent != null)  {
-      png.refersTo = closestAntecedent;  
-    }
-  }
-
-  // Heuristic: joining singular nouns with "and" creates a plural antecedent
-  // e.g. "The beetle and baby snake were thankful they escaped the lawnmower blade."
-  
-  return nounGroups;
-}*/
 
 // Adds a child token to a noun group and subsumes its properties. Marks token as used
 function addChildToNounGroup(nounGroup: Node, token: Token) {
@@ -797,8 +666,15 @@ function newNode(token: Token): Node {
   return node;  
 }
 
+enum FunctionTypes {
+  COMPARATOR,
+  AGGREGATE,
+  BOOLEAN,
+}
+
 interface BuiltInFunction {
-  fxn: string,
+  name: string,
+  type: FunctionTypes,
   attribute?: string,
   node?: Node,
 }
@@ -828,25 +704,25 @@ function newContext(): Context {
 function wordToFunction(word: string): BuiltInFunction {
   switch (word) {
     case "taller":
-      return {fxn: ">", attribute: "height"};
+      return {name: ">", type: FunctionTypes.COMPARATOR, attribute: "height"};
     case "shorter":
-      return {fxn: "<", attribute: "length"};
+      return {name: "<", type: FunctionTypes.COMPARATOR, attribute: "length"};
     case "longer":
-      return {fxn: ">", attribute: "length"};
+      return {name: ">", type: FunctionTypes.COMPARATOR, attribute: "length"};
     case "younger":
-      return {fxn: "<", attribute: "age"};
+      return {name: "<", type: FunctionTypes.COMPARATOR, attribute: "age"};
     case "and":
-      return {fxn: "AND"};
+      return {name: "AND", type: FunctionTypes.BOOLEAN};
     case "or":
-      return {fxn: "OR"};
+      return {name: "OR", type: FunctionTypes.BOOLEAN};
     case "sum":
-      return {fxn: "SUM"};
+      return {name: "SUM", type: FunctionTypes.AGGREGATE};
     case "average":
-      return {fxn: "MEAN"};
+      return {name: "MEAN", type: FunctionTypes.AGGREGATE};
     case "mean":
-      return {fxn: "MEAN"};
+      return {name: "MEAN", type: FunctionTypes.AGGREGATE};
     default:
-      return {fxn: ""};
+      return undefined;
   }
 }
 
@@ -868,7 +744,7 @@ function formTree(tokens: Array<Token>): Node {
   tokens.forEach((token) => {
     let node = token.node;
     let fxn = wordToFunction(node.name);
-    if (fxn.fxn !== "") {
+    if (fxn !== undefined) {
       node.fxn = fxn;
       fxn.node = node;
       node.properties.push(TokenProperties.FUNCTION);
@@ -977,9 +853,12 @@ function formTree(tokens: Array<Token>): Node {
     let found = false;
     
     // Skip certain nodes
-    if (node.hasProperty(TokenProperties.FUNCTION) ||
-        node.hasProperty(TokenProperties.ROOT)) {
+    if (node.hasProperty(TokenProperties.ROOT)) {
       console.log("Skipping");
+      found = true;
+    }
+    if (!found && node.hasProperty(TokenProperties.FUNCTION)) {
+      context.fxns.push(node.fxn);
       found = true;
     }
     // If the node is possessive or proper, it's probably an entity
@@ -1121,6 +1000,18 @@ function formTree(tokens: Array<Token>): Node {
   resolveEntities(tree,context);
   console.log(context);
   
+  // Rewrite comparators
+  let comparatorNodes = context.fxns.filter((fxn) => fxn.type === FunctionTypes.COMPARATOR).map((n) => n.node);
+  console.log(comparatorNodes);
+  
+  for (let compNode of comparatorNodes) {
+    // If a comparator node only has one child, swap with the parent
+    if (compNode.children.length === 1) {
+      swapNodeWithParent(compNode);
+    }
+  }
+  
+  
   console.log(nodeToString(tree,0));
   
   console.log("Done");
@@ -1206,72 +1097,8 @@ function formTree(tokens: Array<Token>): Node {
     }
   }
   */
-  
-  // Identify any aggregates
-  
-  // Get unused tokens
-  //unusedTokens = findAll(tokens,(token: Token) => token.used === false);
-  //unusedNG = nounGroups.filter((ng: NounGroup) => ng.used === false);
-
-  //console.log(entities);
-  //console.log(attributes);
-  //console.log("Unused Tokens:");
-  //console.log(tokenArrayToString(unusedTokens));
-  //console.log("Unused Noun Groups:");
-  //console.log(nounGroupArrayToString(unusedNG));
-  //console.log("Unmatched Tokens:");
-  console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-  
-  // Remove nodes with parents
-  /*let roots: Array<Node> = [];
-  for (let nodeArray of nodeArrays) {
-    for (let node of nodeArray) {
-      if (node.parent === undefined) {
-        roots.push(node);
-      }
-    }
-  }*/
 
   return tree;
-  
-  // Heuristic: don't include verbs at this stage
-  
-  // Find noun phrases. Noun phrases are a group of words that describe a root noun
-  // e.g. "4-star restaurant" "the united states of america"
-  // Heuristic: CD, DT, and JJ typically preceed a noun phrase
-  // Heuristic: All noun phrases contain nouns. Corollary: all nouns belong to some noun phrase
-  // common error: JJ/VB
-  
-  // Find relationships between noun groups. In the previous example, "the yellow dog" is related to "the town"
-  // by the words "lived in"
-  // Heuristic: relationships often exist between noun groups 
-  
-  // Find adjective phrases. These are analagous to noun phrases but for adjectives. E.g. "very tall person",
-  // "very tall" is an adjective group
-  // Adjective phrases contain modifiers on the adjective: Premodifiers, Postmodifiers, and Discontinuous Modifiers
-  //   Premodifiers are always adverb phrases
-  //   Postmodifiers can be an adverb phrase, a prepositional phrase, or a clause
-  //   Discontinuous modifiers can be before and after the adjective.
-  
-  // Linking verbs: be [am is are was were has been are being etc.], become, seem. These are always linking verbs
-  // Linking verb test: replace with am, is, or are and the sentence should still parse
-  
-  // Find prepositional phrases. These begin with a preposition and end with a noun, pronoun, gerund, or clause.
-  // The object of the preposition will have zero or more modifiers describing it.
-  // e.g. preposition + [modifiers] + noun | pronoun | gerund | clause
-  // Purpose: as an adjective, prep phrase answers "which one?"
-  //          as an adverb, answers "how" "when" or "where"
-  
-  // Heuristic: Prepositional phrase will NEVER contain the subject of the sentence 
-  // Heuristic: Prepositional phrases begin with a preposition, and end with a noun group
-  
-  // Heuristic: The first noun is usually the subject
-  // breaks this heuristic: "How many 4 star restaurants are in San Francisco?"
-  // Here, star is the first noun, but 4-star is an adjective modifying restaurants,
-  // which is the subject of the sentence.
-  // Consider this alternative: the first noun group is the subject
-
-  // Heuristic: attributes to a noun exist in close proximity to it
 }
 
 // Various node manipulation functions
@@ -1561,7 +1388,7 @@ function buildTerm(node: Node): Array<Term> {
     })
     let term: Term = {
       type: "select",
-      table: node.fxn.fxn,
+      table: node.fxn.name,
       fields: fields,
     }
     terms.push(term);
@@ -1664,10 +1491,11 @@ export function nodeToString(node: Node, depth: number): string {
   let attribute = node.attribute === undefined ? "" : `[${node.attribute.dbValue} (${node.attribute.value})] `;
   let entity = node.entity === undefined ? "" : `[${node.entity.displayName}] `;
   let collection = node.collection === undefined ? "" : `[${node.collection.displayName}] `;
-  let fxn = node.fxn === undefined ? "" : `[${node.fxn.fxn}] `;
+  let fxn = node.fxn === undefined ? "" : `[${node.fxn.name}] `;
   let found = entity !== "" || attribute !== "" || collection !== "" || fxn !== "" ? "*" : " ";
+  let entityOrProperties = found === " " ? `${properties}` : `${fxn}${entity}${collection}${attribute}`;
   properties = properties.length === 2 ? "" : properties;
-  let nodeString = `|${found}${spacing}${index}${node.name} ${properties}${fxn}${entity}${collection}${attribute}${children}`; 
+  let nodeString = `|${found}${spacing}${index}${node.name} ${entityOrProperties}${children}`; 
   return nodeString;
 }
 
@@ -1737,3 +1565,130 @@ function onlyUnique(value, index, self) {
 
 declare var exports;
 window["NLQP"] = exports;
+
+  // Heuristic: don't include verbs at this stage
+  
+  // Find noun phrases. Noun phrases are a group of words that describe a root noun
+  // e.g. "4-star restaurant" "the united states of america"
+  // Heuristic: CD, DT, and JJ typically preceed a noun phrase
+  // Heuristic: All noun phrases contain nouns. Corollary: all nouns belong to some noun phrase
+  // common error: JJ/VB
+  
+  // Find relationships between noun groups. In the previous example, "the yellow dog" is related to "the town"
+  // by the words "lived in"
+  // Heuristic: relationships often exist between noun groups 
+  
+  // Find adjective phrases. These are analagous to noun phrases but for adjectives. E.g. "very tall person",
+  // "very tall" is an adjective group
+  // Adjective phrases contain modifiers on the adjective: Premodifiers, Postmodifiers, and Discontinuous Modifiers
+  //   Premodifiers are always adverb phrases
+  //   Postmodifiers can be an adverb phrase, a prepositional phrase, or a clause
+  //   Discontinuous modifiers can be before and after the adjective.
+  
+  // Linking verbs: be [am is are was were has been are being etc.], become, seem. These are always linking verbs
+  // Linking verb test: replace with am, is, or are and the sentence should still parse
+  
+  // Find prepositional phrases. These begin with a preposition and end with a noun, pronoun, gerund, or clause.
+  // The object of the preposition will have zero or more modifiers describing it.
+  // e.g. preposition + [modifiers] + noun | pronoun | gerund | clause
+  // Purpose: as an adjective, prep phrase answers "which one?"
+  //          as an adverb, answers "how" "when" or "where"
+  
+  // Heuristic: Prepositional phrase will NEVER contain the subject of the sentence 
+  // Heuristic: Prepositional phrases begin with a preposition, and end with a noun group
+  
+  // Heuristic: The first noun is usually the subject
+  // breaks this heuristic: "How many 4 star restaurants are in San Francisco?"
+  // Here, star is the first noun, but 4-star is an adjective modifying restaurants,
+  // which is the subject of the sentence.
+  // Consider this alternative: the first noun group is the subject
+
+  // Heuristic: attributes to a noun exist in close proximity to it
+
+  /*
+  let firstPersonPersonal: any = ["I","my","mine","myself"]
+    
+  let thirdPersonPersonal = ["he","him","his","himself",
+                             "she","her","hers","herself",
+                             "it","its","itself",
+                             "they","them","their","theirs","themselves"];
+                          
+  let demonstrative= ["this","that","these","those"];
+  
+  let relative = ["who","whom","whose","that","which"];
+  
+  // Attach to a singular antecedent
+  let singularIndefinite = ["each","either","neither",
+                            "anybody","anyone","anything",
+                            "everybody","everyone","everything",
+                            "nobody","no one","nothing",
+                            "somebody","someone","something"];
+                            */
+                            
+                            
+  // Heuristic: Now we have some noun groups. Are there any adjectives 
+  // left over? Attach them to the closest noun group to the left
+  /*
+  let unusedAdjectives = findAll(tokens,(token: Token) => token.node !== undefined && getMajorPOS(token.POS) === MajorPartsOfSpeech.ADJECTIVE);
+  console.log(unusedAdjectives);
+  let targetNG: NounGroup;
+  let foundConjunction: boolean;
+  let adjIx = undefined 
+  for (let adj of unusedAdjectives) {
+    // finds the closest noun group to the left
+    targetNG = null;
+    foundConjunction = false;
+    adjIx = adj.ix;
+    for (let ng of nounGroups) {
+      if (adj.ix - ng.end < 0) {
+        break; 
+      }
+      targetNG = ng;
+    }   
+    // Are any conjunctions between the adjective and the targetNG?
+    let conjunctions = tokens.filter((token) => token.POS === MinorPartsOfSpeech.CC);
+    conjunctions.forEach((conj) => {
+      if (conj.ix < adjIx && conj.ix > targetNG.end) {
+        foundConjunction = true;
+      } 
+    });
+    // If we found a NG to the left, and there are no CC inbetween
+    // e.g. "Steve's age and salary". Salary should not be added as a child to age
+    if (targetNG !== null && !foundConjunction) {
+      addChildToNounGroup(targetNG,adj);
+      targetNG.end = adj.ix;
+    // If the target NG is null, this means there is no noun group to the left. 
+    // This can happen in the case when a sentence begins with an adjective.
+    // e.g. "Shortest flight between New York and San Francisco". Here, "shortest"
+    // should be a child of "flight". But if "flight" is misclassified as a verb,
+    // then the closest noun is "new york". But "new york" is prevented from attaching
+    // "shortest" because it encountered a verb boundary during the left search heuristic.
+    // Heuristic: reclassify the closest verb to the right as a noun
+    } else {
+      let targetVB: Token = null;
+      // Start at the token to the right of the adj, scan for the closest verb
+      for (let i = adj.ix + 1; i < tokens.length; i++) {
+        let token = tokens[i];
+        if (token.used === true) {
+          continue; 
+        }
+        if (getMajorPOS(token.POS) === MajorPartsOfSpeech.VERB) {
+          targetVB = token;
+          // We found a verb, so we are done scanning  
+          break;
+        }
+      }
+      if (targetVB !== null) {
+        targetVB.POS = MinorPartsOfSpeech.NN;
+        // Start a new noun group
+        let nounGroup: NounGroup = newNounGroup(targetVB);
+        targetVB.used = true;
+        // Add adjective and everything inbeetween as children to this new noun group
+        for (let i = adj.ix; i < targetVB.ix; i++) {
+          let token = tokens[i];
+          addChildToNounGroup(nounGroup,token);
+        }
+        nounGroups.push(nounGroup);
+      }  
+    }
+  }*/
