@@ -408,7 +408,6 @@ function getCellParams(content, rawParams) {
     // @TODO: eventually the information about the requested subjects should come from
     // the NLP side or projection. But for now..
     let plan = activeSearches[content].plan;
-    console.log(plan);
     let info = {};
     for(let step of plan) {
       if(!info[step.type]) info[step.type] = 0;
@@ -780,7 +779,6 @@ function represent(rep:string, results, params:{}):Element {
   // console.log("repping:", results, " as", rep, " with params ", params);
   if(rep in _prepare) {
     let embedParamSets = _prepare[rep](results.results, <any>params);
-    console.log(rep, embedParamSets);
     if(embedParamSets.constructor === Array) {
       let wrapper = {c: "flex-column", children: []};
       for(let embedParams of embedParamSets) {
