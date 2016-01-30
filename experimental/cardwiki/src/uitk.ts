@@ -8,15 +8,15 @@ import {PANE} from "./ui";
 //------------------------------------------------------------------------------
 // Utilities
 //------------------------------------------------------------------------------
-function resolveName(maybeId:string):string {
+export function resolveName(maybeId:string):string {
   let display = eve.findOne("display name", {id: maybeId});
   return display ? display.name : maybeId;
 }
-function resolveId(maybeName:string):string {
+export function resolveId(maybeName:string):string {
   let display = eve.findOne("display name", {name: maybeName});
   return display ? display.id : maybeName;
 }
-function resolveValue(maybeValue:string):string {
+export function resolveValue(maybeValue:string):string {
   let val = maybeValue.trim();
   if(val.indexOf("=") === 0) {
     // @TODO: Run through the full NLP.
@@ -25,7 +25,7 @@ function resolveValue(maybeValue:string):string {
   }
   return val;
 }
-function isEntity(maybeId:string):boolean {
+export function isEntity(maybeId:string):boolean {
   return !!eve.findOne("entity", {entity: maybeId});
 }
 
