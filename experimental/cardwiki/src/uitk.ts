@@ -121,6 +121,27 @@ function updateEntityAttributes(event:CustomEvent, elem:{row: TableRowElem}) {
 }
 
 //------------------------------------------------------------------------------
+// Embedded cell representation wrapper
+//------------------------------------------------------------------------------
+var uitk = this;
+export function embeddedCell(elem):Element {
+  let children = [];
+  let {childInfo, rep} = elem;
+  if(childInfo.constructor === Array) {
+    for(let child of childInfo) {
+      child["data"] = child["data"] || childInfo.params;
+      children.push(uitk[rep](child));
+    }
+  } else {
+    children.push(uitk[rep](childInfo));
+  }
+  children.push({c: "edit-button-container", children: [
+    {c: "edit-button ion-edit", click: elem.click, cell: elem.cell}
+  ]});
+  return {c: "non-editing-embedded-cell", children, cell: elem.cell};
+}
+
+//------------------------------------------------------------------------------
 // Representations for Entities
 //------------------------------------------------------------------------------
 interface EntityElem extends Element { entity: string, data?: any }
@@ -163,7 +184,7 @@ export function related(elem:EntityElem):Element {
   if(relations.length) {
     elem.children = [{t: "h2", text: `${name} is related to ${relations.length} ${pluralize("entities", relations.length)}:`}];
     for(let rel of relations) elem.children.push(link({entity: rel, data}));
-                                                 
+
   } else elem.text = `${name} is not related to any other entities.`;
   return elem;
 }

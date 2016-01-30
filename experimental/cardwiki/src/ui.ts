@@ -388,11 +388,14 @@ function stringifyParams(params:{}):string {
   return rawParams;
 }
 
-function cellUI(paneId, query):Element {
+function cellUI(paneId, query, cell):Element {
   let [content, rawParams] = query.split("|");
   let embedType;
   let params = getCellParams(content, rawParams);
   params["paneId"] = params["paneId"] || paneId;
+  params["cell"] = cell;
+  params["childRep"] = params["rep"];
+  params["rep"] = "embeddedCell";
 
   let subRenderer = new Renderer();
   let results;
@@ -488,22 +491,29 @@ export function entity(entityId:string, paneId:string, options:any = {}):Element
   let finalOptions = mergeObject({keys: {
     "=": (cm) => createEmbedPopout(cm, paneId)
   }}, options);
+  console.log("ACTIVE", activeCells);
   let cellItems = cells.map((cell, ix) => {
     let ui;
+    console.log(cell);
     if(activeCells[cell.id] || cell.placeholder) {
-      let text = cell.query;
+      let text = cell.query.trim();
+      let autoFocus = true;
       if(cell.placeholder && !activeCells[cell.id]) {
         text = "...";
-      } else if(cell.placeholder) {
+        autoFocus = false;
+      } else {
         text = activeCells[cell.id].query;
       }
       let display = eve.findOne("display name", {id: text});
       if(display) {
         text = display["name"];
       }
-      ui = {t: "span", c:"embedded-cell", contentEditable: "true", text, keydown: embeddedCellKeys, cell, paneId, autoFocus: true};
+      if(text.indexOf("=") !== 0) {
+        text = `= ${text}`;
+      }
+      ui = {t: "span", c:"embedded-cell", contentEditable: "true", text, keydown: embeddedCellKeys, cell, paneId, autoFocus};
     } else {
-      ui = cellUI(paneId, cell.query);
+      ui = cellUI(paneId, cell.query, cell);
     }
     ui.id = `${paneId}|${cell.id}`;
     ui.postRender = reparentCell;
@@ -535,6 +545,12 @@ appHandle("removeActiveCell", (changes, info) => {
   delete activeCells[id];
 });
 
+function activateCell(event, elem) {
+  let {cell} = elem;
+  let query = cell.query.split("|")[0];
+  dispatch("addActiveCell", {id: cell.id, cell, query}).commit();
+}
+
 function createEmbedPopout(cm, paneId) {
   let coords = cm.cursorCoords("head", "page");
   // dispatch("createEmbedPopout", {paneId, x: coords.left, y: coords.top - 20}).commit();
@@ -543,7 +559,7 @@ function createEmbedPopout(cm, paneId) {
     let id = uuid();
     let range = `{=${id}=}`;
     cm.replaceRange(range, from, cm.getCursor("to"));
-    dispatch("addActiveCell", {id: range, query: "= "});
+    dispatch("addActiveCell", {id: range, query: ""});
   });
 }
 
@@ -554,8 +570,10 @@ function embeddedCellKeys(event, elem) {
   let mark = target.parentNode["mark"];
   let cm = paneEditors[paneId].cmInstance;
   if(event.keyCode === KEYS.ESC || (event.keyCode === KEYS.ENTER && value.trim() === "=")) {
-    let {from, to} = mark.find();
-    cm.replaceRange("= ", from, to);
+    if(cell.placeholder) {
+      let {from, to} = mark.find();
+      cm.replaceRange("= ", from, to);
+    }
     paneEditors[paneId].cmInstance.focus();
     dispatch("removeActiveCell", cell).commit();
     event.preventDefault();
@@ -570,7 +588,10 @@ function embeddedCellKeys(event, elem) {
     if(display) {
       value = display.id;
     }
-    cm.replaceRange(`{${value}}`, from, to);
+    let replacement = `{${value}}`;
+    if(cm.getRange(from, to) !== replacement) {
+      cm.replaceRange(replacement, from, to);
+    }
     paneEditors[paneId].cmInstance.focus();
     dispatch("removeActiveCell", cell).commit();
     event.preventDefault();
@@ -793,6 +814,17 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
     }
     return {entities, data: params.data};
   },
+  embeddedCell(results, params) {
+    let rep = params["childRep"];
+    let childInfo;
+    if(_prepare[rep]) {
+      childInfo = _prepare[rep](results, params);
+      childInfo.data = childInfo.data || params;
+    } else {
+      childInfo = {data: params};
+    }
+    return {childInfo, rep, click: activateCell, cell: params["cell"]};
+  },
 };
 
 function represent(search: string, rep:string, results, params:{}):Element {
@@ -805,13 +837,13 @@ function represent(search: string, rep:string, results, params:{}):Element {
     } else if(embedParamSets.constructor === Array) {
       let wrapper = {c: "flex-column", children: []};
       for(let embedParams of embedParamSets) {
-        embedParams["data"] = embedParams["data"] = params;
+        embedParams["data"] = embedParams["data"] || params;
         wrapper.children.push(uitk[rep](embedParams));
       }
       return wrapper;
     } else {
       let embedParams = embedParamSets;
-      embedParams["data"] = embedParams["data"] = params;
+      embedParams["data"] = embedParams["data"] || params;
       return uitk[rep](embedParams);
     }
   }

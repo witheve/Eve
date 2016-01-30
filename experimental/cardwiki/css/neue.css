@@ -97,6 +97,7 @@ div:hover > header > .controls { opacity: 1; }
 .wiki-editor .CodeMirror { font-family: "Lato"; font-size: 18px; color: rgb(76, 85, 90); font-weight:300; }
 .wiki-editor .CodeMirror-lines { padding: 0; }
 
+.wiki-editor .CodeMirror-widget div { display:flex; }
 .wiki-editor .CodeMirror-widget > div { display:inline-block; }
 .wiki-editor .CodeMirror-widget content { align-items:flex-start; padding:0; }
 
@@ -116,6 +117,12 @@ div:hover > header > .controls { opacity: 1; }
 .wiki-editor .formatBar .sep { width:1px; padding:0; background: #333; }
 
 .embedded-cell { border:1px solid #ddd; padding:3px; border-radius:2px; outline:none; }
+.non-editing-embedded-cell { flex-direction:row; position:relative; }
+
+.wiki-editor .non-editing-embedded-cell .edit-button-container { position:absolute; top:-10; right:-40; display:none; padding:10px 10px 30px 10px; z-index:1000; }
+.wiki-editor .non-editing-embedded-cell:hover .edit-button-container { display: flex; }
+.wiki-editor .non-editing-embedded-cell .edit-button{ padding:5px; background:#008cdd; color: #fff; border-radius:2px; font-size:10pt; cursor:pointer; }
+.wiki-editor .non-editing-embedded-cell .edit-button:hover { background: #004A74; }
 
 /*---------------------------------------------------------
 - Content
