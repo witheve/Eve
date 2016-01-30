@@ -929,8 +929,23 @@ function formTree(tokens: Array<Token>): Node {
         // Find the parent entities and try to match attributes
         let entity = node.entity;
         if (entity === undefined) {
-          let collection = node.parent.collection;
-          // TODO find relationship between collection and attribute
+          let collection = node.collection;
+          if (collection !== undefined) {
+            let foundRel = findCollectionToAttrRelationship(collection.id,maybeAttr.normalizedWord);
+            if (foundRel) {
+              let nToken = newToken(maybeAttr.normalizedWord);
+              let nNode = newNode(nToken);
+              let attribute: Attribute = {
+                id: maybeAttr.normalizedWord,
+                displayName: maybeAttr.normalizedWord,
+                entity: collection.displayName,
+                value: `${collection.displayName}|${maybeAttr.normalizedWord}`,
+                dbValue: "",
+              }
+              nNode.attribute = attribute;
+              node.children.push(nNode);
+            }
+          }
         } else {
           console.log(maybeAttr.normalizedWord);
           console.log(entity.displayName);
@@ -1059,8 +1074,9 @@ function formTree(tokens: Array<Token>): Node {
           child.children.push(nNode);
         }
       }
-    });
+    });    
   }
+
   return tree;
 }
 
@@ -1253,7 +1269,7 @@ function findAttribute(name: string, entity: Entity): Attribute {
   return undefined;
 }
 
-function findCollectionToAttrRelationship(coll: string, attr: string): any {
+function findCollectionToAttrRelationship(coll: string, attr: string): boolean {
   // Finds a direct relationship between collection and attribute
   // e.g. "pets' lengths"" => pet -> snake -> length
   let relationship = eve.query(``)
@@ -1262,6 +1278,7 @@ function findCollectionToAttrRelationship(coll: string, attr: string): any {
     .exec();
   if (relationship.unprojected.length > 0) {
     console.log("Found Direct Relationship");
+    console.log(relationship);
     return true;
   }
   // Finds a one hop relationship
@@ -1272,7 +1289,8 @@ function findCollectionToAttrRelationship(coll: string, attr: string): any {
     .exec();
   if (relationship.unprojected.length > 0) {
     console.log("Found One-Hop Relationship");
-    return
+    console.log(relationship);
+    return true;
   }
   // Not sure if this one works... using the entity table, a 2 hop link can
   // be found almost anywhere, yielding results like
@@ -1284,7 +1302,7 @@ function findCollectionToAttrRelationship(coll: string, attr: string): any {
     .select("entity eavs", { entity: ["links2", "link"], attribute: attr }, "eav")
     .exec();
   if (relationship.unprojected.length > 0) {
-    return
+    return true;
   }
 }
 
