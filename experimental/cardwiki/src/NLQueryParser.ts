@@ -270,6 +270,9 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
         case "of":
           token.properties.push(TokenProperties.BACKRELATIONSHIP); 
           break;
+        case "per":
+          token.properties.push(TokenProperties.BACKRELATIONSHIP); 
+          break;
         case "all":
           token.POS = MinorPartsOfSpeech.PDT;
           break;
@@ -806,8 +809,11 @@ function formTree(tokens: Array<Token>): Node {
         }
       }
     // Heuristic: If the node is "of", confer its properties onto its parent and delete the node
-    } else if (node.hasProperty(TokenProperties.BACKRELATIONSHIP) && node.name === "of") {
+    } else if (node.hasProperty(TokenProperties.BACKRELATIONSHIP) && (node.name === "of" || node.name === "per")) {
       node.parent.properties.push(TokenProperties.BACKRELATIONSHIP);
+      removeNode(node);
+    // Heuristic: Remove determiners
+    } else if (node.token.POS === MinorPartsOfSpeech.DT) {
       removeNode(node);
     // Heuristic: If the node is proper but not quoted, see if the next node is proper and 
     // if so create a compound node from the two
@@ -1014,24 +1020,7 @@ function formTree(tokens: Array<Token>): Node {
       
     } */
   }
-  
-  // rewire matched nodes to the correct parents
-  /*for (let token of tokens) {
-    let node = token.node;
-    let attribute: Attribute = node.attribute;
-    if (attribute !== undefined) {
-      let maybeEntity = attribute.entity;
-      if (typeof maybeEntity === "object") {
-        let entity: Entity = maybeEntity;
-        let node = attribute.node;
-        // @HACK Is there a better way to do this?
-        node.parent.children.splice(node.parent.children.indexOf(node),1);
-        node.parent = entity.node;
-        entity.node.children.push(node);
-      }
-    }
-  }*/
-  
+    
   // Resolve entities and attributes
   let context = newContext();
   resolveEntities(tree,context);
@@ -1375,7 +1364,7 @@ function buildTerm(node: Node): Array<Term> {
     terms.push(term);
   }
   // Attribute terms
-  else if (node.attribute != undefined && node.children.length === 0) {
+  else if (node.attribute != undefined) {
     let attr = node.attribute;
     let entity = attr.entity;
     if (entity !== undefined) {
