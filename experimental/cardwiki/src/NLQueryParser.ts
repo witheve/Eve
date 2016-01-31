@@ -725,10 +725,10 @@ function wordToFunction(word: string): BuiltInFunction {
       return {name: ">", type: FunctionTypes.COMPARATOR, attribute: "length"};
     case "younger":
       return {name: "<", type: FunctionTypes.COMPARATOR, attribute: "age"};
-    case "and":
+    /*case "and":
       return {name: "AND", type: FunctionTypes.BOOLEAN};
     case "or":
-      return {name: "OR", type: FunctionTypes.BOOLEAN};
+      return {name: "OR", type: FunctionTypes.BOOLEAN};*/
     case "sum":
       return {name: "SUM", type: FunctionTypes.AGGREGATE};
     case "average":
@@ -1021,6 +1021,22 @@ function formTree(tokens: Array<Token>): Node {
   let context = newContext();
   resolveEntities(tree,context);
   
+  // Based on the entities we just found, rewire attributes to be children of their referenced entities
+  for (let token of tokens) {
+    let node = token.node;
+    if (node.attribute !== undefined) {
+      let entityNode = node.attribute.entity.node;
+      if (node.parent.ix !== entityNode.ix) {
+        if (node.parent.hasProperty(TokenProperties.CONJUNCTION)) {
+          moveNode(node.parent,entityNode);
+          moveNode(node,entityNode);
+        } else {
+          moveNode(node,entityNode);
+        }
+      }
+    }
+  }
+  
   // Rewrite comparators
   let comparatorNodes = context.fxns.filter((fxn) => fxn.type === FunctionTypes.COMPARATOR).map((n) => n.node);  
   let comparator: BuiltInFunction;
@@ -1049,24 +1065,42 @@ function formTree(tokens: Array<Token>): Node {
         if (relationship === true) {
           let nToken = newToken(comparator.attribute);
           let nNode = newNode(nToken);
-          /*let lhsAttribute: Attribute = {
+          let lhsAttribute: Attribute = {
             id: comparator.attribute,
             displayName: comparator.attribute,
-            entity: child.collection.displayName,
+            entity: undefined,
             value: `${child.collection.displayName}|${comparator.attribute}`,
-          }*/
-          //nNode.attribute = lhsAttribute;
+            variable: "",
+          }
+          nNode.attribute = lhsAttribute;
           child.children.push(nNode);
         }
       }
     });    
   }
+  
+  console.log(tree);
+  
+  
   return tree;
 }
 
 // Various node manipulation functions
 function reroot(node: Node, target: Node): void {
   node.parent.children.splice(node.parent.children.indexOf(node),1);  
+  node.parent = target;
+  target.children.push(node);
+}
+
+function moveNode(node: Node, target: Node): void {
+  if (node.hasProperty(TokenProperties.ROOT)) {
+    return;
+  }
+  let parent = node.parent;
+  parent.children.splice(parent.children.indexOf(node),1);
+  parent.children = parent.children.concat(node.children);
+  node.children.map((child) => child.parent = parent);
+  node.children = [];
   node.parent = target;
   target.children.push(node);
 }
@@ -1399,7 +1433,6 @@ function buildTerm(node: Node): Array<Term> {
   }
   return terms;
 } 
-
 
 // take a parse tree, form a DSL AST
 function formDSL(tree: Node): string {
