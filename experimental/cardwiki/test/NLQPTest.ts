@@ -58,7 +58,7 @@ function parseTest(queryString: string, n: number) {
 
 let n = 1;
 let phrases = [
-  "salaries per departments",
+  "Corey Montella's wife's sister's age",
   //"Corey Montella's height, gender, age",
   //"pets shorter than snakes; and pets longer than dogs",
   //"Steve's age and salary",

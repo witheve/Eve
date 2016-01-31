@@ -911,8 +911,10 @@ function formTree(tokens: Array<Token>): Node {
           attribute.node = node;
           // If the attribute is possessive, check to see if it is an entity
           if (node.hasProperty(TokenProperties.POSSESSIVE) || node.hasProperty(TokenProperties.BACKRELATIONSHIP)) {
-            let entity = findEntityByID(`${attribute.dbValue}`); // @HACK force string | number into string
+            let entity = findEntityByID(`${attribute.value}`); // @HACK force string | number into string
             if (entity != undefined) {
+              entity.entityAttribute = true;
+              entity.variable = attribute.variable;
               context.entities.push(entity);
               entity.node = node;
               node.entity = entity;
@@ -939,17 +941,11 @@ function formTree(tokens: Array<Token>): Node {
           if (collection !== undefined) {
             let foundRel = findCollectionToAttrRelationship(collection.id,maybeAttr.normalizedWord);
             if (foundRel) {
-              let nToken = newToken(maybeAttr.normalizedWord);
+              /*let nToken = newToken(maybeAttr.normalizedWord);
               let nNode = newNode(nToken);
-              let attribute: Attribute = {
-                id: maybeAttr.normalizedWord,
-                displayName: maybeAttr.normalizedWord,
-                entity: collection.displayName,
-                value: `${collection.displayName}|${maybeAttr.normalizedWord}`,
-                dbValue: "",
-              }
+              let attribute: Attribute = {};
               nNode.attribute = attribute;
-              node.children.push(nNode);
+              node.children.push(nNode);*/
             }
           }
         } else {
@@ -1053,19 +1049,18 @@ function formTree(tokens: Array<Token>): Node {
         if (relationship === true) {
           let nToken = newToken(comparator.attribute);
           let nNode = newNode(nToken);
-          let lhsAttribute: Attribute = {
+          /*let lhsAttribute: Attribute = {
             id: comparator.attribute,
             displayName: comparator.attribute,
             entity: child.collection.displayName,
             value: `${child.collection.displayName}|${comparator.attribute}`,
-          }
-          nNode.attribute = lhsAttribute;
+          }*/
+          //nNode.attribute = lhsAttribute;
           child.children.push(nNode);
         }
       }
     });    
   }
-
   return tree;
 }
 
@@ -1155,6 +1150,8 @@ interface Entity {
   displayName: string,
   content: string,
   node?: Node,
+  variable?: string,
+  entityAttribute: boolean,
 }
 
 interface Collection {
@@ -1167,9 +1164,9 @@ interface Collection {
 interface Attribute {
   id: string,
   displayName: string,
-  entity: Entity | string,
-  value: string,
-  dbValue?: string | number,
+  entity: Entity,
+  value: string | number
+  variable: string,
   node?: Node,
 }
 
@@ -1189,6 +1186,7 @@ function findEntityByDisplayName(name: string): Entity {
         id: foundEntity.entity,
         displayName: name,
         content: foundEntity.content,
+        entityAttribute: false,
       }
       console.log(" Found: " + name);
       return entity;
@@ -1208,6 +1206,7 @@ function findEntityByID(id: string): Entity {
         id: foundEntity.entity,
         displayName: display.name,
         content: foundEntity.content,
+        entityAttribute: false,
       }
       console.log(" Found: " + display.name);
       return entity; 
@@ -1244,14 +1243,16 @@ function findAttribute(name: string, entity: Entity): Attribute {
   console.log(" Entity: " + entity.displayName);
   let foundAttribute = eve.findOne("entity eavs", { entity: entity.id, attribute: name });
   if (foundAttribute !== undefined) {
+    entity.id = entity.entityAttribute ? entity.variable : entity.id;
     let attribute: Attribute = {
       id: foundAttribute.attribute,
       displayName: name,
       entity: entity,
-      value: `${entity.displayName}|${name}`.replace(/ /g,''),
-      dbValue: foundAttribute.value,
+      value: foundAttribute.value,
+      variable: `${entity.displayName}|${name}`.replace(/ /g,''),
     }
-    console.log(` Found: ${name} ${attribute.dbValue} => ${attribute.value}`);
+    console.log(` Found: ${name} ${attribute.variable} => ${attribute.value}`);
+    console.log(attribute);
     return attribute;
   }
   console.log(" Not found: " + name);
@@ -1312,7 +1313,7 @@ function subsumeTokens(nounGroup: Node, ix: number, tokens: Array<Token>): Node 
 interface Field {
   name: string,
   value: string | number,
-  variable: boolean;
+  variable: boolean,
 }
 
 interface Term {
@@ -1338,7 +1339,7 @@ function buildTerm(node: Node): Array<Term> {
     // Get variables from the already formed terms
     let vars: Array<string> = [];
     terms.forEach((term) => {
-      let variables = term.fields.filter((field) => (field.name === "value" && field.variable));
+      let variables = term.fields.filter((field) => field.name === "value");
       variables.forEach((variable) => {
         let value = variable.value;
         if (typeof value === "string") {
@@ -1368,17 +1369,9 @@ function buildTerm(node: Node): Array<Term> {
     let attr = node.attribute;
     let entity = attr.entity;
     if (entity !== undefined) {
-      let entityID: string;
-      let entityVariable = false;
-      if (typeof entity === 'object') {
-        entityID = entity.id;
-      } else if (typeof entity === 'string') {
-        entityID = entity;
-        entityVariable = true;
-      }
-      let entityField: Field = {name: "entity", value: entityID, variable: entityVariable};
+      let entityField: Field = {name: "entity", value: attr.entity.id, variable: attr.entity.entityAttribute};
       let attrField: Field = {name: "attribute", value: attr.id, variable: false};
-      let valueField: Field = {name: "value", value: attr.value, variable: true};
+      let valueField: Field = {name: "value", value: attr.variable, variable: true};
       let fields: Array<Field> = [entityField, attrField, valueField];
       let term: Term = {
         type: "select",
@@ -1390,7 +1383,7 @@ function buildTerm(node: Node): Array<Term> {
   }
   // Collection terms
   if (node.collection !== undefined) {
-    let entityField: Field = {name: "entity", value: node.collection.displayName, variable: true};
+    let entityField: Field = {name: "entity", value: node.collection.displayName, variable: false};
     let collectionField: Field = {name: "collection", value: node.collection.id, variable: false};
     let term: Term = {
       type: "select",
@@ -1412,14 +1405,9 @@ function formDSL(tree: Node): string {
   
   console.log("Building a thing!")    
   console.log(nodeToString(tree,0));
-
-  let project = {
-    type: "project!",
-    fields: [],
-  };
   
   // Walk the tree, parsing each node as we go along
-  let query = buildTerm(tree);
+  let query = buildTerm(tree);  
   let queryString = queryToString(query);
   return queryString;
 }
@@ -1456,7 +1444,7 @@ export function nodeToString(node: Node, depth: number): string {
   let spacing = Array(depth+1).join(" ");
   let index = node.ix === undefined ? "+ " : `${node.ix}: `;
   let properties = `(${node.properties.map((property: TokenProperties) => TokenProperties[property]).join("|")})`;
-  let attribute = node.attribute === undefined ? "" : `[${node.attribute.dbValue} (${node.attribute.value})] `;
+  let attribute = node.attribute === undefined ? "" : `[${node.attribute.variable} (${node.attribute.value})] `;
   let entity = node.entity === undefined ? "" : `[${node.entity.displayName}] `;
   let collection = node.collection === undefined ? "" : `[${node.collection.displayName}] `;
   let fxn = node.fxn === undefined ? "" : `[${node.fxn.name}] `;
