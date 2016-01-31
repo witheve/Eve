@@ -725,10 +725,10 @@ function wordToFunction(word: string): BuiltInFunction {
       return {name: ">", type: FunctionTypes.COMPARATOR, attribute: "length"};
     case "younger":
       return {name: "<", type: FunctionTypes.COMPARATOR, attribute: "age"};
-    /*case "and":
+    case "and":
       return {name: "AND", type: FunctionTypes.BOOLEAN};
     case "or":
-      return {name: "OR", type: FunctionTypes.BOOLEAN};*/
+      return {name: "OR", type: FunctionTypes.BOOLEAN};
     case "sum":
       return {name: "SUM", type: FunctionTypes.AGGREGATE};
     case "average":
@@ -1355,6 +1355,7 @@ interface Term {
   type: string,
   table?: string,
   fields: Array<Field>
+  project: boolean,
 }
 
 type Query = Array<Term>;
@@ -1396,6 +1397,7 @@ function buildTerm(node: Node): Array<Term> {
       type: "select",
       table: node.fxn.name,
       fields: fields,
+      project: false,
     }
     terms.push(term);
   }
@@ -1411,7 +1413,12 @@ function buildTerm(node: Node): Array<Term> {
       let term: Term = {
         type: "select",
         table: "entity eavs",
-        fields: fields,  
+        fields: fields,
+        project: false,  
+      }
+      // If the node is a leaf, add this term to the projection
+      if (node.children.length === 0) {
+        term.project = true;
       }
       terms.push(term);
     }
@@ -1424,6 +1431,7 @@ function buildTerm(node: Node): Array<Term> {
       type: "select",
       table: "is a attributes",
       fields: [entityField, collectionField],
+      project: false,
     }
     terms.push(term);
   }
@@ -1442,6 +1450,31 @@ function formDSL(tree: Node): string {
   
   // Walk the tree, parsing each node as we go along
   let query = buildTerm(tree);  
+  
+  
+  // Build the project
+  let projectedEAVs = query.filter((term) => (term.project && term.table === "entity eavs"));
+  let projectedFields = projectedEAVs.map((term) => {                           
+      
+      let entity: Field = term.fields[0];
+      let attribute: Field = term.fields[1];
+      let value: Field = term.fields[2];
+      
+      let entityField: Field = {name: "entity", value: entity.value , variable: entity.variable};
+      let attributeField: Field = {name: `${attribute.value}` , value: value.value , variable: value.variable};
+      
+      return [entityField, attributeField];
+  });
+  let flatFields: Array<Field> = [].concat.apply([],projectedFields);
+  let project: Term = {
+    type: "project!",
+    fields: flatFields,
+    project: true,
+  }
+  query.push(project);
+
+  
+  
   let queryString = queryToString(query);
   return queryString;
 }
