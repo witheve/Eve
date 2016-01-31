@@ -1149,9 +1149,9 @@ interface Entity {
   id: string,
   displayName: string,
   content: string,
-  node?: Node,
-  variable?: string,
+  variable: string,
   entityAttribute: boolean,
+  node?: Node,
 }
 
 interface Collection {
@@ -1186,6 +1186,7 @@ function findEntityByDisplayName(name: string): Entity {
         id: foundEntity.entity,
         displayName: name,
         content: foundEntity.content,
+        variable: foundEntity.entity,
         entityAttribute: false,
       }
       console.log(" Found: " + name);
@@ -1206,6 +1207,7 @@ function findEntityByID(id: string): Entity {
         id: foundEntity.entity,
         displayName: display.name,
         content: foundEntity.content,
+        variable: foundEntity.entity,
         entityAttribute: false,
       }
       console.log(" Found: " + display.name);
@@ -1243,7 +1245,6 @@ function findAttribute(name: string, entity: Entity): Attribute {
   console.log(" Entity: " + entity.displayName);
   let foundAttribute = eve.findOne("entity eavs", { entity: entity.id, attribute: name });
   if (foundAttribute !== undefined) {
-    entity.id = entity.entityAttribute ? entity.variable : entity.id;
     let attribute: Attribute = {
       id: foundAttribute.attribute,
       displayName: name,
@@ -1369,7 +1370,7 @@ function buildTerm(node: Node): Array<Term> {
     let attr = node.attribute;
     let entity = attr.entity;
     if (entity !== undefined) {
-      let entityField: Field = {name: "entity", value: attr.entity.id, variable: attr.entity.entityAttribute};
+      let entityField: Field = {name: "entity", value: `${attr.entity.entityAttribute ? attr.entity.variable : attr.entity.id}`, variable: attr.entity.entityAttribute};
       let attrField: Field = {name: "attribute", value: attr.id, variable: false};
       let valueField: Field = {name: "value", value: attr.variable, variable: true};
       let fields: Array<Field> = [entityField, attrField, valueField];
