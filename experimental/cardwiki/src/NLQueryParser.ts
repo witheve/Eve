@@ -1094,9 +1094,11 @@ function formTree(tokens: Array<Token>): Node {
           //console.log(attribute);
           let nToken = newToken(comparator.attribute);
           let nNode = newNode(nToken);
+          attribute.project = false;
           nNode.attribute = attribute;
           child.children.push(nNode);
           nNode.parent = child;
+          child.entity.project = true;
           context.attributes.push(attribute);
         }
       // Find relationship for collections
@@ -1111,7 +1113,9 @@ function formTree(tokens: Array<Token>): Node {
             collection: child.collection,
             value: `${child.collection.displayName}|${comparator.attribute}`,
             variable: `${child.collection.displayName}|${comparator.attribute}`,
+            project: false,
           }
+          child.collection.project = true;
           nNode.attribute = lhsAttribute;
           child.collection.variable = true;
           child.children.push(nNode);
@@ -1224,6 +1228,7 @@ interface Entity {
   variable: string,
   entityAttribute: boolean,
   node?: Node,
+  project: boolean,
 }
 
 interface Collection {
@@ -1232,6 +1237,7 @@ interface Collection {
   count: number,
   node?: Node,
   variable: boolean,
+  project: boolean,
 }
 
 interface Attribute {
@@ -1242,6 +1248,7 @@ interface Attribute {
   value: string | number
   variable: string,
   node?: Node,
+  project: boolean,
 }
 
 // Returns the entity with the given display name.
@@ -1262,6 +1269,7 @@ function findEntityByDisplayName(name: string): Entity {
         content: foundEntity.content,
         variable: foundEntity.entity,
         entityAttribute: false,
+        project: false,
       }
       console.log(" Found: " + name);
       return entity;
@@ -1283,6 +1291,7 @@ function findEntityByID(id: string): Entity {
         content: foundEntity.content,
         variable: foundEntity.entity,
         entityAttribute: false,
+        project: false,
       }
       console.log(" Found: " + display.name);
       return entity; 
@@ -1304,6 +1313,7 @@ function findCollection(name: string): Collection {
         displayName: name,
         count: foundCollection.count,
         variable: false,
+        project: false,
       }
       console.log(" Found: " + name);
       return collection;
@@ -1326,6 +1336,7 @@ function findAttribute(name: string, entity: Entity): Attribute {
       entity: entity,
       value: foundAttribute.value,
       variable: `${entity.displayName}|${name}`.replace(/ /g,''),
+      project: true,
     }
     //console.log(` Found: ${name} ${attribute.variable} => ${attribute.value}`);
     //console.log(attribute);
@@ -1529,31 +1540,41 @@ function formQuery(tree: Node): Query {
   let query = newQuery(terms);  
 
   // Build the project
-  let projectedEAVs = query.terms.filter((term) => (term.project && term.table === "entity eavs"));
-  let projectedFields = projectedEAVs.map((term) => {                           
-      
-      let entity: Field = term.fields[0];
-      let attribute: Field = term.fields[1];
-      let value: Field = term.fields[2];
-      
-      let entityField: Field = {name: "entity", value: entity.value , variable: entity.variable};
-      let attributeField: Field = {name: `${attribute.value}` , value: value.value , variable: value.variable};
-      
-      return [entityField, attributeField];
-  });
-  let flatFields: Array<Field> = [].concat.apply([],projectedFields);
-  // Dedupe project fields
-  let fieldNames: Array<string> = flatFields.map((field) => field.name);
-  let uniqueFields = fieldNames.map((value, index, self) => {
-    return self.indexOf(value) === index;
-  });
-  flatFields = flatFields.filter((value, index, self) => uniqueFields[index]);
-
+  let projectedNodes: Array<Node> = [];
+  function flattenTree(node: Node) {
+    if ((node.collection && node.collection.project) || 
+        (node.entity && node.entity.project) || 
+        (node.attribute && node.attribute.project)) {
+      projectedNodes.push(node);
+    }
+    node.children.map(flattenTree);
+  }
+  flattenTree(tree);
+  console.log(projectedNodes);
+  
   let project: Term = {
     type: "project!",
-    fields: flatFields,
+    fields: [],
     project: true,
   }
+  projectedNodes.map((node) => {
+    if (node.attribute !== undefined) {
+      let entity = node.attribute.entity;
+      let attribute = node.attribute;
+      let entityField: Field = {name: "entity", value: `${entity.entityAttribute ? entity.variable : entity.id}`, variable: entity.entityAttribute};
+      let attributeField: Field = {name: `${attribute.id}` , value: attribute.variable, variable: true};
+      project.fields.push(entityField);
+      project.fields.push(attributeField);    
+    } else if (node.collection !== undefined) {
+      let collection = node.collection;
+      let collectionField: Field = {name: `${collection.displayName}`, value: `${collection.displayName}`, variable: true};
+      project.fields.push(collectionField);
+    } else if (node.entity !== undefined) {
+      let entity = node.entity;
+      let entityField: Field = {name: `${entity.displayName}`, value: `${entity.id}`, variable: false};
+      project.fields.push(entityField);
+    }
+  });
   query.terms.push(project);
   
   return query;
