@@ -1563,7 +1563,7 @@ function formQuery(tree: Node): Query {
     if (node.attribute !== undefined) {
       let entity = node.attribute.entity;
       let attribute = node.attribute;
-      let entityField: Field = {name: `${entity.displayName}`, value: `${entity.entityAttribute ? entity.variable : entity.id}`, variable: entity.entityAttribute};
+      let entityField: Field = {name: `${entity.displayName.replace(new RegExp(" ", 'g'),"")}`, value: `${entity.entityAttribute ? entity.variable : entity.id}`, variable: entity.entityAttribute};
       let attributeField: Field = {name: `${attribute.id}` , value: attribute.variable, variable: true};
       project.fields.push(entityField);
       project.fields.push(attributeField);    
