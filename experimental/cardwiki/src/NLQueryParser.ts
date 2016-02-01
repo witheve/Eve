@@ -12,8 +12,8 @@ export interface ParseResult {
 
 
 // Entry point for NLQP
-export function parse(preTokens: Array<PreToken>): ParseResult {
-  
+export function parse(queryString: string): ParseResult {
+  let preTokens = preprocessQueryString(queryString);
   let tokens = formTokens(preTokens);
   let tree = formTree(tokens);
   let query = formQuery(tree);
