@@ -1501,7 +1501,7 @@ function buildTerm(node: Node): Array<Term> {
   return terms;
 } 
 
-// take a parse tree, form a DSL AST
+// take a parse tree, form a query
 function formQuery(tree: Node): Query {
   
   // Walk the tree, parsing each node as we go along
@@ -1542,11 +1542,11 @@ function formQuery(tree: Node): Query {
 // ----------------------------------------------------------------------------
 // Debug utility functions
 // ---------------------------------------------------------------------------- 
+let divider = "----------------------------------------";
 
 export function nodeArrayToString(nodes: Array<Node>): string {
-  let divider = "\n----------------------------------------\n";
-  let nodesString = nodes.map((node) => node.toString()).join("\n----------------------------------------\n");  
-  return divider + nodesString + divider;
+  let nodeArrayString = nodes.map((node) => node.toString()).join("\n" + divider + "\n");  
+  return divider + "\n" + nodeArrayString + "\n" + divider;
 }
 
 export function tokenToString(token: Token): string {
@@ -1557,9 +1557,8 @@ export function tokenToString(token: Token): string {
 }
 
 export function tokenArrayToString(tokens: Array<Token>): string {
-  let divider = "\n----------------------------------------\n";
   let tokenArrayString = tokens.map((token) => tokenToString(token)).join("\n");
-  return divider + tokenArrayString + divider;
+  return divider + "\n" + tokenArrayString + "\n" + divider;
 }
 
 // ----------------------------------------------------------------------------
