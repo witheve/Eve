@@ -134,10 +134,10 @@ enum MinorPartsOfSpeech {
 }
 
 interface Token {
-  ix: number;
-  originalWord: string;
-  normalizedWord: string;
-  POS: MinorPartsOfSpeech;
+  ix: number,
+  originalWord: string,
+  normalizedWord: string,
+  POS: MinorPartsOfSpeech,
   properties: Array<TokenProperties>,
   node?: Node,
 }
@@ -657,14 +657,15 @@ function subsumeProperties(node: Node, nounGroup: Node) {
   node.properties = node.properties.filter(onlyUnique);
 }
 
-  function hasProperty(token: Token, property: TokenProperties): boolean {
-    let found = token.properties.filter((p: TokenProperties) => p === property);
-    if (found.length > 0) {
-      return true;
-    } else {
-      return false;
-    }
+// Finds a given property in a token
+function hasProperty(token: Token, property: TokenProperties): boolean {
+  let found = token.properties.indexOf(property);
+  if (found !== undefined) {
+    return true;
+  } else {
+    return false;
   }
+}
 
 function newNode(token: Token): Node {
   let node: Node = {
@@ -1387,15 +1388,6 @@ export interface Query {
   terms: Array<Term>,
   toString(): string;
 }
-
-/*
-  // Dedupe project fields
-  let fieldNames: Array<string> = flatFields.map((field) => field.name);
-  let uniqueFields = fieldNames.map((value, index, self) => {
-    return self.indexOf(value) === index;
-  });
-  flatFields = flatFields.filter((value, index, self) => uniqueFields[index]);
-  */
 
 function newQuery(terms: Array<Term>): Query {
   // Dedupe terms
