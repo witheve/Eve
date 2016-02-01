@@ -4,8 +4,15 @@ declare var pluralize;
 declare var nlp;
 declare var uuid;
 
+export interface ParseResult {
+  tokens: Array<Token>,
+  tree: Node,
+  query: Query,
+}
+
+
 // Entry point for NLQP
-export function parse(preTokens: Array<PreToken>) {
+export function parse(preTokens: Array<PreToken>): ParseResult {
   
   let tokens = formTokens(preTokens);
   let tree = formTree(tokens);
@@ -1465,9 +1472,6 @@ function buildTerm(node: Node): Array<Term> {
 
 // take a parse tree, form a DSL AST
 function formQuery(tree: Node): Query {
-  
-  console.log("Building a thing!")    
-  console.log(tree.toString());
   
   // Walk the tree, parsing each node as we go along
   let query = buildTerm(tree);  
