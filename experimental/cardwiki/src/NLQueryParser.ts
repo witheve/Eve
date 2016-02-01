@@ -1551,33 +1551,9 @@ function formQuery(tree: Node): Query {
 // Debug utility functions
 // ---------------------------------------------------------------------------- 
 
-export function nodeToString(node: Node): string {
-  function getDepth(node: Node): number {
-    if (node.hasProperty(TokenProperties.ROOT) || node.parent === undefined) {
-      return 0;
-    } else {
-      return getDepth(node.parent) + 1;
-    }
-  }
-  let childrenStrings = node.children.map((childNode) => nodeToString(childNode)).join("\n");
-  let children = childrenStrings.length > 0 ? "\n" + childrenStrings : "";
-  let spacing = Array(getDepth(node)+1).join(" ");
-  let index = node.ix === undefined ? "+ " : `${node.ix}: `;
-  let properties = `(${node.properties.map((property: TokenProperties) => TokenProperties[property]).join("|")})`;
-  let attribute = node.attribute === undefined ? "" : `[${node.attribute.variable} (${node.attribute.value})] `;
-  let entity = node.entity === undefined ? "" : `[${node.entity.displayName}] `;
-  let collection = node.collection === undefined ? "" : `[${node.collection.displayName}] `;
-  let fxn = node.fxn === undefined ? "" : `[${node.fxn.name}] `;
-  let found = entity !== "" || attribute !== "" || collection !== "" || fxn !== "" ? "*" : " ";
-  let entityOrProperties = found === " " ? `${properties}` : `${fxn}${entity}${collection}${attribute}`;
-  properties = properties.length === 2 ? "" : properties;
-  let nodeString = `|${found}${spacing}${index}${node.name} ${entityOrProperties}${children}`; 
-  return nodeString;
-}
-
 export function nodeArrayToString(nodes: Array<Node>): string {
   let divider = "\n----------------------------------------\n";
-  let nodesString = nodes.map((node) => nodeToString(node)).join("\n----------------------------------------\n");  
+  let nodesString = nodes.map((node) => node.toString()).join("\n----------------------------------------\n");  
   return divider + nodesString + divider;
 }
 
