@@ -778,8 +778,8 @@ function formTree(tokens: Array<Token>): Node {
   
   // First, find noun groups
   let nodes = formNounGroups(tokens);
-  console.log("NOUN GROUPS");
-  console.log(nodeArrayToString(nodes));
+  //console.log("NOUN GROUPS");
+  //console.log(nodeArrayToString(nodes));
   
   // Fold in all the other tokens
   let unusedNodes = tokens.filter((token) => token.node === undefined).map(newNode);
@@ -809,7 +809,8 @@ function formTree(tokens: Array<Token>): Node {
   // At this point we should only have a single root. 
   nodes = nodes.filter((node) => node.parent === undefined);
   tree = nodes.pop();
-  console.log(nodeToString(tree));
+  //console.log(tree.toString());
+  
   // Split nodes
   let i = 0;
   let length = tokens.length * 2;
@@ -874,8 +875,7 @@ function formTree(tokens: Array<Token>): Node {
     } else if (node.hasProperty(TokenProperties.COMPARATIVE)) {
       // We can get rid of "than" or its misspelling "then" the exist as a sibling
       let parent = node.parent;
-      let thanNode = parent.children.filter((n) => n.name === "than" || n.name === "then");
-      console.log(thanNode)
+      let thanNode = parent.children.filter((n) => n.name === "than" || n.name === "then")
       for (let n of thanNode) {
         parent.children.splice(parent.children.indexOf(n),1);
       }
@@ -892,18 +892,15 @@ function formTree(tokens: Array<Token>): Node {
   }  
   sortChildren(tree);  
     
-  console.log(tokenArrayToString(tokens));   
-  console.log(nodeToString(tree));
-
   // THIS IS WHERE THE MAGIC HAPPENS!
   // Go through each node array and try to resolve entities
   function resolveEntities(node: Node, context: Context): Context {
-    console.log(node);
+    //console.log(node);
     let found = false;
     
     // Skip certain nodes
     if (node.hasProperty(TokenProperties.ROOT)) {
-      console.log("Skipping");
+      //console.log("Skipping");
       found = true;
     }
     if (!found && node.hasProperty(TokenProperties.FUNCTION)) {
@@ -912,7 +909,7 @@ function formTree(tokens: Array<Token>): Node {
     }
     // If the node is possessive or proper, it's probably an entity
     if (!found && (node.hasProperty(TokenProperties.POSSESSIVE) || node.hasProperty(TokenProperties.PROPER))) {
-      console.log("Possessive or Proper: finding entity");
+      //console.log("Possessive or Proper: finding entity");
       let entity = findEntityByDisplayName(node.name);
       if (entity !== undefined) {
         context.entities.push(entity);
@@ -933,7 +930,7 @@ function formTree(tokens: Array<Token>): Node {
     }
     // Try to find an attribute
     if (!found && (context.entities.length !== 0 || context.collections.length !== 0)) {
-      console.log("Entity/Collection already found: finding attribute");
+      //console.log("Entity/Collection already found: finding attribute");
       let entity = context.entities[context.entities.length - 1];
       if (entity !== undefined) {
         let attribute = findAttribute(node.name,entity);
@@ -959,7 +956,7 @@ function formTree(tokens: Array<Token>): Node {
     // If there is a backward relationship e.g. age of Corey, then try to find attrs
     // in the maybeAttr stack
     if (node.hasProperty(TokenProperties.BACKRELATIONSHIP)) {
-      console.log("Backrelationship: Searching for previously unmatched attributes");
+      //console.log("Backrelationship: Searching for previously unmatched attributes");
       // If the node is possessive, transfer the backrelationship to its children
       if (node.hasProperty(TokenProperties.POSSESSIVE)) {
         node.children.map((child) => child.properties.push(TokenProperties.BACKRELATIONSHIP));
@@ -981,8 +978,8 @@ function formTree(tokens: Array<Token>): Node {
             }
           }
         } else {
-          console.log(maybeAttr.normalizedWord);
-          console.log(entity.displayName);
+          //console.log(maybeAttr.normalizedWord);
+          //console.log(entity.displayName);
           let attribute = findAttribute(maybeAttr.normalizedWord,entity);
           if (attribute !== undefined) {
             maybeAttr.node.attribute = attribute;
@@ -995,19 +992,19 @@ function formTree(tokens: Array<Token>): Node {
     }
     // If the node is a pronoun, try to find the entity it references
     if (!found && node.hasProperty(TokenProperties.PRONOUN)) {
-      console.log("Pronoun: finding reference");
+      //console.log("Pronoun: finding reference");
       // If the pronoun is plural, the entity is probably the latest collection
       if (node.hasProperty(TokenProperties.PLURAL)) {
         let collection = context.collections[context.collections.length - 1];
         if (collection !== undefined) {
-          console.log(collection.displayName);
+          //console.log(collection.displayName);
           node.collection = collection;
           found = true;
         }
       } else {
         let entity = context.entities[context.entities.length - 1];
         if (entity !== undefined) {
-          console.log(entity.displayName);
+          //console.log(entity.displayName);
           node.entity = entity;
           found = true;
         }
@@ -1015,7 +1012,7 @@ function formTree(tokens: Array<Token>): Node {
     }
     // If we've gotten here and we haven't found anything, go crazy with searching
     if (!found) {
-      console.log("Find this thing anywhere we can");
+      //console.log("Find this thing anywhere we can");
       let entity = findEntityByDisplayName(node.name);
       if (entity !== undefined) {
         context.entities.push(entity);
@@ -1084,7 +1081,7 @@ function formTree(tokens: Array<Token>): Node {
       if (child.entity !== undefined) {
         let attribute = findAttribute(comparator.attribute,child.entity);
         if (attribute !== undefined) {
-          console.log(attribute);
+          //console.log(attribute);
           let nToken = newToken(comparator.attribute);
           let nNode = newNode(nToken);
           nNode.attribute = attribute;
@@ -1239,7 +1236,7 @@ interface Attribute {
 // 2) the name is found in "display name" but not found in "entity"
 // can 2) ever happen?
 function findEntityByDisplayName(name: string): Entity {
-  console.log("Searching for entity: " + name);
+  //console.log("Searching for entity: " + name);
   let display = eve.findOne("display name",{ name: name });
   if (display !== undefined) {
     let foundEntity = eve.findOne("entity", { entity: display.id });
@@ -1251,16 +1248,16 @@ function findEntityByDisplayName(name: string): Entity {
         variable: foundEntity.entity,
         entityAttribute: false,
       }
-      console.log(" Found: " + name);
+      //console.log(" Found: " + name);
       return entity;
     }
   }
-  console.log(" Not found: " + name);
+  //console.log(" Not found: " + name);
   return undefined;
 }
 
 function findEntityByID(id: string): Entity {  
-  console.log("Searching for entity: " + id);
+  //console.log("Searching for entity: " + id);
   let foundEntity = eve.findOne("entity", { entity: id });
   if (foundEntity !== undefined) {
     let display = eve.findOne("display name",{ id: id });
@@ -1272,17 +1269,17 @@ function findEntityByID(id: string): Entity {
         variable: foundEntity.entity,
         entityAttribute: false,
       }
-      console.log(" Found: " + display.name);
+      //console.log(" Found: " + display.name);
       return entity; 
     }
   }
-  console.log(" Not found: " + id);
+  //console.log(" Not found: " + id);
   return undefined;
 }
 
 // Returns the collection with the given display name.
 function findCollection(name: string): Collection {
-  console.log("Searching for collection: " + name);
+  //console.log("Searching for collection: " + name);
   let display = eve.findOne("display name",{ name: name });
   if (display !== undefined) {
     let foundCollection = eve.findOne("collection", { collection: display.id });
@@ -1292,19 +1289,19 @@ function findCollection(name: string): Collection {
         displayName: name,
         count: foundCollection.count,
       }
-      console.log(" Found: " + name);
+      //console.log(" Found: " + name);
       return collection;
     }
   }
-  console.log(" Not found: " + name);
+  //console.log(" Not found: " + name);
   return undefined;
 }
 
 // Returns the attribute with the given display name attached to the given entity
 // If the entity does not have that attribute, or the entity does not exist, returns undefined
 function findAttribute(name: string, entity: Entity): Attribute {
-  console.log("Searching for attribute: " + name);
-  console.log(" Entity: " + entity.displayName);
+  //console.log("Searching for attribute: " + name);
+  //console.log(" Entity: " + entity.displayName);
   let foundAttribute = eve.findOne("entity eavs", { entity: entity.id, attribute: name });
   if (foundAttribute !== undefined) {
     let attribute: Attribute = {
@@ -1314,11 +1311,11 @@ function findAttribute(name: string, entity: Entity): Attribute {
       value: foundAttribute.value,
       variable: `${entity.displayName}|${name}`.replace(/ /g,''),
     }
-    console.log(` Found: ${name} ${attribute.variable} => ${attribute.value}`);
-    console.log(attribute);
+    //console.log(` Found: ${name} ${attribute.variable} => ${attribute.value}`);
+    //console.log(attribute);
     return attribute;
   }
-  console.log(" Not found: " + name);
+  //console.log(" Not found: " + name);
   return undefined;
 }
 
@@ -1330,8 +1327,8 @@ function findCollectionToAttrRelationship(coll: string, attr: string): boolean {
     .select("entity eavs", { entity: ["collection", "entity"], attribute: attr }, "eav")
     .exec();
   if (relationship.unprojected.length > 0) {
-    console.log("Found Direct Relationship");
-    console.log(relationship);
+    //console.log("Found Direct Relationship");
+    //console.log(relationship);
     return true;
   }
   // Finds a one hop relationship
@@ -1341,8 +1338,8 @@ function findCollectionToAttrRelationship(coll: string, attr: string): boolean {
     .select("entity eavs", { entity: ["links", "link"], attribute: attr }, "eav")
     .exec();
   if (relationship.unprojected.length > 0) {
-    console.log("Found One-Hop Relationship");
-    console.log(relationship);
+    //console.log("Found One-Hop Relationship");
+    //console.log(relationship);
     return true;
   }
   // Not sure if this one works... using the entity table, a 2 hop link can
