@@ -660,7 +660,7 @@ function subsumeProperties(node: Node, nounGroup: Node) {
 // Finds a given property in a token
 function hasProperty(token: Token, property: TokenProperties): boolean {
   let found = token.properties.indexOf(property);
-  if (found !== undefined) {
+  if (found !== -1) {
     return true;
   } else {
     return false;
@@ -680,8 +680,8 @@ function newNode(token: Token): Node {
   };
   token.node = node;
   function hasProperty(property: TokenProperties): boolean {
-    let found = node.properties.filter((p: TokenProperties) => p === property);
-    if (found.length > 0) {
+  let found = node.properties.indexOf(property);
+  if (found !== -1) {
       return true;
     } else {
       return false;
