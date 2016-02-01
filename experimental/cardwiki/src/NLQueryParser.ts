@@ -9,9 +9,9 @@ export function parse(preTokens: Array<PreToken>) {
   
   let tokens = formTokens(preTokens);
   let tree = formTree(tokens);
-  let ast = formDSL(tree);
+  let query = formQuery(tree);
       
-  return {tokens: tokens, tree: tree, ast: ast};
+  return {tokens: tokens, tree: tree, query: query};
 }
 
 // Performs some transformations to the query string before tokenizing
@@ -640,6 +640,7 @@ interface Node {
   token: Token,
   properties: Array<TokenProperties>,
   hasProperty(TokenProperties): boolean;
+  toString(): string;
 }
 
 // Transfer noun group properties to a node
@@ -666,8 +667,10 @@ function newNode(token: Token): Node {
     children: [],
     token: token, 
     properties: token.properties,
-    hasProperty: hasProperty,    
+    hasProperty: hasProperty,
+    toString: nodeToString,    
   };
+  token.node = node;
   function hasProperty(property: TokenProperties): boolean {
     let found = node.properties.filter((p: TokenProperties) => p === property);
     if (found.length > 0) {
@@ -676,7 +679,29 @@ function newNode(token: Token): Node {
       return false;
     }
   }
-  token.node = node;
+  function nodeToString(): string {
+    function getDepth(node: Node): number {
+      if (node.hasProperty(TokenProperties.ROOT) || node.parent === undefined) {
+        return 0;
+      } else {
+        return getDepth(node.parent) + 1;
+      }
+    }
+    let childrenStrings = node.children.map((childNode) => childNode.toString()).join("\n");
+    let children = childrenStrings.length > 0 ? "\n" + childrenStrings : "";
+    let spacing = Array(getDepth(node)+1).join(" ");
+    let index = node.ix === undefined ? "+ " : `${node.ix}: `;
+    let properties = `(${node.properties.map((property: TokenProperties) => TokenProperties[property]).join("|")})`;
+    let attribute = node.attribute === undefined ? "" : `[${node.attribute.variable} (${node.attribute.value})] `;
+    let entity = node.entity === undefined ? "" : `[${node.entity.displayName}] `;
+    let collection = node.collection === undefined ? "" : `[${node.collection.displayName}] `;
+    let fxn = node.fxn === undefined ? "" : `[${node.fxn.name}] `;
+    let found = entity !== "" || attribute !== "" || collection !== "" || fxn !== "" ? "*" : " ";
+    let entityOrProperties = found === " " ? `${properties}` : `${fxn}${entity}${collection}${attribute}`;
+    properties = properties.length === 2 ? "" : properties;
+    let nodeString = `|${found}${spacing}${index}${node.name} ${entityOrProperties}${children}`; 
+    return nodeString;
+  }
   return node;  
 }
 
@@ -777,7 +802,7 @@ function formTree(tokens: Array<Token>): Node {
   // At this point we should only have a single root. 
   nodes = nodes.filter((node) => node.parent === undefined);
   tree = nodes.pop();
-  console.log(nodeToString(tree,tree.ix));
+  console.log(nodeToString(tree));
   // Split nodes
   let i = 0;
   let length = tokens.length * 2;
@@ -861,7 +886,7 @@ function formTree(tokens: Array<Token>): Node {
   sortChildren(tree);  
     
   console.log(tokenArrayToString(tokens));   
-  console.log(nodeToString(tree,tree.ix));
+  console.log(nodeToString(tree));
 
   // THIS IS WHERE THE MAGIC HAPPENS!
   // Go through each node array and try to resolve entities
@@ -1078,10 +1103,6 @@ function formTree(tokens: Array<Token>): Node {
       }
     });    
   }
-  
-  console.log(tree);
-  
-  
   return tree;
 }
 
@@ -1443,15 +1464,14 @@ function buildTerm(node: Node): Array<Term> {
 } 
 
 // take a parse tree, form a DSL AST
-function formDSL(tree: Node): string {
+function formQuery(tree: Node): Query {
   
   console.log("Building a thing!")    
-  console.log(nodeToString(tree,0));
+  console.log(tree.toString());
   
   // Walk the tree, parsing each node as we go along
   let query = buildTerm(tree);  
-  
-  
+
   // Build the project
   let projectedEAVs = query.filter((term) => (term.project && term.table === "entity eavs"));
   let projectedFields = projectedEAVs.map((term) => {                           
@@ -1472,11 +1492,8 @@ function formDSL(tree: Node): string {
     project: true,
   }
   query.push(project);
-
   
-  
-  let queryString = queryToString(query);
-  return queryString;
+  return query;
 }
 
 // Converts the AST into a string for parsing
@@ -1504,11 +1521,17 @@ function termToString(term: Term): string {
 // Debug utility functions
 // ---------------------------------------------------------------------------- 
 
-export function nodeToString(node: Node, depth: number): string {
-  
-  let childrenStrings = node.children.map((childNode) => nodeToString(childNode,depth+1)).join("\n");
+export function nodeToString(node: Node): string {
+  function getDepth(node: Node): number {
+    if (node.hasProperty(TokenProperties.ROOT) || node.parent === undefined) {
+      return 0;
+    } else {
+      return getDepth(node.parent) + 1;
+    }
+  }
+  let childrenStrings = node.children.map((childNode) => nodeToString(childNode)).join("\n");
   let children = childrenStrings.length > 0 ? "\n" + childrenStrings : "";
-  let spacing = Array(depth+1).join(" ");
+  let spacing = Array(getDepth(node)+1).join(" ");
   let index = node.ix === undefined ? "+ " : `${node.ix}: `;
   let properties = `(${node.properties.map((property: TokenProperties) => TokenProperties[property]).join("|")})`;
   let attribute = node.attribute === undefined ? "" : `[${node.attribute.variable} (${node.attribute.value})] `;
@@ -1524,7 +1547,7 @@ export function nodeToString(node: Node, depth: number): string {
 
 export function nodeArrayToString(nodes: Array<Node>): string {
   let divider = "\n----------------------------------------\n";
-  let nodesString = nodes.map((node) => nodeToString(node,0)).join("\n----------------------------------------\n");  
+  let nodesString = nodes.map((node) => nodeToString(node)).join("\n----------------------------------------\n");  
   return divider + nodesString + divider;
 }
 
