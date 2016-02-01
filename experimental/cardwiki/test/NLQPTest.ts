@@ -62,7 +62,7 @@ let n = 1;
 let phrases = [
   //"Corey Montella's age height",
   //"Corey Montella's wife's age and height",
-  "pets shorter than snake",
+  "Pets shorter than snake",
   //"Steve's age and salary",
   //`age, height, and gender of "Corey Montella" and his nationality and age; and age and gender of "Rachel Romain Fay Montella" and her husband's wife's sister's height; and Corey's age`,
   //`"Corey Montella's" Wife's sister's age; and age and gender of "Rachel Romain Fay Montella" and her height; and Olivia Fay age, height, and gender; and pets shorter than snakes; and sum of salaries per department`,

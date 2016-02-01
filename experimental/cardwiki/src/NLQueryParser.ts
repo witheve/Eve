@@ -1013,7 +1013,7 @@ function formTree(tokens: Array<Token>): Node {
     }
     // If we've gotten here and we haven't found anything, go crazy with searching
     if (!found) {
-      //console.log("Find this thing anywhere we can");
+      console.log("Find this thing anywhere we can");
       let entity = findEntityByDisplayName(node.name);
       if (entity !== undefined) {
         context.entities.push(entity);
@@ -1027,7 +1027,16 @@ function formTree(tokens: Array<Token>): Node {
           collection.node = node;
           node.collection = collection;
           found = true;
-        }  
+        // Singularize and try to find a collection
+        } else {
+          let collection = findCollection(singularize(node.name));
+          if (collection !== undefined) {
+            node.token.POS = MinorPartsOfSpeech.NN;
+            node.collection = collection;
+            context.collections.push(collection);
+            found = true;
+          }
+        }
       }
     }
     
@@ -1087,7 +1096,8 @@ function formTree(tokens: Array<Token>): Node {
           let nNode = newNode(nToken);
           nNode.attribute = attribute;
           child.children.push(nNode);
-          context.attributes.push(attribute);          
+          nNode.parent = child;
+          context.attributes.push(attribute);
         }
       // Find relationship for collections
       } else if (child.collection !== undefined) {
@@ -1098,12 +1108,14 @@ function formTree(tokens: Array<Token>): Node {
           let lhsAttribute: Attribute = {
             id: comparator.attribute,
             displayName: comparator.attribute,
-            entity: undefined,
+            collection: child.collection,
             value: `${child.collection.displayName}|${comparator.attribute}`,
-            variable: "",
+            variable: `${child.collection.displayName}|${comparator.attribute}`,
           }
           nNode.attribute = lhsAttribute;
+          child.collection.variable = true;
           child.children.push(nNode);
+          nNode.parent = child;
         }
       }
     });    
@@ -1219,12 +1231,14 @@ interface Collection {
   displayName: string,
   count: number,
   node?: Node,
+  variable: boolean,
 }
 
 interface Attribute {
   id: string,
   displayName: string,
-  entity: Entity,
+  entity?: Entity,
+  collection?: Collection,
   value: string | number
   variable: string,
   node?: Node,
@@ -1237,7 +1251,7 @@ interface Attribute {
 // 2) the name is found in "display name" but not found in "entity"
 // can 2) ever happen?
 function findEntityByDisplayName(name: string): Entity {
-  //console.log("Searching for entity: " + name);
+  console.log("Searching for entity: " + name);
   let display = eve.findOne("display name",{ name: name });
   if (display !== undefined) {
     let foundEntity = eve.findOne("entity", { entity: display.id });
@@ -1249,16 +1263,16 @@ function findEntityByDisplayName(name: string): Entity {
         variable: foundEntity.entity,
         entityAttribute: false,
       }
-      //console.log(" Found: " + name);
+      console.log(" Found: " + name);
       return entity;
     }
   }
-  //console.log(" Not found: " + name);
+  console.log(" Not found: " + name);
   return undefined;
 }
 
 function findEntityByID(id: string): Entity {  
-  //console.log("Searching for entity: " + id);
+  console.log("Searching for entity: " + id);
   let foundEntity = eve.findOne("entity", { entity: id });
   if (foundEntity !== undefined) {
     let display = eve.findOne("display name",{ id: id });
@@ -1270,17 +1284,17 @@ function findEntityByID(id: string): Entity {
         variable: foundEntity.entity,
         entityAttribute: false,
       }
-      //console.log(" Found: " + display.name);
+      console.log(" Found: " + display.name);
       return entity; 
     }
   }
-  //console.log(" Not found: " + id);
+  console.log(" Not found: " + id);
   return undefined;
 }
 
 // Returns the collection with the given display name.
 function findCollection(name: string): Collection {
-  //console.log("Searching for collection: " + name);
+  console.log("Searching for collection: " + name);
   let display = eve.findOne("display name",{ name: name });
   if (display !== undefined) {
     let foundCollection = eve.findOne("collection", { collection: display.id });
@@ -1289,12 +1303,13 @@ function findCollection(name: string): Collection {
         id: foundCollection.collection,
         displayName: name,
         count: foundCollection.count,
+        variable: false,
       }
-      //console.log(" Found: " + name);
+      console.log(" Found: " + name);
       return collection;
     }
   }
-  //console.log(" Not found: " + name);
+  console.log(" Not found: " + name);
   return undefined;
 }
 
@@ -1368,7 +1383,7 @@ function subsumeTokens(nounGroup: Node, ix: number, tokens: Array<Token>): Node 
 }
 
 // ----------------------------------------------------------------------------
-// DSL functions
+// query functions
 // ----------------------------------------------------------------------------
 
 interface Field {
@@ -1464,27 +1479,32 @@ function buildTerm(node: Node): Array<Term> {
   else if (node.attribute != undefined) {
     let attr = node.attribute;
     let entity = attr.entity;
+    let collection = attr.collection;
+    let entityField: Field;
     if (entity !== undefined) {
-      let entityField: Field = {name: "entity", value: `${attr.entity.entityAttribute ? attr.entity.variable : attr.entity.id}`, variable: attr.entity.entityAttribute};
-      let attrField: Field = {name: "attribute", value: attr.id, variable: false};
-      let valueField: Field = {name: "value", value: attr.variable, variable: true};
-      let fields: Array<Field> = [entityField, attrField, valueField];
-      let term: Term = {
-        type: "select",
-        table: "entity eavs",
-        fields: fields,
-        project: false,  
-      }
-      // If the node is a leaf, add this term to the projection
-      if (node.children.length === 0) {
-        term.project = true;
-      }
-      terms.push(term);
+      entityField = {name: "entity", value: `${attr.entity.entityAttribute ? attr.entity.variable : attr.entity.id}`, variable: attr.entity.entityAttribute};
+    } else if (collection !== undefined) {
+      entityField = {name: "entity", value: `${attr.collection.displayName}`, variable: true};
+    }    
+    let attrField: Field = {name: "attribute", value: attr.id, variable: false};
+    let valueField: Field = {name: "value", value: attr.variable, variable: true};
+    let fields: Array<Field> = [entityField, attrField, valueField];
+    let term: Term = {
+      type: "select",
+      table: "entity eavs",
+      fields: fields,
+      project: false,  
     }
+    // If the node is a leaf, add this term to the projection
+    if (node.children.length === 0) {
+      term.project = true;
+    }
+    terms.push(term);
+    
   }
   // Collection terms
   if (node.collection !== undefined) {
-    let entityField: Field = {name: "entity", value: node.collection.displayName, variable: false};
+    let entityField: Field = {name: "entity", value: node.collection.displayName, variable: node.collection.variable};
     let collectionField: Field = {name: "collection", value: node.collection.id, variable: false};
     let term: Term = {
       type: "select",
