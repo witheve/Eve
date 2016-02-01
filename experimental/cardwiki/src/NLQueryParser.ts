@@ -1013,7 +1013,7 @@ function formTree(tokens: Array<Token>): Node {
     }
     // If we've gotten here and we haven't found anything, go crazy with searching
     if (!found) {
-      console.log("Find this thing anywhere we can");
+      //console.log("Find this thing anywhere we can");
       let entity = findEntityByDisplayName(node.name);
       if (entity !== undefined) {
         context.entities.push(entity);
@@ -1258,7 +1258,7 @@ interface Attribute {
 // 2) the name is found in "display name" but not found in "entity"
 // can 2) ever happen?
 function findEntityByDisplayName(name: string): Entity {
-  console.log("Searching for entity: " + name);
+  //console.log("Searching for entity: " + name);
   let display = eve.findOne("display name",{ name: name });
   if (display !== undefined) {
     let foundEntity = eve.findOne("entity", { entity: display.id });
@@ -1271,16 +1271,16 @@ function findEntityByDisplayName(name: string): Entity {
         entityAttribute: false,
         project: false,
       }
-      console.log(" Found: " + name);
+      //console.log(" Found: " + name);
       return entity;
     }
   }
-  console.log(" Not found: " + name);
+  //console.log(" Not found: " + name);
   return undefined;
 }
 
 function findEntityByID(id: string): Entity {  
-  console.log("Searching for entity: " + id);
+  //console.log("Searching for entity: " + id);
   let foundEntity = eve.findOne("entity", { entity: id });
   if (foundEntity !== undefined) {
     let display = eve.findOne("display name",{ id: id });
@@ -1293,17 +1293,17 @@ function findEntityByID(id: string): Entity {
         entityAttribute: false,
         project: false,
       }
-      console.log(" Found: " + display.name);
+      //console.log(" Found: " + display.name);
       return entity; 
     }
   }
-  console.log(" Not found: " + id);
+  //console.log(" Not found: " + id);
   return undefined;
 }
 
 // Returns the collection with the given display name.
 function findCollection(name: string): Collection {
-  console.log("Searching for collection: " + name);
+  //console.log("Searching for collection: " + name);
   let display = eve.findOne("display name",{ name: name });
   if (display !== undefined) {
     let foundCollection = eve.findOne("collection", { collection: display.id });
@@ -1315,11 +1315,11 @@ function findCollection(name: string): Collection {
         variable: false,
         project: false,
       }
-      console.log(" Found: " + name);
+      //console.log(" Found: " + name);
       return collection;
     }
   }
-  console.log(" Not found: " + name);
+  //console.log(" Not found: " + name);
   return undefined;
 }
 
@@ -1575,6 +1575,19 @@ function formQuery(tree: Node): Query {
       project.fields.push(entityField);
     }
   });
+  
+  console.log(project);
+  let dedupedFields = [];
+  let fieldStrings = project.fields.map((value,index,self) => {
+    return JSON.stringify(value);
+  });
+  let unique = fieldStrings.map((value,index,self) => {
+    return self.indexOf(value) === index;
+  });
+  let uniquefields = project.fields.filter((value,index) => unique[index]);
+  project.fields= uniquefields;
+  //
+  
   query.terms.push(project);
   
   return query;
