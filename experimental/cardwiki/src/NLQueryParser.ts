@@ -1550,7 +1550,6 @@ function formQuery(tree: Node): Query {
     node.children.map(flattenTree);
   }
   flattenTree(tree);
-  console.log(projectedNodes);
   
   let project: Term = {
     type: "project!",
@@ -1576,7 +1575,6 @@ function formQuery(tree: Node): Query {
     }
   });
   
-  console.log(project);
   let dedupedFields = [];
   let fieldStrings = project.fields.map((value,index,self) => {
     return JSON.stringify(value);
@@ -1586,8 +1584,7 @@ function formQuery(tree: Node): Query {
   });
   let uniquefields = project.fields.filter((value,index) => unique[index]);
   project.fields= uniquefields;
-  //
-  
+    
   query.terms.push(project);
   
   return query;
