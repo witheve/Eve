@@ -1383,7 +1383,36 @@ interface Term {
   project: boolean,
 }
 
-type Query = Array<Term>;
+export interface Query {
+  terms: Array<Term>,
+  toString(): string;
+}
+
+function newQuery(terms: Array<Term>): Query {
+  let query: Query = {
+    terms: terms,
+    toString: queryToString,
+  }
+  function queryToString(): string {
+    let queryString = "(query \n\t"
+    
+    // Map each term to a string
+    queryString += query.terms.map(termToString).join("\n\t");
+    
+    // Close out the query
+    queryString += "\n)";
+    return queryString;
+  }
+  function termToString(term: Term): string {
+    let termString = "(";
+    termString += `${term.type} `;
+    termString += `${term.table === undefined ? "" : `"${term.table}" `}`;
+    termString += term.fields.map((field) => `:${field.name} ${field.variable ? field.value : `"${field.value}"`}`).join(" ");
+    termString += ")";
+    return termString;
+  }
+  return query;
+}
 
 // Build terms from a node using a DFS algorithm
 function buildTerm(node: Node): Array<Term> {
@@ -1471,10 +1500,11 @@ function buildTerm(node: Node): Array<Term> {
 function formQuery(tree: Node): Query {
   
   // Walk the tree, parsing each node as we go along
-  let query = buildTerm(tree);  
+  let terms = buildTerm(tree);
+  let query = newQuery(terms);  
 
   // Build the project
-  let projectedEAVs = query.filter((term) => (term.project && term.table === "entity eavs"));
+  let projectedEAVs = query.terms.filter((term) => (term.project && term.table === "entity eavs"));
   let projectedFields = projectedEAVs.map((term) => {                           
       
       let entity: Field = term.fields[0];
@@ -1492,30 +1522,9 @@ function formQuery(tree: Node): Query {
     fields: flatFields,
     project: true,
   }
-  query.push(project);
+  query.terms.push(project);
   
   return query;
-}
-
-// Converts the AST into a string for parsing
-function queryToString(query: Query): string {
-  let queryString = "(query \n\t"
-  
-  // Map each term to a string
-  queryString += query.map(termToString).join("\n\t");
-  
-  // Close out the query
-  queryString += "\n)";
-  return queryString;
-}
-
-function termToString(term: Term): string {
-  let termString = "(";
-  termString += `${term.type} `;
-  termString += `${term.table === undefined ? "" : `"${term.table}" `}`;
-  termString += term.fields.map((field) => `:${field.name} ${field.variable ? field.value : `"${field.value}"`}`).join(" ");
-  termString += ")";
-  return termString;
 }
 
 // ----------------------------------------------------------------------------
