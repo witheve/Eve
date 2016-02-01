@@ -757,10 +757,10 @@ function wordToFunction(word: string): BuiltInFunction {
       return {name: ">", type: FunctionTypes.COMPARATOR, attribute: "length"};
     case "younger":
       return {name: "<", type: FunctionTypes.COMPARATOR, attribute: "age"};
-    case "and":
+    /*case "and":
       return {name: "AND", type: FunctionTypes.BOOLEAN};
     case "or":
-      return {name: "OR", type: FunctionTypes.BOOLEAN};
+      return {name: "OR", type: FunctionTypes.BOOLEAN};*/
     case "sum":
       return {name: "SUM", type: FunctionTypes.AGGREGATE};
     case "average":
@@ -1388,17 +1388,30 @@ export interface Query {
   toString(): string;
 }
 
+/*
+  // Dedupe project fields
+  let fieldNames: Array<string> = flatFields.map((field) => field.name);
+  let uniqueFields = fieldNames.map((value, index, self) => {
+    return self.indexOf(value) === index;
+  });
+  flatFields = flatFields.filter((value, index, self) => uniqueFields[index]);
+  */
+
 function newQuery(terms: Array<Term>): Query {
+  // Dedupe terms
+  let termStrings = terms.map(termToString);
+  let uniqueTerms: Array<boolean> = termStrings.map((value, index, self) => {
+    return self.indexOf(value) === index;
+  }); 
+  terms = terms.filter((term, index) => uniqueTerms[index]);
   let query: Query = {
     terms: terms,
     toString: queryToString,
   }
   function queryToString(): string {
     let queryString = "(query \n\t"
-    
     // Map each term to a string
     queryString += query.terms.map(termToString).join("\n\t");
-    
     // Close out the query
     queryString += "\n)";
     return queryString;
@@ -1517,6 +1530,13 @@ function formQuery(tree: Node): Query {
       return [entityField, attributeField];
   });
   let flatFields: Array<Field> = [].concat.apply([],projectedFields);
+  // Dedupe project fields
+  let fieldNames: Array<string> = flatFields.map((field) => field.name);
+  let uniqueFields = fieldNames.map((value, index, self) => {
+    return self.indexOf(value) === index;
+  });
+  flatFields = flatFields.filter((value, index, self) => uniqueFields[index]);
+
   let project: Term = {
     type: "project!",
     fields: flatFields,
