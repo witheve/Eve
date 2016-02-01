@@ -1,8 +1,12 @@
 import * as app from "../src/app";
 import * as nlqp from  "../src/NLQueryParser";
-import "../src/wiki";
+import * as bootstrap from "../src/bootstrap";
 import * as dslparser from "../src/parser";
 import {eve} from "../src/app";
+
+// @HACK needed because browserify is being too clever by
+// optimizing away unused code
+var boostrapIxer = bootstrap.ixer;
 
 app.renderRoots["nlqp"];
 
