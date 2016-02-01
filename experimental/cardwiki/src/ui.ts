@@ -483,6 +483,25 @@ function reparentCell(node, elem) {
 
 //---------------------------------------------------------
 
+function cellEditor(paneId, cell) {
+  let text = cell.query.trim();
+  let autoFocus = true;
+  if(cell.placeholder && !activeCells[cell.id]) {
+    text = "...";
+    autoFocus = false;
+  } else {
+    text = activeCells[cell.id].query;
+  }
+  let display = eve.findOne("display name", {id: text});
+  if(display) {
+    text = display["name"];
+  }
+  if(text.indexOf("=") !== 0) {
+    text = `= ${text}`;
+  }
+  return {t: "span", c:"embedded-cell", contentEditable: "true", text, keydown: embeddedCellKeys, cell, paneId, autoFocus};
+}
+
 export function entity(entityId:string, paneId:string, options:any = {}):Element {
   let content = eve.findOne("entity", {entity: entityId})["content"];
   let page = eve.findOne("entity page", {entity: entityId})["page"];
@@ -496,22 +515,7 @@ export function entity(entityId:string, paneId:string, options:any = {}):Element
     let ui;
     console.log(cell);
     if(activeCells[cell.id] || cell.placeholder) {
-      let text = cell.query.trim();
-      let autoFocus = true;
-      if(cell.placeholder && !activeCells[cell.id]) {
-        text = "...";
-        autoFocus = false;
-      } else {
-        text = activeCells[cell.id].query;
-      }
-      let display = eve.findOne("display name", {id: text});
-      if(display) {
-        text = display["name"];
-      }
-      if(text.indexOf("=") !== 0) {
-        text = `= ${text}`;
-      }
-      ui = {t: "span", c:"embedded-cell", contentEditable: "true", text, keydown: embeddedCellKeys, cell, paneId, autoFocus};
+      ui = cellEditor(paneId, cell);
     } else {
       ui = cellUI(paneId, cell.query, cell);
     }
