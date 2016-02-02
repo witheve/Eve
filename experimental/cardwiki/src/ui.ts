@@ -16,6 +16,8 @@ import {parse as nlparse} from "./NLQueryParser";
 export enum PANE { FULL, WINDOW, POPOUT };
 enum BLOCK { TEXT, PROJECTION };
 
+var ignorePopState = false; // Because html5 is full of broken promises and broken dreams
+
 export let uiState:{
   widget: {
     search: {[paneId:string]: {value:string, plan?:boolean, focused?:boolean, submitted?:string}}
@@ -36,19 +38,27 @@ function preventDefault(event) {
 }
 
 export function setURL(paneId:string, contains:string, replace?:boolean) {
-  let {name = undefined} = eve.findOne("display name", {id: contains}) || {};
-  if(!name) {
-    let maybeId = eve.findOne("display name", {name: contains});
-    if(maybeId) {
-      name = contains;
-      contains = maybeId.id;
-    }
-  }
+  let name = uitk.resolveName(contains);
   let url;
-  if(contains.length === 0) url = "/";
-  else if(name === undefined) url = `/search/${contains.replace(/ /g, "_")}`;
-  else url = `/${name.replace(/ /g, "_")}/${contains.replace(/ /g, "_")}`;
-  let state = {paneId, contains};
+  let state;
+  if(paneId === "p1") { // @TODO: Make this a constant
+    if(contains.length === 0) url = "/";
+    else if(name === contains) url = `/search/${contains.replace(/ /g, "_")}`;
+    else url = `/${name.replace(/ /g, "_")}/${contains.replace(/ /g, "_")}`;
+    state = {paneId, contains};
+    console.log("setURL", url, state);
+    window["states"] = window["states"] || [];
+    window["states"].push(state);
+  } else {
+    return; // @TODO: fixme;
+    ignorePopState = true;
+    window.history.back();
+    url = window.location;
+    state = copy(window.history.state);
+    window.history.forward();
+    state.popout = contains;
+    ignorePopState = false;
+  }
   if(replace)window.history.replaceState(state, null, url);
   else window.history.pushState(state, null, url);
 }
@@ -61,6 +71,8 @@ appHandle("ui focus search", (changes:Diff, {paneId, value}:{paneId:string, valu
   state.focused = true;
 });
 appHandle("ui set search", (changes:Diff, {paneId, value, peek, x, y, popState}:{paneId:string, value:string, peek: boolean, x?: number, y?: number, popState?: boolean}) => {
+  let displays = eve.find("display name", {name: value});
+  if(displays.length === 1) value = displays[0].id;
   let fact;
   if(!peek) {
     let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value};
@@ -91,9 +103,7 @@ appHandle("ui set search", (changes:Diff, {paneId, value, peek, x, y, popState}:
     paneId = neuePaneId;
   }
   changes.add("ui pane", fact);
-
-  // If this is the primary pane, and we aren't popping a previous state, update the url.
-  if(paneId === "p1" && !popState) setURL(paneId, value);
+  if(!popState) setURL(paneId, value);
 
   if(!eve.findOne("display name", {name: value})) activeSearches[value] = queryToExecutable(value);
 });
@@ -572,12 +582,12 @@ function positionAutocompleter(node, elem) {
 function queryAutocompleteOptions(isEntity, parsed, text, params, entityId) {
   let pageName = eve.findOne("display name", {id: entityId})["name"];
   let options:{score: number, action: any, text: string}[] = [];
+  let joiner = "a";
+  if(text && text[0].match(/[aeiou]/i)) {
+    joiner = "an";
+  }
   // create
   if(!isEntity && text !== "" && text != "=") {
-    let joiner = "a";
-    if(text[0].match(/[aeiou]/)) {
-      joiner = "an";
-    }
     options.push({score: 1, action: "do stuff", text: `Create ${joiner} "${text}" page`});
   }
   // disambiguations
@@ -597,7 +607,7 @@ function queryAutocompleteOptions(isEntity, parsed, text, params, entityId) {
       isAScore = 3;
     }
     options.push({score: 2, action: "relate", text: `${pageName} is related to ${text}`});
-    options.push({score: isAScore, action: "is a", text: `${pageName} is a ${text}`});
+    options.push({score: isAScore, action: "is a", text: `${pageName} is ${joiner} ${text}`});
   }
   return options;
 }
@@ -989,8 +999,11 @@ function represent(search: string, rep:string, results, params:{}):Element {
 }
 
 window.addEventListener("popstate", function(evt) {
+  console.log("iPS", ignorePopState);
+  if(ignorePopState) return;
   let {paneId = undefined, contains = undefined} = evt.state || {};
   if(paneId === undefined || contains === undefined) return;
+  console.log("popstate", evt.state);
   dispatch("ui set search", {paneId, value: contains, popState: true}).commit();
 });
 
