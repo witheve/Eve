@@ -10,6 +10,8 @@ var boostrapIxer = bootstrap.ixer;
 
 app.renderRoots["nlqp"];
 
+nlqp.debug = false;
+
 function parseTest(queryString: string, n: number) {
   let parseResult: nlqp.ParseResult;
   let avgTime = 0;
@@ -41,6 +43,8 @@ function parseTest(queryString: string, n: number) {
   // Display result
   let tokenStrings = nlqp.tokenArrayToString(parseResult.tokens);
   let timingDisplay = `Timing (avg, max, min): ${(avgTime/n).toFixed(2)} | ${maxTime.toFixed(2)} | ${minTime.toFixed(2)} `;
+  console.log(`State: ${nlqp.StateFlags[parseResult.state]}`);
+  console.log(parseResult.context);
   console.log("-------------------------------------------------------------------------------------------");
   console.log("Tokens");  
   console.log(tokenStrings);
@@ -52,13 +56,16 @@ function parseTest(queryString: string, n: number) {
   console.log(parseResult.query.toString());
   console.log("-------------------------------------------------------------------------------------------");
   console.log("Result");
-  let artifacts = dslparser.parseDSL(parseResult.query.toString());
-  let changeset = eve.diff();;
-  for (let id in artifacts.views) {
-    changeset.merge(artifacts.views[id].changeset(eve));
-    eve.asView(artifacts.views[id]); 
-    let result = artifacts.views[id].exec();
-    console.log(result.results);
+  if (parseResult.query.projects.length !== 0) {
+    let artifacts = dslparser.parseDSL(parseResult.query.toString());
+    let changeset = eve.diff();
+    console.log(artifacts.views)
+    for (let id in artifacts.views) {
+      changeset.merge(artifacts.views[id].changeset(eve));
+      eve.asView(artifacts.views[id]); 
+      let result = artifacts.views[id].exec();
+      console.log(result.results);
+    } 
   }
   console.log("-------------------------------------------------------------------------------------------");
   console.log(timingDisplay);
@@ -67,10 +74,14 @@ function parseTest(queryString: string, n: number) {
 
 let n = 1;
 let phrases = [
+  "employees with their salaries",
+  "employees and their salaries",
+  //"Corey Montella's age and his gender",
+  //"Corey Montella's wife's age"
+  //"salaries per department"
   //"Corey Montella's age height",
   //"Corey Montella's wife's age and height",
   //"Corey Montella's age, height",
-  `flibs shorter than blag`
   //"Steve's age and salary",
   //`age, height, and gender of "Corey Montella" and his nationality and age; and age and gender of "Rachel Romain Fay Montella" and her husband's wife's sister's height; and Corey's age`,
   //`"Corey Montella's" Wife's sister's age; and age and gender of "Rachel Romain Fay Montella" and her height; and Olivia Fay age, height, and gender; and pets shorter than snakes; and sum of salaries per department`,
