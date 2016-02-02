@@ -45,11 +45,12 @@ export function preprocessQueryString(queryString: string): Array<PreToken> {
   // Get parts of speach with sentence information. It's okay if they're wrong; they 
   // will be corrected as we create the tree and match against the underlying data model
   let sentences = nlp.pos(processedString, {dont_combine: true}).sentences;   
+  // If no sentences were found, don't bother parsing
   if (sentences.length === 0) {
     return [];
   }
-  let nlpTokens = nlp.pos(processedString, {dont_combine: true}).sentences[0].tokens;
-  let preTokens: Array<PreToken> = nlpTokens.map((token,i) => {
+  let nlpcTokens = sentences[0].tokens;
+  let preTokens: Array<PreToken> = nlpcTokens.map((token,i) => {
     return {ix: i, text: token.text, tag: token.pos.tag};
   });
   // Group quoted text here
@@ -321,7 +322,7 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
         case "do":
           token.POS = MinorPartsOfSpeech.VBP;
           break;
-        case "thier":
+        case "their":
           token.properties.push(TokenProperties.PLURAL);
           break;
         case "most":
@@ -918,31 +919,40 @@ function formTree(tokens: Array<Token>) {
   // THIS IS WHERE THE MAGIC HAPPENS!
   // Go through each node array and try to resolve entities
   function resolveEntities(node: Node, context: Context): Context {
-    //console.log(node);
+    log(node);
     let found = false;
     
     // Skip certain nodes
     if (node.hasProperty(TokenProperties.ROOT)) {
-      //console.log("Skipping");
+      log("Skipping");
       found = true;
     }
     if (!found && node.hasProperty(TokenProperties.FUNCTION)) {
       context.fxns.push(node.fxn);
       found = true;
     }
-    // If the node is possessive or proper, it's probably an entity
-    if (!found && (node.hasProperty(TokenProperties.POSSESSIVE) || node.hasProperty(TokenProperties.PROPER))) {
-      //console.log("Possessive or Proper: finding entity");
-      let entity = findEntityByDisplayName(node.name);
-      if (entity !== undefined) {
-        context.entities.push(entity);
-        entity.node = node;
-        node.entity = entity;
-        found = true;
+    // If the node is a pronoun, try to find the entity it references
+    if (!found && node.hasProperty(TokenProperties.PRONOUN)) {
+      log("Pronoun: finding reference");
+      // If the pronoun is plural, the entity is probably the latest collection
+      if (node.hasProperty(TokenProperties.PLURAL)) {
+        let collection = context.collections[context.collections.length - 1];
+        if (collection !== undefined) {
+          log(collection.displayName);
+          node.collection = collection;
+          found = true;
+        }
+      } else {
+        let entity = context.entities[context.entities.length - 1];
+        if (entity !== undefined) {
+          log(entity.displayName);
+          node.entity = entity;
+          found = true;
+        }
       }
     }
     // Heuristic: If the node is plural, try to find a collection
-    if (node.hasProperty(TokenProperties.PLURAL)) {
+    if (!found && node.hasProperty(TokenProperties.PLURAL)) {
       let collection = findCollection(node.name);
       if (collection !== undefined) {
         node.collection = collection;
@@ -951,9 +961,20 @@ function formTree(tokens: Array<Token>) {
         found = true;
       }
     }
+    // If the node is possessive or proper, it's probably an entity
+    if (!found && (node.hasProperty(TokenProperties.POSSESSIVE) || node.hasProperty(TokenProperties.PROPER))) {
+      log("Possessive or Proper: finding entity");
+      let entity = findEntityByDisplayName(node.name);
+      if (entity !== undefined) {
+        context.entities.push(entity);
+        entity.node = node;
+        node.entity = entity;
+        found = true;
+      }
+    }
     // Try to find an attribute
     if (!found && (context.entities.length !== 0 || context.collections.length !== 0)) {
-      //console.log("Entity/Collection already found: finding attribute");
+      log("Entity/Collection already found: finding attribute");
       let entity = context.entities[context.entities.length - 1];
       if (entity !== undefined) {
         let attribute = findAttribute(node.name,entity);
@@ -974,12 +995,31 @@ function formTree(tokens: Array<Token>) {
           }
           found = true;
         }
-      }      
+      // Try to find it as an attribute of a collection
+      } else {
+        let collection = context.collections[context.collections.length - 1];
+        if (collection !== undefined) {
+          let relationship = findCollectionToAttrRelationship(collection.id,node.name);
+          if (relationship === true) {
+            let collectionAttribute: Attribute = {
+              id: node.name,
+              displayName: node.name,
+              collection: collection,
+              value: `${collection.displayName}|${node.name}`,
+              variable: `${collection.displayName}|${node.name}`,
+              project: true,
+            }
+            node.attribute = collectionAttribute;
+            context.attributes.push(collectionAttribute);
+            found = true;
+          } 
+        }
+      }     
     }
     // If there is a backward relationship e.g. age of Corey, then try to find attrs
     // in the maybeAttr stack
     if (node.hasProperty(TokenProperties.BACKRELATIONSHIP)) {
-      //console.log("Backrelationship: Searching for previously unmatched attributes");
+      log("Backrelationship: Searching for previously unmatched attributes");
       // If the node is possessive, transfer the backrelationship to its children
       if (node.hasProperty(TokenProperties.POSSESSIVE)) {
         node.children.map((child) => child.properties.push(TokenProperties.BACKRELATIONSHIP));
@@ -1001,8 +1041,8 @@ function formTree(tokens: Array<Token>) {
             }
           }
         } else {
-          //console.log(maybeAttr.normalizedWord);
-          //console.log(entity.displayName);
+          log(maybeAttr.normalizedWord);
+          log(entity.displayName);
           let attribute = findAttribute(maybeAttr.normalizedWord,entity);
           if (attribute !== undefined) {
             maybeAttr.node.attribute = attribute;
@@ -1013,29 +1053,9 @@ function formTree(tokens: Array<Token>) {
         }
       }
     }
-    // If the node is a pronoun, try to find the entity it references
-    if (!found && node.hasProperty(TokenProperties.PRONOUN)) {
-      //console.log("Pronoun: finding reference");
-      // If the pronoun is plural, the entity is probably the latest collection
-      if (node.hasProperty(TokenProperties.PLURAL)) {
-        let collection = context.collections[context.collections.length - 1];
-        if (collection !== undefined) {
-          //console.log(collection.displayName);
-          node.collection = collection;
-          found = true;
-        }
-      } else {
-        let entity = context.entities[context.entities.length - 1];
-        if (entity !== undefined) {
-          //console.log(entity.displayName);
-          node.entity = entity;
-          found = true;
-        }
-      }
-    }
     // If we've gotten here and we haven't found anything, go crazy with searching
     if (!found) {
-      //console.log("Find this thing anywhere we can");
+      log("Find this thing anywhere we can");
       let entity = findEntityByDisplayName(node.name);
       if (entity !== undefined) {
         context.entities.push(entity);
@@ -1063,7 +1083,10 @@ function formTree(tokens: Array<Token>) {
     }
     
     if (!found) {
-      if (node.hasProperty(TokenProperties.PLURAL)) { 
+      if (node.parent.hasProperty(TokenProperties.POSSESSIVE)) {
+        context.maybeAttributes.push(node.token);  
+      }
+      else if (node.hasProperty(TokenProperties.PLURAL)) { 
         context.maybeCollections.push(node.token);
       }
       else if (node.hasProperty(TokenProperties.PROPER) ||
@@ -1098,7 +1121,12 @@ function formTree(tokens: Array<Token>) {
   for (let token of tokens) {
     let node = token.node;
     if (node.attribute !== undefined) {
-      let entityNode = node.attribute.entity.node;
+      let entityNode: Node;
+      if (node.attribute.entity !== undefined) {
+        entityNode = node.attribute.entity.node;  
+      } else if(node.attribute.collection !== undefined) {
+        entityNode = node.attribute.collection.node;
+      }
       if (node.parent.ix !== entityNode.ix) {
         if (node.parent.hasProperty(TokenProperties.CONJUNCTION)) {
           moveNode(node.parent,entityNode);
@@ -1141,7 +1169,7 @@ function formTree(tokens: Array<Token>) {
         if (relationship === true) {
           let nToken = newToken(comparator.attribute);
           let nNode = newNode(nToken);
-          let lhsAttribute: Attribute = {
+          let collectionAttribute: Attribute = {
             id: comparator.attribute,
             displayName: comparator.attribute,
             collection: child.collection,
@@ -1150,7 +1178,7 @@ function formTree(tokens: Array<Token>) {
             project: false,
           }
           child.collection.project = true;
-          nNode.attribute = lhsAttribute;
+          nNode.attribute = collectionAttribute;
           child.collection.variable = true;
           child.children.push(nNode);
           nNode.parent = child;
@@ -1292,7 +1320,7 @@ interface Attribute {
 // 2) the name is found in "display name" but not found in "entity"
 // can 2) ever happen?
 function findEntityByDisplayName(name: string): Entity {
-  //console.log("Searching for entity: " + name);
+  log("Searching for entity: " + name);
   let display = eve.findOne("display name",{ name: name });
   if (display !== undefined) {
     let foundEntity = eve.findOne("entity", { entity: display.id });
@@ -1305,16 +1333,16 @@ function findEntityByDisplayName(name: string): Entity {
         entityAttribute: false,
         project: false,
       }
-      //console.log(" Found: " + name);
+      log(" Found: " + name);
       return entity;
     }
   }
-  //console.log(" Not found: " + name);
+  log(" Not found: " + name);
   return undefined;
 }
 
 function findEntityByID(id: string): Entity {  
-  //console.log("Searching for entity: " + id);
+  log("Searching for entity: " + id);
   let foundEntity = eve.findOne("entity", { entity: id });
   if (foundEntity !== undefined) {
     let display = eve.findOne("display name",{ id: id });
@@ -1327,17 +1355,17 @@ function findEntityByID(id: string): Entity {
         entityAttribute: false,
         project: false,
       }
-      //console.log(" Found: " + display.name);
+      log(" Found: " + display.name);
       return entity; 
     }
   }
-  //console.log(" Not found: " + id);
+  log(" Not found: " + id);
   return undefined;
 }
 
 // Returns the collection with the given display name.
 function findCollection(name: string): Collection {
-  //console.log("Searching for collection: " + name);
+  log("Searching for collection: " + name);
   let display = eve.findOne("display name",{ name: name });
   if (display !== undefined) {
     let foundCollection = eve.findOne("collection", { collection: display.id });
@@ -1346,14 +1374,14 @@ function findCollection(name: string): Collection {
         id: foundCollection.collection,
         displayName: name,
         count: foundCollection.count,
-        variable: false,
+        variable: true,
         project: false,
       }
-      //console.log(" Found: " + name);
+      log(" Found: " + name);
       return collection;
     }
   }
-  //console.log(" Not found: " + name);
+  log(" Not found: " + name);
   return undefined;
 }
 
@@ -1406,7 +1434,7 @@ function findCollectionToAttrRelationship(coll: string, attr: string): boolean {
   // Not sure if this one works... using the entity table, a 2 hop link can
   // be found almost anywhere, yielding results like
   // e.g. "Pets heights" => pets -> snake -> entity -> corey -> height
-  relationship = eve.query(``)
+  /*relationship = eve.query(``)
     .select("collection entities", { collection: coll }, "collection")
     .select("directionless links", { entity: ["collection", "entity"] }, "links")
     .select("directionless links", { entity: ["links", "link"] }, "links2")
@@ -1414,7 +1442,8 @@ function findCollectionToAttrRelationship(coll: string, attr: string): boolean {
     .exec();
   if (relationship.unprojected.length > 0) {
     return true;
-  }
+  }*/
+  return false;
 }
 
 function subsumeTokens(nounGroup: Node, ix: number, tokens: Array<Token>): Node {
@@ -1571,7 +1600,7 @@ function buildTerm(node: Node): Array<Term> {
   }
   // Entity terms
   else if (node.entity !== undefined) {
-    // We don't do anything with entities right now
+    // @TODO We don't do anything with entities right now
   }
   return terms;
 } 
@@ -1603,10 +1632,17 @@ function formQuery(tree: Node): Query {
   projectedNodes.map((node) => {
     if (node.attribute !== undefined) {
       let entity = node.attribute.entity;
+      let collection = node.attribute.collection;
+      if (entity !== undefined) {
+        let entityField: Field = {name: `${entity.displayName.replace(new RegExp(" ", 'g'),"")}`, value: `${entity.entityAttribute ? entity.variable : entity.id}`, variable: entity.entityAttribute};
+        project.fields.push(entityField);  
+      } else if (collection !== undefined) {
+        let collectionField: Field = {name: `${collection.displayName.replace(new RegExp(" ", 'g'),"")}`, value: `${collection.displayName}`, variable: collection.variable};
+        project.fields.push(collectionField);
+      }
       let attribute = node.attribute;
-      let entityField: Field = {name: `${entity.displayName.replace(new RegExp(" ", 'g'),"")}`, value: `${entity.entityAttribute ? entity.variable : entity.id}`, variable: entity.entityAttribute};
       let attributeField: Field = {name: `${attribute.id}` , value: attribute.variable, variable: true};
-      project.fields.push(entityField);
+      
       project.fields.push(attributeField);    
     } else if (node.collection !== undefined) {
       let collection = node.collection;
@@ -1662,6 +1698,14 @@ export function tokenArrayToString(tokens: Array<Token>): string {
 // ----------------------------------------------------------------------------
 // Utility functions
 // ----------------------------------------------------------------------------
+
+export let debug = false;
+
+function log(x: any) {
+  if (debug) {
+    console.log(x);
+  }
+}
 
 // combines two arrays into a single array
 function zip(array1: Array<any>, array2: Array<any>): Array<Array<any>> {
