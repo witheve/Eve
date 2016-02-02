@@ -572,12 +572,12 @@ function positionAutocompleter(node, elem) {
 function queryAutocompleteOptions(isEntity, parsed, text, params, entityId) {
   let pageName = eve.findOne("display name", {id: entityId})["name"];
   let options:{score: number, action: any, text: string}[] = [];
+  let joiner = "a";
+  if(text && text[0].match(/[aeiou]/i)) {
+    joiner = "an";
+  }
   // create
   if(!isEntity && text !== "" && text != "=") {
-    let joiner = "a";
-    if(text[0].match(/[aeiou]/)) {
-      joiner = "an";
-    }
     options.push({score: 1, action: "do stuff", text: `Create ${joiner} "${text}" page`});
   }
   // disambiguations
@@ -597,7 +597,7 @@ function queryAutocompleteOptions(isEntity, parsed, text, params, entityId) {
       isAScore = 3;
     }
     options.push({score: 2, action: "relate", text: `${pageName} is related to ${text}`});
-    options.push({score: isAScore, action: "is a", text: `${pageName} is a ${text}`});
+    options.push({score: isAScore, action: "is a", text: `${pageName} is ${joiner} ${text}`});
   }
   return options;
 }
