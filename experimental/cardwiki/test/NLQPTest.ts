@@ -25,7 +25,7 @@ function parseTest(queryString: string, n: number) {
   // Parse string and measure how long it takes
   for (let i = 0; i < n; i++) {
     let start = performance.now();
-    parseResult = nlqp.parse(queryString);
+    parseResult = nlqp.parse(queryString)[0];
     let stop = performance.now();
     avgTime += stop-start;
     if (stop-start > maxTime) {
@@ -58,18 +58,19 @@ function parseTest(queryString: string, n: number) {
     changeset.merge(artifacts.views[id].changeset(eve));
     eve.asView(artifacts.views[id]); 
     let result = artifacts.views[id].exec();
-    console.log(result);
+    console.log(result.results);
   }
   console.log("-------------------------------------------------------------------------------------------");
   console.log(timingDisplay);
   console.log("===========================================================================================");
 }
 
-let n = 20;
+let n = 1;
 let phrases = [
   //"Corey Montella's age height",
   //"Corey Montella's wife's age and height",
-  "Corey Montella's age, height",
+  //"Corey Montella's age, height",
+  `flibs shorter than blag`
   //"Steve's age and salary",
   //`age, height, and gender of "Corey Montella" and his nationality and age; and age and gender of "Rachel Romain Fay Montella" and her husband's wife's sister's height; and Corey's age`,
   //`"Corey Montella's" Wife's sister's age; and age and gender of "Rachel Romain Fay Montella" and her height; and Olivia Fay age, height, and gender; and pets shorter than snakes; and sum of salaries per department`,

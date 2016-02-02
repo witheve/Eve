@@ -7,18 +7,37 @@ declare var uuid;
 export interface ParseResult {
   tokens: Array<Token>,
   tree: Node,
+  context: Context,
   query: Query,
+  score: number,
+  state: StateFlags,
 }
 
+export enum StateFlags {
+  COMPLETE,
+  MOREINFO,
+  NORESULT,  
+}
 
 // Entry point for NLQP
-export function parse(queryString: string): ParseResult {
+export function parse(queryString: string): Array<ParseResult> {
   let preTokens = preprocessQueryString(queryString);
   let tokens = formTokens(preTokens);
-  let tree = formTree(tokens);
-  let query = formQuery(tree);
-      
-  return {tokens: tokens, tree: tree, query: query};
+  let treeResult = formTree(tokens);
+  let query = formQuery(treeResult.tree);
+  //
+  console.log(treeResult.context);
+  // Figure out the state flags
+  let flag: StateFlags;
+  if (query.projects.length === 0 && query.terms.length === 0) {
+    flag = StateFlags.NORESULT;
+  } else if (query.projects.length === 0 && query.terms.length !== 0) {
+    flag = StateFlags.MOREINFO; 
+  } else {
+    flag = StateFlags.COMPLETE;
+  }
+  console.log(StateFlags[flag]);
+  return [{tokens: tokens, tree: treeResult.tree, context: treeResult.context, query: query, score: undefined, state: flag}];
 }
 
 // Performs some transformations to the query string before tokenizing
@@ -734,6 +753,7 @@ interface Context {
   maybeEntities: Array<Token>
   maybeAttributes: Array<Token>,
   maybeCollections: Array<Token>,
+  maybeFunction: Array<Token>,
 }
 
 function newContext(): Context {
@@ -745,6 +765,7 @@ function newContext(): Context {
     maybeEntities: [],
     maybeAttributes: [],
     maybeCollections: [],
+    maybeFunction: [],
   };
 }
 
@@ -758,10 +779,10 @@ function wordToFunction(word: string): BuiltInFunction {
       return {name: ">", type: FunctionTypes.COMPARATOR, attribute: "length"};
     case "younger":
       return {name: "<", type: FunctionTypes.COMPARATOR, attribute: "age"};
-    /*case "and":
+    case "and":
       return {name: "AND", type: FunctionTypes.BOOLEAN};
     case "or":
-      return {name: "OR", type: FunctionTypes.BOOLEAN};*/
+      return {name: "OR", type: FunctionTypes.BOOLEAN};
     case "sum":
       return {name: "SUM", type: FunctionTypes.AGGREGATE};
     case "average":
@@ -773,7 +794,7 @@ function wordToFunction(word: string): BuiltInFunction {
   }
 }
 
-function formTree(tokens: Array<Token>): Node {  
+function formTree(tokens: Array<Token>) {  
   let tree: Node;
   let subsumedNodes: Array<Node> = [];
   
@@ -1041,7 +1062,19 @@ function formTree(tokens: Array<Token>): Node {
     }
     
     if (!found) {
-      context.maybeAttributes.push(node.token);
+      if (node.hasProperty(TokenProperties.PLURAL)) { 
+        context.maybeCollections.push(node.token);
+      }
+      else if (node.hasProperty(TokenProperties.PROPER) ||
+          node.parent.hasProperty(TokenProperties.FUNCTION) ||
+          node.parent.hasProperty(TokenProperties.COMPARATIVE) || 
+          node.hasProperty(TokenProperties.POSSESSIVE)) {
+        context.maybeEntities.push(node.token);
+      } else if (node.hasProperty(TokenProperties.COMPARATIVE)) {
+        context.maybeFunction.push(node.token);
+      } else {
+        context.maybeAttributes.push(node.token);  
+      }
     }
     
     // Resolve the child nodes
@@ -1124,7 +1157,7 @@ function formTree(tokens: Array<Token>): Node {
       }
     });    
   }
-  return tree;
+  return {tree: tree, context: context};
 }
 
 // Various node manipulation functions
@@ -1412,6 +1445,7 @@ interface Term {
 
 export interface Query {
   terms: Array<Term>,
+  projects: Array<Term>,
   toString(): string;
 }
 
@@ -1424,15 +1458,17 @@ function newQuery(terms: Array<Term>): Query {
   terms = terms.filter((term, index) => uniqueTerms[index]);
   let query: Query = {
     terms: terms,
+    projects: [],
     toString: queryToString,
   }
   function queryToString(): string {
-    if (query.terms.length === 1) {
+    if (query.terms.length === 0 && query.projects.length === 0) {
       return "";
     }
     let queryString = "(query \n\t"
     // Map each term to a string
-    queryString += query.terms.map(termToString).join("\n\t");
+    queryString += query.terms.map(termToString).join("\n\t") + "\n\t";
+    queryString += query.projects.map(termToString).join("\n\t");
     // Close out the query
     queryString += "\n)";
     return queryString;
@@ -1460,6 +1496,10 @@ function buildTerm(node: Node): Array<Term> {
   // Now take care of the node itself.
   // Function terms
   if (node.fxn !== undefined) {
+    // Skip certain functions
+    if (node.fxn.name === "AND" || node.fxn.name === "OR") {
+      return terms;
+    }
     // Get variables from the already formed terms
     let vars: Array<string> = [];
     terms.forEach((term) => {
@@ -1587,8 +1627,11 @@ function formQuery(tree: Node): Query {
   });
   let uniquefields = project.fields.filter((value,index) => unique[index]);
   project.fields= uniquefields;
-    
-  query.terms.push(project);
+  
+  if (project.fields.length !== 0) {
+    query.projects.push(project);  
+  }
+  
   
   return query;
 }
