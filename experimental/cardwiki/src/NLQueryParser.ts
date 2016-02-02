@@ -25,8 +25,6 @@ export function parse(queryString: string): Array<ParseResult> {
   let tokens = formTokens(preTokens);
   let treeResult = formTree(tokens);
   let query = formQuery(treeResult.tree);
-  //
-  console.log(treeResult.context);
   // Figure out the state flags
   let flag: StateFlags;
   if (query.projects.length === 0 && query.terms.length === 0) {
@@ -36,7 +34,6 @@ export function parse(queryString: string): Array<ParseResult> {
   } else {
     flag = StateFlags.COMPLETE;
   }
-  console.log(StateFlags[flag]);
   return [{tokens: tokens, tree: treeResult.tree, context: treeResult.context, query: query, score: undefined, state: flag}];
 }
 
