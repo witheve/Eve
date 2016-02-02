@@ -960,7 +960,7 @@ function formTree(tokens: Array<Token>) {
         let collection = context.collections[context.collections.length - 1];
         if (collection !== undefined) {
           let relationship = findCollectionToAttrRelationship(collection.id,node.name);
-          if (relationship === true) {
+          if (relationship.type === RelationshipTypes.DIRECT) {
             let collectionAttribute: Attribute = {
               id: node.name,
               displayName: node.name,
@@ -1174,7 +1174,7 @@ function formTree(tokens: Array<Token>) {
       // Find relationship for collections
       } else if (child.collection !== undefined) {
         let relationship = findCollectionToAttrRelationship(child.collection.id,comparator.attribute);
-        if (relationship === true) {
+        if (relationship.type === RelationshipTypes.DIRECT) {
           let nToken = newToken(comparator.attribute);
           let nNode = newNode(nToken);
           let collectionAttribute: Attribute = {
@@ -1417,7 +1417,19 @@ function findAttribute(name: string, entity: Entity): Attribute {
   return undefined;
 }
 
-function findCollectionToAttrRelationship(coll: string, attr: string): boolean {
+enum RelationshipTypes {
+  NONE,
+  DIRECT,
+  ONEHOP,
+  TWOHOP,
+}
+
+interface Relationship {
+  links?: Array<string>,
+  type: RelationshipTypes,
+}
+
+function findCollectionToAttrRelationship(coll: string, attr: string): Relationship {
   // Finds a direct relationship between collection and attribute
   // e.g. "pets' lengths"" => pet -> snake -> length
   log(`Finding relationship between ${coll} and ${attr}...`);
@@ -1427,10 +1439,10 @@ function findCollectionToAttrRelationship(coll: string, attr: string): boolean {
     .exec();
   if (relationship.unprojected.length > 0) {
     log("Found Direct Relationship");
-    log(relationship);
-    return true;
+    return {type: RelationshipTypes.DIRECT};
   }
   // Finds a one hop relationship
+  // e.g. "department salaries" => department -> employee -> corey -> salary
   relationship = eve.query(``)
     .select("collection entities", { collection: coll }, "collection")
     .select("directionless links", { entity: ["collection", "entity"] }, "links")
@@ -1439,7 +1451,9 @@ function findCollectionToAttrRelationship(coll: string, attr: string): boolean {
   if (relationship.unprojected.length > 0) {
     log("Found One-Hop Relationship");
     log(relationship);
-    return true;
+    // Find the one-hop link
+    //let relationship.unprojected[0]
+    return {links: [], type: RelationshipTypes.ONEHOP};
   }
   // Not sure if this one works... using the entity table, a 2 hop link can
   // be found almost anywhere, yielding results like
@@ -1453,7 +1467,7 @@ function findCollectionToAttrRelationship(coll: string, attr: string): boolean {
   if (relationship.unprojected.length > 0) {
     return true;
   }*/
-  return false;
+  return {type: RelationshipTypes.NONE};
 }
 
 function subsumeTokens(nounGroup: Node, ix: number, tokens: Array<Token>): Node {
