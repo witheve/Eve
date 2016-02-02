@@ -932,48 +932,7 @@ function formTree(tokens: Array<Token>) {
       context.fxns.push(node.fxn);
       node.found = true;
     }
-    // If the node is a pronoun, try to find the entity it references
-    if (!node.found && node.hasProperty(TokenProperties.PRONOUN)) {
-      log("Pronoun: finding reference");
-      // If the pronoun is plural, the entity is probably the latest collection
-      if (node.hasProperty(TokenProperties.PLURAL)) {
-        let collection = context.collections[context.collections.length - 1];
-        if (collection !== undefined) {
-          log(collection.displayName);
-          node.collection = collection;
-          node.found = true;
-        }
-      } else {
-        let entity = context.entities[context.entities.length - 1];
-        if (entity !== undefined) {
-          log(entity.displayName);
-          node.entity = entity;
-          node.found = true;
-        }
-      }
-    }
-    // Heuristic: If the node is plural, try to find a collection
-    if (!node.found && node.hasProperty(TokenProperties.PLURAL)) {
-      let collection = findCollection(node.name);
-      if (collection !== undefined) {
-        node.collection = collection;
-        collection.node= node;
-        context.collections.push(collection);
-        node.found = true;
-      }
-    }
-    // If the node is possessive or proper, it's probably an entity
-    if (!node.found && (node.hasProperty(TokenProperties.POSSESSIVE) || node.hasProperty(TokenProperties.PROPER))) {
-      log("Possessive or Proper: finding entity");
-      let entity = findEntityByDisplayName(node.name);
-      if (entity !== undefined) {
-        context.entities.push(entity);
-        entity.node = node;
-        node.entity = entity;
-        node.found = true;
-      }
-    }
-    // Try to find an attribute
+    // Try to find an attribute if we've already found an entity/collection
     if (!node.found && (context.entities.length !== 0 || context.collections.length !== 0)) {
       log("Entity/Collection already found: finding attribute");
       let entity = context.entities[context.entities.length - 1];
@@ -1017,6 +976,47 @@ function formTree(tokens: Array<Token>) {
           } 
         }
       }     
+    }
+    // If the node is a pronoun, try to find the entity it references
+    if (!node.found && node.hasProperty(TokenProperties.PRONOUN)) {
+      log("Pronoun: finding reference");
+      // If the pronoun is plural, the entity is probably the latest collection
+      if (node.hasProperty(TokenProperties.PLURAL)) {
+        let collection = context.collections[context.collections.length - 1];
+        if (collection !== undefined) {
+          log(collection.displayName);
+          node.collection = collection;
+          node.found = true;
+        }
+      } else {
+        let entity = context.entities[context.entities.length - 1];
+        if (entity !== undefined) {
+          log(entity.displayName);
+          node.entity = entity;
+          node.found = true;
+        }
+      }
+    }
+    // Heuristic: If the node is plural, try to find a collection
+    if (!node.found && node.hasProperty(TokenProperties.PLURAL)) {
+      let collection = findCollection(node.name);
+      if (collection !== undefined) {
+        node.collection = collection;
+        collection.node= node;
+        context.collections.push(collection);
+        node.found = true;
+      }
+    }
+    // If the node is possessive or proper, it's probably an entity
+    if (!node.found && (node.hasProperty(TokenProperties.POSSESSIVE) || node.hasProperty(TokenProperties.PROPER))) {
+      log("Possessive or Proper: finding entity");
+      let entity = findEntityByDisplayName(node.name);
+      if (entity !== undefined) {
+        context.entities.push(entity);
+        entity.node = node;
+        node.entity = entity;
+        node.found = true;
+      }
     }
     // If there is a backward relationship e.g. age of Corey, then try to find attrs
     // in the maybeAttr stack
