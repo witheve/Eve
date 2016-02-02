@@ -666,6 +666,7 @@ interface Node {
   attribute?: Attribute,
   fxn?: BuiltInFunction,
   token: Token,
+  found: boolean,
   properties: Array<TokenProperties>,
   hasProperty(TokenProperties): boolean;
   toString(): string;
@@ -696,8 +697,9 @@ function newNode(token: Token): Node {
     children: [],
     token: token, 
     properties: token.properties,
+    found: false,
     hasProperty: hasProperty,
-    toString: nodeToString,    
+    toString: nodeToString,
   };
   token.node = node;
   function hasProperty(property: TokenProperties): boolean {
@@ -920,20 +922,18 @@ function formTree(tokens: Array<Token>) {
   // Go through each node array and try to resolve entities
   function resolveEntities(node: Node, context: Context): Context {
     log(node);
-    let found = false;
-    
     // Skip certain nodes
     if (node.token.POS === MinorPartsOfSpeech.IN ||
         node.hasProperty(TokenProperties.ROOT)) {
       log("Skipping");
-      found = true;
+      node.found = true;
     }
-    if (!found && node.hasProperty(TokenProperties.FUNCTION)) {
+    if (!node.found && node.hasProperty(TokenProperties.FUNCTION)) {
       context.fxns.push(node.fxn);
-      found = true;
+      node.found = true;
     }
     // If the node is a pronoun, try to find the entity it references
-    if (!found && node.hasProperty(TokenProperties.PRONOUN)) {
+    if (!node.found && node.hasProperty(TokenProperties.PRONOUN)) {
       log("Pronoun: finding reference");
       // If the pronoun is plural, the entity is probably the latest collection
       if (node.hasProperty(TokenProperties.PLURAL)) {
@@ -941,40 +941,40 @@ function formTree(tokens: Array<Token>) {
         if (collection !== undefined) {
           log(collection.displayName);
           node.collection = collection;
-          found = true;
+          node.found = true;
         }
       } else {
         let entity = context.entities[context.entities.length - 1];
         if (entity !== undefined) {
           log(entity.displayName);
           node.entity = entity;
-          found = true;
+          node.found = true;
         }
       }
     }
     // Heuristic: If the node is plural, try to find a collection
-    if (!found && node.hasProperty(TokenProperties.PLURAL)) {
+    if (!node.found && node.hasProperty(TokenProperties.PLURAL)) {
       let collection = findCollection(node.name);
       if (collection !== undefined) {
         node.collection = collection;
         collection.node= node;
         context.collections.push(collection);
-        found = true;
+        node.found = true;
       }
     }
     // If the node is possessive or proper, it's probably an entity
-    if (!found && (node.hasProperty(TokenProperties.POSSESSIVE) || node.hasProperty(TokenProperties.PROPER))) {
+    if (!node.found && (node.hasProperty(TokenProperties.POSSESSIVE) || node.hasProperty(TokenProperties.PROPER))) {
       log("Possessive or Proper: finding entity");
       let entity = findEntityByDisplayName(node.name);
       if (entity !== undefined) {
         context.entities.push(entity);
         entity.node = node;
         node.entity = entity;
-        found = true;
+        node.found = true;
       }
     }
     // Try to find an attribute
-    if (!found && (context.entities.length !== 0 || context.collections.length !== 0)) {
+    if (!node.found && (context.entities.length !== 0 || context.collections.length !== 0)) {
       log("Entity/Collection already found: finding attribute");
       let entity = context.entities[context.entities.length - 1];
       if (entity !== undefined) {
@@ -994,7 +994,7 @@ function formTree(tokens: Array<Token>) {
               node.entity = entity;
             }
           }
-          found = true;
+          node.found = true;
         }
       // Try to find it as an attribute of a collection
       } else {
@@ -1013,7 +1013,7 @@ function formTree(tokens: Array<Token>) {
             }
             node.attribute = collectionAttribute;
             context.attributes.push(collectionAttribute);
-            found = true;
+            node.found = true;
           } 
         }
       }     
@@ -1038,7 +1038,7 @@ function formTree(tokens: Array<Token>) {
             maybeAttr.node.attribute = attribute;
             context.attributes.push(attribute);  
             attribute.node = maybeAttr.node;
-            found = true;
+            maybeAttr.node.found = true;
           }
         } else {
           let collection = node.collection;
@@ -1056,28 +1056,28 @@ function formTree(tokens: Array<Token>) {
               }
               maybeAttr.node.attribute = collectionAttribute;
               context.attributes.push(collectionAttribute);
-              found = true;
+              maybeAttr.node.found = true;
             } 
           }
         }
       }
     }
     // If we've gotten here and we haven't found anything, go crazy with searching
-    if (!found) {
+    if (!node.found) {
       log("Find this thing anywhere we can");
       let entity = findEntityByDisplayName(node.name);
       if (entity !== undefined) {
         context.entities.push(entity);
         entity.node = node;
         node.entity = entity;
-        found = true;
+        node.found = true;
       } else {
         let collection = findCollection(node.name);
         if (collection !== undefined) {
           context.collections.push(collection);
           collection.node = node;
           node.collection = collection;
-          found = true;
+          node.found = true;
         // Singularize and try to find a collection
         } else {
           let collection = findCollection(singularize(node.name));
@@ -1085,13 +1085,13 @@ function formTree(tokens: Array<Token>) {
             node.token.POS = MinorPartsOfSpeech.NN;
             node.collection = collection;
             context.collections.push(collection);
-            found = true;
+            node.found = true;
           }
         }
       }
     }
     
-    if (!found) {
+    if (!node.found) {
       /*if (node.parent.hasProperty(TokenProperties.POSSESSIVE)) {
         context.maybeAttributes.push(node.token);  
       }*/
