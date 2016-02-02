@@ -13,6 +13,7 @@ var spawn = require("child_process").spawn;
 var pkgs = {
   wiki: {entries: ["src/wiki.ts"], adds: ["typings/tsd.d.ts"]},
   queryParserTest: {entries: ["test/queryParserTest.ts"], adds: ["typings/tsd.d.ts"]},
+  nlqpTest: {entries: ["test/NLQPTest.ts"], adds: ["typings/tsd.d.ts"]},
   runtimeTest: {entries: ["test/runtimeTest.ts"], adds: ["typings/tsd.d.ts"]},
   richTextEditorTest: {entries: ["test/richTextEditor.ts"], adds: ["typings/tsd.d.ts"]}
 };

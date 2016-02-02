@@ -112,6 +112,8 @@ export function autoFocus(node, elem) {
 export var KEYS = {
   ESC: 27,
   ENTER: 13,
+  UP: 38,
+  DOWN: 40,
   "]": 221,
 }
 

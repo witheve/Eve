@@ -85,6 +85,8 @@ httpserver.use("/css", express.static(__dirname + '/../../css'));
 httpserver.use("/node_modules", express.static(__dirname + '/../../node_modules'));
 httpserver.use("/vendor", express.static(__dirname + '/../../vendor'));
 httpserver.use("/fonts", express.static(__dirname + '/../../fonts'));
+httpserver.use("/test", express.static(__dirname + '/../../test'));
+httpserver.use("/images", express.static(__dirname + '/../../images'));
 
 httpserver.get("/*", (req, res) => {
   res.sendFile(path.resolve(__dirname + "/../../editor.html"));
