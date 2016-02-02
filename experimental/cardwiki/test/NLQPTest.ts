@@ -12,7 +12,7 @@ app.renderRoots["nlqp"];
 
 nlqp.debug = false;
 
-function parseTest(queryString: string, n: number) {
+function parseTest(queryString: string, n: number): nlqp.StateFlags {
   let parseResult: nlqp.ParseResult;
   let avgTime = 0;
   let maxTime = 0;
@@ -59,25 +59,40 @@ function parseTest(queryString: string, n: number) {
   if (parseResult.query.projects.length !== 0) {
     let artifacts = dslparser.parseDSL(parseResult.query.toString());
     let changeset = eve.diff();
-    console.log(artifacts.views)
+    let results = [];
     for (let id in artifacts.views) {
       changeset.merge(artifacts.views[id].changeset(eve));
       eve.asView(artifacts.views[id]); 
-      let result = artifacts.views[id].exec();
-      console.log(result.results);
-    } 
+      results.push(artifacts.views[id].exec());
+    }
+    results.forEach((result) => {
+      let projected = result.results;
+      projected.forEach((row) => {
+        let keys = Object.keys(row);
+        let rowstring = `| `;
+        rowstring += keys.map((key) => {
+          if (key === "__id") {
+            return;
+          }
+          return `${row[key]}`;
+        }).join(" | ");
+        console.log(rowstring);
+      });
+    });
   }
   console.log("-------------------------------------------------------------------------------------------");
   console.log(timingDisplay);
   console.log("===========================================================================================");
+  return parseResult.state;
 }
 
-let n = 1;
+let n = 100;
 let phrases = [
-  "employees with their salaries",
-  "employees and their salaries",
-  //"Corey Montella's age and his gender",
-  //"Corey Montella's wife's age"
+  "employees with their salaries", //*
+  "employees and their salaries",  //*
+  //"department salaries",
+  "Pets shorter than dogs",
+  "Corey Montella's wife's age",
   //"salaries per department"
   //"Corey Montella's age height",
   //"Corey Montella's wife's age and height",
@@ -307,5 +322,12 @@ let siriphrases = [
 app.init("nlqp", function () {
   console.log(`Running ${phrases.length} tests...`);
   console.log("===========================================================================================");
-  phrases.map((phrase) => {parseTest(phrase,n)});
+  let queryStates = phrases.map((phrase) => {return parseTest(phrase,n)});
+  let complete = queryStates.filter((state) => state === nlqp.StateFlags.COMPLETE).length;
+  let moreinfo = queryStates.filter((state) => state === nlqp.StateFlags.MOREINFO).length;
+  let noresult = queryStates.filter((state) => state === nlqp.StateFlags.NORESULT).length;
+  console.log("===========================================================================================");
+  console.log(`Total Queries: ${phrases.length} | Complete: ${complete} | MoreInfo: ${moreinfo} | NoResult: ${noresult}`);
+  console.log("===========================================================================================");
+  
 });
