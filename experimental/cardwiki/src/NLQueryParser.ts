@@ -1065,26 +1065,26 @@ function formTree(tokens: Array<Token>) {
     // If we've gotten here and we haven't found anything, go crazy with searching
     if (!node.found) {
       log("Find this thing anywhere we can");
-      let entity = findEntityByDisplayName(node.name);
-      if (entity !== undefined) {
-        context.entities.push(entity);
-        entity.node = node;
-        node.entity = entity;
+      let collection = findCollection(node.name);
+      if (collection !== undefined) {
+        context.collections.push(collection);
+        collection.node = node;
+        node.collection = collection;
         node.found = true;
+      // Singularize and try to find a collection
       } else {
-        let collection = findCollection(node.name);
+        let collection = findCollection(singularize(node.name));
         if (collection !== undefined) {
-          context.collections.push(collection);
-          collection.node = node;
+          node.token.POS = MinorPartsOfSpeech.NN;
           node.collection = collection;
+          context.collections.push(collection);
           node.found = true;
-        // Singularize and try to find a collection
         } else {
-          let collection = findCollection(singularize(node.name));
-          if (collection !== undefined) {
-            node.token.POS = MinorPartsOfSpeech.NN;
-            node.collection = collection;
-            context.collections.push(collection);
+          let entity = findEntityByDisplayName(node.name);
+          if (entity !== undefined) {
+            context.entities.push(entity);
+            entity.node = node;
+            node.entity = entity;
             node.found = true;
           }
         }
