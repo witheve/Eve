@@ -1008,6 +1008,7 @@ function formTree(tokens: Array<Token>) {
               collection: collection,
               value: `${collection.displayName}|${node.name}`,
               variable: `${collection.displayName}|${node.name}`,
+              node: node,
               project: true,
             }
             node.attribute = collectionAttribute;
@@ -1029,19 +1030,7 @@ function formTree(tokens: Array<Token>) {
       for (let maybeAttr of context.maybeAttributes) {
         // Find the parent entities and try to match attributes
         let entity = node.entity;
-        if (entity === undefined) {
-          let collection = node.collection;
-          if (collection !== undefined) {
-            let foundRel = findCollectionToAttrRelationship(collection.id,maybeAttr.normalizedWord);
-            if (foundRel) {
-              /*let nToken = newToken(maybeAttr.normalizedWord);
-              let nNode = newNode(nToken);
-              let attribute: Attribute = {};
-              nNode.attribute = attribute;
-              node.children.push(nNode);*/
-            }
-          }
-        } else {
+        if (entity !== undefined) {
           log(maybeAttr.normalizedWord);
           log(entity.displayName);
           let attribute = findAttribute(maybeAttr.normalizedWord,entity);
@@ -1050,6 +1039,25 @@ function formTree(tokens: Array<Token>) {
             context.attributes.push(attribute);  
             attribute.node = maybeAttr.node;
             found = true;
+          }
+        } else {
+          let collection = node.collection;
+          if (collection !== undefined) {
+            let foundRel = findCollectionToAttrRelationship(collection.id,maybeAttr.normalizedWord);
+            if (foundRel) {
+              let collectionAttribute: Attribute = {
+                id: maybeAttr.node.name,
+                displayName: maybeAttr.node.name,
+                collection: collection,
+                value: `${collection.displayName}|${maybeAttr.node.name}`,
+                variable: `${collection.displayName}|${maybeAttr.node.name}`,
+                node: maybeAttr.node,
+                project: true,
+              }
+              maybeAttr.node.attribute = collectionAttribute;
+              context.attributes.push(collectionAttribute);
+              found = true;
+            } 
           }
         }
       }
@@ -1084,10 +1092,10 @@ function formTree(tokens: Array<Token>) {
     }
     
     if (!found) {
-      if (node.parent.hasProperty(TokenProperties.POSSESSIVE)) {
+      /*if (node.parent.hasProperty(TokenProperties.POSSESSIVE)) {
         context.maybeAttributes.push(node.token);  
-      }
-      else if (node.hasProperty(TokenProperties.PLURAL)) { 
+      }*/
+      if (node.hasProperty(TokenProperties.PLURAL)) { 
         context.maybeCollections.push(node.token);
       }
       else if (node.hasProperty(TokenProperties.PROPER) ||
@@ -1097,9 +1105,8 @@ function formTree(tokens: Array<Token>) {
         context.maybeEntities.push(node.token);
       } else if (node.hasProperty(TokenProperties.COMPARATIVE)) {
         context.maybeFunction.push(node.token);
-      } else {
-        context.maybeAttributes.push(node.token);  
       }
+      context.maybeAttributes.push(node.token);
     }
     
     // Resolve the child nodes
@@ -1176,6 +1183,7 @@ function formTree(tokens: Array<Token>) {
             collection: child.collection,
             value: `${child.collection.displayName}|${comparator.attribute}`,
             variable: `${child.collection.displayName}|${comparator.attribute}`,
+            node: nNode,
             project: false,
           }
           child.collection.project = true;
