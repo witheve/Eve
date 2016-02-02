@@ -10,6 +10,7 @@ import * as uitk from "./uitk";
 import {eve, handle as appHandle, dispatch, activeSearches} from "./app";
 import {StepType, queryToExecutable} from "./queryParser";
 import {parseDSL} from "./parser";
+import {parse as nlparse} from "./NLQueryParser";
 
 
 export enum PANE { FULL, WINDOW, POPOUT };
@@ -231,7 +232,7 @@ export function pane(paneId:string):Element {
   let contentType = "entity";;
   if(contains.length === 0) {
     content = entity(builtinId("home"), paneId);
-    
+
   } else if(contains.indexOf("search: ") === 0) {
     contentType = "search";
     content = search(contains.substring("search: ".length), paneId);
@@ -474,16 +475,20 @@ function reparentCell(node, elem) {
   if(node.parentNode.id !== elem.containerId) {
     document.getElementById(elem.containerId).appendChild(node);
   }
-  if(elem.autoFocus) {
-    autoFocus(node, elem);
+  node.parentNode["mark"].changed();
+}
+
+function focusCellEditor(node, elem) {
+  autoFocus(node, elem);
+  if(!node.didFocus) {
+    node.didFocus = true;
     setEndOfContentEditable(node);
   }
-  node.parentNode["mark"].changed();
 }
 
 //---------------------------------------------------------
 
-function cellEditor(paneId, cell) {
+function cellEditor(entityId, paneId, cell) {
   let text = cell.query.trim();
   let autoFocus = true;
   if(cell.placeholder && !activeCells[cell.id]) {
@@ -499,7 +504,107 @@ function cellEditor(paneId, cell) {
   if(text.indexOf("=") !== 0) {
     text = `= ${text}`;
   }
-  return {t: "span", c:"embedded-cell", contentEditable: "true", text, keydown: embeddedCellKeys, cell, paneId, autoFocus};
+  console.log(JSON.stringify(text));
+  return {children: [
+    {t: "span", c:"embedded-cell", contentEditable: "true", text, input: updateActiveCell, keydown: embeddedCellKeys, cell, paneId, postRender: autoFocus ? focusCellEditor : undefined},
+    autocompleter(entityId, paneId, cell)
+  ]};
+}
+
+function autocompleter(entityId, paneId, cell): Element {
+  let [text, rawParams] = cell.query.trim().split("|");
+  if(text.match(/=.*=/)) {
+    return {c: "autocompleter"};
+  }
+  let params = {};
+  try {
+    params = parseParams(rawParams);
+  } catch(e) {
+    // @TODO: eventually people shouldn't be typing params in here so we should probably be doing
+    // something else. But for now, if you're doing this, you're special.
+  }
+  let display = eve.findOne("display name", {id: text});
+  if(display) {
+    text = display["name"];
+  }
+  let isEntity = eve.findOne("display name", {name: text});
+  let parsed = [];
+  if(text !== "") {
+    parsed = nlparse(text); // @TODO: this should come from the NLP parser once it's hooked up.
+    console.log(parsed[0].context);
+    console.log(parsed[0].tree.toString());
+  }
+  // the autocomplete can have multiple states
+  let state = "query";
+  // every option has a score for how pertinent it is
+  // things with a score of 0 will be filtered, everything else
+  // will be sorted descending.
+  let options:{score: number, action: any, text: string}[];
+  if(state === "query") {
+    options = queryAutocompleteOptions(isEntity, parsed, text, params, entityId);
+  } else if(state === "represent") {
+    options = representAutocompleteOptions(isEntity, parsed, text, params, entityId);
+  }
+  options = options.sort((a, b) => b.score - a.score);
+  let children = [];
+  for(let option of options) {
+    if(option.score < 1) continue;
+    children.push({c: "option", text: option.text});
+  }
+  if(children.length) {
+    let selectedIx = cell.selected % children.length;
+    if(selectedIx < 0) selectedIx = children.length + selectedIx;
+    children[selectedIx].c += " selected";
+    console.log("SELECTED", selectedIx);
+  }
+  return {c: "autocompleter", key: performance.now().toString(), containerId: `${paneId}|${cell.id}|container`, children, postRender: positionAutocompleter};
+}
+
+function positionAutocompleter(node, elem) {
+  let containerId = elem.containerId;
+  let container = document.getElementById(containerId);
+  let {bottom, left} = container.getBoundingClientRect();
+  document.body.appendChild(node);
+  node.style.top = bottom;
+  node.style.left = left;
+}
+
+function queryAutocompleteOptions(isEntity, parsed, text, params, entityId) {
+  let pageName = eve.findOne("display name", {id: entityId})["name"];
+  let options:{score: number, action: any, text: string}[] = [];
+  // create
+  if(!isEntity && text !== "" && text != "=") {
+    let joiner = "a";
+    if(text[0].match(/[aeiou]/)) {
+      joiner = "an";
+    }
+    options.push({score: 1, action: "do stuff", text: `Create ${joiner} "${text}" page`});
+  }
+  // disambiguations
+  if(parsed.length > 1) {
+    options.push({score: 2, action: "disambiguate stuff", text: "DISAMBIGUATE!"});
+  }
+  // repesentation
+  // we can only repesent things if we've found them
+  if(isEntity || parsed.length > 0) {
+    // @TODO: how do we figure out what representations actually make sense to show?
+    options.push({score: 1, action: "represent stuff", text: `Embed as ...`});
+  }
+  // set attribute
+  if(isEntity) {
+    let isAScore = 1.5;
+    if(eve.findOne("collection", {collection: isEntity.id})) {
+      isAScore = 3;
+    }
+    options.push({score: 2, action: "relate", text: `${pageName} is related to ${text}`});
+    options.push({score: isAScore, action: "is a", text: `${pageName} is a ${text}`});
+  }
+  return options;
+}
+
+function representAutocompleteOptions(isEntity, parsed, text, params, entityId) {
+  let options:{score: number, action: any, text: string}[] = [];
+  return options;
 }
 
 export function entity(entityId:string, paneId:string, options:any = {}):Element {
@@ -510,12 +615,12 @@ export function entity(entityId:string, paneId:string, options:any = {}):Element
   let finalOptions = mergeObject({keys: {
     "=": (cm) => createEmbedPopout(cm, paneId)
   }}, options);
-  console.log("ACTIVE", activeCells);
   let cellItems = cells.map((cell, ix) => {
     let ui;
-    console.log(cell);
-    if(activeCells[cell.id] || cell.placeholder) {
-      ui = cellEditor(paneId, cell);
+    let active = activeCells[cell.id];
+    if(active || cell.placeholder) {
+      console.log("ACTIVE", active);
+      ui = cellEditor(entityId, paneId, active || cell);
     } else {
       ui = cellUI(paneId, cell.query, cell);
     }
@@ -541,6 +646,7 @@ var activeCells = {};
 
 appHandle("addActiveCell", (changes, info) => {
   let {id} = info;
+  info.selected = 0;
   activeCells[id] = info;
 });
 
@@ -548,6 +654,24 @@ appHandle("removeActiveCell", (changes, info) => {
   let {id} = info;
   delete activeCells[id];
 });
+
+appHandle("updateActiveCell", (changes, info) => {
+  let active = activeCells[info.id];
+  active.query = info.query.replace(/^= /, "");
+  active.selected = 0;
+});
+
+appHandle("moveCellAutocomplete", (changes, info) => {
+  let active = activeCells[info.cell.id];
+  let {direction} = info;
+  active.selected += direction;
+  console.log("MOVED", active.selected);
+});
+
+function updateActiveCell(event, elem) {
+  let {cell} = elem;
+  dispatch("updateActiveCell", {id: cell.id, cell, query: event.currentTarget.textContent}).commit();
+}
 
 function activateCell(event, elem) {
   let {cell} = elem;
@@ -571,7 +695,7 @@ function embeddedCellKeys(event, elem) {
   let {paneId, cell} = elem;
   let target = event.currentTarget;
   let value = target.textContent;
-  let mark = target.parentNode["mark"];
+  let mark = target.parentNode.parentNode["mark"];
   let cm = paneEditors[paneId].cmInstance;
   if(event.keyCode === KEYS.ESC || (event.keyCode === KEYS.ENTER && value.trim() === "=")) {
     if(cell.placeholder) {
@@ -587,17 +711,28 @@ function embeddedCellKeys(event, elem) {
       value = value.substring(1);
     }
     value = value.trim();
+    let [text, rawParams] = value.split("|");
+    text = text.trim();
     // @TODO: this doesn't take disambiguations into account
-    let display = eve.findOne("display name", {name: value});
+    let display = eve.findOne("display name", {name: text});
     if(display) {
-      value = display.id;
+      text = display.id;
     }
-    let replacement = `{${value}}`;
+    console.log("VALUE", JSON.stringify(text));
+    let replacement = `{${text}|${rawParams || ""}}`;
     if(cm.getRange(from, to) !== replacement) {
       cm.replaceRange(replacement, from, to);
     }
     paneEditors[paneId].cmInstance.focus();
     dispatch("removeActiveCell", cell).commit();
+    event.preventDefault();
+  } else if(event.keyCode === KEYS.UP) {
+    console.log("UP");
+    dispatch("moveCellAutocomplete", {cell, direction:-1}).commit();
+    event.preventDefault();
+  } else if(event.keyCode === KEYS.DOWN) {
+    console.log("DOWN");
+    dispatch("moveCellAutocomplete", {cell, direction:1}).commit();
     event.preventDefault();
   }
 }
@@ -751,7 +886,7 @@ function codeMirrorPostRender(postRender?:RenderHandler):RenderHandler {
 function getEntitiesFromResults(results:{[field:string]: any}[], {fields = ["entity"]} = {}):string[] {
   let entities = [];
   if(!results.length) return entities;
-  
+
   for(let field of fields) {
     if(results[0][field] === undefined) field = builtinId(field);
     for(let fact of results) entities.push(fact[field]);
