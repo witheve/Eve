@@ -43,7 +43,11 @@ export function preprocessQueryString(queryString: string): Array<PreToken> {
   let processedString = queryString.replace(new RegExp(",", 'g')," ,");
   processedString = processedString.replace(new RegExp(";", 'g')," ;");
   // Get parts of speach with sentence information. It's okay if they're wrong; they 
-  // will be corrected as we create the tree and match against the underlying data model    
+  // will be corrected as we create the tree and match against the underlying data model
+  let sentences = nlp.pos(processedString, {dont_combine: true}).sentences;   
+  if (sentences.length === 0) {
+    return [];
+  }
   let nlpTokens = nlp.pos(processedString, {dont_combine: true}).sentences[0].tokens;
   let preTokens: Array<PreToken> = nlpTokens.map((token,i) => {
     return {ix: i, text: token.text, tag: token.pos.tag};
