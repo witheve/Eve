@@ -57,7 +57,8 @@ function parseTest(queryString: string, n: number): nlqp.StateFlags {
   console.log("-------------------------------------------------------------------------------------------");
   console.log("Result");
   if (parseResult.query.projects.length !== 0) {
-    let artifacts = dslparser.parseDSL(parseResult.query.toString());
+    let queryString = parseResult.query.toString();
+    let artifacts = dslparser.parseDSL(queryString);
     let changeset = eve.diff();
     let results = [];
     for (let id in artifacts.views) {
@@ -65,8 +66,12 @@ function parseTest(queryString: string, n: number): nlqp.StateFlags {
       eve.asView(artifacts.views[id]); 
       results.push(artifacts.views[id].exec());
     }
+    console.log(results);
     results.forEach((result) => {
       let projected = result.results;
+      if (projected.length === 0) {
+        return;
+      }
       // Get each cell as a string
       let colWidths = [];
       let keys = Object.keys(projected[0]);
@@ -126,9 +131,10 @@ let phrases = [
   "department salaries",
   "employee and their departments", 
   "employees with their salaries", 
-  "employees and their salaries",*/
-  "employees department salary",
+  "employees and their salaries",
+  "salaries per department",*/
   // -------------------------------
+  "sum pet lengths",
   //"Corey Montella's age, height, and gender",
   //"pets longer than dogs",
   //"department salaries",
