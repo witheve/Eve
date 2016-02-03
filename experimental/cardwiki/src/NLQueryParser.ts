@@ -1081,6 +1081,7 @@ function formTree(tokens: Array<Token>) {
         if (collection !== undefined) {
           node.token.POS = MinorPartsOfSpeech.NN;
           node.collection = collection;
+          collection.node = node;
           context.collections.push(collection);
           node.found = true;
         } else {
@@ -1224,7 +1225,7 @@ function formTree(tokens: Array<Token>) {
   // Resolve entities and attributes
   let context = newContext();
   resolveEntities(tree,context);
- 
+  console.log(tree);
   log(tree.toString());
   log("Rewire attributes...")
   // Based on the entities we just found, rewire attributes to be children of their referenced entities
