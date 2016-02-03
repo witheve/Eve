@@ -538,12 +538,12 @@ function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech 
 // Wrap pluralize to special case certain words it gets wrong
 function singularize(word: string): string {
   let specialCases = ["his","has","downstairs","united states","its"];
-  let isSpecial = intersect([word],specialCases).length > 0;
-  if (isSpecial) {
-      return word;  
-  } else { 
-    return pluralize(word, 1);
-  }
+  specialCases.forEach((specialCase) => {
+    if (specialCase === word) {
+      return word;
+    }
+  });
+  return pluralize(word, 1);
 }
 
 // ----------------------------------------------------------------------------
@@ -637,7 +637,7 @@ function formNounGroups(tokens: Array<Token>): Array<Node> {
   
   // Heuristic: Leftover determiners are themselves a noun group 
   // e.g. neither of these boys. ng = ([neither],[of these boys])
-  let unusedDeterminers = findAll(tokens, (token: Token) => token.node === undefined && token.POS === MinorPartsOfSpeech.DT);
+  let unusedDeterminers = tokens.filter((token) => token.node === undefined && token.POS === MinorPartsOfSpeech.DT);
   for (let token of unusedDeterminers) {
     nounGroups.push(newNode(token));  
   }
@@ -666,6 +666,7 @@ interface Node {
   attribute?: Attribute,
   fxn?: BuiltInFunction,
   token: Token,
+  found: boolean,
   properties: Array<TokenProperties>,
   hasProperty(TokenProperties): boolean;
   toString(): string;
@@ -696,8 +697,9 @@ function newNode(token: Token): Node {
     children: [],
     token: token, 
     properties: token.properties,
+    found: false,
     hasProperty: hasProperty,
-    toString: nodeToString,    
+    toString: nodeToString,
   };
   token.node = node;
   function hasProperty(property: TokenProperties): boolean {
@@ -734,7 +736,7 @@ function newNode(token: Token): Node {
   return node;  
 }
 
-enum FunctionTypes {
+export enum FunctionTypes {
   COMPARATOR,
   AGGREGATE,
   BOOLEAN,
@@ -920,61 +922,18 @@ function formTree(tokens: Array<Token>) {
   // Go through each node array and try to resolve entities
   function resolveEntities(node: Node, context: Context): Context {
     log(node);
-    let found = false;
-    
     // Skip certain nodes
     if (node.token.POS === MinorPartsOfSpeech.IN ||
         node.hasProperty(TokenProperties.ROOT)) {
       log("Skipping");
-      found = true;
+      node.found = true;
     }
-    if (!found && node.hasProperty(TokenProperties.FUNCTION)) {
+    if (!node.found && node.hasProperty(TokenProperties.FUNCTION)) {
       context.fxns.push(node.fxn);
-      found = true;
+      node.found = true;
     }
-    // If the node is a pronoun, try to find the entity it references
-    if (!found && node.hasProperty(TokenProperties.PRONOUN)) {
-      log("Pronoun: finding reference");
-      // If the pronoun is plural, the entity is probably the latest collection
-      if (node.hasProperty(TokenProperties.PLURAL)) {
-        let collection = context.collections[context.collections.length - 1];
-        if (collection !== undefined) {
-          log(collection.displayName);
-          node.collection = collection;
-          found = true;
-        }
-      } else {
-        let entity = context.entities[context.entities.length - 1];
-        if (entity !== undefined) {
-          log(entity.displayName);
-          node.entity = entity;
-          found = true;
-        }
-      }
-    }
-    // Heuristic: If the node is plural, try to find a collection
-    if (!found && node.hasProperty(TokenProperties.PLURAL)) {
-      let collection = findCollection(node.name);
-      if (collection !== undefined) {
-        node.collection = collection;
-        collection.node= node;
-        context.collections.push(collection);
-        found = true;
-      }
-    }
-    // If the node is possessive or proper, it's probably an entity
-    if (!found && (node.hasProperty(TokenProperties.POSSESSIVE) || node.hasProperty(TokenProperties.PROPER))) {
-      log("Possessive or Proper: finding entity");
-      let entity = findEntityByDisplayName(node.name);
-      if (entity !== undefined) {
-        context.entities.push(entity);
-        entity.node = node;
-        node.entity = entity;
-        found = true;
-      }
-    }
-    // Try to find an attribute
-    if (!found && (context.entities.length !== 0 || context.collections.length !== 0)) {
+    // Try to find an attribute if we've already found an entity/collection
+    if (!node.found && (context.entities.length !== 0 || context.collections.length !== 0)) {
       log("Entity/Collection already found: finding attribute");
       let entity = context.entities[context.entities.length - 1];
       if (entity !== undefined) {
@@ -994,14 +953,14 @@ function formTree(tokens: Array<Token>) {
               node.entity = entity;
             }
           }
-          found = true;
+          node.found = true;
         }
       // Try to find it as an attribute of a collection
       } else {
         let collection = context.collections[context.collections.length - 1];
         if (collection !== undefined) {
           let relationship = findCollectionToAttrRelationship(collection.id,node.name);
-          if (relationship === true) {
+          if (relationship.type === RelationshipTypes.DIRECT) {
             let collectionAttribute: Attribute = {
               id: node.name,
               displayName: node.name,
@@ -1013,11 +972,129 @@ function formTree(tokens: Array<Token>) {
             }
             node.attribute = collectionAttribute;
             context.attributes.push(collectionAttribute);
-            found = true;
-          } 
+            node.found = true;
+          } else if (relationship.type === RelationshipTypes.ONEHOP) {
+            let linkID = relationship.links[0];
+            let nCollection = findCollection(linkID);
+            if (nCollection !== undefined) {
+              let token: Token = {
+                ix: 0, 
+                originalWord: nCollection.displayName, 
+                normalizedWord: nCollection.displayName, 
+                POS: MinorPartsOfSpeech.NN,
+                properties: [], 
+              };
+              let nNode = newNode(token);
+              insertAfterNode(nNode,collection.node);
+              nNode.collection = nCollection;
+              nCollection.node = nNode;
+              context.collections.push(nCollection);
+              // Build a collection attribute to link with parent
+              let collectionAttribute: Attribute = {
+                id: collection.displayName,
+                displayName: collection.displayName,
+                collection: nCollection,
+                value: `${collection.displayName}`,
+                variable: `${collection.displayName}`,
+                node: nNode,
+                project: false,
+              }
+              nNode.attribute = collectionAttribute;
+              context.attributes.push(collectionAttribute);
+              nNode.found = true;
+              // Build an attribute for the referenced
+              let attribute: Attribute = {
+                id: node.name,
+                displayName: node.name,
+                collection: nCollection,
+                value: `${nCollection.displayName}|${node.name}`,
+                variable: `${nCollection.displayName}|${node.name}`,
+                node: node,
+                project: true,
+              }
+              node.attribute = attribute;
+              context.attributes.push(attribute);
+              node.found = true;              
+            } else {
+              let entity = findEntityByID(linkID);
+              if (entity !== undefined) {
+                // @TODO handle entities
+              }
+            }
+          }
         }
       }     
     }
+    // If the node is a pronoun, try to find the entity it references
+    if (!node.found && node.hasProperty(TokenProperties.PRONOUN)) {
+      log("Pronoun: finding reference");
+      // If the pronoun is plural, the entity is probably the latest collection
+      if (node.hasProperty(TokenProperties.PLURAL)) {
+        let collection = context.collections[context.collections.length - 1];
+        if (collection !== undefined) {
+          log(collection.displayName);
+          node.collection = collection;
+          node.found = true;
+        }
+      } else {
+        let entity = context.entities[context.entities.length - 1];
+        if (entity !== undefined) {
+          log(entity.displayName);
+          node.entity = entity;
+          node.found = true;
+        }
+      }
+    }
+    // Heuristic: If the node is plural, try to find a collection
+    if (!node.found && node.hasProperty(TokenProperties.PLURAL)) {
+      let collection = findCollection(node.name);
+      if (collection !== undefined) {
+        node.collection = collection;
+        collection.node= node;
+        context.collections.push(collection);
+        node.found = true;
+      }
+    }
+    // If the node is possessive or proper, it's probably an entity
+    if (!node.found && (node.hasProperty(TokenProperties.POSSESSIVE) || node.hasProperty(TokenProperties.PROPER))) {
+      log("Possessive or Proper: finding entity");
+      let entity = findEntityByDisplayName(node.name);
+      if (entity !== undefined) {
+        context.entities.push(entity);
+        entity.node = node;
+        node.entity = entity;
+        node.found = true;
+      }
+    }
+    // If we've gotten here and we haven't found anything, go crazy with searching
+    if (!node.found) {
+      log("Find this thing anywhere we can");
+      let collection = findCollection(node.name);
+      if (collection !== undefined) {
+        context.collections.push(collection);
+        collection.node = node;
+        node.collection = collection;
+        node.found = true;
+      // Singularize and try to find a collection
+      } else {
+        let collection = findCollection(singularize(node.name));
+        if (collection !== undefined) {
+          node.token.POS = MinorPartsOfSpeech.NN;
+          node.collection = collection;
+          context.collections.push(collection);
+          node.found = true;
+        } else {
+          let entity = findEntityByDisplayName(node.name);
+          if (entity !== undefined) {
+            context.entities.push(entity);
+            entity.node = node;
+            node.entity = entity;
+            node.found = true;
+          }
+        }
+      }
+    }
+    
     // If there is a backward relationship e.g. age of Corey, then try to find attrs
     // in the maybeAttr stack
     if (node.hasProperty(TokenProperties.BACKRELATIONSHIP)) {
@@ -1038,13 +1115,13 @@ function formTree(tokens: Array<Token>) {
             maybeAttr.node.attribute = attribute;
             context.attributes.push(attribute);  
             attribute.node = maybeAttr.node;
-            found = true;
+            maybeAttr.node.found = true;
           }
         } else {
           let collection = node.collection;
           if (collection !== undefined) {
-            let foundRel = findCollectionToAttrRelationship(collection.id,maybeAttr.normalizedWord);
-            if (foundRel) {
+            let relationship = findCollectionToAttrRelationship(collection.id,maybeAttr.normalizedWord);
+            if (relationship.type === RelationshipTypes.DIRECT) {
               let collectionAttribute: Attribute = {
                 id: maybeAttr.node.name,
                 displayName: maybeAttr.node.name,
@@ -1056,42 +1133,62 @@ function formTree(tokens: Array<Token>) {
               }
               maybeAttr.node.attribute = collectionAttribute;
               context.attributes.push(collectionAttribute);
-              found = true;
-            } 
-          }
-        }
-      }
-    }
-    // If we've gotten here and we haven't found anything, go crazy with searching
-    if (!found) {
-      log("Find this thing anywhere we can");
-      let entity = findEntityByDisplayName(node.name);
-      if (entity !== undefined) {
-        context.entities.push(entity);
-        entity.node = node;
-        node.entity = entity;
-        found = true;
-      } else {
-        let collection = findCollection(node.name);
-        if (collection !== undefined) {
-          context.collections.push(collection);
-          collection.node = node;
-          node.collection = collection;
-          found = true;
-        // Singularize and try to find a collection
-        } else {
-          let collection = findCollection(singularize(node.name));
-          if (collection !== undefined) {
-            node.token.POS = MinorPartsOfSpeech.NN;
-            node.collection = collection;
-            context.collections.push(collection);
-            found = true;
+              maybeAttr.node.found = true;
+            } else if (relationship.type === RelationshipTypes.ONEHOP) {
+              let linkID = relationship.links[0];
+              let nCollection = findCollection(linkID);
+              if (nCollection !== undefined) {
+                let token: Token = {
+                  ix: 0, 
+                  originalWord: nCollection.displayName, 
+                  normalizedWord: nCollection.displayName, 
+                  POS: MinorPartsOfSpeech.NN,
+                  properties: [], 
+                };
+                let nNode = newNode(token);
+                insertAfterNode(nNode,collection.node);
+                nNode.collection = nCollection;
+                nCollection.node = nNode;
+                context.collections.push(nCollection);
+                // Build a collection attribute to link with parent
+                let collectionAttribute: Attribute = {
+                  id: collection.displayName,
+                  displayName: collection.displayName,
+                  collection: nCollection,
+                  value: `${collection.displayName}`,
+                  variable: `${collection.displayName}`,
+                  node: nNode,
+                  project: false,
+                }
+                nNode.attribute = collectionAttribute;
+                context.attributes.push(collectionAttribute);
+                nNode.found = true;
+                // Build an attribute for the current node
+                let attribute: Attribute = {
+                  id: maybeAttr.normalizedWord,
+                  displayName: maybeAttr.normalizedWord,
+                  collection: nCollection,
+                  value: `${nCollection.displayName}|${node.name}`,
+                  variable: `${nCollection.displayName}|${node.name}`,
+                  node: maybeAttr.node,
+                  project: true,
+                }
+                maybeAttr.node.attribute = attribute;
+                context.attributes.push(attribute);
+                maybeAttr.node.found = true;              
+              } else {
+                let entity = findEntityByID(linkID);
+                if (entity !== undefined) {
+                  // @TODO handle entities
+                }
+              }
+            }
           }
         }
       }
     }
     
-    if (!found) {
+    if (!node.found) {
       /*if (node.parent.hasProperty(TokenProperties.POSSESSIVE)) {
         context.maybeAttributes.push(node.token);  
       }*/
@@ -1120,11 +1217,16 @@ function formTree(tokens: Array<Token>) {
       
     } */
   }
-    
+  
+  log(tree.toString());
+  log("Finding entities...");
+  
   // Resolve entities and attributes
   let context = newContext();
   resolveEntities(tree,context);
-  
+ 
+  log(tree.toString());
+  log("Rewire attributes...")
   // Based on the entities we just found, rewire attributes to be children of their referenced entities
   for (let token of tokens) {
     let node = token.node;
@@ -1145,7 +1247,8 @@ function formTree(tokens: Array<Token>) {
       }
     }
   }
-  
+  log(tree.toString());
+  log("Rewire comparators...");
   // Rewrite comparators
   let comparatorNodes = context.fxns.filter((fxn) => fxn.type === FunctionTypes.COMPARATOR).map((n) => n.node);  
   let comparator: BuiltInFunction;
@@ -1174,7 +1277,7 @@ function formTree(tokens: Array<Token>) {
       // Find relationship for collections
       } else if (child.collection !== undefined) {
         let relationship = findCollectionToAttrRelationship(child.collection.id,comparator.attribute);
-        if (relationship === true) {
+        if (relationship.type === RelationshipTypes.DIRECT) {
           let nToken = newToken(comparator.attribute);
           let nNode = newNode(nToken);
           let collectionAttribute: Attribute = {
@@ -1195,6 +1298,7 @@ function formTree(tokens: Array<Token>) {
       }
     });    
   }
+  log(tree.toString());
   return {tree: tree, context: context};
 }
 
@@ -1253,6 +1357,10 @@ function removeNode(node): void {
   node.children = [];
 }
 
+// Inserts a node after the target, moving all of the
+// target's children to the node
+// Before: [Target] -> [Children]
+// After:  [Target] -> [Node] -> [Children]
 function insertAfterNode(node: Node, target: Node): void {
   node.parent = target;
   node.children = target.children;
@@ -1373,25 +1481,38 @@ function findEntityByID(id: string): Entity {
 }
 
 // Returns the collection with the given display name.
-function findCollection(name: string): Collection {
-  log("Searching for collection: " + name);
-  let display = eve.findOne("display name",{ name: name });
+function findCollection(search: string): Collection {
+  log("Searching for collection: " + search);
+  let foundCollection;
+  let name: string;
+  // Try to find by display name first
+  let display = eve.findOne("display name",{ name: search });
   if (display !== undefined) {
-    let foundCollection = eve.findOne("collection", { collection: display.id });
-    if (foundCollection !== undefined) {
-      let collection: Collection = {
-        id: foundCollection.collection,
-        displayName: name,
-        count: foundCollection.count,
-        variable: true,
-        project: false,
-      }
-      log(" Found: " + name);
-      return collection;
-    }
+    foundCollection = eve.findOne("collection", { collection: display.id });
+    name = search;
+  // If we didn't find it that way, try again by ID
+  } else {
+    foundCollection = eve.findOne("collection", { collection: search });
   }
-  log(" Not found: " + name);
-  return undefined;
+  // Build the collection
+  if (foundCollection !== undefined) {
+    if (name === undefined) {
+      display = eve.findOne("display name",{ id: search });
+      name = display.name;  
+    }
+    let collection: Collection = {
+      id: foundCollection.collection,
+      displayName: name,
+      count: foundCollection.count,
+      variable: true,
+      project: true,
+    }
+    log(" Found: " + name);
+    return collection;
+  } else {
+    log(" Not found: " + search);
+    return undefined;  
+  }
 }
 
 // Returns the attribute with the given display name attached to the given entity
@@ -1417,7 +1538,19 @@ function findAttribute(name: string, entity: Entity): Attribute {
   return undefined;
 }
 
-function findCollectionToAttrRelationship(coll: string, attr: string): boolean {
+enum RelationshipTypes {
+  NONE,
+  DIRECT,
+  ONEHOP,
+  TWOHOP,
+}
+
+interface Relationship {
+  links?: Array<string>,
+  type: RelationshipTypes,
+}
+
+function findCollectionToAttrRelationship(coll: string, attr: string): Relationship {
   // Finds a direct relationship between collection and attribute
   // e.g. "pets' lengths"" => pet -> snake -> length
   log(`Finding relationship between ${coll} and ${attr}...`);
@@ -1427,10 +1560,10 @@ function findCollectionToAttrRelationship(coll: string, attr: string): boolean {
     .exec();
   if (relationship.unprojected.length > 0) {
     log("Found Direct Relationship");
-    log(relationship);
-    return true;
+    return {type: RelationshipTypes.DIRECT};
   }
   // Finds a one hop relationship
+  // e.g. "department salaries" => department -> employee -> corey -> salary
   relationship = eve.query(``)
     .select("collection entities", { collection: coll }, "collection")
     .select("directionless links", { entity: ["collection", "entity"] }, "links")
@@ -1438,8 +1571,16 @@ function findCollectionToAttrRelationship(coll: string, attr: string): boolean {
     .exec();
   if (relationship.unprojected.length > 0) {
     log("Found One-Hop Relationship");
-    log(relationship);
-    return true;
+    log(relationship)
+    // Find the one-hop link
+    let entities = extractFromUnprojected(relationship.unprojected, 1, 3);
+    let collections = findCommonCollections(entities)
+    let linkID;
+    if (collections.length > 0) {
+      // @HACK Choose the correct collection in a smart way
+      linkID = collections[0];  
+    }
+    return {links: [linkID], type: RelationshipTypes.ONEHOP};
   }
   // Not sure if this one works... using the entity table, a 2 hop link can
   // be found almost anywhere, yielding results like
@@ -1453,7 +1594,37 @@ function findCollectionToAttrRelationship(coll: string, attr: string): boolean {
   if (relationship.unprojected.length > 0) {
     return true;
   }*/
-  return false;
+  log("No relationship found :(");
+  return {type: RelationshipTypes.NONE};
+}
+
+// Extracts entities from unprojected results
+function extractFromUnprojected(coll, ix: number, size: number) {
+  let results = [];
+  for (let i = 0, len = coll.length; i < len; i += size) {
+    results.push(coll[i + ix]["link"]);
+  }
+  return results;
+}
+
+// Find collections that entities have in common
+function findCommonCollections(entities: Array<string>): Array<string> {
+  let intersection = entityTocollectionsArray(entities[0]);
+  intersection.sort();
+  for (let entId of entities.slice(1)) {
+    let cur = entityTocollectionsArray(entId);
+    cur.sort();
+    arrayIntersect(intersection, cur);
+  }
+  intersection.sort((a, b) => {
+    return eve.findOne("collection", { collection: a })["count"] - eve.findOne("collection", { collection: b })["count"];
+  });
+  return intersection;
+}
+
+function entityTocollectionsArray(entity: string): Array<string> {
+  let entities = eve.find("collection entities", { entity });
+  return entities.map((a) => a["collection"]);
 }
 
 function subsumeTokens(nounGroup: Node, ix: number, tokens: Array<Token>): Node {
@@ -1587,14 +1758,13 @@ function buildTerm(node: Node): Array<Term> {
       type: "select",
       table: "entity eavs",
       fields: fields,
-      project: false,  
+      project: attr.project,  
     }
     // If the node is a leaf, add this term to the projection
     if (node.children.length === 0) {
-      term.project = true;
+      //term.project = true;
     }
     terms.push(term);
-    
   }
   // Collection terms
   if (node.collection !== undefined) {
@@ -1640,7 +1810,7 @@ function formQuery(tree: Node): Query {
     project: true,
   }
   projectedNodes.map((node) => {
-    if (node.attribute !== undefined) {
+    if (node.attribute !== undefined && node.attribute.project) {
       let entity = node.attribute.entity;
       let collection = node.attribute.collection;
       if (entity !== undefined) {
@@ -1679,7 +1849,6 @@ function formQuery(tree: Node): Query {
     query.projects.push(project);  
   }
   
-  
   return query;
 }
 
@@ -1687,6 +1856,14 @@ function formQuery(tree: Node): Query {
 // Debug utility functions
 // ---------------------------------------------------------------------------- 
 let divider = "----------------------------------------";
+
+export let debug = false;
+
+function log(x: any) {
+  if (debug) {
+    console.log(x);
+  }
+}
 
 export function nodeArrayToString(nodes: Array<Node>): string {
   let nodeArrayString = nodes.map((node) => node.toString()).join("\n" + divider + "\n");  
@@ -1709,51 +1886,24 @@ export function tokenArrayToString(tokens: Array<Token>): string {
 // Utility functions
 // ----------------------------------------------------------------------------
 
-export let debug = false;
-
-function log(x: any) {
-  if (debug) {
-    console.log(x);
-  }
-}
-
-// combines two arrays into a single array
-function zip(array1: Array<any>, array2: Array<any>): Array<Array<any>> {
-  let returnArray: Array<any> = [];
-  for (let i = 0; i < array1.length; i++) {
-    let el1 = array1[i];
-    if (i+1 > array2.length) {
-      break;
-    }
-    let el2 = array2[i];
-    returnArray.push([el1, el2]);
-  }
-  return returnArray;
-}
-
-// Finds all elements in an array matching a specified condition
-function findAll(array: Array<any>, condition: Function): Array<any> {
-  return array.filter((element) => condition(element));
-}
-
-// Finds the intersection of two arrays
-function intersect(arr1: Array<any>, arr2: Array<any>): Array<any> {
-     var r = [], o = {}, l = arr2.length, i, v;
-     for (i = 0; i < l; i++) {
-         o[arr2[i]] = true;
-     }
-     l = arr1.length;
-     for (i = 0; i < l; i++) {
-         v = arr1[i];
-         if (v in o) {
-             r.push(v);
-         }
-     }
-     return r;
-}
-
 function onlyUnique(value, index, self) { 
   return self.indexOf(value) === index;
+}
+
+function arrayIntersect(a, b) {
+  let ai = 0;
+  let bi = 0;
+  let result = [];
+  while (ai < a.length && bi < b.length) {
+    if (a[ai] < b[bi]) ai++;
+    else if (a[ai] > b[bi]) bi++;
+    else {
+      result.push(a[ai]);
+      ai++;
+      bi++;
+    }
+  }
+  return result;
 }
 
 // ----------------------------------------------------------------------------

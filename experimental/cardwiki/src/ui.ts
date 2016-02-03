@@ -10,7 +10,7 @@ import * as uitk from "./uitk";
 import {eve, handle as appHandle, dispatch, activeSearches} from "./app";
 import {StepType, queryToExecutable} from "./queryParser";
 import {parseDSL} from "./parser";
-import {parse as nlparse} from "./NLQueryParser";
+import {parse as nlparse, StateFlags, FunctionTypes} from "./NLQueryParser";
 
 
 export enum PANE { FULL, WINDOW, POPOUT };
@@ -33,7 +33,6 @@ export let uiState:{
 //---------------------------------------------------------
 
 function preventDefault(event) {
-  console.log("DEFAULT PREVENTED");
   event.preventDefault();
 }
 
@@ -90,7 +89,6 @@ appHandle("ui set search", (changes:Diff, {paneId, value, peek, x, y, popState}:
     } else {
       neuePaneId = popout.pane;
       changes.remove("ui pane", {pane: neuePaneId});
-      console.log("reusing pane");
     }
     let state = uiState.widget.search[neuePaneId] = {value};
     fact = {contains: value, pane: neuePaneId, kind: PANE.POPOUT};
@@ -104,8 +102,6 @@ appHandle("ui set search", (changes:Diff, {paneId, value, peek, x, y, popState}:
   }
   changes.add("ui pane", fact);
   if(!popState) setURL(paneId, value);
-
-  if(!eve.findOne("display name", {name: value})) activeSearches[value] = queryToExecutable(value);
 });
 
 appHandle("remove popup", (changes:Diff, {}:{}) => {
@@ -158,6 +154,23 @@ appHandle("create query", (changes:Diff, {id, content}) => {
     let name = artifacts.views[viewId]["displayName"];
     if(!eve.findOne("display name", {id: viewId}) && name) changes.add("display name", {id: viewId, name});
     changes.merge(artifacts.views[viewId].changeset(eve));
+  }
+});
+
+appHandle("insert query", (changes:Diff, {query}) => {
+  let parsed = nlparse(query);
+  if(eve.findOne("query to id", {query})) return;
+  if(parsed[0].state === StateFlags.COMPLETE) {
+    let artifacts = parseDSL(parsed[0].query.toString());
+    if(artifacts.changeset) changes.merge(artifacts.changeset);
+    var rootId;
+    for(let viewId in artifacts.views) {
+      if(!rootId) rootId = viewId;
+      let name = artifacts.views[viewId]["displayName"];
+      if(!eve.findOne("display name", {id: viewId}) && name) changes.add("display name", {id: viewId, name});
+      changes.merge(artifacts.views[viewId].changeset(eve));
+    }
+    changes.add("query to id", {query, id: rootId})
   }
 });
 
@@ -249,7 +262,7 @@ export function pane(paneId:string):Element {
   } else if(display) {
     let options:any = {};
     content = entity(display.id, paneId, options);
-  } else if(activeSearches[contains] && activeSearches[contains].plan.length > 1) {
+  } else if(eve.findOne("query to id", {query: contains})) {
     contentType = "search";
     content = search(contains, paneId);
   } else if(contains !== "") {
@@ -287,77 +300,11 @@ function createPage(evt:Event, elem:Element) {
 }
 
 export function search(search:string, paneId:string):Element {
-  if(!activeSearches[search]) activeSearches[search] = queryToExecutable(search);
-  let {tokens, plan, executable} = activeSearches[search];
-  // figure out what the headers are
-  let headers = [];
-  for(let step of plan) {
-    let name = step.name;
-    if(step.size === 0 || step.type === StepType.FILTERBYENTITY || step.type === StepType.INTERSECT) continue;
-    if(step.type === StepType.GATHER) name = eve.findOne("display name", {id: name}).name;
-    headers.push({c: "column field", value: step.name, text: name});
-  }
-
-  // figure out what fields are grouped, if any
-  let groupedFields = {};
-  for(let step of plan) {
-    if(step.type === StepType.GROUP) groupedFields[step.subjectNode.name] = true;
-
-    else if(step.type === StepType.AGGREGATE) groupedFields[step.name] = true;
-  }
-
-  let results = executable.exec();
-  let groupInfo = results.groupInfo;
-  let planLength = plan.length;
-  let isBit = planLength > 1;
-  let groups = [];
-  nextResult: for(let ix = 0, len = results.unprojected.length; ix < len; ix += executable.unprojectedSize) {
-    if(groupInfo && ix > groupInfo.length) break;
-    if(groupInfo && groupInfo[ix] === undefined) continue;
-
-    let group;
-    if(!groupInfo) groups.push(group = {c: "group", children: []});
-    else if(!groups[groupInfo[ix]]) groups[groupInfo[ix]] = group = {c: "group", children: []};
-    else group = groups[groupInfo[ix]];
-
-    let offset = 0;
-    for(let stepIx = 0; stepIx < planLength; stepIx++) {
-      let step = plan[stepIx];
-      if(!step.size) continue;
-      let chunk = results.unprojected[ix + offset + step.size - 1];
-      if(!chunk) continue nextResult;
-      offset += step.size;
-
-      let text, link, kind, click;
-      if(step.type === StepType.GATHER) {
-        text = eve.findOne("display name", {id: chunk["entity"]}).name;
-        link = chunk["entity"];
-        kind = "entity";
-      } else if(step.type === StepType.LOOKUP) {
-        text = chunk["value"];
-        kind = "attribute";
-      } else if(step.type === StepType.AGGREGATE) {
-        text = chunk[step.subject];
-        kind = "value";
-      } else if(step.type = StepType.CALCULATE) {
-        text = JSON.stringify(chunk.result);
-        kind = "value";
-      } else if(step.type === StepType.FILTERBYENTITY || step.type === StepType.INTERSECT) {
-      } else text = JSON.stringify(chunk);
-
-      if(text === undefined) continue;
-      let item = {id: `${paneId} ${ix} ${stepIx}`, c: "field " + kind, text, data: {paneId}, link, click: link ? navigate : undefined, peek: true};
-      if(!group.children[stepIx]) group.children[stepIx] = {c: "column", value: step.name, children: [item]};
-      else if(!groupedFields[step.name]) group.children[stepIx].children.push(item);
-
-      if(planLength === 1) group.c = "list-row"; // @FIXME: Is this still needed?
-    }
-  }
-  // @TODO: Without this ID, a bug occurs when reusing elements that injects a text node containing "undefined" after certain scenarios.
-  groups.unshift({t: "header", id: `${paneId}|header`, c: "flex-row", children: headers});
-  return {t: "content", c: "wiki-search", key: JSON.stringify(results.unprojected), children: [
-    {id: `${paneId}|table`, c: "results table", children: groups}
-  ], /*postRender: sizeColumns*/ };
+  let {results, params, content} = queryUIInfo(search);
+  let rep = represent(content, params["rep"], results, params);
+  return {t: "content", c: "wiki-search", children: [
+    rep
+  ]};
 }
 function sizeColumns(node:HTMLElement, elem:Element) {
   // @FIXME: Horrible hack to get around randomly added "undefined" text node that's coming from in microreact.
@@ -400,15 +347,18 @@ function stringifyParams(params:{}):string {
 }
 
 function cellUI(paneId, query, cell):Element {
-  let [content, rawParams] = query.split("|");
-  let embedType;
-  let params = getCellParams(content, rawParams);
+  let {params, results, content} = queryUIInfo(query);
   params["paneId"] = params["paneId"] || paneId;
   params["cell"] = cell;
   params["childRep"] = params["rep"];
   params["rep"] = "embeddedCell";
+  return {c: `cell`, children: [represent(content, params["rep"], results, params)]};
+}
 
-  let subRenderer = new Renderer();
+function queryUIInfo(query) {
+  let [content, rawParams] = query.split("|");
+  let embedType;
+  let params = getCellParams(content, rawParams);
   let results;
   if(params["noResults"]) {
     let id = content;
@@ -416,12 +366,20 @@ function cellUI(paneId, query, cell):Element {
     if(display) {
       id = display["id"];
     }
-    results = {unprojected: [{entity: id}], results: [{entity: id}], provenance: [], groupInfo: []};
+    results = {unprojected: [{entity: id}], results: [{entity: id}]};
   } else {
-    let {executable} = activeSearches[content];
-    results = executable.exec();
+    let queryId = eve.findOne("query to id", {query: content});
+    if(queryId) {
+      let queryResults = eve.find(queryId.id);
+      let queryUnprojected = eve.table(queryId.id).unprojected;
+      results = {unprojected: queryUnprojected, results: queryResults};
+    } else {
+      params["rep"] = "error";
+      params["message"] = "invalid search";
+      results = {};
+    }
   }
-  return {c: `cell`, children: [represent(content, params["rep"], results, params)]};
+  return {results, params, content};
 }
 
 function getCellParams(content, rawParams) {
@@ -433,39 +391,31 @@ function getCellParams(content, rawParams) {
     params["rep"] = params["rep"] || "link";
     params["noResults"] = true;
   } else {
-    // @TODO: this shouldn't be here
-    if(!activeSearches[content]) {
-      activeSearches[content] = queryToExecutable(content);
-    }
     if(params["rep"]) return params;
 
-    // @TODO: eventually the information about the requested subjects should come from
-    // the NLP side or projection. But for now..
-    let plan = activeSearches[content].plan;
-    let info = {};
-    for(let step of plan) {
-      if(!info[step.type]) info[step.type] = 0;
-      info[step.type] += 1;
-    }
+    let parsed = nlparse(content);
+    let currentParse = parsed[0];
+    let context = currentParse.context;
+    let hasCollections = context.collections.length;
     let field;
     let rep;
-    // if there is an aggregate without grouping then we just return the aggregate value
-    if(info[StepType.AGGREGATE] === 1 && !info[StepType.GROUP]) {
-      let aggregate = plan.filter((step) => step.type === StepType.AGGREGATE)[0];
+    let aggregates = [];
+    for(let fxn of context.fxns) {
+      if(fxn.type === FunctionTypes.AGGREGATE) {
+        aggregates.push(fxn);
+      }
+    }
+    if(aggregates.length === 1 && !context["groupings"]) {
       rep = "value";
-      field = aggregate.name;
-    // if there's a calculation without a collection we just want the result
-    } else if(!info[StepType.GATHER] && info[StepType.CALCULATE] === 1) {
-      let calculation = plan.filter((step) => step.type === StepType.CALCULATE)[0];
+      field = aggregates[0].name;
+    } else if(!hasCollections && context.fxns.length === 1) {
       rep = "value";
-      field = calculation.name;
-    // if there's a lookup without a collection then we're just looking up a single attribute
-    } else if(!info[StepType.GATHER] && info[StepType.LOOKUP] === 1) {
-      let lookup = plan.filter((step) => step.type === StepType.LOOKUP)[0];
+      field = context.fxns[0].name;
+    } else if(!hasCollections && context.attributes.length === 1) {
       rep = "value";
-      field = lookup.name;
+      field = context.attributes[0].displayName;
     } else {
-      rep = "table";
+      params["rep"] = "table";
     }
     if(rep) {
       params["rep"] = rep;
@@ -498,25 +448,21 @@ function focusCellEditor(node, elem) {
 
 //---------------------------------------------------------
 
-function cellEditor(entityId, paneId, cell) {
-  let text = cell.query.trim();
+function cellEditor(entityId, paneId, cell):Element {
+  let text = activeCells[cell.id].query;
   let autoFocus = true;
-  if(cell.placeholder && !activeCells[cell.id]) {
-    text = "...";
-    autoFocus = false;
-  } else {
-    text = activeCells[cell.id].query;
+  if(text.match(/=.*=/)) {
+    text = "";
   }
   let display = eve.findOne("display name", {id: text});
   if(display) {
     text = display["name"];
   }
-  if(text.indexOf("=") !== 0) {
-    text = `= ${text}`;
-  }
-  console.log(JSON.stringify(text));
   return {children: [
-    {t: "span", c:"embedded-cell", contentEditable: "true", text, input: updateActiveCell, keydown: embeddedCellKeys, cell, paneId, postRender: autoFocus ? focusCellEditor : undefined},
+    {c: "embedded-cell", children: [
+      {c: "adornment", text: "="},
+      {t: "span", c:"", contentEditable: true, text, input: updateActiveCell, keydown: embeddedCellKeys, cell, paneId, postRender: autoFocus ? focusCellEditor : undefined},
+    ]},
     autocompleter(entityId, paneId, cell)
   ]};
 }
@@ -528,7 +474,7 @@ function autocompleter(entityId, paneId, cell): Element {
   }
   let params = {};
   try {
-    params = parseParams(rawParams);
+    params = getCellParams(text, rawParams);
   } catch(e) {
     // @TODO: eventually people shouldn't be typing params in here so we should probably be doing
     // something else. But for now, if you're doing this, you're special.
@@ -541,8 +487,6 @@ function autocompleter(entityId, paneId, cell): Element {
   let parsed = [];
   if(text !== "") {
     parsed = nlparse(text); // @TODO: this should come from the NLP parser once it's hooked up.
-    console.log(parsed[0].context);
-    console.log(parsed[0].tree.toString());
   }
   // the autocomplete can have multiple states
   let state = "query";
@@ -565,7 +509,6 @@ function autocompleter(entityId, paneId, cell): Element {
     let selectedIx = cell.selected % children.length;
     if(selectedIx < 0) selectedIx = children.length + selectedIx;
     children[selectedIx].c += " selected";
-    console.log("SELECTED", selectedIx);
   }
   return {c: "autocompleter", key: performance.now().toString(), containerId: `${paneId}|${cell.id}|container`, children, postRender: positionAutocompleter};
 }
@@ -582,6 +525,7 @@ function positionAutocompleter(node, elem) {
 function queryAutocompleteOptions(isEntity, parsed, text, params, entityId) {
   let pageName = eve.findOne("display name", {id: entityId})["name"];
   let options:{score: number, action: any, text: string}[] = [];
+  let hasValidParse = parsed.some((parse) => parse.state === StateFlags.COMPLETE);
   let joiner = "a";
   if(text && text[0].match(/[aeiou]/i)) {
     joiner = "an";
@@ -592,21 +536,24 @@ function queryAutocompleteOptions(isEntity, parsed, text, params, entityId) {
   }
   // disambiguations
   if(parsed.length > 1) {
-    options.push({score: 2, action: "disambiguate stuff", text: "DISAMBIGUATE!"});
+    options.push({score: 3, action: "disambiguate stuff", text: "DISAMBIGUATE!"});
+  }
+  if(hasValidParse && params["rep"]) {
+    options.push({score: 4, action: "represent stuff", text: `embed as a ${params["rep"]}`});
   }
   // repesentation
   // we can only repesent things if we've found them
-  if(isEntity || parsed.length > 0) {
+  if(isEntity || hasValidParse) {
     // @TODO: how do we figure out what representations actually make sense to show?
-    options.push({score: 1, action: "represent stuff", text: `Embed as ...`});
+    options.push({score: 2, action: "represent stuff", text: `embed as ...`});
   }
   // set attribute
   if(isEntity) {
-    let isAScore = 1.5;
+    let isAScore = 2.5;
     if(eve.findOne("collection", {collection: isEntity.id})) {
       isAScore = 3;
     }
-    options.push({score: 2, action: "relate", text: `${pageName} is related to ${text}`});
+    options.push({score: 2.5, action: "relate", text: `${pageName} is related to ${text}`});
     options.push({score: isAScore, action: "is a", text: `${pageName} is ${joiner} ${text}`});
   }
   return options;
@@ -628,8 +575,7 @@ export function entity(entityId:string, paneId:string, options:any = {}):Element
   let cellItems = cells.map((cell, ix) => {
     let ui;
     let active = activeCells[cell.id];
-    if(active || cell.placeholder) {
-      console.log("ACTIVE", active);
+    if(active) {
       ui = cellEditor(entityId, paneId, active || cell);
     } else {
       ui = cellUI(paneId, cell.query, cell);
@@ -640,7 +586,7 @@ export function entity(entityId:string, paneId:string, options:any = {}):Element
     ui["cell"] = cell;
     return ui;
   });
-  return {t: "content", c: "wiki-entity", children: [
+  return {id: `${paneId}|${entityId}|editor`, t: "content", c: "wiki-entity", children: [
     /* This is disabled because searching for just the name of a single entity resolves to a single find step which blows up on query compilation
        {c: "flex-row spaced-row disambiguation", children: [
        {text: "Did you mean to"},
@@ -675,7 +621,6 @@ appHandle("moveCellAutocomplete", (changes, info) => {
   let active = activeCells[info.cell.id];
   let {direction} = info;
   active.selected += direction;
-  console.log("MOVED", active.selected);
 });
 
 function updateActiveCell(event, elem) {
@@ -697,7 +642,7 @@ function createEmbedPopout(cm, paneId) {
     let id = uuid();
     let range = `{=${id}=}`;
     cm.replaceRange(range, from, cm.getCursor("to"));
-    dispatch("addActiveCell", {id: range, query: ""});
+    dispatch("addActiveCell", {id: range, query: "", placeholder: true});
   });
 }
 
@@ -705,10 +650,16 @@ function embeddedCellKeys(event, elem) {
   let {paneId, cell} = elem;
   let target = event.currentTarget;
   let value = target.textContent;
-  let mark = target.parentNode.parentNode["mark"];
+  let mark = target.parentNode.parentNode.parentNode["mark"];
   let cm = paneEditors[paneId].cmInstance;
-  if(event.keyCode === KEYS.ESC || (event.keyCode === KEYS.ENTER && value.trim() === "=")) {
-    if(cell.placeholder) {
+  if(event.keyCode === KEYS.BACKSPACE && value === "") {
+    let {from, to} = mark.find();
+    cm.replaceRange("", from, to);
+    paneEditors[paneId].cmInstance.focus();
+    dispatch("removeActiveCell", cell).commit();
+    event.preventDefault();
+  } else if(event.keyCode === KEYS.ESC || (event.keyCode === KEYS.ENTER && value.trim() === "")) {
+    if(cell.placeholder || (cell.cell && cell.cell.placeholder)) {
       let {from, to} = mark.find();
       cm.replaceRange("= ", from, to);
     }
@@ -728,20 +679,17 @@ function embeddedCellKeys(event, elem) {
     if(display) {
       text = display.id;
     }
-    console.log("VALUE", JSON.stringify(text));
     let replacement = `{${text}|${rawParams || ""}}`;
     if(cm.getRange(from, to) !== replacement) {
       cm.replaceRange(replacement, from, to);
     }
     paneEditors[paneId].cmInstance.focus();
-    dispatch("removeActiveCell", cell).commit();
+    dispatch("insert query", {query: text}).dispatch("removeActiveCell", cell).commit();
     event.preventDefault();
   } else if(event.keyCode === KEYS.UP) {
-    console.log("UP");
     dispatch("moveCellAutocomplete", {cell, direction:-1}).commit();
     event.preventDefault();
   } else if(event.keyCode === KEYS.DOWN) {
-    console.log("DOWN");
     dispatch("moveCellAutocomplete", {cell, direction:1}).commit();
     event.preventDefault();
   }
@@ -826,7 +774,10 @@ function focusSearch(event, elem) {
   dispatch("ui focus search", elem).commit();
 }
 function setSearch(event, elem) {
-  dispatch("ui set search", {paneId: elem.paneId, value: event.value}).commit();
+  let value = event.value;
+  dispatch("insert query", {query: value})
+  .dispatch("ui set search", {paneId: elem.paneId, value: event.value})
+  .commit();
 }
 function updateSearch(event, elem) {
   dispatch("ui update search", elem).commit();
@@ -951,6 +902,9 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
     for(let row of results) elems.push({text: row[field], data: params.data});
     return elems;
   },
+  error(results, params) {
+    return {text: params["message"]};
+  },
   table(results, params:{data?: {}}) {
     return {rows: results, data: params.data};
   },
@@ -982,7 +936,7 @@ function represent(search: string, rep:string, results, params:{}):Element {
     let embedParamSets = _prepare[rep](results.results, <any>params);
     let isArray = embedParamSets && embedParamSets.constructor === Array;
     if(!embedParamSets || isArray && embedParamSets.length === 0) {
-      return {c: "error-rep", text: `${search} as ${rep}`};
+      return uitk["error"]({text: `${search} as ${rep}`})
     } else if(embedParamSets.constructor === Array) {
       let wrapper = {c: "flex-column", children: []};
       for(let embedParams of embedParamSets) {

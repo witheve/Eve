@@ -2071,8 +2071,15 @@ function addRecompileTriggers(eve) {
     exec: (ixer) => {
       for(let view of ixer.find("view")) {
         if(view.kind === "table") continue;
-        let query = compile(ixer, view.view);
-        ixer.asView(query);
+        try {
+          let query = compile(ixer, view.view);
+          ixer.asView(query);
+        } catch(e) {
+          console.error("BAD QUERY IN THE DB :(");
+          console.error("View Id: " + view.view);
+          console.log(e.stack);
+          ixer.applyDiff(Query.remove(view.view, ixer));
+        }
       }
       return {};
     }

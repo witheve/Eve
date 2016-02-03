@@ -125,7 +125,9 @@ div:hover > header > .controls { opacity: 1; }
 .wiki-editor .formatBar .button:hover { background: #666; }
 .wiki-editor .formatBar .sep { width:1px; padding:0; background: #333; }
 
-.embedded-cell { border:0px solid #d0d0d0; padding:3px 5px; border-radius:3px; outline:none; box-shadow:0 0 0 1px rgba(0,0,0,0.15),0 7px 15px rgba(0,0,0,0.1);  }
+.embedded-cell { flex-direction: row; align-items: center;  border-radius:3px; outline:none; box-shadow:0 0 0 1px rgba(0,0,0,0.15),0 7px 15px rgba(0,0,0,0.1);  }
+.embedded-cell .adornment { padding-left:5px; }
+.embedded-cell span { outline: none; padding:3px 5px;}
 .non-editing-embedded-cell { flex-direction:row; position:relative; }
 
 .wiki-editor .non-editing-embedded-cell .edit-button-container { position:absolute; top:-10; right:-40; display:none; padding:10px 10px 30px 10px; z-index:1000; }
