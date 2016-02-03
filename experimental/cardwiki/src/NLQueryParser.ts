@@ -973,7 +973,29 @@ function formTree(tokens: Array<Token>) {
             node.attribute = collectionAttribute;
             context.attributes.push(collectionAttribute);
             node.found = true;
-          } 
+          } else if (relationship.type === RelationshipTypes.ONEHOP) {
+            let linkID = relationship.links[0];
+            let collection = findCollection(linkID);
+            if (collection !== undefined) {
+              let token: Token = {
+                ix: 0, 
+                originalWord: collection.displayName, 
+                normalizedWord: collection.displayName, 
+                POS: MinorPartsOfSpeech.NN,
+                properties: [], 
+              };
+              let nNode = newNode(token);
+              insertAfterNode(nNode,node);
+              nNode.collection = collection;
+              collection.node = nNode;
+              nNode.found = true;              
+            } else {
+              let entity = findEntityByID(linkID);
+              if (entity !== undefined) {
+                // @TODO handle entities
+              }
+            }
+          }
         }
       }     
     }
@@ -1120,11 +1142,16 @@ function formTree(tokens: Array<Token>) {
       
     } */
   }
-    
+  
+  log(tree.toString());
+  log("Finding entities...");
+  
   // Resolve entities and attributes
   let context = newContext();
   resolveEntities(tree,context);
-  
+ 
+  log(tree.toString());
+  log("Rewire attributes...")
   // Based on the entities we just found, rewire attributes to be children of their referenced entities
   for (let token of tokens) {
     let node = token.node;
@@ -1145,7 +1172,8 @@ function formTree(tokens: Array<Token>) {
       }
     }
   }
-  
+  log(tree.toString());
+  log("Rewire comparators...");
   // Rewrite comparators
   let comparatorNodes = context.fxns.filter((fxn) => fxn.type === FunctionTypes.COMPARATOR).map((n) => n.node);  
   let comparator: BuiltInFunction;
@@ -1195,6 +1223,7 @@ function formTree(tokens: Array<Token>) {
       }
     });    
   }
+  log(tree.toString());
   return {tree: tree, context: context};
 }
 
@@ -1253,6 +1282,10 @@ function removeNode(node): void {
   node.children = [];
 }
 
+// Inserts a node after the target, moving all of the
+// target's children to the node
+// Before: [Target] -> [Children]
+// After:  [Target] -> [Node] -> [Children]
 function insertAfterNode(node: Node, target: Node): void {
   node.parent = target;
   node.children = target.children;
@@ -1373,25 +1406,38 @@ function findEntityByID(id: string): Entity {
 }
 
 // Returns the collection with the given display name.
-function findCollection(name: string): Collection {
-  log("Searching for collection: " + name);
-  let display = eve.findOne("display name",{ name: name });
+function findCollection(search: string): Collection {
+  log("Searching for collection: " + search);
+  let foundCollection;
+  let name: string;
+  // Try to find by display name first
+  let display = eve.findOne("display name",{ name: search });
   if (display !== undefined) {
-    let foundCollection = eve.findOne("collection", { collection: display.id });
-    if (foundCollection !== undefined) {
-      let collection: Collection = {
-        id: foundCollection.collection,
-        displayName: name,
-        count: foundCollection.count,
-        variable: true,
-        project: false,
-      }
-      log(" Found: " + name);
-      return collection;
-    }
+    foundCollection = eve.findOne("collection", { collection: display.id });
+    name = search;
+  // If we didn't find it that way, try again by ID
+  } else {
+    foundCollection = eve.findOne("collection", { collection: search });
   }
-  log(" Not found: " + name);
-  return undefined;
+  // Build the collection
+  if (foundCollection !== undefined) {
+    if (name === undefined) {
+      display = eve.findOne("display name",{ id: search });
+      name = display.name;  
+    }
+    let collection: Collection = {
+      id: foundCollection.collection,
+      displayName: name,
+      count: foundCollection.count,
+      variable: true,
+      project: false,
+    }
+    log(" Found: " + name);
+    return collection;
+  } else {
+    log(" Not found: " + search);
+    return undefined;  
+  }
 }
 
 // Returns the attribute with the given display name attached to the given entity
@@ -1450,10 +1496,16 @@ function findCollectionToAttrRelationship(coll: string, attr: string): Relations
     .exec();
   if (relationship.unprojected.length > 0) {
     log("Found One-Hop Relationship");
-    log(relationship);
+    log(relationship)
     // Find the one-hop link
-    //let relationship.unprojected[0]
-    return {links: [], type: RelationshipTypes.ONEHOP};
+    let entities = extractFromUnprojected(relationship.unprojected, 1, 3);
+    let collections = findCommonCollections(entities)
+    let linkID;
+    if (collections.length > 0) {
+      // @HACK Choose the correct collection in a smart way
+      linkID = collections[0];  
+    }
+    return {links: [linkID], type: RelationshipTypes.ONEHOP};
   }
   // Not sure if this one works... using the entity table, a 2 hop link can
   // be found almost anywhere, yielding results like
@@ -1467,7 +1519,37 @@ function findCollectionToAttrRelationship(coll: string, attr: string): Relations
   if (relationship.unprojected.length > 0) {
     return true;
   }*/
+  log("No relationship found :(");
   return {type: RelationshipTypes.NONE};
+}
+
+// Extracts entities from unprojected results
+function extractFromUnprojected(coll, ix: number, size: number) {
+  let results = [];
+  for (let i = 0, len = coll.length; i < len; i += size) {
+    results.push(coll[i + ix]["link"]);
+  }
+  return results;
+}
+
+// Find collections that entities have in common
+function findCommonCollections(entities: Array<string>): Array<string> {
+  let intersection = entityTocollectionsArray(entities[0]);
+  intersection.sort();
+  for (let entId of entities.slice(1)) {
+    let cur = entityTocollectionsArray(entId);
+    cur.sort();
+    arrayIntersect(intersection, cur);
+  }
+  intersection.sort((a, b) => {
+    return eve.findOne("collection", { collection: a })["count"] - eve.findOne("collection", { collection: b })["count"];
+  });
+  return intersection;
+}
+
+function entityTocollectionsArray(entity: string): Array<string> {
+  let entities = eve.find("collection entities", { entity });
+  return entities.map((a) => a["collection"]);
 }
 
 function subsumeTokens(nounGroup: Node, ix: number, tokens: Array<Token>): Node {
@@ -1608,7 +1690,6 @@ function buildTerm(node: Node): Array<Term> {
       term.project = true;
     }
     terms.push(term);
-    
   }
   // Collection terms
   if (node.collection !== undefined) {
@@ -1733,6 +1814,22 @@ export function tokenArrayToString(tokens: Array<Token>): string {
 
 function onlyUnique(value, index, self) { 
   return self.indexOf(value) === index;
+}
+
+function arrayIntersect(a, b) {
+  let ai = 0;
+  let bi = 0;
+  let result = [];
+  while (ai < a.length && bi < b.length) {
+    if (a[ai] < b[bi]) ai++;
+    else if (a[ai] > b[bi]) bi++;
+    else {
+      result.push(a[ai]);
+      ai++;
+      bi++;
+    }
+  }
+  return result;
 }
 
 // ----------------------------------------------------------------------------
