@@ -746,6 +746,7 @@ interface BuiltInFunction {
   name: string,
   type: FunctionTypes,
   attribute?: string,
+  fields: Array<string>,
   node?: Node,
 }
 
@@ -776,23 +777,23 @@ function newContext(): Context {
 function wordToFunction(word: string): BuiltInFunction {
   switch (word) {
     case "taller":
-      return {name: ">", type: FunctionTypes.COMPARATOR, attribute: "height"};
+      return {name: ">", type: FunctionTypes.COMPARATOR, attribute: "height", fields: ["a","b"]};
     case "shorter":
-      return {name: "<", type: FunctionTypes.COMPARATOR, attribute: "length"};
+      return {name: "<", type: FunctionTypes.COMPARATOR, attribute: "length", fields: ["a","b"]};
     case "longer":
-      return {name: ">", type: FunctionTypes.COMPARATOR, attribute: "length"};
+      return {name: ">", type: FunctionTypes.COMPARATOR, attribute: "length", fields: ["a","b"]};
     case "younger":
-      return {name: "<", type: FunctionTypes.COMPARATOR, attribute: "age"};
+      return {name: "<", type: FunctionTypes.COMPARATOR, attribute: "age", fields: ["a","b"]};
     case "and":
-      return {name: "AND", type: FunctionTypes.BOOLEAN};
+      return {name: "and", type: FunctionTypes.BOOLEAN, fields: []};
     case "or":
-      return {name: "OR", type: FunctionTypes.BOOLEAN};
+      return {name: "or", type: FunctionTypes.BOOLEAN, fields: []};
     case "sum":
-      return {name: "SUM", type: FunctionTypes.AGGREGATE};
+      return {name: "sum", type: FunctionTypes.AGGREGATE, fields: ["sum","values"]};
     case "average":
-      return {name: "MEAN", type: FunctionTypes.AGGREGATE};
+      return {name: "average", type: FunctionTypes.AGGREGATE, fields: ["average","values"]};
     case "mean":
-      return {name: "MEAN", type: FunctionTypes.AGGREGATE};
+      return {name: "average", type: FunctionTypes.AGGREGATE, fields: ["average","values"]};
     default:
       return undefined;
   }
@@ -1659,10 +1660,10 @@ export interface Query {
   terms: Array<Term>,
   subqueries: Array<Query>,
   projects: Array<Term>,
-  toString(): string;
+  toString(number?: number): string;
 }
 
-function newQuery(terms: Array<Term>): Query {
+export function newQuery(terms: Array<Term>): Query {
   // Dedupe terms
   let termStrings = terms.map(termToString);
   let uniqueTerms: Array<boolean> = termStrings.map((value, index, self) => {
@@ -1675,20 +1676,33 @@ function newQuery(terms: Array<Term>): Query {
     projects: [],
     toString: queryToString,
   }
-  function queryToString(): string {
+  function queryToString(depth?: number): string {
     if (query.terms.length === 0 && query.projects.length === 0) {
       return "";
     }
-    let queryString = "(query \n\t"
-    // Map each term to a string
-    queryString += query.terms.map(termToString).join("\n\t") + "\n\t";
-    queryString += query.projects.map(termToString).join("\n\t");
+    if (depth === undefined) {
+      depth = 0;
+    }
+    let indent = Array(depth+1).join("\t");
+    let queryString = indent + "(query\n";
+    // Map each term/subquery/project to a string
+    let termString = query.terms.map((term) => termToString(term,depth+1)).join("\n");
+    let subqueriesString = query.subqueries.map((query) => query.toString(depth + 1)).join("\n");
+    let projectsString = query.projects.map((term) => termToString(term,depth+1)).join("\n");
+    // Now compose the query string
+    queryString += termString;
+    queryString += subqueriesString === "" ? "" : "\n" + subqueriesString;
+    queryString += projectsString === "" ? "" : "\n" + projectsString;
     // Close out the query
-    queryString += "\n)";
+    queryString += "\n" + indent + ")";
     return queryString;
   }
-  function termToString(term: Term): string {
-    let termString = "(";
+  function termToString(term: Term, depth?: number): string {
+    if (depth === undefined) {
+      depth = 0;
+    }
+    let indent = Array(depth+1).join("\t");
+    let termString = indent + "(";
     termString += `${term.type} `;
     termString += `${term.table === undefined ? "" : `"${term.table}" `}`;
     termString += term.fields.map((field) => `:${field.name} ${field.variable ? field.value : `"${field.value}"`}`).join(" ");
@@ -1725,11 +1739,9 @@ function buildTerm(node: Node): Array<Term> {
         }
       })
     });
-    // @HACK: Will break with more than 6 attributes :(
-    let names = ["a","b","c","d","e","f"];
     let fields = vars.reverse().map((variable,i) => {
       let field: Field = {
-        name: names[i],
+        name: node.fxn.fields[i], // @TODO Should maybe check that fields and arguments are equal
         value: variable,
         variable: true,
       };
@@ -1848,9 +1860,9 @@ function formQuery(tree: Node): Query {
   let uniquefields = project.fields.filter((value,index) => unique[index]);
   project.fields= uniquefields;
   
-  if (project.fields.length !== 0) {
+  /*if (project.fields.length !== 0) {
     query.projects.push(project);  
-  }
+  }*/
   
   return query;
 }
