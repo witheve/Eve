@@ -130,3 +130,24 @@ export function setEndOfContentEditable(contentEditableElement) {
     selection.addRange(range);//make the range you have just created the visible selection
   }
 }
+
+// LCG courtesy of <https://gist.github.com/Protonk/5389384>
+export function srand(z) {
+  let m = Math.pow(2, 24), a = 16598013, c = 12820163;
+  return () => z = (a * z + c) % m / m;
+}
+
+export function sortByField(field):(a, b) => number {
+  return (a, b) =>
+    (a[field] === b[field]) ? 0 :
+    (a[field] > b[field]) ? -1 :
+    (a[field] < b[field]) ? 1 :
+    (a[field] === undefined) ? 1 : -1;
+}
+export function sortByLookup(lookup:{}):(a, b) => number {
+  return (a, b) =>
+    (lookup[a] === lookup[b]) ? 0 :
+    (lookup[a] > lookup[b]) ? -1 :
+    (lookup[a] < lookup[b]) ? 1 :
+    (lookup[a] === undefined) ? 1 : -1;
+}
