@@ -1579,7 +1579,8 @@ function findCollectionToAttrRelationship(coll: string, attr: string): Relations
     let collections = findCommonCollections(entities)
     let linkID;
     if (collections.length > 0) {
-      // @HACK Choose the correct collection in a smart way
+      // @HACK Choose the correct collection in a smart way. 
+      // Largest collection other than entity or testdata?
       linkID = collections[0];  
     }
     return {links: [linkID], type: RelationshipTypes.ONEHOP};
@@ -1684,13 +1685,13 @@ export function newQuery(terms: Array<Term>): Query {
       depth = 0;
     }
     let indent = Array(depth+1).join("\t");
-    let queryString = indent + "(query\n";
+    let queryString = indent + "(query";
     // Map each term/subquery/project to a string
     let termString = query.terms.map((term) => termToString(term,depth+1)).join("\n");
     let subqueriesString = query.subqueries.map((query) => query.toString(depth + 1)).join("\n");
     let projectsString = query.projects.map((term) => termToString(term,depth+1)).join("\n");
     // Now compose the query string
-    queryString += termString;
+    queryString += termString === "" ? "" : "\n" + termString;
     queryString += subqueriesString === "" ? "" : "\n" + subqueriesString;
     queryString += projectsString === "" ? "" : "\n" + projectsString;
     // Close out the query
