@@ -33,7 +33,6 @@ export let uiState:{
 //---------------------------------------------------------
 
 function preventDefault(event) {
-  console.log("DEFAULT PREVENTED");
   event.preventDefault();
 }
 
@@ -449,24 +448,21 @@ function focusCellEditor(node, elem) {
 
 //---------------------------------------------------------
 
-function cellEditor(entityId, paneId, cell) {
-  let text = cell.query.trim();
+function cellEditor(entityId, paneId, cell):Element {
+  let text = activeCells[cell.id].query;
   let autoFocus = true;
-  if(cell.placeholder && !activeCells[cell.id]) {
-    text = "...";
-    autoFocus = false;
-  } else {
-    text = activeCells[cell.id].query;
+  if(text.match(/=.*=/)) {
+    text = "";
   }
   let display = eve.findOne("display name", {id: text});
   if(display) {
     text = display["name"];
   }
-  if(text.indexOf("=") !== 0) {
-    text = `= ${text}`;
-  }
   return {children: [
-    {t: "span", c:"embedded-cell", contentEditable: "true", text, input: updateActiveCell, keydown: embeddedCellKeys, cell, paneId, postRender: autoFocus ? focusCellEditor : undefined},
+    {c: "embedded-cell", children: [
+      {c: "adornment", text: "="},
+      {t: "span", c:"", contentEditable: true, text, input: updateActiveCell, keydown: embeddedCellKeys, cell, paneId, postRender: autoFocus ? focusCellEditor : undefined},
+    ]},
     autocompleter(entityId, paneId, cell)
   ]};
 }
@@ -478,7 +474,7 @@ function autocompleter(entityId, paneId, cell): Element {
   }
   let params = {};
   try {
-    params = parseParams(rawParams);
+    params = getCellParams(text, rawParams);
   } catch(e) {
     // @TODO: eventually people shouldn't be typing params in here so we should probably be doing
     // something else. But for now, if you're doing this, you're special.
@@ -529,6 +525,7 @@ function positionAutocompleter(node, elem) {
 function queryAutocompleteOptions(isEntity, parsed, text, params, entityId) {
   let pageName = eve.findOne("display name", {id: entityId})["name"];
   let options:{score: number, action: any, text: string}[] = [];
+  let hasValidParse = parsed.some((parse) => parse.state === StateFlags.COMPLETE);
   let joiner = "a";
   if(text && text[0].match(/[aeiou]/i)) {
     joiner = "an";
@@ -539,21 +536,24 @@ function queryAutocompleteOptions(isEntity, parsed, text, params, entityId) {
   }
   // disambiguations
   if(parsed.length > 1) {
-    options.push({score: 2, action: "disambiguate stuff", text: "DISAMBIGUATE!"});
+    options.push({score: 3, action: "disambiguate stuff", text: "DISAMBIGUATE!"});
+  }
+  if(hasValidParse && params["rep"]) {
+    options.push({score: 4, action: "represent stuff", text: `embed as a ${params["rep"]}`});
   }
   // repesentation
   // we can only repesent things if we've found them
-  if(isEntity || parsed.length > 0) {
+  if(isEntity || hasValidParse) {
     // @TODO: how do we figure out what representations actually make sense to show?
-    options.push({score: 1, action: "represent stuff", text: `Embed as ...`});
+    options.push({score: 2, action: "represent stuff", text: `embed as ...`});
   }
   // set attribute
   if(isEntity) {
-    let isAScore = 1.5;
+    let isAScore = 2.5;
     if(eve.findOne("collection", {collection: isEntity.id})) {
       isAScore = 3;
     }
-    options.push({score: 2, action: "relate", text: `${pageName} is related to ${text}`});
+    options.push({score: 2.5, action: "relate", text: `${pageName} is related to ${text}`});
     options.push({score: isAScore, action: "is a", text: `${pageName} is ${joiner} ${text}`});
   }
   return options;
@@ -575,7 +575,7 @@ export function entity(entityId:string, paneId:string, options:any = {}):Element
   let cellItems = cells.map((cell, ix) => {
     let ui;
     let active = activeCells[cell.id];
-    if(active || cell.placeholder) {
+    if(active) {
       ui = cellEditor(entityId, paneId, active || cell);
     } else {
       ui = cellUI(paneId, cell.query, cell);
@@ -642,7 +642,7 @@ function createEmbedPopout(cm, paneId) {
     let id = uuid();
     let range = `{=${id}=}`;
     cm.replaceRange(range, from, cm.getCursor("to"));
-    dispatch("addActiveCell", {id: range, query: ""});
+    dispatch("addActiveCell", {id: range, query: "", placeholder: true});
   });
 }
 
@@ -650,10 +650,16 @@ function embeddedCellKeys(event, elem) {
   let {paneId, cell} = elem;
   let target = event.currentTarget;
   let value = target.textContent;
-  let mark = target.parentNode.parentNode["mark"];
+  let mark = target.parentNode.parentNode.parentNode["mark"];
   let cm = paneEditors[paneId].cmInstance;
-  if(event.keyCode === KEYS.ESC || (event.keyCode === KEYS.ENTER && value.trim() === "=")) {
-    if(cell.placeholder) {
+  if(event.keyCode === KEYS.BACKSPACE && value === "") {
+    let {from, to} = mark.find();
+    cm.replaceRange("", from, to);
+    paneEditors[paneId].cmInstance.focus();
+    dispatch("removeActiveCell", cell).commit();
+    event.preventDefault();
+  } else if(event.keyCode === KEYS.ESC || (event.keyCode === KEYS.ENTER && value.trim() === "")) {
+    if(cell.placeholder || (cell.cell && cell.cell.placeholder)) {
       let {from, to} = mark.find();
       cm.replaceRange("= ", from, to);
     }
@@ -897,7 +903,7 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
     return elems;
   },
   error(results, params) {
-    return {text: params["message"], c: "yo"};
+    return {text: params["message"]};
   },
   table(results, params:{data?: {}}) {
     return {rows: results, data: params.data};
