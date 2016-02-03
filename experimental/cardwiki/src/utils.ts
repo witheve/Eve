@@ -136,6 +136,11 @@ export function srand(z) {
   let m = Math.pow(2, 24), a = 16598013, c = 12820163;
   return () => z = (a * z + c) % m / m;
 }
+// Shuffle courtesy of <http://stackoverflow.com/a/6274381>
+export function shuffle(o:any[], rand = Math.random) {
+  for(var j, x, i = o.length; i; j = Math.floor(rand() * i), x = o[--i], o[i] = o[j], o[j] = x);
+  return o;
+}
 
 export function sortByField(field):(a, b) => number {
   return (a, b) =>
