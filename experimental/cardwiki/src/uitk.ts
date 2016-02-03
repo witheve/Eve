@@ -1,8 +1,11 @@
 declare var pluralize; // @TODO: import me.
-import {builtinId, copy} from "./utils";
+import {builtinId, copy, sortByLookup} from "./utils";
 import {Element, Handler} from "./microReact";
 import {dispatch, eve} from "./app";
 import {PANE} from "./ui";
+import * as masonry from "./masonry";
+
+masonry.masonry; // @DEBUG
 
 
 //------------------------------------------------------------------------------
@@ -342,12 +345,7 @@ interface DirectoryElem extends Element { entities:string[], data?:any }
 export function directory(elem:DirectoryElem):Element {
   let {entities:rawEntities, data = undefined} = elem;
   let {systems, collections, entities, scores, relatedness, lengths, collectionSize} = classifyEntities(rawEntities);
-  function sortByScores(a, b) {
-    return (scores[a] === scores[b]) ? 0 :
-      (scores[a] > scores[b]) ? -1 :
-      (scores[a] < scores[b]) ? 1 :
-      (scores[a] === undefined) ? 1 : -1
-  }
+  let sortByScores = sortByLookup(scores);
   entities.sort(sortByScores);
   collections.sort(sortByScores);
   systems.sort(sortByScores);
