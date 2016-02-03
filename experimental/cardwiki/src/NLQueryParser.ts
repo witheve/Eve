@@ -789,11 +789,11 @@ function wordToFunction(word: string): BuiltInFunction {
     case "or":
       return {name: "or", type: FunctionTypes.BOOLEAN, fields: []};
     case "sum":
-      return {name: "sum", type: FunctionTypes.AGGREGATE, fields: ["sum","values"]};
+      return {name: "sum", type: FunctionTypes.AGGREGATE, fields: ["output","input"]};
     case "average":
-      return {name: "average", type: FunctionTypes.AGGREGATE, fields: ["average","values"]};
+      return {name: "average", type: FunctionTypes.AGGREGATE, fields: ["output","input"]};
     case "mean":
-      return {name: "average", type: FunctionTypes.AGGREGATE, fields: ["average","values"]};
+      return {name: "average", type: FunctionTypes.AGGREGATE, fields: ["output","input"]};
     default:
       return undefined;
   }
@@ -1740,14 +1740,20 @@ function buildTerm(node: Node): Array<Term> {
         }
       })
     });
-    let fields = vars.reverse().map((variable,i) => {
+    let fields = node.fxn.fields.map((fxnField,i) => {
+      let thisVar;
+      if (fxnField === "output") {
+        thisVar = "output";
+      } else {
+        thisVar = vars.pop();
+      }
       let field: Field = {
-        name: node.fxn.fields[i], // @TODO Should maybe check that fields and arguments are equal
-        value: variable,
+        name: fxnField,
+        value: thisVar,
         variable: true,
-      };
+      }
       return field;
-    })
+    });
     let term: Term = {
       type: "select",
       table: node.fxn.name,
@@ -1861,9 +1867,9 @@ function formQuery(tree: Node): Query {
   let uniquefields = project.fields.filter((value,index) => unique[index]);
   project.fields= uniquefields;
   
-  /*if (project.fields.length !== 0) {
+  if (project.fields.length !== 0) {
     query.projects.push(project);  
-  }*/
+  }
   
   return query;
 }
