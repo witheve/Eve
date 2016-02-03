@@ -10,7 +10,7 @@ var boostrapIxer = bootstrap.ixer;
 
 app.renderRoots["nlqp"];
 
-nlqp.debug = false;
+nlqp.debug = true;
 
 function parseTest(queryString: string, n: number): nlqp.StateFlags {
   let parseResult: nlqp.ParseResult;
@@ -117,15 +117,15 @@ function parseTest(queryString: string, n: number): nlqp.StateFlags {
 let n = 1;
 let phrases = [
   //"Pet lengths",
-  //"employee salary",
+  "salaries per department",
   // -------------------------------
   // These are queries that we had problems with in the past
   // make sure they always work
-  "employee and their departments", 
-  "employees with their salaries", 
-  "employees and their salaries",
+  //"employee and their departments", 
+  //"employees with their salaries", 
+  //"employees and their salaries",
   // -------------------------------
-  "Corey Montella's age, height, and gender",
+  //"Corey Montella's age, height, and gender",
   //"pets longer than dogs",
   //"department salaries",
   //"Pets shorter than dogs",

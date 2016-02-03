@@ -975,20 +975,46 @@ function formTree(tokens: Array<Token>) {
             node.found = true;
           } else if (relationship.type === RelationshipTypes.ONEHOP) {
             let linkID = relationship.links[0];
-            let collection = findCollection(linkID);
-            if (collection !== undefined) {
+            let nCollection = findCollection(linkID);
+            if (nCollection !== undefined) {
               let token: Token = {
                 ix: 0, 
-                originalWord: collection.displayName, 
-                normalizedWord: collection.displayName, 
+                originalWord: nCollection.displayName, 
+                normalizedWord: nCollection.displayName, 
                 POS: MinorPartsOfSpeech.NN,
                 properties: [], 
               };
               let nNode = newNode(token);
-              insertAfterNode(nNode,node);
-              nNode.collection = collection;
-              collection.node = nNode;
-              nNode.found = true;              
+              insertAfterNode(nNode,collection.node);
+              nNode.collection = nCollection;
+              nCollection.node = nNode;
+              context.collections.push(nCollection);
+              // Build a collection attribute to link with parent
+              let collectionAttribute: Attribute = {
+                id: collection.displayName,
+                displayName: collection.displayName,
+                collection: nCollection,
+                value: `${collection.displayName}`,
+                variable: `${collection.displayName}`,
+                node: nNode,
+                project: false,
+              }
+              nNode.attribute = collectionAttribute;
+              context.attributes.push(collectionAttribute);
+              nNode.found = true;
+              // Build an attribute for the referenced
+              let attribute: Attribute = {
+                id: node.name,
+                displayName: node.name,
+                collection: nCollection,
+                value: `${nCollection.displayName}|${node.name}`,
+                variable: `${nCollection.displayName}|${node.name}`,
+                node: node,
+                project: true,
+              }
+              node.attribute = attribute;
+              context.attributes.push(attribute);
+              node.found = true;              
             } else {
               let entity = findEntityByID(linkID);
               if (entity !== undefined) {
@@ -1040,6 +1066,35 @@ function formTree(tokens: Array<Token>) {
         node.found = true;
       }
     }
+    // If we've gotten here and we haven't found anything, go crazy with searching
+    if (!node.found) {
+      log("Find this thing anywhere we can");
+      let collection = findCollection(node.name);
+      if (collection !== undefined) {
+        context.collections.push(collection);
+        collection.node = node;
+        node.collection = collection;
+        node.found = true;
+      // Singularize and try to find a collection
+      } else {
+        let collection = findCollection(singularize(node.name));
+        if (collection !== undefined) {
+          node.token.POS = MinorPartsOfSpeech.NN;
+          node.collection = collection;
+          context.collections.push(collection);
+          node.found = true;
+        } else {
+          let entity = findEntityByDisplayName(node.name);
+          if (entity !== undefined) {
+            context.entities.push(entity);
+            entity.node = node;
+            node.entity = entity;
+            node.found = true;
+          }
+        }
+      }
+    }
+    
     // If there is a backward relationship e.g. age of Corey, then try to find attrs
     // in the maybeAttr stack
     if (node.hasProperty(TokenProperties.BACKRELATIONSHIP)) {
@@ -1065,8 +1120,8 @@ function formTree(tokens: Array<Token>) {
         } else {
           let collection = node.collection;
           if (collection !== undefined) {
-            let foundRel = findCollectionToAttrRelationship(collection.id,maybeAttr.normalizedWord);
-            if (foundRel) {
+            let relationship = findCollectionToAttrRelationship(collection.id,maybeAttr.normalizedWord);
+            if (relationship.type === RelationshipTypes.DIRECT) {
               let collectionAttribute: Attribute = {
                 id: maybeAttr.node.name,
                 displayName: maybeAttr.node.name,
@@ -1079,35 +1134,55 @@ function formTree(tokens: Array<Token>) {
               maybeAttr.node.attribute = collectionAttribute;
               context.attributes.push(collectionAttribute);
               maybeAttr.node.found = true;
-            } 
-          }
-        }
-      }
-    }
-    // If we've gotten here and we haven't found anything, go crazy with searching
-    if (!node.found) {
-      log("Find this thing anywhere we can");
-      let collection = findCollection(node.name);
-      if (collection !== undefined) {
-        context.collections.push(collection);
-        collection.node = node;
-        node.collection = collection;
-        node.found = true;
-      // Singularize and try to find a collection
-      } else {
-        let collection = findCollection(singularize(node.name));
-        if (collection !== undefined) {
-          node.token.POS = MinorPartsOfSpeech.NN;
-          node.collection = collection;
-          context.collections.push(collection);
-          node.found = true;
-        } else {
-          let entity = findEntityByDisplayName(node.name);
-          if (entity !== undefined) {
-            context.entities.push(entity);
-            entity.node = node;
-            node.entity = entity;
-            node.found = true;
+            } else if (relationship.type === RelationshipTypes.ONEHOP) {
+              let linkID = relationship.links[0];
+              let nCollection = findCollection(linkID);
+              if (nCollection !== undefined) {
+                let token: Token = {
+                  ix: 0, 
+                  originalWord: nCollection.displayName, 
+                  normalizedWord: nCollection.displayName, 
+                  POS: MinorPartsOfSpeech.NN,
+                  properties: [], 
+                };
+                let nNode = newNode(token);
+                insertAfterNode(nNode,collection.node);
+                nNode.collection = nCollection;
+                nCollection.node = nNode;
+                context.collections.push(nCollection);
+                // Build a collection attribute to link with parent
+                let collectionAttribute: Attribute = {
+                  id: collection.displayName,
+                  displayName: collection.displayName,
+                  collection: nCollection,
+                  value: `${collection.displayName}`,
+                  variable: `${collection.displayName}`,
+                  node: nNode,
+                  project: false,
+                }
+                nNode.attribute = collectionAttribute;
+                context.attributes.push(collectionAttribute);
+                nNode.found = true;
+                // Build an attribute for the current node
+                let attribute: Attribute = {
+                  id: maybeAttr.normalizedWord,
+                  displayName: maybeAttr.normalizedWord,
+                  collection: nCollection,
+                  value: `${nCollection.displayName}|${node.name}`,
+                  variable: `${nCollection.displayName}|${node.name}`,
+                  node: maybeAttr.node,
+                  project: true,
+                }
+                maybeAttr.node.attribute = attribute;
+                context.attributes.push(attribute);
+                maybeAttr.node.found = true;              
+              } else {
+                let entity = findEntityByID(linkID);
+                if (entity !== undefined) {
+                  // @TODO handle entities
+                }
+              }
+            }
           }
         }
       }
@@ -1430,7 +1505,7 @@ function findCollection(search: string): Collection {
       displayName: name,
       count: foundCollection.count,
       variable: true,
-      project: false,
+      project: true,
     }
     log(" Found: " + name);
     return collection;
@@ -1674,6 +1749,7 @@ function buildTerm(node: Node): Array<Term> {
     if (entity !== undefined) {
       entityField = {name: "entity", value: `${attr.entity.entityAttribute ? attr.entity.variable : attr.entity.id}`, variable: attr.entity.entityAttribute};
     } else if (collection !== undefined) {
+      console.log(node)
       entityField = {name: "entity", value: `${attr.collection.displayName}`, variable: true};
     }    
     let attrField: Field = {name: "attribute", value: attr.id, variable: false};
@@ -1683,11 +1759,11 @@ function buildTerm(node: Node): Array<Term> {
       type: "select",
       table: "entity eavs",
       fields: fields,
-      project: false,  
+      project: attr.project,  
     }
     // If the node is a leaf, add this term to the projection
     if (node.children.length === 0) {
-      term.project = true;
+      //term.project = true;
     }
     terms.push(term);
   }
@@ -1735,7 +1811,7 @@ function formQuery(tree: Node): Query {
     project: true,
   }
   projectedNodes.map((node) => {
-    if (node.attribute !== undefined) {
+    if (node.attribute !== undefined && node.attribute.project) {
       let entity = node.attribute.entity;
       let collection = node.attribute.collection;
       if (entity !== undefined) {
@@ -1773,7 +1849,6 @@ function formQuery(tree: Node): Query {
   if (project.fields.length !== 0) {
     query.projects.push(project);  
   }
-  
   
   return query;
 }
