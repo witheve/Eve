@@ -40,6 +40,9 @@ export function masonry(elem:MasonryElem):Element {
     else if(sum(tilesPerLayout) < children.length) tilesPerLayout[tilesPerLayout.length - 1] += 1;
   }
 
+  // @TODO: while sum_i..n of tiles[i] * sizes[i] < rowSize * rowCount
+  // rowCount = Math.ceil(totalSize / rowSize);
+
   // @TODO: Try running without optimization and see if the results are good enough
   // let minErr = Infinity;
   // while(tryIx < 1000 && minErr > 0.1) {
