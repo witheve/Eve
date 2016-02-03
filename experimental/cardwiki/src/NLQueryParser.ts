@@ -1749,7 +1749,6 @@ function buildTerm(node: Node): Array<Term> {
     if (entity !== undefined) {
       entityField = {name: "entity", value: `${attr.entity.entityAttribute ? attr.entity.variable : attr.entity.id}`, variable: attr.entity.entityAttribute};
     } else if (collection !== undefined) {
-      console.log(node)
       entityField = {name: "entity", value: `${attr.collection.displayName}`, variable: true};
     }    
     let attrField: Field = {name: "attribute", value: attr.id, variable: false};
