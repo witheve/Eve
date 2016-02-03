@@ -34,9 +34,18 @@ function classifyEntities(rawEntities:string[]) {
   let collections:string[] = [];
   let systems:string[] = [];
 
-  // Measure relatedness of entities
+  // Measure relatedness + length of entities
+  // @TODO: mtimes of entities
   let relatedness:{[entity:string]: number} = {};
-  for(let entity of entities) relatedness[entity] = eve.find("directionless links", {entity}).length;
+  let lengths:{[entity:string]: number} = {};
+  let scores:{[entity:string]: number} ={};
+  for(let entity of entities) {
+    let {content = ""} = eve.findOne("entity", {entity}) || {};
+    relatedness[entity] = eve.find("directionless links", {entity}).length;
+    lengths[entity] = content.length;
+    // relatedness * ~500 chars/paragraph + length chars
+    scores[entity] = relatedness[entity] * 500 + lengths[entity];
+  }
   
   // Separate system entities
   let ix = 0;
@@ -55,11 +64,12 @@ function classifyEntities(rawEntities:string[]) {
     if(fact) {
       collectionSize[entities[ix]] = fact.count;
       collections.push(entities[ix]);
+      scores[entities[ix]] += fact.count * 500; 
       entities.splice(ix, 1);
     } else ix++;
   }
 
-  return {systems, collections, entities, relatedness, collectionSize};
+  return {systems, collections, entities, scores, relatedness, lengths, collectionSize};
 }
 
 
@@ -331,13 +341,21 @@ export function table(elem:TableElem):Element {
 interface DirectoryElem extends Element { entities:string[], data?:any }
 export function directory(elem:DirectoryElem):Element {
   let {entities:rawEntities, data = undefined} = elem;
-  let {systems, collections, entities, relatedness, collectionSize} = classifyEntities(rawEntities);
-  collections.sort((a, b) =>
-                   (collectionSize[a] === collectionSize[b]) ? 0 :
-                   (collectionSize[a] === undefined) ? 1 :
-                   (collectionSize[b] === undefined) ? -1 :
-                   (collectionSize[a] > collectionSize[b]) ? -1 : 1);
+  let {systems, collections, entities, scores, relatedness, lengths, collectionSize} = classifyEntities(rawEntities);
+  function sortByScores(a, b) {
+    return (scores[a] === scores[b]) ? 0 :
+      (scores[a] > scores[b]) ? -1 :
+      (scores[a] < scores[b]) ? 1 :
+      (scores[a] === undefined) ? 1 : -1
+  }
+  entities.sort(sortByScores);
+  collections.sort(sortByScores);
+  systems.sort(sortByScores);
 
+  function dbgText(entity) {
+    return `cs: ${collectionSize[entity] || 0} | rel: ${relatedness[entity]} | len: ${lengths[entity]} | (${scores[entity]})`
+  }
+  
   // @TODO: Highlight important system entities (e.g., entities, collections, orphans, etc.)
   // @TODO: Include dropdown pane of all other system entities
   // @TODO: Highlight the X largest user collections. Ghost in examples if not enough (?)
@@ -347,15 +365,16 @@ export function directory(elem:DirectoryElem):Element {
   
   return {c: "flex-column", children: [
     {c: "flex-column", children: collections.map(
-      (entity) => ({c: "spaced-row flex-row", children: [link({entity, data}), {c: "flex-grow"}, {text: ""+collectionSize[entity]}]})
+      (entity) => ({c: "spaced-row flex-row", children: [link({entity, data}), {c: "flex-grow"}, {text: dbgText(entity)}]})
     )},
     {t: "hr"},
     {c: "flex-column", children: entities.map(
-      (entity) => link({entity, data})
+      (entity) => ({c: "spaced-row flex-row", children: [link({entity, data}), {c: "flex-grow"}, {text: dbgText(entity)}]})
     )},
     {t: "hr"},
     {c: "flex-column", children: systems.map(
-      (entity) => link({entity, data})
+      (entity) => ({c: "spaced-row flex-row", children: [link({entity, data}), {c: "flex-grow"}, {text: dbgText(entity)}]})
+      //(entity) => link({entity, data})
     )}
   ]};
 }
