@@ -92,12 +92,17 @@ class BSPhase {
       ${collectionsText}
     `;
     if(attributes) {
-      content += "Attributes\n";
+      content += "\n## Attributes\n";
       for(let attr in attributes) {
         let sourceId = `${entity},${attr},${attributes[attr]}`;
-        content += `${attr}: {${name}'s ${attr}|eav source = ${sourceId}}\n      `;
+        let query = `${name}'s ${attr}`;
+        content += `${attr}: {${query}|eav source = ${sourceId}}\n`;
         let value = this._names[attributes[attr]] || attributes[attr];
         this.addFact("sourced eav", {entity, attribute: attr, value, source: sourceId});
+        this.addArtifacts(parseDSL(`(query :$$view "${query}"
+                                     (entity-eavs :entity "${entity}" :attribute "${attr}" :value v)
+                                     (project! :entity "${entity}" :${attr} v))`));
+        this.addFact("query to id", {query, id: query});
       }
     }
     if(extraContent) content += "\n" + extraContent;

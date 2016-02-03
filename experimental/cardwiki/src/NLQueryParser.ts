@@ -734,7 +734,7 @@ function newNode(token: Token): Node {
   return node;  
 }
 
-enum FunctionTypes {
+export enum FunctionTypes {
   COMPARATOR,
   AGGREGATE,
   BOOLEAN,

@@ -142,6 +142,16 @@ export function embeddedCell(elem):Element {
 }
 
 //------------------------------------------------------------------------------
+// Representations for Errors
+//------------------------------------------------------------------------------
+
+export function error(elem):Element {
+  elem.c = `error-rep ${elem.c || ""}`;
+  console.log(elem);
+  return elem;
+}
+
+//------------------------------------------------------------------------------
 // Representations for Entities
 //------------------------------------------------------------------------------
 interface EntityElem extends Element { entity: string, data?: any }
