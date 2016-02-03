@@ -3,10 +3,7 @@ import {builtinId, copy, sortByLookup} from "./utils";
 import {Element, Handler} from "./microReact";
 import {dispatch, eve} from "./app";
 import {PANE} from "./ui";
-import * as masonry from "./masonry";
-
-masonry.masonry; // @DEBUG
-
+import {masonry as masonryRaw} from "./masonry";
 
 //------------------------------------------------------------------------------
 // Utilities
@@ -365,10 +362,23 @@ export function directory(elem:DirectoryElem):Element {
     {c: "flex-column", children: collections.map(
       (entity) => ({c: "spaced-row flex-row", children: [link({entity, data}), {c: "flex-grow"}, {text: dbgText(entity)}]})
     )},
+
+    masonry({c: "directory-listing", children: collections.map((entity) => ({
+      children: [link({c: "", entity, data})],
+      size: scores[entity]
+    }))}),
+
+    
     {t: "hr"},
     {c: "flex-column", children: entities.map(
       (entity) => ({c: "spaced-row flex-row", children: [link({entity, data}), {c: "flex-grow"}, {text: dbgText(entity)}]})
     )},
+
+    masonry({c: "directory-listing", children: entities.map((entity) => ({
+      children: [link({c: "", entity, data})],
+      size: scores[entity]
+    }))}),
+    
     {t: "hr"},
     {c: "flex-column", children: systems.map(
       (entity) => ({c: "spaced-row flex-row", children: [link({entity, data}), {c: "flex-grow"}, {text: dbgText(entity)}]})
@@ -376,3 +386,5 @@ export function directory(elem:DirectoryElem):Element {
     )}
   ]};
 }
+
+export var masonry = masonryRaw;

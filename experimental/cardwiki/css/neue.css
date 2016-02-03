@@ -184,3 +184,19 @@ content .error-rep { color: #FF3333; }
 .CodeMirror div { display: block; }
 .CodeMirror { font-family: "Lato", sans-serif; overflow:visible; height: auto; font-weight:300; line-height: 1.4em; color: rgb(76, 85, 90); }
 .CodeMirror-scroll { height: auto; overflow: visible !important; }
+
+/*---------------------------------------------------------
+- Masonry
+---------------------------------------------------------*/
+.masonry { display: flex; flex-direction: column; }
+.masonry-row { display: flex; flex-direction: row; align-items: stretch; }
+.masonry-row > * { display: flex; }
+.masonry-row > .group { flex-direction: column; }
+.masonry-row .tile { flex: 1; }
+.masonry-row > .group.big { flex: 2; }
+.masonry-row > .group.detailed { flex: 1; }
+.masonry-row > .group.normal { flex: 1; }
+
+.directory-listing.masonry {  }
+.directory-listing.masonry .masonry-row { height: 96px; }
+.directory-listing.masonry .tile { margin: 4px; background: #eee; justify-content: center; align-items: center; }
