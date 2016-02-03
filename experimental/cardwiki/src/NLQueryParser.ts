@@ -1656,6 +1656,7 @@ interface Term {
 
 export interface Query {
   terms: Array<Term>,
+  subqueries: Array<Query>,
   projects: Array<Term>,
   toString(): string;
 }
@@ -1669,6 +1670,7 @@ function newQuery(terms: Array<Term>): Query {
   terms = terms.filter((term, index) => uniqueTerms[index]);
   let query: Query = {
     terms: terms,
+    subqueries: [],
     projects: [],
     toString: queryToString,
   }
