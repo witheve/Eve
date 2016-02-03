@@ -14,7 +14,7 @@ function vecmul(a:number[], b:number[]):number[] {
   return result;
 }
 
-interface MasonryLayout { size: number, freq?: number, grouped?: number, c: string }
+export interface MasonryLayout { size: number, freq?: number, grouped?: number, c: string, format?:(elem:MasonryTileElem) => MasonryTileElem }
 interface MasonryTileElem extends Element { size?: number, layout?: MasonryLayout }
 interface MasonryElem extends Element { seed?: number, rowSize?: number, children: MasonryTileElem[], layouts?:MasonryLayout[] }
 
@@ -78,9 +78,8 @@ export function masonry(elem:MasonryElem):Element {
     if(!layout.grouped) {
       for(let ix = tileIx;  ix < tileIx + count; ix++) {
         let tile = children[ix];
-        //tile.layout = layout;
         tile.c = `tile ${tile.c || ""} ${layout.c || ""}`;
-        //tiles.push(children[ix]);
+        if(layout.format) tile = layout.format(tile);
         tiles.push({c: `group ${layout.c || ""}`, layout, size: layout.size, children: [tile]});
       }
     } else {
@@ -90,8 +89,8 @@ export function masonry(elem:MasonryElem):Element {
         let group = {c: `group ${layout.c || ""}`, layout, size: layout.size * layout.grouped, children: []};
         for(let partIx = 0; partIx < layout.grouped && added < count; partIx++) {
           let tile = children[ix + partIx];
-          tile.layout = layout;
           tile.c = `tile ${tile.c || ""} ${layout.c || ""}`;
+          if(layout.format) tile = layout.format(tile);
           group.children.push(tile);
           added++;
         }
