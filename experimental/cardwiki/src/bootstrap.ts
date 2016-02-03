@@ -203,7 +203,7 @@ app.init("bootstrap", function bootstrap() {
   phase
     .addEntity("entity", "entity", ["system"])
     .addEntity("collection", "collection", ["system"])
-    .addEntity("system", "system", ["collection"])
+    .addEntity("system", "system", ["system", "collection"])
     .addEntity("union", "union", ["system", "collection"])
     .addEntity("query", "query", ["system", "collection"])
     .addEntity("table", "table", ["system", "collection"])
