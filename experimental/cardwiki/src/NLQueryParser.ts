@@ -538,12 +538,12 @@ function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech 
 // Wrap pluralize to special case certain words it gets wrong
 function singularize(word: string): string {
   let specialCases = ["his","has","downstairs","united states","its"];
-  let isSpecial = intersect([word],specialCases).length > 0;
-  if (isSpecial) {
-      return word;  
-  } else { 
-    return pluralize(word, 1);
-  }
+  specialCases.forEach((specialCase) => {
+    if (specialCase === word) {
+      return word;
+    }
+  });
+  return pluralize(word, 1);
 }
 
 // ----------------------------------------------------------------------------
@@ -637,7 +637,7 @@ function formNounGroups(tokens: Array<Token>): Array<Node> {
   
   // Heuristic: Leftover determiners are themselves a noun group 
   // e.g. neither of these boys. ng = ([neither],[of these boys])
-  let unusedDeterminers = findAll(tokens, (token: Token) => token.node === undefined && token.POS === MinorPartsOfSpeech.DT);
+  let unusedDeterminers = tokens.filter((token) => token.node === undefined && token.POS === MinorPartsOfSpeech.DT);
   for (let token of unusedDeterminers) {
     nounGroups.push(newNode(token));  
   }
@@ -1702,6 +1702,14 @@ function formQuery(tree: Node): Query {
 // ---------------------------------------------------------------------------- 
 let divider = "----------------------------------------";
 
+export let debug = false;
+
+function log(x: any) {
+  if (debug) {
+    console.log(x);
+  }
+}
+
 export function nodeArrayToString(nodes: Array<Node>): string {
   let nodeArrayString = nodes.map((node) => node.toString()).join("\n" + divider + "\n");  
   return divider + "\n" + nodeArrayString + "\n" + divider;
@@ -1722,49 +1730,6 @@ export function tokenArrayToString(tokens: Array<Token>): string {
 // ----------------------------------------------------------------------------
 // Utility functions
 // ----------------------------------------------------------------------------
-
-export let debug = false;
-
-function log(x: any) {
-  if (debug) {
-    console.log(x);
-  }
-}
-
-// combines two arrays into a single array
-function zip(array1: Array<any>, array2: Array<any>): Array<Array<any>> {
-  let returnArray: Array<any> = [];
-  for (let i = 0; i < array1.length; i++) {
-    let el1 = array1[i];
-    if (i+1 > array2.length) {
-      break;
-    }
-    let el2 = array2[i];
-    returnArray.push([el1, el2]);
-  }
-  return returnArray;
-}
-
-// Finds all elements in an array matching a specified condition
-function findAll(array: Array<any>, condition: Function): Array<any> {
-  return array.filter((element) => condition(element));
-}
-
-// Finds the intersection of two arrays
-function intersect(arr1: Array<any>, arr2: Array<any>): Array<any> {
-     var r = [], o = {}, l = arr2.length, i, v;
-     for (i = 0; i < l; i++) {
-         o[arr2[i]] = true;
-     }
-     l = arr1.length;
-     for (i = 0; i < l; i++) {
-         v = arr1[i];
-         if (v in o) {
-             r.push(v);
-         }
-     }
-     return r;
-}
 
 function onlyUnique(value, index, self) { 
   return self.indexOf(value) === index;
