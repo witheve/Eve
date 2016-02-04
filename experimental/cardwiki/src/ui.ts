@@ -7,7 +7,7 @@ import {Diff} from "./runtime";
 import {createEditor} from "./richTextEditor";
 import {Element, Handler, RenderHandler, Renderer} from "./microReact";
 import * as uitk from "./uitk";
-import {eve, handle as appHandle, dispatch, activeSearches} from "./app";
+import {eve, handle as appHandle, dispatch, activeSearches, renderer} from "./app";
 import {StepType, queryToExecutable} from "./queryParser";
 import {parseDSL} from "./parser";
 import {parse as nlparse, StateFlags, FunctionTypes} from "./NLQueryParser";
@@ -254,14 +254,14 @@ export function pane(paneId:string):Element {
 
   let contentType = "entity";;
   if(contains.length === 0) {
-    content = entity(builtinId("home"), paneId);
+    content = entity(builtinId("home"), paneId, kind);
 
   } else if(contains.indexOf("search: ") === 0) {
     contentType = "search";
     content = search(contains.substring("search: ".length), paneId);
   } else if(display) {
     let options:any = {};
-    content = entity(display.id, paneId, options);
+    content = entity(display.id, paneId, kind, options);
   } else if(eve.findOne("query to id", {query: contains})) {
     contentType = "search";
     content = search(contains, paneId);
@@ -640,14 +640,25 @@ function embedAs(elem, value, doEmbed) {
   doEmbed(`${text}|${rawParams}`);
 }
 
-export function entity(entityId:string, paneId:string, options:any = {}):Element {
+export function entity(entityId:string, paneId:string, kind: PANE, options:any = {}):Element {
   let content = eve.findOne("entity", {entity: entityId})["content"];
   let page = eve.findOne("entity page", {entity: entityId})["page"];
   let {name} = eve.findOne("display name", {id: entityId});
   let cells = getCells(content);
-  let finalOptions = mergeObject({keys: {
+  let keys = {
+    "Backspace": (cm) => maybeActivateCell(cm, paneId),
+    "Cmd-Enter": (cm) => maybeNavigate(cm, paneId),
     "=": (cm) => createEmbedPopout(cm, paneId)
-  }}, options);
+  };
+  if(kind === PANE.POPOUT) {
+    console.log("HERE POPOUT");
+    keys["Esc"] = () => {
+      dispatch("remove popup", {}).commit();
+      let parent = eve.findOne("ui pane parent", {pane: paneId})["parent"];
+      paneEditors[parent].cmInstance.focus();
+    };
+  }
+  let finalOptions = mergeObject({keys}, options);
   let cellItems = cells.map((cell, ix) => {
     let ui;
     let active = activeCells[cell.id];
@@ -672,6 +683,52 @@ export function entity(entityId:string, paneId:string, options:any = {}):Element
      */
     {c: "wiki-editor", postRender: wikiEditor, onUpdate: updatePage, meta: {entity: entityId, page, paneId}, value: content, options: finalOptions, cells, children: cellItems}
   ]};
+}
+
+function maybeActivateCell(cm, paneId) {
+  if(!cm.somethingSelected()) {
+    let pos = cm.getCursor("from");
+    let marks = cm.findMarksAt(pos);
+    let cell;
+    for(let mark of marks) {
+      let {to} = mark.find();
+      if(mark.cell && to.ch === pos.ch) {
+        cell = mark.cell;
+        break;
+      }
+    }
+    if(cell) {
+      let query = cell.query.split("|")[0];
+      dispatch("addActiveCell", {id: cell.id, cell, query}).commit();
+      return;
+    }
+  }
+  return CodeMirror.Pass;
+}
+
+function maybeNavigate(cm, paneId) {
+  if(!cm.somethingSelected()) {
+    let pos = cm.getCursor("from");
+    let marks = cm.findMarksAt(pos);
+    console.log(marks);
+    let toClick;
+    for(let mark of marks) {
+      if(mark.cell) {
+        toClick = mark;
+      }
+    }
+    if(toClick) {
+      // @HACK: there really should be a better way for me to find out
+      // if there's a link in this cell and if it is what that link is
+      // to.
+      let link = toClick.widgetNode.querySelector(".link");
+      if(link) {
+        let elem = renderer.tree[link._id];
+        let coords = cm.cursorCoords(true, "page");
+        navigate({clientX: coords.left, clientY: coords.top, preventDefault: ()=>{}}, elem);
+      }
+    }
+  }
 }
 
 var activeCells = {};
@@ -926,7 +983,7 @@ function codeMirrorPostRender(postRender?:RenderHandler):RenderHandler {
       cm = node.cm = CodeMirror(node, {
         lineWrapping: elem.lineWrapping !== false ? true : false,
         lineNumbers: elem.lineNumbers,
-        mode: elem.mode || "gfm",
+        mode: elem.mode || "text",
         extraKeys
       });
       if(elem.change) cm.on("change", handleCMEvent(elem.change, elem));

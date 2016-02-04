@@ -18,6 +18,7 @@ declare module CodeMirror {
     /** If you want to define extra methods in terms of the CodeMirror API, it is possible to use defineExtension.
     This will cause the given value(usually a method) to be added to all CodeMirror instances created from then on. */
     function defineExtension(name: string, value: any): void;
+    function defineMIME(mime: string, mode: string): void;
 
     /** Like defineExtension, but the method will be added to the interface for Doc objects instead. */
     function defineDocExtension(name: string, value: any): void;

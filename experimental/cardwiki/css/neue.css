@@ -114,6 +114,13 @@ div:hover > header > .controls { opacity: 1; }
 .wiki-editor .cm-header-1 { font-size: 28pt; line-height: 40px; }
 .wiki-editor .cm-header-2 { font-size: 22pt; line-height: 40px; }
 .wiki-editor .cm-header-3 { font-size: 16pt; line-height: 40px; }
+
+.wiki-editor .cm-header-indicator { color: #aaa; }
+.wiki-editor .cm-header-indicator-1 { margin-left:-17px; padding-right:8px; }
+.wiki-editor .cm-header-indicator-2 { margin-left:-25px; padding-right:8px; }
+.wiki-editor .cm-header-indicator-3 { margin-left: -35px; padding-right:8px; }
+
+
 .wiki-editor .attribute, .wiki-editor .value { color:#2C00FD; }
 .wiki-editor .link { color: #008cdd; cursor: pointer; border-bottom: 1px solid transparent; }
 .wiki-editor .link:hover { border-bottom:1px solid #008cdd; }
