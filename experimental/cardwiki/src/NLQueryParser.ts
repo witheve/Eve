@@ -1111,14 +1111,15 @@ function formTree(tokens: Array<Token>) {
           }
           child.collection.project = true;
           nNode.attribute = collectionAttribute;
-          child.collection.variable = true;
+          child.collection.variable = "";
           child.children.push(nNode);
           nNode.parent = child;
         }
       }
     });    
-  }
+  }   
   log(tree.toString());
+  
   return {tree: tree, context: context};
 }
 
@@ -1235,7 +1236,7 @@ interface Collection {
   displayName: string,
   count: number,
   node?: Node,
-  variable: boolean,
+  variable: string,
   project: boolean,
 }
 
@@ -1315,7 +1316,7 @@ function findEveCollection(search: string): Collection {
       id: foundCollection.collection,
       displayName: name,
       count: foundCollection.count,
-      variable: true,
+      variable: name,
       project: true,
     }
     log(" Found: " + name);
@@ -1629,7 +1630,7 @@ interface Term {
   type: string,
   table?: string,
   fields: Array<Field>
-  project: boolean,
+  project?: Array<string>,
 }
 
 export interface Query {
@@ -1689,20 +1690,29 @@ export function newQuery(terms: Array<Term>): Query {
 }
 
 // Build terms from a node using a DFS algorithm
-function buildTerm(node: Node): Array<Term> {
+function buildQuery(node: Node): Query {
   let terms: Array<Term> = [];
   // Build a term for each of the children
-  let childTerms = node.children.map(buildTerm);
+  let childQueries = node.children.map(buildQuery);
   // Fold the child terms into the term array
-  childTerms.forEach((cTerms) => {
-    terms = terms.concat(cTerms);
+  childQueries.forEach((cQuery) => {
+    if (cQuery.projects.length === 0 && cQuery.subqueries.length === 0) {
+      terms = terms.concat(cQuery.terms);  
+    }
   });
+  let query: Query;
+  if (childQueries.length === 1) {
+    query = childQueries[0];
+  }
+  
   // Now take care of the node itself.
   // Function terms
-  if (node.fxn !== undefined) {
+  if (node.hasProperty(TokenProperties.ROOT)) {
+    return query;
+  } else if (node.fxn !== undefined) {
     // Skip certain functions
     if (node.fxn.name === "AND" || node.fxn.name === "OR") {
-      return terms;
+      return newQuery(terms);
     }
     // Get variables from the already formed terms
     let vars: Array<string> = [];
@@ -1713,14 +1723,14 @@ function buildTerm(node: Node): Array<Term> {
         if (typeof value === "string") {
           vars.push(value);  
         }
-      })
+      });
     });
     let fields = node.fxn.fields.map((fxnField,i) => {
       let thisVar;
-      if (fxnField === "output") {
+      if (fxnField === node.fxn.name) {
         thisVar = "output";
       } else {
-        thisVar = vars.pop();
+        thisVar = vars.shift();
       }
       let field: Field = {
         name: fxnField,
@@ -1733,7 +1743,13 @@ function buildTerm(node: Node): Array<Term> {
       type: "select",
       table: node.fxn.name,
       fields: fields,
-      project: false,
+    }
+    
+    console.log(node);
+    if (node.children[0].hasProperty(TokenProperties.GROUPING)) {
+      query.subqueries[0].terms.push(term);
+      console.log(query.toString());
+      return query;
     }
     terms.push(term);
   }
@@ -1755,23 +1771,25 @@ function buildTerm(node: Node): Array<Term> {
       type: "select",
       table: "entity eavs",
       fields: fields,
-      project: attr.project,  
-    }
-    // If the node is a leaf, add this term to the projection
-    if (node.children.length === 0) {
-      //term.project = true;
     }
     terms.push(term);
   }
   // Collection terms
   if (node.collection !== undefined) {
-    let entityField: Field = {name: "entity", value: node.collection.displayName, variable: node.collection.variable};
+    let entityField: Field = {name: "entity", value: node.collection.displayName, variable: true};
     let collectionField: Field = {name: "collection", value: node.collection.id, variable: false};
     let term: Term = {
       type: "select",
       table: "is a attributes",
       fields: [entityField, collectionField],
-      project: false,
+    }
+    // If the node is a grouping node, push all the terms so far into a sub query
+    if (node.hasProperty(TokenProperties.GROUPING)) {
+      let subQuery: Query = newQuery(terms);
+      let query = newQuery([term]);
+      query.subqueries.push(subQuery);
+      console.log(query.toString());
+      return query;
     }
     terms.push(term);
   }
@@ -1779,16 +1797,19 @@ function buildTerm(node: Node): Array<Term> {
   else if (node.entity !== undefined) {
     // @TODO We don't do anything with entities right now
   }
-  return terms;
+  return newQuery(terms);
 } 
 
 // take a parse tree, form a query
 function formQuery(tree: Node): Query {
   
   // Walk the tree, parsing each node as we go along
-  let terms = buildTerm(tree);
-  let query = newQuery(terms);  
-
+  let query = buildQuery(tree);
+  
+  console.log("FOOO")
+  console.log(query);
+  console.log(query.toString());
+  
   // Build the project
   let projectedNodes: Array<Node> = [];
   function flattenTree(node: Node) {
@@ -1804,9 +1825,8 @@ function formQuery(tree: Node): Query {
   let project: Term = {
     type: "project!",
     fields: [],
-    project: true,
   }
-  projectedNodes.map((node) => {
+  /*projectedNodes.map((node) => {
     if (node.attribute !== undefined && node.attribute.project) {
       let entity = node.attribute.entity;
       let collection = node.attribute.collection;
@@ -1844,7 +1864,7 @@ function formQuery(tree: Node): Query {
   
   if (project.fields.length !== 0) {
     query.projects.push(project);  
-  }
+  }*/
   
   return query;
 }
