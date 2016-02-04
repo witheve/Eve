@@ -52,12 +52,21 @@ function parseTest(queryString: string, n: number): nlqp.StateFlags {
   console.log("Tree");
   console.log(parseResult.tree.toString());
   console.log("-------------------------------------------------------------------------------------------");
-  console.log("Query");
+  console.log("Query");  
   console.log(parseResult.query.toString());
   console.log("-------------------------------------------------------------------------------------------");
   console.log("Result");
-  if (parseResult.query.projects.length !== 0) {
-    let queryString = parseResult.query.toString();
+  console.log(executeQuery(parseResult.query).join("\n"));
+  console.log("-------------------------------------------------------------------------------------------");
+  console.log(timingDisplay);
+  console.log("===========================================================================================");
+  return parseResult.state;
+}
+
+function executeQuery(query: nlqp.Query): Array<string> {
+  let resultsString: Array<string> = [];
+  if (query.projects.length !== 0) {
+    let queryString = query.toString();   
     let artifacts = dslparser.parseDSL(queryString);
     let changeset = eve.diff();
     let results = [];
@@ -110,14 +119,11 @@ function parseTest(queryString: string, n: number): nlqp.StateFlags {
       }).join(" | ");
       let divider = Array(tableHeader.length).join("-");
       let resultTable = divider += "\n" + tableHeader + "\n" + divider + "\n" + rowStrings.join("\n") + "\n" + divider; 
-      console.log(resultTable);
     });
   }
-  console.log("-------------------------------------------------------------------------------------------");
-  console.log(timingDisplay);
-  console.log("===========================================================================================");
-  return parseResult.state;
+  return resultsString;
 }
+
 
 let n = 1;
 let phrases = [
@@ -134,7 +140,9 @@ let phrases = [
   "employees and their salaries",
   "salaries per department",*/
   // -------------------------------
-  "sum pet lengths",
+  "sum salaries per department"
+  //"Corey Montella's wife's age",
+  //"Pet lengths",
   //"Corey Montella's age, height, and gender",
   //"pets longer than dogs",
   //"department salaries",
