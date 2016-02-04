@@ -1,9 +1,9 @@
 declare var pluralize; // @TODO: import me.
-import {builtinId, copy} from "./utils";
+import {builtinId, copy, coerceInput, sortByLookup} from "./utils";
 import {Element, Handler} from "./microReact";
 import {dispatch, eve} from "./app";
 import {PANE} from "./ui";
-
+import {masonry as masonryRaw, MasonryLayout} from "./masonry";
 
 //------------------------------------------------------------------------------
 // Utilities
@@ -29,37 +29,49 @@ export function isEntity(maybeId:string):boolean {
   return !!eve.findOne("entity", {entity: maybeId});
 }
 
+let wordSplitter = /\s+/gi;
+const statWeights = {related: 100, children: 200, words: 1};
 function classifyEntities(rawEntities:string[]) {
   let entities = rawEntities.slice();
   let collections:string[] = [];
   let systems:string[] = [];
 
-  // Measure relatedness of entities
-  let relatedness:{[entity:string]: number} = {};
-  for(let entity of entities) relatedness[entity] = eve.find("directionless links", {entity}).length;
+  // Measure relatedness + length of entities
+  // @TODO: mtimes of entities
+  let relatedCounts:{[entity:string]: number} = {};
+  let wordCounts:{[entity:string]: number} = {};
+  let childCounts:{[collection:string]: number} = {};
+  let scores:{[entity:string]: number} ={};
+  for(let entity of entities) {
+    let {content = ""} = eve.findOne("entity", {entity}) || {};
+    relatedCounts[entity] = eve.find("directionless links", {entity}).length;
+    wordCounts[entity] = content.trim().replace(wordSplitter, " ").split(" ").length;
+    let {count:childCount = 0} = eve.findOne("collection", {collection: entity}) || {};
+    childCounts[entity] = childCount;
+    console.log(entity, childCount);
+    scores[entity] =
+      relatedCounts[entity] * statWeights.related +
+      wordCounts[entity] * statWeights.words +
+      childCounts[entity] * statWeights.children;
+  }
   
   // Separate system entities
   let ix = 0;
   while(ix < entities.length) {
     if(eve.findOne("is a attributes", {collection: builtinId("system"), entity: entities[ix]})) {
-      systems.push(entities[ix]);
-      entities.splice(ix, 1);
+      systems.push(entities.splice(ix, 1)[0]);
     } else ix++;
   }
   
   // Separate user collections from other entities
   ix = 0;
-  let collectionSize:{[collection:string]: number} = {};
   while(ix < entities.length) {
-    let fact = eve.findOne("collection", {collection: entities[ix]});
-    if(fact) {
-      collectionSize[entities[ix]] = fact.count;
-      collections.push(entities[ix]);
-      entities.splice(ix, 1);
+    if(childCounts[entities[ix]]) {
+      collections.push(entities.splice(ix, 1)[0]);
     } else ix++;
   }
 
-  return {systems, collections, entities, relatedness, collectionSize};
+  return {systems, collections, entities, scores, relatedCounts, wordCounts, childCounts};
 }
 
 
@@ -104,7 +116,7 @@ interface TableRowElem extends Element { table: string, row: any }
 interface TableCellElem extends Element { row: TableRowElem, field: string }
 
 function updateEntityValue(event:CustomEvent, elem:TableCellElem) {
-  let value = event.detail;
+  let value = coerceInput(event.detail);
   let {row:rowElem, field} = elem;
   let {table:tableElem, row} = rowElem;
   let entity = tableElem["entity"];
@@ -338,16 +350,57 @@ export function table(elem:TableElem):Element {
   return elem;
 }
 
+let directoryTileLayouts:MasonryLayout[] = [
+  {size: 4, c: "big", format(elem) {
+    elem.children.unshift
+    elem.children.push(
+      {text: `(${elem["stats"][elem["stats"].best]} ${elem["stats"].best})`}
+    );
+    return elem;
+  }},
+  {size: 2, c: "detailed", format(elem) {
+    elem.children.push(
+      {text: `(${elem["stats"][elem["stats"].best]} ${elem["stats"].best})`}
+    );
+    return elem;
+  }},
+  {size: 1, c: "normal", grouped: 2}
+];
+
 interface DirectoryElem extends Element { entities:string[], data?:any }
 export function directory(elem:DirectoryElem):Element {
   let {entities:rawEntities, data = undefined} = elem;
-  let {systems, collections, entities, relatedness, collectionSize} = classifyEntities(rawEntities);
-  collections.sort((a, b) =>
-                   (collectionSize[a] === collectionSize[b]) ? 0 :
-                   (collectionSize[a] === undefined) ? 1 :
-                   (collectionSize[b] === undefined) ? -1 :
-                   (collectionSize[a] > collectionSize[b]) ? -1 : 1);
+  let {systems, collections, entities, scores, relatedCounts, wordCounts, childCounts} = classifyEntities(rawEntities);
+  let sortByScores = sortByLookup(scores);
+  entities.sort(sortByScores);
+  collections.sort(sortByScores);
+  systems.sort(sortByScores);
 
+  function dbgText(entity) {
+    return `(${scores[entity]})`;
+  }
+
+  // Link to entity
+  // Peek with most significant statistic (e.g. 13 related; or 14 children; or 5000 words)
+  // Slider pane will all statistics
+  // Click opens popup preview
+  function formatTile(entity) {
+    let stats = {best:"", related: relatedCounts[entity], children: childCounts[entity], words: wordCounts[entity]};
+    let maxContribution = 0;
+    for(let stat in stats) {
+      if(!statWeights[stat]) continue;
+      let contribution = stats[stat] * statWeights[stat];
+      if(contribution > maxContribution) {
+        maxContribution = contribution;
+        stats.best = stat;
+      }
+    }
+    return {size: scores[entity], stats, children: [
+      link({entity, data})
+    ]};
+    // {stats: {best: "related", related: 14, children: 3, words: 2000}}
+  }
+  
   // @TODO: Highlight important system entities (e.g., entities, collections, orphans, etc.)
   // @TODO: Include dropdown pane of all other system entities
   // @TODO: Highlight the X largest user collections. Ghost in examples if not enough (?)
@@ -356,16 +409,25 @@ export function directory(elem:DirectoryElem):Element {
   // @TODO: Include dropdown pane of other entities  
   
   return {c: "flex-column", children: [
-    {c: "flex-column", children: collections.map(
-      (entity) => ({c: "spaced-row flex-row", children: [link({entity, data}), {c: "flex-grow"}, {text: ""+collectionSize[entity]}]})
-    )},
+    // {c: "flex-column", children: collections.map(
+    //   (entity) => ({c: "spaced-row flex-row", children: [link({entity, data}), {c: "flex-grow"}, {text: dbgText(entity)}]})
+    // )},
+
+    masonry({c: "directory-listing", layouts: directoryTileLayouts, children: collections.map(formatTile)}),
+
+    
     {t: "hr"},
-    {c: "flex-column", children: entities.map(
-      (entity) => link({entity, data})
-    )},
+    // {c: "flex-column", children: entities.map(
+    //   (entity) => ({c: "spaced-row flex-row", children: [link({entity, data}), {c: "flex-grow"}, {text: dbgText(entity)}]})
+    // )},
+
+    masonry({c: "directory-listing", layouts: directoryTileLayouts, children: entities.map(formatTile)}),
+    
     {t: "hr"},
     {c: "flex-column", children: systems.map(
-      (entity) => link({entity, data})
+      (entity) => ({c: "spaced-row flex-row", children: [link({entity, data}), {c: "flex-grow"}, {text: dbgText(entity)}]})
     )}
   ]};
 }
+
+export var masonry = masonryRaw;
