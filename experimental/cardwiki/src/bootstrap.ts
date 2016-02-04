@@ -389,7 +389,7 @@ app.init("bootstrap", function bootstrap() {
     eric: {department: "engineering", salary: 7},
     rob: {department: "operations", salary: 10},
   };
-  for(let entity in testData) phase.addEntity(entity, entity, ["test data"].concat(testData[entity]), testAttrs[entity], `{${entity}|rep=attributes}`);
+  for(let entity in testData) phase.addEntity(entity, entity, ["test data"].concat(testData[entity]), testAttrs[entity], `{${entity}|rep=attributes;sortable=true;key=${entity}-attributes}`);
 
   // phase.addTable("department", ["department"])
   //   .addFact("department", {department: "engineering"})

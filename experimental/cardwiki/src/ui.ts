@@ -18,13 +18,18 @@ enum BLOCK { TEXT, PROJECTION };
 
 var ignorePopState = false; // Because html5 is full of broken promises and broken dreams
 
+//------------------------------------------------------------------------------
+// State
+//------------------------------------------------------------------------------
 export let uiState:{
   widget: {
-    search: {[paneId:string]: {value:string, plan?:boolean, focused?:boolean, submitted?:string}}
+    search: {[paneId:string]: {value:string, plan?:boolean, focused?:boolean, submitted?:string}},
+    table: {[key:string]: {field:string, direction:string}}
   }
 } = {
   widget: {
-    search: {}
+    search: {},
+    table: {}
   }
 };
 
@@ -189,6 +194,12 @@ appHandle("rename entity attribute", (changes:Diff, {entity, attribute, prev, va
   let {source = "<global>"} = eve.findOne("sourced eav", {entity, attribute: prev, value}) || {};
   if(prev !== undefined) changes.remove("sourced eav", {entity, attribute: prev, value});
   changes.add("sourced eav", {entity, attribute, value, source});
+});
+appHandle("sort table", (changes:Diff, {key, field, direction}) => {
+  let state = uiState.widget.table[key] || {field: undefined, direction: undefined};
+  state.field = field;
+  state.direction = direction;
+  uiState.widget.table[key] = state;
 });
 
 //---------------------------------------------------------
@@ -1090,7 +1101,7 @@ function represent(search: string, rep:string, results, params:{}):Element {
     let isArray = embedParamSets && embedParamSets.constructor === Array;
     try {
       if(!embedParamSets || isArray && embedParamSets.length === 0) {
-        return uitk["error"]({text: `${search} as ${rep}`})
+        return uitk.error({text: `${search} as ${rep}`})
       } else if(embedParamSets.constructor === Array) {
         let wrapper = {c: "flex-column", children: []};
         for(let embedParams of embedParamSets) {
@@ -1103,10 +1114,11 @@ function represent(search: string, rep:string, results, params:{}):Element {
         embedParams["data"] = embedParams["data"] || params;
         return uitk[rep](embedParams);
       }
-    } catch(e) {
+    } catch(err) {
       console.error("REPRESENTATION ERROR");
-      console.log({search, rep, results, params});
-      return uitk["error"]({text: `Failed to embed as ${params["childRep"] || rep}`})
+      console.error({search, rep, results, params});
+      console.error(err);
+      return uitk.error({text: `Failed to embed as ${params["childRep"] || rep}`})
     }
   }
 }

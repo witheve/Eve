@@ -177,6 +177,9 @@ content .error-rep { color: #FF3333; }
 .table .column + .column { border-left: 1px solid #ddd; }
 .table .column .field + .field { border-top: 1px solid #ddd; }
 
+.table header .sort-toggle { opacity: 0.5; }
+.table header .sort-toggle.active { opacity: 1; }
+
 /*---------------------------------------------------------
 - Search Input
 ---------------------------------------------------------*/

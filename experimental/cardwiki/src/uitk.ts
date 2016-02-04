@@ -1,8 +1,8 @@
 declare var pluralize; // @TODO: import me.
-import {builtinId, copy, coerceInput, sortByLookup} from "./utils";
+import {builtinId, copy, coerceInput, sortByLookup, sortByField} from "./utils";
 import {Element, Handler} from "./microReact";
 import {dispatch, eve} from "./app";
-import {PANE} from "./ui";
+import {PANE, uiState as _state} from "./ui";
 import {masonry as masonryRaw, MasonryLayout} from "./masonry";
 
 //------------------------------------------------------------------------------
@@ -17,6 +17,7 @@ export function resolveId(maybeName:string):string {
   return display ? display.id : maybeName;
 }
 export function resolveValue(maybeValue:string):string {
+  if(typeof maybeValue !== "string") return maybeValue;
   let val = maybeValue.trim();
   if(val.indexOf("=") === 0) {
     // @TODO: Run through the full NLP.
@@ -114,6 +115,7 @@ function navigateOrEdit(event, elem) {
 
 interface TableRowElem extends Element { table: string, row: any }
 interface TableCellElem extends Element { row: TableRowElem, field: string }
+interface TableFieldElem extends Element { table: string, field: string, direction?: number }
 
 function updateEntityValue(event:CustomEvent, elem:TableCellElem) {
   let value = coerceInput(event.detail);
@@ -130,6 +132,11 @@ function updateEntityAttributes(event:CustomEvent, elem:{row: TableRowElem}) {
   let entity = tableElem["entity"];
   if(event.detail === "add") dispatch("add entity attribute", {entity, attribute: "", value: ""}).commit(); // @FIXME This is dangerous
   else dispatch("remove entity attribute", {entity, attribute: row.attribute, value: row.value}).commit();
+}
+function sortTable(event, elem:TableFieldElem) {
+  let {key, field, direction} = elem;
+  direction = direction ? -direction : 1;
+  dispatch("sort table", {key, field, direction}).commit();
 }
 
 //------------------------------------------------------------------------------
@@ -291,13 +298,14 @@ export function value(elem:ValueElem):Element {
   return elem;
 }
 
-interface TableElem extends Element { rows: {}[], editCell?: Handler<Event>, editRow?: Handler<Event>, editField?: Handler<Event>, ignoreFields?: string[], ignoreTemp?: boolean, data?: any }
+interface TableElem extends Element { rows: {}[], sortable?: boolean, editCell?: Handler<Event>, editRow?: Handler<Event>, editField?: Handler<Event>, ignoreFields?: string[], ignoreTemp?: boolean, data?: any }
 export function table(elem:TableElem):Element {
-  let {rows, ignoreFields = ["__id"], ignoreTemp = true, data = undefined} = elem;
+  let {rows, ignoreFields = ["__id"], sortable = false, ignoreTemp = true, data = undefined} = elem;
   if(!rows.length) {
     elem.text = "<Empty Table>";
     return elem;
   }
+  if(sortable && !elem.key) throw new Error("Cannot track sorting state for a table without a key");
 
   let {editCell = undefined, editRow = undefined, editField = undefined} = elem;
   if(editCell) {
@@ -330,7 +338,36 @@ export function table(elem:TableElem):Element {
   }
 
   let header = {t: "header", children: []};
-  for(let field of fields) header.children.push(value({c: "column field", text: field, data, autolink: false}));
+  let {field:sortField = undefined, direction:sortDirection = undefined} = _state.widget.table[elem.key] || {};
+  for(let field of fields) {
+    let isActive = field === sortField;
+    let direction = (field === sortField) ? sortDirection : 0;
+    header.children.push({c: "column field flex-row", children: [
+      value({text: field, data, autolink: false}),
+      {c: "flex-grow"},
+      {c: "controls", children: [
+        sortable ? {
+          c: `sort-toggle ${isActive && direction < 0 ? "ion-arrow-up-b" : "ion-arrow-down-b"} ${isActive ? "active" : ""}`,
+          key: elem.key,
+          field,
+          direction,
+          click: sortTable
+        } : undefined
+      ]}
+    ]});
+  }
+
+  if(sortable && sortField) {
+    let back = -1 * sortDirection;
+    let fwd = sortDirection;
+    rows.sort(function sorter(rowA, rowB) {
+      let a = resolveName(resolveValue(rowA[sortField])), b = resolveName(resolveValue(rowB[sortField]));
+      return (a === b) ? 0 :
+        (a === undefined) ? fwd :
+        (b === undefined) ? back :
+        (""+a).localeCompare(""+b, "kn") * fwd;
+    });
+  }
   
   let body = {c: "body", children: []};
   for(let row of rows) {
@@ -410,21 +447,13 @@ export function directory(elem:DirectoryElem):Element {
   // @TODO: Include dropdown pane of other entities  
   
   return {c: "flex-column", children: [
-    // {c: "flex-column", children: collections.map(
-    //   (entity) => ({c: "spaced-row flex-row", children: [link({entity, data}), {c: "flex-grow"}, {text: dbgText(entity)}]})
-    // )},
-
+    {t: "h2", text: "Collections"},,
     masonry({c: "directory-listing", layouts: directoryTileLayouts, styles: directoryTileStyles, children: collections.map(formatTile)}),
 
-    
-    {t: "hr"},
-    // {c: "flex-column", children: entities.map(
-    //   (entity) => ({c: "spaced-row flex-row", children: [link({entity, data}), {c: "flex-grow"}, {text: dbgText(entity)}]})
-    // )},
-
+    {t: "h2", text: "Entities"},
     masonry({c: "directory-listing", layouts: directoryTileLayouts, styles: directoryTileStyles, children: entities.map(formatTile)}),
     
-    {t: "hr"},
+    {t: "h2", text: "System Internal"},
     {c: "flex-column", children: systems.map(
       (entity) => ({c: "spaced-row flex-row", children: [link({entity, data}), {c: "flex-grow"}, {text: dbgText(entity)}]})
     )}
