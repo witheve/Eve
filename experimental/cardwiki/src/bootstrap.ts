@@ -88,11 +88,11 @@ class BSPhase {
     if(isAs.length)
       collectionsText = `${titlecase(name)} is a ${isAs.slice(0, -1).join(", ")} ${isAs.length > 1 ? "and" : ""} ${isAs[isAs.length - 1]}.`;
     let content = unpad(6) `
-      # ${name}
+      #${titlecase(name)}
       ${collectionsText}
     `;
     if(attributes) {
-      content += "\n## Attributes\n";
+      content += "\n##Attributes\n";
       for(let attr in attributes) {
         let sourceId = `${entity},${attr},${attributes[attr]}`;
         let query = `${name}'s ${attr}`;
