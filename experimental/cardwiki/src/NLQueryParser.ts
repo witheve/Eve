@@ -945,7 +945,7 @@ function formTree(tokens: Array<Token>) {
           attribute.node = node;
           // If the attribute is possessive, check to see if it is an entity
           if (node.hasProperty(TokenProperties.POSSESSIVE) || node.hasProperty(TokenProperties.BACKRELATIONSHIP)) {
-            let entity = findEntityByID(`${attribute.value}`); // @HACK force string | number into string
+            let entity = findEntity(`${attribute.value}`); // @HACK force string | number into string
             if (entity != undefined) {
               entity.entityAttribute = true;
               entity.variable = attribute.variable;
@@ -1017,7 +1017,7 @@ function formTree(tokens: Array<Token>) {
               context.attributes.push(attribute);
               node.found = true;              
             } else {
-              let entity = findEntityByID(linkID);
+              let entity = findEntity(linkID);
               if (entity !== undefined) {
                 // @TODO handle entities
               }
@@ -1059,7 +1059,7 @@ function formTree(tokens: Array<Token>) {
     // If the node is possessive or proper, it's probably an entity
     if (!node.found && (node.hasProperty(TokenProperties.POSSESSIVE) || node.hasProperty(TokenProperties.PROPER))) {
       log("Possessive or Proper: finding entity");
-      let entity = findEntityByDisplayName(node.name);
+      let entity = findEntity(node.name);
       if (entity !== undefined) {
         context.entities.push(entity);
         entity.node = node;
@@ -1086,7 +1086,7 @@ function formTree(tokens: Array<Token>) {
           context.collections.push(collection);
           node.found = true;
         } else {
-          let entity = findEntityByDisplayName(node.name);
+          let entity = findEntity(node.name);
           if (entity !== undefined) {
             context.entities.push(entity);
             entity.node = node;
@@ -1179,7 +1179,7 @@ function formTree(tokens: Array<Token>) {
                 context.attributes.push(attribute);
                 maybeAttr.node.found = true;              
               } else {
-                let entity = findEntityByID(linkID);
+                let entity = findEntity(linkID);
                 if (entity !== undefined) {
                   // @TODO handle entities
                 }
@@ -1438,48 +1438,41 @@ interface Attribute {
 // 1) the name is not found in "display name"
 // 2) the name is found in "display name" but not found in "entity"
 // can 2) ever happen?
-function findEntityByDisplayName(name: string): Entity {
-  log("Searching for entity: " + name);
-  let display = eve.findOne("display name",{ name: name });
+// Returns the collection with the given display name.
+export function findEntity(search: string): Entity {
+  log("Searching for collection: " + search);
+  let foundEntity;
+  let name: string;
+  // Try to find by display name first
+  let display = eve.findOne("display name",{ name: search });
   if (display !== undefined) {
-    let foundEntity = eve.findOne("entity", { entity: display.id });
-    if (foundEntity !== undefined) {
-      let entity: Entity = {
-        id: foundEntity.entity,
-        displayName: name,
-        content: foundEntity.content,
-        variable: foundEntity.entity,
-        entityAttribute: false,
-        project: false,
-      }
-      log(" Found: " + name);
-      return entity;
-    }
+    foundEntity = eve.findOne("entity", { entity: display.id });
+    name = search;
+  // If we didn't find it that way, try again by ID
+  } else {
+    foundEntity = eve.findOne("entity", { entity: search });
   }
-  log(" Not found: " + name);
-  return undefined;
-}
-
-function findEntityByID(id: string): Entity {  
-  log("Searching for entity: " + id);
-  let foundEntity = eve.findOne("entity", { entity: id });
+  // Build the collection
   if (foundEntity !== undefined) {
-    let display = eve.findOne("display name",{ id: id });
-    if (display !== undefined) {
-      let entity: Entity = {
-        id: foundEntity.entity,
-        displayName: display.name,
-        content: foundEntity.content,
-        variable: foundEntity.entity,
-        entityAttribute: false,
-        project: false,
-      }
-      log(" Found: " + display.name);
-      return entity; 
+    if (name === undefined) {
+      display = eve.findOne("display name",{ id: search });
+      name = display.name;  
     }
+    let entity: Entity = {
+      id: foundEntity.entity,
+      displayName: name,
+      content: foundEntity.content,
+      variable: foundEntity.entity,
+      entityAttribute: false,
+      project: true,
+    }
+    console.log(entity)
+    log(" Found: " + name);
+    return entity;
+  } else {
+    log(" Not found: " + search);
+    return undefined;  
   }
-  log(" Not found: " + id);
-  return undefined;
 }
 
 // Returns the collection with the given display name.
@@ -1848,11 +1841,11 @@ function formQuery(tree: Node): Query {
       project.fields.push(attributeField);    
     } else if (node.collection !== undefined) {
       let collection = node.collection;
-      let collectionField: Field = {name: `${collection.displayName}`, value: `${collection.displayName}`, variable: true};
+      let collectionField: Field = {name: `${collection.displayName.replace(new RegExp(" ", 'g'),"")}`, value: `${collection.displayName}`, variable: true};
       project.fields.push(collectionField);
     } else if (node.entity !== undefined) {
       let entity = node.entity;
-      let entityField: Field = {name: `${entity.displayName}`, value: `${entity.id}`, variable: false};
+      let entityField: Field = {name: `${entity.displayName.replace(new RegExp(" ", 'g'),"")}`, value: `${entity.id}`, variable: false};
       project.fields.push(entityField);
     }
   });
