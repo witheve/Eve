@@ -189,6 +189,7 @@ enum TokenProperties {
   COMPOUND,
   QUOTED,
   FUNCTION,
+  GROUPING,
 }
 
 // take an input string, extract tokens
@@ -300,6 +301,7 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
           break;
         case "per":
           token.properties.push(TokenProperties.BACKRELATIONSHIP); 
+          token.properties.push(TokenProperties.GROUPING);
           break;
         case "all":
           token.POS = MinorPartsOfSpeech.PDT;
@@ -755,7 +757,8 @@ interface Context {
   collections: Array<Collection>,
   attributes: Array<Attribute>,
   fxns: Array<BuiltInFunction>,
-  maybeEntities: Array<Token>
+  groupings: Array<Token>,
+  maybeEntities: Array<Token>,
   maybeAttributes: Array<Token>,
   maybeCollections: Array<Token>,
   maybeFunction: Array<Token>,
@@ -767,6 +770,7 @@ function newContext(): Context {
     collections: [],
     attributes: [],
     fxns: [],
+    groupings: [],
     maybeEntities: [],
     maybeAttributes: [],
     maybeCollections: [],
@@ -869,8 +873,12 @@ function formTree(tokens: Array<Token>) {
         }
       }
     // Heuristic: If the node is "of", confer its properties onto its parent and delete the node
-    } else if (node.hasProperty(TokenProperties.BACKRELATIONSHIP) && (node.name === "of" || node.name === "per")) {
+    } else if (node.hasProperty(TokenProperties.BACKRELATIONSHIP) && node.name === "of") {
       node.parent.properties.push(TokenProperties.BACKRELATIONSHIP);
+      removeNode(node);
+    } else if (node.name === "per") {
+      node.parent.properties.push(TokenProperties.BACKRELATIONSHIP);
+      node.parent.properties.push(TokenProperties.GROUPING);
       removeNode(node);
     // Heuristic: Remove determiners
     } else if (node.token.POS === MinorPartsOfSpeech.DT) {
@@ -1250,7 +1258,7 @@ interface Attribute {
 // can 2) ever happen?
 // Returns the collection with the given display name.
 export function findEveEntity(search: string): Entity {
-  log("Searching for collection: " + search);
+  log("Searching for entity: " + search);
   let foundEntity;
   let name: string;
   // Try to find by display name first
@@ -1356,7 +1364,7 @@ interface Relationship {
 function findCollectionToAttrRelationship(coll: string, attr: string): Relationship {
   // Finds a direct relationship between collection and attribute
   // e.g. "pets' lengths"" => pet -> snake -> length
-  log(`Finding relationship between ${coll} and ${attr}...`);
+  log(`Finding relationship between "${coll}" and "${attr}"...`);
   let relationship = eve.query(``)
     .select("collection entities", { collection: coll }, "collection")
     .select("entity eavs", { entity: ["collection", "entity"], attribute: attr }, "eav")
@@ -1480,7 +1488,7 @@ function findCollectionAttribute(node: Node, collection: Collection, context: Co
       nNode.attribute = collectionAttribute;
       context.attributes.push(collectionAttribute);
       nNode.found = true;
-      /*// Build an attribute for the referenced
+      // Build an attribute for the referenced node
       let attribute: Attribute = {
         id: node.name,
         displayName: node.name,
@@ -1491,7 +1499,7 @@ function findCollectionAttribute(node: Node, collection: Collection, context: Co
         project: true,
       }
       node.attribute = attribute;
-      context.attributes.push(attribute);*/
+      context.attributes.push(attribute);
       node.found = true; 
       return true;             
     } else {
@@ -1555,10 +1563,16 @@ function findCollection(node: Node, context: Context): boolean {
     collection.node = node;
     node.collection = collection;
     node.found = true;
+    if (node.hasProperty(TokenProperties.GROUPING)) {
+      context.groupings.push(node.token);
+    }
     return true;
   // Singularize and try to find a collection
   } else {
     let singularized = singularize(node.name);
+    if (singularized == node.name) {
+      return false;
+    }
     let collection = findEveCollection(singularized);
     if (collection !== undefined) {
       node.token.POS = MinorPartsOfSpeech.NN;
@@ -1567,6 +1581,9 @@ function findCollection(node: Node, context: Context): boolean {
       collection.node = node;
       context.collections.push(collection);
       node.found = true;
+      if (node.hasProperty(TokenProperties.GROUPING)) {
+        context.groupings.push(node.token);
+      }
       return true;
     }
   }
@@ -1580,6 +1597,9 @@ function findEntity(node: Node, context: Context): boolean {
     entity.node = node;
     node.entity = entity;
     node.found = true;
+    if (node.hasProperty(TokenProperties.GROUPING)) {
+      context.groupings.push(node.token);
+    }
     return true;
   }
   return false;
