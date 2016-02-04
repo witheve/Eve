@@ -90,7 +90,7 @@ export class RichTextEditor {
     this.meta = {};
     let extraKeys = mergeObject(copy(defaultKeys), options.keys || {});
     this.cmInstance = <CodeMirror.Editor>CodeMirror(node, {
-      mode: "gfm",
+      mode: "eve",
       lineWrapping: true,
       autoCloseBrackets: true,
       viewportMargin: Infinity,
@@ -113,6 +113,8 @@ export class RichTextEditor {
   }
 
   showFormatBar() {
+    //@ TODO: re-enable the format bar
+    return;
     this.showingFormatBar = true;
     var renderer = new Renderer();
     var cm = this.cmInstance;
@@ -234,6 +236,7 @@ export function createEditor(node, elem) {
             mark.clear();
           }
           let newMark = cm.markText(cm.posFromIndex(cell.start), cm.posFromIndex(cell.start + cell.length), {replacedWith: dom});
+          newMark.cell = cell;
           dom["mark"] = newMark;
           editor.marks[cell.id] = newMark;
         }
@@ -248,3 +251,30 @@ export function createEditor(node, elem) {
   }
   cm.refresh();
 }
+
+
+CodeMirror.defineMode("eve", function() {
+  return {
+    startState: () => {
+      return {};
+    },
+    token: function(stream, state) {
+      console.log(state);
+      if(stream.sol() && stream.peek() === "#") {
+        state.header = true;
+        stream.eatWhile("#");
+        state.headerNum = stream.current().length;
+        return `header-indicator header-indicator-${state.headerNum}`;
+      } else if(state.header) {
+        stream.skipToEnd();
+        state.header = false;
+        return `header header-${state.headerNum}`;
+      } else {
+        state.header = false;
+        stream.skipToEnd();
+      }
+    }
+  };
+});
+
+CodeMirror.defineMIME("text/x-eve", "eve");

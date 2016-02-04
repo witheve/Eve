@@ -366,6 +366,7 @@ let directoryTileLayouts:MasonryLayout[] = [
   }},
   {size: 1, c: "normal", grouped: 2}
 ];
+let directoryTileStyles = ["tile-style-1", "tile-style-2", "tile-style-3", "tile-style-4", "tile-style-5", "tile-style-6", "tile-style-7"];
 
 interface DirectoryElem extends Element { entities:string[], data?:any }
 export function directory(elem:DirectoryElem):Element {
@@ -413,7 +414,7 @@ export function directory(elem:DirectoryElem):Element {
     //   (entity) => ({c: "spaced-row flex-row", children: [link({entity, data}), {c: "flex-grow"}, {text: dbgText(entity)}]})
     // )},
 
-    masonry({c: "directory-listing", layouts: directoryTileLayouts, children: collections.map(formatTile)}),
+    masonry({c: "directory-listing", layouts: directoryTileLayouts, styles: directoryTileStyles, children: collections.map(formatTile)}),
 
     
     {t: "hr"},
@@ -421,7 +422,7 @@ export function directory(elem:DirectoryElem):Element {
     //   (entity) => ({c: "spaced-row flex-row", children: [link({entity, data}), {c: "flex-grow"}, {text: dbgText(entity)}]})
     // )},
 
-    masonry({c: "directory-listing", layouts: directoryTileLayouts, children: entities.map(formatTile)}),
+    masonry({c: "directory-listing", layouts: directoryTileLayouts, styles: directoryTileStyles, children: entities.map(formatTile)}),
     
     {t: "hr"},
     {c: "flex-column", children: systems.map(
