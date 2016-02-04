@@ -202,3 +202,12 @@ content .error-rep { color: #FF3333; }
 .directory-listing.masonry {  min-width: 480px; } /* @FIXME */
 .directory-listing.masonry .masonry-row { height: 96px; }
 .directory-listing.masonry .tile { margin: 4px; background: #eee; justify-content: center; align-items: center; }
+
+/* Background patterns from subtlepatterns.com */
+.directory-listing.masonry .tile.tile-style-1 { }
+.directory-listing.masonry .tile.tile-style-2 { }
+.directory-listing.masonry .tile.tile-style-3 { }
+.directory-listing.masonry .tile.tile-style-4 { }
+.directory-listing.masonry .tile.tile-style-5 { }
+.directory-listing.masonry .tile.tile-style-6 { }
+.directory-listing.masonry .tile.tile-style-7 { }
