@@ -1826,7 +1826,7 @@ function formQuery(tree: Node): Query {
     type: "project!",
     fields: [],
   }
-  /*projectedNodes.map((node) => {
+  projectedNodes.map((node) => {
     if (node.attribute !== undefined && node.attribute.project) {
       let entity = node.attribute.entity;
       let collection = node.attribute.collection;
@@ -1834,7 +1834,7 @@ function formQuery(tree: Node): Query {
         let entityField: Field = {name: `${entity.displayName.replace(new RegExp(" ", 'g'),"")}`, value: `${entity.entityAttribute ? entity.variable : entity.id}`, variable: entity.entityAttribute};
         project.fields.push(entityField);  
       } else if (collection !== undefined) {
-        let collectionField: Field = {name: `${collection.displayName.replace(new RegExp(" ", 'g'),"")}`, value: `${collection.displayName}`, variable: collection.variable};
+        let collectionField: Field = {name: `${collection.displayName.replace(new RegExp(" ", 'g'),"")}`, value: `${collection.displayName}`, variable: true};
         project.fields.push(collectionField);
       }
       let attribute = node.attribute;
@@ -1864,7 +1864,7 @@ function formQuery(tree: Node): Query {
   
   if (project.fields.length !== 0) {
     query.projects.push(project);  
-  }*/
+  }
   
   return query;
 }
