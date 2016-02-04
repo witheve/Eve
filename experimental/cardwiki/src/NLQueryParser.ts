@@ -4,6 +4,10 @@ declare var pluralize;
 declare var nlp;
 declare var uuid;
 
+// ----------------------------------------------------------------------------
+// User-Facing functions
+// ----------------------------------------------------------------------------
+
 export interface ParseResult {
   tokens: Array<Token>,
   tree: Node,
@@ -80,7 +84,7 @@ export function preprocessQueryString(queryString: string): Array<PreToken> {
 // Token functions
 // ----------------------------------------------------------------------------
 
-export interface PreToken {
+interface PreToken {
   ix: number,
   text: string,
   tag: string,
@@ -191,6 +195,17 @@ enum TokenProperties {
   FUNCTION,
   GROUPING,
 }
+
+// Finds a given property in a token
+function hasProperty(token: Token, property: TokenProperties): boolean {
+  let found = this.properties.indexOf(property);
+  if (found !== -1) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
 
 // take an input string, extract tokens
 function formTokens(preTokens: Array<PreToken>): Array<Token> {
@@ -552,112 +567,6 @@ function singularize(word: string): string {
 // Tree functions
 // ----------------------------------------------------------------------------
 
-// take tokens, form a parse tree
-function formNounGroups(tokens: Array<Token>): Array<Node> {
-
-  let processedTokens = 0;
-  
-  // noun types ORGANIZATION, PERSON, THING, ANIMAL, LOCATION, DATE, TIME, MONEY, and GEOPOLITICAL
-  
-  // Find noun groups. These are like noun phrases, but smaller. A noun phrase may be a single noun group
-  // or it may consist of several noun groups. e.g. "the yellow dog who lived in the town ran away from home".
-  // here, the noun phrase "the yellow dog who lived in the town" is a noun phrase consisting of the noun
-  // groups "the yellow dog" and "the town"
-  // Modifiers that come before a noun: articles, possessive nouns/pronouns, adjectives, participles
-  // Modifiers that come after a noun: prepositional phrases, adjective clauses, participle phrases, infinitives
-  // Less frequently, noun phrases have pronouns as a base 
-  let i = 0;
-  let nounGroups: Array<Node> = [];
-  let lastFoundNounIx = 0;
-  for (let token of tokens) {
-    // If the token is a noun, start a noun group
-    if (getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN && token.node === undefined) {
-      let nounGroup: Node = newNode(token);
-      
-      // Now we need to pull in other words to attach to the noun. We have some hueristics for that!
-      
-      // Heuristic: search left until we find a predeterminer. Everything between is part of the noun group
-      let firstDeterminerIx = null;
-      let latestPrepositionIx = null;
-      let latestAdjectiveIx = null;
-      let verbBoundary = null;
-      let conjunctionBoundary = null;
-      let separatorBoundary = null;
-      for (let j = i-1; j >= lastFoundNounIx; j--) {
-        // We look backwards from the current noun token
-        let backtrackToken: Token = tokens[j];
-        // First look for a predeterminer "such (PDT) a(DT) good time".
-        if (backtrackToken.POS === MinorPartsOfSpeech.PDT) {
-          firstDeterminerIx = j;
-          break;
-        // Keep track of the ix of the latest determiner "the (DT) golden dog"
-        } else if (backtrackToken.POS === MinorPartsOfSpeech.DT) {
-          if (firstDeterminerIx === null) {
-            firstDeterminerIx = j;  
-          }
-        // Keep track of the ix of the latest preposition
-        } else if (backtrackToken.POS === MinorPartsOfSpeech.IN) {
-          latestPrepositionIx = j;
-        // Keep track of the ix of the latest adjective
-        } else if (getMajorPOS(backtrackToken.POS) === MajorPartsOfSpeech.ADJECTIVE) {
-          latestAdjectiveIx = j;
-        // If we find a verb, we've gone too far
-        } else if (getMajorPOS(backtrackToken.POS) === MajorPartsOfSpeech.VERB) {
-          verbBoundary = j;
-          break;
-        // If we find a conjuntion, we've gone too far
-        } else if (backtrackToken.POS === MinorPartsOfSpeech.CC) {
-          conjunctionBoundary = j;
-          break;
-        }
-        // If we find a separator, we've gone to far
-        else if (backtrackToken.POS === MinorPartsOfSpeech.SEP) {
-          separatorBoundary = j;
-          break;
-        }
-      }
-      
-      // If we found a determiner, gobble up tokens between the latest determiner and the noun
-      if (firstDeterminerIx !== null) {
-        nounGroup = subsumeTokens(nounGroup,firstDeterminerIx,tokens);
-      }
-      // Heuristic: search to the left for a preposition
-      if (latestPrepositionIx !== null && latestPrepositionIx < nounGroup.ix) {
-        nounGroup = subsumeTokens(nounGroup,latestPrepositionIx,tokens);
-      }
-      // Heuristic: search to the left for an adjective
-      if (latestAdjectiveIx !== null && latestAdjectiveIx < nounGroup.ix) {
-        nounGroup = subsumeTokens(nounGroup,latestAdjectiveIx,tokens);
-      }
-      
-      nounGroups.push(nounGroup);
-      lastFoundNounIx = i;
-    }
-    // End noun group formation
-    i++;
-  }
-  
-  // Heuristic: Leftover determiners are themselves a noun group 
-  // e.g. neither of these boys. ng = ([neither],[of these boys])
-  let unusedDeterminers = tokens.filter((token) => token.node === undefined && token.POS === MinorPartsOfSpeech.DT);
-  for (let token of unusedDeterminers) {
-    nounGroups.push(newNode(token));  
-  }
-  
-  // Sort the noun groups to reflect their order in the root sentence
-  nounGroups = nounGroups.sort((ngA, ngB) => ngA.ix - ngB.ix);
-  return nounGroups;
-}
-
-// Adds a child token to a noun group and subsumes its properties. Marks token as used
-function addChildToNounGroup(nounGroup: Node, token: Token) {
-  let tokenNode = newNode(token);
-  nounGroup.children.push(tokenNode);
-  nounGroup.children.sort((a,b) => a.ix - b.ix);
-  tokenNode.parent = nounGroup;
-  //nounGroup.properties = nounGroup.properties.concat(token.properties);
-}
-
 interface Node {
   ix: number,
   name: string,
@@ -672,23 +581,6 @@ interface Node {
   properties: Array<TokenProperties>,
   hasProperty(TokenProperties): boolean;
   toString(): string;
-}
-
-// Transfer noun group properties to a node
-function subsumeProperties(node: Node, nounGroup: Node) {
-  node.properties = nounGroup.properties;
-  // Make sure the properties are unique  
-  node.properties = node.properties.filter(onlyUnique);
-}
-
-// Finds a given property in a token
-function hasProperty(token: Token, property: TokenProperties): boolean {
-  let found = token.properties.indexOf(property);
-  if (found !== -1) {
-    return true;
-  } else {
-    return false;
-  }
 }
 
 function newNode(token: Token): Node {
@@ -801,6 +693,129 @@ function wordToFunction(word: string): BuiltInFunction {
     default:
       return undefined;
   }
+}
+
+// take tokens, form a parse tree
+function formNounGroups(tokens: Array<Token>): Array<Node> {
+
+  let processedTokens = 0;
+  
+  // noun types ORGANIZATION, PERSON, THING, ANIMAL, LOCATION, DATE, TIME, MONEY, and GEOPOLITICAL
+  
+  // Find noun groups. These are like noun phrases, but smaller. A noun phrase may be a single noun group
+  // or it may consist of several noun groups. e.g. "the yellow dog who lived in the town ran away from home".
+  // here, the noun phrase "the yellow dog who lived in the town" is a noun phrase consisting of the noun
+  // groups "the yellow dog" and "the town"
+  // Modifiers that come before a noun: articles, possessive nouns/pronouns, adjectives, participles
+  // Modifiers that come after a noun: prepositional phrases, adjective clauses, participle phrases, infinitives
+  // Less frequently, noun phrases have pronouns as a base 
+  let i = 0;
+  let nounGroups: Array<Node> = [];
+  let lastFoundNounIx = 0;
+  for (let token of tokens) {
+    // If the token is a noun, start a noun group
+    if (getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN && token.node === undefined) {
+      let nounGroup: Node = newNode(token);
+      
+      // Now we need to pull in other words to attach to the noun. We have some hueristics for that!
+      
+      // Heuristic: search left until we find a predeterminer. Everything between is part of the noun group
+      let firstDeterminerIx = null;
+      let latestPrepositionIx = null;
+      let latestAdjectiveIx = null;
+      let verbBoundary = null;
+      let conjunctionBoundary = null;
+      let separatorBoundary = null;
+      for (let j = i-1; j >= lastFoundNounIx; j--) {
+        // We look backwards from the current noun token
+        let backtrackToken: Token = tokens[j];
+        // First look for a predeterminer "such (PDT) a(DT) good time".
+        if (backtrackToken.POS === MinorPartsOfSpeech.PDT) {
+          firstDeterminerIx = j;
+          break;
+        // Keep track of the ix of the latest determiner "the (DT) golden dog"
+        } else if (backtrackToken.POS === MinorPartsOfSpeech.DT) {
+          if (firstDeterminerIx === null) {
+            firstDeterminerIx = j;  
+          }
+        // Keep track of the ix of the latest preposition
+        } else if (backtrackToken.POS === MinorPartsOfSpeech.IN) {
+          latestPrepositionIx = j;
+        // Keep track of the ix of the latest adjective
+        } else if (getMajorPOS(backtrackToken.POS) === MajorPartsOfSpeech.ADJECTIVE) {
+          latestAdjectiveIx = j;
+        // If we find a verb, we've gone too far
+        } else if (getMajorPOS(backtrackToken.POS) === MajorPartsOfSpeech.VERB) {
+          verbBoundary = j;
+          break;
+        // If we find a conjuntion, we've gone too far
+        } else if (backtrackToken.POS === MinorPartsOfSpeech.CC) {
+          conjunctionBoundary = j;
+          break;
+        }
+        // If we find a separator, we've gone to far
+        else if (backtrackToken.POS === MinorPartsOfSpeech.SEP) {
+          separatorBoundary = j;
+          break;
+        }
+      }
+      
+      // If we found a determiner, gobble up tokens between the latest determiner and the noun
+      if (firstDeterminerIx !== null) {
+        nounGroup = subsumeTokens(nounGroup,firstDeterminerIx,tokens);
+      }
+      // Heuristic: search to the left for a preposition
+      if (latestPrepositionIx !== null && latestPrepositionIx < nounGroup.ix) {
+        nounGroup = subsumeTokens(nounGroup,latestPrepositionIx,tokens);
+      }
+      // Heuristic: search to the left for an adjective
+      if (latestAdjectiveIx !== null && latestAdjectiveIx < nounGroup.ix) {
+        nounGroup = subsumeTokens(nounGroup,latestAdjectiveIx,tokens);
+      }
+      
+      nounGroups.push(nounGroup);
+      lastFoundNounIx = i;
+    }
+    // End noun group formation
+    i++;
+  }
+  
+  // Heuristic: Leftover determiners are themselves a noun group 
+  // e.g. neither of these boys. ng = ([neither],[of these boys])
+  let unusedDeterminers = tokens.filter((token) => token.node === undefined && token.POS === MinorPartsOfSpeech.DT);
+  for (let token of unusedDeterminers) {
+    nounGroups.push(newNode(token));  
+  }
+  
+  // Sort the noun groups to reflect their order in the root sentence
+  nounGroups = nounGroups.sort((ngA, ngB) => ngA.ix - ngB.ix);
+  return nounGroups;
+}
+
+function subsumeTokens(nounGroup: Node, ix: number, tokens: Array<Token>): Node {
+  for (let j = ix ; j < nounGroup.ix; j++) {
+    let token: Token = tokens[j];
+    if (token.node === undefined) {
+      addChildToNounGroup(nounGroup,token);  
+    }
+  }
+  return nounGroup;
+}
+
+// Adds a child token to a noun group and subsumes its properties. Marks token as used
+function addChildToNounGroup(nounGroup: Node, token: Token) {
+  let tokenNode = newNode(token);
+  nounGroup.children.push(tokenNode);
+  nounGroup.children.sort((a,b) => a.ix - b.ix);
+  tokenNode.parent = nounGroup;
+  //nounGroup.properties = nounGroup.properties.concat(token.properties);
+}
+
+// Transfer noun group properties to a node
+function subsumeProperties(node: Node, nounGroup: Node) {
+  node.properties = nounGroup.properties;
+  // Make sure the properties are unique  
+  node.properties = node.properties.filter(onlyUnique);
 }
 
 function formTree(tokens: Array<Token>) {  
@@ -1221,6 +1236,8 @@ function swapNodeWithParent(node: Node): void {
   node.parent.children.splice(node.parent.children.indexOf(parent),1);
 }
 
+// EAV Functions
+
 interface Entity {
   id: string,
   displayName: string,
@@ -1606,18 +1623,8 @@ function findEntity(node: Node, context: Context): boolean {
   return false;
 }
 
-function subsumeTokens(nounGroup: Node, ix: number, tokens: Array<Token>): Node {
-  for (let j = ix ; j < nounGroup.ix; j++) {
-    let token: Token = tokens[j];
-    if (token.node === undefined) {
-      addChildToNounGroup(nounGroup,token);  
-    }
-  }
-  return nounGroup;
-}
-
 // ----------------------------------------------------------------------------
-// query functions
+// Query functions
 // ----------------------------------------------------------------------------
 
 interface Field {
@@ -1690,10 +1697,10 @@ export function newQuery(terms: Array<Term>): Query {
 }
 
 // Build terms from a node using a DFS algorithm
-function buildQuery(node: Node): Query {
+function treeToQuery(node: Node): Query {
   let terms: Array<Term> = [];
   // Build a term for each of the children
-  let childQueries = node.children.map(buildQuery);
+  let childQueries = node.children.map(treeToQuery);
   // Fold the child terms into the term array
   childQueries.forEach((cQuery) => {
     if (cQuery.projects.length === 0 && cQuery.subqueries.length === 0) {
@@ -1803,7 +1810,7 @@ function buildQuery(node: Node): Query {
 function formQuery(tree: Node): Query {
   
   // Walk the tree, parsing each node as we go along
-  let query = buildQuery(tree);
+  let query = treeToQuery(tree);
   
   // Build the project
   let projectedNodes: Array<Node> = [];
