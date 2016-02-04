@@ -2,7 +2,6 @@ import {unpad, titlecase, builtinId} from "./utils"
 import * as runtime from "./runtime"
 import * as app from "./app"
 import {eve} from "./app"
-import {queryToExecutable} from "./queryParser.ts"
 import {UIElem, parseDSL, Artifacts} from "./parser"
 import {UI} from "./uiRenderer"
 
@@ -13,11 +12,6 @@ declare var uuid;
 // Utilities
 //-----------------------------------------------------------------------------
 
-function queryFromSearch(search:string):runtime.Query {
-  let result = queryToExecutable(search);
-  result.executable.ordinal()
-  return result.executable;
-}
 // export function UIFromDSL(str:string):UI {
 //   function processElem(data:UIElem):UI {
 //     let elem = new UI(data.id || uuid());
@@ -190,9 +184,6 @@ class BSPhase {
 //-----------------------------------------------------------------------------
 // Runtime Setup
 //-----------------------------------------------------------------------------
-runtime.define("parse natural", {multi: true}, function(text:string) {
-  return queryToExecutable(text).plan;
-});
 
 app.init("bootstrap", function bootstrap() {
   //-----------------------------------------------------------------------------

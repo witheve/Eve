@@ -8,7 +8,6 @@ import {createEditor} from "./richTextEditor";
 import {Element, Handler, RenderHandler, Renderer} from "./microReact";
 import * as uitk from "./uitk";
 import {eve, handle as appHandle, dispatch, activeSearches, renderer} from "./app";
-import {StepType, queryToExecutable} from "./queryParser";
 import {parseDSL} from "./parser";
 import {parse as nlparse, StateFlags, FunctionTypes} from "./NLQueryParser";
 
