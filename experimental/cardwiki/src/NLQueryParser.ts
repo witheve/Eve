@@ -1806,10 +1806,6 @@ function formQuery(tree: Node): Query {
   // Walk the tree, parsing each node as we go along
   let query = buildQuery(tree);
   
-  console.log("FOOO")
-  console.log(query);
-  console.log(query.toString());
-  
   // Build the project
   let projectedNodes: Array<Node> = [];
   function flattenTree(node: Node) {
