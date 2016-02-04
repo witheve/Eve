@@ -167,6 +167,18 @@ interface Token {
   node?: Node,
 }
 
+function cloneToken(token: Token): Token {
+  let clone: Token = {
+    ix: token.ix,
+    originalWord: token.originalWord,
+    normalizedWord: token.normalizedWord,
+    POS: token.POS,
+    properties: [],
+  };
+  token.properties.forEach((property) => clone.properties.push(property));
+  return clone;
+}
+
 function newToken(word: string): Token {
   let token = {
     ix: 0,
@@ -583,6 +595,18 @@ interface Node {
   toString(): string;
 }
 
+function cloneNode(node: Node): Node {
+  let token = cloneToken(node.token);
+  let cloneNode = newNode(token);
+  cloneNode.entity = node.entity;
+  cloneNode.collection = node.collection;
+  cloneNode.attribute = node.attribute;
+  cloneNode.fxn = node.fxn;
+  cloneNode.found = node.found;
+  node.properties.forEach((property) => cloneNode.properties.push(property));
+  return cloneNode;
+}
+
 function newNode(token: Token): Node {
   let node: Node = {
     ix: token.ix,
@@ -914,7 +938,7 @@ function formTree(tokens: Array<Token>) {
         };
         newToken.properties.push(TokenProperties.COMPOUND);
         let childProperties = node.children.map((child) => child.properties);
-        let flatProperties = [].concat.apply([],childProperties);
+        let flatProperties = flattenNestedArray(childProperties);
         newToken.properties = newToken.properties.concat(flatProperties);
         newToken.properties = newToken.properties.filter(onlyUnique);
         let newProperNode = newNode(newToken);
@@ -1134,7 +1158,21 @@ function formTree(tokens: Array<Token>) {
     });    
   }   
   log(tree.toString());
+  log("Rewire aggregates...");
+  let aggregateNodes = context.fxns.filter((fxn) => fxn.type === FunctionTypes.AGGREGATE).map((n) => n.node);  
+  let aggregate: BuiltInFunction;
+  let aggNode;
+  for (aggNode of aggregateNodes) {
+    let leafs = findLeafNodes(aggNode);  
+    leafs.forEach((leafNode) => {
+      let newAgg = cloneNode(aggNode);
+      leafNode.children.push(newAgg);
+      newAgg.parent = leafNode;
+    });
+    removeNode(aggNode);
+  }   
   
+  log(tree.toString());
   return {tree: tree, context: context};
 }
 
@@ -1144,6 +1182,18 @@ function reroot(node: Node, target: Node): void {
   node.parent = target;
   target.children.push(node);
 }
+
+// Find all leaf nodes stemming from a given node
+function findLeafNodes(node: Node): Array<Node> {
+  if(node.children.length === 0) {
+    return [node];
+  }
+  else {
+    let foundLeafs = node.children.map(findLeafNodes);
+    let flatLeafs = flattenNestedArray(foundLeafs);
+    return flatLeafs;
+  }
+} 
 
 function moveNode(node: Node, target: Node): void {
   if (node.hasProperty(TokenProperties.ROOT)) {
@@ -1752,11 +1802,11 @@ function treeToQuery(node: Node): Query {
       fields: fields,
     }
     
-    if (node.children[0].hasProperty(TokenProperties.GROUPING)) {
+    /*if (node.children[0].hasProperty(TokenProperties.GROUPING)) {
       query.subqueries[0].terms.push(term);
       console.log(query.toString());
       return query;
-    }
+    }*/
     terms.push(term);
   }
   // Attribute terms
@@ -1905,6 +1955,11 @@ export function tokenArrayToString(tokens: Array<Token>): string {
 // ----------------------------------------------------------------------------
 // Utility functions
 // ----------------------------------------------------------------------------
+
+function flattenNestedArray(nestedArray: Array<Array<any>>): Array<any> {
+  let flattened: Array<any> = [].concat.apply([],nestedArray);
+  return flattened;
+}
 
 function onlyUnique(value, index, self) { 
   return self.indexOf(value) === index;
