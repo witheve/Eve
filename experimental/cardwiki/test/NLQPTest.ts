@@ -119,6 +119,7 @@ function executeQuery(query: nlqp.Query): Array<string> {
       }).join(" | ");
       let divider = Array(tableHeader.length).join("-");
       let resultTable = divider += "\n" + tableHeader + "\n" + divider + "\n" + rowStrings.join("\n") + "\n" + divider; 
+      resultsString.push(resultTable);
     });
   }
   return resultsString;
@@ -140,7 +141,7 @@ let phrases = [
   "employees and their salaries",
   "salaries per department",*/
   // -------------------------------
-  "sum salaries per department"
+  "Corey Montella's age and height"
   //"Corey Montella's wife's age",
   //"Pet lengths",
   //"Corey Montella's age, height, and gender",
