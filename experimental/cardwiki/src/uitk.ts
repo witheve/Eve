@@ -305,7 +305,7 @@ export function value(elem:ValueElem):Element {
 
 interface TableElem extends Element { rows: {}[], sortable?: boolean, editCell?: Handler<Event>, editRow?: Handler<Event>, editField?: Handler<Event>, ignoreFields?: string[], ignoreTemp?: boolean, data?: any }
 export function table(elem:TableElem):Element {
-    let {rows, ignoreFields = ["__id"], sortable = true, ignoreTemp = true, data = undefined, noHeader = false} = elem;
+    let {rows, ignoreFields = ["__id"], sortable = false, ignoreTemp = true, data = undefined, noHeader = false} = elem;
   if(!rows.length) {
     elem.text = "<Empty Table>";
     return elem;

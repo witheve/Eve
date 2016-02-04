@@ -369,9 +369,10 @@ function cellUI(paneId, query, cell):Element {
 function queryUIInfo(query) {
   let [content, rawParams] = query.split("|");
   let embedType;
-  let params = getCellParams(content, rawParams);
+  // let params = getCellParams(content, rawParams);
+  let params = parseParams(rawParams);
   let results;
-  if(params["noResults"]) {
+  if(eve.findOne("display name", {id: content}) || eve.findOne("display name", {name: content})) {
     let id = content;
     let display = eve.findOne("display name", {name: content});
     if(display) {
@@ -400,7 +401,6 @@ function getCellParams(content, rawParams) {
   let contentDisplay = eve.findOne("display name", {id: content}) || eve.findOne("display name", {name: content});
   if(contentDisplay) {
     params["rep"] = params["rep"] || "link";
-    params["noResults"] = true;
   } else {
     if(params["rep"]) return params;
 

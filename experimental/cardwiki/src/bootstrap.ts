@@ -79,7 +79,7 @@ class BSPhase {
     let isAs = [];
     for(let kind of kinds) {
       let sourceId = `${entity},is a,${kind}`;
-      isAs.push(`{${kind}|eav source = ${sourceId}}`);
+      isAs.push(`{${kind}|rep=link; eav source = ${sourceId}}`);
       let collEntity = builtinId(kind);
       this.addFact("display name", {id: collEntity, name: kind});
       this.addFact("sourced eav", {entity, attribute: "is a", value: collEntity, source: sourceId})
@@ -96,7 +96,7 @@ class BSPhase {
       for(let attr in attributes) {
         let sourceId = `${entity},${attr},${attributes[attr]}`;
         let query = `${name}'s ${attr}`;
-        content += `${attr}: {${query}|eav source = ${sourceId}}\n`;
+        content += `${attr}: {${query}|rep=value; field=${attr}; eav source = ${sourceId}}\n`;
         let value = this._names[attributes[attr]] || attributes[attr];
         this.addFact("sourced eav", {entity, attribute: attr, value, source: sourceId});
         this.addArtifacts(parseDSL(`(query :$$view "${query}"
