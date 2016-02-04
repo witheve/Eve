@@ -43,7 +43,7 @@ div:hover > header > .controls { opacity: 1; }
 .wiki-pane.fullscreen {}
 .wiki-pane > header { padding: 10px 0.5em; align-items: center; border-bottom: 1px solid #ccc; }
 .wiki-pane > header > * { margin: 0 0.5em;}
-.wiki-pane > content { display: flex; justify-content: center; align-items: center; } /* @TODO: Breakpoints overflow-y: auto*/
+.wiki-pane > content { display: flex; align-items: center; } /* @TODO: Breakpoints overflow-y: auto*/
 
 .wiki-pane { background: #fff; }
 
