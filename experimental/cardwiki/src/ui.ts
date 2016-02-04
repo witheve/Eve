@@ -525,6 +525,7 @@ function autocompleterOptions(entityId, paneId, cell) {
   let parsed = [];
   if(text !== "") {
     parsed = nlparse(text); // @TODO: this should come from the NLP parser once it's hooked up.
+    console.log(parsed);
   }
   // the autocomplete can have multiple states
   let state = cell.state || "query";

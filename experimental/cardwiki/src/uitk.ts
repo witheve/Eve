@@ -198,9 +198,15 @@ export function attributes(elem:EntityElem):Element {
   let {entity} = elem;
   let attributes = [];
   for(let eav of eve.find("entity eavs", {entity})) attributes.push({attribute: eav.attribute, value: eav.value});
+  attributes.sort((a, b) => {
+      if(a.attribute === b.attribute) return 0;
+      else if(a.attribute < b.attribute) return -1;
+      return 1;
+  })
   elem["rows"] = attributes;
   elem["editCell"] = updateEntityValue;
   elem["editRow"] = updateEntityAttributes;
+  elem["noHeader"] = true;
   return table(<any>elem);
 }
 
@@ -300,7 +306,7 @@ export function value(elem:ValueElem):Element {
 
 interface TableElem extends Element { rows: {}[], sortable?: boolean, editCell?: Handler<Event>, editRow?: Handler<Event>, editField?: Handler<Event>, ignoreFields?: string[], ignoreTemp?: boolean, data?: any }
 export function table(elem:TableElem):Element {
-  let {rows, ignoreFields = ["__id"], sortable = false, ignoreTemp = true, data = undefined} = elem;
+    let {rows, ignoreFields = ["__id"], sortable = true, ignoreTemp = true, data = undefined, noHeader = false} = elem;
   if(!rows.length) {
     elem.text = "<Empty Table>";
     return elem;
@@ -384,6 +390,9 @@ export function table(elem:TableElem):Element {
 
   elem.c = `table ${elem.c || ""}`;
   elem.children = [header, body];
+  if(noHeader) {
+      elem.children.shift();
+  }
   return elem;
 }
 
