@@ -31,7 +31,7 @@ export function isEntity(maybeId:string):boolean {
 }
 
 let wordSplitter = /\s+/gi;
-const statWeights = {related: 100, children: 200, words: 1};
+const statWeights = {links: 100, pages: 200, words: 1};
 function classifyEntities(rawEntities:string[]) {
   let entities = rawEntities.slice();
   let collections:string[] = [];
@@ -49,11 +49,10 @@ function classifyEntities(rawEntities:string[]) {
     wordCounts[entity] = content.trim().replace(wordSplitter, " ").split(" ").length;
     let {count:childCount = 0} = eve.findOne("collection", {collection: entity}) || {};
     childCounts[entity] = childCount;
-    console.log(entity, childCount);
     scores[entity] =
-      relatedCounts[entity] * statWeights.related +
+      relatedCounts[entity] * statWeights.links +
       wordCounts[entity] * statWeights.words +
-      childCounts[entity] * statWeights.children;
+      childCounts[entity] * statWeights.pages;
   }
   
   // Separate system entities
@@ -371,7 +370,7 @@ export function table(elem:TableElem):Element {
       return (a === b) ? 0 :
         (a === undefined) ? fwd :
         (b === undefined) ? back :
-        (""+a).localeCompare(""+b, "kn") * fwd;
+        (a > b) ? fwd : back;
     });
   }
   
@@ -414,8 +413,10 @@ let directoryTileLayouts:MasonryLayout[] = [
 ];
 let directoryTileStyles = ["tile-style-1", "tile-style-2", "tile-style-3", "tile-style-4", "tile-style-5", "tile-style-6", "tile-style-7"];
 
+// @TODO: Clean up directory elem
 interface DirectoryElem extends Element { entities:string[], data?:any }
 export function directory(elem:DirectoryElem):Element {
+  const MAX_ENTITIES_BEFORE_OVERFLOW = 14;
   let {entities:rawEntities, data = undefined} = elem;
   let {systems, collections, entities, scores, relatedCounts, wordCounts, childCounts} = classifyEntities(rawEntities);
   let sortByScores = sortByLookup(scores);
@@ -423,16 +424,12 @@ export function directory(elem:DirectoryElem):Element {
   collections.sort(sortByScores);
   systems.sort(sortByScores);
 
-  function dbgText(entity) {
-    return `(${scores[entity]})`;
-  }
-
   // Link to entity
-  // Peek with most significant statistic (e.g. 13 related; or 14 children; or 5000 words)
+  // Peek with most significant statistic (e.g. 13 related; or 14 childrenpages; or 5000 words)
   // Slider pane will all statistics
   // Click opens popup preview
   function formatTile(entity) {
-    let stats = {best:"", related: relatedCounts[entity], children: childCounts[entity], words: wordCounts[entity]};
+    let stats = {best:"", links: relatedCounts[entity], pages: childCounts[entity], words: wordCounts[entity]};
     let maxContribution = 0;
     for(let stat in stats) {
       if(!statWeights[stat]) continue;
@@ -445,27 +442,34 @@ export function directory(elem:DirectoryElem):Element {
     return {size: scores[entity], stats, children: [
       link({entity, data})
     ]};
-    // {stats: {best: "related", related: 14, children: 3, words: 2000}}
+  }
+
+  function formatOverflow(key:string, entities, skipChildren:boolean = false) {
+    let rows = [];
+    for(let entity of entities) {
+      rows.push({
+        name: entity,
+        score: scores[entity],
+        words: wordCounts[entity],
+        links: relatedCounts[entity],
+        pages: childCounts[entity]
+      });
+      if(skipChildren) delete rows[rows.length - 1].pages;
+    }
+    return table({c: "overflow-list", key, rows, sortable: true});
   }
   
-  // @TODO: Highlight important system entities (e.g., entities, collections, orphans, etc.)
-  // @TODO: Include dropdown pane of all other system entities
-  // @TODO: Highlight the X largest user collections. Ghost in examples if not enough (?)
-  // @TODO: Include dropdown pane of all other user collections (sorted alphh or # ?, inc. sorter?)
-  // @TODO: Highlight the X (largest? most related?) entities (ghost examples if not enough (?)
-  // @TODO: Include dropdown pane of other entities  
-  
-  return {c: "flex-column", children: [
-    {t: "h2", text: "Collections"},,
+  // @TODO: Put formatOverflow into a collapsed container.
+  return {c: "directory flex-column", children: [
+    {t: "h2", text: "Collections"},
     masonry({c: "directory-listing", layouts: directoryTileLayouts, styles: directoryTileStyles, children: collections.map(formatTile)}),
 
     {t: "h2", text: "Entities"},
-    masonry({c: "directory-listing", layouts: directoryTileLayouts, styles: directoryTileStyles, children: entities.map(formatTile)}),
+    masonry({c: "directory-listing", layouts: directoryTileLayouts, styles: directoryTileStyles, children: entities.slice(0, MAX_ENTITIES_BEFORE_OVERFLOW).map(formatTile)}),
+    formatOverflow("directory entities overflow", entities, true),
     
-    {t: "h2", text: "System Internal"},
-    {c: "flex-column", children: systems.map(
-      (entity) => ({c: "spaced-row flex-row", children: [link({entity, data}), {c: "flex-grow"}, {text: dbgText(entity)}]})
-    )}
+    {t: "h2", text: "Internals"},
+    formatOverflow("directory system overflow", systems),
   ]};
 }
 

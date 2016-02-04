@@ -211,9 +211,14 @@ content .error-rep { color: #FF3333; }
 .masonry-row > .group.detailed { flex: 1; }
 .masonry-row > .group.normal { flex: 1; }
 
-.directory-listing.masonry {  min-width: 480px; } /* @FIXME */
+/*---------------------------------------------------------
+- Directory
+---------------------------------------------------------*/
+.directory h2 { display: flex; justify-content: center; align-items: center; margin: 4px; padding: 0 1em; height: 40px; border-radius: 2px; }
+
+.directory-listing.masonry {  min-width: 600px; } /* @FIXME */
 .directory-listing.masonry .masonry-row { height: 96px; }
-.directory-listing.masonry .tile { margin: 4px; background: #eee; justify-content: center; align-items: center; }
+.directory-listing.masonry .tile { justify-content: center; align-items: center; margin: 4px; background: #eee; border-radius: 2px; }
 
 /* Background patterns from subtlepatterns.com */
 .directory-listing.masonry .tile.tile-style-1 { }
@@ -223,3 +228,7 @@ content .error-rep { color: #FF3333; }
 .directory-listing.masonry .tile.tile-style-5 { }
 .directory-listing.masonry .tile.tile-style-6 { }
 .directory-listing.masonry .tile.tile-style-7 { }
+
+.table.overflow-list { margin: 4px; }
+.table.overflow-list .column { flex: 0; width: 72px; }
+.table.overflow-list .column:first-child { flex: 1; width: auto; }
