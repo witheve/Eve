@@ -938,91 +938,12 @@ function formTree(tokens: Array<Token>) {
       log("Entity/Collection already found: finding attribute");
       let entity = context.entities[context.entities.length - 1];
       if (entity !== undefined) {
-        let attribute = findEveAttribute(node.name,entity);
-        if (attribute !== undefined) {
-          context.attributes.push(attribute);
-          node.attribute = attribute;
-          attribute.node = node;
-          // If the attribute is possessive, check to see if it is an entity
-          if (node.hasProperty(TokenProperties.POSSESSIVE) || node.hasProperty(TokenProperties.BACKRELATIONSHIP)) {
-            let entity = findEveEntity(`${attribute.value}`); // @HACK force string | number into string
-            if (entity != undefined) {
-              entity.entityAttribute = true;
-              entity.variable = attribute.variable;
-              context.entities.push(entity);
-              entity.node = node;
-              node.entity = entity;
-            }
-          }
-          node.found = true;
-        }
+        findEntityAttribute(node,entity,context);
       // Try to find it as an attribute of a collection
       } else {
         let collection = context.collections[context.collections.length - 1];
         if (collection !== undefined) {
-          let relationship = findCollectionToAttrRelationship(collection.id,node.name);
-          if (relationship.type === RelationshipTypes.DIRECT) {
-            let collectionAttribute: Attribute = {
-              id: node.name,
-              displayName: node.name,
-              collection: collection,
-              value: `${collection.displayName}|${node.name}`,
-              variable: `${collection.displayName}|${node.name}`,
-              node: node,
-              project: true,
-            }
-            node.attribute = collectionAttribute;
-            context.attributes.push(collectionAttribute);
-            node.found = true;
-          } else if (relationship.type === RelationshipTypes.ONEHOP) {
-            let linkID = relationship.links[0];
-            let nCollection = findEveCollection(linkID);
-            if (nCollection !== undefined) {
-              let token: Token = {
-                ix: 0, 
-                originalWord: nCollection.displayName, 
-                normalizedWord: nCollection.displayName, 
-                POS: MinorPartsOfSpeech.NN,
-                properties: [], 
-              };
-              let nNode = newNode(token);
-              insertAfterNode(nNode,collection.node);
-              nNode.collection = nCollection;
-              nCollection.node = nNode;
-              context.collections.push(nCollection);
-              // Build a collection attribute to link with parent
-              let collectionAttribute: Attribute = {
-                id: collection.displayName,
-                displayName: collection.displayName,
-                collection: nCollection,
-                value: `${collection.displayName}`,
-                variable: `${collection.displayName}`,
-                node: nNode,
-                project: false,
-              }
-              nNode.attribute = collectionAttribute;
-              context.attributes.push(collectionAttribute);
-              nNode.found = true;
-              // Build an attribute for the referenced
-              let attribute: Attribute = {
-                id: node.name,
-                displayName: node.name,
-                collection: nCollection,
-                value: `${nCollection.displayName}|${node.name}`,
-                variable: `${nCollection.displayName}|${node.name}`,
-                node: node,
-                project: true,
-              }
-              node.attribute = attribute;
-              context.attributes.push(attribute);
-              node.found = true;              
-            } else {
-              let entity = findEveEntity(linkID);
-              if (entity !== undefined) {
-                // @TODO handle entities
-              }
-            }
-          }
+          findCollectionAttribute(node,collection,context);
         }
       }     
     }
@@ -1048,53 +969,17 @@ function formTree(tokens: Array<Token>) {
     }
     // Heuristic: If the node is plural, try to find a collection
     if (!node.found && node.hasProperty(TokenProperties.PLURAL)) {
-      let collection = findEveCollection(node.name);
-      if (collection !== undefined) {
-        node.collection = collection;
-        collection.node= node;
-        context.collections.push(collection);
-        node.found = true;
-      }
+      findCollection(node,context);
     }
     // If the node is possessive or proper, it's probably an entity
     if (!node.found && (node.hasProperty(TokenProperties.POSSESSIVE) || node.hasProperty(TokenProperties.PROPER))) {
       log("Possessive or Proper: finding entity");
-      let entity = findEveEntity(node.name);
-      if (entity !== undefined) {
-        context.entities.push(entity);
-        entity.node = node;
-        node.entity = entity;
-        node.found = true;
-      }
+      findEntity(node,context);
     }
     // If we've gotten here and we haven't found anything, go crazy with searching
     if (!node.found) {
       log("Find this thing anywhere we can");
-      let collection = findEveCollection(node.name);
-      if (collection !== undefined) {
-        context.collections.push(collection);
-        collection.node = node;
-        node.collection = collection;
-        node.found = true;
-      // Singularize and try to find a collection
-      } else {
-        let collection = findEveCollection(singularize(node.name));
-        if (collection !== undefined) {
-          node.token.POS = MinorPartsOfSpeech.NN;
-          node.collection = collection;
-          collection.node = node;
-          context.collections.push(collection);
-          node.found = true;
-        } else {
-          let entity = findEveEntity(node.name);
-          if (entity !== undefined) {
-            context.entities.push(entity);
-            entity.node = node;
-            node.entity = entity;
-            node.found = true;
-          }
-        }
-      }
+      findCollectionOrEntity(node,context);
     }
     
     // If there is a backward relationship e.g. age of Corey, then try to find attrs
@@ -1110,86 +995,15 @@ function formTree(tokens: Array<Token>) {
         // Find the parent entities and try to match attributes
         let entity = node.entity;
         if (entity !== undefined) {
-          log(maybeAttr.normalizedWord);
-          log(entity.displayName);
-          let attribute = findEveAttribute(maybeAttr.normalizedWord,entity);
-          if (attribute !== undefined) {
-            maybeAttr.node.attribute = attribute;
-            context.attributes.push(attribute);  
-            attribute.node = maybeAttr.node;
-            maybeAttr.node.found = true;
-          }
+          findEntityAttribute(maybeAttr.node,entity,context);
         } else {
           let collection = node.collection;
           if (collection !== undefined) {
-            let relationship = findCollectionToAttrRelationship(collection.id,maybeAttr.normalizedWord);
-            if (relationship.type === RelationshipTypes.DIRECT) {
-              let collectionAttribute: Attribute = {
-                id: maybeAttr.node.name,
-                displayName: maybeAttr.node.name,
-                collection: collection,
-                value: `${collection.displayName}|${maybeAttr.node.name}`,
-                variable: `${collection.displayName}|${maybeAttr.node.name}`,
-                node: maybeAttr.node,
-                project: true,
-              }
-              maybeAttr.node.attribute = collectionAttribute;
-              context.attributes.push(collectionAttribute);
-              maybeAttr.node.found = true;
-            } else if (relationship.type === RelationshipTypes.ONEHOP) {
-              let linkID = relationship.links[0];
-              let nCollection = findEveCollection(linkID);
-              if (nCollection !== undefined) {
-                let token: Token = {
-                  ix: 0, 
-                  originalWord: nCollection.displayName, 
-                  normalizedWord: nCollection.displayName, 
-                  POS: MinorPartsOfSpeech.NN,
-                  properties: [], 
-                };
-                let nNode = newNode(token);
-                insertAfterNode(nNode,collection.node);
-                nNode.collection = nCollection;
-                nCollection.node = nNode;
-                context.collections.push(nCollection);
-                // Build a collection attribute to link with parent
-                let collectionAttribute: Attribute = {
-                  id: collection.displayName,
-                  displayName: collection.displayName,
-                  collection: nCollection,
-                  value: `${collection.displayName}`,
-                  variable: `${collection.displayName}`,
-                  node: nNode,
-                  project: false,
-                }
-                nNode.attribute = collectionAttribute;
-                context.attributes.push(collectionAttribute);
-                nNode.found = true;
-                // Build an attribute for the current node
-                let attribute: Attribute = {
-                  id: maybeAttr.normalizedWord,
-                  displayName: maybeAttr.normalizedWord,
-                  collection: nCollection,
-                  value: `${nCollection.displayName}|${node.name}`,
-                  variable: `${nCollection.displayName}|${node.name}`,
-                  node: maybeAttr.node,
-                  project: true,
-                }
-                maybeAttr.node.attribute = attribute;
-                context.attributes.push(attribute);
-                maybeAttr.node.found = true;              
-              } else {
-                let entity = findEveEntity(linkID);
-                if (entity !== undefined) {
-                  // @TODO handle entities
-                }
-              }
-            }
+            findCollectionAttribute(maybeAttr.node,collection,context);
           }
         }
       }
     }
-    
     if (!node.found) {
       /*if (node.parent.hasProperty(TokenProperties.POSSESSIVE)) {
         context.maybeAttributes.push(node.token);  
@@ -1211,13 +1025,9 @@ function formTree(tokens: Array<Token>) {
     // Resolve the child nodes
     node.children.map((child) => resolveEntities(child,context));
 
-    return context;
-    
     // If we're here and we still haven't found anything, maybe
     // context gained from the children will help identify the node
-    /*if (!found) {
-      
-    } */
+    return context;
   }
   
   log(tree.toString());
@@ -1226,7 +1036,7 @@ function formTree(tokens: Array<Token>) {
   // Resolve entities and attributes
   let context = newContext();
   resolveEntities(tree,context);
-  console.log(tree);
+  
   log(tree.toString());
   log("Rewire attributes...")
   // Based on the entities we just found, rewire attributes to be children of their referenced entities
@@ -1466,7 +1276,6 @@ export function findEveEntity(search: string): Entity {
       entityAttribute: false,
       project: true,
     }
-    console.log(entity)
     log(" Found: " + name);
     return entity;
   } else {
@@ -1474,7 +1283,6 @@ export function findEveEntity(search: string): Entity {
     return undefined;  
   }
 }
-
 // Returns the collection with the given display name.
 function findEveCollection(search: string): Collection {
   log("Searching for collection: " + search);
@@ -1621,6 +1429,160 @@ function findCommonCollections(entities: Array<string>): Array<string> {
 function entityTocollectionsArray(entity: string): Array<string> {
   let entities = eve.find("collection entities", { entity });
   return entities.map((a) => a["collection"]);
+}
+
+function findCollectionAttribute(node: Node, collection: Collection, context: Context): boolean {
+  let relationship = findCollectionToAttrRelationship(collection.id,node.name);
+  // The attribute is an attribute of members of the collection
+  if (relationship.type === RelationshipTypes.DIRECT) {
+    let collectionAttribute: Attribute = {
+      id: node.name,
+      displayName: node.name,
+      collection: collection,
+      value: `${collection.displayName}|${node.name}`,
+      variable: `${collection.displayName}|${node.name}`,
+      node: node,
+      project: true,
+    }
+    node.attribute = collectionAttribute;
+    context.attributes.push(collectionAttribute);
+    node.found = true;
+    return true;
+  // The attribute is an attribute of members of a collection which are
+  // also members of this collection
+  } else if (relationship.type === RelationshipTypes.ONEHOP) {
+    let linkID = relationship.links[0];
+    let nCollection = findEveCollection(linkID);
+    if (nCollection !== undefined) {
+      // Create a new link node
+      let token: Token = {
+        ix: 0, 
+        originalWord: nCollection.displayName, 
+        normalizedWord: nCollection.displayName, 
+        POS: MinorPartsOfSpeech.NN,
+        properties: [], 
+      };
+      let nNode = newNode(token);
+      insertAfterNode(nNode,collection.node);
+      nNode.collection = nCollection;
+      nCollection.node = nNode;
+      context.collections.push(nCollection);
+      // Build a collection attribute to link with parent
+      let collectionAttribute: Attribute = {
+        id: collection.displayName,
+        displayName: collection.displayName,
+        collection: nCollection,
+        value: `${collection.displayName}`,
+        variable: `${collection.displayName}`,
+        node: nNode,
+        project: false,
+      }
+      nNode.attribute = collectionAttribute;
+      context.attributes.push(collectionAttribute);
+      nNode.found = true;
+      /*// Build an attribute for the referenced
+      let attribute: Attribute = {
+        id: node.name,
+        displayName: node.name,
+        collection: nCollection,
+        value: `${nCollection.displayName}|${node.name}`,
+        variable: `${nCollection.displayName}|${node.name}`,
+        node: node,
+        project: true,
+      }
+      node.attribute = attribute;
+      context.attributes.push(attribute);*/
+      node.found = true; 
+      return true;             
+    } else {
+      let entity = findEveEntity(linkID);
+      if (entity !== undefined) {
+        // @TODO handle entities
+      }
+    }
+  }
+  return false;
+}
+
+function findEntityAttribute(node: Node, entity: Entity, context: Context): boolean {
+  let attribute = findEveAttribute(node.name,entity);
+  if (attribute !== undefined) {
+    context.attributes.push(attribute);
+    node.attribute = attribute;
+    attribute.node = node;
+    // If the attribute is possessive, check to see if it is an entity
+    if (node.hasProperty(TokenProperties.POSSESSIVE) || node.hasProperty(TokenProperties.BACKRELATIONSHIP)) {
+      findEntity(node,context);
+    }
+    node.found = true;
+    return true;
+  }
+  return false;
+}
+
+// searches for a collection first, then tries to find an entity
+function findCollectionOrEntity(node: Node, context: Context): boolean {
+  let foundCollection = findCollection(node,context);
+  if (foundCollection === true) {
+    return true;
+  } else {
+    let foundEntity = findEntity(node,context);
+    if (foundEntity === true) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// searches for a collection first, then tries to find an entity
+function findEntityOrCollection(node: Node, context: Context): boolean {
+  let foundEntity = findEntity(node,context);
+  if (foundEntity === true) {
+    return true;
+  } else {
+    let foundCollection = findCollection(node,context);
+    if (foundCollection === true) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function findCollection(node: Node, context: Context): boolean {
+  let collection = findEveCollection(node.name);
+  if (collection !== undefined) {
+    context.collections.push(collection);
+    collection.node = node;
+    node.collection = collection;
+    node.found = true;
+    return true;
+  // Singularize and try to find a collection
+  } else {
+    let singularized = singularize(node.name);
+    let collection = findEveCollection(singularized);
+    if (collection !== undefined) {
+      node.token.POS = MinorPartsOfSpeech.NN;
+      node.token.normalizedWord = singularized;
+      node.collection = collection;
+      collection.node = node;
+      context.collections.push(collection);
+      node.found = true;
+      return true;
+    }
+  }
+  return false;
+}
+
+function findEntity(node: Node, context: Context): boolean {
+  let entity = findEveEntity(node.name);
+  if (entity !== undefined) {
+    context.entities.push(entity);
+    entity.node = node;
+    node.entity = entity;
+    node.found = true;
+    return true;
+  }
+  return false;
 }
 
 function subsumeTokens(nounGroup: Node, ix: number, tokens: Array<Token>): Node {
