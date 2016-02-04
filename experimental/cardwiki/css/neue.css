@@ -219,6 +219,7 @@ content .error-rep { color: #FF3333; }
 .directory-listing.masonry {  min-width: 600px; } /* @FIXME */
 .directory-listing.masonry .masonry-row { height: 96px; }
 .directory-listing.masonry .tile { justify-content: center; align-items: center; margin: 4px; background: #eee; border-radius: 2px; }
+.directory-listing .tile > * { flex: 0 0 auto; }
 
 /* Background patterns from subtlepatterns.com */
 .directory-listing.masonry .tile.tile-style-1 { }
