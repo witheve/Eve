@@ -16,7 +16,7 @@ function vecmul(a:number[], b:number[]):number[] {
 
 export interface MasonryLayout { size: number, freq?: number, grouped?: number, c: string, format?:(elem:MasonryTileElem) => MasonryTileElem }
 interface MasonryTileElem extends Element { size?: number, layout?: MasonryLayout }
-interface MasonryElem extends Element { seed?: number, rowSize?: number, children: MasonryTileElem[], layouts?:MasonryLayout[] }
+interface MasonryElem extends Element { seed?: number, rowSize?: number, children: MasonryTileElem[], layouts?:MasonryLayout[], styles?:string[] }
 
 let _layouts:MasonryLayout[] = [
   {size: 4, c: "big"},
@@ -24,7 +24,7 @@ let _layouts:MasonryLayout[] = [
   {size: 1, c: "normal", grouped: 2},
 ];
 export function masonry(elem:MasonryElem):Element {
-  let {seed = 0, rowSize = 8, layouts = _layouts, children} = elem;
+  let {seed = 0, rowSize = 8, layouts = _layouts, styles = undefined, children} = elem;
   let rand = srand(seed);  
   layouts.sort(sortByField("size"));
 
@@ -79,6 +79,7 @@ export function masonry(elem:MasonryElem):Element {
       for(let ix = tileIx;  ix < tileIx + count; ix++) {
         let tile = children[ix];
         tile.c = `tile ${tile.c || ""} ${layout.c || ""}`;
+        if(styles) tile.c += " " + styles[tileIx % styles.length];
         if(layout.format) tile = layout.format(tile);
         tiles.push({c: `group ${layout.c || ""}`, layout, size: layout.size, children: [tile]});
       }
@@ -90,6 +91,7 @@ export function masonry(elem:MasonryElem):Element {
         for(let partIx = 0; partIx < layout.grouped && added < count; partIx++) {
           let tile = children[ix + partIx];
           tile.c = `tile ${tile.c || ""} ${layout.c || ""}`;
+          if(styles) tile.c += " " + styles[(tileIx + partIx) % styles.length];
           if(layout.format) tile = layout.format(tile);
           group.children.push(tile);
           added++;
@@ -116,7 +118,6 @@ export function masonry(elem:MasonryElem):Element {
       if(row.size + size <= rowSize) {
         row.size += size;
         row.children.push(tile);
-        tile.debug = size;
         placed = true;
       }
 
@@ -129,7 +130,6 @@ export function masonry(elem:MasonryElem):Element {
   }
   ix = 0;
   // Shuffle the row contents and the set of rows for pleasing irregularity
-  for(let row of rows) row.debug = `${ix++}|${row.size}`;
   for(let row of rows) shuffle(row.children, rand);
   shuffle(rows, rand);
 
