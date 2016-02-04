@@ -259,7 +259,6 @@ CodeMirror.defineMode("eve", function() {
       return {};
     },
     token: function(stream, state) {
-      console.log(state);
       if(stream.sol() && stream.peek() === "#") {
         state.header = true;
         stream.eatWhile("#");

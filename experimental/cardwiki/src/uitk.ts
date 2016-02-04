@@ -456,7 +456,7 @@ export function directory(elem:DirectoryElem):Element {
       });
       if(skipChildren) delete rows[rows.length - 1].pages;
     }
-    return table({c: "overflow-list", key, rows, sortable: true});
+    return table({c: "overflow-list", key, rows, sortable: true, data});
   }
   
   // @TODO: Put formatOverflow into a collapsed container.

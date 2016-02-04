@@ -1086,6 +1086,7 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
     let rep = params["childRep"];
     let childInfo;
     if(_prepare[rep]) {
+      params["data"] = params["data"] || params;
       childInfo = _prepare[rep](results, params);
       childInfo.data = childInfo.data || params;
     } else {
