@@ -550,10 +550,13 @@ function queryAutocompleteOptions(isEntity, parsed, text, params, entityId) {
   let pageName = eve.findOne("display name", {id: entityId})["name"];
   let options:{score: number, action: any, text: string, [attr:string]: any}[] = [];
   let hasValidParse = parsed.some((parse) => parse.state === StateFlags.COMPLETE);
+  options.sort((a, b) => b.score - a.score);
+  let topOption = options[0];
   let joiner = "a";
   if(text && text[0].match(/[aeiou]/i)) {
     joiner = "an";
   }
+
   // create
   if(!isEntity && text !== "" && text != "=") {
     options.push({score: 1, action:createAndEmbed, text: `Create ${joiner} "${text}" page`});
@@ -608,13 +611,20 @@ function createAndEmbed(elem, value, doEmbed) {
 
 function representAutocompleteOptions(isEntity, parsed, text, params, entityId) {
   let options:{score: number, action: any, text: string, [attr:string]: any}[] = [];
-  options.push({score:1, text: "embed as a table", action: embedAs, rep: "table", params});
+  let isCollection = isEntity ? eve.findOne("collection", {collection: isEntity.id}) : false;
+  options.push({score:1, text: "a table", action: embedAs, rep: "table", params});
   // options.push({score:1, text: "embed as a value", action: embedAs, rep: "value"});
-  options.push({score:1, text: "embed as a link", action: embedAs, rep: "link", params});
-  options.push({score:1, text: "embed as an index", action: embedAs, rep: "index", params});
-  options.push({score:1, text: "embed as related", action: embedAs, rep: "related", params});
-  options.push({score:1, text: "embed as directory", action: embedAs, rep: "directory", params});
-  options.push({score:1, text: "embed as a properties table", action: embedAs, rep: "attributes", params});
+  if(isEntity) {
+    options.push({score:1, text: "a link", action: embedAs, rep: "link", params});
+  }
+  if(isCollection) {
+    options.push({score:1, text: "an index", action: embedAs, rep: "index", params});
+    options.push({score:1, text: "a directory", action: embedAs, rep: "directory", params});
+  }
+  if(isEntity) {
+    options.push({score:1, text: "a list of related pages", action: embedAs, rep: "related", params});
+    options.push({score:1, text: "a properties table", action: embedAs, rep: "attributes", params});
+  }
   return options;
 }
 
@@ -687,6 +697,7 @@ appHandle("updateActiveCell", (changes, info) => {
   let active = activeCells[info.id];
   active.query = info.query.replace(/^= /, "");
   active.selected = 0;
+  active.state = "query";
 });
 
 appHandle("moveCellAutocomplete", (changes, info) => {
@@ -1020,19 +1031,25 @@ function represent(search: string, rep:string, results, params:{}):Element {
   if(rep in _prepare) {
     let embedParamSets = _prepare[rep](results.results, <any>params);
     let isArray = embedParamSets && embedParamSets.constructor === Array;
-    if(!embedParamSets || isArray && embedParamSets.length === 0) {
-      return uitk["error"]({text: `${search} as ${rep}`})
-    } else if(embedParamSets.constructor === Array) {
-      let wrapper = {c: "flex-column", children: []};
-      for(let embedParams of embedParamSets) {
+    try {
+      if(!embedParamSets || isArray && embedParamSets.length === 0) {
+        return uitk["error"]({text: `${search} as ${rep}`})
+      } else if(embedParamSets.constructor === Array) {
+        let wrapper = {c: "flex-column", children: []};
+        for(let embedParams of embedParamSets) {
+          embedParams["data"] = embedParams["data"] || params;
+          wrapper.children.push(uitk[rep](embedParams));
+        }
+        return wrapper;
+      } else {
+        let embedParams = embedParamSets;
         embedParams["data"] = embedParams["data"] || params;
-        wrapper.children.push(uitk[rep](embedParams));
+        return uitk[rep](embedParams);
       }
-      return wrapper;
-    } else {
-      let embedParams = embedParamSets;
-      embedParams["data"] = embedParams["data"] || params;
-      return uitk[rep](embedParams);
+    } catch(e) {
+      console.error("REPRESENTATION ERROR");
+      console.log({search, rep, results, params});
+      return uitk["error"]({text: `Failed to embed as ${params["childRep"] || rep}`})
     }
   }
 }
