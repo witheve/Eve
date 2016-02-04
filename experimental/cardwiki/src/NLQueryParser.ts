@@ -938,14 +938,14 @@ function formTree(tokens: Array<Token>) {
       log("Entity/Collection already found: finding attribute");
       let entity = context.entities[context.entities.length - 1];
       if (entity !== undefined) {
-        let attribute = findAttribute(node.name,entity);
+        let attribute = findEveAttribute(node.name,entity);
         if (attribute !== undefined) {
           context.attributes.push(attribute);
           node.attribute = attribute;
           attribute.node = node;
           // If the attribute is possessive, check to see if it is an entity
           if (node.hasProperty(TokenProperties.POSSESSIVE) || node.hasProperty(TokenProperties.BACKRELATIONSHIP)) {
-            let entity = findEntity(`${attribute.value}`); // @HACK force string | number into string
+            let entity = findEveEntity(`${attribute.value}`); // @HACK force string | number into string
             if (entity != undefined) {
               entity.entityAttribute = true;
               entity.variable = attribute.variable;
@@ -976,7 +976,7 @@ function formTree(tokens: Array<Token>) {
             node.found = true;
           } else if (relationship.type === RelationshipTypes.ONEHOP) {
             let linkID = relationship.links[0];
-            let nCollection = findCollection(linkID);
+            let nCollection = findEveCollection(linkID);
             if (nCollection !== undefined) {
               let token: Token = {
                 ix: 0, 
@@ -1017,7 +1017,7 @@ function formTree(tokens: Array<Token>) {
               context.attributes.push(attribute);
               node.found = true;              
             } else {
-              let entity = findEntity(linkID);
+              let entity = findEveEntity(linkID);
               if (entity !== undefined) {
                 // @TODO handle entities
               }
@@ -1048,7 +1048,7 @@ function formTree(tokens: Array<Token>) {
     }
     // Heuristic: If the node is plural, try to find a collection
     if (!node.found && node.hasProperty(TokenProperties.PLURAL)) {
-      let collection = findCollection(node.name);
+      let collection = findEveCollection(node.name);
       if (collection !== undefined) {
         node.collection = collection;
         collection.node= node;
@@ -1059,7 +1059,7 @@ function formTree(tokens: Array<Token>) {
     // If the node is possessive or proper, it's probably an entity
     if (!node.found && (node.hasProperty(TokenProperties.POSSESSIVE) || node.hasProperty(TokenProperties.PROPER))) {
       log("Possessive or Proper: finding entity");
-      let entity = findEntity(node.name);
+      let entity = findEveEntity(node.name);
       if (entity !== undefined) {
         context.entities.push(entity);
         entity.node = node;
@@ -1070,7 +1070,7 @@ function formTree(tokens: Array<Token>) {
     // If we've gotten here and we haven't found anything, go crazy with searching
     if (!node.found) {
       log("Find this thing anywhere we can");
-      let collection = findCollection(node.name);
+      let collection = findEveCollection(node.name);
       if (collection !== undefined) {
         context.collections.push(collection);
         collection.node = node;
@@ -1078,7 +1078,7 @@ function formTree(tokens: Array<Token>) {
         node.found = true;
       // Singularize and try to find a collection
       } else {
-        let collection = findCollection(singularize(node.name));
+        let collection = findEveCollection(singularize(node.name));
         if (collection !== undefined) {
           node.token.POS = MinorPartsOfSpeech.NN;
           node.collection = collection;
@@ -1086,7 +1086,7 @@ function formTree(tokens: Array<Token>) {
           context.collections.push(collection);
           node.found = true;
         } else {
-          let entity = findEntity(node.name);
+          let entity = findEveEntity(node.name);
           if (entity !== undefined) {
             context.entities.push(entity);
             entity.node = node;
@@ -1112,7 +1112,7 @@ function formTree(tokens: Array<Token>) {
         if (entity !== undefined) {
           log(maybeAttr.normalizedWord);
           log(entity.displayName);
-          let attribute = findAttribute(maybeAttr.normalizedWord,entity);
+          let attribute = findEveAttribute(maybeAttr.normalizedWord,entity);
           if (attribute !== undefined) {
             maybeAttr.node.attribute = attribute;
             context.attributes.push(attribute);  
@@ -1138,7 +1138,7 @@ function formTree(tokens: Array<Token>) {
               maybeAttr.node.found = true;
             } else if (relationship.type === RelationshipTypes.ONEHOP) {
               let linkID = relationship.links[0];
-              let nCollection = findCollection(linkID);
+              let nCollection = findEveCollection(linkID);
               if (nCollection !== undefined) {
                 let token: Token = {
                   ix: 0, 
@@ -1179,7 +1179,7 @@ function formTree(tokens: Array<Token>) {
                 context.attributes.push(attribute);
                 maybeAttr.node.found = true;              
               } else {
-                let entity = findEntity(linkID);
+                let entity = findEveEntity(linkID);
                 if (entity !== undefined) {
                   // @TODO handle entities
                 }
@@ -1264,7 +1264,7 @@ function formTree(tokens: Array<Token>) {
     compNode.children.forEach((child) => { 
       // Find relationship for entities
       if (child.entity !== undefined) {
-        let attribute = findAttribute(comparator.attribute,child.entity);
+        let attribute = findEveAttribute(comparator.attribute,child.entity);
         if (attribute !== undefined) {
           //console.log(attribute);
           let nToken = newToken(comparator.attribute);
@@ -1439,7 +1439,7 @@ interface Attribute {
 // 2) the name is found in "display name" but not found in "entity"
 // can 2) ever happen?
 // Returns the collection with the given display name.
-export function findEntity(search: string): Entity {
+export function findEveEntity(search: string): Entity {
   log("Searching for collection: " + search);
   let foundEntity;
   let name: string;
@@ -1476,7 +1476,7 @@ export function findEntity(search: string): Entity {
 }
 
 // Returns the collection with the given display name.
-function findCollection(search: string): Collection {
+function findEveCollection(search: string): Collection {
   log("Searching for collection: " + search);
   let foundCollection;
   let name: string;
@@ -1512,7 +1512,7 @@ function findCollection(search: string): Collection {
 
 // Returns the attribute with the given display name attached to the given entity
 // If the entity does not have that attribute, or the entity does not exist, returns undefined
-function findAttribute(name: string, entity: Entity): Attribute {
+function findEveAttribute(name: string, entity: Entity): Attribute {
   log("Searching for attribute: " + name);
   log(" Entity: " + entity.displayName);
   let foundAttribute = eve.findOne("entity eavs", { entity: entity.id, attribute: name });
