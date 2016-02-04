@@ -1708,10 +1708,10 @@ function buildQuery(node: Node): Query {
   // Now take care of the node itself.
   // Function terms
   if (node.hasProperty(TokenProperties.ROOT)) {
-    return query;
+    return newQuery(terms);
   } else if (node.fxn !== undefined) {
     // Skip certain functions
-    if (node.fxn.name === "AND" || node.fxn.name === "OR") {
+    if (node.fxn.name === "and" || node.fxn.name === "or") {
       return newQuery(terms);
     }
     // Get variables from the already formed terms
@@ -1745,7 +1745,6 @@ function buildQuery(node: Node): Query {
       fields: fields,
     }
     
-    console.log(node);
     if (node.children[0].hasProperty(TokenProperties.GROUPING)) {
       query.subqueries[0].terms.push(term);
       console.log(query.toString());
@@ -1859,6 +1858,7 @@ function formQuery(tree: Node): Query {
   project.fields= uniquefields;
   
   if (project.fields.length !== 0) {
+    console.log(query)
     query.projects.push(project);  
   }
   
