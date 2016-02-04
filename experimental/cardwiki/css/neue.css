@@ -1,7 +1,7 @@
-body { position: relative; padding-bottom: 1.5em; background: #fff; color: rgb(76, 85, 90); font-family: "Lato", sans-serif; font-weight: 300; }
+body { position: relative; padding-bottom: 1.5em; background: #fff; color: rgb(76, 85, 90); font-family: "Lato", sans-serif; font-weight: 400; }
 * { box-sizing: border-box; }
 div { display: flex; flex-direction: column; }
-button, input { border:none; outline: none; font-family: "Lato", sans-serif; font-weight: 300; color: rgb(76,85,90); }
+button, input { border:none; outline: none; font-family: "Lato", sans-serif; font-weight: 400; color: rgb(76,85,90); }
 
 
 .test { border: 2px solid red; }
@@ -57,7 +57,7 @@ div:hover > header > .controls { opacity: 1; }
 .wiki-pane.window > header > * { margin:0;}
 .wiki-pane.window { position:absolute; max-height:40%; box-shadow:0 0 0 1px rgba(0,0,0,0.1),0 7px 15px rgba(0,0,0,0.1); background: #fff; border-radius:3px; z-index:10; }
 .wiki-pane.window > header { background: #fff; padding: 10px 5px; padding: 0; border:none; }
-.wiki-pane.window > header button { border:none; border-radius:0px; background:none; font-size: 20px; font-weight:300; color:#555; padding:8px 10px; color: #008cdd; position:absolute; top:0; right:0; z-index:10;  }
+.wiki-pane.window > header button { border:none; border-radius:0px; background:none; font-size: 20px; font-weight:400; color:#555; padding:8px 10px; color: #008cdd; position:absolute; top:0; right:0; z-index:10;  }
 .wiki-pane.window > header button:hover { background: rgba(0, 140, 221, 0.15); }
 .wiki-pane.window > header .controls { opacity:1; color: #777; }
 .wiki-pane.window .wiki-entity { padding: 15px 20px;  }
@@ -94,7 +94,7 @@ div:hover > header > .controls { opacity: 1; }
 
 .selector { flex-direction:row; background:#fff; border:1px solid #ccc; border-radius:3px; }
 .selector *:nth-child(2) { background: orange; color: #333; text-shadow:none; }
-.selector * { justify-content:center; background:none; border:none; color: #666; font-size: 11pt; font-family: "Lato"; font-weight: 300; padding:3px 8px; }
+.selector * { justify-content:center; background:none; border:none; color: #666; font-size: 11pt; font-family: "Lato"; font-weight: 400; padding:3px 8px; }
 .selector * + * { margin-left: 5px; }
 .selector button { background: ; }
 
@@ -102,16 +102,18 @@ div:hover > header > .controls { opacity: 1; }
 - Wiki editor
 ---------------------------------------------------------*/
 
-.wiki-editor { flex: 1; width: 680px; padding-top: 50px; }
-.wiki-editor .CodeMirror { font-family: "Lato"; font-size: 18px; color: rgb(76, 85, 90); font-weight:300; }
+.wiki-editor { flex: 1; width: 600px; padding-top: 50px; }
+.wiki-editor .CodeMirror { font-family: "Lato"; font-size: 16px; color: rgb(84,84,84); font-weight:400; }
 .wiki-editor .CodeMirror-lines { padding: 0; }
 
 .wiki-editor .CodeMirror-widget div { display:flex; }
 .wiki-editor .CodeMirror-widget > div { display:inline-block; }
 .wiki-editor .CodeMirror-widget content { align-items:flex-start; padding:0; }
 
-.wiki-editor .cm-header { color: rgb(76, 85, 90); font-weight:normal; }
-.wiki-editor .cm-header-1 { font-size: 24pt; line-height: 40px; }
+.wiki-editor .cm-header { color: rgb(51,51,51); font-weight:bold; }
+.wiki-editor .cm-header-1 { font-size: 28pt; line-height: 40px; }
+.wiki-editor .cm-header-2 { font-size: 22pt; line-height: 40px; }
+.wiki-editor .cm-header-3 { font-size: 16pt; line-height: 40px; }
 .wiki-editor .attribute, .wiki-editor .value { color:#2C00FD; }
 .wiki-editor .link { color: #008cdd; cursor: pointer; border-bottom: 1px solid transparent; }
 .wiki-editor .link:hover { border-bottom:1px solid #008cdd; }
@@ -159,7 +161,7 @@ content .error-rep { color: #FF3333; }
 .table div, .table header { display: flex !important; }
 .table .group, .table > header { flex-direction: row; }
 .table .column { justify-content: center; }
-.table .field { display: block; max-width: 254px; min-width: 80px; padding: 0.5em 0.5em; width: 160px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.table .field { display: block; max-width: 254px; min-width: 80px; padding: 5px 10px; width: 160px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .table input { font-size: 1em; }
 
 .table { border: 1px solid #ddd; border-radius: 2px; }
@@ -184,7 +186,7 @@ content .error-rep { color: #FF3333; }
 - CodeMirror general
 ---------------------------------------------------------*/
 .CodeMirror div { display: block; }
-.CodeMirror { font-family: "Lato", sans-serif; overflow:visible; height: auto; font-weight:300; line-height: 1.4em; color: rgb(76, 85, 90); }
+.CodeMirror { font-family: "Lato", sans-serif; overflow:visible; height: auto; font-weight:400; line-height: 26px; color: rgb(84,84,84); }
 .CodeMirror-scroll { height: auto; overflow: visible !important; }
 
 /*---------------------------------------------------------
