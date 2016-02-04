@@ -198,7 +198,7 @@ enum TokenProperties {
 
 // Finds a given property in a token
 function hasProperty(token: Token, property: TokenProperties): boolean {
-  let found = this.properties.indexOf(property);
+  let found = token.properties.indexOf(property);
   if (found !== -1) {
     return true;
   } else {
@@ -453,8 +453,8 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
     
     let rootToken = {
       ix: 0, 
-      originalWord: "ROOT", 
-      normalizedWord: "ROOT", 
+      originalWord: tokens.map((token) => token.originalWord).join(" "), 
+      normalizedWord: tokens.map((token) => token.normalizedWord).join(" "), 
       POS: MinorPartsOfSpeech.ROOT,
       properties: [TokenProperties.ROOT], 
     };
@@ -1828,7 +1828,7 @@ function formQuery(tree: Node): Query {
     type: "project!",
     fields: [],
   }
-  projectedNodes.map((node) => {
+  /*projectedNodes.map((node) => {
     if (node.attribute !== undefined && node.attribute.project) {
       let entity = node.attribute.entity;
       let collection = node.attribute.collection;
@@ -1867,7 +1867,7 @@ function formQuery(tree: Node): Query {
   if (project.fields.length !== 0) {
     console.log(query)
     query.projects.push(project);  
-  }
+  }*/
   
   return query;
 }
