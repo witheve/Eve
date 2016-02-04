@@ -789,11 +789,11 @@ function wordToFunction(word: string): BuiltInFunction {
     case "or":
       return {name: "or", type: FunctionTypes.BOOLEAN, fields: []};
     case "sum":
-      return {name: "sum", type: FunctionTypes.AGGREGATE, fields: ["output","input"]};
+      return {name: "sum", type: FunctionTypes.AGGREGATE, fields: ["value","sum"]};
     case "average":
-      return {name: "average", type: FunctionTypes.AGGREGATE, fields: ["output","input"]};
+      return {name: "average", type: FunctionTypes.AGGREGATE, fields: ["value","average"]};
     case "mean":
-      return {name: "average", type: FunctionTypes.AGGREGATE, fields: ["output","input"]};
+      return {name: "average", type: FunctionTypes.AGGREGATE, fields: ["value","average"]};
     default:
       return undefined;
   }
