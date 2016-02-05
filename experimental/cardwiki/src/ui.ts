@@ -500,7 +500,6 @@ function executeAutocompleterOption(node, elem) {
   let mark = editor.marks[cell.id];
   let doEmbed = makeDoEmbedFunction(cm, mark, cell, paneId);
   if(elem.selected && elem.selected.action) {
-    console.log("DO ACTION", elem.selected.action);
     if(typeof elem.selected.action === "function") {
       elem.selected.action(elem, cell.query, doEmbed);
     }
@@ -710,6 +709,11 @@ export function entity(entityId:string, paneId:string, kind: PANE, options:any =
     ui["cell"] = cell;
     return ui;
   });
+  let attrs;
+  if(kind !== PANE.POPOUT) {
+    attrs = uitk.attributes({entity: entityId, data: {paneId}});
+    attrs.c += " page-attributes";
+  }
   return {id: `${paneId}|${entityId}|editor`, t: "content", c: "wiki-entity", children: [
     /* This is disabled because searching for just the name of a single entity resolves to a single find step which blows up on query compilation
        {c: "flex-row spaced-row disambiguation", children: [
@@ -718,7 +722,8 @@ export function entity(entityId:string, paneId:string, kind: PANE, options:any =
        {text: "instead?"}
        ]},
      */
-    {c: "wiki-editor", postRender: wikiEditor, onUpdate: updatePage, meta: {entity: entityId, page, paneId}, value: content, options: finalOptions, cells, children: cellItems}
+    {c: "wiki-editor", postRender: wikiEditor, onUpdate: updatePage, meta: {entity: entityId, page, paneId}, value: content, options: finalOptions, cells, children: cellItems},
+    attrs,
   ]};
 }
 
