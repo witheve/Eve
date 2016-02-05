@@ -27,18 +27,23 @@ export enum StateFlags {
 export function parse(queryString: string): Array<ParseResult> {
   let preTokens = preprocessQueryString(queryString);
   let tokens = formTokens(preTokens);
-  let treeResult = formTree(tokens);
-  let query = formQuery(treeResult.tree);
+  let {tree, context} = formTree(tokens);
+  let query = formQuery(tree);
+  // Clear context of found maybe tokens
+  context.maybeAttributes = context.maybeAttributes.filter((token) => !token.node.found);
+  context.maybeCollections = context.maybeCollections.filter((token) => !token.node.found);
+  context.maybeEntities = context.maybeEntities.filter((token) => !token.node.found);
+  context.maybeFunction = context.maybeFunction.filter((token) => !token.node.found);
   // Figure out the state flags
   let flag: StateFlags;
   if (query.projects.length === 0 && query.terms.length === 0) {
     flag = StateFlags.NORESULT;
-  } else if (treeComplete(treeResult.tree)) {
+  } else if (treeComplete(tree)) {
     flag = StateFlags.COMPLETE; 
   } else {
     flag = StateFlags.MOREINFO;
   }
-  return [{tokens: tokens, tree: treeResult.tree, context: treeResult.context, query: query, score: undefined, state: flag}];
+  return [{tokens: tokens, tree: tree, context: context, query: query, score: undefined, state: flag}];
 }
 
 function treeComplete(node: Node): boolean {
@@ -1829,10 +1834,18 @@ interface Term {
 }
 
 export interface Query {
+  type: string,
   terms: Array<Term>,
   subqueries: Array<Query>,
   projects: Array<Term>,
   toString(number?: number): string;
+}
+
+
+function negateTerm(term: Term): Query {
+  let negate = newQuery([term]);
+  negate.type = "negate";
+  return negate;
 }
 
 export function newQuery(terms?: Array<Term>, subqueries?: Array<Query>, projects?: Array<Term>): Query {
@@ -1852,6 +1865,7 @@ export function newQuery(terms?: Array<Term>, subqueries?: Array<Query>, project
   }); 
   terms = terms.filter((term, index) => uniqueTerms[index]);
   let query: Query = {
+    type: "query",
     terms: terms,
     subqueries: subqueries,
     projects: projects,
@@ -1865,12 +1879,14 @@ export function newQuery(terms?: Array<Term>, subqueries?: Array<Query>, project
       depth = 0;
     }
     let indent = Array(depth+1).join("\t");
-    let queryString = indent + "(query";
+    let queryString = indent + "(";
     // Map each term/subquery/project to a string
+    let typeString = query.type;
     let termString = query.terms.map((term) => termToString(term,depth+1)).join("\n");
     let subqueriesString = query.subqueries.map((query) => query.toString(depth + 1)).join("\n");
     let projectsString = query.projects.map((term) => termToString(term,depth+1)).join("\n");
     // Now compose the query string
+    queryString += typeString;
     queryString += termString === "" ? "" : "\n" + termString;
     queryString += subqueriesString === "" ? "" : "\n" + subqueriesString;
     queryString += projectsString === "" ? "" : "\n" + projectsString;
