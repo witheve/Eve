@@ -402,7 +402,7 @@ export function macroexpandDSL(sexpr:Sexpr):Sexpr {
     throw new Error("@TODO: Implement me!");
 
   } else if(op.value === "negate") {
-    if(sexpr.length > 2) throw new ParseError(`Negate only take a single body`, undefined, sexpr.lineIx, sexpr.charIx);
+    if(sexpr.length > 2) throw new ParseError(`Negate only takes a single body`, undefined, sexpr.lineIx, sexpr.charIx);
     let select = macroexpandDSL(Sexpr.asSexprs(sexpr.arguments)[0]);
     select.push(Token.keyword("$$negated"));
     select.push(Token.literal(true));
