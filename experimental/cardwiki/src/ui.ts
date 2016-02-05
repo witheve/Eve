@@ -133,8 +133,22 @@ appHandle("remove sourced eav", (changes:Diff, eav:{entity:string, source:string
 });
  
 appHandle("update page", (changes:Diff, {page, content}: {page: string, content: string}) => {
-    changes.remove("page content", {page});
-    changes.add("page content", {page, content});
+  changes.remove("page content", {page});
+  changes.add("page content", {page, content});
+  let trimmed = content.trim();
+  let endIx = trimmed.indexOf("\n");
+  let name = trimmed.slice(1, endIx !== -1 ? endIx : undefined).trim();
+  let {entity} = eve.findOne("entity page", {page});
+  let {name:prevName = undefined} = eve.findOne("display name", {id: entity}) || {};
+  if(name !== prevName) {
+    changes.remove("display name", {id: entity, name: prevName});
+    changes.add("display name", {id: entity, name});
+    let parts = window.location.pathname.split("/");
+    if(parts.length > 2 && parts[2].replace(/_/gi, " ") === entity) {
+      console.log("replacing");
+      window.history.replaceState(window.history.state, null, `/${name.replace(/ /gi, "_")}/${entity.replace(/ /gi, "_")}`);
+    }
+  }
 });
 appHandle("create entity", (changes:Diff, {entity, page, name = "Untitled"}) => {
   changes
@@ -444,7 +458,6 @@ function queryUIInfo(query) {
       results = {};
     }
   }
-  console.log(results, params, content);
   return {results, params, content};
 }
 

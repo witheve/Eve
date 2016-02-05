@@ -82,7 +82,7 @@ class BSPhase {
     if(isAs.length)
       collectionsText = `${titlecase(name)} is a ${isAs.slice(0, -1).join(", ")} ${isAs.length > 1 ? "and" : ""} ${isAs[isAs.length - 1]}.`;
     let content = unpad(6) `
-      #${titlecase(name)}
+      #${name}
       ${collectionsText}
     `;
     if(attributes) {
