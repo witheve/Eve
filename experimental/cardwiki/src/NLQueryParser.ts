@@ -1886,7 +1886,7 @@ function formQuery(node: Node): Query {
     if (node.fxn.fields.length === 0) {
       return query;
     }
-    let args = findLeafNodes(node).reverse();
+    let args = findLeafNodes(node).filter((node) => node.found === true).reverse();
     // If we have the right number of arguments, proceed
     // @TODO surface an error if the arguments are wrong
     let output;
