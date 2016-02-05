@@ -942,11 +942,12 @@ function formTree(tokens: Array<Token>) {
         let flatProperties = flattenNestedArray(childProperties);
         nToken.properties = nToken.properties.concat(flatProperties);
         nToken.properties = nToken.properties.filter(onlyUnique);
-        // Create the new node and insert it into the tree
+        // Create the new node and insert it into the tree, removing the constituent nodes
         let nProperNode = newNode(nToken);
         insertAfterNode(nProperNode,pNoun);
         removeNode(node);
         removeNode(pNoun);
+        // Keep nodes as constituents
         if (nProperNode.constituents === undefined) {
           nProperNode.constituents = [];
         }
@@ -955,6 +956,7 @@ function formTree(tokens: Array<Token>) {
         if (node.constituents !== undefined) {
           nProperNode.constituents = nProperNode.constituents.concat(node.constituents);  
         }
+        // Insert new tokens into token array
         tokens.splice(tokens.indexOf(token)+2,0,nToken);
       }    
     // Heuristic: If the node is comparative, swap with its parent
@@ -1658,9 +1660,16 @@ function findEntityAttribute(node: Node, entity: Entity, context: Context): bool
     context.attributes.push(attribute);
     node.attribute = attribute;
     attribute.node = node;
-    // If the attribute is possessive, check to see if it is an entity
+    // If the node is possessive, check to see if it is an entity
     if (node.hasProperty(TokenProperties.POSSESSIVE) || node.hasProperty(TokenProperties.BACKRELATIONSHIP)) {
-      findEntity(node,context);
+      let entity = findEveEntity(`${attribute.value}`);
+      if (entity !== undefined) {
+        node.entity = entity;
+        entity.node = node;
+        node.parent.entity.project = false;
+        attribute.project = false;
+        context.entities.push(entity); 
+      }
     }
     node.found = true;
     return true;
