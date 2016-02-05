@@ -589,6 +589,7 @@ interface Node {
   collection?: Collection,
   attribute?: Attribute,
   fxn?: BuiltInFunction,
+  constituents?: Array<Token>,
   token: Token,
   found: boolean,
   properties: Array<TokenProperties>,
@@ -927,23 +928,28 @@ function formTree(tokens: Array<Token>) {
       for (let pNoun of properNouns) {
         let newOriginalName = node.token.originalWord + " " + pNoun.token.originalWord;
         let newNormalizedName = node.name + " " + pNoun.name;
+        // Create a compound token
         let newToken: Token = {
-          ix: pNoun.ix + 0.5,
+          ix: pNoun.ix,
           originalWord: newOriginalName,
           normalizedWord: newNormalizedName,
           POS: MinorPartsOfSpeech.NN,
           properties: node.properties.concat(pNoun.properties),
         };
         newToken.properties.push(TokenProperties.COMPOUND);
+        // Subsume properties
         let childProperties = node.children.map((child) => child.properties);
         let flatProperties = flattenNestedArray(childProperties);
         newToken.properties = newToken.properties.concat(flatProperties);
         newToken.properties = newToken.properties.filter(onlyUnique);
+        // Create the new node and insert it into the tree
         let newProperNode = newNode(newToken);
         insertAfterNode(newProperNode,pNoun);
+        removeNode(node);
+        removeNode(pNoun);
         tokens.splice(tokens.indexOf(token)+2,0,newToken);
       }    
-    // Heuristic: If the node is comaprative, swap with its parent
+    // Heuristic: If the node is comparative, swap with its parent
     } else if (node.hasProperty(TokenProperties.COMPARATIVE)) {
       // We can get rid of "than" or its misspelling "then" the exist as a sibling
       let parent = node.parent;
