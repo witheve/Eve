@@ -24,12 +24,14 @@ export let uiState:{
   widget: {
     search: {[paneId:string]: {value:string, plan?:boolean, focused?:boolean, submitted?:string}},
     table: {[key:string]: {field:string, direction:string}}
-  }
+  },
+  pane: {[paneId:string]: {settings: boolean}}
 } = {
   widget: {
     search: {},
     table: {}
-  }
+  },
+  pane: {}
 };
 
 //---------------------------------------------------------
@@ -123,7 +125,10 @@ appHandle("ui toggle search plan", (changes:Diff, {paneId}:{paneId:string}) => {
 });
 
 appHandle("add sourced eav", (changes:Diff, eav:{entity:string, attribute:string, value:string|number, source:string}) => {
-    changes.add("sourced eav", eav);
+  if(!eav.source) {
+    eav.source = uuid();
+  }
+  changes.add("sourced eav", eav);
 });
 
 appHandle("remove sourced eav", (changes:Diff, eav:{entity:string, source:string}) => {
@@ -131,8 +136,22 @@ appHandle("remove sourced eav", (changes:Diff, eav:{entity:string, source:string
 });
  
 appHandle("update page", (changes:Diff, {page, content}: {page: string, content: string}) => {
-    changes.remove("page content", {page});
-    changes.add("page content", {page, content});
+  changes.remove("page content", {page});
+  changes.add("page content", {page, content});
+  let trimmed = content.trim();
+  let endIx = trimmed.indexOf("\n");
+  let name = trimmed.slice(1, endIx !== -1 ? endIx : undefined).trim();
+  let {entity} = eve.findOne("entity page", {page});
+  let {name:prevName = undefined} = eve.findOne("display name", {id: entity}) || {};
+  if(name !== prevName) {
+    changes.remove("display name", {id: entity, name: prevName});
+    changes.add("display name", {id: entity, name});
+    let parts = window.location.pathname.split("/");
+    if(parts.length > 2 && parts[2].replace(/_/gi, " ") === entity) {
+      console.log("replacing");
+      window.history.replaceState(window.history.state, null, `/${name.replace(/ /gi, "_")}/${entity.replace(/ /gi, "_")}`);
+    }
+  }
 });
 appHandle("create entity", (changes:Diff, {entity, page, name = "Untitled"}) => {
   changes
@@ -200,6 +219,17 @@ appHandle("sort table", (changes:Diff, {key, field, direction}) => {
   state.direction = direction;
   uiState.widget.table[key] = state;
 });
+appHandle("toggle settings", (changes:Diff, {paneId, open = undefined}) => {
+  let state = uiState.pane[paneId] || {settings: false};
+  state.settings = open !== undefined ? open : !state.settings;
+  uiState.pane[paneId] = state;
+});
+appHandle("remove entity", (changes:Diff, {entity}) => {
+  changes.remove("sourced eavs", {entity})
+    .remove("display name", {id: entity})
+    .remove("manual eavs", {entity})
+    .remove("entity page", {entity});
+});
 
 //---------------------------------------------------------
 // Wiki Containers
@@ -216,7 +246,13 @@ export function root():Element {
 let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, header?:Element, footer?:Element, captureClicks?:boolean}} = {
   [PANE.FULL]: (paneId, entityId) => ({
     c: "fullscreen",
-    header: {t: "header", c: "flex-row", children: [{c: "logo eve-logo", data: {paneId}, link: "", click: navigate}, searchInput(paneId, entityId)]}
+    header: {t: "header", c: "flex-row", children: [
+      {c: "logo eve-logo", data: {paneId}, link: "", click: navigate},
+      searchInput(paneId, entityId),
+      {c: "controls visible", children: [
+        {c: "ion-gear-a toggle-settings", style: "font-size: 1.35em;", paneId, click: toggleSettings}
+      ]}
+    ]}
   }),
   [PANE.POPOUT]: (paneId, entityId) => {
     let parent = eve.findOne("ui pane parent", {pane: paneId})["parent"];
@@ -241,6 +277,14 @@ let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, 
   })
 };
 
+function toggleSettings(event, elem) {
+  dispatch("toggle settings", {paneId: elem.paneId}).commit();
+}
+function closeSettings(event, elem) {
+  console.log("closing");
+  dispatch("toggle settings", {paneId: elem.paneId, open: false}).commit();
+}
+
 function navigateParent(event, elem) {
   dispatch("remove popup", {paneId: elem.paneId})
   .dispatch("ui set search", {paneId: elem.parentId, value: elem.link})
@@ -262,7 +306,7 @@ export function pane(paneId:string):Element {
   let content;
   let display = eve.findOne("display name", {name: contains}) || eve.findOne("display name", {id: contains});
 
-  let contentType = "entity";;
+  let contentType = "entity";
   if(contains.length === 0) {
     content = entity(builtinId("home"), paneId, kind);
 
@@ -298,6 +342,13 @@ export function pane(paneId:string):Element {
   if(captureClicks) {
     pane.click = preventDefault;
   }
+  let state = uiState.pane[paneId] || {settings: false};
+  if(state.settings) {
+    pane.children.push(
+      {style: "position: absolute; top: 0; left: 0; bottom: 0; right: 0; z-index: 10; background: rgba(0, 0, 0, 0.05);", paneId, click: closeSettings},
+      paneSettings(paneId)
+    );
+  }
   return pane;
 }
 function createPage(evt:Event, elem:Element) {
@@ -307,6 +358,24 @@ function createPage(evt:Event, elem:Element) {
   dispatch("create page", {page, content: `# ${name}\n`})
     .dispatch("create entity", {entity, page, name})
     .dispatch("ui set search", {paneId: elem["paneId"], value: name}).commit();
+}
+
+function deleteEntity(event, elem) {
+  let name = uitk.resolveName(elem.entity);
+  dispatch("remove entity", {entity: elem.entity}).commit();
+  dispatch("ui set search", {paneId: elem.paneId, value: name}).commit(); //@FIXME: This should really navigate to the previous page instead
+  // window.history.back();
+}
+
+function paneSettings(paneId:string) {
+  let pane = eve.findOne("ui pane", {pane: paneId});
+  let {entity = undefined} = eve.findOne("entity", {entity: uitk.resolveId(pane.contains)}) || {};
+  let isSystem = !!(entity && eve.findOne("entity eavs", {entity, attribute: "is a", value: builtinId("system")}));
+  return {t: "ul", c: "settings", children: [
+    {t: "li", c: "save-btn disabled", text: "save"},
+    {t: "li", c: "load-btn disabled", text: "load"},
+    entity && !isSystem ? {t: "li", c: "delete-btn", text: "delete page", entity, paneId, click: deleteEntity} : undefined
+  ]};
 }
 
 export function search(search:string, paneId:string):Element {
@@ -500,7 +569,6 @@ function executeAutocompleterOption(node, elem) {
   let mark = editor.marks[cell.id];
   let doEmbed = makeDoEmbedFunction(cm, mark, cell, paneId);
   if(elem.selected && elem.selected.action) {
-    console.log("DO ACTION", elem.selected.action);
     if(typeof elem.selected.action === "function") {
       elem.selected.action(elem, cell.query, doEmbed);
     }
@@ -679,7 +747,8 @@ function embedAs(elem, value, doEmbed) {
 }
 
 export function entity(entityId:string, paneId:string, kind: PANE, options:any = {}):Element {
-  let content = eve.findOne("entity", {entity: entityId})["content"];
+  let {content = undefined} = eve.findOne("entity", {entity: entityId}) || {};
+  if(content === undefined) return {text: "Could not find the requested page"};
   let page = eve.findOne("entity page", {entity: entityId})["page"];
   let {name} = eve.findOne("display name", {id: entityId});
   let cells = getCells(content);
@@ -710,6 +779,11 @@ export function entity(entityId:string, paneId:string, kind: PANE, options:any =
     ui["cell"] = cell;
     return ui;
   });
+  let attrs;
+  if(kind !== PANE.POPOUT) {
+    attrs = uitk.attributes({entity: entityId, data: {paneId}, key: `${paneId}|${entityId}`});
+    attrs.c += " page-attributes";
+  }
   return {id: `${paneId}|${entityId}|editor`, t: "content", c: "wiki-entity", children: [
     /* This is disabled because searching for just the name of a single entity resolves to a single find step which blows up on query compilation
        {c: "flex-row spaced-row disambiguation", children: [
@@ -718,7 +792,8 @@ export function entity(entityId:string, paneId:string, kind: PANE, options:any =
        {text: "instead?"}
        ]},
      */
-    {c: "wiki-editor", postRender: wikiEditor, onUpdate: updatePage, meta: {entity: entityId, page, paneId}, value: content, options: finalOptions, cells, children: cellItems}
+    {c: "wiki-editor", postRender: wikiEditor, onUpdate: updatePage, meta: {entity: entityId, page, paneId}, value: content, options: finalOptions, cells, children: cellItems},
+    attrs,
   ]};
 }
 

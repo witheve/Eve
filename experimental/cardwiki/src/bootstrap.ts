@@ -82,7 +82,7 @@ class BSPhase {
     if(isAs.length)
       collectionsText = `${titlecase(name)} is a ${isAs.slice(0, -1).join(", ")} ${isAs.length > 1 ? "and" : ""} ${isAs[isAs.length - 1]}.`;
     let content = unpad(6) `
-      #${titlecase(name)}
+      #${name}
       ${collectionsText}
     `;
     if(attributes) {
@@ -380,7 +380,7 @@ app.init("bootstrap", function bootstrap() {
     eric: {department: "engineering", salary: 7},
     rob: {department: "operations", salary: 10},
   };
-  for(let entity in testData) phase.addEntity(entity, entity, ["test data"].concat(testData[entity]), testAttrs[entity], `{${entity}|rep=attributes;sortable=true;key=${entity}-attributes}`);
+  for(let entity in testData) phase.addEntity(entity, entity, ["test data"].concat(testData[entity]), testAttrs[entity], "");
 
   // phase.addTable("department", ["department"])
   //   .addFact("department", {department: "engineering"})

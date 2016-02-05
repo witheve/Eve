@@ -102,7 +102,7 @@ export function handle(event, func) {
   dispatches[event] = func;
 }
 
-export function dispatch(event: string, info?: { [key: string]: any }, dispatchInfo?) {
+export function dispatch(event?: string, info?: { [key: string]: any }, dispatchInfo?) {
   let result = dispatchInfo;
   if (!result) {
     result = eve.diff();
@@ -139,6 +139,7 @@ export function dispatch(event: string, info?: { [key: string]: any }, dispatchI
     }
     updateStat = performance.now() - start;
   }
+  if(!event) return result;
   let func = dispatches[event];
   if (!func) {
     console.error(`No dispatches for '${event}' with ${JSON.stringify(info) }`);

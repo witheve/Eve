@@ -1,5 +1,5 @@
 declare var pluralize; // @TODO: import me.
-import {builtinId, copy, coerceInput, sortByLookup, sortByField} from "./utils";
+import {builtinId, copy, coerceInput, sortByLookup, sortByField, KEYS} from "./utils";
 import {Element, Handler} from "./microReact";
 import {dispatch, eve} from "./app";
 import {PANE, uiState as _state} from "./ui";
@@ -112,8 +112,8 @@ function navigateOrEdit(event, elem) {
   }
 }
 
-interface TableRowElem extends Element { table: string, row: any }
-interface TableCellElem extends Element { row: TableRowElem, field: string }
+interface TableRowElem extends Element { table: string, row: any, rows?: any[] }
+interface TableCellElem extends Element { row: TableRowElem, field: string, rows?: any[]}
 interface TableFieldElem extends Element { table: string, field: string, direction?: number }
 
 function updateEntityValue(event:CustomEvent, elem:TableCellElem) {
@@ -121,16 +121,32 @@ function updateEntityValue(event:CustomEvent, elem:TableCellElem) {
   let {row:rowElem, field} = elem;
   let {table:tableElem, row} = rowElem;
   let entity = tableElem["entity"];
-  if(field === "value" && row.value !== value && row.attribute !== undefined) dispatch("update entity attribute", {entity, attribute: row.attribute, prev: row.value, value}).commit();
-  else if(field === "attribute" && row.attribute !== value && row.value !== undefined) dispatch("rename entity attribute", {entity, prev: row.attribute, attribute: value, value: row.value}).commit();
-  rowElem.row = copy(row);
-  rowElem.row[field] = value;
+  let rows = elem.rows || [row];
+  let chain = dispatch();
+  for(let row of rows) {
+    if(field === "value" && row.value !== value && row.attribute !== undefined) {
+      chain.dispatch("update entity attribute", {entity, attribute: row.attribute, prev: row.value, value});
+    } else if(field === "attribute" && row.attribute !== value && row.value !== undefined) {
+      chain.dispatch("rename entity attribute", {entity, prev: row.attribute, attribute: value, value: row.value});
+    }
+  }
+  chain.commit();
 }
 function updateEntityAttributes(event:CustomEvent, elem:{row: TableRowElem}) {
   let {table:tableElem, row} = elem.row;
   let entity = tableElem["entity"];
-  if(event.detail === "add") dispatch("add entity attribute", {entity, attribute: "", value: ""}).commit(); // @FIXME This is dangerous
-  else dispatch("remove entity attribute", {entity, attribute: row.attribute, value: row.value}).commit();
+  if(event.detail === "add") {
+    let state = elem["state"]["adder"];
+    var valid = elem["fields"].every((field) => {
+      return state[field] !== undefined;
+    });
+    if(valid) {
+      dispatch("add sourced eav", {entity, attribute: state.attribute, value: resolveValue(state.value)}).commit();
+      elem["state"]["adder"] = {};
+    }
+  } else {
+    dispatch("remove entity attribute", {entity, attribute: row.attribute, value: row.value}).commit();
+  }
 }
 function sortTable(event, elem:TableFieldElem) {
   let {key, field, direction} = elem;
@@ -202,6 +218,7 @@ export function attributes(elem:EntityElem):Element {
       else if(a.attribute < b.attribute) return -1;
       return 1;
   })
+  elem["groups"] = ["attribute"];
   elem["rows"] = attributes;
   elem["editCell"] = updateEntityValue;
   elem["editRow"] = updateEntityAttributes;
@@ -303,14 +320,17 @@ export function value(elem:ValueElem):Element {
   return elem;
 }
 
-interface TableElem extends Element { rows: {}[], sortable?: boolean, editCell?: Handler<Event>, editRow?: Handler<Event>, editField?: Handler<Event>, ignoreFields?: string[], ignoreTemp?: boolean, data?: any }
+interface TableElem extends Element { rows: {}[], sortable?: boolean, editCell?: Handler<Event>, editRow?: Handler<Event>, editField?: Handler<Event>, ignoreFields?: string[], ignoreTemp?: boolean, data?: any, groups?: string[]}
 export function table(elem:TableElem):Element {
-    let {rows, ignoreFields = ["__id"], sortable = false, ignoreTemp = true, data = undefined, noHeader = false} = elem;
+  let {rows, ignoreFields = ["__id"], sortable = false, ignoreTemp = true, data = undefined, noHeader = false, groups = []} = elem;
   if(!rows.length) {
     elem.text = "<Empty Table>";
     return elem;
   }
   if(sortable && !elem.key) throw new Error("Cannot track sorting state for a table without a key");
+
+  let localState:any = _state.widget.table[elem.key] || {};
+  _state.widget.table[elem.key] = localState;
 
   let {editCell = undefined, editRow = undefined, editField = undefined} = elem;
   if(editCell) {
@@ -324,7 +344,15 @@ export function table(elem:TableElem):Element {
     }
   }
   if(editRow) {
-    var addRow = (evt, elem) => editRow(new CustomEvent("editrow", {detail: "add"}), elem);
+    var addRow = (evt, elem) => {
+      let event = new CustomEvent("editrow", {detail: "add"});
+      editRow(event, elem);
+    }
+    var trackInput = (evt, elem) => {
+      let node = <HTMLInputElement>evt.target;
+      localState["adder"][elem["field"]] = node.value;
+      dispatch().commit();
+    }
     var removeRow = (evt, elem) => editRow(new CustomEvent("editrow", {detail: "remove"}), elem);
   }
   if(editField) {
@@ -343,7 +371,7 @@ export function table(elem:TableElem):Element {
   }
 
   let header = {t: "header", children: []};
-  let {field:sortField = undefined, direction:sortDirection = undefined} = _state.widget.table[elem.key] || {};
+  let {field:sortField = undefined, direction:sortDirection = undefined} = localState;
   for(let field of fields) {
     let isActive = field === sortField;
     let direction = (field === sortField) ? sortDirection : 0;
@@ -373,17 +401,61 @@ export function table(elem:TableElem):Element {
         (a > b) ? fwd : back;
     });
   }
-  
+
+  //@TODO: allow this to handle multiple groups
+  if(groups.length > 1) throw new Error("Tables only support grouping on one field");
+  if(groups.length) {
+    let [toGroup] = groups;
+    rows.sort((a, b) => {
+      let ag = a[toGroup];
+      let bg = b[toGroup];
+      if(ag === bg) return 0;
+      if(ag < bg) return -1;
+      return 1;
+    });
+  }
+
+  //@FIXME: the grouping strategy here is a disaster
   let body = {c: "body", children: []};
-  for(let row of rows) {
+  let ix = 0;
+  let rowsLen = rows.length;
+  while(ix < rowsLen) {
+    let row = rows[ix];
     let rowElem = {c: "row group", table: elem, row, children: []};
-    for(let field of fields) rowElem.children.push(value({c: "column field", text: row[field], editable: editCell ? true : false, blur: editCell, row: rowElem, field, data}));
-    if(editRow) rowElem.children.push({c: "controls", children: [{c: "remove-row ion-android-close", row: rowElem, click: removeRow}]});
+    for(let grouped of groups) {
+      let collected = [];
+      rowElem.children.push(value({c: "column field", text: row[grouped], editable: editCell ? true : false, blur: editCell, row: rowElem, grouped: true, rows: collected, field: grouped, data, keydown: handleCellKeys}));
+      let subgroup = {c: "column sub-group", table: elem, row, children: []};
+      rowElem.children.push(subgroup);
+      let subrow = rows[ix];
+      while(ix < rowsLen && subrow[grouped] === row[grouped]) {
+        let subrowElem = {c: "sub-row", table: elem, row: subrow, children: []};
+        subgroup.children.push(subrowElem);
+        collected.push(subrow);
+        for(let field of fields) {
+          if(field === grouped) continue;
+          subrowElem.children.push(value({c: "field", text: subrow[field], editable: editCell ? true : false, blur: editCell, row: subrowElem, field, data, keydown: handleCellKeys}));
+        }
+        if(editRow) subrowElem.children.push({c: "controls", children: [{c: "remove-row ion-android-close", row: subrowElem, click: removeRow}]});
+        ix++;
+        subrow = rows[ix];
+      }
+    }
+    if(groups.length === 0) {
+        for(let field of fields) {
+          rowElem.children.push(value({c: "column field", text: row[field], editable: editCell ? true : false, blur: editCell, row: rowElem, field, data, keydown: handleCellKeys}));
+        }
+        if(editRow) rowElem.children.push({c: "controls", children: [{c: "remove-row ion-android-close", row: rowElem, click: removeRow}]});
+        ix++;
+    }
     body.children.push(rowElem);
   }
   if(editRow) {
+    if(!localState["adder"]) {
+      localState["adder"] = {};
+    }
     let rowElem = {c: "row group add-row", table: elem, row: [], children: []};
-    for(let field of fields) rowElem.children.push(value({c: "column field", editable: true, blur: editCell, row: rowElem, field, data}));
+    for(let field of fields) rowElem.children.push(value({c: "column field", editable: true, input: trackInput, blur: addRow, row: rowElem, keydown: handleCellKeys, attribute: field, field, fields, data, table: elem, state: localState, text: localState["adder"][field] || ""}));
     body.children.push(rowElem);
   }
 
@@ -393,6 +465,13 @@ export function table(elem:TableElem):Element {
       elem.children.shift();
   }
   return elem;
+}
+
+function handleCellKeys(event, elem) {
+  if(event.keyCode === KEYS.ENTER) {
+    elem.blur(event, elem);
+    event.preventDefault();
+  }
 }
 
 let directoryTileLayouts:MasonryLayout[] = [
