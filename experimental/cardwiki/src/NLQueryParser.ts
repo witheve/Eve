@@ -206,6 +206,7 @@ enum TokenProperties {
   QUOTED,
   FUNCTION,
   GROUPING,
+  OUTPUT,
 }
 
 // Finds a given property in a token
@@ -592,7 +593,7 @@ interface Node {
   found: boolean,
   properties: Array<TokenProperties>,
   hasProperty(TokenProperties): boolean;
-  toString(): string;
+  toString(number?: number): string;
 }
 
 function cloneNode(node: Node): Node {
@@ -628,27 +629,23 @@ function newNode(token: Token): Node {
       return false;
     }
   }
-  function nodeToString(): string {
-    function getDepth(node: Node): number {
-      if (node.hasProperty(TokenProperties.ROOT) || node.parent === undefined) {
-        return 0;
-      } else {
-        return getDepth(node.parent) + 1;
-      }
+  function nodeToString(depth?: number): string {
+    if (depth === undefined) {
+      depth = 0;
     }
-    let childrenStrings = node.children.map((childNode) => childNode.toString()).join("\n");
+    let childrenStrings = node.children.map((childNode) => childNode.toString(depth+1)).join("\n");
     let children = childrenStrings.length > 0 ? "\n" + childrenStrings : "";
-    let spacing = Array(getDepth(node)+1).join(" ");
+    let indent = Array(depth+1).join(" ");
     let index = node.ix === undefined ? "+ " : `${node.ix}: `;
     let properties = `(${node.properties.map((property: TokenProperties) => TokenProperties[property]).join("|")})`;
     let attribute = node.attribute === undefined ? "" : `[${node.attribute.variable} (${node.attribute.value})] `;
     let entity = node.entity === undefined ? "" : `[${node.entity.displayName}] `;
     let collection = node.collection === undefined ? "" : `[${node.collection.displayName}] `;
     let fxn = node.fxn === undefined ? "" : `[${node.fxn.name}] `;
-    let found = entity !== "" || attribute !== "" || collection !== "" || fxn !== "" ? "*" : " ";
+    let found = node.found ? "*" : " ";
     let entityOrProperties = found === " " ? `${properties}` : `${fxn}${entity}${collection}${attribute}`;
     properties = properties.length === 2 ? "" : properties;
-    let nodeString = `|${found}${spacing}${index}${node.name} ${entityOrProperties}${children}`; 
+    let nodeString = `|${found}${indent}${index}${node.name} ${entityOrProperties}${children}`; 
     return nodeString;
   }
   return node;  
@@ -665,6 +662,7 @@ interface BuiltInFunction {
   type: FunctionTypes,
   attribute?: string,
   fields: Array<string>,
+  project: boolean,
   node?: Node,
 }
 
@@ -697,23 +695,23 @@ function newContext(): Context {
 function wordToFunction(word: string): BuiltInFunction {
   switch (word) {
     case "taller":
-      return {name: ">", type: FunctionTypes.COMPARATOR, attribute: "height", fields: ["a","b"]};
+      return {name: ">", type: FunctionTypes.COMPARATOR, attribute: "height", fields: ["a","b"], project: false};
     case "shorter":
-      return {name: "<", type: FunctionTypes.COMPARATOR, attribute: "length", fields: ["a","b"]};
+      return {name: "<", type: FunctionTypes.COMPARATOR, attribute: "length", fields: ["a","b"], project: false};
     case "longer":
-      return {name: ">", type: FunctionTypes.COMPARATOR, attribute: "length", fields: ["a","b"]};
+      return {name: ">", type: FunctionTypes.COMPARATOR, attribute: "length", fields: ["a","b"], project: false};
     case "younger":
-      return {name: "<", type: FunctionTypes.COMPARATOR, attribute: "age", fields: ["a","b"]};
+      return {name: "<", type: FunctionTypes.COMPARATOR, attribute: "age", fields: ["a","b"], project: false};
     case "and":
-      return {name: "and", type: FunctionTypes.BOOLEAN, fields: []};
+      return {name: "and", type: FunctionTypes.BOOLEAN, fields: [], project: false};
     case "or":
-      return {name: "or", type: FunctionTypes.BOOLEAN, fields: []};
+      return {name: "or", type: FunctionTypes.BOOLEAN, fields: [], project: true};
     case "sum":
-      return {name: "sum", type: FunctionTypes.AGGREGATE, fields: ["value","sum"]};
+      return {name: "sum", type: FunctionTypes.AGGREGATE, fields: ["sum","value"], project: true};
     case "average":
-      return {name: "average", type: FunctionTypes.AGGREGATE, fields: ["value","average"]};
+      return {name: "average", type: FunctionTypes.AGGREGATE, fields: ["average","value"], project: true};
     case "mean":
-      return {name: "average", type: FunctionTypes.AGGREGATE, fields: ["value","average"]};
+      return {name: "average", type: FunctionTypes.AGGREGATE, fields: ["average","value"], project: true};
     default:
       return undefined;
   }
@@ -953,7 +951,7 @@ function formTree(tokens: Array<Token>) {
       for (let n of thanNode) {
         parent.children.splice(parent.children.indexOf(n),1);
       }
-      swapNodeWithParent(node);
+      makeParentChild(node);
     } else if (node.hasProperty(TokenProperties.CONJUNCTION)) {
       promoteNode(node);
     }
@@ -1115,7 +1113,7 @@ function formTree(tokens: Array<Token>) {
     comparator = compNode.fxn;
     // If a comparator node only has one child, swap with the parent
     if (compNode.children.length === 1) {
-      swapNodeWithParent(compNode);
+      makeParentChild(compNode);
     }
     // Check if the children have the requisite attribute, and if so add a node
     compNode.children.forEach((child) => { 
@@ -1163,13 +1161,24 @@ function formTree(tokens: Array<Token>) {
   let aggregate: BuiltInFunction;
   let aggNode;
   for (aggNode of aggregateNodes) {
-    let leafs = findLeafNodes(aggNode);  
-    leafs.forEach((leafNode) => {
-      let newAgg = cloneNode(aggNode);
-      leafNode.children.push(newAgg);
-      newAgg.parent = leafNode;
-    });
-    removeNode(aggNode);
+    if (aggNode.children[0] !== undefined && aggNode.children[0].hasProperty(TokenProperties.GROUPING)) {
+      swapWithParent(aggNode.children[0]);
+      let token = newToken("output");
+      let outputNode = newNode(token);
+      outputNode.properties.push(TokenProperties.OUTPUT);
+      let outputAttribute: Attribute = {
+        id: outputNode.name,
+        displayName: outputNode.name,
+        value: `${aggNode.fxn.name}|${outputNode.name}`,
+        variable: `${aggNode.fxn.name}|${outputNode.name}`,
+        node: outputNode,
+        project: false,
+      }
+      outputNode.found = true;
+      outputNode.attribute = outputAttribute;
+      aggNode.children.push(outputNode);
+      outputNode.parent = aggNode;
+    }
   }   
   
   log(tree.toString());
@@ -1269,9 +1278,11 @@ function promoteNode(node: Node): void {
   newParent.children.push(node);
 }
 
-function swapNodeWithParent(node: Node): void {
+// Makes the node's parent a child of the node.
+// The node's parent's parent is then the node's parent
+function makeParentChild(node: Node): void {
   let parent = node.parent;
-  // Do not swap with root, instead, set everything as the children of the node
+  // Do not swap with root
   if (parent.hasProperty(TokenProperties.ROOT)) {
     return;
   }
@@ -1284,6 +1295,24 @@ function swapNodeWithParent(node: Node): void {
   node.children = node.children.concat(parent);
   node.parent.children.push(node);
   node.parent.children.splice(node.parent.children.indexOf(parent),1);
+}
+
+
+// Swaps a node with its parent. The node's parent
+// is then the parent's parent, and its child is the parent.
+// The parent gets the node's children
+function swapWithParent(node: Node): void {
+  let parent = node.parent;
+  let pparent = parent.parent;
+  if (parent.hasProperty(TokenProperties.ROOT)) {
+    return;
+  }
+  parent.parent = node;
+  parent.children = node.children;
+  pparent.children.splice(pparent.children.indexOf(parent),1);
+  node.parent = pparent;
+  node.children = [parent];
+  pparent.children.push(node);
 }
 
 // EAV Functions
@@ -1697,7 +1726,16 @@ export interface Query {
   toString(number?: number): string;
 }
 
-export function newQuery(terms: Array<Term>): Query {
+export function newQuery(terms?: Array<Term>, subqueries?: Array<Query>, projects?: Array<Term>): Query {
+  if (terms === undefined) {
+    terms = [];
+  }
+  if (subqueries === undefined) {
+    subqueries = [];
+  }
+  if (projects === undefined) {
+    projects = [];
+  }
   // Dedupe terms
   let termStrings = terms.map(termToString);
   let uniqueTerms: Array<boolean> = termStrings.map((value, index, self) => {
@@ -1706,8 +1744,8 @@ export function newQuery(terms: Array<Term>): Query {
   terms = terms.filter((term, index) => uniqueTerms[index]);
   let query: Query = {
     terms: terms,
-    subqueries: [],
-    projects: [],
+    subqueries: subqueries,
+    projects: projects,
     toString: queryToString,
   }
   function queryToString(depth?: number): string {
@@ -1746,71 +1784,81 @@ export function newQuery(terms: Array<Term>): Query {
   return query;
 }
 
-// Build terms from a node using a DFS algorithm
-function treeToQuery(node: Node): Query {
-  let terms: Array<Term> = [];
-  // Build a term for each of the children
-  let childQueries = node.children.map(treeToQuery);
-  // Fold the child terms into the term array
-  childQueries.forEach((cQuery) => {
-    if (cQuery.projects.length === 0 && cQuery.subqueries.length === 0) {
-      terms = terms.concat(cQuery.terms);  
+
+function formQuery(node: Node): Query {
+  let query: Query = newQuery();
+  let projectFields: Array<Field> = [];
+  
+  // Handle the child nodes
+  
+  let childQueries = node.children.map(formQuery);
+  // Subsume child queries
+  let combinedProjectFields: Array<Field> = [];
+  for (let cQuery of childQueries) {
+    query.terms = query.terms.concat(cQuery.terms);
+    query.subqueries = query.subqueries.concat(cQuery.subqueries);
+    // Combine unnamed projects
+    for (let project of cQuery.projects) {
+      if (project.table === undefined) {
+        combinedProjectFields = combinedProjectFields.concat(project.fields);
+      }
     }
-  });
-  let query: Query;
-  if (childQueries.length === 1) {
-    query = childQueries[0];
+  }
+  if (combinedProjectFields.length > 0) {
+    let project = {
+      type: "project!",
+      fields: combinedProjectFields,
+    }
+    query.projects.push(project);
+  }
+  // If the node is a grouping node, stuff the query into a subquery
+  // and take its projects
+  if (node.hasProperty(TokenProperties.GROUPING)) {
+    let subquery = query;
+    query = newQuery();
+    query.projects = query.projects.concat(subquery.projects);
+    subquery.projects = [];
+    query.subqueries.push(subquery);
+      
   }
   
-  // Now take care of the node itself.
-  // Function terms
+  // Handle the current node
+  
+  // Just return at the root
   if (node.hasProperty(TokenProperties.ROOT)) {
-    return newQuery(terms);
-  } else if (node.fxn !== undefined) {
-    // Skip certain functions
-    if (node.fxn.name === "and" || node.fxn.name === "or") {
-      return newQuery(terms);
-    }
-    // Get variables from the already formed terms
-    let vars: Array<string> = [];
-    terms.forEach((term) => {
-      let variables = term.fields.filter((field) => field.name === "value");
-      variables.forEach((variable) => {
-        let value = variable.value;
-        if (typeof value === "string") {
-          vars.push(value);  
-        }
-      });
-    });
-    let fields = node.fxn.fields.map((fxnField,i) => {
-      let thisVar;
-      if (fxnField === node.fxn.name) {
-        thisVar = "output";
-      } else {
-        thisVar = vars.shift();
-      }
-      let field: Field = {
-        name: fxnField,
-        value: thisVar,
-        variable: true,
-      }
-      return field;
-    });
-    let term: Term = {
-      type: "select",
-      table: node.fxn.name,
-      fields: fields,
-    }
-    
-    /*if (node.children[0].hasProperty(TokenProperties.GROUPING)) {
-      query.subqueries[0].terms.push(term);
-      console.log(query.toString());
-      return query;
-    }*/
-    terms.push(term);
+    return query;
   }
-  // Attribute terms
-  else if (node.attribute != undefined) {
+  // Handle functions
+  if (node.fxn !== undefined) {
+    // Skip functions with no arguments
+    if (node.fxn.fields.length === 0) {
+      return query;
+    }
+    let args = findLeafNodes(node).reverse();
+    // If we have the right number of arguments, proceed
+    // @TODO surface an error if the arguments are wrong
+    let output;
+    if (args.length === node.fxn.fields.length) {
+      let fields: Array<Field> = args.map((arg,i) => {
+        return {name: `${node.fxn.fields[i]}`, value: `${arg.attribute.variable}`, variable: true};
+      });
+      let term: Term = {
+        type: "select",
+        table: node.fxn.name,
+        fields: fields,
+      }  
+      query.terms.push(term);
+    }
+    // project if necessary
+    if (node.fxn.project === true) {
+      let outputFields: Array<Field> = args.filter((arg) => arg.hasProperty(TokenProperties.OUTPUT))
+                                           .map((arg) => {return {name: `${node.fxn.name}`, value: `${arg.attribute.variable}`, variable: true}});
+      projectFields = projectFields.concat(outputFields);
+      query.projects = []; 
+    }
+  }
+  // Handle attributes
+  if (node.attribute !== undefined) {
     let attr = node.attribute;
     let entity = attr.entity;
     let collection = attr.collection;
@@ -1819,7 +1867,9 @@ function treeToQuery(node: Node): Query {
       entityField = {name: "entity", value: `${attr.entity.entityAttribute ? attr.entity.variable : attr.entity.id}`, variable: attr.entity.entityAttribute};
     } else if (collection !== undefined) {
       entityField = {name: "entity", value: `${attr.collection.displayName}`, variable: true};
-    }    
+    } else {
+      return query;
+    }
     let attrField: Field = {name: "attribute", value: attr.id, variable: false};
     let valueField: Field = {name: "value", value: attr.variable, variable: true};
     let fields: Array<Field> = [entityField, attrField, valueField];
@@ -1828,9 +1878,14 @@ function treeToQuery(node: Node): Query {
       table: "entity eavs",
       fields: fields,
     }
-    terms.push(term);
+    query.terms.push(term);
+    // project if necessary
+    if (node.attribute.project === true) {
+      let attributeField: Field = {name: `${node.attribute.id}` , value: node.attribute.variable, variable: true};
+      projectFields.push(attributeField);
+    }
   }
-  // Collection terms
+  // Handle collections
   if (node.collection !== undefined) {
     let entityField: Field = {name: "entity", value: node.collection.displayName, variable: true};
     let collectionField: Field = {name: "collection", value: node.collection.id, variable: false};
@@ -1839,86 +1894,26 @@ function treeToQuery(node: Node): Query {
       table: "is a attributes",
       fields: [entityField, collectionField],
     }
-    // If the node is a grouping node, push all the terms so far into a sub query
-    if (node.hasProperty(TokenProperties.GROUPING)) {
-      let subQuery: Query = newQuery(terms);
-      let query = newQuery([term]);
-      query.subqueries.push(subQuery);
-      console.log(query.toString());
-      return query;
+    query.terms.push(term);
+    // project if necessary
+    if (node.collection.project === true) {
+      let collectionField: Field = {name: `${node.collection.displayName.replace(new RegExp(" ", 'g'),"")}`, value: `${node.collection.displayName}`, variable: true};
+      projectFields.push(collectionField);
     }
-    terms.push(term);
   }
-  // Entity terms
-  else if (node.entity !== undefined) {
-    // @TODO We don't do anything with entities right now
-  }
-  return newQuery(terms);
-} 
-
-// take a parse tree, form a query
-function formQuery(tree: Node): Query {
-  
-  // Walk the tree, parsing each node as we go along
-  let query = treeToQuery(tree);
-  
-  // Build the project
-  let projectedNodes: Array<Node> = [];
-  function flattenTree(node: Node) {
-    if ((node.collection && node.collection.project) || 
-        (node.entity && node.entity.project) || 
-        (node.attribute && node.attribute.project)) {
-      projectedNodes.push(node);
+  // Handle entities
+  if (node.entity !== undefined) {
+    // project if necessary
+    if (node.entity.project === true) {
+      let entityField: Field = {name: `${node.entity.displayName.replace(new RegExp(" ", 'g'),"")}`, value: `${node.entity.id}`, variable: false};
+      projectFields.push(entityField);  
     }
-    node.children.map(flattenTree);
   }
-  flattenTree(tree);
-  
-  let project: Term = {
+  let project = {
     type: "project!",
-    fields: [],
+    fields: projectFields, 
   }
-  /*projectedNodes.map((node) => {
-    if (node.attribute !== undefined && node.attribute.project) {
-      let entity = node.attribute.entity;
-      let collection = node.attribute.collection;
-      if (entity !== undefined) {
-        let entityField: Field = {name: `${entity.displayName.replace(new RegExp(" ", 'g'),"")}`, value: `${entity.entityAttribute ? entity.variable : entity.id}`, variable: entity.entityAttribute};
-        project.fields.push(entityField);  
-      } else if (collection !== undefined) {
-        let collectionField: Field = {name: `${collection.displayName.replace(new RegExp(" ", 'g'),"")}`, value: `${collection.displayName}`, variable: true};
-        project.fields.push(collectionField);
-      }
-      let attribute = node.attribute;
-      let attributeField: Field = {name: `${attribute.id}` , value: attribute.variable, variable: true};
-      
-      project.fields.push(attributeField);    
-    } else if (node.collection !== undefined) {
-      let collection = node.collection;
-      let collectionField: Field = {name: `${collection.displayName.replace(new RegExp(" ", 'g'),"")}`, value: `${collection.displayName}`, variable: true};
-      project.fields.push(collectionField);
-    } else if (node.entity !== undefined) {
-      let entity = node.entity;
-      let entityField: Field = {name: `${entity.displayName.replace(new RegExp(" ", 'g'),"")}`, value: `${entity.id}`, variable: false};
-      project.fields.push(entityField);
-    }
-  });
-  
-  let dedupedFields = [];
-  let fieldStrings = project.fields.map((value,index,self) => {
-    return JSON.stringify(value);
-  });
-  let unique = fieldStrings.map((value,index,self) => {
-    return self.indexOf(value) === index;
-  });
-  let uniquefields = project.fields.filter((value,index) => unique[index]);
-  project.fields= uniquefields;
-  
-  if (project.fields.length !== 0) {
-    console.log(query)
-    query.projects.push(project);  
-  }*/
-  
+  query.projects.push(project);
   return query;
 }
 
