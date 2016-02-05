@@ -656,6 +656,10 @@ function parseDSLSexpr(raw:Sexpr, artifacts:Artifacts, context?:VariableContext,
     }
 
     if(primitive) {
+      if($$negated) {
+        if(primitive.inverse) view = primitive.inverse;
+        else throw new ParseError(`Cannot invert primitive calculation '${view}'`, "", raw.lineIx, raw.charIx);
+      }
       if(primitive.aggregate) query.aggregate(view, join, selectId);
       else query.calculate(view, join, selectId);
     } else if($$negated) query.deselect(view, join);
