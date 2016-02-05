@@ -553,7 +553,7 @@ function cellEditor(entityId, paneId, cell):Element {
 function autocompleter(options, paneId, cell): Element {
   let children = [];
   for(let option of options) {
-    let item = {c: "option", text: option.text, selected: option, cell, paneId, click: executeAutocompleterOption};
+    let item = {c: "option", children: option.children, text: option.text, selected: option, cell, paneId, click: executeAutocompleterOption, keydown: optionKeys};
     if(option.selected) {
       item.c += " selected";
     }
@@ -562,7 +562,13 @@ function autocompleter(options, paneId, cell): Element {
   return {c: "autocompleter", key: performance.now().toString(), cell, containerId: `${paneId}|${cell.id}|container`, children, postRender: positionAutocompleter};
 }
 
-function executeAutocompleterOption(node, elem) {
+function optionKeys(event, elem) {
+  if(event.keyCode === KEYS.ENTER) {
+    executeAutocompleterOption(event.currentTarget, elem);
+  }
+}
+
+function executeAutocompleterOption(event, elem) {
   let {paneId, cell} = elem;
   let editor = paneEditors[paneId];
   let cm = editor.cmInstance;
@@ -601,13 +607,15 @@ function autocompleterOptions(entityId, paneId, cell) {
   // every option has a score for how pertinent it is
   // things with a score of 0 will be filtered, everything else
   // will be sorted descending.
-  let options:{score: number, action: any, text: string}[];
+  let options:{score: number, action: any, text?: string, children?: Element[]}[];
   if(state === "query") {
     options = queryAutocompleteOptions(isEntity, parsed, text, params, entityId);
   } else if(state === "represent") {
     options = representAutocompleteOptions(isEntity, parsed, text, params, entityId);
   } else if(state === "create") {
     options = createAutocompleteOptions(isEntity, parsed, text, params, entityId);
+  } else if(state === "define") {
+    options = defineAutocompleteOptions(isEntity, parsed, text, params, entityId);
   }
   options = options.sort((a, b) => b.score - a.score);
   let selected;
@@ -633,13 +641,24 @@ function queryAutocompleteOptions(isEntity, parsed, text, params, entityId) {
   let pageName = eve.findOne("display name", {id: entityId})["name"];
   let options:{score: number, action: any, text: string, [attr:string]: any}[] = [];
   let hasValidParse = parsed.some((parse) => parse.state === StateFlags.COMPLETE);
-  options.sort((a, b) => b.score - a.score);
-  let topOption = options[0];
+  parsed.sort((a, b) => b.score - a.score);
+  let topOption = parsed[0];
   let joiner = "a";
   if(text && text[0].match(/[aeiou]/i)) {
     joiner = "an";
   }
 
+  if(topOption) {
+    let totalFound = 0;
+    let {context} = topOption;
+    for(let item in context) {
+      totalFound += context[item].length;
+    }
+    if(totalFound === 2 && context.entities.length === 1 && context.maybeAttributes.length === 1) {
+      options.push({score: 4,  action: setCellState, state: "define", text: `Add ${text}`});
+      console.log(topOption.query.toString());
+    }
+  }
   // create
   if(!isEntity && text !== "" && text != "=") {
     options.push({score: 1,  action: setCellState, state: "create", text: `Create ${joiner} "${text}" page`});
@@ -744,6 +763,36 @@ function embedAs(elem, value, doEmbed) {
     }
   }
   doEmbed(`${text}|${rawParams}`);
+}
+
+function defineAutocompleteOptions(isEntity, parsed, text, params, entityId) {
+  let options:{score: number, action: any, text?: string, [attr:string]: any}[] = [];
+  let topParse = parsed[0];
+  let context = topParse.context;
+  console.log(context);
+  let attribute = context.maybeAttributes[0].normalizedWord;
+  let entity = context.entities[0].id;
+  let option:any = {score: 1, action: defineAndEmbed, attribute, entity};
+  option.children = [
+    {text: attribute},
+    {c: "inline-cell", contentEditable: "true", selected:option, keydown: defineKeys, postRender: autoFocus}
+  ]
+  options.push(option);
+  return options;
+}
+
+function defineAndEmbed(elem, value, doEmbed) {
+  let {selected} = elem;
+  let {entity, attribute, defineValue} = selected;
+  dispatch("add sourced eav", {entity, attribute, value: defineValue}).commit();
+  doEmbed(`${value}|rep=value;field=${attribute}`);
+}
+
+function defineKeys(event, elem) {
+  if(event.keyCode === KEYS.ENTER) {
+    elem.selected.defineValue = event.currentTarget.textContent;
+    event.preventDefault();
+  }
 }
 
 export function entity(entityId:string, paneId:string, kind: PANE, options:any = {}):Element {
