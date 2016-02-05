@@ -2019,23 +2019,27 @@ runtime.define("lowercase", {result: "lowercase"}, function(text) {
   return {result: text};
 })
 
-runtime.define("=", {filter: true}, function(a, b) {
+runtime.define("=", {filter: true, inverse: "!="}, function(a, b) {
   return a === b ? runtime.SUCCEED : runtime.FAIL;
 });
 
-runtime.define(">", {filter: true}, function(a, b) {
+runtime.define("!=", {filter: true, inverse: "="}, function(a, b) {
+  return a !== b ? runtime.SUCCEED : runtime.FAIL;
+});
+
+runtime.define(">", {filter: true, inverse: "<="}, function(a, b) {
   return a > b ? runtime.SUCCEED : runtime.FAIL;
 });
 
-runtime.define("<", {filter: true}, function(a, b) {
+runtime.define("<", {filter: true, inverse: ">="}, function(a, b) {
   return a < b ? runtime.SUCCEED : runtime.FAIL;
 });
 
-runtime.define(">=", {filter: true}, function(a, b) {
+runtime.define(">=", {filter: true, inverse: "<"}, function(a, b) {
   return a >= b ? runtime.SUCCEED : runtime.FAIL;
 });
 
-runtime.define("<=", {filter: true}, function(a, b) {
+runtime.define("<=", {filter: true, inverse: ">"}, function(a, b) {
   return a <= b ? runtime.SUCCEED : runtime.FAIL;
 });
 
