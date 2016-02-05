@@ -123,7 +123,10 @@ appHandle("ui toggle search plan", (changes:Diff, {paneId}:{paneId:string}) => {
 });
 
 appHandle("add sourced eav", (changes:Diff, eav:{entity:string, attribute:string, value:string|number, source:string}) => {
-    changes.add("sourced eav", eav);
+  if(!eav.source) {
+    eav.source = uuid();
+  }
+  changes.add("sourced eav", eav);
 });
 
 appHandle("remove sourced eav", (changes:Diff, eav:{entity:string, source:string}) => {
@@ -711,7 +714,7 @@ export function entity(entityId:string, paneId:string, kind: PANE, options:any =
   });
   let attrs;
   if(kind !== PANE.POPOUT) {
-    attrs = uitk.attributes({entity: entityId, data: {paneId}});
+    attrs = uitk.attributes({entity: entityId, data: {paneId}, key: `${paneId}|${entityId}`});
     attrs.c += " page-attributes";
   }
   return {id: `${paneId}|${entityId}|editor`, t: "content", c: "wiki-entity", children: [

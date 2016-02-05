@@ -137,7 +137,18 @@ function updateEntityValue(event:CustomEvent, elem:TableCellElem) {
 function updateEntityAttributes(event:CustomEvent, elem:{row: TableRowElem}) {
   let {table:tableElem, row} = elem.row;
   let entity = tableElem["entity"];
-  dispatch("remove entity attribute", {entity, attribute: row.attribute, value: row.value}).commit();
+  if(event.detail === "add") {
+    let state = elem["state"]["adder"];
+    var valid = elem["fields"].every((field) => {
+      return state[field] !== undefined;
+    });
+    if(valid) {
+      dispatch("add sourced eav", {entity, attribute: state.attribute, value: resolveValue(state.value)}).commit();
+      elem["state"]["adder"] = {};
+    }
+  } else {
+    dispatch("remove entity attribute", {entity, attribute: row.attribute, value: row.value}).commit();
+  }
 }
 function sortTable(event, elem:TableFieldElem) {
   let {key, field, direction} = elem;
@@ -313,12 +324,15 @@ export function value(elem:ValueElem):Element {
 
 interface TableElem extends Element { rows: {}[], sortable?: boolean, editCell?: Handler<Event>, editRow?: Handler<Event>, editField?: Handler<Event>, ignoreFields?: string[], ignoreTemp?: boolean, data?: any, groups?: string[]}
 export function table(elem:TableElem):Element {
-    let {rows, ignoreFields = ["__id"], sortable = false, ignoreTemp = true, data = undefined, noHeader = false, groups = []} = elem;
+  let {rows, ignoreFields = ["__id"], sortable = false, ignoreTemp = true, data = undefined, noHeader = false, groups = []} = elem;
   if(!rows.length) {
     elem.text = "<Empty Table>";
     return elem;
   }
   if(sortable && !elem.key) throw new Error("Cannot track sorting state for a table without a key");
+
+  let localState:any = _state.widget.table[elem.key] || {};
+  _state.widget.table[elem.key] = localState;
 
   let {editCell = undefined, editRow = undefined, editField = undefined} = elem;
   if(editCell) {
@@ -332,7 +346,15 @@ export function table(elem:TableElem):Element {
     }
   }
   if(editRow) {
-    var addRow = (evt, elem) => editRow(new CustomEvent("editrow", {detail: "add"}), elem);
+    var addRow = (evt, elem) => {
+      let event = new CustomEvent("editrow", {detail: "add"});
+      editRow(event, elem);
+    }
+    var trackInput = (evt, elem) => {
+      let node = <HTMLInputElement>evt.target;
+      localState["adder"][elem["field"]] = node.value;
+      dispatch().commit();
+    }
     var removeRow = (evt, elem) => editRow(new CustomEvent("editrow", {detail: "remove"}), elem);
   }
   if(editField) {
@@ -351,7 +373,7 @@ export function table(elem:TableElem):Element {
   }
 
   let header = {t: "header", children: []};
-  let {field:sortField = undefined, direction:sortDirection = undefined} = _state.widget.table[elem.key] || {};
+  let {field:sortField = undefined, direction:sortDirection = undefined} = localState;
   for(let field of fields) {
     let isActive = field === sortField;
     let direction = (field === sortField) ? sortDirection : 0;
@@ -431,8 +453,12 @@ export function table(elem:TableElem):Element {
     body.children.push(rowElem);
   }
   if(editRow) {
+    if(!localState["adder"]) {
+      localState["adder"] = {};
+    }
+    console.log("LOCALSTATE", localState["adder"], elem.key, _state.widget.table);
     let rowElem = {c: "row group add-row", table: elem, row: [], children: []};
-    for(let field of fields) rowElem.children.push(value({c: "column field", editable: true, blur: editCell, row: rowElem, keydown: handleCellKeys, field, data}));
+    for(let field of fields) rowElem.children.push(value({c: "column field", editable: true, input: trackInput, blur: addRow, row: rowElem, keydown: handleCellKeys, attribute: field, field, fields, data, table: elem, state: localState, text: localState["adder"][field] || ""}));
     body.children.push(rowElem);
   }
 
