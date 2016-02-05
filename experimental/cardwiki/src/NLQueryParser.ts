@@ -1000,14 +1000,16 @@ function formTree(tokens: Array<Token>) {
         let collection = context.collections[context.collections.length - 1];
         if (collection !== undefined) {
           log(collection.displayName);
-          node.collection = collection;
+          node.collection = cloneCollection(collection);
+          node.collection.project = false;
           node.found = true;
         }
       } else {
         let entity = context.entities[context.entities.length - 1];
         if (entity !== undefined) {
           log(entity.displayName);
-          node.entity = entity;
+          node.entity = cloneEntity(entity);
+          node.entity.project = false;
           node.found = true;
         }
       }
@@ -1329,6 +1331,19 @@ interface Entity {
   project: boolean,
 }
 
+function cloneEntity(entity: Entity): Entity {
+  let clone: Entity = {
+    id: entity.id,
+    displayName: entity.displayName,
+    content: entity.content,
+    node: entity.node,
+    entityAttribute: entity.entityAttribute,
+    variable: entity.variable,
+    project: entity.project,
+  }
+  return clone;
+}
+
 interface Collection {
   id: string,
   displayName: string,
@@ -1336,6 +1351,18 @@ interface Collection {
   node?: Node,
   variable: string,
   project: boolean,
+}
+
+function cloneCollection(collection: Collection): Collection {
+  let clone: Collection = {
+    id: collection.id,
+    displayName: collection.displayName,
+    count: collection.count,
+    node: collection.node,
+    variable: collection.variable,
+    project: collection.project,
+  }
+  return clone;
 }
 
 interface Attribute {
@@ -1821,7 +1848,6 @@ function formQuery(node: Node): Query {
     query.projects = query.projects.concat(subquery.projects);
     subquery.projects = [];
     query.subqueries.push(subquery);
-      
   }
   
   // Handle the current node

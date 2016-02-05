@@ -51,7 +51,6 @@ function parseTest(queryString: string, n: number): nlqp.StateFlags {
   console.log("-------------------------------------------------------------------------------------------");
   console.log("Tree");
   console.log(parseResult.tree.toString());
-  console.log(parseResult.tree)
   console.log("-------------------------------------------------------------------------------------------");
   console.log("Query");  
   console.log(parseResult.query.toString());
@@ -139,14 +138,14 @@ let phrases = [
   // These are queries that we had problems with in the past
   // make sure they always work
   // -------------------------------
-  //"department salaries",
-  //"employee and their departments", 
-  //"employees with their salaries", 
-  "employees and salaries",
+  /*"department salaries",
+  "employee and their departments", 
+  "employees with their salaries", 
+  "employees and their salaries",*/
   // -------------------------------
-  "Pet lengths",
+  /*"Pet lengths",
   "Pets longer than koalas",
-  "Sum salaries per department",
+  "Sum salaries per department",*/
   //"Corey Montella's wife's age",
   //"Pet lengths",
   //"Corey Montella's age, height, and gender",
