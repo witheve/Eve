@@ -314,8 +314,8 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
         token.POS = MinorPartsOfSpeech.NNP;
         token.properties.push(TokenProperties.PROPER);     
       }
-      // --- if the word is a (not proper) noun, singularize
-      if (getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN && !hasProperty(token,TokenProperties.PROPER)) {
+      // --- if the word is a (not proper) noun or verb, singularize
+      if ((getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN || getMajorPOS(token.POS) === MajorPartsOfSpeech.VERB) && !hasProperty(token,TokenProperties.PROPER)) {
         before = normalizedWord;
         normalizedWord = singularize(normalizedWord);
         // Heuristic: If the word changed after singularizing it, then it was plural to begin with
@@ -360,6 +360,9 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
           break;
         case "do":
           token.POS = MinorPartsOfSpeech.VBP;
+          break;
+        case "average":
+          token.POS = MinorPartsOfSpeech.NN;
           break;
         case "their":
           token.properties.push(TokenProperties.PLURAL);
@@ -1726,24 +1729,6 @@ function findCollection(node: Node, context: Context): boolean {
     }
     return true;
   // Singularize and try to find a collection
-  } else {
-    let singularized = singularize(node.name);
-    if (singularized == node.name) {
-      return false;
-    }
-    let collection = findEveCollection(singularized);
-    if (collection !== undefined) {
-      node.token.POS = MinorPartsOfSpeech.NN;
-      node.token.normalizedWord = singularized;
-      node.collection = collection;
-      collection.node = node;
-      context.collections.push(collection);
-      node.found = true;
-      if (node.hasProperty(TokenProperties.GROUPING)) {
-        context.groupings.push(node.token);
-      }
-      return true;
-    }
   }
   return false;
 }

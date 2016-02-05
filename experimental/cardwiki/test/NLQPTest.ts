@@ -10,7 +10,7 @@ var boostrapIxer = bootstrap.ixer;
 
 app.renderRoots["nlqp"];
 
-nlqp.debug = false;
+nlqp.debug = true;
 
 function parseTest(queryString: string, n: number): nlqp.StateFlags {
   let parseResult: nlqp.ParseResult;
@@ -51,7 +51,6 @@ function parseTest(queryString: string, n: number): nlqp.StateFlags {
   console.log("-------------------------------------------------------------------------------------------");
   console.log("Tree");
   console.log(parseResult.tree.toString());
-  console.log(parseResult.tree);
   console.log("-------------------------------------------------------------------------------------------");
   console.log("Query");  
   console.log(parseResult.query.toString());
@@ -139,16 +138,17 @@ let phrases = [
   // These are queries that we had problems with in the past
   // make sure they always work
   // -------------------------------
-  /*"department salaries",
+  /*"Corey Montella's age, height, and gender",
+  "department salaries",
   "employee and their departments", 
   "employees with their salaries", 
-  "employees and their salaries",*/
-  // -------------------------------
-  /*"Pet lengths",
+  "employees and their salaries",
+  "sum salaries per department",
   "Pets longer than koalas",
-  "Sum salaries per department",*/
-  "Corey James Montella's wife's age",
-  //"Pet lengths",
+  "Corey Montella's wife's age and height",
+  "Pet lengths",*/
+  // -------------------------------
+  "average salaries per department"
   //"Corey Montella's age, height, and gender",
   //"pets longer than dogs",
   //"department salaries",
