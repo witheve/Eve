@@ -2,7 +2,6 @@ import {unpad, titlecase, builtinId} from "./utils"
 import * as runtime from "./runtime"
 import * as app from "./app"
 import {eve} from "./app"
-import {queryToExecutable} from "./queryParser.ts"
 import {UIElem, parseDSL, Artifacts} from "./parser"
 import {UI} from "./uiRenderer"
 
@@ -13,11 +12,6 @@ declare var uuid;
 // Utilities
 //-----------------------------------------------------------------------------
 
-function queryFromSearch(search:string):runtime.Query {
-  let result = queryToExecutable(search);
-  result.executable.ordinal()
-  return result.executable;
-}
 // export function UIFromDSL(str:string):UI {
 //   function processElem(data:UIElem):UI {
 //     let elem = new UI(data.id || uuid());
@@ -79,7 +73,7 @@ class BSPhase {
     let isAs = [];
     for(let kind of kinds) {
       let sourceId = `${entity},is a,${kind}`;
-      isAs.push(`{${kind}|eav source = ${sourceId}}`);
+      isAs.push(`{${kind}|rep=link; eav source = ${sourceId}}`);
       let collEntity = builtinId(kind);
       this.addFact("display name", {id: collEntity, name: kind});
       this.addFact("sourced eav", {entity, attribute: "is a", value: collEntity, source: sourceId})
@@ -96,7 +90,7 @@ class BSPhase {
       for(let attr in attributes) {
         let sourceId = `${entity},${attr},${attributes[attr]}`;
         let query = `${name}'s ${attr}`;
-        content += `${attr}: {${query}|eav source = ${sourceId}}\n`;
+        content += `${attr}: {${query}|rep=value; field=${attr}; eav source = ${sourceId}}\n`;
         let value = this._names[attributes[attr]] || attributes[attr];
         this.addFact("sourced eav", {entity, attribute: attr, value, source: sourceId});
         this.addArtifacts(parseDSL(`(query :$$view "${query}"
@@ -190,9 +184,6 @@ class BSPhase {
 //-----------------------------------------------------------------------------
 // Runtime Setup
 //-----------------------------------------------------------------------------
-runtime.define("parse natural", {multi: true}, function(text:string) {
-  return queryToExecutable(text).plan;
-});
 
 app.init("bootstrap", function bootstrap() {
   //-----------------------------------------------------------------------------

@@ -3,7 +3,6 @@
 import * as app from "./app";
 import * as bootstrap from "./bootstrap";
 import * as ui from "./ui";
-import {queryToExecutable} from "./queryParser";
 
 
 app.renderRoots["wiki"] = ui.root;
@@ -15,7 +14,6 @@ var ixer = bootstrap.ixer;
 function initSearches(eve) {
   for(let pane of eve.find("ui pane")) {
     if(eve.findOne("entity", {entity: pane.contains})) continue;
-    app.activeSearches[pane.contains] = queryToExecutable(pane.contains);
   }
 }
 

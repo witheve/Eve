@@ -8,7 +8,6 @@ import {createEditor} from "./richTextEditor";
 import {Element, Handler, RenderHandler, Renderer} from "./microReact";
 import * as uitk from "./uitk";
 import {eve, handle as appHandle, dispatch, activeSearches, renderer} from "./app";
-import {StepType, queryToExecutable} from "./queryParser";
 import {parseDSL} from "./parser";
 import {parse as nlparse, StateFlags, FunctionTypes} from "./NLQueryParser";
 
@@ -369,9 +368,10 @@ function cellUI(paneId, query, cell):Element {
 function queryUIInfo(query) {
   let [content, rawParams] = query.split("|");
   let embedType;
-  let params = getCellParams(content, rawParams);
+  // let params = getCellParams(content, rawParams);
+  let params = parseParams(rawParams);
   let results;
-  if(params["noResults"]) {
+  if(eve.findOne("display name", {id: content}) || eve.findOne("display name", {name: content})) {
     let id = content;
     let display = eve.findOne("display name", {name: content});
     if(display) {
@@ -400,7 +400,6 @@ function getCellParams(content, rawParams) {
   let contentDisplay = eve.findOne("display name", {id: content}) || eve.findOne("display name", {name: content});
   if(contentDisplay) {
     params["rep"] = params["rep"] || "link";
-    params["noResults"] = true;
   } else {
     if(params["rep"]) return params;
 
@@ -525,7 +524,6 @@ function autocompleterOptions(entityId, paneId, cell) {
   let parsed = [];
   if(text !== "") {
     parsed = nlparse(text); // @TODO: this should come from the NLP parser once it's hooked up.
-    console.log(parsed);
   }
   // the autocomplete can have multiple states
   let state = cell.state || "query";
@@ -537,6 +535,8 @@ function autocompleterOptions(entityId, paneId, cell) {
     options = queryAutocompleteOptions(isEntity, parsed, text, params, entityId);
   } else if(state === "represent") {
     options = representAutocompleteOptions(isEntity, parsed, text, params, entityId);
+  } else if(state === "create") {
+    options = createAutocompleteOptions(isEntity, parsed, text, params, entityId);
   }
   options = options.sort((a, b) => b.score - a.score);
   let selected;
@@ -571,7 +571,7 @@ function queryAutocompleteOptions(isEntity, parsed, text, params, entityId) {
 
   // create
   if(!isEntity && text !== "" && text != "=") {
-    options.push({score: 1, action:createAndEmbed, text: `Create ${joiner} "${text}" page`});
+    options.push({score: 1,  action: setCellState, state: "create", text: `Create ${joiner} "${text}" page`});
   }
   // disambiguations
   if(parsed.length > 1) {
@@ -605,20 +605,43 @@ function addAttributeAndEmbed(elem, strValue, doEmbed) {
     chain.dispatch("remove entity attribute", {entity: entityId, attribute: replace, value});
   }
   chain.commit();
-  doEmbed(value);
+  doEmbed(`${value}|rep=link;`);
 }
 
 function setCellState(elem, value, doEmbed) {
   dispatch("setCellState", {id: elem.cell.id, state: elem.selected.state}).commit();
 }
 
+function createAutocompleteOptions(isEntity, parsed, text, params, entityId) {
+  let options:{score: number, action: any, text: string, [attr:string]: any}[] = [];
+  let pageName = eve.findOne("display name", {id: entityId})["name"];
+  let isCollection = isEntity ? eve.findOne("collection", {collection: isEntity.id}) : false;
+  let joiner = "a";
+  if(text && text[0].match(/[aeiou]/i)) {
+    joiner = "an";
+  }
+  let isAScore = 2.5;
+  if(isCollection) {
+    isAScore = 3;
+  }
+  options.push({score: 2.5, action: createAndEmbed, replace: "is a", entityId, attribute: "related to", text: `${pageName} is related to ${text}`});
+  options.push({score: isAScore, action: createAndEmbed, replace: "related to", entityId, attribute: "is a", text: `${pageName} is ${joiner} ${text}`});
+  return options;
+}
+
 function createAndEmbed(elem, value, doEmbed) {
   //create the page and embed a link to it
   let entity = uuid();
   let page = uuid();
-  dispatch("create page", {page, content: `# ${value}\n`})
-    .dispatch("create entity", {entity, page, name: value}).commit();
-  doEmbed(entity);
+  let {entityId, attribute, replace} = elem.selected;
+  let chain = dispatch("create page", {page, content: `#${value}\n`})
+              .dispatch("create entity", {entity, page, name: value})
+              .dispatch("add sourced eav", {entity: entityId, attribute, value: entity, source: uuid()});
+  if(replace) {
+    chain.dispatch("remove entity attribute", {entity: entityId, attribute: replace, value: entity});
+  }
+  chain.commit();
+  doEmbed(`${value}|rep=link;`);
 }
 
 function representAutocompleteOptions(isEntity, parsed, text, params, entityId) {
@@ -663,7 +686,6 @@ export function entity(entityId:string, paneId:string, kind: PANE, options:any =
     "=": (cm) => createEmbedPopout(cm, paneId)
   };
   if(kind === PANE.POPOUT) {
-    console.log("HERE POPOUT");
     keys["Esc"] = () => {
       dispatch("remove popup", {}).commit();
       let parent = eve.findOne("ui pane parent", {pane: paneId})["parent"];
@@ -722,7 +744,6 @@ function maybeNavigate(cm, paneId) {
   if(!cm.somethingSelected()) {
     let pos = cm.getCursor("from");
     let marks = cm.findMarksAt(pos);
-    console.log(marks);
     let toClick;
     for(let mark of marks) {
       if(mark.cell) {
@@ -845,7 +866,6 @@ function embeddedCellKeys(event, elem) {
   } else if(event.keyCode === KEYS.ENTER) {
     let doEmbed = makeDoEmbedFunction(cm, mark, cell, paneId);
     if(elem.selected && elem.selected.action) {
-      console.log("DO ACTION", elem.selected.action);
       if(typeof elem.selected.action === "function") {
         elem.selected.action(elem, value, doEmbed);
       }
