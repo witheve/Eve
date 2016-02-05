@@ -638,7 +638,7 @@ function newNode(token: Token): Node {
     let children = childrenStrings.length > 0 ? "\n" + childrenStrings : "";
     let indent = Array(depth+1).join(" ");
     let index = node.ix === undefined ? "+ " : `${node.ix}: `;
-    let properties = `(${node.properties.map((property: TokenProperties) => TokenProperties[property]).join("|")})`;
+    let properties = node.properties.length === 0 ? "" : `(${node.properties.map((property: TokenProperties) => TokenProperties[property]).join("|")})`;
     let attribute = node.attribute === undefined ? "" : `[${node.attribute.variable} (${node.attribute.value})] `;
     let entity = node.entity === undefined ? "" : `[${node.entity.displayName}] `;
     let collection = node.collection === undefined ? "" : `[${node.collection.displayName}] `;
