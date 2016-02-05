@@ -131,8 +131,6 @@ function updateEntityValue(event:CustomEvent, elem:TableCellElem) {
     }
   }
   chain.commit();
-  rowElem.row = copy(row);
-  rowElem.row[field] = value;
 }
 function updateEntityAttributes(event:CustomEvent, elem:{row: TableRowElem}) {
   let {table:tableElem, row} = elem.row;
@@ -456,7 +454,6 @@ export function table(elem:TableElem):Element {
     if(!localState["adder"]) {
       localState["adder"] = {};
     }
-    console.log("LOCALSTATE", localState["adder"], elem.key, _state.widget.table);
     let rowElem = {c: "row group add-row", table: elem, row: [], children: []};
     for(let field of fields) rowElem.children.push(value({c: "column field", editable: true, input: trackInput, blur: addRow, row: rowElem, keydown: handleCellKeys, attribute: field, field, fields, data, table: elem, state: localState, text: localState["adder"][field] || ""}));
     body.children.push(rowElem);
