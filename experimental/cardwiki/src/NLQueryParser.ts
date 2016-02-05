@@ -1140,7 +1140,7 @@ function formTree(tokens: Array<Token>) {
       } else if(node.attribute.collection !== undefined) {
         entityNode = node.attribute.collection.node;
       }
-      if (node.parent.ix !== entityNode.ix) {
+      if (entityNode !== undefined && node.parent !== entityNode) {
         if (node.parent.hasProperty(TokenProperties.CONJUNCTION)) {
           moveNode(node.parent,entityNode);
           moveNode(node,entityNode);
