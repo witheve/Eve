@@ -589,7 +589,7 @@ interface Node {
   collection?: Collection,
   attribute?: Attribute,
   fxn?: BuiltInFunction,
-  constituents?: Array<Token>,
+  constituents?: Array<Node>,
   token: Token,
   found: boolean,
   properties: Array<TokenProperties>,
@@ -929,25 +929,33 @@ function formTree(tokens: Array<Token>) {
         let newOriginalName = node.token.originalWord + " " + pNoun.token.originalWord;
         let newNormalizedName = node.name + " " + pNoun.name;
         // Create a compound token
-        let newToken: Token = {
+        let nToken: Token = {
           ix: pNoun.ix,
           originalWord: newOriginalName,
           normalizedWord: newNormalizedName,
           POS: MinorPartsOfSpeech.NN,
           properties: node.properties.concat(pNoun.properties),
         };
-        newToken.properties.push(TokenProperties.COMPOUND);
+        nToken.properties.push(TokenProperties.COMPOUND);
         // Subsume properties
         let childProperties = node.children.map((child) => child.properties);
         let flatProperties = flattenNestedArray(childProperties);
-        newToken.properties = newToken.properties.concat(flatProperties);
-        newToken.properties = newToken.properties.filter(onlyUnique);
+        nToken.properties = nToken.properties.concat(flatProperties);
+        nToken.properties = nToken.properties.filter(onlyUnique);
         // Create the new node and insert it into the tree
-        let newProperNode = newNode(newToken);
-        insertAfterNode(newProperNode,pNoun);
+        let nProperNode = newNode(nToken);
+        insertAfterNode(nProperNode,pNoun);
         removeNode(node);
         removeNode(pNoun);
-        tokens.splice(tokens.indexOf(token)+2,0,newToken);
+        if (nProperNode.constituents === undefined) {
+          nProperNode.constituents = [];
+        }
+        nProperNode.constituents.push(node);
+        nProperNode.constituents.push(pNoun);
+        if (node.constituents !== undefined) {
+          nProperNode.constituents = nProperNode.constituents.concat(node.constituents);  
+        }
+        tokens.splice(tokens.indexOf(token)+2,0,nToken);
       }    
     // Heuristic: If the node is comparative, swap with its parent
     } else if (node.hasProperty(TokenProperties.COMPARATIVE)) {

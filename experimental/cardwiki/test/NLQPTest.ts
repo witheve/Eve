@@ -51,6 +51,7 @@ function parseTest(queryString: string, n: number): nlqp.StateFlags {
   console.log("-------------------------------------------------------------------------------------------");
   console.log("Tree");
   console.log(parseResult.tree.toString());
+  console.log(parseResult.tree);
   console.log("-------------------------------------------------------------------------------------------");
   console.log("Query");  
   console.log(parseResult.query.toString());
@@ -146,7 +147,7 @@ let phrases = [
   /*"Pet lengths",
   "Pets longer than koalas",
   "Sum salaries per department",*/
-  //"Corey Montella's wife's age",
+  "Corey James Montella's wife's age",
   //"Pet lengths",
   //"Corey Montella's age, height, and gender",
   //"pets longer than dogs",
