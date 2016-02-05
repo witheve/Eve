@@ -34,13 +34,13 @@ body { height: 100vh; }
 .controls > div { padding: 0.25em; border-radius: 2px; }
 
 div > header > .controls { opacity: 0; }
-div:hover > header > .controls { opacity: 1; }
+div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .controls > div:hover { background: rgba(255, 255, 255, 0.25); }
 
 /*---------------------------------------------------------
 - Pane
 ---------------------------------------------------------*/
-.wiki-pane.fullscreen {}
+.wiki-pane.fullscreen { position: relative; }
 .wiki-pane > header { padding: 10px 0.5em; align-items: center; border-bottom: 1px solid #ccc; }
 .wiki-pane > header > * { margin: 0 0.5em;}
 .wiki-pane > content { display: flex; align-items: center; } /* @TODO: Breakpoints overflow-y: auto*/
@@ -49,6 +49,18 @@ div:hover > header > .controls { opacity: 1; }
 
 .wiki-entity { flex: 1; flex-direction: column; align-items: flex-start; overflow: auto; }
 .disambiguation { align-self: stretch; flex-direction: row; padding: 0.25em 0.5em; margin-bottom: 1rem; color: #999; }
+
+.wiki-pane > .settings { display: flex; flex-direction: column; position: absolute; right: 15px; top: 53px; z-index: 11; background: white; border: 1px solid #ccc; border-radius: 2px; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2); }
+.wiki-pane > .settings:before { content: ""; position: absolute; top: -7px; right: 7px; border: 7px solid transparent; border-bottom-color: #ccc; border-top: none; }
+.wiki-pane > .settings:after { content: ""; position: absolute; top: -6px; right: 8px; border: 6px solid transparent; border-bottom-color: white; border-top: none; }
+.wiki-pane > .settings li { padding: 10px; }
+.wiki-pane > .settings li + li { border-top: 1px solid #ccc; }
+.wiki-pane > .settings li.disabled { color: #999; }
+
+.wiki-pane > .settings li:hover { background: #f9f9f9; }
+.wiki-pane > .settings li.disabled:hover { background: transparent; }
+
+.wiki-pane > .settings .delete-btn { color: #dd3311; }
 
 /*---------------------------------------------------------
 - Popout pane
