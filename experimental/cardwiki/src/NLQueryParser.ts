@@ -364,6 +364,9 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
         case "average":
           token.POS = MinorPartsOfSpeech.NN;
           break;
+        case "mean":
+          token.POS = MinorPartsOfSpeech.NN;
+          break;
         case "their":
           token.properties.push(TokenProperties.PLURAL);
           break;
