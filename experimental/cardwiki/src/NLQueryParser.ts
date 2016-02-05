@@ -29,11 +29,6 @@ export function parse(queryString: string): Array<ParseResult> {
   let tokens = formTokens(preTokens);
   let {tree, context} = formTree(tokens);
   let query = formQuery(tree);
-  // Clear context of found maybe tokens
-  context.maybeAttributes = context.maybeAttributes.filter((token) => !token.node.found);
-  context.maybeCollections = context.maybeCollections.filter((token) => !token.node.found);
-  context.maybeEntities = context.maybeEntities.filter((token) => !token.node.found);
-  context.maybeFunction = context.maybeFunction.filter((token) => !token.node.found);
   // Figure out the state flags
   let flag: StateFlags;
   if (query.projects.length === 0 && query.terms.length === 0) {
