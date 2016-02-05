@@ -1128,6 +1128,7 @@ function formTree(tokens: Array<Token>) {
           nNode.attribute = attribute;
           child.children.push(nNode);
           nNode.parent = child;
+          nNode.found = true;
           child.entity.project = true;
           context.attributes.push(attribute);
         }
@@ -1146,6 +1147,7 @@ function formTree(tokens: Array<Token>) {
             node: nNode,
             project: false,
           }
+          nNode.found = true;
           child.collection.project = true;
           nNode.attribute = collectionAttribute;
           child.collection.variable = "";
@@ -1826,6 +1828,10 @@ function formQuery(node: Node): Query {
   
   // Just return at the root
   if (node.hasProperty(TokenProperties.ROOT)) {
+    // Reverse the order of fields in the projects
+    for (let project of query.projects) {
+      project.fields = project.fields.reverse();
+    }
     return query;
   }
   // Handle functions
