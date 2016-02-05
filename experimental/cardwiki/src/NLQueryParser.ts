@@ -353,9 +353,6 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
         case "is": 
           token.POS = MinorPartsOfSpeech.VBZ;
           break;
-        case "not":
-          token.POS = MinorPartsOfSpeech.RB;
-          break;
         case "was":
           token.POS = MinorPartsOfSpeech.VBD;
           break;
@@ -371,7 +368,14 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
         case "nor":
           token.properties.push(TokenProperties.NEGATES);
           break;
+        case "except":
+          token.properties.push(TokenProperties.NEGATES);
+          break;
+        case "without":
+          token.properties.push(TokenProperties.NEGATES);
+          break;
         case "not":
+          token.POS = MinorPartsOfSpeech.RB;
           token.properties.push(TokenProperties.NEGATES);
           break;
         case "average":
