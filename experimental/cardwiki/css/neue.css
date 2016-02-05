@@ -43,11 +43,11 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .wiki-pane.fullscreen { position: relative; }
 .wiki-pane > header { padding: 10px 0.5em; align-items: center; border-bottom: 1px solid #ccc; }
 .wiki-pane > header > * { margin: 0 0.5em;}
-.wiki-pane > content { display: flex; align-items: center; } /* @TODO: Breakpoints overflow-y: auto*/
+.wiki-pane > content { display: flex; } /* @TODO: Breakpoints overflow-y: auto*/
 
 .wiki-pane { background: #fff; }
 
-.wiki-entity { flex: 1; flex-direction: column; align-items: flex-start; overflow: auto; }
+.wiki-entity { flex: 1; flex-direction: row; overflow:hidden; justify-content: center; }
 .disambiguation { align-self: stretch; flex-direction: row; padding: 0.25em 0.5em; margin-bottom: 1rem; color: #999; }
 
 .wiki-pane > .settings { display: flex; flex-direction: column; position: absolute; right: 15px; top: 53px; z-index: 11; background: white; border: 1px solid #ccc; border-radius: 2px; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2); }
@@ -72,9 +72,9 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .wiki-pane.window > header button { border:none; border-radius:0px; background:none; font-size: 20px; font-weight:400; color:#555; padding:8px 10px; color: #008cdd; position:absolute; top:0; right:0; z-index:10;  }
 .wiki-pane.window > header button:hover { background: rgba(0, 140, 221, 0.15); }
 .wiki-pane.window > header .controls { opacity:1; color: #777; }
-.wiki-pane.window .wiki-entity { padding: 15px 20px;  }
-.wiki-pane.window .wiki-entity .CodeMirror { flex: 1; overflow:hidden; }
-.wiki-pane.window .wiki-editor { padding: 0;  }
+.wiki-pane.window .wiki-entity { padding: 25px 20px; }
+.wiki-pane.window .wiki-entity .CodeMirror { flex: 1; overflow:visible; }
+.wiki-pane.window .wiki-editor { padding: 0px 30px;  }
 
 /*---------------------------------------------------------
 - Autocompleter
@@ -114,8 +114,8 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 - Wiki editor
 ---------------------------------------------------------*/
 
-.wiki-editor { flex: 1; width: 600px; padding-top: 50px; }
-.wiki-editor .CodeMirror { font-family: "Lato"; font-size: 16px; color: rgb(84,84,84); font-weight:400; }
+.wiki-editor { width: 660px; padding: 50px 30px; overflow:auto; }
+.wiki-editor .CodeMirror { font-family: "Lato"; font-size: 16px; color: rgb(84,84,84); font-weight:400; width:600px; }
 .wiki-editor .CodeMirror-lines { padding: 0; }
 
 .wiki-editor .CodeMirror-widget div { display:flex; }
@@ -134,8 +134,6 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 
 
 .wiki-editor .attribute, .wiki-editor .value { color:#2C00FD; }
-.wiki-editor .link { color: #008cdd; cursor: pointer; border-bottom: 1px solid transparent; }
-.wiki-editor .link:hover { border-bottom:1px solid #008cdd; }
 .wiki-editor .embed-code { background: #C7E7FF; }
 .wiki-editor .cm-variable-2 { padding-left:15px; }
 
@@ -157,6 +155,12 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .wiki-editor .non-editing-embedded-cell .edit-button:hover { background: #004A74; }
 
 /*---------------------------------------------------------
+- Page attributes
+---------------------------------------------------------*/
+
+.page-attributes { margin-top:50px; align-self: flex-start; margin-left:50px; border-radius:3px; }
+
+/*---------------------------------------------------------
 - Content
 ---------------------------------------------------------*/
 content h1 { font-size: 1.5em; margin: 1rem; margin-bottom: 0.5rem; text-transform: capitalize; }
@@ -171,6 +175,9 @@ content li { flex: 0 0 auto; }
 content h1 { border-bottom: 1px solid #ccc; }
 
 content .error-rep { color: #FF3333; }
+
+content .link { color: #008cdd; cursor: pointer; border-bottom: 1px solid transparent; }
+content .link:hover { border-bottom:1px solid #008cdd; }
 
 /*---------------------------------------------------------
 - Search Pane
@@ -188,6 +195,8 @@ content .error-rep { color: #FF3333; }
 .table .group + .group, .table .sub-group + .sub-group { border-top: 1px solid #ddd; }
 .table .column + .column { border-left: 1px solid #ddd; }
 .table .column .field + .field { border-top: 1px solid #ddd; }
+
+.table .sub-row { flex-direction: row; }
 
 .table header .sort-toggle { opacity: 0.5; }
 .table header .sort-toggle.active { opacity: 1; }
