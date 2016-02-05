@@ -685,7 +685,7 @@ function newNode(token: Token): Node {
 }
 
 export enum FunctionTypes {
-  COMPARATOR,
+  FILTER,
   AGGREGATE,
   BOOLEAN,
 }
@@ -728,13 +728,13 @@ function newContext(): Context {
 function wordToFunction(word: string): BuiltInFunction {
   switch (word) {
     case "taller":
-      return {name: ">", type: FunctionTypes.COMPARATOR, attribute: "height", fields: ["a","b"], project: false};
+      return {name: ">", type: FunctionTypes.FILTER, attribute: "height", fields: ["a","b"], project: false};
     case "shorter":
-      return {name: "<", type: FunctionTypes.COMPARATOR, attribute: "length", fields: ["a","b"], project: false};
+      return {name: "<", type: FunctionTypes.FILTER, attribute: "length", fields: ["a","b"], project: false};
     case "longer":
-      return {name: ">", type: FunctionTypes.COMPARATOR, attribute: "length", fields: ["a","b"], project: false};
+      return {name: ">", type: FunctionTypes.FILTER, attribute: "length", fields: ["a","b"], project: false};
     case "younger":
-      return {name: "<", type: FunctionTypes.COMPARATOR, attribute: "age", fields: ["a","b"], project: false};
+      return {name: "<", type: FunctionTypes.FILTER, attribute: "age", fields: ["a","b"], project: false};
     case "and":
       return {name: "and", type: FunctionTypes.BOOLEAN, fields: [], project: false};
     case "or":
@@ -1157,7 +1157,7 @@ function formTree(tokens: Array<Token>) {
   log(tree.toString());
   log("Rewire comparators...");
   // Rewrite comparators
-  let comparatorNodes = context.fxns.filter((fxn) => fxn.type === FunctionTypes.COMPARATOR).map((n) => n.node);  
+  let comparatorNodes = context.fxns.filter((fxn) => fxn.type === FunctionTypes.FILTER).map((n) => n.node);  
   let comparator: BuiltInFunction;
   for (let compNode of comparatorNodes) {
     comparator = compNode.fxn;
@@ -1533,6 +1533,49 @@ enum RelationshipTypes {
 interface Relationship {
   links?: Array<string>,
   type: RelationshipTypes,
+}
+
+export function findCollectionToCollectionRelationship(coll: string, coll2: string) {
+  // are there things in both sets?
+  let intersection = eve.query(`${coll}->${coll2}`)
+    .select("collection entities", { collection: coll }, "coll1")
+    .select("collection entities", { collection: coll2, entity: ["coll1", "entity"] }, "coll2")
+    .exec();
+  // is there a relationship between things in both sets
+  let relationships = eve.query(`relationships between ${coll} and ${coll2}`)
+    .select("collection entities", { collection: coll }, "coll1")
+    .select("directionless links", { entity: ["coll1", "entity"] }, "links")
+    .select("collection entities", { collection: coll2, entity: ["links", "link"] }, "coll2")
+    .group([["links", "link"]])
+    .aggregate("count", {}, "count")
+    .project({ type: ["links", "link"], count: ["count", "count"] })
+    .exec();
+
+    
+  console.log(intersection);
+  console.log(relationships);
+
+  let maxRel = { count: 0 };
+  for (let result of relationships.results) {
+    if (result.count > maxRel.count) maxRel = result;
+  }
+
+  // we divide by two because unprojected results pack rows next to eachother
+  // and we have two selects.
+  let intersectionSize = intersection.unprojected.length / 2;
+  
+  console.log(intersectionSize);
+  console.log(maxRel);
+  /*
+  if (maxRel.count > intersectionSize) {
+    return { distance: 1 };
+  } else if (intersectionSize > maxRel.count) {
+    return { distance: 0, };
+  } else if (maxRel.count === 0 && intersectionSize === 0) {
+    return;
+  } else {
+    return { distance: 1 };
+  }*/
 }
 
 function findCollectionToAttrRelationship(coll: string, attr: string): Relationship {
