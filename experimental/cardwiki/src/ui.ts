@@ -367,10 +367,11 @@ function deleteEntity(event, elem) {
 function paneSettings(paneId:string) {
   let pane = eve.findOne("ui pane", {pane: paneId});
   let {entity = undefined} = eve.findOne("entity", {entity: uitk.resolveId(pane.contains)}) || {};
+  let isSystem = !!(entity && eve.findOne("entity eavs", {entity, attribute: "is a", value: builtinId("system")}));
   return {t: "ul", c: "settings", children: [
     {t: "li", c: "save-btn disabled", text: "save"},
     {t: "li", c: "load-btn disabled", text: "load"},
-    entity ? {t: "li", c: "delete-btn", text: "delete page", entity, paneId, click: deleteEntity} : undefined
+    entity && !isSystem ? {t: "li", c: "delete-btn", text: "delete page", entity, paneId, click: deleteEntity} : undefined
   ]};
 }
 
