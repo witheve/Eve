@@ -33,12 +33,21 @@ export function parse(queryString: string): Array<ParseResult> {
   let flag: StateFlags;
   if (query.projects.length === 0 && query.terms.length === 0) {
     flag = StateFlags.NORESULT;
-  } else if (query.projects.length === 0 && query.terms.length !== 0) {
-    flag = StateFlags.MOREINFO; 
+  } else if (treeComplete(treeResult.tree)) {
+    flag = StateFlags.COMPLETE; 
   } else {
-    flag = StateFlags.COMPLETE;
+    flag = StateFlags.MOREINFO;
   }
   return [{tokens: tokens, tree: treeResult.tree, context: treeResult.context, query: query, score: undefined, state: flag}];
+}
+
+function treeComplete(node: Node): boolean {
+  if (node.found === false) {
+    return false;
+  } else {
+    let childrenStatus = node.children.map(treeComplete);
+    return childrenStatus.every((child) => child === true); 
+  }
 }
 
 // Performs some transformations to the query string before tokenizing
