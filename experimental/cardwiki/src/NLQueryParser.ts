@@ -216,6 +216,7 @@ enum TokenProperties {
   FUNCTION,
   GROUPING,
   OUTPUT,
+  NEGATES,
 }
 
 // Finds a given property in a token
@@ -360,6 +361,18 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
           break;
         case "do":
           token.POS = MinorPartsOfSpeech.VBP;
+          break;
+        case "no":
+          token.properties.push(TokenProperties.NEGATES);
+          break;
+        case "neihter":
+          token.properties.push(TokenProperties.NEGATES);
+          break;
+        case "nor":
+          token.properties.push(TokenProperties.NEGATES);
+          break;
+        case "not":
+          token.properties.push(TokenProperties.NEGATES);
           break;
         case "average":
           token.POS = MinorPartsOfSpeech.NN;
