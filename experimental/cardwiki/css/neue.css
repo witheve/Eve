@@ -28,7 +28,8 @@ body { height: 100vh; width: 100vw; }
 #perfStats { position: absolute; background: rgba(255, 255, 255, 0.5); padding:10px; bottom: 0px; right: 15px; color: #888; z-index: 20; }
 
 .modal-prompt { position: absolute; top: 50%; left: 50%; margin-left: -128px; margin-top: -64px; z-index: 11; width: 256px; height: 128px; padding: 5px; background: white; border: 1px solid #ccc; border-radius: 2px; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2); }
-.modal-prompt > h2 { margin-bottom: 0.5em; text-align: center; }
+.modal-prompt header > * { display: flex; }
+.modal-prompt h2 { margin-bottom: 0.5em; text-align: center; }
 .modal-prompt > p { margin-bottom: 0.5em; }
 
 /*---------------------------------------------------------
