@@ -284,6 +284,11 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
         token.properties.push(TokenProperties.SUPERLATIVE);
       }
       
+      // Add default properties to adjectives 
+      if (token.POS === MinorPartsOfSpeech.JJ) {
+        token.properties.push(TokenProperties.BACKRELATIONSHIP);
+      }
+      
       // Add default properties to separators
       if (token.POS === MinorPartsOfSpeech.CC) {
         token.properties.push(TokenProperties.CONJUNCTION);
@@ -371,7 +376,7 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
         case "no":
           token.properties.push(TokenProperties.NEGATES);
           break;
-        case "neihter":
+        case "neither":
           token.POS = MinorPartsOfSpeech.CC;
           token.properties.push(TokenProperties.NEGATES);
           break;
@@ -894,10 +899,7 @@ function formTree(tokens: Array<Token>) {
   
   // First, find noun groups
   //let nodes = formNounGroups(tokens);
-  //console.log("NOUN GROUPS");
-  //console.log(nodeArrayToString(nodes));
-  
-  
+
   // Fold in all the other tokens
   let nodes = tokens.filter((token) => token.node === undefined).map(newNode);
   //nodes = nodes.concat(unusedNodes);
@@ -987,7 +989,7 @@ function formTree(tokens: Array<Token>) {
           found = true;
           break;
         
-        } else if (getMajorPOS(tokens[j].POS) === MajorPartsOfSpeech.GLUE ||
+        } else if (tokens[j].POS === MinorPartsOfSpeech.DT ||
                    tokens[j].POS === MinorPartsOfSpeech.SEP) {
           break;
         }
@@ -1000,8 +1002,8 @@ function formTree(tokens: Array<Token>) {
             moveNode(node,nounNode);
             node.properties.push(TokenProperties.BACKRELATIONSHIP);
             break;
-          } else if (getMajorPOS(tokens[k].POS) === MajorPartsOfSpeech.GLUE ||
-                  tokens[k].POS === MinorPartsOfSpeech.SEP) {
+          } else if (tokens[k].POS === MinorPartsOfSpeech.DT ||
+                     tokens[k].POS === MinorPartsOfSpeech.SEP) {
             break;
           }
         }
@@ -1081,7 +1083,6 @@ function formTree(tokens: Array<Token>) {
       log("Entity/Collection already found: finding attribute");
       let entity = context.entities[context.entities.length - 1];
       if (entity !== undefined) {
-        console.log(entity);
         findEntityAttribute(node,entity,context);
       // Try to find it as an attribute of a collection
       } else {
@@ -1135,7 +1136,7 @@ function formTree(tokens: Array<Token>) {
       // Figure out how this node relates to its parent
       if (node.collection !== undefined) {
         let parent = node.parent;
-        if (parent.collection) {
+        if (parent.collection !== undefined) {
           let relationship = findCollectionToCollectionRelationship(node.collection.id,parent.collection.id);
           if (relationship.type === RelationshipTypes.INTERSECTION) {
             node.collection.variable = parent.collection.variable;
@@ -1234,7 +1235,6 @@ function formTree(tokens: Array<Token>) {
       if (child.entity !== undefined) {
         let attribute = findEveAttribute(comparator.attribute,child.entity);
         if (attribute !== undefined) {
-          //console.log(attribute);
           let nToken = newToken(comparator.attribute);
           let nNode = newNode(nToken);
           attribute.project = false;
@@ -1603,6 +1603,7 @@ interface Relationship {
 }
 
 export function findCollectionToCollectionRelationship(coll: string, coll2: string): Relationship {
+  log(`Finding Coll -> Coll relationship between "${coll}" and "${coll2}"...`);
   // are there things in both sets?
   let intersection = eve.query(`${coll}->${coll2}`)
     .select("collection entities", { collection: coll }, "coll1")
@@ -1647,7 +1648,7 @@ export function findCollectionToCollectionRelationship(coll: string, coll2: stri
 function findCollectionToAttrRelationship(coll: string, attr: string): Relationship {
   // Finds a direct relationship between collection and attribute
   // e.g. "pets' lengths"" => pet -> snake -> length
-  log(`Finding relationship between "${coll}" and "${attr}"...`);
+  log(`Finding Coll -> Attr relationship between "${coll}" and "${attr}"...`);
   let relationship = eve.query(``)
     .select("collection entities", { collection: coll }, "collection")
     .select("entity eavs", { entity: ["collection", "entity"], attribute: attr }, "eav")
@@ -1801,7 +1802,6 @@ function findEntityAttribute(node: Node, entity: Entity, context: Context): bool
     context.attributes.push(attribute);
     node.attribute = attribute;
     attribute.node = node;
-    console.log(attribute);
     // If the node is possessive, check to see if it is an entity
     if (node.hasProperty(TokenProperties.POSSESSIVE) || node.hasProperty(TokenProperties.BACKRELATIONSHIP)) {
       let entity = findEveEntity(`${attribute.value}`);
