@@ -974,6 +974,21 @@ function formTree(tokens: Array<Token>) {
     // Heuristic: Remove glue
     } else if (node.token.POS === MinorPartsOfSpeech.IN || node.token.POS === MinorPartsOfSpeech.CP) {
       removeNode(node);
+    // Heuristic, if the node is an adjective, attach it as a child to the closest noun child
+    } else if (getMajorPOS(node.token.POS) === MajorPartsOfSpeech.ADJECTIVE) {
+      // Search the the right until a noun
+      for (let j = i; j < tokens.length; j++) {
+        if (getMajorPOS(tokens[j].POS) === MajorPartsOfSpeech.NOUN) {
+          let nounNode = tokens[j].node;
+          moveNode(node,nounNode);
+          node.properties.push(TokenProperties.BACKRELATIONSHIP);
+          break;
+        } else if (getMajorPOS(tokens[j].POS) === MajorPartsOfSpeech.GLUE ||
+                   tokens[j].POS === MinorPartsOfSpeech.SEP) {
+          break;
+        }
+      }
+    
     // Heuristic: If the node is proper but not quoted, see if the next node is proper and 
     // if so create a compound node from the two
     } else if (node.hasProperty(TokenProperties.PROPER) && !node.hasProperty(TokenProperties.QUOTED)) {
@@ -1989,7 +2004,9 @@ function formQuery(node: Node): Query {
     let output;
     if (args.length === node.fxn.fields.length) {
       let fields: Array<Field> = args.map((arg,i) => {
-        return {name: `${node.fxn.fields[i]}`, value: `${arg.attribute.variable}`, variable: true};
+        return {name: `${node.fxn.fields[i]}`, 
+                value: `${arg.attribute.variable}`, 
+                variable: true};
       });
       let term: Term = {
         type: "select",
@@ -2001,7 +2018,9 @@ function formQuery(node: Node): Query {
     // project if necessary
     if (node.fxn.project === true) {
       let outputFields: Array<Field> = args.filter((arg) => arg.hasProperty(TokenProperties.OUTPUT))
-                                           .map((arg) => {return {name: `${node.fxn.name}`, value: `${arg.attribute.variable}`, variable: true}});
+                                           .map((arg) => {return {name: `${node.fxn.name}`, 
+                                                                  value: `${arg.attribute.variable}`, 
+                                                                  variable: true}});
       projectFields = projectFields.concat(outputFields);
       query.projects = []; 
     }
@@ -2013,14 +2032,22 @@ function formQuery(node: Node): Query {
     let collection = attr.collection;
     let entityField: Field;
     if (entity !== undefined) {
-      entityField = {name: "entity", value: `${attr.entity.entityAttribute ? attr.entity.variable : attr.entity.id}`, variable: attr.entity.entityAttribute};
+      entityField = {name: "entity", 
+                     value: `${attr.entity.entityAttribute ? attr.entity.variable : attr.entity.id}`, 
+                     variable: attr.entity.entityAttribute};
     } else if (collection !== undefined) {
-      entityField = {name: "entity", value: `${attr.collection.displayName}`, variable: true};
+      entityField = {name: "entity", 
+                     value: `${attr.collection.displayName}`, 
+                     variable: true};
     } else {
       return query;
     }
-    let attrField: Field = {name: "attribute", value: attr.id, variable: false};
-    let valueField: Field = {name: "value", value: attr.variable, variable: true};
+    let attrField: Field = {name: "attribute", 
+                            value: attr.id, 
+                            variable: false};
+    let valueField: Field = {name: "value", 
+                             value: attr.variable, 
+                             variable: true};
     let fields: Array<Field> = [entityField, attrField, valueField];
     let term: Term = {
       type: "select",
@@ -2030,14 +2057,18 @@ function formQuery(node: Node): Query {
     query.terms.push(term);
     // project if necessary
     if (node.attribute.project === true) {
-      let attributeField: Field = {name: `${node.attribute.id}` , value: node.attribute.variable, variable: true};
+      let attributeField: Field = {name: `${node.attribute.id}` , 
+                                   value: node.attribute.variable, 
+                                   variable: true};
       projectFields.push(attributeField);
     }
   }
   // Handle collections
   if (node.collection !== undefined) {
     let entityField: Field = {name: "entity", value: node.collection.displayName, variable: true};
-    let collectionField: Field = {name: "collection", value: node.collection.id, variable: false};
+    let collectionField: Field = {name: "collection", 
+                                  value: node.collection.id, 
+                                  variable: false};
     let term: Term = {
       type: "select",
       table: "is a attributes",
@@ -2046,7 +2077,9 @@ function formQuery(node: Node): Query {
     query.terms.push(term);
     // project if necessary
     if (node.collection.project === true) {
-      let collectionField: Field = {name: `${node.collection.displayName.replace(new RegExp(" ", 'g'),"")}`, value: `${node.collection.displayName}`, variable: true};
+      let collectionField: Field = {name: `${node.collection.displayName.replace(new RegExp(" ", 'g'),"")}`, 
+                                    value: `${node.collection.displayName}`, 
+                                    variable: true};
       projectFields.push(collectionField);
     }
   }
@@ -2054,7 +2087,9 @@ function formQuery(node: Node): Query {
   if (node.entity !== undefined) {
     // project if necessary
     if (node.entity.project === true) {
-      let entityField: Field = {name: `${node.entity.displayName.replace(new RegExp(" ", 'g'),"")}`, value: `${node.entity.entityAttribute ? node.entity.variable : node.entity.id}`, variable: node.entity.entityAttribute};
+      let entityField: Field = {name: `${node.entity.displayName.replace(new RegExp(" ", 'g'),"")}`, 
+                                value: `${node.entity.entityAttribute ? node.entity.variable : node.entity.id}`, 
+                                variable: node.entity.entityAttribute};
       projectFields.push(entityField);  
     }
   }
