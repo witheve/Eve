@@ -325,8 +325,8 @@ export function value(elem:ValueElem):Element {
 
 interface CSVElem extends Element { values: any[], autolink?: boolean }
 export function CSV(elem:CSVElem):Element {
-  let {values, autolink = undefined} = elem;
-  return {c: "flex-row csv", children: values.map((val) => value({t: "span", autolink, text: val}))};
+  let {values, autolink = undefined, data} = elem;
+  return {c: "flex-row csv", children: values.map((val) => value({t: "span", autolink, text: val, data}))};
 }
 
 interface TableElem extends Element { rows: {}[], sortable?: boolean, editCell?: Handler<Event>, editRow?: Handler<Event>, editField?: Handler<Event>, ignoreFields?: string[], ignoreTemp?: boolean, data?: any, groups?: string[]}
