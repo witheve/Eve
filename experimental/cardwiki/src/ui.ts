@@ -7,7 +7,7 @@ import {Diff} from "./runtime";
 import {createEditor} from "./richTextEditor";
 import {Element, Handler, RenderHandler, Renderer} from "./microReact";
 import * as uitk from "./uitk";
-import {eve, handle as appHandle, dispatch, activeSearches, renderer} from "./app";
+import {eve, eveLocalStorageKey, handle as appHandle, dispatch, activeSearches, renderer} from "./app";
 import {parseDSL} from "./parser";
 import {parse as nlparse, StateFlags, FunctionTypes} from "./NLQueryParser";
 
@@ -25,13 +25,15 @@ export let uiState:{
     search: {[paneId:string]: {value:string, plan?:boolean, focused?:boolean, submitted?:string}},
     table: {[key:string]: {field:string, direction:string}}
   },
-  pane: {[paneId:string]: {settings: boolean}}
+  pane: {[paneId:string]: {settings: boolean}},
+  prompt: {open: boolean, prompt?: () => Element}
 } = {
   widget: {
     search: {},
     table: {}
   },
-  pane: {}
+  pane: {},
+  prompt: {open: false, prompt: undefined}
 };
 
 //---------------------------------------------------------
@@ -224,6 +226,16 @@ appHandle("toggle settings", (changes:Diff, {paneId, open = undefined}) => {
   state.settings = open !== undefined ? open : !state.settings;
   uiState.pane[paneId] = state;
 });
+appHandle("toggle prompt", (changes:Diff, {prompt, open = undefined}) => {
+  let state = uiState.prompt || {open: false};
+  if(state.prompt !== prompt) {
+    state.prompt = prompt;
+    state.open = open !== undefined ? open : true;
+  } else {
+    state.open !== undefined ? open : !state.open;
+  }
+  uiState.prompt = state;
+});
 appHandle("remove entity", (changes:Diff, {entity}) => {
   changes.remove("sourced eavs", {entity})
     .remove("display name", {id: entity})
@@ -238,6 +250,9 @@ export function root():Element {
   let panes = [];
   for(let {pane:paneId} of eve.find("ui pane")) {
     panes.push(pane(paneId));
+  }
+  if(uiState.prompt.open && uiState.prompt.prompt) {
+    panes.push(uiState.prompt.prompt());
   }
   return {c: "wiki-root", id: "root", children: panes, click: removePopup};
 }
@@ -284,6 +299,9 @@ function closeSettings(event, elem) {
   console.log("closing");
   dispatch("toggle settings", {paneId: elem.paneId, open: false}).commit();
 }
+function openPrompt(event, elem) {
+  dispatch("toggle prompt", {prompt: elem.prompt, open: true}).commit();
+}
 
 function navigateParent(event, elem) {
   dispatch("remove popup", {paneId: elem.paneId})
@@ -295,6 +313,41 @@ function removePopup(event, elem) {
   if(!event.defaultPrevented) {
     dispatch("remove popup", {}).commit();
   }
+}
+
+function loadFromFile(event:Event, elem) {
+  let target = <HTMLInputElement>event.target;
+  if(!target.files.length) return;
+  if(target.files.length > 1) throw new Error("Cannot load multiple files at once");
+  let file = target.files[0];
+  let reader = new FileReader();
+  reader.onload = function(event:any) {
+    let serialized = event.target.result;
+    eve.load(serialized);
+    console.log("LOADED", file.name);
+  };
+  reader.readAsText(file);
+}
+
+function savePrompt():Element {
+  let serialized = localStorage[eveLocalStorageKey];
+  return {c: "modal-prompt save-prompt", children: [
+    {t: "h2", text: "Save DB"},
+    {t: "a", href: "data:application/octet-stream;charset=utf-16le;base64," + btoa(serialized), download: "save.evedb", text: "save to file"}
+  ]};
+}
+
+function loadPrompt():Element {
+  let serialized = localStorage[eveLocalStorageKey];
+  return {c: "modal-prompt load-prompt", children: [
+    {t: "h2", text: "Load DB"},
+    {t: "p", children: [
+      {t: "span", text: "WARNING: This will overwrite your current database. This is irreversible. You should consider "},
+      {t: "a", href: "#", text: "saving your DB", prompt: savePrompt, click: openPrompt},
+      {t: "span", text: " first."}
+    ]},
+    {t: "input", type: "file", text: "load from file", change: loadFromFile}
+  ]};
 }
 
 export function pane(paneId:string):Element {
@@ -372,8 +425,8 @@ function paneSettings(paneId:string) {
   let {entity = undefined} = eve.findOne("entity", {entity: uitk.resolveId(pane.contains)}) || {};
   let isSystem = !!(entity && eve.findOne("entity eavs", {entity, attribute: "is a", value: builtinId("system")}));
   return {t: "ul", c: "settings", children: [
-    {t: "li", c: "save-btn disabled", text: "save"},
-    {t: "li", c: "load-btn disabled", text: "load"},
+    {t: "li", c: "save-btn", text: "save", prompt: savePrompt, click: openPrompt},
+    {t: "li", c: "load-btn", text: "load", prompt: loadPrompt, click: openPrompt},
     entity && !isSystem ? {t: "li", c: "delete-btn", text: "delete page", entity, paneId, click: deleteEntity} : undefined
   ]};
 }
