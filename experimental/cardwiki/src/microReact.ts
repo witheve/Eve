@@ -27,6 +27,7 @@ export interface Element {
   checked?:boolean
   draggable?:boolean
   href?:string
+  download?:string
   placeholder?:string
   selected?:boolean
   tabindex?:number
@@ -260,6 +261,7 @@ export class Renderer {
       if((cur.text !== prev.text || cur.strictText) && div.textContent !== cur.text) div.textContent = cur.text === undefined ? "" : cur.text;
       if(cur.tabindex !== prev.tabindex) div.setAttribute("tabindex", cur.tabindex);
       if(cur.href !== prev.href) div.setAttribute("href", cur.href);
+      if(cur.download !== prev.download) div.setAttribute("download", cur.download);
 
       // animateable properties
       var tween = cur.tween || tempTween;
@@ -438,6 +440,7 @@ export class Renderer {
           && curA.dangerouslySetInnerHTML === curB.dangerouslySetInnerHTML
           && curA.tabindex === curB.tabindex
           && curA.href === curB.href
+          && curA.download === curB.download
           && curA.placeholder === curB.placeholder
           && curA.selected === curB.selected
           && curA.draggable === curB.draggable
