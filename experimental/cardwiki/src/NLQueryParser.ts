@@ -1049,6 +1049,7 @@ function formTree(tokens: Array<Token>) {
       log("Entity/Collection already found: finding attribute");
       let entity = context.entities[context.entities.length - 1];
       if (entity !== undefined) {
+        console.log(entity);
         findEntityAttribute(node,entity,context);
       // Try to find it as an attribute of a collection
       } else {
@@ -1757,11 +1758,14 @@ function findEntityAttribute(node: Node, entity: Entity, context: Context): bool
     context.attributes.push(attribute);
     node.attribute = attribute;
     attribute.node = node;
+    console.log(attribute);
     // If the node is possessive, check to see if it is an entity
     if (node.hasProperty(TokenProperties.POSSESSIVE) || node.hasProperty(TokenProperties.BACKRELATIONSHIP)) {
       let entity = findEveEntity(`${attribute.value}`);
       if (entity !== undefined) {
         node.entity = entity;
+        entity.variable = attribute.variable;
+        entity.entityAttribute = true;
         entity.node = node;
         node.parent.entity.project = false;
         attribute.project = false;
