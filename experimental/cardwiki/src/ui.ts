@@ -7,7 +7,7 @@ import {Diff} from "./runtime";
 import {createEditor} from "./richTextEditor";
 import {Element, Handler, RenderHandler, Renderer} from "./microReact";
 import * as uitk from "./uitk";
-import {eve, handle as appHandle, dispatch, activeSearches, renderer} from "./app";
+import {eve, eveLocalStorageKey, handle as appHandle, dispatch, activeSearches, renderer} from "./app";
 import {parseDSL} from "./parser";
 import {parse as nlparse, StateFlags, FunctionTypes} from "./NLQueryParser";
 
@@ -25,13 +25,15 @@ export let uiState:{
     search: {[paneId:string]: {value:string, plan?:boolean, focused?:boolean, submitted?:string}},
     table: {[key:string]: {field:string, direction:string}}
   },
-  pane: {[paneId:string]: {settings: boolean}}
+  pane: {[paneId:string]: {settings: boolean}},
+  prompt: {open: boolean, paneId?: string, prompt?: (paneId?:string) => Element}
 } = {
   widget: {
     search: {},
     table: {}
   },
-  pane: {}
+  pane: {},
+  prompt: {open: false, paneId: undefined, prompt: undefined}
 };
 
 //---------------------------------------------------------
@@ -224,8 +226,19 @@ appHandle("toggle settings", (changes:Diff, {paneId, open = undefined}) => {
   state.settings = open !== undefined ? open : !state.settings;
   uiState.pane[paneId] = state;
 });
+appHandle("toggle prompt", (changes:Diff, {prompt = undefined, paneId = undefined, open = undefined}) => {
+  let state = uiState.prompt;
+  if(state.prompt !== prompt) {
+    state.prompt = prompt;
+    state.open = open !== undefined ? open : true;
+    state.paneId = paneId;
+  } else {
+    state.open !== undefined ? open : !state.open;
+  }
+  uiState.prompt = state;
+});
 appHandle("remove entity", (changes:Diff, {entity}) => {
-  changes.remove("sourced eavs", {entity})
+  changes.remove("sourced eav", {entity})
     .remove("display name", {id: entity})
     .remove("manual eavs", {entity})
     .remove("entity page", {entity});
@@ -239,6 +252,12 @@ export function root():Element {
   for(let {pane:paneId} of eve.find("ui pane")) {
     panes.push(pane(paneId));
   }
+  if(uiState.prompt.open && uiState.prompt.prompt && !uiState.prompt.paneId) {
+    panes.push(
+      {style: "position: absolute; top: 0; left: 0; bottom: 0; right: 0; z-index: 10; background: rgba(0, 0, 0, 0.05);", click: closePrompt},
+      uiState.prompt.prompt()
+    );
+  }
   return {c: "wiki-root", id: "root", children: panes, click: removePopup};
 }
 
@@ -250,7 +269,7 @@ let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, 
       {c: "logo eve-logo", data: {paneId}, link: "", click: navigate},
       searchInput(paneId, entityId),
       {c: "controls visible", children: [
-        {c: "ion-gear-a toggle-settings", style: "font-size: 1.35em;", paneId, click: toggleSettings}
+        {c: "ion-gear-a toggle-settings", style: "font-size: 1.35em;", prompt: paneSettings, paneId, click: openPrompt}
       ]}
     ]}
   }),
@@ -277,12 +296,11 @@ let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, 
   })
 };
 
-function toggleSettings(event, elem) {
-  dispatch("toggle settings", {paneId: elem.paneId}).commit();
+function openPrompt(event, elem) {
+  dispatch("toggle prompt", {prompt: elem.prompt, paneId: elem.paneId, open: true}).commit();
 }
-function closeSettings(event, elem) {
-  console.log("closing");
-  dispatch("toggle settings", {paneId: elem.paneId, open: false}).commit();
+function closePrompt(event, elem) {
+  dispatch("toggle prompt", {open: false}).commit();
 }
 
 function navigateParent(event, elem) {
@@ -295,6 +313,61 @@ function removePopup(event, elem) {
   if(!event.defaultPrevented) {
     dispatch("remove popup", {}).commit();
   }
+}
+
+function loadFromFile(event:Event, elem) {
+  let target = <HTMLInputElement>event.target;
+  if(!target.files.length) return;
+  if(target.files.length > 1) throw new Error("Cannot load multiple files at once");
+  let file = target.files[0];
+  let reader = new FileReader();
+  reader.onload = function(event:any) {
+    let serialized = event.target.result;
+    eve.load(serialized);
+    console.log("LOADED", file.name);
+    dispatch("toggle prompt", {prompt: loadedPrompt, open: true}).commit();
+  };
+  reader.readAsText(file);
+}
+
+function savePrompt():Element {
+  let serialized = localStorage[eveLocalStorageKey];
+  return {c: "modal-prompt save-prompt", children: [
+    {t: "header", c: "flex-row", children: [
+      {t: "h2", text: "Save DB"},
+      {c: "flex-grow"},
+      {c: "controls", children: [{c: "ion-close-round", click: closePrompt}]}
+    ]},
+    {t: "a", href: "data:application/octet-stream;charset=utf-16le;base64," + btoa(serialized), download: "save.evedb", text: "save to file"}
+  ]};
+}
+
+function loadPrompt():Element {
+  let serialized = localStorage[eveLocalStorageKey];
+  return {c: "modal-prompt load-prompt", children: [
+    {t: "header", c: "flex-row", children: [
+      {t: "h2", text: "Load DB"},
+      {c: "flex-grow"},
+      {c: "controls", children: [{c: "ion-close-round", click: closePrompt}]}
+    ]},
+    {t: "p", children: [
+      {t: "span", text: "WARNING: This will overwrite your current database. This is irreversible. You should consider "},
+      {t: "a", href: "#", text: "saving your DB", prompt: savePrompt, click: openPrompt},
+      {t: "span", text: " first."}
+    ]},
+    {t: "input", type: "file", text: "load from file", change: loadFromFile}
+  ]};
+}
+
+function loadedPrompt():Element {
+  return {c: "modal-prompt load-prompt", children: [
+    {t: "header", c: "flex-row", children: [
+      {t: "h2", text: "Load DB"},
+      {c: "flex-grow"},
+      {c: "controls", children: [{c: "ion-close-round", click: closePrompt}]}
+    ]},
+    {text: "Successfully loaded DB from file"}
+  ]};
 }
 
 export function pane(paneId:string):Element {
@@ -342,11 +415,11 @@ export function pane(paneId:string):Element {
   if(captureClicks) {
     pane.click = preventDefault;
   }
-  let state = uiState.pane[paneId] || {settings: false};
-  if(state.settings) {
+
+  if(uiState.prompt.open && uiState.prompt.paneId === paneId) {
     pane.children.push(
-      {style: "position: absolute; top: 0; left: 0; bottom: 0; right: 0; z-index: 10; background: rgba(0, 0, 0, 0.05);", paneId, click: closeSettings},
-      paneSettings(paneId)
+      {style: "position: absolute; top: 0; left: 0; bottom: 0; right: 0; z-index: 10; background: rgba(0, 0, 0, 0.05);", paneId, click: closePrompt},
+      uiState.prompt.prompt(paneId)
     );
   }
   return pane;
@@ -372,8 +445,8 @@ function paneSettings(paneId:string) {
   let {entity = undefined} = eve.findOne("entity", {entity: uitk.resolveId(pane.contains)}) || {};
   let isSystem = !!(entity && eve.findOne("entity eavs", {entity, attribute: "is a", value: builtinId("system")}));
   return {t: "ul", c: "settings", children: [
-    {t: "li", c: "save-btn disabled", text: "save"},
-    {t: "li", c: "load-btn disabled", text: "load"},
+    {t: "li", c: "save-btn", text: "save", prompt: savePrompt, click: openPrompt},
+    {t: "li", c: "load-btn", text: "load", prompt: loadPrompt, click: openPrompt},
     entity && !isSystem ? {t: "li", c: "delete-btn", text: "delete page", entity, paneId, click: deleteEntity} : undefined
   ]};
 }
@@ -455,7 +528,13 @@ function queryUIInfo(query) {
     if(queryId) {
       let queryResults = eve.find(queryId.id);
       let queryUnprojected = eve.table(queryId.id).unprojected;
-      results = {unprojected: queryUnprojected, results: queryResults};
+      if(!queryResults.length) {
+        params["rep"] = "error";
+        params["message"] = "No results";
+        results = {};
+      } else {
+        results = {unprojected: queryUnprojected, results: queryResults};
+      }
     } else {
       params["rep"] = "error";
       params["message"] = "invalid search";
@@ -553,7 +632,7 @@ function cellEditor(entityId, paneId, cell):Element {
 function autocompleter(options, paneId, cell): Element {
   let children = [];
   for(let option of options) {
-    let item = {c: "option", text: option.text, selected: option, cell, paneId, click: executeAutocompleterOption};
+    let item = {c: "option", children: option.children, text: option.text, selected: option, cell, paneId, click: executeAutocompleterOption, keydown: optionKeys};
     if(option.selected) {
       item.c += " selected";
     }
@@ -562,7 +641,13 @@ function autocompleter(options, paneId, cell): Element {
   return {c: "autocompleter", key: performance.now().toString(), cell, containerId: `${paneId}|${cell.id}|container`, children, postRender: positionAutocompleter};
 }
 
-function executeAutocompleterOption(node, elem) {
+function optionKeys(event, elem) {
+  if(event.keyCode === KEYS.ENTER) {
+    executeAutocompleterOption(event.currentTarget, elem);
+  }
+}
+
+function executeAutocompleterOption(event, elem) {
   let {paneId, cell} = elem;
   let editor = paneEditors[paneId];
   let cm = editor.cmInstance;
@@ -601,13 +686,15 @@ function autocompleterOptions(entityId, paneId, cell) {
   // every option has a score for how pertinent it is
   // things with a score of 0 will be filtered, everything else
   // will be sorted descending.
-  let options:{score: number, action: any, text: string}[];
+  let options:{score: number, action: any, text?: string, children?: Element[]}[];
   if(state === "query") {
     options = queryAutocompleteOptions(isEntity, parsed, text, params, entityId);
   } else if(state === "represent") {
     options = representAutocompleteOptions(isEntity, parsed, text, params, entityId);
   } else if(state === "create") {
     options = createAutocompleteOptions(isEntity, parsed, text, params, entityId);
+  } else if(state === "define") {
+    options = defineAutocompleteOptions(isEntity, parsed, text, params, entityId);
   }
   options = options.sort((a, b) => b.score - a.score);
   let selected;
@@ -633,13 +720,25 @@ function queryAutocompleteOptions(isEntity, parsed, text, params, entityId) {
   let pageName = eve.findOne("display name", {id: entityId})["name"];
   let options:{score: number, action: any, text: string, [attr:string]: any}[] = [];
   let hasValidParse = parsed.some((parse) => parse.state === StateFlags.COMPLETE);
-  options.sort((a, b) => b.score - a.score);
-  let topOption = options[0];
+  parsed.sort((a, b) => b.score - a.score);
+  let topOption = parsed[0];
   let joiner = "a";
   if(text && text[0].match(/[aeiou]/i)) {
     joiner = "an";
   }
 
+  if(topOption) {
+    let totalFound = 0;
+    let {context} = topOption;
+    for(let item in context) {
+      totalFound += context[item].length;
+    }
+    if(totalFound === 2 && context.entities.length === 1 && context.maybeAttributes.length === 1) {
+      options.push({score: 4,  action: setCellState, state: "define", text: `Add ${text}`});
+    } else if(totalFound === 2 && context.entities.length === 1 && context.attributes.length === 1) {
+      options.push({score: 1,  action: setCellState, state: "define", text: `Add another ${context.attributes[0].displayName}`});
+    }
+  }
   // create
   if(!isEntity && text !== "" && text != "=") {
     options.push({score: 1,  action: setCellState, state: "create", text: `Create ${joiner} "${text}" page`});
@@ -744,6 +843,63 @@ function embedAs(elem, value, doEmbed) {
     }
   }
   doEmbed(`${text}|${rawParams}`);
+}
+
+function defineAutocompleteOptions(isEntity, parsed, text, params, entityId) {
+  let options:{score: number, action: any, text?: string, [attr:string]: any}[] = [];
+  let topParse = parsed[0];
+  let context = topParse.context;
+  console.log(context);
+  let attribute;
+  if(context.maybeAttributes[0]) {
+    attribute = context.maybeAttributes[0].normalizedWord;
+  } else {
+    attribute = context.attributes[0].displayName;
+  }
+  let entity = context.entities[0].id;
+  let option:any = {score: 1, action: defineAndEmbed, attribute, entity};
+  option.children = [
+    {text: attribute},
+    {c: "inline-cell", contentEditable: "true", selected:option, keydown: defineKeys, postRender: autoFocus}
+  ]
+  options.push(option);
+  return options;
+}
+
+function interpretAttributeValue(value): {isValue: boolean, parse?:any, value?:any} {
+  let cleaned = value.trim();
+  if(cleaned[0] === "=") {
+    //parse it
+    cleaned = cleaned.substring(1).trim();
+    let display = eve.findOne("display name", {name: cleaned});
+    if(display) {
+      return {isValue: true, value: display.id};
+    }
+    let parsed = nlparse(cleaned);
+    return {isValue: false, parse: parsed};
+  } else {
+    return {isValue: true, value: cleaned};
+  }
+}
+
+function defineAndEmbed(elem, text, doEmbed) {
+  let {selected} = elem;
+  let {entity, attribute, defineValue} = selected;
+  let {isValue, value, parse} = interpretAttributeValue(defineValue);
+  if(isValue) {
+    dispatch("add sourced eav", {entity, attribute, value}).commit();
+  } else {
+    console.error("We don't support setting attributes to queries at the moment.");
+    return doEmbed(`${text}|rep=error;message=I don't support setting attributes to queries at the moment;`)
+  }
+  doEmbed(`${text}|rep=value;field=${attribute}`);
+}
+
+function defineKeys(event, elem) {
+  if(event.keyCode === KEYS.ENTER) {
+    elem.selected.defineValue = event.currentTarget.textContent;
+    event.preventDefault();
+  }
 }
 
 export function entity(entityId:string, paneId:string, kind: PANE, options:any = {}):Element {
