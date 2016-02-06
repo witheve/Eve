@@ -528,7 +528,13 @@ function queryUIInfo(query) {
     if(queryId) {
       let queryResults = eve.find(queryId.id);
       let queryUnprojected = eve.table(queryId.id).unprojected;
-      results = {unprojected: queryUnprojected, results: queryResults};
+      if(!queryResults.length) {
+        params["rep"] = "error";
+        params["message"] = "No results";
+        results = {};
+      } else {
+        results = {unprojected: queryUnprojected, results: queryResults};
+      }
     } else {
       params["rep"] = "error";
       params["message"] = "invalid search";
@@ -729,7 +735,8 @@ function queryAutocompleteOptions(isEntity, parsed, text, params, entityId) {
     }
     if(totalFound === 2 && context.entities.length === 1 && context.maybeAttributes.length === 1) {
       options.push({score: 4,  action: setCellState, state: "define", text: `Add ${text}`});
-      console.log(topOption.query.toString());
+    } else if(totalFound === 2 && context.entities.length === 1 && context.attributes.length === 1) {
+      options.push({score: 1,  action: setCellState, state: "define", text: `Add another ${context.attributes[0].displayName}`});
     }
   }
   // create
@@ -843,7 +850,12 @@ function defineAutocompleteOptions(isEntity, parsed, text, params, entityId) {
   let topParse = parsed[0];
   let context = topParse.context;
   console.log(context);
-  let attribute = context.maybeAttributes[0].normalizedWord;
+  let attribute;
+  if(context.maybeAttributes[0]) {
+    attribute = context.maybeAttributes[0].normalizedWord;
+  } else {
+    attribute = context.attributes[0].displayName;
+  }
   let entity = context.entities[0].id;
   let option:any = {score: 1, action: defineAndEmbed, attribute, entity};
   option.children = [
@@ -854,11 +866,33 @@ function defineAutocompleteOptions(isEntity, parsed, text, params, entityId) {
   return options;
 }
 
-function defineAndEmbed(elem, value, doEmbed) {
+function interpretAttributeValue(value): {isValue: boolean, parse?:any, value?:any} {
+  let cleaned = value.trim();
+  if(cleaned[0] === "=") {
+    //parse it
+    cleaned = cleaned.substring(1).trim();
+    let display = eve.findOne("display name", {name: cleaned});
+    if(display) {
+      return {isValue: true, value: display.id};
+    }
+    let parsed = nlparse(cleaned);
+    return {isValue: false, parse: parsed};
+  } else {
+    return {isValue: true, value: cleaned};
+  }
+}
+
+function defineAndEmbed(elem, text, doEmbed) {
   let {selected} = elem;
   let {entity, attribute, defineValue} = selected;
-  dispatch("add sourced eav", {entity, attribute, value: defineValue}).commit();
-  doEmbed(`${value}|rep=value;field=${attribute}`);
+  let {isValue, value, parse} = interpretAttributeValue(defineValue);
+  if(isValue) {
+    dispatch("add sourced eav", {entity, attribute, value}).commit();
+  } else {
+    console.error("We don't support setting attributes to queries at the moment.");
+    return doEmbed(`${text}|rep=error;message=I don't support setting attributes to queries at the moment;`)
+  }
+  doEmbed(`${text}|rep=value;field=${attribute}`);
 }
 
 function defineKeys(event, elem) {

@@ -295,7 +295,10 @@ export function value(elem:ValueElem):Element {
     }
   }
   if(editable) {
-    elem.t = "input";
+    if(elem.t !== "input") {
+      elem.contentEditable = true;
+    }
+    // elem.t = "input";
     elem.placeholder = "<empty>";
     elem.value = elem.text || "";
     let _blur = elem.blur;
@@ -337,7 +340,12 @@ export function table(elem:TableElem):Element {
     let _editCell = editCell;
     editCell = function(event:Event, elem) {
       let node = <HTMLInputElement>event.target;
-      let val = resolveValue(node.value);
+      let val;
+      if(node.nodeName === "INPUT") {
+        val = resolveValue(node.value);
+      } else {
+        val = resolveValue(node.textContent);
+      }
       if(val === elem["original"]) return;
       let neueEvent = new CustomEvent("editcell", {detail: val});
       _editCell(neueEvent, elem);
@@ -455,7 +463,7 @@ export function table(elem:TableElem):Element {
       localState["adder"] = {};
     }
     let rowElem = {c: "row group add-row", table: elem, row: [], children: []};
-    for(let field of fields) rowElem.children.push(value({c: "column field", editable: true, input: trackInput, blur: addRow, row: rowElem, keydown: handleCellKeys, attribute: field, field, fields, data, table: elem, state: localState, text: localState["adder"][field] || ""}));
+    for(let field of fields) rowElem.children.push(value({t: "input", c: "column field", editable: true, input: trackInput, blur: addRow, row: rowElem, keydown: handleCellKeys, attribute: field, field, fields, data, table: elem, state: localState, text: localState["adder"][field] || ""}));
     body.children.push(rowElem);
   }
 
