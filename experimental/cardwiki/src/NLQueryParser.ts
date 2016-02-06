@@ -975,20 +975,37 @@ function formTree(tokens: Array<Token>) {
     } else if (node.token.POS === MinorPartsOfSpeech.IN || node.token.POS === MinorPartsOfSpeech.CP) {
       removeNode(node);
     // Heuristic, if the node is an adjective, attach it as a child to the closest noun child
-    } else if (getMajorPOS(node.token.POS) === MajorPartsOfSpeech.ADJECTIVE) {
+    } else if (getMajorPOS(node.token.POS) === MajorPartsOfSpeech.ADJECTIVE && !node.hasProperty(TokenProperties.COMPARATIVE)) {
+      
       // Search the the right until a noun
+      let found = false
       for (let j = i; j < tokens.length; j++) {
         if (getMajorPOS(tokens[j].POS) === MajorPartsOfSpeech.NOUN) {
           let nounNode = tokens[j].node;
           moveNode(node,nounNode);
           node.properties.push(TokenProperties.BACKRELATIONSHIP);
+          found = true;
           break;
+        
         } else if (getMajorPOS(tokens[j].POS) === MajorPartsOfSpeech.GLUE ||
                    tokens[j].POS === MinorPartsOfSpeech.SEP) {
           break;
         }
       }
-    
+      // We didn't find a noun to the right, so search to the left
+      if (!found) {
+        for (let k = i; k > 0; k--) {
+          if (getMajorPOS(tokens[k].POS) === MajorPartsOfSpeech.NOUN) {
+            let nounNode = tokens[k].node;
+            moveNode(node,nounNode);
+            node.properties.push(TokenProperties.BACKRELATIONSHIP);
+            break;
+          } else if (getMajorPOS(tokens[k].POS) === MajorPartsOfSpeech.GLUE ||
+                  tokens[k].POS === MinorPartsOfSpeech.SEP) {
+            break;
+          }
+        }
+      }
     // Heuristic: If the node is proper but not quoted, see if the next node is proper and 
     // if so create a compound node from the two
     } else if (node.hasProperty(TokenProperties.PROPER) && !node.hasProperty(TokenProperties.QUOTED)) {
@@ -1114,8 +1131,20 @@ function formTree(tokens: Array<Token>) {
     // If there is a backward relationship e.g. age of Corey, then try to find attrs
     // in the maybeAttr stack
     if (node.hasProperty(TokenProperties.BACKRELATIONSHIP)) {
-      log("Backrelationship: Searching for previously unmatched attributes");
+      log("Backrelationship: Searching for previously unmatched attributes or relationships");
+      // Figure out how this node relates to its parent
+      if (node.collection !== undefined) {
+        let parent = node.parent;
+        if (parent.collection) {
+          let relationship = findCollectionToCollectionRelationship(node.collection.id,parent.collection.id);
+          if (relationship.type === RelationshipTypes.INTERSECTION) {
+            node.collection.variable = parent.collection.variable;
+            node.collection.project = false;
+          } 
+        }
+      } 
       // If the node is possessive, transfer the backrelationship to its children
+      // age of Corey's wife: of confers a backrelationship to "Corey", but "wife" needs the backrelationship to relate to "age"
       if (node.hasProperty(TokenProperties.POSSESSIVE)) {
         node.children.map((child) => child.properties.push(TokenProperties.BACKRELATIONSHIP));
         node.properties.splice(node.properties.indexOf(TokenProperties.BACKRELATIONSHIP),1);
@@ -1234,7 +1263,6 @@ function formTree(tokens: Array<Token>) {
           nNode.found = true;
           child.collection.project = true;
           nNode.attribute = collectionAttribute;
-          child.collection.variable = "";
           child.children.push(nNode);
           nNode.parent = child;
         }
@@ -1482,7 +1510,7 @@ export function findEveEntity(search: string): Entity {
   } else {
     foundEntity = eve.findOne("entity", { entity: search });
   }
-  // Build the collection
+  // Build the entity
   if (foundEntity !== undefined) {
     if (name === undefined) {
       display = eve.findOne("display name",{ id: search });
@@ -1495,7 +1523,7 @@ export function findEveEntity(search: string): Entity {
       variable: foundEntity.entity,
       entityAttribute: false,
       project: true,
-    }
+    }    
     log(" Found: " + name);
     return entity;
   } else {
@@ -1566,6 +1594,7 @@ enum RelationshipTypes {
   DIRECT,
   ONEHOP,
   TWOHOP,
+  INTERSECTION,
 }
 
 interface Relationship {
@@ -1573,7 +1602,7 @@ interface Relationship {
   type: RelationshipTypes,
 }
 
-export function findCollectionToCollectionRelationship(coll: string, coll2: string) {
+export function findCollectionToCollectionRelationship(coll: string, coll2: string): Relationship {
   // are there things in both sets?
   let intersection = eve.query(`${coll}->${coll2}`)
     .select("collection entities", { collection: coll }, "coll1")
@@ -1588,11 +1617,6 @@ export function findCollectionToCollectionRelationship(coll: string, coll2: stri
     .aggregate("count", {}, "count")
     .project({ type: ["links", "link"], count: ["count", "count"] })
     .exec();
-
-    
-  console.log(intersection);
-  console.log(relationships);
-
   let maxRel = { count: 0 };
   for (let result of relationships.results) {
     if (result.count > maxRel.count) maxRel = result;
@@ -1602,8 +1626,12 @@ export function findCollectionToCollectionRelationship(coll: string, coll2: stri
   // and we have two selects.
   let intersectionSize = intersection.unprojected.length / 2;
   
-  console.log(intersectionSize);
-  console.log(maxRel);
+  if (intersectionSize > 0) {
+    return {type: RelationshipTypes.INTERSECTION};
+  } else {
+    return {type: RelationshipTypes.NONE};
+  }
+
   /*
   if (maxRel.count > intersectionSize) {
     return { distance: 1 };
@@ -1992,7 +2020,7 @@ function formQuery(node: Node): Query {
     }
     return query;
   }
-  // Handle functions
+  // Handle functions -------------------------------
   if (node.fxn !== undefined) {
     // Skip functions with no arguments
     if (node.fxn.fields.length === 0) {
@@ -2005,8 +2033,8 @@ function formQuery(node: Node): Query {
     if (args.length === node.fxn.fields.length) {
       let fields: Array<Field> = args.map((arg,i) => {
         return {name: `${node.fxn.fields[i]}`, 
-                value: `${arg.attribute.variable}`, 
-                variable: true};
+               value: `${arg.attribute.variable}`, 
+            variable: true};
       });
       let term: Term = {
         type: "select",
@@ -2019,13 +2047,13 @@ function formQuery(node: Node): Query {
     if (node.fxn.project === true) {
       let outputFields: Array<Field> = args.filter((arg) => arg.hasProperty(TokenProperties.OUTPUT))
                                            .map((arg) => {return {name: `${node.fxn.name}`, 
-                                                                  value: `${arg.attribute.variable}`, 
-                                                                  variable: true}});
+                                                                 value: `${arg.attribute.variable}`, 
+                                                              variable: true}});
       projectFields = projectFields.concat(outputFields);
       query.projects = []; 
     }
   }
-  // Handle attributes
+  // Handle attributes -------------------------------
   if (node.attribute !== undefined) {
     let attr = node.attribute;
     let entity = attr.entity;
@@ -2033,21 +2061,21 @@ function formQuery(node: Node): Query {
     let entityField: Field;
     if (entity !== undefined) {
       entityField = {name: "entity", 
-                     value: `${attr.entity.entityAttribute ? attr.entity.variable : attr.entity.id}`, 
-                     variable: attr.entity.entityAttribute};
+                    value: `${attr.entity.entityAttribute ? attr.entity.variable : attr.entity.id}`, 
+                 variable: attr.entity.entityAttribute};
     } else if (collection !== undefined) {
       entityField = {name: "entity", 
-                     value: `${attr.collection.displayName}`, 
-                     variable: true};
+                    value: `${attr.collection.displayName}`, 
+                 variable: true};
     } else {
       return query;
     }
     let attrField: Field = {name: "attribute", 
-                            value: attr.id, 
-                            variable: false};
+                           value: attr.id, 
+                        variable: false};
     let valueField: Field = {name: "value", 
-                             value: attr.variable, 
-                             variable: true};
+                            value: attr.variable, 
+                         variable: true};
     let fields: Array<Field> = [entityField, attrField, valueField];
     let term: Term = {
       type: "select",
@@ -2058,17 +2086,19 @@ function formQuery(node: Node): Query {
     // project if necessary
     if (node.attribute.project === true) {
       let attributeField: Field = {name: `${node.attribute.id}` , 
-                                   value: node.attribute.variable, 
-                                   variable: true};
+                                  value: node.attribute.variable, 
+                               variable: true};
       projectFields.push(attributeField);
     }
   }
-  // Handle collections
+  // Handle collections -------------------------------
   if (node.collection !== undefined) {
-    let entityField: Field = {name: "entity", value: node.collection.displayName, variable: true};
+    let entityField: Field = {name: "entity", 
+                             value: node.collection.variable, 
+                          variable: true};
     let collectionField: Field = {name: "collection", 
-                                  value: node.collection.id, 
-                                  variable: false};
+                                 value: node.collection.id, 
+                              variable: false};
     let term: Term = {
       type: "select",
       table: "is a attributes",
@@ -2078,18 +2108,18 @@ function formQuery(node: Node): Query {
     // project if necessary
     if (node.collection.project === true) {
       let collectionField: Field = {name: `${node.collection.displayName.replace(new RegExp(" ", 'g'),"")}`, 
-                                    value: `${node.collection.displayName}`, 
-                                    variable: true};
+                                   value: `${node.collection.variable}`, 
+                                variable: true};
       projectFields.push(collectionField);
     }
   }
-  // Handle entities
+  // Handle entities -------------------------------
   if (node.entity !== undefined) {
     // project if necessary
     if (node.entity.project === true) {
       let entityField: Field = {name: `${node.entity.displayName.replace(new RegExp(" ", 'g'),"")}`, 
-                                value: `${node.entity.entityAttribute ? node.entity.variable : node.entity.id}`, 
-                                variable: node.entity.entityAttribute};
+                               value: `${node.entity.entityAttribute ? node.entity.variable : node.entity.id}`, 
+                            variable: node.entity.entityAttribute};
       projectFields.push(entityField);  
     }
   }
