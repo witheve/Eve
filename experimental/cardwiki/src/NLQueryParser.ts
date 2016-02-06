@@ -26,7 +26,9 @@ export enum StateFlags {
 // Entry point for NLQP
 export function parse(queryString: string): Array<ParseResult> {
   let preTokens = preprocessQueryString(queryString);
+  console.log(preTokens)
   let tokens = formTokens(preTokens);
+  console.log(tokenArrayToString(tokens));
   let {tree, context} = formTree(tokens);
   let query = formQuery(tree);
   // Figure out the state flags
@@ -351,10 +353,19 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
           token.POS = MinorPartsOfSpeech.VBZ;
           break;
         case "is": 
-          token.POS = MinorPartsOfSpeech.VBZ;
+          token.POS = MinorPartsOfSpeech.CP;
           break;
         case "was":
-          token.POS = MinorPartsOfSpeech.VBD;
+          token.POS = MinorPartsOfSpeech.CP;
+          break;
+        case "as": 
+          token.POS = MinorPartsOfSpeech.CP;
+          break;
+        case "were":
+          token.POS = MinorPartsOfSpeech.CP;
+          break;
+        case "be":
+          token.POS = MinorPartsOfSpeech.CP;
           break;
         case "do":
           token.POS = MinorPartsOfSpeech.VBP;
@@ -363,19 +374,23 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
           token.properties.push(TokenProperties.NEGATES);
           break;
         case "neihter":
+          token.POS = MinorPartsOfSpeech.CC;
           token.properties.push(TokenProperties.NEGATES);
           break;
         case "nor":
+          token.POS = MinorPartsOfSpeech.CC;
           token.properties.push(TokenProperties.NEGATES);
           break;
         case "except":
+          token.POS = MinorPartsOfSpeech.CC;
           token.properties.push(TokenProperties.NEGATES);
           break;
         case "without":
+          token.POS = MinorPartsOfSpeech.CC;
           token.properties.push(TokenProperties.NEGATES);
           break;
         case "not":
-          token.POS = MinorPartsOfSpeech.RB;
+          token.POS = MinorPartsOfSpeech.CC;
           token.properties.push(TokenProperties.NEGATES);
           break;
         case "average":
@@ -537,7 +552,6 @@ function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech 
       minorPartOfSpeech === MinorPartsOfSpeech.VBP ||
       minorPartOfSpeech === MinorPartsOfSpeech.VBZ ||
       minorPartOfSpeech === MinorPartsOfSpeech.VBF ||
-      minorPartOfSpeech === MinorPartsOfSpeech.CP  ||
       minorPartOfSpeech === MinorPartsOfSpeech.VBG) {
         return MajorPartsOfSpeech.VERB;
   }
@@ -574,6 +588,7 @@ function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech 
   // Glue
   if (minorPartOfSpeech === MinorPartsOfSpeech.FW  ||
       minorPartOfSpeech === MinorPartsOfSpeech.IN  ||
+      minorPartOfSpeech === MinorPartsOfSpeech.CP  ||
       minorPartOfSpeech === MinorPartsOfSpeech.MD  ||
       minorPartOfSpeech === MinorPartsOfSpeech.CC  ||
       minorPartOfSpeech === MinorPartsOfSpeech.PDT ||
@@ -675,8 +690,9 @@ function newNode(token: Token): Node {
     let entity = node.entity === undefined ? "" : `[${node.entity.displayName}] `;
     let collection = node.collection === undefined ? "" : `[${node.collection.displayName}] `;
     let fxn = node.fxn === undefined ? "" : `[${node.fxn.name}] `;
+    let negated = node.hasProperty(TokenProperties.NEGATES) ? "!" : "";
     let found = node.found ? "*" : " ";
-    let entityOrProperties = found === " " ? `${properties}` : `${fxn}${entity}${collection}${attribute}`;
+    let entityOrProperties = found === " " ? `${properties}` : `${negated}${fxn}${entity}${collection}${attribute}`;
     properties = properties.length === 2 ? "" : properties;
     let nodeString = `|${found}${indent}${index}${node.name} ${entityOrProperties}${children}`; 
     return nodeString;
@@ -696,6 +712,7 @@ interface BuiltInFunction {
   attribute?: string,
   fields: Array<string>,
   project: boolean,
+  negated?: boolean,
   node?: Node,
 }
 
@@ -878,14 +895,17 @@ function formTree(tokens: Array<Token>) {
   let subsumedNodes: Array<Node> = [];
   
   // First, find noun groups
-  let nodes = formNounGroups(tokens);
+  //let nodes = formNounGroups(tokens);
   //console.log("NOUN GROUPS");
   //console.log(nodeArrayToString(nodes));
   
+  
   // Fold in all the other tokens
-  let unusedNodes = tokens.filter((token) => token.node === undefined).map(newNode);
-  nodes = nodes.concat(unusedNodes);
-  nodes.sort((a,b) => a.ix - b.ix);
+  let nodes = tokens.filter((token) => token.node === undefined).map(newNode);
+  //nodes = nodes.concat(unusedNodes);
+  //nodes.sort((a,b) => a.ix - b.ix);
+  
+  console.log(nodeArrayToString(nodes));
   
   // Do a quick pass to identify functions
   tokens.forEach((token) => {
@@ -906,11 +926,11 @@ function formTree(tokens: Array<Token>) {
       nextNode.parent = thisNode;  
     }
   })
-  
+
   // At this point we should only have a single root. 
   nodes = nodes.filter((node) => node.parent === undefined);
   tree = nodes.pop();
-  //console.log(tree.toString());
+  console.log(tree.toString());
   
   // Split nodes
   let i = 0;
@@ -922,7 +942,7 @@ function formTree(tokens: Array<Token>) {
     }
     let root = tokens[0].node;
     let node = token.node;
-       
+
     // Heuristic: If the token is a semicolon, break and place the rest on the root
     if (node.hasProperty(TokenProperties.SEPARATOR) && node.name === ";") {
       reroot(node,root);
@@ -950,8 +970,14 @@ function formTree(tokens: Array<Token>) {
       node.parent.properties.push(TokenProperties.BACKRELATIONSHIP);
       node.parent.properties.push(TokenProperties.GROUPING);
       removeNode(node);
+    } else if (getMajorPOS(node.token.POS) === MajorPartsOfSpeech.GLUE && node.hasProperty(TokenProperties.NEGATES)) {
+      node.children.map((child) => child.properties.push(TokenProperties.NEGATES));
+      removeNode(node);
     // Heuristic: Remove determiners
-    } else if (node.token.POS === MinorPartsOfSpeech.DT) {
+    } else if (node.token.POS === MinorPartsOfSpeech.DT || node.token.POS === MinorPartsOfSpeech.WDT) {
+      removeNode(node);
+    // Heuristic: Remove glue
+    } else if (node.token.POS === MinorPartsOfSpeech.IN || node.token.POS === MinorPartsOfSpeech.CP) {
       removeNode(node);
     // Heuristic: If the node is proper but not quoted, see if the next node is proper and 
     // if so create a compound node from the two
@@ -993,15 +1019,9 @@ function formTree(tokens: Array<Token>) {
       }    
     // Heuristic: If the node is comparative, swap with its parent
     } else if (node.hasProperty(TokenProperties.COMPARATIVE)) {
-      // We can get rid of "than" or its misspelling "then" the exist as a sibling
-      let parent = node.parent;
-      let thanNode = parent.children.filter((n) => n.name === "than" || n.name === "then")
-      for (let n of thanNode) {
-        parent.children.splice(parent.children.indexOf(n),1);
-      }
-      makeParentChild(node);
+      //makeParentChild(node);
     } else if (node.hasProperty(TokenProperties.CONJUNCTION)) {
-      promoteNode(node);
+      //makeParentChild(node);
     }
     i++;
   }
@@ -1024,6 +1044,9 @@ function formTree(tokens: Array<Token>) {
     }
     if (!node.found && node.hasProperty(TokenProperties.FUNCTION)) {
       context.fxns.push(node.fxn);
+      if (node.hasProperty(TokenProperties.NEGATES) && node.fxn.type === FunctionTypes.FILTER) {
+        node.fxn.negated = true;
+      }
       node.found = true;
     }
     // Try to find an attribute if we've already found an entity/collection
@@ -1206,6 +1229,7 @@ function formTree(tokens: Array<Token>) {
         }
       }
     });    
+    compNode.children.sort((a,b) => a.ix - b.ix);
   }   
   log(tree.toString());
   log("Rewire aggregates...");
@@ -1957,7 +1981,7 @@ function formQuery(node: Node): Query {
     if (node.fxn.fields.length === 0) {
       return query;
     }
-    let args = findLeafNodes(node).filter((node) => node.found === true).reverse();
+    let args = findLeafNodes(node).filter((node) => node.found === true);
     // If we have the right number of arguments, proceed
     // @TODO surface an error if the arguments are wrong
     let output;
@@ -2036,6 +2060,13 @@ function formQuery(node: Node): Query {
     type: "project!",
     fields: projectFields, 
   }
+  
+  if (node.hasProperty(TokenProperties.NEGATES)) {
+    let negatedTerm = query.terms.pop();
+    let negatedQuery = negateTerm(negatedTerm);
+    query.subqueries.push(negatedQuery);
+  }
+  
   query.projects.push(project);
   return query;
 }
