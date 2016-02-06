@@ -238,7 +238,7 @@ appHandle("toggle prompt", (changes:Diff, {prompt = undefined, paneId = undefine
   uiState.prompt = state;
 });
 appHandle("remove entity", (changes:Diff, {entity}) => {
-  changes.remove("sourced eavs", {entity})
+  changes.remove("sourced eav", {entity})
     .remove("display name", {id: entity})
     .remove("manual eavs", {entity})
     .remove("entity page", {entity});
