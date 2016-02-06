@@ -90,7 +90,7 @@ class BSPhase {
       for(let attr in attributes) {
         let sourceId = `${entity},${attr},${attributes[attr]}`;
         let query = `${name}'s ${attr}`;
-        content += `${attr}: {${query}|rep=value; field=${attr}; eav source = ${sourceId}}\n`;
+        content += `${attr}: {${query}|rep=CSV; field=${attr}; eav source = ${sourceId}}\n`;
         let value = this._names[attributes[attr]] || attributes[attr];
         this.addFact("sourced eav", {entity, attribute: attr, value, source: sourceId});
         this.addArtifacts(parseDSL(`(query :$$view "${query}"

@@ -323,6 +323,12 @@ export function value(elem:ValueElem):Element {
   return elem;
 }
 
+interface CSVElem extends Element { values: any[], autolink?: boolean }
+export function CSV(elem:CSVElem):Element {
+  let {values, autolink = undefined} = elem;
+  return {c: "flex-row csv", children: values.map((val) => value({t: "span", autolink, text: val}))};
+}
+
 interface TableElem extends Element { rows: {}[], sortable?: boolean, editCell?: Handler<Event>, editRow?: Handler<Event>, editField?: Handler<Event>, ignoreFields?: string[], ignoreTemp?: boolean, data?: any, groups?: string[]}
 export function table(elem:TableElem):Element {
   let {rows, ignoreFields = ["__id"], sortable = false, ignoreTemp = true, data = undefined, noHeader = false, groups = []} = elem;
