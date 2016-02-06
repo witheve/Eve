@@ -2054,7 +2054,7 @@ function formQuery(node: Node): Query {
   if (node.entity !== undefined) {
     // project if necessary
     if (node.entity.project === true) {
-      let entityField: Field = {name: `${node.entity.displayName.replace(new RegExp(" ", 'g'),"")}`, value: `${node.entity.id}`, variable: false};
+      let entityField: Field = {name: `${node.entity.displayName.replace(new RegExp(" ", 'g'),"")}`, value: `${node.entity.entityAttribute ? node.entity.variable : node.entity.id}`, variable: node.entity.entityAttribute};
       projectFields.push(entityField);  
     }
   }
