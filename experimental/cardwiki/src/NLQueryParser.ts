@@ -978,7 +978,6 @@ function formTree(tokens: Array<Token>) {
       removeNode(node);
     // Heuristic, if the node is an adjective, attach it as a child to the closest noun child
     } else if (getMajorPOS(node.token.POS) === MajorPartsOfSpeech.ADJECTIVE && !node.hasProperty(TokenProperties.COMPARATIVE)) {
-      
       // Search the the right until a noun
       let found = false
       for (let j = i; j < tokens.length; j++) {
