@@ -26,9 +26,7 @@ export enum StateFlags {
 // Entry point for NLQP
 export function parse(queryString: string): Array<ParseResult> {
   let preTokens = preprocessQueryString(queryString);
-  console.log(preTokens)
   let tokens = formTokens(preTokens);
-  console.log(tokenArrayToString(tokens));
   let {tree, context} = formTree(tokens);
   let query = formQuery(tree);
   // Figure out the state flags
@@ -186,7 +184,7 @@ function cloneToken(token: Token): Token {
     POS: token.POS,
     properties: [],
   };
-  token.properties.forEach((property) => clone.properties.push(property));
+  token.properties.map((property) => clone.properties.push(property));
   return clone;
 }
 
@@ -489,14 +487,14 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
     let verbs = tokens.filter((token: Token) => getMajorPOS(token.POS) === MajorPartsOfSpeech.VERB );
     if (verbs.length === 0) {
       let adverbs: Array<Token> = tokens.filter((token: Token) => getMajorPOS(token.POS) === MajorPartsOfSpeech.ADVERB);
-      adverbs.forEach((adverb: Token) => adverbToAdjective(adverb));
+      adverbs.map((adverb: Token) => adverbToAdjective(adverb));
     } else {
       // Heuristic: Adverbs are located close to verbs
       // Get the distance from each adverb to the closest verb as a percentage of the length of the sentence.
       let adverbs: Array<Token> = tokens.filter((token: Token) => getMajorPOS(token.POS) === MajorPartsOfSpeech.ADVERB);
-      adverbs.forEach((adverb: Token) => {
+      adverbs.map((adverb: Token) => {
           let closestVerb = tokens.length;
-          verbs.forEach((verb: Token) => {
+          verbs.map((verb: Token) => {
             let dist = Math.abs(adverb.ix - verb.ix);
             if (dist < closestVerb) {
               closestVerb = dist;
@@ -615,7 +613,7 @@ function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech 
 // Wrap pluralize to special case certain words it gets wrong
 function singularize(word: string): string {
   let specialCases = ["his","has","downstairs","united states","its"];
-  specialCases.forEach((specialCase) => {
+  specialCases.map((specialCase) => {
     if (specialCase === word) {
       return word;
     }
@@ -652,7 +650,7 @@ function cloneNode(node: Node): Node {
   cloneNode.attribute = node.attribute;
   cloneNode.fxn = node.fxn;
   cloneNode.found = node.found;
-  node.properties.forEach((property) => cloneNode.properties.push(property));
+  node.properties.map((property) => cloneNode.properties.push(property));
   return cloneNode;
 }
 
@@ -904,11 +902,9 @@ function formTree(tokens: Array<Token>) {
   let nodes = tokens.filter((token) => token.node === undefined).map(newNode);
   //nodes = nodes.concat(unusedNodes);
   //nodes.sort((a,b) => a.ix - b.ix);
-  
-  console.log(nodeArrayToString(nodes));
-  
+    
   // Do a quick pass to identify functions
-  tokens.forEach((token) => {
+  tokens.map((token) => {
     let node = token.node;
     let fxn = wordToFunction(node.name);
     if (fxn !== undefined) {
@@ -919,7 +915,7 @@ function formTree(tokens: Array<Token>) {
   });
   
   // Link nodes end to end
-  nodes.forEach((thisNode,i) => {
+  nodes.map((thisNode,i) => {
     let nextNode = nodes[i + 1];
     if (nextNode !== undefined) {
       thisNode.children.push(nextNode);
@@ -930,7 +926,6 @@ function formTree(tokens: Array<Token>) {
   // At this point we should only have a single root. 
   nodes = nodes.filter((node) => node.parent === undefined);
   tree = nodes.pop();
-  console.log(tree.toString());
   
   // Split nodes
   let i = 0;
@@ -967,8 +962,8 @@ function formTree(tokens: Array<Token>) {
       node.parent.properties.push(TokenProperties.BACKRELATIONSHIP);
       removeNode(node);
     } else if (node.name === "per") {
-      node.parent.properties.push(TokenProperties.BACKRELATIONSHIP);
-      node.parent.properties.push(TokenProperties.GROUPING);
+      node.children.map((child) => child.properties.push(TokenProperties.BACKRELATIONSHIP));
+      node.children.map((child) => child.properties.push(TokenProperties.GROUPING));
       removeNode(node);
     } else if (getMajorPOS(node.token.POS) === MajorPartsOfSpeech.GLUE && node.hasProperty(TokenProperties.NEGATES)) {
       node.children.map((child) => child.properties.push(TokenProperties.NEGATES));
@@ -1189,7 +1184,7 @@ function formTree(tokens: Array<Token>) {
       makeParentChild(compNode);
     }
     // Check if the children have the requisite attribute, and if so add a node
-    compNode.children.forEach((child) => { 
+    compNode.children.map((child) => { 
       // Find relationship for entities
       if (child.entity !== undefined) {
         let attribute = findEveAttribute(comparator.attribute,child.entity);
@@ -1241,6 +1236,7 @@ function formTree(tokens: Array<Token>) {
       swapWithParent(aggNode.children[0]);
       let token = newToken("output");
       let outputNode = newNode(token);
+      outputNode.ix = -1;
       outputNode.properties.push(TokenProperties.OUTPUT);
       let outputAttribute: Attribute = {
         id: outputNode.name,
@@ -1254,6 +1250,8 @@ function formTree(tokens: Array<Token>) {
       outputNode.attribute = outputAttribute;
       aggNode.children.push(outputNode);
       outputNode.parent = aggNode;
+      aggNode.children.sort((a,b) => a.ix - b.ix); 
+      outputNode.ix = 0;
     }
   }   
   
