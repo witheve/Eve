@@ -254,7 +254,7 @@ export function root():Element {
   }
   if(uiState.prompt.open && uiState.prompt.prompt && !uiState.prompt.paneId) {
     panes.push(
-      {style: "position: absolute; top: 0; left: 0; bottom: 0; right: 0; z-index: 10; background: rgba(0, 0, 0, 0.05);", click: closePrompt},
+      {style: "position: absolute; top: 0; left: 0; bottom: 0; right: 0; z-index: 10; background: rgba(0, 0, 0, 0.0);", click: closePrompt},
       uiState.prompt.prompt()
     );
   }
@@ -418,7 +418,7 @@ export function pane(paneId:string):Element {
 
   if(uiState.prompt.open && uiState.prompt.paneId === paneId) {
     pane.children.push(
-      {style: "position: absolute; top: 0; left: 0; bottom: 0; right: 0; z-index: 10; background: rgba(0, 0, 0, 0.05);", paneId, click: closePrompt},
+      {style: "position: absolute; top: 0; left: 0; bottom: 0; right: 0; z-index: 10; background: rgba(0, 0, 0, 0.0);", paneId, click: closePrompt},
       uiState.prompt.prompt(paneId)
     );
   }
@@ -567,13 +567,13 @@ function getCellParams(content, rawParams) {
       }
     }
     if(aggregates.length === 1 && !context["groupings"]) {
-      rep = "value";
+      rep = "CSV";
       field = aggregates[0].name;
     } else if(!hasCollections && context.fxns.length === 1) {
-      rep = "value";
+      rep = "CSV";
       field = context.fxns[0].name;
     } else if(!hasCollections && context.attributes.length === 1) {
-      rep = "value";
+      rep = "CSV";
       field = context.attributes[0].displayName;
     } else {
       params["rep"] = "table";
@@ -892,7 +892,7 @@ function defineAndEmbed(elem, text, doEmbed) {
     console.error("We don't support setting attributes to queries at the moment.");
     return doEmbed(`${text}|rep=error;message=I don't support setting attributes to queries at the moment;`)
   }
-  doEmbed(`${text}|rep=value;field=${attribute}`);
+  doEmbed(`${text}|rep=CSV;field=${attribute}`);
 }
 
 function defineKeys(event, elem) {
@@ -1320,6 +1320,34 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
     let elems = [];
     for(let row of results) elems.push({text: row[field], data: params.data});
     return elems;
+  },
+  CSV(results, params:{field:string, data?:{}}) {
+    if(!params.field) throw new Error("Value representation requires a 'field' param indicating which field to represent");
+    let field = params.field;
+    if(!results.length) return [];
+
+    // If field isn't in results, try to resolve it as a field name, otherwise error out
+    if(results[0][field] === undefined) {
+      let potentialIds = eve.find("display name", {name: field});
+      let neueField;
+      for(let display of potentialIds) {
+        if(results[0][display.id] !== undefined) {
+          if(neueField) {
+            neueField = undefined;
+            break;
+          }
+          neueField = display.id;
+        }
+      }
+      if(!neueField) throw new Error(`Unable to uniquely resolve field name ${field} in result fields ${Object.keys(results[0])}`);
+      else field = neueField;
+    }
+
+    let values = [];
+    for(let row of results) {
+      values.push(row[field]);
+    }
+    return {values, data: params.data};
   },
   error(results, params) {
     return {text: params["message"]};
