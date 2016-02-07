@@ -41,6 +41,8 @@ export function parse(queryString: string): Array<ParseResult> {
   return [{tokens: tokens, tree: tree, context: context, query: query, score: undefined, state: flag}];
 }
 
+// Returns false if any nodes are not marked found
+// Returns true if all nodes are marked found
 function treeComplete(node: Node): boolean {
   if (node.found === false) {
     return false;
@@ -172,7 +174,7 @@ interface Token {
   originalWord: string,
   normalizedWord: string,
   POS: MinorPartsOfSpeech,
-  properties: Array<TokenProperties>,
+  properties: Array<Properties>,
   node?: Node,
 }
 
@@ -199,13 +201,16 @@ function newToken(word: string): Token {
   return token;
 }
 
-enum TokenProperties {
+enum Properties {
   ROOT,
+  ENTITY,
+  COLLECTION,
+  ATTRIBUTE,
+  QUANTITY,
   PROPER,
   PLURAL,
   POSSESSIVE,
   BACKRELATIONSHIP,
-  QUANTITY,
   COMPARATIVE,
   SUPERLATIVE,
   PRONOUN,  
@@ -220,7 +225,7 @@ enum TokenProperties {
 }
 
 // Finds a given property in a token
-function hasProperty(token: Token, property: TokenProperties): boolean {
+function hasProperty(token: Token, property: Properties): boolean {
   let found = token.properties.indexOf(property);
   if (found !== -1) {
     return true;
@@ -250,48 +255,48 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
       if (getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN) {
         if (token.POS === MinorPartsOfSpeech.NNO || 
             token.POS === MinorPartsOfSpeech.PP) {
-         token.properties.push(TokenProperties.POSSESSIVE);
+         token.properties.push(Properties.POSSESSIVE);
         }
         if (token.POS === MinorPartsOfSpeech.NNP  ||
             token.POS === MinorPartsOfSpeech.NNPS ||
             token.POS === MinorPartsOfSpeech.NNPA) {
-          token.properties.push(TokenProperties.PROPER);
+          token.properties.push(Properties.PROPER);
         }
         if (token.POS === MinorPartsOfSpeech.NNPS  ||
             token.POS === MinorPartsOfSpeech.NNS) {
-          token.properties.push(TokenProperties.PLURAL);
+          token.properties.push(Properties.PLURAL);
         }
         if (token.POS === MinorPartsOfSpeech.CD ||
             token.POS === MinorPartsOfSpeech.DA ||
             token.POS === MinorPartsOfSpeech.NU) {
-          token.properties.push(TokenProperties.QUANTITY);
+          token.properties.push(Properties.QUANTITY);
         }
         if (token.POS === MinorPartsOfSpeech.PP ||
             token.POS === MinorPartsOfSpeech.PRP) {
-          token.properties.push(TokenProperties.PRONOUN);
+          token.properties.push(Properties.PRONOUN);
         }
         if (token.POS === MinorPartsOfSpeech.NNQ) {
-          token.properties.push(TokenProperties.PROPER);
-          token.properties.push(TokenProperties.QUOTED);
+          token.properties.push(Properties.PROPER);
+          token.properties.push(Properties.QUOTED);
         }
       }
       
       // Add default properties to adjectives and adverbs
       if (token.POS === MinorPartsOfSpeech.JJR || token.POS === MinorPartsOfSpeech.RBR) {
-        token.properties.push(TokenProperties.COMPARATIVE);
+        token.properties.push(Properties.COMPARATIVE);
       }
       else if (token.POS === MinorPartsOfSpeech.JJS || token.POS === MinorPartsOfSpeech.RBS) {        
-        token.properties.push(TokenProperties.SUPERLATIVE);
+        token.properties.push(Properties.SUPERLATIVE);
       }
       
       // Add default properties to adjectives 
       if (token.POS === MinorPartsOfSpeech.JJ) {
-        token.properties.push(TokenProperties.BACKRELATIONSHIP);
+        token.properties.push(Properties.BACKRELATIONSHIP);
       }
       
       // Add default properties to separators
       if (token.POS === MinorPartsOfSpeech.CC) {
-        token.properties.push(TokenProperties.CONJUNCTION);
+        token.properties.push(Properties.CONJUNCTION);
       }
       
       // normalize the word with the following transformations: 
@@ -310,7 +315,7 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
         if (getMajorPOS(token.POS) !== MajorPartsOfSpeech.NOUN) {
           token.POS = MinorPartsOfSpeech.NN;
         }
-        token.properties.push(TokenProperties.POSSESSIVE);
+        token.properties.push(Properties.POSSESSIVE);
       }
       // --- convert to lowercase
       before = normalizedWord;
@@ -318,15 +323,15 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
       // Heuristic: if the word is not the first word in the sentence and it had capitalization, then it is probably a proper noun
       if (before !== normalizedWord && i !== 0) {
         token.POS = MinorPartsOfSpeech.NNP;
-        token.properties.push(TokenProperties.PROPER);     
+        token.properties.push(Properties.PROPER);     
       }
       // --- if the word is a (not proper) noun or verb, singularize
-      if ((getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN || getMajorPOS(token.POS) === MajorPartsOfSpeech.VERB) && !hasProperty(token,TokenProperties.PROPER)) {
+      if ((getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN || getMajorPOS(token.POS) === MajorPartsOfSpeech.VERB) && !hasProperty(token,Properties.PROPER)) {
         before = normalizedWord;
         normalizedWord = singularize(normalizedWord);
         // Heuristic: If the word changed after singularizing it, then it was plural to begin with
         if (before !== normalizedWord) {
-          token.properties.push(TokenProperties.PLURAL);
+          token.properties.push(Properties.PLURAL);
         }
       }      
       token.normalizedWord = normalizedWord;
@@ -340,11 +345,11 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
       // Heuristic: Special case words with no ambiguous POS that NLPC misclassifies
       switch (token.normalizedWord) {
         case "of":
-          token.properties.push(TokenProperties.BACKRELATIONSHIP); 
+          token.properties.push(Properties.BACKRELATIONSHIP); 
           break;
         case "per":
-          token.properties.push(TokenProperties.BACKRELATIONSHIP); 
-          token.properties.push(TokenProperties.GROUPING);
+          token.properties.push(Properties.BACKRELATIONSHIP); 
+          token.properties.push(Properties.GROUPING);
           break;
         case "all":
           token.POS = MinorPartsOfSpeech.PDT;
@@ -374,27 +379,27 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
           token.POS = MinorPartsOfSpeech.VBP;
           break;
         case "no":
-          token.properties.push(TokenProperties.NEGATES);
+          token.properties.push(Properties.NEGATES);
           break;
         case "neither":
           token.POS = MinorPartsOfSpeech.CC;
-          token.properties.push(TokenProperties.NEGATES);
+          token.properties.push(Properties.NEGATES);
           break;
         case "nor":
           token.POS = MinorPartsOfSpeech.CC;
-          token.properties.push(TokenProperties.NEGATES);
+          token.properties.push(Properties.NEGATES);
           break;
         case "except":
           token.POS = MinorPartsOfSpeech.CC;
-          token.properties.push(TokenProperties.NEGATES);
+          token.properties.push(Properties.NEGATES);
           break;
         case "without":
           token.POS = MinorPartsOfSpeech.CC;
-          token.properties.push(TokenProperties.NEGATES);
+          token.properties.push(Properties.NEGATES);
           break;
         case "not":
           token.POS = MinorPartsOfSpeech.CC;
-          token.properties.push(TokenProperties.NEGATES);
+          token.properties.push(Properties.NEGATES);
           break;
         case "average":
           token.POS = MinorPartsOfSpeech.NN;
@@ -403,15 +408,15 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
           token.POS = MinorPartsOfSpeech.NN;
           break;
         case "their":
-          token.properties.push(TokenProperties.PLURAL);
+          token.properties.push(Properties.PLURAL);
           break;
         case "most":
           token.POS = MinorPartsOfSpeech.JJS;
-          token.properties.push(TokenProperties.SUPERLATIVE);
+          token.properties.push(Properties.SUPERLATIVE);
           break;
         case "best":
           token.POS = MinorPartsOfSpeech.JJS;
-          token.properties.push(TokenProperties.SUPERLATIVE);
+          token.properties.push(Properties.SUPERLATIVE);
           break;
         case "will":
           // 'will' can be a noun
@@ -422,7 +427,7 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
         case "years":
           token.POS = MinorPartsOfSpeech.NN;
           token.normalizedWord = "year";
-          token.properties.push(TokenProperties.PLURAL);
+          token.properties.push(Properties.PLURAL);
           break;
       }
       
@@ -436,11 +441,11 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
           break;
         case ",":
           token.POS = MinorPartsOfSpeech.SEP;
-          token.properties.push(TokenProperties.SEPARATOR);
+          token.properties.push(Properties.SEPARATOR);
           break;
         case ";":
           token.POS = MinorPartsOfSpeech.SEP;
-          token.properties.push(TokenProperties.SEPARATOR);
+          token.properties.push(Properties.SEPARATOR);
           break;
       }
       token.properties = token.properties.filter(onlyUnique);
@@ -472,7 +477,7 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
       // whose is the only wh- possessive pronoun
       if (token.normalizedWord === "whose") {
         token.POS = MinorPartsOfSpeech.WPO;
-        token.properties.push(TokenProperties.POSSESSIVE);
+        token.properties.push(Properties.POSSESSIVE);
         continue;
       }
       // adverbs become wh- adverbs
@@ -519,7 +524,7 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
       originalWord: tokens.map((token) => token.originalWord).join(" "), 
       normalizedWord: tokens.map((token) => token.normalizedWord).join(" "), 
       POS: MinorPartsOfSpeech.ROOT,
-      properties: [TokenProperties.ROOT], 
+      properties: [Properties.ROOT], 
     };
     
     tokens = [rootToken].concat(tokens);
@@ -532,11 +537,11 @@ function adverbToAdjective(token: Token): Token {
   // Heuristic: Words that end in -est are superlative
   if (word.substr(word.length-3,word.length) === "est") {
     token.POS = MinorPartsOfSpeech.JJS;
-    token.properties.push(TokenProperties.SUPERLATIVE);
+    token.properties.push(Properties.SUPERLATIVE);
   // Heuristic: Words that end in -er are comaprative
   } else if (word.substr(word.length-2,word.length) === "er"){
     token.POS = MinorPartsOfSpeech.JJR;
-    token.properties.push(TokenProperties.COMPARATIVE);
+    token.properties.push(Properties.COMPARATIVE);
   } else {
     token.POS = MinorPartsOfSpeech.JJ;
   }  
@@ -642,8 +647,8 @@ interface Node {
   constituents?: Array<Node>,
   token: Token,
   found: boolean,
-  properties: Array<TokenProperties>,
-  hasProperty(TokenProperties): boolean;
+  properties: Array<Properties>,
+  hasProperty(Properties): boolean;
   toString(number?: number): string;
 }
 
@@ -672,7 +677,7 @@ function newNode(token: Token): Node {
     toString: nodeToString,
   };
   token.node = node;
-  function hasProperty(property: TokenProperties): boolean {
+  function hasProperty(property: Properties): boolean {
   let found = node.properties.indexOf(property);
   if (found !== -1) {
       return true;
@@ -688,12 +693,12 @@ function newNode(token: Token): Node {
     let children = childrenStrings.length > 0 ? "\n" + childrenStrings : "";
     let indent = Array(depth+1).join(" ");
     let index = node.ix === undefined ? "+ " : `${node.ix}: `;
-    let properties = node.properties.length === 0 ? "" : `(${node.properties.map((property: TokenProperties) => TokenProperties[property]).join("|")})`;
+    let properties = node.properties.length === 0 ? "" : `(${node.properties.map((property: Properties) => Properties[property]).join("|")})`;
     let attribute = node.attribute === undefined ? "" : `[${node.attribute.variable} (${node.attribute.value})] `;
     let entity = node.entity === undefined ? "" : `[${node.entity.displayName}] `;
     let collection = node.collection === undefined ? "" : `[${node.collection.displayName}] `;
     let fxn = node.fxn === undefined ? "" : `[${node.fxn.name}] `;
-    let negated = node.hasProperty(TokenProperties.NEGATES) ? "!" : "";
+    let negated = node.hasProperty(Properties.NEGATES) ? "!" : "";
     let found = node.found ? "*" : " ";
     let entityOrProperties = found === " " ? `${properties}` : `${negated}${fxn}${entity}${collection}${attribute}`;
     properties = properties.length === 2 ? "" : properties;
@@ -703,11 +708,33 @@ function newNode(token: Token): Node {
   return node;  
 }
 
+//------------------------------------
 // Various node manipulation functions
+//------------------------------------
+
+// Removes the node and its children from the tree, 
+// and makes it a child of the target node
 function reroot(node: Node, target: Node): void {
   node.parent.children.splice(node.parent.children.indexOf(node),1);  
   node.parent = target;
   target.children.push(node);
+}
+
+// Removes as node from the tree
+function removeNode(node: Node): void {
+  if (node.hasProperty(Properties.ROOT)) {
+    return;
+  }
+  let parent: Node = node.parent;
+  let children: Array<Node> = node.children;
+  // Rewire
+  parent.children = parent.children.concat(children);
+  parent.children.sort((a,b) => a.ix - b.ix);
+  children.map((child) => child.parent = parent);
+  // Get rid of references on current node
+  parent.children.splice(parent.children.indexOf(node),1);
+  node.parent = undefined;
+  node.children = [];
 }
 
 // Find all leaf nodes stemming from a given node
@@ -722,8 +749,8 @@ function findLeafNodes(node: Node): Array<Node> {
   }
 } 
 
-function moveNode(node: Node, target: Node): void {
-  if (node.hasProperty(TokenProperties.ROOT)) {
+/*function moveNode(node: Node, target: Node): void {
+  if (node.hasProperty(Properties.ROOT)) {
     return;
   }
   let parent = node.parent;
@@ -733,41 +760,32 @@ function moveNode(node: Node, target: Node): void {
   node.children = [];
   node.parent = target;
   target.children.push(node);
-}
+}*/
 
-function findWithProperty(node: Node, property: TokenProperties): Node {
-  if (node.hasProperty(TokenProperties.ROOT)) {
+// Finds a parent node with the specified property, 
+// returns undefined if no node was found
+function findParentWithProperty(node: Node, property: Properties): Node {
+  if (node.hasProperty(Properties.ROOT)) {
     return undefined;
   }
   if (node.parent.hasProperty(property)) {
     return node.parent;
   } else {
-    return findWithProperty(node.parent,property);
+    return findParentWithProperty(node.parent,property);
   } 
 }
 
-function findWithPOS(node: Node, majorPOS: MajorPartsOfSpeech): Node {
+// Finds a parent node with the specified POS, 
+// returns undefined if no node was found
+function findParentWithPOS(node: Node, majorPOS: MajorPartsOfSpeech): Node {
   if (getMajorPOS(node.token.POS) === MajorPartsOfSpeech.ROOT) {
     return undefined;
   }
   if (getMajorPOS(node.parent.token.POS) === majorPOS) {
     return node.parent;
   } else {
-    return findWithPOS(node.parent,majorPOS);
+    return findParentWithPOS(node.parent,majorPOS);
   } 
-}
-
-function removeNode(node): void {
-  let parent: Node = node.parent;
-  let children: Array<Node> = node.children;
-  // Rewire
-  parent.children = parent.children.concat(children);
-  parent.children.sort((a,b) => a.ix - b.ix);
-  children.map((child) => child.parent = parent);
-  // Get rid of references on current node
-  parent.children.splice(parent.children.indexOf(node),1);
-  node.parent = undefined;
-  node.children = [];
 }
 
 // Inserts a node after the target, moving all of the
@@ -783,7 +801,7 @@ function insertAfterNode(node: Node, target: Node): void {
 
 // Sets node to be a sibling of its parent
 function promoteNode(node: Node): void {
-  if (node.parent.hasProperty(TokenProperties.ROOT)) {
+  if (node.parent.hasProperty(Properties.ROOT)) {
     return;
   }
   let newSibling = node.parent;
@@ -801,7 +819,7 @@ function promoteNode(node: Node): void {
 function makeParentChild(node: Node): void {
   let parent = node.parent;
   // Do not swap with root
-  if (parent.hasProperty(TokenProperties.ROOT)) {
+  if (parent.hasProperty(Properties.ROOT)) {
     return;
   }
   // Set parents
@@ -822,7 +840,7 @@ function makeParentChild(node: Node): void {
 function swapWithParent(node: Node): void {
   let parent = node.parent;
   let pparent = parent.parent;
-  if (parent.hasProperty(TokenProperties.ROOT)) {
+  if (parent.hasProperty(Properties.ROOT)) {
     return;
   }
   parent.parent = node;
@@ -919,7 +937,7 @@ function formTree(tokens: Array<Token>) {
     if (fxn !== undefined) {
       node.fxn = fxn;
       fxn.node = node;
-      node.properties.push(TokenProperties.FUNCTION);
+      node.properties.push(Properties.FUNCTION);
     }    
   });
   
@@ -936,6 +954,7 @@ function formTree(tokens: Array<Token>) {
   nodes = nodes.filter((node) => node.parent === undefined);
   tree = nodes.pop();
   
+  /*
   // Split nodes
   let i = 0;
   let length = tokens.length * 2;
@@ -948,12 +967,12 @@ function formTree(tokens: Array<Token>) {
     let node = token.node;
 
     // Heuristic: If the token is a semicolon, break and place the rest on the root
-    if (node.hasProperty(TokenProperties.SEPARATOR) && node.name === ";") {
+    if (node.hasProperty(Properties.SEPARATOR) && node.name === ";") {
       reroot(node,root);
       removeNode(node);
     // Heuristic: If the node is a comma, break and place on the nearest proper noun or noun
-    } else if (node.hasProperty(TokenProperties.SEPARATOR) && node.name === ",") {
-      let properNode = findWithProperty(node,TokenProperties.PROPER);
+    } else if (node.hasProperty(Properties.SEPARATOR) && node.name === ",") {
+      let properNode = findWithProperty(node,Properties.PROPER);
       if (properNode !== undefined) {
         // reroot on proper node
         reroot(node,properNode);
@@ -967,15 +986,15 @@ function formTree(tokens: Array<Token>) {
         }
       }
     // Heuristic: If the node is "of", confer its properties onto its parent and delete the node
-    } else if (node.hasProperty(TokenProperties.BACKRELATIONSHIP) && node.name === "of") {
-      node.parent.properties.push(TokenProperties.BACKRELATIONSHIP);
+    } else if (node.hasProperty(Properties.BACKRELATIONSHIP) && node.name === "of") {
+      node.parent.properties.push(Properties.BACKRELATIONSHIP);
       removeNode(node);
     } else if (node.name === "per") {
-      node.children.map((child) => child.properties.push(TokenProperties.BACKRELATIONSHIP));
-      node.children.map((child) => child.properties.push(TokenProperties.GROUPING));
+      node.children.map((child) => child.properties.push(Properties.BACKRELATIONSHIP));
+      node.children.map((child) => child.properties.push(Properties.GROUPING));
       removeNode(node);
-    } else if (getMajorPOS(node.token.POS) === MajorPartsOfSpeech.GLUE && node.hasProperty(TokenProperties.NEGATES)) {
-      node.children.map((child) => child.properties.push(TokenProperties.NEGATES));
+    } else if (getMajorPOS(node.token.POS) === MajorPartsOfSpeech.GLUE && node.hasProperty(Properties.NEGATES)) {
+      node.children.map((child) => child.properties.push(Properties.NEGATES));
       removeNode(node);
     // Heuristic: Remove determiners
     } else if (node.token.POS === MinorPartsOfSpeech.DT || node.token.POS === MinorPartsOfSpeech.WDT) {
@@ -984,14 +1003,14 @@ function formTree(tokens: Array<Token>) {
     } else if (node.token.POS === MinorPartsOfSpeech.IN || node.token.POS === MinorPartsOfSpeech.CP) {
       removeNode(node);
     // Heuristic, if the node is an adjective, attach it as a child to the closest noun child
-    } else if (getMajorPOS(node.token.POS) === MajorPartsOfSpeech.ADJECTIVE && !node.hasProperty(TokenProperties.COMPARATIVE)) {
+    } else if (getMajorPOS(node.token.POS) === MajorPartsOfSpeech.ADJECTIVE && !node.hasProperty(Properties.COMPARATIVE)) {
       // Search the the right until a noun
       let found = false
       for (let j = i; j < tokens.length; j++) {
         if (getMajorPOS(tokens[j].POS) === MajorPartsOfSpeech.NOUN) {
           let nounNode = tokens[j].node;
           moveNode(node,nounNode);
-          node.properties.push(TokenProperties.BACKRELATIONSHIP);
+          node.properties.push(Properties.BACKRELATIONSHIP);
           found = true;
           break;
         
@@ -1006,7 +1025,7 @@ function formTree(tokens: Array<Token>) {
           if (getMajorPOS(tokens[k].POS) === MajorPartsOfSpeech.NOUN) {
             let nounNode = tokens[k].node;
             moveNode(node,nounNode);
-            node.properties.push(TokenProperties.BACKRELATIONSHIP);
+            node.properties.push(Properties.BACKRELATIONSHIP);
             break;
           } else if (tokens[k].POS === MinorPartsOfSpeech.DT ||
                      tokens[k].POS === MinorPartsOfSpeech.SEP) {
@@ -1016,8 +1035,8 @@ function formTree(tokens: Array<Token>) {
       }
     // Heuristic: If the node is proper but not quoted, see if the next node is proper and 
     // if so create a compound node from the two
-    } else if (node.hasProperty(TokenProperties.PROPER) && !node.hasProperty(TokenProperties.QUOTED)) {
-      let properNouns = node.children.filter((child) => child.hasProperty(TokenProperties.PROPER) && !child.hasProperty(TokenProperties.COMPOUND));
+    } else if (node.hasProperty(Properties.PROPER) && !node.hasProperty(Properties.QUOTED)) {
+      let properNouns = node.children.filter((child) => child.hasProperty(Properties.PROPER) && !child.hasProperty(Properties.COMPOUND));
       for (let pNoun of properNouns) {
         let newOriginalName = node.token.originalWord + " " + pNoun.token.originalWord;
         let newNormalizedName = node.name + " " + pNoun.name;
@@ -1029,7 +1048,7 @@ function formTree(tokens: Array<Token>) {
           POS: MinorPartsOfSpeech.NN,
           properties: node.properties.concat(pNoun.properties),
         };
-        nToken.properties.push(TokenProperties.COMPOUND);
+        nToken.properties.push(Properties.COMPOUND);
         // Subsume properties
         let childProperties = node.children.map((child) => child.properties);
         let flatProperties = flattenNestedArray(childProperties);
@@ -1053,9 +1072,9 @@ function formTree(tokens: Array<Token>) {
         tokens.splice(tokens.indexOf(token)+2,0,nToken);
       }    
     // Heuristic: If the node is comparative, swap with its parent
-    } else if (node.hasProperty(TokenProperties.COMPARATIVE)) {
+    } else if (node.hasProperty(Properties.COMPARATIVE)) {
       //makeParentChild(node);
-    } else if (node.hasProperty(TokenProperties.CONJUNCTION)) {
+    } else if (node.hasProperty(Properties.CONJUNCTION)) {
       //makeParentChild(node);
     }
     i++;
@@ -1066,22 +1085,58 @@ function formTree(tokens: Array<Token>) {
     node.children.map(sortChildren);    
   }  
   sortChildren(tree);  
+  */
+  
+  
+  function resolveEntities(node: Node, context: Context): Context {
     
+    while (true) {
+      
+      // Skip certain nodes
+      if (node.hasProperty(Properties.ROOT)) {
+        node.found = true;
+        break;
+      }
+      
+      // Root separator at the 
+      if (node.name === ",") {
+        
+      }
+      
+      
+      
+      
+      // Find a collection or entity
+      let found = findCollectionOrEntity(node, context);
+      
+      // If no collection or entity has been found,
+      if (!found) {
+        
+      }
+      
+
+      break;
+    }
+    
+    node.children.map((child) => resolveEntities(child,context));
+    
+    return context;
+  }
+  
   // THIS IS WHERE THE MAGIC HAPPENS!
   // Go through each node array and try to resolve entities
+  /*
   function resolveEntities(node: Node, context: Context): Context {
     log(node);
     // Skip certain nodes
     if (node.token.POS === MinorPartsOfSpeech.IN ||
-        node.hasProperty(TokenProperties.ROOT)) {
+        node.hasProperty(Properties.ROOT)) {
       log("Skipping");
       node.found = true;
     }
-    if (!node.found && node.hasProperty(TokenProperties.FUNCTION)) {
+    // Add functions to context
+    if (!node.found && node.hasProperty(Properties.FUNCTION)) {
       context.fxns.push(node.fxn);
-      if (node.hasProperty(TokenProperties.NEGATES) && node.fxn.type === FunctionTypes.FILTER) {
-        node.fxn.negated = true;
-      }
       node.found = true;
     }
     // Try to find an attribute if we've already found an entity/collection
@@ -1099,10 +1154,10 @@ function formTree(tokens: Array<Token>) {
       }     
     }
     // If the node is a pronoun, try to find the entity it references
-    if (!node.found && node.hasProperty(TokenProperties.PRONOUN)) {
+    if (!node.found && node.hasProperty(Properties.PRONOUN)) {
       log("Pronoun: finding reference");
       // If the pronoun is plural, the entity is probably the latest collection
-      if (node.hasProperty(TokenProperties.PLURAL)) {
+      if (node.hasProperty(Properties.PLURAL)) {
         let collection = context.collections[context.collections.length - 1];
         if (collection !== undefined) {
           log(collection.displayName);
@@ -1121,11 +1176,11 @@ function formTree(tokens: Array<Token>) {
       }
     }
     // Heuristic: If the node is plural, try to find a collection
-    if (!node.found && node.hasProperty(TokenProperties.PLURAL)) {
+    if (!node.found && node.hasProperty(Properties.PLURAL)) {
       findCollection(node,context);
     }
     // If the node is possessive or proper, it's probably an entity
-    if (!node.found && (node.hasProperty(TokenProperties.POSSESSIVE) || node.hasProperty(TokenProperties.PROPER))) {
+    if (!node.found && (node.hasProperty(Properties.POSSESSIVE) || node.hasProperty(Properties.PROPER))) {
       log("Possessive or Proper: finding entity");
       findEntity(node,context);
     }
@@ -1137,7 +1192,7 @@ function formTree(tokens: Array<Token>) {
     
     // If there is a backward relationship e.g. age of Corey, then try to find attrs
     // in the maybeAttr stack
-    if (node.hasProperty(TokenProperties.BACKRELATIONSHIP)) {
+    if (node.hasProperty(Properties.BACKRELATIONSHIP)) {
       log("Backrelationship: Searching for previously unmatched attributes or relationships");
       // Figure out how this node relates to its parent
       if (node.collection !== undefined) {
@@ -1152,9 +1207,9 @@ function formTree(tokens: Array<Token>) {
       } 
       // If the node is possessive, transfer the backrelationship to its children
       // age of Corey's wife: of confers a backrelationship to "Corey", but "wife" needs the backrelationship to relate to "age"
-      if (node.hasProperty(TokenProperties.POSSESSIVE)) {
-        node.children.map((child) => child.properties.push(TokenProperties.BACKRELATIONSHIP));
-        node.properties.splice(node.properties.indexOf(TokenProperties.BACKRELATIONSHIP),1);
+      if (node.hasProperty(Properties.POSSESSIVE)) {
+        node.children.map((child) => child.properties.push(Properties.BACKRELATIONSHIP));
+        node.properties.splice(node.properties.indexOf(Properties.BACKRELATIONSHIP),1);
       }
       for (let maybeAttr of context.maybeAttributes) {
         // Find the parent entities and try to match attributes
@@ -1170,18 +1225,18 @@ function formTree(tokens: Array<Token>) {
       }
     }
     if (!node.found) {
-      /*if (node.parent.hasProperty(TokenProperties.POSSESSIVE)) {
-        context.maybeAttributes.push(node.token);  
-      }*/
-      if (node.hasProperty(TokenProperties.PLURAL)) { 
+      //if (node.parent.hasProperty(Properties.POSSESSIVE)) {
+      //  context.maybeAttributes.push(node.token);  
+      //}
+      if (node.hasProperty(Properties.PLURAL)) { 
         context.maybeCollections.push(node.token);
       }
-      else if (node.hasProperty(TokenProperties.PROPER) ||
-          node.parent.hasProperty(TokenProperties.FUNCTION) ||
-          node.parent.hasProperty(TokenProperties.COMPARATIVE) || 
-          node.hasProperty(TokenProperties.POSSESSIVE)) {
+      else if (node.hasProperty(Properties.PROPER) ||
+          node.parent.hasProperty(Properties.FUNCTION) ||
+          node.parent.hasProperty(Properties.COMPARATIVE) || 
+          node.hasProperty(Properties.POSSESSIVE)) {
         context.maybeEntities.push(node.token);
-      } else if (node.hasProperty(TokenProperties.COMPARATIVE)) {
+      } else if (node.hasProperty(Properties.COMPARATIVE)) {
         context.maybeFunction.push(node.token);
       }
       context.maybeAttributes.push(node.token);
@@ -1194,6 +1249,7 @@ function formTree(tokens: Array<Token>) {
     // context gained from the children will help identify the node
     return context;
   }
+  */
   
   log(tree.toString());
   log("Finding entities...");
@@ -1203,6 +1259,7 @@ function formTree(tokens: Array<Token>) {
   resolveEntities(tree,context);
   
   log(tree.toString());
+  /*
   log("Rewire attributes...")
   // Based on the entities we just found, rewire attributes to be children of their referenced entities
   for (let token of tokens) {
@@ -1215,7 +1272,7 @@ function formTree(tokens: Array<Token>) {
         entityNode = node.attribute.collection.node;
       }
       if (entityNode !== undefined && node.parent !== entityNode) {
-        if (node.parent.hasProperty(TokenProperties.CONJUNCTION)) {
+        if (node.parent.hasProperty(Properties.CONJUNCTION)) {
           moveNode(node.parent,entityNode);
           moveNode(node,entityNode);
         } else {
@@ -1282,12 +1339,12 @@ function formTree(tokens: Array<Token>) {
   let aggregate: BuiltInFunction;
   let aggNode;
   for (aggNode of aggregateNodes) {
-    if (aggNode.children[0] !== undefined && aggNode.children[0].hasProperty(TokenProperties.GROUPING)) {
+    if (aggNode.children[0] !== undefined && aggNode.children[0].hasProperty(Properties.GROUPING)) {
       swapWithParent(aggNode.children[0]);
       let token = newToken("output");
       let outputNode = newNode(token);
       outputNode.ix = -1;
-      outputNode.properties.push(TokenProperties.OUTPUT);
+      outputNode.properties.push(Properties.OUTPUT);
       let outputAttribute: Attribute = {
         id: outputNode.name,
         displayName: outputNode.name,
@@ -1304,7 +1361,7 @@ function formTree(tokens: Array<Token>) {
       outputNode.ix = 0;
     }
   }   
-  
+  */
   log(tree.toString());
   return {tree: tree, context: context};
 }
@@ -1502,23 +1559,18 @@ export function findCollectionToCollectionRelationship(coll: string, coll2: stri
   // we divide by two because unprojected results pack rows next to eachother
   // and we have two selects.
   let intersectionSize = intersection.unprojected.length / 2;
-  
-  if (intersectionSize > 0) {
+    
+  if (maxRel.count > intersectionSize) {
+    // @TODO
+    return {type: RelationshipTypes.NONE};
+  } else if (intersectionSize > maxRel.count) {
     return {type: RelationshipTypes.INTERSECTION};
+  } else if (maxRel.count === 0 && intersectionSize === 0) {
+    return {type: RelationshipTypes.NONE};
   } else {
+    // @TODO
     return {type: RelationshipTypes.NONE};
   }
-
-  /*
-  if (maxRel.count > intersectionSize) {
-    return { distance: 1 };
-  } else if (intersectionSize > maxRel.count) {
-    return { distance: 0, };
-  } else if (maxRel.count === 0 && intersectionSize === 0) {
-    return;
-  } else {
-    return { distance: 1 };
-  }*/
 }
 
 function findCollectionToAttrRelationship(coll: string, attr: string): Relationship {
@@ -1679,7 +1731,7 @@ function findEntityAttribute(node: Node, entity: Entity, context: Context): bool
     node.attribute = attribute;
     attribute.node = node;
     // If the node is possessive, check to see if it is an entity
-    if (node.hasProperty(TokenProperties.POSSESSIVE) || node.hasProperty(TokenProperties.BACKRELATIONSHIP)) {
+    if (node.hasProperty(Properties.POSSESSIVE) || node.hasProperty(Properties.BACKRELATIONSHIP)) {
       let entity = findEveEntity(`${attribute.value}`);
       if (entity !== undefined) {
         node.entity = entity;
@@ -1732,7 +1784,7 @@ function findCollection(node: Node, context: Context): boolean {
     collection.node = node;
     node.collection = collection;
     node.found = true;
-    if (node.hasProperty(TokenProperties.GROUPING)) {
+    if (node.hasProperty(Properties.GROUPING)) {
       context.groupings.push(node.token);
     }
     return true;
@@ -1748,7 +1800,7 @@ function findEntity(node: Node, context: Context): boolean {
     entity.node = node;
     node.entity = entity;
     node.found = true;
-    if (node.hasProperty(TokenProperties.GROUPING)) {
+    if (node.hasProperty(Properties.GROUPING)) {
       context.groupings.push(node.token);
     }
     return true;
@@ -1878,7 +1930,7 @@ function formQuery(node: Node): Query {
   }
   // If the node is a grouping node, stuff the query into a subquery
   // and take its projects
-  if (node.hasProperty(TokenProperties.GROUPING)) {
+  if (node.hasProperty(Properties.GROUPING)) {
     let subquery = query;
     query = newQuery();
     query.projects = query.projects.concat(subquery.projects);
@@ -1889,7 +1941,7 @@ function formQuery(node: Node): Query {
   // Handle the current node
   
   // Just return at the root
-  if (node.hasProperty(TokenProperties.ROOT)) {
+  if (node.hasProperty(Properties.ROOT)) {
     // Reverse the order of fields in the projects
     for (let project of query.projects) {
       project.fields = project.fields.reverse();
@@ -1921,7 +1973,7 @@ function formQuery(node: Node): Query {
     }
     // project if necessary
     if (node.fxn.project === true) {
-      let outputFields: Array<Field> = args.filter((arg) => arg.hasProperty(TokenProperties.OUTPUT))
+      let outputFields: Array<Field> = args.filter((arg) => arg.hasProperty(Properties.OUTPUT))
                                            .map((arg) => {return {name: `${node.fxn.name}`, 
                                                                  value: `${arg.attribute.variable}`, 
                                                               variable: true}});
@@ -1960,7 +2012,7 @@ function formQuery(node: Node): Query {
     }
     query.terms.push(term);
     // project if necessary
-    if (node.attribute.project === true && !node.hasProperty(TokenProperties.NEGATES)) {
+    if (node.attribute.project === true && !node.hasProperty(Properties.NEGATES)) {
       let attributeField: Field = {name: `${node.attribute.id}` , 
                                   value: node.attribute.variable, 
                                variable: true};
@@ -1982,7 +2034,7 @@ function formQuery(node: Node): Query {
     }
     query.terms.push(term);
     // project if necessary
-    if (node.collection.project === true && !node.hasProperty(TokenProperties.NEGATES)) {
+    if (node.collection.project === true && !node.hasProperty(Properties.NEGATES)) {
       let collectionField: Field = {name: `${node.collection.displayName.replace(new RegExp(" ", 'g'),"")}`, 
                                    value: `${node.collection.variable}`, 
                                 variable: true};
@@ -2004,7 +2056,7 @@ function formQuery(node: Node): Query {
     fields: projectFields, 
   }
   
-  if (node.hasProperty(TokenProperties.NEGATES)) {
+  if (node.hasProperty(Properties.NEGATES)) {
     let negatedTerm = query.terms.pop();
     let negatedQuery = negateTerm(negatedTerm);
     query.subqueries.push(negatedQuery);
@@ -2033,7 +2085,7 @@ export function nodeArrayToString(nodes: Array<Node>): string {
 }
 
 export function tokenToString(token: Token): string {
-  let properties = `(${token.properties.map((property: TokenProperties) => TokenProperties[property]).join("|")})`;
+  let properties = `(${token.properties.map((property: Properties) => Properties[property]).join("|")})`;
   properties = properties.length === 2 ? "" : properties;
   let tokenString = `${token.ix}: ${token.originalWord} | ${token.normalizedWord} | ${MajorPartsOfSpeech[getMajorPOS(token.POS)]} | ${MinorPartsOfSpeech[token.POS]} | ${properties}` ;
   return tokenString;
