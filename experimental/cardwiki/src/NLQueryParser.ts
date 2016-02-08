@@ -172,8 +172,8 @@ enum MinorPartsOfSpeech {
 
 interface Token {
   ix: number,
-  tokenStart?: number,
-  tokenEnd?: number,
+  start?: number,
+  end?: number,
   originalWord: string,
   normalizedWord: string,
   POS: MinorPartsOfSpeech,
@@ -244,7 +244,7 @@ function hasProperty(token: Token, property: Properties): boolean {
 function formTokens(preTokens: Array<PreToken>): Array<Token> {
     
     // Form a token for each word
-    let cursorPos = 0;
+    let cursorPos = -2;
     let tokens: Array<Token> = preTokens.map((preToken: PreToken, i: number) => {
       let word = preToken.text;
       let tag = preToken.tag;
@@ -252,8 +252,8 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
         ix: i+1, 
         originalWord: word, 
         normalizedWord: word,
-        tokenStart: cursorPos,
-        tokenEnd: cursorPos += word.length,
+        start: cursorPos += 2,
+        end: cursorPos += word.length - 1,
         POS: MinorPartsOfSpeech[tag],
         properties: [], 
       };
@@ -532,6 +532,8 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
     
     tokens = [rootToken].concat(tokens);
     
+    log(tokenArrayToString(tokens));
+    
     return tokens;
 }
 
@@ -625,12 +627,12 @@ function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech 
 
 // Wrap pluralize to special case certain words it gets wrong
 function singularize(word: string): string {
-  let specialCases = ["his","has","downstairs","united states","its"];
-  specialCases.map((specialCase) => {
+  let specialCases = ["his", "has", "downstairs", "united states", "its"];
+  for (let specialCase of specialCases) {
     if (specialCase === word) {
       return word;
     }
-  });
+  }
   return pluralize(word, 1);
 }
 
@@ -884,6 +886,7 @@ export enum FunctionTypes {
   FILTER,
   AGGREGATE,
   BOOLEAN,
+  CALCULATE,
 }
 
 interface BuiltInFunction {
@@ -942,6 +945,8 @@ function wordToFunction(word: string): BuiltInFunction {
       return {name: "average", type: FunctionTypes.AGGREGATE, fields: ["average","value"], project: true};
     case "mean":
       return {name: "average", type: FunctionTypes.AGGREGATE, fields: ["average","value"], project: true};
+    case "plus":
+      return {name: "+", type: FunctionTypes.CALCULATE, fields: ["a","b"], project: true};
     default:
       return undefined;
   }
@@ -2074,7 +2079,8 @@ export function nodeArrayToString(nodes: Array<Node>): string {
 export function tokenToString(token: Token): string {
   let properties = `(${token.properties.map((property: Properties) => Properties[property]).join("|")})`;
   properties = properties.length === 2 ? "" : properties;
-  let tokenString = `${token.ix}: ${token.originalWord} | ${token.normalizedWord} | ${MajorPartsOfSpeech[getMajorPOS(token.POS)]} | ${MinorPartsOfSpeech[token.POS]} | ${properties}` ;
+  let tokenSpan = token.start === undefined ? " " : ` [${token.start}-${token.end}] `;
+  let tokenString = `${token.ix}:${tokenSpan} ${token.originalWord} | ${token.normalizedWord} | ${MajorPartsOfSpeech[getMajorPOS(token.POS)]} | ${MinorPartsOfSpeech[token.POS]} | ${properties}` ;
   return tokenString;
 }
 
