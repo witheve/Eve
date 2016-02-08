@@ -1069,6 +1069,7 @@ function formTree(tokens: Array<Token>) {
         findCollectionOrEntity(node, context);
         for (let maybeAttr of context.maybeAttributes) {
           relationship = findRelationship(maybeAttr, node, context);
+          console.log("Found a relationship")
           // Rewire found attributes
           if (maybeAttr.found === true) {
             removeNode(maybeAttr);
@@ -1110,11 +1111,42 @@ function formTree(tokens: Array<Token>) {
               continue;
             }
           }
+        } else if (relationship.type === RelationshipTypes.ONEHOP) {
+          console.log(relationship)
+          if (node.collection) {
+            let collection = node.collection;
+            let linkID = relationship.links[0];
+            let nCollection = findEveCollection(linkID);
+            if (nCollection !== undefined) {
+              // Create a new link node
+              let token = newToken(nCollection.displayName);
+              let nNode = newNode(token);
+              insertAfterNode(nNode,collection.node);
+              nNode.collection = nCollection;
+              nCollection.node = nNode;
+              context.collections.push(nCollection);
+              // Build a collection attribute to link with parent
+              let collectionAttribute: Attribute = {
+                  id: collection.displayName,
+                  displayName: collection.displayName,
+                  collection: nCollection,
+                  value: `${collection.displayName}`,
+                  variable: `${collection.displayName}`,
+                  node: nNode,
+                  project: false,
+              };
+              nNode.properties.push(Properties.IMPLICIT);
+              nNode.attribute = collectionAttribute;
+              context.attributes.push(collectionAttribute);
+              nNode.found = true;
+              nNode.children[0].attribute.collection = nCollection;
+            }     
+          }
         }
       }
       
       // If no collection or entity has been found, do some work depending on the node
-      if (node.found === false) {
+      if (node.found === false) {//
         log("Not found");
         log(context)
         context.maybeAttributes.push(node);
@@ -1506,6 +1538,19 @@ function findCollectionToAttrRelationship(coll: Collection, attr: Node, context:
       // Largest collection other than entity or testdata?
       linkID = collections[0];  
     }
+    // Build an attribute for the node
+    let attribute: Attribute = {
+        id: attr.name,
+        displayName: attr.name,
+        collection: coll,
+        value: `${coll.displayName}|${attr.name}`,
+        variable: `${coll.displayName}|${attr.name}`,
+        node: attr,
+        project: true,
+    };
+    attr.attribute = attribute;
+    context.attributes.push(attribute);
+    attr.found = true;
     return {links: [linkID], type: RelationshipTypes.ONEHOP};
   }
   // Not sure if this one works... using the entity table, a 2 hop link can
@@ -1553,7 +1598,7 @@ function entityTocollectionsArray(entity: string): Array<string> {
   return entities.map((a) => a["collection"]);
 }
 
-/*function findCollectionAttribute(node: Node, collection: Collection, context: Context): boolean {
+function findCollectionAttribute(node: Node, collection: Collection, context: Context, relationship: Relationship): boolean {
   
   // The attribute is an attribute of members of the collection
   if (relationship.type === RelationshipTypes.DIRECT) {
@@ -1572,7 +1617,7 @@ function entityTocollectionsArray(entity: string): Array<string> {
     return true;
   // The attribute is an attribute of members of a collection which are
   // also members of this collection
-  } /*else if (relationship.type === RelationshipTypes.ONEHOP) {
+  } else if (relationship.type === RelationshipTypes.ONEHOP) {
     let linkID = relationship.links[0];
     let nCollection = findEveCollection(linkID);
     if (nCollection !== undefined) {
@@ -1624,7 +1669,7 @@ function entityTocollectionsArray(entity: string): Array<string> {
     }
   }
   return false;
-}*/
+}
 
 function findEntityAttribute(node: Node, entity: Entity, context: Context): boolean {
   let attribute = findEveAttribute(node.name,entity);
