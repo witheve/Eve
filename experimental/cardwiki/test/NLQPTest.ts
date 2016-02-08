@@ -10,7 +10,7 @@ var boostrapIxer = bootstrap.ixer;
 
 app.renderRoots["nlqp"];
 
-nlqp.debug = true;
+nlqp.debug = false;
 
 function parseTest(queryString: string, n: number): nlqp.StateFlags {
   let parseResult: nlqp.ParseResult;
@@ -52,7 +52,6 @@ function parseTest(queryString: string, n: number): nlqp.StateFlags {
   console.log(parseResult.tree.toString());
   console.log("-------------------------------------------------------------------------------------------");
   console.log("Query");  
-  console.log(parseResult.query.toString());
   console.log("-------------------------------------------------------------------------------------------");
   console.log("Result");
   console.log(queryString);
@@ -137,25 +136,22 @@ let phrases = [
   // These are queries that we had problems with in the past
   // make sure they always work
   // -------------------------------
-  //"employee salaries",
+  "employee salaries",
   //"Pet shorter than koalas",
   //"Pet not shorter than koalas",
-  //"Pet lengths",
-  //"Corey age, height, and gender",
-  /*"Corey's wife's age, gender, and height",
-  "department salaries",
-  "employee and their departments and salaries", 
-  "employees with their salaries", 
-  "employees and their salaries",
-  "Pets longer than koalas",
-  "Pets not longer than koala",
-  "Pets except those longer than a koala",
-  "sum salaries per department",
-  "sum salary per department",
-  "exotic that are not pets",*/
+  //"exotic lengths",
+  //"Corey age, height, gender and hair color",
+  //"Corey's wife's age, gender, and height",
+  //"employee salaries",
+  //"employees with their departments and salaries", 
+  //"employees with their salaries", 
+  //"employees and their salaries",
+  //"Pets except those longer than a koala",//
+  //"sum salaries per department",
+  //"sum salary per department",
+  //"exotic that are not pets",
   //"pets not exotics",
-  //"pets not length",
-  "Salaries per department"
+  //`Corey's age minus josh's salary`,  
   // -------------------------------
   //`Pets except those shorter than a koala`,
   //`salaries per department`,
@@ -393,7 +389,7 @@ let siriphrases = [
   "What is the UV index outside?",
   "How many cups in a liter",
   "Is it going to snow next week?",
-  ];
+];
 
 app.init("nlqp", function () {
   console.log(`Running ${phrases.length} tests...`);

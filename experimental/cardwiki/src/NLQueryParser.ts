@@ -1134,16 +1134,21 @@ function formTree(tokens: Array<Token>) {
       
       // Handle pronouns
       if (node.hasProperty(Properties.PRONOUN)) {
+        log("Matching pronoun with previous entity...");
         let matchedNode = previouslyMatched(node);
         if (matchedNode !== undefined) {
           if (matchedNode.collection !== undefined) {
             node.collection = matchedNode.collection;
+            node.properties.push(Properties.COLLECTION);
             node.found = true;
-            continue;
+            log(`Found: ${matchedNode.name}`);
+            break;
           } else if (matchedNode.entity !== undefined) {
             node.entity = matchedNode.entity
+            node.properties.push(Properties.ENTITY);
             node.found = true;
-            continue;
+            log(`Found: ${matchedNode.name}`);
+            break;
           }
         }
       }
@@ -1157,11 +1162,10 @@ function formTree(tokens: Array<Token>) {
           if (matchedNode.hasProperty(Properties.ENTITY)) {
             let found = findEntityAttribute(node,matchedNode.entity,context);
             if (found === true) {
-              relationship = {type: RelationshipTypes.DIRECT};  
-            } else {
-              findCollectionOrEntity(node, context);
-              relationship = findRelationship(matchedNode, node, context);  
+              relationship = {type: RelationshipTypes.DIRECT};
             }
+          } else {
+            relationship = findRelationship(matchedNode, node, context);  
           }
         } else {
           findCollectionOrEntity(node, context);
