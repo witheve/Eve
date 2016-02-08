@@ -878,7 +878,7 @@ function interpretAttributeValue(value): {isValue: boolean, parse?:any, value?:a
     let parsed = nlparse(cleaned);
     return {isValue: false, parse: parsed};
   } else {
-    return {isValue: true, value: cleaned};
+    return {isValue: true, value: coerceInput(cleaned)};
   }
 }
 
