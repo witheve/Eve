@@ -223,6 +223,7 @@ enum Properties {
   OUTPUT,
   NEGATES,
   IMPLICIT,
+  AGGREGATE,
 }
 
 // Finds a given property in a token
@@ -955,6 +956,9 @@ function formTree(tokens: Array<Token>) {
       node.fxn = fxn;
       fxn.node = node;
       node.properties.push(Properties.FUNCTION);
+      if (node.fxn.type === FunctionTypes.AGGREGATE) {
+        node.properties.push(Properties.AGGREGATE);  
+      }
     }    
   });
   
@@ -1028,6 +1032,23 @@ function formTree(tokens: Array<Token>) {
           // Push the RHS attribute onto the context and continue searching
           context.maybeAttributes.push(compAttrNode);
                     
+          node.found = true;
+        } else if (node.hasProperty(Properties.AGGREGATE)) {
+          let outputToken = newToken("output");
+          let outputNode = newNode(outputToken);
+          outputNode.found = true;
+          outputNode.properties.push(Properties.IMPLICIT);
+          outputNode.properties.push(Properties.OUTPUT);
+          let outputAttribute: Attribute = {
+            id: outputNode.name,
+            displayName: outputNode.name,
+            value: `${node.fxn.name}|${outputNode.name}`,
+            variable: `${node.fxn.name}|${outputNode.name}`,
+            node: outputNode,
+            project: true,
+          }
+          outputNode.attribute = outputAttribute;          
+          node.children.push(outputNode);
           node.found = true;
         }
         break;
@@ -1917,9 +1938,17 @@ function formQuery(node: Node): Query {
         type: "select",
         table: node.fxn.name,
         fields: fields,
-      }  
-      query.terms.push(term);
+      }
+      if (node.fxn.type === FunctionTypes.AGGREGATE) {
+        let subquery = query.subqueries[0];
+        if (subquery !== undefined) {
+          subquery.terms.push(term);
+        } 
+      } else {
+        query.terms.push(term);  
+      }
     }
+    /*
     // project if necessary
     if (node.fxn.project === true) {
       let outputFields: Array<Field> = args.filter((arg) => arg.hasProperty(Properties.OUTPUT))
@@ -1928,7 +1957,7 @@ function formQuery(node: Node): Query {
                                                               variable: true}});
       projectFields = projectFields.concat(outputFields);
       query.projects = []; 
-    }
+    }*/
   }
   // Handle attributes -------------------------------
   if (node.attribute !== undefined) {
