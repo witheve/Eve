@@ -57,6 +57,7 @@ export function preprocessQueryString(queryString: string): Array<PreToken> {
   // Add whitespace before commas
   let processedString = queryString.replace(new RegExp(",", 'g')," ,");
   processedString = processedString.replace(new RegExp(";", 'g')," ;");
+  processedString = processedString.replace(new RegExp("\s\s+", 'g')," ");
   // Get parts of speach with sentence information. It's okay if they're wrong; they 
   // will be corrected as we create the tree and match against the underlying data model
   let sentences = nlp.pos(processedString, {dont_combine: true}).sentences;   
