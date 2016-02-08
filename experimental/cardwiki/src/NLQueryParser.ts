@@ -1609,7 +1609,7 @@ export function findCollectionToCollectionRelationship(collA: Collection, collB:
 
 function findCollectionToAttrRelationship(coll: Collection, attr: Node, context: Context): Relationship {
   // Finds a direct relationship between collection and attribute
-  // e.g. "pets' lengths"" => pet -> snake -> length
+  // e.g. "pets' lengths"" => pet -> length
   log(`Finding Coll -> Attr relationship between "${coll.displayName}" and "${attr.name}"...`);
   let relationship = eve.query(``)
     .select("collection entities", { collection: coll.id }, "collection")
@@ -1632,7 +1632,7 @@ function findCollectionToAttrRelationship(coll: Collection, attr: Node, context:
     return {type: RelationshipTypes.DIRECT};
   }
   // Finds a one hop relationship
-  // e.g. "department salaries" => department -> employee -> corey -> salary
+  // e.g. "department salaries" => department -> employee -> salary
   relationship = eve.query(``)
     .select("collection entities", { collection: coll.id }, "collection")
     .select("directionless links", { entity: ["collection", "entity"] }, "links")
@@ -1791,6 +1791,7 @@ function findEntityAttribute(node: Node, entity: Entity, context: Context): bool
     }
     context.attributes.push(attribute);
     node.attribute = attribute;
+    node.properties.push(Properties.ATTRIBUTE);
     attribute.node = node;
     // If the node is possessive, check to see if it is an entity
     if (node.hasProperty(Properties.POSSESSIVE) || node.hasProperty(Properties.BACKRELATIONSHIP)) {
@@ -1803,6 +1804,7 @@ function findEntityAttribute(node: Node, entity: Entity, context: Context): bool
         node.parent.entity.project = false;
         attribute.project = false;
         context.entities.push(entity); 
+        node.properties.push(Properties.ENTITY);
       }
     }
     node.found = true;
