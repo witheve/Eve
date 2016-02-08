@@ -634,7 +634,7 @@ function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech 
 
 // Wrap pluralize to special case certain words it gets wrong
 function singularize(word: string): string {
-  let specialCases = ["his", "has", "downstairs", "united states", "its"];
+  let specialCases = ["his", "times", "has", "downstairs", "united states", "its"];
   for (let specialCase of specialCases) {
     if (specialCase === word) {
       return word;
@@ -951,11 +951,21 @@ function wordToFunction(word: string): BuiltInFunction {
     case "sum":
       return {name: "sum", type: FunctionTypes.AGGREGATE, fields: ["sum", "value"], project: true};
     case "average":
-      return {name: "average", type: FunctionTypes.AGGREGATE, fields: ["average", "value"], project: true};
     case "mean":
       return {name: "average", type: FunctionTypes.AGGREGATE, fields: ["average", "value"], project: true};
     case "plus":
+    case "add":
       return {name: "+", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
+    case "subtract":
+    case "minus":
+      return {name: "-", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
+    case "times":
+    case "multiply":
+    case "multiplied":
+      return {name: "*", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
+    case "divide":
+    case "divided":
+      return {name: "/", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
     default:
       return undefined;
   }
