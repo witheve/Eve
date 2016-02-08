@@ -15,7 +15,8 @@ import {parse as nlparse, StateFlags, FunctionTypes} from "./NLQueryParser";
 export enum PANE { FULL, WINDOW, POPOUT };
 enum BLOCK { TEXT, PROJECTION };
 
-var ignorePopState = false; // Because html5 is full of broken promises and broken dreams
+// Because html5 is full of broken promises and broken dreams
+var popoutHistory = [];
 
 //------------------------------------------------------------------------------
 // State
@@ -46,27 +47,17 @@ function preventDefault(event) {
 
 export function setURL(paneId:string, contains:string, replace?:boolean) {
   let name = uitk.resolveName(contains);
+  if(paneId !== "p1") return; // @TODO: Make this a constant
+  
   let url;
-  let state;
-  if(paneId === "p1") { // @TODO: Make this a constant
-    if(contains.length === 0) url = "/";
-    else if(name === contains) url = `/search/${contains.replace(/ /g, "_")}`;
-    else url = `/${name.replace(/ /g, "_")}/${contains.replace(/ /g, "_")}`;
-    state = {paneId, contains};
-    console.log("setURL", url, state);
-    window["states"] = window["states"] || [];
-    window["states"].push(state);
-  } else {
-    return; // @TODO: fixme;
-    ignorePopState = true;
-    window.history.back();
-    url = window.location;
-    state = copy(window.history.state);
-    window.history.forward();
-    state.popout = contains;
-    ignorePopState = false;
-  }
-  if(replace)window.history.replaceState(state, null, url);
+  if(contains.length === 0) url = "/";
+  else if(name === contains) url = `/search/${contains.replace(/ /g, "_")}`;
+  else url = `/${name.replace(/ /g, "_")}/${contains.replace(/ /g, "_")}`;
+  let state = {paneId, contains};
+  window["states"] = window["states"] || [];
+  window["states"].push(state);
+
+  if(replace) window.history.replaceState(state, null, url);
   else window.history.pushState(state, null, url);
 }
 
@@ -81,6 +72,15 @@ appHandle("ui set search", (changes:Diff, {paneId, value, peek, x, y, popState}:
   let displays = eve.find("display name", {name: value});
   if(displays.length === 1) value = displays[0].id;
   let fact;
+  if(paneId === "p1") { // @TODO: Make this a constant
+    popoutHistory = [];
+  } else if(!popState) {
+    let popout = eve.findOne("ui pane", {kind: PANE.POPOUT});
+    if(popout) {
+      popoutHistory.push(popout.contains); // @FIXME: This is fragile
+    }
+  }
+  
   if(!peek) {
     let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value};
     state.value = value;
@@ -89,6 +89,13 @@ appHandle("ui set search", (changes:Diff, {paneId, value, peek, x, y, popState}:
     fact.__id = undefined;
     fact.contains = value;
     changes.remove("ui pane", {pane: paneId});
+    let children = eve.find("ui pane parent", {parent: paneId});
+    for(let {pane:child} of children) {
+      changes.remove("ui pane position", {pane: child});
+      changes.remove("ui pane", {pane: child});
+    }
+    changes.remove("ui pane parent", {parent: paneId});
+    if(!popState) setURL(paneId, value);
   } else {
     let popout = eve.findOne("ui pane", {kind: PANE.POPOUT});
     let neuePaneId;
@@ -101,15 +108,16 @@ appHandle("ui set search", (changes:Diff, {paneId, value, peek, x, y, popState}:
     let state = uiState.widget.search[neuePaneId] = {value};
     fact = {contains: value, pane: neuePaneId, kind: PANE.POPOUT};
     if(!popout || paneId !== neuePaneId) {
-      changes.remove("ui pane position", {pane: neuePaneId});
-      changes.add("ui pane position", {pane: neuePaneId, x, y});
+      if(x !== undefined && y !== undefined) {
+        changes.remove("ui pane position", {pane: neuePaneId});
+        changes.add("ui pane position", {pane: neuePaneId, x, y});
+      }
       changes.remove("ui pane parent", {parent: paneId});
       changes.add("ui pane parent", {pane: neuePaneId, parent: paneId});
     }
     paneId = neuePaneId;
   }
   changes.add("ui pane", fact);
-  if(!popState) setURL(paneId, value);
 });
 
 appHandle("remove popup", (changes:Diff, {}:{}) => {
@@ -119,6 +127,7 @@ appHandle("remove popup", (changes:Diff, {}:{}) => {
     changes.remove("ui pane", {pane: paneId});
     changes.remove("ui pane position", {pane: paneId});
   }
+  popoutHistory = [];
 });
 
 appHandle("ui toggle search plan", (changes:Diff, {paneId}:{paneId:string}) => {
@@ -150,7 +159,6 @@ appHandle("update page", (changes:Diff, {page, content}: {page: string, content:
     changes.add("display name", {id: entity, name});
     let parts = window.location.pathname.split("/");
     if(parts.length > 2 && parts[2].replace(/_/gi, " ") === entity) {
-      console.log("replacing");
       window.history.replaceState(window.history.state, null, `/${name.replace(/ /gi, "_")}/${entity.replace(/ /gi, "_")}`);
     }
   }
@@ -324,7 +332,6 @@ function loadFromFile(event:Event, elem) {
   reader.onload = function(event:any) {
     let serialized = event.target.result;
     eve.load(serialized);
-    console.log("LOADED", file.name);
     dispatch("toggle prompt", {prompt: loadedPrompt, open: true}).commit();
   };
   reader.readAsText(file);
@@ -436,8 +443,7 @@ function createPage(evt:Event, elem:Element) {
 function deleteEntity(event, elem) {
   let name = uitk.resolveName(elem.entity);
   dispatch("remove entity", {entity: elem.entity}).commit();
-  dispatch("ui set search", {paneId: elem.paneId, value: name}).commit(); //@FIXME: This should really navigate to the previous page instead
-  // window.history.back();
+  dispatch("ui set search", {paneId: elem.paneId, value: name}).commit();
 }
 
 function paneSettings(paneId:string) {
@@ -1407,12 +1413,25 @@ function represent(search: string, rep:string, results, params:{}):Element {
   }
 }
 
+let historyState = window.history.state;
+let historyURL = window.location.pathname;
 window.addEventListener("popstate", function(evt) {
-  console.log("iPS", ignorePopState);
-  if(ignorePopState) return;
+  let popout = eve.findOne("ui pane", {kind: PANE.POPOUT});
+  if(popout && popoutHistory.length) {
+    window.history.pushState(historyState, null, historyURL);
+    let search = popoutHistory.pop();
+    dispatch("ui set search", {paneId: popout.pane, value: search, peek: true, popState: true}).commit();
+    return;
+  } else if(evt.state && evt.state.root) {
+    window.history.back();
+    return;
+  }
+
+  historyState = evt.state;
+  historyURL = window.location.pathname;
+
   let {paneId = undefined, contains = undefined} = evt.state || {};
   if(paneId === undefined || contains === undefined) return;
-  console.log("popstate", evt.state);
   dispatch("ui set search", {paneId, value: contains, popState: true}).commit();
 });
 
