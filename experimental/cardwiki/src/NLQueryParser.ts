@@ -307,37 +307,43 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
       // --- get rid of possessive ending 
       // --- convert to lower case
       // --- singularize
-      let normalizedWord = word;
-      // --- strip punctuation
-      normalizedWord = normalizedWord.replace(/\.|\?|\!|/g,'');
-      // --- get rid of possessive ending
-      before = normalizedWord;
-      normalizedWord = normalizedWord.replace(/'s|'$/,'');
-      // Heuristic: If the word had a possessive ending, it has to be a possessive noun of some sort      
-      if (before !== normalizedWord) {
-        if (getMajorPOS(token.POS) !== MajorPartsOfSpeech.NOUN) {
-          token.POS = MinorPartsOfSpeech.NN;
-        }
-        token.properties.push(Properties.POSSESSIVE);
-      }
-      // --- convert to lowercase
-      before = normalizedWord;
-      normalizedWord = normalizedWord.toLowerCase();
-      // Heuristic: if the word is not the first word in the sentence and it had capitalization, then it is probably a proper noun
-      if (before !== normalizedWord && i !== 0) {
-        token.POS = MinorPartsOfSpeech.NNP;
-        token.properties.push(Properties.PROPER);     
-      }
-      // --- if the word is a (not proper) noun or verb, singularize
-      if ((getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN || getMajorPOS(token.POS) === MajorPartsOfSpeech.VERB) && !hasProperty(token,Properties.PROPER)) {
+            // If the word is quoted
+      if (token.POS === MinorPartsOfSpeech.NNQ) {
+        token.normalizedWord = word;
+      } else {
+        let normalizedWord = word;
+        // --- strip punctuation
+        normalizedWord = normalizedWord.replace(/\.|\?|\!|/g,'');
+        // --- get rid of possessive ending
         before = normalizedWord;
-        normalizedWord = singularize(normalizedWord);
-        // Heuristic: If the word changed after singularizing it, then it was plural to begin with
+        normalizedWord = normalizedWord.replace(/'s|'$/,'');
+        // Heuristic: If the word had a possessive ending, it has to be a possessive noun of some sort      
         if (before !== normalizedWord) {
-          token.properties.push(Properties.PLURAL);
+          if (getMajorPOS(token.POS) !== MajorPartsOfSpeech.NOUN) {
+            token.POS = MinorPartsOfSpeech.NN;
+          }
+          token.properties.push(Properties.POSSESSIVE);
         }
-      }      
-      token.normalizedWord = normalizedWord;
+        // --- convert to lowercase
+        before = normalizedWord;
+        normalizedWord = normalizedWord.toLowerCase();
+        // Heuristic: if the word is not the first word in the sentence and it had capitalization, then it is probably a proper noun
+        if (before !== normalizedWord && i !== 0) {
+          token.POS = MinorPartsOfSpeech.NNP;
+          token.properties.push(Properties.PROPER);     
+        }
+        // --- if the word is a (not proper) noun or verb, singularize
+        if ((getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN || getMajorPOS(token.POS) === MajorPartsOfSpeech.VERB) && !hasProperty(token,Properties.PROPER)) {
+          before = normalizedWord;
+          normalizedWord = singularize(normalizedWord);
+          // Heuristic: If the word changed after singularizing it, then it was plural to begin with
+          if (before !== normalizedWord) {
+            token.properties.push(Properties.PLURAL);
+          }
+        }      
+        token.normalizedWord = normalizedWord;
+      }
+
            
       // Heuristic: Special case "in" classified as an adjective. e.g. "the in crowd". This is an uncommon usage
       if (token.normalizedWord === "in" && getMajorPOS(token.POS) === MajorPartsOfSpeech.ADJECTIVE) 
@@ -1004,21 +1010,23 @@ function formTree(tokens: Array<Token>) {
       }
       
       // Remove certain nodes
-      if (node.hasProperty(Properties.SEPARATOR) ||
-          getMajorPOS(node.token.POS) === MajorPartsOfSpeech.WHWORD ||
-          getMajorPOS(node.token.POS) === MajorPartsOfSpeech.GLUE) {
-        log(`Removing node "${node.name}"`);
-        node = node.children[0];
-        if (node !== undefined) {
-          let rNode = removeNode(node.parent);
-          if (rNode.hasProperty(Properties.GROUPING)) {
-            node.properties.push(Properties.GROUPING);
+      if (!node.hasProperty(Properties.FUNCTION)) {
+        if (node.hasProperty(Properties.SEPARATOR) ||
+            getMajorPOS(node.token.POS) === MajorPartsOfSpeech.WHWORD ||
+            getMajorPOS(node.token.POS) === MajorPartsOfSpeech.GLUE) {
+          log(`Removing node "${node.name}"`);
+          node = node.children[0];
+          if (node !== undefined) {
+            let rNode = removeNode(node.parent);
+            if (rNode.hasProperty(Properties.GROUPING)) {
+              node.properties.push(Properties.GROUPING);
+            }
+            if (rNode.hasProperty(Properties.NEGATES)) {
+              node.properties.push(Properties.NEGATES);
+            }
           }
-          if (rNode.hasProperty(Properties.NEGATES)) {
-            node.properties.push(Properties.NEGATES);
-          }
+          continue;
         }
-        continue;
       }
       
       // Handle functions
@@ -1285,6 +1293,7 @@ export function findEveEntity(search: string): Entity {
   // If we didn't find it that way, try again by ID
   } else {
     foundEntity = eve.findOne("entity", { entity: search });
+    console.log(foundEntity)
   }
   // Build the entity
   if (foundEntity !== undefined) {
