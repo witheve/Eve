@@ -703,136 +703,6 @@ function newNode(token: Token): Node {
   return node;  
 }
 
-// Various node manipulation functions
-function reroot(node: Node, target: Node): void {
-  node.parent.children.splice(node.parent.children.indexOf(node),1);  
-  node.parent = target;
-  target.children.push(node);
-}
-
-// Find all leaf nodes stemming from a given node
-function findLeafNodes(node: Node): Array<Node> {
-  if(node.children.length === 0) {
-    return [node];
-  }
-  else {
-    let foundLeafs = node.children.map(findLeafNodes);
-    let flatLeafs = flattenNestedArray(foundLeafs);
-    return flatLeafs;
-  }
-} 
-
-function moveNode(node: Node, target: Node): void {
-  if (node.hasProperty(TokenProperties.ROOT)) {
-    return;
-  }
-  let parent = node.parent;
-  parent.children.splice(parent.children.indexOf(node),1);
-  parent.children = parent.children.concat(node.children);
-  node.children.map((child) => child.parent = parent);
-  node.children = [];
-  node.parent = target;
-  target.children.push(node);
-}
-
-function findWithProperty(node: Node, property: TokenProperties): Node {
-  if (node.hasProperty(TokenProperties.ROOT)) {
-    return undefined;
-  }
-  if (node.parent.hasProperty(property)) {
-    return node.parent;
-  } else {
-    return findWithProperty(node.parent,property);
-  } 
-}
-
-function findWithPOS(node: Node, majorPOS: MajorPartsOfSpeech): Node {
-  if (getMajorPOS(node.token.POS) === MajorPartsOfSpeech.ROOT) {
-    return undefined;
-  }
-  if (getMajorPOS(node.parent.token.POS) === majorPOS) {
-    return node.parent;
-  } else {
-    return findWithPOS(node.parent,majorPOS);
-  } 
-}
-
-function removeNode(node): void {
-  let parent: Node = node.parent;
-  let children: Array<Node> = node.children;
-  // Rewire
-  parent.children = parent.children.concat(children);
-  parent.children.sort((a,b) => a.ix - b.ix);
-  children.map((child) => child.parent = parent);
-  // Get rid of references on current node
-  parent.children.splice(parent.children.indexOf(node),1);
-  node.parent = undefined;
-  node.children = [];
-}
-
-// Inserts a node after the target, moving all of the
-// target's children to the node
-// Before: [Target] -> [Children]
-// After:  [Target] -> [Node] -> [Children]
-function insertAfterNode(node: Node, target: Node): void {
-  node.parent = target;
-  node.children = target.children;
-  target.children.map((n) => n.parent = node);
-  target.children = [node];
-}
-
-// Sets node to be a sibling of its parent
-function promoteNode(node: Node): void {
-  if (node.parent.hasProperty(TokenProperties.ROOT)) {
-    return;
-  }
-  let newSibling = node.parent;
-  let newParent = newSibling.parent;
-  // Set parent
-  node.parent = newParent;
-  // Remove node from parent's children
-  newSibling.children.splice(newSibling.children.indexOf(node),1);
-  // Add node to new parent's children
-  newParent.children.push(node);
-}
-
-// Makes the node's parent a child of the node.
-// The node's parent's parent is then the node's parent
-function makeParentChild(node: Node): void {
-  let parent = node.parent;
-  // Do not swap with root
-  if (parent.hasProperty(TokenProperties.ROOT)) {
-    return;
-  }
-  // Set parents
-  node.parent = parent.parent
-  parent.parent = node;
-  // Remove node as a child from parent
-  parent.children.splice(parent.children.indexOf(node),1);
-  // Set children
-  node.children = node.children.concat(parent);
-  node.parent.children.push(node);
-  node.parent.children.splice(node.parent.children.indexOf(parent),1);
-}
-
-
-// Swaps a node with its parent. The node's parent
-// is then the parent's parent, and its child is the parent.
-// The parent gets the node's children
-function swapWithParent(node: Node): void {
-  let parent = node.parent;
-  let pparent = parent.parent;
-  if (parent.hasProperty(TokenProperties.ROOT)) {
-    return;
-  }
-  parent.parent = node;
-  parent.children = node.children;
-  pparent.children.splice(pparent.children.indexOf(parent),1);
-  node.parent = pparent;
-  node.children = [parent];
-  pparent.children.push(node);
-}
-
 export enum FunctionTypes {
   FILTER,
   AGGREGATE,
@@ -1307,6 +1177,136 @@ function formTree(tokens: Array<Token>) {
   
   log(tree.toString());
   return {tree: tree, context: context};
+}
+
+// Various node manipulation functions
+function reroot(node: Node, target: Node): void {
+  node.parent.children.splice(node.parent.children.indexOf(node),1);  
+  node.parent = target;
+  target.children.push(node);
+}
+
+// Find all leaf nodes stemming from a given node
+function findLeafNodes(node: Node): Array<Node> {
+  if(node.children.length === 0) {
+    return [node];
+  }
+  else {
+    let foundLeafs = node.children.map(findLeafNodes);
+    let flatLeafs = flattenNestedArray(foundLeafs);
+    return flatLeafs;
+  }
+} 
+
+function moveNode(node: Node, target: Node): void {
+  if (node.hasProperty(TokenProperties.ROOT)) {
+    return;
+  }
+  let parent = node.parent;
+  parent.children.splice(parent.children.indexOf(node),1);
+  parent.children = parent.children.concat(node.children);
+  node.children.map((child) => child.parent = parent);
+  node.children = [];
+  node.parent = target;
+  target.children.push(node);
+}
+
+function findWithProperty(node: Node, property: TokenProperties): Node {
+  if (node.hasProperty(TokenProperties.ROOT)) {
+    return undefined;
+  }
+  if (node.parent.hasProperty(property)) {
+    return node.parent;
+  } else {
+    return findWithProperty(node.parent,property);
+  } 
+}
+
+function findWithPOS(node: Node, majorPOS: MajorPartsOfSpeech): Node {
+  if (getMajorPOS(node.token.POS) === MajorPartsOfSpeech.ROOT) {
+    return undefined;
+  }
+  if (getMajorPOS(node.parent.token.POS) === majorPOS) {
+    return node.parent;
+  } else {
+    return findWithPOS(node.parent,majorPOS);
+  } 
+}
+
+function removeNode(node): void {
+  let parent: Node = node.parent;
+  let children: Array<Node> = node.children;
+  // Rewire
+  parent.children = parent.children.concat(children);
+  parent.children.sort((a,b) => a.ix - b.ix);
+  children.map((child) => child.parent = parent);
+  // Get rid of references on current node
+  parent.children.splice(parent.children.indexOf(node),1);
+  node.parent = undefined;
+  node.children = [];
+}
+
+// Inserts a node after the target, moving all of the
+// target's children to the node
+// Before: [Target] -> [Children]
+// After:  [Target] -> [Node] -> [Children]
+function insertAfterNode(node: Node, target: Node): void {
+  node.parent = target;
+  node.children = target.children;
+  target.children.map((n) => n.parent = node);
+  target.children = [node];
+}
+
+// Sets node to be a sibling of its parent
+function promoteNode(node: Node): void {
+  if (node.parent.hasProperty(TokenProperties.ROOT)) {
+    return;
+  }
+  let newSibling = node.parent;
+  let newParent = newSibling.parent;
+  // Set parent
+  node.parent = newParent;
+  // Remove node from parent's children
+  newSibling.children.splice(newSibling.children.indexOf(node),1);
+  // Add node to new parent's children
+  newParent.children.push(node);
+}
+
+// Makes the node's parent a child of the node.
+// The node's parent's parent is then the node's parent
+function makeParentChild(node: Node): void {
+  let parent = node.parent;
+  // Do not swap with root
+  if (parent.hasProperty(TokenProperties.ROOT)) {
+    return;
+  }
+  // Set parents
+  node.parent = parent.parent
+  parent.parent = node;
+  // Remove node as a child from parent
+  parent.children.splice(parent.children.indexOf(node),1);
+  // Set children
+  node.children = node.children.concat(parent);
+  node.parent.children.push(node);
+  node.parent.children.splice(node.parent.children.indexOf(parent),1);
+}
+
+
+// Swaps a node with its parent. The node's parent
+// is then the parent's parent, and its child is the parent.
+// The parent gets the node's children
+function swapWithParent(node: Node): void {
+  let parent = node.parent;
+  let pparent = parent.parent;
+  if (parent.hasProperty(TokenProperties.ROOT)) {
+    return;
+  }
+  parent.parent = node;
+  parent.children = node.children;
+  pparent.children.splice(pparent.children.indexOf(parent),1);
+  node.parent = pparent;
+  node.children = [parent];
+  pparent.children.push(node);
 }
 
 // EAV Functions
