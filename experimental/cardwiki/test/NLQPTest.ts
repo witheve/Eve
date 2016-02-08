@@ -10,7 +10,7 @@ var boostrapIxer = bootstrap.ixer;
 
 app.renderRoots["nlqp"];
 
-nlqp.debug = false
+nlqp.debug = true;
 
 function parseTest(queryString: string, n: number): nlqp.StateFlags {
   let parseResult: nlqp.ParseResult;
@@ -66,7 +66,8 @@ function parseTest(queryString: string, n: number): nlqp.StateFlags {
 function executeQuery(query: nlqp.Query): Array<string> {
   let resultsString: Array<string> = [];
   if (query.projects.length !== 0) {
-    let queryString = query.toString();     
+    let queryString = query.toString();
+    console.log(queryString)     
     let artifacts = dslparser.parseDSL(queryString);
     let changeset = eve.diff();
     let results = [];
@@ -136,10 +137,12 @@ let phrases = [
   // These are queries that we had problems with in the past
   // make sure they always work
   // -------------------------------
-  "Pet not shorter than koalas",
-  "Pet lengths",
-  "Corey's wife's age, height, and gender",
-  "Corey's wife's age, gender, and height",
+  //"employee salaries",
+  //"Pet shorter than koalas",
+  //"Pet not shorter than koalas",
+  //"Pet lengths",
+  //"Corey age, height, and gender",
+  /*"Corey's wife's age, gender, and height",
   "department salaries",
   "employee and their departments and salaries", 
   "employees with their salaries", 
@@ -149,7 +152,10 @@ let phrases = [
   "Pets except those longer than a koala",
   "sum salaries per department",
   "sum salary per department",
-  "exotic pets",
+  "exotic that are not pets",*/
+  //"pets not exotics",
+  //"pets not length",
+  "Salaries per department"
   // -------------------------------
   //`Pets except those shorter than a koala`,
   //`salaries per department`,

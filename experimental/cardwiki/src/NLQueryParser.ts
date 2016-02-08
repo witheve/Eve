@@ -995,7 +995,10 @@ function formTree(tokens: Array<Token>) {
         log(`Removing node "${node.name}"`);
         node = node.children[0];
         if (node !== undefined) {
-          removeNode(node.parent);
+          let rNode = removeNode(node.parent);
+          if (rNode.hasProperty(Properties.GROUPING)) {
+            node.properties.push(Properties.GROUPING);
+          }
         }
         continue;
       }
@@ -1022,69 +1025,30 @@ function formTree(tokens: Array<Token>) {
             compAttrNode1.attribute.project = false;
           }
           
-          // Push the RHS attribute onto the context an continue searching
+          // Push the RHS attribute onto the context and continue searching
           context.maybeAttributes.push(compAttrNode);
                     
-
           node.found = true;
         }
         break;
-      }      
-          
-          /*
-           let comparatorNodes = context.fxns.filter((fxn) => fxn.type === FunctionTypes.FILTER).map((n) => n.node);  
-  let comparator: BuiltInFunction;
-  for (let compNode of comparatorNodes) {
-    comparator = compNode.fxn;
-    // If a comparator node only has one child, swap with the parent
-    if (compNode.children.length === 1) {
-      makeParentChild(compNode);
-    }
-    // Check if the children have the requisite attribute, and if so add a node
-    compNode.children.map((child) => { 
-      // Find relationship for entities
-      if (child.entity !== undefined) {
-        let attribute = findEveAttribute(comparator.attribute,child.entity);
-        if (attribute !== undefined) {
-          let nToken = newToken(comparator.attribute);
-          let nNode = newNode(nToken);
-          attribute.project = false;
-          nNode.attribute = attribute;
-          child.children.push(nNode);
-          nNode.parent = child;
-          nNode.found = true;
-          child.entity.project = true;
-          context.attributes.push(attribute);
-        }
-      // Find relationship for collections
-      } else if (child.collection !== undefined) {
-        let relationship = findCollectionToAttrRelationship(child.collection.id,comparator.attribute);
-        if (relationship.type === RelationshipTypes.DIRECT) {
-          let nToken = newToken(comparator.attribute);
-          let nNode = newNode(nToken);
-          let collectionAttribute: Attribute = {
-            id: comparator.attribute,
-            displayName: comparator.attribute,
-            collection: child.collection,
-            value: `${child.collection.displayName}|${comparator.attribute}`,
-            variable: `${child.collection.displayName}|${comparator.attribute}`,
-            node: nNode,
-            project: false,
+      }
+      
+      // Handle pronouns
+      if (node.hasProperty(Properties.PRONOUN)) {
+        let matchedNode = previouslyMatched(node);
+        if (matchedNode !== undefined) {
+          if (matchedNode.collection !== undefined) {
+            node.collection = matchedNode.collection;
+            node.found = true;
+            continue;
+          } else if (matchedNode.entity !== undefined) {
+            node.entity = matchedNode.entity
+            node.found = true;
+            continue;
           }
-          nNode.found = true;
-          child.collection.project = true;
-          nNode.attribute = collectionAttribute;
-          child.children.push(nNode);
-          nNode.parent = child;
         }
       }
-    });    
-    compNode.children.sort((a,b) => a.ix - b.ix);
-  }   */
-
-
       
-
       // Find the relationship between parent and child nodes
       // Previously matched node
       let matchedNode = previouslyMatched(node);
@@ -1169,7 +1133,7 @@ function formTree(tokens: Array<Token>) {
   }
   
   log(tree.toString());
-  log("Finding entities...");
+  log("Resolving entities...");
   let context = newContext();
   resolveEntities(tree,context);
   console.log("Entities resolved!");
@@ -1348,7 +1312,7 @@ interface Relationship {
 }
 
 function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relationship {
-  log(`Finding relationship between ${nodeA.name} and ${nodeB.name}`);
+  log(`Finding relationship between "${nodeA.name}" and "${nodeB.name}"`);
   let relationship
   // If both nodes are Collections, find their relationship
   if (nodeA.hasProperty(Properties.COLLECTION) && nodeB.hasProperty(Properties.COLLECTION)) {
@@ -1960,7 +1924,7 @@ function formQuery(node: Node): Query {
     }
   }
   // Handle collections -------------------------------
-  if (node.collection !== undefined) {
+  if (node.collection !== undefined && !node.hasProperty(Properties.PRONOUN)) {
     let entityField: Field = {name: "entity", 
                              value: node.collection.variable, 
                           variable: true};
@@ -1982,7 +1946,7 @@ function formQuery(node: Node): Query {
     }
   }
   // Handle entities -------------------------------
-  if (node.entity !== undefined) {
+  if (node.entity !== undefined && !node.hasProperty(Properties.PRONOUN)) {
     // project if necessary
     if (node.entity.project === true) {
       let entityField: Field = {name: `${node.entity.displayName.replace(new RegExp(" ", 'g'),"")}`, 
