@@ -1003,6 +1003,9 @@ function formTree(tokens: Array<Token>) {
           if (rNode.hasProperty(Properties.GROUPING)) {
             node.properties.push(Properties.GROUPING);
           }
+          if (rNode.hasProperty(Properties.NEGATES)) {
+            node.properties.push(Properties.NEGATES);
+          }
         }
         continue;
       }
@@ -1083,14 +1086,14 @@ function formTree(tokens: Array<Token>) {
         } else {
           findCollectionOrEntity(node, context);
           relationship = findRelationship(matchedNode, node, context);
-          console.log(relationship)
+          log(relationship)
         }
       // Nothing has been matched, try to match against any maybe attributes
       } else {
         findCollectionOrEntity(node, context);
         for (let maybeAttr of context.maybeAttributes) {
           relationship = findRelationship(maybeAttr, node, context);
-          console.log("Found a relationship")
+          log("Found a relationship")
           // Rewire found attributes
           if (maybeAttr.found === true) {
             removeNode(maybeAttr);
@@ -1133,7 +1136,7 @@ function formTree(tokens: Array<Token>) {
             }
           }
         } else if (relationship.type === RelationshipTypes.ONEHOP) {
-          console.log(relationship)
+          log(relationship)
           if (node.collection) {
             let collection = node.collection;
             let linkID = relationship.links[0];
@@ -1189,7 +1192,7 @@ function formTree(tokens: Array<Token>) {
   log("Resolving entities...");
   let context = newContext();
   resolveEntities(tree,context);
-  console.log("Entities resolved!");
+  log("Entities resolved!");
   log(tree.toString());
   
   return {tree: tree, context: context};
