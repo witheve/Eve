@@ -227,6 +227,7 @@ enum Properties {
   NEGATES,
   IMPLICIT,
   AGGREGATE,
+  CALCULATE,
 }
 
 // Finds a given property in a token
@@ -914,7 +915,8 @@ interface Context {
   maybeEntities: Array<Node>,
   maybeAttributes: Array<Node>,
   maybeCollections: Array<Node>,
-  maybeFunction: Array<Node>,
+  maybeFunctions: Array<Node>,
+  maybeArguments: Array<Node>,
 }
 
 function newContext(): Context {
@@ -927,32 +929,33 @@ function newContext(): Context {
     maybeEntities: [],
     maybeAttributes: [],
     maybeCollections: [],
-    maybeFunction: [],
+    maybeFunctions: [],
+    maybeArguments: [],
   };
 }
 
 function wordToFunction(word: string): BuiltInFunction {
   switch (word) {
     case "taller":
-      return {name: ">", type: FunctionTypes.FILTER, attribute: "height", fields: ["a","b"], project: false};
+      return {name: ">", type: FunctionTypes.FILTER, attribute: "height", fields: ["a", "b"], project: false};
     case "shorter":
-      return {name: "<", type: FunctionTypes.FILTER, attribute: "length", fields: ["a","b"], project: false};
+      return {name: "<", type: FunctionTypes.FILTER, attribute: "length", fields: ["a", "b"], project: false};
     case "longer":
-      return {name: ">", type: FunctionTypes.FILTER, attribute: "length", fields: ["a","b"], project: false};
+      return {name: ">", type: FunctionTypes.FILTER, attribute: "length", fields: ["a", "b"], project: false};
     case "younger":
-      return {name: "<", type: FunctionTypes.FILTER, attribute: "age", fields: ["a","b"], project: false};
+      return {name: "<", type: FunctionTypes.FILTER, attribute: "age", fields: ["a", "b"], project: false};
     case "and":
       return {name: "and", type: FunctionTypes.BOOLEAN, fields: [], project: false};
     case "or":
-      return {name: "or", type: FunctionTypes.BOOLEAN, fields: [], project: true};
+      return {name: "or", type: FunctionTypes.BOOLEAN, fields: [], project: false};
     case "sum":
-      return {name: "sum", type: FunctionTypes.AGGREGATE, fields: ["sum","value"], project: true};
+      return {name: "sum", type: FunctionTypes.AGGREGATE, fields: ["sum", "value"], project: true};
     case "average":
-      return {name: "average", type: FunctionTypes.AGGREGATE, fields: ["average","value"], project: true};
+      return {name: "average", type: FunctionTypes.AGGREGATE, fields: ["average", "value"], project: true};
     case "mean":
-      return {name: "average", type: FunctionTypes.AGGREGATE, fields: ["average","value"], project: true};
+      return {name: "average", type: FunctionTypes.AGGREGATE, fields: ["average", "value"], project: true};
     case "plus":
-      return {name: "+", type: FunctionTypes.CALCULATE, fields: ["a","b"], project: true};
+      return {name: "+", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
     default:
       return undefined;
   }
@@ -975,6 +978,8 @@ function formTree(tokens: Array<Token>) {
       node.properties.push(Properties.FUNCTION);
       if (node.fxn.type === FunctionTypes.AGGREGATE) {
         node.properties.push(Properties.AGGREGATE);  
+      } else if (node.fxn.type === FunctionTypes.CALCULATE) {
+        node.properties.push(Properties.CALCULATE);
       }
     }    
   });
@@ -1033,6 +1038,7 @@ function formTree(tokens: Array<Token>) {
       if (node.hasProperty(Properties.FUNCTION)) {
         log("Handling function...")
         
+        // Handle comparative functions
         if (node.hasProperty(Properties.COMPARATIVE)) {
           let attribute = node.fxn.attribute;
           let compAttrToken = newToken(node.fxn.attribute);
@@ -1050,11 +1056,10 @@ function formTree(tokens: Array<Token>) {
             matchedNode.children.push(compAttrNode1);
             compAttrNode1.attribute.project = false;
           }
-          
           // Push the RHS attribute onto the context and continue searching
           context.maybeAttributes.push(compAttrNode);
-                    
           node.found = true;
+        // Handle aggregates
         } else if (node.hasProperty(Properties.AGGREGATE)) {
           let outputToken = newToken("output");
           let outputNode = newNode(outputToken);
@@ -1072,6 +1077,47 @@ function formTree(tokens: Array<Token>) {
           outputNode.attribute = outputAttribute;          
           node.children.push(outputNode);
           node.found = true;
+        // Handle calculations
+        } else if (node.hasProperty(Properties.CALCULATE)) {
+          // Create a result node
+          let resultToken = newToken(node.fxn.fields[0]);
+          let resultNode = newNode(resultToken);
+          resultNode.properties.push(Properties.OUTPUT);
+          resultNode.properties.push(Properties.IMPLICIT);
+          let resultAttribute: Attribute = {
+            id: resultNode.name,
+            displayName: resultNode.name,
+            value: `${node.fxn.name}|${resultNode.name}`,
+            variable: `${node.fxn.name}|${resultNode.name}`,
+            node: resultNode,
+            project: true,
+          }
+          resultNode.attribute = resultAttribute;          
+          node.children.push(resultNode);
+          resultNode.found = true;
+          // Push two argument nodes onto the context
+          let argumentToken = newToken("a");
+          let argumentNode = newNode(argumentToken);
+          argumentNode.properties.push(Properties.IMPLICIT);
+          argumentNode.fxn = node.fxn;
+          context.maybeArguments.push(argumentNode);
+          argumentToken = newToken("b");
+          argumentNode = newNode(argumentToken);
+          argumentNode.properties.push(Properties.IMPLICIT);
+          argumentNode.fxn = node.fxn;
+          context.maybeArguments.push(argumentNode);
+          // If we already found a numerical attribute, rewire it
+          let foundQuantity = findParentWithProperty(node,Properties.QUANTITY);
+          if (foundQuantity !== undefined) {
+            let quantityEntity = foundQuantity.parent;
+            reroot(node,quantityEntity.parent);
+            reroot(quantityEntity,node);
+            context.maybeArguments.pop();
+            foundQuantity.attribute.project = false;
+            foundQuantity.attribute.entity.project = false;
+          }
+          
+          
         }
         break;
       }
@@ -1099,24 +1145,27 @@ function formTree(tokens: Array<Token>) {
         // Find relationship between previously matched node and this one
         if (matchedNode.hasProperty(Properties.POSSESSIVE)) {
           if (matchedNode.hasProperty(Properties.ENTITY)) {
-            findEntityAttribute(node,matchedNode.entity,context);  
-            relationship = {type: RelationshipTypes.DIRECT};
+            let found = findEntityAttribute(node,matchedNode.entity,context);
+            if (found === true) {
+              relationship = {type: RelationshipTypes.DIRECT};  
+            } else {
+              findCollectionOrEntity(node, context);
+              relationship = findRelationship(matchedNode, node, context);  
+            }
           }
         } else {
           findCollectionOrEntity(node, context);
           relationship = findRelationship(matchedNode, node, context);
-          log(relationship)
         }
       // Nothing has been matched, try to match against any maybe attributes
       } else {
         findCollectionOrEntity(node, context);
         for (let maybeAttr of context.maybeAttributes) {
           relationship = findRelationship(maybeAttr, node, context);
-          log("Found a relationship")
           // Rewire found attributes
           if (maybeAttr.found === true) {
             removeNode(maybeAttr);
-            // If the attr was an implicit attribute derrived from a function,
+            // If the attr was an implicit attribute derived from a function,
             // move the node to be a child of the function and reroot the rest of the query
             if (maybeAttr.hasProperty(Properties.IMPLICIT)) {
               maybeAttr.attribute.project = false;
@@ -1154,6 +1203,7 @@ function formTree(tokens: Array<Token>) {
               continue;
             }
           }
+        // For a one-hop relationship, we need to insert the linking node
         } else if (relationship.type === RelationshipTypes.ONEHOP) {
           log(relationship)
           if (node.collection) {
@@ -1185,15 +1235,19 @@ function formTree(tokens: Array<Token>) {
               nNode.children[0].attribute.collection = nCollection;
             }     
           }
+        // For an intersection, set the correct variables on collections
+        } else if (relationship.type === RelationshipTypes.INTERSECTION) {
+          let [nodeA, nodeB] = relationship.nodes;
+          nodeA.collection.variable = nodeB.collection.variable;
+          nodeB.collection.project = false;
         }
       }
       
       // If no collection or entity has been found, do some work depending on the node
-      if (node.found === false) {//
+      if (node.found === false) {
         log("Not found");
         log(context)
         context.maybeAttributes.push(node);
-      // If we found a node, rewire it to be a child of its parent entity/collection
       }
       
       break;
@@ -1213,6 +1267,12 @@ function formTree(tokens: Array<Token>) {
   resolveEntities(tree,context);
   log("Entities resolved!");
   log(tree.toString());
+  
+  function sortChildren(node: Node): void {
+    node.children.sort((a,b) => a.ix - b.ix);
+    node.children.map(sortChildren);
+  }
+  sortChildren(tree);
   
   return {tree: tree, context: context};
 }
@@ -1293,7 +1353,6 @@ export function findEveEntity(search: string): Entity {
   // If we didn't find it that way, try again by ID
   } else {
     foundEntity = eve.findOne("entity", { entity: search });
-    console.log(foundEntity)
   }
   // Build the entity
   if (foundEntity !== undefined) {
@@ -1385,6 +1444,7 @@ enum RelationshipTypes {
 interface Relationship {
   links?: Array<string>,
   type: RelationshipTypes,
+  nodes?: Array<Node>,
 }
 
 function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relationship {
@@ -1425,7 +1485,7 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
     relationship = findEntToAttrRelationship(nodeB.attribute.entity, nodeA, context);
     return relationship;
   }
-  
+  log("No relationship found :(");
   return {type: RelationshipTypes.NONE};
 }
 
@@ -1528,9 +1588,7 @@ export function findCollectionToCollectionRelationship(collA: Collection, collB:
     // @TODO
     return {type: RelationshipTypes.NONE};
   } else if (intersectionSize > maxRel.count) {
-    collA.variable = collB.variable;
-    collB.project = false;
-    return {type: RelationshipTypes.INTERSECTION};
+    return {type: RelationshipTypes.INTERSECTION, nodes: [collA.node, collB.node]};
   } else if (maxRel.count === 0 && intersectionSize === 0) {
     return {type: RelationshipTypes.NONE};
   } else {
@@ -1718,6 +1776,9 @@ function findCollectionAttribute(node: Node, collection: Collection, context: Co
 function findEntityAttribute(node: Node, entity: Entity, context: Context): boolean {
   let attribute = findEveAttribute(node.name,entity);
   if (attribute !== undefined) {
+    if (isNumeric(attribute.value)) {
+      node.properties.push(Properties.QUANTITY);
+    }
     context.attributes.push(attribute);
     node.attribute = attribute;
     attribute.node = node;
@@ -1971,16 +2032,15 @@ function formQuery(node: Node): Query {
         query.terms.push(term);  
       }
     }
-    /*
-    // project if necessary
+    // project output if necessary
     if (node.fxn.project === true) {
       let outputFields: Array<Field> = args.filter((arg) => arg.hasProperty(Properties.OUTPUT))
                                            .map((arg) => {return {name: `${node.fxn.name}`, 
                                                                  value: `${arg.attribute.variable}`, 
                                                               variable: true}});
       projectFields = projectFields.concat(outputFields);
-      query.projects = []; 
-    }*/
+      query.projects = [];
+    }
   }
   // Handle attributes -------------------------------
   if (node.attribute !== undefined) {
@@ -2126,6 +2186,11 @@ function arrayIntersect(a, b) {
   }
   return result;
 }
+
+function isNumeric(n: any): boolean {
+  return !isNaN(parseFloat(n)) && isFinite(n);
+}
+
 
 // ----------------------------------------------------------------------------
 
