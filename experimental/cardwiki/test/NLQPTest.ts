@@ -10,7 +10,7 @@ var boostrapIxer = bootstrap.ixer;
 
 app.renderRoots["nlqp"];
 
-nlqp.debug = false;
+nlqp.debug = true;
 
 function parseTest(queryString: string, n: number): nlqp.StateFlags {
   let parseResult: nlqp.ParseResult;
@@ -136,7 +136,9 @@ let phrases = [
   // These are queries that we had problems with in the past
   // make sure they always work
   // -------------------------------
-  "employee salaries",
+  "corey's hair",
+  //"employee salaries"
+  //"salaries in engineering"
   //"Pet shorter than koalas",
   //"Pet not shorter than koalas",
   //"exotic lengths",
