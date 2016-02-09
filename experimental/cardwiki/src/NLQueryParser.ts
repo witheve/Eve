@@ -948,6 +948,7 @@ function wordToFunction(word: string): BuiltInFunction {
       return {name: "and", type: FunctionTypes.BOOLEAN, fields: [], project: false};
     case "or":
       return {name: "or", type: FunctionTypes.BOOLEAN, fields: [], project: false};
+    case "total":
     case "sum":
       return {name: "sum", type: FunctionTypes.AGGREGATE, fields: ["sum", "value"], project: true};
     case "average":
@@ -955,16 +956,20 @@ function wordToFunction(word: string): BuiltInFunction {
       return {name: "average", type: FunctionTypes.AGGREGATE, fields: ["average", "value"], project: true};
     case "plus":
     case "add":
+    case "+":
       return {name: "+", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
     case "subtract":
     case "minus":
+    case "-":
       return {name: "-", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
     case "times":
     case "multiply":
     case "multiplied":
+    case "*":
       return {name: "*", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
     case "divide":
     case "divided":
+    case "/":
       return {name: "/", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
     default:
       return undefined;
