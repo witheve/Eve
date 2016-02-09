@@ -10,7 +10,7 @@ var boostrapIxer = bootstrap.ixer;
 
 app.renderRoots["nlqp"];
 
-nlqp.debug = false;
+nlqp.debug = true;
 
 function parseTest(queryString: string, n: number): nlqp.StateFlags {
   let parseResult: nlqp.ParseResult;
@@ -137,9 +137,9 @@ let phrases = [
   // make sure they always work
   // -------------------------------
   //"sum of employee salaries",
-  "sum pet length"
+  "+ 1 3"
+  //"sum pet length"
   //"sum employee salaries",
-  //"corey's hair"
   //"employee salaries"
   //"salaries in engineering"
   //"Pet shorter than koalas",
@@ -277,7 +277,7 @@ let phrases = [
   */
 ];
 
-
+/*
 let siriphrases = [
   "Find videos I took at Iva's birthday party",
   "Find pics from my trip to Aspen in 2014",
@@ -395,6 +395,7 @@ let siriphrases = [
   "How many cups in a liter",
   "Is it going to snow next week?",
 ];
+*/
 
 app.init("nlqp", function () {
   console.log(`Running ${phrases.length} tests...`);

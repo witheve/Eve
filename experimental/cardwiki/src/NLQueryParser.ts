@@ -673,10 +673,18 @@ function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech 
       minorPartOfSpeech === MinorPartsOfSpeech.UH  ||
       minorPartOfSpeech === MinorPartsOfSpeech.EX) {
         return MajorPartsOfSpeech.GLUE;
-  }
+  }  
   // Symbol
-  if (minorPartOfSpeech === MinorPartsOfSpeech.LT  ||
-      minorPartOfSpeech === MinorPartsOfSpeech.GT  ||
+  if (minorPartOfSpeech === MinorPartsOfSpeech.LT    ||
+      minorPartOfSpeech === MinorPartsOfSpeech.GT    ||
+      minorPartOfSpeech === MinorPartsOfSpeech.GTE   ||
+      minorPartOfSpeech === MinorPartsOfSpeech.LTE   ||
+      minorPartOfSpeech === MinorPartsOfSpeech.EQ    ||
+      minorPartOfSpeech === MinorPartsOfSpeech.NEQ   ||
+      minorPartOfSpeech === MinorPartsOfSpeech.PLUS  ||
+      minorPartOfSpeech === MinorPartsOfSpeech.MINUS ||
+      minorPartOfSpeech === MinorPartsOfSpeech.DIV   ||
+      minorPartOfSpeech === MinorPartsOfSpeech.MUL   ||
       minorPartOfSpeech === MinorPartsOfSpeech.SEP) {
         return MajorPartsOfSpeech.SYMBOL;
   }
@@ -811,8 +819,7 @@ function newNode(token: Token): Node {
 // and makes it a child of the target node
 function reroot(node: Node, target: Node): void {
   node.parent.children.splice(node.parent.children.indexOf(node),1);  
-  node.parent = target;
-  target.children.push(node);
+  target.addChild(node);
 }
 
 // Removes a node from the tree
@@ -1089,15 +1096,14 @@ function formTree(tokens: Array<Token>) {
   nodes.map((thisNode,i) => {
     let nextNode = nodes[i + 1];
     if (nextNode !== undefined) {
-      thisNode.children.push(nextNode);
-      nextNode.parent = thisNode;  
+      thisNode.addChild(nextNode);  
     }
   })
 
   // At this point we should only have a single root.
   nodes = nodes.filter((node) => node.parent === undefined);
   tree = nodes.pop();
-  
+    
   function resolveEntities(node: Node, context: Context): Context {
     let relationship: Relationship;
     
@@ -1112,7 +1118,6 @@ function formTree(tokens: Array<Token>) {
           node.hasProperty(Properties.IMPLICIT) ||
           node.hasProperty(Properties.ROOT)) {
         log("Skipping...");
-        node.found = true;
         break;
       }
       
@@ -1151,6 +1156,13 @@ function formTree(tokens: Array<Token>) {
           node.attribute = quantityAttribute;
           node.properties.push(Properties.ATTRIBUTE);
           node.found = true;
+          // If there is a maybeArgument, attach the quantity to it
+          if (context.maybeArguments.length > 0) {
+            let argument = context.maybeArguments.shift();
+            removeNode(node);
+            argument.addChild(node); 
+            argument.found = true;
+          }
           continue;
       }
       
@@ -1172,8 +1184,8 @@ function formTree(tokens: Array<Token>) {
           relationship = findRelationship(matchedNode,compAttrNode1,context);
           if (relationship.type === RelationshipTypes.DIRECT) {
             removeNode(matchedNode);
-            node.children.push(matchedNode);
-            matchedNode.children.push(compAttrNode1);
+            node.addChild(matchedNode);
+            matchedNode.addChild(compAttrNode1);
             compAttrNode1.attribute.project = false;
           }
           // Push the RHS attribute onto the context and continue searching
@@ -1195,7 +1207,7 @@ function formTree(tokens: Array<Token>) {
             project: true,
           }
           outputNode.attribute = outputAttribute;          
-          node.children.push(outputNode);
+          node.addChild(outputNode);
           node.found = true;
         // Handle calculations
         } else if (node.hasProperty(Properties.CALCULATE)) {
@@ -1213,7 +1225,7 @@ function formTree(tokens: Array<Token>) {
             project: true,
           }
           resultNode.attribute = resultAttribute;          
-          node.children.push(resultNode);
+          node.addChild(resultNode);
           resultNode.found = true;
           // Push two argument nodes onto the context
           let argumentTokenB = newToken("b");
@@ -1293,6 +1305,7 @@ function formTree(tokens: Array<Token>) {
       } else {
         findCollectionOrEntity(node, context);
         for (let maybeAttr of context.maybeAttributes) {
+          log("Matching previously unmatched nodes...");
           relationship = findRelationship(maybeAttr, node, context);
           // Rewire found attributes
           if (maybeAttr.found === true) {
@@ -1306,11 +1319,11 @@ function formTree(tokens: Array<Token>) {
               if (node !== undefined) {
                 reroot(node,findParentWithProperty(node,Properties.ROOT));   
               }
-              thisNode.children.push(maybeAttr);
+              thisNode.addChild(maybeAttr);
               reroot(thisNode, maybeAttr.fxn.node);
               continue loop0;
             } else {
-              node.children.push(maybeAttr);
+              node.addChild(maybeAttr);
             }
           }
         };
@@ -1331,7 +1344,7 @@ function formTree(tokens: Array<Token>) {
               let rNode = node;
               node = node.children[0];
               removeNode(rNode);
-              targetNode.children.push(rNode);
+              targetNode.addChild(rNode);
               continue;
             }
           }
@@ -1438,25 +1451,8 @@ function formTree(tokens: Array<Token>) {
   }
   sortChildren(tree);
   
-  // Remove functions with missing arguments from context
-  /*for (let argument of context.maybeArguments) {
-    let unfinishedFxn = argument.fxn;
-    console.log(argument)
-    let fxnIx = undefined;
-    let i = 0;
-    for (let fxns of context.fxns) {
-      if (fxnIx.node.ix === unfinishedFxn.node.ix) {
-        fxnIx = i; 
-      }
-      i++;
-    }
-    if (fxnIx !== undefined) {
-      context.fxns.splice(fxnIx,1);
-      context.maybeFunctions.push(unfinishedFxn.node);
-    }
-  }*/
-  
-  
+  // Mark root as found
+  tree.found = true;
   log(tree.toString());
   return {tree: tree, context: context};
 }
@@ -2213,7 +2209,7 @@ function formQuery(node: Node): Query {
     // If we have the right number of arguments, proceed
     // @TODO surface an error if the arguments are wrong
     let output;
-    if (args.length === node.fxn.fields.length) {
+    if (node.children.every((child) => child.found) === true) {
       let fields: Array<Field> = args.map((arg,i) => {
         return {name: `${node.fxn.fields[i]}`, 
                value: `${arg.attribute.variable}`, 
