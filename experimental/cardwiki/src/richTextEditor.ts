@@ -194,6 +194,7 @@ export function createEditor(node, elem) {
     if(!options.noFocus) {
       cm.focus();
     }
+    cm.refresh(); // @FIXME: This also needs to be called any time it is hidden and added again.
   } else {
     cm = node.editor.cmInstance;
   }
@@ -249,7 +250,6 @@ export function createEditor(node, elem) {
       }
     });
   }
-  cm.refresh();
 }
 
 
