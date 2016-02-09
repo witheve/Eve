@@ -567,3 +567,19 @@ export function directory(elem:DirectoryElem):Element {
 }
 
 export var masonry = masonryRaw;
+
+interface URLElem extends Element { url: string }
+export function externalLink(elem:URLElem) {
+  elem.t = elem.t || "a";
+  elem.c = `link ${elem.c || ""}`;
+  elem.href = elem.url;
+  elem.text = elem.text || elem.url;
+  return elem;
+}
+
+export function externalImage(elem:URLElem) {
+  elem.t = elem.t || "img";
+  elem.c = `${elem.c || ""}`;
+  elem.src = elem.url;
+  return elem;
+}
