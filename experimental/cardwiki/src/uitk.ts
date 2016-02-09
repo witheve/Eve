@@ -570,7 +570,7 @@ export var masonry = masonryRaw;
 
 interface URLElem extends Element { url: string }
 export function externalLink(elem:URLElem) {
-  elem.t = elem.t || "a";
+  elem.t = "a";
   elem.c = `link ${elem.c || ""}`;
   elem.href = elem.url;
   elem.text = elem.text || elem.url;
@@ -578,8 +578,23 @@ export function externalLink(elem:URLElem) {
 }
 
 export function externalImage(elem:URLElem) {
-  elem.t = elem.t || "img";
-  elem.c = `${elem.c || ""}`;
+  elem.t = "img";
+  elem.c = `img ${elem.c || ""}`;
   elem.src = elem.url;
+  return elem;
+}
+
+export function externalVideo(elem:URLElem) {
+  let ext = elem.url.slice(elem.url.lastIndexOf(".")).trim().toLowerCase();
+  let domain = elem.url.slice(elem.url.indexOf("//") + 2).split("/")[0];
+  let isFile = ["mp4", "ogv", "webm", "mov", "avi", "flv"].indexOf(ext) !== -1;
+  if(isFile) {
+    elem.t = "video";
+  } else {
+    elem.t = "iframe";
+  }
+  elem.c = `video ${elem.c || ""}`;
+  elem.src = elem.url;
+  elem.allowfullscreen = true;
   return elem;
 }

@@ -867,10 +867,10 @@ function representAutocompleteOptions(isEntity, parsed, text, params, entityId) 
 function urlAutocompleteOptions(isEntity, parsed, url:string, params, entityId:string) {
   // @NOTE: url must be normalized before reaching here.
   // @FIXME: Need to get a url property onto the params. Should that be done here?
-  let ext = url.slice(url.lastIndexOf(".")).trim().toLowerCase();
+  let ext = url.slice(url.lastIndexOf(".") + 1).trim().toLowerCase();
   let domain = url.slice(url.indexOf("//") + 2).split("/")[0];
   let isImage = ["png", "jpg", "jpeg", "bmp", "tiff"].indexOf(ext) !== -1;
-  let isVideo = ["mp4", "mov", "avi", "flv", "wmv"].indexOf(ext) !== -1 || ["youtube.com", "youtu.be"].indexOf(domain) !== -1;
+  let isVideo = (["mp4", "ogv", "webm", "mov", "avi", "flv"].indexOf(ext) !== -1) || (["www.youtube.com", "youtu.be"].indexOf(domain) !== -1);
   let options:{score: number, action: any, text: string, [attr:string]: any}[] = [
     {score: 2, text: "a link", action: embedAs, rep: "externalLink", params},
     {score: isImage ? 3 : 1, text: "an image", action: embedAs, rep: "externalImage", params},
