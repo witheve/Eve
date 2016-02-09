@@ -28,7 +28,9 @@ export interface Element {
   draggable?:boolean
   href?:string
   src?:string
+  data?:any
   download?:string
+  allowfullscreen?:boolean
   placeholder?:string
   selected?:boolean
   tabindex?:number
@@ -62,6 +64,7 @@ export interface Element {
   colspan?:number
   fontFamily?:string
   fontSize?:string
+
   opacity?:number
 
   // Svg
@@ -263,7 +266,9 @@ export class Renderer {
       if(cur.tabindex !== prev.tabindex) div.setAttribute("tabindex", cur.tabindex);
       if(cur.href !== prev.href) div.setAttribute("href", cur.href);
       if(cur.src !== prev.src) div.setAttribute("src", cur.src);
+      if(cur.data !== prev.data) div.setAttribute("data", cur.data);
       if(cur.download !== prev.download) div.setAttribute("download", cur.download);
+      if(cur.allowfullscreen !== prev.allowfullscreen) div.setAttribute("allowfullscreen", cur.allowfullscreen);
 
       // animateable properties
       var tween = cur.tween || tempTween;
@@ -443,7 +448,9 @@ export class Renderer {
           && curA.tabindex === curB.tabindex
           && curA.href === curB.href
           && curA.src === curB.src
+          && curA.data === curB.data
           && curA.download === curB.download
+          && curA.allowfullscreen === curB.allowfullscreen
           && curA.placeholder === curB.placeholder
           && curA.selected === curB.selected
           && curA.draggable === curB.draggable
