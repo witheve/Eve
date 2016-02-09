@@ -55,8 +55,12 @@ function treeComplete(node: Node): boolean {
 // Performs some transformations to the query string before tokenizing
 export function preprocessQueryString(queryString: string): Array<PreToken> {
   // Add whitespace before commas
-  let processedString = queryString.replace(new RegExp(",", 'g')," ,");
-  processedString = processedString.replace(new RegExp(";", 'g')," ;");
+  let processedString = queryString.replace(new RegExp(",", 'g')," , ");
+  processedString = processedString.replace(new RegExp(";", 'g')," ; ");
+  processedString = processedString.replace(new RegExp("\\+", 'g')," + ");
+  processedString = processedString.replace(new RegExp("-", 'g')," - ");
+  processedString = processedString.replace(new RegExp("\\*", 'g')," * ");
+  processedString = processedString.replace(new RegExp("/", 'g')," / ");
   processedString = processedString.replace(new RegExp("\s\s+", 'g')," ");
   // Get parts of speach with sentence information. It's okay if they're wrong; they 
   // will be corrected as we create the tree and match against the underlying data model
@@ -116,7 +120,7 @@ enum MajorPartsOfSpeech {
 enum MinorPartsOfSpeech {
   ROOT,
   // Verb
-  VB,   // verb, generic (eat) s
+  VB,   // verb, generic (eat)
   VBD,  // past-tense verb (ate)
   VBN,  // past-participle verb (eaten)
   VBP,  // infinitive verb (eat)
@@ -162,6 +166,14 @@ enum MinorPartsOfSpeech {
   // Symbol
   LT,   // Symbol (<)
   GT,   // Symbol (>)
+  GTE,  // Symbol (>=)
+  LTE,  // Symbol (<=)
+  EQ,   // Symbol (=)
+  NEQ,  // Symbol (!=)
+  PLUS, // Sumbol (+)
+  MINUS,// Sumbol (-)
+  DIV,  // Sumbol (/)
+  MUL,  // Sumbol (*)
   SEP,  // Separator (, ;)
   // Wh- word
   WDT,  // Wh-determiner (that what whatever which whichever)
@@ -228,6 +240,7 @@ enum Properties {
   IMPLICIT,
   AGGREGATE,
   CALCULATE,
+  OPERATOR,
 }
 
 // Finds a given property in a token
@@ -309,7 +322,8 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
       // --- convert to lower case
       // --- singularize
             // If the word is quoted
-      if (token.POS === MinorPartsOfSpeech.NNQ) {
+      if (token.POS === MinorPartsOfSpeech.NNQ ||
+          token.POS === MinorPartsOfSpeech.CD) {
         token.normalizedWord = word;
       } else {
         let normalizedWord = word;
@@ -445,9 +459,43 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
       switch (token.normalizedWord) {
         case ">": 
           token.POS = MinorPartsOfSpeech.GT;
+          token.properties.push(Properties.COMPARATIVE);
+          break;
+        case ">=": 
+          token.POS = MinorPartsOfSpeech.GTE;
+          token.properties.push(Properties.COMPARATIVE);
           break;
         case "<":
           token.POS = MinorPartsOfSpeech.LT;
+          token.properties.push(Properties.COMPARATIVE);
+          break;
+        case "<=":
+          token.POS = MinorPartsOfSpeech.LTE;
+          token.properties.push(Properties.COMPARATIVE);
+          break;
+        case "=":
+          token.POS = MinorPartsOfSpeech.EQ;
+          token.properties.push(Properties.COMPARATIVE);
+          break;
+        case "!=":
+          token.POS = MinorPartsOfSpeech.NEQ;
+          token.properties.push(Properties.COMPARATIVE);
+          break;
+        case "+":
+          token.POS = MinorPartsOfSpeech.PLUS;
+          token.properties.push(Properties.OPERATOR);
+          break;
+        case "-":
+          token.POS = MinorPartsOfSpeech.MINUS;
+          token.properties.push(Properties.OPERATOR);
+          break;
+        case "*":
+          token.POS = MinorPartsOfSpeech.MUL;
+          token.properties.push(Properties.OPERATOR);
+          break;
+        case "/":
+          token.POS = MinorPartsOfSpeech.DIV;
+          token.properties.push(Properties.OPERATOR);
           break;
         case ",":
           token.POS = MinorPartsOfSpeech.SEP;
@@ -1050,6 +1098,23 @@ function formTree(tokens: Array<Token>) {
         }
       }
       
+      // Handle quantities
+      if (node.hasProperty(Properties.QUANTITY)) {
+        // Create an attribute for the quantity 
+          let quantityAttribute: Attribute = {
+            id: node.name,
+            displayName: node.name,
+            value: `${node.name}`,
+            variable: `${node.name}`,
+            node: node,
+            project: false,
+          }
+          node.attribute = quantityAttribute;
+          node.properties.push(Properties.ATTRIBUTE);
+          node.found = true;
+          continue;
+      }
+      
       // Handle functions
       if (node.hasProperty(Properties.FUNCTION)) {
         log("Handling function...")
@@ -1125,14 +1190,18 @@ function formTree(tokens: Array<Token>) {
           // If we already found a numerical attribute, rewire it
           let foundQuantity = findParentWithProperty(node,Properties.QUANTITY);
           if (foundQuantity !== undefined) {
-            let quantityEntity = foundQuantity.parent;
-            reroot(node,quantityEntity.parent);
-            reroot(quantityEntity,node);
-            context.maybeArguments.pop();
-            foundQuantity.attribute.project = false;
-            foundQuantity.attribute.entity.project = false;
+            if (foundQuantity.parent.hasProperty(Properties.ENTITY)) {
+              let quantityEntity = foundQuantity.parent;  
+              reroot(node,quantityEntity.parent);
+              reroot(quantityEntity,node);
+              context.maybeArguments.pop();
+              foundQuantity.attribute.project = false;
+              foundQuantity.attribute.entity.project = false;
+            } else {
+              removeNode(foundQuantity);
+              node.children.push(foundQuantity);
+            }
           }
-          
           node.found = true;
         }
         break;
@@ -1318,14 +1387,15 @@ function formTree(tokens: Array<Token>) {
   let context = newContext();
   resolveEntities(tree,context);
   log("Entities resolved!");
-  log(tree.toString());
-  
+
+  // Sort children to preserve argument order in functions
   function sortChildren(node: Node): void {
     node.children.sort((a,b) => a.ix - b.ix);
     node.children.map(sortChildren);
   }
   sortChildren(tree);
   
+  log(tree.toString());
   return {tree: tree, context: context};
 }
 
