@@ -624,7 +624,7 @@ function cellEditor(entityId, paneId, cell):Element {
   let text = activeCells[cell.id].query;
   let {options, selected} = autocompleterOptions(entityId, paneId, cell);
   let autoFocus = true;
-  if(text.match(/=.*=/)) {
+  if(text.match(/\$\$.*\$\$/)) {
     text = "";
   }
   let display = eve.findOne("display name", {id: text});
@@ -673,7 +673,7 @@ function executeAutocompleterOption(event, elem) {
 
 function autocompleterOptions(entityId, paneId, cell) {
   let [text, rawParams] = cell.query.trim().split("|");
-  if(text.match(/=.*=/)) {
+  if(text.match(/\$\$.*\$\$/)) {
     return {options: [], selected: {}};
   }
   let params = {};
@@ -1042,7 +1042,7 @@ appHandle("setCellState", (changes, info) => {
 
 appHandle("updateActiveCell", (changes, info) => {
   let active = activeCells[info.id];
-  active.query = info.query.replace(/^= /, "");
+  active.query = info.query;
   active.selected = 0;
   active.state = "query";
 });
@@ -1065,12 +1065,13 @@ function activateCell(event, elem) {
 }
 
 function createEmbedPopout(cm, paneId) {
+  console.log("CREATING POPOUT");
   let coords = cm.cursorCoords("head", "page");
   // dispatch("createEmbedPopout", {paneId, x: coords.left, y: coords.top - 20}).commit();
   cm.operation(() => {
     let from = cm.getCursor("from");
     let id = uuid();
-    let range = `{=${id}=}`;
+    let range = `{$$${id}$$}`;
     cm.replaceRange(range, from, cm.getCursor("to"));
     dispatch("addActiveCell", {id: range, query: "", placeholder: true});
   });
@@ -1135,6 +1136,7 @@ function embeddedCellKeys(event, elem) {
     dispatch("moveCellAutocomplete", {cell, direction:1}).commit();
     event.preventDefault();
   }
+  event.stopPropagation();
 }
 
 function updatePage(meta, content) {
@@ -1170,7 +1172,7 @@ function getCells(content: string) {
         ids[part]++;
       }
       let placeholder = false;
-      if(part.match(/\{\=.*\=\}/)) {
+      if(part.match(/\{\$\$.*\$\$\}/)) {
         placeholder = true;
       }
       cells.push({start: ix, length: part.length, value: part, query: part.substring(1, part.length - 1), id, placeholder});
