@@ -952,6 +952,7 @@ function wordToFunction(word: string): BuiltInFunction {
     case "sum":
       return {name: "sum", type: FunctionTypes.AGGREGATE, fields: ["sum", "value"], project: true};
     case "average":
+    case "avg":
     case "mean":
       return {name: "average", type: FunctionTypes.AGGREGATE, fields: ["average", "value"], project: true};
     case "plus":
@@ -2106,15 +2107,15 @@ function formQuery(node: Node): Query {
       } else {
         query.terms.push(term);  
       }
-    }
-    // project output if necessary
-    if (node.fxn.project === true) {
-      let outputFields: Array<Field> = args.filter((arg) => arg.hasProperty(Properties.OUTPUT))
-                                           .map((arg) => {return {name: `${node.fxn.name}`, 
-                                                                 value: `${arg.attribute.variable}`, 
-                                                              variable: true}});
-      projectFields = projectFields.concat(outputFields);
-      query.projects = [];
+      // project output if necessary
+      if (node.fxn.project === true) {
+        let outputFields: Array<Field> = args.filter((arg) => arg.hasProperty(Properties.OUTPUT))
+                                            .map((arg) => {return {name: `${node.fxn.name}`, 
+                                                                  value: `${arg.attribute.variable}`, 
+                                                                variable: true}});
+        projectFields = projectFields.concat(outputFields);
+        query.projects = [];
+      }
     }
   }
   // Handle attributes -------------------------------
