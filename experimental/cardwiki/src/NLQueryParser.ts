@@ -1720,7 +1720,7 @@ function findCollectionToAttrRelationship(coll: Collection, attr: Node, context:
     attr.attribute = attribute;
     context.attributes.push(attribute);
     attr.found = true;
-    return {links: [linkID], type: RelationshipTypes.ONEHOP};
+    return {links: [linkID], type: RelationshipTypes.ONEHOP, nodes: [coll.node, attr]};
   }
   // Not sure if this one works... using the entity table, a 2 hop link can
   // be found almost anywhere, yielding results like
