@@ -1177,12 +1177,12 @@ function formTree(tokens: Array<Token>) {
           node.children.push(resultNode);
           resultNode.found = true;
           // Push two argument nodes onto the context
-          let argumentToken = newToken("a");
+          let argumentToken = newToken("b");
           let argumentNode = newNode(argumentToken);
           argumentNode.properties.push(Properties.IMPLICIT);
           argumentNode.fxn = node.fxn;
           context.maybeArguments.push(argumentNode);
-          argumentToken = newToken("b");
+          argumentToken = newToken("a");
           argumentNode = newNode(argumentToken);
           argumentNode.properties.push(Properties.IMPLICIT);
           argumentNode.fxn = node.fxn;
@@ -1204,6 +1204,7 @@ function formTree(tokens: Array<Token>) {
           }
           node.found = true;
         }
+        context.fxns.push(node.fxn);
         break;
       }
       
