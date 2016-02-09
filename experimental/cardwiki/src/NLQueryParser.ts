@@ -191,6 +191,8 @@ interface Token {
   POS: MinorPartsOfSpeech,
   properties: Array<Properties>,
   node?: Node,
+  prev?: Token,
+  next?: Token,
 }
 
 function cloneToken(token: Token): Token {
@@ -587,6 +589,13 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
     
     tokens = [rootToken].concat(tokens);
     
+    // Link tokens to eachother
+    for (let i = 0; i < tokens.length; i++) {
+      let token = tokens[i];
+      token.prev = tokens[i - 1];
+      token.next = tokens[i + 1];
+    }
+    
     log(tokenArrayToString(tokens));
     
     return tokens;
@@ -710,6 +719,8 @@ interface Node {
   properties: Array<Properties>,
   hasProperty(Properties): boolean;
   toString(number?: number): string;
+  next(): Node;
+  prev(): Node;
   addChild(node: Node): void;
 }
 
@@ -736,6 +747,8 @@ function newNode(token: Token): Node {
     found: false,
     hasProperty: hasProperty,
     toString: nodeToString,
+    next: nextNode,
+    prev: previousNode,
     addChild: addChild,
   };
   token.node = node;
@@ -746,6 +759,22 @@ function newNode(token: Token): Node {
     } else {
       return false;
     }
+  }
+  function nextNode(): Node {
+    let token = node.token;
+    let nextToken = token.next;
+    if (nextToken !== undefined) {
+      return nextToken.node;
+    }
+    return undefined;
+  }
+  function previousNode(): Node {
+    let token = node.token;
+    let prevToken = token.prev;
+    if (prevToken !== undefined) {
+      return prevToken.node;
+    }
+    return undefined;
   }
   function addChild(newChild: Node): void {
     node.children.push(newChild);
