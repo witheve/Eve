@@ -167,7 +167,7 @@ appHandle("create page", (changes:Diff, {page, content = undefined}: {page: stri
 appHandle("create query", (changes:Diff, {id, content}) => {
   let page = uuid();
   changes
-    .add("page content", {page, content: `# ${content} query`})
+    .add("page content", {page, content: `#${content} query`})
     .add("entity page", {id, page})
     .add("display name", {id, content})
     .add("sourced eav", {entity: id, attribute: "is a", value: builtinId("query")})
@@ -183,8 +183,8 @@ appHandle("create query", (changes:Diff, {id, content}) => {
 });
 
 appHandle("insert query", (changes:Diff, {query}) => {
-  let parsed = nlparse(query);
   if(eve.findOne("query to id", {query})) return;
+  let parsed = nlparse(query);
   if(parsed[0].state === StateFlags.COMPLETE) {
     let artifacts = parseDSL(parsed[0].query.toString());
     if(artifacts.changeset) changes.merge(artifacts.changeset);
@@ -198,6 +198,17 @@ appHandle("insert query", (changes:Diff, {query}) => {
     changes.add("query to id", {query, id: rootId})
   }
 });
+
+// @TODO: there's a lot of duplication between insert query, create query, and insert implication
+appHandle("insert implication", (changes:Diff, {query}) => {
+  let artifacts = parseDSL(query);
+  if(artifacts.changeset) changes.merge(artifacts.changeset);
+  for(let viewId in artifacts.views) {
+    let name = artifacts.views[viewId]["displayName"];
+    if(!eve.findOne("display name", {id: viewId}) && name) changes.add("display name", {id: viewId, name});
+    changes.merge(artifacts.views[viewId].changeset(eve));
+  }
+})
 
 appHandle("remove entity attribute", (changes:Diff, {entity, attribute, value}) => {
   changes.remove("sourced eav", {entity, attribute, value});
@@ -566,7 +577,7 @@ function getCellParams(content, rawParams) {
         aggregates.push(fxn);
       }
     }
-    if(aggregates.length === 1 && !context["groupings"]) {
+    if(aggregates.length === 1 && context["groupings"].length === 0) {
       rep = "CSV";
       field = aggregates[0].name;
     } else if(!hasCollections && context.fxns.length === 1) {
@@ -849,7 +860,6 @@ function defineAutocompleteOptions(isEntity, parsed, text, params, entityId) {
   let options:{score: number, action: any, text?: string, [attr:string]: any}[] = [];
   let topParse = parsed[0];
   let context = topParse.context;
-  console.log(context);
   let attribute;
   if(context.maybeAttributes[0]) {
     attribute = context.maybeAttributes[0].normalizedWord;
@@ -876,7 +886,7 @@ function interpretAttributeValue(value): {isValue: boolean, parse?:any, value?:a
       return {isValue: true, value: display.id};
     }
     let parsed = nlparse(cleaned);
-    return {isValue: false, parse: parsed};
+    return {isValue: false, parse: parsed, value: cleaned};
   } else {
     return {isValue: true, value: coerceInput(cleaned)};
   }
@@ -889,8 +899,21 @@ function defineAndEmbed(elem, text, doEmbed) {
   if(isValue) {
     dispatch("add sourced eav", {entity, attribute, value}).commit();
   } else {
-    console.error("We don't support setting attributes to queries at the moment.");
-    return doEmbed(`${text}|rep=error;message=I don't support setting attributes to queries at the moment;`)
+    let queryText = value.trim();
+    // add the query
+    dispatch("insert query", {query: queryText}).commit();
+    // create another query that projects eavs
+    let id = eve.findOne("query to id", {query: queryText}).id;
+    let params = getCellParams(queryText, "");
+    if(!params["field"]) {
+      console.error("Couldn't figure out subject of: " + queryText);
+      return doEmbed(`${text}|rep=error;message=I couldn't figure out the subject of that search;`)
+    } else {
+      //build a query
+      let eavProject = `(query :$$view "${entity}|${attribute}|${id}" (select "${id}" :${params["field"].replace(" ", "-")} value)
+                               (project! "generated eav" :entity "${entity}" :attribute "${attribute}" :value value :source "${id}"))`;
+      dispatch("insert implication", {query: eavProject}).commit();
+    }
   }
   doEmbed(`${text}|rep=CSV;field=${attribute}`);
 }
