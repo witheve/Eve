@@ -2092,7 +2092,8 @@ function formQuery(node: Node): Query {
         table: node.fxn.name,
         fields: fields,
       }
-      if (node.fxn.type === FunctionTypes.AGGREGATE) {
+      // If an aggregate is grouped, we have to push the aggregate into a subquery
+      if (node.fxn.type === FunctionTypes.AGGREGATE && query.subqueries.length > 0) {
         let subquery = query.subqueries[0];
         if (subquery !== undefined) {
           subquery.terms.push(term);
@@ -2149,7 +2150,6 @@ function formQuery(node: Node): Query {
       fields: fields,
     }
     query.terms.push(term);
-    console.log(term)
     // project if necessary
     if (node.attribute.project === true && !node.hasProperty(Properties.NEGATES)) {
       let attributeField: Field = {name: `${node.attribute.id}` , 
