@@ -516,6 +516,9 @@ function cellUI(paneId, query, cell):Element {
   return {c: `cell`, children: [represent(content, params["rep"], results, params)]};
 }
 
+// Credit to https://mathiasbynens.be/demo/url-regex and @gruber
+let urlRegex = /\b(([\w-]+:\/\/?|www[.])[^\s()<>]+(?:\([\w\d]+\)|([^[\.,\-\/#!$%' "^*;:{_`~()\-\s]|\/)))/i;
+
 function queryUIInfo(query) {
   let [content, rawParams] = query.split("|");
   let embedType;
@@ -529,6 +532,8 @@ function queryUIInfo(query) {
       id = display["id"];
     }
     results = {unprojected: [{entity: id}], results: [{entity: id}]};
+  } else if(urlRegex.exec(content)) {
+    results = {unprojected: [{url: content}], results: [{url: content}]};
   } else {
     let queryId = eve.findOne("query to id", {query: content});
     if(queryId) {
@@ -557,6 +562,8 @@ function getCellParams(content, rawParams) {
   let contentDisplay = eve.findOne("display name", {id: content}) || eve.findOne("display name", {name: content});
   if(contentDisplay) {
     params["rep"] = params["rep"] || "link";
+  } else if(urlRegex.exec(content)) {
+    params["rep"] = params["rep"] || "externalLink";
   } else {
     if(params["rep"]) return params;
 
@@ -701,6 +708,8 @@ function autocompleterOptions(entityId, paneId, cell) {
     options = createAutocompleteOptions(isEntity, parsed, text, params, entityId);
   } else if(state === "define") {
     options = defineAutocompleteOptions(isEntity, parsed, text, params, entityId);
+  } else if(state === "url") {
+    options = urlAutocompleteOptions(isEntity, parsed, text, params, entityId);
   }
   options = options.sort((a, b) => b.score - a.score);
   let selected;
@@ -771,6 +780,11 @@ function queryAutocompleteOptions(isEntity, parsed, text, params, entityId) {
     options.push({score: 2.5, action: addAttributeAndEmbed, replace: "is a", entityId, value: isEntity.id, attribute: "related to", text: `${pageName} is related to ${text}`});
     options.push({score: isAScore, action: addAttributeAndEmbed, replace: "related to", entityId, value: isEntity.id, attribute: "is a", text: `${pageName} is ${joiner} ${text}`});
   }
+
+  // url embedding
+  if(urlRegex.exec(text)) {
+    options.push({score: 3, action:  setCellState, state: "url", text: "embed url as..."});
+  }
   return options;
 }
 
@@ -836,6 +850,21 @@ function representAutocompleteOptions(isEntity, parsed, text, params, entityId) 
     options.push({score:1, text: "a list of related pages", action: embedAs, rep: "related", params});
     options.push({score:1, text: "a properties table", action: embedAs, rep: "attributes", params});
   }
+  return options;
+}
+
+function urlAutocompleteOptions(isEntity, parsed, url:string, params, entityId:string) {
+  // @NOTE: url must be normalized before reaching here.
+  // @FIXME: Need to get a url property onto the params. Should that be done here?
+  let ext = url.slice(url.lastIndexOf(".")).trim().toLowerCase();
+  let domain = url.slice(url.indexOf("//") + 2).split("/")[0];
+  let isImage = ["png", "jpg", "jpeg", "bmp", "tiff"].indexOf(ext) !== -1;
+  let isVideo = ["mp4", "mov", "avi", "flv", "wmv"].indexOf(ext) !== -1 || ["youtube.com", "youtu.be"].indexOf(domain) !== -1;
+  let options:{score: number, action: any, text: string, [attr:string]: any}[] = [
+    {score: 2, text: "a link", action: embedAs, rep: "externalLink", params},
+    {score: isImage ? 3 : 1, text: "an image", action: embedAs, rep: "externalImage", params},
+    {score: isVideo ? 3 : 1, text: "a video", action: embedAs, rep: "externalVideo", params},
+  ];
   return options;
 }
 
@@ -1279,6 +1308,18 @@ function getEntitiesFromResults(results:{[field:string]: any}[], {fields = ["ent
   }
   return entities;
 }
+function getURLsFromResults(results:{[field:string]: any}[], {fields = ["url"]} = {}):string[] {
+  let urls = [];
+  if(!results.length) return urls;
+
+  for(let field of fields) {
+    if(results[0][field] === undefined) field = builtinId(field);
+    for(let fact of results) {
+      if(urlRegex.exec(fact[field])) urls.push(fact[field]);
+    }
+  }
+  return urls;
+}
 
 function prepareEntity(results:{}[], params:{field?:string}) {
   let elem = {};
@@ -1292,6 +1333,19 @@ function prepareEntity(results:{}[], params:{field?:string}) {
   if(elems.length === 1) return elems[0];
   else return elems;
 }
+function prepareURL(results:{}[], params:{field?:string}) {
+  let elem = {};
+  let urls = getURLsFromResults(results, {fields: params.field ? [params.field] : undefined});
+  let elems = [];
+  for(let url of urls) {
+    let elem = copy(params);
+    elem.url = url;
+    elems.push(elem);
+  }
+  if(elems.length === 1) return elems[0];
+  else return elems;
+}
+
 let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: any}) => any} = {
   name: prepareEntity,
   link: prepareEntity,
@@ -1370,6 +1424,10 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
     }
     return {entities, data: params.data};
   },
+  externalLink: prepareURL,
+  externalImage: prepareURL,
+  externalVideo: prepareURL,
+  
   embeddedCell(results, params) {
     let rep = params["childRep"];
     let childInfo;
