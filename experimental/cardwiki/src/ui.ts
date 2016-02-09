@@ -897,7 +897,7 @@ function defineAutocompleteOptions(isEntity, parsed, text, params, entityId) {
   let context = topParse.context;
   let attribute;
   if(context.maybeAttributes[0]) {
-    attribute = context.maybeAttributes[0].normalizedWord;
+    attribute = context.maybeAttributes[0].name;
   } else {
     attribute = context.attributes[0].displayName;
   }
