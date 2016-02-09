@@ -710,6 +710,7 @@ interface Node {
   properties: Array<Properties>,
   hasProperty(Properties): boolean;
   toString(number?: number): string;
+  addChild(node: Node): void;
 }
 
 function cloneNode(node: Node): Node {
@@ -735,6 +736,7 @@ function newNode(token: Token): Node {
     found: false,
     hasProperty: hasProperty,
     toString: nodeToString,
+    addChild: addChild,
   };
   token.node = node;
   function hasProperty(property: Properties): boolean {
@@ -744,6 +746,10 @@ function newNode(token: Token): Node {
     } else {
       return false;
     }
+  }
+  function addChild(newChild: Node): void {
+    node.children.push(newChild);
+    newChild.parent = node;
   }
   function nodeToString(depth?: number): string {
     if (depth === undefined) {
@@ -1074,6 +1080,7 @@ function formTree(tokens: Array<Token>) {
       
       // Skip certain nodes
       if (node.found ||
+          node.hasProperty(Properties.IMPLICIT) ||
           node.hasProperty(Properties.ROOT)) {
         log("Skipping...");
         node.found = true;
@@ -1102,6 +1109,7 @@ function formTree(tokens: Array<Token>) {
       
       // Handle quantities
       if (node.hasProperty(Properties.QUANTITY)) {
+        log("Handling quantity...")
         // Create an attribute for the quantity 
           let quantityAttribute: Attribute = {
             id: node.name,
@@ -1179,31 +1187,34 @@ function formTree(tokens: Array<Token>) {
           node.children.push(resultNode);
           resultNode.found = true;
           // Push two argument nodes onto the context
-          let argumentToken = newToken("b");
-          let argumentNode = newNode(argumentToken);
-          argumentNode.properties.push(Properties.IMPLICIT);
-          argumentNode.fxn = node.fxn;
-          context.maybeArguments.push(argumentNode);
-          argumentToken = newToken("a");
-          argumentNode = newNode(argumentToken);
-          argumentNode.properties.push(Properties.IMPLICIT);
-          argumentNode.fxn = node.fxn;
-          context.maybeArguments.push(argumentNode);
+          let argumentTokenB = newToken("b");
+          let argumentNodeB = newNode(argumentTokenB);
+          argumentNodeB.properties.push(Properties.IMPLICIT);
+          let argumentTokenA = newToken("a");
+          let argumentNodeA = newNode(argumentTokenA);
+          argumentNodeA.properties.push(Properties.IMPLICIT);
+          node.addChild(argumentNodeA);
+          node.addChild(argumentNodeB);
           // If we already found a numerical attribute, rewire it
-          let foundQuantity = findParentWithProperty(node,Properties.QUANTITY);
+          let foundQuantity = findParentWithProperty(node, Properties.QUANTITY);
           if (foundQuantity !== undefined) {
-            if (foundQuantity.parent.hasProperty(Properties.ENTITY)) {
-              let quantityEntity = foundQuantity.parent;  
-              reroot(node,quantityEntity.parent);
-              reroot(quantityEntity,node);
-              context.maybeArguments.pop();
-              foundQuantity.attribute.project = false;
-              foundQuantity.attribute.entity.project = false;
-            } else {
+            removeNode(foundQuantity);
+            argumentNodeA.addChild(foundQuantity);
+            argumentNodeA.found = true;
+            foundQuantity.attribute.project = false;
+            // If the node has an entity, rewire it as a child of the function
+            if (foundQuantity.attribute.entity) {
+              console.log(foundQuantity);
+              let entityNode = removeNode(foundQuantity.attribute.entity.node);
+              insertAfterNode(entityNode, foundQuantity);
               removeNode(foundQuantity);
-              node.children.push(foundQuantity);
+              entityNode.addChild(foundQuantity);
+              foundQuantity.attribute.entity.project = false;
             }
+          } else {
+            context.maybeArguments.push(argumentNodeA);
           }
+          context.maybeArguments.push(argumentNodeB);
           node.found = true;
         }
         context.fxns.push(node.fxn);
@@ -1368,7 +1379,7 @@ function formTree(tokens: Array<Token>) {
       }
       
       // If no collection or entity has been found, do some work depending on the node
-      if (node.found === false) {
+      if (node.found === false && !node.hasProperty(Properties.IMPLICIT)) {
         log("Not found");
         log(context)
         context.maybeAttributes.push(node);
@@ -1397,6 +1408,25 @@ function formTree(tokens: Array<Token>) {
     node.children.map(sortChildren);
   }
   sortChildren(tree);
+  
+  // Remove functions with missing arguments from context
+  /*for (let argument of context.maybeArguments) {
+    let unfinishedFxn = argument.fxn;
+    console.log(argument)
+    let fxnIx = undefined;
+    let i = 0;
+    for (let fxns of context.fxns) {
+      if (fxnIx.node.ix === unfinishedFxn.node.ix) {
+        fxnIx = i; 
+      }
+      i++;
+    }
+    if (fxnIx !== undefined) {
+      context.fxns.splice(fxnIx,1);
+      context.maybeFunctions.push(unfinishedFxn.node);
+    }
+  }*/
+  
   
   log(tree.toString());
   return {tree: tree, context: context};
@@ -1644,16 +1674,15 @@ function findCollectionToEntRelationship(coll: Collection, ent: Entity): Relatio
   return { type: RelationshipTypes.NONE };
 }
 
-
-// e.g. "salaries in engineering"
-// e.g. "chris's age"
 function findEntToAttrRelationship(entity: Entity, attr: Node, context: Context): Relationship {
   // Check for a direct relationship
+  // e.g. "Josh's age"
   let found = findEntityAttribute(attr,entity,context);
   if (found === true) {
     return { type: RelationshipTypes.DIRECT };
   }
   // Check for a one-hop relationship
+  // e.g. "Salaries in engineering"
   let relationship = eve.query(``)
     .select("directionless links", { entity: entity.id }, "links")
     .select("entity eavs", { entity: ["links", "link"], attribute: attr.name }, "eav")
@@ -2282,7 +2311,7 @@ function formQuery(node: Node): Query {
 // ----------------------------------------------------------------------------
 // Debug utility functions
 // ---------------------------------------------------------------------------- 
-let divider = "----------------------------------------";
+let divider = "--------------------------------------------------------------------------------";
 
 export let debug = false;
 
@@ -2301,7 +2330,7 @@ export function tokenToString(token: Token): string {
   let properties = `(${token.properties.map((property: Properties) => Properties[property]).join("|")})`;
   properties = properties.length === 2 ? "" : properties;
   let tokenSpan = token.start === undefined ? " " : ` [${token.start}-${token.end}] `;
-  let tokenString = `${token.ix}:${tokenSpan} ${token.originalWord} | ${token.normalizedWord} | ${MajorPartsOfSpeech[getMajorPOS(token.POS)]} | ${MinorPartsOfSpeech[token.POS]} | ${properties}` ;
+  let tokenString = `${token.ix}: ${token.originalWord} | ${token.normalizedWord} | ${MajorPartsOfSpeech[getMajorPOS(token.POS)]} | ${MinorPartsOfSpeech[token.POS]} | ${properties}` ;
   return tokenString;
 }
 
