@@ -90,13 +90,14 @@ class BSPhase {
       for(let attr in attributes) {
         let sourceId = `${entity},${attr},${attributes[attr]}`;
         let query = `${name}'s ${attr}`;
+        let queryId = query.replace(" ", "-");
         content += `${attr}: {${query}|rep=CSV; field=${attr}; eav source = ${sourceId}}\n`;
         let value = this._names[attributes[attr]] || attributes[attr];
         this.addFact("sourced eav", {entity, attribute: attr, value, source: sourceId});
-        this.addArtifacts(parseDSL(`(query :$$view "${query}"
+        this.addArtifacts(parseDSL(`(query :$$view "${queryId}"
                                      (entity-eavs :entity "${entity}" :attribute "${attr}" :value v)
                                      (project! :entity "${entity}" :${attr} v))`));
-        this.addFact("query to id", {query, id: query});
+        this.addFact("query to id", {query, id: queryId});
       }
     }
     if(extraContent) content += "\n" + extraContent;
@@ -191,7 +192,6 @@ app.init("bootstrap", function bootstrap() {
   //-----------------------------------------------------------------------------
   let phase = new BSPhase(eve);
   phase.addTable("manual entity", ["entity", "content"]);
-  phase.addTable("manual eav", ["entity", "attribute", "value"]);
   phase.addTable("sourced eav", ["entity", "attribute", "value", "source"]);
   phase.addTable("page content", ["page", "content"]);
   phase.addTable("entity page", ["entity", "page"]);
@@ -210,7 +210,6 @@ app.init("bootstrap", function bootstrap() {
     `);
 
   phase.addUnion("entity eavs", ["entity", "attribute", "value"], true)
-    .addUnionMember("entity eavs", "manual eav")
     .addUnionMember("entity eavs", "generated eav", {entity: "entity", attribute: "attribute", value: "value"})
     .addUnionMember("entity eavs", "sourced eav", {entity: "entity", attribute: "attribute", value: "value"})
     // this is a stored union that is used by the add eav action to take query results and

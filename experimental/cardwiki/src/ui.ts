@@ -15,7 +15,8 @@ import {parse as nlparse, StateFlags, FunctionTypes} from "./NLQueryParser";
 export enum PANE { FULL, WINDOW, POPOUT };
 enum BLOCK { TEXT, PROJECTION };
 
-var ignorePopState = false; // Because html5 is full of broken promises and broken dreams
+// Because html5 is full of broken promises and broken dreams
+var popoutHistory = [];
 
 //------------------------------------------------------------------------------
 // State
@@ -46,27 +47,17 @@ function preventDefault(event) {
 
 export function setURL(paneId:string, contains:string, replace?:boolean) {
   let name = uitk.resolveName(contains);
+  if(paneId !== "p1") return; // @TODO: Make this a constant
+  
   let url;
-  let state;
-  if(paneId === "p1") { // @TODO: Make this a constant
-    if(contains.length === 0) url = "/";
-    else if(name === contains) url = `/search/${contains.replace(/ /g, "_")}`;
-    else url = `/${name.replace(/ /g, "_")}/${contains.replace(/ /g, "_")}`;
-    state = {paneId, contains};
-    console.log("setURL", url, state);
-    window["states"] = window["states"] || [];
-    window["states"].push(state);
-  } else {
-    return; // @TODO: fixme;
-    ignorePopState = true;
-    window.history.back();
-    url = window.location;
-    state = copy(window.history.state);
-    window.history.forward();
-    state.popout = contains;
-    ignorePopState = false;
-  }
-  if(replace)window.history.replaceState(state, null, url);
+  if(contains.length === 0) url = "/";
+  else if(name === contains) url = `/search/${contains.replace(/ /g, "_")}`;
+  else url = `/${name.replace(/ /g, "_")}/${contains.replace(/ /g, "_")}`;
+  let state = {paneId, contains};
+  window["states"] = window["states"] || [];
+  window["states"].push(state);
+
+  if(replace) window.history.replaceState(state, null, url);
   else window.history.pushState(state, null, url);
 }
 
@@ -81,6 +72,15 @@ appHandle("ui set search", (changes:Diff, {paneId, value, peek, x, y, popState}:
   let displays = eve.find("display name", {name: value});
   if(displays.length === 1) value = displays[0].id;
   let fact;
+  if(paneId === "p1") { // @TODO: Make this a constant
+    popoutHistory = [];
+  } else if(!popState) {
+    let popout = eve.findOne("ui pane", {kind: PANE.POPOUT});
+    if(popout) {
+      popoutHistory.push(popout.contains); // @FIXME: This is fragile
+    }
+  }
+  
   if(!peek) {
     let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value};
     state.value = value;
@@ -89,6 +89,13 @@ appHandle("ui set search", (changes:Diff, {paneId, value, peek, x, y, popState}:
     fact.__id = undefined;
     fact.contains = value;
     changes.remove("ui pane", {pane: paneId});
+    let children = eve.find("ui pane parent", {parent: paneId});
+    for(let {pane:child} of children) {
+      changes.remove("ui pane position", {pane: child});
+      changes.remove("ui pane", {pane: child});
+    }
+    changes.remove("ui pane parent", {parent: paneId});
+    if(!popState) setURL(paneId, value);
   } else {
     let popout = eve.findOne("ui pane", {kind: PANE.POPOUT});
     let neuePaneId;
@@ -101,15 +108,16 @@ appHandle("ui set search", (changes:Diff, {paneId, value, peek, x, y, popState}:
     let state = uiState.widget.search[neuePaneId] = {value};
     fact = {contains: value, pane: neuePaneId, kind: PANE.POPOUT};
     if(!popout || paneId !== neuePaneId) {
-      changes.remove("ui pane position", {pane: neuePaneId});
-      changes.add("ui pane position", {pane: neuePaneId, x, y});
+      if(x !== undefined && y !== undefined) {
+        changes.remove("ui pane position", {pane: neuePaneId});
+        changes.add("ui pane position", {pane: neuePaneId, x, y});
+      }
       changes.remove("ui pane parent", {parent: paneId});
       changes.add("ui pane parent", {pane: neuePaneId, parent: paneId});
     }
     paneId = neuePaneId;
   }
   changes.add("ui pane", fact);
-  if(!popState) setURL(paneId, value);
 });
 
 appHandle("remove popup", (changes:Diff, {}:{}) => {
@@ -119,6 +127,7 @@ appHandle("remove popup", (changes:Diff, {}:{}) => {
     changes.remove("ui pane", {pane: paneId});
     changes.remove("ui pane position", {pane: paneId});
   }
+  popoutHistory = [];
 });
 
 appHandle("ui toggle search plan", (changes:Diff, {paneId}:{paneId:string}) => {
@@ -150,7 +159,6 @@ appHandle("update page", (changes:Diff, {page, content}: {page: string, content:
     changes.add("display name", {id: entity, name});
     let parts = window.location.pathname.split("/");
     if(parts.length > 2 && parts[2].replace(/_/gi, " ") === entity) {
-      console.log("replacing");
       window.history.replaceState(window.history.state, null, `/${name.replace(/ /gi, "_")}/${entity.replace(/ /gi, "_")}`);
     }
   }
@@ -167,7 +175,7 @@ appHandle("create page", (changes:Diff, {page, content = undefined}: {page: stri
 appHandle("create query", (changes:Diff, {id, content}) => {
   let page = uuid();
   changes
-    .add("page content", {page, content: `# ${content} query`})
+    .add("page content", {page, content: `#${content} query`})
     .add("entity page", {id, page})
     .add("display name", {id, content})
     .add("sourced eav", {entity: id, attribute: "is a", value: builtinId("query")})
@@ -183,8 +191,8 @@ appHandle("create query", (changes:Diff, {id, content}) => {
 });
 
 appHandle("insert query", (changes:Diff, {query}) => {
-  let parsed = nlparse(query);
   if(eve.findOne("query to id", {query})) return;
+  let parsed = nlparse(query);
   if(parsed[0].state === StateFlags.COMPLETE) {
     let artifacts = parseDSL(parsed[0].query.toString());
     if(artifacts.changeset) changes.merge(artifacts.changeset);
@@ -198,6 +206,17 @@ appHandle("insert query", (changes:Diff, {query}) => {
     changes.add("query to id", {query, id: rootId})
   }
 });
+
+// @TODO: there's a lot of duplication between insert query, create query, and insert implication
+appHandle("insert implication", (changes:Diff, {query}) => {
+  let artifacts = parseDSL(query);
+  if(artifacts.changeset) changes.merge(artifacts.changeset);
+  for(let viewId in artifacts.views) {
+    let name = artifacts.views[viewId]["displayName"];
+    if(!eve.findOne("display name", {id: viewId}) && name) changes.add("display name", {id: viewId, name});
+    changes.merge(artifacts.views[viewId].changeset(eve));
+  }
+})
 
 appHandle("remove entity attribute", (changes:Diff, {entity, attribute, value}) => {
   changes.remove("sourced eav", {entity, attribute, value});
@@ -324,7 +343,6 @@ function loadFromFile(event:Event, elem) {
   reader.onload = function(event:any) {
     let serialized = event.target.result;
     eve.load(serialized);
-    console.log("LOADED", file.name);
     dispatch("toggle prompt", {prompt: loadedPrompt, open: true}).commit();
   };
   reader.readAsText(file);
@@ -436,8 +454,7 @@ function createPage(evt:Event, elem:Element) {
 function deleteEntity(event, elem) {
   let name = uitk.resolveName(elem.entity);
   dispatch("remove entity", {entity: elem.entity}).commit();
-  dispatch("ui set search", {paneId: elem.paneId, value: name}).commit(); //@FIXME: This should really navigate to the previous page instead
-  // window.history.back();
+  dispatch("ui set search", {paneId: elem.paneId, value: name}).commit();
 }
 
 function paneSettings(paneId:string) {
@@ -510,6 +527,9 @@ function cellUI(paneId, query, cell):Element {
   return {c: `cell`, children: [represent(content, params["rep"], results, params)]};
 }
 
+// Credit to https://mathiasbynens.be/demo/url-regex and @gruber
+let urlRegex = /\b(([\w-]+:\/\/?|www[.])[^\s()<>]+(?:\([\w\d]+\)|([^[\.,\-\/#!$%' "^*;:{_`~()\-\s]|\/)))/i;
+
 function queryUIInfo(query) {
   let [content, rawParams] = query.split("|");
   let embedType;
@@ -523,6 +543,8 @@ function queryUIInfo(query) {
       id = display["id"];
     }
     results = {unprojected: [{entity: id}], results: [{entity: id}]};
+  } else if(urlRegex.exec(content)) {
+    results = {unprojected: [{url: content}], results: [{url: content}]};
   } else {
     let queryId = eve.findOne("query to id", {query: content});
     if(queryId) {
@@ -551,6 +573,8 @@ function getCellParams(content, rawParams) {
   let contentDisplay = eve.findOne("display name", {id: content}) || eve.findOne("display name", {name: content});
   if(contentDisplay) {
     params["rep"] = params["rep"] || "link";
+  } else if(urlRegex.exec(content)) {
+    params["rep"] = params["rep"] || "externalLink";
   } else {
     if(params["rep"]) return params;
 
@@ -566,7 +590,7 @@ function getCellParams(content, rawParams) {
         aggregates.push(fxn);
       }
     }
-    if(aggregates.length === 1 && !context["groupings"]) {
+    if(aggregates.length === 1 && context["groupings"].length === 0) {
       rep = "CSV";
       field = aggregates[0].name;
     } else if(!hasCollections && context.fxns.length === 1) {
@@ -613,7 +637,7 @@ function cellEditor(entityId, paneId, cell):Element {
   let text = activeCells[cell.id].query;
   let {options, selected} = autocompleterOptions(entityId, paneId, cell);
   let autoFocus = true;
-  if(text.match(/=.*=/)) {
+  if(text.match(/\$\$.*\$\$/)) {
     text = "";
   }
   let display = eve.findOne("display name", {id: text});
@@ -662,7 +686,7 @@ function executeAutocompleterOption(event, elem) {
 
 function autocompleterOptions(entityId, paneId, cell) {
   let [text, rawParams] = cell.query.trim().split("|");
-  if(text.match(/=.*=/)) {
+  if(text.match(/\$\$.*\$\$/)) {
     return {options: [], selected: {}};
   }
   let params = {};
@@ -695,6 +719,8 @@ function autocompleterOptions(entityId, paneId, cell) {
     options = createAutocompleteOptions(isEntity, parsed, text, params, entityId);
   } else if(state === "define") {
     options = defineAutocompleteOptions(isEntity, parsed, text, params, entityId);
+  } else if(state === "url") {
+    options = urlAutocompleteOptions(isEntity, parsed, text, params, entityId);
   }
   options = options.sort((a, b) => b.score - a.score);
   let selected;
@@ -765,6 +791,11 @@ function queryAutocompleteOptions(isEntity, parsed, text, params, entityId) {
     options.push({score: 2.5, action: addAttributeAndEmbed, replace: "is a", entityId, value: isEntity.id, attribute: "related to", text: `${pageName} is related to ${text}`});
     options.push({score: isAScore, action: addAttributeAndEmbed, replace: "related to", entityId, value: isEntity.id, attribute: "is a", text: `${pageName} is ${joiner} ${text}`});
   }
+
+  // url embedding
+  if(urlRegex.exec(text)) {
+    options.push({score: 3, action:  setCellState, state: "url", text: "embed url as..."});
+  }
   return options;
 }
 
@@ -833,6 +864,21 @@ function representAutocompleteOptions(isEntity, parsed, text, params, entityId) 
   return options;
 }
 
+function urlAutocompleteOptions(isEntity, parsed, url:string, params, entityId:string) {
+  // @NOTE: url must be normalized before reaching here.
+  // @FIXME: Need to get a url property onto the params. Should that be done here?
+  let ext = url.slice(url.lastIndexOf(".")).trim().toLowerCase();
+  let domain = url.slice(url.indexOf("//") + 2).split("/")[0];
+  let isImage = ["png", "jpg", "jpeg", "bmp", "tiff"].indexOf(ext) !== -1;
+  let isVideo = ["mp4", "mov", "avi", "flv", "wmv"].indexOf(ext) !== -1 || ["youtube.com", "youtu.be"].indexOf(domain) !== -1;
+  let options:{score: number, action: any, text: string, [attr:string]: any}[] = [
+    {score: 2, text: "a link", action: embedAs, rep: "externalLink", params},
+    {score: isImage ? 3 : 1, text: "an image", action: embedAs, rep: "externalImage", params},
+    {score: isVideo ? 3 : 1, text: "a video", action: embedAs, rep: "externalVideo", params},
+  ];
+  return options;
+}
+
 function embedAs(elem, value, doEmbed) {
   let [text] = value.split("|");
   let params = elem.selected.params;
@@ -849,7 +895,6 @@ function defineAutocompleteOptions(isEntity, parsed, text, params, entityId) {
   let options:{score: number, action: any, text?: string, [attr:string]: any}[] = [];
   let topParse = parsed[0];
   let context = topParse.context;
-  console.log(context);
   let attribute;
   if(context.maybeAttributes[0]) {
     attribute = context.maybeAttributes[0].normalizedWord;
@@ -876,9 +921,9 @@ function interpretAttributeValue(value): {isValue: boolean, parse?:any, value?:a
       return {isValue: true, value: display.id};
     }
     let parsed = nlparse(cleaned);
-    return {isValue: false, parse: parsed};
+    return {isValue: false, parse: parsed, value: cleaned};
   } else {
-    return {isValue: true, value: cleaned};
+    return {isValue: true, value: coerceInput(cleaned)};
   }
 }
 
@@ -889,8 +934,21 @@ function defineAndEmbed(elem, text, doEmbed) {
   if(isValue) {
     dispatch("add sourced eav", {entity, attribute, value}).commit();
   } else {
-    console.error("We don't support setting attributes to queries at the moment.");
-    return doEmbed(`${text}|rep=error;message=I don't support setting attributes to queries at the moment;`)
+    let queryText = value.trim();
+    // add the query
+    dispatch("insert query", {query: queryText}).commit();
+    // create another query that projects eavs
+    let id = eve.findOne("query to id", {query: queryText}).id;
+    let params = getCellParams(queryText, "");
+    if(!params["field"]) {
+      console.error("Couldn't figure out subject of: " + queryText);
+      return doEmbed(`${text}|rep=error;message=I couldn't figure out the subject of that search;`)
+    } else {
+      //build a query
+      let eavProject = `(query :$$view "${entity}|${attribute}|${id}" (select "${id}" :${params["field"].replace(" ", "-")} value)
+                               (project! "generated eav" :entity "${entity}" :attribute "${attribute}" :value value :source "${id}"))`;
+      dispatch("insert implication", {query: eavProject}).commit();
+    }
   }
   doEmbed(`${text}|rep=CSV;field=${attribute}`);
 }
@@ -1019,7 +1077,7 @@ appHandle("setCellState", (changes, info) => {
 
 appHandle("updateActiveCell", (changes, info) => {
   let active = activeCells[info.id];
-  active.query = info.query.replace(/^= /, "");
+  active.query = info.query;
   active.selected = 0;
   active.state = "query";
 });
@@ -1042,12 +1100,13 @@ function activateCell(event, elem) {
 }
 
 function createEmbedPopout(cm, paneId) {
+  console.log("CREATING POPOUT");
   let coords = cm.cursorCoords("head", "page");
   // dispatch("createEmbedPopout", {paneId, x: coords.left, y: coords.top - 20}).commit();
   cm.operation(() => {
     let from = cm.getCursor("from");
     let id = uuid();
-    let range = `{=${id}=}`;
+    let range = `{$$${id}$$}`;
     cm.replaceRange(range, from, cm.getCursor("to"));
     dispatch("addActiveCell", {id: range, query: "", placeholder: true});
   });
@@ -1112,6 +1171,7 @@ function embeddedCellKeys(event, elem) {
     dispatch("moveCellAutocomplete", {cell, direction:1}).commit();
     event.preventDefault();
   }
+  event.stopPropagation();
 }
 
 function updatePage(meta, content) {
@@ -1147,7 +1207,7 @@ function getCells(content: string) {
         ids[part]++;
       }
       let placeholder = false;
-      if(part.match(/\{\=.*\=\}/)) {
+      if(part.match(/\{\$\$.*\$\$\}/)) {
         placeholder = true;
       }
       cells.push({start: ix, length: part.length, value: part, query: part.substring(1, part.length - 1), id, placeholder});
@@ -1273,6 +1333,18 @@ function getEntitiesFromResults(results:{[field:string]: any}[], {fields = ["ent
   }
   return entities;
 }
+function getURLsFromResults(results:{[field:string]: any}[], {fields = ["url"]} = {}):string[] {
+  let urls = [];
+  if(!results.length) return urls;
+
+  for(let field of fields) {
+    if(results[0][field] === undefined) field = builtinId(field);
+    for(let fact of results) {
+      if(urlRegex.exec(fact[field])) urls.push(fact[field]);
+    }
+  }
+  return urls;
+}
 
 function prepareEntity(results:{}[], params:{field?:string}) {
   let elem = {};
@@ -1286,6 +1358,19 @@ function prepareEntity(results:{}[], params:{field?:string}) {
   if(elems.length === 1) return elems[0];
   else return elems;
 }
+function prepareURL(results:{}[], params:{field?:string}) {
+  let elem = {};
+  let urls = getURLsFromResults(results, {fields: params.field ? [params.field] : undefined});
+  let elems = [];
+  for(let url of urls) {
+    let elem = copy(params);
+    elem.url = url;
+    elems.push(elem);
+  }
+  if(elems.length === 1) return elems[0];
+  else return elems;
+}
+
 let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: any}) => any} = {
   name: prepareEntity,
   link: prepareEntity,
@@ -1364,6 +1449,10 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
     }
     return {entities, data: params.data};
   },
+  externalLink: prepareURL,
+  externalImage: prepareURL,
+  externalVideo: prepareURL,
+  
   embeddedCell(results, params) {
     let rep = params["childRep"];
     let childInfo;
@@ -1407,12 +1496,25 @@ function represent(search: string, rep:string, results, params:{}):Element {
   }
 }
 
+let historyState = window.history.state;
+let historyURL = window.location.pathname;
 window.addEventListener("popstate", function(evt) {
-  console.log("iPS", ignorePopState);
-  if(ignorePopState) return;
+  let popout = eve.findOne("ui pane", {kind: PANE.POPOUT});
+  if(popout && popoutHistory.length) {
+    window.history.pushState(historyState, null, historyURL);
+    let search = popoutHistory.pop();
+    dispatch("ui set search", {paneId: popout.pane, value: search, peek: true, popState: true}).commit();
+    return;
+  } else if(evt.state && evt.state.root) {
+    window.history.back();
+    return;
+  }
+
+  historyState = evt.state;
+  historyURL = window.location.pathname;
+
   let {paneId = undefined, contains = undefined} = evt.state || {};
   if(paneId === undefined || contains === undefined) return;
-  console.log("popstate", evt.state);
   dispatch("ui set search", {paneId, value: contains, popState: true}).commit();
 });
 
