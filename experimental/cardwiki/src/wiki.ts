@@ -22,14 +22,15 @@ app.init("wiki", function() {
   app.activeSearches = {};
   initSearches(app.eve);
 
+  window.history.replaceState({root: true}, null, window.location.pathname);
   let mainPane = app.eve.findOne("ui pane", {pane: "p1"});
   let path = window.location.pathname;
   if(path !== "/") {
     let [_, kind, content] = path.split("/");
     content = content.replace(/_/g, " ");
     app.dispatch("ui set search", {paneId: mainPane.pane, value: content, popState: true}).commit();
-    ui.setURL("p1", content, true);
+    ui.setURL("p1", content);
   } else {
-    ui.setURL("p1", mainPane.contains, true);
+    ui.setURL("p1", mainPane.contains);
   }
 });
