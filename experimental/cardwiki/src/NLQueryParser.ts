@@ -1132,7 +1132,7 @@ function formTree(tokens: Array<Token>) {
             foundQuantity.attribute.entity.project = false;
           }
           
-          
+          node.found = true;
         }
         break;
       }
