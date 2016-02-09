@@ -1778,7 +1778,7 @@ export class Union {
           }
           mappingItems.push(`'${key}': ${value}`)
         }
-        code += `var sourceRows${ix} = changes['${root.table}'];\n`;
+        code += `var sourceRows${ix} = changes['${root.table.replace(/'/g, "\\'")}'];\n`;
         code += `for(var rowIx${ix} = 0, rowsLen${ix} = sourceRows${ix}.length; rowIx${ix} < rowsLen${ix}; rowIx${ix}++) {\n`
         code += `var sourceRow${ix} = sourceRows${ix}[rowIx${ix}];\n`;
         code += `var mappedRow${ix} = {${mappingItems.join(", ")}};\n`
@@ -1815,9 +1815,9 @@ export class Union {
         var source = root.source.table;
         var ix = root.ix;
         var provenance = "var provenance__id = '';\n";
-        provenance += `provenance__id = '${this.name}|' + mappedRow${ix}.__id + '|' + rowInstance + '|${source}|' + sourceRow${ix}.__id; \n`;
-        provenance += `provenance.push({table: '${this.name}', row: mappedRow${ix}, "row instance": rowInstance, source: "${source}", "source row": sourceRow${ix}});\n`;
-        code = `var rowInstance = "${source}|" + mappedRow${ix}.__id;
+        provenance += `provenance__id = '${this.name.replace(/'/g, "\\'")}|' + mappedRow${ix}.__id + '|' + rowInstance + '|${source.replace(/'/g, "\\'")}|' + sourceRow${ix}.__id; \n`;
+        provenance += `provenance.push({table: '${this.name.replace(/'/g, "\\'")}', row: mappedRow${ix}, "row instance": rowInstance, source: "${source.replace(/'/g, "\\'")}", "source row": sourceRow${ix}});\n`;
+        code = `var rowInstance = "${source.replace(/'/g, "\\'")}|" + mappedRow${ix}.__id;
         ${provenance}`;
         break;
       case "return":
