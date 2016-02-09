@@ -960,6 +960,7 @@ interface Context {
   attributes: Array<Attribute>,
   fxns: Array<BuiltInFunction>,
   groupings: Array<Node>,
+  relationships: Array<Relationship>,
   maybeEntities: Array<Node>,
   maybeAttributes: Array<Node>,
   maybeCollections: Array<Node>,
@@ -974,6 +975,7 @@ function newContext(): Context {
     attributes: [],
     fxns: [],
     groupings: [],
+    relationships: [],
     maybeEntities: [],
     maybeAttributes: [],
     maybeCollections: [],
@@ -1572,44 +1574,39 @@ interface Relationship {
 
 function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relationship {
   log(`Finding relationship between "${nodeA.name}" and "${nodeB.name}"`);
-  let relationship
+  let relationship: Relationship;
   // If both nodes are Collections, find their relationship
   if (nodeA.hasProperty(Properties.COLLECTION) && nodeB.hasProperty(Properties.COLLECTION)) {
     relationship = findCollectionToCollectionRelationship(nodeA.collection, nodeB.collection);
-    return relationship;
-  }
   // If one node is a Collection, and the other node is neither a collection nor an entity
-  if (nodeA.hasProperty(Properties.COLLECTION) && !(nodeB.hasProperty(Properties.COLLECTION) ||nodeB.hasProperty(Properties.ENTITY))) {
+  } else if (nodeA.hasProperty(Properties.COLLECTION) && !(nodeB.hasProperty(Properties.COLLECTION) ||nodeB.hasProperty(Properties.ENTITY))) {
     relationship = findCollectionToAttrRelationship(nodeA.collection, nodeB, context);
-    return relationship;
   } else if (nodeB.hasProperty(Properties.COLLECTION) && !(nodeA.hasProperty(Properties.COLLECTION) || nodeA.hasProperty(Properties.ENTITY))) {
     relationship = findCollectionToAttrRelationship(nodeB.collection, nodeA, context);
-    return relationship;
-  }    
   // If one node is an entity and the other is a collection 
-  if (nodeA.hasProperty(Properties.COLLECTION) && nodeB.hasProperty(Properties.ENTITY)) {
+  } else if (nodeA.hasProperty(Properties.COLLECTION) && nodeB.hasProperty(Properties.ENTITY)) {
     relationship = findCollectionToEntRelationship(nodeA.collection, nodeB.entity);
   } else if (nodeB.hasProperty(Properties.COLLECTION) && nodeA.hasProperty(Properties.ENTITY)) {
     relationship = findCollectionToEntRelationship(nodeB.collection, nodeA.entity);
-  }
   // If one node is an Entity, and the other node is neither a collection nor an entity
-  if (nodeA.hasProperty(Properties.ENTITY) && !(nodeB.hasProperty(Properties.COLLECTION) || nodeB.hasProperty(Properties.ENTITY))) {
+  } else if (nodeA.hasProperty(Properties.ENTITY) && !(nodeB.hasProperty(Properties.COLLECTION) || nodeB.hasProperty(Properties.ENTITY))) {
     relationship = findEntToAttrRelationship(nodeA.entity, nodeB, context);
-    return relationship;
   } else if (nodeB.hasProperty(Properties.ENTITY) && !(nodeA.hasProperty(Properties.COLLECTION) || nodeA.hasProperty(Properties.ENTITY))) {
     relationship = findEntToAttrRelationship(nodeB.entity, nodeA, context);
-    return relationship;
-  }
  // If one node is an Attribute, and the other node is neither a collection nor an entity
-  if (nodeA.hasProperty(Properties.ATTRIBUTE) && !(nodeB.hasProperty(Properties.COLLECTION) || nodeB.hasProperty(Properties.ENTITY))) {
+  } else if (nodeA.hasProperty(Properties.ATTRIBUTE) && !(nodeB.hasProperty(Properties.COLLECTION) || nodeB.hasProperty(Properties.ENTITY))) {
     relationship = findEntToAttrRelationship(nodeA.attribute.entity, nodeB, context);
-    return relationship;
   } else if (nodeB.hasProperty(Properties.ATTRIBUTE) && !(nodeA.hasProperty(Properties.COLLECTION) || nodeA.hasProperty(Properties.ENTITY))) {
     relationship = findEntToAttrRelationship(nodeB.attribute.entity, nodeA, context);
-    return relationship;
   }
-  log("No relationship found :(");
-  return {type: RelationshipTypes.NONE};
+  // If we found a relationship, add it to the context
+  if (relationship !== undefined && relationship.type !== RelationshipTypes.NONE) {
+    context.relationships.push(relationship);
+    return relationship; 
+  } else {
+    log("No relationship found :(");
+    return {type: RelationshipTypes.NONE};  
+  }
 }
 
 // e.g. "meetings john was in"
