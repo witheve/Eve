@@ -255,7 +255,7 @@ export class Renderer {
       var style = div.style;
       if(cur.c !== prev.c) div.className = cur.c;
       if(cur.draggable !== prev.draggable) div.draggable = cur.draggable === undefined ? null : "true";
-      if(cur.contentEditable !== prev.contentEditable) div.contentEditable = cur.contentEditable || "inherit";
+      if(cur.contentEditable !== prev.contentEditable) div.contentEditable = cur.contentEditable !== undefined ? JSON.stringify(cur.contentEditable) : "inherit";
       if(cur.colspan !== prev.colspan) div.colSpan = cur.colspan;
       if(cur.placeholder !== prev.placeholder) div.placeholder = cur.placeholder;
       if(cur.selected !== prev.selected) div.selected = cur.selected;

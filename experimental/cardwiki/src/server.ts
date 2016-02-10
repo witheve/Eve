@@ -39,7 +39,7 @@ wss.on('connection', function connection(ws) {
           let artifacts = parser.parseDSL(parsed.data);
           if(artifacts.changeset) {
               eve.applyDiff(artifacts.changeset);
-              fs.writeFileSync("server.evedb", eve.serialize());
+              // fs.writeFileSync("server.evedb", eve.serialize());
               ws.send(JSON.stringify({kind: "code changeset", me: "server", data: artifacts.changeset.length}));
           }
           if(Object.keys(artifacts.views).length) {
@@ -70,7 +70,7 @@ wss.on('connection', function connection(ws) {
         clients[client].send(message);
       }
       // store
-      fs.writeFileSync("server.evedb", eve.serialize());
+      // fs.writeFileSync("server.evedb", eve.serialize());
     } else if(parsed.kind === "connect") {
       clients[parsed.data] = ws;
       ws.me = parsed.data;

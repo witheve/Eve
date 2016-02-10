@@ -6,7 +6,7 @@ import {UIRenderer} from "./uiRenderer";
 import {ENV, DEBUG, uuid} from "./utils";
 
 
-export var syncedTables = ["manual eav", "view", "action", "action source", "action mapping", "action mapping constant", "action mapping sorted", "action mapping limit", "add collection action", "add eav action", "add bit action"];
+export var syncedTables = ["sourced eav", "view", "action", "action source", "action mapping", "action mapping constant", "action mapping sorted", "action mapping limit"];
 export var eveLocalStorageKey = "eve";
 
 //---------------------------------------------------------
@@ -194,7 +194,7 @@ function connectToServer() {
     console.log("WS MESSAGE:", parsed);
 
     if (parsed.kind === "load") {
-      eve.load(parsed.data);
+      // eve.load(parsed.data);
       executeInitializers();
       render();
     } else if (parsed.kind === "changeset") {
@@ -230,7 +230,9 @@ function sendChangeSet(changeset) {
 if(ENV === "browser") {
   document.addEventListener("DOMContentLoaded", function(event) {
     initRenderer();
-    connectToServer();
+    // connectToServer();
+    eveLocalStorageKey = "local-eve";
+    executeInitializers();
     render();
   });
 }
