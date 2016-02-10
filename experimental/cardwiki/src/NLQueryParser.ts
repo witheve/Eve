@@ -1200,6 +1200,7 @@ function formTree(tokens: Array<Token>) {
           node.found = true;
         // Handle aggregates
         } else if (node.hasProperty(Properties.AGGREGATE)) {
+          // Add an output token
           let outputToken = newToken("output");
           let outputNode = newNode(outputToken);
           outputNode.found = true;
@@ -1215,6 +1216,13 @@ function formTree(tokens: Array<Token>) {
           }
           outputNode.attribute = outputAttribute;          
           node.addChild(outputNode);
+          // Add an input node
+          let argumentToken = newToken("input");
+          let argumentNode = newNode(argumentToken);
+          argumentNode.properties.push(Properties.IMPLICIT);
+          argumentNode.properties.push(Properties.INPUT);
+          node.addChild(argumentNode);
+          context.maybeArguments.push(argumentNode);
           node.found = true;
         // Handle calculations
         } else if (node.hasProperty(Properties.CALCULATE)) {
@@ -1341,6 +1349,9 @@ function formTree(tokens: Array<Token>) {
           removeNode(qNode);
           argument.addChild(qNode); 
           argument.found = true;
+          if (qNode.attribute.entity) {
+            qNode.attribute.entity.project = false;  
+          }
           continue;  
       }
       
@@ -2222,13 +2233,14 @@ function formQuery(node: Node): Query {
     }
     
     // Collection all input and output nodes which were found
-    let nestedArgs = node.children.filter((child) => (child.hasProperty(Properties.INPUT) || child.hasProperty(Properties.OUTPUT) 
-                                                      && child.found === true))
+    let nestedArgs = node.children.filter((child) => (child.hasProperty(Properties.INPUT) || child.hasProperty(Properties.OUTPUT)) 
+                                                      && child.found === true)
                                   .map(findLeafNodes);
     let args = flattenNestedArray(nestedArgs);
 
     // If we have the right number of arguments, proceed
     // @TODO surface an error if the arguments are wrong
+    console.log(args)
     let output;
     if (args.length === node.fxn.fields.length) {
       let fields: Array<Field> = args.map((arg,i) => {
