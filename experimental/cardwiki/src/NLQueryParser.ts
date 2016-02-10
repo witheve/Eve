@@ -1184,6 +1184,19 @@ function formTree(tokens: Array<Token>) {
           compAttrToken.properties.push(Properties.IMPLICIT);
           let compAttrNode = newNode(compAttrToken);
           compAttrNode.fxn = node.fxn;
+          // Add two argument nodes
+          let argumentTokenA = newToken("a");
+          let argumentNodeA = newNode(argumentTokenA);
+          argumentNodeA.properties.push(Properties.IMPLICIT);
+          argumentNodeA.properties.push(Properties.INPUT);
+          node.addChild(argumentNodeA);
+          context.maybeArguments.push(argumentNodeA);
+          let argumentTokenB = newToken("b");
+          let argumentNodeB = newNode(argumentTokenB);
+          argumentNodeB.properties.push(Properties.IMPLICIT);
+          argumentNodeB.properties.push(Properties.INPUT);
+          node.addChild(argumentNodeB);
+          context.maybeArguments.push(argumentNodeB);
 
           // Find a node for the LHS of the comaparison
           let matchedNode = previouslyMatched(node);
@@ -1191,9 +1204,11 @@ function formTree(tokens: Array<Token>) {
           relationship = findRelationship(matchedNode,compAttrNode1,context);
           if (relationship.type === RelationshipTypes.DIRECT) {
             removeNode(matchedNode);
-            node.addChild(matchedNode);
             matchedNode.addChild(compAttrNode1);
             compAttrNode1.attribute.project = false;
+            argumentNodeA.addChild(matchedNode);
+            argumentNodeA.found = true;
+            context.maybeArguments.shift();
           }
           // Push the RHS attribute onto the context and continue searching
           context.maybeAttributes.push(compAttrNode);
@@ -1242,7 +1257,7 @@ function formTree(tokens: Array<Token>) {
           resultNode.attribute = resultAttribute;          
           node.addChild(resultNode);
           resultNode.found = true;
-          // Push two argument nodes onto the context
+          // Add two argument nodes
           let argumentTokenA = newToken("a");
           let argumentNodeA = newNode(argumentTokenA);
           argumentNodeA.properties.push(Properties.IMPLICIT);
@@ -1332,8 +1347,12 @@ function formTree(tokens: Array<Token>) {
                 reroot(node,findParentWithProperty(node,Properties.ROOT));   
               }
               thisNode.addChild(maybeAttr);
-              reroot(thisNode, maybeAttr.fxn.node);
-              continue loop0;
+              if (context.maybeArguments.length > 0) {
+                let fxnArgNode = context.maybeArguments.shift();
+                reroot(thisNode, fxnArgNode);
+                fxnArgNode.found = true;
+                continue loop0;
+              }
             } else {
               node.addChild(maybeAttr);
             }
