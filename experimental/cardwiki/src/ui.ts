@@ -707,7 +707,11 @@ function autocompleterOptions(entityId, paneId, cell) {
   let isEntity = eve.findOne("display name", {name: text});
   let parsed = [];
   if(text !== "") {
-    parsed = nlparse(text); // @TODO: this should come from the NLP parser once it's hooked up.
+    try {
+      parsed = nlparse(text); // @TODO: this should come from the NLP parser once it's hooked up.
+    } catch(e) {
+
+    }
   }
   // the autocomplete can have multiple states
   let state = cell.state || "query";
@@ -1248,7 +1252,6 @@ function sortOnAttribute(a, b) {
 
 function attributesUI(entityId, paneId) {
   var eavs = eve.find("entity eavs", {entity: entityId});
-  console.log(eavs);
   var items = [];
   for(let eav of eavs) {
     let {entity, attribute, value} = eav;
@@ -1261,7 +1264,6 @@ function attributesUI(entityId, paneId) {
   }
   items.sort(sortOnAttribute);
   let state = uiState.widget.attributes[entityId] || {};
-  console.log(state);
   let ix = 0;
   let len = items.length;
   let tableChildren = [];
@@ -1281,11 +1283,14 @@ function attributesUI(entityId, paneId) {
         relatedSourceView = state.sourceView === subItem.sourceView;
         valueUI.text = valueUI.value;
         if(state.active && state.active.__id === subItem.eav.__id) {
+          let query = eve.findOne("query to id", {id: subItem.sourceView}).query;
           child.style = "background: red;";
           valueUI.t = "input";
-          valueUI.value = "= " + eve.findOne("query to id", {id: subItem.sourceView}).query;
+          valueUI.value = "= " + query;
+          valueUI["query"] = valueUI.value;
           valueUI["sourceView"] = subItem.sourceView;
           valueUI.postRender = autoFocus;
+          valueUI.text = undefined;
           child.children.push(valueUI);
         } else if(relatedSourceView) {
           child.style = "background: red;";
@@ -1321,6 +1326,10 @@ function attributesUI(entityId, paneId) {
       group,
     ]});
   }
+  tableChildren.push({c: "attribute adder", children: [
+    {t: "input", c: "", placeholder: "property", keydown: handleAttributesKey, input: setAdder, submit: submitAdder, field: "adderAttribute", entityId, value: state.adderAttribute},
+    {t: "input", c: "value", placeholder: "value", keydown: handleAttributesKey, input: setAdder, submit: submitAdder, field: "adderValue", entityId, value: state.adderValue},
+  ]});
   return {c: "attributes", children: tableChildren};
 }
 
@@ -1331,6 +1340,14 @@ appHandle("setActiveAttribute", (changes: Diff, {eav, sourceView}) => {
   let cur = uiState.widget.attributes[eav.entity];
   cur.active = eav;
   cur.sourceView = sourceView;
+});
+
+appHandle("clearActiveAttribute", (changes: Diff, {entity}) => {
+  let cur = uiState.widget.attributes[entity];
+  if(cur) {
+    cur.active = false;
+    cur.sourceView = false;
+  }
 })
 
 function setActiveAttribute(event, elem) {
@@ -1345,6 +1362,31 @@ function handleAttributesKey(event, elem) {
     elem.submit(event, elem);
   } else if(event.keyCode === KEYS.ESC) {
     dispatch("setActiveAttribute", {eav: {entity: elem.eav.entity}, sourceView: false}).commit();
+  }
+}
+
+appHandle("setAttributeAdder", (changes:Diff, {entityId, field, value}) => {
+  let cur = uiState.widget.attributes[entityId];
+  if(!uiState.widget.attributes[entityId]) {
+    cur = uiState.widget.attributes[entityId] = {};
+  }
+  cur[field] = value;
+});
+
+function setAdder(event, elem) {
+  let value = event.currentTarget.value;
+  dispatch("setAttributeAdder", {entityId: elem.entityId, field: elem.field, value}).commit();
+}
+
+function submitAdder(event, elem) {
+  let {entityId} = elem;
+  let state = uiState.widget.attributes[entityId];
+  if(!state) return;
+  let {adderAttribute, adderValue} = state;
+  if(adderAttribute && adderValue) {
+    let chain = dispatch("setAttributeAdder", {entityId, field: "adderAttribute", value: ""})
+                .dispatch("setAttributeAdder", {entityId, field: "adderValue", value: ""});
+    handleAttributeDefinition(entityId, adderAttribute, adderValue, chain);
   }
 }
 
@@ -1364,18 +1406,22 @@ appHandle("remove attribute generating query", (changes:Diff, {eav, view}) => {
 });
 
 function submitAttribute(event, elem) {
-  let {eav, sourceView} = elem;
-  let chain;
+  let {eav, sourceView, query} = elem;
+  let chain = dispatch("clearActiveAttribute", {entity: eav.entity});
+  let value =  event.currentTarget.value;
+  if(value === query) {
+    console.log("BAILING");
+    return chain.commit();
+  }
   if(elem.sourceView !== undefined) {
     //remove the previous source
-    chain = dispatch("remove attribute generating query", {eav, view: sourceView});
+    chain.dispatch("remove attribute generating query", {eav, view: sourceView});
   } else {
     //remove the previous eav
     let fact = copy(eav);
     fact.__id = undefined;
-    chain = dispatch("remove entity attribute", fact);
+    chain.dispatch("remove entity attribute", fact);
   }
-  let value =  event.currentTarget.value;
   if(value !== "") {
     handleAttributeDefinition(eav.entity, eav.attribute, value, chain);
   } else {

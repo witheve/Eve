@@ -167,7 +167,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .page-attributes { margin-top:50px; align-self: flex-start; margin-left:30px; border-radius:3px; border:none; }
 .page-attributes .attribute { align-items:flex-start; flex-direction:row; }
 .page-attributes .attribute + .attribute { margin-top:15px; border:none; }
-.page-attributes .attribute > div:first-child { text-align:right; font-weight:900; width: 150px; padding-right:10px; }
+.page-attributes .attribute > *:first-child { text-align:right; font-weight:900; width: 150px; padding-right:10px; }
 .page-attributes .value { padding: 2px 10px; border-left: 1px solid #ddd; width: 150px; flex-direction: row; }
 .page-attributes .value > * {flex: none; background:none; }
 
