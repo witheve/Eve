@@ -1,22 +1,12 @@
 machine:
   pre:
-    - curl https://raw.githubusercontent.com/witheve/Eve/master/install-multirust.sh | sh
-    - multirust default nightly-2015-09-17
 
 dependencies:
   post:
-    - cd ui && npm install
     - npm i -g slimerjs
     - npm i -g phantomjs
     - npm i -g casperjs@1.1.0-beta3
     - npm i -g spook
-    - ./run.sh build
-    - ./run.sh --no-browser:
-          background: true
-    - sleep 10
 
 test:
   post:
-    - cd ui && node_modules/typescript/bin/tsc
-    - xvfb-run -a ./run.sh test
-    - cd runtime && RUST_BACKTRACE=1 cargo test
