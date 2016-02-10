@@ -916,7 +916,8 @@ function defineAutocompleteOptions(isEntity, parsed, text, params, entityId) {
   } else {
     attribute = context.attributes[0].displayName;
   }
-  let entity = context.entities[0].id;
+  let subject = context.entities[0] || context.collections[0];
+  let entity = subject.id;
   let option:any = {score: 1, action: defineAndEmbed, attribute, entity};
   option.children = [
     {text: attribute},

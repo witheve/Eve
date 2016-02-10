@@ -190,6 +190,8 @@ content .error-rep { color: #FF3333; }
 content .link { color: #008cdd; cursor: pointer; border-bottom: 1px solid transparent; }
 content .link:hover { border-bottom:1px solid #008cdd; }
 
+content .csv { color: #A200A7;  }
+
 /*---------------------------------------------------------
 - Search Pane
 ---------------------------------------------------------*/
