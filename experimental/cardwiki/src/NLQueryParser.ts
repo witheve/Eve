@@ -238,6 +238,7 @@ enum Properties {
   FUNCTION,
   GROUPING,
   OUTPUT,
+  INPUT,
   NEGATES,
   IMPLICIT,
   AGGREGATE,
@@ -1144,26 +1145,32 @@ function formTree(tokens: Array<Token>) {
       // Handle quantities
       if (node.hasProperty(Properties.QUANTITY)) {
         log("Handling quantity...")
+        if (isNumeric(node.name) === false) {
+          break;
+        }
         // Create an attribute for the quantity 
-          let quantityAttribute: Attribute = {
-            id: node.name,
-            displayName: node.name,
-            value: `${node.name}`,
-            variable: `${node.name}`,
-            node: node,
-            project: false,
-          }
-          node.attribute = quantityAttribute;
-          node.properties.push(Properties.ATTRIBUTE);
-          node.found = true;
-          // If there is a maybeArgument, attach the quantity to it
-          if (context.maybeArguments.length > 0) {
-            let argument = context.maybeArguments.shift();
-            removeNode(node);
-            argument.addChild(node); 
-            argument.found = true;
-          }
+        let quantityAttribute: Attribute = {
+          id: node.name,
+          displayName: node.name,
+          value: `${node.name}`,
+          variable: `${node.name}`,
+          node: node,
+          project: false,
+        }
+        node.attribute = quantityAttribute;
+        node.properties.push(Properties.ATTRIBUTE);
+        node.found = true;
+        // If there is a maybeArgument, attach the quantity to it
+        if (context.maybeArguments.length > 0) {
+          let argument = context.maybeArguments.shift();
+          let qNode = node;
+          node = qNode.children[0];
+          removeNode(qNode);
+          argument.addChild(qNode); 
+          argument.found = true;
           continue;
+        }
+        break;
       }
       
       // Handle functions
@@ -1228,28 +1235,25 @@ function formTree(tokens: Array<Token>) {
           node.addChild(resultNode);
           resultNode.found = true;
           // Push two argument nodes onto the context
-          let argumentTokenB = newToken("b");
-          let argumentNodeB = newNode(argumentTokenB);
-          argumentNodeB.properties.push(Properties.IMPLICIT);
           let argumentTokenA = newToken("a");
           let argumentNodeA = newNode(argumentTokenA);
           argumentNodeA.properties.push(Properties.IMPLICIT);
+          argumentNodeA.properties.push(Properties.INPUT);
           node.addChild(argumentNodeA);
+          let argumentTokenB = newToken("b");
+          let argumentNodeB = newNode(argumentTokenB);
+          argumentNodeB.properties.push(Properties.IMPLICIT);
+          argumentNodeB.properties.push(Properties.INPUT);
           node.addChild(argumentNodeB);
           // If we already found a numerical attribute, rewire it
           let foundQuantity = findParentWithProperty(node, Properties.QUANTITY);
-          if (foundQuantity !== undefined) {
+          if (foundQuantity !== undefined && foundQuantity.found === true) {
             removeNode(foundQuantity);
             argumentNodeA.addChild(foundQuantity);
             argumentNodeA.found = true;
             foundQuantity.attribute.project = false;
             // If the node has an entity, rewire it as a child of the function
             if (foundQuantity.attribute.entity) {
-              console.log(foundQuantity);
-              let entityNode = removeNode(foundQuantity.attribute.entity.node);
-              insertAfterNode(entityNode, foundQuantity);
-              removeNode(foundQuantity);
-              entityNode.addChild(foundQuantity);
               foundQuantity.attribute.entity.project = false;
             }
           } else {
@@ -1327,6 +1331,17 @@ function formTree(tokens: Array<Token>) {
             }
           }
         };
+      }
+
+      // Rewire node to reflect an argument of a function
+      if (node.hasProperty(Properties.ATTRIBUTE) && context.maybeArguments.length > 0) {
+          let argument = context.maybeArguments.shift();
+          let qNode = node;
+          node = qNode.children[0];
+          removeNode(qNode);
+          argument.addChild(qNode); 
+          argument.found = true;
+          continue;  
       }
       
       // Rewire nodes to reflect found relationship
@@ -2205,11 +2220,17 @@ function formQuery(node: Node): Query {
     if (node.fxn.fields.length === 0) {
       return query;
     }
-    let args = findLeafNodes(node).filter((node) => node.found === true);
+    
+    // Collection all input and output nodes which were found
+    let nestedArgs = node.children.filter((child) => (child.hasProperty(Properties.INPUT) || child.hasProperty(Properties.OUTPUT) 
+                                                      && child.found === true))
+                                  .map(findLeafNodes);
+    let args = flattenNestedArray(nestedArgs);
+
     // If we have the right number of arguments, proceed
     // @TODO surface an error if the arguments are wrong
     let output;
-    if (node.children.every((child) => child.found) === true) {
+    if (args.length === node.fxn.fields.length) {
       let fields: Array<Field> = args.map((arg,i) => {
         return {name: `${node.fxn.fields[i]}`, 
                value: `${arg.attribute.variable}`, 
