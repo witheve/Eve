@@ -1328,7 +1328,7 @@ function attributesUI(entityId, paneId) {
       ix++;
       subItem = items[ix];
     }
-    tableChildren.push({c: "attribute", children: [
+    tableChildren.push({id: `${entityId}|${paneId}|${item.eav.attribute}`, c: "attribute", children: [
       {text: item.eav.attribute},
       group,
     ]});

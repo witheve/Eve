@@ -230,6 +230,7 @@ export class Renderer {
         } else {
           div = document.createElement(cur.t || "div");
         }
+        prev = fakePrev;
         div._id = id;
         elementCache[id] = div;
       } else if (type === "removed") {
