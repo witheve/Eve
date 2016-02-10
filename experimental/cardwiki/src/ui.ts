@@ -34,7 +34,7 @@ export let uiState:{
   widget: {
     search: {},
     table: {},
-    collapsible: {}
+    collapsible: {},
     attributes: {},
   },
   pane: {},
