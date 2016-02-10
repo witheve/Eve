@@ -205,7 +205,6 @@ app.init("bootstrap", function bootstrap() {
     .addEntity("table", "table", ["system", "collection"])
     .addEntity("ui", "ui", ["system", "collection"])
     .addEntity("home", "home", ["system"], undefined, unpad(6) `
-      # Directory
       {entity|rep = directory}
     `);
 
