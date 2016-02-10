@@ -67,6 +67,16 @@ function makeBundler(name, opts) {
 
 
 function build(bundles) {
+  try {
+    fs.statSync("bin")
+  } catch(e) {
+    fs.mkdirSync("bin");
+  }
+  try {
+    fs.statSync("bin/vendor");
+  } catch(e) {
+    fs.symlinkSync("../vendor", "bin/vendor");
+  }
   for(var bundleIx = 0; bundleIx < bundles.length; bundleIx++) {
     var bundleName = bundles[bundleIx];
     pkgs[bundleName].watch = program.watch;
@@ -267,6 +277,7 @@ function render() {
 }
 render();
 
+
 if(program.watch) {
   var server = livereload.createServer({exts: ["html", "js", "css"]});
   server.watch(["./*.html", "css/**/*.css", "bin/*.bundle.js", "vendor/**/*.js", "vendor/**/*.css"]);
@@ -288,6 +299,7 @@ if(program.server) {
     procs.push(server);
   });
 }
+
 
 if(program.bundles) build(program.bundles);
 
