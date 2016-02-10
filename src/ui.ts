@@ -1330,12 +1330,12 @@ function attributesUI(entityId, paneId) {
       subItem = items[ix];
     }
     tableChildren.push({id: `${entityId}|${paneId}|${item.eav.attribute}`, c: "attribute", children: [
-      {text: item.eav.attribute},
+      {c: "attribute-name", text: item.eav.attribute},
       group,
     ]});
   }
   tableChildren.push({c: "attribute adder", children: [
-    {t: "input", c: "", placeholder: "property", keydown: handleAttributesKey, input: setAdder, submit: submitAdder, field: "adderAttribute", entityId, value: state.adderAttribute},
+    {t: "input", c: "attribute-name value", placeholder: "property", keydown: handleAttributesKey, input: setAdder, submit: submitAdder, field: "adderAttribute", entityId, value: state.adderAttribute},
     {t: "input", c: "value", placeholder: "value", keydown: handleAttributesKey, input: setAdder, submit: submitAdder, field: "adderValue", entityId, value: state.adderValue},
   ]});
   return {c: "attributes", children: tableChildren};
