@@ -909,6 +909,27 @@ function findParentWithProperty(node: Node, property: Properties): Node {
   } 
 }
 
+// Finds a parent node with the specified property, 
+// returns undefined if no node was found
+function findChildWithProperty(node: Node, property: Properties): Node {
+  if (node.children.length === 0) {
+    return undefined;
+  }
+  if (node.hasProperty(property)) {
+    return node;
+  } else {
+    let childrenWithProperty = node.children.filter((child) => child.hasProperty(property));
+    if (childrenWithProperty !== undefined) {
+      return childrenWithProperty[0];
+    } else {
+      let results = node.children.map((child) => findChildWithProperty(child,property)).filter((result) => result !== undefined);
+      if (results.length > 0) {
+        return results[0];
+      }
+    }
+  } 
+}
+
 // Finds a parent node with the specified POS, 
 // returns undefined if no node was found
 function findParentWithPOS(node: Node, majorPOS: MajorPartsOfSpeech): Node {
@@ -1114,6 +1135,25 @@ function formTree(tokens: Array<Token>) {
       log("------------------------------------------");
       log(node);      
       
+      // Handle nodes that we previously found but need to get hooked up to a function
+      if (node.found && node.hasProperty(Properties.ATTRIBUTE) && node.children.length === 0 && context.maybeArguments.length > 0) {
+          log("Handling missing attribute")
+          let argument = context.maybeArguments.shift();
+          if (node.parent.hasProperty(Properties.ENTITY) || node.parent.hasProperty(Properties.COLLECTION)) {
+            let parent = removeNode(node.parent);
+            argument.addChild(parent);
+            removeNode(node);
+            parent.addChild(node);
+            argument.found = true;
+            if (parent.collection) {
+              parent.collection.project = false;  
+            } else {
+              parent.entity.project = false;
+            }
+          }
+          break;    
+      }
+      
       // Skip certain nodes
       if (node.found ||
           node.hasProperty(Properties.IMPLICIT) ||
@@ -1283,6 +1323,8 @@ function formTree(tokens: Array<Token>) {
             context.maybeArguments.push(argumentNodeA);
           }
           context.maybeArguments.push(argumentNodeB);
+          node.found = true;
+        } else if (node.hasProperty(Properties.CONJUNCTION)) {
           node.found = true;
         }
         context.fxns.push(node.fxn);
@@ -1471,7 +1513,6 @@ function formTree(tokens: Array<Token>) {
         log(context)
         context.maybeAttributes.push(node);
       }
-      
       break;
     }
     
@@ -1482,13 +1523,25 @@ function formTree(tokens: Array<Token>) {
     
     return context;
   }
-  
+
   log(tree.toString());
   log("Resolving entities...");
   let context = newContext();
   resolveEntities(tree,context);
   log("Entities resolved!");
 
+  
+  // Rewire groupings and aggregates
+  // @TODO Do this in a rewire step
+  let aggregate = findChildWithProperty(tree, Properties.AGGREGATE);
+  if (aggregate !== undefined) {
+    let grouping = findChildWithProperty(aggregate, Properties.GROUPING);
+      if (grouping !== undefined) {
+      removeNode(grouping);
+      insertAfterNode(grouping,aggregate.parent);
+    }  
+  }
+  
   // Sort children to preserve argument order in functions
   function sortChildren(node: Node): void {
     node.children.sort((a,b) => a.ix - b.ix);
@@ -1892,6 +1945,7 @@ function findCollectionToAttrRelationship(coll: Collection, attr: Node, context:
     };
     attr.attribute = attribute;
     context.attributes.push(attribute);
+    attr.properties.push(Properties.ATTRIBUTE);
     attr.found = true;
     return {links: [linkID], type: RelationshipTypes.ONEHOP, nodes: [coll.node, attr]};
   }
@@ -2259,7 +2313,6 @@ function formQuery(node: Node): Query {
 
     // If we have the right number of arguments, proceed
     // @TODO surface an error if the arguments are wrong
-    console.log(args)
     let output;
     if (args.length === node.fxn.fields.length) {
       let fields: Array<Field> = args.map((arg,i) => {
