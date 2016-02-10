@@ -1,0 +1,120 @@
+body {
+	background-color: #E9EBE9;
+	width: 100%;
+	height: 100%;
+	font-family: sans-serif;
+	font-size: 16px;
+}
+
+a {
+	text-decoration: none;
+	color: rgb(0,158,224);
+}
+
+a:hover {
+	color: rgb(91,89,164);
+}
+
+#content {
+ 	width: 300px;
+    height: 800px;
+    position: absolute;
+    top:0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin: auto;
+}
+
+.logo {
+	display: block;
+	margin-left: auto;
+	margin-right: auto;
+	margin-top: 20px;
+	margin-bottom: 40px;
+	width: 150px;
+	height:;
+	padding: 20px;
+}
+
+#login-errors {
+	margin: 0px;
+	padding: 0px;
+	color: rgb(207,44,48);
+	font-family: sans-serif;
+}
+
+#signup-errors {
+	margin: 0px;
+	padding: 0px;
+	color: rgb(207,44,48);
+	font-family: sans-serif;
+}
+
+#login-form {
+	width: 300px;
+	margin: auto;
+	line-height: 35px;
+	font-family: sans-serif;
+	letter-spacing: 5px;
+	color: rgb(139,130,137);
+
+}
+
+#signup-form {
+	width: 300px;
+	margin: auto;
+	line-height: 35px;
+	font-family: sans-serif;
+	letter-spacing: 5px;
+	color: rgb(139,130,137);
+
+}
+
+.textbox {
+	width: 279px;
+	border-radius: 10px;
+	padding: 10px;
+	border: 1px rgb(139,130,137) solid;
+	color: rgb(139,130,137);
+}
+
+.textbox:focus {
+	box-shadow: 0px 0px 5px rgb(139,130,137);
+}
+
+input:focus, select:focus, textarea:focus
+{
+	outline:none;
+}
+
+.button {
+	font-size: 16px;
+	line-height: 35px;
+	font-family: sans-serif;
+	height: 35px;
+	border-radius: 10px;
+	padding: 0px;
+	margin-top: 15px;
+	border: 1px rgb(50,126,180) solid;
+	width: 300px;
+	color: rgb(27,66,95);
+	background: rgb(64,160,221);
+	text-align: center;
+}
+
+.button a {
+	color: rgb(27,66,95);
+}
+
+.button:hover {
+	color: rgb(55,58,157);
+	background: rgb(155,155,200);
+	border: 1px rgb(55,58,157) solid;
+}
+
+.button:active {
+	background: rgb(85,80,157);
+	color: rgb(155,155,200);
+	border: 1px rgb(55,58,157) solid;
+}
