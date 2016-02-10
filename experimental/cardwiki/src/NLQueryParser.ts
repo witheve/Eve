@@ -848,15 +848,20 @@ function removeNode(node: Node): Node {
 
 
 // Returns the first ancestor node that has been found
-function previouslyMatched(node: Node): Node {
-  if (node.parent === undefined || node.parent.hasProperty(Properties.FUNCTION)) {
+function previouslyMatched(node: Node, ignoreFunctions?: boolean): Node {
+  if (ignoreFunctions === undefined) {
+    ignoreFunctions = false;
+  }
+  if (node.parent === undefined) {
+    return undefined;
+  } else if (!ignoreFunctions && node.parent.hasProperty(Properties.FUNCTION) && !node.parent.hasProperty(Properties.CONJUNCTION))  {
     return undefined;
   } else if (node.parent.hasProperty(Properties.ENTITY) ||
              node.parent.hasProperty(Properties.ATTRIBUTE) ||
              node.parent.hasProperty(Properties.COLLECTION)) {
     return node.parent;
   } else {
-    return previouslyMatched(node.parent);
+    return previouslyMatched(node.parent,ignoreFunctions);
   }
 }
 
@@ -1335,7 +1340,7 @@ function formTree(tokens: Array<Token>) {
       // Handle pronouns
       if (node.hasProperty(Properties.PRONOUN)) {
         log("Matching pronoun with previous entity...");
-        let matchedNode = previouslyMatched(node);
+        let matchedNode = previouslyMatched(node, true);
         if (matchedNode !== undefined) {
           if (matchedNode.collection !== undefined) {
             node.collection = matchedNode.collection;
