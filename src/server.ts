@@ -89,7 +89,7 @@ httpserver.use("/test", express.static(__dirname + '/../../test'));
 httpserver.use("/images", express.static(__dirname + '/../../images'));
 
 httpserver.get("/*", (req, res) => {
-  res.sendFile(path.resolve(__dirname + "/../../editor.html"));
+  res.sendFile(path.resolve(__dirname + "/../../index.html"));
 })
 
 httpserver.listen(process.env.PORT || 3000);
