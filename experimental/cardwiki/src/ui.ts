@@ -24,14 +24,16 @@ var popoutHistory = [];
 export let uiState:{
   widget: {
     search: {[paneId:string]: {value:string, plan?:boolean, focused?:boolean, submitted?:string}},
-    table: {[key:string]: {field:string, direction:string}}
+    table: {[key:string]: {field:string, direction:number}},
+    collapsible: {[key:string]: {open:boolean}}
   },
   pane: {[paneId:string]: {settings: boolean}},
   prompt: {open: boolean, paneId?: string, prompt?: (paneId?:string) => Element}
 } = {
   widget: {
     search: {},
-    table: {}
+    table: {},
+    collapsible: {}
   },
   pane: {},
   prompt: {open: false, paneId: undefined, prompt: undefined}
@@ -236,14 +238,19 @@ appHandle("rename entity attribute", (changes:Diff, {entity, attribute, prev, va
 });
 appHandle("sort table", (changes:Diff, {key, field, direction}) => {
   let state = uiState.widget.table[key] || {field: undefined, direction: undefined};
-  state.field = field;
-  state.direction = direction;
+  if(field !== undefined) state.field = field;
+  if(direction !== undefined) state.direction = direction;
   uiState.widget.table[key] = state;
 });
 appHandle("toggle settings", (changes:Diff, {paneId, open = undefined}) => {
   let state = uiState.pane[paneId] || {settings: false};
   state.settings = open !== undefined ? open : !state.settings;
   uiState.pane[paneId] = state;
+});
+appHandle("toggle collapse", (changes:Diff, {collapsible, open = undefined}) => {
+  let state = uiState.widget.collapsible[collapsible] || {open: false};
+  state.open = open !== undefined ? open : !state.open;
+  uiState.widget.collapsible[collapsible] = state;
 });
 appHandle("toggle prompt", (changes:Diff, {prompt = undefined, paneId = undefined, open = undefined}) => {
   let state = uiState.prompt;

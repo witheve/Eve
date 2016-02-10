@@ -266,3 +266,8 @@ content .link:hover { border-bottom:1px solid #008cdd; }
 .table.overflow-list { margin: 4px; }
 .table.overflow-list .column { flex: 0; width: 72px; }
 .table.overflow-list .column:first-child { flex: 1; width: auto; }
+
+.collapsible > header { display: flex; flex-direction: row; align-items: center; }
+.collapsible > header .collapse-toggle { margin-right: 1em; }
+.table-filter, .table-filter > * { display: flex; flex-direction: row; align-items: center; }
+.table-filter > * + *, .table-filter > * > * + * { margin-left: 1em; }

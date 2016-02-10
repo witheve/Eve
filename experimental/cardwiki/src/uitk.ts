@@ -149,8 +149,12 @@ function updateEntityAttributes(event:CustomEvent, elem:{row: TableRowElem}) {
   }
 }
 function sortTable(event, elem:TableFieldElem) {
-  let {key, field, direction} = elem;
-  direction = direction ? -direction : 1;
+  let {key, field = undefined, direction = undefined} = elem;
+  console.log(key, field, direction);
+  if(field === undefined && direction === undefined) {
+    field = event.target.value;
+    console.log("ETV", field);
+  }
   dispatch("sort table", {key, field, direction}).commit();
 }
 
@@ -385,7 +389,8 @@ export function table(elem:TableElem):Element {
   }
 
   let header = {t: "header", children: []};
-  let {field:sortField = undefined, direction:sortDirection = undefined} = localState;
+  let {field:sortField = undefined, direction:sortDirection} = localState;
+  sortDirection = sortDirection || 1;
   for(let field of fields) {
     let isActive = field === sortField;
     let direction = (field === sortField) ? sortDirection : 0;
@@ -397,7 +402,7 @@ export function table(elem:TableElem):Element {
           c: `sort-toggle ${isActive && direction < 0 ? "ion-arrow-up-b" : "ion-arrow-down-b"} ${isActive ? "active" : ""}`,
           key: elem.key,
           field,
-          direction,
+          direction: -direction,
           click: sortTable
         } : undefined
       ]}
@@ -488,6 +493,77 @@ function handleCellKeys(event, elem) {
   }
 }
 
+interface TableFilterElem extends Element { key: string, sortFields?: string[], search?: (search:string) => string[]|Element[] }
+export function tableFilter(elem:TableFilterElem) {
+  let {key, search = undefined, sortFields = undefined} = elem;
+  elem.children = [];
+  if(sortFields) {
+    let state = _state.widget.table[key] || {field: undefined, direction: undefined};
+    let sortOpts = [];
+    for(let field of sortFields) {
+      sortOpts.push({t: "option", text: resolveName(field), value: field, selected: field === state.field});
+    }
+    elem.children.push({c: "flex-grow"});
+    elem.children.push({c: "sort", children: [
+      {text: "Sort by"},
+      {t: "select", c: "select-sort-field select", value: state.field, children: sortOpts, key, change: sortTable},
+      {c: `toggle-sort-dir ${state.direction === -1 ? "ion-arrow-up-b" : "ion-arrow-down-b"}`, key, direction: -state.direction || 1, click: sortTable},
+    ]});
+  }
+  elem.c = `table-filter ${elem.c || ""}`;
+  return elem;
+}
+
+interface URLElem extends Element { url: string }
+export function externalLink(elem:URLElem) {
+  elem.t = "a";
+  elem.c = `link ${elem.c || ""}`;
+  elem.href = elem.url;
+  elem.text = elem.text || elem.url;
+  return elem;
+}
+
+export function externalImage(elem:URLElem) {
+  elem.t = "img";
+  elem.c = `img ${elem.c || ""}`;
+  elem.src = elem.url;
+  return elem;
+}
+
+export function externalVideo(elem:URLElem) {
+  let ext = elem.url.slice(elem.url.lastIndexOf(".")).trim().toLowerCase();
+  let domain = elem.url.slice(elem.url.indexOf("//") + 2).split("/")[0];
+  let isFile = ["mp4", "ogv", "webm", "mov", "avi", "flv"].indexOf(ext) !== -1;
+  if(isFile) {
+    elem.t = "video";
+  } else {
+    elem.t = "iframe";
+  }
+  elem.c = `video ${elem.c || ""}`;
+  elem.src = elem.url;
+  elem.allowfullscreen = true;
+  return elem;
+}
+
+//------------------------------------------------------------------------------
+// Containers
+//------------------------------------------------------------------------------
+interface CollapsibleElem extends Element { key:string, header?:Element, open?:boolean }
+export function collapsible(elem:CollapsibleElem):Element {
+  if(elem.key === undefined) throw new Error("Must specify a key to maintain collapsible state");
+  let state = _state.widget.collapsible[elem.key] || {open: elem.open !== undefined ? elem.open : true};
+  let content = {children: elem.children};
+  let header = {t: "header", children: [{c: "collapse-toggle " + (state.open ? "ion-chevron-up" : "ion-chevron-down"), collapsible: elem.key, open: state.open, click: toggleCollapse}, elem.header]};
+
+  elem.c = `collapsible ${elem.c || ""}`;
+  elem.children = [header, state.open ? content : undefined];
+  return elem;
+}
+
+function toggleCollapse(evt, elem) {
+  dispatch("toggle collapse", {collapsible: elem.collapsible, open: !elem.open});
+}
+
 let directoryTileLayouts:MasonryLayout[] = [
   {size: 4, c: "big", format(elem) {
     elem.children.unshift
@@ -559,42 +635,25 @@ export function directory(elem:DirectoryElem):Element {
 
     {t: "h2", text: "Entities"},
     masonry({c: "directory-listing", layouts: directoryTileLayouts, styles: directoryTileStyles, children: entities.slice(0, MAX_ENTITIES_BEFORE_OVERFLOW).map(formatTile)}),
-    formatOverflow("directory entities overflow", entities, true),
+    collapsible({
+      key: `${elem.key}|directory entities collapsible`,
+      header: {text: "Show all entities..."},
+      children: [
+        //tableFilter({key: `${elem.key}|directory entities overflow`, sortFields: ["name", "score", "words", "links"]}),
+        formatOverflow(`${elem.key}|directory entities overflow`, entities, true)
+      ],
+      open: false
+    }),
     
     {t: "h2", text: "Internals"},
-    formatOverflow("directory system overflow", systems),
+    collapsible({
+      key: `${elem.key}|directory systems collapsible`,
+      header: {text: "Show all internal entities..."},
+      children: [formatOverflow(`${elem.key}|directory systems overflow`, systems)],
+      open: false
+    }),
   ]};
 }
 
 export var masonry = masonryRaw;
 
-interface URLElem extends Element { url: string }
-export function externalLink(elem:URLElem) {
-  elem.t = "a";
-  elem.c = `link ${elem.c || ""}`;
-  elem.href = elem.url;
-  elem.text = elem.text || elem.url;
-  return elem;
-}
-
-export function externalImage(elem:URLElem) {
-  elem.t = "img";
-  elem.c = `img ${elem.c || ""}`;
-  elem.src = elem.url;
-  return elem;
-}
-
-export function externalVideo(elem:URLElem) {
-  let ext = elem.url.slice(elem.url.lastIndexOf(".")).trim().toLowerCase();
-  let domain = elem.url.slice(elem.url.indexOf("//") + 2).split("/")[0];
-  let isFile = ["mp4", "ogv", "webm", "mov", "avi", "flv"].indexOf(ext) !== -1;
-  if(isFile) {
-    elem.t = "video";
-  } else {
-    elem.t = "iframe";
-  }
-  elem.c = `video ${elem.c || ""}`;
-  elem.src = elem.url;
-  elem.allowfullscreen = true;
-  return elem;
-}
