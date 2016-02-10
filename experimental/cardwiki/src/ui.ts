@@ -3,7 +3,7 @@ declare var pluralize; // @TODO: import me.
 import {parse as marked, Renderer as MarkedRenderer} from "../vendor/marked";
 import * as CodeMirror from "codemirror";
 import {copy, uuid, coerceInput, builtinId, autoFocus, KEYS, mergeObject, setEndOfContentEditable} from "./utils";
-import {Diff} from "./runtime";
+import {Diff, Query} from "./runtime";
 import {createEditor} from "./richTextEditor";
 import {Element, Handler, RenderHandler, Renderer} from "./microReact";
 import * as uitk from "./uitk";
@@ -24,17 +24,19 @@ var popoutHistory = [];
 export let uiState:{
   widget: {
     search: {[paneId:string]: {value:string, plan?:boolean, focused?:boolean, submitted?:string}},
-    table: {[key:string]: {field:string, direction:string}}
+    table: {[key:string]: {field:string, direction:string}},
+    attributes: any,
   },
   pane: {[paneId:string]: {settings: boolean}},
-  prompt: {open: boolean, paneId?: string, prompt?: (paneId?:string) => Element}
+  prompt: {open: boolean, paneId?: string, prompt?: (paneId?:string) => Element},
 } = {
   widget: {
     search: {},
-    table: {}
+    table: {},
+    attributes: {},
   },
   pane: {},
-  prompt: {open: false, paneId: undefined, prompt: undefined}
+  prompt: {open: false, paneId: undefined, prompt: undefined},
 };
 
 //---------------------------------------------------------
@@ -220,6 +222,7 @@ appHandle("insert implication", (changes:Diff, {query}) => {
 
 appHandle("remove entity attribute", (changes:Diff, {entity, attribute, value}) => {
   changes.remove("sourced eav", {entity, attribute, value});
+  console.log(changes);
   // @FIXME: Make embeds auto-gc themselves when invalidated.
 });
 appHandle("update entity attribute", (changes:Diff, {entity, attribute, prev, value}) => {
@@ -581,6 +584,7 @@ function getCellParams(content, rawParams) {
     let parsed = nlparse(content);
     let currentParse = parsed[0];
     let context = currentParse.context;
+    console.log(content, currentParse);
     let hasCollections = context.collections.length;
     let field;
     let rep;
@@ -905,7 +909,7 @@ function defineAutocompleteOptions(isEntity, parsed, text, params, entityId) {
   let option:any = {score: 1, action: defineAndEmbed, attribute, entity};
   option.children = [
     {text: attribute},
-    {c: "inline-cell", contentEditable: "true", selected:option, keydown: defineKeys, postRender: autoFocus}
+    {c: "inline-cell", contentEditable: true, selected:option, keydown: defineKeys, postRender: autoFocus}
   ]
   options.push(option);
   return options;
@@ -927,12 +931,13 @@ function interpretAttributeValue(value): {isValue: boolean, parse?:any, value?:a
   }
 }
 
-function defineAndEmbed(elem, text, doEmbed) {
-  let {selected} = elem;
-  let {entity, attribute, defineValue} = selected;
-  let {isValue, value, parse} = interpretAttributeValue(defineValue);
+function handleAttributeDefinition(entity, attribute, search, chain?) {
+  if(!chain) {
+    chain = dispatch();
+  }
+  let {isValue, value, parse} = interpretAttributeValue(search);
   if(isValue) {
-    dispatch("add sourced eav", {entity, attribute, value}).commit();
+    chain.dispatch("add sourced eav", {entity, attribute, value}).commit();
   } else {
     let queryText = value.trim();
     // add the query
@@ -941,16 +946,27 @@ function defineAndEmbed(elem, text, doEmbed) {
     let id = eve.findOne("query to id", {query: queryText}).id;
     let params = getCellParams(queryText, "");
     if(!params["field"]) {
-      console.error("Couldn't figure out subject of: " + queryText);
-      return doEmbed(`${text}|rep=error;message=I couldn't figure out the subject of that search;`)
+      return false;
     } else {
       //build a query
       let eavProject = `(query :$$view "${entity}|${attribute}|${id}" (select "${id}" :${params["field"].replace(" ", "-")} value)
                                (project! "generated eav" :entity "${entity}" :attribute "${attribute}" :value value :source "${id}"))`;
-      dispatch("insert implication", {query: eavProject}).commit();
+      chain.dispatch("insert implication", {query: eavProject}).commit();
     }
   }
-  doEmbed(`${text}|rep=CSV;field=${attribute}`);
+  return true;
+}
+
+function defineAndEmbed(elem, text, doEmbed) {
+  let {selected} = elem;
+  let {entity, attribute, defineValue} = selected;
+  let success = handleAttributeDefinition(entity, attribute, defineValue);
+  if(success) {
+    doEmbed(`${text}|rep=CSV;field=${attribute}`);
+  } else {
+    console.error("Couldn't figure out subject of: " + defineValue);
+    doEmbed(`${text}|rep=error;message=I couldn't figure out the subject of that search;`)
+  }
 }
 
 function defineKeys(event, elem) {
@@ -995,7 +1011,8 @@ export function entity(entityId:string, paneId:string, kind: PANE, options:any =
   });
   let attrs;
   if(kind !== PANE.POPOUT) {
-    attrs = uitk.attributes({entity: entityId, data: {paneId}, key: `${paneId}|${entityId}`});
+    // attrs = uitk.attributes({entity: entityId, data: {paneId}, key: `${paneId}|${entityId}`});
+    attrs = attributesUI(entityId, paneId);
     attrs.c += " page-attributes";
   }
   return {id: `${paneId}|${entityId}|editor`, t: "content", c: "wiki-entity", children: [
@@ -1215,6 +1232,155 @@ function getCells(content: string) {
     ix += part.length;
   }
   return cells;
+}
+
+//---------------------------------------------------------
+// Attributes
+//---------------------------------------------------------
+
+function sortOnAttribute(a, b) {
+  let aAttr = a.eav.attribute;
+  let bAttr = b.eav.attribute;
+  if(aAttr < bAttr) return -1;
+  if(aAttr > bAttr) return 1;
+  return 0;
+}
+
+function attributesUI(entityId, paneId) {
+  var eavs = eve.find("entity eavs", {entity: entityId});
+  console.log(eavs);
+  var items = [];
+  for(let eav of eavs) {
+    let {entity, attribute, value} = eav;
+    let found = eve.findOne("generated eav", {entity, attribute, value});
+    let item:any = {eav, isManual: !found};
+    if(found) {
+      item.sourceView = found.source;
+    }
+    items.push(item);
+  }
+  items.sort(sortOnAttribute);
+  let state = uiState.widget.attributes[entityId] || {};
+  console.log(state);
+  let ix = 0;
+  let len = items.length;
+  let tableChildren = [];
+  while(ix < len) {
+    let item = items[ix];
+    let group = {children: []};
+    let subItem = item;
+    while(ix < len && subItem.eav.attribute === item.eav.attribute) {
+      let child:Element = {c: "value", eav: subItem.eav, children: []};
+      let valueUI:Element = subItem;
+      let relatedSourceView = false;
+      valueUI.value = subItem.eav.value;
+      valueUI["submit"] = submitAttribute;
+      valueUI["eav"] = subItem.eav;
+      if(!subItem.isManual) {
+        child.c += " generated";
+        relatedSourceView = state.sourceView === subItem.sourceView;
+        valueUI.text = valueUI.value;
+        if(state.active && state.active.__id === subItem.eav.__id) {
+          child.style = "background: red;";
+          valueUI.t = "input";
+          valueUI.value = "= " + eve.findOne("query to id", {id: subItem.sourceView}).query;
+          valueUI["sourceView"] = subItem.sourceView;
+          valueUI.postRender = autoFocus;
+          child.children.push(valueUI);
+        } else if(relatedSourceView) {
+          child.style = "background: red;";
+          valueUI.text = "editing search...";
+        }
+        child["sourceView"] = subItem.sourceView;
+        child.click = setActiveAttribute;
+      } else {
+        valueUI.t = "input";
+      }
+      let display = eve.findOne("display name", {id: valueUI.value});
+      if(display && !relatedSourceView) {
+        if(!state.active || state.active.__id !== subItem.eav.__id) {
+          child.children.push({c: "link", text: display.name, data: {paneId}, link: display.id, click: navigate, peek: true});
+          child.click = setActiveAttribute;
+        } else {
+          valueUI.value = `= ${display.name}`;
+          valueUI.postRender = autoFocus;
+          child.children.push(valueUI);
+        }
+      } else {
+        child.children.push(valueUI);
+      }
+      if(valueUI.t === "input") {
+        valueUI.keydown = handleAttributesKey;
+      }
+      group.children.push(child);
+      ix++;
+      subItem = items[ix];
+    }
+    tableChildren.push({c: "attribute", children: [
+      {text: item.eav.attribute},
+      group,
+    ]});
+  }
+  return {c: "attributes", children: tableChildren};
+}
+
+appHandle("setActiveAttribute", (changes: Diff, {eav, sourceView}) => {
+  if(!uiState.widget.attributes[eav.entity]) {
+    uiState.widget.attributes[eav.entity] = {};
+  }
+  let cur = uiState.widget.attributes[eav.entity];
+  cur.active = eav;
+  cur.sourceView = sourceView;
+})
+
+function setActiveAttribute(event, elem) {
+  if(!event.defaultPrevented) {
+    dispatch("setActiveAttribute", {eav: elem.eav, sourceView: elem.sourceView}).commit();
+  }
+}
+
+function handleAttributesKey(event, elem) {
+  console.log("HERE");
+  if((event.keyCode === KEYS.ENTER || (event.keyCode === KEYS.BACKSPACE && event.currentTarget.value === "")) && elem.submit) {
+    elem.submit(event, elem);
+  } else if(event.keyCode === KEYS.ESC) {
+    dispatch("setActiveAttribute", {eav: {entity: elem.eav.entity}, sourceView: false}).commit();
+  }
+}
+
+appHandle("remove attribute generating query", (changes:Diff, {eav, view}) => {
+  let queryId = `${eav.entity}|${eav.attribute}|${view}`;
+  eve.removeView(queryId)
+  changes.merge(Query.remove(queryId, eve));
+  //find all the unions this was used with
+  for(let source of eve.find("action source", {"source view": queryId})) {
+    let action = source.action;
+    changes.remove("action", {action});
+    changes.remove("action mapping", {action});
+    changes.remove("action mapping constant", {action});
+  }
+  changes.remove("action source", {source: queryId});
+  console.log(changes);
+});
+
+function submitAttribute(event, elem) {
+  let {eav, sourceView} = elem;
+  let chain;
+  if(elem.sourceView !== undefined) {
+    //remove the previous source
+    chain = dispatch("remove attribute generating query", {eav, view: sourceView});
+  } else {
+    //remove the previous eav
+    let fact = copy(eav);
+    fact.__id = undefined;
+    chain = dispatch("remove entity attribute", fact);
+  }
+  let value =  event.currentTarget.value;
+  if(value !== "") {
+    handleAttributeDefinition(eav.entity, eav.attribute, value, chain);
+  } else {
+    chain.commit();
+  }
 }
 
 //---------------------------------------------------------
