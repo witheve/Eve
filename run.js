@@ -287,7 +287,11 @@ if(program.watch) {
 }
 
 if(program.server) {
-  exec("node_modules/tsify/node_modules/typescript/bin/tsc", ["-m", "commonjs"], function(out,err) {
+  exec("node node_modules/tsify/node_modules/typescript/bin/tsc", function(out,err) {
+    if (err) {
+      console.error(err);
+      process.exit();
+    }
     var server = spawn("node", ["bin/src/server.js"]);
     tagLog("server", "Server started at http://localhost:3000");
     server.stdout.on("data", function(data) {
