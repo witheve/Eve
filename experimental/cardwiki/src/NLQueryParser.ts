@@ -849,7 +849,7 @@ function removeNode(node: Node): Node {
 
 // Returns the first ancestor node that has been found
 function previouslyMatched(node: Node): Node {
-  if (node.parent === undefined) {
+  if (node.parent === undefined || node.parent.hasProperty(Properties.FUNCTION)) {
     return undefined;
   } else if (node.parent.hasProperty(Properties.ENTITY) ||
              node.parent.hasProperty(Properties.ATTRIBUTE) ||
@@ -1133,7 +1133,7 @@ function formTree(tokens: Array<Token>) {
     while (node !== undefined) {
       context.maybeAttributes = context.maybeAttributes.filter((maybeAttr) => !maybeAttr.found);
       log("------------------------------------------");
-      log(node);      
+      log(node);
       
       // Handle nodes that we previously found but need to get hooked up to a function
       if (node.found && node.hasProperty(Properties.ATTRIBUTE) && node.children.length === 0 && context.maybeArguments.length > 0) {
@@ -1328,6 +1328,7 @@ function formTree(tokens: Array<Token>) {
           node.found = true;
         }
         context.fxns.push(node.fxn);
+        log(tree.toString());
         break;
       }
       
@@ -1356,6 +1357,7 @@ function formTree(tokens: Array<Token>) {
       // Previously matched node
       let matchedNode = previouslyMatched(node);
       if (matchedNode !== undefined) {
+        log(`Match in context of previously matched node "${matchedNode.name}"`);
         // Find relationship between previously matched node and this one
         if (matchedNode.hasProperty(Properties.POSSESSIVE)) {
           if (matchedNode.hasProperty(Properties.ENTITY)) {
