@@ -61,7 +61,7 @@ export function preprocessQueryString(queryString: string): Array<PreToken> {
   processedString = processedString.replace(new RegExp("-", 'g')," - ");
   processedString = processedString.replace(new RegExp("\\*", 'g')," * ");
   processedString = processedString.replace(new RegExp("/", 'g')," / ");
-  processedString = processedString.replace(new RegExp("\s\s+", 'g')," ");
+  processedString = processedString.replace(new RegExp("\\s+", 'g')," ");
   // Get parts of speach with sentence information. It's okay if they're wrong; they 
   // will be corrected as we create the tree and match against the underlying data model
   let sentences = nlp.pos(processedString, {dont_combine: true}).sentences;   
@@ -324,7 +324,7 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
       // --- get rid of possessive ending 
       // --- convert to lower case
       // --- singularize
-            // If the word is quoted
+      // If the word is quoted
       if (token.POS === MinorPartsOfSpeech.NNQ ||
           token.POS === MinorPartsOfSpeech.CD) {
         token.normalizedWord = word;
