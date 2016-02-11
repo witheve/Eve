@@ -1160,7 +1160,7 @@ function formTree(tokens: Array<Token>) {
     if (allFound !== true) {
       let displayName = ngram.map((node)=>node.name).join(" ");
       log(displayName)
-      let foundName = eve.findOne("display name",{ name: displayName });
+      let foundName = eve.findOne("index name",{ name: displayName });
       log(foundName)
       // If the display name is in the system, mark all the nodes as found 
       if (foundName !== undefined) {
@@ -1721,7 +1721,7 @@ export function findEveEntity(search: string): Entity {
   let foundEntity;
   let name: string;
   // Try to find by display name first
-  let display = eve.findOne("display name",{ name: search });
+  let display = eve.findOne("index name",{ name: search });
   if (display !== undefined) {
     foundEntity = eve.findOne("entity", { entity: display.id });
     name = search;
@@ -1756,7 +1756,7 @@ function findEveCollection(search: string): Collection {
   let foundCollection;
   let name: string;
   // Try to find by display name first
-  let display = eve.findOne("display name",{ name: search });
+  let display = eve.findOne("index name",{ name: search });
   if (display !== undefined) {
     foundCollection = eve.findOne("collection", { collection: display.id });
     name = search;
