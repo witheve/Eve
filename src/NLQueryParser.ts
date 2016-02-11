@@ -1134,6 +1134,24 @@ function formTree(tokens: Array<Token>) {
     }
     ngrams = ngrams.concat(insideGrams)
   }
+  // Filter out 1-grams
+  ngrams = ngrams.filter((n) => n.length > 1);
+  // Sort the ngrams by percentage nouns in the ngram
+  function countNouns(nodes: Array<Node>): number {
+    let count = 0;
+    for (let node of nodes) {
+      if (getMajorPOS(node.token.POS) === MajorPartsOfSpeech.NOUN) {
+        count += 1;
+      }
+    }
+    return count;
+  }
+  ngrams.sort((a,b) => countNouns(a)/a.length - countNouns(b)/b.length);        
+  let stop = performance.now();
+  console.log(stop-start)
+  console.log(ngrams.map((ngram) => {
+   return ngram.map((node)=>node.name).join(" "); 
+  }).join("\n"));
   
   // Do a quick pass to identify functions
   tokens.map((token) => {
