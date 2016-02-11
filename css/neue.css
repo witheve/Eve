@@ -14,6 +14,8 @@ button, input { border:none; outline: none; font-family: "Lato", sans-serif; fon
 .flex-wrap { flex-wrap: wrap; }
 .fullscreen { width: 100vw; min-height: 100vh; }
 
+.no-mouse { pointer-events: none; }
+
 .spaced-row > * + * { margin-left: 0.4em; }
 .csv { flex-direction: row; }
 .csv > * + span { margin-left: 0.4em; }
@@ -172,6 +174,11 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .page-attributes .value { padding: 2px 10px; border:1px solid transparent; border-left: 1px solid #ddd; width: 150px; flex-direction: row; font-size:12pt; }
 .page-attributes .value:hover { border:1px solid #ddd; }
 .page-attributes .value > * {flex: none; background:none; }
+.page-attributes .value input { flex: 1; }
+.page-attributes .value > .spacer {flex: 1; }
+.page-attributes .value .remove { opacity:0; justify-content:center; color: #888; }
+.page-attributes .value .remove:hover { color: #f55; }
+.page-attributes .value:hover .remove { opacity:1; }
 .page-attributes .adder .value:first-child { border-left-color:transparent; }
 .page-attributes .adder:hover .value { border-color:#ddd; }
 
