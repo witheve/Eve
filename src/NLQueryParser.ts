@@ -1128,7 +1128,6 @@ function formTree(tokens: Array<Token>) {
   // Build ngrams
   // @TODO Build ngrams by largest to smallest so I don't have to sort at the end
   // @HACK also this feels hacky, although it seems right. Maybe there is a better way
-  let start = performance.now();
   let n = 4;
   let ngrams: Array<Array<Node>> = [];
   let inode;
@@ -1153,13 +1152,16 @@ function formTree(tokens: Array<Token>) {
     ngrams = ngrams.concat(insideGrams)
   }
   // Sort the ngrams by length
-  ngrams.sort((b,a) => a.length - b.length);      
+  ngrams.sort((b,a) => a.length - b.length);
+  // Check each ngram for a display name      
   let matchedNgrams: Array<Array<Node>> = [];
   for (let ngram of ngrams) {
     let allFound = ngram.every((node) => node.found);
     if (allFound !== true) {
       let displayName = ngram.map((node)=>node.name).join(" ");
+      log(displayName)
       let foundName = eve.findOne("display name",{ name: displayName });
+      log(foundName)
       // If the display name is in the system, mark all the nodes as found 
       if (foundName !== undefined) {
         ngram.map((node) => node.found = true);
@@ -1169,6 +1171,12 @@ function formTree(tokens: Array<Token>) {
   }
   // Turn ngrams into compound nodes
   for (let ngram of matchedNgrams) {
+    // Don't do anything for 1-grams
+    if (ngram.length === 1) {
+      ngram[0].found = false
+      continue;
+    }
+    log(ngram)
     let displayName = ngram.map((node)=>node.name).join(" ");
     let lastGram = ngram[ngram.length - 1];
     let compoundToken = newToken(displayName);
@@ -1178,10 +1186,8 @@ function formTree(tokens: Array<Token>) {
     // Inherit properties from the nodes
     compoundNode.properties = lastGram.properties;    
     // Insert compound node and remove constituent nodes
-    nodes.splice(nodes.indexOf(ngram[0]),3,compoundNode);
+    nodes.splice(nodes.indexOf(ngram[0]),ngram.length,compoundNode);
   }
-  let stop = performance.now();
-  console.log(stop-start)
 
   // Do a quick pass to identify functions
   tokens.map((token) => {
@@ -1437,7 +1443,7 @@ function formTree(tokens: Array<Token>) {
             break;
           }
         }
-        console.log("No pronoun match found");
+        log("No pronoun match found");
         break;
       }
       
@@ -1449,9 +1455,11 @@ function formTree(tokens: Array<Token>) {
         // Find relationship between previously matched node and this one
         if (matchedNode.hasProperty(Properties.POSSESSIVE)) {
           if (matchedNode.hasProperty(Properties.ENTITY)) {
-            let found = findEntityAttribute(node,matchedNode.entity,context);
+            let found = findEntityAttribute(node, matchedNode.entity, context);
             if (found === true) {
               relationship = {type: RelationshipTypes.DIRECT};
+            } else {
+              findCollectionOrEntity(node, context);  
             }
           } else {
             relationship = findRelationship(matchedNode, node, context);  
