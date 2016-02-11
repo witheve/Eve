@@ -1209,6 +1209,8 @@ function maybeActivateCell(cm, paneId) {
       let query = cell.query.split("|")[0];
       dispatch("addActiveCell", {id: cell.id, cell, query}).commit();
       return;
+    } else if(pos.line === 1 && pos.ch === 0) {
+      return;
     }
   }
   return CodeMirror.Pass;
@@ -1300,6 +1302,7 @@ function createEmbedPopout(cm, paneId) {
     let from = cm.getCursor("from");
     let id = uuid();
     cm.replaceRange("=", from, cm.getCursor("to"));
+    if(from.line === 0) return;
     let to = cm.posFromIndex(cm.getCursor("from"));
     let fromIx = cm.indexFromPos(from);
     let toIx = cm.indexFromPos(to);
