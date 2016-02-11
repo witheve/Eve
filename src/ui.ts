@@ -73,6 +73,7 @@ appHandle("ui focus search", (changes:Diff, {paneId, value}:{paneId:string, valu
   state.focused = true;
 });
 appHandle("ui set search", (changes:Diff, {paneId, value, peek, x, y, popState}:{paneId:string, value:string, peek: boolean, x?: number, y?: number, popState?: boolean}) => {
+  value = value.trim();
   let displays = eve.find("display name", {name: value});
   if(displays.length === 1) value = displays[0].id;
   let fact;
@@ -196,6 +197,7 @@ appHandle("create query", (changes:Diff, {id, content}) => {
 
 appHandle("insert query", (changes:Diff, {query}) => {
   if(eve.findOne("query to id", {query})) return;
+  query = query.trim();
   let parsed = nlparse(query);
   if(parsed[0].state === StateFlags.COMPLETE) {
     let artifacts = parseDSL(parsed[0].query.toString());
