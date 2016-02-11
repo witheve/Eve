@@ -1126,36 +1126,35 @@ function formTree(tokens: Array<Token>) {
   let nodes = tokens.filter((token) => token.node === undefined).map(newNode);
   
   // Build ngrams
-  // @TODO Build ngrams by largest to smallest so I don't have to sort at the end
-  // @HACK also this feels hacky, although it seems right. Maybe there is a better way
+  // Initialize the ngrams with 1-grams
+  let ngrams: Array<Array<Node>> = nodes.map((node) => [node]);
+  // Shift off the root node
+  ngrams.shift();
   let n = 4;
-  let ngrams: Array<Array<Node>> = [];
-  let inode;
-  for (let i = 1; i < nodes.length; i++) {
-    let insideGrams: Array<Array<Node>> = [];
-    for (let j = 0; j < n; j++) {
-      inode = nodes[i+j];
-      if (inode === undefined) {
+  let m = ngrams.length;
+  let offset = 0;
+  for (let i = 0; i < n - 1; i++) {
+    let newNgrams: Array<Array<Node>> = [];
+    for (let j = offset; j < ngrams.length; j++) {
+      let thisNgram = ngrams[j];
+      let nextNgram = ngrams[j + 1];
+      // Break at the end of the ngrams
+      if (nextNgram === undefined) {
         break;
       }
-      if (insideGrams.length === 0) {
-        for (let k = j; k < Math.min(n,nodes.length - i); k++) {
-          insideGrams.push([inode])
-        }
-      } else {
-        for (let k = j; k < Math.min(n,nodes.length - i); k++) {
-          let igram = insideGrams[k];
-          igram.push(inode);
-        }
-      }
+      // From the new ngram
+      let newNgram = thisNgram.concat([nextNgram[nextNgram.length-1]]);
+      newNgrams.push(newNgram);
     }
-    ngrams = ngrams.concat(insideGrams)
+    offset = ngrams.length;
+    ngrams = ngrams.concat(newNgrams);
   }
-  // Sort the ngrams by length
-  ngrams.sort((b,a) => a.length - b.length);
+  let stop = performance.now();
+
   // Check each ngram for a display name      
   let matchedNgrams: Array<Array<Node>> = [];
-  for (let ngram of ngrams) {
+  for (let i = ngrams.length - 1; i >= 0; i--) {
+    let ngram = ngrams[i];
     let allFound = ngram.every((node) => node.found);
     if (allFound !== true) {
       let displayName = ngram.map((node)=>node.name).join(" ");
