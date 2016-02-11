@@ -1434,7 +1434,7 @@ function attributesUI(entityId, paneId) {
       group,
     ]});
   }
-  tableChildren.push({c: "attribute adder", children: [
+  tableChildren.push({id: `${entityId}|${paneId}|adder`, c: "attribute adder", children: [
     {t: "input", c: "attribute-name value", placeholder: "property", keydown: handleAttributesKey, input: setAdder, submit: submitAdder, field: "adderAttribute", entityId, value: state.adderAttribute},
     {t: "input", c: "value", placeholder: "value", keydown: handleAttributesKey, input: setAdder, submit: submitAdder, field: "adderValue", entityId, value: state.adderValue},
   ]});
@@ -1502,6 +1502,8 @@ function submitAdder(event, elem) {
                 .dispatch("setAttributeAdder", {entityId, field: "adderValue", value: ""});
     handleAttributeDefinition(entityId, adderAttribute, adderValue, chain);
   }
+  //make sure the focus ends up back in the property input
+  event.currentTarget.parentNode.firstChild.focus();
 }
 
 appHandle("remove attribute generating query", (changes:Diff, {eav, view}) => {
