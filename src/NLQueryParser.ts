@@ -869,6 +869,23 @@ function previouslyMatched(node: Node, ignoreFunctions?: boolean): Node {
   }
 }
 
+// Returns the first ancestor node that has been found
+function previouslyMatchedEntityOrCollection(node: Node, ignoreFunctions?: boolean): Node {
+  if (ignoreFunctions === undefined) {
+    ignoreFunctions = false;
+  }
+  if (node.parent === undefined) {
+    return undefined;
+  } else if (!ignoreFunctions && node.parent.hasProperty(Properties.FUNCTION) && !node.parent.hasProperty(Properties.CONJUNCTION))  {
+    return undefined;
+  } else if (node.parent.hasProperty(Properties.ENTITY) ||
+             node.parent.hasProperty(Properties.COLLECTION)) {
+    return node.parent;
+  } else {
+    return previouslyMatchedEntityOrCollection(node.parent,ignoreFunctions);
+  }
+}
+
 // Inserts a node after the target, moving all of the
 // target's children to the node
 // Before: [Target] -> [Children]
@@ -1159,8 +1176,7 @@ function formTree(tokens: Array<Token>) {
     compoundNode.constituents = ngram;
     compoundNode.ix = lastGram.ix;
     // Inherit properties from the nodes
-    // @TODO
-    
+    compoundNode.properties = lastGram.properties;    
     // Insert compound node and remove constituent nodes
     nodes.splice(nodes.indexOf(ngram[0]),3,compoundNode);
   }
@@ -1187,6 +1203,7 @@ function formTree(tokens: Array<Token>) {
   nodes.map((thisNode,i) => {
     let nextNode = nodes[i + 1];
     if (nextNode !== undefined) {
+      thisNode.found = false;
       thisNode.addChild(nextNode);  
     }
   })
@@ -1403,8 +1420,8 @@ function formTree(tokens: Array<Token>) {
       
       // Handle pronouns
       if (node.hasProperty(Properties.PRONOUN)) {
-        log("Matching pronoun with previous entity...");
-        let matchedNode = previouslyMatched(node, true);
+        log("Handling pronoun...")
+        let matchedNode = previouslyMatchedEntityOrCollection(node, true);
         if (matchedNode !== undefined) {
           if (matchedNode.collection !== undefined) {
             node.collection = matchedNode.collection;
@@ -1420,6 +1437,8 @@ function formTree(tokens: Array<Token>) {
             break;
           }
         }
+        console.log("No pronoun match found");
+        break;
       }
       
       // Find the relationship between parent and child nodes
