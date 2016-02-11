@@ -10,7 +10,7 @@ var boostrapIxer = bootstrap.ixer;
 
 app.renderRoots["nlqp"];
 
-nlqp.debug = false;
+nlqp.debug = true;
 
 function parseTest(queryString: string, n: number): nlqp.StateFlags {
   let parseResult: nlqp.ParseResult;
@@ -136,10 +136,11 @@ let phrases = [
   // These are queries that we had problems with in the past
   // make sure they always work
   // -------------------------------
-  "sum of employee salaries",
-  "3 + Corey's age",
-  "Corey's age + 3",
-  "sum pet length",
+  "Grognar the Barbarian's sword"
+  //"sum of employee salaries",
+  //"3 + Corey's age",
+  //"Corey's age + 3",
+  /*"sum pet length",
   "sum employee salaries",
   "employee salaries",
   "salaries in engineering",
@@ -158,7 +159,7 @@ let phrases = [
   "sum salary per department",
   "exotic that are not pets",
   "pets not exotics",
-  `Corey's age + Josh's salary`,
+  `Corey's age + Josh's salary`,*/
   // -------------------------------
   //`Pets except those shorter than a koala`,
   //`salaries per department`,

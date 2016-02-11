@@ -112,6 +112,7 @@ enum MajorPartsOfSpeech {
   ADJECTIVE,
   ADVERB,
   NOUN,
+  VALUE,
   GLUE,
   WHWORD,
   SYMBOL,
@@ -277,34 +278,28 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
       let before = "";
            
       // Add default attribute markers to nouns
-      if (getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN) {
-        if (token.POS === MinorPartsOfSpeech.NNO || 
-            token.POS === MinorPartsOfSpeech.PP) {
-         token.properties.push(Properties.POSSESSIVE);
-        }
-        if (token.POS === MinorPartsOfSpeech.NNP  ||
-            token.POS === MinorPartsOfSpeech.NNPS ||
-            token.POS === MinorPartsOfSpeech.NNPA) {
-          token.properties.push(Properties.PROPER);
-        }
-        if (token.POS === MinorPartsOfSpeech.NNPS  ||
-            token.POS === MinorPartsOfSpeech.NNS) {
-          token.properties.push(Properties.PLURAL);
-        }
-        if (token.POS === MinorPartsOfSpeech.CD ||
-            token.POS === MinorPartsOfSpeech.DA ||
-            token.POS === MinorPartsOfSpeech.NU) {
-          token.properties.push(Properties.QUANTITY);
-        }
-        if (token.POS === MinorPartsOfSpeech.PP ||
-            token.POS === MinorPartsOfSpeech.PRP) {
-          token.properties.push(Properties.PRONOUN);
-        }
-        if (token.POS === MinorPartsOfSpeech.NNQ) {
-          token.properties.push(Properties.PROPER);
-          token.properties.push(Properties.QUOTED);
-        }
+      if (token.POS === MinorPartsOfSpeech.NNO || 
+          token.POS === MinorPartsOfSpeech.PP) {
+        token.properties.push(Properties.POSSESSIVE);
       }
+      if (token.POS === MinorPartsOfSpeech.NNP  ||
+          token.POS === MinorPartsOfSpeech.NNPS ||
+          token.POS === MinorPartsOfSpeech.NNPA) {
+        token.properties.push(Properties.PROPER);
+      }
+      if (token.POS === MinorPartsOfSpeech.NNPS  ||
+          token.POS === MinorPartsOfSpeech.NNS) {
+        token.properties.push(Properties.PLURAL);
+      }
+      if (token.POS === MinorPartsOfSpeech.PP ||
+          token.POS === MinorPartsOfSpeech.PRP) {
+        token.properties.push(Properties.PRONOUN);
+      }
+      if (token.POS === MinorPartsOfSpeech.NNQ) {
+        token.properties.push(Properties.PROPER);
+        token.properties.push(Properties.QUOTED);
+      }
+      
       
       // Add default properties to adjectives and adverbs
       if (token.POS === MinorPartsOfSpeech.JJR || token.POS === MinorPartsOfSpeech.RBR) {
@@ -312,6 +307,12 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
       }
       else if (token.POS === MinorPartsOfSpeech.JJS || token.POS === MinorPartsOfSpeech.RBS) {        
         token.properties.push(Properties.SUPERLATIVE);
+      }
+      
+      // Add default properties to values
+      if (token.POS === MinorPartsOfSpeech.CD ||
+          token.POS === MinorPartsOfSpeech.NU) {
+        token.properties.push(Properties.QUANTITY);
       }
       
       // Add default properties to separators
@@ -654,14 +655,17 @@ function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech 
       minorPartOfSpeech === MinorPartsOfSpeech.NNPS ||
       minorPartOfSpeech === MinorPartsOfSpeech.NNS  ||
       minorPartOfSpeech === MinorPartsOfSpeech.NNQ  ||
-      minorPartOfSpeech === MinorPartsOfSpeech.CD   ||
-      minorPartOfSpeech === MinorPartsOfSpeech.DA   ||
-      minorPartOfSpeech === MinorPartsOfSpeech.NU   ||
       minorPartOfSpeech === MinorPartsOfSpeech.NNO  ||
       minorPartOfSpeech === MinorPartsOfSpeech.NG   ||
       minorPartOfSpeech === MinorPartsOfSpeech.PRP  ||
       minorPartOfSpeech === MinorPartsOfSpeech.PP) {
         return MajorPartsOfSpeech.NOUN;
+  }
+  // Value
+  if (minorPartOfSpeech === MinorPartsOfSpeech.CD ||
+      minorPartOfSpeech === MinorPartsOfSpeech.DA ||
+      minorPartOfSpeech === MinorPartsOfSpeech.NU) {
+        return MajorPartsOfSpeech.VALUE;
   }
   // Glue
   if (minorPartOfSpeech === MinorPartsOfSpeech.FW  ||
@@ -865,6 +869,23 @@ function previouslyMatched(node: Node, ignoreFunctions?: boolean): Node {
   }
 }
 
+// Returns the first ancestor node that has been found
+function previouslyMatchedEntityOrCollection(node: Node, ignoreFunctions?: boolean): Node {
+  if (ignoreFunctions === undefined) {
+    ignoreFunctions = false;
+  }
+  if (node.parent === undefined) {
+    return undefined;
+  } else if (!ignoreFunctions && node.parent.hasProperty(Properties.FUNCTION) && !node.parent.hasProperty(Properties.CONJUNCTION))  {
+    return undefined;
+  } else if (node.parent.hasProperty(Properties.ENTITY) ||
+             node.parent.hasProperty(Properties.COLLECTION)) {
+    return node.parent;
+  } else {
+    return previouslyMatchedEntityOrCollection(node.parent,ignoreFunctions);
+  }
+}
+
 // Inserts a node after the target, moving all of the
 // target's children to the node
 // Before: [Target] -> [Children]
@@ -1063,6 +1084,7 @@ function wordToFunction(word: string): BuiltInFunction {
       return {name: ">", type: FunctionTypes.FILTER, attribute: "length", fields: ["a", "b"], project: false};
     case "younger":
       return {name: "<", type: FunctionTypes.FILTER, attribute: "age", fields: ["a", "b"], project: false};
+    case "&":
     case "and":
       return {name: "and", type: FunctionTypes.BOOLEAN, fields: [], project: false};
     case "or":
@@ -1102,7 +1124,71 @@ function formTree(tokens: Array<Token>) {
 
   // Turn tokens into nodes
   let nodes = tokens.filter((token) => token.node === undefined).map(newNode);
-    
+  
+  // Build ngrams
+  // @TODO Build ngrams by largest to smallest so I don't have to sort at the end
+  // @HACK also this feels hacky, although it seems right. Maybe there is a better way
+  let n = 4;
+  let ngrams: Array<Array<Node>> = [];
+  let inode;
+  for (let i = 1; i < nodes.length; i++) {
+    let insideGrams: Array<Array<Node>> = [];
+    for (let j = 0; j < n; j++) {
+      inode = nodes[i+j];
+      if (inode === undefined) {
+        break;
+      }
+      if (insideGrams.length === 0) {
+        for (let k = j; k < Math.min(n,nodes.length - i); k++) {
+          insideGrams.push([inode])
+        }
+      } else {
+        for (let k = j; k < Math.min(n,nodes.length - i); k++) {
+          let igram = insideGrams[k];
+          igram.push(inode);
+        }
+      }
+    }
+    ngrams = ngrams.concat(insideGrams)
+  }
+  // Sort the ngrams by length
+  ngrams.sort((b,a) => a.length - b.length);
+  // Check each ngram for a display name      
+  let matchedNgrams: Array<Array<Node>> = [];
+  for (let ngram of ngrams) {
+    let allFound = ngram.every((node) => node.found);
+    if (allFound !== true) {
+      let displayName = ngram.map((node)=>node.name).join(" ");
+      log(displayName)
+      let foundName = eve.findOne("display name",{ name: displayName });
+      log(foundName)
+      // If the display name is in the system, mark all the nodes as found 
+      if (foundName !== undefined) {
+        ngram.map((node) => node.found = true);
+        matchedNgrams.push(ngram);
+      }
+    }
+  }
+  // Turn ngrams into compound nodes
+  for (let ngram of matchedNgrams) {
+    // Don't do anything for 1-grams
+    if (ngram.length === 1) {
+      ngram[0].found = false
+      continue;
+    }
+    log(ngram)
+    let displayName = ngram.map((node)=>node.name).join(" ");
+    let lastGram = ngram[ngram.length - 1];
+    let compoundToken = newToken(displayName);
+    let compoundNode = newNode(compoundToken);
+    compoundNode.constituents = ngram;
+    compoundNode.ix = lastGram.ix;
+    // Inherit properties from the nodes
+    compoundNode.properties = lastGram.properties;    
+    // Insert compound node and remove constituent nodes
+    nodes.splice(nodes.indexOf(ngram[0]),ngram.length,compoundNode);
+  }
+
   // Do a quick pass to identify functions
   tokens.map((token) => {
     let node = token.node;
@@ -1123,6 +1209,7 @@ function formTree(tokens: Array<Token>) {
   nodes.map((thisNode,i) => {
     let nextNode = nodes[i + 1];
     if (nextNode !== undefined) {
+      thisNode.found = false;
       thisNode.addChild(nextNode);  
     }
   })
@@ -1130,7 +1217,7 @@ function formTree(tokens: Array<Token>) {
   // At this point we should only have a single root.
   nodes = nodes.filter((node) => node.parent === undefined);
   tree = nodes.pop();
-    
+  
   function resolveEntities(node: Node, context: Context): Context {
     let relationship: Relationship;
     
@@ -1339,8 +1426,8 @@ function formTree(tokens: Array<Token>) {
       
       // Handle pronouns
       if (node.hasProperty(Properties.PRONOUN)) {
-        log("Matching pronoun with previous entity...");
-        let matchedNode = previouslyMatched(node, true);
+        log("Handling pronoun...")
+        let matchedNode = previouslyMatchedEntityOrCollection(node, true);
         if (matchedNode !== undefined) {
           if (matchedNode.collection !== undefined) {
             node.collection = matchedNode.collection;
@@ -1356,6 +1443,8 @@ function formTree(tokens: Array<Token>) {
             break;
           }
         }
+        log("No pronoun match found");
+        break;
       }
       
       // Find the relationship between parent and child nodes
@@ -1366,9 +1455,11 @@ function formTree(tokens: Array<Token>) {
         // Find relationship between previously matched node and this one
         if (matchedNode.hasProperty(Properties.POSSESSIVE)) {
           if (matchedNode.hasProperty(Properties.ENTITY)) {
-            let found = findEntityAttribute(node,matchedNode.entity,context);
+            let found = findEntityAttribute(node, matchedNode.entity, context);
             if (found === true) {
               relationship = {type: RelationshipTypes.DIRECT};
+            } else {
+              findCollectionOrEntity(node, context);  
             }
           } else {
             relationship = findRelationship(matchedNode, node, context);  
@@ -1537,7 +1628,6 @@ function formTree(tokens: Array<Token>) {
   resolveEntities(tree,context);
   log("Entities resolved!");
 
-  
   // Rewire groupings and aggregates
   // @TODO Do this in a rewire step
   let aggregate = findChildWithProperty(tree, Properties.AGGREGATE);
@@ -1733,6 +1823,10 @@ interface Relationship {
 }
 
 function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relationship {
+  if (nodeA.hasProperty(Properties.QUANTITY) || nodeB.hasProperty(Properties.QUANTITY)) {
+    log ("Quantities have no relationship to anything else in the system");
+    return {type: RelationshipTypes.NONE}; 
+  }
   log(`Finding relationship between "${nodeA.name}" and "${nodeB.name}"`);
   let relationship: Relationship;
   // If both nodes are Collections, find their relationship
@@ -1764,7 +1858,6 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
     context.relationships.push(relationship);
     return relationship; 
   } else {
-    log("No relationship found :(");
     return {type: RelationshipTypes.NONE};  
   }
 }
@@ -1805,6 +1898,7 @@ function findCollectionToEntRelationship(coll: Collection, ent: Entity): Relatio
 }
 
 function findEntToAttrRelationship(entity: Entity, attr: Node, context: Context): Relationship {
+  log(`Finding Ent -> Attr relationship between "${entity.displayName}" and "${attr.name}"...`);
   // Check for a direct relationship
   // e.g. "Josh's age"
   let found = findEntityAttribute(attr,entity,context);
