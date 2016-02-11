@@ -442,7 +442,7 @@ export function pane(paneId:string):Element {
   let pane:Element = {c: `wiki-pane ${klass || ""}`, paneId, children: [header, disambiguation, content, footer]};
   let pos = eve.findOne("ui pane position", {pane: paneId});
   if(pos) {
-    pane.style = `left: ${pos.x}px; top: ${pos.y + 20}px;`;
+    pane.style = `left: ${isNaN(pos.x) ? pos.x : pos.x + "px"}; top: ${isNaN(pos.y) ? pos.y : (pos.y + 20) + "px"};`;
   }
   if(captureClicks) {
     pane.click = preventDefault;
@@ -1361,7 +1361,7 @@ function navigate(event, elem) {
   let {paneId} = elem.data;
   let info:any = {paneId, value: elem.link, peek: elem.peek};
   if(event.clientX) {
-    info.x = event.clientX;
+    info.x = "calc(50% - 350px)"; 
     info.y = event.clientY;
   }
   dispatch("ui set search", info).commit();

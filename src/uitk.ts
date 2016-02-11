@@ -94,7 +94,7 @@ function navigate(event, elem) {
   let {paneId} = elem.data;
   let info:any = {paneId, value: elem.link, peek: elem.peek};
   if(event.clientX) {
-    info.x = event.clientX;
+    info.x = "calc(50% - 350px)"; 
     info.y = event.clientY;
   }
   dispatch("ui set search", info).commit();
