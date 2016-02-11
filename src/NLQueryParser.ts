@@ -1108,6 +1108,33 @@ function formTree(tokens: Array<Token>) {
   // Turn tokens into nodes
   let nodes = tokens.filter((token) => token.node === undefined).map(newNode);
   
+  // Build ngrams
+  let start = performance.now();
+  let n = 4;
+  let ngrams: Array<Array<Node>> = [];
+  let inode;
+  ngramloop:
+  for (let i = 1; i < nodes.length; i++) {
+    let insideGrams: Array<Array<Node>> = [];
+    for (let j = 0; j < n; j++) {
+      inode = nodes[i+j];
+      if (inode === undefined) {
+        break;
+      }
+      if (insideGrams.length === 0) {
+        for (let k = j; k < Math.min(n,nodes.length - i); k++) {
+          insideGrams.push([inode])
+        }
+      } else {
+        for (let k = j; k < Math.min(n,nodes.length - i); k++) {
+          let igram = insideGrams[k];
+          igram.push(inode);
+        }
+      }
+    }
+    ngrams = ngrams.concat(insideGrams)
+  }
+  
   // Do a quick pass to identify functions
   tokens.map((token) => {
     let node = token.node;
