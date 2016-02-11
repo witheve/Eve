@@ -740,6 +740,8 @@ function autocompleterOptions(entityId, paneId, cell) {
     options = defineAutocompleteOptions(isEntity, parsed, text, params, entityId);
   } else if(state === "modify") {
     options = modifyAutocompleteOptions(isEntity, parsed, text, params, entityId);
+  } else if(state === "property") {
+    options = propertyAutocompleteOptions(isEntity, parsed, text, params, entityId);
   } else if(state === "url") {
     options = urlAutocompleteOptions(isEntity, parsed, text, params, entityId);
   }
@@ -753,6 +755,7 @@ function autocompleterOptions(entityId, paneId, cell) {
   }
   for(let option of options) {
     option["cell"] = cell;
+    option["paneId"] = paneId;
   }
   return {options, selected};
 }
@@ -777,6 +780,7 @@ function queryAutocompleteOptions(isEntity, parsed, text, params, entityId) {
     joiner = "an";
   }
 
+  let isAttribute = false;
   if(topOption) {
     let totalFound = 0;
     let {context} = topOption;
@@ -786,8 +790,9 @@ function queryAutocompleteOptions(isEntity, parsed, text, params, entityId) {
     let isEntAttr = totalFound === 2 && (context.entities.length === 1 || context.collections.length === 1);
     if(isEntAttr && context.maybeAttributes.length === 1) {
       options.push({score: 4,  action: setCellState, state: "define", text: `add ${text}`});
+      isAttribute = true;
     } else if(isEntAttr && context.attributes.length === 1) {
-      options.push({score: 2,  action: setCellState, state: "modify", text: `modify ${text}`});
+      options.push({score: 2.5,  action: setCellState, state: "modify", text: `modify ${text}`});
     }
   }
   // create
@@ -808,13 +813,18 @@ function queryAutocompleteOptions(isEntity, parsed, text, params, entityId) {
     options.push({score: 2, action: setCellState, state: "represent", text: `embed as ...`});
   }
   // set attribute
-  if(isEntity && eve.findOne("display name", {id: entityId}).name !== text) {
-    let isAScore = 2.5;
-    if(eve.findOne("collection", {collection: isEntity.id})) {
-      isAScore = 3;
+  if(text && eve.findOne("display name", {id: entityId}).name !== text) {
+    if(!isAttribute) {
+      options.push({score: 2.5, action: setCellState, state: "property", text: `add as a property of ${pageName}`})
     }
-    options.push({score: 2.5, action: addAttributeAndEmbed, replace: "is a", entityId, value: isEntity.id, attribute: "related to", text: `${pageName} is related to ${text}`});
-    options.push({score: isAScore, action: addAttributeAndEmbed, replace: "related to", entityId, value: isEntity.id, attribute: "is a", text: `${pageName} is ${joiner} ${text}`});
+    if(isEntity)  {
+      let isAScore = 2.5;
+      if(eve.findOne("collection", {collection: isEntity.id})) {
+        isAScore = 3;
+      }
+      options.push({score: 2.5, action: addAttributeAndEmbed, replace: "is a", entityId, value: isEntity.id, attribute: "related to", text: `${pageName} is related to ${text}`});
+      options.push({score: isAScore, action: addAttributeAndEmbed, replace: "related to", entityId, value: isEntity.id, attribute: "is a", text: `${pageName} is ${joiner} ${text}`});
+    }
   }
 
   // url embedding
@@ -916,6 +926,31 @@ function embedAs(elem, value, doEmbed) {
   doEmbed(`${text}|${rawParams}`);
 }
 
+function propertyAutocompleteOptions(isEntity, parsed, text, params, entityId) {
+  let options:{score: number, action: any, text?: string, [attr:string]: any}[] = [];
+  let topParse = parsed[0];
+  let asQuery = topParse && topParse.state === StateFlags.COMPLETE;
+  let option:any = {score: 1, action: definePropertyAndEmbed, entityId, asQuery};
+  option.children = [
+    {c: "attribute-name", text: "property"},
+    {c: "inline-cell", contentEditable: true, selected:option, keydown: defineKeys, postRender: autoFocus}
+  ]
+  options.push(option);
+  return options;
+}
+
+function definePropertyAndEmbed(elem, value, doEmbed) {
+  let {selected} = elem;
+  let {entityId, asQuery, defineValue} = selected;
+  if(asQuery) {
+    value = `= ${value}`;
+  }
+  let success = handleAttributeDefinition(entityId, defineValue, value);
+  console.log("SUCCESS", success);
+  let entityName = eve.findOne("display name", {id: entityId}).name;
+  doEmbed(`${entityName}'s ${defineValue}|rep=CSV;field=${defineValue}`);
+}
+
 function defineAutocompleteOptions(isEntity, parsed, text, params, entityId) {
   let options:{score: number, action: any, text?: string, [attr:string]: any}[] = [];
   let topParse = parsed[0];
@@ -930,13 +965,12 @@ function defineAutocompleteOptions(isEntity, parsed, text, params, entityId) {
   let entity = subject.id;
   let option:any = {score: 1, action: defineAndEmbed, attribute, entity};
   option.children = [
-    {text: attribute},
+    {c: "attribute-name", text: attribute},
     {c: "inline-cell", contentEditable: true, selected:option, keydown: defineKeys, postRender: autoFocus}
   ]
   options.push(option);
   return options;
 }
-
 
 function focusSelected(node, elem) {
   if(elem.selected.selected && node !== document.activeElement){
@@ -977,7 +1011,7 @@ function modifyAutocompleteOptions(isEntity, parsed, text, params, entityId) {
       text = `= ${display.name}`;
     }
     option.children = [
-      {text: attribute},
+      {c: "attribute-name", text: attribute},
       {c: "inline-cell", contentEditable: true, text, optionIx: ix, click:selectOptionIx, selected:option, keydown: defineKeys, postRender: focusSelected}
     ]
     options.push(option);
@@ -985,7 +1019,7 @@ function modifyAutocompleteOptions(isEntity, parsed, text, params, entityId) {
   }
   let option:any = {score: 1, action: defineAndEmbed, attribute, entity};
   option.children = [
-    {text: attribute},
+    {c: "attribute-name", text: attribute},
     {c: "inline-cell", contentEditable: true, selected:option, keydown: defineKeys, postRender: focusSelected}
   ]
   options.push(option);
@@ -994,8 +1028,17 @@ function modifyAutocompleteOptions(isEntity, parsed, text, params, entityId) {
 
 function modifyAndEmbed(elem, text, doEmbed) {
   let {eav, defineValue, params, sourceView, query} = elem.selected;
-  submitAttribute({currentTarget: {value: defineValue}}, {eav, sourceView, query})
-  doEmbed(`${text}|${stringifyParams(params)}`);
+  let success = submitAttribute({currentTarget: {value: defineValue}}, {eav, sourceView, query});
+  if(!success) {
+    console.log("I don't know what to do");
+  }
+  // if you didn't remove all the attributes, just re-embed what was there
+  if(eve.findOne("entity eavs", {entity: eav.entity, attribute: eav.attribute})) {
+    doEmbed(`${text}|${stringifyParams(params)}`);
+  } else {
+    // otherwise there's no point in embedding an error cell
+    doEmbed("");
+  }
 }
 
 function interpretAttributeValue(value): {isValue: boolean, parse?:any, value?:any} {
@@ -1020,13 +1063,16 @@ function handleAttributeDefinition(entity, attribute, search, chain?) {
   }
   let {isValue, value, parse} = interpretAttributeValue(search);
   if(isValue) {
+    console.log("ADDED SOURCED EAV", entity, attribute, value);
     chain.dispatch("add sourced eav", {entity, attribute, value}).commit();
   } else {
     let queryText = value.trim();
     // add the query
     dispatch("insert query", {query: queryText}).commit();
     // create another query that projects eavs
-    let id = eve.findOne("query to id", {query: queryText}).id;
+    let queryToId = eve.findOne("query to id", {query: queryText});
+    if(!queryToId) return false;
+    let id = queryToId.id;
     let params = getCellParams(queryText, "");
     if(!params["field"]) {
       return false;
@@ -1063,6 +1109,9 @@ function defineKeys(event, elem) {
     dispatch("moveCellAutocomplete", {cell, direction: 1}).commit();
   } else if(event.keyCode === KEYS.ESC) {
     dispatch("clearActiveCells").commit();
+    if(elem.selected.paneId) {
+      paneEditors[elem.selected.paneId].cmInstance.focus();
+    }
   }
 }
 
@@ -1248,11 +1297,18 @@ function makeDoEmbedFunction(cm, mark, cell, paneId) {
       text = display.id;
     }
     let replacement = `{${text}|${rawParams || ""}}`;
+    if(text === "") {
+      replacement = "";
+    }
     if(cm.getRange(from, to) !== replacement) {
       cm.replaceRange(replacement, from, to);
     }
     paneEditors[paneId].cmInstance.focus();
-    dispatch("insert query", {query: text}).dispatch("removeActiveCell", cell).commit();
+    let chain = dispatch("removeActiveCell", cell);
+    if(replacement) {
+      chain.dispatch("insert query", {query: text});
+    }
+    chain.commit();
   }
 }
 
@@ -1496,13 +1552,15 @@ function submitAdder(event, elem) {
   let state = uiState.widget.attributes[entityId];
   if(!state) return;
   let {adderAttribute, adderValue} = state;
+  let success = false;
   if(adderAttribute && adderValue) {
     let chain = dispatch("setAttributeAdder", {entityId, field: "adderAttribute", value: ""})
                 .dispatch("setAttributeAdder", {entityId, field: "adderValue", value: ""});
-    handleAttributeDefinition(entityId, adderAttribute, adderValue, chain);
+    success = handleAttributeDefinition(entityId, adderAttribute, adderValue, chain);
   }
   //make sure the focus ends up back in the property input
   event.currentTarget.parentNode.firstChild.focus();
+  return success;
 }
 
 appHandle("remove attribute generating query", (changes:Diff, {eav, view}) => {
@@ -1538,7 +1596,7 @@ function submitAttribute(event, elem) {
     chain.dispatch("remove entity attribute", fact);
   }
   if(value !== undefined && value !== "") {
-    handleAttributeDefinition(eav.entity, eav.attribute, value, chain);
+    return handleAttributeDefinition(eav.entity, eav.attribute, value, chain);
   } else {
     chain.commit();
   }
