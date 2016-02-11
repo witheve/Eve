@@ -1137,7 +1137,7 @@ function formTree(tokens: Array<Token>) {
   }
   // Sort the ngrams by length
   ngrams.sort((b,a) => a.length - b.length);      
-  let matchedNGrams: Array<Array<Node>> = [];
+  let matchedNgrams: Array<Array<Node>> = [];
   for (let ngram of ngrams) {
     let allFound = ngram.every((node) => node.found);
     if (allFound !== true) {
@@ -1146,15 +1146,27 @@ function formTree(tokens: Array<Token>) {
       // If the display name is in the system, mark all the nodes as found 
       if (foundName !== undefined) {
         ngram.map((node) => node.found = true);
-        matchedNGrams.push(ngram);
+        matchedNgrams.push(ngram);
       }
     }
   }
+  // Turn ngrams into compound nodes
+  for (let ngram of matchedNgrams) {
+    let displayName = ngram.map((node)=>node.name).join(" ");
+    let lastGram = ngram[ngram.length - 1];
+    let compoundToken = newToken(displayName);
+    let compoundNode = newNode(compoundToken);
+    compoundNode.constituents = ngram;
+    compoundNode.ix = lastGram.ix;
+    // Inherit properties from the nodes
+    // @TODO
+    
+    // Insert compound node and remove constituent nodes
+    nodes.splice(nodes.indexOf(ngram[0]),3,compoundNode);
+  }
   let stop = performance.now();
   console.log(stop-start)
-  console.log(matchedNGrams);
-  
-  
+
   // Do a quick pass to identify functions
   tokens.map((token) => {
     let node = token.node;
