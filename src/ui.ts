@@ -2,7 +2,7 @@ declare var pluralize; // @TODO: import me.
 
 import {parse as marked, Renderer as MarkedRenderer} from "../vendor/marked";
 import * as CodeMirror from "codemirror";
-import {copy, uuid, coerceInput, builtinId, autoFocus, KEYS, mergeObject, setEndOfContentEditable, slugify} from "./utils";
+import {copy, uuid, coerceInput, builtinId, autoFocus, KEYS, mergeObject, setEndOfContentEditable, slugify, location as getLocation} from "./utils";
 import {Diff, Query} from "./runtime";
 import {createEditor} from "./richTextEditor";
 import {Element, Handler, RenderHandler, Renderer} from "./microReact";
@@ -54,9 +54,9 @@ export function setURL(paneId:string, contains:string, replace?:boolean) {
   if(paneId !== "p1") return; // @TODO: Make this a constant
   
   let url;
-  if(contains.length === 0) url = "/";
-  else if(name === contains) url = `/search/${slugify(contains)}`;
-  else url = `/${slugify(name)}/${slugify(contains)}`;
+  if(contains.length === 0) url = "#";
+  else if(name === contains) url = `#/search/${slugify(contains)}`;
+  else url = `#/${slugify(name)}/${slugify(contains)}`;
   let state = {paneId, contains};
   window["states"] = window["states"] || [];
   window["states"].push(state);
@@ -161,7 +161,7 @@ appHandle("update page", (changes:Diff, {page, content}: {page: string, content:
   if(name !== prevName) {
     changes.remove("display name", {id: entity, name: prevName});
     changes.add("display name", {id: entity, name});
-    let parts = window.location.pathname.split("/");
+    let parts = getLocation().split("/");
     if(parts.length > 2 && parts[2].replace(/_/gi, " ") === entity) {
       window.history.replaceState(window.history.state, null, `/${slugify(name)}/${slugify(entity)}`);
     }
@@ -1827,7 +1827,7 @@ function represent(search: string, rep:string, results, params:{}):Element {
 }
 
 let historyState = window.history.state;
-let historyURL = window.location.pathname;
+let historyURL = getLocation();
 window.addEventListener("popstate", function(evt) {
   let popout = eve.findOne("ui pane", {kind: PANE.POPOUT});
   if(popout && popoutHistory.length) {
@@ -1841,7 +1841,7 @@ window.addEventListener("popstate", function(evt) {
   }
 
   historyState = evt.state;
-  historyURL = window.location.pathname;
+  historyURL = getLocation();
 
   let {paneId = undefined, contains = undefined} = evt.state || {};
   if(paneId === undefined || contains === undefined) return;

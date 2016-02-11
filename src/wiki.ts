@@ -3,7 +3,7 @@
 import * as app from "./app";
 import * as bootstrap from "./bootstrap";
 import * as ui from "./ui";
-import {deslugify} from "./utils";
+import {deslugify, location as getLocation} from "./utils";
 
 
 app.renderRoots["wiki"] = ui.root;
@@ -23,14 +23,17 @@ app.init("wiki", function() {
   app.activeSearches = {};
   initSearches(app.eve);
 
-  window.history.replaceState({root: true}, null, window.location.pathname);
+  window.history.replaceState({root: true}, null, window.location.hash);
   let mainPane = app.eve.findOne("ui pane", {pane: "p1"});
-  let path = window.location.pathname;
+  let path = getLocation();
   if(path !== "/") {
-    let [_, kind, content] = path.split("/");
-    content = deslugify(content);
-    app.dispatch("ui set search", {paneId: mainPane.pane, value: content, popState: true}).commit();
-    ui.setURL("p1", content);
+    let [_, kind, raw] = path.split("/");
+    let content = deslugify(raw);
+    let cur = app.dispatch("ui set search", {paneId: mainPane.pane, value: content, popState: true});
+    if(!app.eve.findOne("query to id", {query: content})) {
+      cur.dispatch("insert query", {query: content});
+    }
+    cur.commit();
   } else {
     ui.setURL("p1", mainPane.contains);
   }

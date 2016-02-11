@@ -236,3 +236,7 @@ export function sortByLookup(lookup:{}):(a, b) => number {
     (lookup[a] < lookup[b]) ? 1 :
     (lookup[a] === undefined) ? 1 : -1;
 }
+
+export function location() {
+  return window.location.hash.slice(1);
+}
