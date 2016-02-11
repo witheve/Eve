@@ -50,8 +50,8 @@ function preventDefault(event) {
 }
 
 // @NOTE: ids must not contain whitespace
-function asEntity(raw:string):string {
-  let cleaned = raw && raw.trim();
+function asEntity(raw:string|number):string {
+  let cleaned = raw && (""+raw).trim();
   if(!cleaned) return;
 
   if(eve.findOne("entity", {entity: cleaned})) return cleaned;
@@ -155,6 +155,10 @@ appHandle("ui toggle search plan", (changes:Diff, {paneId}:{paneId:string}) => {
 appHandle("add sourced eav", (changes:Diff, eav:{entity:string, attribute:string, value:string|number, source:string}) => {
   if(!eav.source) {
     eav.source = uuid();
+  }
+  let valueId = asEntity(eav.value);
+  if(valueId) {
+    eav.value = valueId;
   }
   changes.add("sourced eav", eav);
 });
@@ -320,7 +324,7 @@ let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, 
       c: "window",
       captureClicks: true,
       header: {t: "header", c: "", children: [
-        {t: "button", c: "ion-android-open", click: navigateParent, link: entityId, paneId: paneId, parentId: parent, text:""},
+        {t: "button", c: "ion-android-open", click: navigateParent, link: entityId, paneId, parentId: parent, text:""},
       ]},
     };
   },
@@ -690,9 +694,9 @@ function cellEditor(entityId, paneId, cell):Element {
     text = "";
   }
 
-  let contentEntityId = asEntity(text);
-  if(contentEntityId) {
-    text = uitk.resolveName(contentEntityId);
+  let {name = undefined} = eve.findOne("display name", {id: text}) || {};
+  if(name) {
+    text = name;
   }
   return {children: [
     {c: "embedded-cell", children: [
@@ -752,7 +756,7 @@ function autocompleterOptions(entityId, paneId, cell) {
     text = uitk.resolveName(contentEntityId);
   }
   
-  let isEntity = !!contentEntityId;
+  let isEntity = eve.findOne("display name", {id: contentEntityId});
   let parsed = [];
   if(text !== "") {
     try {
@@ -1037,7 +1041,7 @@ function modifyAutocompleteOptions(isEntity, parsed, text, params, entityId) {
     let generated = eve.findOne("generated eav", {entity: eav.entity, attribute: eav.attribute, value: eav.value});
     let text = eav.value;
     let sourceView;
-    let contentEntityId = asEntity(text);
+    let display = eve.findOne("display name", {id: text});
     if(generated) {
       sourceView = generated.source;
       if(sourcesSeen[sourceView]) continue;
@@ -1045,8 +1049,8 @@ function modifyAutocompleteOptions(isEntity, parsed, text, params, entityId) {
       text = `= ${eve.findOne("query to id", {id: sourceView}).query}`;
       option.sourceView = sourceView;
       option.query = text;
-    } else if(contentEntityId) {
-      text = `= ${uitk.resolveName(contentEntityId)}`;
+    } else if(display) {
+      text = `= ${display.name}`;
     }
     option.children = [
       {c: "attribute-name", text: attribute},
@@ -1655,8 +1659,8 @@ function submitAttribute(event, elem) {
 //---------------------------------------------------------
 export function searchInput(paneId:string, value:string):Element {
   let name = value;
-  let entityId = asEntity(value);
-  if(entityId) name = uitk.resolveName(entityId);
+  let display = eve.findOne("display name", {id: value});
+  if(display) name = display.name;
   let state = uiState.widget.search[paneId] || {focused: false, plan: false};
   return {
     c: "flex-grow wiki-search-wrapper",
