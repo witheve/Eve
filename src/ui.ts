@@ -283,8 +283,9 @@ export function root():Element {
   }
   if(uiState.prompt.open && uiState.prompt.prompt && !uiState.prompt.paneId) {
     panes.push(
-      {style: "position: absolute; top: 0; left: 0; bottom: 0; right: 0; z-index: 10; background: rgba(0, 0, 0, 0.0);", click: closePrompt},
-      uiState.prompt.prompt()
+      {c: "shade", click: closePrompt, children: [
+        uiState.prompt.prompt()
+      ]},
     );
   }
   return {c: "wiki-root", id: "root", children: panes, click: removePopup};
@@ -329,7 +330,9 @@ function openPrompt(event, elem) {
   dispatch("toggle prompt", {prompt: elem.prompt, paneId: elem.paneId, open: true}).commit();
 }
 function closePrompt(event, elem) {
-  dispatch("toggle prompt", {open: false}).commit();
+  if(event.target === event.currentTarget) {
+    dispatch("toggle prompt", {open: false}).commit();
+  }
 }
 
 function navigateParent(event, elem) {
@@ -361,6 +364,28 @@ function loadFromFile(event:Event, elem) {
   };
   reader.readAsText(file);
 }
+
+function deleteDatabasePrompt():Element {
+  return {c: "modal-prompt delete-prompt", children: [
+    {t: "header", c: "flex-row", children: [
+      {t: "h2", text: "DELETE DATABASE"},
+      {c: "flex-grow"},
+      {c: "controls", children: [{c: "ion-close-round", click: closePrompt}]}
+    ]},
+    {c: "info", text: "This will remove all information currently stored in Eve for you and cannot be undone."},
+    {c: "flex-row", children: [
+      {t: "button", c: "delete-btn", text: "DELETE EVERYTHING FOREVER", click: nukeDatabase},
+      {c: "flex-grow"},
+      {t: "button", text: "Cancel", click: closePrompt},
+    ]}
+  ]};
+}
+
+function nukeDatabase() {
+  localStorage.clear();
+  window.location.reload();
+}
+
 
 function savePrompt():Element {
   let serialized = localStorage[eveLocalStorageKey];
@@ -477,7 +502,8 @@ function paneSettings(paneId:string) {
   return {t: "ul", c: "settings", children: [
     {t: "li", c: "save-btn", text: "save", prompt: savePrompt, click: openPrompt},
     {t: "li", c: "load-btn", text: "load", prompt: loadPrompt, click: openPrompt},
-    entity && !isSystem ? {t: "li", c: "delete-btn", text: "delete page", entity, paneId, click: deleteEntity} : undefined
+    entity && !isSystem ? {t: "li", c: "delete-btn", text: "delete page", entity, paneId, click: deleteEntity} : undefined,
+    {t: "li", c: "delete-btn", text: "DELETE DATABASE", prompt: deleteDatabasePrompt, click: openPrompt},
   ]};
 }
 
@@ -1918,7 +1944,7 @@ window.addEventListener("popstate", function(evt) {
 // Prevent backspace from going back
 window.addEventListener("keydown", (event) => {
   var current = <HTMLElement>event.target;
-  if(current.nodeName !== "INPUT" && current.nodeName !== "TEXTAREA" && current.contentEditable !== "true") {
+  if(event.keyCode === KEYS.BACKSPACE && current.nodeName !== "INPUT" && current.nodeName !== "TEXTAREA" && current.contentEditable !== "true") {
     event.preventDefault();
   }
 })
