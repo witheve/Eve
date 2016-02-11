@@ -282,11 +282,9 @@ export function root():Element {
     panes.push(pane(paneId));
   }
   if(uiState.prompt.open && uiState.prompt.prompt && !uiState.prompt.paneId) {
-    panes.push(
-      {c: "shade", click: closePrompt, children: [
-        uiState.prompt.prompt()
-      ]},
-    );
+    panes.push({c: "shade", click: closePrompt, children: [
+      uiState.prompt.prompt()
+    ]});
   }
   return {c: "wiki-root", id: "root", children: panes, click: removePopup};
 }
@@ -1148,7 +1146,7 @@ export function entity(entityId:string, paneId:string, kind: PANE, options:any =
   if(content === undefined) return {text: "Could not find the requested page"};
   let page = eve.findOne("entity page", {entity: entityId})["page"];
   let {name} = eve.findOne("display name", {id: entityId});
-  let cells = getCells(content);
+  let cells = getCells(content, paneId);
   let keys = {
     "Backspace": (cm) => maybeActivateCell(cm, paneId),
     "Cmd-Enter": (cm) => maybeNavigate(cm, paneId),
@@ -1305,7 +1303,7 @@ function createEmbedPopout(cm, paneId) {
     let to = cm.posFromIndex(cm.getCursor("from"));
     let fromIx = cm.indexFromPos(from);
     let toIx = cm.indexFromPos(to);
-    let cell = {id, start: fromIx, length: toIx - fromIx, placeholder: true, query: ""};
+    let cell = {id, start: fromIx, length: toIx - fromIx, placeholder: true, query: "", paneId};
     dispatch("addActiveCell", {id, query: "", cell, placeholder: true});
   });
 }
@@ -1398,7 +1396,7 @@ function navigate(event, elem) {
 // Page parsing
 //---------------------------------------------------------
 
-function getCells(content: string) {
+function getCells(content: string, paneId) {
   let cells = [];
   let ix = 0;
   let ids = {};
@@ -1420,7 +1418,10 @@ function getCells(content: string) {
     ix += part.length;
   }
   for(let active in activeCells) {
-    cells.push(activeCells[active].cell);
+    let cell = activeCells[active].cell;
+    if(cell.paneId === paneId) {
+      cells.push(cell);
+    }
   }
   return cells;
 }
