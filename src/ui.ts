@@ -742,6 +742,8 @@ function autocompleterOptions(entityId, paneId, cell) {
     options = modifyAutocompleteOptions(isEntity, parsed, text, params, entityId);
   } else if(state === "property") {
     options = propertyAutocompleteOptions(isEntity, parsed, text, params, entityId);
+  } else if(state === "attributes ui") {
+    options = attributesUIAutocompleteOptions(isEntity, parsed, text, params, entityId);
   } else if(state === "url") {
     options = urlAutocompleteOptions(isEntity, parsed, text, params, entityId);
   }
@@ -1494,6 +1496,13 @@ function attributesUI(entityId, paneId) {
     {t: "input", c: "value", placeholder: "value", keydown: handleAttributesKey, input: setAdder, submit: submitAdder, field: "adderValue", entityId, value: state.adderValue},
   ]});
   return {c: "attributes", children: tableChildren};
+}
+
+function attributesUIAutocompleteOptions(isEntity, parsed, text, params, entityId) {
+  let options:{score: number, action: any, text: string, [attr:string]: any}[] = [];
+  //there are two possible things either we're creating a page
+  // or we need to pick what field of the result we want
+  return options;
 }
 
 appHandle("setActiveAttribute", (changes: Diff, {eav, sourceView}) => {
