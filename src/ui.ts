@@ -49,6 +49,18 @@ function preventDefault(event) {
   event.preventDefault();
 }
 
+// @NOTE: ids must not contain whitespace
+function asEntity(raw:string):string {
+  let cleaned = raw && raw.trim();
+  if(!cleaned) return;
+
+  if(eve.findOne("entity", {entity: cleaned})) return cleaned;
+  cleaned = cleaned.toLowerCase();
+  if(eve.findOne("entity", {entity: cleaned})) return cleaned; // This can be removed if we remove caps from ids. UUIDv4 does not use caps in ids
+  let {id = undefined} = eve.findOne("index name", {name: cleaned}) || {};
+  return id;
+}
+
 export function setURL(paneId:string, contains:string, replace?:boolean) {
   let name = uitk.resolveName(contains);
   if(paneId !== "p1") return; // @TODO: Make this a constant
@@ -74,8 +86,8 @@ appHandle("ui focus search", (changes:Diff, {paneId, value}:{paneId:string, valu
 });
 appHandle("ui set search", (changes:Diff, {paneId, value, peek, x, y, popState}:{paneId:string, value:string, peek: boolean, x?: number, y?: number, popState?: boolean}) => {
   value = value.trim();
-  let displays = eve.find("display name", {name: value});
-  if(displays.length === 1) value = displays[0].id;
+  let entity = asEntity(value);
+  if(entity) value = entity;
   let fact;
   if(paneId === "p1") { // @TODO: Make this a constant
     popoutHistory = [];
@@ -196,8 +208,8 @@ appHandle("create query", (changes:Diff, {id, content}) => {
 });
 
 appHandle("insert query", (changes:Diff, {query}) => {
+  query = query.trim().toLowerCase();
   if(eve.findOne("query to id", {query})) return;
-  query = query.trim();
   let parsed = nlparse(query);
   if(parsed[0].state === StateFlags.COMPLETE) {
     let artifacts = parseDSL(parsed[0].query.toString());
@@ -429,25 +441,26 @@ function loadedPrompt():Element {
 export function pane(paneId:string):Element {
   // @FIXME: Add kind to ui panes
   let {contains = undefined, kind = PANE.FULL} = eve.findOne("ui pane", {pane: paneId}) || {};
+  let cleaned = contains && contains.trim().toLowerCase();
   let makeChrome = paneChrome[kind];
   if(!makeChrome) throw new Error(`Unknown pane kind: '${kind}' (${PANE[kind]})`);
   let {c:klass, header, footer, captureClicks} = makeChrome(paneId, contains);
   let content;
-  let display = eve.findOne("display name", {name: contains}) || eve.findOne("display name", {id: contains});
+  let entityId = asEntity(contains);
 
   let contentType = "entity";
   if(contains.length === 0) {
     content = entity(builtinId("home"), paneId, kind);
 
-  } else if(contains.indexOf("search: ") === 0) {
+  } else if(cleaned.indexOf("search: ") === 0) {
     contentType = "search";
-    content = search(contains.substring("search: ".length), paneId);
-  } else if(display) {
+    content = search(cleaned.substring("search: ".length), paneId);
+  } else if(entityId) {
     let options:any = {};
-    content = entity(display.id, paneId, kind, options);
-  } else if(eve.findOne("query to id", {query: contains})) {
+    content = entity(entityId, paneId, kind, options);
+  } else if(eve.findOne("query to id", {query: cleaned})) {
     contentType = "search";
-    content = search(contains, paneId);
+    content = search(cleaned, paneId);
   } else if(contains !== "") {
     content = {c: "flex-row spaced-row", children: [
       {t: "span", text: `The page ${contains} does not exist. Would you like to`},
@@ -574,17 +587,16 @@ function queryUIInfo(query) {
   // let params = getCellParams(content, rawParams);
   let params = parseParams(rawParams);
   let results;
-  if(eve.findOne("display name", {id: content}) || eve.findOne("display name", {name: content})) {
-    let id = content;
-    let display = eve.findOne("display name", {name: content});
-    if(display) {
-      id = display["id"];
-    }
-    results = {unprojected: [{entity: id}], results: [{entity: id}]};
+  let entityId = asEntity(content);
+  if(entityId) {
+    results = {unprojected: [{entity: entityId}], results: [{entity: entityId}]};
+    
   } else if(urlRegex.exec(content)) {
     results = {unprojected: [{url: content}], results: [{url: content}]};
+    
   } else {
-    let queryId = eve.findOne("query to id", {query: content});
+    let cleaned = content && content.trim().toLowerCase();
+    let queryId = eve.findOne("query to id", {query: cleaned});
     if(queryId) {
       let queryResults = eve.find(queryId.id);
       let queryUnprojected = eve.table(queryId.id).unprojected;
@@ -606,10 +618,9 @@ function queryUIInfo(query) {
 
 function getCellParams(content, rawParams) {
   content = content.trim();
-  let display = eve.findOne("display name", {name: content});
   let params = parseParams(rawParams);
-  let contentDisplay = eve.findOne("display name", {id: content}) || eve.findOne("display name", {name: content});
-  if(contentDisplay) {
+  let entityId = asEntity(content);
+  if(entityId) {
     params["rep"] = params["rep"] || "link";
   } else if(urlRegex.exec(content)) {
     params["rep"] = params["rep"] || "externalLink";
@@ -678,9 +689,10 @@ function cellEditor(entityId, paneId, cell):Element {
   if(text.match(/\$\$.*\$\$/)) {
     text = "";
   }
-  let display = eve.findOne("display name", {id: text});
-  if(display) {
-    text = display["name"];
+
+  let contentEntityId = asEntity(text);
+  if(contentEntityId) {
+    text = uitk.resolveName(contentEntityId);
   }
   return {children: [
     {c: "embedded-cell", children: [
@@ -735,11 +747,12 @@ function autocompleterOptions(entityId, paneId, cell) {
     // @TODO: eventually people shouldn't be typing params in here so we should probably be doing
     // something else. But for now, if you're doing this, you're special.
   }
-  let display = eve.findOne("display name", {id: text});
-  if(display) {
-    text = display["name"];
+  let contentEntityId = asEntity(text);
+  if(contentEntityId) {
+    text = uitk.resolveName(contentEntityId);
   }
-  let isEntity = eve.findOne("display name", {name: text});
+  
+  let isEntity = !!contentEntityId;
   let parsed = [];
   if(text !== "") {
     try {
@@ -796,7 +809,7 @@ function positionAutocompleter(node, elem) {
 }
 
 function queryAutocompleteOptions(isEntity, parsed, text, params, entityId) {
-  let pageName = eve.findOne("display name", {id: entityId})["name"];
+  let pageName = uitk.resolveName(entityId);
   let options:{score: number, action: any, text: string, [attr:string]: any}[] = [];
   let hasValidParse = parsed.some((parse) => parse.state === StateFlags.COMPLETE);
   parsed.sort((a, b) => b.score - a.score);
@@ -839,7 +852,7 @@ function queryAutocompleteOptions(isEntity, parsed, text, params, entityId) {
     options.push({score: 2, action: setCellState, state: "represent", text: `embed as ...`});
   }
   // set attribute
-  if(text && eve.findOne("display name", {id: entityId}).name !== text) {
+  if(text && eve.findOne("index name", {id: entityId}).name !== text.toLowerCase()) {
     if(!isAttribute) {
       options.push({score: 2.5, action: setCellState, state: "property", text: `add as a property of ${pageName}`})
     }
@@ -876,7 +889,7 @@ function setCellState(elem, value, doEmbed) {
 
 function createAutocompleteOptions(isEntity, parsed, text, params, entityId) {
   let options:{score: number, action: any, text: string, [attr:string]: any}[] = [];
-  let pageName = eve.findOne("display name", {id: entityId})["name"];
+  let pageName = uitk.resolveName(entityId);
   let isCollection = isEntity ? eve.findOne("collection", {collection: isEntity.id}) : false;
   let joiner = "a";
   if(text && text[0].match(/[aeiou]/i)) {
@@ -972,7 +985,7 @@ function definePropertyAndEmbed(elem, value, doEmbed) {
     value = `= ${value}`;
   }
   let success = handleAttributeDefinition(entityId, defineValue, value);
-  let entityName = eve.findOne("display name", {id: entityId}).name;
+  let entityName = uitk.resolveName(entityId);
   doEmbed(`${entityName}'s ${defineValue}|rep=CSV;field=${defineValue}`);
 }
 
@@ -1024,7 +1037,7 @@ function modifyAutocompleteOptions(isEntity, parsed, text, params, entityId) {
     let generated = eve.findOne("generated eav", {entity: eav.entity, attribute: eav.attribute, value: eav.value});
     let text = eav.value;
     let sourceView;
-    let display = eve.findOne("display name", {id: text});
+    let contentEntityId = asEntity(text);
     if(generated) {
       sourceView = generated.source;
       if(sourcesSeen[sourceView]) continue;
@@ -1032,8 +1045,8 @@ function modifyAutocompleteOptions(isEntity, parsed, text, params, entityId) {
       text = `= ${eve.findOne("query to id", {id: sourceView}).query}`;
       option.sourceView = sourceView;
       option.query = text;
-    } else if(display) {
-      text = `= ${display.name}`;
+    } else if(contentEntityId) {
+      text = `= ${uitk.resolveName(contentEntityId)}`;
     }
     option.children = [
       {c: "attribute-name", text: attribute},
@@ -1071,9 +1084,9 @@ function interpretAttributeValue(value): {isValue: boolean, parse?:any, value?:a
   if(cleaned[0] === "=") {
     //parse it
     cleaned = cleaned.substring(1).trim();
-    let display = eve.findOne("display name", {name: cleaned}) || eve.findOne("display name", {id: cleaned});
-    if(display) {
-      return {isValue: true, value: display.id};
+    let entityId = asEntity(cleaned);
+    if(entityId) {
+      return {isValue: true, value: entityId};
     }
     let parsed = nlparse(cleaned);
     return {isValue: false, parse: parsed, value: cleaned};
@@ -1094,7 +1107,8 @@ function handleAttributeDefinition(entity, attribute, search, chain?) {
     // add the query
     dispatch("insert query", {query: queryText}).commit();
     // create another query that projects eavs
-    let queryToId = eve.findOne("query to id", {query: queryText});
+    let cleaned = queryText && queryText.trim().toLowerCase();
+    let queryToId = eve.findOne("query to id", {query: cleaned});
     if(!queryToId) return false;
     let id = queryToId.id;
     let params = getCellParams(queryText, "");
@@ -1143,7 +1157,7 @@ export function entity(entityId:string, paneId:string, kind: PANE, options:any =
   let {content = undefined} = eve.findOne("entity", {entity: entityId}) || {};
   if(content === undefined) return {text: "Could not find the requested page"};
   let page = eve.findOne("entity page", {entity: entityId})["page"];
-  let {name} = eve.findOne("display name", {id: entityId});
+  let name = uitk.resolveName(entityId);
   let cells = getCells(content, paneId);
   let keys = {
     "Backspace": (cm) => maybeActivateCell(cm, paneId),
@@ -1319,9 +1333,9 @@ function makeDoEmbedFunction(cm, mark, cell, paneId) {
     let [text, rawParams] = value.split("|");
     text = text.trim();
     // @TODO: this doesn't take disambiguations into account
-    let display = eve.findOne("display name", {name: text});
-    if(display) {
-      text = display.id;
+    let entityId = asEntity(text);
+    if(entityId) {
+      text = entityId;
     }
     let replacement = `{${text}|${rawParams || ""}}`;
     if(text === "") {
@@ -1640,11 +1654,9 @@ function submitAttribute(event, elem) {
 // Wiki Widgets
 //---------------------------------------------------------
 export function searchInput(paneId:string, value:string):Element {
-  let display = eve.findOne("display name", {id: value});
   let name = value;
-  if(display) {
-    name = display.name;
-  }
+  let entityId = asEntity(value);
+  if(entityId) name = uitk.resolveName(entityId);
   let state = uiState.widget.search[paneId] || {focused: false, plan: false};
   return {
     c: "flex-grow wiki-search-wrapper",
@@ -1808,17 +1820,7 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
 
     // If field isn't in results, try to resolve it as a field name, otherwise error out
     if(results[0][field] === undefined) {
-      let potentialIds = eve.find("display name", {name: field});
-      let neueField;
-      for(let display of potentialIds) {
-        if(results[0][display.id] !== undefined) {
-          if(neueField) {
-            neueField = undefined;
-            break;
-          }
-          neueField = display.id;
-        }
-      }
+      let neueField = asEntity(field);
       if(!neueField) throw new Error(`Unable to uniquely resolve field name ${field} in result fields ${Object.keys(results[0])}`);
       else field = neueField;
     }
@@ -1834,17 +1836,7 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
 
     // If field isn't in results, try to resolve it as a field name, otherwise error out
     if(results[0][field] === undefined) {
-      let potentialIds = eve.find("display name", {name: field});
-      let neueField;
-      for(let display of potentialIds) {
-        if(results[0][display.id] !== undefined) {
-          if(neueField) {
-            neueField = undefined;
-            break;
-          }
-          neueField = display.id;
-        }
-      }
+      let neueField = asEntity(field);
       if(!neueField) throw new Error(`Unable to uniquely resolve field name ${field} in result fields ${Object.keys(results[0])}`);
       else field = neueField;
     }

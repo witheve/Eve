@@ -231,6 +231,13 @@ app.init("bootstrap", function bootstrap() {
     .addUnionMember("collection entities", "is a attributes");
 
   phase.addArtifacts(parseDSL(`
+    (query :$$view "bs: index name"
+      (display-name :id id :name raw)
+      (lowercase :text raw :result name)
+      (project! "index name" :id id :name name))
+  `));
+  
+  phase.addArtifacts(parseDSL(`
     (query :$$view "bs: entity"
       (entity-page :entity entity :page page)
       (page-content :page page :content content)
