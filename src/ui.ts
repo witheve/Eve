@@ -226,7 +226,6 @@ appHandle("insert implication", (changes:Diff, {query}) => {
 
 appHandle("remove entity attribute", (changes:Diff, {entity, attribute, value}) => {
   changes.remove("sourced eav", {entity, attribute, value});
-  console.log(changes);
   // @FIXME: Make embeds auto-gc themselves when invalidated.
 });
 appHandle("update entity attribute", (changes:Diff, {entity, attribute, prev, value}) => {
@@ -620,7 +619,6 @@ function getCellParams(content, rawParams) {
     let parsed = nlparse(content);
     let currentParse = parsed[0];
     let context = currentParse.context;
-    console.log(content, currentParse);
     let hasCollections = context.collections.length;
     let field;
     let rep;
@@ -974,7 +972,6 @@ function definePropertyAndEmbed(elem, value, doEmbed) {
     value = `= ${value}`;
   }
   let success = handleAttributeDefinition(entityId, defineValue, value);
-  console.log("SUCCESS", success);
   let entityName = eve.findOne("display name", {id: entityId}).name;
   doEmbed(`${entityName}'s ${defineValue}|rep=CSV;field=${defineValue}`);
 }
@@ -1074,7 +1071,7 @@ function interpretAttributeValue(value): {isValue: boolean, parse?:any, value?:a
   if(cleaned[0] === "=") {
     //parse it
     cleaned = cleaned.substring(1).trim();
-    let display = eve.findOne("display name", {name: cleaned});
+    let display = eve.findOne("display name", {name: cleaned}) || eve.findOne("display name", {id: cleaned});
     if(display) {
       return {isValue: true, value: display.id};
     }
@@ -1091,7 +1088,6 @@ function handleAttributeDefinition(entity, attribute, search, chain?) {
   }
   let {isValue, value, parse} = interpretAttributeValue(search);
   if(isValue) {
-    console.log("ADDED SOURCED EAV", entity, attribute, value);
     chain.dispatch("add sourced eav", {entity, attribute, value}).commit();
   } else {
     let queryText = value.trim();
@@ -1567,7 +1563,6 @@ function setActiveAttribute(event, elem) {
 }
 
 function handleAttributesKey(event, elem) {
-  console.log("HERE");
   if(event.keyCode === KEYS.ENTER && elem.submit) {
     elem.submit(event, elem);
   } else if(event.keyCode === KEYS.ESC) {
@@ -1616,7 +1611,6 @@ appHandle("remove attribute generating query", (changes:Diff, {eav, view}) => {
     changes.remove("action mapping constant", {action});
   }
   changes.remove("action source", {source: queryId});
-  console.log(changes);
 });
 
 function submitAttribute(event, elem) {
@@ -1624,7 +1618,6 @@ function submitAttribute(event, elem) {
   let chain = dispatch("clearActiveAttribute", {entity: eav.entity});
   let value =  event.currentTarget.value;
   if(query !== undefined && value === query) {
-    console.log("BAILING");
     return chain.commit();
   }
   if(elem.sourceView !== undefined) {
@@ -1691,7 +1684,6 @@ function updateSearch(event, elem) {
   dispatch("ui update search", elem).commit();
 }
 function toggleSearchPlan(event, elem) {
-  console.log("toggle search plan", elem);
   dispatch("ui toggle search plan", elem).commit();
 }
 
