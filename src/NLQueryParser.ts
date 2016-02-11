@@ -1109,11 +1109,12 @@ function formTree(tokens: Array<Token>) {
   let nodes = tokens.filter((token) => token.node === undefined).map(newNode);
   
   // Build ngrams
+  // @TODO Build ngrams by largest to smallest so I don't have to sort at the end
+  // @HACK also this feels hacky, although it seems right. Maybe there is a better way
   let start = performance.now();
   let n = 4;
   let ngrams: Array<Array<Node>> = [];
   let inode;
-  ngramloop:
   for (let i = 1; i < nodes.length; i++) {
     let insideGrams: Array<Array<Node>> = [];
     for (let j = 0; j < n; j++) {
@@ -1134,24 +1135,25 @@ function formTree(tokens: Array<Token>) {
     }
     ngrams = ngrams.concat(insideGrams)
   }
-  // Filter out 1-grams
-  ngrams = ngrams.filter((n) => n.length > 1);
-  // Sort the ngrams by percentage nouns in the ngram
-  function countNouns(nodes: Array<Node>): number {
-    let count = 0;
-    for (let node of nodes) {
-      if (getMajorPOS(node.token.POS) === MajorPartsOfSpeech.NOUN) {
-        count += 1;
+  // Sort the ngrams by length
+  ngrams.sort((b,a) => a.length - b.length);      
+  let matchedNGrams: Array<Array<Node>> = [];
+  for (let ngram of ngrams) {
+    let allFound = ngram.every((node) => node.found);
+    if (allFound !== true) {
+      let displayName = ngram.map((node)=>node.name).join(" ");
+      let foundName = eve.findOne("display name",{ name: displayName });
+      // If the display name is in the system, mark all the nodes as found 
+      if (foundName !== undefined) {
+        ngram.map((node) => node.found = true);
+        matchedNGrams.push(ngram);
       }
     }
-    return count;
   }
-  ngrams.sort((a,b) => countNouns(a)/a.length - countNouns(b)/b.length);        
   let stop = performance.now();
   console.log(stop-start)
-  console.log(ngrams.map((ngram) => {
-   return ngram.map((node)=>node.name).join(" "); 
-  }).join("\n"));
+  console.log(matchedNGrams);
+  
   
   // Do a quick pass to identify functions
   tokens.map((token) => {
@@ -1817,7 +1819,6 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
     context.relationships.push(relationship);
     return relationship; 
   } else {
-    log("No relationship found :(");
     return {type: RelationshipTypes.NONE};  
   }
 }
