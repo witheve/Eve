@@ -340,7 +340,11 @@ function navigateParent(event, elem) {
 
 function removePopup(event, elem) {
   if(!event.defaultPrevented) {
-    dispatch("remove popup", {}).commit();
+    let chain = dispatch("remove popup", {}).dispatch("clearActiveCells", {});
+    for(let entity in uiState.widget.attributes) {
+      chain.dispatch("clearActiveAttribute", {entity});
+    }
+    chain.commit();
   }
 }
 
@@ -657,7 +661,7 @@ function cellEditor(entityId, paneId, cell):Element {
   return {children: [
     {c: "embedded-cell", children: [
       {c: "adornment", text: "="},
-      {t: "span", c:"", contentEditable: true, text, input: updateActiveCell, keydown: embeddedCellKeys, cell, selected, paneId, postRender: autoFocus ? focusCellEditor : undefined},
+      {t: "span", c:"", contentEditable: true, text, click: preventDefault, input: updateActiveCell, keydown: embeddedCellKeys, cell, selected, paneId, postRender: autoFocus ? focusCellEditor : undefined},
     ]},
     autocompleter(options, paneId, cell)
   ]};
@@ -682,6 +686,7 @@ function optionKeys(event, elem) {
 }
 
 function executeAutocompleterOption(event, elem) {
+  if(event.defaultPrevented) return;
   let {paneId, cell} = elem;
   let editor = paneEditors[paneId];
   let cm = editor.cmInstance;
@@ -733,6 +738,8 @@ function autocompleterOptions(entityId, paneId, cell) {
     options = createAutocompleteOptions(isEntity, parsed, text, params, entityId);
   } else if(state === "define") {
     options = defineAutocompleteOptions(isEntity, parsed, text, params, entityId);
+  } else if(state === "modify") {
+    options = modifyAutocompleteOptions(isEntity, parsed, text, params, entityId);
   } else if(state === "url") {
     options = urlAutocompleteOptions(isEntity, parsed, text, params, entityId);
   }
@@ -743,6 +750,9 @@ function autocompleterOptions(entityId, paneId, cell) {
     if(selectedIx < 0) selectedIx = options.length + selectedIx;
     selected = options[selectedIx];
     selected.selected = true;
+  }
+  for(let option of options) {
+    option["cell"] = cell;
   }
   return {options, selected};
 }
@@ -773,10 +783,11 @@ function queryAutocompleteOptions(isEntity, parsed, text, params, entityId) {
     for(let item in context) {
       totalFound += context[item].length;
     }
-    if(totalFound === 2 && (context.entities.length === 1 || context.collections.length === 1) && context.maybeAttributes.length === 1) {
-      options.push({score: 4,  action: setCellState, state: "define", text: `Add ${text}`});
-    } else if(totalFound === 2 && context.entities.length === 1 && context.attributes.length === 1) {
-      options.push({score: 1,  action: setCellState, state: "define", text: `Add another ${context.attributes[0].displayName}`});
+    let isEntAttr = totalFound === 2 && (context.entities.length === 1 || context.collections.length === 1);
+    if(isEntAttr && context.maybeAttributes.length === 1) {
+      options.push({score: 4,  action: setCellState, state: "define", text: `add ${text}`});
+    } else if(isEntAttr && context.attributes.length === 1) {
+      options.push({score: 2,  action: setCellState, state: "modify", text: `modify ${text}`});
     }
   }
   // create
@@ -926,6 +937,67 @@ function defineAutocompleteOptions(isEntity, parsed, text, params, entityId) {
   return options;
 }
 
+
+function focusSelected(node, elem) {
+  if(elem.selected.selected && node !== document.activeElement){
+    node.focus();
+    setEndOfContentEditable(node);
+  }
+}
+
+function selectOptionIx(event, elem) {
+  event.preventDefault();
+  dispatch("moveCellAutocomplete", {cell: elem.selected.cell, value: elem.optionIx}).commit();
+}
+
+function modifyAutocompleteOptions(isEntity, parsed, text, params, entityId) {
+  let options:{score: number, action: any, text?: string, [attr:string]: any}[] = [];
+  let topParse = parsed[0];
+  let context = topParse.context;
+  let attribute = context.attributes[0].displayName;
+  let subject = context.entities[0] || context.collections[0];
+  let entity = subject.id;
+  let eavs = eve.find("entity eavs", {entity, attribute});
+  let ix = 0;
+  let sourcesSeen = {};
+  for(let eav of eavs) {
+    let option:any = {score: 1, action: modifyAndEmbed, eav, params};
+    let generated = eve.findOne("generated eav", {entity: eav.entity, attribute: eav.attribute, value: eav.value});
+    let text = eav.value;
+    let sourceView;
+    let display = eve.findOne("display name", {id: text});
+    if(generated) {
+      sourceView = generated.source;
+      if(sourcesSeen[sourceView]) continue;
+      sourcesSeen[sourceView] = true;
+      text = `= ${eve.findOne("query to id", {id: sourceView}).query}`;
+      option.sourceView = sourceView;
+      option.query = text;
+    } else if(display) {
+      text = `= ${display.name}`;
+    }
+    option.children = [
+      {text: attribute},
+      {c: "inline-cell", contentEditable: true, text, optionIx: ix, click:selectOptionIx, selected:option, keydown: defineKeys, postRender: focusSelected}
+    ]
+    options.push(option);
+    ix++;
+  }
+  let option:any = {score: 1, action: defineAndEmbed, attribute, entity};
+  option.children = [
+    {text: attribute},
+    {c: "inline-cell", contentEditable: true, selected:option, keydown: defineKeys, postRender: focusSelected}
+  ]
+  options.push(option);
+  return options;
+}
+
+function modifyAndEmbed(elem, text, doEmbed) {
+  let {eav, defineValue, params, sourceView, query} = elem.selected;
+  submitAttribute({currentTarget: {value: defineValue}}, {eav, sourceView, query})
+  doEmbed(`${text}|${stringifyParams(params)}`);
+}
+
 function interpretAttributeValue(value): {isValue: boolean, parse?:any, value?:any} {
   let cleaned = value.trim();
   if(cleaned[0] === "=") {
@@ -981,9 +1053,16 @@ function defineAndEmbed(elem, text, doEmbed) {
 }
 
 function defineKeys(event, elem) {
+  let cell = elem.selected.cell;
   if(event.keyCode === KEYS.ENTER) {
     elem.selected.defineValue = event.currentTarget.textContent;
     event.preventDefault();
+  } else if(event.keyCode === KEYS.UP) {
+    dispatch("moveCellAutocomplete", {cell, direction: -1}).commit();
+  } else if(event.keyCode === KEYS.DOWN) {
+    dispatch("moveCellAutocomplete", {cell, direction: 1}).commit();
+  } else if(event.keyCode === KEYS.ESC) {
+    dispatch("clearActiveCells").commit();
   }
 }
 
@@ -1086,7 +1165,14 @@ function maybeNavigate(cm, paneId) {
 
 var activeCells = {};
 
+appHandle("clearActiveCells", (changes, info) => {
+  for(let cell in activeCells) {
+    changes.dispatch("removeActiveCell", activeCells[cell]);
+  }
+});
+
 appHandle("addActiveCell", (changes, info) => {
+  changes.dispatch("clearActiveCells", {});
   let {id} = info;
   info.selected = 0;
   activeCells[id] = info;
@@ -1112,8 +1198,12 @@ appHandle("updateActiveCell", (changes, info) => {
 
 appHandle("moveCellAutocomplete", (changes, info) => {
   let active = activeCells[info.cell.id];
-  let {direction} = info;
-  active.selected += direction;
+  let {direction, value} = info;
+  if(value === undefined) {
+    active.selected += direction;
+  } else {
+    active.selected = value;
+  }
 });
 
 function updateActiveCell(event, elem) {
@@ -1134,9 +1224,12 @@ function createEmbedPopout(cm, paneId) {
   cm.operation(() => {
     let from = cm.getCursor("from");
     let id = uuid();
-    let range = `{$$${id}$$}`;
-    cm.replaceRange(range, from, cm.getCursor("to"));
-    dispatch("addActiveCell", {id: range, query: "", placeholder: true});
+    cm.replaceRange("=", from, cm.getCursor("to"));
+    let to = cm.posFromIndex(cm.getCursor("from"));
+    let fromIx = cm.indexFromPos(from);
+    let toIx = cm.indexFromPos(to);
+    let cell = {id, start: fromIx, length: toIx - fromIx, placeholder: true, query: ""};
+    dispatch("addActiveCell", {id, query: "", cell, placeholder: true});
   });
 }
 
@@ -1177,8 +1270,8 @@ function embeddedCellKeys(event, elem) {
     dispatch("removeActiveCell", cell).commit();
     event.preventDefault();
   } else if(event.keyCode === KEYS.ESC || (event.keyCode === KEYS.ENTER && value.trim() === "")) {
-    if(cell.placeholder || (cell.cell && cell.cell.placeholder)) {
-      let {from, to} = mark.find();
+    let {from, to} = mark.find();
+    if(cell.placeholder) {
       cm.replaceRange("= ", from, to);
     }
     paneEditors[paneId].cmInstance.focus();
@@ -1241,6 +1334,9 @@ function getCells(content: string) {
       cells.push({start: ix, length: part.length, value: part, query: part.substring(1, part.length - 1), id, placeholder});
     }
     ix += part.length;
+  }
+  for(let active in activeCells) {
+    cells.push(activeCells[active].cell);
   }
   return cells;
 }
@@ -1313,6 +1409,7 @@ function attributesUI(entityId, paneId) {
         if(!state.active || state.active.__id !== subItem.eav.__id) {
           child.children.push({c: "link", text: display.name, data: {paneId}, link: display.id, click: navigate, peek: true});
           child.click = setActiveAttribute;
+          valueUI.t = "div";
         } else {
           valueUI.value = `= ${display.name}`;
           valueUI.postRender = autoFocus;
@@ -1323,7 +1420,10 @@ function attributesUI(entityId, paneId) {
       }
       if(valueUI.t === "input") {
         valueUI.keydown = handleAttributesKey;
+      } else {
+        child.children.push({c: "spacer no-mouse"});
       }
+      child.children.push({c: "ion-android-close remove", eav: subItem.eav, sourceView: subItem.sourceView, query: valueUI["query"], click: removeSubItem});
       group.children.push(child);
       ix++;
       subItem = items[ix];
@@ -1333,7 +1433,7 @@ function attributesUI(entityId, paneId) {
       group,
     ]});
   }
-  tableChildren.push({c: "attribute adder", children: [
+  tableChildren.push({id: `${entityId}|${paneId}|adder`, c: "attribute adder", children: [
     {t: "input", c: "attribute-name value", placeholder: "property", keydown: handleAttributesKey, input: setAdder, submit: submitAdder, field: "adderAttribute", entityId, value: state.adderAttribute},
     {t: "input", c: "value", placeholder: "value", keydown: handleAttributesKey, input: setAdder, submit: submitAdder, field: "adderValue", entityId, value: state.adderValue},
   ]});
@@ -1357,15 +1457,21 @@ appHandle("clearActiveAttribute", (changes: Diff, {entity}) => {
   }
 })
 
+function removeSubItem(event, elem) {
+  event.preventDefault();
+  submitAttribute(event, elem);
+}
+
 function setActiveAttribute(event, elem) {
   if(!event.defaultPrevented) {
     dispatch("setActiveAttribute", {eav: elem.eav, sourceView: elem.sourceView}).commit();
+    event.preventDefault();
   }
 }
 
 function handleAttributesKey(event, elem) {
   console.log("HERE");
-  if((event.keyCode === KEYS.ENTER || (event.keyCode === KEYS.BACKSPACE && event.currentTarget.value === "")) && elem.submit) {
+  if(event.keyCode === KEYS.ENTER && elem.submit) {
     elem.submit(event, elem);
   } else if(event.keyCode === KEYS.ESC) {
     dispatch("setActiveAttribute", {eav: {entity: elem.eav.entity}, sourceView: false}).commit();
@@ -1395,6 +1501,8 @@ function submitAdder(event, elem) {
                 .dispatch("setAttributeAdder", {entityId, field: "adderValue", value: ""});
     handleAttributeDefinition(entityId, adderAttribute, adderValue, chain);
   }
+  //make sure the focus ends up back in the property input
+  event.currentTarget.parentNode.firstChild.focus();
 }
 
 appHandle("remove attribute generating query", (changes:Diff, {eav, view}) => {
@@ -1416,7 +1524,7 @@ function submitAttribute(event, elem) {
   let {eav, sourceView, query} = elem;
   let chain = dispatch("clearActiveAttribute", {entity: eav.entity});
   let value =  event.currentTarget.value;
-  if(value === query) {
+  if(query !== undefined && value === query) {
     console.log("BAILING");
     return chain.commit();
   }
@@ -1429,7 +1537,7 @@ function submitAttribute(event, elem) {
     fact.__id = undefined;
     chain.dispatch("remove entity attribute", fact);
   }
-  if(value !== "") {
+  if(value !== undefined && value !== "") {
     handleAttributeDefinition(eav.entity, eav.attribute, value, chain);
   } else {
     chain.commit();
