@@ -1782,6 +1782,10 @@ interface Relationship {
 }
 
 function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relationship {
+  if (nodeA.hasProperty(Properties.QUANTITY) || nodeB.hasProperty(Properties.QUANTITY)) {
+    log ("Quantities have no relationship to anything else in the system");
+    return {type: RelationshipTypes.NONE}; 
+  }
   log(`Finding relationship between "${nodeA.name}" and "${nodeB.name}"`);
   let relationship: Relationship;
   // If both nodes are Collections, find their relationship
@@ -1854,6 +1858,7 @@ function findCollectionToEntRelationship(coll: Collection, ent: Entity): Relatio
 }
 
 function findEntToAttrRelationship(entity: Entity, attr: Node, context: Context): Relationship {
+  log(`Finding Ent -> Attr relationship between "${entity.displayName}" and "${attr.name}"...`);
   // Check for a direct relationship
   // e.g. "Josh's age"
   let found = findEntityAttribute(attr,entity,context);
