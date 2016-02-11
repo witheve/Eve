@@ -1,7 +1,7 @@
 body { position: relative; padding-bottom: 1.5em; background: #fff; color: rgb(76, 85, 90); font-family: "Lato", sans-serif; font-weight: 400; }
 * { box-sizing: border-box; }
 div { display: flex; flex-direction: column; }
-button, input { border:none; outline: none; font-family: "Lato", sans-serif; font-weight: 400; color: rgb(76,85,90); }
+button, input { border:none; outline: none; font-family: "Lato", sans-serif; font-weight: 400; color: rgb(76,85,90); font-size: 12pt; }
 
 a { color: #008cdd; cursor: pointer; border-bottom: 1px solid transparent; text-decoration: none; }
 a:hover { text-decoration: underline; }
@@ -31,9 +31,11 @@ body { height: 100vh; width: 100vw; }
 
 #perfStats { position: absolute; background: rgba(255, 255, 255, 0.5); padding:10px; bottom: 0px; right: 15px; color: #888; z-index: 20; }
 
-.modal-prompt { position: absolute; top: 50%; left: 50%; margin-left: -128px; margin-top: -64px; z-index: 11; width: 256px; height: 128px; padding: 5px; background: white; border: 1px solid #ccc; border-radius: 2px; box-shadow: 0 2px 2px rgba(0, 0, 0, 0.1); }
-.modal-prompt header > * { display: flex; }
-.modal-prompt h2 { margin-bottom: 0.5em; text-align: center; }
+.shade { position: absolute; top: 0; left: 0; bottom: 0; right: 0; z-index: 10; background: rgba(0, 0, 0, 0.0); align-items: center; justify-content: center; }
+
+.modal-prompt { padding: 20px; background: white; border: 1px solid #ccc; border-radius: 2px; box-shadow: 0 2px 2px rgba(0, 0, 0, 0.1); }
+.modal-prompt header > * { display: flex; margin-bottom:20px; }
+.modal-prompt h2 { text-align: center; font-size:18pt; }
 .modal-prompt > p { margin-bottom: 0.5em; }
 
 /*---------------------------------------------------------
@@ -183,6 +185,19 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .page-attributes .value:hover .remove { opacity:1; }
 .page-attributes .adder .value:first-child { border-left-color:transparent; }
 .page-attributes .adder:hover .value { border-color:#ddd; }
+
+/*---------------------------------------------------------
+- Delete prompt
+---------------------------------------------------------*/
+
+.delete-prompt { padding: 20px; width:400px; }
+.delete-prompt h2 { color: red; font-weight:900; }
+.delete-prompt .info { line-height: 1.5em; }
+.delete-prompt button { margin-top:20px; border-radius: 3px; background: #e5e5e5; }
+.delete-prompt button:hover { background: #d0d0d0; }
+.delete-prompt .delete-btn { color: #555; padding:10px 20px; background: #fcc; }
+.delete-prompt .delete-btn:hover { background: #f88;  }
+
 
 /*---------------------------------------------------------
 - Content
