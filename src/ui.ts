@@ -2,7 +2,7 @@ declare var pluralize; // @TODO: import me.
 
 import {parse as marked, Renderer as MarkedRenderer} from "../vendor/marked";
 import * as CodeMirror from "codemirror";
-import {copy, uuid, coerceInput, builtinId, autoFocus, KEYS, mergeObject, setEndOfContentEditable} from "./utils";
+import {copy, uuid, coerceInput, builtinId, autoFocus, KEYS, mergeObject, setEndOfContentEditable, slugify} from "./utils";
 import {Diff, Query} from "./runtime";
 import {createEditor} from "./richTextEditor";
 import {Element, Handler, RenderHandler, Renderer} from "./microReact";
@@ -55,8 +55,8 @@ export function setURL(paneId:string, contains:string, replace?:boolean) {
   
   let url;
   if(contains.length === 0) url = "/";
-  else if(name === contains) url = `/search/${contains.replace(/ /g, "_")}`;
-  else url = `/${name.replace(/ /g, "_")}/${contains.replace(/ /g, "_")}`;
+  else if(name === contains) url = `/search/${slugify(contains)}`;
+  else url = `/${slugify(name)}/${slugify(contains)}`;
   let state = {paneId, contains};
   window["states"] = window["states"] || [];
   window["states"].push(state);
@@ -163,7 +163,7 @@ appHandle("update page", (changes:Diff, {page, content}: {page: string, content:
     changes.add("display name", {id: entity, name});
     let parts = window.location.pathname.split("/");
     if(parts.length > 2 && parts[2].replace(/_/gi, " ") === entity) {
-      window.history.replaceState(window.history.state, null, `/${name.replace(/ /gi, "_")}/${entity.replace(/ /gi, "_")}`);
+      window.history.replaceState(window.history.state, null, `/${slugify(name)}/${slugify(entity)}`);
     }
   }
 });

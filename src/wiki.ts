@@ -3,6 +3,7 @@
 import * as app from "./app";
 import * as bootstrap from "./bootstrap";
 import * as ui from "./ui";
+import {deslugify} from "./utils";
 
 
 app.renderRoots["wiki"] = ui.root;
@@ -27,7 +28,7 @@ app.init("wiki", function() {
   let path = window.location.pathname;
   if(path !== "/") {
     let [_, kind, content] = path.split("/");
-    content = content.replace(/_/g, " ");
+    content = deslugify(content);
     app.dispatch("ui set search", {paneId: mainPane.pane, value: content, popState: true}).commit();
     ui.setURL("p1", content);
   } else {
