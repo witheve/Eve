@@ -1290,10 +1290,10 @@ function activateCell(event, elem) {
   let {cell} = elem;
   let query = cell.query.split("|")[0];
   dispatch("addActiveCell", {id: cell.id, cell, query}).commit();
+  event.preventDefault();
 }
 
 function createEmbedPopout(cm, paneId) {
-  console.log("CREATING POPOUT");
   let coords = cm.cursorCoords("head", "page");
   // dispatch("createEmbedPopout", {paneId, x: coords.left, y: coords.top - 20}).commit();
   cm.operation(() => {
@@ -1419,7 +1419,7 @@ function getCells(content: string, paneId) {
   }
   for(let active in activeCells) {
     let cell = activeCells[active].cell;
-    if(cell.paneId === paneId) {
+    if(cell.placeholder && cell.paneId === paneId) {
       cells.push(cell);
     }
   }
