@@ -182,6 +182,23 @@ export class RichTextEditor {
     let marks = cm.findMarksAt(cursor);
   }
 
+  addMark(paneId, cell, from, to, mark?) {
+    let cm:any = this.cmInstance;
+    let cellId = cell.id;
+    let dom;
+    if(!mark) {
+      dom = document.createElement("div");
+      dom.id = `${paneId}|${cellId}|container`;
+    } else {
+      dom = mark.replacedWith;
+      mark.clear();
+    }
+    let newMark = cm.markText(cm.posFromIndex(from), cm.posFromIndex(to), {replacedWith: dom});
+    newMark.cell = cell;
+    dom["mark"] = newMark;
+    this.marks[cellId] = newMark;
+  }
+
 }
 
 export function createEditor(node, elem) {
@@ -228,18 +245,7 @@ export function createEditor(node, elem) {
           }
         }
         if(add) {
-          let dom;
-          if(!mark) {
-            dom = document.createElement("div");
-            dom.id = `${elem["meta"].paneId}|${cell.id}|container`;
-          } else {
-            dom = mark.replacedWith;
-            mark.clear();
-          }
-          let newMark = cm.markText(cm.posFromIndex(cell.start), cm.posFromIndex(cell.start + cell.length), {replacedWith: dom});
-          newMark.cell = cell;
-          dom["mark"] = newMark;
-          editor.marks[cell.id] = newMark;
+          editor.addMark(elem["meta"].paneId, cell, cell.start, cell.start + cell.length, mark);
         }
       }
       for(let markId in editor.marks) {

@@ -62,12 +62,91 @@ export function titlecase(name:string):string {
   return name.split(" ").map(capitalize).join(" ");
 }
 
+let _slugifyReplacements = {
+  "-": "dash",
+  "_": "under",
+  "$": "dollar",
+  "&": "and",
+  "+": "plus",
+  ",": "comma",
+  "/": "slash",
+  ":": "colon",
+  ";": "semicolon",
+  "=": "equals",
+  "?": "question",
+  "@": "at",
+  "<": "lt",
+  ">": "gt",
+  "#": "hash",
+  "%": "percent",
+  "{": "opencurly",
+  "}": "closecurly",
+  "|": "pipe",
+  "\\": "whack",
+  "^": "caret",
+  "~": "tilde",
+  "[": "openbracket",
+  "]": "closebracket",
+  "`": "grave"
+};
+let _deslugifyReplacements = {};
+for(let char in _slugifyReplacements) {
+  _deslugifyReplacements[_slugifyReplacements[char]] = char;
+}
+
+// Slugify encodes a uri component in a fairly human readable fashion
+export function slugify(text:string):string {
+  let url = "";
+  for(let char of text) {
+    let replacement = _slugifyReplacements[char];
+    if(char === " ") {
+      url += "_";
+      
+    } else if(replacement) {
+      url += `-'${replacement}-`;
+      
+    } else {
+      url += char;
+    }
+  }
+  return encodeURIComponent(url);
+}
+
+export function deslugify(url:string):string {
+  let text = [];
+  for(let word of url.split("_")) {
+    if(word.indexOf("-") === -1) {
+      text.push(word);
+      continue;
+    }
+
+    let replaced = "";
+    let tokens = word.split("-");
+    replaced += tokens.shift();
+    let tail = tokens.pop();
+    for(let token of tokens) {
+      let replacement = _deslugifyReplacements[token.slice(1)];
+      if(replacement && token.indexOf("'") === 0) {
+        replaced += replacement;
+      } else {
+        replaced += token;
+      }
+    }
+    replaced += tail;
+    text.push(replaced);
+  }
+
+  return decodeURIComponent(text.join(" "));
+}
+
 export var string = {
   unpad,
   repeat,
   underline,
   capitalize,
-  titlecase
+  titlecase,
+  slugify,
+  deslugify
 };
 
 export function tail(arr) {
@@ -156,4 +235,8 @@ export function sortByLookup(lookup:{}):(a, b) => number {
     (lookup[a] > lookup[b]) ? -1 :
     (lookup[a] < lookup[b]) ? 1 :
     (lookup[a] === undefined) ? 1 : -1;
+}
+
+export function location() {
+  return window.location.hash.slice(1);
 }

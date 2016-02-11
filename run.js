@@ -10,6 +10,8 @@ var util = require("util");
 var exec = require("child_process").exec;
 var spawn = require("child_process").spawn;
 
+var state = {};
+
 var pkgs = {
   wiki: {entries: ["src/wiki.ts"], adds: ["typings/tsd.d.ts"]},
   nlqpTest: {entries: ["test/NLQPTest.ts"], adds: ["typings/tsd.d.ts"]},
@@ -21,7 +23,6 @@ var pkgList = Object.keys(pkgs);
 //------------------------------------------------------------
 // Bundling
 //------------------------------------------------------------
-var state = {};
 function makeBundler(name, opts) {
   opts.cache === undefined ? opts.cache = {} : undefined;
   opts.packageCache === undefined ? opts.packageCache = {} : undefined;
@@ -42,14 +43,19 @@ function makeBundler(name, opts) {
       .on("error", function(err) {
 	state[name].errors.push(err);
 	tagLog(name, err.message);
-	this.emit("end");
+	render();
       })
-      .on("end", function() {
+      .pipe(fs.createWriteStream("bin/" + name + ".bundle.js"))
+      .on("error", function(err) {
+	state[name].errors.push(err);
+	tagLog(name, err.message);
+        render();
+      })
+      .on("close", function() {
 	state[name].completed = true;
 	state[name].endTime = Date.now();
 	render();
-      })
-      .pipe(fs.createWriteStream("bin/" + name + ".bundle.js"));
+      });
   };
   if(opts.verbose) {
     if(opts.watch) bundler.on("log", function(msg) { tagLog(name, msg); });
@@ -129,7 +135,7 @@ function tagLog(tag) {
   _logTarget.add(timestamp + " [{bold}" + formatTag(tag) + "{/bold}] " + msg);
 }
 
-function root(program, state) {
+function root(program, uiState) {
   var screen = blessed.screen({
     autoPadding: true,
     smartCSR: true,
@@ -196,48 +202,49 @@ function root(program, state) {
     border: {type: "line"}
   });
 
-  var statusLines = {
-    all: blessed.text({
-      parent: status,
+  function statusLine(name, lineIx, parent, stateless) {
+    var line = blessed.text({
+      parent: parent,
       mouse: true,
       autoFocus: true,
-      top: 0,
+      top: lineIx,
       left: 2,
       height: 1,
       padding: {left: 1, right: 1},
-      content: "all",
-      style: {hover: {bold: true}, focus: {bold: true, fg: "blue"}},
-    })
-  };
-  var statusLights = {};
-  program.bundles.map(function(bundleName, bundleIx) {
-    statusLines[bundleName] = blessed.text({
-      parent: status,
-      mouse: true,
-      autoFocus: true,
-      top: bundleIx + 1,
-      left: 2,
-      height: 1,
-      padding: {left: 1, right: 1},
-      content: bundleName,
+      content: name,
       style: {hover: {bold: true}, focus: {bold: true, fg: "blue"}},
     });
-    statusLights[bundleName] = blessed.box({
-      parent: statusLines[bundleName],
+
+    if(stateless) return line;
+    
+    var light = blessed.box({
+      parent: line,
       left: -2,
       height: 1,
       width: 2,
       content: "■",
       style: {}
     });
-    statusLights[bundleName].on("prerender", function() {
-      this.style.fg = state[bundleName] && state[bundleName].completed ? (state[bundleName].errors.length ? "red" : "green") : "yellow";
+    light.on("prerender", function() {
+      var state = uiState[name];
+      this.style.fg = state && state.completed ? (state.errors.length ? "red" : "green") : "yellow";
     });
-  });
+
+    return line;
+  }
+
+  var statusLines = {
+    all: statusLine("all", 0, status, true),
+    server: statusLine("server", 1, status)
+  };
+  for(var programIx = 0; programIx < program.bundles.length; programIx++) {
+    var programName = program.bundles[programIx];
+    statusLines[programName] = statusLine(programName, programIx + 2, status);
+  }
 
   var spacer = blessed.box({
     parent: frame,
-    top: program.bundles.length + 3,
+    top: program.bundles.length + 4,
     bottom: logo.content.split("\n").length,
     right: 0,
     width: 26,
@@ -286,13 +293,25 @@ if(program.watch) {
   })
 }
 
+// @FIXME: We need to watch the server and it's deps for changes.
 if(program.server) {
-  exec("node node_modules/tsify/node_modules/typescript/bin/tsc", function(out,err) {
+  state.server = {errors: [], startTime: Date.now()};
+  exec("node node_modules/tsify/node_modules/typescript/bin/tsc", function(err, out) {
     if (err) {
-      console.error(err);
-      process.exit();
+      tagLog("server", "Failed to compile server");
+      tagLog("server", err.toString());
+      tagLog("server", out);
+      state.server.errors.push(err);
+      state.server.completed = true;
+      state.server.endTime = Date.now();
+      render();
+      return;
+    } else {
+      tagLog("server", "Compilation complete");
     }
     var server = spawn("node", ["bin/src/server.js"]);
+    state.server.completed = true;
+    state.server.endTime = Date.now();
     tagLog("server", "Server started at http://localhost:3000");
     server.stdout.on("data", function(data) {
       tagLog("server", data.toString());
@@ -301,6 +320,7 @@ if(program.server) {
       tagLog("server", data.toString());
     });
     procs.push(server);
+    render();
   });
 }
 

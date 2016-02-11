@@ -3,6 +3,7 @@
 import * as app from "./app";
 import * as bootstrap from "./bootstrap";
 import * as ui from "./ui";
+import {deslugify, location as getLocation} from "./utils";
 
 
 app.renderRoots["wiki"] = ui.root;
@@ -22,15 +23,31 @@ app.init("wiki", function() {
   app.activeSearches = {};
   initSearches(app.eve);
 
-  window.history.replaceState({root: true}, null, window.location.pathname);
+  window.history.replaceState({root: true}, null, window.location.hash);
   let mainPane = app.eve.findOne("ui pane", {pane: "p1"});
-  let path = window.location.pathname;
-  if(path !== "/") {
-    let [_, kind, content] = path.split("/");
-    content = content.replace(/_/g, " ");
-    app.dispatch("ui set search", {paneId: mainPane.pane, value: content, popState: true}).commit();
-    ui.setURL("p1", content);
-  } else {
-    ui.setURL("p1", mainPane.contains);
+  let path = getLocation();
+  let [_, kind, raw = ""] = path.split("/");
+  let content = deslugify(raw);
+  let cur = app.dispatch("ui set search", {paneId: mainPane.pane, value: content});
+  if(content && !app.eve.findOne("query to id", {query: content})) {
+    cur.dispatch("insert query", {query: content});
   }
+  cur.commit();
+});
+
+window.addEventListener("hashchange", function() {
+  let mainPane = app.eve.findOne("ui pane", {pane: "p1"});
+  let path = getLocation();
+  let [_, kind, raw = ""] = path.split("/");
+  let content = deslugify(raw);
+  let displays = app.eve.find("display name", {name: content});
+  if(displays.length === 1) content = displays[0].id;
+
+  if(mainPane.contains === content) return;
+  
+  let cur = app.dispatch("ui set search", {paneId: mainPane.pane, value: content});
+  if(content && !app.eve.findOne("query to id", {query: content})) {
+    cur.dispatch("insert query", {query: content});
+  }
+  cur.commit();
 });
