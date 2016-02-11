@@ -380,7 +380,7 @@ function loadPrompt():Element {
     ]},
     {t: "p", children: [
       {t: "span", text: "WARNING: This will overwrite your current database. This is irreversible. You should consider "},
-      {t: "a", href: "#", text: "saving your DB", prompt: savePrompt, click: openPrompt},
+      {t: "a", text: "saving your DB", prompt: savePrompt, click: openPrompt},
       {t: "span", text: " first."}
     ]},
     {t: "input", type: "file", text: "load from file", change: loadFromFile}
@@ -423,14 +423,14 @@ export function pane(paneId:string):Element {
   } else if(contains !== "") {
     content = {c: "flex-row spaced-row", children: [
       {t: "span", text: `The page ${contains} does not exist. Would you like to`},
-      {t: "a", c: "link btn add-btn", text: "create it?", href: "#", name: contains, paneId, click: createPage }
+      {t: "a", c: "link btn add-btn", text: "create it?", name: contains, paneId, click: createPage }
     ]};
   }
 
   if(contentType === "search") {
     var disambiguation = {id: "search-disambiguation", c: "flex-row spaced-row disambiguation", children: [
       {text: "Did you mean to"},
-      {t: "a", c: "link btn add-btn", text: "create a new page", href: "#", name: contains, paneId, click: createPage},
+      {t: "a", c: "link btn add-btn", text: "create a new page", name: contains, paneId, click: createPage},
       {text: "with this name?"}
     ]};
   }
@@ -457,8 +457,7 @@ function createPage(evt:Event, elem:Element) {
   let entity = uuid();
   let page = uuid();
   dispatch("create page", {page, content: `# ${name}\n`})
-    .dispatch("create entity", {entity, page, name})
-    .dispatch("ui set search", {paneId: elem["paneId"], value: name}).commit();
+    .dispatch("create entity", {entity, page, name}).commit();
 }
 
 function deleteEntity(event, elem) {
@@ -1474,9 +1473,12 @@ function focusSearch(event, elem) {
 }
 function setSearch(event, elem) {
   let value = event.value;
-  dispatch("insert query", {query: value})
-  .dispatch("ui set search", {paneId: elem.paneId, value: event.value})
-  .commit();
+  let pane = eve.findOne("ui pane", {pane: elem.paneId});
+  if(!pane || pane.contains !== event.value) {
+    dispatch("insert query", {query: value})
+      .dispatch("ui set search", {paneId: elem.paneId, value: event.value})
+      .commit();
+  }
 }
 function updateSearch(event, elem) {
   dispatch("ui update search", elem).commit();

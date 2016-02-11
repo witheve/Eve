@@ -3,8 +3,9 @@ body { position: relative; padding-bottom: 1.5em; background: #fff; color: rgb(7
 div { display: flex; flex-direction: column; }
 button, input { border:none; outline: none; font-family: "Lato", sans-serif; font-weight: 400; color: rgb(76,85,90); }
 
+a { color: #008cdd; cursor: pointer; border-bottom: 1px solid transparent; text-decoration: none; }
+a:hover { text-decoration: underline; }
 
-.test { border: 2px solid red; }
 
 .light .bit { background: transparent; }
 
@@ -18,6 +19,7 @@ button, input { border:none; outline: none; font-family: "Lato", sans-serif; fon
 .csv { flex-direction: row; }
 .csv > * + span { margin-left: 0.4em; }
 .csv > span + span:before { position: relative; left: -0.4em; content: ","; }
+
 /*---------------------------------------------------------
 - Root
 ---------------------------------------------------------*/
