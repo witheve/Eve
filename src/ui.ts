@@ -2,7 +2,7 @@ declare var pluralize; // @TODO: import me.
 
 import {parse as marked, Renderer as MarkedRenderer} from "../vendor/marked";
 import * as CodeMirror from "codemirror";
-import {copy, uuid, coerceInput, builtinId, autoFocus, KEYS, mergeObject, setEndOfContentEditable} from "./utils";
+import {copy, uuid, coerceInput, builtinId, autoFocus, KEYS, mergeObject, setEndOfContentEditable, slugify, location as getLocation} from "./utils";
 import {Diff, Query} from "./runtime";
 import {createEditor} from "./richTextEditor";
 import {Element, Handler, RenderHandler, Renderer} from "./microReact";
@@ -54,9 +54,9 @@ export function setURL(paneId:string, contains:string, replace?:boolean) {
   if(paneId !== "p1") return; // @TODO: Make this a constant
   
   let url;
-  if(contains.length === 0) url = "/";
-  else if(name === contains) url = `/search/${contains.replace(/ /g, "_")}`;
-  else url = `/${name.replace(/ /g, "_")}/${contains.replace(/ /g, "_")}`;
+  if(contains.length === 0) url = "#";
+  else if(name === contains) url = `#/search/${slugify(contains)}`;
+  else url = `#/${slugify(name)}/${slugify(contains)}`;
   let state = {paneId, contains};
   window["states"] = window["states"] || [];
   window["states"].push(state);
@@ -161,9 +161,9 @@ appHandle("update page", (changes:Diff, {page, content}: {page: string, content:
   if(name !== prevName) {
     changes.remove("display name", {id: entity, name: prevName});
     changes.add("display name", {id: entity, name});
-    let parts = window.location.pathname.split("/");
+    let parts = getLocation().split("/");
     if(parts.length > 2 && parts[2].replace(/_/gi, " ") === entity) {
-      window.history.replaceState(window.history.state, null, `/${name.replace(/ /gi, "_")}/${entity.replace(/ /gi, "_")}`);
+      window.history.replaceState(window.history.state, null, `/${slugify(name)}/${slugify(entity)}`);
     }
   }
 });
@@ -384,7 +384,7 @@ function loadPrompt():Element {
     ]},
     {t: "p", children: [
       {t: "span", text: "WARNING: This will overwrite your current database. This is irreversible. You should consider "},
-      {t: "a", href: "#", text: "saving your DB", prompt: savePrompt, click: openPrompt},
+      {t: "a", text: "saving your DB", prompt: savePrompt, click: openPrompt},
       {t: "span", text: " first."}
     ]},
     {t: "input", type: "file", text: "load from file", change: loadFromFile}
@@ -427,14 +427,14 @@ export function pane(paneId:string):Element {
   } else if(contains !== "") {
     content = {c: "flex-row spaced-row", children: [
       {t: "span", text: `The page ${contains} does not exist. Would you like to`},
-      {t: "a", c: "link btn add-btn", text: "create it?", href: "#", name: contains, paneId, click: createPage }
+      {t: "a", c: "link btn add-btn", text: "create it?", name: contains, paneId, click: createPage }
     ]};
   }
 
   if(contentType === "search") {
     var disambiguation = {id: "search-disambiguation", c: "flex-row spaced-row disambiguation", children: [
       {text: "Did you mean to"},
-      {t: "a", c: "link btn add-btn", text: "create a new page", href: "#", name: contains, paneId, click: createPage},
+      {t: "a", c: "link btn add-btn", text: "create a new page", name: contains, paneId, click: createPage},
       {text: "with this name?"}
     ]};
   }
@@ -461,8 +461,7 @@ function createPage(evt:Event, elem:Element) {
   let entity = uuid();
   let page = uuid();
   dispatch("create page", {page, content: `# ${name}\n`})
-    .dispatch("create entity", {entity, page, name})
-    .dispatch("ui set search", {paneId: elem["paneId"], value: name}).commit();
+    .dispatch("create entity", {entity, page, name}).commit();
 }
 
 function deleteEntity(event, elem) {
@@ -1640,9 +1639,12 @@ function focusSearch(event, elem) {
 }
 function setSearch(event, elem) {
   let value = event.value;
-  dispatch("insert query", {query: value})
-  .dispatch("ui set search", {paneId: elem.paneId, value: event.value})
-  .commit();
+  let pane = eve.findOne("ui pane", {pane: elem.paneId});
+  if(!pane || pane.contains !== event.value) {
+    dispatch("insert query", {query: value})
+      .dispatch("ui set search", {paneId: elem.paneId, value: event.value})
+      .commit();
+  }
 }
 function updateSearch(event, elem) {
   dispatch("ui update search", elem).commit();
@@ -1883,7 +1885,7 @@ function represent(search: string, rep:string, results, params:{}):Element {
 }
 
 let historyState = window.history.state;
-let historyURL = window.location.pathname;
+let historyURL = getLocation();
 window.addEventListener("popstate", function(evt) {
   let popout = eve.findOne("ui pane", {kind: PANE.POPOUT});
   if(popout && popoutHistory.length) {
@@ -1897,7 +1899,7 @@ window.addEventListener("popstate", function(evt) {
   }
 
   historyState = evt.state;
-  historyURL = window.location.pathname;
+  historyURL = getLocation();
 
   let {paneId = undefined, contains = undefined} = evt.state || {};
   if(paneId === undefined || contains === undefined) return;
