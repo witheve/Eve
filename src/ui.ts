@@ -1315,7 +1315,7 @@ function createEmbedPopout(cm, paneId) {
     let id = uuid();
     cm.replaceRange("=", from, cm.getCursor("to"));
     if(from.line === 0) return;
-    let to = cm.posFromIndex(cm.getCursor("from"));
+    let to = cm.getCursor("from");
     let fromIx = cm.indexFromPos(from);
     let toIx = cm.indexFromPos(to);
     let cell = {id, start: fromIx, length: toIx - fromIx, placeholder: true, query: "", paneId};
