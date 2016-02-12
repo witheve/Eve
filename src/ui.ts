@@ -503,7 +503,9 @@ function entityTileRENAMEME(entityId, paneId, kind, options) {
   let name = eve.findOne("display name", {id: asEntity(entityId)}).name;
   let attrs = attributesUI(entityId, paneId);
   attrs.c += " page-attributes";
-  return {c: "tile", children: [
+  // @FIXME: if there isn't an ID here, microReact does the wrong thing, investigate
+  // after the release
+  return {id: "${entityId}|${paneId}|tile", c: "tile", children: [
     {c: "flex-row", children: [
       {c: "text-content", children: [
         {c: "header", text: name},
