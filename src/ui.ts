@@ -50,7 +50,7 @@ function preventDefault(event) {
 }
 
 // @NOTE: ids must not contain whitespace
-function asEntity(raw:string|number):string {
+export function asEntity(raw:string|number):string {
   let cleaned = raw && (""+raw).trim();
   if(!cleaned) return;
 
@@ -213,9 +213,10 @@ appHandle("create query", (changes:Diff, {id, content}) => {
 
 appHandle("insert query", (changes:Diff, {query}) => {
   query = query.trim().toLowerCase();
-  if(eve.findOne("query to id", {query})) return;
   let parsed = nlparse(query);
-  if(parsed[0].state === StateFlags.COMPLETE) {
+  let topParse = parsed[0];
+  if(eve.findOne("query to id", {query})) return;
+  if(topParse.state === StateFlags.COMPLETE) {
     let artifacts = parseDSL(parsed[0].query.toString());
     if(artifacts.changeset) changes.merge(artifacts.changeset);
     var rootId;
@@ -228,6 +229,43 @@ appHandle("insert query", (changes:Diff, {query}) => {
     changes.add("query to id", {query, id: rootId})
   }
 });
+
+appHandle("handle setAttribute in a search", (changes:Diff, {attribute, entity, value, replace}) => {
+  if(replace) {
+    //check if there's a generator, if so, remove that.
+    let generated = eve.find("generated eav", {entity, attribute});
+    if(generated.length) {
+      for(let gen of generated) {
+        changes.merge(dispatch("remove attribute generating query", {eav: {entity, attribute}, view: gen["source"]}));
+      }
+    } else {
+      changes.remove("sourced eav", {entity, attribute})
+    }
+  }
+  changes.merge(dispatch("add sourced eav", {entity, attribute, value}));
+});
+
+function dispatchSearchSetAttributes(query, chain?) {
+  if(!chain) {
+    chain = dispatch();
+  }
+  let parsed = nlparse(query);
+  let topParse = parsed[0];
+  if(topParse.context.setAttributes.length) {
+    let attributes = [];
+    for(let attr of topParse.context.setAttributes) {
+      // @TODO: NLP needs to tell us whether we're supposed to modify this attribute
+      // or if we're just adding a new eav for it.
+      let replace = true;
+      let entity = attr.entity.id;
+      let attribute = attr.displayName;
+      chain.dispatch("handle setAttribute in a search", {entity, attribute, value: attr.value, replace});
+      attributes.push(`${attr.entity.displayName}`);
+    }
+    query = attributes.join(" and ");
+  }
+  return {chain, query};
+}
 
 // @TODO: there's a lot of duplication between insert query, create query, and insert implication
 appHandle("insert implication", (changes:Diff, {query}) => {
@@ -467,17 +505,18 @@ export function pane(paneId:string):Element {
     contentType = "search";
     content = search(cleaned, paneId);
   } else if(contains !== "") {
-    content = {c: "flex-row spaced-row", children: [
-      {t: "span", text: `The page ${contains} does not exist. Would you like to`},
-      {t: "a", c: "link btn add-btn", text: "create it?", name: contains, paneId, click: createPage }
+    content = {c: "flex-row spaced-row disambiguation", children: [
+      {t: "span", text: `I couldn't find anything; should I`},
+      {t: "a", c: "link btn add-btn", text: `add ${contains}`, name: contains, paneId, click: createPage },
+      {t: "span", text: "?"},
     ]};
   }
 
   if(contentType === "search") {
     var disambiguation = {id: "search-disambiguation", c: "flex-row spaced-row disambiguation", children: [
-      {text: "Did you mean to"},
-      {t: "a", c: "link btn add-btn", text: "create a new page", name: contains, paneId, click: createPage},
-      {text: "with this name?"}
+      {text: "Or should I"},
+      {t: "a", c: "link btn add-btn", text: `add a card`, name: contains, paneId, click: createPage},
+      {text: `for ${contains}?`}
     ]};
   }
 
@@ -663,15 +702,22 @@ function getCellParams(content, rawParams) {
         aggregates.push(fxn);
       }
     }
+    let totalFound = 0;
+    for(let item in context) {
+      totalFound += context[item].length;
+    }
     if(aggregates.length === 1 && context["groupings"].length === 0) {
       rep = "CSV";
       field = aggregates[0].name;
-    } else if(!hasCollections && context.fxns.length === 1) {
+    } else if(!hasCollections && context.fxns.length === 1 && context.fxns[0].type !== FunctionTypes.BOOLEAN) {
       rep = "CSV";
       field = context.fxns[0].name;
     } else if(!hasCollections && context.attributes.length === 1) {
       rep = "CSV";
       field = context.attributes[0].displayName;
+    } else if(context.entities.length + context.fxns.length === totalFound) {
+      // if there are only entities and boolean functions then we want to show this as tiles
+      params["rep"] = "tile";
     } else {
       params["rep"] = "table";
     }
@@ -1477,7 +1523,7 @@ function sortOnAttribute(a, b) {
   return 0;
 }
 
-function attributesUI(entityId, paneId) {
+export function attributesUI(entityId, paneId) {
   var eavs = eve.find("entity eavs", {entity: entityId});
   var items = [];
   for(let eav of eavs) {
@@ -1697,6 +1743,7 @@ export function searchInput(paneId:string, value:string):Element {
         value: name,
         focus: focusSearch,
         blur: setSearch,
+        cursorPosition: "end",
         // change: updateSearch,
         shortcuts: {"Enter": setSearch}
       }),
@@ -1711,9 +1758,10 @@ function setSearch(event, elem) {
   let value = event.value;
   let pane = eve.findOne("ui pane", {pane: elem.paneId});
   if(!pane || pane.contains !== event.value) {
-    dispatch("insert query", {query: value})
-      .dispatch("ui set search", {paneId: elem.paneId, value: event.value})
-      .commit();
+    let {chain, query} = dispatchSearchSetAttributes(value);
+    chain.dispatch("insert query", {query})
+         .dispatch("ui set search", {paneId: elem.paneId, value: query})
+         .commit();
   }
 }
 function updateSearch(event, elem) {
@@ -1775,7 +1823,12 @@ function codeMirrorPostRender(postRender?:RenderHandler):RenderHandler {
       if(elem.autofocus) cm.focus();
     }
 
-    if(cm.getDoc().getValue() !== elem.value) cm.setValue(elem.value || "");
+    if(cm.getDoc().getValue() !== elem.value) {
+      cm.setValue(elem.value || "");
+      if(elem["cursorPosition"] === "end") {
+        cm.setCursor(100000);
+      }
+    }
     if(postRender) postRender(node, elem);
   }
 }
@@ -1871,6 +1924,19 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
     }
     return {values, data: params.data};
   },
+  tile(results, params) {
+    let tiles = [];
+    let firstResult = results[0];
+    let fields = Object.keys(firstResult).filter((field) => {
+      return !!asEntity(firstResult[field]);
+    });
+    for(let result of results) {
+      for(let field of fields) {
+        tiles.push({entity: result[field], data: params});
+      }
+    }
+    return tiles;
+  },
   error(results, params) {
     return {text: params["message"]};
   },
@@ -1918,6 +1984,7 @@ function represent(search: string, rep:string, results, params:{}):Element {
           embedParams["data"] = embedParams["data"] || params;
           wrapper.children.push(uitk[rep](embedParams));
         }
+        console.log(wrapper);
         return wrapper;
       } else {
         let embedParams = embedParamSets;

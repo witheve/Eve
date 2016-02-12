@@ -2,7 +2,7 @@ declare var pluralize; // @TODO: import me.
 import {builtinId, copy, coerceInput, sortByLookup, sortByField, KEYS} from "./utils";
 import {Element, Handler} from "./microReact";
 import {dispatch, eve} from "./app";
-import {PANE, uiState as _state} from "./ui";
+import {PANE, uiState as _state, asEntity, attributesUI} from "./ui";
 import {masonry as masonryRaw, MasonryLayout} from "./masonry";
 
 //------------------------------------------------------------------------------
@@ -177,6 +177,30 @@ export function embeddedCell(elem):Element {
     {c: "edit-button ion-edit", click: elem.click, cell: elem.cell}
   ]});
   return {c: "non-editing-embedded-cell", children, cell: elem.cell};
+}
+
+//------------------------------------------------------------------------------
+// Representations for tiles
+//------------------------------------------------------------------------------
+
+export function tile(elem) {
+  let entityId = elem.entity;
+  let paneId = elem.data.paneId;
+  let name = eve.findOne("display name", {id: asEntity(entityId)}).name;
+  let attrs = attributesUI(entityId, paneId);
+  attrs.c += " page-attributes";
+  // @FIXME: if there isn't an ID here, microReact does the wrong thing, investigate
+  // after the release
+  console.log("TILE FOR", entityId);
+  return {id: `${entityId}|${paneId}|tile`, c: "tile", children: [
+    {c: "flex-row", children: [
+      {c: "text-content", children: [
+        {c: "header", text: name},
+        {c: "description", text: "Add a description here"}
+      ]},
+      attrs,
+    ]}
+  ]};
 }
 
 //------------------------------------------------------------------------------
