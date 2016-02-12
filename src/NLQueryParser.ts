@@ -1151,31 +1151,38 @@ function formTree(tokens: Array<Token>) {
   }
   let stop = performance.now();
 
-  // Check each ngram for a display name      
+  // Check each ngram for a display name  
   let matchedNgrams: Array<Array<Node>> = [];
   for (let i = ngrams.length - 1; i >= 0; i--) {
     let ngram = ngrams[i];
     let allFound = ngram.every((node) => node.found);
     if (allFound !== true) {
       let displayName = ngram.map((node)=>node.name).join(" ");
-      log(displayName)
       let foundName = eve.findOne("index name",{ name: displayName });
-      log(foundName)
       // If the display name is in the system, mark all the nodes as found 
       if (foundName !== undefined) {
         ngram.map((node) => node.found = true);
         matchedNgrams.push(ngram);
+      } else {
+        let foundAttribute = eve.findOne("entity eavs", { attribute: displayName });
+        if (foundAttribute !== undefined) {
+          ngram.map((node) => node.found = true);
+          matchedNgrams.push(ngram);  
+        }
       }
     }
   }
+  
   // Turn ngrams into compound nodes
+  log("Creating compound nodes...");
   for (let ngram of matchedNgrams) {
+    log(n);
     // Don't do anything for 1-grams
     if (ngram.length === 1) {
       ngram[0].found = false
       continue;
     }
-    log(ngram)
+    log(ngram.map((node)=>node.name).join(" "));
     let displayName = ngram.map((node)=>node.name).join(" ");
     let lastGram = ngram[ngram.length - 1];
     let compoundToken = newToken(displayName);
@@ -1184,6 +1191,7 @@ function formTree(tokens: Array<Token>) {
     compoundNode.ix = lastGram.ix;
     // Inherit properties from the nodes
     compoundNode.properties = lastGram.properties;    
+    compoundNode.properties.push(Properties.COMPOUND);
     // Insert compound node and remove constituent nodes
     nodes.splice(nodes.indexOf(ngram[0]),ngram.length,compoundNode);
   }
@@ -2485,7 +2493,7 @@ function formQuery(node: Node): Query {
     query.terms.push(term);
     // project if necessary
     if (node.attribute.project === true && !node.hasProperty(Properties.NEGATES)) {
-      let attributeField: Field = {name: `${node.attribute.id}` , 
+      let attributeField: Field = {name: `${node.attribute.id.replace(new RegExp(" ", 'g'),"")}` , 
                                   value: node.attribute.variable, 
                                variable: true};
       projectFields.push(attributeField);
