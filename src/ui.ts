@@ -500,7 +500,7 @@ export function pane(paneId:string):Element {
   } else if(entityId) {
     let options:any = {};
     // content = entity(entityId, paneId, kind, options);
-    content = entityTileRENAMEME(entityId, paneId, kind, options);
+    content = uitk.tile({entity: entityId, data: {paneId}});
   } else if(eve.findOne("query to id", {query: cleaned})) {
     contentType = "search";
     content = search(cleaned, paneId);
@@ -536,23 +536,6 @@ export function pane(paneId:string):Element {
     );
   }
   return pane;
-}
-
-function entityTileRENAMEME(entityId, paneId, kind, options) {
-  let name = eve.findOne("display name", {id: asEntity(entityId)}).name;
-  let attrs = attributesUI(entityId, paneId);
-  attrs.c += " page-attributes";
-  // @FIXME: if there isn't an ID here, microReact does the wrong thing, investigate
-  // after the release
-  return {id: "${entityId}|${paneId}|tile", c: "tile", children: [
-    {c: "flex-row", children: [
-      {c: "text-content", children: [
-        {c: "header", text: name},
-        {c: "description", text: "Add a description here"}
-      ]},
-      attrs,
-    ]}
-  ]};
 }
 
 function createPage(evt:Event, elem:Element) {
