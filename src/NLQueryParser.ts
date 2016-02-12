@@ -886,6 +886,22 @@ function previouslyMatchedEntityOrCollection(node: Node, ignoreFunctions?: boole
   }
 }
 
+// Returns the first ancestor node that has been found
+function previouslyMatchedAttribute(node: Node, ignoreFunctions?: boolean): Node {
+  if (ignoreFunctions === undefined) {
+    ignoreFunctions = false;
+  }
+  if (node.parent === undefined) {
+    return undefined;
+  } else if (!ignoreFunctions && node.parent.hasProperty(Properties.FUNCTION) && !node.parent.hasProperty(Properties.CONJUNCTION))  {
+    return undefined;
+  } else if (node.parent.hasProperty(Properties.ATTRIBUTE)) {
+    return node.parent;
+  } else {
+    return previouslyMatchedAttribute(node.parent,ignoreFunctions);
+  }
+}
+
 // Inserts a node after the target, moving all of the
 // target's children to the node
 // Before: [Target] -> [Children]
@@ -1048,6 +1064,7 @@ interface Context {
   entities: Array<Entity>,
   collections: Array<Collection>,
   attributes: Array<Attribute>,
+  setAttributes: Array<Attribute>, 
   fxns: Array<BuiltInFunction>,
   groupings: Array<Node>,
   relationships: Array<Relationship>,
@@ -1063,6 +1080,7 @@ function newContext(): Context {
     entities: [],
     collections: [],
     attributes: [],
+    setAttributes: [],
     fxns: [],
     groupings: [],
     relationships: [],
@@ -1151,7 +1169,7 @@ function formTree(tokens: Array<Token>) {
   }
   let stop = performance.now();
 
-  // Check each ngram for a display name  
+  // Check each ngram for a display name
   let matchedNgrams: Array<Array<Node>> = [];
   for (let i = ngrams.length - 1; i >= 0; i--) {
     let ngram = ngrams[i];
@@ -1176,7 +1194,6 @@ function formTree(tokens: Array<Token>) {
   // Turn ngrams into compound nodes
   log("Creating compound nodes...");
   for (let ngram of matchedNgrams) {
-    log(n);
     // Don't do anything for 1-grams
     if (ngram.length === 1) {
       ngram[0].found = false
@@ -1197,10 +1214,12 @@ function formTree(tokens: Array<Token>) {
   }
 
   // Do a quick pass to identify functions
+  log("Identifying functions...")
   tokens.map((token) => {
     let node = token.node;
     let fxn = wordToFunction(node.name);
     if (fxn !== undefined) {
+      log(`Found: ${fxn.name}`);
       node.fxn = fxn;
       fxn.node = node;
       node.properties.push(Properties.FUNCTION);
@@ -1261,6 +1280,48 @@ function formTree(tokens: Array<Token>) {
         break;
       }
       
+      // Handle form of "is"
+      if (node.name === "is") {
+        console.log("Handling forms of 'is'...");
+        node.properties.push(Properties.FUNCTION);
+        let previouslyFound = previouslyMatchedEntityOrCollection(node);
+        let targetAttribute = context.maybeAttributes[context.maybeAttributes.length - 1];
+        if (targetAttribute === undefined) {
+          targetAttribute = previouslyMatchedAttribute(node);
+          if (targetAttribute === undefined) {
+            break;
+          }
+        }
+        node.found = true;
+        let child = node.children[0];
+        if (child !== undefined) {
+          // Build an attribute
+          if (previouslyFound.hasProperty(Properties.ENTITY)) {
+            let attribute: Attribute = {
+              id: targetAttribute.name,
+              displayName: targetAttribute.name,
+              entity: previouslyFound.entity,
+              value: undefined,
+              variable: `${previouslyFound.entity.id}|${targetAttribute.name}`.replace(/ /g,''),
+              node: targetAttribute,
+              project: false,
+            };  
+            previouslyFound.entity.project = false;
+            targetAttribute.attribute = attribute;
+          } 
+          // If the next node is a quantiy, set the value of the attribute to 
+          // the value of the quantity
+          if (child.hasProperty(Properties.QUANTITY)) {
+            targetAttribute.attribute.value = parseFloat(child.name);
+            context.setAttributes.push(targetAttribute.attribute);
+            targetAttribute.found = true;
+            child.found = true;
+          }
+        }
+        node = child.children[0];
+        continue;
+      }
+      
       // Remove certain nodes
       if (!node.hasProperty(Properties.FUNCTION)) {
         if (node.hasProperty(Properties.SEPARATOR) ||
@@ -1291,7 +1352,7 @@ function formTree(tokens: Array<Token>) {
         let quantityAttribute: Attribute = {
           id: node.name,
           displayName: node.name,
-          value: `${node.name}`,
+          value: parseFloat(node.name),
           variable: `${node.name}`,
           node: node,
           project: false,
