@@ -8,25 +8,26 @@ declare var uuid;
 // User-Facing functions
 // ----------------------------------------------------------------------------
 
-export interface ParseResult {
+export interface Result {
+  intent: Intents,
+  score: number,
+  context: Context,
   tokens: Array<Token>,
   tree: Node,
-  context: Context,
   query: Query,
-  score: number,
-  intent: Intent,
 }
 
-export enum Intent {
+export enum Intents {
   QUERY,
   MOREINFO,
   NORESULT,  
 }
 
 // Entry point for NLQP
-export function parse(queryString: string): Array<ParseResult> {
-  let preTokens = preprocessQueryString(queryString);
-  let tokens = formTokens(preTokens);
+export function parse(queryString: string, lastParse?: Result): Array<Result> {
+  let words = normalizeQueryString(queryString);
+  console.log(words.join("\n"));
+  /*let tokens = formTokens(words);
   let {tree, context} = formTree(tokens);
   let query = formQuery(tree);
   // Figure out the state flags
@@ -38,7 +39,9 @@ export function parse(queryString: string): Array<ParseResult> {
   } else {
     intent = Intent.MOREINFO;
   }
-  return [{tokens: tokens, tree: tree, context: context, query: query, score: undefined, intent: intent}];
+  return [{intent: intent, score: undefined, context: context, tokens: tokens, tree: tree, query: query}];
+  */
+  return [];
 }
 
 // Returns false if any nodes are not marked found
@@ -53,47 +56,25 @@ function treeComplete(node: Node): boolean {
 }
 
 // Performs some transformations to the query string before tokenizing
-export function preprocessQueryString(queryString: string): Array<PreToken> {
-  // Add whitespace before commas
-  let processedString = queryString.replace(new RegExp(",", 'g')," , ");
-  processedString = processedString.replace(new RegExp(";", 'g')," ; ");
-  processedString = processedString.replace(new RegExp("\\+", 'g')," + ");
-  processedString = processedString.replace(new RegExp("-", 'g')," - ");
-  processedString = processedString.replace(new RegExp("\\*", 'g')," * ");
-  processedString = processedString.replace(new RegExp("/", 'g')," / ");
-  processedString = processedString.replace(new RegExp("\\s+", 'g')," ");
-  // Get parts of speach with sentence information. It's okay if they're wrong; they 
-  // will be corrected as we create the tree and match against the underlying data model
-  let sentences = nlp.pos(processedString, {dont_combine: true}).sentences;   
-  // If no sentences were found, don't bother parsing
-  if (sentences.length === 0) {
-    return [];
-  }
-  let nlpcTokens = sentences[0].tokens;
-  let preTokens: Array<PreToken> = nlpcTokens.map((token,i) => {
-    return {ix: i, text: token.text, tag: token.pos.tag};
-  });
-  // Group quoted text here
-  let quoteStarts = preTokens.filter((t) => t.text.charAt(0) === `"`);
-  let quoteEnds = preTokens.filter((t) => t.text.charAt(t.text.length-1) === `"`);
-  // If we have balanced quotes, combine tokens
-  if (quoteStarts.length === quoteEnds.length) {
-    let end, start; // @HACK to get around block scoped variable restriction
-    for (let i = 0; i < quoteStarts.length; i++) {
-      start = quoteStarts[i];
-      end = quoteEnds[i];
-      // Get all tokens between quotes (inclusive)
-      let quotedTokens = preTokens.filter((token) => token.ix >= start.ix && token.ix <= end.ix)
-                                  .map((token) => token.text);
-      let quotedText = quotedTokens.join(" ");                  
-      // Remove quotes                           
-      quotedText = quotedText.replace(new RegExp("\"", 'g'),"");
-      // Create a new pretoken
-      let newPreToken: PreToken = {ix: start.ix, text: quotedText, tag: "NNQ"};
-      preTokens.splice(preTokens.indexOf(start),quotedTokens.length,newPreToken);
-    }
-  }
-  return preTokens;
+export function normalizeQueryString(queryString: string): Array<string> {
+  // Add whitespace before and after separator and operators
+  let normalizedQueryString = queryString.replace(/,/g,' , ');
+  normalizedQueryString = normalizedQueryString.replace(/;/g,' ; ');
+  normalizedQueryString = normalizedQueryString.replace(/\+/g,' + ');
+  normalizedQueryString = normalizedQueryString.replace(/-/g,' - ');
+  normalizedQueryString = normalizedQueryString.replace(/\*/g,' * ');
+  normalizedQueryString = normalizedQueryString.replace(/\//g,' / ');
+  normalizedQueryString = normalizedQueryString.replace(/"/g,' " ');
+  // Split possessive endings
+  normalizedQueryString = normalizedQueryString.replace(/\'s/g,' \'s ');
+  normalizedQueryString = normalizedQueryString.replace(/s'/g,'s \'s ');
+  // Clean various symbols we don't want to deal with
+  normalizedQueryString = normalizedQueryString.replace(/`|\?|\:|\[|\]|\{|\}|\(|\)|\<|\>|\~|\`|~|!|@|#|\$|%|\^|&|_|\|/g,' ');
+  // Collapse whitespace   
+  normalizedQueryString = normalizedQueryString.replace(/\s+/g,' ');
+  // Split words at whitespace
+  let words = normalizedQueryString.split(" ");
+  return words;
 }
 
 // ----------------------------------------------------------------------------
@@ -235,7 +216,7 @@ enum Properties {
   CALCULATE,
   OPERATOR,
   // Token properties
-  VALUE,
+  QUANTITY,
   PROPER,
   PLURAL,
   POSSESSIVE,
@@ -265,13 +246,12 @@ function hasProperty(token: Token, property: Properties): boolean {
 
 
 // take an input string, extract tokens
-function formTokens(preTokens: Array<PreToken>): Array<Token> {
+function formTokens(words: Array<string>): Array<Token> {
     
     // Form a token for each word
     let cursorPos = -2;
-    let tokens: Array<Token> = preTokens.map((preToken: PreToken, i: number) => {
-      let word = preToken.text;
-      let tag = preToken.tag;
+    let tokens: Array<Token> = words.map((word: string, i: number) => {
+      let tag = "";
       let token: Token = {
         ix: i+1, 
         originalWord: word, 
