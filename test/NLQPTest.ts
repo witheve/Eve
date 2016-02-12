@@ -136,11 +136,13 @@ let phrases = [
   // These are queries that we had problems with in the past
   // make sure they always work
   // -------------------------------
-  "Grognar the Barbarian's sword"
-  //"sum of employee salaries",
-  //"3 + Corey's age",
-  //"Corey's age + 3",
-  /*"sum pet length",
+  //"Grognar the Barbarian dealt 15 damage with his sword to the goblin king",
+  "Corey's age is 30",
+  /*"Corey Montella's least favorite color",
+  "sum of employee salaries",
+  "3 + Corey's salary",
+  "Corey's salary + 3",
+  "sum pet length",//
   "sum employee salaries",
   "employee salaries",
   "salaries in engineering",
@@ -159,7 +161,7 @@ let phrases = [
   "sum salary per department",
   "exotic that are not pets",
   "pets not exotics",
-  `Corey's age + Josh's salary`,*/
+  `Corey Montella's age + Josh's salary`,*/
   // -------------------------------
   //`Pets except those shorter than a koala`,
   //`salaries per department`,
