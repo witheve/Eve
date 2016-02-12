@@ -14,11 +14,11 @@ export interface ParseResult {
   context: Context,
   query: Query,
   score: number,
-  state: StateFlags,
+  intent: Intent,
 }
 
-export enum StateFlags {
-  COMPLETE,
+export enum Intent {
+  QUERY,
   MOREINFO,
   NORESULT,  
 }
@@ -30,15 +30,15 @@ export function parse(queryString: string): Array<ParseResult> {
   let {tree, context} = formTree(tokens);
   let query = formQuery(tree);
   // Figure out the state flags
-  let flag: StateFlags;
+  let intent: Intent;
   if (query.projects.length === 0 && query.terms.length === 0) {
-    flag = StateFlags.NORESULT;
+    intent = Intent.NORESULT;
   } else if (treeComplete(tree)) {
-    flag = StateFlags.COMPLETE; 
+    intent = Intent.QUERY;
   } else {
-    flag = StateFlags.MOREINFO;
+    intent = Intent.MOREINFO;
   }
-  return [{tokens: tokens, tree: tree, context: context, query: query, score: undefined, state: flag}];
+  return [{tokens: tokens, tree: tree, context: context, query: query, score: undefined, intent: intent}];
 }
 
 // Returns false if any nodes are not marked found
@@ -220,11 +220,22 @@ function newToken(word: string): Token {
 }
 
 enum Properties {
+  // Node properties
   ROOT,
+  COMPOUND,
+  // EVE attributes
   ENTITY,
   COLLECTION,
   ATTRIBUTE,
-  QUANTITY,
+  // Function properties
+  FUNCTION,
+  OUTPUT,
+  INPUT,
+  AGGREGATE,
+  CALCULATE,
+  OPERATOR,
+  // Token properties
+  VALUE,
   PROPER,
   PLURAL,
   POSSESSIVE,
@@ -234,18 +245,12 @@ enum Properties {
   PRONOUN,  
   SEPARATOR,
   CONJUNCTION,
-  COMPOUND,
   QUOTED,
-  FUNCTION,
-  GROUPING,
-  OUTPUT,
-  INPUT,
-  NEGATES,
-  IMPLICIT,
-  AGGREGATE,
-  CALCULATE,
-  OPERATOR,
   SETTER,
+  // Modifiers
+  NEGATES,
+  GROUPING,
+  IMPLICIT,
 }
 
 // Finds a given property in a token
@@ -280,20 +285,20 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
            
       // Add default attribute markers to nouns
       if (token.POS === MinorPartsOfSpeech.NNO || 
-          token.POS === MinorPartsOfSpeech.PP) {
+        token.POS === MinorPartsOfSpeech.PP) {
         token.properties.push(Properties.POSSESSIVE);
       }
       if (token.POS === MinorPartsOfSpeech.NNP  ||
-          token.POS === MinorPartsOfSpeech.NNPS ||
-          token.POS === MinorPartsOfSpeech.NNPA) {
+        token.POS === MinorPartsOfSpeech.NNPS ||
+        token.POS === MinorPartsOfSpeech.NNPA) {
         token.properties.push(Properties.PROPER);
       }
       if (token.POS === MinorPartsOfSpeech.NNPS  ||
-          token.POS === MinorPartsOfSpeech.NNS) {
+        token.POS === MinorPartsOfSpeech.NNS) {
         token.properties.push(Properties.PLURAL);
       }
       if (token.POS === MinorPartsOfSpeech.PP ||
-          token.POS === MinorPartsOfSpeech.PRP) {
+        token.POS === MinorPartsOfSpeech.PRP) {
         token.properties.push(Properties.PRONOUN);
       }
       if (token.POS === MinorPartsOfSpeech.NNQ) {
