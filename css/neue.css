@@ -1,13 +1,11 @@
-body { position: relative; padding-bottom: 1.5em; background: #fff; color: rgb(76, 85, 90); font-family: "Lato", sans-serif; font-weight: 400; }
+body { position: relative; padding-bottom: 1.5em; background:linear-gradient(-215deg, #fff 0%, rgb(236,238,242) 40%); color: rgb(76, 85, 90); font-family: "Lato", sans-serif; font-weight: 400; }
 * { box-sizing: border-box; }
 div { display: flex; flex-direction: column; }
 button, input { border:none; outline: none; font-family: "Lato", sans-serif; font-weight: 400; color: rgb(76,85,90); font-size: 12pt; }
+input { background:none; }
 
 a { color: #008cdd; cursor: pointer; border-bottom: 1px solid transparent; text-decoration: none; }
 a:hover { text-decoration: underline; }
-
-
-.light .bit { background: transparent; }
 
 .flex-grow { flex: 1; }
 .flex-row { display: flex !important; flex-direction: row; }
@@ -51,12 +49,12 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 /*---------------------------------------------------------
 - Pane
 ---------------------------------------------------------*/
-.wiki-pane.fullscreen { position: relative; }
+.wiki-pane.fullscreen { position: relative; padding: 50px 100px; }
 .wiki-pane > header { padding: 10px 0.5em; align-items: center; border-bottom: 1px solid #ccc; }
 .wiki-pane > header > * { margin: 0 0.5em;}
 .wiki-pane > content { display: flex; } /* @TODO: Breakpoints overflow-y: auto*/
 
-.wiki-pane { background: #fff; }
+.wiki-pane {}
 
 .wiki-entity { flex: 1; flex-direction: row; overflow:hidden; justify-content: center; }
 .disambiguation { align-self: stretch; flex-direction: row; padding: 0.25em 0.5em; margin-bottom: 1rem; color: #999; }
@@ -113,6 +111,16 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .labeled-input input + * { border-left:1px solid #ddd; }
 
 /*---------------------------------------------------------
+- Tile
+---------------------------------------------------------*/
+
+.tile { background: white; align-self:center; align-items: stretch; min-width:200px; min-height:150px; box-shadow: 0 20px 50px rgba(0,0,50,0.10); margin-top:200px; border-radius:5px; }
+.tile .text-content { padding:20px 20px; margin-right:10px; min-width:250px; white-space:pre-wrap; line-height:28px; color:#aaa; }
+.tile .header { font-size: 18pt; font-weight: 900; padding-bottom: 10px; margin-bottom: 0px; color: rgb(106,138,156); }
+.tile .attributes { background: rgba(0,0,50,0.05); padding: 20px 20px; border-left:1px solid rgba(0,0,0,0.03); border-radius:0; align-self:stretch; }
+.tile .attribute-name { color: rgb(106,138,156); }
+
+/*---------------------------------------------------------
 - Selector
 ---------------------------------------------------------*/
 
@@ -120,7 +128,6 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .selector *:nth-child(2) { background: orange; color: #333; text-shadow:none; }
 .selector * { justify-content:center; background:none; border:none; color: #666; font-size: 11pt; font-family: "Lato"; font-weight: 400; padding:3px 8px; }
 .selector * + * { margin-left: 5px; }
-.selector button { background: ; }
 
 /*---------------------------------------------------------
 - Wiki editor
@@ -170,7 +177,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 - Page attributes
 ---------------------------------------------------------*/
 
-.page-attributes { margin-top:50px; align-self: flex-start; margin-left:30px; border-radius:3px; border:none; }
+.page-attributes { align-self: flex-start; border-radius:3px; border:none; }
 .page-attributes .attribute { align-items:flex-start; flex-direction:row; }
 .page-attributes .attribute + .attribute { margin-top:15px; border:none; }
 .page-attributes .attribute .attribute-name { text-align:right; font-weight:900; width: 150px; padding:2px 10px; border:1px solid transparent; }
@@ -257,6 +264,8 @@ content .csv { color: #A200A7;  }
 /*---------------------------------------------------------
 - CodeMirror general
 ---------------------------------------------------------*/
+
+.CodeMirror { background: none; }
 .CodeMirror div { display: block; }
 .CodeMirror { font-family: "Lato", sans-serif; overflow:visible; height: auto; font-weight:400; line-height: 26px; color: rgb(84,84,84); }
 .CodeMirror-scroll { height: auto; overflow: visible !important; }

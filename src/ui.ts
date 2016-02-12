@@ -311,11 +311,11 @@ let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, 
   [PANE.FULL]: (paneId, entityId) => ({
     c: "fullscreen",
     header: {t: "header", c: "flex-row", children: [
-      {c: "logo eve-logo", data: {paneId}, link: "", click: navigate},
+      // {c: "logo eve-logo", data: {paneId}, link: "", click: navigate},
       searchInput(paneId, entityId),
-      {c: "controls visible", children: [
-        {c: "ion-gear-a toggle-settings", style: "font-size: 1.35em;", prompt: paneSettings, paneId, click: openPrompt}
-      ]}
+      // {c: "controls visible", children: [
+      //   {c: "ion-gear-a toggle-settings", style: "font-size: 1.35em;", prompt: paneSettings, paneId, click: openPrompt}
+      // ]}
     ]}
   }),
   [PANE.POPOUT]: (paneId, entityId) => {
@@ -461,7 +461,8 @@ export function pane(paneId:string):Element {
     content = search(cleaned.substring("search: ".length), paneId);
   } else if(entityId) {
     let options:any = {};
-    content = entity(entityId, paneId, kind, options);
+    // content = entity(entityId, paneId, kind, options);
+    content = entityTileRENAMEME(entityId, paneId, kind, options);
   } else if(eve.findOne("query to id", {query: cleaned})) {
     contentType = "search";
     content = search(cleaned, paneId);
@@ -497,6 +498,22 @@ export function pane(paneId:string):Element {
   }
   return pane;
 }
+
+function entityTileRENAMEME(entityId, paneId, kind, options) {
+  let name = eve.findOne("display name", {id: asEntity(entityId)}).name;
+  let attrs = attributesUI(entityId, paneId);
+  attrs.c += " page-attributes";
+  return {c: "tile", children: [
+    {c: "flex-row", children: [
+      {c: "text-content", children: [
+        {c: "header", text: name},
+        {c: "description", text: "Add a description here"}
+      ]},
+      attrs,
+    ]}
+  ]};
+}
+
 function createPage(evt:Event, elem:Element) {
   let name = elem["name"];
   let entity = uuid();
@@ -1665,6 +1682,12 @@ export function searchInput(paneId:string, value:string):Element {
   return {
     c: "flex-grow wiki-search-wrapper",
     children: [
+      {c: "controls", children: [
+        // {c: `ion-ios-arrow-${state.plan ? 'up' : 'down'} plan`, click: toggleSearchPlan, paneId},
+        // while technically a button, we don't need to do anything as clicking it will blur the editor
+        // which will execute the search
+        {c: "ion-android-search visible", paneId}
+      ]},
       codeMirrorElement({
         c: `flex-grow wiki-search-input ${state.focused ? "selected": ""}`,
         paneId,
@@ -1674,12 +1697,6 @@ export function searchInput(paneId:string, value:string):Element {
         // change: updateSearch,
         shortcuts: {"Enter": setSearch}
       }),
-      {c: "controls", children: [
-        {c: `ion-ios-arrow-${state.plan ? 'up' : 'down'} plan`, click: toggleSearchPlan, paneId},
-        // while technically a button, we don't need to do anything as clicking it will blur the editor
-        // which will execute the search
-        {c: "ion-android-search visible", paneId}
-      ]},
     ]
   };
 };
