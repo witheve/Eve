@@ -245,6 +245,7 @@ enum Properties {
   AGGREGATE,
   CALCULATE,
   OPERATOR,
+  SETTER,
 }
 
 // Finds a given property in a token
@@ -390,6 +391,7 @@ function formTokens(preTokens: Array<PreToken>): Array<Token> {
           break;
         case "is": 
           token.POS = MinorPartsOfSpeech.CP;
+          token.properties.push(Properties.SETTER);
           break;
         case "was":
           token.POS = MinorPartsOfSpeech.CP;
@@ -858,7 +860,9 @@ function previouslyMatched(node: Node, ignoreFunctions?: boolean): Node {
   }
   if (node.parent === undefined) {
     return undefined;
-  } else if (!ignoreFunctions && node.parent.hasProperty(Properties.FUNCTION) && !node.parent.hasProperty(Properties.CONJUNCTION))  {
+  } else if (!ignoreFunctions && 
+             (node.parent.hasProperty(Properties.SETTER) ||
+             (node.parent.hasProperty(Properties.FUNCTION) && !node.parent.hasProperty(Properties.CONJUNCTION))))  {
     return undefined;
   } else if (node.parent.hasProperty(Properties.ENTITY) ||
              node.parent.hasProperty(Properties.ATTRIBUTE) ||
@@ -876,7 +880,9 @@ function previouslyMatchedEntityOrCollection(node: Node, ignoreFunctions?: boole
   }
   if (node.parent === undefined) {
     return undefined;
-  } else if (!ignoreFunctions && node.parent.hasProperty(Properties.FUNCTION) && !node.parent.hasProperty(Properties.CONJUNCTION))  {
+  } else if (!ignoreFunctions && 
+             (node.parent.hasProperty(Properties.SETTER) ||
+             (node.parent.hasProperty(Properties.FUNCTION) && !node.parent.hasProperty(Properties.CONJUNCTION))))  {
     return undefined;
   } else if (node.parent.hasProperty(Properties.ENTITY) ||
              node.parent.hasProperty(Properties.COLLECTION)) {
@@ -893,7 +899,9 @@ function previouslyMatchedAttribute(node: Node, ignoreFunctions?: boolean): Node
   }
   if (node.parent === undefined) {
     return undefined;
-  } else if (!ignoreFunctions && node.parent.hasProperty(Properties.FUNCTION) && !node.parent.hasProperty(Properties.CONJUNCTION))  {
+  } else if (!ignoreFunctions && 
+             (node.parent.hasProperty(Properties.SETTER) ||
+             (node.parent.hasProperty(Properties.FUNCTION) && !node.parent.hasProperty(Properties.CONJUNCTION))))  {
     return undefined;
   } else if (node.parent.hasProperty(Properties.ATTRIBUTE)) {
     return node.parent;
@@ -1176,6 +1184,13 @@ function formTree(tokens: Array<Token>) {
     let allFound = ngram.every((node) => node.found);
     if (allFound !== true) {
       let displayName = ngram.map((node)=>node.name).join(" ");
+      // Handle special compound nodes
+      if (ngram.length === 2 && (displayName === "is an" || displayName === "is a")) {
+       ngram[1].properties.push(Properties.SETTER);
+       ngram.map((node) => node.found = true);
+       matchedNgrams.push(ngram);
+       continue; 
+      }
       let foundName = eve.findOne("index name",{ name: displayName });
       // If the display name is in the system, mark all the nodes as found 
       if (foundName !== undefined) {
@@ -1280,23 +1295,24 @@ function formTree(tokens: Array<Token>) {
         break;
       }
       
-      // Handle form of "is"
-      if (node.name === "is") {
-        console.log("Handling forms of 'is'...");
-        node.properties.push(Properties.FUNCTION);
+      // Handle setters
+      if (node.hasProperty(Properties.SETTER)) {
+        console.log("Handling setter...");
         let previouslyFound = previouslyMatchedEntityOrCollection(node);
-        let targetAttribute = context.maybeAttributes[context.maybeAttributes.length - 1];
-        if (targetAttribute === undefined) {
-          targetAttribute = previouslyMatchedAttribute(node);
-          if (targetAttribute === undefined) {
-            break;
-          }
-        }
         node.found = true;
         let child = node.children[0];
         if (child !== undefined) {
-          // Build an attribute
+          // Handle entities
           if (previouslyFound.hasProperty(Properties.ENTITY)) {
+            let targetAttribute = context.maybeAttributes[context.maybeAttributes.length - 1];
+            // Get the attribute we are setting
+            if (targetAttribute === undefined) {
+              targetAttribute = previouslyMatchedAttribute(node);
+              if (targetAttribute === undefined) {
+                break;
+              }
+            }
+            // Build an attribute
             let attribute: Attribute = {
               id: targetAttribute.name,
               displayName: targetAttribute.name,
@@ -1308,14 +1324,17 @@ function formTree(tokens: Array<Token>) {
             };  
             previouslyFound.entity.project = false;
             targetAttribute.attribute = attribute;
-          } 
-          // If the next node is a quantiy, set the value of the attribute to 
-          // the value of the quantity
-          if (child.hasProperty(Properties.QUANTITY)) {
-            targetAttribute.attribute.value = parseFloat(child.name);
-            context.setAttributes.push(targetAttribute.attribute);
-            targetAttribute.found = true;
-            child.found = true;
+            // If the next node is a quantity, set the value of the attribute to 
+            // the value of the quantity
+            if (child.hasProperty(Properties.QUANTITY)) {
+              targetAttribute.attribute.value = parseFloat(child.name);
+              context.setAttributes.push(targetAttribute.attribute);
+              targetAttribute.found = true;
+              child.found = true;              
+            }
+          // Handle Collections
+          } else if (previouslyFound.hasProperty(Properties.COLLECTION)) {
+            // @TODO handle collections 
           }
         }
         node = child.children[0];
@@ -1713,6 +1732,13 @@ function formTree(tokens: Array<Token>) {
     node.children.map(sortChildren);
   }
   sortChildren(tree);
+  
+  // Get rid of any maybe* in the context that were matched
+  context.maybeAttributes = context.maybeAttributes.filter((node) => node.found === false);
+  context.maybeArguments = context.maybeArguments.filter((node) => node.found === false);
+  context.maybeCollections = context.maybeCollections.filter((node) => node.found === false);
+  context.maybeEntities = context.maybeEntities.filter((node) => node.found === false);
+  context.maybeFunctions = context.maybeFunctions.filter((node) => node.found === false);
   
   // Mark root as found
   tree.found = true;
