@@ -10,7 +10,6 @@ declare var uuid;
 
 export interface Result {
   intent: Intents,
-  score: number,
   context: Context,
   tokens: Array<Token>,
   tree: Node,
@@ -24,10 +23,22 @@ export enum Intents {
 }
 
 // Entry point for NLQP
-export function parse(queryString: string, lastParse?: Result): Array<Result> {
+export function parse(queryString: string, lastParse?: Result): Result {
+  //let start = performance.now();
+  let start = performance.now();
   let words = normalizeQueryString(queryString);
-  console.log(words.join("\n"));
-  /*let tokens = formTokens(words);
+  let tokens = [];
+  for (let word of words) {
+    let token = formToken(word);
+    tokens.push(token);
+  }
+  let stop = performance.now();
+  console.log(stop-start);
+  
+  console.log(tokenArrayToString(tokens));
+  
+  
+  /*
   let {tree, context} = formTree(tokens);
   let query = formQuery(tree);
   // Figure out the state flags
@@ -39,9 +50,9 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
   } else {
     intent = Intent.MOREINFO;
   }
-  return [{intent: intent, score: undefined, context: context, tokens: tokens, tree: tree, query: query}];
+  return [{intent: intent, context: context, tokens: tokens, tree: tree, query: query}];
   */
-  return [];
+  return undefined;
 }
 
 // Returns false if any nodes are not marked found
@@ -55,8 +66,13 @@ function treeComplete(node: Node): boolean {
   }
 }
 
+interface Word {
+  ix: number;
+  text: string;
+}
+
 // Performs some transformations to the query string before tokenizing
-export function normalizeQueryString(queryString: string): Array<string> {
+export function normalizeQueryString(queryString: string): Array<Word> {
   // Add whitespace before and after separator and operators
   let normalizedQueryString = queryString.replace(/,/g,' , ');
   normalizedQueryString = normalizedQueryString.replace(/;/g,' ; ');
@@ -69,11 +85,13 @@ export function normalizeQueryString(queryString: string): Array<string> {
   normalizedQueryString = normalizedQueryString.replace(/\'s/g,' \'s ');
   normalizedQueryString = normalizedQueryString.replace(/s'/g,'s \'s ');
   // Clean various symbols we don't want to deal with
-  normalizedQueryString = normalizedQueryString.replace(/`|\?|\:|\[|\]|\{|\}|\(|\)|\<|\>|\~|\`|~|!|@|#|\$|%|\^|&|_|\|/g,' ');
+  normalizedQueryString = normalizedQueryString.replace(/`|\?|\:|\[|\]|\{|\}|\(|\)|\~|\`|~|!|@|#|\$|%|&|_|\|/g,' ');
   // Collapse whitespace   
   normalizedQueryString = normalizedQueryString.replace(/\s+/g,' ');
   // Split words at whitespace
-  let words = normalizedQueryString.split(" ");
+  let splitStrings = normalizedQueryString.split(" ");
+  let words = splitStrings.map((text,i) => {return {ix: i, text: text};});
+  words = words.filter((word) => word.text !== "");
   return words;
 }
 
@@ -146,16 +164,18 @@ enum MinorPartsOfSpeech {
   DA,   // date (june 5th 1998)
   NU,   // number (100, one hundred)
   // Symbol
+  POS,  // Possessive ending ('s)
   LT,   // Symbol (<)
   GT,   // Symbol (>)
   GTE,  // Symbol (>=)
   LTE,  // Symbol (<=)
   EQ,   // Symbol (=)
   NEQ,  // Symbol (!=)
-  PLUS, // Sumbol (+)
-  MINUS,// Sumbol (-)
-  DIV,  // Sumbol (/)
-  MUL,  // Sumbol (*)
+  PLUS, // Symbol (+)
+  MINUS,// Symbol (-)
+  DIV,  // Symbol (/)
+  MUL,  // Symbol (*)
+  POW,  // Symbol (^)
   SEP,  // Separator (, ;)
   // Wh- word
   WDT,  // Wh-determiner (that what whatever which whichever)
@@ -177,6 +197,11 @@ interface Token {
   next?: Token,
 }
 
+function newToken(text: string): Token {
+  let token = formToken({ix: 0, text: text});
+  return token;
+}
+
 function cloneToken(token: Token): Token {
   let clone: Token = {
     ix: token.ix,
@@ -187,17 +212,6 @@ function cloneToken(token: Token): Token {
   };
   token.properties.map((property) => clone.properties.push(property));
   return clone;
-}
-
-function newToken(word: string): Token {
-  let token = {
-    ix: 0,
-    originalWord: word,
-    normalizedWord: word,
-    POS: MinorPartsOfSpeech.NN,
-    properties: [],
-  }
-  return token;
 }
 
 enum Properties {
@@ -246,302 +260,319 @@ function hasProperty(token: Token, property: Properties): boolean {
 
 
 // take an input string, extract tokens
-function formTokens(words: Array<string>): Array<Token> {
-    
-    // Form a token for each word
-    let cursorPos = -2;
-    let tokens: Array<Token> = words.map((word: string, i: number) => {
-      let tag = "";
-      let token: Token = {
-        ix: i+1, 
-        originalWord: word, 
-        normalizedWord: word,
-        start: cursorPos += 2,
-        end: cursorPos += word.length - 1,
-        POS: MinorPartsOfSpeech[tag],
-        properties: [], 
-      };
-      let before = "";
-           
-      // Add default attribute markers to nouns
-      if (token.POS === MinorPartsOfSpeech.NNO || 
-        token.POS === MinorPartsOfSpeech.PP) {
-        token.properties.push(Properties.POSSESSIVE);
-      }
-      if (token.POS === MinorPartsOfSpeech.NNP  ||
-        token.POS === MinorPartsOfSpeech.NNPS ||
-        token.POS === MinorPartsOfSpeech.NNPA) {
-        token.properties.push(Properties.PROPER);
-      }
-      if (token.POS === MinorPartsOfSpeech.NNPS  ||
-        token.POS === MinorPartsOfSpeech.NNS) {
-        token.properties.push(Properties.PLURAL);
-      }
-      if (token.POS === MinorPartsOfSpeech.PP ||
-        token.POS === MinorPartsOfSpeech.PRP) {
-        token.properties.push(Properties.PRONOUN);
-      }
-      if (token.POS === MinorPartsOfSpeech.NNQ) {
-        token.properties.push(Properties.PROPER);
-        token.properties.push(Properties.QUOTED);
-      }
-      
-      
-      // Add default properties to adjectives and adverbs
-      if (token.POS === MinorPartsOfSpeech.JJR || token.POS === MinorPartsOfSpeech.RBR) {
-        token.properties.push(Properties.COMPARATIVE);
-      }
-      else if (token.POS === MinorPartsOfSpeech.JJS || token.POS === MinorPartsOfSpeech.RBS) {        
-        token.properties.push(Properties.SUPERLATIVE);
-      }
-      
-      // Add default properties to values
-      if (token.POS === MinorPartsOfSpeech.CD ||
-          token.POS === MinorPartsOfSpeech.NU) {
-        token.properties.push(Properties.QUANTITY);
-      }
-      
-      // Add default properties to separators
-      if (token.POS === MinorPartsOfSpeech.CC) {
-        token.properties.push(Properties.CONJUNCTION);
-      }
-      
-      // normalize the word with the following transformations: 
-      // --- strip punctuation
-      // --- get rid of possessive ending 
-      // --- convert to lower case
-      // --- singularize
-      // If the word is quoted
-      if (token.POS === MinorPartsOfSpeech.NNQ ||
-          token.POS === MinorPartsOfSpeech.CD) {
-        token.normalizedWord = word;
-      } else {
-        let normalizedWord = word;
-        // --- strip punctuation
-        normalizedWord = normalizedWord.replace(/\.|\?|\!|/g,'');
-        // --- get rid of possessive ending
-        before = normalizedWord;
-        normalizedWord = normalizedWord.replace(/'s|'$/,'');
-        // Heuristic: If the word had a possessive ending, it has to be a possessive noun of some sort      
-        if (before !== normalizedWord) {
-          if (getMajorPOS(token.POS) !== MajorPartsOfSpeech.NOUN) {
-            token.POS = MinorPartsOfSpeech.NN;
-          }
-          token.properties.push(Properties.POSSESSIVE);
-        }
-        // --- convert to lowercase
-        before = normalizedWord;
-        normalizedWord = normalizedWord.toLowerCase();
-        // Heuristic: if the word is not the first word in the sentence and it had capitalization, then it is probably a proper noun
-        if (before !== normalizedWord && i !== 0) {
-          token.POS = MinorPartsOfSpeech.NNP;
-          token.properties.push(Properties.PROPER);     
-        }
-        // --- if the word is a (not proper) noun or verb, singularize
-        if ((getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN || getMajorPOS(token.POS) === MajorPartsOfSpeech.VERB) && !hasProperty(token,Properties.PROPER)) {
-          before = normalizedWord;
-          normalizedWord = singularize(normalizedWord);
-          // Heuristic: If the word changed after singularizing it, then it was plural to begin with
-          if (before !== normalizedWord) {
-            token.properties.push(Properties.PLURAL);
-          }
-        }      
-        token.normalizedWord = normalizedWord;
-      }
+function formToken(word: Word): Token {
+  // Every word is tagged a noun unless some rule says otherwise
+  let POS: MinorPartsOfSpeech = MinorPartsOfSpeech.NN;
+  let properties: Array<Properties> = [];
+  let originalWord = word.text;
+  let normalizedWord = originalWord;
+  let found = false;
+  
+  let upperCaseLetters = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'];
+  let lowerCaseLetters = ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z'];
+  let digits = ['1','2','3','4','5','6','7','8','9','0'];
+  let separators = [',',':',';','"'];
+  let operators = ['+','-','*','/','^'];
+  let comparators = ['>','>=','<','<=','=','!='];
+  let preDeterminers = ['all'];
+  let determiners = ['this', 'any', 'enough', 'each', 'every', 'these', 'another', 'plenty', 'whichever', 'neither', 'an', 'a', 'least', 'own', 'few', 'both', 'those', 'the', 'that', 'various', 'what', 'either', 'much', 'some', 'else', 'no'];
+  let copulae = ['as', 'is', 'are', 'were', 'am', 'was', 'be'];
+  let conjunctions = ['yet', 'therefore', 'or', 'while', 'nor', 'whether', 'though', 'because', 'but', 'for', 'and', 'if', 'before', 'although', 'plus', 'versus', 'not'];
+  let preposisions = ['until', 'onto', 'of', 'into', 'out', 'except', 'across', 'by', 'between', 'at', 'down', 'as', 'from', 'around', 'with', 'among', 'upon', 'amid', 'to', 'along', 'since', 'about', 'off', 'on', 'within', 'in', 'during', 'per', 'without', 'throughout', 'through', 'than', 'via', 'up', 'unlike', 'despite', 'below', 'unless', 'towards', 'besides', 'after', 'whereas','amongst', 'atop', 'barring', 'circa', 'mid', 'midst', 'notwithstanding', 'sans', 'thru', 'till', 'versus'];
+  let possessivePronouns = ['mine', 'something', 'none', 'anything', 'anyone', 'theirs', 'himself', 'ours', 'his', 'my', 'their', 'yours', 'your', 'our', 'its', 'nothing', 'herself', 'hers', 'themselves', 'everything', 'myself', 'itself', 'her', 'who', 'whom', 'whose'];
+  let personalPronouns = ['it', 'they', 'i', 'them', 'you', 'she', 'me', 'he', 'him', 'ourselves', 'us', 'we', 'yourself'];
+  let modals = ['can', 'may', 'could', 'might', 'will', 'would', 'must', 'shall', 'should', 'ought'];
+  let whPronouns = ['who','what','whom'];
+  let whDeterminers = ['whatever','which']
+  let whPossessivePronoun = ['whose'];
+  let whAdverbs = ['how','when','however','whenever','where','why']; 
 
-           
-      // Heuristic: Special case "in" classified as an adjective. e.g. "the in crowd". This is an uncommon usage
-      if (token.normalizedWord === "in" && getMajorPOS(token.POS) === MajorPartsOfSpeech.ADJECTIVE) 
-      {
-        token.POS = MinorPartsOfSpeech.IN;
-      }
-
-      // Heuristic: Special case words with no ambiguous POS that NLPC misclassifies
-      switch (token.normalizedWord) {
-        case "of":
-          token.properties.push(Properties.BACKRELATIONSHIP); 
-          break;
-        case "per":
-          token.properties.push(Properties.BACKRELATIONSHIP); 
-          token.properties.push(Properties.GROUPING);
-          break;
-        case "all":
-          token.POS = MinorPartsOfSpeech.PDT;
-          break;
-        case "had":
-          token.POS = MinorPartsOfSpeech.VBD;
-          break;
-        case "has":
-          token.POS = MinorPartsOfSpeech.VBZ;
-          break;
-        case "is": 
-          token.POS = MinorPartsOfSpeech.CP;
-          token.properties.push(Properties.SETTER);
-          break;
-        case "was":
-          token.POS = MinorPartsOfSpeech.CP;
-          break;
-        case "as": 
-          token.POS = MinorPartsOfSpeech.CP;
-          break;
-        case "were":
-          token.POS = MinorPartsOfSpeech.CP;
-          break;
-        case "be":
-          token.POS = MinorPartsOfSpeech.CP;
-          break;
-        case "do":
-          token.POS = MinorPartsOfSpeech.VBP;
-          break;
-        case "no":
-          token.properties.push(Properties.NEGATES);
-          break;
-        case "neither":
-          token.POS = MinorPartsOfSpeech.CC;
-          token.properties.push(Properties.NEGATES);
-          break;
-        case "nor":
-          token.POS = MinorPartsOfSpeech.CC;
-          token.properties.push(Properties.NEGATES);
-          break;
-        case "except":
-          token.POS = MinorPartsOfSpeech.CC;
-          token.properties.push(Properties.NEGATES);
-          break;
-        case "without":
-          token.POS = MinorPartsOfSpeech.CC;
-          token.properties.push(Properties.NEGATES);
-          break;
-        case "not":
-          token.POS = MinorPartsOfSpeech.CC;
-          token.properties.push(Properties.NEGATES);
-          break;
-        case "average":
-          token.POS = MinorPartsOfSpeech.NN;
-          break;
-        case "mean":
-          token.POS = MinorPartsOfSpeech.NN;
-          break;
-        case "their":
-          token.properties.push(Properties.PLURAL);
-          break;
-        case "most":
-          token.POS = MinorPartsOfSpeech.JJS;
-          token.properties.push(Properties.SUPERLATIVE);
-          break;
-        case "best":
-          token.POS = MinorPartsOfSpeech.JJS;
-          token.properties.push(Properties.SUPERLATIVE);
-          break;
-        case "will":
-          // 'will' can be a noun
-          if (getMajorPOS(token.POS) !== MajorPartsOfSpeech.NOUN) {
-            token.POS = MinorPartsOfSpeech.MD;
-          }
-          break;
-        case "years":
-          token.POS = MinorPartsOfSpeech.NN;
-          token.normalizedWord = "year";
-          token.properties.push(Properties.PLURAL);
-          break;
-      }
-      
-      // Special case symbols
-      switch (token.normalizedWord) {
-        case ">": 
-          token.POS = MinorPartsOfSpeech.GT;
-          token.properties.push(Properties.COMPARATIVE);
-          break;
-        case ">=": 
-          token.POS = MinorPartsOfSpeech.GTE;
-          token.properties.push(Properties.COMPARATIVE);
-          break;
-        case "<":
-          token.POS = MinorPartsOfSpeech.LT;
-          token.properties.push(Properties.COMPARATIVE);
-          break;
-        case "<=":
-          token.POS = MinorPartsOfSpeech.LTE;
-          token.properties.push(Properties.COMPARATIVE);
-          break;
-        case "=":
-          token.POS = MinorPartsOfSpeech.EQ;
-          token.properties.push(Properties.COMPARATIVE);
-          break;
-        case "!=":
-          token.POS = MinorPartsOfSpeech.NEQ;
-          token.properties.push(Properties.COMPARATIVE);
-          break;
+  // We have three cases: the word is a symbol (of which there are various kinds), a number, or a string
+  
+  // ----------------------
+  // Case 1: handle symbols
+  // ----------------------
+  if (!found) {
+    if (operators.indexOf(originalWord) >= 0) {
+      found = true;
+      properties.push(Properties.OPERATOR);
+      switch (originalWord) {
         case "+":
-          token.POS = MinorPartsOfSpeech.PLUS;
-          token.properties.push(Properties.OPERATOR);
+          POS = MinorPartsOfSpeech.PLUS;
           break;
         case "-":
-          token.POS = MinorPartsOfSpeech.MINUS;
-          token.properties.push(Properties.OPERATOR);
+          POS = MinorPartsOfSpeech.MINUS;
           break;
         case "*":
-          token.POS = MinorPartsOfSpeech.MUL;
-          token.properties.push(Properties.OPERATOR);
+          POS = MinorPartsOfSpeech.MUL;
           break;
         case "/":
-          token.POS = MinorPartsOfSpeech.DIV;
-          token.properties.push(Properties.OPERATOR);
+          POS = MinorPartsOfSpeech.DIV;
           break;
-        case ",":
-          token.POS = MinorPartsOfSpeech.SEP;
-          token.properties.push(Properties.SEPARATOR);
-          break;
-        case ";":
-          token.POS = MinorPartsOfSpeech.SEP;
-          token.properties.push(Properties.SEPARATOR);
+        case "^":
+          POS = MinorPartsOfSpeech.POW;
           break;
       }
-      token.properties = token.properties.filter(onlyUnique);
-      return token;
-    });
-    
-    // Correct wh- tokens
-    for (let token of tokens) {
-      if (token.normalizedWord === "that"     || 
-          token.normalizedWord === "whatever" ||
-          token.normalizedWord === "which") {
-        // determiners become wh- determiners
-        if (token.POS === MinorPartsOfSpeech.DT) {
-          token.POS = MinorPartsOfSpeech.WDT;
-        }
-        // pronouns become wh- pronouns
-        else if (token.POS === MinorPartsOfSpeech.PRP || token.POS === MinorPartsOfSpeech.PP) {
-          token.POS = MinorPartsOfSpeech.WP;
-        }
-        continue;
+    } else if (comparators.indexOf(originalWord) >= 0) {
+      found = true;
+      properties.push(Properties.COMPARATIVE);
+      switch (originalWord) {
+        case ">":
+          POS = MinorPartsOfSpeech.GT;
+          break;
+        case ">=":
+          POS = MinorPartsOfSpeech.GTE;
+          break;
+        case "<":
+          POS = MinorPartsOfSpeech.LT;
+          break;
+        case "<=":
+          POS = MinorPartsOfSpeech.LTE;
+          break;
+        case "=":
+          POS = MinorPartsOfSpeech.EQ;
+          break;
+        case "!=":
+          POS = MinorPartsOfSpeech.NEQ;
+          break;
       }
-      // who and whom are wh- pronouns
-      if (token.normalizedWord === "who"  || 
-          token.normalizedWord === "what" ||
-          token.normalizedWord === "whom") {
-        token.POS = MinorPartsOfSpeech.WP;
-        continue;
-      }
-      // whose is the only wh- possessive pronoun
-      if (token.normalizedWord === "whose") {
-        token.POS = MinorPartsOfSpeech.WPO;
-        token.properties.push(Properties.POSSESSIVE);
-        continue;
-      }
-      // adverbs become wh- adverbs
-      if (token.normalizedWord === "how"      ||
-          token.normalizedWord === "when"     ||
-          token.normalizedWord === "however"  || 
-          token.normalizedWord === "whenever" ||
-          token.normalizedWord === "where"    ||
-          token.normalizedWord === "why") {
-        token.POS = MinorPartsOfSpeech.WRB;
-        continue;
-      }
+    } else if (separators.indexOf(originalWord) >= 0) {
+      found = true;
+      properties.push(Properties.SEPARATOR);
+      POS = MinorPartsOfSpeech.SEP;
+    } else if (originalWord === "'s") {
+      properties.push(Properties.POSSESSIVE);  
+      POS = MinorPartsOfSpeech.POS;    
     }
+  }
+  // ----------------------
+  // Case 2: handle numbers
+  // ----------------------
+  
+  if (!found) {
+    if (digits.indexOf(originalWord[0]) >= 0 && parseFloat(originalWord)) {
+      found = true;
+      properties.push(Properties.QUANTITY);
+      POS = MinorPartsOfSpeech.NU;
+    }
+  }
+  
+  
+  
+  // ----------------------
+  // Case 3: handle strings
+  // ----------------------
+  
+  if (!found) {
     
-    // Sentence-level POS corrections
+    // Normalize the word
+    if (false) {
+      normalizedWord = singularize(originalWord);
+    }
+    normalizedWord = normalizedWord.toLowerCase();
+    
+    // Test if the first letter is upper case
+    if (upperCaseLetters.indexOf(originalWord[0]) >= 0) {
+      properties.push(Properties.PROPER);
+    }
+  }
+
+  let token: Token = {
+    ix: word.ix, 
+    originalWord: word.text, 
+    normalizedWord: normalizedWord,
+    POS: POS,
+    properties: properties,
+  };
+
+  return token;  
+    
+    
+    
+    
+    /*
+  switch (token.normalizedWord) {
+    case "of":
+      token.properties.push(Properties.BACKRELATIONSHIP); 
+      break;
+    case "per":
+      token.properties.push(Properties.BACKRELATIONSHIP); 
+      token.properties.push(Properties.GROUPING);
+      break;
+    case "had":
+      token.POS = MinorPartsOfSpeech.VBD;
+      break;
+    case "has":
+      token.POS = MinorPartsOfSpeech.VBZ;
+      break;
+    case "is": 
+      token.POS = MinorPartsOfSpeech.CP;
+      token.properties.push(Properties.SETTER);
+      break;
+    case "do":
+      token.POS = MinorPartsOfSpeech.VBP;
+      break;
+    case "no":
+      token.properties.push(Properties.NEGATES);
+      break;
+    case "neither":
+      token.POS = MinorPartsOfSpeech.CC;
+      token.properties.push(Properties.NEGATES);
+      break;
+    case "nor":
+      token.POS = MinorPartsOfSpeech.CC;
+      token.properties.push(Properties.NEGATES);
+      break;
+    case "except":
+      token.POS = MinorPartsOfSpeech.CC;
+      token.properties.push(Properties.NEGATES);
+      break;
+    case "without":
+      token.POS = MinorPartsOfSpeech.CC;
+      token.properties.push(Properties.NEGATES);
+      break;
+    case "not":
+      token.POS = MinorPartsOfSpeech.CC;
+      token.properties.push(Properties.NEGATES);
+      break;
+    case "average":
+      token.POS = MinorPartsOfSpeech.NN;
+      break;
+    case "mean":
+      token.POS = MinorPartsOfSpeech.NN;
+      break;
+    case "their":
+      token.properties.push(Properties.PLURAL);
+      break;
+    case "most":
+      token.POS = MinorPartsOfSpeech.JJS;
+      token.properties.push(Properties.SUPERLATIVE);
+      break;
+    case "best":
+      token.POS = MinorPartsOfSpeech.JJS;
+      token.properties.push(Properties.SUPERLATIVE);
+      break;
+    case "will":
+      // 'will' can be a noun
+      if (getMajorPOS(token.POS) !== MajorPartsOfSpeech.NOUN) {
+        token.POS = MinorPartsOfSpeech.MD;
+      }
+      break;
+    case "years":
+      token.POS = MinorPartsOfSpeech.NN;
+      token.normalizedWord = "year";
+      token.properties.push(Properties.PLURAL);
+      break;
+  }*/
+    
+    
+    
+    
+  // Add default attribute markers to nouns
+  /*
+  if (token.POS === MinorPartsOfSpeech.NNO || 
+  token.POS === MinorPartsOfSpeech.PP) {
+  token.properties.push(Properties.POSSESSIVE);
+  }
+  if (token.POS === MinorPartsOfSpeech.NNP  ||
+  token.POS === MinorPartsOfSpeech.NNPS ||
+  token.POS === MinorPartsOfSpeech.NNPA) {
+  token.properties.push(Properties.PROPER);
+  }
+  if (token.POS === MinorPartsOfSpeech.NNPS  ||
+  token.POS === MinorPartsOfSpeech.NNS) {
+  token.properties.push(Properties.PLURAL);
+  }
+  if (token.POS === MinorPartsOfSpeech.PP ||
+  token.POS === MinorPartsOfSpeech.PRP) {
+  token.properties.push(Properties.PRONOUN);
+  }
+  if (token.POS === MinorPartsOfSpeech.NNQ) {
+  token.properties.push(Properties.PROPER);
+  token.properties.push(Properties.QUOTED);
+  }*/
+
+
+  // Add default properties to adjectives and adverbs
+  /*if (token.POS === MinorPartsOfSpeech.JJR || token.POS === MinorPartsOfSpeech.RBR) {
+    token.properties.push(Properties.COMPARATIVE);
+  }
+  else if (token.POS === MinorPartsOfSpeech.JJS || token.POS === MinorPartsOfSpeech.RBS) {        
+    token.properties.push(Properties.SUPERLATIVE);
+  }*/
+
+  // Add default properties to values
+  /*if (token.POS === MinorPartsOfSpeech.CD ||
+      token.POS === MinorPartsOfSpeech.NU) {
+    token.properties.push(Properties.QUANTITY);
+  }*/
+
+  // Add default properties to separators
+  /*if (token.POS === MinorPartsOfSpeech.CC) {
+    token.properties.push(Properties.CONJUNCTION);
+  }*/
+
+  // normalize the word with the following transformations: 
+  // --- strip punctuation
+  // --- get rid of possessive ending 
+  // --- convert to lower case
+  // --- singularize
+  // If the word is quoted
+  /*
+  if (token.POS === MinorPartsOfSpeech.NNQ ||
+      token.POS === MinorPartsOfSpeech.CD) {
+    token.normalizedWord = word;
+  } else {
+    let normalizedWord = word;
+    // --- strip punctuation
+    normalizedWord = normalizedWord.replace(/\.|\?|\!|/g,'');
+    // --- get rid of possessive ending
+    before = normalizedWord;
+    normalizedWord = normalizedWord.replace(/'s|'$/,'');
+    // Heuristic: If the word had a possessive ending, it has to be a possessive noun of some sort      
+    if (before !== normalizedWord) {
+      if (getMajorPOS(token.POS) !== MajorPartsOfSpeech.NOUN) {
+        token.POS = MinorPartsOfSpeech.NN;
+      }
+      token.properties.push(Properties.POSSESSIVE);
+    }
+    // --- convert to lowercase
+    before = normalizedWord;
+    normalizedWord = normalizedWord.toLowerCase();
+    // Heuristic: if the word is not the first word in the sentence and it had capitalization, then it is probably a proper noun
+    if (before !== normalizedWord && i !== 0) {
+      token.POS = MinorPartsOfSpeech.NNP;
+      token.properties.push(Properties.PROPER);     
+    }
+    // --- if the word is a (not proper) noun or verb, singularize
+    if ((getMajorPOS(token.POS) === MajorPartsOfSpeech.NOUN || getMajorPOS(token.POS) === MajorPartsOfSpeech.VERB) && !hasProperty(token,Properties.PROPER)) {
+      before = normalizedWord;
+      normalizedWord = singularize(normalizedWord);
+      // Heuristic: If the word changed after singularizing it, then it was plural to begin with
+      if (before !== normalizedWord) {
+        token.properties.push(Properties.PLURAL);
+      }
+    }      
+    token.normalizedWord = normalizedWord;
+  }*/
+
+        
+  // Heuristic: Special case "in" classified as an adjective. e.g. "the in crowd". This is an uncommon usage
+  /*if (token.normalizedWord === "in" && getMajorPOS(token.POS) === MajorPartsOfSpeech.ADJECTIVE) 
+  {
+    token.POS = MinorPartsOfSpeech.IN;
+  }*/
+
+  // Heuristic: Special case words with no ambiguous POS that NLPC misclassifies
+  /*
+
+    
+
+  // Correct wh- tokens
+
+  
+    
+   /* // Sentence-level POS corrections
     // Heuristic: If there are no verbs in the sentence, there can be no adverbs. Turn them into adjectives
     let verbs = tokens.filter((token: Token) => getMajorPOS(token.POS) === MajorPartsOfSpeech.VERB );
     if (verbs.length === 0) {
@@ -566,8 +597,8 @@ function formTokens(words: Array<string>): Array<Token> {
             adverbToAdjective(adverb);
           }
       });
-    }
-    
+    }*/
+    /*
     let rootToken = {
       ix: 0, 
       originalWord: tokens.map((token) => token.originalWord).join(" "), 
@@ -584,10 +615,7 @@ function formTokens(words: Array<string>): Array<Token> {
       token.prev = tokens[i - 1];
       token.next = tokens[i + 1];
     }
-    
-    log(tokenArrayToString(tokens));
-    
-    return tokens;
+   */ 
 }
 
 function adverbToAdjective(token: Token): Token {
@@ -677,6 +705,7 @@ function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech 
       minorPartOfSpeech === MinorPartsOfSpeech.MINUS ||
       minorPartOfSpeech === MinorPartsOfSpeech.DIV   ||
       minorPartOfSpeech === MinorPartsOfSpeech.MUL   ||
+      minorPartOfSpeech === MinorPartsOfSpeech.POS   ||
       minorPartOfSpeech === MinorPartsOfSpeech.SEP) {
         return MajorPartsOfSpeech.SYMBOL;
   }
@@ -691,7 +720,7 @@ function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech 
 
 // Wrap pluralize to special case certain words it gets wrong
 function singularize(word: string): string {
-  let specialCases = ["his", "times", "has", "downstairs", "united states", "its"];
+  let specialCases = ["his", "times", "has", "downstairs", "united states", "its","'s"];
   for (let specialCase of specialCases) {
     if (specialCase === word) {
       return word;
