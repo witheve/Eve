@@ -886,6 +886,22 @@ function previouslyMatchedEntityOrCollection(node: Node, ignoreFunctions?: boole
   }
 }
 
+// Returns the first ancestor node that has been found
+function previouslyMatchedAttribute(node: Node, ignoreFunctions?: boolean): Node {
+  if (ignoreFunctions === undefined) {
+    ignoreFunctions = false;
+  }
+  if (node.parent === undefined) {
+    return undefined;
+  } else if (!ignoreFunctions && node.parent.hasProperty(Properties.FUNCTION) && !node.parent.hasProperty(Properties.CONJUNCTION))  {
+    return undefined;
+  } else if (node.parent.hasProperty(Properties.ATTRIBUTE)) {
+    return node.parent;
+  } else {
+    return previouslyMatchedAttribute(node.parent,ignoreFunctions);
+  }
+}
+
 // Inserts a node after the target, moving all of the
 // target's children to the node
 // Before: [Target] -> [Children]
@@ -1048,6 +1064,7 @@ interface Context {
   entities: Array<Entity>,
   collections: Array<Collection>,
   attributes: Array<Attribute>,
+  setAttributes: Array<Attribute>, 
   fxns: Array<BuiltInFunction>,
   groupings: Array<Node>,
   relationships: Array<Relationship>,
@@ -1063,6 +1080,7 @@ function newContext(): Context {
     entities: [],
     collections: [],
     attributes: [],
+    setAttributes: [],
     fxns: [],
     groupings: [],
     relationships: [],
@@ -1126,57 +1144,62 @@ function formTree(tokens: Array<Token>) {
   let nodes = tokens.filter((token) => token.node === undefined).map(newNode);
   
   // Build ngrams
-  // @TODO Build ngrams by largest to smallest so I don't have to sort at the end
-  // @HACK also this feels hacky, although it seems right. Maybe there is a better way
+  // Initialize the ngrams with 1-grams
+  let ngrams: Array<Array<Node>> = nodes.map((node) => [node]);
+  // Shift off the root node
+  ngrams.shift();
   let n = 4;
-  let ngrams: Array<Array<Node>> = [];
-  let inode;
-  for (let i = 1; i < nodes.length; i++) {
-    let insideGrams: Array<Array<Node>> = [];
-    for (let j = 0; j < n; j++) {
-      inode = nodes[i+j];
-      if (inode === undefined) {
+  let m = ngrams.length;
+  let offset = 0;
+  for (let i = 0; i < n - 1; i++) {
+    let newNgrams: Array<Array<Node>> = [];
+    for (let j = offset; j < ngrams.length; j++) {
+      let thisNgram = ngrams[j];
+      let nextNgram = ngrams[j + 1];
+      // Break at the end of the ngrams
+      if (nextNgram === undefined) {
         break;
       }
-      if (insideGrams.length === 0) {
-        for (let k = j; k < Math.min(n,nodes.length - i); k++) {
-          insideGrams.push([inode])
-        }
-      } else {
-        for (let k = j; k < Math.min(n,nodes.length - i); k++) {
-          let igram = insideGrams[k];
-          igram.push(inode);
-        }
-      }
+      // From the new ngram
+      let newNgram = thisNgram.concat([nextNgram[nextNgram.length-1]]);
+      newNgrams.push(newNgram);
     }
-    ngrams = ngrams.concat(insideGrams)
+    offset = ngrams.length;
+    ngrams = ngrams.concat(newNgrams);
   }
-  // Sort the ngrams by length
-  ngrams.sort((b,a) => a.length - b.length);
-  // Check each ngram for a display name      
+  let stop = performance.now();
+
+  // Check each ngram for a display name
   let matchedNgrams: Array<Array<Node>> = [];
-  for (let ngram of ngrams) {
+  for (let i = ngrams.length - 1; i >= 0; i--) {
+    let ngram = ngrams[i];
     let allFound = ngram.every((node) => node.found);
     if (allFound !== true) {
       let displayName = ngram.map((node)=>node.name).join(" ");
-      log(displayName)
       let foundName = eve.findOne("index name",{ name: displayName });
-      log(foundName)
       // If the display name is in the system, mark all the nodes as found 
       if (foundName !== undefined) {
         ngram.map((node) => node.found = true);
         matchedNgrams.push(ngram);
+      } else {
+        let foundAttribute = eve.findOne("entity eavs", { attribute: displayName });
+        if (foundAttribute !== undefined) {
+          ngram.map((node) => node.found = true);
+          matchedNgrams.push(ngram);  
+        }
       }
     }
   }
+  
   // Turn ngrams into compound nodes
+  log("Creating compound nodes...");
   for (let ngram of matchedNgrams) {
     // Don't do anything for 1-grams
     if (ngram.length === 1) {
       ngram[0].found = false
       continue;
     }
-    log(ngram)
+    log(ngram.map((node)=>node.name).join(" "));
     let displayName = ngram.map((node)=>node.name).join(" ");
     let lastGram = ngram[ngram.length - 1];
     let compoundToken = newToken(displayName);
@@ -1185,15 +1208,18 @@ function formTree(tokens: Array<Token>) {
     compoundNode.ix = lastGram.ix;
     // Inherit properties from the nodes
     compoundNode.properties = lastGram.properties;    
+    compoundNode.properties.push(Properties.COMPOUND);
     // Insert compound node and remove constituent nodes
     nodes.splice(nodes.indexOf(ngram[0]),ngram.length,compoundNode);
   }
 
   // Do a quick pass to identify functions
+  log("Identifying functions...")
   tokens.map((token) => {
     let node = token.node;
     let fxn = wordToFunction(node.name);
     if (fxn !== undefined) {
+      log(`Found: ${fxn.name}`);
       node.fxn = fxn;
       fxn.node = node;
       node.properties.push(Properties.FUNCTION);
@@ -1254,6 +1280,48 @@ function formTree(tokens: Array<Token>) {
         break;
       }
       
+      // Handle form of "is"
+      if (node.name === "is") {
+        console.log("Handling forms of 'is'...");
+        node.properties.push(Properties.FUNCTION);
+        let previouslyFound = previouslyMatchedEntityOrCollection(node);
+        let targetAttribute = context.maybeAttributes[context.maybeAttributes.length - 1];
+        if (targetAttribute === undefined) {
+          targetAttribute = previouslyMatchedAttribute(node);
+          if (targetAttribute === undefined) {
+            break;
+          }
+        }
+        node.found = true;
+        let child = node.children[0];
+        if (child !== undefined) {
+          // Build an attribute
+          if (previouslyFound.hasProperty(Properties.ENTITY)) {
+            let attribute: Attribute = {
+              id: targetAttribute.name,
+              displayName: targetAttribute.name,
+              entity: previouslyFound.entity,
+              value: undefined,
+              variable: `${previouslyFound.entity.id}|${targetAttribute.name}`.replace(/ /g,''),
+              node: targetAttribute,
+              project: false,
+            };  
+            previouslyFound.entity.project = false;
+            targetAttribute.attribute = attribute;
+          } 
+          // If the next node is a quantiy, set the value of the attribute to 
+          // the value of the quantity
+          if (child.hasProperty(Properties.QUANTITY)) {
+            targetAttribute.attribute.value = parseFloat(child.name);
+            context.setAttributes.push(targetAttribute.attribute);
+            targetAttribute.found = true;
+            child.found = true;
+          }
+        }
+        node = child.children[0];
+        continue;
+      }
+      
       // Remove certain nodes
       if (!node.hasProperty(Properties.FUNCTION)) {
         if (node.hasProperty(Properties.SEPARATOR) ||
@@ -1284,7 +1352,7 @@ function formTree(tokens: Array<Token>) {
         let quantityAttribute: Attribute = {
           id: node.name,
           displayName: node.name,
-          value: `${node.name}`,
+          value: parseFloat(node.name),
           variable: `${node.name}`,
           node: node,
           project: false,
@@ -2486,7 +2554,7 @@ function formQuery(node: Node): Query {
     query.terms.push(term);
     // project if necessary
     if (node.attribute.project === true && !node.hasProperty(Properties.NEGATES)) {
-      let attributeField: Field = {name: `${node.attribute.id}` , 
+      let attributeField: Field = {name: `${node.attribute.id.replace(new RegExp(" ", 'g'),"")}` , 
                                   value: node.attribute.variable, 
                                variable: true};
       projectFields.push(attributeField);

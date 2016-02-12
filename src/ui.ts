@@ -544,6 +544,7 @@ export function search(search:string, paneId:string):Element {
   let [rawContent, rawParams] = search.split("|");
   let parsedParams = getCellParams(rawContent, rawParams);
   let {results, params, content} = queryUIInfo(search);
+  params["paneId"] = paneId;
   mergeObject(params, parsedParams);
   let rep = represent(content, params["rep"], results, params);
   return {t: "content", c: "wiki-search", children: [
