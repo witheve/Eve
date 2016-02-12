@@ -84,6 +84,11 @@ appHandle("ui focus search", (changes:Diff, {paneId, value}:{paneId:string, valu
   let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value};
   state.focused = true;
 });
+appHandle("set pane", (changes:Diff, {paneId, kind = undefined, rep = undefined, contains = undefined, params = undefined}) => {
+});
+appHandle("set popout", (changes:Diff, {parentId, rep = undefined, contains = undefined, params = undefined}) => {
+});
+
 appHandle("ui set search", (changes:Diff, {paneId, value, peek, x, y, popState}:{paneId:string, value:string, peek: boolean, x?: number, y?: number, popState?: boolean}) => {
   value = value.trim();
   let entity = asEntity(value);
@@ -497,6 +502,21 @@ export function pane(paneId:string):Element {
   }
   return pane;
 }
+
+export function search(search:string, paneId:string):Element {
+  let [rawContent, rawParams] = search.split("|");
+  let parsedParams = getCellParams(rawContent, rawParams);
+  let {results, params, content} = queryUIInfo(search);
+  params["paneId"] = paneId;
+  mergeObject(params, parsedParams);
+  let rep = represent(content, params["rep"], results, params);
+  return {t: "content", c: "wiki-search", children: [
+    rep
+  ]};
+}
+
+
+
 function createPage(evt:Event, elem:Element) {
   let name = elem["name"];
   let entity = uuid();
@@ -523,17 +543,6 @@ function paneSettings(paneId:string) {
   ]};
 }
 
-export function search(search:string, paneId:string):Element {
-  let [rawContent, rawParams] = search.split("|");
-  let parsedParams = getCellParams(rawContent, rawParams);
-  let {results, params, content} = queryUIInfo(search);
-  params["paneId"] = paneId;
-  mergeObject(params, parsedParams);
-  let rep = represent(content, params["rep"], results, params);
-  return {t: "content", c: "wiki-search", children: [
-    rep
-  ]};
-}
 function sizeColumns(node:HTMLElement, elem:Element) {
   // @FIXME: Horrible hack to get around randomly added "undefined" text node that's coming from in microreact.
   let cur = node;
