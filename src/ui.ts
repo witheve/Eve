@@ -87,6 +87,13 @@ appHandle("ui focus search", (changes:Diff, {paneId, value}:{paneId:string, valu
   let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value};
   state.focused = true;
 });
+
+
+// @TODO: abstract (search) => {rep, params} fn and use it to infer {rep, params} for set pane and set popout.
+// @TODO: Update pane(paneId) to take the actual pane fact so it's not tied to the DB.
+// @TODO: Update pane(pane) to just directly call represent with the pane's facts.
+
+
 appHandle("set pane", (changes:Diff, info:{paneId:string, kind?:PANE, rep?:string, contains?:string|number, params?:string|{}, popState?:boolean}) => {
   let prev = eve.findOne("ui pane", {pane: info.paneId}) || {};
   let {paneId, kind = prev.kind, rep = prev.rep, contains:raw = prev.contains, params:rawParams = prev.params, popState = false} = info;
