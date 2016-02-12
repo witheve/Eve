@@ -92,12 +92,8 @@ function closePopup() {
 
 function navigate(event, elem) {
   let {paneId} = elem.data;
-  let info:any = {paneId, value: elem.link, peek: elem.peek};
-  if(event.clientX) {
-    info.x = "calc(50% - 350px)"; 
-    info.y = event.clientY;
-  }
-  dispatch("ui set search", info).commit();
+  if(elem.peek) dispatch("set popout", {parentId: paneId, rep: "@FIXME", params: "@FIXME", contains: elem.link, x: "calc(50% - 350px)", y: event.clientY}).commit();
+  else dispatch("set pane", {paneId, contains: elem.link}).commit();
   event.preventDefault();
 }
 

@@ -28,7 +28,7 @@ app.init("wiki", function() {
   let path = getLocation();
   let [_, kind, raw = ""] = path.split("/");
   let content = deslugify(raw);
-  let cur = app.dispatch("ui set search", {paneId: mainPane.pane, value: content});
+  let cur = app.dispatch("set pane", {paneId: mainPane.pane, contains: content});
   if(content && !app.eve.findOne("query to id", {query: content})) {
     cur.dispatch("insert query", {query: content});
   }
@@ -40,12 +40,11 @@ window.addEventListener("hashchange", function() {
   let path = getLocation();
   let [_, kind, raw = ""] = path.split("/");
   let content = deslugify(raw);
-  let displays = app.eve.find("display name", {name: content});
-  if(displays.length === 1) content = displays[0].id;
+  content = ui.asEntity(content) || content;
 
   if(mainPane.contains === content) return;
   
-  let cur = app.dispatch("ui set search", {paneId: mainPane.pane, value: content});
+  let cur = app.dispatch("set pane", {paneId: mainPane.pane, contains: content});
   if(content && !app.eve.findOne("query to id", {query: content})) {
     cur.dispatch("insert query", {query: content});
   }

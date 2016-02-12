@@ -50,7 +50,7 @@ function preventDefault(event) {
 }
 
 // @NOTE: ids must not contain whitespace
-function asEntity(raw:string|number):string {
+export function asEntity(raw:string|number):string {
   let cleaned = raw && (""+raw).trim();
   if(!cleaned) return;
 
@@ -75,6 +75,9 @@ export function setURL(paneId:string, contains:string, replace?:boolean) {
 
   if(replace) window.history.replaceState(state, null, url);
   else window.history.pushState(state, null, url);
+
+  historyState = state;
+  historyURL = url;
 }
 
 //---------------------------------------------------------
@@ -84,71 +87,72 @@ appHandle("ui focus search", (changes:Diff, {paneId, value}:{paneId:string, valu
   let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value};
   state.focused = true;
 });
-appHandle("set pane", (changes:Diff, {paneId, kind = undefined, rep = undefined, contains = undefined, params = undefined}) => {
-});
-appHandle("set popout", (changes:Diff, {parentId, rep = undefined, contains = undefined, params = undefined}) => {
-});
-
-appHandle("ui set search", (changes:Diff, {paneId, value, peek, x, y, popState}:{paneId:string, value:string, peek: boolean, x?: number, y?: number, popState?: boolean}) => {
-  value = value.trim();
-  let entity = asEntity(value);
-  if(entity) value = entity;
-  let fact;
-  if(paneId === "p1") { // @TODO: Make this a constant
-    popoutHistory = [];
-  } else if(!popState) {
-    let popout = eve.findOne("ui pane", {kind: PANE.POPOUT});
-    if(popout) {
-      popoutHistory.push(popout.contains); // @FIXME: This is fragile
-    }
+appHandle("set pane", (changes:Diff, info:{paneId:string, kind?:PANE, rep?:string, contains?:string|number, params?:string|{}, popState?:boolean}) => {
+  let prev = eve.findOne("ui pane", {pane: info.paneId}) || {};
+  let {paneId, kind = prev.kind, rep = prev.rep, contains:raw = prev.contains, params:rawParams = prev.params, popState = false} = info;
+  if(kind === undefined || rep === undefined || raw === undefined || rawParams === undefined) {
+    throw new Error(`Cannot create new pane without all parameters specified for pane '${paneId}'`);
   }
   
-  if(!peek) {
-    let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value};
-    state.value = value;
-    state.focused = false;
-    fact = copy(eve.findOne("ui pane", {pane: paneId}));
-    fact.__id = undefined;
-    fact.contains = value;
-    changes.remove("ui pane", {pane: paneId});
-    let children = eve.find("ui pane parent", {parent: paneId});
-    for(let {pane:child} of children) {
-      changes.remove("ui pane position", {pane: child});
-      changes.remove("ui pane", {pane: child});
-    }
-    changes.remove("ui pane parent", {parent: paneId});
-    if(!popState) setURL(paneId, value);
-  } else {
-    let popout = eve.findOne("ui pane", {kind: PANE.POPOUT});
-    let neuePaneId;
-    if(!popout) {
-      neuePaneId = uuid();
-    } else {
-      neuePaneId = popout.pane;
-      changes.remove("ui pane", {pane: neuePaneId});
-    }
-    let state = uiState.widget.search[neuePaneId] = {value};
-    fact = {contains: value, pane: neuePaneId, kind: PANE.POPOUT};
-    if(!popout || paneId !== neuePaneId) {
-      if(x !== undefined && y !== undefined) {
-        changes.remove("ui pane position", {pane: neuePaneId});
-        changes.add("ui pane position", {pane: neuePaneId, x, y});
-      }
-      changes.remove("ui pane parent", {parent: paneId});
-      changes.add("ui pane parent", {pane: neuePaneId, parent: paneId});
-    }
-    paneId = neuePaneId;
+  let contains = asEntity(raw) || (""+raw).trim();
+  let params = typeof rawParams === "string" ? rawParams : stringifyParams(rawParams);
+
+  let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value: contains, focused: false};
+  state.value = contains;
+  state.focused = false;
+  dispatch("remove pane", {paneId}, changes);
+  changes.add("ui pane", {pane:paneId, kind, rep, contains, params});
+
+  // @TODO: Make "p1" a constant
+  if(paneId === "p1") {
+    popoutHistory = [];
+    if(!popState) setURL(paneId, contains);
   }
-  changes.add("ui pane", fact);
 });
 
+appHandle("remove pane", (changes:Diff, {paneId}:{paneId:string}) => {
+  let children = eve.find("ui pane parent", {parent: paneId});
+  for(let {pane:child} of children) {
+    dispatch("remove pane", {paneId: child}, changes);
+  }
+  changes.remove("ui pane", {pane: paneId})
+    .remove("ui pane position", {pane: paneId})
+    .remove("ui pane parent", {parent: paneId});
+});
+
+appHandle("set popout", (changes:Diff, info:{parentId:string, rep?:string, contains?:string|number, params?:string|{}, x:string|number, y:string|number, popState?:boolean}) => {
+  let parentId = info.parentId;
+  // Recycle the parent's existing popout if it exists, otherwise create a new one
+  let paneId = uuid();
+  let children = eve.find("ui pane parent", {parent: parentId});
+  for(let {pane:childId} of children) {
+    let child = eve.findOne("ui pane", {pane: childId});
+    if(child.kind === PANE.POPOUT) {
+      paneId = childId;
+      break;
+    }
+  }
+  let prev = eve.findOne("ui pane", {pane: paneId}) || {};
+  let prevPos = eve.findOne("ui pane position", {pane: paneId}) || {};
+  let {rep = prev.rep, contains:raw = prev.contains, params:rawParams = prev.params, x = prevPos.x, y = prevPos.y, popState = false} = info;
+  if(rep === undefined || raw === undefined || rawParams === undefined || x === undefined || y === undefined) {
+    throw new Error(`Cannot create new popout without all parameters specified for pane '${paneId}'`);
+  }
+  
+  let params = typeof rawParams === "string" ? rawParams : stringifyParams(rawParams);
+  let contains = asEntity(raw) || (""+raw).trim();
+  
+  if(!popState && prev.pane) popoutHistory.push({rep: prev.rep, contains: prev.contains, params: prev.params, x: prevPos.x, y: prevPos.y});
+  dispatch("remove pane", {paneId}, changes);
+  changes.add("ui pane", {pane: paneId, kind: PANE.POPOUT, rep, contains, params})
+    .add("ui pane parent", {parent: parentId, pane: paneId})
+    .add("ui pane position", {pane: paneId, x, y});  
+});
+
+// @TODO: take parentId
 appHandle("remove popup", (changes:Diff, {}:{}) => {
   let popup = eve.findOne("ui pane", {kind: PANE.POPOUT});
-  if(popup) {
-    let paneId = popup.pane;
-    changes.remove("ui pane", {pane: paneId});
-    changes.remove("ui pane position", {pane: paneId});
-  }
+  if(popup) dispatch("remove pane", {paneId: popup.pane}, changes);
   popoutHistory = [];
 });
 
@@ -357,7 +361,7 @@ function closePrompt(event, elem) {
 
 function navigateParent(event, elem) {
   dispatch("remove popup", {paneId: elem.paneId})
-  .dispatch("ui set search", {paneId: elem.parentId, value: elem.link})
+  .dispatch("set pane", {paneId: elem.parentId, contains: elem.link})
   .commit();
 }
 
@@ -528,7 +532,7 @@ function createPage(evt:Event, elem:Element) {
 function deleteEntity(event, elem) {
   let name = uitk.resolveName(elem.entity);
   dispatch("remove entity", {entity: elem.entity}).commit();
-  dispatch("ui set search", {paneId: elem.paneId, value: name}).commit();
+  dispatch("set pane", {paneId: elem.paneId, contains: name}).commit();
 }
 
 function paneSettings(paneId:string) {
@@ -1412,12 +1416,8 @@ function updatePage(meta, content) {
 
 function navigate(event, elem) {
   let {paneId} = elem.data;
-  let info:any = {paneId, value: elem.link, peek: elem.peek};
-  if(event.clientX) {
-    info.x = "calc(50% - 350px)"; 
-    info.y = event.clientY;
-  }
-  dispatch("ui set search", info).commit();
+  if(elem.peek) dispatch("set popout", {parentId: paneId, rep: "@FIXME", params: "@FIXME", contains: elem.link, x: "calc(50% - 350px)", y: event.clientY}).commit();
+  else dispatch("set pane", {paneId, contains: elem.link}).commit();
   event.preventDefault();
 }
 
@@ -1702,7 +1702,7 @@ function setSearch(event, elem) {
   let pane = eve.findOne("ui pane", {pane: elem.paneId});
   if(!pane || pane.contains !== event.value) {
     dispatch("insert query", {query: value})
-      .dispatch("ui set search", {paneId: elem.paneId, value: event.value})
+      .dispatch("set pane", {paneId: elem.paneId, contains: event.value})
       .commit();
   }
 }
@@ -1923,14 +1923,14 @@ function represent(search: string, rep:string, results, params:{}):Element {
   }
 }
 
-let historyState = window.history.state;
-let historyURL = getLocation();
+var historyState = window.history.state;
+var historyURL = getLocation();
 window.addEventListener("popstate", function(evt) {
   let popout = eve.findOne("ui pane", {kind: PANE.POPOUT});
   if(popout && popoutHistory.length) {
     window.history.pushState(historyState, null, historyURL);
-    let search = popoutHistory.pop();
-    dispatch("ui set search", {paneId: popout.pane, value: search, peek: true, popState: true}).commit();
+    let {rep, contains, params, x, y} = popoutHistory.pop();
+    dispatch("set popout", {parentId: "p1", rep, contains, params, x, y, popState: true}).commit(); // @TODO: make "p1" a constant
     return;
   } else if(evt.state && evt.state.root) {
     window.history.back();
@@ -1942,7 +1942,7 @@ window.addEventListener("popstate", function(evt) {
 
   let {paneId = undefined, contains = undefined} = evt.state || {};
   if(paneId === undefined || contains === undefined) return;
-  dispatch("ui set search", {paneId, value: contains, popState: true}).commit();
+  dispatch("set pane", {paneId, contains, popState: true}).commit();
 });
 
 // Prevent backspace from going back
