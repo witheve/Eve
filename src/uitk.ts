@@ -2,7 +2,7 @@ declare var pluralize; // @TODO: import me.
 import {builtinId, copy, coerceInput, sortByLookup, sortByField, KEYS} from "./utils";
 import {Element, Handler} from "./microReact";
 import {dispatch, eve} from "./app";
-import {PANE, uiState as _state, asEntity, attributesUI} from "./ui";
+import {PANE, uiState as _state, asEntity, attributesUI, activeCells, wikiEditor} from "./ui";
 import {masonry as masonryRaw, MasonryLayout} from "./masonry";
 
 //------------------------------------------------------------------------------
@@ -192,15 +192,28 @@ export function tile(elem) {
   // @FIXME: if there isn't an ID here, microReact does the wrong thing, investigate
   // after the release
   console.log("TILE FOR", entityId);
+  let editor = pageEditor(entityId, paneId, elem.editor);
   return {id: `${entityId}|${paneId}|tile`, c: "tile", children: [
     {c: "flex-row", children: [
       {c: "text-content", children: [
         {c: "header", text: name},
-        {c: "description", text: "Add a description here"}
+        editor,
       ]},
       attrs,
     ]}
   ]};
+}
+
+export function pageEditor(entityId:string, paneId:string, elem):Element {
+  let {content = undefined} = eve.findOne("entity", {entity: entityId}) || {};
+  let page = eve.findOne("entity page", {entity: entityId})["page"];
+  let name = resolveName(entityId);
+  elem.c = `wiki-editor ${elem.c || ""}`;
+  elem.meta = {entityId: entityId, page, paneId};
+  elem.value = content;
+  elem.children = elem.cellItems;
+  console.log(elem);
+  return elem;
 }
 
 //------------------------------------------------------------------------------

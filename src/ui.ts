@@ -170,19 +170,19 @@ appHandle("remove sourced eav", (changes:Diff, eav:{entity:string, source:string
 appHandle("update page", (changes:Diff, {page, content}: {page: string, content: string}) => {
   changes.remove("page content", {page});
   changes.add("page content", {page, content});
-  let trimmed = content.trim();
-  let endIx = trimmed.indexOf("\n");
-  let name = trimmed.slice(1, endIx !== -1 ? endIx : undefined).trim();
-  let {entity} = eve.findOne("entity page", {page});
-  let {name:prevName = undefined} = eve.findOne("display name", {id: entity}) || {};
-  if(name !== prevName) {
-    changes.remove("display name", {id: entity, name: prevName});
-    changes.add("display name", {id: entity, name});
-    let parts = getLocation().split("/");
-    if(parts.length > 2 && parts[2].replace(/_/gi, " ") === entity) {
-      window.history.replaceState(window.history.state, null, `/${slugify(name)}/${slugify(entity)}`);
-    }
-  }
+  // let trimmed = content.trim();
+  // let endIx = trimmed.indexOf("\n");
+  // let name = trimmed.slice(1, endIx !== -1 ? endIx : undefined).trim();
+  // let {entity} = eve.findOne("entity page", {page});
+  // let {name:prevName = undefined} = eve.findOne("display name", {id: entity}) || {};
+  // if(name !== prevName) {
+  //   changes.remove("display name", {id: entity, name: prevName});
+  //   changes.add("display name", {id: entity, name});
+  //   let parts = getLocation().split("/");
+  //   if(parts.length > 2 && parts[2].replace(/_/gi, " ") === entity) {
+  //     window.history.replaceState(window.history.state, null, `/${slugify(name)}/${slugify(entity)}`);
+  //   }
+  // }
 });
 appHandle("create entity", (changes:Diff, {entity, page, name = "Untitled"}) => {
   changes
@@ -500,7 +500,7 @@ export function pane(paneId:string):Element {
   } else if(entityId) {
     let options:any = {};
     // content = entity(entityId, paneId, kind, options);
-    content = uitk.tile({entity: entityId, data: {paneId}});
+    content = uitk.tile({entity: entityId, data: {paneId}, editor: prepareTileEditor(entityId, paneId)});
   } else if(eve.findOne("query to id", {query: cleaned})) {
     contentType = "search";
     content = search(cleaned, paneId);
@@ -543,7 +543,7 @@ function createPage(evt:Event, elem:Element) {
   let entity = uuid();
   let page = uuid();
   dispatch("create page", {page, content: `# ${name}\n`})
-    .dispatch("create entity", {entity, page, name}).commit();
+  .dispatch("create entity", {entity, page, name}).commit();
 }
 
 function deleteEntity(event, elem) {
@@ -636,10 +636,10 @@ function queryUIInfo(query) {
   let entityId = asEntity(content);
   if(entityId) {
     results = {unprojected: [{entity: entityId}], results: [{entity: entityId}]};
-    
+
   } else if(urlRegex.exec(content)) {
     results = {unprojected: [{url: content}], results: [{url: content}]};
-    
+
   } else {
     let cleaned = content && content.trim().toLowerCase();
     let queryId = eve.findOne("query to id", {query: cleaned});
@@ -713,9 +713,10 @@ function getCellParams(content, rawParams) {
 }
 
 var paneEditors = {};
-function wikiEditor(node, elem) {
+export function wikiEditor(node, elem) {
   createEditor(node, elem);
-  paneEditors[elem.meta.paneId] = node.editor;
+  let {paneId, entityId} = elem.meta;
+  paneEditors[`${paneId}|${entityId}`] = node.editor;
 }
 
 function reparentCell(node, elem) {
@@ -752,7 +753,7 @@ function cellEditor(entityId, paneId, cell):Element {
       {c: "adornment", text: "="},
       {t: "span", c:"", contentEditable: true, text, click: preventDefault, input: updateActiveCell, keydown: embeddedCellKeys, cell, selected, paneId, postRender: autoFocus ? focusCellEditor : undefined},
     ]},
-    autocompleter(options, paneId, cell)
+    // autocompleter(options, paneId, cell)
   ]};
 }
 
@@ -777,7 +778,7 @@ function optionKeys(event, elem) {
 function executeAutocompleterOption(event, elem) {
   if(event.defaultPrevented) return;
   let {paneId, cell} = elem;
-  let editor = paneEditors[paneId];
+  let editor = paneEditors[cell.editorId];
   let cm = editor.cmInstance;
   let mark = editor.marks[cell.id];
   let doEmbed = makeDoEmbedFunction(cm, mark, cell, paneId);
@@ -804,7 +805,7 @@ function autocompleterOptions(entityId, paneId, cell) {
   if(contentEntityId) {
     text = uitk.resolveName(contentEntityId);
   }
-  
+
   let isEntity = eve.findOne("display name", {id: contentEntityId});
   let parsed = [];
   if(text !== "") {
@@ -963,8 +964,8 @@ function createAndEmbed(elem, value, doEmbed) {
   let page = uuid();
   let {entityId, attribute, replace} = elem.selected;
   let chain = dispatch("create page", {page, content: `#${value}\n`})
-              .dispatch("create entity", {entity, page, name: value})
-              .dispatch("add sourced eav", {entity: entityId, attribute, value: entity, source: uuid()});
+  .dispatch("create entity", {entity, page, name: value})
+  .dispatch("add sourced eav", {entity: entityId, attribute, value: entity, source: uuid()});
   if(replace) {
     chain.dispatch("remove entity attribute", {entity: entityId, attribute: replace, value: entity});
   }
@@ -1170,7 +1171,7 @@ function handleAttributeDefinition(entity, attribute, search, chain?) {
     } else {
       //build a query
       let eavProject = `(query :$$view "${entity}|${attribute}|${id}" (select "${id}" :${params["field"].replace(" ", "-")} value)
-                               (project! "generated eav" :entity "${entity}" :attribute "${attribute}" :value value :source "${id}"))`;
+      (project! "generated eav" :entity "${entity}" :attribute "${attribute}" :value value :source "${id}"))`;
       chain.dispatch("insert implication", {query: eavProject}).commit();
     }
   }
@@ -1201,7 +1202,7 @@ function defineKeys(event, elem) {
   } else if(event.keyCode === KEYS.ESC) {
     dispatch("clearActiveCells").commit();
     if(elem.selected.paneId) {
-      paneEditors[elem.selected.paneId].cmInstance.focus();
+      paneEditors[cell.editorId].cmInstance.focus();
     }
   }
 }
@@ -1214,8 +1215,8 @@ export function entity(entityId:string, paneId:string, kind: PANE, options:any =
   let cells = getCells(content, paneId);
   let keys = {
     "Backspace": (cm) => maybeActivateCell(cm, paneId),
-    "Cmd-Enter": (cm) => maybeNavigate(cm, paneId),
-    "=": (cm) => createEmbedPopout(cm, paneId)
+      "Cmd-Enter": (cm) => maybeNavigate(cm, paneId),
+      "=": (cm) => createEmbedPopout(cm, paneId)
   };
   if(kind === PANE.POPOUT) {
     keys["Esc"] = () => {
@@ -1253,7 +1254,7 @@ export function entity(entityId:string, paneId:string, kind: PANE, options:any =
        {text: "instead?"}
        ]},
      */
-    {c: "wiki-editor", postRender: wikiEditor, onUpdate: updatePage, meta: {entity: entityId, page, paneId}, value: content, options: finalOptions, cells, children: cellItems},
+    {c: "wiki-editor", postRender: wikiEditor, onUpdate: updatePage, meta: {entityId, page, paneId}, value: content, options: finalOptions, cells, children: cellItems},
     attrs,
   ]};
 }
@@ -1273,8 +1274,6 @@ function maybeActivateCell(cm, paneId) {
     if(cell) {
       let query = cell.query.split("|")[0];
       dispatch("addActiveCell", {id: cell.id, cell, query}).commit();
-      return;
-    } else if(pos.line === 1 && pos.ch === 0) {
       return;
     }
   }
@@ -1305,7 +1304,7 @@ function maybeNavigate(cm, paneId) {
   }
 }
 
-var activeCells = {};
+export var activeCells = {};
 
 appHandle("clearActiveCells", (changes, info) => {
   for(let cell in activeCells) {
@@ -1317,6 +1316,7 @@ appHandle("addActiveCell", (changes, info) => {
   changes.dispatch("clearActiveCells", {});
   let {id} = info;
   info.selected = 0;
+  info.editorId = info.cell.editorId;
   activeCells[id] = info;
 });
 
@@ -1397,7 +1397,7 @@ function makeDoEmbedFunction(cm, mark, cell, paneId) {
     if(cm.getRange(from, to) !== replacement) {
       cm.replaceRange(replacement, from, to);
     }
-    paneEditors[paneId].cmInstance.focus();
+    paneEditors[cell.editorId].cmInstance.focus();
     let chain = dispatch("removeActiveCell", cell);
     if(replacement) {
       chain.dispatch("insert query", {query: text});
@@ -1410,13 +1410,13 @@ function embeddedCellKeys(event, elem) {
   let {paneId, cell} = elem;
   let target = event.currentTarget;
   let value = target.textContent;
-  let editor = paneEditors[paneId];
+  let editor = paneEditors[cell.editorId];
   let cm = editor.cmInstance;
   let mark = editor.marks[cell.id];
   if(event.keyCode === KEYS.BACKSPACE && value === "") {
     let {from, to} = mark.find();
     cm.replaceRange("", from, to);
-    paneEditors[paneId].cmInstance.focus();
+    paneEditors[cell.editorId].cmInstance.focus();
     dispatch("removeActiveCell", cell).commit();
     event.preventDefault();
   } else if(event.keyCode === KEYS.ESC || (event.keyCode === KEYS.ENTER && value.trim() === "")) {
@@ -1424,7 +1424,7 @@ function embeddedCellKeys(event, elem) {
     if(cell.placeholder) {
       cm.replaceRange("= ", from, to);
     }
-    paneEditors[paneId].cmInstance.focus();
+    paneEditors[cell.editorId].cmInstance.focus();
     dispatch("removeActiveCell", cell).commit();
     event.preventDefault();
   } else if(event.keyCode === KEYS.ENTER) {
@@ -1446,14 +1446,14 @@ function embeddedCellKeys(event, elem) {
 }
 
 function updatePage(meta, content) {
-    dispatch("update page", {page: meta.page, content}).commit();
+  dispatch("update page", {page: meta.page, content}).commit();
 }
 
 function navigate(event, elem) {
   let {paneId} = elem.data;
   let info:any = {paneId, value: elem.link, peek: elem.peek};
   if(event.clientX) {
-    info.x = "calc(50% - 350px)"; 
+    info.x = "calc(50% - 350px)";
     info.y = event.clientY;
   }
   dispatch("ui set search", info).commit();
@@ -1461,10 +1461,41 @@ function navigate(event, elem) {
 }
 
 //---------------------------------------------------------
+// Editor prep
+//---------------------------------------------------------
+
+function prepareTileEditor(entityId, paneId) {
+  var {content = undefined} = eve.findOne("entity", {entity: entityId}) || {};
+  var page = eve.findOne("entity page", {entity: entityId})["page"];
+  var name = uitk.resolveName(entityId);
+  var cells = getCells(content, `${paneId}|${entityId}`);
+  var cellItems = cells.map((cell, ix) => {
+    var ui;
+    var active = activeCells[cell.id];
+    if(active) {
+      ui = cellEditor(entityId, paneId, active || cell);
+    } else {
+      ui = cellUI(paneId, cell.query, cell);
+    }
+    ui.id = `${paneId}|${cell.id}`;
+    ui.postRender = reparentCell;
+    ui["containerId"] = `${paneId}|${cell.id}|container`;
+    ui["cell"] = cell;
+    return ui;
+  });
+  var keys = {
+    "Backspace": (cm) => maybeActivateCell(cm, paneId),
+    "Cmd-Enter": (cm) => maybeNavigate(cm, paneId),
+    "=": (cm) => createEmbedPopout(cm, paneId)
+  };
+  return {postRender: wikiEditor, onUpdate: updatePage, options: {keys: keys}, cells, cellItems};
+}
+
+//---------------------------------------------------------
 // Page parsing
 //---------------------------------------------------------
 
-function getCells(content: string, paneId) {
+function getCells(content: string, editorId) {
   let cells = [];
   let ix = 0;
   let ids = {};
@@ -1481,13 +1512,13 @@ function getCells(content: string, paneId) {
       if(part.match(/\{\$\$.*\$\$\}/)) {
         placeholder = true;
       }
-      cells.push({start: ix, length: part.length, value: part, query: part.substring(1, part.length - 1), id, placeholder});
+      cells.push({start: ix, length: part.length, value: part, query: part.substring(1, part.length - 1), id, placeholder, editorId});
     }
     ix += part.length;
   }
   for(let active in activeCells) {
     let cell = activeCells[active].cell;
-    if(cell.placeholder && cell.paneId === paneId) {
+    if(cell.placeholder && cell.editorId === editorId) {
       cells.push(cell);
     }
   }
@@ -1658,7 +1689,7 @@ function submitAdder(event, elem) {
   let success = false;
   if(adderAttribute && adderValue) {
     let chain = dispatch("setAttributeAdder", {entityId, field: "adderAttribute", value: ""})
-                .dispatch("setAttributeAdder", {entityId, field: "adderValue", value: ""});
+    .dispatch("setAttributeAdder", {entityId, field: "adderValue", value: ""});
     success = handleAttributeDefinition(entityId, adderAttribute, adderValue, chain);
   }
   //make sure the focus ends up back in the property input
@@ -1743,8 +1774,8 @@ function setSearch(event, elem) {
   if(!pane || pane.contains !== event.value) {
     let {chain, query} = dispatchSearchSetAttributes(value);
     chain.dispatch("insert query", {query})
-         .dispatch("ui set search", {paneId: elem.paneId, value: query})
-         .commit();
+    .dispatch("ui set search", {paneId: elem.paneId, value: query})
+    .commit();
   }
 }
 function updateSearch(event, elem) {
@@ -1915,7 +1946,10 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
     });
     for(let result of results) {
       for(let field of fields) {
-        tiles.push({entity: result[field], data: params});
+        var entityId = result[field];
+        var paneId = params["paneId"];
+        var editor = prepareTileEditor(entityId, paneId);
+        tiles.push({entity: result[field], data: params, editor});
       }
     }
     return tiles;

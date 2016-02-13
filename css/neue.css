@@ -134,9 +134,10 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 - Wiki editor
 ---------------------------------------------------------*/
 
-.wiki-editor { width: 660px; padding: 50px 30px; overflow:auto; }
+.wiki-editor { overflow:auto; }
 .wiki-editor .CodeMirror { font-family: "Lato"; font-size: 16px; color: rgb(84,84,84); font-weight:400; width:600px; }
 .wiki-editor .CodeMirror-lines { padding: 0; }
+.wiki-editor .CodeMirror-line { padding: 0; }
 
 .wiki-editor .CodeMirror-widget div { display:flex; }
 .wiki-editor .CodeMirror-widget > div { display:inline-block; }
@@ -148,9 +149,9 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .wiki-editor .cm-header-3 { font-size: 16pt; line-height: 40px; }
 
 .wiki-editor .cm-header-indicator { color: #aaa; }
-.wiki-editor .cm-header-indicator-1 { margin-left:-17px; padding-right:8px; }
-.wiki-editor .cm-header-indicator-2 { margin-left:-25px; padding-right:8px; }
-.wiki-editor .cm-header-indicator-3 { margin-left: -35px; padding-right:8px; }
+/* .wiki-editor .cm-header-indicator-1 { margin-left:-17px; padding-right:8px; } */
+/* .wiki-editor .cm-header-indicator-2 { margin-left:-25px; padding-right:8px; } */
+/* .wiki-editor .cm-header-indicator-3 { margin-left: -35px; padding-right:8px; } */
 
 
 .wiki-editor .attribute, .wiki-editor .value { color:#2C00FD; }
@@ -210,23 +211,23 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 /*---------------------------------------------------------
 - Content
 ---------------------------------------------------------*/
-content h1 { font-size: 1.5em; margin: 1rem; margin-bottom: 0.5rem; text-transform: capitalize; }
-content h2 { font-weight: bold; }
-content h3 { font-style: italic; }
-content p { margin: 0.5rem 1rem; }
-content ul, content ol { display: flex; flex-direction: column; margin-left: 1.5rem; justify-content: flex-start; align-items: flex-start; }
-content ul { list-style-type: disc; }
-content ol { list-style-type: decimal; }
-content li { flex: 0 0 auto; }
+.wiki-pane h1 { font-size: 1.5em; margin: 1rem; margin-bottom: 0.5rem; text-transform: capitalize; }
+.wiki-pane h2 { font-weight: bold; }
+.wiki-pane h3 { font-style: italic; }
+.wiki-pane p { margin: 0.5rem 1rem; }
+.wiki-pane ul, content ol { display: flex; flex-direction: column; margin-left: 1.5rem; justify-content: flex-start; align-items: flex-start; }
+.wiki-pane ul { list-style-type: disc; }
+.wiki-pane ol { list-style-type: decimal; }
+.wiki-pane li { flex: 0 0 auto; }
 
-content h1 { border-bottom: 1px solid #ccc; }
+.wiki-pane h1 { border-bottom: 1px solid #ccc; }
 
-content .error-rep { color: #FF3333; }
+.wiki-pane .error-rep { color: #FF3333; }
 
-content .link { color: #008cdd; cursor: pointer; border-bottom: 1px solid transparent; }
-content .link:hover { border-bottom:1px solid #008cdd; }
+.wiki-pane .link { color: #008cdd; cursor: pointer; border-bottom: 1px solid transparent; }
+.wiki-pane .link:hover { border-bottom:1px solid #008cdd; }
 
-content .csv { color: #A200A7;  }
+.wiki-pane .csv { color: #A200A7;  }
 
 /*---------------------------------------------------------
 - Search Pane
