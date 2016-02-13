@@ -1744,8 +1744,9 @@ function submitAttribute(event, elem) {
 // Wiki Widgets
 //---------------------------------------------------------
 export function searchInput(paneId:string, value:string):Element {
-  let state = uiState.widget.search[paneId] || {focused: false, plan: false, value: name};
+  let state:any = uiState.widget.search[paneId] || {focused: false, plan: false};
   let name = state.value;
+  if(!state.value) state.value = name;
   let display = eve.findOne("display name", {id: name});
   if(display) name = display.name;
   return {
