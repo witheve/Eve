@@ -424,6 +424,9 @@ function formToken(word: Word): Token {
       }
     }
   }
+  
+  getMajorPOS(POS)
+  
   // Build the token
   let token: Token = {
     ix: word.ix, 
@@ -435,102 +438,51 @@ function formToken(word: Word): Token {
   return token;
 }
 
-function adverbToAdjective(token: Token): Token {
-  let word = token.normalizedWord;
-  // Heuristic: Words that end in -est are superlative
-  if (word.substr(word.length-3,word.length) === "est") {
-    token.POS = MinorPartsOfSpeech.JJS;
-    token.properties.push(Properties.SUPERLATIVE);
-  // Heuristic: Words that end in -er are comaprative
-  } else if (word.substr(word.length-2,word.length) === "er"){
-    token.POS = MinorPartsOfSpeech.JJR;
-    token.properties.push(Properties.COMPARATIVE);
-  } else {
-    token.POS = MinorPartsOfSpeech.JJ;
-  }  
-  return token;
-}
-
 function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech {
   // ROOT
   if (minorPartOfSpeech === MinorPartsOfSpeech.ROOT) {
     return MajorPartsOfSpeech.ROOT;
   }
   // Verb
-  if (minorPartOfSpeech === MinorPartsOfSpeech.VB  ||
-      minorPartOfSpeech === MinorPartsOfSpeech.VBD ||
-      minorPartOfSpeech === MinorPartsOfSpeech.VBN ||
-      minorPartOfSpeech === MinorPartsOfSpeech.VBP ||
-      minorPartOfSpeech === MinorPartsOfSpeech.VBZ ||
-      minorPartOfSpeech === MinorPartsOfSpeech.VBF ||
-      minorPartOfSpeech === MinorPartsOfSpeech.VBG) {
+  let verbs = ['VB','VBD','VBN','VBP','VBZ','VBF','VBG'];
+  if (verbs.indexOf(MinorPartsOfSpeech[minorPartOfSpeech]) >= 0) {
         return MajorPartsOfSpeech.VERB;
   }
   // Adjective
-  if (minorPartOfSpeech === MinorPartsOfSpeech.JJ  ||
-      minorPartOfSpeech === MinorPartsOfSpeech.JJR ||
-      minorPartOfSpeech === MinorPartsOfSpeech.JJS) {
+  let adjectives = ['JJ','JJR','JJS'];
+  if (adjectives.indexOf(MinorPartsOfSpeech[minorPartOfSpeech]) >= 0) {
         return MajorPartsOfSpeech.ADJECTIVE;
   }
-  // Adjverb
-  if (minorPartOfSpeech === MinorPartsOfSpeech.RB  ||
-      minorPartOfSpeech === MinorPartsOfSpeech.RBR ||
-      minorPartOfSpeech === MinorPartsOfSpeech.RBS) {
+  // Adverb
+  let adverbs = ['RB','RBR','RBS'];
+  if (adverbs.indexOf(MinorPartsOfSpeech[minorPartOfSpeech]) >= 0) {
         return MajorPartsOfSpeech.ADVERB;
   }
   // Noun
-  if (minorPartOfSpeech === MinorPartsOfSpeech.NN   ||
-      minorPartOfSpeech === MinorPartsOfSpeech.NNA  ||
-      minorPartOfSpeech === MinorPartsOfSpeech.NNPA ||
-      minorPartOfSpeech === MinorPartsOfSpeech.NNAB ||
-      minorPartOfSpeech === MinorPartsOfSpeech.NNP  ||
-      minorPartOfSpeech === MinorPartsOfSpeech.NNPS ||
-      minorPartOfSpeech === MinorPartsOfSpeech.NNS  ||
-      minorPartOfSpeech === MinorPartsOfSpeech.NNQ  ||
-      minorPartOfSpeech === MinorPartsOfSpeech.NNO  ||
-      minorPartOfSpeech === MinorPartsOfSpeech.NG   ||
-      minorPartOfSpeech === MinorPartsOfSpeech.PRP  ||
-      minorPartOfSpeech === MinorPartsOfSpeech.PP) {
+  let nouns = ['NN','NNA','NNPA','NNAB','NNP','NNPS','NNS','NNQ','NNO','NG','PRP','PP'];
+  if (nouns.indexOf(MinorPartsOfSpeech[minorPartOfSpeech]) >= 0) {
         return MajorPartsOfSpeech.NOUN;
   }
   // Value
-  if (minorPartOfSpeech === MinorPartsOfSpeech.CD ||
-      minorPartOfSpeech === MinorPartsOfSpeech.DA ||
-      minorPartOfSpeech === MinorPartsOfSpeech.NU) {
+  let values = ['CD','DA','NU'];
+  if (values.indexOf(MinorPartsOfSpeech[minorPartOfSpeech]) >= 0) {
         return MajorPartsOfSpeech.VALUE;
   }
   // Glue
-  if (minorPartOfSpeech === MinorPartsOfSpeech.FW  ||
-      minorPartOfSpeech === MinorPartsOfSpeech.IN  ||
-      minorPartOfSpeech === MinorPartsOfSpeech.CP  ||
-      minorPartOfSpeech === MinorPartsOfSpeech.MD  ||
-      minorPartOfSpeech === MinorPartsOfSpeech.CC  ||
-      minorPartOfSpeech === MinorPartsOfSpeech.PDT ||
-      minorPartOfSpeech === MinorPartsOfSpeech.DT  ||
-      minorPartOfSpeech === MinorPartsOfSpeech.UH  ||
-      minorPartOfSpeech === MinorPartsOfSpeech.EX) {
+  let glues = ['FW','IN','CP','MD','CC','PDT','DT','UH','EX'];
+  if (glues.indexOf(MinorPartsOfSpeech[minorPartOfSpeech]) >= 0) {
         return MajorPartsOfSpeech.GLUE;
   }  
   // Symbol
-  if (minorPartOfSpeech === MinorPartsOfSpeech.LT    ||
-      minorPartOfSpeech === MinorPartsOfSpeech.GT    ||
-      minorPartOfSpeech === MinorPartsOfSpeech.GTE   ||
-      minorPartOfSpeech === MinorPartsOfSpeech.LTE   ||
-      minorPartOfSpeech === MinorPartsOfSpeech.EQ    ||
-      minorPartOfSpeech === MinorPartsOfSpeech.NEQ   ||
-      minorPartOfSpeech === MinorPartsOfSpeech.PLUS  ||
-      minorPartOfSpeech === MinorPartsOfSpeech.MINUS ||
-      minorPartOfSpeech === MinorPartsOfSpeech.DIV   ||
-      minorPartOfSpeech === MinorPartsOfSpeech.MUL   ||
-      minorPartOfSpeech === MinorPartsOfSpeech.POS   ||
-      minorPartOfSpeech === MinorPartsOfSpeech.SEP) {
+  let symbols = ['LT','GT','LTE','GTE','EQ','NEQ',
+                 'PLUS','MINUS','DIV','MUL','POW',
+                 'SEP','POS'];
+  if (symbols.indexOf(MinorPartsOfSpeech[minorPartOfSpeech]) >= 0) {
         return MajorPartsOfSpeech.SYMBOL;
   }
   // Wh-Word
-  if (minorPartOfSpeech === MinorPartsOfSpeech.WDT ||
-      minorPartOfSpeech === MinorPartsOfSpeech.WP  ||
-      minorPartOfSpeech === MinorPartsOfSpeech.WPO ||
-      minorPartOfSpeech === MinorPartsOfSpeech.WRB) {
+  let whWords = ['WDT','WP','WPO','WRB'];
+  if (whWords.indexOf(MinorPartsOfSpeech[minorPartOfSpeech]) >= 0) {
         return MajorPartsOfSpeech.WHWORD;
   }
 }
