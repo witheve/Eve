@@ -10,21 +10,19 @@ var boostrapIxer = bootstrap.ixer;
 
 app.renderRoots["nlqp"];
 
-nlqp.debug = true;
+nlqp.debug = false;
 
-function parseTest(queryString: string, n: number): nlqp.StateFlags {
-  let parseResult: nlqp.ParseResult;
+function parseTest(queryString: string, n: number): nlqp.Intents {
+  let parseResult: nlqp.Result;
   let avgTime = 0;
   let maxTime = 0;
   let minTime;
-  
-  let preTags = nlqp.preprocessQueryString(queryString)
-  let pretagsToString = preTags.map((pt) => `(${pt.text}|${pt.tag})`).join("");
-  
+  nlqp.parse(queryString);
+  return undefined
   // Parse string and measure how long it takes
   for (let i = 0; i < n; i++) {
     let start = performance.now();
-    parseResult = nlqp.parse(queryString)[0];
+    parseResult = nlqp.parse(queryString);
     let stop = performance.now();
     avgTime += stop-start;
     if (stop-start > maxTime) {
@@ -41,8 +39,7 @@ function parseTest(queryString: string, n: number): nlqp.StateFlags {
   let tokenStrings = nlqp.tokenArrayToString(parseResult.tokens);
   let timingDisplay = `Timing (avg, max, min): ${(avgTime/n).toFixed(2)} | ${maxTime.toFixed(2)} | ${minTime.toFixed(2)} `;
   console.log(queryString);
-  console.log(pretagsToString);
-  console.log(`State: ${nlqp.StateFlags[parseResult.state]}`);
+  console.log(`State: ${nlqp.Intents[parseResult.intent]}`);
   console.log(parseResult.context);
   console.log("-------------------------------------------------------------------------------------------");
   console.log("Tokens");  
@@ -59,7 +56,7 @@ function parseTest(queryString: string, n: number): nlqp.StateFlags {
   console.log("-------------------------------------------------------------------------------------------");
   console.log(timingDisplay);
   console.log("===========================================================================================");
-  return parseResult.state;
+  return parseResult.intent;
 }
 
 function executeQuery(query: nlqp.Query): Array<string> {
@@ -135,14 +132,12 @@ let phrases = [
   // -------------------------------
   // These are queries that we had problems with in the past
   // make sure they always work
-  // -------------------------------
-  //"Grognar the Barbarian dealt 15 damage with his sword to the goblin king",
-  "Corey's age is 30",
+  // -------------------------------//
   /*"Corey Montella's least favorite color",
   "sum of employee salaries",
-  "3 + Corey's salary",
+  "3 - Corey's salary",
   "Corey's salary + 3",
-  "sum pet length",//
+  "sum pet length",
   "sum employee salaries",
   "employee salaries",
   "salaries in engineering",
@@ -150,8 +145,8 @@ let phrases = [
   "Pet shorter than koala",
   "Pet not shorter than koalas",
   "exotic lengths",
-  //"Corey age, height, gender and hair color",
-  //"Corey's wife's age, gender, and height",
+  "Corey age, height, gender and hair color",
+  "Corey's wife's age, gender, and height",
   "employee salaries",
   "employees with their departments and salaries", 
   "employees with their salaries", 
@@ -159,10 +154,13 @@ let phrases = [
   "Pets except those longer than a koala",
   "sum salaries per department",
   "sum salary per department",
+  "salaries by department",
   "exotic that are not pets",
   "pets not exotics",
   `Corey Montella's age + Josh's salary`,*/
   // -------------------------------
+  "Corey Montella's age",
+  //"Corey's height"
   //`Pets except those shorter than a koala`,
   //`salaries per department`,
   //`Employees not named Corey`,
@@ -406,9 +404,9 @@ app.init("nlqp", function () {
   console.log(`Running ${phrases.length} tests...`);
   console.log("===========================================================================================");
   let queryStates = phrases.map((phrase) => {return parseTest(phrase,n)});
-  let complete = queryStates.filter((state) => state === nlqp.StateFlags.COMPLETE).length;
-  let moreinfo = queryStates.filter((state) => state === nlqp.StateFlags.MOREINFO).length;
-  let noresult = queryStates.filter((state) => state === nlqp.StateFlags.NORESULT).length;
+  let complete = queryStates.filter((state) => state === nlqp.Intents.QUERY).length;
+  let moreinfo = queryStates.filter((state) => state === nlqp.Intents.MOREINFO).length;
+  let noresult = queryStates.filter((state) => state === nlqp.Intents.NORESULT).length;
   console.log("===========================================================================================");
   console.log(`Total Queries: ${phrases.length} | Complete: ${complete} | MoreInfo: ${moreinfo} | NoResult: ${noresult}`);
   console.log("===========================================================================================");

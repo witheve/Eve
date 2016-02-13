@@ -947,6 +947,10 @@ function formTree(token: Token, tree: Node, context: Context) {
   log("Node:")
   log(node.toString());
   
+  // -------------------------------------
+  // Step 1: Build n-grams
+  // -------------------------------------
+  
   // Flatten the tree
   let nextNode = tree;
   let nodes: Array<Node> = [];
@@ -1018,8 +1022,8 @@ function formTree(token: Token, tree: Node, context: Context) {
       ngram[0].found = false
       continue;
     }
-    log(ngram.map((node)=>node.name).join(" "));
-    let displayName = ngram.map((node)=>node.name).join(" ");
+    let displayName = ngram.map((node)=>node.name).join(" ").replace(/ '/g,'\'');
+    log (displayName);
     let lastGram = ngram[ngram.length - 1];
     let compoundToken = newToken(displayName);
     let compoundNode = newNode(compoundToken);
@@ -1032,6 +1036,20 @@ function formTree(token: Token, tree: Node, context: Context) {
     // so the cpound node replaces it
     node = compoundNode;
   }
+
+
+  // -------------------------------------
+  // Step 2: Identify the node
+  // -------------------------------------
+  
+  
+  // -------------------------------------
+  // Step 3: Insert the node into the tree
+  // -------------------------------------
+  
+  
+  // Figure out where to stick the node
+
 
 
   /*
