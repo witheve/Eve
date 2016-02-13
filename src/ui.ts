@@ -83,7 +83,7 @@ function inferRepresentation(search:string|number, baseParams:{} = {}):{rep:stri
   let cleaned = (search && (""+search).trim().toLowerCase()) || "";
   
   if(entityId || cleaned.length === 0) {
-    rep = "tile";
+    rep = "entity";
     params.entity = entityId || builtinId("home");
     return {rep, params};
   }
@@ -530,37 +530,31 @@ function loadedPrompt():Element {
 
 export function pane(paneId:string):Element {
   // @FIXME: Add kind to ui panes
-  let {contains = undefined, kind = PANE.FULL} = eve.findOne("ui pane", {pane: paneId}) || {};
-  let cleaned = contains && contains.trim().toLowerCase();
+  let {contains:rawContains = undefined, kind = PANE.FULL, rep = undefined, params:rawParams = undefined} = eve.findOne("ui pane", {pane: paneId}) || {};
+  rawContains = rawContains || "";
+  let {results, params:parsedParams, content:contains} = queryUIInfo(rawContains);
+  let params = mergeObject(parseParams(rawParams), parsedParams);
   let makeChrome = paneChrome[kind];
   if(!makeChrome) throw new Error(`Unknown pane kind: '${kind}' (${PANE[kind]})`);
   let {c:klass, header, footer, captureClicks} = makeChrome(paneId, contains);
-  let content;
   let entityId = asEntity(contains);
 
-  let contentType = "entity";
-  if(contains.length === 0) {
-    content = entity(builtinId("home"), paneId, kind);
+  let contentType = "invalid";
+  if(contains.length === 0 || entityId) contentType = "entity";
+  else if(eve.findOne("query to id", {query: contains})) contentType = "search";
 
-  } else if(cleaned.indexOf("search: ") === 0) {
-    contentType = "search";
-    content = search(cleaned.substring("search: ".length), paneId);
-  } else if(entityId) {
-    let options:any = {};
-    // content = entity(entityId, paneId, kind, options);
-    content = uitk.tile({entity: entityId, data: {paneId}, editor: prepareTileEditor(entityId, paneId)});
-  } else if(eve.findOne("query to id", {query: cleaned})) {
-    contentType = "search";
-    content = search(cleaned, paneId);
-  } else if(contains !== "") {
+  let content = rep && represent(contains, rep, results, params, (elem, ix = "") => uitk.tile({id: `${paneId}|${contains}|${ix}`, children: [elem]}));
+  content.t = "content";
+  console.log("CON", contains, rep, results, params);
+  if(contentType === "invalid") {
     content = {c: "flex-row spaced-row disambiguation", children: [
       {t: "span", text: `I couldn't find anything; should I`},
       {t: "a", c: "link btn add-btn", text: `add ${contains}`, name: contains, paneId, click: createPage },
       {t: "span", text: "?"},
     ]};
-  }
-
-  if(contentType === "search") {
+    
+  } else if(contentType === "search") {
+    // @TODO: This needs to move into Eve's notification / chat bar
     var disambiguation = {id: "search-disambiguation", c: "flex-row spaced-row disambiguation", children: [
       {text: "Or should I"},
       {t: "a", c: "link btn add-btn", text: `add a card`, name: contains, paneId, click: createPage},
@@ -749,7 +743,7 @@ function getCellParams(content, rawParams) {
       field = context.attributes[0].displayName;
     } else if(context.entities.length + context.fxns.length === totalFound) {
       // if there are only entities and boolean functions then we want to show this as tiles
-      params["rep"] = "tile";
+      params["rep"] = "entity";
     } else {
       params["rep"] = "table";
     }
@@ -1974,8 +1968,8 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
     }
     return {values, data: params.data};
   },
-  tile(results, params) {
-    let tiles = [];
+  entity(results, params) {
+    let entities = [];
     let firstResult = results[0];
     let fields = Object.keys(firstResult).filter((field) => {
       return !!asEntity(firstResult[field]);
@@ -1985,10 +1979,10 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
         var entityId = result[field];
         var paneId = params["paneId"];
         var editor = prepareTileEditor(entityId, paneId);
-        tiles.push({entity: result[field], data: params, editor});
+        entities.push({entity: result[field], data: params, editor});
       }
     }
-    return tiles;
+    return entities;
   },
   error(results, params) {
     return {text: params["message"]};
@@ -2023,7 +2017,7 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
   },
 };
 
-function represent(search: string, rep:string, results, params:{}):Element {
+function represent(search: string, rep:string, results, params:{}, wrapEach?:(elem:Element, ix?:number) => Element):Element {
   // console.log("repping:", results, " as", rep, " with params ", params);
   if(rep in _prepare) {
     let embedParamSets = _prepare[rep](results.results, <any>params);
@@ -2033,16 +2027,18 @@ function represent(search: string, rep:string, results, params:{}):Element {
         return uitk.error({text: `${search} as ${rep}`})
       } else if(embedParamSets.constructor === Array) {
         let wrapper = {c: "flex-column", children: []};
+        let ix = 0;
         for(let embedParams of embedParamSets) {
           embedParams["data"] = embedParams["data"] || params;
-          wrapper.children.push(uitk[rep](embedParams));
+          if(wrapEach) wrapper.children.push(wrapEach(uitk[rep](embedParams), ix++));
+          else wrapper.children.push(uitk[rep](embedParams));
         }
-        console.log(wrapper);
         return wrapper;
       } else {
         let embedParams = embedParamSets;
         embedParams["data"] = embedParams["data"] || params;
-        return uitk[rep](embedParams);
+        if(wrapEach) return wrapEach(uitk[rep](embedParams));
+        else return uitk[rep](embedParams);
       }
     } catch(err) {
       console.error("REPRESENTATION ERROR");

@@ -179,24 +179,27 @@ export function embeddedCell(elem):Element {
 // Representations for tiles
 //------------------------------------------------------------------------------
 
-export function tile(elem) {
+// @FIXME: if there isn't an ID here, microReact does the wrong thing, investigate
+// after the release
+export function tile(elem:Element) {
+  elem.c = `tile ${elem.c || ""}`;
+  return elem;
+}
+
+interface EntityEditorElem extends EntityElem { editor: CodeMirror.Editor }
+export function entity(elem:EntityEditorElem) {
   let entityId = elem.entity;
   let paneId = elem.data.paneId;
   let name = eve.findOne("display name", {id: asEntity(entityId)}).name;
   let attrs = attributesUI(entityId, paneId);
   attrs.c += " page-attributes";
-  // @FIXME: if there isn't an ID here, microReact does the wrong thing, investigate
-  // after the release
-  console.log("TILE FOR", entityId);
   let editor = pageEditor(entityId, paneId, elem.editor);
-  return {id: `${entityId}|${paneId}|tile`, c: "tile", children: [
-    {c: "flex-row", children: [
-      {c: "text-content", children: [
-        {c: "header", text: name},
-        editor,
-      ]},
-      attrs,
-    ]}
+  return {c: "flex-row entity", children: [
+    {c: "text-content", children: [
+      {c: "header", text: name},
+      editor,
+    ]},
+    attrs,
   ]};
 }
 
