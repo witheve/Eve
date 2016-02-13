@@ -4,9 +4,10 @@ import {parse as marked, Renderer as MarkedRenderer} from "../vendor/marked";
 import * as CodeMirror from "codemirror";
 import {copy, uuid, coerceInput, builtinId, autoFocus, KEYS, mergeObject, setEndOfContentEditable, slugify, location as getLocation} from "./utils";
 import {Diff, Query} from "./runtime";
-import {createEditor} from "./richTextEditor";
 import {Element, Handler, RenderHandler, Renderer} from "./microReact";
+import {createEditor} from "./richTextEditor";
 import * as uitk from "./uitk";
+import {navigate, preventDefault} from "./uitk";
 import {eve, eveLocalStorageKey, handle as appHandle, dispatch, activeSearches, renderer} from "./app";
 import {parseDSL} from "./parser";
 import {parse as nlparse, StateFlags, FunctionTypes} from "./NLQueryParser";
@@ -44,11 +45,6 @@ export let uiState:{
 //---------------------------------------------------------
 // Utils
 //---------------------------------------------------------
-
-function preventDefault(event) {
-  event.preventDefault();
-}
-
 // @NOTE: ids must not contain whitespace
 export function asEntity(raw:string|number):string {
   let cleaned = raw && (""+raw).trim();
@@ -78,6 +74,25 @@ export function setURL(paneId:string, contains:string, replace?:boolean) {
 
   historyState = state;
   historyURL = url;
+}
+
+function inferRepresentation(search:string, baseParams:{}):{rep:string, params:{}} {
+  let rep;
+  let params = copy(baseParams);
+  let entityId = asEntity(search);
+  let cleaned = search && search.trim().toLowerCase();
+  
+  if(entityId || cleaned.length === 0) {
+    rep = "document";
+    params.entity = entityId || builtinId("home");
+    return {rep, params};
+  }
+
+  let [rawContent, rawParams] = cleaned.split("|");
+  let parsedParams = getCellParams(rawContent, rawParams);
+  let {results, params:inferredParams, content} = queryUIInfo(search);
+  params = copy(inferredParams, params);
+  return {rep: params.rep, params};
 }
 
 //---------------------------------------------------------

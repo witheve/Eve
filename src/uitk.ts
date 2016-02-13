@@ -78,7 +78,7 @@ function classifyEntities(rawEntities:string[]) {
 //------------------------------------------------------------------------------
 // Handlers
 //------------------------------------------------------------------------------
-function preventDefault(event) {
+export function preventDefault(event) {
   event.preventDefault();
 }
 function preventDefaultUnlessFocused(event) {
@@ -90,7 +90,7 @@ function closePopup() {
   if(popout) dispatch("remove popup", {paneId: popout.pane}).commit();
 }
 
-function navigate(event, elem) {
+export function navigate(event, elem) {
   let {paneId} = elem.data;
   if(elem.peek) dispatch("set popout", {parentId: paneId, rep: "@FIXME", params: "@FIXME", contains: elem.link, x: "calc(50% - 350px)", y: event.clientY}).commit();
   else dispatch("set pane", {paneId, contains: elem.link}).commit();
