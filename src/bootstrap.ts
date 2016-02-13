@@ -82,23 +82,13 @@ class BSPhase {
     if(isAs.length)
       collectionsText = `${titlecase(name)} is a ${isAs.slice(0, -1).join(", ")} ${isAs.length > 1 ? "and" : ""} ${isAs[isAs.length - 1]}.`;
     let content = unpad(6) `
-      #${name}
       ${collectionsText}
     `;
     if(attributes) {
-      content += "\n##Attributes\n";
       for(let attr in attributes) {
         let sourceId = `${entity},${attr},${attributes[attr]}`;
-        let query = `${name}'s ${attr}`;
-        let queryId = query.replace(" ", "-");
-        content += `${attr}: {${query}|rep=CSV; field=${attr}; eav source = ${sourceId}}\n`;
         let value = this._names[attributes[attr]] || attributes[attr];
         this.addFact("sourced eav", {entity, attribute: attr, value, source: sourceId});
-        let artifacts = parseDSL(`(query :$$view "${queryId}"
-                                     (entity-eavs :entity "${entity}" :attribute "${attr}" :value v)
-                                     (project! :entity "${entity}" :${attr} v))`);
-        this.addArtifacts(artifacts);
-        this.addFact("query to id", {query, id: queryId});
       }
     }
     if(extraContent) content += "\n" + extraContent;
