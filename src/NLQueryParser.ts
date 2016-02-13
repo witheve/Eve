@@ -363,7 +363,7 @@ function formToken(word: Word): Token {
   // Case 2: handle numbers
   // ----------------------
   if (!found) {
-    if (digits.indexOf(originalWord[0]) >= 0 && parseFloat(originalWord)) {
+    if (digits.indexOf(originalWord[0]) >= 0 && isNumeric(originalWord)) {
       found = true;
       properties.push(Properties.QUANTITY);
       POS = MinorPartsOfSpeech.NU;
