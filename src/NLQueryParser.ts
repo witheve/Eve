@@ -1,8 +1,6 @@
 import {eve} from "./app";
 
 declare var pluralize;
-declare var nlp;
-declare var uuid;
 
 // ----------------------------------------------------------------------------
 // User-Facing functions
@@ -274,18 +272,22 @@ function formToken(word: Word): Token {
   let separators = [',',':',';','"'];
   let operators = ['+','-','*','/','^'];
   let comparators = ['>','>=','<','<=','=','!='];
+  // Most of the following vectors were taken from NLP Compromise
+  // https://github.com/nlp-compromise/nlp_compromise
+  // Copyright (c) 2016 Spencer Kelly: 
+  // Licensed under the MIT License: https://github.com/nlp-compromise/nlp_compromise/blob/master/LICENSE.txt
   let preDeterminers = ['all'];
   let determiners = ['this', 'any', 'enough', 'each', 'every', 'these', 'another', 'plenty', 'whichever', 'neither', 'an', 'a', 'least', 'own', 'few', 'both', 'those', 'the', 'that', 'various', 'what', 'either', 'much', 'some', 'else', 'no'];
-  let copulae = ['as', 'is', 'are', 'were', 'am', 'was', 'be'];
+  let copulae = ['am', 'is', 'are', 'was', 'were', 'as', 'am', 'be', 'has', 'become', 'became', 'seemed', 'seems', 'seeming'];
   let conjunctions = ['yet', 'therefore', 'or', 'while', 'nor', 'whether', 'though', 'because', 'but', 'for', 'and', 'if', 'before', 'although', 'plus', 'versus', 'not'];
-  let preposisions = ['until', 'onto', 'of', 'into', 'out', 'except', 'across', 'by', 'between', 'at', 'down', 'as', 'from', 'around', 'with', 'among', 'upon', 'amid', 'to', 'along', 'since', 'about', 'off', 'on', 'within', 'in', 'during', 'per', 'without', 'throughout', 'through', 'than', 'via', 'up', 'unlike', 'despite', 'below', 'unless', 'towards', 'besides', 'after', 'whereas','amongst', 'atop', 'barring', 'circa', 'mid', 'midst', 'notwithstanding', 'sans', 'thru', 'till', 'versus'];
-  let possessivePronouns = ['mine', 'something', 'none', 'anything', 'anyone', 'theirs', 'himself', 'ours', 'his', 'my', 'their', 'yours', 'your', 'our', 'its', 'nothing', 'herself', 'hers', 'themselves', 'everything', 'myself', 'itself', 'her', 'who', 'whom', 'whose'];
+  let preposisions = ['with', 'until', 'onto', 'of', 'into', 'out', 'except', 'across', 'by', 'between', 'at', 'down', 'as', 'from', 'around', 'among', 'upon', 'amid', 'to', 'along', 'since', 'about', 'off', 'on', 'within', 'in', 'during', 'per', 'without', 'throughout', 'through', 'than', 'via', 'up', 'unlike', 'despite', 'below', 'unless', 'towards', 'besides', 'after', 'whereas','amongst', 'atop', 'barring', 'circa', 'mid', 'midst', 'notwithstanding', 'sans', 'thru', 'till', 'versus'];
+  let possessivePronouns = ['mine', 'something', 'none', 'anything', 'anyone', 'theirs', 'himself', 'ours', 'his', 'my', 'their', 'yours', 'your', 'our', 'its', 'nothing', 'herself', 'hers', 'themselves', 'everything', 'myself', 'itself', 'her'];
   let personalPronouns = ['it', 'they', 'i', 'them', 'you', 'she', 'me', 'he', 'him', 'ourselves', 'us', 'we', 'yourself'];
   let modals = ['can', 'may', 'could', 'might', 'will', 'would', 'must', 'shall', 'should', 'ought'];
-  let whPronouns = ['who','what','whom'];
-  let whDeterminers = ['whatever','which']
+  let whPronouns = ['who', 'what', 'whom'];
+  let whDeterminers = ['whatever', 'which'];
   let whPossessivePronoun = ['whose'];
-  let whAdverbs = ['how','when','however','whenever','where','why']; 
+  let whAdverbs = ['how', 'when', 'however', 'whenever', 'where', 'why'];   
 
   // We have three cases: the word is a symbol (of which there are various kinds), a number, or a string
   
@@ -340,6 +342,9 @@ function formToken(word: Word): Token {
       found = true;
       properties.push(Properties.SEPARATOR);
       POS = MinorPartsOfSpeech.SEP;
+      if (originalWord === `"`) {
+        properties.push(Properties.QUOTED);
+      }
     } else if (originalWord === "'s") {
       properties.push(Properties.POSSESSIVE);  
       POS = MinorPartsOfSpeech.POS;    
@@ -357,26 +362,74 @@ function formToken(word: Word): Token {
     }
   }
   
-  
-  
   // ----------------------
   // Case 3: handle strings
   // ----------------------
   
   if (!found) {
-    
     // Normalize the word
-    if (false) {
-      normalizedWord = singularize(originalWord);
-    }
     normalizedWord = normalizedWord.toLowerCase();
+    let before = normalizedWord;
+    normalizedWord = singularize(normalizedWord);
+    if (before !== normalizedWord) {
+      properties.push(Properties.PLURAL);
+    }
+
+    // Find the POS in the dictionary, apply some properties based on the word
+    if (determiners.indexOf(normalizedWord) >= 0) {
+      POS = MinorPartsOfSpeech.DT;
+    } else if (modals.indexOf(normalizedWord) >= 0) {
+      POS = MinorPartsOfSpeech.MD;
+    } else if (preDeterminers.indexOf(normalizedWord) >= 0) {
+      POS = MinorPartsOfSpeech.PDT;
+    } else if (copulae.indexOf(normalizedWord) >= 0) {
+      POS = MinorPartsOfSpeech.CP;
+    } else if (preposisions.indexOf(normalizedWord) >= 0) {
+      POS = MinorPartsOfSpeech.IN;
+    } else if (personalPronouns.indexOf(normalizedWord) >= 0) {
+      POS = MinorPartsOfSpeech.PRP; 
+      properties.push(Properties.PRONOUN);
+    } else if (possessivePronouns.indexOf(normalizedWord) >= 0) {
+      POS = MinorPartsOfSpeech.PRP; 
+      properties.push(Properties.PRONOUN);
+      properties.push(Properties.POSSESSIVE);
+    } else if (conjunctions.indexOf(normalizedWord) >= 0) {
+      POS = MinorPartsOfSpeech.CC; 
+    } else if (whPronouns.indexOf(normalizedWord) >= 0) {
+      POS = MinorPartsOfSpeech.WP; 
+    } else if (whDeterminers.indexOf(normalizedWord) >= 0) {
+      POS = MinorPartsOfSpeech.WDT; 
+    } else if (whAdverbs.indexOf(normalizedWord) >= 0) {
+      POS = MinorPartsOfSpeech.WRB; 
+    } else if (whPossessivePronoun.indexOf(normalizedWord) >= 0) {
+      POS = MinorPartsOfSpeech.WPO;
+      properties.push(Properties.POSSESSIVE) 
+    }
+
+    // Set grouping property
+    let groupingWords = ['per', 'by'];
+    let negatingWords = ['except', 'without', 'sans', 'not', 'nor', 'neither', 'no'];
+    let pluralWords = ['their'];
+    if (groupingWords.indexOf(normalizedWord) >= 0) {
+      properties.push(Properties.GROUPING);        
+    }
+    // Set negate property
+    else if (negatingWords.indexOf(normalizedWord) >= 0) {
+      properties.push(Properties.NEGATES);
+    }
+    // Set plural property
+    else if (pluralWords.indexOf(normalizedWord) >= 0) {
+      properties.push(Properties.PLURAL);
+    }
     
-    // Test if the first letter is upper case
-    if (upperCaseLetters.indexOf(originalWord[0]) >= 0) {
-      properties.push(Properties.PROPER);
+    // If the word is still a noun, if it is upper case than it is a proper noun 
+    if (getMajorPOS(POS) === MajorPartsOfSpeech.NOUN) {
+      if (upperCaseLetters.indexOf(originalWord[0]) >= 0) {
+        properties.push(Properties.PROPER);
+      }
     }
   }
-
+  
   let token: Token = {
     ix: word.ix, 
     originalWord: word.text, 
@@ -386,86 +439,7 @@ function formToken(word: Word): Token {
   };
 
   return token;  
-    
-    
-    
-    
-    /*
-  switch (token.normalizedWord) {
-    case "of":
-      token.properties.push(Properties.BACKRELATIONSHIP); 
-      break;
-    case "per":
-      token.properties.push(Properties.BACKRELATIONSHIP); 
-      token.properties.push(Properties.GROUPING);
-      break;
-    case "had":
-      token.POS = MinorPartsOfSpeech.VBD;
-      break;
-    case "has":
-      token.POS = MinorPartsOfSpeech.VBZ;
-      break;
-    case "is": 
-      token.POS = MinorPartsOfSpeech.CP;
-      token.properties.push(Properties.SETTER);
-      break;
-    case "do":
-      token.POS = MinorPartsOfSpeech.VBP;
-      break;
-    case "no":
-      token.properties.push(Properties.NEGATES);
-      break;
-    case "neither":
-      token.POS = MinorPartsOfSpeech.CC;
-      token.properties.push(Properties.NEGATES);
-      break;
-    case "nor":
-      token.POS = MinorPartsOfSpeech.CC;
-      token.properties.push(Properties.NEGATES);
-      break;
-    case "except":
-      token.POS = MinorPartsOfSpeech.CC;
-      token.properties.push(Properties.NEGATES);
-      break;
-    case "without":
-      token.POS = MinorPartsOfSpeech.CC;
-      token.properties.push(Properties.NEGATES);
-      break;
-    case "not":
-      token.POS = MinorPartsOfSpeech.CC;
-      token.properties.push(Properties.NEGATES);
-      break;
-    case "average":
-      token.POS = MinorPartsOfSpeech.NN;
-      break;
-    case "mean":
-      token.POS = MinorPartsOfSpeech.NN;
-      break;
-    case "their":
-      token.properties.push(Properties.PLURAL);
-      break;
-    case "most":
-      token.POS = MinorPartsOfSpeech.JJS;
-      token.properties.push(Properties.SUPERLATIVE);
-      break;
-    case "best":
-      token.POS = MinorPartsOfSpeech.JJS;
-      token.properties.push(Properties.SUPERLATIVE);
-      break;
-    case "will":
-      // 'will' can be a noun
-      if (getMajorPOS(token.POS) !== MajorPartsOfSpeech.NOUN) {
-        token.POS = MinorPartsOfSpeech.MD;
-      }
-      break;
-    case "years":
-      token.POS = MinorPartsOfSpeech.NN;
-      token.normalizedWord = "year";
-      token.properties.push(Properties.PLURAL);
-      break;
-  }*/
-    
-    
+       
     
     
   // Add default attribute markers to nouns
