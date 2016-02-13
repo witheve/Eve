@@ -105,7 +105,7 @@ export function normalizeQueryString(queryString: string): Array<Word> {
   normalizedQueryString = normalizedQueryString.replace(/"/g,' " ');
   // Split possessive endings
   normalizedQueryString = normalizedQueryString.replace(/\'s/g,' \'s ');
-  normalizedQueryString = normalizedQueryString.replace(/s'/g,'s \'s ');
+  normalizedQueryString = normalizedQueryString.replace(/s'/g,'s \' ');
   // Clean various symbols we don't want to deal with
   normalizedQueryString = normalizedQueryString.replace(/`|\?|\:|\[|\]|\{|\}|\(|\)|\~|\`|~|!|@|#|\$|%|&|_|\|/g,' ');
   // Collapse whitespace   
@@ -354,7 +354,7 @@ function formToken(word: Word): Token {
       if (originalWord === `"`) {
         properties.push(Properties.QUOTED);
       }
-    } else if (originalWord === "'s") {
+    } else if (originalWord === "'s" || originalWord === "'") {
       properties.push(Properties.POSSESSIVE);  
       POS = MinorPartsOfSpeech.POS;    
     }
@@ -941,13 +941,20 @@ function wordToFunction(word: string): BuiltInFunction {
 }
 
 function formTree(token: Token, tree: Node, context: Context) {  
-  console.log(token);
+  log("Token:")
+  log(token);
   let node = newNode(token);
-  console.log(node.toString());
+  log("Node:")
+  log(node.toString());
   
-  
-  /*
-  
+  // Flatten the tree
+  let nextNode = tree;
+  let nodes: Array<Node> = [];
+  while(nextNode !== undefined) {
+    nodes.push(nextNode);
+    nextNode = nextNode.next();
+  }
+
   // Build ngrams
   // Initialize the ngrams with 1-grams
   let ngrams: Array<Array<Node>> = nodes.map((node) => [node]);
@@ -971,16 +978,16 @@ function formTree(token: Token, tree: Node, context: Context) {
     }
     offset = ngrams.length;
     ngrams = ngrams.concat(newNgrams);
-  }*/
+  }
 
-  /*
   // Check each ngram for a display name
   let matchedNgrams: Array<Array<Node>> = [];
   for (let i = ngrams.length - 1; i >= 0; i--) {
-    let ngram = ngrams[i];
+    let ngram = ngrams[i];    
     let allFound = ngram.every((node) => node.found);
     if (allFound !== true) {
-      let displayName = ngram.map((node)=>node.name).join(" ");
+      let displayName = ngram.map((node)=>node.name).join(" ").replace(/ '/g,'\'');
+      log(displayName)
       // Handle special compound nodes
       if (ngram.length === 2 && (displayName === "is an" || displayName === "is a")) {
        ngram[1].properties.push(Properties.SETTER);
@@ -1002,8 +1009,8 @@ function formTree(token: Token, tree: Node, context: Context) {
       }
     }
   }
-  
-  // Turn ngrams into compound nodes
+
+  // Turn matched ngrams into compound nodes
   log("Creating compound nodes...");
   for (let ngram of matchedNgrams) {
     // Don't do anything for 1-grams
@@ -1021,10 +1028,13 @@ function formTree(token: Token, tree: Node, context: Context) {
     // Inherit properties from the nodes
     compoundNode.properties = lastGram.properties;    
     compoundNode.properties.push(Properties.COMPOUND);
-    // Insert compound node and remove constituent nodes
-    nodes.splice(nodes.indexOf(ngram[0]),ngram.length,compoundNode);
+    // The compound node results from the new node,
+    // so the cpound node replaces it
+    node = compoundNode;
   }
 
+
+  /*
   // Do a quick pass to identify functions
   log("Identifying functions...")
   tokens.map((token) => {
