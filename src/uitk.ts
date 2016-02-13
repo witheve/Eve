@@ -206,6 +206,7 @@ export function pageEditor(entityId:string, paneId:string, elem):Element {
   let name = resolveName(entityId);
   elem.c = `wiki-editor ${elem.c || ""}`;
   elem.meta = {entityId: entityId, page, paneId};
+  elem.options.noFocus = true;
   elem.value = content;
   elem.children = elem.cellItems;
   console.log(elem);

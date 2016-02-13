@@ -602,7 +602,7 @@ function createPage(evt:Event, elem:Element) {
   let name = elem["name"];
   let entity = uuid();
   let page = uuid();
-  dispatch("create page", {page, content: `# ${name}\n`})
+  dispatch("create page", {page, content: ``})
   .dispatch("create entity", {entity, page, name}).commit();
 }
 
@@ -802,7 +802,7 @@ function cellEditor(entityId, paneId, cell):Element {
       {c: "adornment", text: "="},
       {t: "span", c:"", contentEditable: true, text, click: preventDefault, input: updateActiveCell, keydown: embeddedCellKeys, cell, selected, paneId, postRender: autoFocus ? focusCellEditor : undefined},
     ]},
-    // autocompleter(options, paneId, cell)
+    autocompleter(options, paneId, cell)
   ]};
 }
 
@@ -1012,7 +1012,7 @@ function createAndEmbed(elem, value, doEmbed) {
   let entity = uuid();
   let page = uuid();
   let {entityId, attribute, replace} = elem.selected;
-  let chain = dispatch("create page", {page, content: `#${value}\n`})
+  let chain = dispatch("create page", {page, content: ``})
   .dispatch("create entity", {entity, page, name: value})
   .dispatch("add sourced eav", {entity: entityId, attribute, value: entity, source: uuid()});
   if(replace) {
@@ -1409,18 +1409,15 @@ function activateCell(event, elem) {
   event.preventDefault();
 }
 
-function createEmbedPopout(cm, paneId) {
-  let coords = cm.cursorCoords("head", "page");
-  // dispatch("createEmbedPopout", {paneId, x: coords.left, y: coords.top - 20}).commit();
+function createEmbedPopout(cm, editorId) {
   cm.operation(() => {
     let from = cm.getCursor("from");
     let id = uuid();
     cm.replaceRange("=", from, cm.getCursor("to"));
-    if(from.line === 0) return;
     let to = cm.getCursor("from");
     let fromIx = cm.indexFromPos(from);
     let toIx = cm.indexFromPos(to);
-    let cell = {id, start: fromIx, length: toIx - fromIx, placeholder: true, query: "", paneId};
+    let cell = {id, start: fromIx, length: toIx - fromIx, placeholder: true, query: "", editorId};
     dispatch("addActiveCell", {id, query: "", cell, placeholder: true});
   });
 }
@@ -1521,10 +1518,11 @@ function prepareTileEditor(entityId, paneId) {
     ui["cell"] = cell;
     return ui;
   });
+  let editorId = `${paneId}|${entityId}`;
   var keys = {
-    "Backspace": (cm) => maybeActivateCell(cm, paneId),
-    "Cmd-Enter": (cm) => maybeNavigate(cm, paneId),
-    "=": (cm) => createEmbedPopout(cm, paneId)
+    "Backspace": (cm) => maybeActivateCell(cm, editorId),
+    "Cmd-Enter": (cm) => maybeNavigate(cm, editorId),
+    "=": (cm) => createEmbedPopout(cm, editorId)
   };
   return {postRender: wikiEditor, onUpdate: updatePage, options: {keys: keys}, cells, cellItems};
 }
