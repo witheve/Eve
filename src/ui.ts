@@ -76,22 +76,21 @@ export function setURL(paneId:string, contains:string, replace?:boolean) {
   historyURL = url;
 }
 
-function inferRepresentation(search:string, baseParams:{}):{rep:string, params:{}} {
+function inferRepresentation(search:string|number, baseParams:{} = {}):{rep:string, params:{}} {
   let rep;
   let params = copy(baseParams);
   let entityId = asEntity(search);
-  let cleaned = search && search.trim().toLowerCase();
+  let cleaned = (search && (""+search).trim().toLowerCase()) || "";
   
   if(entityId || cleaned.length === 0) {
-    rep = "document";
+    rep = "tile";
     params.entity = entityId || builtinId("home");
     return {rep, params};
   }
 
   let [rawContent, rawParams] = cleaned.split("|");
   let parsedParams = getCellParams(rawContent, rawParams);
-  let {results, params:inferredParams, content} = queryUIInfo(search);
-  params = mergeObject(params, inferredParams);
+  params = mergeObject(params, parsedParams);
   return {rep: params.rep, params};
 }
 
@@ -110,15 +109,23 @@ appHandle("ui focus search", (changes:Diff, {paneId, value}:{paneId:string, valu
 
 
 appHandle("set pane", (changes:Diff, info:{paneId:string, kind?:PANE, rep?:string, contains?:string|number, params?:string|{}, popState?:boolean}) => {
+  // Infer valid rep and params if search has changed
+  if(info.contains && !info.rep) {
+    let inferred = inferRepresentation(info.contains, typeof info.params === "string" ? parseParams(<string>info.params) : info.params);
+    info.rep = inferred.rep;
+    info.params = inferred.params;
+    if(!info.rep) throw new Error(`Could not infer a valid representation for search '${info.contains}' in pane '${info.paneId}'`);
+  }
+
+  // Fill missing properties from the previous fact, if present
   let prev = eve.findOne("ui pane", {pane: info.paneId}) || {};
   let {paneId, kind = prev.kind, rep = prev.rep, contains:raw = prev.contains, params:rawParams = prev.params, popState = false} = info;
-  if(kind === undefined || rep === undefined || raw === undefined || rawParams === undefined) {
+  if(kind === undefined || rep == undefined || raw === undefined || rawParams === undefined) {
     throw new Error(`Cannot create new pane without all parameters specified for pane '${paneId}'`);
   }
   
-  let contains = asEntity(raw) || (""+raw).trim();
-  let params = typeof rawParams === "string" ? rawParams : stringifyParams(rawParams);
-
+  let contains = asEntity(raw) || (""+raw).trim();  
+  let params = typeof rawParams === "object" ? stringifyParams(rawParams) : rawParams || "";
   let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value: contains, focused: false};
   state.value = contains;
   state.focused = false;
@@ -143,8 +150,8 @@ appHandle("remove pane", (changes:Diff, {paneId}:{paneId:string}) => {
 });
 
 appHandle("set popout", (changes:Diff, info:{parentId:string, rep?:string, contains?:string|number, params?:string|{}, x:string|number, y:string|number, popState?:boolean}) => {
-  let parentId = info.parentId;
   // Recycle the parent's existing popout if it exists, otherwise create a new one
+  let parentId = info.parentId;
   let paneId = uuid();
   let children = eve.find("ui pane parent", {parent: parentId});
   for(let {pane:childId} of children) {
@@ -154,6 +161,16 @@ appHandle("set popout", (changes:Diff, info:{parentId:string, rep?:string, conta
       break;
     }
   }
+
+  // Infer valid rep and params if search has changed
+  if(info.contains && !info.rep) {
+    let inferred = inferRepresentation(info.contains, typeof info.params === "string" ? parseParams(<string>info.params) : info.params);
+    info.rep = inferred.rep;
+    info.params = inferred.params;
+    if(!info.rep) throw new Error(`Could not infer a valid representation for search '${info.contains}' in popout '${paneId}'`);
+  }
+
+  // Fill missing properties from the previous fact, if present
   let prev = eve.findOne("ui pane", {pane: paneId}) || {};
   let prevPos = eve.findOne("ui pane position", {pane: paneId}) || {};
   let {rep = prev.rep, contains:raw = prev.contains, params:rawParams = prev.params, x = prevPos.x, y = prevPos.y, popState = false} = info;
@@ -201,19 +218,19 @@ appHandle("remove sourced eav", (changes:Diff, eav:{entity:string, source:string
 appHandle("update page", (changes:Diff, {page, content}: {page: string, content: string}) => {
   changes.remove("page content", {page});
   changes.add("page content", {page, content});
-  let trimmed = content.trim();
-  let endIx = trimmed.indexOf("\n");
-  let name = trimmed.slice(1, endIx !== -1 ? endIx : undefined).trim();
-  let {entity} = eve.findOne("entity page", {page});
-  let {name:prevName = undefined} = eve.findOne("display name", {id: entity}) || {};
-  if(name !== prevName) {
-    changes.remove("display name", {id: entity, name: prevName});
-    changes.add("display name", {id: entity, name});
-    let parts = getLocation().split("/");
-    if(parts.length > 2 && parts[2].replace(/_/gi, " ") === entity) {
-      window.history.replaceState(window.history.state, null, `/${slugify(name)}/${slugify(entity)}`);
-    }
-  }
+  // let trimmed = content.trim();
+  // let endIx = trimmed.indexOf("\n");
+  // let name = trimmed.slice(1, endIx !== -1 ? endIx : undefined).trim();
+  // let {entity} = eve.findOne("entity page", {page});
+  // let {name:prevName = undefined} = eve.findOne("display name", {id: entity}) || {};
+  // if(name !== prevName) {
+  //   changes.remove("display name", {id: entity, name: prevName});
+  //   changes.add("display name", {id: entity, name});
+  //   let parts = getLocation().split("/");
+  //   if(parts.length > 2 && parts[2].replace(/_/gi, " ") === entity) {
+  //     window.history.replaceState(window.history.state, null, `/${slugify(name)}/${slugify(entity)}`);
+  //   }
+  // }
 });
 appHandle("create entity", (changes:Diff, {entity, page, name = "Untitled"}) => {
   changes
@@ -244,9 +261,10 @@ appHandle("create query", (changes:Diff, {id, content}) => {
 
 appHandle("insert query", (changes:Diff, {query}) => {
   query = query.trim().toLowerCase();
-  if(eve.findOne("query to id", {query})) return;
   let parsed = nlparse(query);
-  if(parsed[0].state === StateFlags.COMPLETE) {
+  let topParse = parsed[0];
+  if(eve.findOne("query to id", {query})) return;
+  if(topParse.state === StateFlags.COMPLETE) {
     let artifacts = parseDSL(parsed[0].query.toString());
     if(artifacts.changeset) changes.merge(artifacts.changeset);
     var rootId;
@@ -259,6 +277,43 @@ appHandle("insert query", (changes:Diff, {query}) => {
     changes.add("query to id", {query, id: rootId})
   }
 });
+
+appHandle("handle setAttribute in a search", (changes:Diff, {attribute, entity, value, replace}) => {
+  if(replace) {
+    //check if there's a generator, if so, remove that.
+    let generated = eve.find("generated eav", {entity, attribute});
+    if(generated.length) {
+      for(let gen of generated) {
+        changes.merge(dispatch("remove attribute generating query", {eav: {entity, attribute}, view: gen["source"]}));
+      }
+    } else {
+      changes.remove("sourced eav", {entity, attribute})
+    }
+  }
+  changes.merge(dispatch("add sourced eav", {entity, attribute, value}));
+});
+
+function dispatchSearchSetAttributes(query, chain?) {
+  if(!chain) {
+    chain = dispatch();
+  }
+  let parsed = nlparse(query);
+  let topParse = parsed[0];
+  if(topParse.context.setAttributes.length) {
+    let attributes = [];
+    for(let attr of topParse.context.setAttributes) {
+      // @TODO: NLP needs to tell us whether we're supposed to modify this attribute
+      // or if we're just adding a new eav for it.
+      let replace = true;
+      let entity = attr.entity.id;
+      let attribute = attr.displayName;
+      chain.dispatch("handle setAttribute in a search", {entity, attribute, value: attr.value, replace});
+      attributes.push(`${attr.entity.displayName}`);
+    }
+    query = attributes.join(" and ");
+  }
+  return {chain, query};
+}
 
 // @TODO: there's a lot of duplication between insert query, create query, and insert implication
 appHandle("insert implication", (changes:Diff, {query}) => {
@@ -342,11 +397,11 @@ let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, 
   [PANE.FULL]: (paneId, entityId) => ({
     c: "fullscreen",
     header: {t: "header", c: "flex-row", children: [
-      {c: "logo eve-logo", data: {paneId}, link: "", click: navigate},
+      // {c: "logo eve-logo", data: {paneId}, link: "", click: navigate},
       searchInput(paneId, entityId),
-      {c: "controls visible", children: [
-        {c: "ion-gear-a toggle-settings", style: "font-size: 1.35em;", prompt: paneSettings, paneId, click: openPrompt}
-      ]}
+      // {c: "controls visible", children: [
+      //   {c: "ion-gear-a toggle-settings", style: "font-size: 1.35em;", prompt: paneSettings, paneId, click: openPrompt}
+      // ]}
     ]}
   }),
   [PANE.POPOUT]: (paneId, entityId) => {
@@ -492,22 +547,24 @@ export function pane(paneId:string):Element {
     content = search(cleaned.substring("search: ".length), paneId);
   } else if(entityId) {
     let options:any = {};
-    content = entity(entityId, paneId, kind, options);
+    // content = entity(entityId, paneId, kind, options);
+    content = uitk.tile({entity: entityId, data: {paneId}, editor: prepareTileEditor(entityId, paneId)});
   } else if(eve.findOne("query to id", {query: cleaned})) {
     contentType = "search";
     content = search(cleaned, paneId);
   } else if(contains !== "") {
-    content = {c: "flex-row spaced-row", children: [
-      {t: "span", text: `The page ${contains} does not exist. Would you like to`},
-      {t: "a", c: "link btn add-btn", text: "create it?", name: contains, paneId, click: createPage }
+    content = {c: "flex-row spaced-row disambiguation", children: [
+      {t: "span", text: `I couldn't find anything; should I`},
+      {t: "a", c: "link btn add-btn", text: `add ${contains}`, name: contains, paneId, click: createPage },
+      {t: "span", text: "?"},
     ]};
   }
 
   if(contentType === "search") {
     var disambiguation = {id: "search-disambiguation", c: "flex-row spaced-row disambiguation", children: [
-      {text: "Did you mean to"},
-      {t: "a", c: "link btn add-btn", text: "create a new page", name: contains, paneId, click: createPage},
-      {text: "with this name?"}
+      {text: "Or should I"},
+      {t: "a", c: "link btn add-btn", text: `add a card`, name: contains, paneId, click: createPage},
+      {text: `for ${contains}?`}
     ]};
   }
 
@@ -541,14 +598,12 @@ export function search(search:string, paneId:string):Element {
   ]};
 }
 
-
-
 function createPage(evt:Event, elem:Element) {
   let name = elem["name"];
   let entity = uuid();
   let page = uuid();
   dispatch("create page", {page, content: `# ${name}\n`})
-    .dispatch("create entity", {entity, page, name}).commit();
+  .dispatch("create entity", {entity, page, name}).commit();
 }
 
 function deleteEntity(event, elem) {
@@ -630,10 +685,10 @@ function queryUIInfo(query) {
   let entityId = asEntity(content);
   if(entityId) {
     results = {unprojected: [{entity: entityId}], results: [{entity: entityId}]};
-    
+
   } else if(urlRegex.exec(content)) {
     results = {unprojected: [{url: content}], results: [{url: content}]};
-    
+
   } else {
     let cleaned = content && content.trim().toLowerCase();
     let queryId = eve.findOne("query to id", {query: cleaned});
@@ -679,15 +734,22 @@ function getCellParams(content, rawParams) {
         aggregates.push(fxn);
       }
     }
+    let totalFound = 0;
+    for(let item in context) {
+      totalFound += context[item].length;
+    }
     if(aggregates.length === 1 && context["groupings"].length === 0) {
       rep = "CSV";
       field = aggregates[0].name;
-    } else if(!hasCollections && context.fxns.length === 1) {
+    } else if(!hasCollections && context.fxns.length === 1 && context.fxns[0].type !== FunctionTypes.BOOLEAN) {
       rep = "CSV";
       field = context.fxns[0].name;
     } else if(!hasCollections && context.attributes.length === 1) {
       rep = "CSV";
       field = context.attributes[0].displayName;
+    } else if(context.entities.length + context.fxns.length === totalFound) {
+      // if there are only entities and boolean functions then we want to show this as tiles
+      params["rep"] = "tile";
     } else {
       params["rep"] = "table";
     }
@@ -700,9 +762,10 @@ function getCellParams(content, rawParams) {
 }
 
 var paneEditors = {};
-function wikiEditor(node, elem) {
+export function wikiEditor(node, elem) {
   createEditor(node, elem);
-  paneEditors[elem.meta.paneId] = node.editor;
+  let {paneId, entityId} = elem.meta;
+  paneEditors[`${paneId}|${entityId}`] = node.editor;
 }
 
 function reparentCell(node, elem) {
@@ -739,7 +802,7 @@ function cellEditor(entityId, paneId, cell):Element {
       {c: "adornment", text: "="},
       {t: "span", c:"", contentEditable: true, text, click: preventDefault, input: updateActiveCell, keydown: embeddedCellKeys, cell, selected, paneId, postRender: autoFocus ? focusCellEditor : undefined},
     ]},
-    autocompleter(options, paneId, cell)
+    // autocompleter(options, paneId, cell)
   ]};
 }
 
@@ -764,7 +827,7 @@ function optionKeys(event, elem) {
 function executeAutocompleterOption(event, elem) {
   if(event.defaultPrevented) return;
   let {paneId, cell} = elem;
-  let editor = paneEditors[paneId];
+  let editor = paneEditors[cell.editorId];
   let cm = editor.cmInstance;
   let mark = editor.marks[cell.id];
   let doEmbed = makeDoEmbedFunction(cm, mark, cell, paneId);
@@ -791,7 +854,7 @@ function autocompleterOptions(entityId, paneId, cell) {
   if(contentEntityId) {
     text = uitk.resolveName(contentEntityId);
   }
-  
+
   let isEntity = eve.findOne("display name", {id: contentEntityId});
   let parsed = [];
   if(text !== "") {
@@ -950,8 +1013,8 @@ function createAndEmbed(elem, value, doEmbed) {
   let page = uuid();
   let {entityId, attribute, replace} = elem.selected;
   let chain = dispatch("create page", {page, content: `#${value}\n`})
-              .dispatch("create entity", {entity, page, name: value})
-              .dispatch("add sourced eav", {entity: entityId, attribute, value: entity, source: uuid()});
+  .dispatch("create entity", {entity, page, name: value})
+  .dispatch("add sourced eav", {entity: entityId, attribute, value: entity, source: uuid()});
   if(replace) {
     chain.dispatch("remove entity attribute", {entity: entityId, attribute: replace, value: entity});
   }
@@ -1157,7 +1220,7 @@ function handleAttributeDefinition(entity, attribute, search, chain?) {
     } else {
       //build a query
       let eavProject = `(query :$$view "${entity}|${attribute}|${id}" (select "${id}" :${params["field"].replace(" ", "-")} value)
-                               (project! "generated eav" :entity "${entity}" :attribute "${attribute}" :value value :source "${id}"))`;
+      (project! "generated eav" :entity "${entity}" :attribute "${attribute}" :value value :source "${id}"))`;
       chain.dispatch("insert implication", {query: eavProject}).commit();
     }
   }
@@ -1188,7 +1251,7 @@ function defineKeys(event, elem) {
   } else if(event.keyCode === KEYS.ESC) {
     dispatch("clearActiveCells").commit();
     if(elem.selected.paneId) {
-      paneEditors[elem.selected.paneId].cmInstance.focus();
+      paneEditors[cell.editorId].cmInstance.focus();
     }
   }
 }
@@ -1201,8 +1264,8 @@ export function entity(entityId:string, paneId:string, kind: PANE, options:any =
   let cells = getCells(content, paneId);
   let keys = {
     "Backspace": (cm) => maybeActivateCell(cm, paneId),
-    "Cmd-Enter": (cm) => maybeNavigate(cm, paneId),
-    "=": (cm) => createEmbedPopout(cm, paneId)
+      "Cmd-Enter": (cm) => maybeNavigate(cm, paneId),
+      "=": (cm) => createEmbedPopout(cm, paneId)
   };
   if(kind === PANE.POPOUT) {
     keys["Esc"] = () => {
@@ -1240,7 +1303,7 @@ export function entity(entityId:string, paneId:string, kind: PANE, options:any =
        {text: "instead?"}
        ]},
      */
-    {c: "wiki-editor", postRender: wikiEditor, onUpdate: updatePage, meta: {entity: entityId, page, paneId}, value: content, options: finalOptions, cells, children: cellItems},
+    {c: "wiki-editor", postRender: wikiEditor, onUpdate: updatePage, meta: {entityId, page, paneId}, value: content, options: finalOptions, cells, children: cellItems},
     attrs,
   ]};
 }
@@ -1260,8 +1323,6 @@ function maybeActivateCell(cm, paneId) {
     if(cell) {
       let query = cell.query.split("|")[0];
       dispatch("addActiveCell", {id: cell.id, cell, query}).commit();
-      return;
-    } else if(pos.line === 1 && pos.ch === 0) {
       return;
     }
   }
@@ -1292,7 +1353,7 @@ function maybeNavigate(cm, paneId) {
   }
 }
 
-var activeCells = {};
+export var activeCells = {};
 
 appHandle("clearActiveCells", (changes, info) => {
   for(let cell in activeCells) {
@@ -1304,6 +1365,7 @@ appHandle("addActiveCell", (changes, info) => {
   changes.dispatch("clearActiveCells", {});
   let {id} = info;
   info.selected = 0;
+  info.editorId = info.cell.editorId;
   activeCells[id] = info;
 });
 
@@ -1384,7 +1446,7 @@ function makeDoEmbedFunction(cm, mark, cell, paneId) {
     if(cm.getRange(from, to) !== replacement) {
       cm.replaceRange(replacement, from, to);
     }
-    paneEditors[paneId].cmInstance.focus();
+    paneEditors[cell.editorId].cmInstance.focus();
     let chain = dispatch("removeActiveCell", cell);
     if(replacement) {
       chain.dispatch("insert query", {query: text});
@@ -1397,13 +1459,13 @@ function embeddedCellKeys(event, elem) {
   let {paneId, cell} = elem;
   let target = event.currentTarget;
   let value = target.textContent;
-  let editor = paneEditors[paneId];
+  let editor = paneEditors[cell.editorId];
   let cm = editor.cmInstance;
   let mark = editor.marks[cell.id];
   if(event.keyCode === KEYS.BACKSPACE && value === "") {
     let {from, to} = mark.find();
     cm.replaceRange("", from, to);
-    paneEditors[paneId].cmInstance.focus();
+    paneEditors[cell.editorId].cmInstance.focus();
     dispatch("removeActiveCell", cell).commit();
     event.preventDefault();
   } else if(event.keyCode === KEYS.ESC || (event.keyCode === KEYS.ENTER && value.trim() === "")) {
@@ -1411,7 +1473,7 @@ function embeddedCellKeys(event, elem) {
     if(cell.placeholder) {
       cm.replaceRange("= ", from, to);
     }
-    paneEditors[paneId].cmInstance.focus();
+    paneEditors[cell.editorId].cmInstance.focus();
     dispatch("removeActiveCell", cell).commit();
     event.preventDefault();
   } else if(event.keyCode === KEYS.ENTER) {
@@ -1433,14 +1495,45 @@ function embeddedCellKeys(event, elem) {
 }
 
 function updatePage(meta, content) {
-    dispatch("update page", {page: meta.page, content}).commit();
+  dispatch("update page", {page: meta.page, content}).commit();
+}
+
+//---------------------------------------------------------
+// Editor prep
+//---------------------------------------------------------
+
+function prepareTileEditor(entityId, paneId) {
+  var {content = undefined} = eve.findOne("entity", {entity: entityId}) || {};
+  var page = eve.findOne("entity page", {entity: entityId})["page"];
+  var name = uitk.resolveName(entityId);
+  var cells = getCells(content, `${paneId}|${entityId}`);
+  var cellItems = cells.map((cell, ix) => {
+    var ui;
+    var active = activeCells[cell.id];
+    if(active) {
+      ui = cellEditor(entityId, paneId, active || cell);
+    } else {
+      ui = cellUI(paneId, cell.query, cell);
+    }
+    ui.id = `${paneId}|${cell.id}`;
+    ui.postRender = reparentCell;
+    ui["containerId"] = `${paneId}|${cell.id}|container`;
+    ui["cell"] = cell;
+    return ui;
+  });
+  var keys = {
+    "Backspace": (cm) => maybeActivateCell(cm, paneId),
+    "Cmd-Enter": (cm) => maybeNavigate(cm, paneId),
+    "=": (cm) => createEmbedPopout(cm, paneId)
+  };
+  return {postRender: wikiEditor, onUpdate: updatePage, options: {keys: keys}, cells, cellItems};
 }
 
 //---------------------------------------------------------
 // Page parsing
 //---------------------------------------------------------
 
-function getCells(content: string, paneId) {
+function getCells(content: string, editorId) {
   let cells = [];
   let ix = 0;
   let ids = {};
@@ -1457,13 +1550,13 @@ function getCells(content: string, paneId) {
       if(part.match(/\{\$\$.*\$\$\}/)) {
         placeholder = true;
       }
-      cells.push({start: ix, length: part.length, value: part, query: part.substring(1, part.length - 1), id, placeholder});
+      cells.push({start: ix, length: part.length, value: part, query: part.substring(1, part.length - 1), id, placeholder, editorId});
     }
     ix += part.length;
   }
   for(let active in activeCells) {
     let cell = activeCells[active].cell;
-    if(cell.placeholder && cell.paneId === paneId) {
+    if(cell.placeholder && cell.editorId === editorId) {
       cells.push(cell);
     }
   }
@@ -1482,7 +1575,7 @@ function sortOnAttribute(a, b) {
   return 0;
 }
 
-function attributesUI(entityId, paneId) {
+export function attributesUI(entityId, paneId) {
   var eavs = eve.find("entity eavs", {entity: entityId});
   var items = [];
   for(let eav of eavs) {
@@ -1634,7 +1727,7 @@ function submitAdder(event, elem) {
   let success = false;
   if(adderAttribute && adderValue) {
     let chain = dispatch("setAttributeAdder", {entityId, field: "adderAttribute", value: ""})
-                .dispatch("setAttributeAdder", {entityId, field: "adderValue", value: ""});
+    .dispatch("setAttributeAdder", {entityId, field: "adderValue", value: ""});
     success = handleAttributeDefinition(entityId, adderAttribute, adderValue, chain);
   }
   //make sure the focus ends up back in the property input
@@ -1690,21 +1783,22 @@ export function searchInput(paneId:string, value:string):Element {
   return {
     c: "flex-grow wiki-search-wrapper",
     children: [
+      {c: "controls", children: [
+        // {c: `ion-ios-arrow-${state.plan ? 'up' : 'down'} plan`, click: toggleSearchPlan, paneId},
+        // while technically a button, we don't need to do anything as clicking it will blur the editor
+        // which will execute the search
+        {c: "ion-android-search visible", paneId}
+      ]},
       codeMirrorElement({
         c: `flex-grow wiki-search-input ${state.focused ? "selected": ""}`,
         paneId,
         value: name,
         focus: focusSearch,
         blur: setSearch,
+        cursorPosition: "end",
         // change: updateSearch,
         shortcuts: {"Enter": setSearch}
       }),
-      {c: "controls", children: [
-        {c: `ion-ios-arrow-${state.plan ? 'up' : 'down'} plan`, click: toggleSearchPlan, paneId},
-        // while technically a button, we don't need to do anything as clicking it will blur the editor
-        // which will execute the search
-        {c: "ion-android-search visible", paneId}
-      ]},
     ]
   };
 };
@@ -1716,9 +1810,10 @@ function setSearch(event, elem) {
   let value = event.value;
   let pane = eve.findOne("ui pane", {pane: elem.paneId});
   if(!pane || pane.contains !== event.value) {
-    dispatch("insert query", {query: value})
-      .dispatch("set pane", {paneId: elem.paneId, contains: event.value})
-      .commit();
+    let {chain, query} = dispatchSearchSetAttributes(value);
+    chain.dispatch("insert query", {query})
+    .dispatch("set pane", {paneId: elem.paneId, contains: query})
+    .commit();
   }
 }
 function updateSearch(event, elem) {
@@ -1780,7 +1875,12 @@ function codeMirrorPostRender(postRender?:RenderHandler):RenderHandler {
       if(elem.autofocus) cm.focus();
     }
 
-    if(cm.getDoc().getValue() !== elem.value) cm.setValue(elem.value || "");
+    if(cm.getDoc().getValue() !== elem.value) {
+      cm.setValue(elem.value || "");
+      if(elem["cursorPosition"] === "end") {
+        cm.setCursor(100000);
+      }
+    }
     if(postRender) postRender(node, elem);
   }
 }
@@ -1876,6 +1976,22 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
     }
     return {values, data: params.data};
   },
+  tile(results, params) {
+    let tiles = [];
+    let firstResult = results[0];
+    let fields = Object.keys(firstResult).filter((field) => {
+      return !!asEntity(firstResult[field]);
+    });
+    for(let result of results) {
+      for(let field of fields) {
+        var entityId = result[field];
+        var paneId = params["paneId"];
+        var editor = prepareTileEditor(entityId, paneId);
+        tiles.push({entity: result[field], data: params, editor});
+      }
+    }
+    return tiles;
+  },
   error(results, params) {
     return {text: params["message"]};
   },
@@ -1923,6 +2039,7 @@ function represent(search: string, rep:string, results, params:{}):Element {
           embedParams["data"] = embedParams["data"] || params;
           wrapper.children.push(uitk[rep](embedParams));
         }
+        console.log(wrapper);
         return wrapper;
       } else {
         let embedParams = embedParamSets;
