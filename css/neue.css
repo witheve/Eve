@@ -119,7 +119,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .tile .text-content { margin-right:10px; min-width:250px; white-space:pre-wrap; line-height:28px; color:#aaa; flex:none; max-height:50%; }
 .tile .header { flex:none; margin:30px; margin-top:20px; font-size: 18pt; font-weight: 900; padding-bottom: 10px; margin-bottom: 10px; color: rgb(106,138,156); border-bottom: 1px solid rgba(0,0,50,0.1); }
 .tile .wiki-editor { padding: 30px; padding-top:0; margin-bottom:20px; }
-.tile .attributes { background: rgba(0,0,50,0.05); padding: 20px 20px; border-left:1px solid rgba(0,0,0,0.03); border-radius:0; align-self:stretch; max-height:50%; }
+.tile .attributes { background: rgba(0,0,50,0.05); padding: 20px 20px; border-left:1px solid rgba(0,0,0,0.03); border-radius:0; align-self:stretch; max-height:50%; overflow:auto; }
 .tile .attribute-name { color: rgb(106,138,156); }
 .tile + .tile { margin-top:40px; }
 
