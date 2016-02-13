@@ -98,12 +98,6 @@ export function normalizeQueryString(queryString: string): Array<Word> {
 // Token functions
 // ----------------------------------------------------------------------------
 
-interface PreToken {
-  ix: number,
-  text: string,
-  tag: string,
-}
-
 enum MajorPartsOfSpeech {
   ROOT,
   VERB,
@@ -2418,16 +2412,34 @@ function log(x: any) {
   }
 }
 
-export function tokenToString(token: Token): string {
+function tokenToString(token: Token, s1?: number, s2?: number, s3?: number, s4?: number, s5?: number): string {
   let properties = `(${token.properties.map((property: Properties) => Properties[property]).join("|")})`;
   properties = properties.length === 2 ? "" : properties;
   let tokenSpan = token.start === undefined ? " " : ` [${token.start}-${token.end}] `;
-  let tokenString = `${token.ix}: ${token.originalWord} | ${token.normalizedWord} | ${MajorPartsOfSpeech[getMajorPOS(token.POS)]} | ${MinorPartsOfSpeech[token.POS]} | ${properties}` ;
+  let spacer1 = Array(s1-`${token.ix}`.length + 1).join(" ");
+  let spacer2 = Array(s2-`${token.originalWord}`.length + 1).join(" ");
+  let spacer3 = Array(s3-`${token.normalizedWord}`.length + 1).join(" ");
+  let spacer4 = Array(s4 - `${MajorPartsOfSpeech[getMajorPOS(token.POS)]}`.length + 1).join(" ");
+  let spacer5 = Array(s5 - `${MinorPartsOfSpeech[token.POS]}`.length + 1).join(" ");
+  let tokenString = `${token.ix}:${spacer1} ${token.originalWord}${spacer2} | ${token.normalizedWord}${spacer3} | ${MajorPartsOfSpeech[getMajorPOS(token.POS)]}${spacer4} | ${MinorPartsOfSpeech[token.POS]}${spacer5} | ${properties}` ;
   return tokenString;
 }
 
 export function tokenArrayToString(tokens: Array<Token>): string {
-  let tokenArrayString = tokens.map((token) => tokenToString(token)).join("\n");
+  let s1: number = `${tokens[tokens.length-1].ix}`.length; 
+  let s2: number = tokens.map((token) => token.originalWord.length).reduce((a,b) => {
+    if (b > a) { return b; } else { return a; }
+  });
+  let s3: number = tokens.map((token) => token.normalizedWord.length).reduce((a,b) => {
+    if (b > a) { return b; } else { return a; } 
+  });
+  let s4: number = tokens.map((token) => `${MajorPartsOfSpeech[getMajorPOS(token.POS)]}`.length).reduce((a,b) => {
+    if (b > a) { return b; } else { return a; } 
+  });
+  let s5: number = tokens.map((token) => `${MinorPartsOfSpeech[token.POS]}`.length).reduce((a,b) => {
+    if (b > a) { return b; } else { return a; } 
+  });
+  let tokenArrayString = tokens.map((token) => tokenToString(token,s1,s2,s3,s4,s5)).join("\n");
   return divider + "\n" + tokenArrayString + "\n" + divider;
 }
 
