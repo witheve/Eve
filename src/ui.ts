@@ -1361,13 +1361,10 @@ function activateCell(event, elem) {
 }
 
 function createEmbedPopout(cm, editorId) {
-  let coords = cm.cursorCoords("head", "page");
-  // dispatch("createEmbedPopout", {paneId, x: coords.left, y: coords.top - 20}).commit();
   cm.operation(() => {
     let from = cm.getCursor("from");
     let id = uuid();
     cm.replaceRange("=", from, cm.getCursor("to"));
-    if(from.line === 0) return;
     let to = cm.getCursor("from");
     let fromIx = cm.indexFromPos(from);
     let toIx = cm.indexFromPos(to);

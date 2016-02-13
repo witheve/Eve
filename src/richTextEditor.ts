@@ -221,7 +221,6 @@ export function createEditor(node, elem) {
   if (doc.getValue() !== elem.value) {
     doc.setValue(elem.value || "");
     doc.clearHistory();
-    doc.setCursor({line: 1, ch: 0});
   }
   if(elem.cells) {
     cm.operation(() => {

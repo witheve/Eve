@@ -84,6 +84,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .wiki-pane.window .wiki-entity { padding: 25px 20px; }
 .wiki-pane.window .wiki-entity .CodeMirror { flex: 1; overflow:visible; }
 .wiki-pane.window .wiki-editor { padding: 0px 30px;  }
+.wiki-pane.window .tile { margin: 0; }
 
 /*---------------------------------------------------------
 - Autocompleter
@@ -114,11 +115,11 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 - Tile
 ---------------------------------------------------------*/
 
-.tile { background: white; align-self:center; align-items: stretch; min-width:200px; min-height:150px; box-shadow: 0 20px 50px rgba(0,0,50,0.10); margin-top:100px; border-radius:5px; }
-.tile > .flex-row {flex: 1 0 auto; }
-.tile .text-content { padding:20px 20px; margin-right:10px; min-width:250px; white-space:pre-wrap; line-height:28px; color:#aaa; }
-.tile .header { font-size: 18pt; font-weight: 900; padding-bottom: 10px; margin-bottom: 10px; color: rgb(106,138,156); border-bottom: 1px solid rgba(0,0,50,0.1); }
-.tile .attributes { background: rgba(0,0,50,0.05); padding: 20px 20px; border-left:1px solid rgba(0,0,0,0.03); border-radius:0; align-self:stretch; }
+.tile { background: white; align-self:center; align-items: stretch; min-width:200px; min-height:150px; box-shadow: 0 20px 50px rgba(0,0,50,0.10); margin-top:100px; border-radius:5px; overflow:hidden; }
+.tile .text-content { margin-right:10px; min-width:250px; white-space:pre-wrap; line-height:28px; color:#aaa; flex:none; max-height:50%; }
+.tile .header { flex:none; margin:30px; margin-top:20px; font-size: 18pt; font-weight: 900; padding-bottom: 10px; margin-bottom: 10px; color: rgb(106,138,156); border-bottom: 1px solid rgba(0,0,50,0.1); }
+.tile .wiki-editor { padding: 30px; padding-top:0; margin-bottom:20px; }
+.tile .attributes { background: rgba(0,0,50,0.05); padding: 20px 20px; border-left:1px solid rgba(0,0,0,0.03); border-radius:0; align-self:stretch; max-height:50%; }
 .tile .attribute-name { color: rgb(106,138,156); }
 .tile + .tile { margin-top:40px; }
 
@@ -135,7 +136,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 - Wiki editor
 ---------------------------------------------------------*/
 
-.wiki-editor { overflow:visible; }
+.wiki-editor { overflow:auto; }
 .wiki-editor .CodeMirror { font-family: "Lato"; font-size: 16px; color: rgb(84,84,84); font-weight:400; width:450px; }
 .wiki-editor .CodeMirror-lines { padding: 0; }
 .wiki-editor .CodeMirror-line { padding: 0; }
