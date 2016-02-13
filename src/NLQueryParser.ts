@@ -22,19 +22,41 @@ export enum Intents {
 
 // Entry point for NLQP
 export function parse(queryString: string, lastParse?: Result): Result {
-  //let start = performance.now();
   let start = performance.now();
-  let words = normalizeQueryString(queryString);
-  let tokens = [];
-  for (let word of words) {
-    let token = formToken(word);
-    //let {tree, context} = formTree(token);
-    tokens.push(token);
+  let tree: Node;
+  let context: Context;
+  let tokens: Array<Token>;
+  // If this is the first run, then create a root node.
+  if (lastParse === undefined) {
+    let rootToken = newToken("Root");
+    rootToken.properties.push(Properties.ROOT);
+    tree = newNode(rootToken);
+    context = newContext();
+    tokens = [rootToken];
+  // Otherwise, use the previous parse tree
+  } else {
+    tree = lastParse.tree;
+    context = lastParse.context;
+    tokens = lastParse.tokens;
   }
+  
+  let words = normalizeQueryString(queryString);
+  for (let word of words) {
+    // From a token
+    let token = formToken(word);
+    // Link new token with the rest
+    let lastToken = tokens[tokens.length - 1];
+    lastToken.next = token;
+    token.prev = lastToken;
+    tokens.push(token);
+    // Add the token to the tree
+    formTree(token, tree, context);
+  }
+  // Create the query from the new tree
+  //let query = formQuery(tree);
   let stop = performance.now();
   console.log(stop-start);
-  
-  console.log(tokenArrayToString(tokens));
+
   
   
   /*
@@ -51,6 +73,7 @@ export function parse(queryString: string, lastParse?: Result): Result {
   }
   return [{intent: intent, context: context, tokens: tokens, tree: tree, query: query}];
   */
+  let foo = {context: context, tokens: tokens, tree: tree};
   return undefined;
 }
 
@@ -89,7 +112,7 @@ export function normalizeQueryString(queryString: string): Array<Word> {
   normalizedQueryString = normalizedQueryString.replace(/\s+/g,' ');
   // Split words at whitespace
   let splitStrings = normalizedQueryString.split(" ");
-  let words = splitStrings.map((text,i) => {return {ix: i, text: text};});
+  let words = splitStrings.map((text, i) => {return {ix: i + 1, text: text};});
   words = words.filter((word) => word.text !== "");
   return words;
 }
@@ -266,7 +289,7 @@ function formToken(word: Word): Token {
   let determiners = ['this', 'any', 'enough', 'each', 'every', 'these', 'another', 'plenty', 'whichever', 'neither', 'an', 'a', 'least', 'own', 'few', 'both', 'those', 'the', 'that', 'various', 'what', 'either', 'much', 'some', 'else', 'no'];
   let copulae = ['am', 'is', 'are', 'was', 'were', 'as', 'am', 'be', 'has', 'become', 'became', 'seemed', 'seems', 'seeming'];
   let conjunctions = ['yet', 'therefore', 'or', 'while', 'nor', 'whether', 'though', 'because', 'but', 'for', 'and', 'if', 'before', 'although', 'plus', 'versus', 'not'];
-  let preposisions = ['with', 'until', 'onto', 'of', 'into', 'out', 'except', 'across', 'by', 'between', 'at', 'down', 'as', 'from', 'around', 'among', 'upon', 'amid', 'to', 'along', 'since', 'about', 'off', 'on', 'within', 'in', 'during', 'per', 'without', 'throughout', 'through', 'than', 'via', 'up', 'unlike', 'despite', 'below', 'unless', 'towards', 'besides', 'after', 'whereas','amongst', 'atop', 'barring', 'circa', 'mid', 'midst', 'notwithstanding', 'sans', 'thru', 'till', 'versus'];
+  let prepositions = ['with', 'until', 'onto', 'of', 'into', 'out', 'except', 'across', 'by', 'between', 'at', 'down', 'as', 'from', 'around', 'among', 'upon', 'amid', 'to', 'along', 'since', 'about', 'off', 'on', 'within', 'in', 'during', 'per', 'without', 'throughout', 'through', 'than', 'via', 'up', 'unlike', 'despite', 'below', 'unless', 'towards', 'besides', 'after', 'whereas','amongst', 'atop', 'barring', 'circa', 'mid', 'midst', 'notwithstanding', 'sans', 'thru', 'till', 'versus'];
   let possessivePronouns = ['mine', 'something', 'none', 'anything', 'anyone', 'theirs', 'himself', 'ours', 'his', 'my', 'their', 'yours', 'your', 'our', 'its', 'nothing', 'herself', 'hers', 'themselves', 'everything', 'myself', 'itself', 'her'];
   let personalPronouns = ['it', 'they', 'i', 'them', 'you', 'she', 'me', 'he', 'him', 'ourselves', 'us', 'we', 'yourself'];
   let modals = ['can', 'may', 'could', 'might', 'will', 'would', 'must', 'shall', 'should', 'ought'];
@@ -358,26 +381,35 @@ function formToken(word: Word): Token {
       properties.push(Properties.PLURAL);
     }
     // Find the POS in the dictionary, apply some properties based on the word
+    // Determiners
     if (determiners.indexOf(normalizedWord) >= 0) {
       POS = MinorPartsOfSpeech.DT;
+    // Modals
     } else if (modals.indexOf(normalizedWord) >= 0) {
       POS = MinorPartsOfSpeech.MD;
+    // Predeterminers
     } else if (preDeterminers.indexOf(normalizedWord) >= 0) {
       POS = MinorPartsOfSpeech.PDT;
+    // Copulae
     } else if (copulae.indexOf(normalizedWord) >= 0) {
       POS = MinorPartsOfSpeech.CP;
-    } else if (preposisions.indexOf(normalizedWord) >= 0) {
+    // Prepositions
+    } else if (prepositions.indexOf(normalizedWord) >= 0) {
       POS = MinorPartsOfSpeech.IN;
+    // Personal pronouns
     } else if (personalPronouns.indexOf(normalizedWord) >= 0) {
       POS = MinorPartsOfSpeech.PRP; 
       properties.push(Properties.PRONOUN);
+    // Possessive pronouns
     } else if (possessivePronouns.indexOf(normalizedWord) >= 0) {
       POS = MinorPartsOfSpeech.PRP; 
       properties.push(Properties.PRONOUN);
       properties.push(Properties.POSSESSIVE);
+    // Conjunctions
     } else if (conjunctions.indexOf(normalizedWord) >= 0) {
       POS = MinorPartsOfSpeech.CC; 
       properties.push(Properties.CONJUNCTION);
+    // Wh-words
     } else if (whPronouns.indexOf(normalizedWord) >= 0) {
       POS = MinorPartsOfSpeech.WP; 
     } else if (whDeterminers.indexOf(normalizedWord) >= 0) {
@@ -393,14 +425,12 @@ function formToken(word: Word): Token {
     let negatingWords = ['except', 'without', 'sans', 'not', 'nor', 'neither', 'no'];
     let pluralWords = ['their'];
     if (groupingWords.indexOf(normalizedWord) >= 0) {
-      properties.push(Properties.GROUPING);        
-    }
-    // Set negate property
-    else if (negatingWords.indexOf(normalizedWord) >= 0) {
+      properties.push(Properties.GROUPING);
+    // Set negate property        
+    } else if (negatingWords.indexOf(normalizedWord) >= 0) {
       properties.push(Properties.NEGATES);
-    }
     // Set plural property
-    else if (pluralWords.indexOf(normalizedWord) >= 0) {
+    } else if (pluralWords.indexOf(normalizedWord) >= 0) {
       properties.push(Properties.PLURAL);
     }
     // If the word is still a noun, if it is upper case than it is a proper noun 
@@ -910,12 +940,13 @@ function wordToFunction(word: string): BuiltInFunction {
   }
 }
 
-function formTree(tokens: Array<Token>) {  
-  let tree: Node;
-  let subsumedNodes: Array<Node> = [];
-
-  // Turn tokens into nodes
-  let nodes = tokens.filter((token) => token.node === undefined).map(newNode);
+function formTree(token: Token, tree: Node, context: Context) {  
+  console.log(token);
+  let node = newNode(token);
+  console.log(node.toString());
+  
+  
+  /*
   
   // Build ngrams
   // Initialize the ngrams with 1-grams
@@ -940,9 +971,9 @@ function formTree(tokens: Array<Token>) {
     }
     offset = ngrams.length;
     ngrams = ngrams.concat(newNgrams);
-  }
-  let stop = performance.now();
+  }*/
 
+  /*
   // Check each ngram for a display name
   let matchedNgrams: Array<Array<Node>> = [];
   for (let i = ngrams.length - 1; i >= 0; i--) {
@@ -1510,6 +1541,7 @@ function formTree(tokens: Array<Token>) {
   tree.found = true;
   log(tree.toString());
   return {tree: tree, context: context};
+  */
 }
 
 // EAV Functions
