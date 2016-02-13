@@ -28,6 +28,7 @@ export function parse(queryString: string, lastParse?: Result): Result {
   let tokens = [];
   for (let word of words) {
     let token = formToken(word);
+    //let {tree, context} = formTree(token);
     tokens.push(token);
   }
   let stop = performance.now();
@@ -162,7 +163,6 @@ enum MinorPartsOfSpeech {
   DA,   // date (june 5th 1998)
   NU,   // number (100, one hundred)
   // Symbol
-  POS,  // Possessive ending ('s)
   LT,   // Symbol (<)
   GT,   // Symbol (>)
   GTE,  // Symbol (>=)
@@ -174,7 +174,8 @@ enum MinorPartsOfSpeech {
   DIV,  // Symbol (/)
   MUL,  // Symbol (*)
   POW,  // Symbol (^)
-  SEP,  // Separator (, ;)
+  SEP,  // Separator (, ; : ")
+  POS,  // Possessive ending ('s)
   // Wh- word
   WDT,  // Wh-determiner (that what whatever which whichever)
   WP,   // Wh-pronoun (that what whatever which who whom)
@@ -197,6 +198,7 @@ interface Token {
 
 function newToken(text: string): Token {
   let token = formToken({ix: 0, text: text});
+  token.properties.push(Properties.IMPLICIT);
   return token;
 }
 
@@ -246,17 +248,6 @@ enum Properties {
   IMPLICIT,
 }
 
-// Finds a given property in a token
-function hasProperty(token: Token, property: Properties): boolean {
-  let found = token.properties.indexOf(property);
-  if (found !== -1) {
-    return true;
-  } else {
-    return false;
-  }
-}
-
-
 // take an input string, extract tokens
 function formToken(word: Word): Token {
   // Every word is tagged a noun unless some rule says otherwise
@@ -272,6 +263,7 @@ function formToken(word: Word): Token {
   let separators = [',',':',';','"'];
   let operators = ['+','-','*','/','^'];
   let comparators = ['>','>=','<','<=','=','!='];
+  
   // Most of the following vectors were taken from NLP Compromise
   // https://github.com/nlp-compromise/nlp_compromise
   // Copyright (c) 2016 Spencer Kelly: 
@@ -424,9 +416,6 @@ function formToken(word: Word): Token {
       }
     }
   }
-  
-  getMajorPOS(POS)
-  
   // Build the token
   let token: Token = {
     ix: word.ix, 
@@ -461,35 +450,35 @@ function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech 
   // Noun
   let nouns = ['NN','NNA','NNPA','NNAB','NNP','NNPS','NNS','NNQ','NNO','NG','PRP','PP'];
   if (nouns.indexOf(MinorPartsOfSpeech[minorPartOfSpeech]) >= 0) {
-        return MajorPartsOfSpeech.NOUN;
+    return MajorPartsOfSpeech.NOUN;
   }
   // Value
   let values = ['CD','DA','NU'];
   if (values.indexOf(MinorPartsOfSpeech[minorPartOfSpeech]) >= 0) {
-        return MajorPartsOfSpeech.VALUE;
+    return MajorPartsOfSpeech.VALUE;
   }
   // Glue
   let glues = ['FW','IN','CP','MD','CC','PDT','DT','UH','EX'];
   if (glues.indexOf(MinorPartsOfSpeech[minorPartOfSpeech]) >= 0) {
-        return MajorPartsOfSpeech.GLUE;
+    return MajorPartsOfSpeech.GLUE;
   }  
   // Symbol
   let symbols = ['LT','GT','LTE','GTE','EQ','NEQ',
                  'PLUS','MINUS','DIV','MUL','POW',
                  'SEP','POS'];
   if (symbols.indexOf(MinorPartsOfSpeech[minorPartOfSpeech]) >= 0) {
-        return MajorPartsOfSpeech.SYMBOL;
+    return MajorPartsOfSpeech.SYMBOL;
   }
   // Wh-Word
   let whWords = ['WDT','WP','WPO','WRB'];
   if (whWords.indexOf(MinorPartsOfSpeech[minorPartOfSpeech]) >= 0) {
-        return MajorPartsOfSpeech.WHWORD;
+    return MajorPartsOfSpeech.WHWORD;
   }
 }
 
 // Wrap pluralize to special case certain words it gets wrong
 function singularize(word: string): string {
-  let specialCases = ["his", "times", "has", "downstairs", "united states", "its","'s"];
+  let specialCases = ["his", "times", "has", "downstairs", "its", "'s"];
   for (let specialCase of specialCases) {
     if (specialCase === word) {
       return word;
@@ -2427,11 +2416,6 @@ function log(x: any) {
   if (debug) {
     console.log(x);
   }
-}
-
-export function nodeArrayToString(nodes: Array<Node>): string {
-  let nodeArrayString = nodes.map((node) => node.toString()).join("\n" + divider + "\n");  
-  return divider + "\n" + nodeArrayString + "\n" + divider;
 }
 
 export function tokenToString(token: Token): string {
