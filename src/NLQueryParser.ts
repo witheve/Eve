@@ -896,48 +896,52 @@ function newContext(): Context {
   };
 }
 
-function wordToFunction(word: string): BuiltInFunction {
-  switch (word) {
+function findFunction(node: Node): boolean {
+  log("Finding function");
+  let fxn: BuiltInFunction;
+  switch (node.name) {
     case "taller":
-      return {name: ">", type: FunctionTypes.FILTER, attribute: "height", fields: ["a", "b"], project: false};
+      fxn = {name: ">", type: FunctionTypes.FILTER, attribute: "height", fields: ["a", "b"], project: false};
     case "shorter":
-      return {name: "<", type: FunctionTypes.FILTER, attribute: "length", fields: ["a", "b"], project: false};
+      fxn =  {name: "<", type: FunctionTypes.FILTER, attribute: "length", fields: ["a", "b"], project: false};
     case "longer":
-      return {name: ">", type: FunctionTypes.FILTER, attribute: "length", fields: ["a", "b"], project: false};
+      fxn =  {name: ">", type: FunctionTypes.FILTER, attribute: "length", fields: ["a", "b"], project: false};
     case "younger":
-      return {name: "<", type: FunctionTypes.FILTER, attribute: "age", fields: ["a", "b"], project: false};
+      fxn =  {name: "<", type: FunctionTypes.FILTER, attribute: "age", fields: ["a", "b"], project: false};
     case "&":
     case "and":
-      return {name: "and", type: FunctionTypes.BOOLEAN, fields: [], project: false};
+      fxn =  {name: "and", type: FunctionTypes.BOOLEAN, fields: [], project: false};
     case "or":
-      return {name: "or", type: FunctionTypes.BOOLEAN, fields: [], project: false};
+      fxn =  {name: "or", type: FunctionTypes.BOOLEAN, fields: [], project: false};
     case "total":
     case "sum":
-      return {name: "sum", type: FunctionTypes.AGGREGATE, fields: ["sum", "value"], project: true};
+      fxn =  {name: "sum", type: FunctionTypes.AGGREGATE, fields: ["sum", "value"], project: true};
     case "average":
     case "avg":
     case "mean":
-      return {name: "average", type: FunctionTypes.AGGREGATE, fields: ["average", "value"], project: true};
+      fxn =  {name: "average", type: FunctionTypes.AGGREGATE, fields: ["average", "value"], project: true};
     case "plus":
     case "add":
     case "+":
-      return {name: "+", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
+      fxn =  {name: "+", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
     case "subtract":
     case "minus":
     case "-":
-      return {name: "-", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
+      fxn =  {name: "-", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
     case "times":
     case "multiply":
     case "multiplied":
     case "*":
-      return {name: "*", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
+      fxn =  {name: "*", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
     case "divide":
     case "divided":
     case "/":
-      return {name: "/", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
+      fxn =  {name: "/", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
     default:
-      return undefined;
+      return false;
   }
+  node.fxn = fxn;
+  node.found = true;
 }
 
 function formTree(token: Token, tree: Node, context: Context) {  
@@ -1042,10 +1046,48 @@ function formTree(token: Token, tree: Node, context: Context) {
   // Step 2: Identify the node
   // -------------------------------------
   
+  // Match the node against a function first
+  let found = findFunction(node);
+  if (found) {
+    
+  // If it's not a function, find an entity or collection
+  } else {
+    let found = findCollectionOrEntity(node, context);
+    if (found) {
+      
+    
+    
+    // If a collection or entity was not found, check if it 
+    // is an attribute of some entity or collection
+    } else {
+      log("Finding attribute...")
+      let foundAttribute = eve.findOne("entity eavs", {attribute: node.name});
+      if (foundAttribute !== undefined) {
+        
+      // If it's not an attribute of anything, add it
+      // to the maybe list
+      } else {
+        
+      }
+    }
+  }
+  
+  
   
   // -------------------------------------
   // Step 3: Insert the node into the tree
   // -------------------------------------
+  
+  // We have four cases here: Root, Entity, Collection, Attribute/Value, and Function/Argument
+  // Y axis is the node type, X axis is what it can attach to
+  //   R E C A F
+  // R  
+  // E X   X   X
+  // C X       X
+  // A   X X   X
+  // F X       X
+  
+  
   
   
   // Figure out where to stick the node
