@@ -296,7 +296,7 @@ app.init("bootstrap", function bootstrap() {
 `));*/
 
   phase.addTable("ui pane", ["pane", "kind", "rep", "contains", "params"]);
-  if(eve.find("ui pane").length === 0) phase.addFact("ui pane", {pane: "p1", kind: 0, rep: "document", contains: "pet", params: ""});
+  if(eve.find("ui pane").length === 0) phase.addFact("ui pane", {pane: "p1", kind: 0, rep: "entity", contains: "", params: ""});
   phase.apply(true);
 
   //-----------------------------------------------------------------------------

@@ -27,7 +27,7 @@ app.init("wiki", function() {
   let mainPane = app.eve.findOne("ui pane", {pane: "p1"});
   let path = getLocation();
   let [_, kind, raw = ""] = path.split("/");
-  let content = deslugify(raw);
+  let content = deslugify(raw) || "home";
   let cur = app.dispatch("set pane", {paneId: mainPane.pane, contains: content});
   if(content && !app.eve.findOne("query to id", {query: content})) {
     cur.dispatch("insert query", {query: content});
@@ -39,7 +39,7 @@ window.addEventListener("hashchange", function() {
   let mainPane = app.eve.findOne("ui pane", {pane: "p1"});
   let path = getLocation();
   let [_, kind, raw = ""] = path.split("/");
-  let content = deslugify(raw);
+  let content = deslugify(raw) || "home";
   content = ui.asEntity(content) || content;
 
   if(mainPane.contains === content) return;
