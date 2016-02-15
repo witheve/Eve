@@ -21,7 +21,7 @@ export enum Intents {
 }
 
 // Entry point for NLQP
-export function parse(queryString: string, lastParse?: Result): Result {
+export function parse(queryString: string, lastParse?: Result): Array<Result> {
   let start = performance.now();
   let tree: Node;
   let context: Context;
@@ -902,41 +902,58 @@ function findFunction(node: Node): boolean {
   switch (node.name) {
     case "taller":
       fxn = {name: ">", type: FunctionTypes.FILTER, attribute: "height", fields: ["a", "b"], project: false};
+      break;
     case "shorter":
       fxn =  {name: "<", type: FunctionTypes.FILTER, attribute: "length", fields: ["a", "b"], project: false};
+      break;
     case "longer":
       fxn =  {name: ">", type: FunctionTypes.FILTER, attribute: "length", fields: ["a", "b"], project: false};
+      break;
     case "younger":
       fxn =  {name: "<", type: FunctionTypes.FILTER, attribute: "age", fields: ["a", "b"], project: false};
+      break;
     case "&":
     case "and":
       fxn =  {name: "and", type: FunctionTypes.BOOLEAN, fields: [], project: false};
+      break;
     case "or":
       fxn =  {name: "or", type: FunctionTypes.BOOLEAN, fields: [], project: false};
+      break;
     case "total":
     case "sum":
       fxn =  {name: "sum", type: FunctionTypes.AGGREGATE, fields: ["sum", "value"], project: true};
+      break;
     case "average":
     case "avg":
     case "mean":
       fxn =  {name: "average", type: FunctionTypes.AGGREGATE, fields: ["average", "value"], project: true};
+      break;
     case "plus":
     case "add":
     case "+":
       fxn =  {name: "+", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
+      break;
     case "subtract":
     case "minus":
     case "-":
       fxn =  {name: "-", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
+      break;
     case "times":
     case "multiply":
     case "multiplied":
+    case "multiplied by":
     case "*":
       fxn =  {name: "*", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
+      break;
     case "divide":
     case "divided":
+    case "divided by":
     case "/":
       fxn =  {name: "/", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
+      break;
+    case "is a":
+    case "is an":
+      break;
     default:
       return false;
   }
