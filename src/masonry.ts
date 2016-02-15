@@ -78,7 +78,7 @@ export function masonry(elem:MasonryElem):Element {
     if(!layout.grouped) {
       for(let ix = tileIx;  ix < tileIx + count; ix++) {
         let tile = children[ix];
-        tile.c = `tile ${tile.c || ""} ${layout.c || ""}`;
+        tile.c = `directory-tile ${tile.c || ""} ${layout.c || ""}`;
         if(styles) tile.c += " " + styles[tileIx % styles.length];
         if(layout.format) tile = layout.format(tile);
         tiles.push({c: `group ${layout.c || ""}`, layout, size: layout.size, children: [tile]});
@@ -90,7 +90,7 @@ export function masonry(elem:MasonryElem):Element {
         let group = {c: `group ${layout.c || ""}`, layout, size: layout.size * layout.grouped, children: []};
         for(let partIx = 0; partIx < layout.grouped && added < count; partIx++) {
           let tile = children[ix + partIx];
-          tile.c = `tile ${tile.c || ""} ${layout.c || ""}`;
+          tile.c = `directory-tile ${tile.c || ""} ${layout.c || ""}`;
           if(styles) tile.c += " " + styles[(tileIx + partIx) % styles.length];
           if(layout.format) tile = layout.format(tile);
           group.children.push(tile);

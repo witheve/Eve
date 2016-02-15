@@ -85,6 +85,9 @@ function inferRepresentation(search:string|number, baseParams:{} = {}):{rep:stri
   if(entityId || cleaned.length === 0) {
     rep = "entity";
     params.entity = entityId || builtinId("home");
+    if(params.entity === builtinId("home")) {
+      params.untiled = true;
+    }
     return {rep, params};
   }
 
@@ -124,7 +127,7 @@ appHandle("set pane", (changes:Diff, info:{paneId:string, kind?:PANE, rep?:strin
     throw new Error(`Cannot create new pane without all parameters specified for pane '${paneId}'`);
   }
   
-  let contains = asEntity(raw) || (""+raw).trim();  
+  let contains = asEntity(raw) || (""+raw).trim();
   let params = typeof rawParams === "object" ? stringifyParams(rawParams) : rawParams || "";
   let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value: contains, focused: false};
   state.value = contains;
@@ -399,9 +402,9 @@ let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, 
     header: {t: "header", c: "flex-row", children: [
       // {c: "logo eve-logo", data: {paneId}, link: "", click: navigate},
       searchInput(paneId, entityId),
-      // {c: "controls visible", children: [
-      //   {c: "ion-gear-a toggle-settings", style: "font-size: 1.35em;", prompt: paneSettings, paneId, click: openPrompt}
-      // ]}
+      {c: "controls visible", children: [
+         {c: "ion-gear-a toggle-settings", style: "font-size: 1.35em;", prompt: paneSettings, paneId, click: openPrompt}
+      ]}
     ]}
   }),
   [PANE.POPOUT]: (paneId, entityId) => {
@@ -531,9 +534,9 @@ function loadedPrompt():Element {
 export function pane(paneId:string):Element {
   // @FIXME: Add kind to ui panes
   let {contains:rawContains = undefined, kind = PANE.FULL, rep = undefined, params:rawParams = undefined} = eve.findOne("ui pane", {pane: paneId}) || {};
-  rawContains = rawContains || "";
-  let {results, params:parsedParams, content:contains} = queryUIInfo(rawContains);
+  let {results, params:parsedParams, content:contains} = queryUIInfo(rawContains || "home");
   let params = mergeObject(parseParams(rawParams), parsedParams);
+  params.paneId = paneId;
   let makeChrome = paneChrome[kind];
   if(!makeChrome) throw new Error(`Unknown pane kind: '${kind}' (${PANE[kind]})`);
   let {c:klass, header, footer, captureClicks} = makeChrome(paneId, contains);
@@ -543,8 +546,9 @@ export function pane(paneId:string):Element {
   if(contains.length === 0 || entityId) contentType = "entity";
   else if(eve.findOne("query to id", {query: contains})) contentType = "search";
 
-  let content = rep && represent(contains, rep, results, params, (elem, ix = "") => uitk.tile({id: `${paneId}|${contains}|${ix}`, children: [elem]}));
+  let content = rep && represent(contains, rep, results, params, (params.untiled ? undefined : (elem, ix?) => uitk.tile({id: `${paneId}|${contains}|${ix === undefined ? "" : ix}`, children: [elem]})));
   content.t = "content";
+  content.c = `${content.c || ""} ${params.untiled ? "untiled" : ""}`;
   console.log("CON", contains, rep, results, params);
   if(contentType === "invalid") {
     content = {c: "flex-row spaced-row disambiguation", children: [
@@ -573,7 +577,7 @@ export function pane(paneId:string):Element {
 
   if(uiState.prompt.open && uiState.prompt.paneId === paneId) {
     pane.children.push(
-      {style: "position: absolute; top: 0; left: 0; bottom: 0; right: 0; z-index: 10; background: rgba(0, 0, 0, 0.0);", paneId, click: closePrompt},
+      {c: "shade", paneId, click: closePrompt},
       uiState.prompt.prompt(paneId)
     );
   }
@@ -2018,7 +2022,7 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
 };
 
 function represent(search: string, rep:string, results, params:{}, wrapEach?:(elem:Element, ix?:number) => Element):Element {
-  // console.log("repping:", results, " as", rep, " with params ", params);
+  console.log("repping:", results, " as", rep, " with params ", params);
   if(rep in _prepare) {
     let embedParamSets = _prepare[rep](results.results, <any>params);
     let isArray = embedParamSets && embedParamSets.constructor === Array;
@@ -2037,6 +2041,7 @@ function represent(search: string, rep:string, results, params:{}, wrapEach?:(el
       } else {
         let embedParams = embedParamSets;
         embedParams["data"] = embedParams["data"] || params;
+        console.log(embedParams);
         if(wrapEach) return wrapEach(uitk[rep](embedParams));
         else return uitk[rep](embedParams);
       }
@@ -2046,6 +2051,10 @@ function represent(search: string, rep:string, results, params:{}, wrapEach?:(el
       console.error(err);
       return uitk.error({text: `Failed to embed as ${params["childRep"] || rep}`})
     }
+  } else {
+    console.error("REPRESENTATION ERROR");
+    console.error({search, rep, results, params});
+    return uitk.error({text: `Unknown representation ${params["childRep"] || rep}`});
   }
 }
 

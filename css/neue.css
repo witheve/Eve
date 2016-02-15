@@ -52,17 +52,20 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .wiki-pane.fullscreen { position: relative; padding: 50px 100px; }
 .wiki-pane > header { padding: 10px 0.5em; align-items: center; border-bottom: 1px solid #ccc; }
 .wiki-pane > header > * { margin: 0 0.5em;}
+.wiki-pane > header > .controls { margin-right: -43px; }
 .wiki-pane > content { display: flex; } /* @TODO: Breakpoints overflow-y: auto*/
+.wiki-pane > content.untiled .text-content { flex: 1; }
+.wiki-pane > content.untiled .CodeMirror { width: auto; max-width: 760px; }
 
 .wiki-pane {}
 
 .wiki-entity { flex: 1; flex-direction: row; overflow:hidden; justify-content: center; }
 .disambiguation { align-self: stretch; flex-direction: row; padding: 15px 25px; margin-bottom: 1rem; color: #999;  }
 
-.wiki-pane > .settings { display: flex; flex-direction: column; position: absolute; right: 15px; top: 53px; z-index: 11; background: white; border: 1px solid #ccc; border-radius: 2px; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2); }
-.wiki-pane > .settings:before { content: ""; position: absolute; top: -7px; right: 7px; border: 7px solid transparent; border-bottom-color: #ccc; border-top: none; }
-.wiki-pane > .settings:after { content: ""; position: absolute; top: -6px; right: 8px; border: 6px solid transparent; border-bottom-color: white; border-top: none; }
-.wiki-pane > .settings li { padding: 10px; }
+.wiki-pane > .settings { display: flex; flex-direction: column; align-items: stretch; position: absolute; right: 15px; top: 100px; z-index: 11; background: white; border: 1px solid #ccc; border-radius: 2px; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2); }
+.wiki-pane > .settings:before { content: ""; position: absolute; top: -7px; right: 56px; border: 7px solid transparent; border-bottom-color: #ccc; border-top: none; }
+.wiki-pane > .settings:after { content: ""; position: absolute; top: -6px; right: 57px; border: 6px solid transparent; border-bottom-color: white; border-top: none; }
+.wiki-pane > .settings li { display: flex; padding: 10px; }
 .wiki-pane > .settings li + li { border-top: 1px solid #ccc; }
 .wiki-pane > .settings li.disabled { color: #999; }
 
@@ -281,7 +284,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .masonry-row { display: flex; flex-direction: row; align-items: stretch; }
 .masonry-row > * { display: flex; }
 .masonry-row > .group { flex-direction: column; }
-.masonry-row .tile { flex: 1; }
+.masonry-row .directory-tile { flex: 1; }
 .masonry-row > .group.big { flex: 2; }
 .masonry-row > .group.detailed { flex: 1; }
 .masonry-row > .group.normal { flex: 1; }
@@ -293,17 +296,17 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 
 .directory-listing.masonry {  min-width: 600px; } /* @FIXME */
 .directory-listing.masonry .masonry-row { height: 96px; }
-.directory-listing.masonry .tile { justify-content: center; align-items: center; margin: 4px; background: #eee; border-radius: 2px; }
-.directory-listing .tile > * { flex: 0 0 auto; }
+.directory-listing.masonry .directory-tile { justify-content: center; align-items: center; margin: 4px; background: white; border-radius: 2px; }
+.directory-listing .directory-tile > * { flex: 0 0 auto; }
 
 /* Background patterns from subtlepatterns.com */
-.directory-listing.masonry .tile.tile-style-1 { }
-.directory-listing.masonry .tile.tile-style-2 { }
-.directory-listing.masonry .tile.tile-style-3 { }
-.directory-listing.masonry .tile.tile-style-4 { }
-.directory-listing.masonry .tile.tile-style-5 { }
-.directory-listing.masonry .tile.tile-style-6 { }
-.directory-listing.masonry .tile.tile-style-7 { }
+.directory-listing.masonry .directory-tile.tile-style-1 { }
+.directory-listing.masonry .directory-tile.tile-style-2 { }
+.directory-listing.masonry .directory-tile.tile-style-3 { }
+.directory-listing.masonry .directory-tile.tile-style-4 { }
+.directory-listing.masonry .directory-tile.tile-style-5 { }
+.directory-listing.masonry .directory-tile.tile-style-6 { }
+.directory-listing.masonry .directory-tile.tile-style-7 { }
 
 .table.overflow-list { margin: 4px; }
 .table.overflow-list .column { flex: 0; width: 72px; }
