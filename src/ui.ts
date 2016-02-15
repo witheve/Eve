@@ -100,6 +100,12 @@ function inferRepresentation(search:string|number, baseParams:{} = {}):{rep:stri
 //---------------------------------------------------------
 // Dispatches
 //---------------------------------------------------------
+
+appHandle("ui update search", (changes: Diff, {paneId, value}) => {
+  let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value};
+  state.value = value;
+})
+
 appHandle("ui focus search", (changes:Diff, {paneId, value}:{paneId:string, value:string}) => {
   let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value};
   state.focused = true;
@@ -302,6 +308,7 @@ function dispatchSearchSetAttributes(query, chain?) {
   }
   let parsed = nlparse(query);
   let topParse = parsed[0];
+  let isSetSearch = false;
   if(topParse.context.setAttributes.length) {
     let attributes = [];
     for(let attr of topParse.context.setAttributes) {
@@ -314,8 +321,9 @@ function dispatchSearchSetAttributes(query, chain?) {
       attributes.push(`${attr.entity.displayName}`);
     }
     query = attributes.join(" and ");
+    isSetSearch = true;
   }
-  return {chain, query};
+  return {chain, query, isSetSearch};
 }
 
 // @TODO: there's a lot of duplication between insert query, create query, and insert implication
@@ -1772,10 +1780,11 @@ function submitAttribute(event, elem) {
 // Wiki Widgets
 //---------------------------------------------------------
 export function searchInput(paneId:string, value:string):Element {
-  let name = value;
-  let display = eve.findOne("display name", {id: value});
+  let state:any = uiState.widget.search[paneId] || {focused: false, plan: false};
+  let name = state.value;
+  if(!state.value) state.value = name;
+  let display = eve.findOne("display name", {id: name});
   if(display) name = display.name;
-  let state = uiState.widget.search[paneId] || {focused: false, plan: false};
   return {
     c: "flex-grow wiki-search-wrapper",
     children: [
@@ -1792,7 +1801,7 @@ export function searchInput(paneId:string, value:string):Element {
         focus: focusSearch,
         blur: setSearch,
         cursorPosition: "end",
-        // change: updateSearch,
+        change: updateSearch,
         shortcuts: {"Enter": setSearch}
       }),
     ]
@@ -1806,14 +1815,19 @@ function setSearch(event, elem) {
   let value = event.value;
   let pane = eve.findOne("ui pane", {pane: elem.paneId});
   if(!pane || pane.contains !== event.value) {
-    let {chain, query} = dispatchSearchSetAttributes(value);
-    chain.dispatch("insert query", {query})
-    .dispatch("set pane", {paneId: elem.paneId, contains: query})
-    .commit();
+    let {chain, isSetSearch} = dispatchSearchSetAttributes(value);
+    if(isSetSearch) {
+      chain.dispatch("ui update search", {paneId: elem.paneId, value: pane.contains});
+      chain.commit();
+    } else {
+      chain.dispatch("insert query", {query: value})
+      .dispatch("set pane", {paneId: elem.paneId, contains: value})
+      .commit();
+    }
   }
 }
 function updateSearch(event, elem) {
-  dispatch("ui update search", elem).commit();
+  dispatch("ui update search", {paneId: elem.paneId, value: event.value}).commit();
 }
 function toggleSearchPlan(event, elem) {
   dispatch("ui toggle search plan", elem).commit();
