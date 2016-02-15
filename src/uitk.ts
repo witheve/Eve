@@ -176,13 +176,13 @@ export function embeddedCell(elem):Element {
 }
 
 //------------------------------------------------------------------------------
-// Representations for tiles
+// Representations for cards
 //------------------------------------------------------------------------------
 
 // @FIXME: if there isn't an ID here, microReact does the wrong thing, investigate
 // after the release
-export function tile(elem:Element) {
-  elem.c = `tile ${elem.c || ""}`;
+export function card(elem:Element) {
+  elem.c = `card ${elem.c || ""}`;
   return elem;
 }
 

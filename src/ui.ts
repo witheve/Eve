@@ -86,7 +86,7 @@ function inferRepresentation(search:string|number, baseParams:{} = {}):{rep:stri
     rep = "entity";
     params.entity = entityId || builtinId("home");
     if(params.entity === builtinId("home")) {
-      params.untiled = true;
+      params.unwrapped = true;
     }
     return {rep, params};
   }
@@ -155,7 +155,8 @@ appHandle("remove pane", (changes:Diff, {paneId}:{paneId:string}) => {
   }
   changes.remove("ui pane", {pane: paneId})
     .remove("ui pane position", {pane: paneId})
-    .remove("ui pane parent", {parent: paneId});
+    .remove("ui pane parent", {parent: paneId})
+    .remove("ui pane parent", {pane: paneId});
 });
 
 appHandle("set popout", (changes:Diff, info:{parentId:string, rep?:string, contains?:string|number, params?:string|{}, x:string|number, y:string|number, popState?:boolean}) => {
@@ -554,9 +555,9 @@ export function pane(paneId:string):Element {
   if(contains.length === 0 || entityId) contentType = "entity";
   else if(eve.findOne("query to id", {query: contains})) contentType = "search";
 
-  let content = rep && represent(contains, rep, results, params, (params.untiled ? undefined : (elem, ix?) => uitk.tile({id: `${paneId}|${contains}|${ix === undefined ? "" : ix}`, children: [elem]})));
+  let content = rep && represent(contains, rep, results, params, (params.unwrapped ? undefined : (elem, ix?) => uitk.card({id: `${paneId}|${contains}|${ix === undefined ? "" : ix}`, children: [elem]})));
   content.t = "content";
-  content.c = `${content.c || ""} ${params.untiled ? "untiled" : ""}`;
+  content.c = `${content.c || ""} ${params.unwrapped ? "unwrapped" : ""}`;
   console.log("CON", contains, rep, results, params);
   if(contentType === "invalid") {
     content = {c: "flex-row spaced-row disambiguation", children: [
@@ -754,7 +755,7 @@ function getCellParams(content, rawParams) {
       rep = "CSV";
       field = context.attributes[0].displayName;
     } else if(context.entities.length + context.fxns.length === totalFound) {
-      // if there are only entities and boolean functions then we want to show this as tiles
+      // if there are only entities and boolean functions then we want to show this as cards
       params["rep"] = "entity";
     } else {
       params["rep"] = "table";
@@ -1505,7 +1506,7 @@ function updatePage(meta, content) {
 // Editor prep
 //---------------------------------------------------------
 
-function prepareTileEditor(entityId, paneId) {
+function prepareCardEditor(entityId, paneId) {
   var {content = undefined} = eve.findOne("entity", {entity: entityId}) || {};
   var page = eve.findOne("entity page", {entity: entityId})["page"];
   var name = uitk.resolveName(entityId);
@@ -1996,7 +1997,7 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
       for(let field of fields) {
         var entityId = result[field];
         var paneId = params["paneId"];
-        var editor = prepareTileEditor(entityId, paneId);
+        var editor = prepareCardEditor(entityId, paneId);
         entities.push({entity: result[field], data: params, editor});
       }
     }

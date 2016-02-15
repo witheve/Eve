@@ -54,8 +54,8 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .wiki-pane > header > * { margin: 0 0.5em;}
 .wiki-pane > header > .controls { margin-right: -43px; }
 .wiki-pane > content { display: flex; } /* @TODO: Breakpoints overflow-y: auto*/
-.wiki-pane > content.untiled .text-content { flex: 1; }
-.wiki-pane > content.untiled .CodeMirror { width: auto; max-width: 760px; }
+.wiki-pane > content.unwrapped .text-content { flex: 1; }
+.wiki-pane > content.unwrapped .CodeMirror { width: auto; max-width: 760px; }
 
 .wiki-pane {}
 
@@ -87,7 +87,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .wiki-pane.window .wiki-entity { padding: 25px 20px; }
 .wiki-pane.window .wiki-entity .CodeMirror { flex: 1; overflow:visible; }
 .wiki-pane.window .wiki-editor { padding: 0px 30px;  }
-.wiki-pane.window .tile { margin: 0; }
+.wiki-pane.window .card { margin: 0; }
 
 /*---------------------------------------------------------
 - Autocompleter
@@ -115,16 +115,16 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .labeled-input input + * { border-left:1px solid #ddd; }
 
 /*---------------------------------------------------------
-- Tile
+- Card
 ---------------------------------------------------------*/
 
-.tile { background: white; align-self:center; align-items: stretch; min-width:200px; min-height:150px; box-shadow: 0 20px 50px rgba(0,0,50,0.10); margin-top:100px; border-radius:5px; overflow:hidden; }
-.tile .text-content { margin-right:10px; min-width:250px; white-space:pre-wrap; line-height:28px; color:#aaa; flex:none; max-height:50%; }
-.tile .header { flex:none; margin:30px; margin-top:20px; font-size: 18pt; font-weight: 900; padding-bottom: 10px; margin-bottom: 10px; color: rgb(106,138,156); border-bottom: 1px solid rgba(0,0,50,0.1); }
-.tile .wiki-editor { padding: 30px; padding-top:0; margin-bottom:20px; }
-.tile .attributes { background: rgba(0,0,50,0.05); padding: 20px 20px; border-left:1px solid rgba(0,0,0,0.03); border-radius:0; align-self:stretch; max-height:50%; overflow:auto; }
-.tile .attribute-name { color: rgb(106,138,156); }
-.tile + .tile { margin-top:40px; }
+.card { background: white; align-self:center; align-items: stretch; min-width:200px; min-height:150px; box-shadow: 0 20px 50px rgba(0,0,50,0.10); margin-top:100px; border-radius:5px; overflow:hidden; }
+.card .text-content { margin-right:10px; min-width:250px; white-space:pre-wrap; line-height:28px; color:#aaa; flex:none; max-height:50%; }
+.card .header { flex:none; margin:30px; margin-top:20px; font-size: 18pt; font-weight: 900; padding-bottom: 10px; margin-bottom: 10px; color: rgb(106,138,156); border-bottom: 1px solid rgba(0,0,50,0.1); }
+.card .wiki-editor { padding: 30px; padding-top:0; margin-bottom:20px; }
+.card .attributes { background: rgba(0,0,50,0.05); padding: 20px 20px; border-left:1px solid rgba(0,0,0,0.03); border-radius:0; align-self:stretch; max-height:50%; overflow:auto; }
+.card .attribute-name { color: rgb(106,138,156); }
+.card + .card { margin-top:40px; }
 
 /*---------------------------------------------------------
 - Selector
