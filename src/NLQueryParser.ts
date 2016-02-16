@@ -11,7 +11,7 @@ export interface Result {
   context: Context,
   tokens: Array<Token>,
   tree: Node,
-  //query: Query,
+  query: Query,
 }
 
 export enum Intents {
@@ -609,7 +609,7 @@ function newNode(token: Token): Node {
     let indent = Array(depth+1).join(" ");
     let index = node.ix === undefined ? "+ " : `${node.ix}: `;
     let properties = node.properties.length === 0 ? "" : `(${node.properties.map((property: Properties) => Properties[property]).join("|")})`;
-    let attribute = node.attribute === undefined ? "" : `[${node.attribute.variable} (${node.attribute.value})]`;
+    let attribute = node.attribute === undefined ? "" : `[${node.attribute.variable}]`;
     let entity = node.entity === undefined ? "" : `[${node.entity.displayName}]`;
     let collection = node.collection === undefined ? "" : `[${node.collection.displayName}]`;
     let fxn = node.fxn === undefined ? "" : `[${node.fxn.name}]`;
@@ -1226,9 +1226,9 @@ function collapseNode(node: Node, context: Context): Node {
 interface Entity {
   id: string,
   displayName: string,
-  variable: string,
   node?: Node,
   refs?: Array<Node>,
+  variable: string,
   project: boolean,
 }
 
@@ -1740,66 +1740,6 @@ function findCollectionAttribute(node: Node, collection: Collection, context: Co
   return false;
 }*/
 
-/*
-function findEntityAttribute(node: Node, entity: Entity, context: Context): boolean {
-  let attribute = findEveAttribute(node.name);
-  if (attribute !== undefined) {
-    if (isNumeric(attribute.value)) {
-      node.properties.push(Properties.QUANTITY);
-    }
-    context.attributes.push(attribute);
-    node.attribute = attribute;
-    node.properties.push(Properties.ATTRIBUTE);
-    attribute.node = node;
-    // If the node is possessive, check to see if it is an entity
-    if (node.hasProperty(Properties.POSSESSIVE) || node.hasProperty(Properties.BACKRELATIONSHIP)) {
-      let entity = findEveEntity(`${attribute.value}`);
-      if (entity !== undefined) {
-        node.entity = entity;
-        entity.variable = attribute.variable;
-        entity.entityAttribute = true;
-        entity.node = node;
-        node.parent.entity.project = false;
-        attribute.project = false;
-        context.entities.push(entity); 
-        node.properties.push(Properties.ENTITY);
-      }
-    }
-    node.found = true;
-    let entityNode = entity.node;
-    return true;
-  }
-  return false;
-}*/
-
-// searches for a collection first, then tries to find an entity
-function findCollectionOrEntity(node: Node, context: Context): boolean {
-  let foundCollection = findCollection(node,context);
-  if (foundCollection === true) {
-    return true;
-  } else {
-    let foundEntity = findEntity(node,context);
-    if (foundEntity === true) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// searches for a collection first, then tries to find an entity
-function findEntityOrCollection(node: Node, context: Context): boolean {
-  let foundEntity = findEntity(node,context);
-  if (foundEntity === true) {
-    return true;
-  } else {
-    let foundCollection = findCollection(node,context);
-    if (foundCollection === true) {
-      return true;
-    }
-  }
-  return false;
-}
-
 function findCollection(node: Node, context: Context): boolean {
   let collection = findEveCollection(node.name);
   if (collection !== undefined) {
@@ -1838,7 +1778,7 @@ function findAttribute(node: Node, context: Context): boolean {
   }
   return false;
 }
-/*
+
 // ----------------------------------------------------------------------------
 // Query functions
 // ----------------------------------------------------------------------------
@@ -1864,7 +1804,7 @@ export interface Query {
   toString(number?: number): string;
 }
 
-
+/*
 function negateTerm(term: Term): Query {
   let negate = newQuery([term]);
   negate.type = "negate";
