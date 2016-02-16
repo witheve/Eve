@@ -11,7 +11,7 @@ export interface Result {
   context: Context,
   tokens: Array<Token>,
   tree: Node,
-  query: Query,
+  //query: Query,
 }
 
 export enum Intents {
@@ -32,6 +32,7 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
     let rootToken = newToken("root");
     rootToken.properties.push(Properties.ROOT);
     tree = newNode(rootToken);
+    tree.found = true;
     context = newContext();
     tokens = [rootToken];
   // Otherwise, use the previous parse tree
@@ -238,7 +239,6 @@ function cloneToken(token: Token): Token {
 enum Properties {
   // Node properties
   ROOT,
-  COMPOUND,
   // EVE attributes
   ENTITY,
   COLLECTION,
@@ -265,6 +265,7 @@ enum Properties {
   QUOTED,
   SETTER,
   SUBSUMED,
+  COMPOUND,
   // Modifiers
   NEGATES,
   GROUPING,
@@ -1196,7 +1197,23 @@ function collapseNode(node: Node, context: Context): Node {
   // If the node is a function and all arguments are filled
   if (node.hasProperty(Properties.FUNCTION) && !allArgs) {
     if (node.fxn.type === FunctionTypes.SELECT) {
-      findRelationship(leafs[0],leafs[1],context);
+      let relationship = findRelationship(leafs[0],leafs[1],context);
+      // For a direct relationship, create a new node representing the entity attribute
+      if (relationship.type === RelationshipTypes.DIRECT) {
+        let entity = relationship.nodes[0];
+        let attribute = relationship.nodes[1];
+        let newName = `${entity.name}|${attribute.name}`.replace(/ /g,'');
+        let nToken = newToken(newName);
+        let nNode = newNode(nToken);
+        let nAttribute: Attribute = {
+          id: newName,
+          refs: [entity],
+          node: nNode,
+          displayName: newName,
+          variable: newName,
+          project: true,
+        }        
+      }
     }
   }
   
@@ -1209,10 +1226,9 @@ function collapseNode(node: Node, context: Context): Node {
 interface Entity {
   id: string,
   displayName: string,
-  content: string,
   variable: string,
-  entityAttribute: boolean,
   node?: Node,
+  refs?: Array<Node>,
   project: boolean,
 }
 
@@ -1220,9 +1236,7 @@ function cloneEntity(entity: Entity): Entity {
   let clone: Entity = {
     id: entity.id,
     displayName: entity.displayName,
-    content: entity.content,
     node: entity.node,
-    entityAttribute: entity.entityAttribute,
     variable: entity.variable,
     project: entity.project,
   }
@@ -1232,8 +1246,8 @@ function cloneEntity(entity: Entity): Entity {
 interface Collection {
   id: string,
   displayName: string,
-  count: number,
   node?: Node,
+  refs?: Array<Node>,
   variable: string,
   project: boolean,
 }
@@ -1242,7 +1256,6 @@ function cloneCollection(collection: Collection): Collection {
   let clone: Collection = {
     id: collection.id,
     displayName: collection.displayName,
-    count: collection.count,
     node: collection.node,
     variable: collection.variable,
     project: collection.project,
@@ -1253,11 +1266,9 @@ function cloneCollection(collection: Collection): Collection {
 interface Attribute {
   id: string,
   displayName: string,
-  entity?: Entity,
-  collection?: Collection,
-  value?: string | number
-  variable: string,
   node?: Node,
+  refs?: Array<Node>,
+  variable: string,
   project: boolean,
 }
 
@@ -1290,9 +1301,7 @@ function findEveEntity(search: string): Entity {
     let entity: Entity = {
       id: foundEntity.entity,
       displayName: name,
-      content: foundEntity.content,
       variable: foundEntity.entity,
-      entityAttribute: false,
       project: true,
     }    
     log(" Found: " + entity.id);
@@ -1325,7 +1334,6 @@ function findEveCollection(search: string): Collection {
     let collection: Collection = {
       id: foundCollection.collection,
       displayName: name,
-      count: foundCollection.count,
       variable: name,
       project: true,
     }
@@ -1372,21 +1380,21 @@ interface Relationship {
 }
 
 function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relationship {
-  if (nodeA.hasProperty(Properties.QUANTITY) || nodeB.hasProperty(Properties.QUANTITY)) {
-    log ("Quantities have no relationship to anything else in the system");
-    return {type: RelationshipTypes.NONE}; 
-  }
   log(`Finding relationship between "${nodeA.name}" and "${nodeB.name}"`);
   let relationship: Relationship;
+  // Sort the nodes in order
+  // 1) Collection 
+  // 2) Entity 
+  // 3) Attribute
+  nodeA.properties.sort();
+  nodeB.properties.sort();
+  let nodes = [nodeA,nodeB].sort((a,b) => a.properties[0] - b.properties[0]);
+  nodeA = nodes[0]
+  nodeB = nodes[1];
   
-  
-  if (nodeA.hasProperty(Properties.ATTRIBUTE) && nodeB.hasProperty(Properties.ENTITY)) {
+  if (nodeA.hasProperty(Properties.ENTITY) && nodeB.hasProperty(Properties.ATTRIBUTE)) {
     relationship = findEntToAttrRelationship(nodeA, nodeB, context);
-  }  
-  
-  
-  
-  
+  }
   
   return {type: RelationshipTypes.NONE};
   
@@ -1409,12 +1417,6 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
     relationship = findEntToAttrRelationship(nodeA.entity, nodeB, context);
   } else if (nodeB.hasProperty(Properties.ENTITY) && !(nodeA.hasProperty(Properties.COLLECTION) || nodeA.hasProperty(Properties.ENTITY))) {
     relationship = findEntToAttrRelationship(nodeB.entity, nodeA, context);
- // If one node is an Attribute, and the other node is neither a collection nor an entity
-  } else if (nodeA.hasProperty(Properties.ATTRIBUTE) && !(nodeB.hasProperty(Properties.COLLECTION) || nodeB.hasProperty(Properties.ENTITY))) {
-    relationship = findEntToAttrRelationship(nodeA.attribute.entity, nodeB, context);
-  } else if (nodeB.hasProperty(Properties.ATTRIBUTE) && !(nodeA.hasProperty(Properties.COLLECTION) || nodeA.hasProperty(Properties.ENTITY))) {
-    relationship = findEntToAttrRelationship(nodeB.attribute.entity, nodeA, context);
-  }
   // If we found a relationship, add it to the context
   if (relationship !== undefined && relationship.type !== RelationshipTypes.NONE) {
     context.relationships.push(relationship);
@@ -1461,6 +1463,11 @@ function findCollectionToEntRelationship(coll: Collection, ent: Entity): Relatio
 
 function findEntToAttrRelationship(entity: Node, attr: Node, context: Context): Relationship {
   log(`Finding Ent -> Attr relationship between "${entity.name}" and "${attr.name}"...`);
+  let relationship = eve.findOne("entity eavs", { entity: entity.entity.id, attribute: attr.attribute.id });
+  if (relationship) {
+    log("  Found a direct relationship.");
+    return {type: RelationshipTypes.DIRECT, nodes: [entity, attr]};
+  }
   /*
   // Check for a direct relationship
   // e.g. "Josh's age"
@@ -1553,6 +1560,7 @@ export function findCollectionToCollectionRelationship(collA: Collection, collB:
   }
 }
 
+/*
 function findCollectionToAttrRelationship(coll: Collection, attr: Node, context: Context): Relationship {
   // Finds a direct relationship between collection and attribute
   // e.g. "pets' lengths"" => pet -> length
@@ -1617,17 +1625,17 @@ function findCollectionToAttrRelationship(coll: Collection, attr: Node, context:
   // be found almost anywhere, yielding results like
   // e.g. "Pets heights" => pets -> snake -> entity -> corey -> height
   /*relationship = eve.query(``)
-    .select("collection entities", { collection: coll.id }, "collection")
-    .select("directionless links", { entity: ["collection", "entity"] }, "links")
-    .select("directionless links", { entity: ["links", "link"] }, "links2")
-    .select("entity eavs", { entity: ["links2", "link"], attribute: attr }, "eav")
-    .exec();
-  if (relationship.unprojected.length > 0) {
-    return true;
-  }*/
+  //  .select("collection entities", { collection: coll.id }, "collection")
+  //  .select("directionless links", { entity: ["collection", "entity"] }, "links")
+  //  .select("directionless links", { entity: ["links", "link"] }, "links2")
+  // .select("entity eavs", { entity: ["links2", "link"], attribute: attr }, "eav")
+  //  .exec();
+  //if (relationship.unprojected.length > 0) {
+  //  return true;
+  //}
   log(" No relationship found");
   return {type: RelationshipTypes.NONE};
-}
+}*/
 
 // Extracts entities from unprojected results
 function extractFromUnprojected(coll, ix: number, size: number) {
@@ -1658,6 +1666,7 @@ function entityTocollectionsArray(entity: string): Array<string> {
   return entities.map((a) => a["collection"]);
 }
 
+/*
 function findCollectionAttribute(node: Node, collection: Collection, context: Context, relationship: Relationship): boolean {
   
   // The attribute is an attribute of members of the collection
@@ -1729,8 +1738,9 @@ function findCollectionAttribute(node: Node, collection: Collection, context: Co
     }
   }
   return false;
-}
+}*/
 
+/*
 function findEntityAttribute(node: Node, entity: Entity, context: Context): boolean {
   let attribute = findEveAttribute(node.name);
   if (attribute !== undefined) {
@@ -1760,7 +1770,7 @@ function findEntityAttribute(node: Node, entity: Entity, context: Context): bool
     return true;
   }
   return false;
-}
+}*/
 
 // searches for a collection first, then tries to find an entity
 function findCollectionOrEntity(node: Node, context: Context): boolean {
@@ -1828,7 +1838,7 @@ function findAttribute(node: Node, context: Context): boolean {
   }
   return false;
 }
-
+/*
 // ----------------------------------------------------------------------------
 // Query functions
 // ----------------------------------------------------------------------------
@@ -2107,7 +2117,7 @@ function formQuery(node: Node): Query {
   
   query.projects.push(project);
   return query;
-}
+}*/
 
 // ----------------------------------------------------------------------------
 // Debug utility functions
