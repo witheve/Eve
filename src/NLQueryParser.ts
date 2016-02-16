@@ -16,6 +16,7 @@ export interface Result {
 
 export enum Intents {
   QUERY,
+  INSERT,
   MOREINFO,
   NORESULT,  
 }
@@ -28,7 +29,7 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
   let tokens: Array<Token>;
   // If this is the first run, then create a root node.
   if (lastParse === undefined) {
-    let rootToken = newToken("Root");
+    let rootToken = newToken("root");
     rootToken.properties.push(Properties.ROOT);
     tree = newNode(rootToken);
     context = newContext();
@@ -50,7 +51,10 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
     token.prev = lastToken;
     tokens.push(token);
     // Add the token to the tree
-    tree = formTree(token, tree, context);
+    let node = newNode(token);
+    let treeResult = formTree(node, tree, context);
+    tree = treeResult.tree;
+    context = treeResult.context;
   }
   // Create the query from the new tree
   //let query = formQuery(tree);
@@ -243,6 +247,7 @@ enum Properties {
   FUNCTION,
   OUTPUT,
   INPUT,
+  ARGUMENT,
   AGGREGATE,
   CALCULATE,
   OPERATOR,
@@ -259,6 +264,7 @@ enum Properties {
   CONJUNCTION,
   QUOTED,
   SETTER,
+  SUBSUMED,
   // Modifiers
   NEGATES,
   GROUPING,
@@ -525,6 +531,7 @@ interface Node {
   attribute?: Attribute,
   fxn?: BuiltInFunction,
   constituents?: Array<Node>,
+  relationships: Array<Relationship>,
   token: Token,
   found: boolean,
   properties: Array<Properties>,
@@ -555,6 +562,7 @@ function newNode(token: Token): Node {
     children: [],
     token: token, 
     properties: token.properties,
+    relationships: [],
     found: false,
     hasProperty: hasProperty,
     toString: nodeToString,
@@ -600,15 +608,14 @@ function newNode(token: Token): Node {
     let indent = Array(depth+1).join(" ");
     let index = node.ix === undefined ? "+ " : `${node.ix}: `;
     let properties = node.properties.length === 0 ? "" : `(${node.properties.map((property: Properties) => Properties[property]).join("|")})`;
-    let attribute = node.attribute === undefined ? "" : `[${node.attribute.variable} (${node.attribute.value})] `;
-    let entity = node.entity === undefined ? "" : `[${node.entity.displayName}] `;
-    let collection = node.collection === undefined ? "" : `[${node.collection.displayName}] `;
-    let fxn = node.fxn === undefined ? "" : `[${node.fxn.name}] `;
+    let attribute = node.attribute === undefined ? "" : `[${node.attribute.variable} (${node.attribute.value})]`;
+    let entity = node.entity === undefined ? "" : `[${node.entity.displayName}]`;
+    let collection = node.collection === undefined ? "" : `[${node.collection.displayName}]`;
+    let fxn = node.fxn === undefined ? "" : `[${node.fxn.name}]`;
     let negated = node.hasProperty(Properties.NEGATES) ? "!" : "";
     let found = node.found ? "*" : " ";
-    let entityOrProperties = found === " " ? `${properties}` : `${negated}${fxn}${entity}${collection}${attribute}`;
     properties = properties.length === 2 ? "" : properties;
-    let nodeString = `|${found}${indent}${index}${node.name} ${entityOrProperties}${children}`; 
+    let nodeString = `|${found}${indent}${index}${node.name} ${negated}${fxn}${entity}${collection}${attribute} ${properties}${children}`; 
     return nodeString;
   }
   return node;  
@@ -874,6 +881,7 @@ interface Context {
   fxns: Array<BuiltInFunction>,
   groupings: Array<Node>,
   relationships: Array<Relationship>,
+  orphans: Array<Node>,
   maybeEntities: Array<Node>,
   maybeAttributes: Array<Node>,
   maybeCollections: Array<Node>,
@@ -890,6 +898,7 @@ function newContext(): Context {
     fxns: [],
     groupings: [],
     relationships: [],
+    orphans: [],
     maybeEntities: [],
     maybeAttributes: [],
     maybeCollections: [],
@@ -945,13 +954,13 @@ function stringToFunction(word: string): BuiltInFunction {
     case "of":
     case "'s":
     case "'":
-      return {name: "select", type: FunctionTypes.SELECT, fields: ["result", "entity", "attribute"], project: true}; 
+      return {name: "select", type: FunctionTypes.SELECT, fields: ["entity", "attribute"], project: false}; 
     default:
       return undefined;
   }  
 }
 
-function findFunction(node: Node): boolean {
+function findFunction(node: Node, context: Context): boolean {
   log(`Searching for function: ${node.name}`);
   let fxn = stringToFunction(node.name); 
   if (fxn === undefined) {  
@@ -964,6 +973,7 @@ function findFunction(node: Node): boolean {
   let args = fxn.fields.map((name, i) => {
     let argToken = newToken(name);
     let argNode = newNode(argToken);
+    argNode.properties.push(Properties.ARGUMENT);
     if (fxn.project && i === 0) {
       argNode.properties.push(Properties.OUTPUT);
     } else {
@@ -971,17 +981,24 @@ function findFunction(node: Node): boolean {
     }
     return newNode(argToken);
   });
-  node.children = args;
+  node.properties.push(Properties.FUNCTION);
+  for (let arg of args) {
+    node.addChild(arg);
+  }
   node.found = true;
+  context.fxns.push(fxn);
   return true;
 }
 
-function formTree(token: Token, tree: Node, context: Context) {  
-  log("Token:")
-  log(token);
-  let node = newNode(token);
-  log("Node:")
+function formTree(node: Node, tree: Node, context: Context): any {  
+  log("--------------------------------");
   log(node.toString());
+  
+  // Don't do anything with subsumed nodes
+  if (node.hasProperty(Properties.SUBSUMED)) {
+    log("Skipping...");
+    return {tree: tree, context: context};
+  }
   
   // -------------------------------------
   // Step 1: Build n-grams
@@ -1061,10 +1078,12 @@ function formTree(token: Token, tree: Node, context: Context) {
     let compoundToken = newToken(displayName);
     let compoundNode = newNode(compoundToken);
     compoundNode.constituents = ngram;
+    compoundNode.constituents.map((node) => node.properties.push(Properties.SUBSUMED));
     compoundNode.ix = lastGram.ix;
     // Inherit properties from the nodes
     compoundNode.properties = lastGram.properties;    
     compoundNode.properties.push(Properties.COMPOUND);
+    compoundNode.properties.splice(compoundNode.properties.indexOf(Properties.SUBSUMED),1);
     // The compound node results from the new node,
     // so the cpound node replaces it
     node = compoundNode;
@@ -1075,38 +1094,32 @@ function formTree(token: Token, tree: Node, context: Context) {
   // Step 2: Identify the node
   // -------------------------------------
   
-  // Match the node against a function first
-  let found = findFunction(node);
-  if (found) {
+  // Find a collection, entity, attribute, or function
+  findCollection(node, context);
+  if (node.found) {
     
-  // If it's not a function, find an entity or collection
+  
   } else {
-    let found = findCollection(node, context);
-    if (found) {
+    findEntity(node, context);  
+    if (node.found) {
       
     
-    
-    // If a collection was not found, try an entity
     } else {
-      let found = findEntity(node, context);
-      if (found) {
+      findAttribute(node, context);
+      if (node.found) {
         
         
       } else {
-        let found = findAttribute(node, context);
-        if (found) {
-        
+        findFunction(node, context);  
+        if (node.found) {
         
         
         } else {
-          console.log("Nothing found!");
+          log(node.name + " was not found anywhere!");
         }
       }
     }
   }
-  
-  tree.children.push(node);
-  log(tree.toString());
   
   // -------------------------------------
   // Step 3: Insert the node into the tree
@@ -1121,11 +1134,74 @@ function formTree(token: Token, tree: Node, context: Context) {
   // A   X X   X
   // F X       X
   
+  // Handle compound nodes
+  
+  // Handle functions
+  if (node.hasProperty(Properties.FUNCTION)) {
+    // If there are any open arguments that take a function, attach it there
+    // Otherwise, attach the node to the root
+    tree.addChild(node);
+    context.orphans.map((orphan) => formTree(orphan,tree,context));
+  }
+  
+  // Handle entities
+  if (node.hasProperty(Properties.ENTITY)) {
+    // If there are any open arguments that take an entity, attach it there
+    let entityArgs = findLeafNodes(tree).filter((node) => node.hasProperty(Properties.INPUT) && node.name === "entity");
+    if (entityArgs.length > 0) {
+      let arg = entityArgs.pop();
+      arg.addChild(node);
+      arg.found = true;
+    }
+    
+    // Otherwise, find a relationship between the entity and any other nodes
+    
+    // If no relationship exists, push it to the context
+    else {
+      context.orphans.push(node);  
+    }
+  }
+  
+  // Handle attributes
+  if (node.hasProperty(Properties.ATTRIBUTE)) {
+    // If there are any open arguments that take an attribute, attach it there
+    let attributeArgs = findLeafNodes(tree).filter((node) => node.hasProperty(Properties.INPUT) && node.name === "attribute");
+    if (attributeArgs.length > 0) {
+      let arg = attributeArgs.pop();
+      arg.addChild(node);
+      arg.found = true;
+      collapseNode(arg.parent, context);
+    }
+    
+    
+    // Otherwise, find a relationship between the attribute and any other nodes
+    
+    // If no relationship exists, attach the node to the root
+    else {
+      context.orphans.push(node);  
+    }
+  }
   
   
   
-  // Figure out where to stick the node
-  return tree;
+  log(tree.toString());
+  
+  return {tree: tree, context: context};
+}
+
+
+function collapseNode(node: Node, context: Context): Node {
+  let leafs = findLeafNodes(node);
+  let allArgs = leafs.every((node) => node.hasProperty(Properties.ARGUMENT));
+  // If the node is a function and all arguments are filled
+  if (node.hasProperty(Properties.FUNCTION) && !allArgs) {
+    if (node.fxn.type === FunctionTypes.SELECT) {
+      findRelationship(leafs[0],leafs[1],context);
+    }
+  }
+  
+  
+  return node;
 }
 
 // EAV Functions
@@ -1302,6 +1378,19 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
   }
   log(`Finding relationship between "${nodeA.name}" and "${nodeB.name}"`);
   let relationship: Relationship;
+  
+  
+  if (nodeA.hasProperty(Properties.ATTRIBUTE) && nodeB.hasProperty(Properties.ENTITY)) {
+    relationship = findEntToAttrRelationship(nodeA, nodeB, context);
+  }  
+  
+  
+  
+  
+  
+  return {type: RelationshipTypes.NONE};
+  
+  /*
   // If both nodes are Collections, find their relationship
   if (nodeA.hasProperty(Properties.COLLECTION) && nodeB.hasProperty(Properties.COLLECTION)) {
     relationship = findCollectionToCollectionRelationship(nodeA.collection, nodeB.collection);
@@ -1332,7 +1421,7 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
     return relationship; 
   } else {
     return {type: RelationshipTypes.NONE};  
-  }
+  }*/
 }
 
 // e.g. "meetings john was in"
@@ -1366,12 +1455,13 @@ function findCollectionToEntRelationship(coll: Collection, ent: Entity): Relatio
     let entities = extractFromUnprojected(relationships2.unprojected, 1, 3);
     return { type: RelationshipTypes.TWOHOP };
   }*/
-  log("No relationship found :(");
+  log("  No relationship found");
   return { type: RelationshipTypes.NONE };
 }
 
-function findEntToAttrRelationship(entity: Entity, attr: Node, context: Context): Relationship {
-  log(`Finding Ent -> Attr relationship between "${entity.displayName}" and "${attr.name}"...`);
+function findEntToAttrRelationship(entity: Node, attr: Node, context: Context): Relationship {
+  log(`Finding Ent -> Attr relationship between "${entity.name}" and "${attr.name}"...`);
+  /*
   // Check for a direct relationship
   // e.g. "Josh's age"
   let found = findEntityAttribute(attr,entity,context);
@@ -1421,7 +1511,7 @@ function findEntToAttrRelationship(entity: Entity, attr: Node, context: Context)
     let entities2 = extractFromUnprojected(relationships2.unprojected, 1, 3);
     //return { distance: 2, type: RelationshipTypes.ENTITY_ATTRIBUTE, nodes: [findCommonCollections(entities), findCommonCollections(entities2)] };
   }*/
-  log("No relationship found :(");
+  log("  No relationship found.");
   return { type: RelationshipTypes.NONE };
 }
 
@@ -1535,7 +1625,7 @@ function findCollectionToAttrRelationship(coll: Collection, attr: Node, context:
   if (relationship.unprojected.length > 0) {
     return true;
   }*/
-  log("No relationship found :(");
+  log(" No relationship found");
   return {type: RelationshipTypes.NONE};
 }
 
