@@ -1850,6 +1850,7 @@ function setSearch(event, elem) {
   }
 }
 function updateSearch(event, elem) {
+  if(event.value === undefined) return;
   dispatch("ui update search", {paneId: elem.paneId, value: event.value}).commit();
 }
 function toggleSearchPlan(event, elem) {
