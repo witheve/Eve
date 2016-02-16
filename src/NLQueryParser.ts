@@ -23,7 +23,6 @@ export enum Intents {
 
 // Entry point for NLQP
 export function parse(queryString: string, lastParse?: Result): Array<Result> {
-  let start = performance.now();
   let tree: Node;
   let context: Context;
   let tokens: Array<Token>;
@@ -41,7 +40,7 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
     context = lastParse.context;
     tokens = lastParse.tokens;
   }
-  
+  // Now do something with the query string
   let words = normalizeQueryString(queryString);
   for (let word of words) {
     // From a token
@@ -58,28 +57,10 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
     context = treeResult.context;
   }
   // Create the query from the new tree
-  //let query = formQuery(tree);
-  let stop = performance.now();
-  console.log(stop-start);
-
-  
-  
-  /*
-  let {tree, context} = formTree(tokens);
   let query = formQuery(tree);
-  // Figure out the state flags
-  let intent: Intent;
-  if (query.projects.length === 0 && query.terms.length === 0) {
-    intent = Intent.NORESULT;
-  } else if (treeComplete(tree)) {
-    intent = Intent.QUERY;
-  } else {
-    intent = Intent.MOREINFO;
-  }
+
+  let intent = Intents.QUERY;
   return [{intent: intent, context: context, tokens: tokens, tree: tree, query: query}];
-  */
-  let foo = {context: context, tokens: tokens, tree: tree};
-  return undefined;
 }
 
 // Returns false if any nodes are not marked found
@@ -638,10 +619,10 @@ function reroot(node: Node, target: Node): void {
 // returns the node or undefined if the operation failed
 function removeNode(node: Node): Node {
   if (node.hasProperty(Properties.ROOT)) {
-    return node;
+    return undefined;
   }
   if (node.parent === undefined && node.children.length === 0) {
-    return node;
+    return undefined;
   }
   let parent: Node = node.parent;
   let children: Array<Node> = node.children;
@@ -656,6 +637,15 @@ function removeNode(node: Node): Node {
   return node;
 }
 
+function removeBranch(node: Node): Node {
+  let parent = node.parent;
+  if (parent !== undefined) {
+    parent.children.splice(parent.children.indexOf(node),1);
+    node.parent = undefined;
+    return node;  
+  }
+  return undefined;
+}
 
 // Returns the first ancestor node that has been found
 function previouslyMatched(node: Node, ignoreFunctions?: boolean): Node {
@@ -723,6 +713,15 @@ function insertAfterNode(node: Node, target: Node): void {
   node.children = target.children;
   target.children.map((n) => n.parent = node);
   target.children = [node];
+}
+
+function insertBeforeNode(node: Node, target: Node): void {
+  let parent = target.parent;
+  if (parent !== undefined) {
+    parent.addChild(node);
+    parent.children.splice(parent.children.indexOf(target),1);
+    node.addChild(target);
+  }
 }
 
 // Find all leaf nodes stemming from a given node
@@ -1171,7 +1170,12 @@ function formTree(node: Node, tree: Node, context: Context): any {
       let arg = attributeArgs.pop();
       arg.addChild(node);
       arg.found = true;
-      collapseNode(arg.parent, context);
+      let fxnNode = arg.parent;
+      let collapsedNode = collapseNode(fxnNode, context);
+      if (collapsedNode !== undefined) {
+        insertBeforeNode(collapsedNode, fxnNode); 
+        removeBranch(fxnNode);
+      }
     }
     
     
@@ -1192,6 +1196,7 @@ function formTree(node: Node, tree: Node, context: Context): any {
 
 
 function collapseNode(node: Node, context: Context): Node {
+  log("Collapsing node: " + node.name);
   let leafs = findLeafNodes(node);
   let allArgs = leafs.every((node) => node.hasProperty(Properties.ARGUMENT));
   // If the node is a function and all arguments are filled
@@ -1206,19 +1211,21 @@ function collapseNode(node: Node, context: Context): Node {
         let nToken = newToken(newName);
         let nNode = newNode(nToken);
         let nAttribute: Attribute = {
-          id: newName,
+          id: attribute.attribute.id,
           refs: [entity],
           node: nNode,
           displayName: newName,
           variable: newName,
           project: true,
-        }        
+        }
+        nNode.attribute = nAttribute;
+        nNode.properties.push(Properties.ATTRIBUTE);
+        nNode.found = true;
+        return nNode;
       }
     }
   }
-  
-  
-  return node;
+  return undefined;
 }
 
 // EAV Functions
@@ -1381,7 +1388,6 @@ interface Relationship {
 
 function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relationship {
   log(`Finding relationship between "${nodeA.name}" and "${nodeB.name}"`);
-  let relationship: Relationship;
   // Sort the nodes in order
   // 1) Collection 
   // 2) Entity 
@@ -1393,7 +1399,7 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
   nodeB = nodes[1];
   
   if (nodeA.hasProperty(Properties.ENTITY) && nodeB.hasProperty(Properties.ATTRIBUTE)) {
-    relationship = findEntToAttrRelationship(nodeA, nodeB, context);
+    return findEntToAttrRelationship(nodeA, nodeB, context);
   }
   
   return {type: RelationshipTypes.NONE};
@@ -1804,7 +1810,7 @@ export interface Query {
   toString(number?: number): string;
 }
 
-/*
+
 function negateTerm(term: Term): Query {
   let negate = newQuery([term]);
   negate.type = "negate";
@@ -1878,7 +1884,6 @@ function formQuery(node: Node): Query {
   let projectFields: Array<Field> = [];
   
   // Handle the child nodes
-  
   let childQueries = node.children.map(formQuery);
   // Subsume child queries
   let combinedProjectFields: Array<Field> = [];
@@ -1899,6 +1904,7 @@ function formQuery(node: Node): Query {
     }
     query.projects.push(project);
   }
+  /*
   // If the node is a grouping node, stuff the query into a subquery
   // and take its projects
   if (node.hasProperty(Properties.GROUPING)) {
@@ -1907,18 +1913,20 @@ function formQuery(node: Node): Query {
     query.projects = query.projects.concat(subquery.projects);
     subquery.projects = [];
     query.subqueries.push(subquery);
-  }
+  }*/
   
   // Handle the current node
   
   // Just return at the root
+  /*
   if (node.hasProperty(Properties.ROOT)) {
     // Reverse the order of fields in the projects
     for (let project of query.projects) {
       project.fields = project.fields.reverse();
     }
     return query;
-  }
+  }*/
+  /*
   // Handle functions -------------------------------
   if (node.fxn !== undefined) {
     // Skip functions with no arguments
@@ -1965,53 +1973,50 @@ function formQuery(node: Node): Query {
         query.projects = [];
       }
     }
-  }
+  }*/
   // Handle attributes -------------------------------
-  if (node.attribute !== undefined) {
+  if (node.hasProperty(Properties.ATTRIBUTE)) {
+    log("Building attribute term for: " + node.name);
     let attr = node.attribute;
-    let entity = attr.entity;
-    let collection = attr.collection;
+    let entity = attr.refs[0].entity !== undefined ? attr.refs[0].entity : attr.refs[0].collection;
+    
     let fields: Array<Field> = [];
-    let entityField: Field;
-    // Entity
-    if (entity !== undefined) {
-      entityField = {name: "entity", 
-                    value: `${attr.entity.entityAttribute ? attr.entity.variable : attr.entity.id}`, 
-                 variable: attr.entity.entityAttribute};
-    } else if (collection !== undefined) {
-      entityField = {name: "entity", 
-                    value: `${attr.collection.displayName}`, 
-                 variable: true};
-    } else {
-      return query;
-    }
-    fields.push(entityField);
-    // Attribute
-    if (attr.id !== undefined) {
-      let attrField: Field = {name: "attribute", 
-                        value: attr.id, 
-                    variable: false};
-      fields.push(attrField);
-    }
-    // Value
-    let valueField: Field = {name: "value", 
-                            value: attr.id === undefined ? attr.value : attr.variable, 
-                         variable: attr.id !== undefined};
-    fields.push(valueField);
+    let entityField = {name: "entity", 
+                       value: entity.variable, 
+                       variable: false,
+                      };
+                       
+    let attrField = {name: "attribute", 
+                     value: attr.id, 
+                     variable: false
+                    };
+
+    let valueField = {name: "value", 
+                      value: attr.variable, 
+                      variable: true
+                     };
+                            
     let term: Term = {
       type: "select",
       table: "entity eavs",
-      fields: fields,
+      fields: [entityField, attrField, valueField],
     }
     query.terms.push(term);
-    // project if necessary
-    if (node.attribute.project === true && !node.hasProperty(Properties.NEGATES)) {
-      let attributeField: Field = {name: `${node.attribute.id.replace(new RegExp(" ", 'g'),"")}` , 
-                                  value: node.attribute.variable, 
-                               variable: true};
-      projectFields.push(attributeField);
+    if (node.attribute.project) {
+      let projectAttribute = {name: `${attr.id.replace(new RegExp(" ", 'g'),"")}` , 
+                              value: attr.variable, 
+                              variable: true
+                             };
+      let project = {
+        type: "project!",
+        fields: [projectAttribute],
+      }
+      query.projects.push(project);
     }
+    return query;
   }
+  
+  /*
   // Handle collections -------------------------------
   if (node.collection !== undefined && !node.hasProperty(Properties.PRONOUN)) {
     let entityField: Field = {name: "entity", 
@@ -2033,7 +2038,8 @@ function formQuery(node: Node): Query {
                                 variable: true};
       projectFields.push(collectionField);
     }
-  }
+  }*/
+  /*
   // Handle entities -------------------------------
   if (node.entity !== undefined && !node.hasProperty(Properties.PRONOUN)) {
     // project if necessary
@@ -2043,21 +2049,15 @@ function formQuery(node: Node): Query {
                             variable: node.entity.entityAttribute};
       projectFields.push(entityField);  
     }
-  }
-  let project = {
-    type: "project!",
-    fields: projectFields, 
-  }
-  
-  if (node.hasProperty(Properties.NEGATES)) {
+  }*/
+
+  /*if (node.hasProperty(Properties.NEGATES)) {
     let negatedTerm = query.terms.pop();
     let negatedQuery = negateTerm(negatedTerm);
     query.subqueries.push(negatedQuery);
-  }
-  
-  query.projects.push(project);
+  }*/
   return query;
-}*/
+}
 
 // ----------------------------------------------------------------------------
 // Debug utility functions
