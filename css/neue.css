@@ -118,13 +118,21 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 - Card
 ---------------------------------------------------------*/
 
-.card { background: white; align-self:center; align-items: stretch; min-width:200px; min-height:150px; box-shadow: 0 20px 50px rgba(0,0,50,0.10); margin-top:100px; border-radius:5px; overflow:hidden; }
+.card { background: white; align-self:center; align-items: stretch; min-width:200px; box-shadow: 0 20px 50px rgba(0,0,50,0.10); margin-top:100px; border-radius:5px; overflow:hidden; }
 .card .text-content { margin-right:10px; min-width:250px; white-space:pre-wrap; line-height:28px; color:#aaa; flex:none; max-height:50%; }
-.card .header { flex:none; margin:30px; margin-top:20px; font-size: 18pt; font-weight: 900; padding-bottom: 10px; margin-bottom: 10px; color: rgb(106,138,156); border-bottom: 1px solid rgba(0,0,50,0.1); }
+.card .header { flex:none; padding:10px 20px; font-size: 18pt; font-weight: 900; color: rgb(106,138,156); border-bottom: 1px solid #eee; }
 .card .wiki-editor { padding: 30px; padding-top:0; margin-bottom:20px; }
-.card .attributes { background: rgba(0,0,50,0.05); padding: 20px 20px; border-left:1px solid rgba(0,0,0,0.03); border-radius:0; align-self:stretch; max-height:50%; overflow:auto; }
-.card .attribute-name { color: rgb(106,138,156); }
 .card + .card { margin-top:40px; }
+
+.card .tiles { flex-direction: row; flex-wrap: wrap; max-width: 360px; }
+.card .tile { padding:10px; overflow:hidden; }
+.card .tile .property { font-size: 9pt; text-transform: uppercase; color: #aaa; }
+.card .tile.small { flex: 1 0 auto; align-items: center; justify-content: center; }
+.card .tile + .tile { border-left: 1px solid #eee; }
+.card .tile.small .value { font-size: 16pt; margin-bottom:5px; }
+.card .tile.full { border-bottom:1px solid #eee; width:100%; border-left:none; }
+
+.card .tile .list { max-height: 200px; overflow:auto; }
 
 /*---------------------------------------------------------
 - Selector
@@ -179,26 +187,6 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .wiki-editor .non-editing-embedded-cell:hover .edit-button-container { display: flex; }
 .wiki-editor .non-editing-embedded-cell .edit-button{ padding:5px; background:#008cdd; color: #fff; border-radius:2px; font-size:10pt; cursor:pointer; }
 .wiki-editor .non-editing-embedded-cell .edit-button:hover { background: #004A74; }
-
-/*---------------------------------------------------------
-- Page attributes
----------------------------------------------------------*/
-
-.page-attributes { align-self: flex-start; border-radius:3px; border:none; }
-.page-attributes .attribute { align-items:flex-start; flex-direction:row; }
-.page-attributes .attribute + .attribute { margin-top:15px; border:none; }
-.page-attributes .attribute .attribute-name { text-align:right; font-weight:900; width: 150px; padding:2px 10px; border:1px solid transparent; }
-.page-attributes input {font-size: 12pt; }
-.page-attributes .value { padding: 2px 10px; border:1px solid transparent; border-left: 1px solid #ddd; width: 150px; flex-direction: row; font-size:12pt; }
-.page-attributes .value:hover { border:1px solid #ddd; }
-.page-attributes .value > * {flex: none; background:none; }
-.page-attributes .value input { flex: 1; }
-.page-attributes .value > .spacer {flex: 1; }
-.page-attributes .value .remove { opacity:0; justify-content:center; color: #888; }
-.page-attributes .value .remove:hover { color: #f55; }
-.page-attributes .value:hover .remove { opacity:1; }
-.page-attributes .adder .value:first-child { border-left-color:transparent; }
-.page-attributes .adder:hover .value { border-color:#ddd; }
 
 /*---------------------------------------------------------
 - Delete prompt

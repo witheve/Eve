@@ -2,7 +2,7 @@ declare var pluralize; // @TODO: import me.
 import {builtinId, copy, coerceInput, sortByLookup, sortByField, KEYS} from "./utils";
 import {Element, Handler} from "./microReact";
 import {dispatch, eve} from "./app";
-import {PANE, uiState as _state, asEntity, attributesUI, activeCells, wikiEditor} from "./ui";
+import {PANE, uiState as _state, asEntity, entityTilesUI, activeCells, wikiEditor} from "./ui";
 import {masonry as masonryRaw, MasonryLayout} from "./masonry";
 
 //------------------------------------------------------------------------------
@@ -191,15 +191,13 @@ export function entity(elem:EntityEditorElem) {
   let entityId = elem.entity;
   let paneId = elem.data.paneId;
   let name = eve.findOne("display name", {id: asEntity(entityId)}).name;
-  let attrs = attributesUI(entityId, paneId);
+  let attrs = entityTilesUI(entityId, paneId);
   attrs.c += " page-attributes";
   let editor = pageEditor(entityId, paneId, elem.editor);
-  return {c: "flex-row entity", children: [
-    {c: "text-content", children: [
-      {c: "header", text: name},
-      editor,
-    ]},
+  return {c: "entity", children: [
+    {c: "header", text: name},
     attrs,
+    // editor,
   ]};
 }
 
