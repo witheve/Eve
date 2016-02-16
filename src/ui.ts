@@ -1630,7 +1630,10 @@ export function entityTilesUI(entityId, paneId) {
       tileChildren.push(uitk.value({c: "value", data, text: values[0].eav.value}));
       tileChildren.push({c: "property", text: attribute});
     } else if(values.length === 2) {
-      tileChildren.push({c: "value", text: "double value"});
+      tileChildren.push({c: "multi-value value", children: [
+        uitk.value({data, text: values[0].eav.value}),
+        uitk.value({data, text: values[1].eav.value})
+      ]});
       tileChildren.push({c: "property", text: attribute});
       size = "medium"
     } else {
@@ -1680,6 +1683,10 @@ export function entityTilesUI(entityId, paneId) {
     isARow.children.push({c: "tile small is-a", children: [
       uitk.value({data, text: isA.eav.value})
     ]});
+    if(isARow.children.length === 3) {
+      rows.push(isARow);
+      isARow = {c: "flex-row row", children: []};
+    }
   }
   rows.push(isARow);
 
