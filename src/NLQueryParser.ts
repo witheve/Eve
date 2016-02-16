@@ -898,73 +898,67 @@ function newContext(): Context {
   };
 }
 
-function findFunction(node: Node): boolean {
-  log(`Finding function: ${node.name}...`);
-  let fxn: BuiltInFunction;
-  switch (node.name) {
+function stringToFunction(word: string): BuiltInFunction {
+  switch (word) {
     case "taller":
-      fxn = {name: ">", type: FunctionTypes.FILTER, attribute: "height", fields: ["a", "b"], project: false};
-      break;
+      return {name: ">", type: FunctionTypes.FILTER, attribute: "height", fields: ["a", "b"], project: false};
     case "shorter":
-      fxn = {name: "<", type: FunctionTypes.FILTER, attribute: "length", fields: ["a", "b"], project: false};
-      break;
+      return {name: "<", type: FunctionTypes.FILTER, attribute: "length", fields: ["a", "b"], project: false};
     case "longer":
-      fxn = {name: ">", type: FunctionTypes.FILTER, attribute: "length", fields: ["a", "b"], project: false};
-      break;
+      return {name: ">", type: FunctionTypes.FILTER, attribute: "length", fields: ["a", "b"], project: false};
     case "younger":
-      fxn = {name: "<", type: FunctionTypes.FILTER, attribute: "age", fields: ["a", "b"], project: false};
-      break;
+      return {name: "<", type: FunctionTypes.FILTER, attribute: "age", fields: ["a", "b"], project: false};
     case "&":
     case "and":
-      fxn = {name: "and", type: FunctionTypes.BOOLEAN, fields: [], project: false};
-      break;
+      return {name: "and", type: FunctionTypes.BOOLEAN, fields: [], project: false};
     case "or":
-      fxn = {name: "or", type: FunctionTypes.BOOLEAN, fields: [], project: false};
-      break;
+      return {name: "or", type: FunctionTypes.BOOLEAN, fields: [], project: false};
     case "total":
     case "sum":
-      fxn = {name: "sum", type: FunctionTypes.AGGREGATE, fields: ["sum", "value"], project: true};
-      break;
+      return {name: "sum", type: FunctionTypes.AGGREGATE, fields: ["sum", "value"], project: true};
     case "average":
     case "avg":
     case "mean":
-      fxn = {name: "average", type: FunctionTypes.AGGREGATE, fields: ["average", "value"], project: true};
-      break;
+      return {name: "average", type: FunctionTypes.AGGREGATE, fields: ["average", "value"], project: true};
     case "plus":
     case "add":
     case "+":
-      fxn = {name: "+", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
-      break;
+      return {name: "+", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
     case "subtract":
     case "minus":
     case "-":
-      fxn = {name: "-", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
-      break;
+      return {name: "-", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
     case "times":
     case "multiply":
     case "multiplied":
     case "multiplied by":
     case "*":
-      fxn = {name: "*", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
-      break;
+      return {name: "*", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
     case "divide":
     case "divided":
     case "divided by":
     case "/":
-      fxn = {name: "/", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
-      break;
+      return {name: "/", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
     case "is a":
     case "is an":
-      fxn = {name: "insert", type: FunctionTypes.INSERT, fields: ["entity", "attribute", "value"], project: false};
-      break;
+      return {name: "insert", type: FunctionTypes.INSERT, fields: ["entity", "attribute", "value"], project: false}; 
+    case "of":
     case "'s":
     case "'":
-      fxn = {name: "select", type: FunctionTypes.SELECT, fields: ["result", "entity", "attribute"], project: true}; 
-      break; 
+      return {name: "select", type: FunctionTypes.SELECT, fields: ["result", "entity", "attribute"], project: true}; 
     default:
-      return false;
+      return undefined;
+  }  
+}
+
+function findFunction(node: Node): boolean {
+  log(`Searching for function: ${node.name}`);
+  let fxn = stringToFunction(node.name); 
+  if (fxn === undefined) {  
+    log(` Not Found: ${node.name}`);
+    return false;
   }
-  log(`Found: ${fxn.name}`);
+  log(` Found: ${fxn.name}`);
   node.fxn = fxn;
   // Add arguments to the node
   let args = fxn.fields.map((name, i) => {
@@ -1034,13 +1028,6 @@ function formTree(token: Token, tree: Node, context: Context) {
     if (allFound !== true) {
       let displayName = ngram.map((node)=>node.name).join(" ").replace(/ '/g,'\'');
       log(displayName)
-      // Handle special compound nodes
-      if (ngram.length === 2 && (displayName === "is an" || displayName === "is a")) {
-       ngram[1].properties.push(Properties.SETTER);
-       ngram.map((node) => node.found = true);
-       matchedNgrams.push(ngram);
-       continue; 
-      }
       let foundName = eve.findOne("index name",{ name: displayName });
       // If the display name is in the system, mark all the nodes as found 
       if (foundName !== undefined) {
@@ -1051,6 +1038,11 @@ function formTree(token: Token, tree: Node, context: Context) {
         if (foundAttribute !== undefined) {
           ngram.map((node) => node.found = true);
           matchedNgrams.push(ngram);  
+        } else {
+          let fxn = stringToFunction(displayName);
+          if (fxn !== undefined) {
+            matchedNgrams.push(ngram);
+          }
         }
       }
     }
@@ -1089,29 +1081,32 @@ function formTree(token: Token, tree: Node, context: Context) {
     
   // If it's not a function, find an entity or collection
   } else {
-    let found = findCollectionOrEntity(node, context);
+    let found = findCollection(node, context);
     if (found) {
       
     
     
-    // If a collection or entity was not found, check if it 
-    // is an attribute of some entity or collection
+    // If a collection was not found, try an entity
     } else {
-      log("Finding attribute...")
-      let foundAttribute = eve.findOne("entity eavs", {attribute: node.name});
-      if (foundAttribute !== undefined) {
-        console.log(foundAttribute);
-      // If it's not an attribute of anything, add it
-      // to the maybe list
+      let found = findEntity(node, context);
+      if (found) {
+        
+        
       } else {
-        console.log("Nothing found!");
+        let found = findAttribute(node, context);
+        if (found) {
+        
+        
+        
+        } else {
+          console.log("Nothing found!");
+        }
       }
     }
   }
   
   tree.children.push(node);
   log(tree.toString());
-  log("Hello!");
   
   // -------------------------------------
   // Step 3: Insert the node into the tree
@@ -1184,7 +1179,7 @@ interface Attribute {
   displayName: string,
   entity?: Entity,
   collection?: Collection,
-  value: string | number
+  value?: string | number
   variable: string,
   node?: Node,
   project: boolean,
@@ -1197,7 +1192,7 @@ interface Attribute {
 // 2) the name is found in "display name" but not found in "entity"
 // can 2) ever happen?
 // Returns the collection with the given display name.
-export function findEveEntity(search: string): Entity {
+function findEveEntity(search: string): Entity {
   log("Searching for entity: " + search);
   let foundEntity;
   let name: string;
@@ -1224,7 +1219,7 @@ export function findEveEntity(search: string): Entity {
       entityAttribute: false,
       project: true,
     }    
-    log(" Found: " + name);
+    log(" Found: " + entity.id);
     return entity;
   } else {
     log(" Not found: " + search);
@@ -1258,7 +1253,7 @@ function findEveCollection(search: string): Collection {
       variable: name,
       project: true,
     }
-    log(" Found: " + name);
+    log(" Found: " + collection.id);
     return collection;
   } else {
     log(" Not found: " + search);
@@ -1268,20 +1263,17 @@ function findEveCollection(search: string): Collection {
 
 // Returns the attribute with the given display name attached to the given entity
 // If the entity does not have that attribute, or the entity does not exist, returns undefined
-function findEveAttribute(name: string, entity: Entity): Attribute {
+function findEveAttribute(name: string): Attribute {
   log("Searching for attribute: " + name);
-  log(" Entity: " + entity.displayName);
-  let foundAttribute = eve.findOne("entity eavs", { entity: entity.id, attribute: name });
+  let foundAttribute = eve.findOne("entity eavs", { attribute: name });
   if (foundAttribute !== undefined) {
     let attribute: Attribute = {
       id: foundAttribute.attribute,
       displayName: name,
-      entity: entity,
-      value: foundAttribute.value,
-      variable: `${entity.displayName}|${name}`.replace(/ /g,''),
+      variable: `${name}`.replace(/ /g,''),
       project: true,
     }
-    log(` Found: ${name} ${attribute.variable} => ${attribute.value}`);
+    log(" Found: " + name);
     log(attribute);
     return attribute;
   }
@@ -1650,7 +1642,7 @@ function findCollectionAttribute(node: Node, collection: Collection, context: Co
 }
 
 function findEntityAttribute(node: Node, entity: Entity, context: Context): boolean {
-  let attribute = findEveAttribute(node.name,entity);
+  let attribute = findEveAttribute(node.name);
   if (attribute !== undefined) {
     if (isNumeric(attribute.value)) {
       node.properties.push(Properties.QUANTITY);
@@ -1716,9 +1708,6 @@ function findCollection(node: Node, context: Context): boolean {
     node.collection = collection;
     node.found = true;
     node.properties.push(Properties.COLLECTION)
-    if (node.hasProperty(Properties.GROUPING)) {
-      context.groupings.push(node);
-    }
     return true;
   }
   return false;
@@ -1732,9 +1721,19 @@ function findEntity(node: Node, context: Context): boolean {
     node.entity = entity;
     node.found = true;
     node.properties.push(Properties.ENTITY)
-    if (node.hasProperty(Properties.GROUPING)) {
-      context.groupings.push(node);
-    }
+    return true;
+  }
+  return false;
+}
+
+function findAttribute(node: Node, context: Context): boolean {
+  let attribute = findEveAttribute(node.name);
+  if (attribute !== undefined) {
+    context.attributes.push(attribute);
+    attribute.node = node;
+    node.attribute = attribute;
+    node.found = true;
+    node.properties.push(Properties.ATTRIBUTE)
     return true;
   }
   return false;

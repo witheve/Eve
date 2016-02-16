@@ -10,7 +10,7 @@ var boostrapIxer = bootstrap.ixer;
 
 app.renderRoots["nlqp"];
 
-nlqp.debug = false;
+nlqp.debug = true;
 
 function parseTest(queryString: string, n: number): nlqp.Intents {
   let parseResult: nlqp.Result;
@@ -22,7 +22,7 @@ function parseTest(queryString: string, n: number): nlqp.Intents {
   // Parse string and measure how long it takes
   for (let i = 0; i < n; i++) {
     let start = performance.now();
-    parseResult = nlqp.parse(queryString);
+    parseResult = nlqp.parse(queryString)[0];
     let stop = performance.now();
     avgTime += stop-start;
     if (stop-start > maxTime) {
@@ -159,7 +159,7 @@ let phrases = [
   "pets not exotics",
   `Corey Montella's age + Josh's salary`,*/
   // -------------------------------
-  "Corey Montella's age",
+  "Corey Montella's age is a engineer",
   //"Corey's height"
   //`Pets except those shorter than a koala`,
   //`salaries per department`,
