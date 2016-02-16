@@ -50,7 +50,7 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
     token.prev = lastToken;
     tokens.push(token);
     // Add the token to the tree
-    formTree(token, tree, context);
+    tree = formTree(token, tree, context);
   }
   // Create the query from the new tree
   //let query = formQuery(tree);
@@ -852,6 +852,8 @@ export enum FunctionTypes {
   AGGREGATE,
   BOOLEAN,
   CALCULATE,
+  INSERT,
+  SELECT,
 }
 
 interface BuiltInFunction {
@@ -897,68 +899,87 @@ function newContext(): Context {
 }
 
 function findFunction(node: Node): boolean {
-  log("Finding function");
+  log(`Finding function: ${node.name}...`);
   let fxn: BuiltInFunction;
   switch (node.name) {
     case "taller":
       fxn = {name: ">", type: FunctionTypes.FILTER, attribute: "height", fields: ["a", "b"], project: false};
       break;
     case "shorter":
-      fxn =  {name: "<", type: FunctionTypes.FILTER, attribute: "length", fields: ["a", "b"], project: false};
+      fxn = {name: "<", type: FunctionTypes.FILTER, attribute: "length", fields: ["a", "b"], project: false};
       break;
     case "longer":
-      fxn =  {name: ">", type: FunctionTypes.FILTER, attribute: "length", fields: ["a", "b"], project: false};
+      fxn = {name: ">", type: FunctionTypes.FILTER, attribute: "length", fields: ["a", "b"], project: false};
       break;
     case "younger":
-      fxn =  {name: "<", type: FunctionTypes.FILTER, attribute: "age", fields: ["a", "b"], project: false};
+      fxn = {name: "<", type: FunctionTypes.FILTER, attribute: "age", fields: ["a", "b"], project: false};
       break;
     case "&":
     case "and":
-      fxn =  {name: "and", type: FunctionTypes.BOOLEAN, fields: [], project: false};
+      fxn = {name: "and", type: FunctionTypes.BOOLEAN, fields: [], project: false};
       break;
     case "or":
-      fxn =  {name: "or", type: FunctionTypes.BOOLEAN, fields: [], project: false};
+      fxn = {name: "or", type: FunctionTypes.BOOLEAN, fields: [], project: false};
       break;
     case "total":
     case "sum":
-      fxn =  {name: "sum", type: FunctionTypes.AGGREGATE, fields: ["sum", "value"], project: true};
+      fxn = {name: "sum", type: FunctionTypes.AGGREGATE, fields: ["sum", "value"], project: true};
       break;
     case "average":
     case "avg":
     case "mean":
-      fxn =  {name: "average", type: FunctionTypes.AGGREGATE, fields: ["average", "value"], project: true};
+      fxn = {name: "average", type: FunctionTypes.AGGREGATE, fields: ["average", "value"], project: true};
       break;
     case "plus":
     case "add":
     case "+":
-      fxn =  {name: "+", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
+      fxn = {name: "+", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
       break;
     case "subtract":
     case "minus":
     case "-":
-      fxn =  {name: "-", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
+      fxn = {name: "-", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
       break;
     case "times":
     case "multiply":
     case "multiplied":
     case "multiplied by":
     case "*":
-      fxn =  {name: "*", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
+      fxn = {name: "*", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
       break;
     case "divide":
     case "divided":
     case "divided by":
     case "/":
-      fxn =  {name: "/", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
+      fxn = {name: "/", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
       break;
     case "is a":
     case "is an":
+      fxn = {name: "insert", type: FunctionTypes.INSERT, fields: ["entity", "attribute", "value"], project: false};
       break;
+    case "'s":
+    case "'":
+      fxn = {name: "select", type: FunctionTypes.SELECT, fields: ["result", "entity", "attribute"], project: true}; 
+      break; 
     default:
       return false;
   }
+  log(`Found: ${fxn.name}`);
   node.fxn = fxn;
+  // Add arguments to the node
+  let args = fxn.fields.map((name, i) => {
+    let argToken = newToken(name);
+    let argNode = newNode(argToken);
+    if (fxn.project && i === 0) {
+      argNode.properties.push(Properties.OUTPUT);
+    } else {
+      argNode.properties.push(Properties.INPUT);
+    }
+    return newNode(argToken);
+  });
+  node.children = args;
   node.found = true;
+  return true;
 }
 
 function formTree(token: Token, tree: Node, context: Context) {  
@@ -1036,7 +1057,6 @@ function formTree(token: Token, tree: Node, context: Context) {
   }
 
   // Turn matched ngrams into compound nodes
-  log("Creating compound nodes...");
   for (let ngram of matchedNgrams) {
     // Don't do anything for 1-grams
     if (ngram.length === 1) {
@@ -1044,7 +1064,7 @@ function formTree(token: Token, tree: Node, context: Context) {
       continue;
     }
     let displayName = ngram.map((node)=>node.name).join(" ").replace(/ '/g,'\'');
-    log (displayName);
+    log (`Creating compound node: ${displayName}`);
     let lastGram = ngram[ngram.length - 1];
     let compoundToken = newToken(displayName);
     let compoundNode = newNode(compoundToken);
@@ -1080,16 +1100,18 @@ function formTree(token: Token, tree: Node, context: Context) {
       log("Finding attribute...")
       let foundAttribute = eve.findOne("entity eavs", {attribute: node.name});
       if (foundAttribute !== undefined) {
-        
+        console.log(foundAttribute);
       // If it's not an attribute of anything, add it
       // to the maybe list
       } else {
-        
+        console.log("Nothing found!");
       }
     }
   }
   
-  
+  tree.children.push(node);
+  log(tree.toString());
+  log("Hello!");
   
   // -------------------------------------
   // Step 3: Insert the node into the tree
@@ -1108,6 +1130,7 @@ function formTree(token: Token, tree: Node, context: Context) {
   
   
   // Figure out where to stick the node
+  return tree;
 }
 
 // EAV Functions
