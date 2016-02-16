@@ -1850,7 +1850,6 @@ function setSearch(event, elem) {
   }
 }
 function updateSearch(event, elem) {
-  if(event.value === undefined) return;
   dispatch("ui update search", {paneId: elem.paneId, value: event.value}).commit();
 }
 function toggleSearchPlan(event, elem) {
@@ -1874,6 +1873,12 @@ interface CMEvent extends Event {
 }
 export function codeMirrorElement(elem:CMElement):CMElement {
   elem.postRender = codeMirrorPostRender(elem.postRender);
+  elem.cmChange = elem.change;
+  elem.cmBlur = elem.blur;
+  elem.cmFocus = elem.focus;
+  elem.change = undefined;
+  elem.blur = undefined;
+  elem.focus = undefined;
   return elem;
 }
 
@@ -1903,9 +1908,9 @@ function codeMirrorPostRender(postRender?:RenderHandler):RenderHandler {
         mode: elem.mode || "text",
         extraKeys
       });
-      if(elem.change) cm.on("change", handleCMEvent(elem.change, elem));
-      if(elem.blur) cm.on("blur", handleCMEvent(elem.blur, elem));
-      if(elem.focus) cm.on("focus", handleCMEvent(elem.focus, elem));
+      if(elem.cmChange) cm.on("change", handleCMEvent(elem.cmChange, elem));
+      if(elem.cmBlur) cm.on("blur", handleCMEvent(elem.cmBlur, elem));
+      if(elem.cmFocus) cm.on("focus", handleCMEvent(elem.cmFocus, elem));
       if(elem.autofocus) cm.focus();
     }
 
