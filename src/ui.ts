@@ -1595,14 +1595,17 @@ export function entityTilesUI(entityId, paneId) {
     }
     items[attribute].push(item);
   }
-  let tiles = [];
+  let tiles = {"small": [], "medium": [], "full": [], "is a": []};
+  let rows = [];
   let data = {paneId, entityId};
   if(items["description"]) {
     let values = items["description"];
     let tileChildren = [];
     tileChildren.push({c: "property", text: "description"});
     tileChildren.push({c: "value", text: values[0].eav.value});
-    tiles.push({c: "tile full", children: tileChildren});
+    rows.push({c: "flex-row row", children: [
+      {c: "tile full", children: tileChildren}
+    ]});
     delete items["description"];
   }
   if(eve.findOne("collection", {collection: entityId})) {
@@ -1611,10 +1614,13 @@ export function entityTilesUI(entityId, paneId) {
     for(let value of values) {
       listChildren.push(uitk.value({data, text: value.entity}));
     }
-    tiles.push({c: "tile full", children: [
-      {c: "list", children: listChildren}
+    rows.push({c: "flex-row row", children: [
+      {c: "tile full", children: [
+        {c: "list", children: listChildren}
+      ]}
     ]});
   }
+  let tilesToPlace = 0;
   for(let attribute of attrs) {
     if(attribute === "is a") continue;
     let values = items[attribute];
@@ -1637,18 +1643,49 @@ export function entityTilesUI(entityId, paneId) {
       size = "full";
     }
     let tile = {c: `tile ${size}`, children: tileChildren};
-    tiles.push(tile);
+    tiles[size].push(tile);
+    tilesToPlace++;
   }
+
+  let lastSize = "full";
+  while(tilesToPlace > 0) {
+    let rowChildren = [];
+    if(lastSize === "small" && tiles["full"].length) {
+      rowChildren.push(tiles["full"].pop());
+      tilesToPlace--;
+    } else {
+      if((lastSize === "small" && tiles["medium"].length)
+         || (tiles["small"].length < 3 && tiles["medium"].length)) {
+        rowChildren.push(tiles["small"].pop());
+        rowChildren.push(tiles["medium"].pop());
+        tilesToPlace -= 2;
+      } else if(tiles["small"].length >= 3) {
+        rowChildren.push(tiles["small"].pop());
+        rowChildren.push(tiles["small"].pop());
+        rowChildren.push(tiles["small"].pop());
+        tilesToPlace -= 3;
+      } else {
+        while(tiles["small"].length) {
+          rowChildren.push(tiles["small"].pop());
+          tilesToPlace--;
+        }
+      }
+    }
+    rows.push({c: "flex-row row", children: rowChildren});
+  }
+
+  let isARow = {c: "flex-row row", children: []};
   for(let isA of items["is a"]) {
     if(uitk.resolveName(isA.eav.value) === "entity") continue;
-    tiles.push({c: "tile small is-a", children: [
+    isARow.children.push({c: "tile small is-a", children: [
       uitk.value({data, text: isA.eav.value})
-    ]})
+    ]});
   }
+  rows.push(isARow);
 
   let state = uiState.widget.attributes[entityId] || {};
 
-  return {c: "tiles", children: tiles};
+  return {c: "tiles", children: rows};
 }
 
 function attributesUIAutocompleteOptions(isEntity, parsed, text, params, entityId) {

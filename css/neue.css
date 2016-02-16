@@ -125,12 +125,13 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .card + .card { margin-top:40px; }
 
 .card .tiles { flex-direction: row; flex-wrap: wrap; max-width: 360px; }
-.card .tile { padding:10px; overflow:hidden; }
+.card .tile { flex: 1 0 0; padding:10px; overflow:hidden; }
 .card .tile .property { font-size: 9pt; text-transform: uppercase; color: #aaa; }
-.card .tile.small { flex: 1 0 auto; align-items: center; justify-content: center; }
+.card .tile.small { align-items: center; justify-content: center; }
 .card .tile + .tile { border-left: 1px solid #eee; }
 .card .tile.small .value { font-size: 16pt; margin-bottom:5px; }
-.card .tile.full { border-bottom:1px solid #eee; width:100%; border-left:none; }
+.card .row { width: 100%;  }
+.card .row + .row { border-top:1px solid #eee; }
 
 .card .tile .list { max-height: 200px; overflow:auto; }
 
