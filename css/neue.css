@@ -135,6 +135,10 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .card .row { width: 100%;  }
 .card .row + .row { border-top:1px solid #eee; }
 
+.card .value.text { line-height: 22px; }
+
+.card .tile.full .property { margin-bottom:5px; }
+
 .card .tile .multi-value { flex-direction: row; }
 .card .multi-value * + * { border-left: 1px solid #ddd; padding-left: 10px; margin-left: 10px; }
 
@@ -155,7 +159,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .card .adding .add-tile:before {transform: rotate(-135deg); }
 
 .card .property-adder { flex: 1; align-items:center; justify-content:center; }
-.card .property-adder .tile { flex:none; border:1px solid rgba(0,0,0,0.1); background:#fff; border-radius:2px; max-width:300px; }
+.card .property-adder .tile { flex:none; border:1px solid rgba(0,0,0,0.1); background:#fff; border-radius:2px; max-width:320px; }
 .card .property-adder .tile:hover { background:#fff; }
 .card .property-adder input { text-align:center; }
 .card .property-adder .controls { border: 1px solid rgba(0,0,0,0.1); background:#fff; text-align:center; border-top:none; border-radius:0 0 2px 2px; }
@@ -164,6 +168,9 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .card .property-adder .controls .submit { border-right:1px solid rgba(0,0,0,0.1); }
 .card .property-adder .controls .submit:hover { color: green; }
 .card .property-adder .controls .cancel:hover { color: #aa5555; }
+
+.card .description-adder .tile { padding:10px 15px; }
+.card .description-adder textarea { width:290px; border:none; height: 75px; font-size:12pt; outline:none; }
 
 /*---------------------------------------------------------
 - Selector

@@ -277,6 +277,29 @@ function propertyAdderUI(elem) {
   ]};
 }
 
+function descriptionAdderUI(elem) {
+  let {entityId, key} = elem;
+  let state = _state.widget.card[key] || {};
+  return {c: "property-adder description-adder", children: [
+    {children: [
+      {c: "tile full", children: [
+        {t: "textarea", c: "value", placeholder: "description", value: state.descriptionValue, attribute: "descriptionValue", input: trackPropertyAdderInput, postRender: autoFocus, keydown: adderKeys, entityId, key},
+      ]},
+      {c: "controls flex-row", children: [
+        {c: "ion-checkmark submit", click: submitAdder, key},
+        {c: "ion-close cancel", click: setTileAdder, key},
+      ]}
+
+    ]}
+  ]};
+}
+
+function submitDescription(adder, state, node) {
+  let chain = dispatch("add sourced eav", {entity: state.entityId, attribute: "description", value: state.descriptionValue});
+  state.descriptionValue = "";
+  chain.dispatch("toggle add tile", {key: state.key}).commit();
+}
+
 export function tileAdder(elem) {
   let {entityId, key} = elem;
   let state = _state.widget.card[key] || {};
@@ -285,7 +308,7 @@ export function tileAdder(elem) {
     let adders = [
       {name: "Property", icon: "ion-compose", ui: propertyAdderUI, submit: submitProperty},
       {name: "List", icon: "ion-ios-list-outline"},
-      {name: "Description", icon: "ion-drag"},
+      {name: "Description", icon: "ion-drag", ui: descriptionAdderUI, submit: submitDescription},
       {name: "Image", icon: "ion-image"},
       {name: "Document", icon: "ion-document"},
     ];

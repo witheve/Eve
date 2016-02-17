@@ -1641,7 +1641,7 @@ export function entityTilesUI(entityId, paneId) {
     let values = items["description"];
     let tileChildren = [];
     tileChildren.push({c: "property", text: "description"});
-    tileChildren.push({c: "value", text: values[0].eav.value});
+    tileChildren.push({c: "value text", text: values[0].eav.value});
     rows.push({c: "flex-row row", children: [
       {c: "tile full", children: tileChildren}
     ]});
@@ -1661,8 +1661,8 @@ export function entityTilesUI(entityId, paneId) {
   }
   let tilesToPlace = 0;
   for(let attribute of attrs) {
-    if(attribute === "is a") continue;
     let values = items[attribute];
+    if(attribute === "is a" || !values) continue;
     let tileChildren = [];
     let size = "small";
     if(values.length === 1) {
