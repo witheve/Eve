@@ -1202,7 +1202,10 @@ function formTree(node: Node, tree: Node, context: Context): any {
     }
     
     // If no relationships were found, stick the node onto the root
-    if (relationship.type === RelationshipTypes.NONE) {
+    if (node.parent === undefined && relationship.type === RelationshipTypes.NONE) {
+      tree.addChild(node);
+    // If there is a relationship, but the node has no parent, just put it on the root
+    } else if (node.parent === undefined) {
       tree.addChild(node);
     }
     
@@ -1408,11 +1411,12 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
   // 1) Collection 
   // 2) Entity 
   // 3) Attribute
-  nodeA.properties.sort();
-  nodeB.properties.sort();
-  let nodes = [nodeA,nodeB].sort((a,b) => a.properties[0] - b.properties[0]);
+  nodeA.properties.sort((a, b) => a - b);
+  nodeB.properties.sort((a, b) => a - b);
+  let nodes = [nodeA,nodeB].sort((a, b) => a.properties[0] - b.properties[0]);
   nodeA = nodes[0]
   nodeB = nodes[1];
+
   // Find the proper relationship
   if (nodeA.hasProperty(Properties.ENTITY) && nodeB.hasProperty(Properties.ATTRIBUTE)) {
     relationship = findEntToAttrRelation(nodeA, nodeB, context);
@@ -1589,22 +1593,14 @@ function findCollToAttrRelation(coll: Node, attr: Node, context: Context): Relat
   if (relationship.unprojected.length > 0) {    
     log("  Found Direct Relationship");
     // Build an attribute node
-    let newName = `${coll.name}|${attr.name}`.replace(/ /g,'');
-    let nToken = newToken(newName);
-    let nNode = newNode(nToken);
-    let nAttribute: Attribute = {
-      id: attr.attribute.id,
-      refs: [coll],
-      node: nNode,
-      displayName: newName,
-      variable: newName,
-      project: true,
-    }
-    nNode.attribute = nAttribute;
-    nNode.relationships.push(relationship);
-    nNode.properties.push(Properties.ATTRIBUTE);
-    nNode.found = true;
-    return {type: RelationshipTypes.DIRECT, nodes: [coll, attr], implicitNodes: [nNode]};
+    let attribute = attr.attribute;
+    let varName = `${coll.name}|${attr.name}`.replace(/ /g,'');
+    attribute.variable = varName;
+    attribute.refs = [coll];
+    attribute.project = true;
+    attr.relationships.push(relationship);
+    coll.relationships.push(relationship);
+    return {type: RelationshipTypes.DIRECT, nodes: [coll, attr], implicitNodes: []};
   }
   // Finds a one hop relationship
   // e.g. "department salaries" => department -> employee -> salary
@@ -1625,11 +1621,30 @@ function findCollToAttrRelation(coll: Node, attr: Node, context: Context): Relat
       // Largest collection other than entity or testdata?
       linkID = collections[0];  
     }    
-    // Build a link node
+    // Fill in the attribute
+        
     let foundCollection = findEveCollection(linkID);
     let linkToken = newToken(foundCollection.displayName);
     let linkNode = newNode(linkToken);
     findCollection(linkNode, context);
+    /*
+    let attribute = attr.attribute;
+    
+    
+
+    
+    
+    
+    let varName = `${ent.name}|${attr.name}`.replace(/ /g,'');
+    attribute.variable = varName;
+    attribute.refs = [ent];
+    attribute.project = true;
+    attr.relationships.push(relationship);
+    ent.relationships.push(relationship);
+    ent.entity.handled = true;*/
+    
+    
+    
     // Build a new attribute node
     let newName = `${linkNode.name}|${attr.name}`.replace(/ /g,'');
     let nToken = newToken(newName);
