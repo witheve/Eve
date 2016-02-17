@@ -918,9 +918,9 @@ function stringToFunction(word: string): BuiltInFunction {
       return {name: ">", type: FunctionTypes.FILTER, attribute: "length", fields: ["a", "b"], project: false};
     case "younger":
       return {name: "<", type: FunctionTypes.FILTER, attribute: "age", fields: ["a", "b"], project: false};
-    /*case "&":
+    case "&":
     case "and":
-      return {name: "and", type: FunctionTypes.BOOLEAN, fields: [], project: false};*/
+      return {name: "and", type: FunctionTypes.BOOLEAN, fields: [], project: false};
     case "or":
       return {name: "or", type: FunctionTypes.BOOLEAN, fields: [], project: false};
     case "total":
@@ -1144,11 +1144,14 @@ function formTree(node: Node, tree: Node, context: Context): any {
     // If there are any open arguments that take a function, attach it there
     // Otherwise, attach the node to the root
     tree.addChild(node);
-    let orphans = tree.children.filter((child) => child.relationships.length === 0 && child.children.length === 0);
-    for (let orphan of orphans) {
-      removeNode(orphan);
-      formTree(orphan, tree, context);
-    } 
+    
+    if (node.fxn.fields.length > 0) {
+      let orphans = tree.children.filter((child) => child.relationships.length === 0 && child.children.length === 0);
+      for (let orphan of orphans) {
+        removeNode(orphan);
+        formTree(orphan, tree, context);
+      } 
+    }
   }
   
   // Handle entities
