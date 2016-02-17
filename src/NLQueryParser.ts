@@ -1095,27 +1095,17 @@ function formTree(node: Node, tree: Node, context: Context): any {
   // -------------------------------------
   
   // Find a collection, entity, attribute, or function
-  findCollection(node, context);
-  if (node.found) {
-    
-  
-  } else {
-    findEntity(node, context);  
-    if (node.found) {
-      
-    
-    } else {
-      findAttribute(node, context);
-      if (node.found) {
-        
-        
-      } else {
-        findFunction(node, context);  
-        if (node.found) {
-        
-        
-        } else {
-          log(node.name + " was not found anywhere!");
+  if (!node.found) {
+    findCollection(node, context);
+    if (!node.found) {
+      findEntity(node, context); 
+      if (!node.found) {
+        findAttribute(node, context);
+        if (!node.found) {
+          findFunction(node, context);  
+          if (!node.found) {
+            log(node.name + " was not found anywhere!");
+          }
         }
       }
     }
@@ -1134,7 +1124,7 @@ function formTree(node: Node, tree: Node, context: Context): any {
   // A   X X   X
   // F X       X
   
-  // Handle compound nodes
+  log("Matching: " + node.name);
   
   // Handle functions
   if (node.hasProperty(Properties.FUNCTION)) {
@@ -1187,6 +1177,10 @@ function formTree(node: Node, tree: Node, context: Context): any {
     }
   }
   
+  // Remove matched nodes from orphans
+  if (node.parent !== undefined) {
+    context.orphans.splice(context.orphans.indexOf(node),1);
+  }
   
   
   log(tree.toString());
@@ -1211,7 +1205,7 @@ function collapseNode(node: Node, context: Context): Node {
         let nToken = newToken(newName);
         let nNode = newNode(nToken);
         let nAttribute: Attribute = {
-          id: attribute.attribute.id,
+          id: newName,
           refs: [entity],
           node: nNode,
           displayName: newName,
