@@ -57,6 +57,7 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
     context = treeResult.context;
   }
   // Create the query from the new tree
+  log("Building query...");
   let query = formQuery(tree);
 
   let intent = Intents.QUERY;
@@ -1003,6 +1004,7 @@ function formTree(node: Node, tree: Node, context: Context): any {
   // -------------------------------------
   // Step 1: Build n-grams
   // -------------------------------------
+  log("ngrams:");
   
   // Flatten the tree
   let nextNode = tree;
@@ -1011,7 +1013,7 @@ function formTree(node: Node, tree: Node, context: Context): any {
     nodes.push(nextNode);
     nextNode = nextNode.next();
   }
-
+  
   // Build ngrams
   // Initialize the ngrams with 1-grams
   let ngrams: Array<Array<Node>> = nodes.map((node) => [node]);
@@ -1036,7 +1038,7 @@ function formTree(node: Node, tree: Node, context: Context): any {
     offset = ngrams.length;
     ngrams = ngrams.concat(newNgrams);
   }
-
+  
   // Check each ngram for a display name
   let matchedNgrams: Array<Array<Node>> = [];
   for (let i = ngrams.length - 1; i >= 0; i--) {
@@ -1064,7 +1066,7 @@ function formTree(node: Node, tree: Node, context: Context): any {
       }
     }
   }
-
+  
   // Turn matched ngrams into compound nodes
   for (let ngram of matchedNgrams) {
     // Don't do anything for 1-grams
@@ -1083,12 +1085,12 @@ function formTree(node: Node, tree: Node, context: Context): any {
     // Inherit properties from the nodes
     compoundNode.properties = lastGram.properties;    
     compoundNode.properties.push(Properties.COMPOUND);
-    compoundNode.properties.splice(compoundNode.properties.indexOf(Properties.SUBSUMED),1);
+    compoundNode.properties.splice(compoundNode.properties.indexOf(Properties.SUBSUMED),1); // Don't inherit subsumed property
     // The compound node results from the new node,
-    // so the cpound node replaces it
+    // so the compound node replaces it
     node = compoundNode;
   }
-
+  log('-------');
 
   // -------------------------------------
   // Step 2: Identify the node
@@ -1126,12 +1128,27 @@ function formTree(node: Node, tree: Node, context: Context): any {
   
   log("Matching: " + node.name);
   
+  // If the node is compound, replace the last subsumed node with it
+  if (node.hasProperty(Properties.COMPOUND)) {
+    let subsumedNode = node.constituents[node.constituents.length - 2];
+    if (subsumedNode.parent !== undefined) {
+      log(`Replacing ${subsumedNode.name} with ${node.name}`)
+      insertBeforeNode(node,subsumedNode);
+      removeBranch(subsumedNode);
+      return {tree: tree, context: context};  
+    }
+  }
+  
   // Handle functions
   if (node.hasProperty(Properties.FUNCTION)) {
     // If there are any open arguments that take a function, attach it there
     // Otherwise, attach the node to the root
     tree.addChild(node);
-    context.orphans.map((orphan) => formTree(orphan,tree,context));
+    let orphans = tree.children.filter((child) => child.relationships.length === 0 && child.children.length === 0);
+    for (let orphan of orphans) {
+      removeNode(orphan);
+      formTree(orphan, tree, context);
+    } 
   }
   
   // Handle entities
@@ -1142,13 +1159,14 @@ function formTree(node: Node, tree: Node, context: Context): any {
       let arg = entityArgs.pop();
       arg.addChild(node);
       arg.found = true;
+      log("Matching with function: " + arg.parent.name);
     }
     
     // Otherwise, find a relationship between the entity and any other nodes
     
     // If no relationship exists, push it to the context
     else {
-      context.orphans.push(node);  
+      tree.addChild(node);  
     }
   }
   
@@ -1166,6 +1184,7 @@ function formTree(node: Node, tree: Node, context: Context): any {
         insertBeforeNode(collapsedNode, fxnNode); 
         removeBranch(fxnNode);
       }
+      log("Matching with function: " + arg.parent.name);
     }
     
     
@@ -1173,13 +1192,8 @@ function formTree(node: Node, tree: Node, context: Context): any {
     
     // If no relationship exists, attach the node to the root
     else {
-      context.orphans.push(node);  
+      tree.addChild(node);  
     }
-  }
-  
-  // Remove matched nodes from orphans
-  if (node.parent !== undefined) {
-    context.orphans.splice(context.orphans.indexOf(node),1);
   }
   
   //log(tree.toString());
@@ -1301,7 +1315,7 @@ function findEveEntity(search: string): Entity {
       id: foundEntity.entity,
       displayName: name,
       variable: foundEntity.entity,
-      project: true,
+      project: false,
     }    
     log(" Found: " + entity.id);
     return entity;
@@ -1334,7 +1348,7 @@ function findEveCollection(search: string): Collection {
       id: foundCollection.collection,
       displayName: name,
       variable: name,
-      project: true,
+      project: false,
     }
     log(" Found: " + collection.id);
     return collection;
@@ -1354,7 +1368,7 @@ function findEveAttribute(name: string): Attribute {
       id: foundAttribute.attribute,
       displayName: name,
       variable: `${name}`.replace(/ /g,''),
-      project: true,
+      project: false,
     }
     log(" Found: " + name);
     log(attribute);
@@ -1380,6 +1394,7 @@ interface Relationship {
 
 function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relationship {
   log(`Finding relationship between "${nodeA.name}" and "${nodeB.name}"`);
+  let relationship = {type: RelationshipTypes.NONE};
   // Sort the nodes in order
   // 1) Collection 
   // 2) Entity 
@@ -1389,12 +1404,17 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
   let nodes = [nodeA,nodeB].sort((a,b) => a.properties[0] - b.properties[0]);
   nodeA = nodes[0]
   nodeB = nodes[1];
-  
+  // Find the proper relationship
   if (nodeA.hasProperty(Properties.ENTITY) && nodeB.hasProperty(Properties.ATTRIBUTE)) {
-    return findEntToAttrRelationship(nodeA, nodeB, context);
+    relationship = findEntToAttrRelationship(nodeA, nodeB, context);
   }
-  
-  return {type: RelationshipTypes.NONE};
+  // Add relationships to the nodes and context
+  if (relationship.type !== RelationshipTypes.NONE) {
+    nodeA.relationships.push(relationship);
+    nodeB.relationships.push(relationship);
+    context.relationships.push(relationship);
+  }
+  return relationship;
   
   /*
   // If both nodes are Collections, find their relationship
@@ -1968,33 +1988,35 @@ function formQuery(node: Node): Query {
   }*/
   // Handle attributes -------------------------------
   if (node.hasProperty(Properties.ATTRIBUTE)) {
-    log("Building attribute term for: " + node.name);
-    let attr = node.attribute;
-    let entity = attr.refs[0].entity !== undefined ? attr.refs[0].entity : attr.refs[0].collection;
-    
-    let fields: Array<Field> = [];
-    let entityField = {name: "entity", 
-                       value: entity.variable, 
-                       variable: false,
-                      };
-                       
-    let attrField = {name: "attribute", 
-                     value: attr.id, 
-                     variable: false
-                    };
-
-    let valueField = {name: "value", 
-                      value: attr.variable, 
-                      variable: true
-                     };
-                            
-    let term: Term = {
-      type: "select",
-      table: "entity eavs",
-      fields: [entityField, attrField, valueField],
-    }
-    query.terms.push(term);
     if (node.attribute.project) {
+      log("Building attribute term for: " + node.name);
+      let attr = node.attribute;
+      let entity = attr.refs[0].entity !== undefined ? attr.refs[0].entity : attr.refs[0].collection;
+      
+      let fields: Array<Field> = [];
+      let entityField = {name: "entity", 
+                        value: entity.variable, 
+                        variable: false,
+                        };
+                        
+      let attrField = {name: "attribute", 
+                      value: attr.id, 
+                      variable: false
+                      };
+
+      let valueField = {name: "value", 
+                        value: attr.variable, 
+                        variable: true
+                      };
+                              
+      let term: Term = {
+        type: "select",
+        table: "entity eavs",
+        fields: [entityField, attrField, valueField],
+      }
+      query.terms.push(term);
+    
+      // Build the project
       let projectAttribute = {name: attr.variable, 
                               value: attr.variable, 
                               variable: true
