@@ -1182,9 +1182,7 @@ function formTree(node: Node, tree: Node, context: Context): any {
     context.orphans.splice(context.orphans.indexOf(node),1);
   }
   
-  
-  log(tree.toString());
-  
+  //log(tree.toString());
   return {tree: tree, context: context};
 }
 
@@ -1205,7 +1203,7 @@ function collapseNode(node: Node, context: Context): Node {
         let nToken = newToken(newName);
         let nNode = newNode(nToken);
         let nAttribute: Attribute = {
-          id: newName,
+          id: attribute.attribute.id,
           refs: [entity],
           node: nNode,
           displayName: newName,
@@ -1997,7 +1995,7 @@ function formQuery(node: Node): Query {
     }
     query.terms.push(term);
     if (node.attribute.project) {
-      let projectAttribute = {name: `${attr.id.replace(new RegExp(" ", 'g'),"")}` , 
+      let projectAttribute = {name: attr.variable, 
                               value: attr.variable, 
                               variable: true
                              };
