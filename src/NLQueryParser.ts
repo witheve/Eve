@@ -918,9 +918,9 @@ function stringToFunction(word: string): BuiltInFunction {
       return {name: ">", type: FunctionTypes.FILTER, attribute: "length", fields: ["a", "b"], project: false};
     case "younger":
       return {name: "<", type: FunctionTypes.FILTER, attribute: "age", fields: ["a", "b"], project: false};
-    case "&":
+    /*case "&":
     case "and":
-      return {name: "and", type: FunctionTypes.BOOLEAN, fields: [], project: false};
+      return {name: "and", type: FunctionTypes.BOOLEAN, fields: [], project: false};*/
     case "or":
       return {name: "or", type: FunctionTypes.BOOLEAN, fields: [], project: false};
     case "total":
@@ -1196,7 +1196,8 @@ function formTree(node: Node, tree: Node, context: Context): any {
     }
   }
   
-  //log(tree.toString());
+  log("Tree:");
+  log(tree.toString());
   return {tree: tree, context: context};
 }
 
@@ -1225,6 +1226,7 @@ function collapseNode(node: Node, context: Context): Node {
           project: true,
         }
         nNode.attribute = nAttribute;
+        nNode.relationships.push(relationship);
         nNode.properties.push(Properties.ATTRIBUTE);
         nNode.found = true;
         return nNode;
