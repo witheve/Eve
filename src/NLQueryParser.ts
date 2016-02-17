@@ -882,7 +882,6 @@ interface Context {
   fxns: Array<BuiltInFunction>,
   groupings: Array<Node>,
   relationships: Array<Relationship>,
-  orphans: Array<Node>,
   maybeEntities: Array<Node>,
   maybeAttributes: Array<Node>,
   maybeCollections: Array<Node>,
@@ -899,7 +898,6 @@ function newContext(): Context {
     fxns: [],
     groupings: [],
     relationships: [],
-    orphans: [],
     maybeEntities: [],
     maybeAttributes: [],
     maybeCollections: [],
@@ -951,7 +949,7 @@ function stringToFunction(word: string): BuiltInFunction {
       return {name: "/", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
     case "is a":
     case "is an":
-      return {name: "insert", type: FunctionTypes.INSERT, fields: ["entity", "attribute", "value"], project: false}; 
+      return {name: "insert", type: FunctionTypes.INSERT, fields: ["entity", "attribute", "set to"], project: false}; 
     case "of":
     case "'s":
     case "'":
@@ -977,10 +975,23 @@ function findFunction(node: Node, context: Context): boolean {
     argNode.properties.push(Properties.ARGUMENT);
     if (fxn.project && i === 0) {
       argNode.properties.push(Properties.OUTPUT);
+      argNode.found = true;
+      let outputToken = newToken("output");
+      let outputNode = newNode(outputToken);
+      let outputAttribute = {
+        id: outputNode.name,
+        displayName: outputNode.name,
+        variable: outputNode.name,
+        node: outputNode,
+        project: false,
+      }
+      outputNode.attribute = outputAttribute;
+      outputNode.found = true;
+      argNode.addChild(outputNode);          
     } else {
       argNode.properties.push(Properties.INPUT);
     }
-    return newNode(argToken);
+    return argNode;
   });
   node.properties.push(Properties.FUNCTION);
   for (let arg of args) {
@@ -1176,7 +1187,7 @@ function formTree(node: Node, tree: Node, context: Context): any {
   // Handle attributes
   if (node.hasProperty(Properties.ATTRIBUTE)) {
     // If there are any open arguments that take an attribute, attach it there
-    let attributeArgs = findLeafNodes(tree).filter((node) => node.hasProperty(Properties.INPUT) && node.name === "attribute");
+    let attributeArgs = findLeafNodes(tree).filter((node) => node.hasProperty(Properties.INPUT) && (node.name === "attribute" || node.name === "value"));
     if (attributeArgs.length > 0) {
       let arg = attributeArgs.pop();
       arg.addChild(node);
@@ -1943,84 +1954,81 @@ function formQuery(node: Node): Query {
     }
     return query;
   }*/
-  /*
   // Handle functions -------------------------------
-  if (node.fxn !== undefined) {
+  if (node.hasProperty(Properties.FUNCTION)) {
     // Skip functions with no arguments
     if (node.fxn.fields.length === 0) {
       return query;
     }
     
     // Collection all input and output nodes which were found
-    let nestedArgs = node.children.filter((child) => (child.hasProperty(Properties.INPUT) || child.hasProperty(Properties.OUTPUT)) 
-                                                      && child.found === true)
-                                  .map(findLeafNodes);
-    let args = flattenNestedArray(nestedArgs);
-
+    let allArgsFound = node.children.every((child) => child.found);
+        
     // If we have the right number of arguments, proceed
     // @TODO surface an error if the arguments are wrong
     let output;
-    if (args.length === node.fxn.fields.length) {
+    if (allArgsFound) {
+      let args = node.children.filter((child) => child.hasProperty(Properties.ARGUMENT)).map((arg) => arg.children[0]);
       let fields: Array<Field> = args.map((arg,i) => {
         return {name: `${node.fxn.fields[i]}`, 
-               value: `${arg.attribute.variable}`, 
-            variable: true};
+                value: `${arg.attribute.variable}`, 
+                variable: true};
       });
       let term: Term = {
         type: "select",
         table: node.fxn.name,
         fields: fields,
       }
-      // If an aggregate is grouped, we have to push the aggregate into a subquery
-      if (node.fxn.type === FunctionTypes.AGGREGATE && query.subqueries.length > 0) {
-        let subquery = query.subqueries[0];
-        if (subquery !== undefined) {
-          subquery.terms.push(term);
-        } 
-      } else {
-        query.terms.push(term);  
-      }
+      query.terms.push(term);
       // project output if necessary
       if (node.fxn.project === true) {
-        let outputFields: Array<Field> = args.filter((arg) => arg.hasProperty(Properties.OUTPUT))
-                                            .map((arg) => {return {name: `${node.fxn.name}`, 
-                                                                  value: `${arg.attribute.variable}`, 
-                                                                variable: true}});
-        projectFields = projectFields.concat(outputFields);
-        query.projects = [];
+        let outputFields: Array<Field> = args.filter((arg) => arg.parent.hasProperty(Properties.OUTPUT))
+                                             .map((arg) => {return {name: `${node.fxn.name}`, 
+                                                                    value: `${arg.attribute.variable}`, 
+                                                                    variable: true}});
+        let project = {
+          type: "project!",
+          fields: outputFields,
+        }
+        query.projects.push(project);
       }
     }
-  }*/
+  }
   // Handle attributes -------------------------------
   if (node.hasProperty(Properties.ATTRIBUTE)) {
-    if (node.attribute.project) {
-      log("Building attribute term for: " + node.name);
-      let attr = node.attribute;
-      let entity = attr.refs[0].entity !== undefined ? attr.refs[0].entity : attr.refs[0].collection;
-      
-      let fields: Array<Field> = [];
-      let entityField = {name: "entity", 
-                        value: entity.variable, 
-                        variable: false,
-                        };
-                        
-      let attrField = {name: "attribute", 
-                      value: attr.id, 
-                      variable: false
-                      };
-
-      let valueField = {name: "value", 
-                        value: attr.variable, 
-                        variable: true
-                      };
-                              
-      let term: Term = {
-        type: "select",
-        table: "entity eavs",
-        fields: [entityField, attrField, valueField],
-      }
-      query.terms.push(term);
     
+    log("Building attribute term for: " + node.name);
+    let fields: Array<Field> = [];
+    let attr = node.attribute;
+    if (attr.refs !== undefined) {
+      let entityVar = attr.refs[0].entity !== undefined ? attr.refs[0].entity.variable : attr.refs[0].collection.variable;
+      let entityField = {name: "entity", 
+                value: entityVar, 
+                variable: false,
+                };
+      fields.push(entityField);
+    }
+                      
+    let attrField = {name: "attribute", 
+                    value: attr.id, 
+                    variable: false
+                    };
+    fields.push(attrField);                
+                    
+    let valueField = {name: "value", 
+                      value: attr.variable, 
+                      variable: true
+                    };
+    fields.push(valueField);
+                            
+    let term: Term = {
+      type: "select",
+      table: "entity eavs",
+      fields: fields,
+    }
+    query.terms.push(term);
+    
+    if (node.attribute.project) {
       // Build the project
       let projectAttribute = {name: attr.variable, 
                               value: attr.variable, 
