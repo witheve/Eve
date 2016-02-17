@@ -1223,9 +1223,13 @@ function formTree(node: Node, tree: Node, context: Context): any {
       for (let orphan of orphans) {
         relationship = findRelationship(node, orphan, context);
         if (relationship.type !== RelationshipTypes.NONE) {
-          let implicitNode = relationship.implicitNodes[0];
-          removeNode(orphan);
-          formTree(implicitNode, tree, context);
+          if (relationship.implicitNodes.length > 0) {
+            removeNode(orphan);
+            formTree(orphan, tree, context);
+            for (let iNode of relationship.implicitNodes) {
+              formTree(iNode, tree, context);    
+            }  
+          }
           break;
         }
       }
@@ -1276,6 +1280,7 @@ interface Entity {
   refs?: Array<Node>,
   variable: string,
   project: boolean,
+  handled?: boolean,
 }
 
 function cloneEntity(entity: Entity): Entity {
@@ -1296,6 +1301,7 @@ interface Collection {
   refs?: Array<Node>,
   variable: string,
   project: boolean,
+  handled?: boolean,
 }
 
 function cloneCollection(collection: Collection): Collection {
@@ -1316,6 +1322,7 @@ interface Attribute {
   refs?: Array<Node>,
   variable: string,
   project: boolean,
+  handled?: boolean,
 }
 
 // Returns the entity with the given display name.
@@ -1669,7 +1676,7 @@ function findCollToAttrRelation(coll: Node, attr: Node, context: Context): Relat
     let nNode = newNode(nToken);
     let nAttribute: Attribute = {
       id: attr.attribute.id,
-      refs: [linkNode, coll],
+      refs: [linkNode],
       node: nNode,
       displayName: newName,
       variable: newName,
@@ -1679,10 +1686,26 @@ function findCollToAttrRelation(coll: Node, attr: Node, context: Context): Relat
     nNode.relationships.push(relationship);
     nNode.properties.push(Properties.ATTRIBUTE);
     nNode.found = true;
+    // Build a link attribute node
+    let newName2 = coll.collection.variable;
+    let nToken2 = newToken(newName2);
+    let nNode2 = newNode(nToken2);
+    let nAttribute2: Attribute = {
+      id: coll.collection.displayName,
+      refs: [linkNode],
+      node: nNode2,
+      displayName: newName2,
+      variable: newName2,
+      project: false,
+    }
+    nNode2.attribute = nAttribute2;
+    nNode2.relationships.push(relationship);
+    nNode2.properties.push(Properties.ATTRIBUTE);
+    nNode2.found = true;
     // Project what we need to
     linkNode.collection.project = true;
     coll.collection.project = true;
-    return {type: RelationshipTypes.ONEHOP, nodes: [coll, attr], implicitNodes: [nNode]};
+    return {type: RelationshipTypes.ONEHOP, nodes: [coll, attr], implicitNodes: [nNode, nNode2]};
   }
   /*
   // Not sure if this one works... using the entity table, a 2 hop link can
@@ -2017,7 +2040,7 @@ function formQuery(node: Node): Query {
     }
   }
   // Handle attributes -------------------------------
-  if (node.hasProperty(Properties.ATTRIBUTE)) {
+  if (node.hasProperty(Properties.ATTRIBUTE) && !node.attribute.handled) {
     
     log("Building attribute term for: " + node.name);
     let fields: Array<Field> = [];
@@ -2025,11 +2048,12 @@ function formQuery(node: Node): Query {
     if (attr.refs !== undefined) {
       for (let ref of attr.refs) {
         let entityVar = ref.entity !== undefined ? ref.entity.variable : ref.collection.variable;
+        let fieldVar = ref.entity !== undefined ? false : true;
         if (fields.length === 0) {
           let entityField = {
             name: "entity", 
             value: entityVar, 
-            variable: false,
+            variable: fieldVar,
           };
           fields.push(entityField);
         }
@@ -2068,10 +2092,11 @@ function formQuery(node: Node): Query {
                              };
       projectFields.push(projectAttribute);
     }
+    node.attribute.handled = true;
   }
   
   // Handle collections -------------------------------
-  if (node.hasProperty(Properties.COLLECTION) && !node.hasProperty(Properties.PRONOUN)) {
+  if (node.hasProperty(Properties.COLLECTION) && !node.collection.handled) {
     let entityField = {
       name: "entity", 
       value: node.collection.variable, 
@@ -2096,6 +2121,7 @@ function formQuery(node: Node): Query {
                         };
       projectFields.push(collectionField);
     }
+    node.collection.handled = true;
   }
   
   /*
