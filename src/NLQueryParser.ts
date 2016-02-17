@@ -1213,14 +1213,15 @@ function formTree(node: Node, tree: Node, context: Context): any {
       arg.addChild(node);
       arg.found = true;
       let fxnNode = arg.parent;
-      let collapsedNode = collapseNode(fxnNode, context);
-      if (collapsedNode !== undefined) {
-        insertBeforeNode(collapsedNode, fxnNode); 
-        removeBranch(fxnNode);
+      if (fxnNode.fxn.type === FunctionTypes.SELECT) {
+        let collapsedNode = collapseNode(fxnNode, context);
+        if (collapsedNode !== undefined) {
+          //insertBeforeNode(collapsedNode, fxnNode); 
+          removeBranch(fxnNode);
+        }
+        formTree(collapsedNode, tree, context);
       }
-      formTree(collapsedNode, tree, context);
     }
-    
     
     // Otherwise, find a relationship between the attribute and any other nodes
     
@@ -1238,8 +1239,6 @@ function formTree(node: Node, tree: Node, context: Context): any {
 
 function collapseNode(node: Node, context: Context): Node {
   if (!node.hasProperty(Properties.FUNCTION)) {
-    return undefined;
-  } else if (node.fxn.type !== FunctionTypes.SELECT) {
     return undefined;
   }
   log("Collapsing node: " + node.name); 
@@ -1991,6 +1990,7 @@ function formQuery(node: Node): Query {
           type: "project!",
           fields: outputFields,
         }
+        query.projects = []; // Clears all previous projects
         query.projects.push(project);
       }
     }
