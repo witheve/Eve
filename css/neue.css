@@ -126,6 +126,10 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .card .attribute-name { color: rgb(106,138,156); }
 .card + .card { margin-top:40px; }
 
+.card > .table {
+    margin: 20px 30px;
+}
+
 /*---------------------------------------------------------
 - Selector
 ---------------------------------------------------------*/
@@ -139,7 +143,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 - Wiki editor
 ---------------------------------------------------------*/
 
-.wiki-editor { overflow:auto; }
+.wiki-editor { overflow:auto; min-height: 92px; }
 .wiki-editor .CodeMirror { font-family: "Lato"; font-size: 16px; color: rgb(84,84,84); font-weight:400; width:450px; }
 .wiki-editor .CodeMirror-lines { padding: 0; }
 .wiki-editor .CodeMirror-line { padding: 0; }
