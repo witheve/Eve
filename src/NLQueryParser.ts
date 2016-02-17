@@ -18,7 +18,7 @@ export enum Intents {
   QUERY,
   INSERT,
   MOREINFO,
-  NORESULT,  
+  NORESULT,
 }
 
 // Entry point for NLQP
@@ -950,7 +950,6 @@ function stringToFunction(word: string): BuiltInFunction {
     case "is a":
     case "is an":
       return {name: "insert", type: FunctionTypes.INSERT, fields: ["entity", "attribute", "set to"], project: false}; 
-    case "of":
     case "'s":
     case "'":
       return {name: "select", type: FunctionTypes.SELECT, fields: ["entity", "attribute"], project: false}; 
