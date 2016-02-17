@@ -370,7 +370,7 @@ export function CSV(elem:CSVElem):Element {
   return {c: "flex-row csv", children: values.map((val) => value({t: "span", autolink, text: val, data}))};
 }
 
-interface TableElem extends Element { rows: {}[], sortable?: boolean, editCell?: Handler<Event>, editRow?: Handler<Event>, editField?: Handler<Event>, ignoreFields?: string[], ignoreTemp?: boolean, data?: any, groups?: string[]}
+interface TableElem extends Element { rows: {}[], sortable?: boolean, editCell?: Handler<Event>, editRow?: Handler<Event>, confirmRow?: boolean, editField?: Handler<Event>, ignoreFields?: string[], ignoreTemp?: boolean, data?: any, groups?: string[]}
 export function table(elem:TableElem):Element {
   let {rows, ignoreFields = ["__id"], sortable = false, ignoreTemp = true, data = undefined, noHeader = false, groups = []} = elem;
   if(!rows.length) {
@@ -409,6 +409,15 @@ export function table(elem:TableElem):Element {
       dispatch().commit();
     }
     var removeRow = (evt, elem) => editRow(new CustomEvent("editrow", {detail: "remove"}), elem);
+
+    if(elem.confirmRow) {
+      var confirmRow = (evt, elem) => {
+        let rowElem = elem.row;
+        rowElem.state.confirmed = true;
+        addRow(evt, rowElem);
+        rowElem.state.confirmed = false;
+      };
+    }
   }
   if(editField) {
     // @FIXME: Wrap these with the logic for the editing modal, only add/remove on actual completed field
@@ -510,8 +519,11 @@ export function table(elem:TableElem):Element {
     if(!localState["adder"]) {
       localState["adder"] = {};
     }
-    let rowElem = {c: "row group add-row", table: elem, row: [], children: []};
+    let rowElem = {c: "row group add-row", table: elem, state: localState, fields, data, row: [], children: []};
     for(let field of fields) rowElem.children.push(value({t: "input", c: "column field", editable: true, input: trackInput, blur: addRow, row: rowElem, keydown: handleCellKeys, attribute: field, field, fields, data, table: elem, state: localState, text: localState["adder"][field] || ""}));
+    if(confirmRow) {
+      rowElem.children.push({c: "confirm-row ion-checkmark-round", row: rowElem, click: confirmRow});
+    }
     body.children.push(rowElem);
   }
 
