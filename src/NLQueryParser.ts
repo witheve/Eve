@@ -1171,9 +1171,11 @@ function formTree(node: Node, tree: Node, context: Context): any {
     let entityArgs = findLeafNodes(tree).filter((node) => node.hasProperty(Properties.INPUT) && node.name === "entity");
     if (entityArgs.length > 0) {
       let arg = entityArgs.pop();
-      arg.addChild(node);
-      arg.found = true;
-      log("Matching with function: " + arg.parent.name);
+      let collapsedNode = addNodeToArgument(node, arg, context);
+      if (collapsedNode !== undefined) {
+        removeBranch(arg.parent);
+        formTree(collapsedNode, tree, context);
+      }
     }
     
     // Otherwise, find a relationship between the entity and any other nodes
@@ -1190,9 +1192,11 @@ function formTree(node: Node, tree: Node, context: Context): any {
     let collectionArgs = findLeafNodes(tree).filter((node) => node.hasProperty(Properties.INPUT) && node.name === "entity");
     if (collectionArgs.length > 0) {
       let arg = collectionArgs.pop();
-      arg.addChild(node);
-      arg.found = true;
-      log("Matching with function: " + arg.parent.name);
+      let collapsedNode = addNodeToArgument(node, arg, context);
+      if (collapsedNode !== undefined) {
+        removeBranch(arg.parent);
+        formTree(collapsedNode, tree, context);
+      }
     }
     
     // Otherwise, find a relationship between the entity and any other nodes
@@ -1209,16 +1213,9 @@ function formTree(node: Node, tree: Node, context: Context): any {
     let attributeArgs = findLeafNodes(tree).filter((node) => node.hasProperty(Properties.INPUT) && (node.name === "attribute" || node.name === "value"));
     if (attributeArgs.length > 0) {
       let arg = attributeArgs.pop();
-      log("Matching with function: " + arg.parent.name);
-      arg.addChild(node);
-      arg.found = true;
-      let fxnNode = arg.parent;
-      if (fxnNode.fxn.type === FunctionTypes.SELECT) {
-        let collapsedNode = collapseNode(fxnNode, context);
-        if (collapsedNode !== undefined) {
-          //insertBeforeNode(collapsedNode, fxnNode); 
-          removeBranch(fxnNode);
-        }
+      let collapsedNode = addNodeToArgument(node, arg, context);
+      if (collapsedNode !== undefined) {
+        removeBranch(arg.parent);
         formTree(collapsedNode, tree, context);
       }
     }
@@ -1236,18 +1233,24 @@ function formTree(node: Node, tree: Node, context: Context): any {
   return {tree: tree, context: context};
 }
 
-
-function collapseNode(node: Node, context: Context): Node {
-  if (!node.hasProperty(Properties.FUNCTION)) {
+// Adds a node to an argument. If adding the node completes a select,
+// a new node will be returned
+function addNodeToArgument(node: Node, arg: Node, context: Context): Node {
+  let fxnNode = arg.parent;
+  if (!fxnNode.hasProperty(Properties.FUNCTION)) {
     return undefined;
   }
-  log("Collapsing node: " + node.name); 
-  let leafs = findLeafNodes(node);
-  let allArgs = leafs.every((node) => node.hasProperty(Properties.ARGUMENT));
-  // If the node is a function and all arguments are filled
-  if (node.hasProperty(Properties.FUNCTION) && !allArgs) {
-    if (node.fxn.type === FunctionTypes.SELECT) {
-      let relationship = findRelationship(leafs[0],leafs[1],context);
+  log("Matching with function: " + fxnNode.name);
+  arg.addChild(node);
+  arg.found = true;
+  
+  let leafs = findLeafNodes(fxnNode);
+  let allArgsFilled = !leafs.every((node) => node.hasProperty(Properties.ARGUMENT));
+  // If all arguments are filled, do something
+  if (allArgsFilled) {
+    if (fxnNode.fxn.type === FunctionTypes.SELECT) {
+      log("Collapsing node: " + fxnNode.name);
+      let relationship = findRelationship(leafs[0], leafs[1], context);
       // For a direct relationship, create a new node representing the entity attribute
       if (relationship.type === RelationshipTypes.DIRECT) {
         let entity = relationship.nodes[0];
@@ -2001,7 +2004,6 @@ function formQuery(node: Node): Query {
     log("Building attribute term for: " + node.name);
     let fields: Array<Field> = [];
     let attr = node.attribute;
-    console.log(attr.refs);
     if (attr.refs !== undefined) {
       if (attr.refs[0].entity) {
         let entityField = {name: "entity", 
