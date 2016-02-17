@@ -2127,14 +2127,14 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
             console.log(chain);
             chain.commit();
             
-          } else {
-            console.log("remove");
+          } else if(event.detail === "remove") {
+            console.log("@FIXME: Implement remove");
             //dispatch("remove entity attribute", {entity, attribute: row.attribute, value: row.value}).commit();
           }
         }
       }
 
-      return {key: `${params.paneId || params.data.paneId}|${params.search || ""}`, rows: results, data: params.data, editCell: (evt, elem) => console.log("cell", evt, elem), editRow, confirmRow: true}
+      return {key: `${params.paneId || params.data.paneId}|${params.search || ""}`, rows: results, data: params.data, editCell: (evt, elem) => console.log("cell", evt, elem), editRow, confirmRow: true, removeRow: false};
     }
     
     return {rows: results, data: params.data};

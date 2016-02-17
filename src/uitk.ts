@@ -370,7 +370,7 @@ export function CSV(elem:CSVElem):Element {
   return {c: "flex-row csv", children: values.map((val) => value({t: "span", autolink, text: val, data}))};
 }
 
-interface TableElem extends Element { rows: {}[], sortable?: boolean, editCell?: Handler<Event>, editRow?: Handler<Event>, confirmRow?: boolean, editField?: Handler<Event>, ignoreFields?: string[], ignoreTemp?: boolean, data?: any, groups?: string[]}
+interface TableElem extends Element { rows: {}[], sortable?: boolean, editCell?: Handler<Event>, editRow?: Handler<Event>, confirmRow?: boolean, removeRow?: boolean, editField?: Handler<Event>, ignoreFields?: string[], ignoreTemp?: boolean, data?: any, groups?: string[]}
 export function table(elem:TableElem):Element {
   let {rows, ignoreFields = ["__id"], sortable = false, ignoreTemp = true, data = undefined, noHeader = false, groups = []} = elem;
   if(!rows.length) {
@@ -408,7 +408,7 @@ export function table(elem:TableElem):Element {
       localState["adder"][elem["field"]] = node.value;
       dispatch().commit();
     }
-    var removeRow = (evt, elem) => editRow(new CustomEvent("editrow", {detail: "remove"}), elem);
+    var removeRow = elem.removeRow === undefined ? (evt, elem) => editRow(new CustomEvent("editrow", {detail: "remove"}), elem) : undefined;
 
     if(elem.confirmRow) {
       var confirmRow = (evt, elem) => {
@@ -501,7 +501,7 @@ export function table(elem:TableElem):Element {
           if(field === grouped) continue;
           subrowElem.children.push(value({c: "field", text: subrow[field], editable: editCell ? true : false, blur: editCell, row: subrowElem, field, data, keydown: handleCellKeys}));
         }
-        if(editRow) subrowElem.children.push({c: "controls", children: [{c: "remove-row ion-android-close", row: subrowElem, click: removeRow}]});
+        if(removeRow) subrowElem.children.push({c: "controls", children: [{c: "remove-row ion-android-close", row: subrowElem, click: removeRow}]});
         ix++;
         subrow = rows[ix];
       }
@@ -510,7 +510,7 @@ export function table(elem:TableElem):Element {
         for(let field of fields) {
           rowElem.children.push(value({c: "column field", text: row[field], editable: editCell ? true : false, blur: editCell, row: rowElem, field, data, keydown: handleCellKeys}));
         }
-        if(editRow) rowElem.children.push({c: "controls", children: [{c: "remove-row ion-android-close", row: rowElem, click: removeRow}]});
+        if(removeRow) rowElem.children.push({c: "controls", children: [{c: "remove-row ion-android-close", row: rowElem, click: removeRow}]});
         ix++;
     }
     body.children.push(rowElem);
@@ -522,7 +522,7 @@ export function table(elem:TableElem):Element {
     let rowElem = {c: "row group add-row", table: elem, state: localState, fields, data, row: [], children: []};
     for(let field of fields) rowElem.children.push(value({t: "input", c: "column field", editable: true, input: trackInput, blur: addRow, row: rowElem, keydown: handleCellKeys, attribute: field, field, fields, data, table: elem, state: localState, text: localState["adder"][field] || ""}));
     if(confirmRow) {
-      rowElem.children.push({c: "confirm-row ion-checkmark-round", row: rowElem, click: confirmRow});
+      rowElem.children.push({c: "controls", children: [{c: "confirm-row ion-checkmark-round", row: rowElem, click: confirmRow}]});
     }
     body.children.push(rowElem);
   }

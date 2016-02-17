@@ -39,7 +39,7 @@ body { height: 100vh; width: 100vw; }
 /*---------------------------------------------------------
 - Controls
 ---------------------------------------------------------*/
-.controls { flex-direction: row; }
+.controls { flex-direction: row; align-items: center;}
 .controls > div { padding: 0.25em; border-radius: 2px; }
 
 div > header > .controls { opacity: 0; }
