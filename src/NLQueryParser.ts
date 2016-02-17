@@ -1184,6 +1184,25 @@ function formTree(node: Node, tree: Node, context: Context): any {
     }
   }
   
+    // Handle entities
+  if (node.hasProperty(Properties.COLLECTION)) {
+    // If there are any open arguments that take an entity, attach it there
+    let collectionArgs = findLeafNodes(tree).filter((node) => node.hasProperty(Properties.INPUT) && node.name === "entity");
+    if (collectionArgs.length > 0) {
+      let arg = collectionArgs.pop();
+      arg.addChild(node);
+      arg.found = true;
+      log("Matching with function: " + arg.parent.name);
+    }
+    
+    // Otherwise, find a relationship between the entity and any other nodes
+    
+    // If no relationship exists, push it to the context
+    else {
+      tree.addChild(node);  
+    }
+  }
+  
   // Handle attributes
   if (node.hasProperty(Properties.ATTRIBUTE)) {
     // If there are any open arguments that take an attribute, attach it there
@@ -1422,13 +1441,17 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
   nodeB = nodes[1];
   // Find the proper relationship
   if (nodeA.hasProperty(Properties.ENTITY) && nodeB.hasProperty(Properties.ATTRIBUTE)) {
-    relationship = findEntToAttrRelationship(nodeA, nodeB, context);
+    relationship = findEntToAttrRelation(nodeA, nodeB, context);
+  } else if (nodeA.hasProperty(Properties.COLLECTION) && nodeB.hasProperty(Properties.ATTRIBUTE)) {
+    relationship = findCollToAttrRelation(nodeA, nodeB, context);
   }
   // Add relationships to the nodes and context
   if (relationship.type !== RelationshipTypes.NONE) {
     nodeA.relationships.push(relationship);
     nodeB.relationships.push(relationship);
     context.relationships.push(relationship);
+  } else {
+    log("  No relationship found.");
   }
   return relationship;
   
@@ -1461,7 +1484,7 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
 }
 
 // e.g. "meetings john was in"
-function findCollectionToEntRelationship(coll: Collection, ent: Entity): Relationship {
+function findCollToEntRelation(coll: Collection, ent: Entity): Relationship {
   log(`Finding Coll -> Ent relationship between "${coll.displayName}" and "${ent.displayName}"...`);
   /*if (coll === "collections") {
     if (eve.findOne("collection entities", { entity: ent.id })) {
@@ -1495,12 +1518,12 @@ function findCollectionToEntRelationship(coll: Collection, ent: Entity): Relatio
   return { type: RelationshipTypes.NONE };
 }
 
-function findEntToAttrRelationship(entity: Node, attr: Node, context: Context): Relationship {
-  log(`Finding Ent -> Attr relationship between "${entity.name}" and "${attr.name}"...`);
-  let relationship = eve.findOne("entity eavs", { entity: entity.entity.id, attribute: attr.attribute.id });
+function findEntToAttrRelation(ent: Node, attr: Node, context: Context): Relationship {
+  log(`Finding Ent -> Attr relationship between "${ent.name}" and "${attr.name}"...`);
+  let relationship = eve.findOne("entity eavs", { entity: ent.entity.id, attribute: attr.attribute.id });
   if (relationship) {
     log("  Found a direct relationship.");
-    return {type: RelationshipTypes.DIRECT, nodes: [entity, attr]};
+    return {type: RelationshipTypes.DIRECT, nodes: [ent, attr]};
   }
   /*
   // Check for a direct relationship
@@ -1556,7 +1579,7 @@ function findEntToAttrRelationship(entity: Node, attr: Node, context: Context): 
   return { type: RelationshipTypes.NONE };
 }
 
-export function findCollectionToCollectionRelationship(collA: Collection, collB: Collection): Relationship {  
+export function findCollToCollRelation(collA: Collection, collB: Collection): Relationship {  
   log(`Finding Coll -> Coll relationship between "${collA.displayName}" and "${collB.displayName}"...`);
   // are there things in both sets?
   let intersection = eve.query(`${collA.displayName}->${collB.displayName}`)
@@ -1594,32 +1617,20 @@ export function findCollectionToCollectionRelationship(collA: Collection, collB:
   }
 }
 
-/*
-function findCollectionToAttrRelationship(coll: Collection, attr: Node, context: Context): Relationship {
+
+function findCollToAttrRelation(coll: Node, attr: Node, context: Context): Relationship {
   // Finds a direct relationship between collection and attribute
   // e.g. "pets' lengths"" => pet -> length
-  log(`Finding Coll -> Attr relationship between "${coll.displayName}" and "${attr.name}"...`);
+  log(`Finding Coll -> Attr relationship between "${coll.name}" and "${attr.name}"...`);
   let relationship = eve.query(``)
-    .select("collection entities", { collection: coll.id }, "collection")
-    .select("entity eavs", { entity: ["collection", "entity"], attribute: attr.name }, "eav")
+    .select("collection entities", { collection: coll.collection.id }, "collection")
+    .select("entity eavs", { entity: ["collection", "entity"], attribute: attr.attribute.id }, "eav")
     .exec();
   if (relationship.unprojected.length > 0) {    
-    log("Found Direct Relationship");
-    let collectionAttribute: Attribute = {
-      id: attr.name,
-      displayName: attr.name,
-      collection: coll,
-      value: `${coll.displayName}|${attr.name}`,
-      variable: `${coll.displayName}|${attr.name}`,
-      node: attr,
-      project: true,
-    }
-    attr.attribute = collectionAttribute;
-    context.attributes.push(collectionAttribute);
-    attr.properties.push(Properties.ATTRIBUTE);
-    attr.found = true;
-    return {type: RelationshipTypes.DIRECT, nodes: [coll.node, attr]};
+    log("  Found Direct Relationship");
+    return {type: RelationshipTypes.DIRECT, nodes: [coll, attr]};
   }
+  /*
   // Finds a one hop relationship
   // e.g. "department salaries" => department -> employee -> salary
   relationship = eve.query(``)
@@ -1666,10 +1677,10 @@ function findCollectionToAttrRelationship(coll: Collection, attr: Node, context:
   //  .exec();
   //if (relationship.unprojected.length > 0) {
   //  return true;
-  //}
+  //}*/
   log(" No relationship found");
   return {type: RelationshipTypes.NONE};
-}*/
+}
 
 // Extracts entities from unprojected results
 function extractFromUnprojected(coll, ix: number, size: number) {
@@ -2000,13 +2011,41 @@ function formQuery(node: Node): Query {
     log("Building attribute term for: " + node.name);
     let fields: Array<Field> = [];
     let attr = node.attribute;
+    console.log(attr.refs);
     if (attr.refs !== undefined) {
-      let entityVar = attr.refs[0].entity !== undefined ? attr.refs[0].entity.variable : attr.refs[0].collection.variable;
-      let entityField = {name: "entity", 
-                value: entityVar, 
-                variable: false,
-                };
-      fields.push(entityField);
+      if (attr.refs[0].entity) {
+        let entityField = {name: "entity", 
+                           value: attr.refs[0].entity.variable, 
+                           variable: false,
+                          };
+        fields.push(entityField);
+
+      } else {
+        let collection = attr.refs[0].collection;
+        let entityField = {name: "entity", 
+                           value: collection.variable, 
+                           variable: true,
+                          };
+        fields.push(entityField);
+        // If the attribute references a collection, build its term
+        entityField = {name: "entity", 
+                       value: collection.variable, 
+                       variable: true};
+                       
+        let collectionField: Field = {name: "collection", 
+                                      value: collection.id, 
+                                  variable: false};
+        let term: Term = {
+          type: "select",
+          table: "is a attributes",
+          fields: [entityField, collectionField],
+        }
+        query.terms.push(term);
+        collectionField = {name: `${collection.displayName.replace(new RegExp(" ", 'g'),"")}`, 
+                           value: `${collection.variable}`, 
+                           variable: true};
+        projectFields.push(collectionField);
+      }
     }
                       
     let attrField = {name: "attribute", 
@@ -2034,9 +2073,11 @@ function formQuery(node: Node): Query {
                               value: attr.variable, 
                               variable: true
                              };
+      projectFields.push(projectAttribute);
+                                   
       let project = {
         type: "project!",
-        fields: [projectAttribute],
+        fields: projectFields,
       }
       query.projects.push(project);
     }
