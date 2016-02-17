@@ -77,23 +77,23 @@ export function setURL(paneId:string, contains:string, replace?:boolean) {
 }
 
 function inferRepresentation(search:string|number, baseParams:{} = {}):{rep:string, params:{}} {
-  let rep;
   let params = copy(baseParams);
   let entityId = asEntity(search);
   let cleaned = (search && (""+search).trim().toLowerCase()) || "";
-  
   if(entityId || cleaned.length === 0) {
-    rep = "entity";
     params.entity = entityId || builtinId("home");
     if(params.entity === builtinId("home")) {
       params.unwrapped = true;
     }
-    return {rep, params};
+    return {rep: "entity", params};
   }
 
   let [rawContent, rawParams] = cleaned.split("|");
   let parsedParams = getCellParams(rawContent, rawParams);
   params = mergeObject(params, parsedParams);
+  if(params.rep === "table") {
+    params.search = cleaned;
+  }
   return {rep: params.rep, params};
 }
 
@@ -119,7 +119,7 @@ appHandle("ui focus search", (changes:Diff, {paneId, value}:{paneId:string, valu
 
 appHandle("set pane", (changes:Diff, info:{paneId:string, kind?:PANE, rep?:string, contains?:string|number, params?:string|{}, popState?:boolean}) => {
   // Infer valid rep and params if search has changed
-  if(info.contains && !info.rep) {
+  if(info.contains !== undefined && !info.rep) {
     let inferred = inferRepresentation(info.contains, typeof info.params === "string" ? parseParams(<string>info.params) : info.params);
     info.rep = inferred.rep;
     info.params = inferred.params;
@@ -551,14 +551,18 @@ export function pane(paneId:string):Element {
   let {c:klass, header, footer, captureClicks} = makeChrome(paneId, contains);
   let entityId = asEntity(contains);
 
+  let content;
   let contentType = "invalid";
   if(contains.length === 0 || entityId) contentType = "entity";
   else if(eve.findOne("query to id", {query: contains})) contentType = "search";
 
-  let content = rep && represent(contains, rep, results, params, (params.unwrapped ? undefined : (elem, ix?) => uitk.card({id: `${paneId}|${contains}|${ix === undefined ? "" : ix}`, children: [elem]})));
-  content.t = "content";
-  content.c = `${content.c || ""} ${params.unwrapped ? "unwrapped" : ""}`;
-  console.log("CON", contains, rep, results, params);
+  if(params.rep || rep) {
+    content = represent(contains, params.rep || rep, results, params, (params.unwrapped ? undefined : (elem, ix?) => uitk.card({id: `${paneId}|${contains}|${ix === undefined ? "" : ix}`, children: [elem]})));
+    content.t = "content";
+    content.c = `${content.c || ""} ${params.unwrapped ? "unwrapped" : ""}`;
+  }
+  
+
   if(contentType === "invalid") {
     content = {c: "flex-row spaced-row disambiguation", children: [
       {t: "span", text: `I couldn't find anything; should I`},
@@ -705,14 +709,12 @@ function queryUIInfo(query) {
       if(!queryResults.length) {
         params["rep"] = "error";
         params["message"] = "No results";
-        results = {};
       } else {
         results = {unprojected: queryUnprojected, results: queryResults};
       }
     } else {
       params["rep"] = "error";
       params["message"] = "invalid search";
-      results = {};
     }
   }
   return {results, params, content};
@@ -2006,7 +2008,135 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
   error(results, params) {
     return {text: params["message"]};
   },
-  table(results, params:{data?: {}}) {
+  table(results, params:{paneId?: string, data?: {paneId?: string}, search: string}) {
+    if(!params.search) return {rows: results, data: params.data};
+    let parsed = nlparse(params.search);
+    let topParse = parsed[0];
+    if(!topParse) return {rows: results, data: params.data};
+
+    // Must not contain any primitive relations
+    let editable = true;
+    let subject;
+    let fieldMap:{[field:string]: {type: string, source: any, complex?: boolean}} = {};
+    for(let ctx in topParse.context) {
+      if(ctx === "attributes" || ctx === "entities" || ctx === "collections") continue;
+      for(let node of topParse.context[ctx]) {
+        if(node.project) {
+          editable = false;
+          break;
+        }
+      }
+    }
+    
+    // Number of subjects (projected entities or collections) must be 1.
+    for(let node of topParse.context.collections) {
+      if(node.project) {
+        if(subject) {
+          editable = false;
+          break;
+        } else {
+          let name = subject = node.displayName;
+          fieldMap[name] = {type: "collection", source: node};
+        }
+      }
+    }
+    for(let node of topParse.context.entities) {
+      if(node.project) {
+        if(subject) {
+          editable = false;
+          break;
+        } else {
+          let name = subject = node.displayName;
+          console.log(node.id);
+          fieldMap[name] = {type: "entity", source: node};
+        }
+      }
+    }
+
+    if(editable) {
+      for(let node of topParse.context.attributes) {
+        if(node.project) {
+          fieldMap[node.displayName] = {type: "attribute", source: node};
+        }
+      }
+
+      function editRow(event, elem) {
+        let {table:tableElem, row} = elem.row;
+        
+        if(event.detail === "add") {
+          let state = elem.state.adder;
+          if(!state[subject] && fieldMap[subject].type === "entity") {
+            let entityId = fieldMap[subject].source.id;
+            state[subject] = entityId;
+            
+          } else if(elem.field === subject && fieldMap[subject].type === "collection") {
+            // @NOTE: Should this really be done by inserting "= " when the input is focused?
+            let entityId = asEntity(uitk.resolveValue(state[subject]));
+            if(entityId) {
+              console.log("subject id", entityId);
+              for(let field in fieldMap) {
+                // @FIXME: This is brittle, if fields are ever renamed (e.g., salary (2) this won't work correctly).
+                let {value = undefined} = eve.findOne("entity eavs", {entity: entityId, attribute: field}) || {};
+                console.log("defaulting field", field, "to", value);
+                if(value !== undefined && !state[field]) {
+                  state[field] = value;
+                }
+              }
+              dispatch("rerender");
+            }
+          }
+          
+          var valid = elem.fields.every((field) => {
+            return state[field] !== undefined;
+          });
+
+          
+          if(valid && elem.state.confirmed) {
+            console.log("valid", state);
+            let chain:any = dispatch("rerender");
+            // create entity if it doesn't exist?
+            let entity = state[subject];
+            if(fieldMap[subject].type === "collection") {
+              let name = state[subject];
+              entity = asEntity(name);
+              if(!entity) {
+                entity = uuid();
+                let pageId = uuid();
+                console.log(" - creating entity", entity);
+                chain.dispatch("create page", {page: pageId,  content: ""})
+                  .dispatch("create entity", {entity, name: state[subject], page: pageId});
+              }
+            }
+            
+            for(let field in fieldMap) {              
+              if(field === subject) continue;
+                
+              if(fieldMap[field].type === "attribute") {
+                let attr = fieldMap[field].source;
+                console.log(" - adding attr", attr.id, "=", uitk.resolveValue(state[field]), "for", entity);
+                chain.dispatch("add sourced eav", {entity, attribute: attr.id, value: uitk.resolveValue(state[field])});
+              }
+            }
+
+            for(let coll of topParse.context.collections) {
+              console.log(" - adding coll", "is a", "=", coll.id, "for", entity);
+              chain.dispatch("add sourced eav", {entity, attribute: "is a", value: coll.id});
+            }
+            
+            elem["state"]["adder"] = {};
+            console.log(chain);
+            chain.commit();
+            
+          } else {
+            console.log("remove");
+            //dispatch("remove entity attribute", {entity, attribute: row.attribute, value: row.value}).commit();
+          }
+        }
+      }
+
+      return {key: `${params.paneId || params.data.paneId}|${params.search || ""}`, rows: results, data: params.data, editCell: (evt, elem) => console.log("cell", evt, elem), editRow, confirmRow: true}
+    }
+    
     return {rows: results, data: params.data};
   },
   directory(results, params:{data?:{}, field?:string}) {
@@ -2037,9 +2167,9 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
 };
 
 function represent(search: string, rep:string, results, params:{}, wrapEach?:(elem:Element, ix?:number) => Element):Element {
-  console.log("repping:", results, " as", rep, " with params ", params);
+  // console.log("repping:", results, " as", rep, " with params ", params);
   if(rep in _prepare) {
-    let embedParamSets = _prepare[rep](results.results, <any>params);
+    let embedParamSets = _prepare[rep](results && results.results, <any>params);
     let isArray = embedParamSets && embedParamSets.constructor === Array;
     try {
       if(!embedParamSets || isArray && embedParamSets.length === 0) {
@@ -2056,7 +2186,6 @@ function represent(search: string, rep:string, results, params:{}, wrapEach?:(el
       } else {
         let embedParams = embedParamSets;
         embedParams["data"] = embedParams["data"] || params;
-        console.log(embedParams);
         if(wrapEach) return wrapEach(uitk[rep](embedParams));
         else return uitk[rep](embedParams);
       }
