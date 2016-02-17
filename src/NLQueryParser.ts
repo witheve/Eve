@@ -490,7 +490,7 @@ function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech 
 }
 
 // Wrap pluralize to special case certain words it gets wrong
-function singularize(word: string): string {
+export function singularize(word: string): string {
   let specialCases = ["his", "times", "has", "downstairs", "its", "'s"];
   for (let specialCase of specialCases) {
     if (specialCase === word) {
@@ -1178,7 +1178,7 @@ function formTree(node: Node, tree: Node, context: Context): any {
       }
     }
     
-    // Otherwise, find a relationship between the entity and any other nodes
+    // Otherwise, find a relationship between the entity and any other nodes on the root
     
     // If no relationship exists, push it to the context
     else {
@@ -1198,8 +1198,7 @@ function formTree(node: Node, tree: Node, context: Context): any {
         formTree(collapsedNode, tree, context);
       }
     }
-    
-    // Otherwise, find a relationship between the entity and any other nodes
+    // Otherwise, find a relationship between the entity and any other nodes on the root
     
     // If no relationship exists, push it to the context
     else {
@@ -1218,13 +1217,20 @@ function formTree(node: Node, tree: Node, context: Context): any {
         removeBranch(arg.parent);
         formTree(collapsedNode, tree, context);
       }
-    }
-    
-    // Otherwise, find a relationship between the attribute and any other nodes
-    
-    // If no relationship exists, attach the node to the root
-    else {
-      tree.addChild(node);  
+    // Otherwise, find a relationship between the attribute and any other nodes on the root
+    } else {
+      let orphans = tree.children.filter((child) => child.relationships.length === 0 && child.children.length === 0);
+      let relationship;
+      for (let orphan of orphans) {
+        relationship = findRelationship(node, orphan, context);
+        if (relationship !== undefined) {
+          break;
+        }
+      }
+      // If no relationship exists, attach the node to the root
+      if (relationship === undefined) {
+        tree.addChild(node);  
+      }
     }
   }
   
@@ -1245,33 +1251,15 @@ function addNodeToArgument(node: Node, arg: Node, context: Context): Node {
   arg.found = true;
   
   let leafs = findLeafNodes(fxnNode);
-  let allArgsFilled = !leafs.every((node) => node.hasProperty(Properties.ARGUMENT));
+  let allArgsFilled = leafs.every((node) => !node.hasProperty(Properties.ARGUMENT));
+  
   // If all arguments are filled, do something
   if (allArgsFilled) {
     if (fxnNode.fxn.type === FunctionTypes.SELECT) {
       log("Collapsing node: " + fxnNode.name);
       let relationship = findRelationship(leafs[0], leafs[1], context);
-      // For a direct relationship, create a new node representing the entity attribute
-      if (relationship.type === RelationshipTypes.DIRECT) {
-        let entity = relationship.nodes[0];
-        let attribute = relationship.nodes[1];
-        let newName = `${entity.name}|${attribute.name}`.replace(/ /g,'');
-        let nToken = newToken(newName);
-        let nNode = newNode(nToken);
-        let nAttribute: Attribute = {
-          id: attribute.attribute.id,
-          refs: [entity],
-          node: nNode,
-          displayName: newName,
-          variable: newName,
-          project: true,
-        }
-        nNode.attribute = nAttribute;
-        nNode.relationships.push(relationship);
-        nNode.properties.push(Properties.ATTRIBUTE);
-        nNode.found = true;
-        return nNode;
-      }
+      let nNode = relationship.implicitNodes[0];
+      return nNode;      
     }
   }
   return undefined;
@@ -1433,6 +1421,7 @@ interface Relationship {
   links?: Array<string>,
   type: RelationshipTypes,
   nodes?: Array<Node>,
+  implicitNodes?: Array<Node>,
 }
 
 function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relationship {
@@ -1515,7 +1504,23 @@ function findEntToAttrRelation(ent: Node, attr: Node, context: Context): Relatio
   let relationship = eve.findOne("entity eavs", { entity: ent.entity.id, attribute: attr.attribute.id });
   if (relationship) {
     log("  Found a direct relationship.");
-    return {type: RelationshipTypes.DIRECT, nodes: [ent, attr]};
+    // Build the implicit node
+    let newName = `${ent.name}|${attr.name}`.replace(/ /g,'');
+    let nToken = newToken(newName);
+    let nNode = newNode(nToken);
+    let nAttribute: Attribute = {
+      id: attr.attribute.id,
+      refs: [ent],
+      node: nNode,
+      displayName: newName,
+      variable: newName,
+      project: true,
+    }
+    nNode.attribute = nAttribute;
+    nNode.relationships.push(relationship);
+    nNode.properties.push(Properties.ATTRIBUTE);
+    nNode.found = true;
+    return {type: RelationshipTypes.DIRECT, nodes: [ent, attr], implicitNodes: [nNode]};
   }
   /*
   // Check for a direct relationship
@@ -1620,7 +1625,22 @@ function findCollToAttrRelation(coll: Node, attr: Node, context: Context): Relat
     .exec();
   if (relationship.unprojected.length > 0) {    
     log("  Found Direct Relationship");
-    return {type: RelationshipTypes.DIRECT, nodes: [coll, attr]};
+    let newName = `${coll.name}|${attr.name}`.replace(/ /g,'');
+    let nToken = newToken(newName);
+    let nNode = newNode(nToken);
+    let nAttribute: Attribute = {
+      id: attr.attribute.id,
+      refs: [coll],
+      node: nNode,
+      displayName: newName,
+      variable: newName,
+      project: true,
+    }
+    nNode.attribute = nAttribute;
+    nNode.relationships.push(relationship);
+    nNode.properties.push(Properties.ATTRIBUTE);
+    nNode.found = true;
+    return {type: RelationshipTypes.DIRECT, nodes: [coll, attr], implicitNodes: [nNode]};
   }
   /*
   // Finds a one hop relationship
