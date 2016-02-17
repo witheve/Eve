@@ -17,8 +17,7 @@ function parseTest(queryString: string, n: number): nlqp.Intents {
   let avgTime = 0;
   let maxTime = 0;
   let minTime;
-  nlqp.parse(queryString);
-  return undefined
+
   // Parse string and measure how long it takes
   for (let i = 0; i < n; i++) {
     let start = performance.now();
@@ -52,6 +51,7 @@ function parseTest(queryString: string, n: number): nlqp.Intents {
   console.log("-------------------------------------------------------------------------------------------");
   console.log("Result");
   console.log(queryString);
+  console.log(parseResult.query.toString());
   console.log(executeQuery(parseResult.query).join("\n"));
   console.log("-------------------------------------------------------------------------------------------");
   console.log(timingDisplay);
@@ -62,8 +62,7 @@ function parseTest(queryString: string, n: number): nlqp.Intents {
 function executeQuery(query: nlqp.Query): Array<string> {
   let resultsString: Array<string> = [];
   if (query.projects.length !== 0) {
-    let queryString = query.toString();
-    console.log(queryString)     
+    let queryString = query.toString();  
     let artifacts = dslparser.parseDSL(queryString);
     let changeset = eve.diff();
     let results = [];
@@ -134,6 +133,7 @@ let phrases = [
   // make sure they always work
   // -------------------------------//
   /*"Corey Montella's least favorite color",
+  "sum salaries",
   "sum of employee salaries",
   "3 - Corey's salary",
   "Corey's salary + 3",
@@ -159,7 +159,7 @@ let phrases = [
   "pets not exotics",
   `Corey Montella's age + Josh's salary`,*/
   // -------------------------------
-  "Corey Montella's age is a engineer",
+  "department salaries",
   //"Corey's height"
   //`Pets except those shorter than a koala`,
   //`salaries per department`,
