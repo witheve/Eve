@@ -1657,19 +1657,19 @@ function findCollToAttrRelation(coll: Node, attr: Node, context: Context): Relat
       // @HACK Choose the correct collection in a smart way. 
       // Largest collection other than entity or testdata?
       linkID = collections[0];  
-    }
+    }    
     // Build a link node
     let foundCollection = findEveCollection(linkID);
     let linkToken = newToken(foundCollection.displayName);
     let linkNode = newNode(linkToken);
-    let collection = findCollection(linkNode, context);
-    // Build an attribute for the node
-    let newName = `${coll.name}|${attr.name}`.replace(/ /g,'');
+    findCollection(linkNode, context);
+    // Build a new attribute node
+    let newName = `${linkNode.name}|${attr.name}`.replace(/ /g,'');
     let nToken = newToken(newName);
     let nNode = newNode(nToken);
     let nAttribute: Attribute = {
       id: attr.attribute.id,
-      refs: [coll, linkNode],
+      refs: [linkNode, coll],
       node: nNode,
       displayName: newName,
       variable: newName,
@@ -1679,6 +1679,9 @@ function findCollToAttrRelation(coll: Node, attr: Node, context: Context): Relat
     nNode.relationships.push(relationship);
     nNode.properties.push(Properties.ATTRIBUTE);
     nNode.found = true;
+    // Project what we need to
+    linkNode.collection.project = true;
+    coll.collection.project = true;
     return {type: RelationshipTypes.ONEHOP, nodes: [coll, attr], implicitNodes: [nNode]};
   }
   /*
@@ -1953,11 +1956,7 @@ function formQuery(node: Node): Query {
     }
   }
   if (combinedProjectFields.length > 0) {
-    let project = {
-      type: "project!",
-      fields: combinedProjectFields,
-    }
-    query.projects.push(project);
+    projectFields = combinedProjectFields;
   }
   /*
   // If the node is a grouping node, stuff the query into a subquery
@@ -2009,16 +2008,11 @@ function formQuery(node: Node): Query {
       query.terms.push(term);
       // project output if necessary
       if (node.fxn.project === true) {
-        let outputFields: Array<Field> = args.filter((arg) => arg.parent.hasProperty(Properties.OUTPUT))
-                                             .map((arg) => {return {name: `${node.fxn.name}`, 
-                                                                    value: `${arg.attribute.variable}`, 
-                                                                    variable: true}});
-        let project = {
-          type: "project!",
-          fields: outputFields,
-        }
+        projectFields = args.filter((arg) => arg.parent.hasProperty(Properties.OUTPUT))
+                            .map((arg) => {return {name: `${node.fxn.name}`, 
+                                                            value: `${arg.attribute.variable}`, 
+                                                            variable: true}});
         query.projects = []; // Clears all previous projects
-        query.projects.push(project);
       }
     }
   }
@@ -2030,91 +2024,64 @@ function formQuery(node: Node): Query {
     let attr = node.attribute;
     if (attr.refs !== undefined) {
       for (let ref of attr.refs) {
-        if (ref.entity) {
-          if (fields.length === 0) {
-            let entityField = {name: "entity", 
-                               value: attr.refs[0].entity.variable, 
-                               variable: false,
-                              };
-            fields.push(entityField);
-          }
-        } else {
-          let collection = ref.collection;
-          if (fields.length === 0) {
-            let entityField = {name: "entity", 
-                               value: collection.variable, 
-                               variable: true,
-                              };
-            fields.push(entityField);
-          }
-          // If the attribute references a collection, build its term
-          let entityField = {name: "entity", 
-                             value: collection.variable, 
-                             variable: true};
-                        
-          let collectionField: Field = {name: "collection", 
-                                        value: collection.id, 
-                                        variable: false
-                                       };
-          let term: Term = {
-            type: "select",
-            table: "is a attributes",
-            fields: [entityField, collectionField],
-          }
-          query.terms.push(term);
-          collectionField = {name: `${collection.displayName.replace(new RegExp(" ", 'g'),"")}`, 
-                            value: `${collection.variable}`, 
-                            variable: true};
-          projectFields.push(collectionField);
-        }  
+        let entityVar = ref.entity !== undefined ? ref.entity.variable : ref.collection.variable;
+        if (fields.length === 0) {
+          let entityField = {
+            name: "entity", 
+            value: entityVar, 
+            variable: false,
+          };
+          fields.push(entityField);
+        }
+        // Build a query for each ref and merge it with the current query
+        let refQuery = formQuery(ref);
+        console.log(refQuery.toString());
+        query.terms = query.terms.concat(refQuery.terms);
+        if (refQuery.projects.length > 0) {
+          projectFields = projectFields.concat(refQuery.projects[0].fields);
+        }
       }      
-    }
-                      
-    let attrField = {name: "attribute", 
-                    value: attr.id, 
-                    variable: false
-                    };
+    }             
+    let attrField = {
+      name: "attribute", 
+      value: attr.id, 
+      variable: false
+    };
     fields.push(attrField);                
-                    
-    let valueField = {name: "value", 
-                      value: attr.variable, 
-                      variable: true
-                    };
-    fields.push(valueField);
-                            
+    let valueField = {
+      name: "value", 
+      value: attr.variable, 
+      variable: true
+    };
+    fields.push(valueField);            
     let term: Term = {
       type: "select",
       table: "entity eavs",
       fields: fields,
     }
     query.terms.push(term);
-    
+    // project if necessary
     if (node.attribute.project) {
-      // Build the project
       let projectAttribute = {name: attr.variable, 
                               value: attr.variable, 
                               variable: true
                              };
       projectFields.push(projectAttribute);
-                                   
-      let project = {
-        type: "project!",
-        fields: projectFields,
-      }
-      query.projects.push(project);
     }
-    return query;
   }
-  
   
   // Handle collections -------------------------------
   if (node.hasProperty(Properties.COLLECTION) && !node.hasProperty(Properties.PRONOUN)) {
-    let entityField: Field = {name: "entity", 
-                             value: node.collection.variable, 
-                          variable: true};
-    let collectionField: Field = {name: "collection", 
-                                 value: node.collection.id, 
-                              variable: false};
+    let entityField = {
+      name: "entity", 
+      value: node.collection.variable, 
+      variable: true
+    };
+    let collectionField = {
+      name: "collection", 
+      value: node.collection.id, 
+      variable: false
+    };
     let term: Term = {
       type: "select",
       table: "is a attributes",
@@ -2122,17 +2089,15 @@ function formQuery(node: Node): Query {
     }
     query.terms.push(term);
     // project if necessary
-    
-    collectionField = {name: `${node.collection.displayName.replace(new RegExp(" ", 'g'),"")}`, 
-                       value: `${node.collection.variable}`, 
-                       variable: true};
-    projectFields.push(collectionField);
-    let project = {
-      type: "project!",
-      fields: projectFields,
+    if (node.collection.project) {
+      collectionField = {name: node.collection.variable, 
+                         value: node.collection.variable, 
+                         variable: true
+                        };
+      projectFields.push(collectionField);
     }
-    query.projects.push(project);
   }
+  
   /*
   // Handle entities -------------------------------
   if (node.entity !== undefined && !node.hasProperty(Properties.PRONOUN)) {
@@ -2150,6 +2115,14 @@ function formQuery(node: Node): Query {
     let negatedQuery = negateTerm(negatedTerm);
     query.subqueries.push(negatedQuery);
   }*/
+  // Project something if necessary       
+  if (projectFields.length > 0) {                        
+    let project = {
+      type: "project!",
+      fields: projectFields,
+    }
+    query.projects.push(project);
+  }
   return query;
 }
 
