@@ -1488,6 +1488,7 @@ function findEntToAttrRelation(ent: Node, attr: Node, context: Context): Relatio
     attribute.project = true;
     attr.relationships.push(relationship);
     ent.relationships.push(relationship);
+    ent.entity.handled = true;
     return {type: RelationshipTypes.DIRECT, nodes: [ent, attr], implicitNodes: []};
   }
   /*
@@ -1921,7 +1922,6 @@ export function newQuery(terms?: Array<Term>, subqueries?: Array<Query>, project
   return query;
 }
 
-
 function formQuery(node: Node): Query {
   let query: Query = newQuery();
   let projectFields: Array<Field> = [];
@@ -1943,6 +1943,7 @@ function formQuery(node: Node): Query {
   if (combinedProjectFields.length > 0) {
     projectFields = combinedProjectFields;
   }
+
   /*
   // If the node is a grouping node, stuff the query into a subquery
   // and take its projects
@@ -1967,46 +1968,44 @@ function formQuery(node: Node): Query {
   }*/
   // Handle functions -------------------------------
   if (node.hasProperty(Properties.FUNCTION)) {
-    // Skip functions with no arguments
-    if (node.fxn.fields.length === 0 || 
+    // Skip certain function types
+    if (!(node.fxn.fields.length === 0 || 
         node.fxn.type === FunctionTypes.SELECT ||
-        node.fxn.type === FunctionTypes.INSERT) {
-      return query;
-    }
-    
-    // Collection all input and output nodes which were found
-    let allArgsFound = node.children.every((child) => child.found);
-        
-    // If we have the right number of arguments, proceed
-    // @TODO surface an error if the arguments are wrong
-    let output;
-    if (allArgsFound) {
-      let args = node.children.filter((child) => child.hasProperty(Properties.ARGUMENT)).map((arg) => arg.children[0]);
-      let fields: Array<Field> = args.map((arg,i) => {
-        return {name: `${node.fxn.fields[i]}`, 
-                value: `${arg.attribute.variable}`, 
-                variable: true};
-      });
-      let term: Term = {
-        type: "select",
-        table: node.fxn.name,
-        fields: fields,
-      }
-      query.terms.push(term);
-      // project output if necessary
-      if (node.fxn.project === true) {
-        projectFields = args.filter((arg) => arg.parent.hasProperty(Properties.OUTPUT))
-                            .map((arg) => {return {name: `${node.fxn.name}`, 
-                                                            value: `${arg.attribute.variable}`, 
-                                                            variable: true}});
-        query.projects = []; // Clears all previous projects
+        node.fxn.type === FunctionTypes.INSERT)) {
+      
+      // Collection all input and output nodes which were found
+      let allArgsFound = node.children.every((child) => child.found);
+          
+      // If we have the right number of arguments, proceed
+      // @TODO surface an error if the arguments are wrong
+      let output;
+      if (allArgsFound) {
+        let args = node.children.filter((child) => child.hasProperty(Properties.ARGUMENT)).map((arg) => arg.children[0]);
+        let fields: Array<Field> = args.map((arg,i) => {
+          return {name: `${node.fxn.fields[i]}`, 
+                  value: `${arg.attribute.variable}`, 
+                  variable: true};
+        });
+        let term: Term = {
+          type: "select",
+          table: node.fxn.name,
+          fields: fields,
+        }
+        query.terms.push(term);
+        // project output if necessary
+        if (node.fxn.project === true) {
+          projectFields = args.filter((arg) => arg.parent.hasProperty(Properties.OUTPUT))
+                              .map((arg) => {return {name: `${node.fxn.name}`, 
+                                                              value: `${arg.attribute.variable}`, 
+                                                              variable: true}});
+          query.projects = []; // Clears all previous projects
+        }
       }
     }
   }
   // Handle attributes -------------------------------
   if (node.hasProperty(Properties.ATTRIBUTE) && !node.attribute.handled) {
     log("Building attribute term for: " + node.name);
-    console.log(node);
     let fields: Array<Field> = [];
     let attr = node.attribute;
     if (attr.refs !== undefined) {
@@ -2023,14 +2022,12 @@ function formQuery(node: Node): Query {
         }
         // Build a query for each ref and merge it with the current query
         let refQuery = formQuery(ref);
-        console.log(refQuery.toString());
         query.terms = query.terms.concat(refQuery.terms);
         if (refQuery.projects.length > 0) {
           projectFields = projectFields.concat(refQuery.projects[0].fields);
         }
       }      
     }             
-    console.log("here")
     let attrField = {
       name: "attribute", 
       value: attr.id, 
@@ -2051,15 +2048,15 @@ function formQuery(node: Node): Query {
     query.terms.push(term);
     // project if necessary
     if (node.attribute.project) {
-      let projectAttribute = {name: attr.variable, 
-                              value: attr.variable, 
-                              variable: true
-                             };
+      let projectAttribute = {
+        name: attr.variable, 
+        value: attr.variable, 
+        variable: true
+      };
       projectFields.push(projectAttribute);
     }
     node.attribute.handled = true;
   }
-  
   // Handle collections -------------------------------
   if (node.hasProperty(Properties.COLLECTION) && !node.collection.handled) {
     log("Building collection term for: " + node.name);
@@ -2081,10 +2078,11 @@ function formQuery(node: Node): Query {
     query.terms.push(term);
     // project if necessary
     if (node.collection.project) {
-      collectionField = {name: node.collection.variable, 
-                         value: node.collection.variable, 
-                         variable: true
-                        };
+      collectionField = {
+        name: node.collection.variable, 
+        value: node.collection.variable, 
+        variable: true
+      };
       projectFields.push(collectionField);
     }
     node.collection.handled = true;
@@ -2113,8 +2111,8 @@ function formQuery(node: Node): Query {
       };
       projectFields.push(entityField);  
     }
+    node.entity.handled = true;
   }
-
   /*if (node.hasProperty(Properties.NEGATES)) {
     let negatedTerm = query.terms.pop();
     let negatedQuery = negateTerm(negatedTerm);
@@ -2128,7 +2126,6 @@ function formQuery(node: Node): Query {
     }
     query.projects.push(project);
   }
-  console.log(query);
   return query;
 }
 
