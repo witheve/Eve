@@ -882,6 +882,7 @@ interface Context {
   fxns: Array<BuiltInFunction>,
   groupings: Array<Node>,
   relationships: Array<Relationship>,
+  found: Array<Node>,
   maybeEntities: Array<Node>,
   maybeAttributes: Array<Node>,
   maybeCollections: Array<Node>,
@@ -898,6 +899,7 @@ function newContext(): Context {
     fxns: [],
     groupings: [],
     relationships: [],
+    found: [],
     maybeEntities: [],
     maybeAttributes: [],
     maybeCollections: [],
@@ -967,6 +969,7 @@ function findFunction(node: Node, context: Context): boolean {
   }
   log(` Found: ${fxn.name}`);
   node.fxn = fxn;
+  fxn.node = node;
   // Add arguments to the node
   let args = fxn.fields.map((name, i) => {
     let argToken = newToken(name);
@@ -1004,6 +1007,7 @@ function findFunction(node: Node, context: Context): boolean {
 function formTree(node: Node, tree: Node, context: Context): any {  
   log("--------------------------------");
   log(node.toString());
+  log(context);
   
   // Don't do anything with subsumed nodes
   if (node.hasProperty(Properties.SUBSUMED)) {
@@ -1147,97 +1151,61 @@ function formTree(node: Node, tree: Node, context: Context): any {
       removeBranch(subsumedNode);
       return {tree: tree, context: context};  
     }
-  }
-  
   // Handle functions
-  if (node.hasProperty(Properties.FUNCTION)) {
-    // If there are any open arguments that take a function, attach it there
-    // Otherwise, attach the node to the root
+  } else if (node.hasProperty(Properties.FUNCTION)) {
+    // Attach the function to the root
     tree.addChild(node);
-    
+    // Attach arguments
     if (node.fxn.fields.length > 0) {
-      let orphans = tree.children.filter((child) => child.relationships.length === 0 && child.children.length === 0);
+      let orphans = context.found.filter((n) => n.relationships.length === 0);
       for (let orphan of orphans) {
         removeNode(orphan);
         formTree(orphan, tree, context);
-      } 
-    }
-  }
-  
-  // Handle entities
-  if (node.hasProperty(Properties.ENTITY)) {
-    // If there are any open arguments that take an entity, attach it there
-    let entityArgs = findLeafNodes(tree).filter((node) => node.hasProperty(Properties.INPUT) && node.name === "entity");
-    if (entityArgs.length > 0) {
-      let arg = entityArgs.pop();
-      let collapsedNode = addNodeToArgument(node, arg, context);
-      if (collapsedNode !== undefined) {
-        removeBranch(arg.parent);
-        formTree(collapsedNode, tree, context);
-      }
-    }
-    
-    // Otherwise, find a relationship between the entity and any other nodes on the root
-    
-    // If no relationship exists, push it to the context
-    else {
-      tree.addChild(node);  
-    }
-  }
-  
-    // Handle entities
-  if (node.hasProperty(Properties.COLLECTION)) {
-    // If there are any open arguments that take an entity, attach it there
-    let collectionArgs = findLeafNodes(tree).filter((node) => node.hasProperty(Properties.INPUT) && node.name === "entity");
-    if (collectionArgs.length > 0) {
-      let arg = collectionArgs.pop();
-      let collapsedNode = addNodeToArgument(node, arg, context);
-      if (collapsedNode !== undefined) {
-        removeBranch(arg.parent);
-        formTree(collapsedNode, tree, context);
-      }
-    }
-    // Otherwise, find a relationship between the entity and any other nodes on the root
-    
-    // If no relationship exists, push it to the context
-    else {
-      tree.addChild(node);  
-    }
-  }
-  
-  // Handle attributes
-  if (node.hasProperty(Properties.ATTRIBUTE)) {
-    // If there are any open arguments that take an attribute, attach it there
-    let attributeArgs = findLeafNodes(tree).filter((node) => node.hasProperty(Properties.INPUT) && (node.name === "attribute" || node.name === "value"));
-    if (attributeArgs.length > 0) {
-      let arg = attributeArgs.pop();
-      let collapsedNode = addNodeToArgument(node, arg, context);
-      if (collapsedNode !== undefined) {
-        removeBranch(arg.parent);
-        formTree(collapsedNode, tree, context);
-      }
-    // Otherwise, find a relationship between the attribute and any other nodes on the root
-    } else {
-      let orphans = tree.children.filter((child) => child.relationships.length === 0 && child.children.length === 0);
-      let relationship: Relationship = {type: RelationshipTypes.NONE};
-      for (let orphan of orphans) {
-        relationship = findRelationship(node, orphan, context);
-        if (relationship.type !== RelationshipTypes.NONE) {
-          if (relationship.implicitNodes.length > 0) {
-            removeNode(orphan);
-            formTree(orphan, tree, context);
-            for (let iNode of relationship.implicitNodes) {
-              formTree(iNode, tree, context);    
-            }  
-          }
+        // Break when all args are filled
+        if (node.children.every((n) => n.found)) {
           break;
         }
+      } 
+    }
+  // Handle everything else
+  } else {
+    // Find a relationship
+    //let orphans = tree.children.filter((child) => child.relationships.length === 0 && child.children.length === 0);
+    let relationship: Relationship = {type: RelationshipTypes.NONE};
+    for (let i = context.found.length -1; i >= 0; i--) {
+      let foundNode = context.found[i]; 
+      if (node.relationships.length === 0) {
+        removeNode(node);
       }
-      // If no relationship exists, attach the node to the root
-      if (relationship.type === RelationshipTypes.NONE) {
-        tree.addChild(node);
+      relationship = findRelationship(node, foundNode, context);
+      /*
+      if (relationship.type !== RelationshipTypes.NONE) {
+        if (relationship.implicitNodes.length > 0) {
+          removeNode(foundNode);
+          formTree(foundNode, tree, context);
+          for (let iNode of relationship.implicitNodes) {
+            formTree(iNode, tree, context);  
+          }
+        }
+        break;
+      }*/
+    }
+    
+    // Place the node onto a function if one is open
+    let openFunctions = context.fxns.filter((fxn) => !fxn.node.children.every((c) => c.found)).map((fxn) => fxn.node);
+    for (let fxnNode of openFunctions) {
+      let added = addNodeToFunction(node, fxnNode, context);
+      if (added) {
+        relationship.type = RelationshipTypes.DIRECT;
+        break;
       }
     }
+    
+    // If no relationships were found, stick the node onto the root
+    if (relationship.type === RelationshipTypes.NONE) {
+      tree.addChild(node);
+    }
+    
   }
   
   log("Tree:");
@@ -1247,28 +1215,25 @@ function formTree(node: Node, tree: Node, context: Context): any {
 
 // Adds a node to an argument. If adding the node completes a select,
 // a new node will be returned
-function addNodeToArgument(node: Node, arg: Node, context: Context): Node {
-  let fxnNode = arg.parent;
-  if (!fxnNode.hasProperty(Properties.FUNCTION)) {
-    return undefined;
-  }
+function addNodeToFunction(node: Node, fxnNode: Node, context: Context): boolean {
   log("Matching with function: " + fxnNode.name);
-  arg.addChild(node);
-  arg.found = true;
-  
-  let leafs = findLeafNodes(fxnNode);
-  let allArgsFilled = leafs.every((node) => !node.hasProperty(Properties.ARGUMENT));
-  
-  // If all arguments are filled, do something
-  if (allArgsFilled) {
-    if (fxnNode.fxn.type === FunctionTypes.SELECT) {
-      log("Collapsing node: " + fxnNode.name);
-      let relationship = findRelationship(leafs[0], leafs[1], context);
-      let nNode = relationship.implicitNodes[0];
-      return nNode;      
-    }
+  // Find the correct arg
+  let arg: Node;
+  if (node.hasProperty(Properties.ENTITY) || node.hasProperty(Properties.COLLECTION)) {
+    arg = fxnNode.children.filter((c) => c.name === "entity")[0];
+  } else if (node.hasProperty(Properties.ATTRIBUTE)) {
+    arg = fxnNode.children.filter((c) => c.name === "attribute")[0];
+  } else if (node.hasProperty(Properties.FUNCTION)) {
+    
   }
-  return undefined;
+  // Add the node to the arg
+  if (arg !== undefined) {
+    arg.addChild(node);
+    arg.found = true;  
+    return true;
+  } else {
+    return false;
+  }
 }
 
 // EAV Functions
@@ -1355,7 +1320,7 @@ function findEveEntity(search: string): Entity {
       id: foundEntity.entity,
       displayName: name,
       variable: foundEntity.entity,
-      project: false,
+      project: true,
     }    
     log(" Found: " + entity.id);
     return entity;
@@ -1388,7 +1353,7 @@ function findEveCollection(search: string): Collection {
       id: foundCollection.collection,
       displayName: name,
       variable: name,
-      project: false,
+      project: true,
     }
     log(" Found: " + collection.id);
     return collection;
@@ -1408,7 +1373,7 @@ function findEveAttribute(name: string): Attribute {
       id: foundAttribute.attribute,
       displayName: name,
       variable: `${name}`.replace(/ /g,''),
-      project: false,
+      project: true,
     }
     log(" Found: " + name);
     log(attribute);
@@ -1434,8 +1399,11 @@ interface Relationship {
 }
 
 function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relationship {
-  log(`Finding relationship between "${nodeA.name}" and "${nodeB.name}"`);
   let relationship = {type: RelationshipTypes.NONE};
+  if (nodeA === nodeB) {
+    return relationship;
+  }
+  log(`Finding relationship between "${nodeA.name}" and "${nodeB.name}"`);
   // Sort the nodes in order
   // 1) Collection 
   // 2) Entity 
@@ -1513,23 +1481,14 @@ function findEntToAttrRelation(ent: Node, attr: Node, context: Context): Relatio
   let relationship = eve.findOne("entity eavs", { entity: ent.entity.id, attribute: attr.attribute.id });
   if (relationship) {
     log("  Found a direct relationship.");
-    // Build the implicit node
-    let newName = `${ent.name}|${attr.name}`.replace(/ /g,'');
-    let nToken = newToken(newName);
-    let nNode = newNode(nToken);
-    let nAttribute: Attribute = {
-      id: attr.attribute.id,
-      refs: [ent],
-      node: nNode,
-      displayName: newName,
-      variable: newName,
-      project: true,
-    }
-    nNode.attribute = nAttribute;
-    nNode.relationships.push(relationship);
-    nNode.properties.push(Properties.ATTRIBUTE);
-    nNode.found = true;
-    return {type: RelationshipTypes.DIRECT, nodes: [ent, attr], implicitNodes: [nNode]};
+    let attribute = attr.attribute;
+    let varName = `${ent.name}|${attr.name}`.replace(/ /g,'');
+    attribute.variable = varName;
+    attribute.refs = [ent];
+    attribute.project = true;
+    attr.relationships.push(relationship);
+    ent.relationships.push(relationship);
+    return {type: RelationshipTypes.DIRECT, nodes: [ent, attr], implicitNodes: []};
   }
   /*
   // Check for a one-hop relationship
@@ -1831,6 +1790,7 @@ function findCollection(node: Node, context: Context): boolean {
   let collection = findEveCollection(node.name);
   if (collection !== undefined) {
     context.collections.push(collection);
+    context.found.push(node);
     collection.node = node;
     node.collection = collection;
     node.found = true;
@@ -1844,6 +1804,7 @@ function findEntity(node: Node, context: Context): boolean {
   let entity = findEveEntity(node.name);
   if (entity !== undefined) {
     context.entities.push(entity);
+    context.found.push(node);
     entity.node = node;
     node.entity = entity;
     node.found = true;
@@ -1857,6 +1818,7 @@ function findAttribute(node: Node, context: Context): boolean {
   let attribute = findEveAttribute(node.name);
   if (attribute !== undefined) {
     context.attributes.push(attribute);
+    context.found.push(node);
     attribute.node = node;
     node.attribute = attribute;
     node.found = true;
@@ -2006,7 +1968,9 @@ function formQuery(node: Node): Query {
   // Handle functions -------------------------------
   if (node.hasProperty(Properties.FUNCTION)) {
     // Skip functions with no arguments
-    if (node.fxn.fields.length === 0) {
+    if (node.fxn.fields.length === 0 || 
+        node.fxn.type === FunctionTypes.SELECT ||
+        node.fxn.type === FunctionTypes.INSERT) {
       return query;
     }
     
@@ -2041,8 +2005,8 @@ function formQuery(node: Node): Query {
   }
   // Handle attributes -------------------------------
   if (node.hasProperty(Properties.ATTRIBUTE) && !node.attribute.handled) {
-    
     log("Building attribute term for: " + node.name);
+    console.log(node);
     let fields: Array<Field> = [];
     let attr = node.attribute;
     if (attr.refs !== undefined) {
@@ -2066,6 +2030,7 @@ function formQuery(node: Node): Query {
         }
       }      
     }             
+    console.log("here")
     let attrField = {
       name: "attribute", 
       value: attr.id, 
@@ -2097,6 +2062,7 @@ function formQuery(node: Node): Query {
   
   // Handle collections -------------------------------
   if (node.hasProperty(Properties.COLLECTION) && !node.collection.handled) {
+    log("Building collection term for: " + node.name);
     let entityField = {
       name: "entity", 
       value: node.collection.variable, 
@@ -2123,18 +2089,31 @@ function formQuery(node: Node): Query {
     }
     node.collection.handled = true;
   }
-  
-  /*
   // Handle entities -------------------------------
-  if (node.entity !== undefined && !node.hasProperty(Properties.PRONOUN)) {
+  if (node.hasProperty(Properties.ENTITY) && !node.entity.handled) {
+    log("Building entity term for: " + node.name);
+    let entity = node.entity;
+    let entityField = {
+      name: "entity", 
+      value: entity.id, 
+      variable: false,
+    };
+    let term: Term = {
+      type: "select",
+      table: "entity eavs",
+      fields: [entityField],
+    }
+    query.terms.push(term);
     // project if necessary
-    if (node.entity.project === true) {
-      let entityField: Field = {name: `${node.entity.displayName.replace(new RegExp(" ", 'g'),"")}`, 
-                               value: `${node.entity.entityAttribute ? node.entity.variable : node.entity.id}`, 
-                            variable: node.entity.entityAttribute};
+    if (entity.project === true) {
+      let entityField = {
+        name: entity.displayName.replace(/ /g,''),
+        value: entity.id, 
+        variable: false
+      };
       projectFields.push(entityField);  
     }
-  }*/
+  }
 
   /*if (node.hasProperty(Properties.NEGATES)) {
     let negatedTerm = query.terms.pop();
@@ -2149,6 +2128,7 @@ function formQuery(node: Node): Query {
     }
     query.projects.push(project);
   }
+  console.log(query);
   return query;
 }
 
