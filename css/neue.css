@@ -20,6 +20,8 @@ a:hover { text-decoration: underline; }
 .csv > * + span { margin-left: 0.4em; }
 .csv > span + span:before { position: relative; left: -0.4em; content: ","; }
 
+.measure-span { visibility:hidden; pointer-events: none; position:absolute; top:0; left:0; z-index: -1;}
+
 /*---------------------------------------------------------
 - Root
 ---------------------------------------------------------*/
@@ -118,15 +120,15 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 - Card
 ---------------------------------------------------------*/
 
-.card { background: white; align-self:center; align-items: stretch; min-width:200px; box-shadow: 0 20px 50px rgba(0,0,50,0.10); margin-top:100px; border-radius:5px; overflow:hidden; }
+.card { position:relative; background: white; align-self:center; align-items: stretch; min-width:200px; box-shadow: 0 20px 50px rgba(0,0,50,0.10); margin-top:100px; border-radius:5px; overflow:hidden; }
 .card .text-content { margin-right:10px; min-width:250px; white-space:pre-wrap; line-height:28px; color:#aaa; flex:none; max-height:50%; }
-.card .header { flex:none; padding:10px 20px; font-size: 18pt; font-weight: 900; color: rgb(106,138,156); border-bottom: 1px solid #eee; }
+.card .header { flex-direction:row; flex:none; padding:10px 20px; font-size: 18pt; font-weight: 900; color: rgb(106,138,156); border-bottom: 1px solid #eee; }
 .card .wiki-editor { padding: 30px; padding-top:0; margin-bottom:20px; }
 .card + .card { margin-top:40px; }
 
 .card .tiles { flex-direction: row; flex-wrap: wrap; max-width: 360px; }
 .card .tile { flex: 1 0 0; padding:15px; overflow:hidden; }
-.card .tile .property { font-size: 9pt; text-transform: uppercase; color: #aaa; }
+.card .tile .property { font-size: 9pt; color: #aaa; }
 .card .tile.small, .card .tile.medium { align-items: center; justify-content: center; }
 .card .tile + .tile { border-left: 1px solid #eee; }
 .card .tile.small .value, .card .tile.medium .value { font-size: 16pt; margin-bottom:5px; }
@@ -137,6 +139,31 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .card .multi-value * + * { border-left: 1px solid #ddd; padding-left: 10px; margin-left: 10px; }
 
 .card .tile .list { max-height: 200px; overflow:auto; }
+
+.card .add-tile {position: absolute; padding:10px 20px; padding-right:15px; right:0; top:0; color: #ccc; cursor: default; }
+.card .add-tile:before { transition:transform 0.2s ease-in-out; }
+.card .add-tile:hover { color: #666; }
+
+.card .tile-adder { transition:height 0.18s ease-out;  overflow:hidden; height:0; background:#F3F8FF; flex-direction:row; flex-wrap:wrap; max-width: 360px; }
+.card .tile-adder .tile, .card .tile-adder .row { border-color: rgba(0,0,0,0.1); }
+.card .tile-adder .tile { cursor:default; }
+.card .tile-adder .tile:hover { background: rgba(0,0,0,0.04); }
+.card .tile-adder .property { color:#555; }
+.card .adding .header { border-color: #ddd; }
+.card .adding .tile-adder { transition:height 0.18s ease-in;   height:150px; border-bottom:1px solid #ddd; }
+/* .card .adding .tiles { display:none; } */
+.card .adding .add-tile:before {transform: rotate(-135deg); }
+
+.card .property-adder { flex: 1; align-items:center; justify-content:center; }
+.card .property-adder .tile { flex:none; border:1px solid rgba(0,0,0,0.1); background:#fff; border-radius:2px; max-width:300px; }
+.card .property-adder .tile:hover { background:#fff; }
+.card .property-adder input { text-align:center; }
+.card .property-adder .controls { border: 1px solid rgba(0,0,0,0.1); background:#fff; text-align:center; border-top:none; border-radius:0 0 2px 2px; }
+.card .property-adder .controls * { padding: 5px 10px; color: rgba(0,0,0,0.5); flex:1; border-radius:0; }
+.card .property-adder .controls div:hover { background: rgba(0,0,0,0.04); }
+.card .property-adder .controls .submit { border-right:1px solid rgba(0,0,0,0.1); }
+.card .property-adder .controls .submit:hover { color: green; }
+.card .property-adder .controls .cancel:hover { color: #aa5555; }
 
 /*---------------------------------------------------------
 - Selector

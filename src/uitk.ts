@@ -1,5 +1,5 @@
 declare var pluralize; // @TODO: import me.
-import {builtinId, copy, coerceInput, sortByLookup, sortByField, KEYS} from "./utils";
+import {builtinId, copy, coerceInput, sortByLookup, sortByField, KEYS, autoFocus} from "./utils";
 import {Element, Handler} from "./microReact";
 import {dispatch, eve} from "./app";
 import {PANE, uiState as _state, asEntity, entityTilesUI, activeCells, wikiEditor} from "./ui";
@@ -186,19 +186,129 @@ export function card(elem:Element) {
   return elem;
 }
 
+function toggleAddTile(event, elem) {
+  dispatch("toggle add tile", {key: elem.key, entityId: elem.entityId}).commit();
+}
+
+function setTileAdder(event, elem) {
+  dispatch("set tile adder", {key: elem.key, adder: elem.adder}).commit();
+}
+
 interface EntityEditorElem extends EntityElem { editor: CodeMirror.Editor }
 export function entity(elem:EntityEditorElem) {
   let entityId = elem.entity;
   let paneId = elem.data.paneId;
+  let key = elem.key || `${entityId}|${paneId}`;
+  let state = _state.widget.card[key] || {};
   let name = eve.findOne("display name", {id: asEntity(entityId)}).name;
   let attrs = entityTilesUI(entityId, paneId);
   attrs.c += " page-attributes";
-  let editor = pageEditor(entityId, paneId, elem.editor);
-  return {c: "entity", children: [
-    {c: "header", text: name},
+  // let editor = pageEditor(entityId, paneId, elem.editor);
+  let adder = tileAdder({entityId, key});
+  return {c: `entity ${state.showAdd ? "adding" : ""}`, children: [
+    {c: "header", children: [
+      {text: name},
+      {c: `ion-android-add add-tile`, click: toggleAddTile, key, entityId}
+    ]},
+    adder,
     attrs,
     // editor,
   ]};
+}
+
+var measureSpan = document.createElement("span");
+measureSpan.className = "measure-span";
+document.body.appendChild(measureSpan);
+
+function autosizeInput(node, elem) {
+  let minWidth = 80;
+  measureSpan.style.fontSize = window.getComputedStyle(node, null)["font-size"];
+  measureSpan.textContent = node.value;
+  let measuredWidth = measureSpan.getBoundingClientRect().width;
+  node.style.width = Math.ceil(Math.max(minWidth, measuredWidth)) + 5 + "px";
+}
+
+function autosizeAndFocus(node, elem) {
+  autosizeInput(node, elem);
+  autoFocus(node, elem);
+}
+
+function trackPropertyAdderInput(event, elem) {
+  let value = event.currentTarget.value;
+  dispatch("set tile adder attribute", {key: elem.key, attribute: elem.attribute, value}).commit();
+}
+
+function adderKeys(event, elem) {
+  if(event.keyCode === KEYS.ENTER) {
+    dispatch("submit tile adder", {key: elem.key, node: event.currentTarget}).commit();
+  } else if(event.keyCode === KEYS.ESC) {
+    dispatch("toggle add tile", {key: elem.key}).commit();
+  }
+}
+
+function submitAdder(event, elem) {
+  // @HACK: yeah...
+  dispatch("submit tile adder", {key: elem.key, node: event.currentTarget.parentNode.parentNode.firstChild.firstChild}).commit();
+}
+
+function submitProperty(adder, state, node) {
+  dispatch("add entity attribute", {entity: state.entityId, attribute: state.propertyProperty, value: state.propertyValue}).commit();
+  state.propertyValue = "";
+  state.propertyProperty = "";
+  //make sure the focus is in the value
+  node.parentNode.firstChild.focus();
+}
+
+function propertyAdderUI(elem) {
+  let {entityId, key} = elem;
+  let state = _state.widget.card[key] || {};
+  return {c: "property-adder", children: [
+    {children: [
+      {c: "tile small", children: [
+        {t: "input", c: "value", placeholder: "value", value: state.propertyValue, attribute: "propertyValue", input: trackPropertyAdderInput, postRender: autosizeAndFocus, keydown: adderKeys, entityId, key},
+        {t: "input", c: "property", placeholder: "property", value: state.propertyProperty, attribute: "propertyProperty", input: trackPropertyAdderInput, postRender: autosizeInput, keydown: adderKeys, entityId, key},
+      ]},
+      {c: "controls flex-row", children: [
+        {c: "ion-checkmark submit", click: submitAdder, key},
+        {c: "ion-close cancel", click: setTileAdder, key},
+      ]}
+
+    ]}
+  ]};
+}
+
+export function tileAdder(elem) {
+  let {entityId, key} = elem;
+  let state = _state.widget.card[key] || {};
+  let rows = [];
+  if(!state.adder) {
+    let adders = [
+      {name: "Property", icon: "ion-compose", ui: propertyAdderUI, submit: submitProperty},
+      {name: "List", icon: "ion-ios-list-outline"},
+      {name: "Description", icon: "ion-drag"},
+      {name: "Image", icon: "ion-image"},
+      {name: "Document", icon: "ion-document"},
+    ];
+    let count = 0;
+    let curRow = {c: "row flex-row", children: []};
+    for(let adder of adders) {
+      curRow.children.push({c: "tile small", adder, key, click: setTileAdder, children: [
+        {c: `value ${adder.icon}`},
+        {c: "property", text: adder.name}
+      ]});
+      count++;
+      if(curRow.children.length === 3 || count === adders.length) {
+        rows.push(curRow);
+        curRow = {c: "row flex-row", children: []};
+      }
+    }
+  } else {
+    let adderElem = {entityId, key};
+    if(state.adder.ui) {
+      rows.push(state.adder.ui(adderElem));
+    }
+  }
+  return {c: "tile-adder", children: rows};
 }
 
 export function pageEditor(entityId:string, paneId:string, elem):Element {
@@ -210,7 +320,6 @@ export function pageEditor(entityId:string, paneId:string, elem):Element {
   elem.options.noFocus = true;
   elem.value = content;
   elem.children = elem.cellItems;
-  console.log(elem);
   return elem;
 }
 
@@ -220,7 +329,6 @@ export function pageEditor(entityId:string, paneId:string, elem):Element {
 
 export function error(elem):Element {
   elem.c = `error-rep ${elem.c || ""}`;
-  console.log(elem);
   return elem;
 }
 

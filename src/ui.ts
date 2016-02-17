@@ -28,6 +28,7 @@ export let uiState:{
     table: {[key:string]: {field:string, direction:number}},
     collapsible: {[key:string]: {open:boolean}}
     attributes: any,
+    card: {[key: string]: any},
   },
   pane: {[paneId:string]: {settings: boolean}},
   prompt: {open: boolean, paneId?: string, prompt?: (paneId?:string) => Element},
@@ -37,6 +38,7 @@ export let uiState:{
     table: {},
     collapsible: {},
     attributes: {},
+    card: {},
   },
   pane: {},
   prompt: {open: false, paneId: undefined, prompt: undefined},
@@ -558,7 +560,6 @@ export function pane(paneId:string):Element {
   let content = rep && represent(contains, rep, results, params, (params.unwrapped ? undefined : (elem, ix?) => uitk.card({id: `${paneId}|${contains}|${ix === undefined ? "" : ix}`, children: [elem]})));
   content.t = "content";
   content.c = `${content.c || ""} ${params.unwrapped ? "unwrapped" : ""}`;
-  console.log("CON", contains, rep, results, params);
   if(contentType === "invalid") {
     content = {c: "flex-row spaced-row disambiguation", children: [
       {t: "span", text: `I couldn't find anything; should I`},
@@ -1189,9 +1190,10 @@ function modifyAndEmbed(elem, text, doEmbed) {
 
 function interpretAttributeValue(value): {isValue: boolean, parse?:any, value?:any} {
   let cleaned = value.trim();
-  if(cleaned[0] === "=") {
+  let isNumber = parseFloat(value);
+  if(!isNumber) {
     //parse it
-    cleaned = cleaned.substring(1).trim();
+    cleaned = cleaned.trim();
     let entityId = asEntity(cleaned);
     if(entityId) {
       return {isValue: true, value: entityId};
@@ -1208,6 +1210,7 @@ function handleAttributeDefinition(entity, attribute, search, chain?) {
     chain = dispatch();
   }
   let {isValue, value, parse} = interpretAttributeValue(search);
+  console.log("HANDLING", isValue, value, parse);
   if(isValue) {
     chain.dispatch("add sourced eav", {entity, attribute, value}).commit();
   } else {
@@ -1570,6 +1573,42 @@ function getCells(content: string, editorId) {
 // Attributes
 //---------------------------------------------------------
 
+appHandle("add entity attribute", (changes:Diff, {entity, attribute, value}) => {
+  let success = handleAttributeDefinition(entity, attribute, value, changes);
+});
+
+appHandle("toggle add tile", (changes:Diff, {key, entityId}) => {
+  let state = uiState.widget.card[key] || {showAdd: false};
+  state.showAdd = !state.showAdd;
+  state.entityId = entityId;
+  state.key = key;
+  // in case you closed it with an adder selected
+  if(state.showAdd) {
+    state.adder = undefined;
+  }
+  uiState.widget.card[key] = state;
+});
+
+appHandle("set tile adder", (changes:Diff, {key, adder}) => {
+  let state = uiState.widget.card[key] || {showAdd: true, key};
+  state.adder = adder;
+  uiState.widget.card[key] = state;
+});
+
+appHandle("set tile adder attribute", (changes:Diff, {key, attribute, value}) => {
+  let state = uiState.widget.card[key] || {showAdd: true, key};
+  state[attribute] = value;
+  uiState.widget.card[key] = state;
+});
+
+appHandle("submit tile adder", (changes:Diff, {key, node}) => {
+  let state = uiState.widget.card[key] || {showAdd: true, key};
+  if(state.adder && state.adder.submit) {
+    state.adder.submit(state.adder, state, node);
+  }
+  uiState.widget.card[key] = state;
+});
+
 function sortOnAttribute(a, b) {
   let aAttr = a.eav.attribute;
   let bAttr = b.eav.attribute;
@@ -1662,16 +1701,19 @@ export function entityTilesUI(entityId, paneId) {
         rowChildren.push(tiles["small"].pop());
         rowChildren.push(tiles["medium"].pop());
         tilesToPlace -= 2;
+        lastSize = "small";
       } else if(tiles["small"].length >= 3) {
         rowChildren.push(tiles["small"].pop());
         rowChildren.push(tiles["small"].pop());
         rowChildren.push(tiles["small"].pop());
         tilesToPlace -= 3;
+        lastSize = "small";
       } else {
         while(tiles["small"].length) {
           rowChildren.push(tiles["small"].pop());
           tilesToPlace--;
         }
+        lastSize = "small";
       }
     }
     rows.push({c: "flex-row row", children: rowChildren});
@@ -1880,9 +1922,9 @@ interface CMEvent extends Event {
 }
 export function codeMirrorElement(elem:CMElement):CMElement {
   elem.postRender = codeMirrorPostRender(elem.postRender);
-  elem.cmChange = elem.change;
-  elem.cmBlur = elem.blur;
-  elem.cmFocus = elem.focus;
+  elem["cmChange"] = elem.change;
+  elem["cmBlur"] = elem.blur;
+  elem["cmFocus"] = elem.focus;
   elem.change = undefined;
   elem.blur = undefined;
   elem.focus = undefined;
@@ -1915,9 +1957,9 @@ function codeMirrorPostRender(postRender?:RenderHandler):RenderHandler {
         mode: elem.mode || "text",
         extraKeys
       });
-      if(elem.cmChange) cm.on("change", handleCMEvent(elem.cmChange, elem));
-      if(elem.cmBlur) cm.on("blur", handleCMEvent(elem.cmBlur, elem));
-      if(elem.cmFocus) cm.on("focus", handleCMEvent(elem.cmFocus, elem));
+      if(elem["cmChange"]) cm.on("change", handleCMEvent(elem["cmChange"], elem));
+      if(elem["cmBlur"]) cm.on("blur", handleCMEvent(elem["cmBlur"], elem));
+      if(elem["cmFocus"]) cm.on("focus", handleCMEvent(elem["cmFocus"], elem));
       if(elem.autofocus) cm.focus();
     }
 
@@ -2072,7 +2114,6 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
 };
 
 function represent(search: string, rep:string, results, params:{}, wrapEach?:(elem:Element, ix?:number) => Element):Element {
-  console.log("repping:", results, " as", rep, " with params ", params);
   if(rep in _prepare) {
     let embedParamSets = _prepare[rep](results.results, <any>params);
     let isArray = embedParamSets && embedParamSets.constructor === Array;
@@ -2091,7 +2132,6 @@ function represent(search: string, rep:string, results, params:{}, wrapEach?:(el
       } else {
         let embedParams = embedParamSets;
         embedParams["data"] = embedParams["data"] || params;
-        console.log(embedParams);
         if(wrapEach) return wrapEach(uitk[rep](embedParams));
         else return uitk[rep](embedParams);
       }
