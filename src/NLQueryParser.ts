@@ -1225,7 +1225,7 @@ function addNodeToFunction(node: Node, fxnNode: Node, context: Context): boolean
   if (node.hasProperty(Properties.ENTITY) || node.hasProperty(Properties.COLLECTION)) {
     arg = fxnNode.children.filter((c) => c.name === "entity")[0];
   } else if (node.hasProperty(Properties.ATTRIBUTE)) {
-    arg = fxnNode.children.filter((c) => c.name === "attribute")[0];
+    arg = fxnNode.children.filter((c) => c.name === "attribute" || c.name === "value")[0];
   } else if (node.hasProperty(Properties.FUNCTION)) {
     
   }
