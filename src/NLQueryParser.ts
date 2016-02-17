@@ -1170,25 +1170,20 @@ function formTree(node: Node, tree: Node, context: Context): any {
   // Handle everything else
   } else {
     // Find a relationship
-    //let orphans = tree.children.filter((child) => child.relationships.length === 0 && child.children.length === 0);
+
     let relationship: Relationship = {type: RelationshipTypes.NONE};
-    for (let i = context.found.length -1; i >= 0; i--) {
-      let foundNode = context.found[i]; 
-      if (node.relationships.length === 0) {
-        removeNode(node);
-      }
-      relationship = findRelationship(node, foundNode, context);
-      /*
-      if (relationship.type !== RelationshipTypes.NONE) {
-        if (relationship.implicitNodes.length > 0) {
-          removeNode(foundNode);
-          formTree(foundNode, tree, context);
-          for (let iNode of relationship.implicitNodes) {
-            formTree(iNode, tree, context);  
-          }
+    if (node.relationships.length === 0) {
+      //let orphans = tree.children.filter((child) => child.relationships.length === 0 && child.children.length === 0);  
+      for (let i = context.found.length -1; i >= 0; i--) {
+        let foundNode = context.found[i]; 
+        if (node.relationships.length === 0) {
+          removeNode(node);
         }
-        break;
-      }*/
+        relationship = findRelationship(node, foundNode, context);
+        if (relationship.type !== RelationshipTypes.NONE) {
+          break;
+        }
+      }
     }
     
     // Place the node onto a function if one is open
@@ -1209,6 +1204,12 @@ function formTree(node: Node, tree: Node, context: Context): any {
       tree.addChild(node);
     }
     
+    // Place nodes implicit in the relationship    
+    if (relationship.implicitNodes !== undefined && relationship.implicitNodes.length > 0) {
+      for (let implNode of relationship.implicitNodes) {
+        formTree(implNode, tree, context);
+      }
+    }
   }
   
   log("Tree:");
@@ -1622,65 +1623,38 @@ function findCollToAttrRelation(coll: Node, attr: Node, context: Context): Relat
       linkID = collections[0];  
     }    
     // Fill in the attribute
-        
     let foundCollection = findEveCollection(linkID);
     let linkToken = newToken(foundCollection.displayName);
-    let linkNode = newNode(linkToken);
-    findCollection(linkNode, context);
-    /*
+    let linkCollection = newNode(linkToken);
+    findCollection(linkCollection, context);
     let attribute = attr.attribute;
-    
-    
-
-    
-    
-    
-    let varName = `${ent.name}|${attr.name}`.replace(/ /g,'');
+    let varName = `${linkCollection.name}|${attr.name}`.replace(/ /g,'');
     attribute.variable = varName;
-    attribute.refs = [ent];
+    attribute.refs = [linkCollection];
     attribute.project = true;
     attr.relationships.push(relationship);
-    ent.relationships.push(relationship);
-    ent.entity.handled = true;*/
-    
-    
-    
-    // Build a new attribute node
-    let newName = `${linkNode.name}|${attr.name}`.replace(/ /g,'');
+    linkCollection.relationships.push(relationship);
+    coll.relationships.push(relationship);
+    // Build a link attribute node
+    let newName = coll.collection.variable;
     let nToken = newToken(newName);
     let nNode = newNode(nToken);
     let nAttribute: Attribute = {
-      id: attr.attribute.id,
-      refs: [linkNode],
+      id: coll.collection.displayName,
+      refs: [linkCollection],
       node: nNode,
       displayName: newName,
       variable: newName,
-      project: true,
+      project: false,
     }
     nNode.attribute = nAttribute;
     nNode.relationships.push(relationship);
     nNode.properties.push(Properties.ATTRIBUTE);
     nNode.found = true;
-    // Build a link attribute node
-    let newName2 = coll.collection.variable;
-    let nToken2 = newToken(newName2);
-    let nNode2 = newNode(nToken2);
-    let nAttribute2: Attribute = {
-      id: coll.collection.displayName,
-      refs: [linkNode],
-      node: nNode2,
-      displayName: newName2,
-      variable: newName2,
-      project: false,
-    }
-    nNode2.attribute = nAttribute2;
-    nNode2.relationships.push(relationship);
-    nNode2.properties.push(Properties.ATTRIBUTE);
-    nNode2.found = true;
     // Project what we need to
-    linkNode.collection.project = true;
+    linkCollection.collection.project = true;
     coll.collection.project = true;
-    return {type: RelationshipTypes.ONEHOP, nodes: [coll, attr], implicitNodes: [nNode, nNode2]};
+    return {type: RelationshipTypes.ONEHOP, nodes: [coll, attr], implicitNodes: [nNode]};
   }
   /*
   // Not sure if this one works... using the entity table, a 2 hop link can
