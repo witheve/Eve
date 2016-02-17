@@ -20,6 +20,8 @@ a:hover { text-decoration: underline; }
 .csv > * + span { margin-left: 0.4em; }
 .csv > span + span:before { position: relative; left: -0.4em; content: ","; }
 
+.measure-span { visibility:hidden; pointer-events: none; position:absolute; top:0; left:0; z-index: -1;}
+
 /*---------------------------------------------------------
 - Root
 ---------------------------------------------------------*/
@@ -118,17 +120,59 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 - Card
 ---------------------------------------------------------*/
 
-.card { background: white; align-self:center; align-items: stretch; min-width:200px; min-height:150px; box-shadow: 0 20px 50px rgba(0,0,50,0.10); margin-top:100px; border-radius:5px; overflow:hidden; }
+.card { position:relative; background: white; align-self:center; align-items: stretch; min-width:200px; box-shadow: 0 20px 50px rgba(0,0,50,0.10); margin-top:100px; border-radius:5px; overflow:hidden; }
 .card .text-content { margin-right:10px; min-width:250px; white-space:pre-wrap; line-height:28px; color:#aaa; flex:none; max-height:50%; }
-.card .header { flex:none; margin:30px; margin-top:20px; font-size: 18pt; font-weight: 900; padding-bottom: 10px; margin-bottom: 10px; color: rgb(106,138,156); border-bottom: 1px solid rgba(0,0,50,0.1); }
+.card .header { flex-direction:row; flex:none; padding:10px 20px; font-size: 18pt; font-weight: 900; color: rgb(106,138,156); border-bottom: 1px solid #eee; }
 .card .wiki-editor { padding: 30px; padding-top:0; margin-bottom:20px; }
-.card .attributes { background: rgba(0,0,50,0.05); padding: 20px 20px; border-left:1px solid rgba(0,0,0,0.03); border-radius:0; align-self:stretch; max-height:50%; overflow:auto; }
-.card .attribute-name { color: rgb(106,138,156); }
 .card + .card { margin-top:40px; }
 
-.card > .table {
-    margin: 20px 30px;
-}
+.card > .table { margin: 20px 30px; }
+
+.card .tiles { flex-direction: row; flex-wrap: wrap; max-width: 360px; }
+.card .tile { flex: 1 0 0; padding:15px; overflow:hidden; }
+.card .tile .property { font-size: 9pt; color: #aaa; }
+.card .tile.small, .card .tile.medium { align-items: center; justify-content: center; }
+.card .tile + .tile { border-left: 1px solid #eee; }
+.card .tile.small .value, .card .tile.medium .value { font-size: 16pt; margin-bottom:5px; }
+.card .row { width: 100%;  }
+.card .row + .row { border-top:1px solid #eee; }
+
+.card .value.text { line-height: 22px; }
+
+.card .tile.full .property { margin-bottom:5px; }
+
+.card .tile .multi-value { flex-direction: row; }
+.card .multi-value * + * { border-left: 1px solid #ddd; padding-left: 10px; margin-left: 10px; }
+
+.card .tile .list { max-height: 200px; overflow:auto; }
+
+.card .add-tile {position: absolute; padding:10px 20px; padding-right:15px; right:0; top:0; color: #ccc; cursor: default; }
+.card .add-tile:before { transition:transform 0.2s ease-in-out; }
+.card .add-tile:hover { color: #666; }
+
+.card .tile-adder { transition:height 0.18s ease-out;  overflow:hidden; height:0; background:#F3F8FF; flex-direction:row; flex-wrap:wrap; max-width: 360px; }
+.card .tile-adder .tile, .card .tile-adder .row { border-color: rgba(0,0,0,0.1); }
+.card .tile-adder .tile { cursor:default; }
+.card .tile-adder .tile:hover { background: rgba(0,0,0,0.04); }
+.card .tile-adder .property { color:#555; }
+.card .adding .header { border-color: #ddd; }
+.card .adding .tile-adder { transition:height 0.18s ease-in;   height:150px; border-bottom:1px solid #ddd; }
+/* .card .adding .tiles { display:none; } */
+.card .adding .add-tile:before {transform: rotate(-135deg); }
+
+.card .property-adder { flex: 1; align-items:center; justify-content:center; }
+.card .property-adder .tile { flex:none; border:1px solid rgba(0,0,0,0.1); background:#fff; border-radius:2px; max-width:320px; }
+.card .property-adder .tile:hover { background:#fff; }
+.card .property-adder input { text-align:center; }
+.card .property-adder .controls { border: 1px solid rgba(0,0,0,0.1); background:#fff; text-align:center; border-top:none; border-radius:0 0 2px 2px; }
+.card .property-adder .controls * { padding: 5px 10px; color: rgba(0,0,0,0.5); flex:1; border-radius:0; }
+.card .property-adder .controls div:hover { background: rgba(0,0,0,0.04); }
+.card .property-adder .controls .submit { border-right:1px solid rgba(0,0,0,0.1); }
+.card .property-adder .controls .submit:hover { color: green; }
+.card .property-adder .controls .cancel:hover { color: #aa5555; }
+
+.card .description-adder .tile { padding:10px 15px; }
+.card .description-adder textarea { width:290px; border:none; height: 75px; font-size:12pt; outline:none; }
 
 /*---------------------------------------------------------
 - Selector
@@ -183,26 +227,6 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .wiki-editor .non-editing-embedded-cell:hover .edit-button-container { display: flex; }
 .wiki-editor .non-editing-embedded-cell .edit-button{ padding:5px; background:#008cdd; color: #fff; border-radius:2px; font-size:10pt; cursor:pointer; }
 .wiki-editor .non-editing-embedded-cell .edit-button:hover { background: #004A74; }
-
-/*---------------------------------------------------------
-- Page attributes
----------------------------------------------------------*/
-
-.page-attributes { align-self: flex-start; border-radius:3px; border:none; }
-.page-attributes .attribute { align-items:flex-start; flex-direction:row; }
-.page-attributes .attribute + .attribute { margin-top:15px; border:none; }
-.page-attributes .attribute .attribute-name { text-align:right; font-weight:900; width: 150px; padding:2px 10px; border:1px solid transparent; }
-.page-attributes input {font-size: 12pt; }
-.page-attributes .value { padding: 2px 10px; border:1px solid transparent; border-left: 1px solid #ddd; width: 150px; flex-direction: row; font-size:12pt; }
-.page-attributes .value:hover { border:1px solid #ddd; }
-.page-attributes .value > * {flex: none; background:none; }
-.page-attributes .value input { flex: 1; }
-.page-attributes .value > .spacer {flex: 1; }
-.page-attributes .value .remove { opacity:0; justify-content:center; color: #888; }
-.page-attributes .value .remove:hover { color: #f55; }
-.page-attributes .value:hover .remove { opacity:1; }
-.page-attributes .adder .value:first-child { border-left-color:transparent; }
-.page-attributes .adder:hover .value { border-color:#ddd; }
 
 /*---------------------------------------------------------
 - Delete prompt

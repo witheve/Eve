@@ -150,7 +150,7 @@ export function dispatch(event?: string, info?: { [key: string]: any }, dispatch
 }
 
 // No-op dispatch to trigger a rerender or start a chain.
-handle("rerender", (changes:Diff) => {
+handle("rerender", (changes:runtime.Diff) => {
 });
 
 
