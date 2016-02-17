@@ -1209,6 +1209,7 @@ function formTree(node: Node, tree: Node, context: Context): any {
     let attributeArgs = findLeafNodes(tree).filter((node) => node.hasProperty(Properties.INPUT) && (node.name === "attribute" || node.name === "value"));
     if (attributeArgs.length > 0) {
       let arg = attributeArgs.pop();
+      log("Matching with function: " + arg.parent.name);
       arg.addChild(node);
       arg.found = true;
       let fxnNode = arg.parent;
@@ -1217,7 +1218,7 @@ function formTree(node: Node, tree: Node, context: Context): any {
         insertBeforeNode(collapsedNode, fxnNode); 
         removeBranch(fxnNode);
       }
-      log("Matching with function: " + arg.parent.name);
+      formTree(collapsedNode, tree, context);
     }
     
     
@@ -1236,7 +1237,12 @@ function formTree(node: Node, tree: Node, context: Context): any {
 
 
 function collapseNode(node: Node, context: Context): Node {
-  log("Collapsing node: " + node.name);
+  if (!node.hasProperty(Properties.FUNCTION)) {
+    return undefined;
+  } else if (node.fxn.type !== FunctionTypes.SELECT) {
+    return undefined;
+  }
+  log("Collapsing node: " + node.name); 
   let leafs = findLeafNodes(node);
   let allArgs = leafs.every((node) => node.hasProperty(Properties.ARGUMENT));
   // If the node is a function and all arguments are filled
@@ -1459,27 +1465,11 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
   // If both nodes are Collections, find their relationship
   if (nodeA.hasProperty(Properties.COLLECTION) && nodeB.hasProperty(Properties.COLLECTION)) {
     relationship = findCollectionToCollectionRelationship(nodeA.collection, nodeB.collection);
-  // If one node is a Collection, and the other node is neither a collection nor an entity
-  } else if (nodeA.hasProperty(Properties.COLLECTION) && !(nodeB.hasProperty(Properties.COLLECTION) ||nodeB.hasProperty(Properties.ENTITY))) {
-    relationship = findCollectionToAttrRelationship(nodeA.collection, nodeB, context);
-  } else if (nodeB.hasProperty(Properties.COLLECTION) && !(nodeA.hasProperty(Properties.COLLECTION) || nodeA.hasProperty(Properties.ENTITY))) {
-    relationship = findCollectionToAttrRelationship(nodeB.collection, nodeA, context);
   // If one node is an entity and the other is a collection 
   } else if (nodeA.hasProperty(Properties.COLLECTION) && nodeB.hasProperty(Properties.ENTITY)) {
     relationship = findCollectionToEntRelationship(nodeA.collection, nodeB.entity);
   } else if (nodeB.hasProperty(Properties.COLLECTION) && nodeA.hasProperty(Properties.ENTITY)) {
     relationship = findCollectionToEntRelationship(nodeB.collection, nodeA.entity);
-  // If one node is an Entity, and the other node is neither a collection nor an entity
-  } else if (nodeA.hasProperty(Properties.ENTITY) && !(nodeB.hasProperty(Properties.COLLECTION) || nodeB.hasProperty(Properties.ENTITY))) {
-    relationship = findEntToAttrRelationship(nodeA.entity, nodeB, context);
-  } else if (nodeB.hasProperty(Properties.ENTITY) && !(nodeA.hasProperty(Properties.COLLECTION) || nodeA.hasProperty(Properties.ENTITY))) {
-    relationship = findEntToAttrRelationship(nodeB.entity, nodeA, context);
-  // If we found a relationship, add it to the context
-  if (relationship !== undefined && relationship.type !== RelationshipTypes.NONE) {
-    context.relationships.push(relationship);
-    return relationship; 
-  } else {
-    return {type: RelationshipTypes.NONE};  
   }*/
 }
 
@@ -2084,9 +2074,9 @@ function formQuery(node: Node): Query {
     return query;
   }
   
-  /*
+  
   // Handle collections -------------------------------
-  if (node.collection !== undefined && !node.hasProperty(Properties.PRONOUN)) {
+  if (node.hasProperty(Properties.COLLECTION) && !node.hasProperty(Properties.PRONOUN)) {
     let entityField: Field = {name: "entity", 
                              value: node.collection.variable, 
                           variable: true};
@@ -2100,13 +2090,17 @@ function formQuery(node: Node): Query {
     }
     query.terms.push(term);
     // project if necessary
-    if (node.collection.project === true && !node.hasProperty(Properties.NEGATES)) {
-      let collectionField: Field = {name: `${node.collection.displayName.replace(new RegExp(" ", 'g'),"")}`, 
-                                   value: `${node.collection.variable}`, 
-                                variable: true};
-      projectFields.push(collectionField);
+    
+    collectionField = {name: `${node.collection.displayName.replace(new RegExp(" ", 'g'),"")}`, 
+                       value: `${node.collection.variable}`, 
+                       variable: true};
+    projectFields.push(collectionField);
+    let project = {
+      type: "project!",
+      fields: projectFields,
     }
-  }*/
+    query.projects.push(project);
+  }
   /*
   // Handle entities -------------------------------
   if (node.entity !== undefined && !node.hasProperty(Properties.PRONOUN)) {
