@@ -1652,7 +1652,7 @@ export function entityTilesUI(entityId, paneId) {
     let values = items["description"];
     for(let value of values) {
       let tileChildren = [];
-      tileChildren.push({c: "property", text: "description"});
+      //tileChildren.push({c: "property", text: "description"});
       tileChildren.push({c: "value text", text: value.eav.value});
       rows.push({c: "flex-row row", children: [
         {c: "tile full", children: tileChildren}
