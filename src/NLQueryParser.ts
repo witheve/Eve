@@ -614,10 +614,9 @@ function newNode(token: Token): Node {
     let entity = node.entity === undefined ? "" : `[${node.entity.displayName}]`;
     let collection = node.collection === undefined ? "" : `[${node.collection.displayName}]`;
     let fxn = node.fxn === undefined ? "" : `[${node.fxn.name}]`;
-    let negated = node.hasProperty(Properties.NEGATES) ? "!" : "";
     let found = node.found ? "*" : " ";
     properties = properties.length === 2 ? "" : properties;
-    let nodeString = `|${found}${indent}${index}${node.name} ${negated}${fxn}${entity}${collection}${attribute} ${properties}${children}`; 
+    let nodeString = `|${found}${indent}${index}${node.name} ${fxn}${entity}${collection}${attribute} ${properties}${children}`; 
     return nodeString;
   }
   return node;  
@@ -916,6 +915,7 @@ export enum FunctionTypes {
   INSERT,
   SELECT,
   GROUP,
+  NEGATE,
 }
 
 interface BuiltInFunction {
@@ -990,6 +990,9 @@ function stringToFunction(word: string): BuiltInFunction {
     case "by":
     case "per":
       return {name: "group", type: FunctionTypes.GROUP, fields: ["root", "entity"], project: false};
+    case "except":
+    case "not":
+      return {name: "negate", type: FunctionTypes.NEGATE, fields: ["entity"], project: false};
     default:
       return undefined;
   }  
@@ -1239,6 +1242,9 @@ function formTree(node: Node, tree: Node, context: Context): any {
           }
         } 
       }
+    // If the node is a negate, don't do a back search
+    } else if (node.fxn.type === FunctionTypes.NEGATE) {
+      // This space is left intentionally blank
     // Otherwise, just attach arguments that are applicable
     } else {  
       if (node.fxn.fields.length > 0) {
@@ -1988,6 +1994,14 @@ function formQuery(node: Node): Query {
     return query;
   }*/
   // Handle functions -------------------------------
+  if (node.hasProperty(Properties.FUNCTION) && 
+      node.fxn.type === FunctionTypes.NEGATE) {
+    log("Building negate term for: " + node.name);
+    console.log(query.toString());    
+    let negatedTerm = query.terms.pop();
+    let negatedQuery = negateTerm(negatedTerm);
+    query.subqueries.push(negatedQuery);
+  }
   if (node.hasProperty(Properties.FUNCTION) && ( 
       node.fxn.type === FunctionTypes.AGGREGATE || 
       node.fxn.type === FunctionTypes.CALCULATE ||
@@ -2148,11 +2162,6 @@ function formQuery(node: Node): Query {
     }
     node.entity.handled = true;
   }
-  /*if (node.hasProperty(Properties.NEGATES)) {
-    let negatedTerm = query.terms.pop();
-    let negatedQuery = negateTerm(negatedTerm);
-    query.subqueries.push(negatedQuery);
-  }*/
   // Project something if necessary       
   if (projectFields.length > 0) {                        
     let project = {
