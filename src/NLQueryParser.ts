@@ -58,7 +58,11 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
   }
   // Create the query from the new tree
   log("Building query...");
-  let query = formQuery(tree);
+  let allFound = tokens.every((t) => t.node.found);
+  let query = newQuery();
+  if (allFound) {
+    query = formQuery(tree);
+  }
 
   let intent = Intents.QUERY;
   return [{intent: intent, context: context, tokens: tokens, tree: tree, query: query}];
