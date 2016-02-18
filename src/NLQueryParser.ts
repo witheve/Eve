@@ -1141,6 +1141,22 @@ function formTree(node: Node, tree: Node, context: Context): any {
   // Step 2: Identify the node
   // -------------------------------------
   
+  // If the node is a quantity, just build an attribute
+  if (node.hasProperty(Properties.QUANTITY)) {
+    let quantityAttribute: Attribute = {
+      id: node.name,
+      displayName: node.name,
+      variable: node.name,
+      node: node,
+      project: false,
+      handled: true,
+    }
+    node.properties.push(Properties.ATTRIBUTE);
+    node.attribute = quantityAttribute;
+    node.found = true;
+    context.found.push(node);
+  }
+  
   // Find a collection, entity, attribute, or function
   if (!node.found) {
     findCollection(node, context);
@@ -1228,13 +1244,9 @@ function formTree(node: Node, tree: Node, context: Context): any {
     }
   // Handle everything else
   } else {
-    console.log("foo")
-    console.log(node);
-    console.log(context.found);
     // Find a relationship if we have to
     let relationship: Relationship = {type: RelationshipTypes.NONE};
     if (node.relationships.length === 0) {
-      console.log("here")
       //let orphans = tree.children.filter((child) => child.relationships.length === 0 && child.children.length === 0);  
       for (let i = context.found.length -1; i >= 0; i--) {
         let foundNode = context.found[i]; 
