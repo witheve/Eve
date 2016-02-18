@@ -995,6 +995,9 @@ function findFunction(node: Node, context: Context): boolean {
       argNode.addChild(outputNode);          
     } else {
       argNode.properties.push(Properties.INPUT);
+      if (argNode.name === "root") {
+        argNode.properties.push(Properties.ROOT);
+      }
     }
     return argNode;
   });
@@ -1204,11 +1207,20 @@ function formTree(node: Node, tree: Node, context: Context): any {
     }
     
     // If no relationships were found, stick the node onto the root
-    if (node.parent === undefined && relationship.type === RelationshipTypes.NONE) {
+    if (node.parent === undefined && node.relationships.length === 0) {
       tree.addChild(node);
     // If there is a relationship, but the node has no parent, just put it on the root
     } else if (node.parent === undefined) {
-      tree.addChild(node);
+      console.log(node);
+      let relatedNodes = node.relationships.map((r) => r.nodes);
+      let flatRelatedNodes = flattenNestedArray(relatedNodes);
+      let relatedAttribute = flatRelatedNodes.filter((n) => n.hasProperty(Properties.ATTRIBUTE)).shift();
+      if (relatedAttribute !== undefined) {
+        let root = findParentWithProperty(relatedAttribute, Properties.ROOT);
+        if (root !== undefined) {
+          root.addChild(node);
+        }
+      }
     }
     // Finally add any nodes implicit in the relationship    
     if (relationship.implicitNodes !== undefined && relationship.implicitNodes.length > 0) {
@@ -1496,8 +1508,6 @@ function findEntToAttrRelation(ent: Node, attr: Node, context: Context): Relatio
     attribute.variable = varName;
     attribute.refs = [ent];
     attribute.project = true;
-    attr.relationships.push(relationship);
-    ent.relationships.push(relationship);
     ent.entity.handled = true;
     return {type: RelationshipTypes.DIRECT, nodes: [ent, attr], implicitNodes: []};
   }
@@ -1592,11 +1602,11 @@ function findCollToAttrRelation(coll: Node, attr: Node, context: Context): Relat
   // Finds a direct relationship between collection and attribute
   // e.g. "pets' lengths"" => pet -> length
   log(`Finding Coll -> Attr relationship between "${coll.name}" and "${attr.name}"...`);
-  let relationship = eve.query(``)
+  let eveRelationship = eve.query(``)
     .select("collection entities", { collection: coll.collection.id }, "collection")
     .select("entity eavs", { entity: ["collection", "entity"], attribute: attr.attribute.id }, "eav")
     .exec();
-  if (relationship.unprojected.length > 0) {    
+  if (eveRelationship.unprojected.length > 0) {    
     log("  Found Direct Relationship");
     // Build an attribute node
     let attribute = attr.attribute;
@@ -1604,22 +1614,20 @@ function findCollToAttrRelation(coll: Node, attr: Node, context: Context): Relat
     attribute.variable = varName;
     attribute.refs = [coll];
     attribute.project = true;
-    attr.relationships.push(relationship);
-    coll.relationships.push(relationship);
     return {type: RelationshipTypes.DIRECT, nodes: [coll, attr], implicitNodes: []};
   }
   // Finds a one hop relationship
   // e.g. "department salaries" => department -> employee -> salary
-  relationship = eve.query(``)
+  eveRelationship = eve.query(``)
     .select("collection entities", { collection: coll.collection.id }, "collection")
     .select("directionless links", { entity: ["collection", "entity"] }, "links")
     .select("entity eavs", { entity: ["links", "link"], attribute: attr.attribute.id }, "eav")
     .exec();
-  if (relationship.unprojected.length > 0) {
+  if (eveRelationship.unprojected.length > 0) {
     log("  Found One-Hop Relationship");
-    log(relationship)
+    log(eveRelationship)
     // Find the one-hop link
-    let entities = extractFromUnprojected(relationship.unprojected, 1, 3);
+    let entities = extractFromUnprojected(eveRelationship.unprojected, 1, 3);
     let collections = findCommonCollections(entities)
     let linkID;
     if (collections.length > 0) {
@@ -1637,9 +1645,6 @@ function findCollToAttrRelation(coll: Node, attr: Node, context: Context): Relat
     attribute.variable = varName;
     attribute.refs = [linkCollection];
     attribute.project = true;
-    attr.relationships.push(relationship);
-    linkCollection.relationships.push(relationship);
-    coll.relationships.push(relationship);
     // Build a link attribute node
     let newName = coll.collection.variable;
     let nToken = newToken(newName);
@@ -1653,13 +1658,16 @@ function findCollToAttrRelation(coll: Node, attr: Node, context: Context): Relat
       project: false,
     }
     nNode.attribute = nAttribute;
-    nNode.relationships.push(relationship);
+    
     nNode.properties.push(Properties.ATTRIBUTE);
     nNode.found = true;
     // Project what we need to
     linkCollection.collection.project = true;
     coll.collection.project = true;
-    return {type: RelationshipTypes.ONEHOP, nodes: [coll, attr], implicitNodes: [nNode]};
+    let relationship = {type: RelationshipTypes.ONEHOP, nodes: [coll, attr], implicitNodes: [nNode]};
+    nNode.relationships.push(relationship);
+    linkCollection.relationships.push(relationship);
+    return relationship;
   }
   /*
   // Not sure if this one works... using the entity table, a 2 hop link can
