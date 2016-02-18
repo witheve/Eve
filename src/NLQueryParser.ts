@@ -58,9 +58,17 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
   }
   // Create the query from the new tree
   log("Building query...");
-  let allFound = tokens.every((t) => t.node.found);
+  
+  function allFound(node: Node): boolean {
+    let cFound = node.children.map(allFound).every((c)=>c);
+    if (cFound && node.found) {
+      return true;
+    } else {
+      return false;
+    }
+  } 
   let query = newQuery();
-  if (allFound) {
+  if (allFound(tree)) {
     query = formQuery(tree);
   }
 
@@ -1137,6 +1145,10 @@ function formTree(node: Node, tree: Node, context: Context): any {
     }
   }
   
+  if (!node.found) {
+    return {tree: tree, context: context};
+  }
+  
   // -------------------------------------
   // Step 3: Insert the node into the tree
   // -------------------------------------
@@ -1197,6 +1209,9 @@ function formTree(node: Node, tree: Node, context: Context): any {
       //let orphans = tree.children.filter((child) => child.relationships.length === 0 && child.children.length === 0);  
       for (let i = context.found.length -1; i >= 0; i--) {
         let foundNode = context.found[i]; 
+        if (foundNode.relationships.length > 0) {
+          continue;
+        }
         if (node.relationships.length === 0) {
           removeNode(node);
         }
