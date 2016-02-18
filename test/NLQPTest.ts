@@ -62,7 +62,7 @@ function parseTest(queryString: string, n: number): nlqp.Intents {
 function executeQuery(query: nlqp.Query): Array<string> {
   let resultsString: Array<string> = [];
   if (query.projects.length !== 0) {
-    let queryString = query.toString(); 
+    let queryString = query.toString();    
     let artifacts = dslparser.parseDSL(queryString);
     let changeset = eve.diff();
     let results = [];
@@ -134,21 +134,26 @@ let phrases = [
   // -------------------------------//
   /*
   "3 - Corey's salary",
-  "Corey's salary + 3",
   `Corey Montella's age + Josh's salary`,
   "salaries in engineering",
   "Pet not shorter than koalas",
-  "exotic lengths",
+  "exotic that are not pets",
+  "pets not exotics",
+  "Pets except those longer than a koala",
   "Corey age, height, gender and hair color",
   "Corey's wife's age, gender, and height",
   "employees with their departments and salaries",
-  "Pets except those longer than a koala",
-  "exotic that are not pets",
-  "pets not exotics",
   */
   // -------------------------------
-  "exotic pet lengths",
+  "pets not exotics",
+  //"+ corey's salary josh's salary",
   /*
+  "Pets that are exotic with length <= 3",
+  "Pets that are exotic with length != 4",
+  "Corey's salary + 3",
+  "exotic lengths"
+  "sum lengths of pets that are exotic",
+  "pets that are exotic that have length",
   "exotic pets",
   "sum of employee salaries",
   "salaries per department",
