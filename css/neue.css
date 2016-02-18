@@ -55,6 +55,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .wiki-pane > header { padding: 10px 0.5em; align-items: center; border-bottom: 1px solid #ccc; }
 .wiki-pane > header > * { margin: 0 0.5em;}
 .wiki-pane > header > .controls { margin-right: -43px; }
+.wiki-pane > header + .scroller { margin-top:50px; }
 .wiki-pane .scroller > content { flex:1; position:relative; display: flex; overflow:auto; padding:20px 0 50px 0; } /* @TODO: Breakpoints overflow-y: auto*/
 .wiki-pane .scroller { flex:1; position:relative; overflow:hidden; }
 .wiki-pane .scroller .top-scroll-fade { z-index:10; position:absolute; top:0; left:0; right:0; height:20px; background:linear-gradient(#ECEEF2 0%, transparent 100%); }
@@ -84,7 +85,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 ---------------------------------------------------------*/
 
 .wiki-pane.window > header > * { margin:0;}
-.wiki-pane.window { position:absolute; max-height:40%; box-shadow:0 0 0 1px rgba(0,0,0,0.1),0 7px 15px rgba(0,0,0,0.1); background: #fff; border-radius:3px; z-index:10; }
+.wiki-pane.window { position:absolute; max-height:40%; box-shadow:0 0 0 1px rgba(0,0,0,0.03),0 7px 15px rgba(0,0,50,0.1); background: #fff; border-radius:3px; z-index:10; }
 .wiki-pane.window > header { background: #fff; padding: 10px 5px; padding: 0; border:none; }
 .wiki-pane.window > header button { border:none; border-radius:0px; background:none; font-size: 20px; font-weight:400; color:#555; padding:8px 10px; color: #008cdd; position:absolute; top:0; right:0; z-index:10;  }
 .wiki-pane.window > header button:hover { background: rgba(0, 140, 221, 0.15); }
@@ -93,6 +94,8 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .wiki-pane.window .wiki-entity .CodeMirror { flex: 1; overflow:visible; }
 .wiki-pane.window .wiki-editor { padding: 0px 30px;  }
 .wiki-pane.window .card { margin: 0; }
+
+.wiki-pane.window .scroller { margin:0; }
 
 /*---------------------------------------------------------
 - Autocompleter
@@ -123,9 +126,9 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 - Card
 ---------------------------------------------------------*/
 
-.card { flex:none; position:relative; background: white; align-self:center; align-items: stretch; min-width:200px; box-shadow: 0 20px 50px rgba(0,0,50,0.10); border-radius:5px; overflow:hidden; }
+.card { flex:none; position:relative; background: white; align-self:center; align-items: stretch; min-width:200px; box-shadow: 0 7px 15px rgba(0,0,50,0.10); border-radius:5px; overflow:hidden; }
 .card .text-content { margin-right:10px; min-width:250px; white-space:pre-wrap; line-height:28px; color:#aaa; flex:none; max-height:50%; }
-.card .header { flex-direction:row; flex:none; padding:10px 20px; font-size: 18pt; font-weight: 900; color: rgb(106,138,156); border-bottom: 1px solid #eee; }
+.card .header { flex-direction:row; flex:none; padding:10px 15px; font-size: 18pt; font-weight: 900; color: rgb(106,138,156); border-bottom: 1px solid #eee; }
 .card .wiki-editor { padding: 30px; padding-top:0; margin-bottom:20px; }
 .card + .card { margin-top:40px; }
 
@@ -134,7 +137,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .card .tiles { flex-direction: row; flex-wrap: wrap; max-width: 360px; }
 .card .tile { flex: 1 0 0; padding:15px; overflow:hidden; }
 .card .tile .property { font-size: 9pt; color: #aaa; }
-.card .tile.small, .card .tile.medium { align-items: center; justify-content: center; }
+.card .tile.small, .card .tile.medium { align-items: flex-start; justify-content: center; }
 .card .tile + .tile { border-left: 1px solid #eee; }
 .card .tile.small .value, .card .tile.medium .value { font-size: 16pt; margin-bottom:5px; }
 .card .row { width: 100%;  }
@@ -144,10 +147,11 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 
 .card .tile.full .property { margin-bottom:5px; }
 
-.card .tile .multi-value { flex-direction: row; }
-.card .multi-value * + * { border-left: 1px solid #ddd; padding-left: 10px; margin-left: 10px; }
+.card .tile .multi-value { flex-direction: column; }
+.card .multi-value * + * { border-left: 0px solid #ddd; padding-left: 0px;}
 
-.card .tile .list { max-height: 200px; overflow:auto; }
+.card .tile .list { max-height: 200px; overflow:auto; align-items:flex-start; }
+.card .tile .list > * + * { margin-top:3px; }
 
 .card .add-tile {position: absolute; padding:10px 20px; padding-right:15px; right:0; top:0; color: #ccc; cursor: default; }
 .card .add-tile:before { transition:transform 0.2s ease-in-out; }
@@ -155,18 +159,19 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 
 .card .tile-adder { transition:height 0.18s ease-out;  overflow:hidden; height:0; background:#F3F8FF; flex-direction:row; flex-wrap:wrap; max-width: 360px; }
 .card .tile-adder .tile, .card .tile-adder .row { border-color: rgba(0,0,0,0.1); }
-.card .tile-adder .tile { cursor:default; }
+.card .tile-adder .tile { cursor:default; align-items:center; }
 .card .tile-adder .tile:hover { background: rgba(0,0,0,0.04); }
 .card .tile-adder .property { color:#555; }
 .card .adding .header { border-color: #ddd; }
-.card .adding .tile-adder { transition:height 0.18s ease-in;   height:150px; border-bottom:1px solid #ddd; }
+.card .adding .tile-adder { transition:height 0.18s ease-in;   height:150px; }
+.card .adding .tiles { border-top:1px solid #ddd; }
 /* .card .adding .tiles { display:none; } */
 .card .adding .add-tile:before {transform: rotate(-135deg); }
 
 .card .property-adder { flex: 1; align-items:center; justify-content:center; }
-.card .property-adder .tile { flex:none; border:1px solid rgba(0,0,0,0.1); background:#fff; border-radius:2px; max-width:320px; }
+.card .property-adder .tile { flex:none; align-items:flex-start; border:1px solid rgba(0,0,0,0.1); background:#fff; border-radius:2px; max-width:320px; }
 .card .property-adder .tile:hover { background:#fff; }
-.card .property-adder input { text-align:center; }
+.card .property-adder input { text-align:left; }
 .card .property-adder .controls { border: 1px solid rgba(0,0,0,0.1); background:#fff; text-align:center; border-top:none; border-radius:0 0 2px 2px; }
 .card .property-adder .controls * { padding: 5px 10px; color: rgba(0,0,0,0.5); flex:1; border-radius:0; }
 .card .property-adder .controls div:hover { background: rgba(0,0,0,0.04); }

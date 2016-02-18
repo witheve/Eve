@@ -579,11 +579,15 @@ export function pane(paneId:string):Element {
     ]};
   }
 
-  let scroller = {c: "scroller", children: [
-    {c: "top-scroll-fade"},
-    content,
-    {c: "bottom-scroll-fade"},
-  ]};
+  let scroller = content;
+
+  if(kind === PANE.FULL) {
+    scroller = {c: "scroller", children: [
+      {c: "top-scroll-fade"},
+      content,
+      {c: "bottom-scroll-fade"},
+    ]};
+  }
 
   let pane:Element = {c: `wiki-pane ${klass || ""}`, paneId, children: [header, disambiguation, scroller, footer]};
   let pos = eve.findOne("ui pane position", {pane: paneId});
@@ -1646,12 +1650,14 @@ export function entityTilesUI(entityId, paneId) {
   let data = {paneId, entityId};
   if(items["description"]) {
     let values = items["description"];
-    let tileChildren = [];
-    tileChildren.push({c: "property", text: "description"});
-    tileChildren.push({c: "value text", text: values[0].eav.value});
-    rows.push({c: "flex-row row", children: [
-      {c: "tile full", children: tileChildren}
-    ]});
+    for(let value of values) {
+      let tileChildren = [];
+      tileChildren.push({c: "property", text: "description"});
+      tileChildren.push({c: "value text", text: value.eav.value});
+      rows.push({c: "flex-row row", children: [
+        {c: "tile full", children: tileChildren}
+      ]});
+    }
     delete items["description"];
   }
   if(eve.findOne("collection", {collection: entityId})) {

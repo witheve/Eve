@@ -92,7 +92,7 @@ function closePopup() {
 
 export function navigate(event, elem) {
   let {paneId} = elem.data;
-  if(elem.peek) dispatch("set popout", {parentId: paneId, contains: elem.link, x: "calc(50% - 350px)", y: event.clientY}).commit();
+  if(elem.peek) dispatch("set popout", {parentId: paneId, contains: elem.link, x: event.clientX, y: event.clientY}).commit();
   else dispatch("set pane", {paneId, contains: elem.link}).commit();
   event.preventDefault();
 }
