@@ -980,6 +980,7 @@ function stringToFunction(word: string): BuiltInFunction {
     case "'s":
     case "'":
       return {name: "select", type: FunctionTypes.SELECT, fields: ["entity", "attribute"], project: false}; 
+    case "by":
     case "per":
       return {name: "group", type: FunctionTypes.GROUP, fields: ["root", "entity"], project: false};
     default:
@@ -1272,6 +1273,8 @@ function formTree(node: Node, tree: Node, context: Context): any {
         } else {
           tree.addChild(node);
         }
+      } else {
+        tree.addChild(node);
       }
     }
     // Finally add any nodes implicit in the relationship    
@@ -1489,10 +1492,13 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
 
   // Find the proper relationship
   if (nodeA.hasProperty(Properties.ENTITY) && nodeB.hasProperty(Properties.ATTRIBUTE)) {
-    relationship = findEntToAttrRelation(nodeA, nodeB, context);
+    relationship = findEntToAttrRelationship(nodeA, nodeB, context);
   } else if (nodeA.hasProperty(Properties.COLLECTION) && nodeB.hasProperty(Properties.ATTRIBUTE)) {
-    relationship = findCollToAttrRelation(nodeA, nodeB, context);
+    relationship = findCollToAttrRelationship(nodeA, nodeB, context);
+  } else if (nodeA.hasProperty(Properties.COLLECTION) && nodeB.hasProperty(Properties.COLLECTION)) {
+    relationship = findCollToCollRelationship(nodeA, nodeB, context);
   }
+  
   // Add relationships to the nodes and context
   if (relationship.type !== RelationshipTypes.NONE) {
     nodeA.relationships.push(relationship);
@@ -1514,7 +1520,7 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
 }
 
 // e.g. "meetings john was in"
-function findCollToEntRelation(coll: Collection, ent: Entity): Relationship {
+function findCollToEntRelationship(coll: Collection, ent: Entity): Relationship {
   log(`Finding Coll -> Ent relationship between "${coll.displayName}" and "${ent.displayName}"...`);
   /*if (coll === "collections") {
     if (eve.findOne("collection entities", { entity: ent.id })) {
@@ -1548,7 +1554,7 @@ function findCollToEntRelation(coll: Collection, ent: Entity): Relationship {
   return { type: RelationshipTypes.NONE };
 }
 
-function findEntToAttrRelation(ent: Node, attr: Node, context: Context): Relationship {
+function findEntToAttrRelationship(ent: Node, attr: Node, context: Context): Relationship {
   log(`Finding Ent -> Attr relationship between "${ent.name}" and "${attr.name}"...`);
   // Check for a direct relationship
   // e.g. "Josh's age"
@@ -1611,18 +1617,18 @@ function findEntToAttrRelation(ent: Node, attr: Node, context: Context): Relatio
   return { type: RelationshipTypes.NONE };
 }
 
-export function findCollToCollRelation(collA: Collection, collB: Collection): Relationship {  
-  log(`Finding Coll -> Coll relationship between "${collA.displayName}" and "${collB.displayName}"...`);
+export function findCollToCollRelationship(collA: Node, collB: Node, context: Context): Relationship {  
+  log(`Finding Coll -> Coll relationship between "${collA.collection.displayName}" and "${collB.collection.displayName}"...`);
   // are there things in both sets?
-  let intersection = eve.query(`${collA.displayName}->${collB.displayName}`)
-    .select("collection entities", { collection: collA.id }, "collA")
-    .select("collection entities", { collection: collB.id, entity: ["collA", "entity"] }, "collB")
+  let intersection = eve.query(`${collA.collection.displayName}->${collB.collection.displayName}`)
+    .select("collection entities", { collection: collA.collection.id }, "collA")
+    .select("collection entities", { collection: collB.collection.id, entity: ["collA", "entity"] }, "collB")
     .exec();
   // is there a relationship between things in both sets
-  let relationships = eve.query(`relationships between ${collA.displayName} and ${collB.displayName}`)
-    .select("collection entities", { collection: collA.id }, "collA")
+  let relationships = eve.query(`relationships between ${collA.collection.displayName} and ${collB.collection.displayName}`)
+    .select("collection entities", { collection: collA.collection.id }, "collA")
     .select("directionless links", { entity: ["collA", "entity"] }, "links")
-    .select("collection entities", { collection: collB.id, entity: ["links", "link"] }, "collB")
+    .select("collection entities", { collection: collB.collection.id, entity: ["links", "link"] }, "collB")
     .group([["links", "link"]])
     .aggregate("count", {}, "count")
     .project({ type: ["links", "link"], count: ["count", "count"] })
@@ -1631,16 +1637,17 @@ export function findCollToCollRelation(collA: Collection, collB: Collection): Re
   for (let result of relationships.results) {
     if (result.count > maxRel.count) maxRel = result;
   }
-
   // we divide by two because unprojected results pack rows next to eachother
   // and we have two selects.
   let intersectionSize = intersection.unprojected.length / 2;
-    
   if (maxRel.count > intersectionSize) {
     // @TODO
     return {type: RelationshipTypes.NONE};
   } else if (intersectionSize > maxRel.count) {
-    return {type: RelationshipTypes.INTERSECTION, nodes: [collA.node, collB.node]};
+    log(" Found Intersection relationship.");
+    collB.collection.variable = collA.collection.variable;
+    collB.collection.project = false;
+    return {type: RelationshipTypes.INTERSECTION, nodes: [collA, collB]};
   } else if (maxRel.count === 0 && intersectionSize === 0) {
     return {type: RelationshipTypes.NONE};
   } else {
@@ -1649,8 +1656,7 @@ export function findCollToCollRelation(collA: Collection, collB: Collection): Re
   }
 }
 
-
-function findCollToAttrRelation(coll: Node, attr: Node, context: Context): Relationship {
+function findCollToAttrRelationship(coll: Node, attr: Node, context: Context): Relationship {
   // Finds a direct relationship between collection and attribute
   // e.g. "pets' lengths"" => pet -> length
   log(`Finding Coll -> Attr relationship between "${coll.name}" and "${attr.name}"...`);
