@@ -1200,6 +1200,16 @@ function formTree(node: Node, tree: Node, context: Context): any {
           let nNode = newNode(nToken);
           formTree(nNode, tree, context);
         }
+      } else {
+       let orphans = context.found.filter((n) => n.hasProperty(Properties.ATTRIBUTE));
+       for (let orphan of orphans) {
+          removeNode(orphan);
+          formTree(orphan, tree, context);
+          // Break when all args are filled
+          if (node.children.every((n) => n.found)) {
+            break;
+          }
+        } 
       }
     // Otherwise, just attach arguments that are applicable
     } else {  
