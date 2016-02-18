@@ -502,6 +502,8 @@ function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech 
 }
 
 // Wrap pluralize to special case certain words it gets wrong
+// @HACK data singularizes to datum, which is correct, but we
+// have a collection called test data, which NLQP turns into test datum
 export function singularize(word: string): string {
   // split word at spaces
   let words = word.split(" ");
@@ -1196,10 +1198,12 @@ function formTree(node: Node, tree: Node, context: Context): any {
       log(`Replacing ${subsumedNode.name} with ${node.name}`)
       insertBeforeNode(node,subsumedNode);
       removeBranch(subsumedNode);
+      tree.addChild(node);
       return {tree: tree, context: context};  
     }
+  }
   // Handle functions
-  } else if (node.hasProperty(Properties.FUNCTION)) {
+  if (node.hasProperty(Properties.FUNCTION)) {
     // Attach the function to the root
     tree.addChild(node);
     
@@ -1238,6 +1242,7 @@ function formTree(node: Node, tree: Node, context: Context): any {
     // Otherwise, just attach arguments that are applicable
     } else {  
       if (node.fxn.fields.length > 0) {
+        console.log(context.found)
         for (let i = context.found.length -1; i >= 0; i--) {
           let foundNode = context.found[i]; 
           removeNode(foundNode);
@@ -1311,7 +1316,7 @@ function formTree(node: Node, tree: Node, context: Context): any {
 // Adds a node to an argument. If adding the node completes a select,
 // a new node will be returned
 function addNodeToFunction(node: Node, fxnNode: Node, context: Context): boolean {
-  log("Matching with function: " + fxnNode.name);
+  log(`Matching ${node.name} with function ${fxnNode.name}`);
   // Find the correct arg
   let arg: Node;
   if (node.hasProperty(Properties.ENTITY) || node.hasProperty(Properties.COLLECTION)) {
