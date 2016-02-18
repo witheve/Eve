@@ -1,4 +1,4 @@
-body { position: relative; padding-bottom: 1.5em; background:linear-gradient(-215deg, #fff 0%, rgb(236,238,242) 40%); color: rgb(76, 85, 90); font-family: "Lato", sans-serif; font-weight: 400; }
+body { position: relative; padding-bottom: 1.5em; background:#ECEEF2; color: rgb(76, 85, 90); font-family: "Lato", sans-serif; font-weight: 400; }
 * { box-sizing: border-box; }
 div { display: flex; flex-direction: column; }
 button, input { border:none; outline: none; font-family: "Lato", sans-serif; font-weight: 400; color: rgb(76,85,90); font-size: 12pt; }
@@ -51,11 +51,14 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 /*---------------------------------------------------------
 - Pane
 ---------------------------------------------------------*/
-.wiki-pane.fullscreen { position: relative; padding: 50px 100px; }
+.wiki-pane.fullscreen { position: relative; padding: 20px 100px; }
 .wiki-pane > header { padding: 10px 0.5em; align-items: center; border-bottom: 1px solid #ccc; }
 .wiki-pane > header > * { margin: 0 0.5em;}
 .wiki-pane > header > .controls { margin-right: -43px; }
-.wiki-pane > content { display: flex; } /* @TODO: Breakpoints overflow-y: auto*/
+.wiki-pane .scroller > content { flex:1; position:relative; display: flex; overflow:auto; padding:20px 0 50px 0; } /* @TODO: Breakpoints overflow-y: auto*/
+.wiki-pane .scroller { flex:1; position:relative; overflow:hidden; }
+.wiki-pane .scroller .top-scroll-fade { z-index:10; position:absolute; top:0; left:0; right:0; height:20px; background:linear-gradient(#ECEEF2 0%, transparent 100%); }
+.wiki-pane .scroller .bottom-scroll-fade { z-index:10; position:absolute; bottom:0; left:0; right:0; height:20px; background:linear-gradient(transparent 0%, #ECEEF2 100%); }
 .wiki-pane > content.unwrapped .text-content { flex: 1; }
 .wiki-pane > content.unwrapped .CodeMirror { width: auto; max-width: 760px; }
 
@@ -120,7 +123,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 - Card
 ---------------------------------------------------------*/
 
-.card { position:relative; background: white; align-self:center; align-items: stretch; min-width:200px; box-shadow: 0 20px 50px rgba(0,0,50,0.10); margin-top:100px; border-radius:5px; overflow:hidden; }
+.card { flex:none; position:relative; background: white; align-self:center; align-items: stretch; min-width:200px; box-shadow: 0 20px 50px rgba(0,0,50,0.10); border-radius:5px; overflow:hidden; }
 .card .text-content { margin-right:10px; min-width:250px; white-space:pre-wrap; line-height:28px; color:#aaa; flex:none; max-height:50%; }
 .card .header { flex-direction:row; flex:none; padding:10px 20px; font-size: 18pt; font-weight: 900; color: rgb(106,138,156); border-bottom: 1px solid #eee; }
 .card .wiki-editor { padding: 30px; padding-top:0; margin-bottom:20px; }

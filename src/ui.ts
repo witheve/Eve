@@ -579,7 +579,13 @@ export function pane(paneId:string):Element {
     ]};
   }
 
-  let pane:Element = {c: `wiki-pane ${klass || ""}`, paneId, children: [header, disambiguation, content, footer]};
+  let scroller = {c: "scroller", children: [
+    {c: "top-scroll-fade"},
+    content,
+    {c: "bottom-scroll-fade"},
+  ]};
+
+  let pane:Element = {c: `wiki-pane ${klass || ""}`, paneId, children: [header, disambiguation, scroller, footer]};
   let pos = eve.findOne("ui pane position", {pane: paneId});
   if(pos) {
     pane.style = `left: ${isNaN(pos.x) ? pos.x : pos.x + "px"}; top: ${isNaN(pos.y) ? pos.y : (pos.y + 20) + "px"};`;
