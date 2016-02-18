@@ -139,7 +139,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .card .tile .property { font-size: 9pt; color: #aaa; }
 .card .tile.small, .card .tile.medium { align-items: flex-start; justify-content: center; }
 .card .tile + .tile { border-left: 1px solid #eee; }
-.card .tile.small .value, .card .tile.medium .value { font-size: 16pt; margin-bottom:5px; }
+.card .tile.small .value, .card .tile.medium .value { font-size: 14pt; margin-bottom:5px; }
 .card .row { width: 100%;  }
 .card .row + .row { border-top:1px solid #eee; }
 
