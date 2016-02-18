@@ -756,7 +756,7 @@ function findParentWithProperty(node: Node, property: Properties): Node {
   if (node.parent === undefined) {
     return undefined;
   }
-  if (node.parent.hasProperty(property)) {
+   else if (node.parent.hasProperty(property)) {
     return node.parent;
   } else {
     return findParentWithProperty(node.parent,property);
@@ -1947,6 +1947,17 @@ function formQuery(node: Node): Query {
   if (combinedProjectFields.length > 0) {
     projectFields = combinedProjectFields;
   }
+  // Sort terms
+  query.terms = query.terms.sort((a,b) => {
+    let aRank = setRank(a.table);
+    let bRank = setRank(b.table);
+    function setRank(table: string): number {
+      if (table === "entity eavs") { return 1 }
+      else if (table === "is a attributes") { return 2 }
+      else { return 3 }
+    }
+    return aRank - bRank;
+  });
 
   /*
   // If the node is a grouping node, stuff the query into a subquery
@@ -2013,11 +2024,12 @@ function formQuery(node: Node): Query {
       
       let groupNode = node.children[1].children[0];
       
-      
+      groupNode.collection.handled = false;
       let subquery = query;
+      let query2 = formQuery(groupNode);
       query = newQuery();
       query.subqueries.push(subquery);
-      query.terms = query.terms.concat(formQuery(groupNode).terms); 
+      query.terms = query.terms.concat(query2.terms); 
     }
   }
   // Handle attributes -------------------------------
