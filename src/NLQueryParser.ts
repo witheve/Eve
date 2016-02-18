@@ -855,25 +855,6 @@ function swapWithParent(node: Node): void {
   pparent.children.push(node);
 }
 
-export enum FunctionTypes {
-  FILTER,
-  AGGREGATE,
-  BOOLEAN,
-  CALCULATE,
-  INSERT,
-  SELECT,
-}
-
-interface BuiltInFunction {
-  name: string,
-  type: FunctionTypes,
-  attribute?: string,
-  fields: Array<string>,
-  project: boolean,
-  negated?: boolean,
-  node?: Node,
-}
-
 interface Context {
   entities: Array<Entity>,
   collections: Array<Collection>,
@@ -906,6 +887,26 @@ function newContext(): Context {
     maybeFunctions: [],
     maybeArguments: [],
   };
+}
+
+export enum FunctionTypes {
+  FILTER,
+  AGGREGATE,
+  BOOLEAN,
+  CALCULATE,
+  INSERT,
+  SELECT,
+  GROUP,
+}
+
+interface BuiltInFunction {
+  name: string,
+  type: FunctionTypes,
+  attribute?: string,
+  fields: Array<string>,
+  project: boolean,
+  negated?: boolean,
+  node?: Node,
 }
 
 function stringToFunction(word: string): BuiltInFunction {
@@ -955,6 +956,8 @@ function stringToFunction(word: string): BuiltInFunction {
     case "'s":
     case "'":
       return {name: "select", type: FunctionTypes.SELECT, fields: ["entity", "attribute"], project: false}; 
+    case "per":
+      return {name: "group", type: FunctionTypes.GROUP, fields: ["root", "entity"], project: false};
     default:
       return undefined;
   }  
@@ -1131,15 +1134,6 @@ function formTree(node: Node, tree: Node, context: Context): any {
   // Step 3: Insert the node into the tree
   // -------------------------------------
   
-  // We have four cases here: Root, Entity, Collection, Attribute/Value, and Function/Argument
-  // Y axis is the node type, X axis is what it can attach to
-  //   R E C A F
-  // R  
-  // E X   X   X
-  // C X       X
-  // A   X X   X
-  // F X       X
-  
   log("Matching: " + node.name);
   
   // If the node is compound, replace the last subsumed node with it
@@ -1155,22 +1149,35 @@ function formTree(node: Node, tree: Node, context: Context): any {
   } else if (node.hasProperty(Properties.FUNCTION)) {
     // Attach the function to the root
     tree.addChild(node);
-    // Attach arguments
-    if (node.fxn.fields.length > 0) {
-      let orphans = context.found.filter((n) => n.relationships.length === 0);
-      for (let orphan of orphans) {
-        removeNode(orphan);
-        formTree(orphan, tree, context);
-        // Break when all args are filled
-        if (node.children.every((n) => n.found)) {
-          break;
+    
+    // If the node is a grouping node, attach the old root to the new one
+    if (node.fxn.type === FunctionTypes.GROUP) {
+      let newRoot = node.children[0];
+      for (let child of tree.children) {
+        if (child === node) {
+          continue;
+        } else {
+          reroot(child, newRoot);
         }
-      } 
+        newRoot.found = true;
+      }  
+    // Otherwise, just attach arguments that are applicable
+    } else {  
+      if (node.fxn.fields.length > 0) {
+        let orphans = context.found.filter((n) => n.relationships.length === 0);
+        for (let orphan of orphans) {
+          removeNode(orphan);
+          formTree(orphan, tree, context);
+          // Break when all args are filled
+          if (node.children.every((n) => n.found)) {
+            break;
+          }
+        } 
+      }
     }
   // Handle everything else
   } else {
-    // Find a relationship
-
+    // Find a relationship if we have to
     let relationship: Relationship = {type: RelationshipTypes.NONE};
     if (node.relationships.length === 0) {
       //let orphans = tree.children.filter((child) => child.relationships.length === 0 && child.children.length === 0);  
@@ -1203,15 +1210,13 @@ function formTree(node: Node, tree: Node, context: Context): any {
     } else if (node.parent === undefined) {
       tree.addChild(node);
     }
-    
-    // Place nodes implicit in the relationship    
+    // Finally add any nodes implicit in the relationship    
     if (relationship.implicitNodes !== undefined && relationship.implicitNodes.length > 0) {
       for (let implNode of relationship.implicitNodes) {
         formTree(implNode, tree, context);
       }
     }
   }
-  
   log("Tree:");
   log(tree.toString());
   return {tree: tree, context: context};
@@ -1325,7 +1330,7 @@ function findEveEntity(search: string): Entity {
       displayName: name,
       variable: foundEntity.entity,
       project: true,
-    }    
+    }
     log(" Found: " + entity.id);
     return entity;
   } else {
@@ -1958,9 +1963,9 @@ function formQuery(node: Node): Query {
   // Handle functions -------------------------------
   if (node.hasProperty(Properties.FUNCTION)) {
     // Skip certain function types
-    if (!(node.fxn.fields.length === 0 || 
-        node.fxn.type === FunctionTypes.SELECT ||
-        node.fxn.type === FunctionTypes.INSERT)) {
+    if (node.fxn.type === FunctionTypes.AGGREGATE || 
+        node.fxn.type === FunctionTypes.CALCULATE ||
+        node.fxn.type === FunctionTypes.FILTER) {
       
       // Collection all input and output nodes which were found
       let allArgsFound = node.children.every((child) => child.found);
