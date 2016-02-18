@@ -62,7 +62,7 @@ function parseTest(queryString: string, n: number): nlqp.Intents {
 function executeQuery(query: nlqp.Query): Array<string> {
   let resultsString: Array<string> = [];
   if (query.projects.length !== 0) {
-    let queryString = query.toString();  
+    let queryString = query.toString(); 
     let artifacts = dslparser.parseDSL(queryString);
     let changeset = eve.diff();
     let results = [];
@@ -132,35 +132,46 @@ let phrases = [
   // These are queries that we had problems with in the past
   // make sure they always work
   // -------------------------------//
-  /*"Corey Montella's least favorite color",
-  "sum salaries",
-  "sum of employee salaries",
+  /*
   "3 - Corey's salary",
   "Corey's salary + 3",
-  "sum pet length",
-  "sum employee salaries",
-  "employee salaries",
+  `Corey Montella's age + Josh's salary`,
   "salaries in engineering",
-  "salaries per department",
-  "Pet shorter than koala",
   "Pet not shorter than koalas",
   "exotic lengths",
   "Corey age, height, gender and hair color",
   "Corey's wife's age, gender, and height",
-  "employee salaries",
-  "employees with their departments and salaries", 
-  "employees with their salaries", 
-  "employees and their salaries",
+  "employees with their departments and salaries",
   "Pets except those longer than a koala",
-  "sum salaries per department",
-  "sum salary per department",
-  "salaries by department",
   "exotic that are not pets",
   "pets not exotics",
-  `Corey Montella's age + Josh's salary`,*/
+  */
   // -------------------------------
+  "exotic pet lengths",
+  /*
+  "exotic pets",
+  "sum of employee salaries",
+  "salaries per department",
+  "employee salaries"
+  "sum employee salaries",
+  "exotic lengths",
+  "salaries by department",
+  "employee salaries",
+  "employees with their salaries",
+  "employees and their salaries",
+  "sum salaries",
+  "Pet shorter than koala",
+  "sum salaries per department",
+  "sum salary per department",
+  "pets lengths",
   "department salaries",
-  //"Corey's height"
+  "corey's salary",
+  "ages",
+  "sum ages",
+  "sum pet lengths",
+  "sum pet length",
+  */
+  // -------------------------------
   //`Pets except those shorter than a koala`,
   //`salaries per department`,
   //`Employees not named Corey`,
