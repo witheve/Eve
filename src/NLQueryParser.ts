@@ -1211,14 +1211,17 @@ function formTree(node: Node, tree: Node, context: Context): any {
       }
     // If the node is a filter, attach filter nodes  
     } else if (node.fxn.type === FunctionTypes.FILTER) {
+      // If an attribute is specified, create an attribute node for each one
       if (node.fxn.attribute !== undefined) {
         for (let i = 0; i < node.fxn.fields.length; i++) {
           let nToken = newToken(node.fxn.attribute);
           let nNode = newNode(nToken);
           formTree(nNode, tree, context);
         }
+      // No attribute is specified, try to attach existing attributes
       } else {
        let orphans = context.found.filter((n) => n.hasProperty(Properties.ATTRIBUTE));
+       console.log(context.found)
        for (let orphan of orphans) {
           removeNode(orphan);
           formTree(orphan, tree, context);
@@ -1231,10 +1234,10 @@ function formTree(node: Node, tree: Node, context: Context): any {
     // Otherwise, just attach arguments that are applicable
     } else {  
       if (node.fxn.fields.length > 0) {
-        let orphans = context.found.filter((n) => n.relationships.length === 0);
-        for (let orphan of orphans) {
-          removeNode(orphan);
-          formTree(orphan, tree, context);
+        for (let i = context.found.length -1; i >= 0; i--) {
+          let foundNode = context.found[i]; 
+          removeNode(foundNode);
+          formTree(foundNode, tree, context);
           // Break when all args are filled
           if (node.children.every((n) => n.found)) {
             break;
