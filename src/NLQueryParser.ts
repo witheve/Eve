@@ -1969,40 +1969,53 @@ function formQuery(node: Node): Query {
     return query;
   }*/
   // Handle functions -------------------------------
-  if (node.hasProperty(Properties.FUNCTION)) {
-    // Skip certain function types
-    if (node.fxn.type === FunctionTypes.AGGREGATE || 
-        node.fxn.type === FunctionTypes.CALCULATE ||
-        node.fxn.type === FunctionTypes.FILTER) {
-      
-      // Collection all input and output nodes which were found
-      let allArgsFound = node.children.every((child) => child.found);
-          
-      // If we have the right number of arguments, proceed
-      // @TODO surface an error if the arguments are wrong
-      let output;
-      if (allArgsFound) {
-        let args = node.children.filter((child) => child.hasProperty(Properties.ARGUMENT)).map((arg) => arg.children[0]);
-        let fields: Array<Field> = args.map((arg,i) => {
-          return {name: `${node.fxn.fields[i]}`, 
-                  value: `${arg.attribute.variable}`, 
-                  variable: true};
-        });
-        let term: Term = {
-          type: "select",
-          table: node.fxn.name,
-          fields: fields,
-        }
-        query.terms.push(term);
-        // project output if necessary
-        if (node.fxn.project === true) {
-          projectFields = args.filter((arg) => arg.parent.hasProperty(Properties.OUTPUT))
-                              .map((arg) => {return {name: `${node.fxn.name}`, 
-                                                              value: `${arg.attribute.variable}`, 
-                                                              variable: true}});
-          query.projects = []; // Clears all previous projects
-        }
+  if (node.hasProperty(Properties.FUNCTION) && ( 
+      node.fxn.type === FunctionTypes.AGGREGATE || 
+      node.fxn.type === FunctionTypes.CALCULATE ||
+      node.fxn.type === FunctionTypes.FILTER)) {
+    // Collection all input and output nodes which were found
+    let allArgsFound = node.children.every((child) => child.found);
+        
+    // If we have the right number of arguments, proceed
+    // @TODO surface an error if the arguments are wrong
+    let output;
+    if (allArgsFound) {
+      log("Building function term for: " + node.name);
+      let args = node.children.filter((child) => child.hasProperty(Properties.ARGUMENT)).map((arg) => arg.children[0]);
+      let fields: Array<Field> = args.map((arg,i) => {
+        return {name: `${node.fxn.fields[i]}`, 
+                value: `${arg.attribute.variable}`, 
+                variable: true};
+      });
+      let term: Term = {
+        type: "select",
+        table: node.fxn.name,
+        fields: fields,
       }
+      query.terms.push(term);
+      // project output if necessary
+      if (node.fxn.project === true) {
+        projectFields = args.filter((arg) => arg.parent.hasProperty(Properties.OUTPUT))
+                            .map((arg) => {return {name: `${node.fxn.name}`, 
+                                                            value: `${arg.attribute.variable}`, 
+                                                            variable: true}});
+        query.projects = []; // Clears all previous projects
+      }
+    } 
+  }
+  if (node.hasProperty(Properties.FUNCTION) && ( 
+      node.fxn.type === FunctionTypes.GROUP)) {
+    let allArgsFound = node.children.every((child) => child.found);
+    if (allArgsFound) {
+      log("Building function term for: " + node.name);
+      
+      let groupNode = node.children[1].children[0];
+      
+      
+      let subquery = query;
+      query = newQuery();
+      query.subqueries.push(subquery);
+      query.terms = query.terms.concat(formQuery(groupNode).terms); 
     }
   }
   // Handle attributes -------------------------------
