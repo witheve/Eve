@@ -106,7 +106,7 @@ export function normalizeQueryString(queryString: string): Array<Word> {
   normalizedQueryString = normalizedQueryString.replace(/\'s/g,' \'s ');
   normalizedQueryString = normalizedQueryString.replace(/s'/g,'s \' ');
   // Clean various symbols we don't want to deal with
-  normalizedQueryString = normalizedQueryString.replace(/`|\?|\:|\[|\]|\{|\}|\(|\)|\~|\`|~|!|@|#|\$|%|&|_|\|/g,' ');
+  normalizedQueryString = normalizedQueryString.replace(/`|\?|\:|\[|\]|\{|\}|\(|\)|\~|\`|~|@|#|\$|%|&|_|\|/g,' ');
   // Collapse whitespace   
   normalizedQueryString = normalizedQueryString.replace(/\s+/g,' ');
   // Split words at whitespace
@@ -923,6 +923,18 @@ interface BuiltInFunction {
 
 function stringToFunction(word: string): BuiltInFunction {
   switch (word) {
+    case ">":
+      return {name: ">", type: FunctionTypes.FILTER, fields: ["a", "b"], project: false};
+    case "<":
+      return {name: "<", type: FunctionTypes.FILTER, fields: ["a", "b"], project: false};
+    case ">=":
+      return {name: ">=", type: FunctionTypes.FILTER, fields: ["a", "b"], project: false};
+    case "<=":
+      return {name: "<=", type: FunctionTypes.FILTER, fields: ["a", "b"], project: false};
+    case "=":
+      return {name: "=", type: FunctionTypes.FILTER, fields: ["a", "b"], project: false};
+    case "!=":
+      return {name: "!=", type: FunctionTypes.FILTER, fields: ["a", "b"], project: false};     
     case "taller":
       return {name: ">", type: FunctionTypes.FILTER, attribute: "height", fields: ["a", "b"], project: false};
     case "shorter":
@@ -1182,10 +1194,12 @@ function formTree(node: Node, tree: Node, context: Context): any {
       }
     // If the node is a filter, attach filter nodes  
     } else if (node.fxn.type === FunctionTypes.FILTER) {
-      for (let i = 0; i < node.fxn.fields.length; i++) {
-        let nToken = newToken(node.fxn.attribute);
-        let nNode = newNode(nToken);
-        formTree(nNode, tree, context);
+      if (node.fxn.attribute !== undefined) {
+        for (let i = 0; i < node.fxn.fields.length; i++) {
+          let nToken = newToken(node.fxn.attribute);
+          let nNode = newNode(nToken);
+          formTree(nNode, tree, context);
+        }
       }
     // Otherwise, just attach arguments that are applicable
     } else {  
