@@ -1163,7 +1163,14 @@ function formTree(node: Node, tree: Node, context: Context): any {
           reroot(child, newRoot);
         }
         newRoot.found = true;
-      }  
+      }
+    // If the node is a filter, attach filter nodes  
+    } else if (node.fxn.type === FunctionTypes.FILTER) {
+      for (let i = 0; i < node.fxn.fields.length; i++) {
+        let nToken = newToken(node.fxn.attribute);
+        let nNode = newNode(nToken);
+        formTree(nNode, tree, context);
+      }
     // Otherwise, just attach arguments that are applicable
     } else {  
       if (node.fxn.fields.length > 0) {
@@ -1245,7 +1252,7 @@ function addNodeToFunction(node: Node, fxnNode: Node, context: Context): boolean
   if (node.hasProperty(Properties.ENTITY) || node.hasProperty(Properties.COLLECTION)) {
     arg = fxnNode.children.filter((c) => c.name === "entity")[0];
   } else if (node.hasProperty(Properties.ATTRIBUTE)) {
-    arg = fxnNode.children.filter((c) => c.name === "attribute" || c.name === "value")[0];
+    arg = fxnNode.children.filter((c) => (c.name === "attribute" || c.name === "value" || c.name === "a" || c.name === "b") && !c.found)[0];
   } else if (node.hasProperty(Properties.FUNCTION)) {
     
   }
