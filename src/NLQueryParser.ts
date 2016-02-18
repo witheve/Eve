@@ -882,6 +882,7 @@ interface Context {
   groupings: Array<Node>,
   relationships: Array<Relationship>,
   found: Array<Node>,
+  arguments: Array<Node>,
   maybeEntities: Array<Node>,
   maybeAttributes: Array<Node>,
   maybeCollections: Array<Node>,
@@ -899,6 +900,7 @@ function newContext(): Context {
     groupings: [],
     relationships: [],
     found: [],
+    arguments: [],
     maybeEntities: [],
     maybeAttributes: [],
     maybeCollections: [],
@@ -1034,6 +1036,7 @@ function findFunction(node: Node, context: Context): boolean {
         argNode.properties.push(Properties.ROOT);
       }
     }
+    context.arguments.push(argNode);
     return argNode;
   });
   node.properties.push(Properties.FUNCTION);
@@ -1207,7 +1210,7 @@ function formTree(node: Node, tree: Node, context: Context): any {
   }
   // Handle functions
   if (node.hasProperty(Properties.FUNCTION)) {
-    // Attach the function to the root
+    // Find a root to attach the node
     tree.addChild(node);
     
     // If the node is a grouping node, attach the old root to the new one
@@ -1330,7 +1333,7 @@ function addNodeToFunction(node: Node, fxnNode: Node, context: Context): boolean
   } else if (node.hasProperty(Properties.ATTRIBUTE)) {
     arg = fxnNode.children.filter((c) => (c.name === "attribute" || c.name === "value" || c.name === "a" || c.name === "b") && !c.found)[0];
   } else if (node.hasProperty(Properties.FUNCTION)) {
-    
+
   }
   // Add the node to the arg
   if (arg !== undefined) {
