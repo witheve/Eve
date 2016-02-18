@@ -30,6 +30,11 @@ export function isEntity(maybeId:string):boolean {
   return !!eve.findOne("entity", {entity: maybeId});
 }
 
+export function getNodeContent(node:HTMLElement) {
+  if(node.nodeName === "INPUT") return (<HTMLInputElement>node).value;
+  else return node.textContent;
+}
+
 let wordSplitter = /\s+/gi;
 const statWeights = {links: 100, pages: 200, words: 1};
 function classifyEntities(rawEntities:string[]) {
@@ -499,8 +504,65 @@ export function CSV(elem:CSVElem):Element {
   return {c: "flex-row csv", children: values.map((val) => value({t: "span", autolink, text: val, data}))};
 }
 
-interface TableElem extends Element { rows: {}[], sortable?: boolean, editCell?: Handler<Event>, editRow?: Handler<Event>, confirmRow?: boolean, removeRow?: boolean, editField?: Handler<Event>, ignoreFields?: string[], ignoreTemp?: boolean, data?: any, groups?: string[]}
+interface TableState { sortField?:string, sortDirection?:number, adder?:{}, confirmed?:boolean }
+interface TableElem extends Element { state:TableState, rows:{}[], whitelist?:string[], blacklist?:string[], groups?:string[], sortable?:boolean, editCell?:Handler<Event>, addRow?:Handler<Event>, confirmAdder?:boolean, adderChange?:Handler<Event>, removeRow?:Handler<Event> }
 export function table(elem:TableElem):Element {
+  let {state, rows, blacklist, whitelist, groups = []} = elem;
+  if(!rows.length) {
+    elem.text = "<Empty Table>";
+    return elem;
+  }
+
+  // Determine display fields based on whitelist, blacklist, and the first row
+  let fields;
+  if(whitelist) {
+    fields = whitelist.slice();
+  } else {
+    fields = Object.keys(rows[0]);
+    if(blacklist) {
+      for(let field of blacklist) {
+        let fieldIx = fields.indexOf(field);
+        if(fieldIx !== -1) {
+          fields.splice(fieldIx, 1);
+        }
+      }
+    }
+  }
+
+  // Strip grouped fields out of display fields -- the former implies the latter and must be handled first
+  for(let field of groups) {
+    let fieldIx = fields.indexOf(field);
+    if(fieldIx !== -1) {
+      fields.splice(fieldIx, 1);
+    }
+  }
+
+  let {editCell, addRow, confirmAdder = false, adderChange, removeRow} = elem;
+  if(editCell) {
+    let _editCell = editCell;
+    editCell = (event:Event, elem) => {
+      let val = resolveValue(getNodeContent(<HTMLElement>event.target));
+      if(val === elem["original"]) return;
+      _editCell(new CustomEvent("editcell", {detail: val}), elem);
+    }
+  }
+
+  if(addRow) {
+    if(!adderChange) {
+      adderChange = (event:Event, elem) => {
+        let val = resolveValue(getNodeContent(<HTMLElement>event.target));
+        state.adder[elem.field] = val;
+      };
+    }
+  }
+
+  
+  
+  return elem;
+}
+
+interface TableElemOld extends Element { rows: {}[], sortable?: boolean, editCell?: Handler<Event>, editRow?: Handler<Event>, confirmRow?: boolean, removeRow?: boolean, editField?: Handler<Event>, ignoreFields?: string[], ignoreTemp?: boolean, data?: any, groups?: string[]}
+export function tableOld(elem:TableElemOld):Element {
   let {rows, ignoreFields = ["__id"], sortable = false, ignoreTemp = true, data = undefined, noHeader = false, groups = []} = elem;
   if(!rows.length) {
     elem.text = "<Empty Table>";
