@@ -753,7 +753,7 @@ function findLeafNodes(node: Node): Array<Node> {
 // Finds a parent node with the specified property, 
 // returns undefined if no node was found
 function findParentWithProperty(node: Node, property: Properties): Node {
-  if (node.hasProperty(Properties.ROOT)) {
+  if (node.parent === undefined) {
     return undefined;
   }
   if (node.parent.hasProperty(property)) {
@@ -1219,6 +1219,8 @@ function formTree(node: Node, tree: Node, context: Context): any {
         let root = findParentWithProperty(relatedAttribute, Properties.ROOT);
         if (root !== undefined) {
           root.addChild(node);
+        } else {
+          tree.addChild(node);
         }
       }
     }
