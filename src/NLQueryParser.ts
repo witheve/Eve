@@ -503,13 +503,18 @@ function getMajorPOS(minorPartOfSpeech: MinorPartsOfSpeech): MajorPartsOfSpeech 
 
 // Wrap pluralize to special case certain words it gets wrong
 export function singularize(word: string): string {
-  let specialCases = ["his", "times", "has", "downstairs", "its", "'s"];
-  for (let specialCase of specialCases) {
-    if (specialCase === word) {
-      return word;
+  // split word at spaces
+  let words = word.split(" ");
+  if (words.length === 1) {
+    let specialCases = ["his", "times", "has", "downstairs", "its", "'s", "data"];
+    for (let specialCase of specialCases) {
+      if (specialCase === word) {
+        return word;
+      }
     }
+    return pluralize(word, 1);  
   }
-  return pluralize(word, 1);
+  return words.map(singularize).join(" ");
 }
 
 // ----------------------------------------------------------------------------
@@ -1221,7 +1226,6 @@ function formTree(node: Node, tree: Node, context: Context): any {
       // No attribute is specified, try to attach existing attributes
       } else {
        let orphans = context.found.filter((n) => n.hasProperty(Properties.ATTRIBUTE));
-       console.log(context.found)
        for (let orphan of orphans) {
           removeNode(orphan);
           formTree(orphan, tree, context);
@@ -1278,7 +1282,6 @@ function formTree(node: Node, tree: Node, context: Context): any {
       tree.addChild(node);
     // If there is a relationship, but the node has no parent, just put it on the root
     } else if (node.parent === undefined) {
-      console.log(node);
       let relatedNodes = node.relationships.map((r) => r.nodes);
       let flatRelatedNodes = flattenNestedArray(relatedNodes);
       let relatedAttribute = flatRelatedNodes.filter((n) => n.hasProperty(Properties.ATTRIBUTE)).shift();
