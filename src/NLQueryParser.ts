@@ -999,14 +999,18 @@ function stringToFunction(word: string): BuiltInFunction {
     case "divided by":
     case "/":
       return {name: "/", type: FunctionTypes.CALCULATE, fields: calculateFields, project: true};
+    case "is":
     case "is a":
     case "is an":
       return {name: "insert", type: FunctionTypes.INSERT, fields: [{name: "entity", types: [Properties.ENTITY]}, 
                                                                    {name: "attribute", types: [Properties.ATTRIBUTE]}, 
-                                                                   {name: "set to", types: [Properties.ATTRIBUTE, Properties.QUANTITY]}], project: false}; 
+                                                                   {name: "set to", types: [Properties.ATTRIBUTE, Properties.QUANTITY]}], project: false};
+    case "are":
+      return {name: "insert", type: FunctionTypes.INSERT, fields: [{name: "collection", types: [Properties.COLLECTION]},
+                                                                   {name: "collection", types: [Properties.COLLECTION]}], project: false}; 
     case "'s":
     case "'":
-      return {name: "select", type: FunctionTypes.SELECT, fields: [{name: "entity", types: [Properties.ENTITY]}, 
+      return {name: "select", type: FunctionTypes.SELECT, fields: [{name: "subject", types: [Properties.ENTITY, Properties.COLLECTION]}, 
                                                                    {name: "attribute", types: [Properties.ATTRIBUTE]}], project: false}; 
     case "by":
     case "per":
@@ -1027,6 +1031,7 @@ function findFunction(node: Node, context: Context): boolean {
     log(` Not Found: ${node.name}`);
     return false;
   }
+  
   log(` Found: ${fxn.name}`);
   node.fxn = fxn;
   fxn.node = node;
@@ -1144,6 +1149,11 @@ function formTree(node: Node, tree: Node, context: Context): any {
     }
   }
   
+// "engineers are employees" asserts that every engineer is also an employee
+// "engineers that are employees" is asking for the intersection of engineers and employees
+// "that" is a determiner, which cnages the meaning of the sentence, so we prevent 
+// an insert using this heuristic 
+
   // Turn matched ngrams into compound nodes
   for (let ngram of matchedNgrams) {
     // Don't do anything for 1-grams
@@ -1155,6 +1165,7 @@ function formTree(node: Node, tree: Node, context: Context): any {
     log (`Creating compound node: ${displayName}`);
     let lastGram = ngram[ngram.length - 1];
     let compoundToken = newToken(displayName);
+    compoundToken.prev = ngram[0].token.prev;
     let compoundNode = newNode(compoundToken);
     compoundNode.constituents = ngram;
     compoundNode.constituents.map((node) => node.properties.push(Properties.SUBSUMED));
@@ -1220,10 +1231,9 @@ function formTree(node: Node, tree: Node, context: Context): any {
   if (node.hasProperty(Properties.COMPOUND)) {
     let subsumedNode = node.constituents[node.constituents.length - 2];
     if (subsumedNode.parent !== undefined) {
-      log(`Replacing ${subsumedNode.name} with ${node.name}`)
+      log(`Replacing "${subsumedNode.name}" with "${node.name}"`)
       insertBeforeNode(node,subsumedNode);
       removeBranch(subsumedNode);
-      tree.addChild(node);
       return {tree: tree, context: context};  
     }
   }
@@ -1231,10 +1241,8 @@ function formTree(node: Node, tree: Node, context: Context): any {
   if (node.hasProperty(Properties.FUNCTION)) {
     // Find an argument to attach the node
     let functionArg = context.arguments.filter((n) => n.hasProperty(Properties.FUNCTION) && n.parent !== node);
-    console.log(functionArg);
     if (functionArg.length > 0) {
       let arg = functionArg.pop();
-      console.log(arg);
       addNodeToFunction(node, arg.parent, context);
     } else {
       tree.addChild(node);  
@@ -1571,9 +1579,6 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
   return relationship;
   
   /*
-  // If both nodes are Collections, find their relationship
-  if (nodeA.hasProperty(Properties.COLLECTION) && nodeB.hasProperty(Properties.COLLECTION)) {
-    relationship = findCollectionToCollectionRelationship(nodeA.collection, nodeB.collection);
   // If one node is an entity and the other is a collection 
   } else if (nodeA.hasProperty(Properties.COLLECTION) && nodeB.hasProperty(Properties.ENTITY)) {
     relationship = findCollectionToEntRelationship(nodeA.collection, nodeB.entity);
