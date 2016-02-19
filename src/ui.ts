@@ -25,7 +25,7 @@ var popoutHistory = [];
 export let uiState:{
   widget: {
     search: {[paneId:string]: {value:string, plan?:boolean, focused?:boolean, submitted?:string}},
-    table: {[key:string]: {field:string, direction:number}},
+    table: {[key:string]: {sortField:string, sortDirection:number}},
     collapsible: {[key:string]: {open:boolean}}
     attributes: any,
     card: {[key: string]: any},
@@ -356,11 +356,12 @@ appHandle("rename entity attribute", (changes:Diff, {entity, attribute, prev, va
   if(prev !== undefined) changes.remove("sourced eav", {entity, attribute: prev, value});
   changes.add("sourced eav", {entity, attribute, value, source});
 });
-appHandle("sort table", (changes:Diff, {key, field, direction}) => {
-  let state = uiState.widget.table[key] || {field: undefined, direction: undefined};
-  if(field !== undefined) state.field = field;
-  if(direction !== undefined) state.direction = direction;
-  uiState.widget.table[key] = state;
+appHandle("sort table", (changes:Diff, {state, field, direction}) => {
+  if(field !== undefined) {
+    state.sortField = field;
+    state.sortDirection = 1;
+  }
+  if(direction !== undefined) state.sortDirection = direction;
 });
 appHandle("toggle settings", (changes:Diff, {paneId, open = undefined}) => {
   let state = uiState.pane[paneId] || {settings: false};
@@ -2091,7 +2092,7 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
     let paneId = params.paneId || params.data && params.data.paneId;
     let state =  uiState.widget.table[`${paneId}|${params.search}`];
     if(!state) {
-      state = uiState.widget.table[`${paneId}|${params.search}`] = {field: undefined, direction: 1};
+      state = uiState.widget.table[`${paneId}|${params.search}`] = {sortField: undefined, sortDirection: 1};
     }
     if(!topParse) return {rows: results, data: params.data, state};
 

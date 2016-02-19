@@ -162,13 +162,13 @@ function updateEntityAttributes(event:CustomEvent, elem:{row: TableRowElem}) {
   }
 }
 function sortTable(event, elem:TableFieldElem) {
-  let {key, field = undefined, direction = undefined} = elem;
-  console.log(key, field, direction);
+  let {table, field = undefined, direction = undefined} = elem;
+  console.log(table.state, field, direction);
   if(field === undefined && direction === undefined) {
     field = event.target.value;
     console.log("ETV", field);
   }
-  dispatch("sort table", {key, field, direction}).commit();
+  dispatch("sort table", {state: table.state, field, direction}).commit();
 }
 
 //------------------------------------------------------------------------------
@@ -628,7 +628,7 @@ export function table(elem:TableElem):Element {
   return elem;
 }
 
-interface TableFieldElem extends Element {field:string, table:Element, state:TableState, sortable?:boolean, data?:{}}
+interface TableFieldElem extends Element {field:string, table:TableElem, state:TableState, sortable?:boolean, data?:{}}
 function tableField(elem:TableFieldElem):Element {
   let {field, table, state, sortable = false, data} = elem;
   let isActive = field === state.sortField;
@@ -640,7 +640,7 @@ function tableField(elem:TableFieldElem):Element {
     value({text: field, data, autolink: false}),
     {c: "flex-grow"},
     {c: "controls", children: [
-      sortable ? {c: klass, table, field, direction: -direction, click: sortTable} : undefined
+      sortable ? {c: klass, table: elem, field, direction: -direction || 1, click: sortTable} : undefined
     ]}
   ];
   return elem;
@@ -825,16 +825,16 @@ export function tableFilter(elem:TableFilterElem) {
   let {key, search = undefined, sortFields = undefined} = elem;
   elem.children = [];
   if(sortFields) {
-    let state = _state.widget.table[key] || {field: undefined, direction: undefined};
+    let state = _state.widget.table[key] || {sortField: undefined, sortDirection: undefined};
     let sortOpts = [];
     for(let field of sortFields) {
-      sortOpts.push({t: "option", text: resolveName(field), value: field, selected: field === state.field});
+      sortOpts.push({t: "option", text: resolveName(field), value: field, selected: field === state.sortField});
     }
     elem.children.push({c: "flex-grow"});
     elem.children.push({c: "sort", children: [
       {text: "Sort by"},
-      {t: "select", c: "select-sort-field select", value: state.field, children: sortOpts, key, change: sortTable},
-      {c: `toggle-sort-dir ${state.direction === -1 ? "ion-arrow-up-b" : "ion-arrow-down-b"}`, key, direction: -state.direction || 1, click: sortTable},
+      {t: "select", c: "select-sort-field select", value: state.sortField, children: sortOpts, key, change: sortTable},
+      {c: `toggle-sort-dir ${state.sortDirection === -1 ? "ion-arrow-up-b" : "ion-arrow-down-b"}`, key, direction: -state.sortDirection || 1, click: sortTable},
     ]});
   }
   elem.c = `table-filter ${elem.c || ""}`;
