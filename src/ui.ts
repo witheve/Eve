@@ -2096,6 +2096,8 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
     }
     if(!topParse) return {rows: results, data: params.data, state};
 
+    let groupings = topParse.context.groupings.map((group) => group.name);
+    
     // Must not contain any primitive relations
     let editable = true;
     let subject;
@@ -2215,13 +2217,10 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
           }
         }
       }
-      return {key: `${params.paneId || params.data.paneId}|${params.search || ""}`, rows: results, state, data: params.data, editCell: (evt, elem) => console.log("cell", evt, elem), editRow, confirmRow: true, removeRow: false};
+      return {key: `${params.paneId || params.data.paneId}|${params.search || ""}`, rows: results, state, data: params.data, groups: groupings, editCell: (evt, elem) => console.log("cell", evt, elem), editRow, confirmRow: true, removeRow: false};
     }
 
-    
-    //state["sortField"] = "department"; // @TODO: FIXME
-    //state["sortDirection"] = -1;
-    return {rows: results, /*groups: ["department"],*/ state, sortable: true, data: params.data};
+    return {rows: results, state, groups: groupings, sortable: true, data: params.data};
   },
   directory(results, params:{data?:{}, field?:string}) {
     let entities = getEntitiesFromResults(results, {fields: params.field ? [params.field] : undefined});
