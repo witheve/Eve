@@ -1760,6 +1760,7 @@ export function findCollToCollRelationship(collA: Node, collB: Node, context: Co
   let intersectionSize = intersection.unprojected.length / 2;
   if (maxRel.count > intersectionSize) {
     // @TODO
+    log("  No relationship found");
     return {type: RelationshipTypes.NONE};
   } else if (intersectionSize > 0) {
     log(" Found Intersection relationship.");
@@ -1767,9 +1768,11 @@ export function findCollToCollRelationship(collA: Node, collB: Node, context: Co
     collB.collection.project = false;
     return {type: RelationshipTypes.INTERSECTION, nodes: [collA, collB]};
   } else if (maxRel.count === 0 && intersectionSize === 0) {
+    log("  No relationship found");
     return {type: RelationshipTypes.NONE};
   } else {
     // @TODO
+    log("  No relationship found");
     return {type: RelationshipTypes.NONE};
   }
 }
@@ -2038,7 +2041,10 @@ function formQuery(node: Node): Query {
   let query: Query = newQuery();
   let projectFields: Array<Field> = [];
   
-  // Handle the child nodes
+  //--------------------------
+  // Handle the children nodes
+  //--------------------------
+  
   let childQueries = node.children.map(formQuery);
   // Subsume child queries
   let combinedProjectFields: Array<Field> = [];
@@ -2066,19 +2072,10 @@ function formQuery(node: Node): Query {
     }
     return aRank - bRank;
   });
-
-  /*
-  // If the node is a grouping node, stuff the query into a subquery
-  // and take its projects
-  if (node.hasProperty(Properties.GROUPING)) {
-    let subquery = query;
-    query = newQuery();
-    query.projects = query.projects.concat(subquery.projects);
-    subquery.projects = [];
-    query.subqueries.push(subquery);
-  }*/
   
+  //-------------------------
   // Handle the current node
+  //-------------------------
   
   // Just return at the root
   if (node.hasProperty(Properties.ROOT) || node.hasProperty(Properties.ARGUMENT)) {
@@ -2180,8 +2177,7 @@ function formQuery(node: Node): Query {
       value: attr.id, 
       variable: false
     };
-    fields.push(attrField);    
-    console.log(attr)            
+    fields.push(attrField);           
     let valueField = {
       name: "value", 
       value: attr.variable, 
