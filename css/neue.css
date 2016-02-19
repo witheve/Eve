@@ -211,7 +211,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .wiki-editor .embed-code { background: #C7E7FF; }
 .wiki-editor .cm-variable-2 { padding-left:15px; }
 
-.wiki-editor .table .field { width: 160px; }
+.wiki-editor .table .field, .wiki-editor .table. cell { width: 160px; }
 
 .wiki-editor .formatBar { display:flex; padding:0 5px; background: #555; color: #ccc; z-index: 20; flex-direction:row; border-radius:3px; }
 .wiki-editor .formatBar .button { padding: 5px; cursor:default; align-items: center; width:35px; -webkit-user-select: none; }
@@ -268,9 +268,9 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .wiki-search { display: flex; flex-direction: column; align-items: center; }
 .table { display: flex; }
 .table div, .table header { display: flex !important; }
-.table .group, .table > header { flex-direction: row; }
+.table > header { flex-direction: row; }
 .table .column { justify-content: center; }
-.table .field { display: block; max-width: 254px; min-width: 80px; padding: 5px 10px; width: 160px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.table .field, .table .cell { display: block; max-width: 254px; min-width: 80px; padding: 5px 10px; width: 160px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .table input { font-size: 1em; }
 
 .table { border: 1px solid #ddd; border-radius: 2px; }

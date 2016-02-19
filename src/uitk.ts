@@ -35,6 +35,18 @@ export function getNodeContent(node:HTMLElement) {
   else return node.textContent;
 }
 
+function sortByFieldValue(field:string, direction = 1):(a, b) => number {
+  var fwd = direction;
+  var back = -1 * direction;
+  return (rowA, rowB) => {
+    let a = resolveName(resolveValue(rowA[field])), b = resolveName(resolveValue(rowB[field]));
+    return (a === b) ? 0 :
+      (a === undefined) ? fwd :
+      (b === undefined) ? back :
+      (a > b) ? fwd : back;
+  };
+}
+
 let wordSplitter = /\s+/gi;
 const statWeights = {links: 100, pages: 200, words: 1};
 function classifyEntities(rawEntities:string[]) {
@@ -114,24 +126,24 @@ function navigateOrEdit(event, elem) {
 }
 
 interface TableRowElem extends Element { table: string, row: any, rows?: any[] }
-interface TableCellElem extends Element { row: TableRowElem, field: string, rows?: any[]}
-interface TableFieldElem extends Element { table: string, field: string, direction?: number }
+//interface TableCellElem extends Element { row: TableRowElem, field: string, rows?: any[]}
+//interface TableFieldElem extends Element { table: string, field: string, direction?: number }
 
 function updateEntityValue(event:CustomEvent, elem:TableCellElem) {
   let value = coerceInput(event.detail);
-  let {row:rowElem, field} = elem;
-  let {table:tableElem, row} = rowElem;
+  let {table:tableElem, row, field} = elem;
   let entity = tableElem["entity"];
-  let rows = elem.rows || [row];
-  let chain = dispatch();
-  for(let row of rows) {
-    if(field === "value" && row.value !== value && row.attribute !== undefined) {
-      chain.dispatch("update entity attribute", {entity, attribute: row.attribute, prev: row.value, value});
-    } else if(field === "attribute" && row.attribute !== value && row.value !== undefined) {
-      chain.dispatch("rename entity attribute", {entity, prev: row.attribute, attribute: value, value: row.value});
-    }
-  }
-  chain.commit();
+  throw new Error("@TODO: FIXME");
+  // let rows = elem.rows || [row];
+  // let chain = dispatch();
+  // for(let row of rows) {
+  //   if(field === "value" && row.value !== value && row.attribute !== undefined) {
+  //     chain.dispatch("update entity attribute", {entity, attribute: row.attribute, prev: row.value, value});
+  //   } else if(field === "attribute" && row.attribute !== value && row.value !== undefined) {
+  //     chain.dispatch("rename entity attribute", {entity, prev: row.attribute, attribute: value, value: row.value});
+  //   }
+  // }
+  // chain.commit();
 }
 function updateEntityAttributes(event:CustomEvent, elem:{row: TableRowElem}) {
   let {table:tableElem, row} = elem.row;
@@ -505,9 +517,9 @@ export function CSV(elem:CSVElem):Element {
 }
 
 interface TableState { sortField?:string, sortDirection?:number, adder?:{}, confirmed?:boolean }
-interface TableElem extends Element { state:TableState, rows:{}[], whitelist?:string[], blacklist?:string[], groups?:string[], sortable?:boolean, editCell?:Handler<Event>, addRow?:Handler<Event>, confirmAdder?:boolean, adderChange?:Handler<Event>, removeRow?:Handler<Event> }
+interface TableElem extends Element { state:TableState, rows:{}[], whitelist?:string[], blacklist?:string[], groups?:string[], sortable?:boolean, data?:{}, editCell?:Handler<Event>, addRow?:Handler<Event>, confirmAdder?:boolean, adderChange?:Handler<Event>, removeRow?:Handler<Event> }
 export function table(elem:TableElem):Element {
-  let {state, rows, blacklist, whitelist, groups = []} = elem;
+  let {state, rows, data, blacklist, whitelist, groups = []} = elem;
   if(!rows.length) {
     elem.text = "<Empty Table>";
     return elem;
@@ -537,7 +549,8 @@ export function table(elem:TableElem):Element {
     }
   }
 
-  let {editCell, addRow, confirmAdder = false, adderChange, removeRow} = elem;
+  // Manage interactivity
+  let {sortable = false, confirmAdder = false, editCell, addRow, adderChange, removeRow} = elem;
   if(editCell) {
     let _editCell = editCell;
     editCell = (event:Event, elem) => {
@@ -546,7 +559,6 @@ export function table(elem:TableElem):Element {
       _editCell(new CustomEvent("editcell", {detail: val}), elem);
     }
   }
-
   if(addRow) {
     if(!adderChange) {
       adderChange = (event:Event, elem) => {
@@ -556,10 +568,85 @@ export function table(elem:TableElem):Element {
     }
   }
 
-  
-  
+  // Build header
+  let header = {t: "header", children: []};
+  for(let field of groups.concat(fields)) {
+    header.children.push(tableField({field, table: elem, sortable, state, data}));
+  }
+
+  // Sort rows
+  console.log(sortable, state.sortField);
+  if(sortable && state.sortField) {
+    rows.sort(sortByFieldValue(state.sortField, state.sortDirection));
+  }
+  for(var field of groups) {
+    rows.sort(sortByFieldValue(field, field === state.sortField ? state.sortDirection : 1));
+  }
+
+  let body = {c: "body", children: []};
+  let openRows = {};
+  let openVals = {};
+  for(let row of rows) {
+    let group; // = {c: "", children: []};
+    for(let field of groups) {
+      if(openVals[field] === row[field]) {
+        group = openRows[field];
+      } else {
+        openVals[field] = row[field];
+        let cur = openRows[field] = {c: "flex-row row grouped", children: [value({c: "column cell", table: elem, field, row, text: row[field], data}), {c: "flex-column group", children: []}]};
+        if(group) {
+          group.children[1].children.push(cur);
+        } else {
+          body.children.push(cur);
+        }
+        group = cur;
+      }
+    }
+
+    let rowItem = {c: "flex-row row", children: []};
+    for(let field of fields) {
+      rowItem.children.push(value({c: "column cell", table: elem, field, row, text: row[field], data}));
+    }
+    if(group) {
+      group.children[1].children.push(rowItem);
+    } else {
+      body.children.push(rowItem);
+    }
+  }
+
+  console.log(body);
+
+  // @TODO: grouping + row building
+  // tableCell elem.
+  // Update refs to table
+  // resultTable wrapper
+  // searchTable wrapper (?)
+
+
+  elem.c = `table ${elem.c || ""}`;
+  elem.children = [header, body];
   return elem;
 }
+
+interface TableFieldElem extends Element {field:string, table:Element, state:TableState, sortable?:boolean, data?:{}}
+function tableField(elem:TableFieldElem):Element {
+  let {field, table, state, sortable = false, data} = elem;
+  let isActive = field === state.sortField;
+  let direction = isActive ? state.sortDirection : 0;
+  let klass = `sort-toggle ${isActive && direction < 0 ? "ion-arrow-up-b" : "ion-arrow-down-b"} ${isActive ? "active" : ""}`;
+
+  elem.c = `column field flex-row ${elem.c || ""}`;
+  elem.children = [
+    value({text: field, data, autolink: false}),
+    {c: "flex-grow"},
+    {c: "controls", children: [
+      sortable ? {c: klass, table, field, direction: -direction, click: sortTable} : undefined
+    ]}
+  ];
+  return elem;
+}
+interface TableCellElem extends Element { table:Element, field:string, row:{}, text:string, editable?:boolean }
+
 
 interface TableElemOld extends Element { rows: {}[], sortable?: boolean, editCell?: Handler<Event>, editRow?: Handler<Event>, confirmRow?: boolean, removeRow?: boolean, editField?: Handler<Event>, ignoreFields?: string[], ignoreTemp?: boolean, data?: any, groups?: string[]}
 export function tableOld(elem:TableElemOld):Element {
@@ -865,7 +952,8 @@ export function directory(elem:DirectoryElem):Element {
       });
       if(skipChildren) delete rows[rows.length - 1].pages;
     }
-    return table({c: "overflow-list", key, rows, sortable: true, data});
+    let state = {};
+    return table({c: "overflow-list", key, rows, sortable: true, state, data});
   }
   
   // @TODO: Put formatOverflow into a collapsed container.
