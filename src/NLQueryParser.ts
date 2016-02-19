@@ -264,6 +264,7 @@ enum Properties {
   NEGATES,
   GROUPING,
   IMPLICIT,
+  STOPPARSE,
 }
 
 // take an input string, extract tokens
@@ -1076,7 +1077,7 @@ function formTree(node: Node, tree: Node, context: Context): any {
   log("--------------------------------");
   log(node.toString());
   log(context);
-  
+
   // Don't do anything with subsumed nodes
   if (node.hasProperty(Properties.SUBSUMED)) {
     log("Skipping...");
@@ -1142,17 +1143,26 @@ function formTree(node: Node, tree: Node, context: Context): any {
         } else {
           let fxn = stringToFunction(displayName);
           if (fxn !== undefined) {
-            matchedNgrams.push(ngram);
+            ngram.map((node) => node.found = true);
+            // "engineers are employees" asserts that every engineer is also an employee
+            // "engineers that are employees" is asking for the intersection of engineers and employees
+            // "that" is a determiner, which cnages the meaning of the sentence, so we prevent 
+            // an insert using this heuristic 
+            console.log(ngram[0].prev());
+            if (fxn.type === FunctionTypes.INSERT && 
+                (ngram[0].prev().token.POS === MinorPartsOfSpeech.DT || 
+                 getMajorPOS(ngram[0].prev().token.POS) === MajorPartsOfSpeech.WHWORD)) {
+              return {tree: tree, context: context};
+            } else {
+              matchedNgrams.push(ngram);
+            }
           }
         }
       }
     }
   }
-  
-// "engineers are employees" asserts that every engineer is also an employee
-// "engineers that are employees" is asking for the intersection of engineers and employees
-// "that" is a determiner, which cnages the meaning of the sentence, so we prevent 
-// an insert using this heuristic 
+
+
 
   // Turn matched ngrams into compound nodes
   for (let ngram of matchedNgrams) {
@@ -1234,6 +1244,20 @@ function formTree(node: Node, tree: Node, context: Context): any {
       log(`Replacing "${subsumedNode.name}" with "${node.name}"`)
       insertBeforeNode(node,subsumedNode);
       removeBranch(subsumedNode);
+      let children = subsumedNode.children;
+      // Relinquish children
+      for (let child of children) {
+        if (child.hasProperty(Properties.ARGUMENT)) {
+          for (let grandChild of child.children) {
+            removeBranch(grandChild);
+            console.log(grandChild);
+            formTree(grandChild, tree, context);
+          }
+        } else {
+          removeBranch(child);
+          formTree(child, tree, context);
+        }
+      }
       return {tree: tree, context: context};  
     }
   }
