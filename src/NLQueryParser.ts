@@ -1261,8 +1261,8 @@ function formTree(node: Node, tree: Node, context: Context): any {
   }
   // Handle functions
   if (node.hasProperty(Properties.FUNCTION)) {
-    // Find an argument to attach the node
-    let functionArg = context.arguments.filter((n) => n.hasProperty(Properties.FUNCTION) && n.parent !== node);
+    // Find an argument to attach the node to
+    let functionArg = context.arguments.filter((n) => n.hasProperty(Properties.FUNCTION) && n.parent !== node && !n.found);
     if (functionArg.length > 0) {
       let arg = functionArg.pop();
       addNodeToFunction(node, arg.parent, context);
@@ -1706,7 +1706,7 @@ function findEntToAttrRelationship(ent: Node, attr: Node, context: Context): Rel
       node: nNode,
       displayName: attrLinkID,
       variable: `"${ent.entity.id}"`,
-      project: true,
+      project: false,
     }
     nNode.attribute = nAttribute;
     nNode.properties.push(Properties.ATTRIBUTE);
