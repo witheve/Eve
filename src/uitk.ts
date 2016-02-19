@@ -201,7 +201,7 @@ export function entity(elem:EntityEditorElem) {
   let key = elem.key || `${entityId}|${paneId}`;
   let state = _state.widget.card[key] || {};
   let name = eve.findOne("display name", {id: asEntity(entityId)}).name;
-  let attrs = entityTilesUI(entityId, paneId);
+  let attrs = entityTilesUI(entityId, paneId, key);
   attrs.c += " page-attributes";
   // let editor = pageEditor(entityId, paneId, elem.editor);
   let adder = tileAdder({entityId, key});
@@ -265,14 +265,15 @@ function propertyAdderUI(elem) {
   return {c: "property-adder", children: [
     {children: [
       {c: "tile small", children: [
-        {t: "input", c: "value", placeholder: "value", value: state.propertyValue, attribute: "propertyValue", input: trackPropertyAdderInput, postRender: autosizeAndFocus, keydown: adderKeys, entityId, key},
-        {t: "input", c: "property", placeholder: "property", value: state.propertyProperty, attribute: "propertyProperty", input: trackPropertyAdderInput, postRender: autosizeInput, keydown: adderKeys, entityId, key},
-      ]},
-      {c: "controls flex-row", children: [
-        {c: "ion-checkmark submit", click: submitAdder, key},
-        {c: "ion-close cancel", click: setTileAdder, key},
+        {c: "tile-content-wrapper", children: [
+          {t: "input", c: "property", placeholder: "property", value: state.propertyProperty, attribute: "propertyProperty", input: trackPropertyAdderInput, postRender: autosizeAndFocus, keydown: adderKeys, entityId, key},
+          {t: "input", c: "value", placeholder: "value", value: state.propertyValue, attribute: "propertyValue", input: trackPropertyAdderInput, postRender: autosizeInput, keydown: adderKeys, entityId, key},
+        ]},
+        {c: "controls flex-row", children: [
+          {c: "ion-checkmark submit", click: submitAdder, key},
+          {c: "ion-close cancel", click: setTileAdder, key},
+        ]}
       ]}
-
     ]}
   ]};
 }
@@ -307,17 +308,21 @@ export function tileAdder(elem) {
   if(!state.adder) {
     let adders = [
       {name: "Property", icon: "ion-compose", ui: propertyAdderUI, submit: submitProperty},
-      {name: "List", icon: "ion-ios-list-outline"},
       {name: "Description", icon: "ion-drag", ui: descriptionAdderUI, submit: submitDescription},
+      {name: "Tag", icon: "ion-ios-bookmarks-outline"},
+      {name: "List", icon: "ion-ios-list-outline"},
       {name: "Image", icon: "ion-image"},
       {name: "Document", icon: "ion-document"},
+      {name: "Computed property", icon: "ion-calculator"},
     ];
     let count = 0;
     let curRow = {c: "row flex-row", children: []};
     for(let adder of adders) {
       curRow.children.push({c: "tile small", adder, key, click: setTileAdder, children: [
-        {c: `value ${adder.icon}`},
-        {c: "property", text: adder.name}
+        {c: "tile-content-wrapper", children: [
+          {c: "property", text: adder.name},
+          {c: `value ${adder.icon}`},
+        ]}
       ]});
       count++;
       if(curRow.children.length === 3 || count === adders.length) {

@@ -135,23 +135,36 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .card > .table { margin: 20px 30px; }
 
 .card .tiles { flex-direction: row; flex-wrap: wrap; max-width: 360px; }
-.card .tile { flex: 1 0 0; padding:15px; overflow:hidden; }
-.card .tile .property { font-size: 9pt; color: #aaa; }
-.card .tile.small, .card .tile.medium { align-items: flex-start; justify-content: center; }
+.card .tile { flex: 1 0 0; overflow:hidden; cursor: default; flex-direction:row; }
+/* .card .tile:hover { background:rgba(0,0,50,0.04);  } */
+.card .tile .property { font-size: 9pt; color: #aaa; margin-bottom: 5px; }
+.card .tile.small, .card .tile.medium { justify-content: flex-start; }
 .card .tile + .tile { border-left: 1px solid #eee; }
-.card .tile.small .value, .card .tile.medium .value { font-size: 14pt; margin-bottom:5px; }
+.card .tile.small .value, .card .tile.medium .value { font-size: 14pt; }
 .card .row { width: 100%;  }
 .card .row + .row { border-top:1px solid #eee; }
 
-.card .value.text { line-height: 22px; }
+.card .tile.small { flex: 1; }
+.card .tile.medium { flex: 2; }
+.card .tile.full { flex: 3; }
 
-.card .tile.full .property { margin-bottom:5px; }
+.card .tile .tile-content-wrapper { flex:1; align-items:flex-start; padding:15px; }
+.card .tile .controls { display:none; flex:none; flex-direction:column; border-left:1px solid #eee; border-radius:0; }
+.card .tile .controls * { padding:5px; flex:1; justify-content: center; border:none; border-radius:0; width:24px; color: #999; align-items:center; }
+.card .tile .controls div:hover { background: rgba(0,0,0,0.04); }
+.card .tile .controls .submit { border-bottom:1px solid rgba(0,0,0,0.1); }
+.card .tile .controls .submit:hover { color: green; background:rgba(0,150,0,0.2); }
+.card .tile .controls .cancel:hover { color: #aa5555; background: rgba(150,0,0,0.2); }
+
+.card .tile.active .controls { display:flex; }
+
+.card .value.text { line-height: 22px; }
 
 .card .tile .multi-value { flex-direction: column; }
 .card .multi-value * + * { border-left: 0px solid #ddd; padding-left: 0px;}
 
-.card .tile .list { max-height: 200px; overflow:auto; align-items:flex-start; }
-.card .tile .list > * + * { margin-top:3px; }
+.card .tile .list { max-height: 200px; overflow:auto; flex-wrap:wrap; flex-direction:row; align-items:flex-start; }
+.card .tile .list > * { padding:15px; margin:2px; background: #f5f5f5; border:0px solid #eee; border-radius:2px;  }
 
 .card .add-tile {position: absolute; padding:10px 20px; padding-right:15px; right:0; top:0; color: #ccc; cursor: default; }
 .card .add-tile:before { transition:transform 0.2s ease-in-out; }
@@ -162,22 +175,17 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .card .tile-adder .tile { cursor:default; align-items:center; }
 .card .tile-adder .tile:hover { background: rgba(0,0,0,0.04); }
 .card .tile-adder .property { color:#555; }
+.card .tile-adder .tile .value { color:#555;}
 .card .adding .header { border-color: #ddd; }
-.card .adding .tile-adder { transition:height 0.18s ease-in;   height:150px; }
+.card .adding .tile-adder { transition:height 0.18s ease-in; height: 200px; }
 .card .adding .tiles { border-top:1px solid #ddd; }
 /* .card .adding .tiles { display:none; } */
 .card .adding .add-tile:before {transform: rotate(-135deg); }
 
 .card .property-adder { flex: 1; align-items:center; justify-content:center; }
-.card .property-adder .tile { flex:none; align-items:flex-start; border:1px solid rgba(0,0,0,0.1); background:#fff; border-radius:2px; max-width:320px; }
+.card .property-adder .tile { flex:none; align-items:stretch; border:1px solid rgba(0,0,0,0.1); background:#fff; border-radius:2px; max-width:320px; }
 .card .property-adder .tile:hover { background:#fff; }
-.card .property-adder input { text-align:left; }
-.card .property-adder .controls { border: 1px solid rgba(0,0,0,0.1); background:#fff; text-align:center; border-top:none; border-radius:0 0 2px 2px; }
-.card .property-adder .controls * { padding: 5px 10px; color: rgba(0,0,0,0.5); flex:1; border-radius:0; }
-.card .property-adder .controls div:hover { background: rgba(0,0,0,0.04); }
-.card .property-adder .controls .submit { border-right:1px solid rgba(0,0,0,0.1); }
-.card .property-adder .controls .submit:hover { color: green; }
-.card .property-adder .controls .cancel:hover { color: #aa5555; }
+.card .property-adder input { text-align:left; padding:0; }
 
 .card .description-adder .tile { padding:10px 15px; }
 .card .description-adder textarea { width:290px; border:none; height: 75px; font-size:12pt; outline:none; }

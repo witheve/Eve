@@ -1275,58 +1275,6 @@ function defineKeys(event, elem) {
   }
 }
 
-export function entity(entityId:string, paneId:string, kind: PANE, options:any = {}):Element {
-  let {content = undefined} = eve.findOne("entity", {entity: entityId}) || {};
-  if(content === undefined) return {text: "Could not find the requested page"};
-  let page = eve.findOne("entity page", {entity: entityId})["page"];
-  let name = uitk.resolveName(entityId);
-  let cells = getCells(content, paneId);
-  let keys = {
-    "Backspace": (cm) => maybeActivateCell(cm, paneId),
-      "Cmd-Enter": (cm) => maybeNavigate(cm, paneId),
-      "=": (cm) => createEmbedPopout(cm, paneId)
-  };
-  if(kind === PANE.POPOUT) {
-    keys["Esc"] = () => {
-      dispatch("remove popup", {}).commit();
-      let parent = eve.findOne("ui pane parent", {pane: paneId})["parent"];
-      paneEditors[parent].cmInstance.focus();
-    };
-  }
-  let finalOptions = mergeObject({keys}, options);
-  let cellItems = cells.map((cell, ix) => {
-    let ui;
-    let active = activeCells[cell.id];
-    if(active) {
-      ui = cellEditor(entityId, paneId, active || cell);
-    } else {
-      ui = cellUI(paneId, cell.query, cell);
-    }
-    ui.id = `${paneId}|${cell.id}`;
-    ui.postRender = reparentCell;
-    ui["containerId"] = `${paneId}|${cell.id}|container`;
-    ui["cell"] = cell;
-    return ui;
-  });
-  let attrs;
-  if(kind !== PANE.POPOUT) {
-    // attrs = uitk.attributes({entity: entityId, data: {paneId}, key: `${paneId}|${entityId}`});
-    attrs = entityTilesUI(entityId, paneId);
-    attrs.c += " page-attributes";
-  }
-  return {id: `${paneId}|${entityId}|editor`, t: "content", c: "wiki-entity", children: [
-    /* This is disabled because searching for just the name of a single entity resolves to a single find step which blows up on query compilation
-       {c: "flex-row spaced-row disambiguation", children: [
-       {text: "Did you mean to"},
-       {t: "a", c: "link btn add-btn", text: `search for '${name}'`, href: "#", name: search, data: {paneId}, link: `search: ${name}`, click: navigate},
-       {text: "instead?"}
-       ]},
-     */
-    {c: "wiki-editor", postRender: wikiEditor, onUpdate: updatePage, meta: {entityId, page, paneId}, value: content, options: finalOptions, cells, children: cellItems},
-    attrs,
-  ]};
-}
-
 function maybeActivateCell(cm, paneId) {
   if(!cm.somethingSelected()) {
     let pos = cm.getCursor("from");
@@ -1585,7 +1533,7 @@ function getCells(content: string, editorId) {
 //---------------------------------------------------------
 
 appHandle("add entity attribute", (changes:Diff, {entity, attribute, value}) => {
-  let success = handleAttributeDefinition(entity, attribute, value, changes);
+  let success = handleAttributeDefinition(entity, attribute.trim(), value, changes);
 });
 
 appHandle("toggle add tile", (changes:Diff, {key, entityId}) => {
@@ -1608,7 +1556,7 @@ appHandle("set tile adder", (changes:Diff, {key, adder}) => {
 
 appHandle("set tile adder attribute", (changes:Diff, {key, attribute, value}) => {
   let state = uiState.widget.card[key] || {showAdd: true, key};
-  state[attribute] = value;
+  state[attribute] = value.trim();
   uiState.widget.card[key] = state;
 });
 
@@ -1620,24 +1568,49 @@ appHandle("submit tile adder", (changes:Diff, {key, node}) => {
   uiState.widget.card[key] = state;
 });
 
-function sortOnAttribute(a, b) {
-  let aAttr = a.eav.attribute;
-  let bAttr = b.eav.attribute;
-  if(aAttr < bAttr) return -1;
-  if(aAttr > bAttr) return 1;
-  return 0;
+appHandle("activate tile", (changes:Diff, {tileId, cardId}) => {
+  let state = uiState.widget.card[cardId] || {showAdd: false, key: cardId};
+  state.activeTile = tileId;
+  uiState.widget.card[cardId] = state;
+});
+
+function activateTile(event, elem) {
+  console.log("ACTIVATE TILE");
+  if(event.defaultPrevented) return;
+  dispatch("activate tile", {tileId: elem.tileId, cardId: elem.cardId});
 }
 
-export function entityTilesUI(entityId, paneId) {
+function tile(elem) {
+  let {cardId, tileId} = elem;
+  let state = uiState.widget.card[cardId] || {};
+  let klass = (elem.c || "") + " tile";
+  if(state.activeTile === elem.tileId) {
+    klass += " active";
+  }
+  elem.c = klass;
+  elem.click = activateTile;
+  elem.children = [
+    {c: "tile-content-wrapper", children: elem.children},
+    {c: "controls", children: [
+      !elem.deleteOnly ? {c: "ion-checkmark submit", click: "", key: cardId} : undefined,
+      {c: "ion-backspace cancel", click: "", key: cardId},
+    ]}
+  ];
+  return elem;
+}
+
+export function entityTilesUI(entityId, paneId, cardId) {
   var eavs = eve.find("entity eavs", {entity: entityId});
   var items = {};
   var attrs = [];
   for(let eav of eavs) {
     let {entity, attribute, value} = eav;
     let found = eve.findOne("generated eav", {entity, attribute, value});
-    let item:any = {eav, isManual: !found};
+    let sourceId = eve.findOne("sourced eav", {entity, attribute, value});
+    let item:any = {eav, isManual: !found, source: sourceId};
     if(found) {
       item.sourceView = found.source;
+      item.source = found.source;
     }
     if(!items[attribute]) {
       items[attribute] = [];
@@ -1655,7 +1628,7 @@ export function entityTilesUI(entityId, paneId) {
       //tileChildren.push({c: "property", text: "description"});
       tileChildren.push({c: "value text", text: value.eav.value});
       rows.push({c: "flex-row row", children: [
-        {c: "tile full", children: tileChildren}
+        tile({c: "full", tileId: value.source, cardId, children: tileChildren})
       ]});
     }
     delete items["description"];
@@ -1667,9 +1640,9 @@ export function entityTilesUI(entityId, paneId) {
       listChildren.push(uitk.value({data, text: value.entity}));
     }
     rows.push({c: "flex-row row", children: [
-      {c: "tile full", children: [
+      tile({c: "full", tileId: "collectionItems", cardId, children: [
         {c: "list", children: listChildren}
-      ]}
+      ]})
     ]});
   }
   let tilesToPlace = 0;
@@ -1678,66 +1651,76 @@ export function entityTilesUI(entityId, paneId) {
     if(attribute === "is a" || !values) continue;
     let tileChildren = [];
     let size = "small";
-    if(values.length === 1) {
-      tileChildren.push(uitk.value({c: "value", data, text: values[0].eav.value}));
-      tileChildren.push({c: "property", text: attribute});
-    } else if(values.length === 2) {
-      tileChildren.push({c: "multi-value value", children: [
-        uitk.value({data, text: values[0].eav.value}),
-        uitk.value({data, text: values[1].eav.value})
-      ]});
-      tileChildren.push({c: "property", text: attribute});
-      size = "medium"
+    tileChildren.push({c: "property", text: attribute});
+    let listChildren = [];
+    let max = 0;
+    for(let value of values) {
+      let ui = uitk.value({c: "value", data, text: value.eav.value});
+      max = Math.max(ui.text.toString().length, max);
+      listChildren.push(ui);
+    }
+    tileChildren.push({c: `${listChildren.length > 1 ? "list" : ""}`, children: listChildren});
+    if(max <= 10 && listChildren.length === 1) {
+      size = "small";
+    } else if (listChildren.length <= 3 && max <= 20) {
+      size = "medium";
     } else {
-      tileChildren.push({c: "property", text: attribute});
-      let listChildren = [];
-      for(let value of values) {
-        listChildren.push(uitk.value({data, text: value.eav.value}));
-      }
-      tileChildren.push({c: "list", children: listChildren});
       size = "full";
     }
-    let tile = {c: `tile ${size}`, children: tileChildren};
-    tiles[size].push(tile);
+    let newTile = tile({c: size, cardId, tileId: attribute, children: tileChildren});
+    tiles[size].push(newTile);
     tilesToPlace++;
   }
 
-  let lastSize = "full";
+  let optionIx = 0;
   while(tilesToPlace > 0) {
     let rowChildren = [];
-    if(lastSize === "small" && tiles["full"].length) {
-      rowChildren.push(tiles["full"].pop());
-      tilesToPlace--;
-    } else {
-      if((lastSize === "small" && tiles["medium"].length)
-         || (tiles["small"].length < 3 && tiles["medium"].length)) {
-        rowChildren.push(tiles["small"].pop());
+    let iter = 0;
+    while(iter < 5 && !rowChildren.length) {
+      if(optionIx === 0 && tiles["full"].length) {
+        rowChildren.push(tiles["full"].pop());
+        break;
+      }
+      if(optionIx === 1 && tiles["medium"].length > 1) {
         rowChildren.push(tiles["medium"].pop());
-        tilesToPlace -= 2;
-        lastSize = "small";
-      } else if(tiles["small"].length >= 3) {
+        rowChildren.push(tiles["medium"].pop());
+        break;
+      }
+      if(optionIx === 2 && tiles["medium"].length && tiles["small"].length >= 1) {
+        rowChildren.push(tiles["medium"].pop());
+        rowChildren.push(tiles["small"].pop());
+        break;
+      }
+      if(optionIx === 3 && tiles["small"].length >= 3) {
         rowChildren.push(tiles["small"].pop());
         rowChildren.push(tiles["small"].pop());
         rowChildren.push(tiles["small"].pop());
-        tilesToPlace -= 3;
-        lastSize = "small";
-      } else {
-        while(tiles["small"].length) {
-          rowChildren.push(tiles["small"].pop());
-          tilesToPlace--;
-        }
-        lastSize = "small";
+        break;
+      }
+      if(optionIx === 4 && tiles["medium"].length) {
+        rowChildren.push(tiles["medium"].pop());
+        break;
+      }
+      if(optionIx > 4) optionIx = 0;
+      else optionIx++;
+      iter++;
+    }
+    // any smalls leftover
+    if(!rowChildren.length) {
+      while(tiles["small"].length) {
+        rowChildren.push(tiles["small"].pop());
       }
     }
+    tilesToPlace -= rowChildren.length;
     rows.push({c: "flex-row row", children: rowChildren});
   }
 
   let isARow = {c: "flex-row row", children: []};
   for(let isA of items["is a"]) {
     if(uitk.resolveName(isA.eav.value) === "entity") continue;
-    isARow.children.push({c: "tile small is-a", children: [
+    isARow.children.push(tile({c: "small is-a", deleteOnly: true, cardId, tileId: `is a ${isA.eav.value}`, children: [
       uitk.value({data, text: isA.eav.value})
-    ]});
+    ]}));
     if(isARow.children.length === 3) {
       rows.push(isARow);
       isARow = {c: "flex-row row", children: []};
