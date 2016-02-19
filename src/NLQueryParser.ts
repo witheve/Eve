@@ -1957,6 +1957,15 @@ export interface Query {
   toString(number?: number): string;
 }
 
+function addFieldsToProject(projectFields: Array<Field>, fields: Array<Field>): void {
+  let field
+  for (field of fields) {
+    let matchingFields = projectFields.filter((f) => f.name === field.name);
+    if (matchingFields.length === 0) {
+      projectFields.push(field);
+    }
+  }
+}
 
 function negateTerm(term: Term): Query {
   let negate = newQuery([term]);
@@ -2039,7 +2048,7 @@ function formQuery(node: Node): Query {
     // Combine unnamed projects
     for (let project of cQuery.projects) {
       if (project.table === undefined) {
-        combinedProjectFields = combinedProjectFields.concat(project.fields);
+        addFieldsToProject(combinedProjectFields,project.fields);
       }
     }
   }
@@ -2162,7 +2171,7 @@ function formQuery(node: Node): Query {
         let refQuery = formQuery(ref);
         query.terms = query.terms.concat(refQuery.terms);
         if (refQuery.projects.length > 0) {
-          projectFields = projectFields.concat(refQuery.projects[0].fields);
+          addFieldsToProject(projectFields, refQuery.projects[0].fields)
         }
       }      
     }             
@@ -2192,7 +2201,7 @@ function formQuery(node: Node): Query {
         value: attr.variable, 
         variable: true
       };
-      projectFields.push(projectAttribute);
+      addFieldsToProject(projectFields, [projectAttribute]);
     }
     node.attribute.handled = true;
   }
@@ -2222,7 +2231,7 @@ function formQuery(node: Node): Query {
         value: node.collection.variable, 
         variable: true
       };
-      projectFields.push(collectionField);
+      addFieldsToProject(projectFields, [collectionField]);
     }
     node.collection.handled = true;
   }
@@ -2248,7 +2257,7 @@ function formQuery(node: Node): Query {
         value: entity.id, 
         variable: false
       };
-      projectFields.push(entityField);  
+      addFieldsToProject(projectFields, [entityField]);
     }
     node.entity.handled = true;
   }
