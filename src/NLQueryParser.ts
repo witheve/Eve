@@ -1700,13 +1700,14 @@ export function findCollToCollRelationship(collA: Node, collB: Node, context: Co
   for (let result of relationships.results) {
     if (result.count > maxRel.count) maxRel = result;
   }
+
   // we divide by two because unprojected results pack rows next to eachother
   // and we have two selects.
   let intersectionSize = intersection.unprojected.length / 2;
   if (maxRel.count > intersectionSize) {
     // @TODO
     return {type: RelationshipTypes.NONE};
-  } else if (intersectionSize > maxRel.count) {
+  } else if (intersectionSize > 0) {
     log(" Found Intersection relationship.");
     collB.collection.variable = collA.collection.variable;
     collB.collection.project = false;
