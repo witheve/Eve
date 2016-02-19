@@ -924,34 +924,48 @@ interface BuiltInFunction {
   name: string,
   type: FunctionTypes,
   attribute?: string,
-  fields: Array<string>,
+  fields: Array<FunctionField>,
   project: boolean,
   negated?: boolean,
   node?: Node,
 }
 
+interface FunctionField {
+  name: string,
+  types: Array<Properties>,
+}
+
 function stringToFunction(word: string): BuiltInFunction {
+  let all = [Properties.ENTITY, Properties.ATTRIBUTE, Properties.COLLECTION, Properties.FUNCTION, Properties.ROOT];
+  let CorF = [Properties.COLLECTION, Properties.FUNCTION];
+  let filterFields = [{name: "a", types: [Properties.ATTRIBUTE, Properties.QUANTITY]}, 
+                      {name:"b", types: [Properties.ATTRIBUTE, Properties.QUANTITY]}
+                     ];
+  let calculateFields = [{name: "result", types: [Properties.OUTPUT]}, 
+                         {name: "a", types: [Properties.ATTRIBUTE, Properties.QUANTITY]}, 
+                         {name:"b", types: [Properties.ATTRIBUTE, Properties.QUANTITY]}
+                        ];
   switch (word) {
     case ">":
-      return {name: ">", type: FunctionTypes.FILTER, fields: ["a", "b"], project: false};
+      return {name: ">", type: FunctionTypes.FILTER, fields: filterFields, project: false};
     case "<":
-      return {name: "<", type: FunctionTypes.FILTER, fields: ["a", "b"], project: false};
+      return {name: "<", type: FunctionTypes.FILTER, fields: filterFields, project: false};
     case ">=":
-      return {name: ">=", type: FunctionTypes.FILTER, fields: ["a", "b"], project: false};
+      return {name: ">=", type: FunctionTypes.FILTER, fields: filterFields, project: false};
     case "<=":
-      return {name: "<=", type: FunctionTypes.FILTER, fields: ["a", "b"], project: false};
+      return {name: "<=", type: FunctionTypes.FILTER, fields: filterFields, project: false};
     case "=":
-      return {name: "=", type: FunctionTypes.FILTER, fields: ["a", "b"], project: false};
+      return {name: "=", type: FunctionTypes.FILTER, fields: filterFields, project: false};
     case "!=":
-      return {name: "!=", type: FunctionTypes.FILTER, fields: ["a", "b"], project: false};     
+      return {name: "!=", type: FunctionTypes.FILTER, fields: filterFields, project: false};     
     case "taller":
-      return {name: ">", type: FunctionTypes.FILTER, attribute: "height", fields: ["a", "b"], project: false};
+      return {name: ">", type: FunctionTypes.FILTER, attribute: "height", fields: filterFields, project: false};
     case "shorter":
-      return {name: "<", type: FunctionTypes.FILTER, attribute: "length", fields: ["a", "b"], project: false};
+      return {name: "<", type: FunctionTypes.FILTER, attribute: "length", fields: filterFields, project: false};
     case "longer":
-      return {name: ">", type: FunctionTypes.FILTER, attribute: "length", fields: ["a", "b"], project: false};
+      return {name: ">", type: FunctionTypes.FILTER, attribute: "length", fields: filterFields, project: false};
     case "younger":
-      return {name: "<", type: FunctionTypes.FILTER, attribute: "age", fields: ["a", "b"], project: false};
+      return {name: "<", type: FunctionTypes.FILTER, attribute: "age", fields: filterFields, project: false};
     case "&":
     case "and":
       return {name: "and", type: FunctionTypes.BOOLEAN, fields: [], project: false};
@@ -959,42 +973,48 @@ function stringToFunction(word: string): BuiltInFunction {
       return {name: "or", type: FunctionTypes.BOOLEAN, fields: [], project: false};
     case "total":
     case "sum":
-      return {name: "sum", type: FunctionTypes.AGGREGATE, fields: ["sum", "value"], project: true};
+      return {name: "sum", type: FunctionTypes.AGGREGATE, fields: [{name: "sum", types: [Properties.OUTPUT]}, 
+                                                                   {name: "value", types: [Properties.ATTRIBUTE]}], project: true};
     case "average":
     case "avg":
     case "mean":
-      return {name: "average", type: FunctionTypes.AGGREGATE, fields: ["average", "value"], project: true};
+      return {name: "average", type: FunctionTypes.AGGREGATE, fields: [{name: "average", types: [Properties.OUTPUT]}, 
+                                                                       {name: "value", types: [Properties.ATTRIBUTE]}], project: true};
     case "plus":
     case "add":
     case "+":
-      return {name: "+", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
+      return {name: "+", type: FunctionTypes.CALCULATE, fields: calculateFields, project: true};
     case "subtract":
     case "minus":
     case "-":
-      return {name: "-", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
+      return {name: "-", type: FunctionTypes.CALCULATE, fields: calculateFields, project: true};
     case "times":
     case "multiply":
     case "multiplied":
     case "multiplied by":
     case "*":
-      return {name: "*", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
+      return {name: "*", type: FunctionTypes.CALCULATE, fields: calculateFields, project: true};
     case "divide":
     case "divided":
     case "divided by":
     case "/":
-      return {name: "/", type: FunctionTypes.CALCULATE, fields: ["result", "a", "b"], project: true};
+      return {name: "/", type: FunctionTypes.CALCULATE, fields: calculateFields, project: true};
     case "is a":
     case "is an":
-      return {name: "insert", type: FunctionTypes.INSERT, fields: ["entity", "attribute", "set to"], project: false}; 
+      return {name: "insert", type: FunctionTypes.INSERT, fields: [{name: "entity", types: [Properties.ENTITY]}, 
+                                                                   {name: "attribute", types: [Properties.ATTRIBUTE]}, 
+                                                                   {name: "set to", types: [Properties.ATTRIBUTE, Properties.QUANTITY]}], project: false}; 
     case "'s":
     case "'":
-      return {name: "select", type: FunctionTypes.SELECT, fields: ["entity", "attribute"], project: false}; 
+      return {name: "select", type: FunctionTypes.SELECT, fields: [{name: "entity", types: [Properties.ENTITY]}, 
+                                                                   {name: "attribute", types: [Properties.ATTRIBUTE]}], project: false}; 
     case "by":
     case "per":
-      return {name: "group", type: FunctionTypes.GROUP, fields: ["root", "entity"], project: false};
+      return {name: "group", type: FunctionTypes.GROUP, fields: [{name: "root", types: all}, 
+                                                                 {name: "collection", types: [Properties.COLLECTION]}], project: false};
     case "except":
     case "not":
-      return {name: "negate", type: FunctionTypes.NEGATE, fields: ["entity"], project: false};
+      return {name: "negate", type: FunctionTypes.NEGATE, fields: [{name: "negated", types: CorF}], project: false};
     default:
       return undefined;
   }  
@@ -1011,8 +1031,8 @@ function findFunction(node: Node, context: Context): boolean {
   node.fxn = fxn;
   fxn.node = node;
   // Add arguments to the node
-  let args = fxn.fields.map((name, i) => {
-    let argToken = newToken(name);
+  let args = fxn.fields.map((field, i) => {
+    let argToken = newToken(field.name);
     let argNode = newNode(argToken);
     argNode.properties.push(Properties.ARGUMENT);
     if (fxn.project && i === 0) {
@@ -1028,14 +1048,13 @@ function findFunction(node: Node, context: Context): boolean {
         project: false,
       }
       outputNode.attribute = outputAttribute;
+      outputNode.properties.push(Properties.OUTPUT);
       outputNode.found = true;
       argNode.addChild(outputNode);          
     } else {
       argNode.properties.push(Properties.INPUT);
-      if (argNode.name === "root") {
-        argNode.properties.push(Properties.ROOT);
-      }
     }
+    argNode.properties = argNode.properties.concat(field.types);
     context.arguments.push(argNode);
     return argNode;
   });
@@ -1210,8 +1229,16 @@ function formTree(node: Node, tree: Node, context: Context): any {
   }
   // Handle functions
   if (node.hasProperty(Properties.FUNCTION)) {
-    // Find a root to attach the node
-    tree.addChild(node);
+    // Find an argument to attach the node
+    let functionArg = context.arguments.filter((n) => n.hasProperty(Properties.FUNCTION) && n.parent !== node);
+    console.log(functionArg);
+    if (functionArg.length > 0) {
+      let arg = functionArg.pop();
+      console.log(arg);
+      addNodeToFunction(node, arg.parent, context);
+    } else {
+      tree.addChild(node);  
+    }
     
     // If the node is a grouping node, attach the old root to the new one
     if (node.fxn.type === FunctionTypes.GROUP) {
@@ -1325,16 +1352,19 @@ function formTree(node: Node, tree: Node, context: Context): any {
 // Adds a node to an argument. If adding the node completes a select,
 // a new node will be returned
 function addNodeToFunction(node: Node, fxnNode: Node, context: Context): boolean {
-  log(`Matching ${node.name} with function ${fxnNode.name}`);
+  log(`Matching "${node.name}" with function "${fxnNode.name}"`);
   // Find the correct arg
   let arg: Node;
-  if (node.hasProperty(Properties.ENTITY) || node.hasProperty(Properties.COLLECTION)) {
-    arg = fxnNode.children.filter((c) => c.name === "entity")[0];
+  if (node.hasProperty(Properties.ENTITY)) {
+    arg = fxnNode.children.filter((c) => c.hasProperty(Properties.ENTITY) && !c.found).shift();
+  } else if (node.hasProperty(Properties.COLLECTION)) {
+    arg = fxnNode.children.filter((c) => c.hasProperty(Properties.COLLECTION) && !c.found).shift();
   } else if (node.hasProperty(Properties.ATTRIBUTE)) {
-    arg = fxnNode.children.filter((c) => (c.name === "attribute" || c.name === "value" || c.name === "a" || c.name === "b") && !c.found)[0];
+    arg = fxnNode.children.filter((c) => c.hasProperty(Properties.ATTRIBUTE) && !c.found).shift();
   } else if (node.hasProperty(Properties.FUNCTION)) {
-
+    arg = fxnNode.children.filter((c) => c.hasProperty(Properties.FUNCTION) && !c.found).shift();
   }
+  
   // Add the node to the arg
   if (arg !== undefined) {
     arg.addChild(node);
@@ -1428,7 +1458,7 @@ function findEveEntity(search: string): Entity {
     let entity: Entity = {
       id: foundEntity.entity,
       displayName: name,
-      variable: foundEntity.entity,
+      variable: name.replace(/ /g,''),
       project: true,
     }
     log(" Found: " + entity.id);
@@ -1461,7 +1491,7 @@ function findEveCollection(search: string): Collection {
     let collection: Collection = {
       id: foundCollection.collection,
       displayName: name,
-      variable: name,
+      variable: name.replace(/ /g,''),
       project: true,
     }
     log(" Found: " + collection.id);
@@ -1481,7 +1511,7 @@ function findEveAttribute(name: string): Attribute {
     let attribute: Attribute = {
       id: foundAttribute.attribute,
       displayName: name,
-      variable: `${name}`.replace(/ /g,''),
+      variable: name.replace(/ /g,''),
       project: true,
     }
     log(" Found: " + name);
@@ -1988,14 +2018,16 @@ function formQuery(node: Node): Query {
   // Handle the current node
   
   // Just return at the root
-  /*
-  if (node.hasProperty(Properties.ROOT)) {
-    // Reverse the order of fields in the projects
-    for (let project of query.projects) {
-      project.fields = project.fields.reverse();
+  if (node.hasProperty(Properties.ROOT) || node.hasProperty(Properties.ARGUMENT)) {
+    if (projectFields.length > 0) {                        
+      let project = {
+        type: "project!",
+        fields: projectFields,
+      }
+      query.projects.push(project);
     }
     return query;
-  }*/
+  }
   // Handle functions -------------------------------
   if (node.hasProperty(Properties.FUNCTION) && 
       node.fxn.type === FunctionTypes.NEGATE) {
@@ -2019,8 +2051,8 @@ function formQuery(node: Node): Query {
       log("Building function term for: " + node.name);
       let args = node.children.filter((child) => child.hasProperty(Properties.ARGUMENT)).map((arg) => arg.children[0]);
       let fields: Array<Field> = args.map((arg,i) => {
-        return {name: `${node.fxn.fields[i]}`, 
-                value: `${arg.attribute.variable}`, 
+        return {name: node.fxn.fields[i].name, 
+                value: arg.attribute.variable, 
                 variable: true};
       });
       let term: Term = {
@@ -2032,9 +2064,9 @@ function formQuery(node: Node): Query {
       // project output if necessary
       if (node.fxn.project === true) {
         projectFields = args.filter((arg) => arg.parent.hasProperty(Properties.OUTPUT))
-                            .map((arg) => {return {name: `${node.fxn.name}`, 
-                                                            value: `${arg.attribute.variable}`, 
-                                                            variable: true}});
+                            .map((arg) => {return {name: node.fxn.name, 
+                                                   value: arg.attribute.variable, 
+                                                   variable: true}});
         query.projects = []; // Clears all previous projects
       }
     } 
