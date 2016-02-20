@@ -640,7 +640,7 @@ function paneSettings(paneId:string) {
   return {t: "ul", c: "settings", children: [
     {t: "li", c: "save-btn", text: "save", prompt: savePrompt, click: openPrompt},
     {t: "li", c: "load-btn", text: "load", prompt: loadPrompt, click: openPrompt},
-    entity && !isSystem ? {t: "li", c: "delete-btn", text: "delete page", entity, paneId, click: deleteEntity} : undefined,
+    entity && !isSystem ? {t: "li", c: "delete-btn", text: "delete card", entity, paneId, click: deleteEntity} : undefined,
     {t: "li", c: "delete-btn", text: "DELETE DATABASE", prompt: deleteDatabasePrompt, click: openPrompt},
   ]};
 }
