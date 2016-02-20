@@ -125,24 +125,29 @@ function executeQuery(query: nlqp.Query): Array<string> {
   return resultsString;
 }
 
-
 let n = 1;
 let phrases = [ 
   // -------------------------------
   // These are queries that we had problems with in the past
   // make sure they always work
   // -------------------------------//
+  //"employees, salaries per department",
   /*
-  "3 - Corey's salary",
-  `Corey Montella's age + Josh's salary`,
-  "Corey age, height, gender and hair color",
+  "Corey's salary, department, and age",
   "Corey's wife's age, gender, and height",
-  "employees with their departments and salaries",
   */
   // -------------------------------
-  //"employees with their departments"
+  "chris' last name is granger"
+  //"employees per department"
+  //"josh's salary * corey montella's age"
+  //"Chris' salary and department"
   //"Employee's union"
   /*
+  "employee departments"
+  //"Corey's salary, department, and age",
+  "3 - Corey's salary",
+  "employees with their departments"
+  "employees with their departments and salaries"
   "employee salary and employee department",
   "employee salary and department",
   'test data that is an employee',
