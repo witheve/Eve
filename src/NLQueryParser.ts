@@ -56,8 +56,33 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
     tree = treeResult.tree;
     context = treeResult.context;
   }
+  if (allFound(tree)) {
+   
+  }
+  
+  
+  let intent = Intents.QUERY;
+  let inserts = context.fxns.filter((fxn) => fxn.type === FunctionTypes.INSERT);
+  if (inserts.length > 0) {
+    intent = Intents.INSERT;
+  }
+  
+  
+  
   // Create the query from the new tree
   log("Building query...");
+  let query = newQuery();
+  if (intent === Intents.QUERY) {
+    query = formQuery(tree);  
+  }
+
+
+
+
+  
+  
+  return [{intent: intent, context: context, tokens: tokens, tree: tree, query: query}];
+  
   
   function allFound(node: Node): boolean {
     let cFound = node.children.map(allFound).every((c)=>c);
@@ -67,13 +92,6 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
       return false;
     }
   } 
-  let query = newQuery();
-  if (allFound(tree)) {
-    query = formQuery(tree);
-  }
-
-  let intent = Intents.QUERY;
-  return [{intent: intent, context: context, tokens: tokens, tree: tree, query: query}];
 }
 
 // Returns false if any nodes are not marked found
@@ -535,6 +553,7 @@ interface Node {
   fxn?: BuiltInFunction,
   constituents?: Array<Node>,
   relationships: Array<Relationship>,
+  representations: Representations,
   token: Token,
   found: boolean,
   properties: Array<Properties>,
@@ -557,6 +576,13 @@ function cloneNode(node: Node): Node {
   return cloneNode;
 }
 
+interface Representations {
+  collection?: Collection,
+  entity?: Entity,
+  attribute?: Attribute,
+  fxn?: BuiltInFunction,
+}
+
 function newNode(token: Token): Node {
   let node: Node = {
     ix: token.ix,
@@ -566,6 +592,7 @@ function newNode(token: Token): Node {
     token: token, 
     properties: token.properties,
     relationships: [],
+    representations: undefined,
     found: false,
     hasProperty: hasProperty,
     toString: nodeToString,
@@ -1009,10 +1036,13 @@ function stringToFunction(word: string): BuiltInFunction {
     case "are":
       return {name: "insert", type: FunctionTypes.INSERT, fields: [{name: "collection", types: [Properties.COLLECTION]},
                                                                    {name: "collection", types: [Properties.COLLECTION]}], project: false}; 
+    case "his":
+    case "hers":
+    case "their":
+    case "its":
     case "'s":
     case "'":
-      return {name: "select", type: FunctionTypes.SELECT, fields: [{name: "subject", types: [Properties.ENTITY, Properties.COLLECTION]}, 
-                                                                   {name: "attribute", types: [Properties.ATTRIBUTE]}], project: false}; 
+      return {name: "select", type: FunctionTypes.SELECT, fields: [{name: "subject", types: [Properties.ENTITY, Properties.COLLECTION]}], project: false}; 
     case "by":
     case "per":
       return {name: "group", type: FunctionTypes.GROUP, fields: [{name: "root", types: all}, 
@@ -1227,6 +1257,8 @@ function formTree(node: Node, tree: Node, context: Context): any {
   // If the node wasn't found at all, don't try to place it anywhere
   if (!node.found) {
     return {tree: tree, context: context};
+  } else {
+    findAlternativeRepresentations(node);
   }
   
   // -------------------------------------
@@ -1379,6 +1411,65 @@ function formTree(node: Node, tree: Node, context: Context): any {
   return {tree: tree, context: context};
 }
 
+// Find all the representations of a thing
+function findAlternativeRepresentations(node: Node) {
+  
+  let attr = findEveAttribute(node.name);
+  let coll = findEveCollection(node.name);
+  let ent = findEveEntity(node.name);
+  let fxn = stringToFunction(node.name);
+  
+  node.representations = {
+    collection: coll,
+    entity: ent,
+    attribute: attr,
+    fxn: fxn,
+  }
+}
+
+// Swap the representation of the node with another one
+// Clears all attributes related to the old rep, and adds a new one
+function changeRepresentation(node: Node, rep: Properties, context: Context): boolean {
+  // Clear the node
+  node.found = false;
+  if (node.collection !== undefined) {
+    node.collection = undefined;  
+    node.properties.splice(node.properties.indexOf(Properties.COLLECTION),1);
+  } else if (node.entity !== undefined) {
+    node.entity = undefined;
+    node.properties.splice(node.properties.indexOf(Properties.ENTITY),1);
+  } else if (node.attribute !== undefined) {
+    node.attribute = undefined;
+    node.properties.splice(node.properties.indexOf(Properties.ATTRIBUTE),1);
+  } else if (node.fxn !== undefined) {
+    node.fxn = undefined;
+    node.properties.splice(node.properties.indexOf(Properties.FUNCTION),1);
+  }
+  // Switch the representation
+  if (rep === Properties.COLLECTION) {
+    if (node.representations.collection) {
+      findCollection(node, context);
+      return true;
+    }
+  } else if (rep === Properties.ENTITY) {
+    if (node.representations.entity) {
+      findEntity(node, context);
+      return true;
+    }
+  } else if (rep === Properties.ATTRIBUTE) {
+    if (node.representations.attribute) {
+      findAttribute(node, context);
+      return true;
+    }
+  } else if (rep === Properties.FUNCTION) {
+    if (node.representations.fxn) {
+      findFunction(node, context);
+      return true;
+    }
+  }
+  return false;
+}
+
 // Adds a node to an argument. If adding the node completes a select,
 // a new node will be returned
 function addNodeToFunction(node: Node, fxnNode: Node, context: Context): boolean {
@@ -1394,11 +1485,17 @@ function addNodeToFunction(node: Node, fxnNode: Node, context: Context): boolean
   } else if (node.hasProperty(Properties.FUNCTION)) {
     arg = fxnNode.children.filter((c) => c.hasProperty(Properties.FUNCTION) && !c.found).shift();
   }
-  
   // Add the node to the arg
   if (arg !== undefined) {
-    arg.addChild(node);
-    arg.found = true;  
+    if (fxnNode.fxn.type === FunctionTypes.SELECT) {
+      let root = findParentWithProperty(fxnNode, Properties.ROOT);
+      removeBranch(fxnNode);
+      node.properties.push(Properties.POSSESSIVE);
+      root.addChild(node);
+    } else {
+      arg.addChild(node);
+    }
+    arg.found = true;
     return true;
   } else {
     return false;
@@ -1596,6 +1693,20 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
     nodeA.relationships.push(relationship);
     nodeB.relationships.push(relationship);
     context.relationships.push(relationship);
+  // If no relationship was found, change the representation of the node
+  } else {
+    let repChanged = false;
+    // If one node is possessive, it suggests the other should be represented as an attribute of the first
+    if (nodeA.hasProperty(Properties.POSSESSIVE) && nodeB.representations.attribute !== undefined) {
+      console.log(nodeB.representations.attribute)
+      repChanged = changeRepresentation(nodeB, Properties.ATTRIBUTE, context); 
+    } else if (nodeB.hasProperty(Properties.POSSESSIVE) && nodeA.representations.attribute !== undefined) {
+      console.log(nodeA.representations.attribute)
+      repChanged = changeRepresentation(nodeA, Properties.ATTRIBUTE, context);  
+    }
+    if (repChanged) {
+      relationship = findRelationship(nodeA, nodeB, context);
+    }
   }
   return relationship;
   
@@ -1896,7 +2007,6 @@ function entityTocollectionsArray(entity: string): Array<string> {
 function findCollection(node: Node, context: Context): boolean {
   let collection = findEveCollection(node.name);
   if (collection !== undefined) {
-    context.collections.push(collection);
     context.found.push(node);
     collection.node = node;
     node.collection = collection;
@@ -1910,7 +2020,6 @@ function findCollection(node: Node, context: Context): boolean {
 function findEntity(node: Node, context: Context): boolean {
   let entity = findEveEntity(node.name);
   if (entity !== undefined) {
-    context.entities.push(entity);
     context.found.push(node);
     entity.node = node;
     node.entity = entity;
@@ -1924,7 +2033,6 @@ function findEntity(node: Node, context: Context): boolean {
 function findAttribute(node: Node, context: Context): boolean {
   let attribute = findEveAttribute(node.name);
   if (attribute !== undefined) {
-    context.attributes.push(attribute);
     context.found.push(node);
     attribute.node = node;
     node.attribute = attribute;
@@ -2154,7 +2262,7 @@ function formQuery(node: Node): Query {
     let attr = node.attribute;
     if (attr.refs !== undefined) {
       for (let ref of attr.refs) {
-        let entityVar = ref.entity !== undefined ? ref.entity.variable : ref.collection.variable;
+        let entityVar = ref.entity !== undefined ? ref.entity.id : ref.collection.variable;
         let fieldVar = ref.entity !== undefined ? false : true;
         if (fields.length === 0) {
           let entityField = {
