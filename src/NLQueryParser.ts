@@ -944,7 +944,7 @@ interface FunctionField {
 
 function stringToFunction(word: string): BuiltInFunction {
   let all = [Properties.ENTITY, Properties.ATTRIBUTE, Properties.COLLECTION, Properties.FUNCTION, Properties.ROOT];
-  let CorF = [Properties.COLLECTION, Properties.FUNCTION];
+  let CFA = [Properties.COLLECTION, Properties.FUNCTION, Properties.ATTRIBUTE];
   let filterFields = [{name: "a", types: [Properties.ATTRIBUTE, Properties.QUANTITY]}, 
                       {name:"b", types: [Properties.ATTRIBUTE, Properties.QUANTITY]}
                      ];
@@ -1027,8 +1027,9 @@ function stringToFunction(word: string): BuiltInFunction {
       return {name: "group", type: FunctionTypes.GROUP, fields: [{name: "root", types: all}, 
                                                                  {name: "collection", types: [Properties.COLLECTION]}], project: false};
     case "except":
+    case "without":
     case "not":
-      return {name: "negate", type: FunctionTypes.NEGATE, fields: [{name: "negated", types: CorF}], project: false};
+      return {name: "negate", type: FunctionTypes.NEGATE, fields: [{name: "negated", types: CFA}], project: false};
     default:
       return undefined;
   }  
@@ -2078,6 +2079,9 @@ function addFieldsToProject(projectFields: Array<Field>, fields: Array<Field>): 
 }
 
 function negateTerm(term: Term): Query {
+  if (term.table === "entity eavs" && term.fields[2] !== undefined && term.fields[2].name === "value") {
+    term.fields.splice(2,1);
+  }
   let negate = newQuery([term]);
   negate.type = "negate";
   return negate;
@@ -2203,6 +2207,7 @@ function formQuery(node: Node): Query {
     let negatedTerm = query.terms.pop();
     let negatedQuery = negateTerm(negatedTerm);
     query.subqueries.push(negatedQuery);
+    projectFields = [];
   }
   if (node.hasProperty(Properties.FUNCTION) && ( 
       node.fxn.type === FunctionTypes.AGGREGATE || 

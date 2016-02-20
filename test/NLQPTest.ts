@@ -137,12 +137,13 @@ let phrases = [
   "Corey's wife's age, gender, and height",
   */
   // -------------------------------
-  "chris' last name is granger"
+  
   //"employees per department"
   //"josh's salary * corey montella's age"
   //"Chris' salary and department"
   //"Employee's union"
   /*
+  "pets that do not have a length"
   "employee departments"
   //"Corey's salary, department, and age",
   "3 - Corey's salary",
