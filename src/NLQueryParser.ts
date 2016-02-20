@@ -56,42 +56,21 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
     tree = treeResult.tree;
     context = treeResult.context;
   }
-  if (allFound(tree)) {
-   
-  }
   
-  
-  let intent = Intents.QUERY;
-  let inserts = context.fxns.filter((fxn) => fxn.type === FunctionTypes.INSERT);
-  if (inserts.length > 0) {
-    intent = Intents.INSERT;
-  }
-  
-  
-  
-  // Create the query from the new tree
-  log("Building query...");
+  let intent = Intents.NORESULT;
   let query = newQuery();
-  if (intent === Intents.QUERY) {
-    query = formQuery(tree);  
-  }
-
-
-
-
-  
-  
-  return [{intent: intent, context: context, tokens: tokens, tree: tree, query: query}];
-  
-  
-  function allFound(node: Node): boolean {
-    let cFound = node.children.map(allFound).every((c)=>c);
-    if (cFound && node.found) {
-      return true;
+  if (allFound(tree)) {
+    let inserts = context.fxns.filter((fxn) => fxn.type === FunctionTypes.INSERT);
+    if (inserts.length > 0) {
+      intent = Intents.INSERT;
     } else {
-      return false;
+      // Create the query from the new tree
+      intent = Intents.QUERY;
+      log("Building query...");
+      query = formQuery(tree);  
     }
-  } 
+  }
+  return [{intent: intent, context: context, tokens: tokens, tree: tree, query: query}];
 }
 
 // Returns false if any nodes are not marked found
@@ -672,7 +651,7 @@ function removeNode(node: Node): Node {
     return undefined;
   }
   let parent: Node = node.parent;
-  let children: Array<Node> = node.children;
+  let children: Array<Node> = node.children;  
   // Rewire
   parent.children = parent.children.concat(children);
   parent.children.sort((a,b) => a.ix - b.ix);
@@ -1222,6 +1201,22 @@ function formTree(node: Node, tree: Node, context: Context): any {
   // Step 2: Identify the node
   // -------------------------------------
   
+  // If we are in an insert state, don't bother identifying the node and just add the node to the
+  // "set to" attribute
+  let insertFlag = context.fxns.some((f) => f.type === FunctionTypes.INSERT && f.node !== node);
+  console.log(insertFlag)
+  if (insertFlag) {
+    log(`Adding "${node.name}" to insert`);
+    // find the insert arg
+    let insertFxn = context.fxns.filter((f) => f.type === FunctionTypes.INSERT)[0].node;
+    if (insertFxn.children[0].found && insertFxn.children[1].found) {
+      let insertArg = insertFxn.children[2];
+      insertArg.found = true;
+      insertArg.addChild(node);
+      return {tree: tree, context: context};  
+    }
+  }
+  
   // If the node is a quantity, just build an attribute
   if (node.hasProperty(Properties.QUANTITY)) {
     let quantityAttribute: Attribute = {
@@ -1240,11 +1235,11 @@ function formTree(node: Node, tree: Node, context: Context): any {
   
   // Find a collection, entity, attribute, or function
   if (!node.found) {
-    findCollection(node, context);
+    findAttribute(node, context);
     if (!node.found) {
-      findEntity(node, context); 
+      findCollection(node, context); 
       if (!node.found) {
-        findAttribute(node, context);
+        findEntity(node, context);
         if (!node.found) {
           findFunction(node, context);  
           if (!node.found) {
@@ -1254,6 +1249,7 @@ function formTree(node: Node, tree: Node, context: Context): any {
       }
     }
   }
+  
   // If the node wasn't found at all, don't try to place it anywhere
   if (!node.found) {
     return {tree: tree, context: context};
@@ -1266,7 +1262,7 @@ function formTree(node: Node, tree: Node, context: Context): any {
   // -------------------------------------
   
   log("Matching: " + node.name);
-  
+    
   // If the node is compound, replace the last subsumed node with it
   if (node.hasProperty(Properties.COMPOUND)) {
     let subsumedNode = node.constituents[node.constituents.length - 2];
@@ -2031,6 +2027,9 @@ function findEntity(node: Node, context: Context): boolean {
 }
 
 function findAttribute(node: Node, context: Context): boolean {
+  if (node.name === "is a") {
+    return false;
+  }
   let attribute = findEveAttribute(node.name);
   if (attribute !== undefined) {
     context.found.push(node);
@@ -2453,7 +2452,14 @@ function isNumeric(n: any): boolean {
   return !isNaN(parseFloat(n)) && isFinite(n);
 }
 
-
+function allFound(node: Node): boolean {
+  let cFound = node.children.map(allFound).every((c)=>c);
+  if (cFound && node.found) {
+    return true;
+  } else {
+    return false;
+  }
+} 
 // ----------------------------------------------------------------------------
 
 declare var exports;
