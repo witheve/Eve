@@ -1,7 +1,7 @@
 body { position: relative; padding-bottom: 1.5em; background:#ECEEF2; color: rgb(76, 85, 90); font-family: "Lato", sans-serif; font-weight: 400; }
 * { box-sizing: border-box; }
 div { display: flex; flex-direction: column; }
-button, input { border:none; outline: none; font-family: "Lato", sans-serif; font-weight: 400; color: rgb(76,85,90); font-size: 12pt; }
+button, input, textarea { border:none; outline: none; font-family: "Lato", sans-serif; font-weight: 400; color: rgb(76,85,90); font-size: 12pt; }
 input { background:none; }
 
 a { color: #008cdd; cursor: pointer; border-bottom: 1px solid transparent; text-decoration: none; }
@@ -108,21 +108,6 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .autocompleter .inline-cell { min-width: 80px; outline:none; padding-left:8px; border-left:1px solid #aaa; margin-left:8px; }
 
 /*---------------------------------------------------------
-- Form
----------------------------------------------------------*/
-
-.form-row + .form-row { margin-left:10px;  }
-.form-row label { display:none; margin-bottom:3px; font-size: 10pt; }
-
-
-.labeled-input { flex-direction:row; }
-.labeled-input { border-radius:0px; align-items: center; background: none; }
-.labeled-input label { font-size: 10pt; padding:8px 6px; }
-.labeled-input input { font-size: 10pt; border-radius:0; padding: 8px 10px; min-width:280px; }
-* + .labeled-input input { border-left: 1px solid #ddd;  }
-.labeled-input input + * { border-left:1px solid #ddd; }
-
-/*---------------------------------------------------------
 - Card
 ---------------------------------------------------------*/
 
@@ -166,6 +151,8 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .card .tile .list { max-height: 200px; overflow:auto; flex-wrap:wrap; flex-direction:row; align-items:flex-start; }
 .card .tile .list > * { padding:15px; margin:2px; background: #f5f5f5; border:0px solid #eee; border-radius:2px;  }
 
+.card .tile textarea { background:none; color: #ccc; font-size:16px; border:none; width:300px; }
+
 .card .add-tile {position: absolute; padding:10px 20px; padding-right:15px; right:0; top:0; color: #ccc; cursor: default; }
 .card .add-tile:before { transition:transform 0.2s ease-in-out; }
 .card .add-tile:hover { color: #666; }
@@ -189,15 +176,6 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 
 .card .description-adder .tile { padding:10px 15px; }
 .card .description-adder textarea { width:290px; border:none; height: 75px; font-size:12pt; outline:none; }
-
-/*---------------------------------------------------------
-- Selector
----------------------------------------------------------*/
-
-.selector { flex-direction:row; background:#fff; border:1px solid #ccc; border-radius:3px; }
-.selector *:nth-child(2) { background: orange; color: #333; text-shadow:none; }
-.selector * { justify-content:center; background:none; border:none; color: #666; font-size: 11pt; font-family: "Lato"; font-weight: 400; padding:3px 8px; }
-.selector * + * { margin-left: 5px; }
 
 /*---------------------------------------------------------
 - Wiki editor
@@ -360,3 +338,24 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .collapsible > header .collapse-toggle { margin-right: 1em; }
 .table-filter, .table-filter > * { display: flex; flex-direction: row; align-items: center; }
 .table-filter > * + *, .table-filter > * > * + * { margin-left: 1em; }
+
+/*---------------------------------------------------------
+- Dark
+---------------------------------------------------------*/
+
+.dark { background: #222; color: #ccc; }
+.dark .CodeMirror { color: #ccc; }
+.dark .scroller .top-scroll-fade { background:linear-gradient(#222 0%, transparent 100%); }
+.dark .scroller .bottom-scroll-fade { background:linear-gradient(transparent 0%, #222 100%); }
+.dark .card { background: #333; }
+.dark .card .tile { border-color: #444; }
+.dark .card .row { border-color: #444; }
+.dark .card .list > * { background: #444; }
+.dark header { border-color:#444; }
+.dark .card .header { border-color:#444; }
+.dark .card .tile-adder { background:#444; }
+.dark .card .tile-adder .tile { border-color: #555; }
+.dark .card .tile-adder .row { border-color: #555; }
+.dark .card .tile-adder .property { color: #999; }
+.dark .card .tile-adder .value { color: #ccc; }
+.dark .card .adding .tiles { border-color: #444; }
