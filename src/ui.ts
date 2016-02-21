@@ -1652,15 +1652,17 @@ function storeActiveTileValue(elem, value) {
 appHandle("replace sourced tile", (changes, {key, attribute, entityId, source}) => {
   let state = uiState.widget.card[key] || {};
   let {replaceValue} = state;
-  if(replaceValue === undefined) return;
   let sourced = eve.findOne("sourced eav", {source});
   if(!sourced) {
     console.error("Tried to modify a sourced eav that doesn't exist?")
     console.log(source);
     return;
   }
-  changes.remove("sourced eav", {source});
-  changes.dispatch("add sourced eav", {entity: entityId, attribute, value: replaceValue});
+  if(replaceValue !== undefined && sourced.value !== replaceValue.trim()) {
+    changes.remove("sourced eav", {source});
+    changes.dispatch("add sourced eav", {entity: entityId, attribute, value: replaceValue});
+  }
+  changes.dispatch("activate tile", {cardId: key});
   delete state["replaceValue"];
 });
 
@@ -1672,7 +1674,7 @@ function handleTileKeys(event, elem) {
 
     }
   } else if(event.keyCode === KEYS.ESC) {
-    dispatch("activate tile", {key: elem.cardId}).commit();
+    dispatch("activate tile", {cardId: elem.cardId}).commit();
   }
 }
 
