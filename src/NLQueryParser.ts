@@ -1354,9 +1354,6 @@ function formTree(node: Node, tree: Node, context: Context): any {
         } 
       }
     }
-  // Handle quantities
-  } else if (node.hasProperty(Properties.QUANTITY)) {
-    // Do nothing for quantities
   // Handle everything else
   } else {
     // Find a relationship if we have to
@@ -1670,7 +1667,8 @@ interface Relationship {
 
 function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relationship {
   let relationship = {type: RelationshipTypes.NONE};
-  if (nodeA === nodeB) {
+  if ((nodeA === nodeB) || 
+      (nodeA.hasProperty(Properties.QUANTITY) || nodeB.hasProperty(Properties.QUANTITY))) {
     return relationship;
   }
   log(`Finding relationship between "${nodeA.name}" and "${nodeB.name}"`);
