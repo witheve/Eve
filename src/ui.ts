@@ -1711,7 +1711,7 @@ function autosizeAndStoreListTileItem(event, elem) {
 }
 
 function listTile(elem) {
-  let {values, data, tileId, attribute, cardId, entityId, reverseEntityAndValue, noProperty, rep="value"} = elem;
+  let {values, data, tileId, attribute, cardId, entityId, reverseEntityAndValue, noProperty, rep="value", c:klass=""} = elem;
   tileId = tileId || attribute;
   let state = uiState.widget.card[cardId] || {};
   let active = isTileActive(cardId, tileId);
@@ -1758,7 +1758,7 @@ function listTile(elem) {
   }
   tileChildren.push({c: "list", children: listChildren});
   let size = isIsA ? "is a" : "full";
-  return tile({c: size, size, cardId, data, tileId, active, attribute, entityId, reverseEntityAndValue, submitOnly: true, children: tileChildren});
+  return tile({c: `${klass} ${size}`, size, cardId, data, tileId, active, attribute, entityId, reverseEntityAndValue, submitOnly: true, children: tileChildren});
 }
 
 function autosizeTextarea(node, elem) {
@@ -1872,6 +1872,8 @@ function imageTile(elem) {
   let ui;
   if(values.length > 1) {
     elem.rep = "externalImage";
+    elem.noProperty = true;
+    elem.c = "image ";
     ui = listTile(elem);
   } else {
     let value = values[0];
@@ -1881,7 +1883,7 @@ function imageTile(elem) {
     let tileId = attribute;
     let tileChildren = [{t: "img", c: "image", src: `${value.eav.value}`}];
     let active = isTileActive(cardId, tileId);
-    ui = tile({c: klass, size, cardId, data, tileId, active, attribute, source, entityId, removeOnly: true, children: tileChildren});
+    ui = tile({c: klass, size, cardId, data, tileId, active, attribute, source, entityId, children: tileChildren});
   }
   return ui;
 }

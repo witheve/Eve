@@ -172,8 +172,13 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 
 .card .tile.computed { background: red; }
 
-.card .tile img { max-width: 330px; }
-.card .tile.active img { max-width: 140px; }
+.card .tile.image .text-content { padding:0; }
+.card .tile.image .tile-content-wrapper { padding:0; }
+.card .tile.image img { max-width: 360px; }
+.card .tile.image .list { max-height:none; }
+.card .tile.image .list img { margin:0; padding:0; }
+.card .tile.image.active .list img { max-width: 140px; }
+.card .tile.active img { max-width: 335px; }
 
 .card .property-adder { flex: 1; align-items:center; justify-content:center; }
 .card .property-adder .tile { flex:none; align-items:stretch; border:1px solid rgba(0,0,0,0.1); background:#fff; border-radius:2px; max-width:320px; }
