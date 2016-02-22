@@ -119,7 +119,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 
 .card > .table { margin: 20px 30px; }
 
-.card .tiles { flex-direction: row; flex-wrap: wrap; max-width: 360px; }
+.card .tiles { flex-direction: row; flex-wrap: wrap; width: 360px; }
 .card .tile { flex: 1 0 0; overflow:hidden; cursor: default; flex-direction:row; }
 /* .card .tile:hover { background:rgba(0,0,50,0.04);  } */
 .card .tile .property { font-size: 9pt; color: #aaa; margin-bottom: 5px; }
