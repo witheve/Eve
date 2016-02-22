@@ -331,7 +331,7 @@ function collectionTileAdder(elem) {
   let tileChildren = [];
   tileChildren.push({t: "input", c: "property", placeholder: `${pluralize(resolveName(entityId), 2)}`, attribute: "collectionProperty", value: state.collectionProperty, input: trackPropertyAdderInput, key: cardId});
   tileChildren.push({c: "list", children: listChildren});
-  return {c: "property-adder description-adder", children: [
+  return {c: "property-adder collection-adder", children: [
     {children: [
       {c: "tile full", children: [
         {c: "tile-content-wrapper", children: tileChildren},
@@ -353,7 +353,7 @@ function collectionAdderUI(elem) {
 
 function submitCollection(adder, state, node) {
   let chain;
-  console.log("SUBMIT COLL", state.collectionProperty);
+  console.log("SUBMIT COLL", state.key);
   // determine whether this is making the current entity a collection, or if this is just a normal collection.
   if(!state.collectionProperty || pluralize(state.collectionProperty.trim(), 1).toLowerCase() === resolveName(state.entityId).toLowerCase()) {
     // this is turning the current entity into a collection
@@ -363,6 +363,7 @@ function submitCollection(adder, state, node) {
   }
   state.collectionProperty = undefined;
   chain.dispatch("toggle add tile", {key: state.key}).commit();
+  console.log(JSON.stringify(state));
 }
 
 function imageAdderUI(elem) {
@@ -393,11 +394,12 @@ export function tileAdder(elem) {
   let {entityId, key} = elem;
   let state = _state.widget.card[key] || {};
   let rows = [];
+  let klass = "";
   if(!state.adder) {
     let adders = [
       {name: "Property", icon: "ion-compose", ui: propertyAdderUI, submit: submitProperty},
       {name: "Description", icon: "ion-drag", ui: descriptionAdderUI, submit: submitDescription},
-      {name: "Collection", icon: "ion-ios-list-outline", ui: collectionAdderUI, submit: submitCollection},
+      {name: "Collection", klass: "collection", icon: "ion-ios-list-outline", ui: collectionAdderUI, submit: submitCollection},
       {name: "Image", icon: "ion-image", ui: imageAdderUI, submit: submitImage},
       {name: "Document", icon: "ion-document"},
       {name: "Computed", icon: "ion-calculator"},
@@ -422,8 +424,9 @@ export function tileAdder(elem) {
     if(state.adder.ui) {
       rows.push(state.adder.ui(adderElem));
     }
+    klass = state.adder.klass || "";
   }
-  return {c: "tile-adder", children: rows};
+  return {c: `tile-adder ${klass}`, children: rows};
 }
 
 export function pageEditor(entityId:string, paneId:string, elem):Element {

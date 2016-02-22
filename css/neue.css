@@ -170,6 +170,9 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 /* .card .adding .tiles { display:none; } */
 .card .adding .add-tile:before {transform: rotate(-135deg); }
 
+.card .adding .tile-adder.collection { height: 280px; }
+.card .adding .collection-adder .tile { height: 250px; width: 330px; }
+
 .card .tile.computed { background: red; }
 
 .card .tile.image .text-content { padding:0; }
