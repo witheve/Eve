@@ -218,16 +218,22 @@ appHandle("add sourced eav", (changes, eav:{entity:string, attribute:string, val
     source = uuid();
   }
   let valueId = asEntity(value);
+  let coerced = coerceInput(value);
+  let strValue = value.toString().trim();
   if(valueId) {
     value = valueId;
+  } else if(strValue[0] === '"' && strValue[strValue.length - 1] === '"') {
+    value = JSON.parse(strValue);
+  } else if(typeof coerced === "number") {
+    value = coerced;
   } else if(forceEntity || attribute === "is a") {
     let newEntity = uuid();
     let pageId = uuid();
     changes.dispatch("create page", {page: pageId,  content: ""})
-           .dispatch("create entity", {entity: newEntity, name: value.toString().trim(), page: pageId});
+           .dispatch("create entity", {entity: newEntity, name: strValue, page: pageId});
     value = newEntity;
   } else {
-    value = coerceInput(value);
+    value = coerced;
   }
   changes.add("sourced eav", {entity, attribute, value, source});
 });
@@ -1627,7 +1633,7 @@ function tile(elem) {
   elem.children = [
     {c: "tile-content-wrapper", children: elem.children},
     {c: "controls", children: [
-      {c: "ion-checkmark submit", click: submitActiveTile, cardId, attribute, entityId, source, reverseEntityAndValue},
+      !elem.removeOnly ? {c: "ion-checkmark submit", click: submitActiveTile, cardId, attribute, entityId, source, reverseEntityAndValue} : undefined,
       !elem.submitOnly ? {c: "ion-backspace cancel", click: removeActiveTile, cardId, attribute, entityId, source} : undefined,
     ]}
   ];
@@ -1664,7 +1670,7 @@ appHandle("submit list tile", (changes, {cardId, attribute, entityId, reverseEnt
   if(itemsToAdd) {
     for(let value of itemsToAdd) {
       if(!reverseEntityAndValue) {
-        changes.dispatch("add sourced eav", {entity: entityId, attribute, value: value.trim()});
+        changes.dispatch("add sourced eav", {entity: entityId, attribute, value: value.trim(), forceEntity: true});
       } else {
         let cleaned = value.trim();
         let entityValue = asEntity(cleaned);
@@ -1705,7 +1711,7 @@ function autosizeAndStoreListTileItem(event, elem) {
 }
 
 function listTile(elem) {
-  let {values, data, tileId, attribute, cardId, entityId, reverseEntityAndValue, noProperty} = elem;
+  let {values, data, tileId, attribute, cardId, entityId, reverseEntityAndValue, noProperty, rep="value"} = elem;
   tileId = tileId || attribute;
   let state = uiState.widget.card[cardId] || {};
   let active = isTileActive(cardId, tileId);
@@ -1715,7 +1721,12 @@ function listTile(elem) {
     let current = reverseEntityAndValue ? value.eav.entity : value.eav.value;
     if(uitk.resolveName(current) === "entity" && attribute === "is a") continue;
     let source = value.source;
-    let ui = uitk.value({c: "value", data, text: current});
+    let valueElem:any = {c: "value", data, text: current};
+    if(rep === "externalImage") {
+      valueElem.url = current;
+      valueElem.text = undefined;
+    }
+    let ui = uitk[rep](valueElem);
     if(active) {
       ui["cardId"] = cardId;
       ui["storeAttribute"] = "itemsToRemove";
@@ -1725,7 +1736,6 @@ function listTile(elem) {
         ui.c += " marked-to-remove";
       }
     }
-    max = Math.max(ui.text.toString().length, max);
     listChildren.push(ui);
   }
   if(active) {
@@ -1775,7 +1785,7 @@ appHandle("replace sourced tile", (changes, {key, attribute, entityId, source}) 
   }
   if(replaceValue !== undefined && sourced.value !== replaceValue.trim()) {
     changes.remove("sourced eav", {source});
-    changes.dispatch("add sourced eav", {entity: entityId, attribute, value: replaceValue});
+    changes.dispatch("add sourced eav", {entity: entityId, attribute, value: replaceValue, forceEntity: true});
   }
   changes.dispatch("activate tile", {cardId: key});
 });
@@ -1857,6 +1867,37 @@ function valueTile(elem) {
   return tile({c: klass, size, cardId, data, tileId, active, attribute, source, entityId, children: tileChildren});
 }
 
+function imageTile(elem) {
+  let {values, data, attribute, cardId, entityId} = elem;
+  let ui;
+  if(values.length > 1) {
+    elem.rep = "externalImage";
+    ui = listTile(elem);
+  } else {
+    let value = values[0];
+    let source = value.source;
+    let size = "full";
+    let klass = "image full";
+    let tileId = attribute;
+    let tileChildren = [{t: "img", c: "image", src: `${value.eav.value}`}];
+    let active = isTileActive(cardId, tileId);
+    ui = tile({c: klass, size, cardId, data, tileId, active, attribute, source, entityId, removeOnly: true, children: tileChildren});
+  }
+  return ui;
+}
+
+function documentTile(elem) {
+  let {value, data, attribute, cardId, entityId} = elem;
+  let tileChildren = [];
+  let tileId = attribute;
+  let source = value.source;
+  let state = uiState.widget.card[cardId] || {};
+  let active = isTileActive(cardId, tileId);
+  let size = "full";
+  let klass = "document full";
+  return tile({c: klass, size, cardId, data, tileId, active, attribute, source, entityId, children: tileChildren});
+}
+
 function row(elem) {
   elem.c = `${elem.c || ""} row flex-row`;
   return elem;
@@ -1912,7 +1953,9 @@ export function entityTilesUI(entityId, paneId, cardId) {
     let values = items[attribute];
     if(!values) continue;
     let newTile;
-    if(values.length > 1 || attribute === "is a") {
+    if(attribute === "image") {
+      newTile = imageTile({values, data, attribute, cardId, entityId});
+    } else if(values.length > 1 || attribute === "is a") {
       newTile = listTile({values, data, attribute, cardId, entityId});
     } else {
       newTile = valueTile({value: values[0], data, attribute, cardId, entityId});

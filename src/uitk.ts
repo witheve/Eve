@@ -252,7 +252,7 @@ function submitAdder(event, elem) {
 }
 
 function submitProperty(adder, state, node) {
-  dispatch("add entity attribute", {entity: state.entityId, attribute: state.propertyProperty, value: state.propertyValue}).commit();
+  dispatch("add sourced eav", {entity: state.entityId, attribute: state.propertyProperty, value: state.propertyValue, forceEntity: true}).commit();
   state.propertyValue = "";
   state.propertyProperty = "";
   //make sure the focus is in the value
@@ -309,7 +309,7 @@ export function tileAdder(elem) {
     let adders = [
       {name: "Property", icon: "ion-compose", ui: propertyAdderUI, submit: submitProperty},
       {name: "Description", icon: "ion-drag", ui: descriptionAdderUI, submit: submitDescription},
-      {name: "List", icon: "ion-ios-list-outline"},
+      {name: "Collection", icon: "ion-ios-list-outline"},
       {name: "Image", icon: "ion-image"},
       {name: "Document", icon: "ion-document"},
       {name: "Computed", icon: "ion-calculator"},
