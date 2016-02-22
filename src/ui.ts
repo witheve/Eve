@@ -578,13 +578,14 @@ export function pane(paneId:string):Element {
     content.t = "content";
     content.c = `${content.c || ""} ${params.unwrapped ? "unwrapped" : ""}`;
   }
-    if(contentType === "invalid") {
-    content = {c: "flex-row spaced-row disambiguation", children: [
+
+  if(contentType === "invalid") {
+    var disambiguation = {c: "flex-row spaced-row disambiguation", children: [
       {t: "span", text: `I couldn't find anything; should I`},
       {t: "a", c: "link btn add-btn", text: `add ${contains}`, name: contains, paneId, click: createPage },
       {t: "span", text: "?"},
     ]};
-    
+    content = undefined;
   } else if(contentType === "search") {
     // @TODO: This needs to move into Eve's notification / chat bar
     var disambiguation = {id: "search-disambiguation", c: "flex-row spaced-row disambiguation", children: [
@@ -639,7 +640,8 @@ function createPage(evt:Event, elem:Element) {
   let entity = uuid();
   let page = uuid();
   dispatch("create page", {page, content: ``})
-  .dispatch("create entity", {entity, page, name}).commit();
+  .dispatch("create entity", {entity, page, name})
+  .dispatch("set pane", {paneId: elem.paneId, contains: entity, rep: "entity", params: ""}).commit();
 }
 
 function deleteEntity(event, elem) {
