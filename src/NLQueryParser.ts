@@ -1260,7 +1260,7 @@ function formTree(node: Node, tree: Node, context: Context): any {
   // If the node wasn't found at all, don't try to place it anywhere
   if (!node.found) {
     return {tree: tree, context: context};
-  } else {
+  } else if (node.found && !node.hasProperty(Properties.QUANTITY)) {
     findAlternativeRepresentations(node);
   }
   
@@ -1354,6 +1354,9 @@ function formTree(node: Node, tree: Node, context: Context): any {
         } 
       }
     }
+  // Handle quantities
+  } else if (node.hasProperty(Properties.QUANTITY)) {
+    // Do nothing for quantities
   // Handle everything else
   } else {
     // Find a relationship if we have to
