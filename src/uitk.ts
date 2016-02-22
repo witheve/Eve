@@ -2,7 +2,7 @@ declare var pluralize; // @TODO: import me.
 import {builtinId, copy, coerceInput, sortByLookup, sortByField, KEYS, autoFocus} from "./utils";
 import {Element, Handler} from "./microReact";
 import {dispatch, eve} from "./app";
-import {PANE, uiState as _state, asEntity, entityTilesUI, activeCells, wikiEditor} from "./ui";
+import {PANE, uiState as _state, asEntity, entityTilesUI, activeCells, wikiEditor, listTile} from "./ui";
 import {masonry as masonryRaw, MasonryLayout} from "./masonry";
 
 //------------------------------------------------------------------------------
@@ -236,6 +236,9 @@ export function autosizeAndFocus(node, elem) {
 function trackPropertyAdderInput(event, elem) {
   let value = event.currentTarget.value;
   dispatch("set tile adder attribute", {key: elem.key, attribute: elem.attribute, value}).commit();
+  if(event.currentTarget.nodeName === "INPUT") {
+    autosizeInput(event.currentTarget, elem);
+  }
 }
 
 function adderKeys(event, elem) {
@@ -284,13 +287,14 @@ function descriptionAdderUI(elem) {
   return {c: "property-adder description-adder", children: [
     {children: [
       {c: "tile full", children: [
-        {t: "textarea", c: "value", placeholder: "description", value: state.descriptionValue, attribute: "descriptionValue", input: trackPropertyAdderInput, postRender: autoFocus, keydown: adderKeys, entityId, key},
+        {c: "tile-content-wrapper", children: [
+          {t: "textarea", c: "value", placeholder: "description", value: state.descriptionValue, attribute: "descriptionValue", input: trackPropertyAdderInput, postRender: autoFocus, keydown: adderKeys, entityId, key},
+        ]},
+        {c: "controls flex-row", children: [
+          {c: "ion-checkmark submit", click: submitAdder, key},
+          {c: "ion-close cancel", click: setTileAdder, key},
+        ]}
       ]},
-      {c: "controls flex-row", children: [
-        {c: "ion-checkmark submit", click: submitAdder, key},
-        {c: "ion-close cancel", click: setTileAdder, key},
-      ]}
-
     ]}
   ]};
 }
@@ -298,6 +302,90 @@ function descriptionAdderUI(elem) {
 function submitDescription(adder, state, node) {
   let chain = dispatch("add sourced eav", {entity: state.entityId, attribute: "description", value: state.descriptionValue});
   state.descriptionValue = "";
+  chain.dispatch("toggle add tile", {key: state.key}).commit();
+}
+
+function autosizeAndStoreListTileItem(event, elem) {
+  let node = event.currentTarget;
+  dispatch("add active tile item", {cardId: elem.cardId, attribute: elem.storeAttribute, tileId: elem.tileId, id: elem.storeId, value: node.value}).commit();
+  autosizeInput(node, elem);
+}
+
+function collectionTileAdder(elem) {
+  let {values, data, tileId, attribute, cardId, entityId, forceActive, reverseEntityAndValue, noProperty, rep="value", c:klass=""} = elem;
+  tileId = tileId || attribute;
+  let state = _state.widget.card[cardId] || {};
+  let listChildren = [];
+  let added = (state.activeTile ? state.activeTile.itemsToAdd : false) || [];
+  let ix = 0;
+  for(let add of added) {
+    listChildren.push({c: "value", children: [
+      {t: "input", placeholder: "add", value: add, attribute, entityId, storeAttribute: "itemsToAdd", storeId: ix, cardId, input: autosizeAndStoreListTileItem, postRender: autosizeAndFocus, keydown: adderKeys, key: cardId}
+    ]});
+    ix++;
+  }
+  listChildren.push({c: "value", children: [
+    {t: "input", placeholder: "add item", value: "", attribute, entityId, storeAttribute: "itemsToAdd", storeId: ix, cardId, input: autosizeAndStoreListTileItem, postRender: ix === 0 ? autosizeAndFocus : autosizeInput, keydown: adderKeys, key: cardId}
+  ]});
+  let size = "full";
+  let tileChildren = [];
+  tileChildren.push({t: "input", c: "property", placeholder: `${pluralize(resolveName(entityId), 2)}`, attribute: "collectionProperty", value: state.collectionProperty, input: trackPropertyAdderInput, key: cardId});
+  tileChildren.push({c: "list", children: listChildren});
+  return {c: "property-adder description-adder", children: [
+    {children: [
+      {c: "tile full", children: [
+        {c: "tile-content-wrapper", children: tileChildren},
+        {c: "controls flex-row", children: [
+          {c: "ion-checkmark submit", click: submitAdder, key: cardId},
+          {c: "ion-close cancel", click: setTileAdder, key: cardId},
+        ]}
+      ]},
+    ]}
+  ]};
+}
+
+function collectionAdderUI(elem) {
+  let {entityId, key} = elem;
+  let state = _state.widget.card[key] || {};
+  let tile = collectionTileAdder({values: [], cardId: key, entityId, forceActive: true, tileId: "collectionAdder", data: {}, noProperty: true, });
+  return tile;
+}
+
+function submitCollection(adder, state, node) {
+  let chain;
+  console.log("SUBMIT COLL", state.collectionProperty);
+  // determine whether this is making the current entity a collection, or if this is just a normal collection.
+  if(!state.collectionProperty || pluralize(state.collectionProperty.trim(), 1).toLowerCase() === resolveName(state.entityId).toLowerCase()) {
+    // this is turning the current entity into a collection
+    chain = dispatch("submit list tile", {cardId: state.key, attribute: "is a", entityId: state.entityId, reverseEntityAndValue: true});
+  } else {
+    chain = dispatch("submit list tile", {cardId: state.key, attribute: state.collectionProperty, entityId: state.entityId, reverseEntityAndValue: false});
+  }
+  state.collectionProperty = undefined;
+  chain.dispatch("toggle add tile", {key: state.key}).commit();
+}
+
+function imageAdderUI(elem) {
+  let {entityId, key} = elem;
+  let state = _state.widget.card[key] || {};
+  return {c: "property-adder image-adder", children: [
+    {children: [
+      {c: "tile small", children: [
+        {c: "tile-content-wrapper", children: [
+          {t: "input", c: "value", placeholder: "image url", value: state.propertyValue, attribute: "imageValue", input: trackPropertyAdderInput, postRender: autosizeAndFocus, keydown: adderKeys, entityId, key},
+        ]},
+        {c: "controls flex-row", children: [
+          {c: "ion-checkmark submit", click: submitAdder, key},
+          {c: "ion-close cancel", click: setTileAdder, key},
+        ]}
+      ]}
+    ]}
+  ]};
+}
+
+function submitImage(adder, state, node) {
+  let chain = dispatch("add sourced eav", {entity: state.entityId, attribute: "image", value: `"${state.imageValue}"`});
+  state.imageValue = undefined;
   chain.dispatch("toggle add tile", {key: state.key}).commit();
 }
 
@@ -309,8 +397,8 @@ export function tileAdder(elem) {
     let adders = [
       {name: "Property", icon: "ion-compose", ui: propertyAdderUI, submit: submitProperty},
       {name: "Description", icon: "ion-drag", ui: descriptionAdderUI, submit: submitDescription},
-      {name: "Collection", icon: "ion-ios-list-outline"},
-      {name: "Image", icon: "ion-image"},
+      {name: "Collection", icon: "ion-ios-list-outline", ui: collectionAdderUI, submit: submitCollection},
+      {name: "Image", icon: "ion-image", ui: imageAdderUI, submit: submitImage},
       {name: "Document", icon: "ion-document"},
       {name: "Computed", icon: "ion-calculator"},
     ];

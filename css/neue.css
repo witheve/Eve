@@ -174,7 +174,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 
 .card .tile.image .text-content { padding:0; }
 .card .tile.image .tile-content-wrapper { padding:0; }
-.card .tile.image img { max-width: 360px; }
+.card .tile.image img { width: 360px; }
 .card .tile.image .list { max-height:none; }
 .card .tile.image .list img { margin:0; padding:0; }
 .card .tile.image.active .list img { max-width: 140px; }
@@ -185,8 +185,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .card .property-adder .tile:hover { background:#fff; }
 .card .property-adder input { text-align:left; padding:0; }
 
-.card .description-adder .tile { padding:10px 15px; }
-.card .description-adder textarea { width:290px; border:none; height: 75px; font-size:12pt; outline:none; }
+.card .description-adder textarea { width:263px; border:none; height: 75px; font-size:12pt; outline:none; }
 
 /*---------------------------------------------------------
 - Wiki editor

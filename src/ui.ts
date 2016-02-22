@@ -1693,28 +1693,30 @@ function toggleListTileItem(event, elem) {
   event.preventDefault();
 }
 
-appHandle("add active tile item", (changes, {cardId, attribute, id, value}) => {
-  let state = uiState.widget.card[cardId] || {showAdd: true, key: cardId, activeTile: {}};
+appHandle("add active tile item", (changes, {cardId, attribute, id, value, tileId}) => {
+  let state = uiState.widget.card[cardId] || {showAdd: true, key: cardId, activeTile: {id: tileId}};
+  if(!state.activeTile) {
+    state.activeTile = {id: tileId};
+  }
   if(!state.activeTile[attribute]) {
     state.activeTile[attribute] = [];
   }
   let cur = state.activeTile[attribute][id];
   state.activeTile[attribute][id] = value;
-  console.log("STATE", state);
   uiState.widget.card[cardId] = state;
 });
 
 function autosizeAndStoreListTileItem(event, elem) {
   let node = event.currentTarget;
-  dispatch("add active tile item", {cardId: elem.cardId, attribute: elem.storeAttribute, id: elem.storeId, value: node.value}).commit();
+  dispatch("add active tile item", {cardId: elem.cardId, attribute: elem.storeAttribute, tileId: elem.tileId, id: elem.storeId, value: node.value}).commit();
   uitk.autosizeInput(node, elem);
 }
 
-function listTile(elem) {
-  let {values, data, tileId, attribute, cardId, entityId, reverseEntityAndValue, noProperty, rep="value", c:klass=""} = elem;
+export function listTile(elem) {
+  let {values, data, tileId, attribute, cardId, entityId, forceActive, reverseEntityAndValue, noProperty, rep="value", c:klass=""} = elem;
   tileId = tileId || attribute;
   let state = uiState.widget.card[cardId] || {};
-  let active = isTileActive(cardId, tileId);
+  let active = forceActive || isTileActive(cardId, tileId);
   let listChildren = [];
   let max = 0;
   for(let value of values) {
@@ -1739,7 +1741,7 @@ function listTile(elem) {
     listChildren.push(ui);
   }
   if(active) {
-    let added = state.activeTile.itemsToAdd || [];
+    let added = (state.activeTile ? state.activeTile.itemsToAdd : false) || [];
     let ix = 0;
     for(let add of added) {
       listChildren.push({c: "value", children: [
