@@ -1935,6 +1935,13 @@ export function entityTilesUI(entityId, paneId, cardId) {
   let tiles = {"small": [], "medium": [], "full": [], "is a": []};
   let rows = [];
   let data = {paneId, entityId};
+  if(items["image"]) {
+    let values = items["image"];
+    let tile = imageTile({values, data, cardId, entityId, attribute: "image"});
+    rows.push(row({children: [tile]}));
+    delete items["image"];
+  }
+
   if(items["description"]) {
     let values = items["description"];
     for(let value of values) {
@@ -1955,9 +1962,7 @@ export function entityTilesUI(entityId, paneId, cardId) {
     let values = items[attribute];
     if(!values) continue;
     let newTile;
-    if(attribute === "image") {
-      newTile = imageTile({values, data, attribute, cardId, entityId});
-    } else if(values.length > 1 || attribute === "is a") {
+    if(values.length > 1 || attribute === "is a") {
       newTile = listTile({values, data, attribute, cardId, entityId});
     } else {
       newTile = valueTile({value: values[0], data, attribute, cardId, entityId});
