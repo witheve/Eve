@@ -532,7 +532,12 @@ interface Node {
   fxn?: BuiltInFunction,
   constituents?: Array<Node>,
   relationships: Array<Relationship>,
-  representations: Representations,
+  representations: {
+    collection?: Collection,
+    entity?: Entity,
+    attribute?: Attribute,
+    fxn?: BuiltInFunction,
+  },
   token: Token,
   found: boolean,
   properties: Array<Properties>,
@@ -553,13 +558,6 @@ function cloneNode(node: Node): Node {
   cloneNode.found = node.found;
   node.properties.map((property) => cloneNode.properties.push(property));
   return cloneNode;
-}
-
-interface Representations {
-  collection?: Collection,
-  entity?: Entity,
-  attribute?: Attribute,
-  fxn?: BuiltInFunction,
 }
 
 function newNode(token: Token): Node {
@@ -1235,6 +1233,7 @@ function formTree(node: Node, tree: Node, context: Context): any {
       project: false,
       handled: true,
     }
+    node.representations = {};
     node.properties.push(Properties.ATTRIBUTE);
     node.attribute = quantityAttribute;
     node.found = true;
@@ -1260,7 +1259,7 @@ function formTree(node: Node, tree: Node, context: Context): any {
   // If the node wasn't found at all, don't try to place it anywhere
   if (!node.found) {
     return {tree: tree, context: context};
-  } else if (node.found && !node.hasProperty(Properties.QUANTITY)) {
+  } else if (node.found && node.representations === undefined) {
     findAlternativeRepresentations(node);
   }
   
