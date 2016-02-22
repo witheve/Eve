@@ -1785,6 +1785,9 @@ appHandle("replace sourced tile", (changes, {key, attribute, entityId, source}) 
   }
   if(replaceValue !== undefined && sourced.value !== replaceValue.trim()) {
     changes.remove("sourced eav", {source});
+    if(attribute === "description") {
+      replaceValue = `"${replaceValue}"`;
+    }
     changes.dispatch("add sourced eav", {entity: entityId, attribute, value: replaceValue, forceEntity: true});
   }
   changes.dispatch("activate tile", {cardId: key});
@@ -1797,6 +1800,7 @@ function handleTileKeys(event, elem) {
     } else {
       dispatch("submit list tile", {cardId: elem.cardId, attribute: elem.attribute, entityId: elem.entityId, reverseEntityAndValue: elem.reverseEntityAndValue}).commit();
     }
+    event.preventDefault();
   } else if(event.keyCode === KEYS.ESC) {
     dispatch("activate tile", {cardId: elem.cardId}).commit();
   }
