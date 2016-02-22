@@ -166,12 +166,12 @@ appHandle("set popout", (changes:Diff, info:{parentId:string, rep?:string, conta
   let parentId = info.parentId;
   let paneId = uuid();
   let children = eve.find("ui pane parent", {parent: parentId});
-  for(let {pane:childId} of children) {
-    let child = eve.findOne("ui pane", {pane: childId});
-    if(child.kind === PANE.POPOUT) {
-      paneId = childId;
-      break;
-    }
+  let parent = eve.findOne("ui pane", {pane: parentId});
+  var reusing = false;
+  if(parent && parent.kind === PANE.POPOUT) {
+    reusing = true;
+    paneId = parentId;
+    parentId = eve.findOne("ui pane parent", {pane: parentId}).parent;
   }
 
   // Infer valid rep and params if search has changed
@@ -189,15 +189,20 @@ appHandle("set popout", (changes:Diff, info:{parentId:string, rep?:string, conta
   if(rep === undefined || raw === undefined || rawParams === undefined || x === undefined || y === undefined) {
     throw new Error(`Cannot create new popout without all parameters specified for pane '${paneId}'`);
   }
-  
+
+  if(reusing) {
+    x = prevPos.x;
+    y = prevPos.y;
+  }
+
   let params = typeof rawParams === "string" ? rawParams : stringifyParams(rawParams);
   let contains = asEntity(raw) || (""+raw).trim();
-  
+
   if(!popState && prev.pane) popoutHistory.push({rep: prev.rep, contains: prev.contains, params: prev.params, x: prevPos.x, y: prevPos.y});
   dispatch("remove pane", {paneId}, changes);
   changes.add("ui pane", {pane: paneId, kind: PANE.POPOUT, rep, contains, params})
     .add("ui pane parent", {parent: parentId, pane: paneId})
-    .add("ui pane position", {pane: paneId, x, y});  
+    .add("ui pane position", {pane: paneId, x, y});
 });
 
 // @TODO: take parentId
