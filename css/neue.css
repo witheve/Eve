@@ -150,6 +150,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 
 .card .tile .list { max-height: 200px; overflow:auto; flex-wrap:wrap; flex-direction:row; align-items:flex-start; }
 .card .tile .list > * { padding:15px; margin:2px; background: #f5f5f5; border:0px solid #eee; border-radius:2px;  }
+.card .tile .list .marked-to-remove { background:red; }
 
 .card .tile textarea { background:none; font-size:16px; border:none; width:300px; }
 
@@ -164,10 +165,12 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .card .tile-adder .property { color:#555; }
 .card .tile-adder .tile .value { color:#555;}
 .card .adding .header { border-color: #ddd; }
-.card .adding .tile-adder { transition:height 0.18s ease-in; height: 200px; }
+.card .adding .tile-adder { transition:height 0.18s ease-in; height: 150px; }
 .card .adding .tiles { border-top:1px solid #ddd; }
 /* .card .adding .tiles { display:none; } */
 .card .adding .add-tile:before {transform: rotate(-135deg); }
+
+.card .tile.computed { background: red; }
 
 .card .property-adder { flex: 1; align-items:center; justify-content:center; }
 .card .property-adder .tile { flex:none; align-items:stretch; border:1px solid rgba(0,0,0,0.1); background:#fff; border-radius:2px; max-width:320px; }

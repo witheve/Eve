@@ -220,7 +220,7 @@ var measureSpan = document.createElement("span");
 measureSpan.className = "measure-span";
 document.body.appendChild(measureSpan);
 
-function autosizeInput(node, elem) {
+export function autosizeInput(node, elem) {
   let minWidth = 80;
   measureSpan.style.fontSize = window.getComputedStyle(node, null)["font-size"];
   measureSpan.textContent = node.value;
@@ -228,7 +228,7 @@ function autosizeInput(node, elem) {
   node.style.width = Math.ceil(Math.max(minWidth, measuredWidth)) + 5 + "px";
 }
 
-function autosizeAndFocus(node, elem) {
+export function autosizeAndFocus(node, elem) {
   autosizeInput(node, elem);
   autoFocus(node, elem);
 }
@@ -309,11 +309,10 @@ export function tileAdder(elem) {
     let adders = [
       {name: "Property", icon: "ion-compose", ui: propertyAdderUI, submit: submitProperty},
       {name: "Description", icon: "ion-drag", ui: descriptionAdderUI, submit: submitDescription},
-      {name: "Tag", icon: "ion-ios-bookmarks-outline"},
       {name: "List", icon: "ion-ios-list-outline"},
       {name: "Image", icon: "ion-image"},
       {name: "Document", icon: "ion-document"},
-      {name: "Computed property", icon: "ion-calculator"},
+      {name: "Computed", icon: "ion-calculator"},
     ];
     let count = 0;
     let curRow = {c: "row flex-row", children: []};
