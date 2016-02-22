@@ -895,7 +895,10 @@ interface Context {
   maybeCollections: Array<Node>,
   maybeFunctions: Array<Node>,
   maybeArguments: Array<Node>,
+  stateFlags: {list: boolean, insert: boolean},
 }
+
+
 
 function newContext(): Context {
   return {
@@ -913,6 +916,7 @@ function newContext(): Context {
     maybeCollections: [],
     maybeFunctions: [],
     maybeArguments: [],
+    stateFlags: {list: false, insert: false},
   };
 }
 
@@ -1158,7 +1162,6 @@ function formTree(node: Node, tree: Node, context: Context): any {
             // "engineers that are employees" is asking for the intersection of engineers and employees
             // "that" is a determiner, which cnages the meaning of the sentence, so we prevent 
             // an insert using this heuristic 
-            console.log(ngram[0].prev());
             if (fxn.type === FunctionTypes.INSERT && 
                 (ngram[0].prev().token.POS === MinorPartsOfSpeech.DT || 
                  getMajorPOS(ngram[0].prev().token.POS) === MajorPartsOfSpeech.WHWORD)) {
@@ -1198,15 +1201,15 @@ function formTree(node: Node, tree: Node, context: Context): any {
   }
   log('-------');
 
+
   // -------------------------------------
-  // Step 2: Identify the node
+  // Step 3: Switch the state
   // -------------------------------------
-  
+
+
   // If we are in an insert state, don't bother identifying the node and just add the node to the
   // "set to" attribute
-  let insertFlag = context.fxns.some((f) => f.type === FunctionTypes.INSERT && f.node !== node);
-  console.log(insertFlag)
-  if (insertFlag) {
+  if (context.stateFlags.insert) {
     log(`Adding "${node.name}" to insert`);
     // find the insert arg
     let insertFxn = context.fxns.filter((f) => f.type === FunctionTypes.INSERT)[0].node;
@@ -1217,6 +1220,10 @@ function formTree(node: Node, tree: Node, context: Context): any {
       return {tree: tree, context: context};  
     }
   }
+
+  // -------------------------------------
+  // Step 3: Identify the node
+  // -------------------------------------
   
   // If the node is a quantity, just build an attribute
   if (node.hasProperty(Properties.QUANTITY)) {
@@ -1231,7 +1238,6 @@ function formTree(node: Node, tree: Node, context: Context): any {
     node.properties.push(Properties.ATTRIBUTE);
     node.attribute = quantityAttribute;
     node.found = true;
-    context.found.push(node);
   }
   
   // Find a collection, entity, attribute, or function
@@ -1259,7 +1265,7 @@ function formTree(node: Node, tree: Node, context: Context): any {
   }
   
   // -------------------------------------
-  // Step 3: Insert the node into the tree
+  // Step 4: Insert the node into the tree
   // -------------------------------------
   
   log("Matching: " + node.name);
@@ -1337,7 +1343,6 @@ function formTree(node: Node, tree: Node, context: Context): any {
     // Otherwise, just attach arguments that are applicable
     } else {  
       if (node.fxn.fields.length > 0) {
-        console.log(context.found)
         for (let i = context.found.length -1; i >= 0; i--) {
           let foundNode = context.found[i]; 
           removeNode(foundNode);
@@ -2202,8 +2207,7 @@ function formQuery(node: Node): Query {
   // Handle functions -------------------------------
   if (node.hasProperty(Properties.FUNCTION) && 
       node.fxn.type === FunctionTypes.NEGATE) {
-    log("Building negate term for: " + node.name);
-    console.log(query.toString());    
+    log("Building negate term for: " + node.name); 
     let negatedTerm = query.terms.pop();
     let negatedQuery = negateTerm(negatedTerm);
     query.subqueries.push(negatedQuery);
