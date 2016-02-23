@@ -1113,7 +1113,7 @@ function findFunction(node: Node, context: Context): boolean {
     if (fxn.project && i === 0) {
       argNode.properties.push(Properties.OUTPUT);
       argNode.found = true;
-      let outputToken = newToken("output");
+      let outputToken = newToken("output"+context.fxns.length);
       let outputNode = newNode(outputToken);
       let outputAttribute = {
         id: outputNode.name,
