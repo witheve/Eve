@@ -5,7 +5,6 @@ import * as runtime from "./runtime";
 import {UIRenderer} from "./uiRenderer";
 import {ENV, DEBUG, uuid} from "./utils";
 
-
 export var syncedTables = ["sourced eav", "view", "action", "action source", "action mapping", "action mapping constant", "action mapping sorted", "action mapping limit"];
 export var eveLocalStorageKey = "eve";
 
