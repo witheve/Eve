@@ -530,7 +530,7 @@ export function root():Element {
     ]});
   }
   if(!localStorage["hideBanner"]) {
-    panes.unshift({c: "banner", children: [
+    panes.unshift({id: "feedback-banner", c: "banner", children: [
       {c: "content", children: [
         {text: "This is a preview release of Eve meant for "},
         {t: "a", c: "link", href: "https://groups.google.com/forum/#!forum/eve-talk", text: "feedback"},
