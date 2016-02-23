@@ -108,6 +108,8 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
       }
     } else if (context.maybeAttributes.length > 0) {
       intent = Intents.MOREINFO;
+    } else if (context.relationships.length === 0) {
+      intent = Intents.NORESULT; 
     } else {
       // Create the query from the new tree
       intent = Intents.QUERY;
