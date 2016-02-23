@@ -1601,13 +1601,14 @@ function addNodeToFunction(node: Node, fxnNode: Node, context: Context): boolean
     arg = fxnNode.children.filter((c) => c.hasProperty(Properties.ROOT)).shift();
   }
   
-  if (fxnNode.fxn.type === FunctionTypes.GROUP && arg.name === "collection") {
-    context.groupings.push(node);
-  }
+  console.log(arg);
   
   // Add the node to the arg
   if (arg !== undefined) {
-    if (fxnNode.fxn.type === FunctionTypes.SELECT) {
+    if (fxnNode.fxn.type === FunctionTypes.GROUP && arg.name === "collection") {
+      context.groupings.push(node);
+      arg.addChild(node);
+    } else if (fxnNode.fxn.type === FunctionTypes.SELECT) {
       let root = findParentWithProperty(fxnNode, Properties.ROOT);
       removeBranch(fxnNode);
       context.arguments.splice(context.arguments.indexOf(node.children[0]),1);
@@ -1615,6 +1616,7 @@ function addNodeToFunction(node: Node, fxnNode: Node, context: Context): boolean
       node.properties.push(Properties.POSSESSIVE);
       root.addChild(node);
     } else {
+      console.log("Foo")
       arg.addChild(node);
     }
     arg.found = true;
