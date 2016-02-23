@@ -1257,9 +1257,9 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
   
   // Find a collection, entity, attribute, or function
   if (!node.found) {
-    findAttribute(node, context);
+    findCollection(node, context);
     if (!node.found) {
-      findCollection(node, context); 
+      findAttribute(node, context); 
       if (!node.found) {
         findEntity(node, context);
         if (!node.found) {
@@ -1765,19 +1765,14 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
     context.relationships.push(relationship);
   // If no relationship was found, change the representation of the node
   } else {
-    /*
     let repChanged = false;
     // If one node is possessive, it suggests the other should be represented as an attribute of the first
-    if (nodeA.hasProperty(Properties.POSSESSIVE) && nodeB.representations.attribute !== undefined) {
-      console.log(nodeB.representations.attribute)
+    if (nodeA.hasProperty(Properties.POSSESSIVE) && !nodeB.hasProperty(Properties.ATTRIBUTE) && nodeB.representations.attribute !== undefined) {
       repChanged = changeRepresentation(nodeB, Properties.ATTRIBUTE, context); 
-    } else if (nodeB.hasProperty(Properties.POSSESSIVE) && nodeA.representations.attribute !== undefined) {
-      console.log(nodeA.representations.attribute)
-      repChanged = changeRepresentation(nodeA, Properties.ATTRIBUTE, context);  
     }
     if (repChanged) {
       relationship = findRelationship(nodeA, nodeB, context);
-    }*/
+    }
   }
   return relationship;
   
@@ -1947,7 +1942,8 @@ export function findCollToCollRelationship(collA: Node, collB: Node, context: Co
   } else if (intersectionSize > 0) {
     log(" Found Intersection relationship.");
     collB.collection.variable = collA.collection.variable;
-    collB.collection.project = false;
+    collB.collection.project = true;
+    collA.collection.project = false;
     return {type: RelationshipTypes.INTERSECTION, nodes: [collA, collB]};
   } else if (maxRel.count === 0 && intersectionSize === 0) {
     log("  No relationship found");
