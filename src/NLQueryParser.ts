@@ -106,6 +106,8 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
         insertResults.push(insertResult);
        }
       }
+    } else if (context.maybeAttributes.length > 0) {
+      intent = Intents.MOREINFO;
     } else {
       // Create the query from the new tree
       intent = Intents.QUERY;
@@ -1463,6 +1465,10 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
         relationship = findRelationship(node, foundNode, context);
         if (relationship.type !== RelationshipTypes.NONE) {
           break;
+        } else if (relationship.type === RelationshipTypes.NONE) {
+          if (foundNode.hasProperty(Properties.POSSESSIVE)) {
+            context.maybeAttributes.push(node);
+          }
         }
       }
     }
