@@ -142,6 +142,11 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .card .tile .controls .submit:hover { color: green; background:rgba(0,150,0,0.2); }
 .card .tile .controls .cancel:hover { color: #aa5555; background: rgba(150,0,0,0.2); }
 
+.card .tile .edit { width:0; color: #888; border-left:1px solid transparent; align-items:center; justify-content:center; transition:width 0.2s ease-in-out, border-color 0.2s ease-in-out; overflow:hidden; }
+.card .tile .edit:hover { background: #eee; }
+.card .tile:hover .edit { width:25px; display:flex; border-color: #eee; }
+.card .tile.active .edit { display:none; }
+
 .card .tile.active .controls { display:flex; }
 
 .card .value.text { line-height: 22px; }
@@ -165,6 +170,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .card .tile-adder .tile:hover { background: rgba(0,0,0,0.04); }
 .card .tile-adder .property { color:#555; }
 .card .tile-adder .tile .value { color:#555;}
+.card .tile-adder .tile input { min-width: 85px; }
 .card .adding .header { border-color: #ddd; }
 .card .adding .tile-adder { transition:height 0.18s ease-in; height: 150px; }
 .card .adding .tiles { border-top:1px solid #ddd; }
@@ -178,11 +184,12 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 
 .card .tile.image .text-content { padding:0; }
 .card .tile.image .tile-content-wrapper { padding:0; }
-.card .tile.image img { width: 360px; }
+.card .tile.image img { width: 360px; cursor:default; transition:width 0.2s ease-in-out; }
 .card .tile.image .list { max-height:none; }
 .card .tile.image .list img { margin:0; padding:0; }
-.card .tile.image.active .list img { max-width: 140px; }
-.card .tile.active img { max-width: 335px; }
+.card .tile.image.active .list img { width: 140px; }
+.card .tile.active img { width: 335px; }
+.card .tile:hover img { width: 335px; }
 
 .card .property-adder { flex: 1; align-items:center; justify-content:center; }
 .card .property-adder .tile { flex:none; align-items:stretch; border:1px solid rgba(0,0,0,0.1); background:#fff; border-radius:2px; max-width:320px; }

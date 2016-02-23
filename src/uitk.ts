@@ -221,7 +221,7 @@ measureSpan.className = "measure-span";
 document.body.appendChild(measureSpan);
 
 export function autosizeInput(node, elem) {
-  let minWidth = 80;
+  let minWidth = 50;
   measureSpan.style.fontSize = window.getComputedStyle(node, null)["font-size"];
   measureSpan.textContent = node.value;
   let measuredWidth = measureSpan.getBoundingClientRect().width;

@@ -1636,9 +1636,9 @@ function tile(elem) {
     klass += " active";
   }
   elem.c = klass;
-  elem.click = activateTile;
   elem.children = [
     {c: "tile-content-wrapper", children: elem.children},
+    {c: "edit ion-edit", click: activateTile, cardId, tileId, entityId, source},
     {c: "controls", children: [
       !elem.removeOnly ? {c: "ion-checkmark submit", click: submitActiveTile, cardId, attribute, entityId, source, reverseEntityAndValue} : undefined,
       !elem.submitOnly ? {c: "ion-backspace cancel", click: removeActiveTile, cardId, attribute, entityId, source} : undefined,
@@ -1676,6 +1676,7 @@ appHandle("submit list tile", (changes, {cardId, attribute, entityId, reverseEnt
   }
   if(itemsToAdd) {
     for(let value of itemsToAdd) {
+      if(value === "" || value === undefined) continue;
       if(!reverseEntityAndValue) {
         changes.dispatch("add sourced eav", {entity: entityId, attribute, value: value.trim(), forceEntity: true});
       } else {
