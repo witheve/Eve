@@ -585,6 +585,7 @@ interface Node {
   },
   token: Token,
   found: boolean,
+  foundReps: boolean,
   properties: Array<Properties>,
   hasProperty(Properties): boolean;
   toString(number?: number): string;
@@ -621,6 +622,7 @@ function newNode(token: Token): Node {
       fxn: undefined,  
     },
     found: false,
+    foundReps: false,
     hasProperty: hasProperty,
     toString: nodeToString,
     next: nextNode,
@@ -1304,7 +1306,7 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
     }
     context.maybeAttributes.push(node);
     return {tree: tree, context: context};
-  } else if (node.found) {
+  } else if (node.found && !node.foundReps) {
     findAlternativeRepresentations(node);
   }
   
@@ -1504,7 +1506,7 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
 }
 
 // Find all the representations of a thing
-function findAlternativeRepresentations(node: Node) {
+function findAlternativeRepresentations(node: Node): void {
   
   let attr = findEveAttribute(node.name);
   let coll = findEveCollection(node.name);
@@ -1517,6 +1519,7 @@ function findAlternativeRepresentations(node: Node) {
     attribute: attr,
     fxn: fxn,
   }
+  node.foundReps = true;
 }
 
 // Swap the representation of the node with another one
@@ -2106,18 +2109,11 @@ function entityTocollectionsArray(entity: string): Array<string> {
 
 function findCollection(node: Node, context: Context): boolean {
   let collection: Collection;
-  if (node.representations.collection) {
-    collection = node.representations.collection;
-  } else {
-    collection = findEveCollection(node.name);
-    context.found.push(node);
-  }
+  collection = findEveCollection(node.name);
   if (collection !== undefined) {
+    context.found.push(node);
     collection.node = node;
     node.collection = collection;
-    node.attribute = undefined;
-    node.entity = undefined;
-    node.fxn = undefined;
     node.representations.collection = collection;
     node.type = NodeTypes.COLLECTION;
     node.found = true;
@@ -2129,18 +2125,11 @@ function findCollection(node: Node, context: Context): boolean {
 
 function findEntity(node: Node, context: Context): boolean {
   let entity: Entity;
-  if (node.representations.entity) {
-    entity = node.representations.entity;
-  } else {
-    entity = findEveEntity(node.name);
-    context.found.push(node);
-  }
+  entity = findEveEntity(node.name);
   if (entity !== undefined) {
+    context.found.push(node);
     entity.node = node;
     node.entity = entity;
-    node.attribute = undefined;
-    node.collection = undefined;
-    node.fxn = undefined;
     node.representations.entity = entity;
     node.type = NodeTypes.ENTITY;
     node.found = true;
@@ -2155,22 +2144,15 @@ function findAttribute(node: Node, context: Context): boolean {
     return false;
   }
   let attribute: Attribute;
-  if (node.representations.attribute) {
-    attribute = node.representations.attribute;
-  } else {
-    attribute = findEveEntity(node.name);
-    context.found.push(node);
-  }
+  attribute = findEveAttribute(node.name);
   if (attribute !== undefined) {
+    context.found.push(node);
     attribute.node = node;
-    node.entity = undefined;
-    node.collection = undefined;
-    node.fxn = undefined;
     node.attribute = attribute;
     node.representations.attribute = attribute;
     node.type = NodeTypes.ATTRIBUTE;
     node.found = true;
-    node.properties.push(Properties.ENTITY);
+    node.properties.push(Properties.ATTRIBUTE);
     return true;
   }
   return false;
