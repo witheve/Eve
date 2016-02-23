@@ -138,7 +138,7 @@ let phrases = [
   "Corey's wife's age, gender, and height",
   */
   // -------------------------------
-  "",
+  "Corey's department is engineering"
   /*//
   //"Corey's department is engineering",
   "corey's salary",
@@ -441,11 +441,11 @@ app.init("nlqp", function () {
   console.log(`Running ${phrases.length} tests...`);
   console.log("===========================================================================================");
   let queryStates = phrases.map((phrase) => {return parseTest(phrase,n)});
-  let complete = queryStates.filter((state) => state === nlqp.Intents.QUERY).length;
+  let query = queryStates.filter((state) => state === nlqp.Intents.QUERY).length;
+  let insert = queryStates.filter((state) => state === nlqp.Intents.INSERT).length;
   let moreinfo = queryStates.filter((state) => state === nlqp.Intents.MOREINFO).length;
   let noresult = queryStates.filter((state) => state === nlqp.Intents.NORESULT).length;
   console.log("===========================================================================================");
-  console.log(`Total Queries: ${phrases.length} | Complete: ${complete} | MoreInfo: ${moreinfo} | NoResult: ${noresult}`);
+  console.log(`Total Queries: ${phrases.length} | Query: ${query} | Insert: ${insert} | MoreInfo: ${moreinfo} | NoResult: ${noresult}`);
   console.log("===========================================================================================");
-  
 });
