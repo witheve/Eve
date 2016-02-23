@@ -655,11 +655,10 @@ export function tableBody(elem:TableBodyElem):Element {
       }));
     }
 
-    if(removeRow) {
-      rowItem.children.push({c: "controls", children: [
-        {c: "ion-icon-android-close", row: rowItem, click: removeRow}
-      ]});
-    }
+    rowItem.children.push({c: "controls", children: [
+      removeRow ? {c: "ion-icon-android-close", row: rowItem, click: removeRow} : undefined
+    ]});
+
     
     if(group) {
       group.children[1].children.push(rowItem);
@@ -682,7 +681,7 @@ function tableHeader(elem:TableHeaderElem):Element {
     let isActive = field === state.sortField;
     let direction = isActive ? state.sortDirection : 0;
     let klass = `sort-toggle ${isActive && direction < 0 ? "ion-arrow-up-b" : "ion-arrow-down-b"} ${isActive ? "active" : ""}`;
-    elem.children.push({c: `column field ${elem.c || ""}`, children: [
+    elem.children.push({c: "column field", children: [
       value({c: "text", text: field, data, autolink: false}),
       {c: "flex-grow"},
       {c: "controls", children: [
@@ -690,6 +689,8 @@ function tableHeader(elem:TableHeaderElem):Element {
       ]}
     ]});
   };
+  elem.children.push({c: "controls", children: [
+  ]});
   return elem;
 }
 
