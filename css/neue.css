@@ -121,7 +121,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .card > .table { margin: 20px 30px; }
 
 .card .tiles { flex-direction: row; flex-wrap: wrap; width: 360px; }
-.card .tile { flex: 1 0 0; overflow:hidden; cursor: default; flex-direction:row; }
+.card .tile { flex: 1 0 0; overflow:hidden; cursor: default; flex-direction:row; position:relative; }
 /* .card .tile:hover { background:rgba(0,0,50,0.04);  } */
 .card .tile .property { font-size: 9pt; color: #aaa; margin-bottom: 5px; }
 .card .tile.small, .card .tile.medium { justify-content: flex-start; }
@@ -142,7 +142,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .card .tile .controls .submit:hover { color: green; background:rgba(0,150,0,0.2); }
 .card .tile .controls .cancel:hover { color: #aa5555; background: rgba(150,0,0,0.2); }
 
-.card .tile .edit { width:0; color: #888; border-left:1px solid transparent; align-items:center; justify-content:center; transition:width 0.2s ease-in-out, border-color 0.2s ease-in-out; overflow:hidden; }
+.card .tile .edit { background:#fff; position:absolute; right:0; top:0; bottom:0; width:0; color: #888; border-left:1px solid transparent; align-items:center; justify-content:center; transition:width 0.2s ease-in-out, border-color 0.2s ease-in-out; overflow:hidden; }
 .card .tile .edit:hover { background: #eee; }
 .card .tile:hover .edit { width:25px; display:flex; border-color: #eee; }
 .card .tile.active .edit { display:none; }
@@ -156,7 +156,9 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 
 .card .tile .list { max-height: 200px; overflow:auto; flex-wrap:wrap; flex-direction:row; align-items:flex-start; }
 .card .tile .list > * { padding:15px; margin:2px; background: #f5f5f5; border:0px solid #eee; border-radius:2px;  }
-.card .tile .list .marked-to-remove { background:red; }
+.card .tile .list .link:hover { border:none; background:#CEEDFF; }
+.card .tile.active .list div:hover { background:#fdd; }
+.card .tile.active .list div.marked-to-remove { background:#fbb; }
 
 .card .tile textarea { background:none; font-size:16px; border:none; width:300px; }
 
@@ -189,7 +191,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .card .tile.image .list img { margin:0; padding:0; }
 .card .tile.image.active .list img { width: 140px; }
 .card .tile.active img { width: 335px; }
-.card .tile:hover img { width: 335px; }
+/* .card .tile:hover img { width: 335px; } */
 
 .card .property-adder { flex: 1; align-items:center; justify-content:center; }
 .card .property-adder .tile { flex:none; align-items:stretch; border:1px solid rgba(0,0,0,0.1); background:#fff; border-radius:2px; max-width:320px; }
