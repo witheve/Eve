@@ -11,8 +11,8 @@ export interface Result {
   context: Context,
   tokens: Array<Token>,
   tree: Node,
-  query?: Query,
-  insert?: Array<Insert>,
+  query: Query,
+  inserts: Array<Insert>,
 }
 
 export interface Insert {
@@ -66,10 +66,32 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
   
   let intent = Intents.NORESULT;
   let query = newQuery();
+  let insertResults = [];
   if (allFound(tree)) {
     let inserts = context.fxns.filter((fxn) => fxn.type === FunctionTypes.INSERT);
     if (inserts.length > 0) {
       intent = Intents.INSERT;
+      // Format each insert
+      for (let insert of inserts) {
+       let insertNode = insert.node;
+       if (insertNode.children.every((c) => c.found)) {
+        // Collapse the result root if every node doesn't have a child
+        if (insertNode.children[2].children.length > 1 && insertNode.children[2].children.every((c) => c.children.length === 0)) {
+          let nName = insertNode.children[2].children.map((c) => c.name).join(" ");
+          let nToken = newToken(nName);
+          let nNode = newNode(nToken);
+          nNode.found = true;
+          insertNode.children[2].children.map(removeNode);
+          insertNode.children[2].addChild(nNode);
+        }
+        let insertResult: Insert = {
+          entity: insertNode.children[0].children[0],
+          attribute: insertNode.children[1].children[0],
+          value: insertNode.children[2].children[0],
+        }
+        insertResults.push(insertResult);
+       }
+      }
     } else {
       // Create the query from the new tree
       intent = Intents.QUERY;
@@ -77,7 +99,7 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
       query = formQuery(tree);  
     }
   }
-  return [{intent: intent, context: context, tokens: tokens, tree: tree, query: query}];
+  return [{intent: intent, context: context, tokens: tokens, tree: tree, query: query, inserts: insertResults}];
 }
 
 // Returns false if any nodes are not marked found
@@ -1334,13 +1356,13 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
           removeNode(attribute);
           addNodeToFunction(attribute, node, context);
         } else {
-          let maybeAttributes = context.nodes.filter((ma) => ma.token.ix > entity.token.ix + 1);
-          maybeAttributes.pop();
-          if (maybeAttributes.length > 0) {
-            maybeAttributes.map(removeNode);
-            let nName = maybeAttributes.map((ma) => ma.name).join(" ");
+          let attributeNodes = context.nodes.filter((ma) => ma.token.ix > entity.token.ix + 1);
+          attributeNodes.pop();
+          if (attributeNodes.length > 0) {
+            attributeNodes.map(removeNode);
+            let nName = attributeNodes.map((ma) => ma.name).join(" ");
             let nToken = newToken(nName);
-            nToken.ix = maybeAttributes[0].ix;
+            nToken.ix = attributeNodes[0].ix;
             let nNode = newNode(nToken);  
             nNode.found = true;
             nNode.properties.push(Properties.ATTRIBUTE);
