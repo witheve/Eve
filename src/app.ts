@@ -60,11 +60,12 @@ export function render() {
     stats.render = (performance.now() - start).toFixed(2);
     stats.update = updateStat.toFixed(2);
 
-    perfStatsUi.textContent = "";
-    perfStatsUi.textContent += `root: ${stats.root}`;
-    perfStatsUi.textContent += ` | ui compile: ${stats.uiCompile}`;
-    perfStatsUi.textContent += ` | render: ${stats.render}`;
-    perfStatsUi.textContent += ` | update: ${stats.update}`;
+    let html = "";
+    html += `<span>root: ${stats.root}</span>`;
+    html += `<span>ui compile: ${stats.uiCompile}</span>`;
+    html += `<span>render: ${stats.render}</span>`;
+    html += `<span>update: ${stats.update}</span>`;
+    perfStatsUi.innerHTML = html;
     perfStats = stats;
 
     renderer.queued = false;

@@ -39,6 +39,7 @@ export interface Element {
   type?:string
   value?:string
   dangerouslySetInnerHTML?:string
+  target?:string
 
   style?: string,
 
@@ -267,6 +268,7 @@ export class Renderer {
       if(cur.tabindex !== prev.tabindex) div.setAttribute("tabindex", cur.tabindex);
       if(cur.href !== prev.href) div.setAttribute("href", cur.href);
       if(cur.src !== prev.src) div.setAttribute("src", cur.src);
+      if(cur.target !== prev.target) div.setAttribute("target", cur.target);
       if(cur.data !== prev.data) div.setAttribute("data", cur.data);
       if(cur.download !== prev.download) div.setAttribute("download", cur.download);
       if(cur.allowfullscreen !== prev.allowfullscreen) div.setAttribute("allowfullscreen", cur.allowfullscreen);
@@ -457,6 +459,7 @@ export class Renderer {
           && curA.draggable === curB.draggable
           && curA.contentEditable === curB.contentEditable
           && curA.value === curB.value
+          && curA.target === curB.target
           && curA.type === curB.type
           && curA.checked === curB.checked
           && curA.text === curB.text

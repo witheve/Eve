@@ -522,7 +522,27 @@ export function root():Element {
       uiState.prompt.prompt()
     ]});
   }
+  if(!localStorage["hideBanner"]) {
+    panes.unshift({c: "banner", children: [
+      {c: "content", children: [
+        {text: "This is a preview release of Eve meant for "},
+        {t: "a", c: "link", href: "https://groups.google.com/forum/#!forum/eve-talk", text: "feedback"},
+        {text: ". We're shooting for quality over quantity, so please don't post this to HN, Reddit, etc, but feel free to share it with friends."},
+      ]},
+      {c: "flex-grow spacer"},
+      {t: "button", c: "ion-close", click: hideBanner}
+    ]})
+  }
+  panes.unshift({c: "feedback-bar", children: [
+    {t: "a", target: "_blank", href: "https://github.com/witheve/Eve/issues", text: "bugs"},
+    {t: "a", target: "_blank", href: "https://groups.google.com/forum/#!forum/eve-talk", text: "suggestions"},
+    {t: "a", target: "_blank", href: "https://groups.google.com/forum/#!forum/eve-talk", text: "discussion"},
+  ]})
   return {c: "wiki-root", id: "root", children: panes, click: removePopup};
+}
+
+function hideBanner(event, elem) {
+  localStorage["hideBanner"] = true;
 }
 
 // @TODO: Add search functionality + Pane Chrome

@@ -30,7 +30,8 @@ body { height: 100vh; width: 100vw; }
 .logo { width: 48px; height: 48px; background-size: contain; background-position: top center; background-repeat: no-repeat; }
 .eve-logo { width: 28px; height: 32.5px; background-size: cover; background-image: url("http://www.witheve.com/logo.png"); }
 
-#perfStats { position: absolute; background: rgba(255, 255, 255, 0.5); padding:10px; bottom: 0px; right: 15px; color: #888; z-index: 20; }
+#perfStats { position: absolute; background: rgba(255, 255, 255, 0.6); padding:10px; bottom: 5px; right: 5px; color: #888; z-index: 20; flex-direction:row; border-radius:3px; }
+#perfStats > * + * { margin-left:20px; }
 
 .shade { position: absolute; top: 0; left: 0; bottom: 0; right: 0; z-index: 10; background: rgba(0, 0, 0, 0.0); align-items: center; justify-content: center; }
 
@@ -38,6 +39,17 @@ body { height: 100vh; width: 100vw; }
 .modal-prompt header > * { display: flex; margin-bottom:20px; }
 .modal-prompt h2 { text-align: center; font-size:18pt; }
 .modal-prompt > p { margin-bottom: 0.5em; }
+
+.banner { padding:20px 100px; align-items:stretch; background: #DDC8FF; color: #000; flex-direction:row; }
+.banner .content { max-width: 650px; display:block; line-height:26px; font-size:12pt; }
+.banner .content > * { display:inline; }
+.banner .content a { color: #0000ff; }
+.banner button { padding: 0 20px; margin-left: 30px; background:rgba(0,0,0,0.1); border-radius:3px; }
+.banner button:hover { background: rgba(0,0,0,0.2); }
+
+.feedback-bar { position:fixed; bottom:45px; right: 5px; flex-direction:row; padding:5px 15px; background: rgba(255,255,255,0.6); z-index: 1000; }
+.feedback-bar * { padding:5px; }
+.feedback-bar * + * { margin-left: 20px; }
 
 /*---------------------------------------------------------
 - Controls
