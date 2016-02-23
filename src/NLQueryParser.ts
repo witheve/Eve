@@ -563,6 +563,7 @@ interface Node {
   collection?: Collection,
   attribute?: Attribute,
   fxn?: BuiltInFunction,
+  quantity?: number,
   constituents?: Array<Node>,
   relationships: Array<Relationship>,
   representations: {
@@ -1251,6 +1252,7 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
       project: false,
       handled: true,
     }
+    node.quantity = parseFloat(node.name);
     node.representations = {};
     node.properties.push(Properties.ATTRIBUTE);
     node.attribute = quantityAttribute;
