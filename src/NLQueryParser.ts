@@ -1304,7 +1304,9 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
   
   // If the node wasn't found at all, don't try to place it anywhere
   if (!node.found && context.stateFlags.insert === false) {
-    context.maybeAttributes.push(node);
+    if (getMajorPOS(node.token.POS) === MajorPartsOfSpeech.NOUN) {
+      context.maybeAttributes.push(node);  
+    }
     return {tree: tree, context: context};
   } else if (!node.found && context.stateFlags.insert === true) {
     let root = context.arguments.filter((a) => a.hasProperty(Properties.ROOT)).pop();
@@ -1312,6 +1314,7 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
       node.found = true;
       addNodeToFunction(node, root.parent, context);
     }
+    console.log("foo2")
     context.maybeAttributes.push(node);
     return {tree: tree, context: context};
   } else if (node.found && !node.foundReps) {
