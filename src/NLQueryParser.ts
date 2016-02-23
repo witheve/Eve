@@ -18,7 +18,7 @@ export interface Result {
 export interface Insert {
   entity: Node,
   attribute: Node,
-  value: Node,
+  value: Node|Query,
 }
 
 export enum Intents {
@@ -1396,6 +1396,15 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
     // If the node is a negate, don't do a back search
     } else if (node.fxn.type === FunctionTypes.NEGATE) {
       // This space is left intentionally blank
+    } else if (node.fxn.type === FunctionTypes.CALCULATE) {
+      let QAs = context.nodes.filter((n) => n.hasProperty(Properties.ATTRIBUTE) || n.hasProperty(Properties.QUANTITY))
+      for (let qa of QAs) {
+        removeNode(qa)
+        formTree(qa, tree, context);
+        if (node.children.every((n) => n.found)) {
+          break;
+        }
+      } 
     // Otherwise, just attach arguments that are applicable
     } else {  
       if (node.fxn.fields.length > 0) {
