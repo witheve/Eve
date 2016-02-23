@@ -63,31 +63,35 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
     tree = treeResult.tree;
     context = treeResult.context;
   }
+  // Manage context
+  context.entities = context.found.filter((n) => n.hasProperty(Properties.ENTITY));
+  context.collections = context.found.filter((n) => n.hasProperty(Properties.COLLECTION));
+  context.attributes = context.found.filter((n) => n.hasProperty(Properties.ATTRIBUTE));
   
+  // Manage results
   let intent = Intents.NORESULT;
   let query = newQuery();
   let insertResults = [];
   if (allFound(tree)) {
-    let inserts = context.fxns.filter((fxn) => fxn.type === FunctionTypes.INSERT);
+    let inserts = context.fxns.filter((f) => f.fxn.type === FunctionTypes.INSERT);
     if (inserts.length > 0) {
       intent = Intents.INSERT;
       // Format each insert
       for (let insert of inserts) {
-       let insertNode = insert.node;
-       if (insertNode.children.every((c) => c.found)) {
+       if (insert.children.every((c) => c.found)) {
         // Collapse the result root if every node doesn't have a child
-        if (insertNode.children[2].children.length > 1 && insertNode.children[2].children.every((c) => c.children.length === 0)) {
-          let nName = insertNode.children[2].children.map((c) => c.name).join(" ");
+        if (insert.children[2].children.length > 1 && insert.children[2].children.every((c) => c.children.length === 0)) {
+          let nName = insert.children[2].children.map((c) => c.name).join(" ");
           let nToken = newToken(nName);
           let nNode = newNode(nToken);
           nNode.found = true;
-          insertNode.children[2].children.map(removeNode);
-          insertNode.children[2].addChild(nNode);
+          insert.children[2].children.map(removeNode);
+          insert.children[2].addChild(nNode);
         }
         let insertResult: Insert = {
-          entity: insertNode.children[0].children[0],
-          attribute: insertNode.children[1].children[0],
-          value: insertNode.children[2].children[0],
+          entity: insert.children[0].children[0],
+          attribute: insert.children[1].children[0],
+          value: insert.children[2].children[0],
         }
         insertResults.push(insertResult);
        }
@@ -910,11 +914,10 @@ function swapWithParent(node: Node): void {
 }
 
 interface Context {
-  entities: Array<Entity>,
-  collections: Array<Collection>,
-  attributes: Array<Attribute>,
-  setAttributes: Array<Attribute>, 
-  fxns: Array<BuiltInFunction>,
+  entities: Array<Node>,
+  collections: Array<Node>,
+  attributes: Array<Node>,
+  fxns: Array<Node>,
   groupings: Array<Node>,
   relationships: Array<Relationship>,
   found: Array<Node>,
@@ -935,7 +938,6 @@ function newContext(): Context {
     entities: [],
     collections: [],
     attributes: [],
-    setAttributes: [],
     fxns: [],
     groupings: [],
     relationships: [],
@@ -1114,7 +1116,7 @@ function findFunction(node: Node, context: Context): boolean {
     node.addChild(arg);
   }
   node.found = true;
-  context.fxns.push(fxn);
+  context.fxns.push(node);
   return true;
 }
 
@@ -1316,7 +1318,7 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
         }
       }
       // filter context
-      context.fxns = context.fxns.filter((f) => !f.node.hasProperty(Properties.SUBSUMED));
+      context.fxns = context.fxns.filter((f) => !f.hasProperty(Properties.SUBSUMED));
       context.arguments = context.arguments.filter((a) => !a.parent.hasProperty(Properties.SUBSUMED));
       return {tree: tree, context: context};  
     }
@@ -1427,7 +1429,7 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
     }
     
     // Place the node onto a function if one is open
-    let openFunctions = context.fxns.filter((fxn) => !fxn.node.children.every((c) => c.found)).map((fxn) => fxn.node);
+    let openFunctions = context.fxns.filter((fxn) => !fxn.children.every((c) => c.found));
     for (let fxnNode of openFunctions) {
       let added = addNodeToFunction(node, fxnNode, context);
       if (added) {
@@ -1550,7 +1552,9 @@ function addNodeToFunction(node: Node, fxnNode: Node, context: Context): boolean
     arg = fxnNode.children.filter((c) => c.hasProperty(Properties.ROOT)).shift();
   }
   
-  
+  if (fxnNode.fxn.type === FunctionTypes.GROUP && arg.name === "collection") {
+    context.groupings.push(node);
+  }
   
   // Add the node to the arg
   if (arg !== undefined) {
