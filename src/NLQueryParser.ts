@@ -111,6 +111,9 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
       intent = Intents.QUERY;
       log("Building query...");
       query = formQuery(tree);  
+      if (query.projects.length === 0) {
+        intent = Intents.NORESULT;
+      }
     }
   }
   return [{intent: intent, context: context, tokens: tokens, tree: tree, query: query, inserts: insertResults}];
