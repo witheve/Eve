@@ -87,37 +87,49 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
       intent = Intents.INSERT;
       // Format each insert
       for (let insert of inserts) {
-       if (insert.children.every((c) => c.found)) {
-        // Collapse the result root if every node doesn't have a child
-        if (insert.children[2].children.length > 1 && insert.children[2].children.every((c) => c.children.length === 0)) {
-          let nName = insert.children[2].children.map((c) => c.name).join(" ");
-          let nToken = newToken(nName);
-          let nNode = newNode(nToken);
-          nNode.found = true;
-          nNode.type = NodeTypes.STRING; 
-          insert.children[2].children.map(removeNode);
-          insert.children[2].addChild(nNode);
-        }        
-        let insertResult: Insert = {
-          entity: insert.children[0].children[0],
-          attribute: insert.children[1].children[0],
-          value: insert.children[2].children[0],
+        if (insert.children.every((c) => c.found)) {
+          // Collapse the result root if every node doesn't have a child
+          if (insert.children[2].children.length > 1 && insert.children[2].children.every((c) => c.children.length === 0)) {
+            let nName = insert.children[2].children.map((c) => c.name).join(" ");
+            let nToken = newToken(nName);
+            let nNode = newNode(nToken);
+            nNode.found = true;
+            nNode.type = NodeTypes.STRING; 
+            insert.children[2].children.map(removeNode);
+            insert.children[2].addChild(nNode);
+          }        
+          let insertResult: Insert = {
+            entity: insert.children[0].children[0],
+            attribute: insert.children[1].children[0],
+            value: insert.children[2].children[0],
+          }
+          insertResults.push(insertResult);
         }
-        insertResults.push(insertResult);
-       }
       }
     } else if (context.maybeAttributes.length > 0) {
       intent = Intents.MOREINFO;
-    } else {
-      // Create the query from the new tree
-      intent = Intents.QUERY;
-      log("Building query...");
-      query = formQuery(tree);  
-      if (query.projects.length === 0) {
+    } else if (context.relationships.length === 0) {
+      if (context.fxns.length === 0 && context.attributes.length > 0) {
         intent = Intents.NORESULT;
+      } else {
+        intent = Intents.QUERY;
       }
+    } else {
+      intent = Intents.QUERY;
     }
   }
+  
+  if (intent === Intents.QUERY) {
+    // Create the query from the new tree
+    intent = Intents.QUERY;
+    log("Building query...");
+    query = formQuery(tree);  
+    if (query.projects.length === 0) {
+      intent = Intents.NORESULT;
+      query = newQuery();
+    }
+  }
+  
   return [{intent: intent, context: context, tokens: tokens, tree: tree, query: query, inserts: insertResults}];
 }
 
@@ -952,6 +964,7 @@ interface Context {
   maybeCollections: Array<Node>,
   maybeFunctions: Array<Node>,
   maybeArguments: Array<Node>,
+  internalFxns: Array<Node>,
   nodes: Array<Node>,
   stateFlags: {list: boolean, insert: boolean},
 }
@@ -973,6 +986,7 @@ function newContext(): Context {
     maybeCollections: [],
     maybeFunctions: [],
     maybeArguments: [],
+    internalFxns: [],
     nodes: [],
     stateFlags: {list: false, insert: false},
   };
@@ -1144,7 +1158,12 @@ function findFunction(node: Node, context: Context): boolean {
   }
   node.found = true;
   node.type = NodeTypes.FUNCTION;
-  context.fxns.push(node);
+  if (node.fxn.type === FunctionTypes.AGGREGATE || 
+      node.fxn.type === FunctionTypes.CALCULATE ||
+      node.fxn.type === FunctionTypes.FILTER) {
+    context.fxns.push(node);      
+  }
+  context.internalFxns.push(node);
   return true;
 }
 
@@ -1305,7 +1324,13 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
   // If the node wasn't found at all, don't try to place it anywhere
   if (!node.found && context.stateFlags.insert === false) {
     if (getMajorPOS(node.token.POS) === MajorPartsOfSpeech.NOUN) {
-      context.maybeAttributes.push(node);  
+      if (node.hasProperty(Properties.PROPER)) {
+        context.maybeEntities.push(node);
+      } else if (node.hasProperty(Properties.PLURAL)) {
+        context.maybeCollections.push(node);
+      } else {
+        context.maybeAttributes.push(node);
+      }
     }
     return {tree: tree, context: context};
   } else if (!node.found && context.stateFlags.insert === true) {
@@ -1314,7 +1339,6 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
       node.found = true;
       addNodeToFunction(node, root.parent, context);
     }
-    console.log("foo2")
     context.maybeAttributes.push(node);
     return {tree: tree, context: context};
   } else if (node.found && !node.foundReps) {
@@ -1349,7 +1373,7 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
         }
       }
       // filter context
-      context.fxns = context.fxns.filter((f) => !f.hasProperty(Properties.SUBSUMED));
+      context.internalFxns = context.internalFxns.filter((f) => !f.hasProperty(Properties.SUBSUMED));
       context.arguments = context.arguments.filter((a) => !a.parent.hasProperty(Properties.SUBSUMED));
       return {tree: tree, context: context};  
     }
@@ -1477,7 +1501,7 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
     }
     
     // Place the node onto a function if one is open
-    let openFunctions = context.fxns.filter((fxn) => !fxn.children.every((c) => c.found));
+    let openFunctions = context.internalFxns.filter((fxn) => !fxn.children.every((c) => c.found));
     for (let fxnNode of openFunctions) {
       let added = addNodeToFunction(node, fxnNode, context);
       if (added) {
@@ -1601,20 +1625,22 @@ function addNodeToFunction(node: Node, fxnNode: Node, context: Context): boolean
     arg = fxnNode.children.filter((c) => c.hasProperty(Properties.ROOT)).shift();
   }
   
-  if (fxnNode.fxn.type === FunctionTypes.GROUP && arg.name === "collection") {
-    context.groupings.push(node);
-  }
+  console.log(arg);
   
   // Add the node to the arg
   if (arg !== undefined) {
-    if (fxnNode.fxn.type === FunctionTypes.SELECT) {
+    if (fxnNode.fxn.type === FunctionTypes.GROUP && arg.name === "collection") {
+      context.groupings.push(node);
+      arg.addChild(node);
+    } else if (fxnNode.fxn.type === FunctionTypes.SELECT) {
       let root = findParentWithProperty(fxnNode, Properties.ROOT);
       removeBranch(fxnNode);
       context.arguments.splice(context.arguments.indexOf(node.children[0]),1);
-      context.fxns.splice(context.fxns.indexOf(fxnNode),1);
+      context.internalFxns.splice(context.internalFxns.indexOf(fxnNode),1);
       node.properties.push(Properties.POSSESSIVE);
       root.addChild(node);
     } else {
+      console.log("Foo")
       arg.addChild(node);
     }
     arg.found = true;

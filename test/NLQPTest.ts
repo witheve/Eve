@@ -138,7 +138,7 @@ let phrases = [
   "Corey's wife's age, gender, and height",
   */
   // -------------------------------
-  "Corey's department is engineering"
+  "department by salary sum"
   /*//
   //"Corey's department is engineering",
   "corey's salary",
