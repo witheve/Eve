@@ -96,19 +96,7 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
           nNode.type = NodeTypes.STRING; 
           insert.children[2].children.map(removeNode);
           insert.children[2].addChild(nNode);
-        }
-        // Set value type
-        let value = insert.children[2].children[0];
-        if (value.hasProperty(Properties.QUANTITY)) {
-          value.type = NodeTypes.NUMBER;
-        } else if (value.hasProperty(Properties.ENTITY)) {
-          value.type = NodeTypes.ENTITY;
-        } else if (value.hasProperty(Properties.COLLECTION)) {
-          value.type = NodeTypes.COLLECTION;
-        } else if (value.hasProperty(Properties.ATTRIBUTE)) {
-          value.type = NodeTypes.ATTRIBUTE;
-        }
-        
+        }        
         let insertResult: Insert = {
           entity: insert.children[0].children[0],
           attribute: insert.children[1].children[0],
@@ -1277,6 +1265,7 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
     node.quantity = parseFloat(node.name);
     node.representations = {};
     node.properties.push(Properties.ATTRIBUTE);
+    node.type = NodeTypes.NUMBER;
     node.attribute = quantityAttribute;
     node.found = true;
   }
@@ -1389,7 +1378,8 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
             let nName = attributeNodes.map((ma) => ma.name).join(" ");
             let nToken = newToken(nName);
             nToken.ix = attributeNodes[0].ix;
-            let nNode = newNode(nToken);  
+            let nNode = newNode(nToken);
+            nNode.type = NodeTypes.STRING;  
             nNode.found = true;
             nNode.properties.push(Properties.ATTRIBUTE);
             addNodeToFunction(nNode, node, context);
@@ -2115,6 +2105,7 @@ function findCollection(node: Node, context: Context): boolean {
     context.found.push(node);
     collection.node = node;
     node.collection = collection;
+    node.type = NodeTypes.COLLECTION;
     node.found = true;
     node.properties.push(Properties.COLLECTION)
     return true;
@@ -2128,6 +2119,7 @@ function findEntity(node: Node, context: Context): boolean {
     context.found.push(node);
     entity.node = node;
     node.entity = entity;
+    node.type = NodeTypes.ENTITY;
     node.found = true;
     node.properties.push(Properties.ENTITY)
     return true;
@@ -2144,6 +2136,7 @@ function findAttribute(node: Node, context: Context): boolean {
     context.found.push(node);
     attribute.node = node;
     node.attribute = attribute;
+    node.type = NodeTypes.ATTRIBUTE;
     node.found = true;
     node.properties.push(Properties.ATTRIBUTE)
     return true;
