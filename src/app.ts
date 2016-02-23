@@ -62,7 +62,7 @@ export function render() {
 
     let html = "";
     html += `<span>root: ${stats.root}</span>`;
-    html += `<span>ui compile: ${stats.uiCompile}</span>`;
+    // html += `<span>ui compile: ${stats.uiCompile}</span>`;
     html += `<span>render: ${stats.render}</span>`;
     html += `<span>update: ${stats.update}</span>`;
     perfStatsUi.innerHTML = html;
