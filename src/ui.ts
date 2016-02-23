@@ -887,7 +887,7 @@ function getCellParams(content, rawParams) {
       }
     }
     let totalFound = 0;
-    for(let item in context) {
+    for(let item of ["attributes", "entities", "collections", "fxns", "maybeAttributes", "maybeEntities", "maybeCollections", "maybeFunctions"]) {
       totalFound += context[item].length;
     }
     if(aggregates.length === 1 && context["groupings"].length === 0) {

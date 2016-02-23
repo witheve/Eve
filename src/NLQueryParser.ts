@@ -21,6 +21,7 @@ export enum NodeTypes {
   ATTRIBUTE,
   NUMBER,
   STRING,
+  FUNCTION,
 }
 
 export interface Insert {
@@ -110,6 +111,9 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
       intent = Intents.QUERY;
       log("Building query...");
       query = formQuery(tree);  
+      if (query.projects.length === 0) {
+        intent = Intents.NORESULT;
+      }
     }
   }
   return [{intent: intent, context: context, tokens: tokens, tree: tree, query: query, inserts: insertResults}];
@@ -584,6 +588,7 @@ interface Node {
   },
   token: Token,
   found: boolean,
+  foundReps: boolean,
   properties: Array<Properties>,
   hasProperty(Properties): boolean;
   toString(number?: number): string;
@@ -613,8 +618,14 @@ function newNode(token: Token): Node {
     token: token, 
     properties: token.properties,
     relationships: [],
-    representations: undefined,
+    representations: {
+      entity: undefined,
+      collection: undefined,
+      attribute: undefined,
+      fxn: undefined,  
+    },
     found: false,
+    foundReps: false,
     hasProperty: hasProperty,
     toString: nodeToString,
     next: nextNode,
@@ -1127,6 +1138,7 @@ function findFunction(node: Node, context: Context): boolean {
     node.addChild(arg);
   }
   node.found = true;
+  node.type = NodeTypes.FUNCTION;
   context.fxns.push(node);
   return true;
 }
@@ -1138,7 +1150,6 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
   if (context.nodes.indexOf(node) === -1) {
     context.nodes.push(node);
   }
-  
   // Don't do anything with subsumed nodes
   if (node.hasProperty(Properties.SUBSUMED)) {
     log("Skipping...");
@@ -1263,7 +1274,6 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
       handled: true,
     }
     node.quantity = parseFloat(node.name);
-    node.representations = {};
     node.properties.push(Properties.ATTRIBUTE);
     node.type = NodeTypes.NUMBER;
     node.attribute = quantityAttribute;
@@ -1299,7 +1309,7 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
     }
     context.maybeAttributes.push(node);
     return {tree: tree, context: context};
-  } else if (node.found && node.representations === undefined) {
+  } else if (node.found && !node.foundReps) {
     findAlternativeRepresentations(node);
   }
   
@@ -1361,17 +1371,17 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
     // If the node is an insert, attach unidentified words  
     } else if (node.fxn.type === FunctionTypes.INSERT) {
       // Find an entity
-      let entity = context.found.filter((n) => n.hasProperty(Properties.ENTITY) && n.token.ix < node.token.ix).shift();
+      let entity = context.found.filter((n) => n.hasProperty(Properties.ENTITY) && n.ix < node.ix).pop();
       if (entity !== undefined) {
         removeNode(entity);
         addNodeToFunction(entity, node, context);  
         // Find an attribute
-        let attribute = context.found.filter((n) => n.hasProperty(Properties.ATTRIBUTE) && n.token.ix > entity.token.ix).pop();
+        let attribute = context.found.filter((n) => n.hasProperty(Properties.ATTRIBUTE) && n.ix > entity.ix).pop();
         if (attribute !== undefined) {
           removeNode(attribute);
           addNodeToFunction(attribute, node, context);
         } else {
-          let attributeNodes = context.nodes.filter((ma) => ma.token.ix > entity.token.ix + 1);
+          let attributeNodes = context.nodes.filter((ma) => ma.ix > entity.ix + 1);
           attributeNodes.pop();
           if (attributeNodes.length > 0) {
             attributeNodes.map(removeNode);
@@ -1499,7 +1509,7 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
 }
 
 // Find all the representations of a thing
-function findAlternativeRepresentations(node: Node) {
+function findAlternativeRepresentations(node: Node): void {
   
   let attr = findEveAttribute(node.name);
   let coll = findEveCollection(node.name);
@@ -1512,6 +1522,7 @@ function findAlternativeRepresentations(node: Node) {
     attribute: attr,
     fxn: fxn,
   }
+  node.foundReps = true;
 }
 
 // Swap the representation of the node with another one
@@ -1969,7 +1980,7 @@ export function findCollToCollRelationship(collA: Node, collB: Node, context: Co
     return {type: RelationshipTypes.NONE};
   } else if (intersectionSize > 0) {
     log(" Found Intersection relationship.");
-    collB.collection.variable = collA.collection.variable;
+    collA.collection.variable = collB.collection.variable;
     collB.collection.project = true;
     collA.collection.project = false;
     return {type: RelationshipTypes.INTERSECTION, nodes: [collA, collB]};
@@ -2100,28 +2111,32 @@ function entityTocollectionsArray(entity: string): Array<string> {
 }
 
 function findCollection(node: Node, context: Context): boolean {
-  let collection = findEveCollection(node.name);
+  let collection: Collection;
+  collection = findEveCollection(node.name);
   if (collection !== undefined) {
     context.found.push(node);
     collection.node = node;
     node.collection = collection;
+    node.representations.collection = collection;
     node.type = NodeTypes.COLLECTION;
     node.found = true;
-    node.properties.push(Properties.COLLECTION)
+    node.properties.push(Properties.COLLECTION);
     return true;
   }
   return false;
 }
 
 function findEntity(node: Node, context: Context): boolean {
-  let entity = findEveEntity(node.name);
+  let entity: Entity;
+  entity = findEveEntity(node.name);
   if (entity !== undefined) {
     context.found.push(node);
     entity.node = node;
     node.entity = entity;
+    node.representations.entity = entity;
     node.type = NodeTypes.ENTITY;
     node.found = true;
-    node.properties.push(Properties.ENTITY)
+    node.properties.push(Properties.ENTITY);
     return true;
   }
   return false;
@@ -2131,14 +2146,16 @@ function findAttribute(node: Node, context: Context): boolean {
   if (node.name === "is a") {
     return false;
   }
-  let attribute = findEveAttribute(node.name);
+  let attribute: Attribute;
+  attribute = findEveAttribute(node.name);
   if (attribute !== undefined) {
     context.found.push(node);
     attribute.node = node;
     node.attribute = attribute;
+    node.representations.attribute = attribute;
     node.type = NodeTypes.ATTRIBUTE;
     node.found = true;
-    node.properties.push(Properties.ATTRIBUTE)
+    node.properties.push(Properties.ATTRIBUTE);
     return true;
   }
   return false;
