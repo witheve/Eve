@@ -198,7 +198,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .card .tile.computed { background: red; }
 
 .card .tile.image .text-content { padding:0; }
-.card .tile.image .tile-content-wrapper { padding:0; }
+.card .tile.image .tile-content-wrapper { padding:0; display:block; }
 .card .tile.image img { width: 360px; cursor:default; transition:width 0.2s ease-in-out; }
 .card .tile.image .list { max-height:none; }
 .card .tile.image .list img { margin:0; padding:0; }
