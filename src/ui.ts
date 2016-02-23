@@ -10,7 +10,7 @@ import * as uitk from "./uitk";
 import {navigate, preventDefault} from "./uitk";
 import {eve, eveLocalStorageKey, handle as appHandle, dispatch, activeSearches, renderer} from "./app";
 import {parseDSL} from "./parser";
-import {parse as nlparse, Intents, FunctionTypes} from "./NLQueryParser";
+import {parse as nlparse, Intents, FunctionTypes, NodeTypes} from "./NLQueryParser";
 
 
 export enum PANE { FULL, WINDOW, POPOUT };
@@ -412,7 +412,7 @@ appHandle("handle setAttribute in a search", (changes:Diff, {attribute, entity, 
       changes.remove("sourced eav", {entity, attribute})
     }
   }
-  changes.merge(dispatch("add sourced eav", {entity, attribute, value}));
+  changes.merge(dispatch("add sourced eav", {entity, attribute, value, forceEntity: true}));
 });
 
 function dispatchSearchSetAttributes(query, chain?) {
@@ -423,7 +423,6 @@ function dispatchSearchSetAttributes(query, chain?) {
   let topParse = parsed[0];
   let isSetSearch = false;
   if(topParse.intent === Intents.INSERT) {
-    console.log(topParse.context);
     // debugger;
     let attributes = [];
     for(let insert of topParse.inserts) {
@@ -431,15 +430,23 @@ function dispatchSearchSetAttributes(query, chain?) {
       // or if we're just adding a new eav for it.
       let replace = true;
       let entity = insert.entity.entity.id;
-      let attribute = insert.attribute.attribute.displayName;
+      let attribute;
+      if(insert.attribute.attribute) {
+        attribute = insert.attribute.attribute.displayName;
+      } else {
+        attribute = insert.attribute.name;
+      }
       let value;
-      // if(insert.value.entity) {
-      //   value = insert.value.entity.id;
-      // } else {
-      //   value = insert.value.name;
-      // }
-      // chain.dispatch("handle setAttribute in a search", {entity, attribute, value, replace});
-      // attributes.push(`${attribute}`);
+      if(insert.value.type === NodeTypes.ENTITY) {
+        let localValue = <any>insert.value;
+        value = localValue.entity.id;
+      } else if(insert.value.type === NodeTypes.NUMBER || insert.value.type === NodeTypes.STRING || insert.value.type === undefined) {
+        let localValue = <any>insert.value;
+        value = localValue.name;
+      }
+      if(value === undefined) continue;
+      chain.dispatch("handle setAttribute in a search", {entity, attribute, value, replace});
+      attributes.push(`${attribute}`);
     }
     query = attributes.join(" and ");
     isSetSearch = true;
