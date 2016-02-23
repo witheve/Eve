@@ -57,8 +57,8 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .wiki-pane > header > * { margin: 0 0.5em;}
 .wiki-pane > header > .controls { margin-right: -43px; }
 .wiki-pane > header + .scroller { margin-top:50px; }
-.wiki-pane .scroller > content { flex:1; position:relative; display: flex; overflow:auto; padding:20px 0 50px 0; } /* @TODO: Breakpoints overflow-y: auto*/
-.wiki-pane .scroller { flex:1; position:relative; overflow:hidden; }
+.wiki-pane .scroller > content { flex: 0 0 auto; position:relative; display: flex; overflow:auto; padding:20px 0 50px 0; } /* @TODO: Breakpoints overflow-y: auto*/
+.wiki-pane .scroller { flex: 1; justify-content: center; position: relative; overflow: hidden; }
 .wiki-pane .scroller .top-scroll-fade { z-index:10; position:absolute; top:0; left:0; right:0; height:20px; background:linear-gradient(#ECEEF2 0%, transparent 100%); }
 .wiki-pane .scroller .bottom-scroll-fade { z-index:10; position:absolute; bottom:0; left:0; right:0; height:20px; background:linear-gradient(transparent 0%, #ECEEF2 100%); }
 .wiki-pane > content.unwrapped .text-content { flex: 1; }
@@ -286,6 +286,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 /*---------------------------------------------------------
 - Table
 ---------------------------------------------------------*/
+.table-wrapper { margin-top: -20px; margin-bottom: -50px; }
 .table-wrapper, .table-body { display: flex; flex-direction: column; }
 .table-wrapper div { display: flex; }
 .table-wrapper > .table-header, .table-wrapper .table-row { display: flex; flex-direction: row; position: relative; }
