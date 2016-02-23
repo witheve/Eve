@@ -876,7 +876,6 @@ function getCellParams(content, rawParams) {
     let parsed = nlparse(content);
     let currentParse = parsed[0];
     let context = currentParse.context;
-    console.log(context);
     let hasCollections = context.collections.length;
     let field;
     let rep;
@@ -899,12 +898,14 @@ function getCellParams(content, rawParams) {
     } else if(!hasCollections && context.attributes.length === 1) {
       rep = "CSV";
       field = context.attributes[0].name;
-      console.log(context);
     } else if(context.entities.length + context.fxns.length === totalFound) {
       // if there are only entities and boolean functions then we want to show this as cards
       params["rep"] = "entity";
-    } else {
+    } else if(currentParse.query && currentParse.query.projects.length) {
       staticOrMappedTable(content, params);
+    } else {
+      // Error state, unknown entity
+      params["rep"] = "error";
     }
     if(rep) {
       params["rep"] = rep;
@@ -2566,8 +2567,8 @@ function represent(search: string, rep:string, results, params:{}, wrapEach?:(el
       } else {
         let embedParams = embedParamSets;
         embedParams["data"] = embedParams["data"] || params;
-        if(wrapEach) return wrapEach(uitk[rep](embedParams));
-        else return uitk[rep](embedParams);
+        if(wrapEach) return {c: "flex-column", children: [wrapEach(uitk[rep](embedParams))]};
+        else return {c: "flex-column", children: [uitk[rep](embedParams)]};
       }
     // } catch(err) {
     //   console.error("REPRESENTATION ERROR");
