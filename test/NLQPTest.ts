@@ -37,6 +37,7 @@ function parseTest(queryString: string, n: number): nlqp.Intents {
   // Display result
   let tokenStrings = nlqp.tokenArrayToString(parseResult.tokens);
   let timingDisplay = `Timing (avg, max, min): ${(avgTime/n).toFixed(2)} | ${maxTime.toFixed(2)} | ${minTime.toFixed(2)} `;
+  console.log(parseResult);
   console.log(queryString);
   console.log(`State: ${nlqp.Intents[parseResult.intent]}`);
   console.log(parseResult.context);
@@ -137,30 +138,33 @@ let phrases = [
   "Corey's wife's age, gender, and height",
   */
   // -------------------------------
-  
-  //"employees per department"
+  "",
+  /*//
+  //"Corey's department is engineering",
+  "corey's salary",
   //"josh's salary * corey montella's age"
   //"Chris' salary and department"
   //"Employee's union"
-  /*
-  "pets that do not have a length"
-  "employee departments"
+  "pets lengths",
+  "employee departments", //X
   //"Corey's salary, department, and age",
-  "3 - Corey's salary",
-  "employees with their departments"
-  "employees with their departments and salaries"
-  "employee salary and employee department",
+  "3 - Corey's salary", //X
+  "1+1", //X
+  "employees with their departments", //X
+  "employees with their departments and salaries",
+  "employee salary and employee department", //X
   "employee salary and department",
   'test data that is an employee',
-  "salaries per employee per department",
-  "salaries per department per employee",
+  "salaries per employee per department", //?
+  "salaries per department per employee", //?
   `employees which are test data`,
   "sum of salaries in engineering",
-  "sum of salaries in the engineering department",
+  "sum of salaries in the engineering department", //Wrong projects
   "salaries in engineering",
   'exotics that are test data',
   'test data that are employees',
-  "Pets that not length"
+  "Pets that not length",
+  "pets that do not have a length",
   "Pets except those longer than a koala",
   "Pet not longer than koalas",
   "exotic that are not pets",
@@ -168,18 +172,19 @@ let phrases = [
   "Pets that are exotic with length <= 3",
   "Pets that are exotic with length != 4",
   "Corey's salary + 3",
-  "exotic lengths"
+  "exotic lengths",
   "sum lengths of pets that are exotic",
   "pets that are exotic that have length",
   "exotic pets",
   "sum of employee salaries",
-  "salaries per department",
-  "employee salaries"
+  "salaries per department", // Wrong projects
+  "employee salaries",
   "sum employee salaries",
   "exotic lengths",
   "salaries by department",
   "employee salaries",
   "employees with their salaries",
+  "employees with their departments", // X
   "employees and their salaries",
   "sum salaries",
   "Pet shorter than koala",
@@ -191,8 +196,7 @@ let phrases = [
   "ages",
   "sum ages",
   "sum pet lengths",
-  "sum pet length",
-  */
+  "sum pet length",*/
   // -------------------------------
   //`Pets except those shorter than a koala`,
   //`salaries per department`,
