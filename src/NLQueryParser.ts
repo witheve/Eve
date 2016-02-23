@@ -1140,7 +1140,6 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
   if (context.nodes.indexOf(node) === -1) {
     context.nodes.push(node);
   }
-  
   // Don't do anything with subsumed nodes
   if (node.hasProperty(Properties.SUBSUMED)) {
     log("Skipping...");
@@ -1363,17 +1362,17 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
     // If the node is an insert, attach unidentified words  
     } else if (node.fxn.type === FunctionTypes.INSERT) {
       // Find an entity
-      let entity = context.found.filter((n) => n.hasProperty(Properties.ENTITY) && n.token.ix < node.token.ix).shift();
+      let entity = context.found.filter((n) => n.hasProperty(Properties.ENTITY) && n.ix < node.ix).pop();
       if (entity !== undefined) {
         removeNode(entity);
         addNodeToFunction(entity, node, context);  
         // Find an attribute
-        let attribute = context.found.filter((n) => n.hasProperty(Properties.ATTRIBUTE) && n.token.ix > entity.token.ix).pop();
+        let attribute = context.found.filter((n) => n.hasProperty(Properties.ATTRIBUTE) && n.ix > entity.ix).pop();
         if (attribute !== undefined) {
           removeNode(attribute);
           addNodeToFunction(attribute, node, context);
         } else {
-          let attributeNodes = context.nodes.filter((ma) => ma.token.ix > entity.token.ix + 1);
+          let attributeNodes = context.nodes.filter((ma) => ma.ix > entity.ix + 1);
           attributeNodes.pop();
           if (attributeNodes.length > 0) {
             attributeNodes.map(removeNode);
