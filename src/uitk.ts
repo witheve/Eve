@@ -871,11 +871,13 @@ function changeEntityAdder(event, elem) {
 }
       
 function submitTableAdder(event, elem) {
-  let {row, subject, fieldMap, collections} = elem;
+  let {row, subject, entity, fieldMap, collections} = elem;
   let chain:any = dispatch("rerender");
   let name = row[subject];
-  console.log("SUBMIT", row, subject);
-  let entity = asEntity(name);
+  if(!entity) {
+    entity = asEntity(name);
+  }
+  
   if(!entity) {
     entity = uuid();
     let pageId = uuid();
