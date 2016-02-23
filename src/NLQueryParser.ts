@@ -1423,6 +1423,9 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
     } else if (node.fxn.type === FunctionTypes.CALCULATE) {
       let QAs = context.nodes.filter((n) => n.hasProperty(Properties.ATTRIBUTE) || n.hasProperty(Properties.QUANTITY))
       for (let qa of QAs) {
+        if (qa.parent.hasProperty(Properties.ARGUMENT)) {
+          continue;
+        }
         removeNode(qa)
         formTree(qa, tree, context);
         if (node.children.every((n) => n.found)) {
