@@ -1571,6 +1571,7 @@ function addNodeToFunction(node: Node, fxnNode: Node, context: Context): boolean
       let root = findParentWithProperty(fxnNode, Properties.ROOT);
       removeBranch(fxnNode);
       context.arguments.splice(context.arguments.indexOf(node.children[0]),1);
+      context.fxns.splice(context.fxns.indexOf(fxnNode),1);
       node.properties.push(Properties.POSSESSIVE);
       root.addChild(node);
     } else {
