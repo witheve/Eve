@@ -2310,6 +2310,7 @@ export function searchInput(paneId:string, value:string):Element {
       codeMirrorElement({
         c: `flex-grow wiki-search-input ${state.focused ? "selected": ""}`,
         paneId,
+        autoFocus: true,
         value: name,
         focus: focusSearch,
         blur: setSearch,
@@ -2352,7 +2353,7 @@ function toggleSearchPlan(event, elem) {
 //---------------------------------------------------------
 interface CMNode extends HTMLElement { cm: any }
 interface CMElement extends Element {
-  autofocus?: boolean
+  autoFocus?: boolean
   lineNumbers?: boolean,
   lineWrapping?: boolean,
   mode?: string,
@@ -2402,7 +2403,7 @@ function codeMirrorPostRender(postRender?:RenderHandler):RenderHandler {
       if(elem["cmChange"]) cm.on("change", handleCMEvent(elem["cmChange"], elem));
       if(elem["cmBlur"]) cm.on("blur", handleCMEvent(elem["cmBlur"], elem));
       if(elem["cmFocus"]) cm.on("focus", handleCMEvent(elem["cmFocus"], elem));
-      if(elem.autofocus) cm.focus();
+      if(elem.autoFocus) cm.focus();
     }
 
     if(cm.getDoc().getValue() !== elem.value) {
