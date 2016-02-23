@@ -1,8 +1,8 @@
 declare var pluralize; // @TODO: import me.
-import {builtinId, copy, coerceInput, sortByLookup, sortByField, KEYS} from "./utils";
+import {builtinId, copy, coerceInput, sortByLookup, sortByField, KEYS, autoFocus} from "./utils";
 import {Element, Handler} from "./microReact";
 import {dispatch, eve} from "./app";
-import {PANE, uiState as _state} from "./ui";
+import {PANE, uiState as _state, asEntity, entityTilesUI, activeCells, wikiEditor, listTile} from "./ui";
 import {masonry as masonryRaw, MasonryLayout} from "./masonry";
 
 //------------------------------------------------------------------------------
@@ -78,7 +78,7 @@ function classifyEntities(rawEntities:string[]) {
 //------------------------------------------------------------------------------
 // Handlers
 //------------------------------------------------------------------------------
-function preventDefault(event) {
+export function preventDefault(event) {
   event.preventDefault();
 }
 function preventDefaultUnlessFocused(event) {
@@ -90,14 +90,10 @@ function closePopup() {
   if(popout) dispatch("remove popup", {paneId: popout.pane}).commit();
 }
 
-function navigate(event, elem) {
+export function navigate(event, elem) {
   let {paneId} = elem.data;
-  let info:any = {paneId, value: elem.link, peek: elem.peek};
-  if(event.clientX) {
-    info.x = "calc(50% - 350px)"; 
-    info.y = event.clientY;
-  }
-  dispatch("ui set search", info).commit();
+  if(elem.peek) dispatch("set popout", {parentId: paneId, contains: elem.link, x: event.clientX, y: event.clientY}).commit();
+  else dispatch("set pane", {paneId, contains: elem.link}).commit();
   event.preventDefault();
 }
 
@@ -180,12 +176,277 @@ export function embeddedCell(elem):Element {
 }
 
 //------------------------------------------------------------------------------
+// Representations for cards
+//------------------------------------------------------------------------------
+
+// @FIXME: if there isn't an ID here, microReact does the wrong thing, investigate
+// after the release
+export function card(elem:Element) {
+  elem.c = `card ${elem.c || ""}`;
+  return elem;
+}
+
+function toggleAddTile(event, elem) {
+  dispatch("toggle add tile", {key: elem.key, entityId: elem.entityId}).commit();
+}
+
+function setTileAdder(event, elem) {
+  dispatch("set tile adder", {key: elem.key, adder: elem.adder}).commit();
+}
+
+interface EntityEditorElem extends EntityElem { editor: CodeMirror.Editor }
+export function entity(elem:EntityEditorElem) {
+  let entityId = elem.entity;
+  let paneId = elem.data.paneId;
+  let key = elem.key || `${entityId}|${paneId}`;
+  let state = _state.widget.card[key] || {};
+  let name = eve.findOne("display name", {id: asEntity(entityId)}).name;
+  let attrs = entityTilesUI(entityId, paneId, key);
+  attrs.c += " page-attributes";
+  // let editor = pageEditor(entityId, paneId, elem.editor);
+  let adder = tileAdder({entityId, key});
+  return {c: `entity ${state.showAdd ? "adding" : ""}`, children: [
+    {c: "header", children: [
+      {text: name},
+      {c: `ion-android-add add-tile`, click: toggleAddTile, key, entityId}
+    ]},
+    adder,
+    attrs,
+    // editor,
+  ]};
+}
+
+var measureSpan = document.createElement("span");
+measureSpan.className = "measure-span";
+document.body.appendChild(measureSpan);
+
+export function autosizeInput(node, elem) {
+  let minWidth = 50;
+  measureSpan.style.fontSize = window.getComputedStyle(node, null)["font-size"];
+  measureSpan.textContent = node.value;
+  let measuredWidth = measureSpan.getBoundingClientRect().width;
+  node.style.width = Math.ceil(Math.max(minWidth, measuredWidth)) + 5 + "px";
+}
+
+export function autosizeAndFocus(node, elem) {
+  autosizeInput(node, elem);
+  autoFocus(node, elem);
+}
+
+function trackPropertyAdderInput(event, elem) {
+  let value = event.currentTarget.value;
+  dispatch("set tile adder attribute", {key: elem.key, attribute: elem.attribute, value}).commit();
+  if(event.currentTarget.nodeName === "INPUT") {
+    autosizeInput(event.currentTarget, elem);
+  }
+}
+
+function adderKeys(event, elem) {
+  if(event.keyCode === KEYS.ENTER) {
+    dispatch("submit tile adder", {key: elem.key, node: event.currentTarget}).commit();
+  } else if(event.keyCode === KEYS.ESC) {
+    dispatch("toggle add tile", {key: elem.key}).commit();
+  }
+}
+
+function submitAdder(event, elem) {
+  // @HACK: yeah...
+  dispatch("submit tile adder", {key: elem.key, node: event.currentTarget.parentNode.parentNode.firstChild.firstChild}).commit();
+}
+
+function submitProperty(adder, state, node) {
+  dispatch("add sourced eav", {entity: state.entityId, attribute: state.propertyProperty, value: state.propertyValue, forceEntity: true}).commit();
+  state.propertyValue = "";
+  state.propertyProperty = "";
+  //make sure the focus is in the value
+  node.parentNode.firstChild.focus();
+}
+
+function propertyAdderUI(elem) {
+  let {entityId, key} = elem;
+  let state = _state.widget.card[key] || {};
+  return {c: "property-adder", children: [
+    {children: [
+      {c: "tile small", children: [
+        {c: "tile-content-wrapper", children: [
+          {t: "input", c: "property", placeholder: "property", value: state.propertyProperty, attribute: "propertyProperty", input: trackPropertyAdderInput, postRender: autosizeAndFocus, keydown: adderKeys, entityId, key},
+          {t: "input", c: "value", placeholder: "value", value: state.propertyValue, attribute: "propertyValue", input: trackPropertyAdderInput, postRender: autosizeInput, keydown: adderKeys, entityId, key},
+        ]},
+        {c: "controls flex-row", children: [
+          {c: "ion-checkmark submit", click: submitAdder, key},
+          {c: "ion-close cancel", click: setTileAdder, key},
+        ]}
+      ]}
+    ]}
+  ]};
+}
+
+function descriptionAdderUI(elem) {
+  let {entityId, key} = elem;
+  let state = _state.widget.card[key] || {};
+  return {c: "property-adder description-adder", children: [
+    {children: [
+      {c: "tile full", children: [
+        {c: "tile-content-wrapper", children: [
+          {t: "textarea", c: "value", placeholder: "description", value: state.descriptionValue, attribute: "descriptionValue", input: trackPropertyAdderInput, postRender: autoFocus, keydown: adderKeys, entityId, key},
+        ]},
+        {c: "controls flex-row", children: [
+          {c: "ion-checkmark submit", click: submitAdder, key},
+          {c: "ion-close cancel", click: setTileAdder, key},
+        ]}
+      ]},
+    ]}
+  ]};
+}
+
+function submitDescription(adder, state, node) {
+  let chain = dispatch("add sourced eav", {entity: state.entityId, attribute: "description", value: state.descriptionValue});
+  state.descriptionValue = "";
+  chain.dispatch("toggle add tile", {key: state.key}).commit();
+}
+
+function autosizeAndStoreListTileItem(event, elem) {
+  let node = event.currentTarget;
+  dispatch("add active tile item", {cardId: elem.cardId, attribute: elem.storeAttribute, tileId: elem.tileId, id: elem.storeId, value: node.value}).commit();
+  autosizeInput(node, elem);
+}
+
+function collectionTileAdder(elem) {
+  let {values, data, tileId, attribute, cardId, entityId, forceActive, reverseEntityAndValue, noProperty, rep="value", c:klass=""} = elem;
+  tileId = tileId || attribute;
+  let state = _state.widget.card[cardId] || {};
+  let listChildren = [];
+  let added = (state.activeTile ? state.activeTile.itemsToAdd : false) || [];
+  let ix = 0;
+  for(let add of added) {
+    listChildren.push({c: "value", children: [
+      {t: "input", placeholder: "add", value: add, attribute, entityId, storeAttribute: "itemsToAdd", storeId: ix, cardId, input: autosizeAndStoreListTileItem, postRender: autosizeAndFocus, keydown: adderKeys, key: cardId}
+    ]});
+    ix++;
+  }
+  listChildren.push({c: "value", children: [
+    {t: "input", placeholder: "add item", value: "", attribute, entityId, storeAttribute: "itemsToAdd", storeId: ix, cardId, input: autosizeAndStoreListTileItem, postRender: ix === 0 ? autosizeAndFocus : autosizeInput, keydown: adderKeys, key: cardId}
+  ]});
+  let size = "full";
+  let tileChildren = [];
+  tileChildren.push({t: "input", c: "property", placeholder: `${pluralize(resolveName(entityId), 2)}`, attribute: "collectionProperty", value: state.collectionProperty, input: trackPropertyAdderInput, key: cardId});
+  tileChildren.push({c: "list", children: listChildren});
+  return {c: "property-adder collection-adder", children: [
+    {children: [
+      {c: "tile full", children: [
+        {c: "tile-content-wrapper", children: tileChildren},
+        {c: "controls flex-row", children: [
+          {c: "ion-checkmark submit", click: submitAdder, key: cardId},
+          {c: "ion-close cancel", click: setTileAdder, key: cardId},
+        ]}
+      ]},
+    ]}
+  ]};
+}
+
+function collectionAdderUI(elem) {
+  let {entityId, key} = elem;
+  let state = _state.widget.card[key] || {};
+  let tile = collectionTileAdder({values: [], cardId: key, entityId, forceActive: true, tileId: "collectionAdder", data: {}, noProperty: true, });
+  return tile;
+}
+
+function submitCollection(adder, state, node) {
+  let chain;
+  console.log("SUBMIT COLL", state.key);
+  // determine whether this is making the current entity a collection, or if this is just a normal collection.
+  if(!state.collectionProperty || pluralize(state.collectionProperty.trim(), 1).toLowerCase() === resolveName(state.entityId).toLowerCase()) {
+    // this is turning the current entity into a collection
+    chain = dispatch("submit list tile", {cardId: state.key, attribute: "is a", entityId: state.entityId, reverseEntityAndValue: true});
+  } else {
+    chain = dispatch("submit list tile", {cardId: state.key, attribute: state.collectionProperty, entityId: state.entityId, reverseEntityAndValue: false});
+  }
+  state.collectionProperty = undefined;
+  chain.dispatch("toggle add tile", {key: state.key}).commit();
+  console.log(JSON.stringify(state));
+}
+
+function imageAdderUI(elem) {
+  let {entityId, key} = elem;
+  let state = _state.widget.card[key] || {};
+  return {c: "property-adder image-adder", children: [
+    {children: [
+      {c: "tile small", children: [
+        {c: "tile-content-wrapper", children: [
+          {t: "input", c: "value", placeholder: "image url", value: state.propertyValue, attribute: "imageValue", input: trackPropertyAdderInput, postRender: autosizeAndFocus, keydown: adderKeys, entityId, key},
+        ]},
+        {c: "controls flex-row", children: [
+          {c: "ion-checkmark submit", click: submitAdder, key},
+          {c: "ion-close cancel", click: setTileAdder, key},
+        ]}
+      ]}
+    ]}
+  ]};
+}
+
+function submitImage(adder, state, node) {
+  let chain = dispatch("add sourced eav", {entity: state.entityId, attribute: "image", value: `"${state.imageValue}"`});
+  state.imageValue = undefined;
+  chain.dispatch("toggle add tile", {key: state.key}).commit();
+}
+
+export function tileAdder(elem) {
+  let {entityId, key} = elem;
+  let state = _state.widget.card[key] || {};
+  let rows = [];
+  let klass = "";
+  if(!state.adder) {
+    let adders = [
+      {name: "Property", icon: "ion-compose", ui: propertyAdderUI, submit: submitProperty},
+      {name: "Description", icon: "ion-drag", ui: descriptionAdderUI, submit: submitDescription},
+      {name: "Collection", klass: "collection", icon: "ion-ios-list-outline", ui: collectionAdderUI, submit: submitCollection},
+      {name: "Image", icon: "ion-image", ui: imageAdderUI, submit: submitImage},
+      {name: "Document", icon: "ion-document"},
+      {name: "Computed", icon: "ion-calculator"},
+    ];
+    let count = 0;
+    let curRow = {c: "row flex-row", children: []};
+    for(let adder of adders) {
+      curRow.children.push({c: "tile small", adder, key, click: setTileAdder, children: [
+        {c: "tile-content-wrapper", children: [
+          {c: "property", text: adder.name},
+          {c: `value ${adder.icon}`},
+        ]}
+      ]});
+      count++;
+      if(curRow.children.length === 3 || count === adders.length) {
+        rows.push(curRow);
+        curRow = {c: "row flex-row", children: []};
+      }
+    }
+  } else {
+    let adderElem = {entityId, key};
+    if(state.adder.ui) {
+      rows.push(state.adder.ui(adderElem));
+    }
+    klass = state.adder.klass || "";
+  }
+  return {c: `tile-adder ${klass}`, children: rows};
+}
+
+export function pageEditor(entityId:string, paneId:string, elem):Element {
+  let {content = undefined} = eve.findOne("entity", {entity: entityId}) || {};
+  let page = eve.findOne("entity page", {entity: entityId})["page"];
+  let name = resolveName(entityId);
+  elem.c = `wiki-editor ${elem.c || ""}`;
+  elem.meta = {entityId: entityId, page, paneId};
+  elem.options.noFocus = true;
+  elem.value = content;
+  elem.children = elem.cellItems;
+  return elem;
+}
+
+//------------------------------------------------------------------------------
 // Representations for Errors
 //------------------------------------------------------------------------------
 
 export function error(elem):Element {
   elem.c = `error-rep ${elem.c || ""}`;
-  console.log(elem);
   return elem;
 }
 
@@ -333,7 +594,7 @@ export function CSV(elem:CSVElem):Element {
   return {c: "flex-row csv", children: values.map((val) => value({t: "span", autolink, text: val, data}))};
 }
 
-interface TableElem extends Element { rows: {}[], sortable?: boolean, editCell?: Handler<Event>, editRow?: Handler<Event>, editField?: Handler<Event>, ignoreFields?: string[], ignoreTemp?: boolean, data?: any, groups?: string[]}
+interface TableElem extends Element { rows: {}[], sortable?: boolean, editCell?: Handler<Event>, editRow?: Handler<Event>, confirmRow?: boolean, removeRow?: boolean, editField?: Handler<Event>, ignoreFields?: string[], ignoreTemp?: boolean, data?: any, groups?: string[]}
 export function table(elem:TableElem):Element {
   let {rows, ignoreFields = ["__id"], sortable = false, ignoreTemp = true, data = undefined, noHeader = false, groups = []} = elem;
   if(!rows.length) {
@@ -371,7 +632,16 @@ export function table(elem:TableElem):Element {
       localState["adder"][elem["field"]] = node.value;
       dispatch().commit();
     }
-    var removeRow = (evt, elem) => editRow(new CustomEvent("editrow", {detail: "remove"}), elem);
+    var removeRow = elem.removeRow === undefined ? (evt, elem) => editRow(new CustomEvent("editrow", {detail: "remove"}), elem) : undefined;
+
+    if(elem.confirmRow) {
+      var confirmRow = (evt, elem) => {
+        let rowElem = elem.row;
+        rowElem.state.confirmed = true;
+        addRow(evt, rowElem);
+        rowElem.state.confirmed = false;
+      };
+    }
   }
   if(editField) {
     // @FIXME: Wrap these with the logic for the editing modal, only add/remove on actual completed field
@@ -455,7 +725,7 @@ export function table(elem:TableElem):Element {
           if(field === grouped) continue;
           subrowElem.children.push(value({c: "field", text: subrow[field], editable: editCell ? true : false, blur: editCell, row: subrowElem, field, data, keydown: handleCellKeys}));
         }
-        if(editRow) subrowElem.children.push({c: "controls", children: [{c: "remove-row ion-android-close", row: subrowElem, click: removeRow}]});
+        if(removeRow) subrowElem.children.push({c: "controls", children: [{c: "remove-row ion-android-close", row: subrowElem, click: removeRow}]});
         ix++;
         subrow = rows[ix];
       }
@@ -464,7 +734,7 @@ export function table(elem:TableElem):Element {
         for(let field of fields) {
           rowElem.children.push(value({c: "column field", text: row[field], editable: editCell ? true : false, blur: editCell, row: rowElem, field, data, keydown: handleCellKeys}));
         }
-        if(editRow) rowElem.children.push({c: "controls", children: [{c: "remove-row ion-android-close", row: rowElem, click: removeRow}]});
+        if(removeRow) rowElem.children.push({c: "controls", children: [{c: "remove-row ion-android-close", row: rowElem, click: removeRow}]});
         ix++;
     }
     body.children.push(rowElem);
@@ -473,8 +743,11 @@ export function table(elem:TableElem):Element {
     if(!localState["adder"]) {
       localState["adder"] = {};
     }
-    let rowElem = {c: "row group add-row", table: elem, row: [], children: []};
+    let rowElem = {c: "row group add-row", table: elem, state: localState, fields, data, row: [], children: []};
     for(let field of fields) rowElem.children.push(value({t: "input", c: "column field", editable: true, input: trackInput, blur: addRow, row: rowElem, keydown: handleCellKeys, attribute: field, field, fields, data, table: elem, state: localState, text: localState["adder"][field] || ""}));
+    if(confirmRow) {
+      rowElem.children.push({c: "controls", children: [{c: "confirm-row ion-checkmark-round", row: rowElem, click: confirmRow}]});
+    }
     body.children.push(rowElem);
   }
 

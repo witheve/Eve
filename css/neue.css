@@ -1,13 +1,11 @@
-body { position: relative; padding-bottom: 1.5em; background: #fff; color: rgb(76, 85, 90); font-family: "Lato", sans-serif; font-weight: 400; }
+body { position: relative; padding-bottom: 1.5em; background:#ECEEF2; color: rgb(76, 85, 90); font-family: "Lato", sans-serif; font-weight: 400; }
 * { box-sizing: border-box; }
 div { display: flex; flex-direction: column; }
-button, input { border:none; outline: none; font-family: "Lato", sans-serif; font-weight: 400; color: rgb(76,85,90); font-size: 12pt; }
+button, input, textarea { border:none; outline: none; font-family: "Lato", sans-serif; font-weight: 400; color: rgb(76,85,90); font-size: 12pt; }
+input { background:none; }
 
 a { color: #008cdd; cursor: pointer; border-bottom: 1px solid transparent; text-decoration: none; }
 a:hover { text-decoration: underline; }
-
-
-.light .bit { background: transparent; }
 
 .flex-grow { flex: 1; }
 .flex-row { display: flex !important; flex-direction: row; }
@@ -17,10 +15,12 @@ a:hover { text-decoration: underline; }
 
 .no-mouse { pointer-events: none; }
 
-.spaced-row > * + * { margin-left: 0.4em; }
+.spaced-row > * + * { margin-left: 0.2em; }
 .csv { flex-direction: row; }
 .csv > * + span { margin-left: 0.4em; }
 .csv > span + span:before { position: relative; left: -0.4em; content: ","; }
+
+.measure-span { visibility:hidden; pointer-events: none; position:absolute; top:0; left:0; z-index: -1;}
 
 /*---------------------------------------------------------
 - Root
@@ -41,7 +41,7 @@ body { height: 100vh; width: 100vw; }
 /*---------------------------------------------------------
 - Controls
 ---------------------------------------------------------*/
-.controls { flex-direction: row; }
+.controls { flex-direction: row; align-items: center;}
 .controls > div { padding: 0.25em; border-radius: 2px; }
 
 div > header > .controls { opacity: 0; }
@@ -51,20 +51,27 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 /*---------------------------------------------------------
 - Pane
 ---------------------------------------------------------*/
-.wiki-pane.fullscreen { position: relative; }
+.wiki-pane.fullscreen { position: relative; padding: 20px 100px; }
 .wiki-pane > header { padding: 10px 0.5em; align-items: center; border-bottom: 1px solid #ccc; }
 .wiki-pane > header > * { margin: 0 0.5em;}
-.wiki-pane > content { display: flex; } /* @TODO: Breakpoints overflow-y: auto*/
+.wiki-pane > header > .controls { margin-right: -43px; }
+.wiki-pane > header + .scroller { margin-top:50px; }
+.wiki-pane .scroller > content { flex:1; position:relative; display: flex; overflow:auto; padding:20px 0 50px 0; } /* @TODO: Breakpoints overflow-y: auto*/
+.wiki-pane .scroller { flex:1; position:relative; overflow:hidden; }
+.wiki-pane .scroller .top-scroll-fade { z-index:10; position:absolute; top:0; left:0; right:0; height:20px; background:linear-gradient(#ECEEF2 0%, transparent 100%); }
+.wiki-pane .scroller .bottom-scroll-fade { z-index:10; position:absolute; bottom:0; left:0; right:0; height:20px; background:linear-gradient(transparent 0%, #ECEEF2 100%); }
+.wiki-pane > content.unwrapped .text-content { flex: 1; }
+.wiki-pane > content.unwrapped .CodeMirror { width: auto; max-width: 760px; }
 
-.wiki-pane { background: #fff; }
+.wiki-pane {}
 
 .wiki-entity { flex: 1; flex-direction: row; overflow:hidden; justify-content: center; }
-.disambiguation { align-self: stretch; flex-direction: row; padding: 0.25em 0.5em; margin-bottom: 1rem; color: #999; }
+.disambiguation { align-self: stretch; flex-direction: row; padding: 15px 25px; margin-bottom: 1rem; color: #999;  }
 
-.wiki-pane > .settings { display: flex; flex-direction: column; position: absolute; right: 15px; top: 53px; z-index: 11; background: white; border: 1px solid #ccc; border-radius: 2px; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2); }
-.wiki-pane > .settings:before { content: ""; position: absolute; top: -7px; right: 7px; border: 7px solid transparent; border-bottom-color: #ccc; border-top: none; }
-.wiki-pane > .settings:after { content: ""; position: absolute; top: -6px; right: 8px; border: 6px solid transparent; border-bottom-color: white; border-top: none; }
-.wiki-pane > .settings li { padding: 10px; }
+.wiki-pane > .settings { display: flex; flex-direction: column; align-items: stretch; position: absolute; right: 15px; top: 100px; z-index: 11; background: white; border: 1px solid #ccc; border-radius: 2px; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2); }
+.wiki-pane > .settings:before { content: ""; position: absolute; top: -7px; right: 56px; border: 7px solid transparent; border-bottom-color: #ccc; border-top: none; }
+.wiki-pane > .settings:after { content: ""; position: absolute; top: -6px; right: 57px; border: 6px solid transparent; border-bottom-color: white; border-top: none; }
+.wiki-pane > .settings li { display: flex; padding: 10px; }
 .wiki-pane > .settings li + li { border-top: 1px solid #ccc; }
 .wiki-pane > .settings li.disabled { color: #999; }
 
@@ -78,14 +85,18 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 ---------------------------------------------------------*/
 
 .wiki-pane.window > header > * { margin:0;}
-.wiki-pane.window { position:absolute; max-height:40%; box-shadow:0 0 0 1px rgba(0,0,0,0.1),0 7px 15px rgba(0,0,0,0.1); background: #fff; border-radius:3px; z-index:10; }
+.wiki-pane.window { position:absolute; max-height:40%; box-shadow:0 0 0 1px rgba(0,0,0,0.03),0 7px 15px rgba(0,0,50,0.1); background: #fff; border-radius:3px; z-index:10; }
 .wiki-pane.window > header { background: #fff; padding: 10px 5px; padding: 0; border:none; }
-.wiki-pane.window > header button { border:none; border-radius:0px; background:none; font-size: 20px; font-weight:400; color:#555; padding:8px 10px; color: #008cdd; position:absolute; top:0; right:0; z-index:10;  }
+.wiki-pane.window > header button { border:none; border-radius:0px; background:none; font-size: 20px; font-weight:400; color:#555; padding:12px 10px; color: #008cdd; position:absolute; top:0; right:0; z-index:10; margin-right:37px;  }
 .wiki-pane.window > header button:hover { background: rgba(0, 140, 221, 0.15); }
+.wiki-pane.window > header button:before { margin-top:1px; }
 .wiki-pane.window > header .controls { opacity:1; color: #777; }
 .wiki-pane.window .wiki-entity { padding: 25px 20px; }
 .wiki-pane.window .wiki-entity .CodeMirror { flex: 1; overflow:visible; }
 .wiki-pane.window .wiki-editor { padding: 0px 30px;  }
+.wiki-pane.window .card { margin: 0; }
+
+.wiki-pane.window .scroller { margin:0; }
 
 /*---------------------------------------------------------
 - Autocompleter
@@ -98,37 +109,103 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .autocompleter .inline-cell { min-width: 80px; outline:none; padding-left:8px; border-left:1px solid #aaa; margin-left:8px; }
 
 /*---------------------------------------------------------
-- Form
+- Card
 ---------------------------------------------------------*/
 
-.form-row + .form-row { margin-left:10px;  }
-.form-row label { display:none; margin-bottom:3px; font-size: 10pt; }
+.card { flex:none; position:relative; background: white; align-self:center; align-items: stretch; min-width:200px; box-shadow: 0 7px 15px rgba(0,0,50,0.10); border-radius:5px; overflow:hidden; }
+.card .text-content { margin-right:10px; min-width:250px; white-space:pre-wrap; line-height:28px; color:#aaa; flex:none; max-height:50%; }
+.card .header { flex-direction:row; flex:none; padding:10px 15px; font-size: 18pt; font-weight: 900; color: rgb(106,138,156); border-bottom: 1px solid #eee; }
+.card .wiki-editor { padding: 30px; padding-top:0; margin-bottom:20px; }
+.card + .card { margin-top:40px; }
 
+.card > .table { margin: 20px 30px; }
 
-.labeled-input { flex-direction:row; }
-.labeled-input { border-radius:0px; align-items: center; background: none; }
-.labeled-input label { font-size: 10pt; padding:8px 6px; }
-.labeled-input input { font-size: 10pt; border-radius:0; padding: 8px 10px; min-width:280px; }
-* + .labeled-input input { border-left: 1px solid #ddd;  }
-.labeled-input input + * { border-left:1px solid #ddd; }
+.card .tiles { flex-direction: row; flex-wrap: wrap; width: 360px; }
+.card .tile { flex: 1 0 0; overflow:hidden; cursor: default; flex-direction:row; }
+/* .card .tile:hover { background:rgba(0,0,50,0.04);  } */
+.card .tile .property { font-size: 9pt; color: #aaa; margin-bottom: 5px; }
+.card .tile.small, .card .tile.medium { justify-content: flex-start; }
+.card .tile + .tile { border-left: 1px solid #eee; }
+.card .tile.small .value, .card .tile.medium .value { font-size: 14pt; }
+.card .row { width: 100%;  }
+.card .row + .row { border-top:1px solid #eee; }
 
-/*---------------------------------------------------------
-- Selector
----------------------------------------------------------*/
+.card .tile.small { flex: 1; }
+.card .tile.medium { flex: 2; }
+.card .tile.full { flex: 3; }
 
-.selector { flex-direction:row; background:#fff; border:1px solid #ccc; border-radius:3px; }
-.selector *:nth-child(2) { background: orange; color: #333; text-shadow:none; }
-.selector * { justify-content:center; background:none; border:none; color: #666; font-size: 11pt; font-family: "Lato"; font-weight: 400; padding:3px 8px; }
-.selector * + * { margin-left: 5px; }
-.selector button { background: ; }
+.card .tile .tile-content-wrapper { flex:1; align-items:flex-start; padding:15px; }
+.card .tile .controls { display:none; flex:none; flex-direction:column; border-left:1px solid #eee; border-radius:0; }
+.card .tile .controls * { padding:5px; flex:1; justify-content: center; border:none; border-radius:0; width:24px; color: #999; align-items:center; }
+.card .tile .controls div:hover { background: rgba(0,0,0,0.04); }
+.card .tile .controls .submit { border-bottom:1px solid rgba(0,0,0,0.1); }
+.card .tile .controls .submit:hover { color: green; background:rgba(0,150,0,0.2); }
+.card .tile .controls .cancel:hover { color: #aa5555; background: rgba(150,0,0,0.2); }
+
+.card .tile .edit { width:0; color: #888; border-left:1px solid transparent; align-items:center; justify-content:center; transition:width 0.2s ease-in-out, border-color 0.2s ease-in-out; overflow:hidden; }
+.card .tile .edit:hover { background: #eee; }
+.card .tile:hover .edit { width:25px; display:flex; border-color: #eee; }
+.card .tile.active .edit { display:none; }
+
+.card .tile.active .controls { display:flex; }
+
+.card .value.text { line-height: 22px; }
+
+.card .tile .multi-value { flex-direction: column; }
+.card .multi-value * + * { border-left: 0px solid #ddd; padding-left: 0px;}
+
+.card .tile .list { max-height: 200px; overflow:auto; flex-wrap:wrap; flex-direction:row; align-items:flex-start; }
+.card .tile .list > * { padding:15px; margin:2px; background: #f5f5f5; border:0px solid #eee; border-radius:2px;  }
+.card .tile .list .marked-to-remove { background:red; }
+
+.card .tile textarea { background:none; font-size:16px; border:none; width:300px; }
+
+.card .add-tile {position: absolute; padding:10px 20px; padding-right:15px; right:0; top:0; color: #ccc; cursor: default; }
+.card .add-tile:before { transition:transform 0.2s ease-in-out; }
+.card .add-tile:hover { color: #666; }
+
+.card .tile-adder { transition:height 0.18s ease-out;  overflow:hidden; height:0; background:#F3F8FF; flex-direction:row; flex-wrap:wrap; max-width: 360px; }
+.card .tile-adder .tile, .card .tile-adder .row { border-color: rgba(0,0,0,0.1); }
+.card .tile-adder .tile { cursor:default; align-items:center; }
+.card .tile-adder .tile:hover { background: rgba(0,0,0,0.04); }
+.card .tile-adder .property { color:#555; }
+.card .tile-adder .tile .value { color:#555;}
+.card .tile-adder .tile input { min-width: 85px; }
+.card .adding .header { border-color: #ddd; }
+.card .adding .tile-adder { transition:height 0.18s ease-in; height: 150px; }
+.card .adding .tiles { border-top:1px solid #ddd; }
+/* .card .adding .tiles { display:none; } */
+.card .adding .add-tile:before {transform: rotate(-135deg); }
+
+.card .adding .tile-adder.collection { height: 280px; }
+.card .adding .collection-adder .tile { height: 250px; width: 330px; }
+
+.card .tile.computed { background: red; }
+
+.card .tile.image .text-content { padding:0; }
+.card .tile.image .tile-content-wrapper { padding:0; }
+.card .tile.image img { width: 360px; cursor:default; transition:width 0.2s ease-in-out; }
+.card .tile.image .list { max-height:none; }
+.card .tile.image .list img { margin:0; padding:0; }
+.card .tile.image.active .list img { width: 140px; }
+.card .tile.active img { width: 335px; }
+.card .tile:hover img { width: 335px; }
+
+.card .property-adder { flex: 1; align-items:center; justify-content:center; }
+.card .property-adder .tile { flex:none; align-items:stretch; border:1px solid rgba(0,0,0,0.1); background:#fff; border-radius:2px; max-width:320px; }
+.card .property-adder .tile:hover { background:#fff; }
+.card .property-adder input { text-align:left; padding:0; }
+
+.card .description-adder textarea { width:263px; border:none; height: 75px; font-size:12pt; outline:none; }
 
 /*---------------------------------------------------------
 - Wiki editor
 ---------------------------------------------------------*/
 
-.wiki-editor { width: 660px; padding: 50px 30px; overflow:auto; }
-.wiki-editor .CodeMirror { font-family: "Lato"; font-size: 16px; color: rgb(84,84,84); font-weight:400; width:600px; }
+.wiki-editor { overflow:auto; min-height: 92px; }
+.wiki-editor .CodeMirror { font-family: "Lato"; font-size: 16px; color: rgb(84,84,84); font-weight:400; width:450px; }
 .wiki-editor .CodeMirror-lines { padding: 0; }
+.wiki-editor .CodeMirror-line { padding: 0; }
 
 .wiki-editor .CodeMirror-widget div { display:flex; }
 .wiki-editor .CodeMirror-widget > div { display:inline-block; }
@@ -140,9 +217,9 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .wiki-editor .cm-header-3 { font-size: 16pt; line-height: 40px; }
 
 .wiki-editor .cm-header-indicator { color: #aaa; }
-.wiki-editor .cm-header-indicator-1 { margin-left:-17px; padding-right:8px; }
-.wiki-editor .cm-header-indicator-2 { margin-left:-25px; padding-right:8px; }
-.wiki-editor .cm-header-indicator-3 { margin-left: -35px; padding-right:8px; }
+/* .wiki-editor .cm-header-indicator-1 { margin-left:-17px; padding-right:8px; } */
+/* .wiki-editor .cm-header-indicator-2 { margin-left:-25px; padding-right:8px; } */
+/* .wiki-editor .cm-header-indicator-3 { margin-left: -35px; padding-right:8px; } */
 
 
 .wiki-editor .attribute, .wiki-editor .value { color:#2C00FD; }
@@ -167,26 +244,6 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .wiki-editor .non-editing-embedded-cell .edit-button:hover { background: #004A74; }
 
 /*---------------------------------------------------------
-- Page attributes
----------------------------------------------------------*/
-
-.page-attributes { margin-top:50px; align-self: flex-start; margin-left:30px; border-radius:3px; border:none; }
-.page-attributes .attribute { align-items:flex-start; flex-direction:row; }
-.page-attributes .attribute + .attribute { margin-top:15px; border:none; }
-.page-attributes .attribute .attribute-name { text-align:right; font-weight:900; width: 150px; padding:2px 10px; border:1px solid transparent; }
-.page-attributes input {font-size: 12pt; }
-.page-attributes .value { padding: 2px 10px; border:1px solid transparent; border-left: 1px solid #ddd; width: 150px; flex-direction: row; font-size:12pt; }
-.page-attributes .value:hover { border:1px solid #ddd; }
-.page-attributes .value > * {flex: none; background:none; }
-.page-attributes .value input { flex: 1; }
-.page-attributes .value > .spacer {flex: 1; }
-.page-attributes .value .remove { opacity:0; justify-content:center; color: #888; }
-.page-attributes .value .remove:hover { color: #f55; }
-.page-attributes .value:hover .remove { opacity:1; }
-.page-attributes .adder .value:first-child { border-left-color:transparent; }
-.page-attributes .adder:hover .value { border-color:#ddd; }
-
-/*---------------------------------------------------------
 - Delete prompt
 ---------------------------------------------------------*/
 
@@ -202,23 +259,23 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 /*---------------------------------------------------------
 - Content
 ---------------------------------------------------------*/
-content h1 { font-size: 1.5em; margin: 1rem; margin-bottom: 0.5rem; text-transform: capitalize; }
-content h2 { font-weight: bold; }
-content h3 { font-style: italic; }
-content p { margin: 0.5rem 1rem; }
-content ul, content ol { display: flex; flex-direction: column; margin-left: 1.5rem; justify-content: flex-start; align-items: flex-start; }
-content ul { list-style-type: disc; }
-content ol { list-style-type: decimal; }
-content li { flex: 0 0 auto; }
+.wiki-pane h1 { font-size: 1.5em; margin: 1rem; margin-bottom: 0.5rem; text-transform: capitalize; }
+.wiki-pane h2 { font-weight: bold; }
+.wiki-pane h3 { font-style: italic; }
+.wiki-pane p { margin: 0.5rem 1rem; }
+.wiki-pane ul, content ol { display: flex; flex-direction: column; margin-left: 1.5rem; justify-content: flex-start; align-items: flex-start; }
+.wiki-pane ul { list-style-type: disc; }
+.wiki-pane ol { list-style-type: decimal; }
+.wiki-pane li { flex: 0 0 auto; }
 
-content h1 { border-bottom: 1px solid #ccc; }
+.wiki-pane h1 { border-bottom: 1px solid #ccc; }
 
-content .error-rep { color: #FF3333; }
+.wiki-pane .error-rep { color: #FF3333; }
 
-content .link { color: #008cdd; cursor: pointer; border-bottom: 1px solid transparent; }
-content .link:hover { border-bottom:1px solid #008cdd; }
+.wiki-pane .link { color: #008cdd; cursor: pointer; border-bottom: 1px solid transparent; }
+.wiki-pane .link:hover { border-bottom:1px solid #008cdd; }
 
-content .csv { color: #A200A7;  }
+.wiki-pane .csv { color: #A200A7;  }
 
 /*---------------------------------------------------------
 - Search Pane
@@ -257,6 +314,8 @@ content .csv { color: #A200A7;  }
 /*---------------------------------------------------------
 - CodeMirror general
 ---------------------------------------------------------*/
+
+.CodeMirror { background: none; }
 .CodeMirror div { display: block; }
 .CodeMirror { font-family: "Lato", sans-serif; overflow:visible; height: auto; font-weight:400; line-height: 26px; color: rgb(84,84,84); }
 .CodeMirror-scroll { height: auto; overflow: visible !important; }
@@ -268,7 +327,7 @@ content .csv { color: #A200A7;  }
 .masonry-row { display: flex; flex-direction: row; align-items: stretch; }
 .masonry-row > * { display: flex; }
 .masonry-row > .group { flex-direction: column; }
-.masonry-row .tile { flex: 1; }
+.masonry-row .directory-tile { flex: 1; }
 .masonry-row > .group.big { flex: 2; }
 .masonry-row > .group.detailed { flex: 1; }
 .masonry-row > .group.normal { flex: 1; }
@@ -280,17 +339,17 @@ content .csv { color: #A200A7;  }
 
 .directory-listing.masonry {  min-width: 600px; } /* @FIXME */
 .directory-listing.masonry .masonry-row { height: 96px; }
-.directory-listing.masonry .tile { justify-content: center; align-items: center; margin: 4px; background: #eee; border-radius: 2px; }
-.directory-listing .tile > * { flex: 0 0 auto; }
+.directory-listing.masonry .directory-tile { justify-content: center; align-items: center; margin: 4px; background: white; border-radius: 2px; }
+.directory-listing .directory-tile > * { flex: 0 0 auto; }
 
 /* Background patterns from subtlepatterns.com */
-.directory-listing.masonry .tile.tile-style-1 { }
-.directory-listing.masonry .tile.tile-style-2 { }
-.directory-listing.masonry .tile.tile-style-3 { }
-.directory-listing.masonry .tile.tile-style-4 { }
-.directory-listing.masonry .tile.tile-style-5 { }
-.directory-listing.masonry .tile.tile-style-6 { }
-.directory-listing.masonry .tile.tile-style-7 { }
+.directory-listing.masonry .directory-tile.tile-style-1 { }
+.directory-listing.masonry .directory-tile.tile-style-2 { }
+.directory-listing.masonry .directory-tile.tile-style-3 { }
+.directory-listing.masonry .directory-tile.tile-style-4 { }
+.directory-listing.masonry .directory-tile.tile-style-5 { }
+.directory-listing.masonry .directory-tile.tile-style-6 { }
+.directory-listing.masonry .directory-tile.tile-style-7 { }
 
 .table.overflow-list { margin: 4px; }
 .table.overflow-list .column { flex: 0; width: 72px; }
@@ -300,3 +359,25 @@ content .csv { color: #A200A7;  }
 .collapsible > header .collapse-toggle { margin-right: 1em; }
 .table-filter, .table-filter > * { display: flex; flex-direction: row; align-items: center; }
 .table-filter > * + *, .table-filter > * > * + * { margin-left: 1em; }
+
+/*---------------------------------------------------------
+- Dark
+---------------------------------------------------------*/
+
+.dark { background: #222; color: #ccc; }
+.dark .CodeMirror { color: #ccc; }
+.dark .scroller .top-scroll-fade { background:linear-gradient(#222 0%, transparent 100%); }
+.dark .scroller .bottom-scroll-fade { background:linear-gradient(transparent 0%, #222 100%); }
+.dark .card { background: #333; }
+.dark .card .tile { border-color: #444; }
+.dark .card .row { border-color: #444; }
+.dark .card .list > * { background: #444; }
+.dark header { border-color:#444; }
+.dark .card .header { border-color:#444; }
+.dark .card .tile-adder { background:#444; }
+.dark .card .tile-adder .tile { border-color: #555; }
+.dark .card .tile-adder .row { border-color: #555; }
+.dark .card .tile-adder .property { color: #999; }
+.dark .card .tile-adder .value { color: #ccc; }
+.dark .card .adding .tiles { border-color: #444; }
+.dark textarea, .dark input { color: #ccc; }

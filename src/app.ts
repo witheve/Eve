@@ -5,7 +5,6 @@ import * as runtime from "./runtime";
 import {UIRenderer} from "./uiRenderer";
 import {ENV, DEBUG, uuid} from "./utils";
 
-
 export var syncedTables = ["sourced eav", "view", "action", "action source", "action mapping", "action mapping constant", "action mapping sorted", "action mapping limit"];
 export var eveLocalStorageKey = "eve";
 
@@ -146,8 +145,13 @@ export function dispatch(event?: string, info?: { [key: string]: any }, dispatch
   } else {
     func(result, info);
   }
-  return result
+  return result;
 }
+
+// No-op dispatch to trigger a rerender or start a chain.
+handle("rerender", (changes:runtime.Diff) => {
+});
+
 
 //---------------------------------------------------------
 // State

@@ -4,9 +4,10 @@ import {parse as marked, Renderer as MarkedRenderer} from "../vendor/marked";
 import * as CodeMirror from "codemirror";
 import {copy, uuid, coerceInput, builtinId, autoFocus, KEYS, mergeObject, setEndOfContentEditable, slugify, location as getLocation} from "./utils";
 import {Diff, Query} from "./runtime";
-import {createEditor} from "./richTextEditor";
 import {Element, Handler, RenderHandler, Renderer} from "./microReact";
+import {createEditor} from "./richTextEditor";
 import * as uitk from "./uitk";
+import {navigate, preventDefault} from "./uitk";
 import {eve, eveLocalStorageKey, handle as appHandle, dispatch, activeSearches, renderer} from "./app";
 import {parseDSL} from "./parser";
 import {parse as nlparse, StateFlags, FunctionTypes} from "./NLQueryParser";
@@ -27,6 +28,7 @@ export let uiState:{
     table: {[key:string]: {field:string, direction:number}},
     collapsible: {[key:string]: {open:boolean}}
     attributes: any,
+    card: {[key: string]: any},
   },
   pane: {[paneId:string]: {settings: boolean}},
   prompt: {open: boolean, paneId?: string, prompt?: (paneId?:string) => Element},
@@ -36,6 +38,7 @@ export let uiState:{
     table: {},
     collapsible: {},
     attributes: {},
+    card: {},
   },
   pane: {},
   prompt: {open: false, paneId: undefined, prompt: undefined},
@@ -44,13 +47,8 @@ export let uiState:{
 //---------------------------------------------------------
 // Utils
 //---------------------------------------------------------
-
-function preventDefault(event) {
-  event.preventDefault();
-}
-
 // @NOTE: ids must not contain whitespace
-function asEntity(raw:string|number):string {
+export function asEntity(raw:string|number):string {
   let cleaned = raw && (""+raw).trim();
   if(!cleaned) return;
 
@@ -75,75 +73,142 @@ export function setURL(paneId:string, contains:string, replace?:boolean) {
 
   if(replace) window.history.replaceState(state, null, url);
   else window.history.pushState(state, null, url);
+
+  historyState = state;
+  historyURL = url;
+}
+
+function inferRepresentation(search:string|number, baseParams:{} = {}):{rep:string, params:{}} {
+  let params = copy(baseParams);
+  let entityId = asEntity(search);
+  let cleaned = (search && (""+search).trim().toLowerCase()) || "";
+  if(entityId || cleaned.length === 0) {
+    params.entity = entityId || builtinId("home");
+    if(params.entity === builtinId("home")) {
+      params.unwrapped = true;
+    }
+    return {rep: "entity", params};
+  }
+
+  let [rawContent, rawParams] = cleaned.split("|");
+  let parsedParams = getCellParams(rawContent, rawParams);
+  params = mergeObject(params, parsedParams);
+  if(params.rep === "table") {
+    params.search = cleaned;
+  }
+  return {rep: params.rep, params};
 }
 
 //---------------------------------------------------------
 // Dispatches
 //---------------------------------------------------------
+
+appHandle("ui update search", (changes: Diff, {paneId, value}) => {
+  let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value};
+  state.value = value;
+})
+
 appHandle("ui focus search", (changes:Diff, {paneId, value}:{paneId:string, value:string}) => {
   let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value};
   state.focused = true;
 });
-appHandle("ui set search", (changes:Diff, {paneId, value, peek, x, y, popState}:{paneId:string, value:string, peek: boolean, x?: number, y?: number, popState?: boolean}) => {
-  value = value.trim();
-  let entity = asEntity(value);
-  if(entity) value = entity;
-  let fact;
-  if(paneId === "p1") { // @TODO: Make this a constant
-    popoutHistory = [];
-  } else if(!popState) {
-    let popout = eve.findOne("ui pane", {kind: PANE.POPOUT});
-    if(popout) {
-      popoutHistory.push(popout.contains); // @FIXME: This is fragile
-    }
+
+
+// @TODO: abstract (search) => {rep, params} fn and use it to infer {rep, params} for set pane and set popout.
+// @TODO: Update pane(paneId) to take the actual pane fact so it's not tied to the DB.
+// @TODO: Update pane(pane) to just directly call represent with the pane's facts.
+
+
+appHandle("set pane", (changes:Diff, info:{paneId:string, kind?:PANE, rep?:string, contains?:string|number, params?:string|{}, popState?:boolean}) => {
+  // Infer valid rep and params if search has changed
+  if(info.contains !== undefined && !info.rep) {
+    let inferred = inferRepresentation(info.contains, typeof info.params === "string" ? parseParams(<string>info.params) : info.params);
+    info.rep = inferred.rep;
+    info.params = inferred.params;
+    if(!info.rep) throw new Error(`Could not infer a valid representation for search '${info.contains}' in pane '${info.paneId}'`);
+  }
+
+  // Fill missing properties from the previous fact, if present
+  let prev = eve.findOne("ui pane", {pane: info.paneId}) || {};
+  let {paneId, kind = prev.kind, rep = prev.rep, contains:raw = prev.contains, params:rawParams = prev.params, popState = false} = info;
+  if(kind === undefined || rep == undefined || raw === undefined || rawParams === undefined) {
+    throw new Error(`Cannot create new pane without all parameters specified for pane '${paneId}'`);
   }
   
-  if(!peek) {
-    let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value};
-    state.value = value;
-    state.focused = false;
-    fact = copy(eve.findOne("ui pane", {pane: paneId}));
-    fact.__id = undefined;
-    fact.contains = value;
-    changes.remove("ui pane", {pane: paneId});
-    let children = eve.find("ui pane parent", {parent: paneId});
-    for(let {pane:child} of children) {
-      changes.remove("ui pane position", {pane: child});
-      changes.remove("ui pane", {pane: child});
-    }
-    changes.remove("ui pane parent", {parent: paneId});
-    if(!popState) setURL(paneId, value);
-  } else {
-    let popout = eve.findOne("ui pane", {kind: PANE.POPOUT});
-    let neuePaneId;
-    if(!popout) {
-      neuePaneId = uuid();
-    } else {
-      neuePaneId = popout.pane;
-      changes.remove("ui pane", {pane: neuePaneId});
-    }
-    let state = uiState.widget.search[neuePaneId] = {value};
-    fact = {contains: value, pane: neuePaneId, kind: PANE.POPOUT};
-    if(!popout || paneId !== neuePaneId) {
-      if(x !== undefined && y !== undefined) {
-        changes.remove("ui pane position", {pane: neuePaneId});
-        changes.add("ui pane position", {pane: neuePaneId, x, y});
-      }
-      changes.remove("ui pane parent", {parent: paneId});
-      changes.add("ui pane parent", {pane: neuePaneId, parent: paneId});
-    }
-    paneId = neuePaneId;
+  let contains = asEntity(raw) || (""+raw).trim();
+  let params = typeof rawParams === "object" ? stringifyParams(rawParams) : rawParams || "";
+  let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value: contains, focused: false};
+  state.value = contains;
+  state.focused = false;
+  dispatch("remove pane", {paneId}, changes);
+  changes.add("ui pane", {pane:paneId, kind, rep, contains, params});
+
+  // @TODO: Make "p1" a constant
+  if(paneId === "p1") {
+    popoutHistory = [];
+    if(!popState) setURL(paneId, contains);
   }
-  changes.add("ui pane", fact);
 });
 
+appHandle("remove pane", (changes:Diff, {paneId}:{paneId:string}) => {
+  let children = eve.find("ui pane parent", {parent: paneId});
+  for(let {pane:child} of children) {
+    dispatch("remove pane", {paneId: child}, changes);
+  }
+  changes.remove("ui pane", {pane: paneId})
+    .remove("ui pane position", {pane: paneId})
+    .remove("ui pane parent", {parent: paneId})
+    .remove("ui pane parent", {pane: paneId});
+});
+
+appHandle("set popout", (changes:Diff, info:{parentId:string, rep?:string, contains?:string|number, params?:string|{}, x:string|number, y:string|number, popState?:boolean}) => {
+  // Recycle the parent's existing popout if it exists, otherwise create a new one
+  let parentId = info.parentId;
+  let paneId = uuid();
+  let children = eve.find("ui pane parent", {parent: parentId});
+  let parent = eve.findOne("ui pane", {pane: parentId});
+  var reusing = false;
+  if(parent && parent.kind === PANE.POPOUT) {
+    reusing = true;
+    paneId = parentId;
+    parentId = eve.findOne("ui pane parent", {pane: parentId}).parent;
+  }
+
+  // Infer valid rep and params if search has changed
+  if(info.contains && !info.rep) {
+    let inferred = inferRepresentation(info.contains, typeof info.params === "string" ? parseParams(<string>info.params) : info.params);
+    info.rep = inferred.rep;
+    info.params = inferred.params;
+    if(!info.rep) throw new Error(`Could not infer a valid representation for search '${info.contains}' in popout '${paneId}'`);
+  }
+
+  // Fill missing properties from the previous fact, if present
+  let prev = eve.findOne("ui pane", {pane: paneId}) || {};
+  let prevPos = eve.findOne("ui pane position", {pane: paneId}) || {};
+  let {rep = prev.rep, contains:raw = prev.contains, params:rawParams = prev.params, x = prevPos.x, y = prevPos.y, popState = false} = info;
+  if(rep === undefined || raw === undefined || rawParams === undefined || x === undefined || y === undefined) {
+    throw new Error(`Cannot create new popout without all parameters specified for pane '${paneId}'`);
+  }
+
+  if(reusing) {
+    x = prevPos.x;
+    y = prevPos.y;
+  }
+
+  let params = typeof rawParams === "string" ? rawParams : stringifyParams(rawParams);
+  let contains = asEntity(raw) || (""+raw).trim();
+
+  if(!popState && prev.pane) popoutHistory.push({rep: prev.rep, contains: prev.contains, params: prev.params, x: prevPos.x, y: prevPos.y});
+  dispatch("remove pane", {paneId}, changes);
+  changes.add("ui pane", {pane: paneId, kind: PANE.POPOUT, rep, contains, params})
+    .add("ui pane parent", {parent: parentId, pane: paneId})
+    .add("ui pane position", {pane: paneId, x, y});
+});
+
+// @TODO: take parentId
 appHandle("remove popup", (changes:Diff, {}:{}) => {
   let popup = eve.findOne("ui pane", {kind: PANE.POPOUT});
-  if(popup) {
-    let paneId = popup.pane;
-    changes.remove("ui pane", {pane: paneId});
-    changes.remove("ui pane position", {pane: paneId});
-  }
+  if(popup) dispatch("remove pane", {paneId: popup.pane}, changes);
   popoutHistory = [];
 });
 
@@ -152,15 +217,30 @@ appHandle("ui toggle search plan", (changes:Diff, {paneId}:{paneId:string}) => {
   state.plan = !state.plan;
 });
 
-appHandle("add sourced eav", (changes:Diff, eav:{entity:string, attribute:string, value:string|number, source:string}) => {
-  if(!eav.source) {
-    eav.source = uuid();
+appHandle("add sourced eav", (changes, eav:{entity:string, attribute:string, value:string|number, source:string, forceEntity: boolean}) => {
+  let {entity, attribute, value, source, forceEntity} = eav;
+  if(!source) {
+    source = uuid();
   }
-  let valueId = asEntity(eav.value);
+  let valueId = asEntity(value);
+  let coerced = coerceInput(value);
+  let strValue = value.toString().trim();
   if(valueId) {
-    eav.value = valueId;
+    value = valueId;
+  } else if(strValue[0] === '"' && strValue[strValue.length - 1] === '"') {
+    value = JSON.parse(strValue);
+  } else if(typeof coerced === "number") {
+    value = coerced;
+  } else if(forceEntity || attribute === "is a") {
+    let newEntity = uuid();
+    let pageId = uuid();
+    changes.dispatch("create page", {page: pageId,  content: ""})
+           .dispatch("create entity", {entity: newEntity, name: strValue, page: pageId});
+    value = newEntity;
+  } else {
+    value = coerced;
   }
-  changes.add("sourced eav", eav);
+  changes.add("sourced eav", {entity, attribute, value, source});
 });
 
 appHandle("remove sourced eav", (changes:Diff, eav:{entity:string, source:string}) => {
@@ -170,19 +250,19 @@ appHandle("remove sourced eav", (changes:Diff, eav:{entity:string, source:string
 appHandle("update page", (changes:Diff, {page, content}: {page: string, content: string}) => {
   changes.remove("page content", {page});
   changes.add("page content", {page, content});
-  let trimmed = content.trim();
-  let endIx = trimmed.indexOf("\n");
-  let name = trimmed.slice(1, endIx !== -1 ? endIx : undefined).trim();
-  let {entity} = eve.findOne("entity page", {page});
-  let {name:prevName = undefined} = eve.findOne("display name", {id: entity}) || {};
-  if(name !== prevName) {
-    changes.remove("display name", {id: entity, name: prevName});
-    changes.add("display name", {id: entity, name});
-    let parts = getLocation().split("/");
-    if(parts.length > 2 && parts[2].replace(/_/gi, " ") === entity) {
-      window.history.replaceState(window.history.state, null, `/${slugify(name)}/${slugify(entity)}`);
-    }
-  }
+  // let trimmed = content.trim();
+  // let endIx = trimmed.indexOf("\n");
+  // let name = trimmed.slice(1, endIx !== -1 ? endIx : undefined).trim();
+  // let {entity} = eve.findOne("entity page", {page});
+  // let {name:prevName = undefined} = eve.findOne("display name", {id: entity}) || {};
+  // if(name !== prevName) {
+  //   changes.remove("display name", {id: entity, name: prevName});
+  //   changes.add("display name", {id: entity, name});
+  //   let parts = getLocation().split("/");
+  //   if(parts.length > 2 && parts[2].replace(/_/gi, " ") === entity) {
+  //     window.history.replaceState(window.history.state, null, `/${slugify(name)}/${slugify(entity)}`);
+  //   }
+  // }
 });
 appHandle("create entity", (changes:Diff, {entity, page, name = "Untitled"}) => {
   changes
@@ -213,9 +293,10 @@ appHandle("create query", (changes:Diff, {id, content}) => {
 
 appHandle("insert query", (changes:Diff, {query}) => {
   query = query.trim().toLowerCase();
-  if(eve.findOne("query to id", {query})) return;
   let parsed = nlparse(query);
-  if(parsed[0].state === StateFlags.COMPLETE) {
+  let topParse = parsed[0];
+  if(eve.findOne("query to id", {query})) return;
+  if(topParse.state === StateFlags.COMPLETE) {
     let artifacts = parseDSL(parsed[0].query.toString());
     if(artifacts.changeset) changes.merge(artifacts.changeset);
     var rootId;
@@ -228,6 +309,45 @@ appHandle("insert query", (changes:Diff, {query}) => {
     changes.add("query to id", {query, id: rootId})
   }
 });
+
+appHandle("handle setAttribute in a search", (changes:Diff, {attribute, entity, value, replace}) => {
+  if(replace) {
+    //check if there's a generator, if so, remove that.
+    let generated = eve.find("generated eav", {entity, attribute});
+    if(generated.length) {
+      for(let gen of generated) {
+        changes.merge(dispatch("remove attribute generating query", {eav: {entity, attribute}, view: gen["source"]}));
+      }
+    } else {
+      changes.remove("sourced eav", {entity, attribute})
+    }
+  }
+  changes.merge(dispatch("add sourced eav", {entity, attribute, value}));
+});
+
+function dispatchSearchSetAttributes(query, chain?) {
+  if(!chain) {
+    chain = dispatch();
+  }
+  let parsed = nlparse(query);
+  let topParse = parsed[0];
+  let isSetSearch = false;
+  if(topParse.context.setAttributes.length) {
+    let attributes = [];
+    for(let attr of topParse.context.setAttributes) {
+      // @TODO: NLP needs to tell us whether we're supposed to modify this attribute
+      // or if we're just adding a new eav for it.
+      let replace = true;
+      let entity = attr.entity.id;
+      let attribute = attr.displayName;
+      chain.dispatch("handle setAttribute in a search", {entity, attribute, value: attr.value, replace});
+      attributes.push(`${attr.entity.displayName}`);
+    }
+    query = attributes.join(" and ");
+    isSetSearch = true;
+  }
+  return {chain, query, isSetSearch};
+}
 
 // @TODO: there's a lot of duplication between insert query, create query, and insert implication
 appHandle("insert implication", (changes:Diff, {query}) => {
@@ -311,10 +431,10 @@ let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, 
   [PANE.FULL]: (paneId, entityId) => ({
     c: "fullscreen",
     header: {t: "header", c: "flex-row", children: [
-      {c: "logo eve-logo", data: {paneId}, link: "", click: navigate},
+      // {c: "logo eve-logo", data: {paneId}, link: "", click: navigate},
       searchInput(paneId, entityId),
       {c: "controls visible", children: [
-        {c: "ion-gear-a toggle-settings", style: "font-size: 1.35em;", prompt: paneSettings, paneId, click: openPrompt}
+         {c: "ion-gear-a toggle-settings", style: "font-size: 1.35em;", prompt: paneSettings, paneId, click: openPrompt}
       ]}
     ]}
   }),
@@ -352,7 +472,7 @@ function closePrompt(event, elem) {
 
 function navigateParent(event, elem) {
   dispatch("remove popup", {paneId: elem.paneId})
-  .dispatch("ui set search", {paneId: elem.parentId, value: elem.link})
+  .dispatch("set pane", {paneId: elem.parentId, contains: elem.link})
   .commit();
 }
 
@@ -444,43 +564,53 @@ function loadedPrompt():Element {
 
 export function pane(paneId:string):Element {
   // @FIXME: Add kind to ui panes
-  let {contains = undefined, kind = PANE.FULL} = eve.findOne("ui pane", {pane: paneId}) || {};
-  let cleaned = contains && contains.trim().toLowerCase();
+  let {contains:rawContains = undefined, kind = PANE.FULL, rep = undefined, params:rawParams = undefined} = eve.findOne("ui pane", {pane: paneId}) || {};
+  let {results, params:parsedParams, content:contains} = queryUIInfo(rawContains || "home");
+  let params = mergeObject(parseParams(rawParams), parsedParams);
+  params.paneId = paneId;
   let makeChrome = paneChrome[kind];
   if(!makeChrome) throw new Error(`Unknown pane kind: '${kind}' (${PANE[kind]})`);
   let {c:klass, header, footer, captureClicks} = makeChrome(paneId, contains);
-  let content;
   let entityId = asEntity(contains);
 
-  let contentType = "entity";
-  if(contains.length === 0) {
-    content = entity(builtinId("home"), paneId, kind);
+  let content;
+  let contentType = "invalid";
+  if(contains.length === 0 || entityId) contentType = "entity";
+  else if(eve.findOne("query to id", {query: contains})) contentType = "search";
 
-  } else if(cleaned.indexOf("search: ") === 0) {
-    contentType = "search";
-    content = search(cleaned.substring("search: ".length), paneId);
-  } else if(entityId) {
-    let options:any = {};
-    content = entity(entityId, paneId, kind, options);
-  } else if(eve.findOne("query to id", {query: cleaned})) {
-    contentType = "search";
-    content = search(cleaned, paneId);
-  } else if(contains !== "") {
-    content = {c: "flex-row spaced-row", children: [
-      {t: "span", text: `The page ${contains} does not exist. Would you like to`},
-      {t: "a", c: "link btn add-btn", text: "create it?", name: contains, paneId, click: createPage }
-    ]};
+  if(params.rep || rep) {
+    content = represent(contains, params.rep || rep, results, params, (params.unwrapped ? undefined : (elem, ix?) => uitk.card({id: `${paneId}|${contains}|${ix === undefined ? "" : ix}`, children: [elem]})));
+    content.t = "content";
+    content.c = `${content.c || ""} ${params.unwrapped ? "unwrapped" : ""}`;
   }
 
-  if(contentType === "search") {
+  if(contentType === "invalid") {
+    var disambiguation = {c: "flex-row spaced-row disambiguation", children: [
+      {t: "span", text: `I couldn't find anything; should I`},
+      {t: "a", c: "link btn add-btn", text: `add ${contains}`, name: contains, paneId, click: createPage },
+      {t: "span", text: "?"},
+    ]};
+    content = undefined;
+  } else if(contentType === "search") {
+    // @TODO: This needs to move into Eve's notification / chat bar
     var disambiguation = {id: "search-disambiguation", c: "flex-row spaced-row disambiguation", children: [
-      {text: "Did you mean to"},
-      {t: "a", c: "link btn add-btn", text: "create a new page", name: contains, paneId, click: createPage},
-      {text: "with this name?"}
+      {text: "Or should I"},
+      {t: "a", c: "link btn add-btn", text: `add a card`, name: contains, paneId, click: createPage},
+      {text: `for ${contains}?`}
     ]};
   }
 
-  let pane:Element = {c: `wiki-pane ${klass || ""}`, paneId, children: [header, disambiguation, content, footer]};
+  let scroller = content;
+
+  if(kind === PANE.FULL) {
+    scroller = {c: "scroller", children: [
+      {c: "top-scroll-fade"},
+      content,
+      {c: "bottom-scroll-fade"},
+    ]};
+  }
+
+  let pane:Element = {c: `wiki-pane ${klass || ""}`, paneId, children: [header, disambiguation, scroller, footer]};
   let pos = eve.findOne("ui pane position", {pane: paneId});
   if(pos) {
     pane.style = `left: ${isNaN(pos.x) ? pos.x : pos.x + "px"}; top: ${isNaN(pos.y) ? pos.y : (pos.y + 20) + "px"};`;
@@ -491,36 +621,11 @@ export function pane(paneId:string):Element {
 
   if(uiState.prompt.open && uiState.prompt.paneId === paneId) {
     pane.children.push(
-      {style: "position: absolute; top: 0; left: 0; bottom: 0; right: 0; z-index: 10; background: rgba(0, 0, 0, 0.0);", paneId, click: closePrompt},
+      {c: "shade", paneId, click: closePrompt},
       uiState.prompt.prompt(paneId)
     );
   }
   return pane;
-}
-function createPage(evt:Event, elem:Element) {
-  let name = elem["name"];
-  let entity = uuid();
-  let page = uuid();
-  dispatch("create page", {page, content: `# ${name}\n`})
-    .dispatch("create entity", {entity, page, name}).commit();
-}
-
-function deleteEntity(event, elem) {
-  let name = uitk.resolveName(elem.entity);
-  dispatch("remove entity", {entity: elem.entity}).commit();
-  dispatch("ui set search", {paneId: elem.paneId, value: name}).commit();
-}
-
-function paneSettings(paneId:string) {
-  let pane = eve.findOne("ui pane", {pane: paneId});
-  let {entity = undefined} = eve.findOne("entity", {entity: uitk.resolveId(pane.contains)}) || {};
-  let isSystem = !!(entity && eve.findOne("entity eavs", {entity, attribute: "is a", value: builtinId("system")}));
-  return {t: "ul", c: "settings", children: [
-    {t: "li", c: "save-btn", text: "save", prompt: savePrompt, click: openPrompt},
-    {t: "li", c: "load-btn", text: "load", prompt: loadPrompt, click: openPrompt},
-    entity && !isSystem ? {t: "li", c: "delete-btn", text: "delete page", entity, paneId, click: deleteEntity} : undefined,
-    {t: "li", c: "delete-btn", text: "DELETE DATABASE", prompt: deleteDatabasePrompt, click: openPrompt},
-  ]};
 }
 
 export function search(search:string, paneId:string):Element {
@@ -534,6 +639,34 @@ export function search(search:string, paneId:string):Element {
     rep
   ]};
 }
+
+function createPage(evt:Event, elem:Element) {
+  let name = elem["name"];
+  let entity = uuid();
+  let page = uuid();
+  dispatch("create page", {page, content: ``})
+  .dispatch("create entity", {entity, page, name})
+  .dispatch("set pane", {paneId: elem.paneId, contains: entity, rep: "entity", params: ""}).commit();
+}
+
+function deleteEntity(event, elem) {
+  let name = uitk.resolveName(elem.entity);
+  dispatch("remove entity", {entity: elem.entity}).commit();
+  dispatch("set pane", {paneId: elem.paneId, contains: name}).commit();
+}
+
+function paneSettings(paneId:string) {
+  let pane = eve.findOne("ui pane", {pane: paneId});
+  let {entity = undefined} = eve.findOne("entity", {entity: uitk.resolveId(pane.contains)}) || {};
+  let isSystem = !!(entity && eve.findOne("entity eavs", {entity, attribute: "is a", value: builtinId("system")}));
+  return {t: "ul", c: "settings", children: [
+    {t: "li", c: "save-btn", text: "save", prompt: savePrompt, click: openPrompt},
+    {t: "li", c: "load-btn", text: "load", prompt: loadPrompt, click: openPrompt},
+    entity && !isSystem ? {t: "li", c: "delete-btn", text: "delete card", entity, paneId, click: deleteEntity} : undefined,
+    {t: "li", c: "delete-btn", text: "DELETE DATABASE", prompt: deleteDatabasePrompt, click: openPrompt},
+  ]};
+}
+
 function sizeColumns(node:HTMLElement, elem:Element) {
   // @FIXME: Horrible hack to get around randomly added "undefined" text node that's coming from in microreact.
   let cur = node;
@@ -595,10 +728,10 @@ function queryUIInfo(query) {
   let entityId = asEntity(content);
   if(entityId) {
     results = {unprojected: [{entity: entityId}], results: [{entity: entityId}]};
-    
+
   } else if(urlRegex.exec(content)) {
     results = {unprojected: [{url: content}], results: [{url: content}]};
-    
+
   } else {
     let cleaned = content && content.trim().toLowerCase();
     let queryId = eve.findOne("query to id", {query: cleaned});
@@ -608,14 +741,12 @@ function queryUIInfo(query) {
       if(!queryResults.length) {
         params["rep"] = "error";
         params["message"] = "No results";
-        results = {};
       } else {
         results = {unprojected: queryUnprojected, results: queryResults};
       }
     } else {
       params["rep"] = "error";
       params["message"] = "invalid search";
-      results = {};
     }
   }
   return {results, params, content};
@@ -644,15 +775,22 @@ function getCellParams(content, rawParams) {
         aggregates.push(fxn);
       }
     }
+    let totalFound = 0;
+    for(let item in context) {
+      totalFound += context[item].length;
+    }
     if(aggregates.length === 1 && context["groupings"].length === 0) {
       rep = "CSV";
       field = aggregates[0].name;
-    } else if(!hasCollections && context.fxns.length === 1) {
+    } else if(!hasCollections && context.fxns.length === 1 && context.fxns[0].type !== FunctionTypes.BOOLEAN) {
       rep = "CSV";
       field = context.fxns[0].name;
     } else if(!hasCollections && context.attributes.length === 1) {
       rep = "CSV";
       field = context.attributes[0].displayName;
+    } else if(context.entities.length + context.fxns.length === totalFound) {
+      // if there are only entities and boolean functions then we want to show this as cards
+      params["rep"] = "entity";
     } else {
       params["rep"] = "table";
     }
@@ -665,9 +803,10 @@ function getCellParams(content, rawParams) {
 }
 
 var paneEditors = {};
-function wikiEditor(node, elem) {
+export function wikiEditor(node, elem) {
   createEditor(node, elem);
-  paneEditors[elem.meta.paneId] = node.editor;
+  let {paneId, entityId} = elem.meta;
+  paneEditors[`${paneId}|${entityId}`] = node.editor;
 }
 
 function reparentCell(node, elem) {
@@ -729,7 +868,7 @@ function optionKeys(event, elem) {
 function executeAutocompleterOption(event, elem) {
   if(event.defaultPrevented) return;
   let {paneId, cell} = elem;
-  let editor = paneEditors[paneId];
+  let editor = paneEditors[cell.editorId];
   let cm = editor.cmInstance;
   let mark = editor.marks[cell.id];
   let doEmbed = makeDoEmbedFunction(cm, mark, cell, paneId);
@@ -756,7 +895,7 @@ function autocompleterOptions(entityId, paneId, cell) {
   if(contentEntityId) {
     text = uitk.resolveName(contentEntityId);
   }
-  
+
   let isEntity = eve.findOne("display name", {id: contentEntityId});
   let parsed = [];
   if(text !== "") {
@@ -784,8 +923,6 @@ function autocompleterOptions(entityId, paneId, cell) {
     options = modifyAutocompleteOptions(isEntity, parsed, text, params, entityId);
   } else if(state === "property") {
     options = propertyAutocompleteOptions(isEntity, parsed, text, params, entityId);
-  } else if(state === "attributes ui") {
-    options = attributesUIAutocompleteOptions(isEntity, parsed, text, params, entityId);
   } else if(state === "url") {
     options = urlAutocompleteOptions(isEntity, parsed, text, params, entityId);
   }
@@ -914,9 +1051,9 @@ function createAndEmbed(elem, value, doEmbed) {
   let entity = uuid();
   let page = uuid();
   let {entityId, attribute, replace} = elem.selected;
-  let chain = dispatch("create page", {page, content: `#${value}\n`})
-              .dispatch("create entity", {entity, page, name: value})
-              .dispatch("add sourced eav", {entity: entityId, attribute, value: entity, source: uuid()});
+  let chain = dispatch("create page", {page, content: ``})
+  .dispatch("create entity", {entity, page, name: value})
+  .dispatch("add sourced eav", {entity: entityId, attribute, value: entity, source: uuid()});
   if(replace) {
     chain.dispatch("remove entity attribute", {entity: entityId, attribute: replace, value: entity});
   }
@@ -1086,9 +1223,10 @@ function modifyAndEmbed(elem, text, doEmbed) {
 
 function interpretAttributeValue(value): {isValue: boolean, parse?:any, value?:any} {
   let cleaned = value.trim();
-  if(cleaned[0] === "=") {
+  let isNumber = parseFloat(value);
+  if(!isNumber) {
     //parse it
-    cleaned = cleaned.substring(1).trim();
+    cleaned = cleaned.trim();
     let entityId = asEntity(cleaned);
     if(entityId) {
       return {isValue: true, value: entityId};
@@ -1105,6 +1243,7 @@ function handleAttributeDefinition(entity, attribute, search, chain?) {
     chain = dispatch();
   }
   let {isValue, value, parse} = interpretAttributeValue(search);
+  console.log("HANDLING", isValue, value, parse);
   if(isValue) {
     chain.dispatch("add sourced eav", {entity, attribute, value}).commit();
   } else {
@@ -1122,7 +1261,7 @@ function handleAttributeDefinition(entity, attribute, search, chain?) {
     } else {
       //build a query
       let eavProject = `(query :$$view "${entity}|${attribute}|${id}" (select "${id}" :${params["field"].replace(" ", "-")} value)
-                               (project! "generated eav" :entity "${entity}" :attribute "${attribute}" :value value :source "${id}"))`;
+      (project! "generated eav" :entity "${entity}" :attribute "${attribute}" :value value :source "${id}"))`;
       chain.dispatch("insert implication", {query: eavProject}).commit();
     }
   }
@@ -1153,61 +1292,9 @@ function defineKeys(event, elem) {
   } else if(event.keyCode === KEYS.ESC) {
     dispatch("clearActiveCells").commit();
     if(elem.selected.paneId) {
-      paneEditors[elem.selected.paneId].cmInstance.focus();
+      paneEditors[cell.editorId].cmInstance.focus();
     }
   }
-}
-
-export function entity(entityId:string, paneId:string, kind: PANE, options:any = {}):Element {
-  let {content = undefined} = eve.findOne("entity", {entity: entityId}) || {};
-  if(content === undefined) return {text: "Could not find the requested page"};
-  let page = eve.findOne("entity page", {entity: entityId})["page"];
-  let name = uitk.resolveName(entityId);
-  let cells = getCells(content, paneId);
-  let keys = {
-    "Backspace": (cm) => maybeActivateCell(cm, paneId),
-    "Cmd-Enter": (cm) => maybeNavigate(cm, paneId),
-    "=": (cm) => createEmbedPopout(cm, paneId)
-  };
-  if(kind === PANE.POPOUT) {
-    keys["Esc"] = () => {
-      dispatch("remove popup", {}).commit();
-      let parent = eve.findOne("ui pane parent", {pane: paneId})["parent"];
-      paneEditors[parent].cmInstance.focus();
-    };
-  }
-  let finalOptions = mergeObject({keys}, options);
-  let cellItems = cells.map((cell, ix) => {
-    let ui;
-    let active = activeCells[cell.id];
-    if(active) {
-      ui = cellEditor(entityId, paneId, active || cell);
-    } else {
-      ui = cellUI(paneId, cell.query, cell);
-    }
-    ui.id = `${paneId}|${cell.id}`;
-    ui.postRender = reparentCell;
-    ui["containerId"] = `${paneId}|${cell.id}|container`;
-    ui["cell"] = cell;
-    return ui;
-  });
-  let attrs;
-  if(kind !== PANE.POPOUT) {
-    // attrs = uitk.attributes({entity: entityId, data: {paneId}, key: `${paneId}|${entityId}`});
-    attrs = attributesUI(entityId, paneId);
-    attrs.c += " page-attributes";
-  }
-  return {id: `${paneId}|${entityId}|editor`, t: "content", c: "wiki-entity", children: [
-    /* This is disabled because searching for just the name of a single entity resolves to a single find step which blows up on query compilation
-       {c: "flex-row spaced-row disambiguation", children: [
-       {text: "Did you mean to"},
-       {t: "a", c: "link btn add-btn", text: `search for '${name}'`, href: "#", name: search, data: {paneId}, link: `search: ${name}`, click: navigate},
-       {text: "instead?"}
-       ]},
-     */
-    {c: "wiki-editor", postRender: wikiEditor, onUpdate: updatePage, meta: {entity: entityId, page, paneId}, value: content, options: finalOptions, cells, children: cellItems},
-    attrs,
-  ]};
 }
 
 function maybeActivateCell(cm, paneId) {
@@ -1225,8 +1312,6 @@ function maybeActivateCell(cm, paneId) {
     if(cell) {
       let query = cell.query.split("|")[0];
       dispatch("addActiveCell", {id: cell.id, cell, query}).commit();
-      return;
-    } else if(pos.line === 1 && pos.ch === 0) {
       return;
     }
   }
@@ -1257,7 +1342,7 @@ function maybeNavigate(cm, paneId) {
   }
 }
 
-var activeCells = {};
+export var activeCells = {};
 
 appHandle("clearActiveCells", (changes, info) => {
   for(let cell in activeCells) {
@@ -1269,6 +1354,7 @@ appHandle("addActiveCell", (changes, info) => {
   changes.dispatch("clearActiveCells", {});
   let {id} = info;
   info.selected = 0;
+  info.editorId = info.cell.editorId;
   activeCells[id] = info;
 });
 
@@ -1312,18 +1398,15 @@ function activateCell(event, elem) {
   event.preventDefault();
 }
 
-function createEmbedPopout(cm, paneId) {
-  let coords = cm.cursorCoords("head", "page");
-  // dispatch("createEmbedPopout", {paneId, x: coords.left, y: coords.top - 20}).commit();
+function createEmbedPopout(cm, editorId) {
   cm.operation(() => {
     let from = cm.getCursor("from");
     let id = uuid();
     cm.replaceRange("=", from, cm.getCursor("to"));
-    if(from.line === 0) return;
     let to = cm.getCursor("from");
     let fromIx = cm.indexFromPos(from);
     let toIx = cm.indexFromPos(to);
-    let cell = {id, start: fromIx, length: toIx - fromIx, placeholder: true, query: "", paneId};
+    let cell = {id, start: fromIx, length: toIx - fromIx, placeholder: true, query: "", editorId};
     dispatch("addActiveCell", {id, query: "", cell, placeholder: true});
   });
 }
@@ -1349,7 +1432,7 @@ function makeDoEmbedFunction(cm, mark, cell, paneId) {
     if(cm.getRange(from, to) !== replacement) {
       cm.replaceRange(replacement, from, to);
     }
-    paneEditors[paneId].cmInstance.focus();
+    paneEditors[cell.editorId].cmInstance.focus();
     let chain = dispatch("removeActiveCell", cell);
     if(replacement) {
       chain.dispatch("insert query", {query: text});
@@ -1362,13 +1445,13 @@ function embeddedCellKeys(event, elem) {
   let {paneId, cell} = elem;
   let target = event.currentTarget;
   let value = target.textContent;
-  let editor = paneEditors[paneId];
+  let editor = paneEditors[cell.editorId];
   let cm = editor.cmInstance;
   let mark = editor.marks[cell.id];
   if(event.keyCode === KEYS.BACKSPACE && value === "") {
     let {from, to} = mark.find();
     cm.replaceRange("", from, to);
-    paneEditors[paneId].cmInstance.focus();
+    paneEditors[cell.editorId].cmInstance.focus();
     dispatch("removeActiveCell", cell).commit();
     event.preventDefault();
   } else if(event.keyCode === KEYS.ESC || (event.keyCode === KEYS.ENTER && value.trim() === "")) {
@@ -1376,7 +1459,7 @@ function embeddedCellKeys(event, elem) {
     if(cell.placeholder) {
       cm.replaceRange("= ", from, to);
     }
-    paneEditors[paneId].cmInstance.focus();
+    paneEditors[cell.editorId].cmInstance.focus();
     dispatch("removeActiveCell", cell).commit();
     event.preventDefault();
   } else if(event.keyCode === KEYS.ENTER) {
@@ -1398,25 +1481,46 @@ function embeddedCellKeys(event, elem) {
 }
 
 function updatePage(meta, content) {
-    dispatch("update page", {page: meta.page, content}).commit();
+  dispatch("update page", {page: meta.page, content}).commit();
 }
 
-function navigate(event, elem) {
-  let {paneId} = elem.data;
-  let info:any = {paneId, value: elem.link, peek: elem.peek};
-  if(event.clientX) {
-    info.x = "calc(50% - 350px)"; 
-    info.y = event.clientY;
-  }
-  dispatch("ui set search", info).commit();
-  event.preventDefault();
+//---------------------------------------------------------
+// Editor prep
+//---------------------------------------------------------
+
+function prepareCardEditor(entityId, paneId) {
+  var {content = undefined} = eve.findOne("entity", {entity: entityId}) || {};
+  var page = eve.findOne("entity page", {entity: entityId})["page"];
+  var name = uitk.resolveName(entityId);
+  var cells = getCells(content, `${paneId}|${entityId}`);
+  var cellItems = cells.map((cell, ix) => {
+    var ui;
+    var active = activeCells[cell.id];
+    if(active) {
+      ui = cellEditor(entityId, paneId, active || cell);
+    } else {
+      ui = cellUI(paneId, cell.query, cell);
+    }
+    ui.id = `${paneId}|${cell.id}`;
+    ui.postRender = reparentCell;
+    ui["containerId"] = `${paneId}|${cell.id}|container`;
+    ui["cell"] = cell;
+    return ui;
+  });
+  let editorId = `${paneId}|${entityId}`;
+  var keys = {
+    "Backspace": (cm) => maybeActivateCell(cm, editorId),
+    "Cmd-Enter": (cm) => maybeNavigate(cm, editorId),
+    "=": (cm) => createEmbedPopout(cm, editorId)
+  };
+  return {postRender: wikiEditor, onUpdate: updatePage, options: {keys: keys}, cells, cellItems};
 }
 
 //---------------------------------------------------------
 // Page parsing
 //---------------------------------------------------------
 
-function getCells(content: string, paneId) {
+function getCells(content: string, editorId) {
   let cells = [];
   let ix = 0;
   let ids = {};
@@ -1433,13 +1537,13 @@ function getCells(content: string, paneId) {
       if(part.match(/\{\$\$.*\$\$\}/)) {
         placeholder = true;
       }
-      cells.push({start: ix, length: part.length, value: part, query: part.substring(1, part.length - 1), id, placeholder});
+      cells.push({start: ix, length: part.length, value: part, query: part.substring(1, part.length - 1), id, placeholder, editorId});
     }
     ix += part.length;
   }
   for(let active in activeCells) {
     let cell = activeCells[active].cell;
-    if(cell.placeholder && cell.paneId === paneId) {
+    if(cell.placeholder && cell.editorId === editorId) {
       cells.push(cell);
     }
   }
@@ -1450,99 +1554,488 @@ function getCells(content: string, paneId) {
 // Attributes
 //---------------------------------------------------------
 
-function sortOnAttribute(a, b) {
-  let aAttr = a.eav.attribute;
-  let bAttr = b.eav.attribute;
-  if(aAttr < bAttr) return -1;
-  if(aAttr > bAttr) return 1;
-  return 0;
+appHandle("add entity attribute", (changes:Diff, {entity, attribute, value}) => {
+  let success = handleAttributeDefinition(entity, attribute.trim(), value, changes);
+});
+
+appHandle("toggle add tile", (changes:Diff, {key, entityId}) => {
+  let state = uiState.widget.card[key] || {showAdd: false};
+  state.showAdd = !state.showAdd;
+  state.entityId = entityId;
+  state.key = key;
+  // in case you closed it with an adder selected
+  if(state.showAdd) {
+    state.adder = undefined;
+  }
+  uiState.widget.card[key] = state;
+});
+
+appHandle("set tile adder", (changes:Diff, {key, adder}) => {
+  let state = uiState.widget.card[key] || {showAdd: true, key};
+  state.adder = adder;
+  uiState.widget.card[key] = state;
+});
+
+appHandle("set tile adder attribute", (changes:Diff, {key, attribute, value, isActiveTileAttribute}) => {
+  let state = uiState.widget.card[key] || {showAdd: true, key};
+  if(!isActiveTileAttribute) {
+    state[attribute] = value.trim();
+  } else {
+    state.activeTile[attribute] = value.trim();
+  }
+  uiState.widget.card[key] = state;
+});
+
+appHandle("submit tile adder", (changes:Diff, {key, node}) => {
+  let state = uiState.widget.card[key] || {showAdd: true, key};
+  if(state.adder && state.adder.submit) {
+    state.adder.submit(state.adder, state, node);
+  }
+  uiState.widget.card[key] = state;
+});
+
+appHandle("activate tile", (changes:Diff, {tileId, cardId}) => {
+  let state = uiState.widget.card[cardId] || {showAdd: false, key: cardId};
+  if(tileId && (!state.activeTile || state.activeTile.id !== tileId)) {
+    state.activeTile = {id: tileId};
+  } else if(!tileId) {
+    state.activeTile = undefined;
+  }
+  uiState.widget.card[cardId] = state;
+});
+
+function activateTile(event, elem) {
+  if(event.defaultPrevented) return;
+  dispatch("activate tile", {tileId: elem.tileId, cardId: elem.cardId}).commit();
 }
 
-function attributesUI(entityId, paneId) {
-  var eavs = eve.find("entity eavs", {entity: entityId});
-  var items = [];
-  for(let eav of eavs) {
-    let {entity, attribute, value} = eav;
-    let found = eve.findOne("generated eav", {entity, attribute, value});
-    let item:any = {eav, isManual: !found};
-    if(found) {
-      item.sourceView = found.source;
-    }
-    items.push(item);
+function submitActiveTile(event, elem) {
+  if(elem.source) {
+    // replace
+      dispatch("replace sourced tile", {key: elem.cardId, source:elem.source, attribute: elem.attribute, entityId: elem.entityId}).commit();
+  } else {
+    // handle a list submit
+    dispatch("submit list tile", {cardId: elem.cardId, attribute: elem.attribute, entityId: elem.entityId, reverseEntityAndValue: elem.reverseEntityAndValue}).commit();
   }
-  items.sort(sortOnAttribute);
-  let state = uiState.widget.attributes[entityId] || {};
-  let ix = 0;
-  let len = items.length;
-  let tableChildren = [];
-  while(ix < len) {
-    let item = items[ix];
-    let group = {children: []};
-    let subItem = item;
-    while(ix < len && subItem.eav.attribute === item.eav.attribute) {
-      let child:Element = {c: "value", eav: subItem.eav, children: []};
-      let valueUI:Element = subItem;
-      let relatedSourceView = false;
-      valueUI.value = subItem.eav.value;
-      valueUI["submit"] = submitAttribute;
-      valueUI["eav"] = subItem.eav;
-      if(!subItem.isManual) {
-        child.c += " generated";
-        relatedSourceView = state.sourceView === subItem.sourceView;
-        valueUI.text = valueUI.value;
-        if(state.active && state.active.__id === subItem.eav.__id) {
-          let query = eve.findOne("query to id", {id: subItem.sourceView}).query;
-          child.style = "background: red;";
-          valueUI.t = "input";
-          valueUI.value = "= " + query;
-          valueUI["query"] = valueUI.value;
-          valueUI["sourceView"] = subItem.sourceView;
-          valueUI.postRender = autoFocus;
-          valueUI.text = undefined;
-          child.children.push(valueUI);
-        } else if(relatedSourceView) {
-          child.style = "background: red;";
-          valueUI.text = "editing search...";
-        }
-        child["sourceView"] = subItem.sourceView;
-        child.click = setActiveAttribute;
-      } else {
-        valueUI.t = "input";
-      }
-      let display = eve.findOne("display name", {id: valueUI.value});
-      if(display && !relatedSourceView) {
-        if(!state.active || state.active.__id !== subItem.eav.__id) {
-          child.children.push({c: "link", text: display.name, data: {paneId}, link: display.id, click: navigate, peek: true});
-          child.click = setActiveAttribute;
-          valueUI.t = "div";
-        } else {
-          valueUI.value = `= ${display.name}`;
-          valueUI.postRender = autoFocus;
-          child.children.push(valueUI);
-        }
-      } else {
-        child.children.push(valueUI);
-      }
-      if(valueUI.t === "input") {
-        valueUI.keydown = handleAttributesKey;
-      } else {
-        child.children.push({c: "spacer no-mouse"});
-      }
-      child.children.push({c: "ion-android-close remove", eav: subItem.eav, sourceView: subItem.sourceView, query: valueUI["query"], click: removeSubItem});
-      group.children.push(child);
-      ix++;
-      subItem = items[ix];
+  event.preventDefault();
+}
+
+function removeActiveTile(event, elem) {
+  if(elem.source) {
+    dispatch("remove sourced eav", {source: elem.source}).commit();
+  } else {
+    console.error("Tried to remove a tile without a source. What do we do?");
+  }
+  event.preventDefault();
+}
+
+function tile(elem) {
+  let {cardId, tileId, active, attribute, entityId, source, reverseEntityAndValue} = elem;
+  let klass = (elem.c || "") + " tile";
+  if(active) {
+    klass += " active";
+  }
+  elem.c = klass;
+  elem.children = [
+    {c: "tile-content-wrapper", children: elem.children},
+    {c: "edit ion-edit", click: activateTile, cardId, tileId, entityId, source},
+    {c: "controls", children: [
+      !elem.removeOnly ? {c: "ion-checkmark submit", click: submitActiveTile, cardId, attribute, entityId, source, reverseEntityAndValue} : undefined,
+      !elem.submitOnly ? {c: "ion-backspace cancel", click: removeActiveTile, cardId, attribute, entityId, source} : undefined,
+    ]}
+  ];
+  return elem;
+}
+
+function isTileActive(cardId, tileId) {
+  let state = uiState.widget.card[cardId];
+  return state && state.activeTile && state.activeTile.id === tileId;
+}
+
+appHandle("toggle active tile item", (changes, {cardId, attribute, id}) => {
+  let state = uiState.widget.card[cardId] || {showAdd: true, key: cardId, activeTile: {}};
+  if(!state.activeTile[attribute]) {
+    state.activeTile[attribute] = {};
+  }
+  let cur = state.activeTile[attribute][id];
+  if(cur) {
+    delete state.activeTile[attribute][id];
+  } else {
+    state.activeTile[attribute][id] = true;
+  }
+  uiState.widget.card[cardId] = state;
+});
+
+appHandle("submit list tile", (changes, {cardId, attribute, entityId, reverseEntityAndValue}) => {
+  let state = uiState.widget.card[cardId] || {activeTile: {}};
+  let {itemsToRemove, itemsToAdd} = state.activeTile;
+  if(itemsToRemove) {
+    for(let source in itemsToRemove) {
+      changes.remove("sourced eav", {source});
     }
-    tableChildren.push({id: `${entityId}|${paneId}|${item.eav.attribute}`, c: "attribute", children: [
-      {c: "attribute-name", text: item.eav.attribute},
-      group,
+  }
+  if(itemsToAdd) {
+    for(let value of itemsToAdd) {
+      if(value === "" || value === undefined) continue;
+      if(!reverseEntityAndValue) {
+        changes.dispatch("add sourced eav", {entity: entityId, attribute, value: value.trim(), forceEntity: true});
+      } else {
+        let cleaned = value.trim();
+        let entityValue = asEntity(cleaned);
+        if(!entityValue) {
+          //create an entity with that name
+          entityValue = uuid();
+          let pageId = uuid();
+          changes.dispatch("create page", {page: pageId,  content: ""})
+                 .dispatch("create entity", {entity: entityValue, name: cleaned, page: pageId});
+        }
+        changes.dispatch("add sourced eav", {entity: entityValue, attribute, value: entityId});
+      }
+    }
+  }
+  changes.dispatch("activate tile", {cardId});
+});
+
+function toggleListTileItem(event, elem) {
+  dispatch("toggle active tile item", {cardId: elem.cardId, attribute: elem.storeAttribute, id: elem.storeId}).commit();
+  event.preventDefault();
+}
+
+appHandle("add active tile item", (changes, {cardId, attribute, id, value, tileId}) => {
+  let state = uiState.widget.card[cardId] || {showAdd: true, key: cardId, activeTile: {id: tileId}};
+  if(!state.activeTile) {
+    state.activeTile = {id: tileId};
+  }
+  if(!state.activeTile[attribute]) {
+    state.activeTile[attribute] = [];
+  }
+  let cur = state.activeTile[attribute][id];
+  state.activeTile[attribute][id] = value;
+  uiState.widget.card[cardId] = state;
+});
+
+function autosizeAndStoreListTileItem(event, elem) {
+  let node = event.currentTarget;
+  dispatch("add active tile item", {cardId: elem.cardId, attribute: elem.storeAttribute, tileId: elem.tileId, id: elem.storeId, value: node.value}).commit();
+  uitk.autosizeInput(node, elem);
+}
+
+export function listTile(elem) {
+  let {values, data, tileId, attribute, cardId, entityId, forceActive, reverseEntityAndValue, noProperty, rep="value", c:klass=""} = elem;
+  tileId = tileId || attribute;
+  let state = uiState.widget.card[cardId] || {};
+  let active = forceActive || isTileActive(cardId, tileId);
+  let listChildren = [];
+  let max = 0;
+  for(let value of values) {
+    let current = reverseEntityAndValue ? value.eav.entity : value.eav.value;
+    if(uitk.resolveName(current) === "entity" && attribute === "is a") continue;
+    let source = value.source;
+    let valueElem:any = {c: "value", data, text: current};
+    if(rep === "externalImage") {
+      valueElem.url = current;
+      valueElem.text = undefined;
+    }
+    let ui = uitk[rep](valueElem);
+    if(active) {
+      ui["cardId"] = cardId;
+      ui["storeAttribute"] = "itemsToRemove";
+      ui["storeId"] = source;
+      ui.click = toggleListTileItem;
+      if(state.activeTile.itemsToRemove && state.activeTile.itemsToRemove[source]) {
+        ui.c += " marked-to-remove";
+      }
+    }
+    listChildren.push(ui);
+  }
+  if(active) {
+    let added = (state.activeTile ? state.activeTile.itemsToAdd : false) || [];
+    let ix = 0;
+    for(let add of added) {
+      listChildren.push({c: "value", children: [
+        {t: "input", placeholder: "add", value: add, attribute, entityId, storeAttribute: "itemsToAdd", storeId: ix, cardId, input: autosizeAndStoreListTileItem, postRender: uitk.autosizeAndFocus, keydown: handleTileKeys, reverseEntityAndValue}
+      ]});
+      ix++;
+    }
+    listChildren.push({c: "value", children: [
+      {t: "input", placeholder: "add", value: "", attribute, entityId, storeAttribute: "itemsToAdd", storeId: ix, cardId, input: autosizeAndStoreListTileItem, postRender: ix === 0 ? uitk.autosizeAndFocus : uitk.autosizeInput, keydown: handleTileKeys, reverseEntityAndValue}
     ]});
   }
-  tableChildren.push({id: `${entityId}|${paneId}|adder`, c: "attribute adder", children: [
-    {t: "input", c: "attribute-name value", placeholder: "property", keydown: handleAttributesKey, input: setAdder, submit: submitAdder, field: "adderAttribute", entityId, value: state.adderAttribute},
-    {t: "input", c: "value", placeholder: "value", keydown: handleAttributesKey, input: setAdder, submit: submitAdder, field: "adderValue", entityId, value: state.adderValue},
-  ]});
-  return {c: "attributes", children: tableChildren};
+  let tileChildren = [];
+  let isIsA = attribute === "is a";
+  if(!noProperty) {
+    tileChildren.push({c: "property", text: isIsA ? "tags" : attribute});
+  }
+  tileChildren.push({c: "list", children: listChildren});
+  let size = isIsA ? "is a" : "full";
+  return tile({c: `${klass} ${size}`, size, cardId, data, tileId, active, attribute, entityId, reverseEntityAndValue, submitOnly: true, children: tileChildren});
+}
+
+function autosizeTextarea(node, elem) {
+  node.style.height = "1px";
+  node.style.height = 1 + node.scrollHeight + "px";
+}
+
+function autosizeAndFocusTextArea(node, elem) {
+  autoFocus(node, elem);
+  autosizeTextarea(node, elem);
+}
+
+function storeActiveTileValue(elem, value) {
+  dispatch("set tile adder attribute", {key: elem.cardId, attribute: elem.storeAttribute, value, isActiveTileAttribute: true}).commit();
+}
+
+appHandle("replace sourced tile", (changes, {key, attribute, entityId, source}) => {
+  let state = uiState.widget.card[key] || {activeTile: {}};
+  let {replaceValue} = state.activeTile;
+  let sourced = eve.findOne("sourced eav", {source});
+  if(!sourced) {
+    console.error("Tried to modify a sourced eav that doesn't exist?")
+    return;
+  }
+  if(replaceValue !== undefined && sourced.value !== replaceValue.trim()) {
+    changes.remove("sourced eav", {source});
+    if(attribute === "description") {
+      replaceValue = `"${replaceValue}"`;
+    }
+    changes.dispatch("add sourced eav", {entity: entityId, attribute, value: replaceValue, forceEntity: true});
+  }
+  changes.dispatch("activate tile", {cardId: key});
+});
+
+function handleTileKeys(event, elem) {
+  if(event.keyCode === KEYS.ENTER) {
+    if(elem.source) {
+      dispatch("replace sourced tile", {key: elem.cardId, source: elem.source, attribute: elem.attribute, entityId: elem.entityId}).commit();
+    } else {
+      dispatch("submit list tile", {cardId: elem.cardId, attribute: elem.attribute, entityId: elem.entityId, reverseEntityAndValue: elem.reverseEntityAndValue}).commit();
+    }
+    event.preventDefault();
+  } else if(event.keyCode === KEYS.ESC) {
+    dispatch("activate tile", {cardId: elem.cardId}).commit();
+  }
+}
+
+function autosizeAndStoreTextarea(event, elem) {
+  let node = event.currentTarget;
+  storeActiveTileValue(elem, node.value);
+  autosizeTextarea(node, elem);
+}
+
+function textTile(elem) {
+  let {value, data, attribute, cardId, entityId} = elem;
+  let tileId = value.source;
+  let source = value.source;
+  let state = uiState.widget.card[cardId] || {};
+  let active = isTileActive(cardId, tileId);
+  let tileChildren = [];
+  if(attribute !== "description") {
+    tileChildren.push({c: "property", text: attribute});
+  }
+  if(!active) {
+    tileChildren.push({c: "value text", text: value.eav.value});
+  } else {
+    tileChildren.push({t: "textarea", c: "value text", source, attribute, storeAttribute: "replaceValue", cardId, entityId,
+                      keydown: handleTileKeys, input: autosizeAndStoreTextarea, postRender: autosizeAndFocusTextArea, value: value.eav.value});
+  }
+  return tile({c: "full", tileId, cardId, entityId, attribute, source, active, children: tileChildren});
+}
+
+function autosizeAndStoreInput(event, elem) {
+  let node = event.currentTarget;
+  storeActiveTileValue(elem, node.value);
+  uitk.autosizeInput(node, elem);
+}
+
+function valueTile(elem) {
+  let {value, data, attribute, cardId, entityId} = elem;
+  let tileId = attribute;
+  let source = value.source;
+  let state = uiState.widget.card[cardId] || {};
+  let active = isTileActive(cardId, tileId);
+  let tileChildren = [];
+  tileChildren.push({c: "property", text: attribute});
+  let ui;
+  let content = uitk.resolveName(value.eav.value);
+  if(!content) content = value.eav.value;
+  if(!active) {
+    ui = uitk.value({c: "value", data, text: value.eav.value});
+  } else {
+    ui = {t: "input", c: "value", source, attribute, storeAttribute: "replaceValue", cardId, entityId, value: content, postRender: uitk.autosizeAndFocus,
+    input: autosizeAndStoreInput, keydown: handleTileKeys};
+  }
+  let max = Math.max(content.toString().length, 0);
+  tileChildren.push({c: "value", children: [ui]});
+  let size;
+  if(max <= 8) {
+    size = "small";
+  } else if(max <= 16) {
+    size = "medium";
+  } else {
+    size = "full";
+  }
+  let klass = size;
+  if(!value.isManual) {
+    klass += " computed";
+  }
+  return tile({c: klass, size, cardId, data, tileId, active, attribute, source, entityId, children: tileChildren});
+}
+
+function imageTile(elem) {
+  let {values, data, attribute, cardId, entityId} = elem;
+  let ui;
+  if(values.length > 1) {
+    elem.rep = "externalImage";
+    elem.noProperty = true;
+    elem.c = "image ";
+    ui = listTile(elem);
+  } else {
+    let value = values[0];
+    let source = value.source;
+    let size = "full";
+    let klass = "image full";
+    let tileId = attribute;
+    let tileChildren = [{t: "img", c: "image", src: `${value.eav.value}`}];
+    let active = isTileActive(cardId, tileId);
+    ui = tile({c: klass, size, cardId, data, tileId, active, attribute, source, entityId, children: tileChildren});
+  }
+  return ui;
+}
+
+function documentTile(elem) {
+  let {value, data, attribute, cardId, entityId} = elem;
+  let tileChildren = [];
+  let tileId = attribute;
+  let source = value.source;
+  let state = uiState.widget.card[cardId] || {};
+  let active = isTileActive(cardId, tileId);
+  let size = "full";
+  let klass = "document full";
+  return tile({c: klass, size, cardId, data, tileId, active, attribute, source, entityId, children: tileChildren});
+}
+
+function row(elem) {
+  elem.c = `${elem.c || ""} row flex-row`;
+  return elem;
+}
+
+function getEAVInfo(eav) {
+  let {entity, attribute, value} = eav;
+  let found = eve.findOne("generated eav", {entity, attribute, value});
+  let sourceId = eve.findOne("sourced eav", {entity, attribute, value});
+  let item:any = {eav, isManual: !found};
+  if(found) {
+    item.sourceView = found.source;
+    item.source = found.source;
+  } else if(sourceId) {
+    item.source = sourceId.source;
+  }
+  return item;
+}
+
+export function entityTilesUI(entityId, paneId, cardId) {
+  var eavs = eve.find("entity eavs", {entity: entityId});
+  var items = {};
+  var attrs = [];
+  for(let eav of eavs) {
+    let {attribute} = eav;
+    let info = getEAVInfo(eav);
+    if(!items[attribute]) {
+      items[attribute] = [];
+      attrs.push(attribute);
+    }
+    items[attribute].push(info);
+  }
+  let tiles = {"small": [], "medium": [], "full": [], "is a": []};
+  let rows = [];
+  let data = {paneId, entityId};
+  if(items["image"]) {
+    let values = items["image"];
+    let tile = imageTile({values, data, cardId, entityId, attribute: "image"});
+    rows.push(row({children: [tile]}));
+    delete items["image"];
+  }
+
+  if(items["description"]) {
+    let values = items["description"];
+    for(let value of values) {
+      let tile = textTile({value, data, cardId, entityId, attribute: "description"});
+      rows.push(row({children: [tile]}));
+    }
+    delete items["description"];
+  }
+  if(eve.findOne("collection", {collection: entityId}) || eve.findOne("entity eavs", {entity: entityId, attribute: "is a", value: asEntity("collection")})) {
+    let listChildren = [];
+    let entities = eve.find("entity eavs", {attribute: "is a", value: entityId});
+    let values = entities.map(getEAVInfo);
+    let tile = listTile({values, data, cardId, entityId, attribute: "is a", reverseEntityAndValue: true, tileId: "_collectionItems", noProperty: true});
+    rows.push(row({children: [tile]}));
+  }
+  let tilesToPlace = 0;
+  for(let attribute of attrs) {
+    let values = items[attribute];
+    if(!values) continue;
+    let newTile;
+    if(values.length > 1 || attribute === "is a") {
+      newTile = listTile({values, data, attribute, cardId, entityId});
+    } else {
+      newTile = valueTile({value: values[0], data, attribute, cardId, entityId});
+    }
+    let size = newTile.size;
+    tiles[size].push(newTile);
+    if(size !== "is a") tilesToPlace++;
+  }
+
+  let optionIx = 0;
+  while(tilesToPlace > 0) {
+    let rowChildren = [];
+    let iter = 0;
+    while(iter < 5 && !rowChildren.length) {
+      if(optionIx === 0 && tiles["full"].length) {
+        rowChildren.push(tiles["full"].pop());
+        break;
+      }
+      if(optionIx === 1 && tiles["medium"].length > 1) {
+        rowChildren.push(tiles["medium"].pop());
+        rowChildren.push(tiles["medium"].pop());
+        break;
+      }
+      if(optionIx === 2 && tiles["medium"].length && tiles["small"].length >= 1) {
+        rowChildren.push(tiles["medium"].pop());
+        rowChildren.push(tiles["small"].pop());
+        break;
+      }
+      if(optionIx === 3 && tiles["small"].length >= 3) {
+        rowChildren.push(tiles["small"].pop());
+        rowChildren.push(tiles["small"].pop());
+        rowChildren.push(tiles["small"].pop());
+        break;
+      }
+      if(optionIx === 4 && tiles["medium"].length) {
+        rowChildren.push(tiles["medium"].pop());
+        break;
+      }
+      if(optionIx > 4) optionIx = 0;
+      else optionIx++;
+      iter++;
+    }
+    // any smalls leftover
+    if(!rowChildren.length) {
+      while(tiles["small"].length) {
+        rowChildren.push(tiles["small"].pop());
+      }
+    }
+    tilesToPlace -= rowChildren.length;
+    rows.push({c: "flex-row row", children: rowChildren});
+  }
+
+  if(tiles["is a"]) {
+    rows.push({c: "flex-row row", children: [tiles["is a"][0]]});
+  }
+
+  let state = uiState.widget.attributes[entityId] || {};
+
+  return {c: "tiles", children: rows};
 }
 
 function attributesUIAutocompleteOptions(isEntity, parsed, text, params, entityId) {
@@ -1610,7 +2103,7 @@ function submitAdder(event, elem) {
   let success = false;
   if(adderAttribute && adderValue) {
     let chain = dispatch("setAttributeAdder", {entityId, field: "adderAttribute", value: ""})
-                .dispatch("setAttributeAdder", {entityId, field: "adderValue", value: ""});
+    .dispatch("setAttributeAdder", {entityId, field: "adderValue", value: ""});
     success = handleAttributeDefinition(entityId, adderAttribute, adderValue, chain);
   }
   //make sure the focus ends up back in the property input
@@ -1659,28 +2152,30 @@ function submitAttribute(event, elem) {
 // Wiki Widgets
 //---------------------------------------------------------
 export function searchInput(paneId:string, value:string):Element {
-  let name = value;
-  let display = eve.findOne("display name", {id: value});
+  let state:any = uiState.widget.search[paneId] || {focused: false, plan: false};
+  let name = state.value;
+  if(!state.value) state.value = name;
+  let display = eve.findOne("display name", {id: name});
   if(display) name = display.name;
-  let state = uiState.widget.search[paneId] || {focused: false, plan: false};
   return {
     c: "flex-grow wiki-search-wrapper",
     children: [
+      {c: "controls", children: [
+        // {c: `ion-ios-arrow-${state.plan ? 'up' : 'down'} plan`, click: toggleSearchPlan, paneId},
+        // while technically a button, we don't need to do anything as clicking it will blur the editor
+        // which will execute the search
+        {c: "ion-android-search visible", paneId}
+      ]},
       codeMirrorElement({
         c: `flex-grow wiki-search-input ${state.focused ? "selected": ""}`,
         paneId,
         value: name,
         focus: focusSearch,
         blur: setSearch,
-        // change: updateSearch,
+        cursorPosition: "end",
+        change: updateSearch,
         shortcuts: {"Enter": setSearch}
       }),
-      {c: "controls", children: [
-        {c: `ion-ios-arrow-${state.plan ? 'up' : 'down'} plan`, click: toggleSearchPlan, paneId},
-        // while technically a button, we don't need to do anything as clicking it will blur the editor
-        // which will execute the search
-        {c: "ion-android-search visible", paneId}
-      ]},
     ]
   };
 };
@@ -1689,16 +2184,23 @@ function focusSearch(event, elem) {
   dispatch("ui focus search", elem).commit();
 }
 function setSearch(event, elem) {
-  let value = event.value;
+  let state:any = uiState.widget.search[elem.paneId] || {value: ""};
+  let value = event.value !== undefined ? event.value : state.value;
   let pane = eve.findOne("ui pane", {pane: elem.paneId});
   if(!pane || pane.contains !== event.value) {
-    dispatch("insert query", {query: value})
-      .dispatch("ui set search", {paneId: elem.paneId, value: event.value})
+    let {chain, isSetSearch} = dispatchSearchSetAttributes(value);
+    if(isSetSearch) {
+      chain.dispatch("ui update search", {paneId: elem.paneId, value: pane.contains});
+      chain.commit();
+    } else {
+      chain.dispatch("insert query", {query: value})
+      .dispatch("set pane", {paneId: elem.paneId, contains: value})
       .commit();
+    }
   }
 }
 function updateSearch(event, elem) {
-  dispatch("ui update search", elem).commit();
+  dispatch("ui update search", {paneId: elem.paneId, value: event.value}).commit();
 }
 function toggleSearchPlan(event, elem) {
   dispatch("ui toggle search plan", elem).commit();
@@ -1721,6 +2223,12 @@ interface CMEvent extends Event {
 }
 export function codeMirrorElement(elem:CMElement):CMElement {
   elem.postRender = codeMirrorPostRender(elem.postRender);
+  elem["cmChange"] = elem.change;
+  elem["cmBlur"] = elem.blur;
+  elem["cmFocus"] = elem.focus;
+  elem.change = undefined;
+  elem.blur = undefined;
+  elem.focus = undefined;
   return elem;
 }
 
@@ -1750,13 +2258,18 @@ function codeMirrorPostRender(postRender?:RenderHandler):RenderHandler {
         mode: elem.mode || "text",
         extraKeys
       });
-      if(elem.change) cm.on("change", handleCMEvent(elem.change, elem));
-      if(elem.blur) cm.on("blur", handleCMEvent(elem.blur, elem));
-      if(elem.focus) cm.on("focus", handleCMEvent(elem.focus, elem));
+      if(elem["cmChange"]) cm.on("change", handleCMEvent(elem["cmChange"], elem));
+      if(elem["cmBlur"]) cm.on("blur", handleCMEvent(elem["cmBlur"], elem));
+      if(elem["cmFocus"]) cm.on("focus", handleCMEvent(elem["cmFocus"], elem));
       if(elem.autofocus) cm.focus();
     }
 
-    if(cm.getDoc().getValue() !== elem.value) cm.setValue(elem.value || "");
+    if(cm.getDoc().getValue() !== elem.value) {
+      cm.setValue(elem.value || "");
+      if(elem["cursorPosition"] === "end") {
+        cm.setCursor(100000);
+      }
+    }
     if(postRender) postRender(node, elem);
   }
 }
@@ -1852,10 +2365,154 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
     }
     return {values, data: params.data};
   },
+  entity(results, params) {
+    let entities = [];
+    let firstResult = results[0];
+    let fields = Object.keys(firstResult).filter((field) => {
+      return !!asEntity(firstResult[field]);
+    });
+    for(let result of results) {
+      for(let field of fields) {
+        var entityId = result[field];
+        var paneId = params["paneId"];
+        var editor = prepareCardEditor(entityId, paneId);
+        entities.push({entity: result[field], data: params, editor});
+      }
+    }
+    return entities;
+  },
   error(results, params) {
     return {text: params["message"]};
   },
-  table(results, params:{data?: {}}) {
+  table(results, params:{paneId?: string, data?: {paneId?: string}, search: string}) {
+    if(!params.search) return {rows: results, data: params.data};
+    let parsed = nlparse(params.search);
+    let topParse = parsed[0];
+    if(!topParse) return {rows: results, data: params.data};
+
+    // Must not contain any primitive relations
+    let editable = true;
+    let subject;
+    let fieldMap:{[field:string]: {type: string, source: any, complex?: boolean}} = {};
+    for(let ctx in topParse.context) {
+      if(ctx === "attributes" || ctx === "entities" || ctx === "collections") continue;
+      for(let node of topParse.context[ctx]) {
+        if(node.project) {
+          editable = false;
+          break;
+        }
+      }
+    }
+    
+    // Number of subjects (projected entities or collections) must be 1.
+    for(let node of topParse.context.collections) {
+      if(node.project) {
+        if(subject) {
+          editable = false;
+          break;
+        } else {
+          let name = subject = node.displayName;
+          fieldMap[name] = {type: "collection", source: node};
+        }
+      }
+    }
+    for(let node of topParse.context.entities) {
+      if(node.project) {
+        if(subject) {
+          editable = false;
+          break;
+        } else {
+          let name = subject = node.displayName;
+          console.log(node.id);
+          fieldMap[name] = {type: "entity", source: node};
+        }
+      }
+    }
+
+    if(editable) {
+      for(let node of topParse.context.attributes) {
+        if(node.project) {
+          fieldMap[node.displayName] = {type: "attribute", source: node};
+        }
+      }
+
+      function editRow(event, elem) {
+        let {table:tableElem, row} = elem.row;
+        
+        if(event.detail === "add") {
+          let state = elem.state.adder;
+          if(!state[subject] && fieldMap[subject].type === "entity") {
+            let entityId = fieldMap[subject].source.id;
+            state[subject] = entityId;
+            
+          } else if(elem.field === subject && fieldMap[subject].type === "collection") {
+            // @NOTE: Should this really be done by inserting "= " when the input is focused?
+            let entityId = asEntity(uitk.resolveValue(state[subject]));
+            if(entityId) {
+              console.log("subject id", entityId);
+              for(let field in fieldMap) {
+                // @FIXME: This is brittle, if fields are ever renamed (e.g., salary (2) this won't work correctly).
+                let {value = undefined} = eve.findOne("entity eavs", {entity: entityId, attribute: field}) || {};
+                console.log("defaulting field", field, "to", value);
+                if(value !== undefined && !state[field]) {
+                  state[field] = value;
+                }
+              }
+              dispatch("rerender");
+            }
+          }
+          
+          var valid = elem.fields.every((field) => {
+            return state[field] !== undefined;
+          });
+
+          
+          if(valid && elem.state.confirmed) {
+            console.log("valid", state);
+            let chain:any = dispatch("rerender");
+            // create entity if it doesn't exist?
+            let entity = state[subject];
+            if(fieldMap[subject].type === "collection") {
+              let name = state[subject];
+              entity = asEntity(name);
+              if(!entity) {
+                entity = uuid();
+                let pageId = uuid();
+                console.log(" - creating entity", entity);
+                chain.dispatch("create page", {page: pageId,  content: ""})
+                  .dispatch("create entity", {entity, name: state[subject], page: pageId});
+              }
+            }
+            
+            for(let field in fieldMap) {              
+              if(field === subject) continue;
+                
+              if(fieldMap[field].type === "attribute") {
+                let attr = fieldMap[field].source;
+                console.log(" - adding attr", attr.id, "=", uitk.resolveValue(state[field]), "for", entity);
+                chain.dispatch("add sourced eav", {entity, attribute: attr.id, value: uitk.resolveValue(state[field])});
+              }
+            }
+
+            for(let coll of topParse.context.collections) {
+              console.log(" - adding coll", "is a", "=", coll.id, "for", entity);
+              chain.dispatch("add sourced eav", {entity, attribute: "is a", value: coll.id});
+            }
+            
+            elem["state"]["adder"] = {};
+            console.log(chain);
+            chain.commit();
+            
+          } else if(event.detail === "remove") {
+            console.log("@FIXME: Implement remove");
+            //dispatch("remove entity attribute", {entity, attribute: row.attribute, value: row.value}).commit();
+          }
+        }
+      }
+
+      return {key: `${params.paneId || params.data.paneId}|${params.search || ""}`, rows: results, data: params.data, editCell: (evt, elem) => console.log("cell", evt, elem), editRow, confirmRow: true, removeRow: false};
+    }
+    
     return {rows: results, data: params.data};
   },
   directory(results, params:{data?:{}, field?:string}) {
@@ -1885,25 +2542,27 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
   },
 };
 
-function represent(search: string, rep:string, results, params:{}):Element {
-  // console.log("repping:", results, " as", rep, " with params ", params);
+function represent(search: string, rep:string, results, params:{}, wrapEach?:(elem:Element, ix?:number) => Element):Element {
   if(rep in _prepare) {
-    let embedParamSets = _prepare[rep](results.results, <any>params);
+    let embedParamSets = _prepare[rep](results && results.results, <any>params);
     let isArray = embedParamSets && embedParamSets.constructor === Array;
     try {
       if(!embedParamSets || isArray && embedParamSets.length === 0) {
         return uitk.error({text: `${search} as ${rep}`})
       } else if(embedParamSets.constructor === Array) {
         let wrapper = {c: "flex-column", children: []};
+        let ix = 0;
         for(let embedParams of embedParamSets) {
           embedParams["data"] = embedParams["data"] || params;
-          wrapper.children.push(uitk[rep](embedParams));
+          if(wrapEach) wrapper.children.push(wrapEach(uitk[rep](embedParams), ix++));
+          else wrapper.children.push(uitk[rep](embedParams));
         }
         return wrapper;
       } else {
         let embedParams = embedParamSets;
         embedParams["data"] = embedParams["data"] || params;
-        return uitk[rep](embedParams);
+        if(wrapEach) return wrapEach(uitk[rep](embedParams));
+        else return uitk[rep](embedParams);
       }
     } catch(err) {
       console.error("REPRESENTATION ERROR");
@@ -1911,17 +2570,21 @@ function represent(search: string, rep:string, results, params:{}):Element {
       console.error(err);
       return uitk.error({text: `Failed to embed as ${params["childRep"] || rep}`})
     }
+  } else {
+    console.error("REPRESENTATION ERROR");
+    console.error({search, rep, results, params});
+    return uitk.error({text: `Unknown representation ${params["childRep"] || rep}`});
   }
 }
 
-let historyState = window.history.state;
-let historyURL = getLocation();
+var historyState = window.history.state;
+var historyURL = getLocation();
 window.addEventListener("popstate", function(evt) {
   let popout = eve.findOne("ui pane", {kind: PANE.POPOUT});
   if(popout && popoutHistory.length) {
     window.history.pushState(historyState, null, historyURL);
-    let search = popoutHistory.pop();
-    dispatch("ui set search", {paneId: popout.pane, value: search, peek: true, popState: true}).commit();
+    let {rep, contains, params, x, y} = popoutHistory.pop();
+    dispatch("set popout", {parentId: "p1", rep, contains, params, x, y, popState: true}).commit(); // @TODO: make "p1" a constant
     return;
   } else if(evt.state && evt.state.root) {
     window.history.back();
@@ -1933,7 +2596,7 @@ window.addEventListener("popstate", function(evt) {
 
   let {paneId = undefined, contains = undefined} = evt.state || {};
   if(paneId === undefined || contains === undefined) return;
-  dispatch("ui set search", {paneId, value: contains, popState: true}).commit();
+  dispatch("set pane", {paneId, contains, popState: true}).commit();
 });
 
 // Prevent backspace from going back
