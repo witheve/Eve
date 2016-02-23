@@ -371,7 +371,7 @@ function collectionTileAdder(elem) {
   ]});
   let size = "full";
   let tileChildren = [];
-  tileChildren.push({t: "input", c: "property", placeholder: `${pluralize(resolveName(entityId), 2)}`, attribute: "collectionProperty", value: state.collectionProperty, input: trackPropertyAdderInput, key: cardId});
+  tileChildren.push({t: "input", c: "property", placeholder: `collection name`, attribute: "collectionProperty", value: state.collectionProperty, input: trackPropertyAdderInput, key: cardId});
   tileChildren.push({c: "list", children: listChildren});
   return {c: "property-adder collection-adder", children: [
     {children: [
@@ -432,6 +432,24 @@ function submitImage(adder, state, node) {
   chain.dispatch("toggle add tile", {key: state.key}).commit();
 }
 
+
+function comingSoonAdderUI(elem) {
+  let {entityId, key} = elem;
+  let state = _state.widget.card[key] || {};
+  return {c: "property-adder", children: [
+    {children: [
+      {c: "tile small", children: [
+        {c: "tile-content-wrapper", children: [
+          {text: "This tile type is coming soon."}
+        ]},
+        {c: "controls flex-row", children: [
+          {c: "ion-close cancel", click: setTileAdder, key},
+        ]}
+      ]}
+    ]}
+  ]};
+}
+
 export function tileAdder(elem) {
   let {entityId, key} = elem;
   let state = _state.widget.card[key] || {};
@@ -443,8 +461,8 @@ export function tileAdder(elem) {
       {name: "Description", icon: "ion-drag", ui: descriptionAdderUI, submit: submitDescription},
       {name: "Collection", klass: "collection", icon: "ion-ios-list-outline", ui: collectionAdderUI, submit: submitCollection},
       {name: "Image", icon: "ion-image", ui: imageAdderUI, submit: submitImage},
-      {name: "Document", icon: "ion-document"},
-      {name: "Computed", icon: "ion-calculator"},
+      {name: "Document", icon: "ion-document", ui: comingSoonAdderUI},
+      {name: "Computed", icon: "ion-calculator", ui: comingSoonAdderUI},
     ];
     let count = 0;
     let curRow = {c: "row flex-row", children: []};
