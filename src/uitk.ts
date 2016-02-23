@@ -724,7 +724,7 @@ export function tableBody(elem:TableBodyElem):Element {
     for(let field of groups) {
       if(openVals[field] === row[field]) { // The row is still contained within this group
         group = openRows[field];
-        group.rows.push(row);
+        group.children[0].rows.push(row);
       } else { // The row begins a new group at current level in the hierarchy
         openVals[field] = row[field];
         let cur = openRows[field] = {
