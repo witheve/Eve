@@ -108,8 +108,10 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
       }
     } else if (context.maybeAttributes.length > 0) {
       intent = Intents.MOREINFO;
-    } else if (context.relationships.length === 0) {
-      intent = Intents.NORESULT; 
+    } else if (context.relationships.length === 0 &&
+               context.nodes.length > 1 &&
+               context.fxns.length === 0) {
+      intent = Intents.NORESULT;
     } else {
       // Create the query from the new tree
       intent = Intents.QUERY;
@@ -954,6 +956,7 @@ interface Context {
   maybeCollections: Array<Node>,
   maybeFunctions: Array<Node>,
   maybeArguments: Array<Node>,
+  internalFxns: Array<Node>,
   nodes: Array<Node>,
   stateFlags: {list: boolean, insert: boolean},
 }
@@ -975,6 +978,7 @@ function newContext(): Context {
     maybeCollections: [],
     maybeFunctions: [],
     maybeArguments: [],
+    internalFxns: [],
     nodes: [],
     stateFlags: {list: false, insert: false},
   };
@@ -1146,7 +1150,12 @@ function findFunction(node: Node, context: Context): boolean {
   }
   node.found = true;
   node.type = NodeTypes.FUNCTION;
-  context.fxns.push(node);
+  if (node.fxn.type === FunctionTypes.AGGREGATE || 
+      node.fxn.type === FunctionTypes.CALCULATE ||
+      node.fxn.type === FunctionTypes.FILTER) {
+    context.fxns.push(node);      
+  }
+  context.internalFxns.push(node);
   return true;
 }
 
@@ -1351,7 +1360,7 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
         }
       }
       // filter context
-      context.fxns = context.fxns.filter((f) => !f.hasProperty(Properties.SUBSUMED));
+      context.internalFxns = context.internalFxns.filter((f) => !f.hasProperty(Properties.SUBSUMED));
       context.arguments = context.arguments.filter((a) => !a.parent.hasProperty(Properties.SUBSUMED));
       return {tree: tree, context: context};  
     }
@@ -1479,7 +1488,7 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
     }
     
     // Place the node onto a function if one is open
-    let openFunctions = context.fxns.filter((fxn) => !fxn.children.every((c) => c.found));
+    let openFunctions = context.internalFxns.filter((fxn) => !fxn.children.every((c) => c.found));
     for (let fxnNode of openFunctions) {
       let added = addNodeToFunction(node, fxnNode, context);
       if (added) {
@@ -1614,7 +1623,7 @@ function addNodeToFunction(node: Node, fxnNode: Node, context: Context): boolean
       let root = findParentWithProperty(fxnNode, Properties.ROOT);
       removeBranch(fxnNode);
       context.arguments.splice(context.arguments.indexOf(node.children[0]),1);
-      context.fxns.splice(context.fxns.indexOf(fxnNode),1);
+      context.internalFxns.splice(context.internalFxns.indexOf(fxnNode),1);
       node.properties.push(Properties.POSSESSIVE);
       root.addChild(node);
     } else {
