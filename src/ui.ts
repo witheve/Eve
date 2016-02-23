@@ -1777,9 +1777,10 @@ function tile(elem) {
     klass += " active";
   }
   elem.c = klass;
+  elem.click = activateTile;
   elem.children = [
     {c: "tile-content-wrapper", children: elem.children},
-    {c: "edit ion-edit", click: activateTile, cardId, tileId, entityId, source},
+    // {c: "edit ion-edit", click: activateTile, cardId, tileId, entityId, source},
     {c: "controls", children: [
       !elem.removeOnly ? {c: "ion-checkmark submit", click: submitActiveTile, cardId, attribute, entityId, source, reverseEntityAndValue} : undefined,
       !elem.submitOnly ? {c: "ion-backspace cancel", click: removeActiveTile, cardId, attribute, entityId, source} : undefined,
