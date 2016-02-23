@@ -10,7 +10,7 @@ import * as uitk from "./uitk";
 import {navigate, preventDefault} from "./uitk";
 import {eve, eveLocalStorageKey, handle as appHandle, dispatch, activeSearches, renderer} from "./app";
 import {parseDSL} from "./parser";
-import {parse as nlparse, StateFlags, FunctionTypes} from "./NLQueryParser";
+import {parse as nlparse, Intents, FunctionTypes} from "./NLQueryParser";
 
 
 export enum PANE { FULL, WINDOW, POPOUT };
@@ -296,7 +296,7 @@ appHandle("insert query", (changes:Diff, {query}) => {
   let parsed = nlparse(query);
   let topParse = parsed[0];
   if(eve.findOne("query to id", {query})) return;
-  if(topParse.state === StateFlags.COMPLETE) {
+  if(topParse.intent === Intents.QUERY) {
     let artifacts = parseDSL(parsed[0].query.toString());
     if(artifacts.changeset) changes.merge(artifacts.changeset);
     var rootId;
@@ -332,16 +332,24 @@ function dispatchSearchSetAttributes(query, chain?) {
   let parsed = nlparse(query);
   let topParse = parsed[0];
   let isSetSearch = false;
-  if(topParse.context.setAttributes.length) {
+  if(topParse.intent === Intents.INSERT) {
+    console.log(topParse.context);
+    debugger;
     let attributes = [];
-    for(let attr of topParse.context.setAttributes) {
+    for(let insert of topParse.inserts) {
       // @TODO: NLP needs to tell us whether we're supposed to modify this attribute
       // or if we're just adding a new eav for it.
       let replace = true;
-      let entity = attr.entity.id;
-      let attribute = attr.displayName;
-      chain.dispatch("handle setAttribute in a search", {entity, attribute, value: attr.value, replace});
-      attributes.push(`${attr.entity.displayName}`);
+      let entity = insert.entity.entity.id;
+      let attribute = insert.attribute.attribute.displayName;
+      let value;
+      if(insert.value.entity) {
+        value = insert.value.entity.id;
+      } else {
+        value = insert.value.name;
+      }
+      chain.dispatch("handle setAttribute in a search", {entity, attribute, value, replace});
+      attributes.push(`${attribute}`);
     }
     query = attributes.join(" and ");
     isSetSearch = true;
@@ -584,8 +592,9 @@ export function pane(paneId:string):Element {
     content.c = `${content.c || ""} ${params.unwrapped ? "unwrapped" : ""}`;
   }
 
+  var disambiguation:Element;
   if(contentType === "invalid") {
-    var disambiguation = {c: "flex-row spaced-row disambiguation", children: [
+    disambiguation = {c: "flex-row spaced-row disambiguation", children: [
       {t: "span", text: `I couldn't find anything; should I`},
       {t: "a", c: "link btn add-btn", text: `add ${contains}`, name: contains, paneId, click: createPage },
       {t: "span", text: "?"},
@@ -593,7 +602,7 @@ export function pane(paneId:string):Element {
     content = undefined;
   } else if(contentType === "search") {
     // @TODO: This needs to move into Eve's notification / chat bar
-    var disambiguation = {id: "search-disambiguation", c: "flex-row spaced-row disambiguation", children: [
+    disambiguation = {id: "search-disambiguation", c: "flex-row spaced-row disambiguation", children: [
       {text: "Or should I"},
       {t: "a", c: "link btn add-btn", text: `add a card`, name: contains, paneId, click: createPage},
       {text: `for ${contains}?`}
@@ -646,7 +655,7 @@ function createPage(evt:Event, elem:Element) {
   let page = uuid();
   dispatch("create page", {page, content: ``})
   .dispatch("create entity", {entity, page, name})
-  .dispatch("set pane", {paneId: elem.paneId, contains: entity, rep: "entity", params: ""}).commit();
+  .dispatch("set pane", {paneId: elem["paneId"], contains: entity, rep: "entity", params: ""}).commit();
 }
 
 function deleteEntity(event, elem) {
@@ -766,6 +775,7 @@ function getCellParams(content, rawParams) {
     let parsed = nlparse(content);
     let currentParse = parsed[0];
     let context = currentParse.context;
+    console.log(context);
     let hasCollections = context.collections.length;
     let field;
     let rep;
@@ -787,7 +797,8 @@ function getCellParams(content, rawParams) {
       field = context.fxns[0].name;
     } else if(!hasCollections && context.attributes.length === 1) {
       rep = "CSV";
-      field = context.attributes[0].displayName;
+      field = context.attributes[0].name;
+      console.log(context);
     } else if(context.entities.length + context.fxns.length === totalFound) {
       // if there are only entities and boolean functions then we want to show this as cards
       params["rep"] = "entity";
@@ -953,7 +964,7 @@ function positionAutocompleter(node, elem) {
 function queryAutocompleteOptions(isEntity, parsed, text, params, entityId) {
   let pageName = uitk.resolveName(entityId);
   let options:{score: number, action: any, text: string, [attr:string]: any}[] = [];
-  let hasValidParse = parsed.some((parse) => parse.state === StateFlags.COMPLETE);
+  let hasValidParse = parsed.some((parse) => parse.intent === Intents.QUERY);
   parsed.sort((a, b) => b.score - a.score);
   let topOption = parsed[0];
   let joiner = "a";
@@ -1110,7 +1121,7 @@ function embedAs(elem, value, doEmbed) {
 function propertyAutocompleteOptions(isEntity, parsed, text, params, entityId) {
   let options:{score: number, action: any, text?: string, [attr:string]: any}[] = [];
   let topParse = parsed[0];
-  let asQuery = topParse && topParse.state === StateFlags.COMPLETE;
+  let asQuery = topParse && topParse.intent === Intents.QUERY;
   let option:any = {score: 1, action: definePropertyAndEmbed, entityId, asQuery};
   option.children = [
     {c: "attribute-name", text: "property"},
