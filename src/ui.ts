@@ -172,6 +172,15 @@ appHandle("set popout", (changes:Diff, info:{parentId:string, rep?:string, conta
     reusing = true;
     paneId = parentId;
     parentId = eve.findOne("ui pane parent", {pane: parentId}).parent;
+  } else if(children.length) {
+    //check if there is already a child popout
+    for(let childRel of children) {
+      let child = eve.findOne("ui pane", {pane: childRel.pane});
+      if(child.kind === PANE.POPOUT) {
+        paneId = child.pane;
+        break;
+      }
+    }
   }
 
   // Infer valid rep and params if search has changed
