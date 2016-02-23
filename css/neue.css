@@ -30,7 +30,7 @@ body { height: 100vh; width: 100vw; }
 .logo { width: 48px; height: 48px; background-size: contain; background-position: top center; background-repeat: no-repeat; }
 .eve-logo { width: 28px; height: 32.5px; background-size: cover; background-image: url("http://www.witheve.com/logo.png"); }
 
-#perfStats { position: absolute; background: rgba(255, 255, 255, 0.6); padding:10px; bottom: 5px; right: 5px; color: #888; z-index: 20; flex-direction:row; border-radius:3px; }
+#perfStats { position: fixed; background: rgba(255, 255, 255, 0.6); padding:10px; bottom: 5px; right: 5px; color: #888; z-index: 20; flex-direction:row; border-radius:3px; }
 #perfStats > * + * { margin-left:20px; }
 
 .shade { position: absolute; top: 0; left: 0; bottom: 0; right: 0; z-index: 10; background: rgba(0, 0, 0, 0.0); align-items: center; justify-content: center; }
