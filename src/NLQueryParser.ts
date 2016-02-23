@@ -614,7 +614,12 @@ function newNode(token: Token): Node {
     token: token, 
     properties: token.properties,
     relationships: [],
-    representations: undefined,
+    representations: {
+      entity: undefined,
+      collection: undefined,
+      attribute: undefined,
+      fxn: undefined,  
+    },
     found: false,
     hasProperty: hasProperty,
     toString: nodeToString,
@@ -1264,7 +1269,6 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
       handled: true,
     }
     node.quantity = parseFloat(node.name);
-    node.representations = {};
     node.properties.push(Properties.ATTRIBUTE);
     node.type = NodeTypes.NUMBER;
     node.attribute = quantityAttribute;
@@ -1300,7 +1304,7 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
     }
     context.maybeAttributes.push(node);
     return {tree: tree, context: context};
-  } else if (node.found && node.representations === undefined) {
+  } else if (node.found) {
     findAlternativeRepresentations(node);
   }
   
@@ -1970,7 +1974,7 @@ export function findCollToCollRelationship(collA: Node, collB: Node, context: Co
     return {type: RelationshipTypes.NONE};
   } else if (intersectionSize > 0) {
     log(" Found Intersection relationship.");
-    collB.collection.variable = collA.collection.variable;
+    collA.collection.variable = collB.collection.variable;
     collB.collection.project = true;
     collA.collection.project = false;
     return {type: RelationshipTypes.INTERSECTION, nodes: [collA, collB]};
@@ -2151,8 +2155,8 @@ function findAttribute(node: Node, context: Context): boolean {
     return false;
   }
   let attribute: Attribute;
-  if (node.representations.entity) {
-    attribute = node.representations.entity;
+  if (node.representations.attribute) {
+    attribute = node.representations.attribute;
   } else {
     attribute = findEveEntity(node.name);
     context.found.push(node);
