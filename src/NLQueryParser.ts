@@ -11,7 +11,14 @@ export interface Result {
   context: Context,
   tokens: Array<Token>,
   tree: Node,
-  query: Query,
+  query?: Query,
+  insert?: Array<Insert>,
+}
+
+export interface Insert {
+  entity: Node,
+  attribute: Node,
+  value: Node,
 }
 
 export enum Intents {
@@ -648,14 +655,16 @@ function removeNode(node: Node): Node {
   if (node.parent === undefined && node.children.length === 0) {
     return undefined;
   }
+  let children: Array<Node> = node.children;
   let parent: Node = node.parent;
-  let children: Array<Node> = node.children;  
   // Rewire
-  parent.children = parent.children.concat(children);
-  parent.children.sort((a,b) => a.ix - b.ix);
-  children.map((child) => child.parent = parent);
+  if (parent !== undefined) {
+    parent.children = parent.children.concat(children);
+    parent.children.sort((a,b) => a.ix - b.ix);
+    parent.children.splice(parent.children.indexOf(node),1);
+    children.map((child) => child.parent = parent);
+  }
   // Get rid of references on current node
-  parent.children.splice(parent.children.indexOf(node),1);
   node.parent = undefined;
   node.children = [];
   return node;
@@ -893,6 +902,7 @@ interface Context {
   maybeCollections: Array<Node>,
   maybeFunctions: Array<Node>,
   maybeArguments: Array<Node>,
+  nodes: Array<Node>,
   stateFlags: {list: boolean, insert: boolean},
 }
 
@@ -914,6 +924,7 @@ function newContext(): Context {
     maybeCollections: [],
     maybeFunctions: [],
     maybeArguments: [],
+    nodes: [],
     stateFlags: {list: false, insert: false},
   };
 }
@@ -1013,7 +1024,7 @@ function stringToFunction(word: string): BuiltInFunction {
     case "is an":
       return {name: "insert", type: FunctionTypes.INSERT, fields: [{name: "entity", types: [Properties.ENTITY]}, 
                                                                    {name: "attribute", types: [Properties.ATTRIBUTE]}, 
-                                                                   {name: "set to", types: [Properties.ATTRIBUTE, Properties.QUANTITY]}], project: false};
+                                                                   {name: "root", types: all}], project: false};
     case "are":
       return {name: "insert", type: FunctionTypes.INSERT, fields: [{name: "collection", types: [Properties.COLLECTION]},
                                                                    {name: "collection", types: [Properties.COLLECTION]}], project: false}; 
@@ -1085,11 +1096,14 @@ function findFunction(node: Node, context: Context): boolean {
   return true;
 }
 
-function formTree(node: Node, tree: Node, context: Context): any {  
+function formTree(node: Node, tree: Node, context: Context): {tree: Node, context: Context} {
   log("--------------------------------");
   log(node.toString());
   log(context);
-
+  if (context.nodes.indexOf(node) === -1) {
+    context.nodes.push(node);
+  }
+  
   // Don't do anything with subsumed nodes
   if (node.hasProperty(Properties.SUBSUMED)) {
     log("Skipping...");
@@ -1173,7 +1187,7 @@ function formTree(node: Node, tree: Node, context: Context): any {
     }
   }
   
-  // Turn matched ngrams into compound nodes
+  // Turn matched ngrams into compound nodes  
   for (let ngram of matchedNgrams) {
     // Don't do anything for 1-grams
     if (ngram.length === 1) {
@@ -1199,28 +1213,8 @@ function formTree(node: Node, tree: Node, context: Context): any {
   }
   log('-------');
 
-
   // -------------------------------------
-  // Step 3: Switch the state
-  // -------------------------------------
-
-
-  // If we are in an insert state, don't bother identifying the node and just add the node to the
-  // "set to" attribute
-  if (context.stateFlags.insert) {
-    log(`Adding "${node.name}" to insert`);
-    // find the insert arg
-    let insertFxn = context.fxns.filter((f) => f.type === FunctionTypes.INSERT)[0].node;
-    if (insertFxn.children[0].found && insertFxn.children[1].found) {
-      let insertArg = insertFxn.children[2];
-      insertArg.found = true;
-      insertArg.addChild(node);
-      return {tree: tree, context: context};  
-    }
-  }
-
-  // -------------------------------------
-  // Step 3: Identify the node
+  // Step 2: Identify the node
   // -------------------------------------
   
   // If the node is a quantity, just build an attribute
@@ -1257,14 +1251,23 @@ function formTree(node: Node, tree: Node, context: Context): any {
   }
   
   // If the node wasn't found at all, don't try to place it anywhere
-  if (!node.found) {
+  if (!node.found && context.stateFlags.insert === false) {
+    context.maybeAttributes.push(node);
+    return {tree: tree, context: context};
+  } else if (!node.found && context.stateFlags.insert === true) {
+    let root = context.arguments.filter((a) => a.hasProperty(Properties.ROOT)).pop();
+    if (root !== undefined) {
+      node.found = true;
+      addNodeToFunction(node, root.parent, context);
+    }
+    context.maybeAttributes.push(node);
     return {tree: tree, context: context};
   } else if (node.found && node.representations === undefined) {
     findAlternativeRepresentations(node);
   }
   
   // -------------------------------------
-  // Step 4: Insert the node into the tree
+  // Step 3: Insert the node into the tree
   // -------------------------------------
   
   log("Matching: " + node.name);
@@ -1290,6 +1293,9 @@ function formTree(node: Node, tree: Node, context: Context): any {
           formTree(child, tree, context);
         }
       }
+      // filter context
+      context.fxns = context.fxns.filter((f) => !f.node.hasProperty(Properties.SUBSUMED));
+      context.arguments = context.arguments.filter((a) => !a.parent.hasProperty(Properties.SUBSUMED));
       return {tree: tree, context: context};  
     }
   }
@@ -1315,6 +1321,33 @@ function formTree(node: Node, tree: Node, context: Context): any {
         }
         newRoot.found = true;
       }
+    // If the node is an insert, attach unidentified words  
+    } else if (node.fxn.type === FunctionTypes.INSERT) {
+      // Find an entity
+      let entity = context.found.filter((n) => n.hasProperty(Properties.ENTITY) && n.token.ix < node.token.ix).shift();
+      if (entity !== undefined) {
+        removeNode(entity);
+        addNodeToFunction(entity, node, context);  
+        // Find an attribute
+        let attribute = context.found.filter((n) => n.hasProperty(Properties.ATTRIBUTE) && n.token.ix > entity.token.ix).pop();
+        if (attribute !== undefined) {
+          removeNode(attribute);
+          addNodeToFunction(attribute, node, context);
+        } else {
+          let maybeAttributes = context.nodes.filter((ma) => ma.token.ix > entity.token.ix + 1);
+          maybeAttributes.pop();
+          if (maybeAttributes.length > 0) {
+            maybeAttributes.map(removeNode);
+            let nName = maybeAttributes.map((ma) => ma.name).join(" ");
+            let nToken = newToken(nName);
+            nToken.ix = maybeAttributes[0].ix;
+            let nNode = newNode(nToken);  
+            nNode.found = true;
+            nNode.properties.push(Properties.ATTRIBUTE);
+            addNodeToFunction(nNode, node, context);
+          }
+        }
+      }  
     // If the node is a filter, attach filter nodes  
     } else if (node.fxn.type === FunctionTypes.FILTER) {
       // If an attribute is specified, create an attribute node for each one
@@ -1407,6 +1440,12 @@ function formTree(node: Node, tree: Node, context: Context): any {
       }
     }
   }
+  
+  // Switch state
+  if (node.fxn && node.fxn.type === FunctionTypes.INSERT) {
+    context.stateFlags.insert = true;
+  }
+  
   log("Tree:");
   log(tree.toString());
   return {tree: tree, context: context};
@@ -1485,12 +1524,18 @@ function addNodeToFunction(node: Node, fxnNode: Node, context: Context): boolean
     arg = fxnNode.children.filter((c) => c.hasProperty(Properties.ATTRIBUTE) && !c.found).shift();
   } else if (node.hasProperty(Properties.FUNCTION)) {
     arg = fxnNode.children.filter((c) => c.hasProperty(Properties.FUNCTION) && !c.found).shift();
+  } else {
+    arg = fxnNode.children.filter((c) => c.hasProperty(Properties.ROOT)).shift();
   }
+  
+  
+  
   // Add the node to the arg
   if (arg !== undefined) {
     if (fxnNode.fxn.type === FunctionTypes.SELECT) {
       let root = findParentWithProperty(fxnNode, Properties.ROOT);
       removeBranch(fxnNode);
+      context.arguments.splice(context.arguments.indexOf(node.children[0]),1);
       node.properties.push(Properties.POSSESSIVE);
       root.addChild(node);
     } else {
@@ -1667,6 +1712,7 @@ interface Relationship {
 function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relationship {
   let relationship = {type: RelationshipTypes.NONE};
   if ((nodeA === nodeB) || 
+      (context.stateFlags.insert) ||
       (nodeA.hasProperty(Properties.QUANTITY) || nodeB.hasProperty(Properties.QUANTITY))) {
     return relationship;
   }
@@ -1697,6 +1743,7 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
     context.relationships.push(relationship);
   // If no relationship was found, change the representation of the node
   } else {
+    /*
     let repChanged = false;
     // If one node is possessive, it suggests the other should be represented as an attribute of the first
     if (nodeA.hasProperty(Properties.POSSESSIVE) && nodeB.representations.attribute !== undefined) {
@@ -1708,7 +1755,7 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
     }
     if (repChanged) {
       relationship = findRelationship(nodeA, nodeB, context);
-    }
+    }*/
   }
   return relationship;
   
