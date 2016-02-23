@@ -25,7 +25,7 @@ var popoutHistory = [];
 export let uiState:{
   widget: {
     search: {[paneId:string]: {value:string, plan?:boolean, focused?:boolean, submitted?:string}},
-    table: {[key:string]: {field:string, direction:number}},
+    table: {[key:string]: {sortField:string, sortDirection:number, adder:{}}},
     collapsible: {[key:string]: {open:boolean}}
     attributes: any,
     card: {[key: string]: any},
@@ -97,6 +97,86 @@ function inferRepresentation(search:string|number, baseParams:{} = {}):{rep:stri
     params.search = cleaned;
   }
   return {rep: params.rep, params};
+}
+
+function staticOrMappedTable(search:string, params) {
+  let parsed = nlparse(search);
+  let topParse = parsed[0];
+  params.search = search;
+  // @NOTE: This requires the first project to be the main result of the search
+  params.fields = topParse.query.projects[0].fields.map((field) => field.name);
+  params.groups = topParse.context.groupings.map((group) => group.name);
+  //params.fields = uitk.getFields({example: results[0], blacklist: ["__id"]});
+  
+  if(!topParse) {
+    params.rep = "table";
+    return params;
+  }
+  
+  // Must not contain any primitive relations
+  let editable = true;
+  let subject;
+  let entity;
+  let fieldMap:{[field:string]: string} = {};
+  let collections:string[] = [];
+  for(let ctx in topParse.context) {
+    if(ctx === "attributes" || ctx === "entities" || ctx === "collections") continue;
+    for(let node of topParse.context[ctx]) {
+      if(node.project) {
+        editable = false;
+        break;
+      }
+    }
+  }
+  
+  // Number of subjects (projected entities or collections) must be 1.
+  if(editable) {
+    for(let node of topParse.context.collections) {
+      let coll = node.collection;
+      if(coll.project) {
+        if(subject) {
+          editable = false;
+          break;
+        } else {
+          subject = coll.displayName;
+        }
+      }
+      collections.push(coll.id);
+    }
+  }
+  if(editable) {
+    for(let node of topParse.context.entities) {
+      let ent = node.entity;
+      if(ent.project) {
+        if(subject) {
+          editable = false;
+          break;
+        } else {
+          subject = ent.displayName;
+          entity = ent.id;
+        }
+      }
+    }
+  }
+
+  if(editable) {
+    for(let node of topParse.context.attributes) {
+      let attr = node.attribute;
+      if(attr.project) {
+        fieldMap[attr.displayName] = attr.id;
+      }
+    }
+
+    params.rep = "mappedTable";
+    params.subject = subject;
+    params.entity = entity;
+    params.fieldMap = fieldMap;
+    params.collections = collections;
+    console.log("MAPPED PARAMS", params);
+    return params;
+  }
+
+  return params;
 }
 
 //---------------------------------------------------------
@@ -343,7 +423,7 @@ function dispatchSearchSetAttributes(query, chain?) {
   let isSetSearch = false;
   if(topParse.intent === Intents.INSERT) {
     console.log(topParse.context);
-    debugger;
+    // debugger;
     let attributes = [];
     for(let insert of topParse.inserts) {
       // @TODO: NLP needs to tell us whether we're supposed to modify this attribute
@@ -352,13 +432,13 @@ function dispatchSearchSetAttributes(query, chain?) {
       let entity = insert.entity.entity.id;
       let attribute = insert.attribute.attribute.displayName;
       let value;
-      if(insert.value.entity) {
-        value = insert.value.entity.id;
-      } else {
-        value = insert.value.name;
-      }
-      chain.dispatch("handle setAttribute in a search", {entity, attribute, value, replace});
-      attributes.push(`${attribute}`);
+      // if(insert.value.entity) {
+      //   value = insert.value.entity.id;
+      // } else {
+      //   value = insert.value.name;
+      // }
+      // chain.dispatch("handle setAttribute in a search", {entity, attribute, value, replace});
+      // attributes.push(`${attribute}`);
     }
     query = attributes.join(" and ");
     isSetSearch = true;
@@ -393,11 +473,12 @@ appHandle("rename entity attribute", (changes:Diff, {entity, attribute, prev, va
   if(prev !== undefined) changes.remove("sourced eav", {entity, attribute: prev, value});
   changes.add("sourced eav", {entity, attribute, value, source});
 });
-appHandle("sort table", (changes:Diff, {key, field, direction}) => {
-  let state = uiState.widget.table[key] || {field: undefined, direction: undefined};
-  if(field !== undefined) state.field = field;
-  if(direction !== undefined) state.direction = direction;
-  uiState.widget.table[key] = state;
+appHandle("sort table", (changes:Diff, {state, field, direction}) => {
+  if(field !== undefined) {
+    state.sortField = field;
+    state.sortDirection = 1;
+  }
+  if(direction !== undefined) state.sortDirection = direction;
 });
 appHandle("toggle settings", (changes:Diff, {paneId, open = undefined}) => {
   let state = uiState.pane[paneId] || {settings: false};
@@ -713,15 +794,26 @@ function parseParams(rawParams:string) {
   for(let kv of rawParams.split(";")) {
     let [key, value] = kv.split("=");
     if(!key || !key.trim()) continue;
-    if(!value || !value.trim()) throw new Error("Must specify value for key '" + key + "'");
-    params[key.trim()] = coerceInput(value.trim());
+    value = value.trim();
+    if(!value) throw new Error("Must specify value for key '" + key + "'");
+    
+    if(value[0] === "{" && value[value.length - 1] === "}" || value[0] === "[" && value[value.length - 1] === "]") {
+      try {
+        let result = JSON.parse(value);
+        value = result;
+      } catch(err) { }
+    }
+    params[key.trim()] = coerceInput(value);
   }
   return params;
 }
 function stringifyParams(params:{}):string {
   let rawParams = "";
   if(!params) return rawParams;
-  for(let key in params) rawParams += `${rawParams.length ? "; " : ""}${key} = ${params[key]}`;
+  for(let key in params) {
+    if(params[key] === undefined || params[key] === null) continue;
+    rawParams += `${rawParams.length ? "; " : ""}${key} = ${typeof params[key] === "object" ? JSON.stringify(params[key]) : params[key]}`;
+  }
   return rawParams;
 }
 
@@ -784,35 +876,36 @@ function getCellParams(content, rawParams) {
     let parsed = nlparse(content);
     let currentParse = parsed[0];
     let context = currentParse.context;
-    console.log(context);
     let hasCollections = context.collections.length;
     let field;
     let rep;
     let aggregates = [];
     for(let fxn of context.fxns) {
-      if(fxn.type === FunctionTypes.AGGREGATE) {
+      if(fxn.fxn.type === FunctionTypes.AGGREGATE) {
         aggregates.push(fxn);
       }
     }
     let totalFound = 0;
-    for(let item in context) {
+    for(let item of ["attributes", "entities", "collections", "fxns", "maybeAttributes", "maybeEntities", "maybeCollections", "maybeFunctions"]) {
       totalFound += context[item].length;
     }
     if(aggregates.length === 1 && context["groupings"].length === 0) {
       rep = "CSV";
       field = aggregates[0].name;
-    } else if(!hasCollections && context.fxns.length === 1 && context.fxns[0].type !== FunctionTypes.BOOLEAN) {
+    } else if(!hasCollections && context.fxns.length === 1 && context.fxns[0].fxn.type !== FunctionTypes.BOOLEAN) {
       rep = "CSV";
       field = context.fxns[0].name;
     } else if(!hasCollections && context.attributes.length === 1) {
       rep = "CSV";
       field = context.attributes[0].name;
-      console.log(context);
     } else if(context.entities.length + context.fxns.length === totalFound) {
       // if there are only entities and boolean functions then we want to show this as cards
       params["rep"] = "entity";
+    } else if(currentParse.query && currentParse.query.projects.length) {
+      staticOrMappedTable(content, params);
     } else {
-      params["rep"] = "table";
+      // Error state, unknown entity
+      params["rep"] = "error";
     }
     if(rep) {
       params["rep"] = rep;
@@ -2404,136 +2497,29 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
   error(results, params) {
     return {text: params["message"]};
   },
+  mappedTable(results, params:{paneId?: string, data?: {paneId?: string}, search: string, entity?:string, subject: string, groups?:string[], fieldMap}) {
+    let paneId = params.paneId || params.data && params.data.paneId;
+    let key = `${paneId}|${params.search}`;
+    let state =  uiState.widget.table[key];
+    if(!state) {
+      state = uiState.widget.table[key] = {sortField: undefined, sortDirection: 1, adder: {}};
+    }
+    params["sortable"] = true;
+    params["rows"] = results;
+    params["state"] = state;
+    return params;
+  },
   table(results, params:{paneId?: string, data?: {paneId?: string}, search: string}) {
-    if(!params.search) return {rows: results, data: params.data};
-    let parsed = nlparse(params.search);
-    let topParse = parsed[0];
-    if(!topParse) return {rows: results, data: params.data};
-
-    // Must not contain any primitive relations
-    let editable = true;
-    let subject;
-    let fieldMap:{[field:string]: {type: string, source: any, complex?: boolean}} = {};
-    for(let ctx in topParse.context) {
-      if(ctx === "attributes" || ctx === "entities" || ctx === "collections") continue;
-      for(let node of topParse.context[ctx]) {
-        if(node.project) {
-          editable = false;
-          break;
-        }
-      }
+    let paneId = params.paneId || params.data && params.data.paneId;
+    let key = `${paneId}|${params.search}`;
+    let state =  uiState.widget.table[key];
+    if(!state) {
+      state = uiState.widget.table[key] = {sortField: undefined, sortDirection: 1, adder: {}};
     }
-    
-    // Number of subjects (projected entities or collections) must be 1.
-    for(let node of topParse.context.collections) {
-      if(node.project) {
-        if(subject) {
-          editable = false;
-          break;
-        } else {
-          let name = subject = node.displayName;
-          fieldMap[name] = {type: "collection", source: node};
-        }
-      }
-    }
-    for(let node of topParse.context.entities) {
-      if(node.project) {
-        if(subject) {
-          editable = false;
-          break;
-        } else {
-          let name = subject = node.displayName;
-          console.log(node.id);
-          fieldMap[name] = {type: "entity", source: node};
-        }
-      }
-    }
-
-    if(editable) {
-      for(let node of topParse.context.attributes) {
-        if(node.project) {
-          fieldMap[node.displayName] = {type: "attribute", source: node};
-        }
-      }
-
-      function editRow(event, elem) {
-        let {table:tableElem, row} = elem.row;
-        
-        if(event.detail === "add") {
-          let state = elem.state.adder;
-          if(!state[subject] && fieldMap[subject].type === "entity") {
-            let entityId = fieldMap[subject].source.id;
-            state[subject] = entityId;
-            
-          } else if(elem.field === subject && fieldMap[subject].type === "collection") {
-            // @NOTE: Should this really be done by inserting "= " when the input is focused?
-            let entityId = asEntity(uitk.resolveValue(state[subject]));
-            if(entityId) {
-              console.log("subject id", entityId);
-              for(let field in fieldMap) {
-                // @FIXME: This is brittle, if fields are ever renamed (e.g., salary (2) this won't work correctly).
-                let {value = undefined} = eve.findOne("entity eavs", {entity: entityId, attribute: field}) || {};
-                console.log("defaulting field", field, "to", value);
-                if(value !== undefined && !state[field]) {
-                  state[field] = value;
-                }
-              }
-              dispatch("rerender");
-            }
-          }
-          
-          var valid = elem.fields.every((field) => {
-            return state[field] !== undefined;
-          });
-
-          
-          if(valid && elem.state.confirmed) {
-            console.log("valid", state);
-            let chain:any = dispatch("rerender");
-            // create entity if it doesn't exist?
-            let entity = state[subject];
-            if(fieldMap[subject].type === "collection") {
-              let name = state[subject];
-              entity = asEntity(name);
-              if(!entity) {
-                entity = uuid();
-                let pageId = uuid();
-                console.log(" - creating entity", entity);
-                chain.dispatch("create page", {page: pageId,  content: ""})
-                  .dispatch("create entity", {entity, name: state[subject], page: pageId});
-              }
-            }
-            
-            for(let field in fieldMap) {              
-              if(field === subject) continue;
-                
-              if(fieldMap[field].type === "attribute") {
-                let attr = fieldMap[field].source;
-                console.log(" - adding attr", attr.id, "=", uitk.resolveValue(state[field]), "for", entity);
-                chain.dispatch("add sourced eav", {entity, attribute: attr.id, value: uitk.resolveValue(state[field])});
-              }
-            }
-
-            for(let coll of topParse.context.collections) {
-              console.log(" - adding coll", "is a", "=", coll.id, "for", entity);
-              chain.dispatch("add sourced eav", {entity, attribute: "is a", value: coll.id});
-            }
-            
-            elem["state"]["adder"] = {};
-            console.log(chain);
-            chain.commit();
-            
-          } else if(event.detail === "remove") {
-            console.log("@FIXME: Implement remove");
-            //dispatch("remove entity attribute", {entity, attribute: row.attribute, value: row.value}).commit();
-          }
-        }
-      }
-
-      return {key: `${params.paneId || params.data.paneId}|${params.search || ""}`, rows: results, data: params.data, editCell: (evt, elem) => console.log("cell", evt, elem), editRow, confirmRow: true, removeRow: false};
-    }
-    
-    return {rows: results, data: params.data};
+    params["rows"] = results;
+    params["state"] = state;
+    return params;
+    //return {rows: results, fields, state, groups: groupings, sortable: true, data: params.data};
   },
   directory(results, params:{data?:{}, field?:string}) {
     let entities = getEntitiesFromResults(results, {fields: params.field ? [params.field] : undefined});
@@ -2566,7 +2552,7 @@ function represent(search: string, rep:string, results, params:{}, wrapEach?:(el
   if(rep in _prepare) {
     let embedParamSets = _prepare[rep](results && results.results, <any>params);
     let isArray = embedParamSets && embedParamSets.constructor === Array;
-    try {
+    // try {
       if(!embedParamSets || isArray && embedParamSets.length === 0) {
         return uitk.error({text: `${search} as ${rep}`})
       } else if(embedParamSets.constructor === Array) {
@@ -2581,15 +2567,15 @@ function represent(search: string, rep:string, results, params:{}, wrapEach?:(el
       } else {
         let embedParams = embedParamSets;
         embedParams["data"] = embedParams["data"] || params;
-        if(wrapEach) return wrapEach(uitk[rep](embedParams));
-        else return uitk[rep](embedParams);
+        if(wrapEach) return {c: "flex-column", children: [wrapEach(uitk[rep](embedParams))]};
+        else return {c: "flex-column", children: [uitk[rep](embedParams)]};
       }
-    } catch(err) {
-      console.error("REPRESENTATION ERROR");
-      console.error({search, rep, results, params});
-      console.error(err);
-      return uitk.error({text: `Failed to embed as ${params["childRep"] || rep}`})
-    }
+    // } catch(err) {
+    //   console.error("REPRESENTATION ERROR");
+    //   console.error({search, rep, results, params});
+    //   console.error(err);
+    //   return uitk.error({text: `Failed to embed as ${params["childRep"] || rep}`})
+    // }
   } else {
     console.error("REPRESENTATION ERROR");
     console.error({search, rep, results, params});

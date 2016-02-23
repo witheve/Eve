@@ -159,7 +159,8 @@ export var array = {
 
 export function coerceInput(input) {
   // http://jsperf.com/regex-vs-plus-coercion
-  if (!isNaN(+input)) return +input;
+  if(typeof input === "object") return input;
+  else if (!isNaN(+input)) return +input;
   else if (input === "true") return true;
   else if (input === "false") return false;
   return input;
@@ -222,19 +223,23 @@ export function shuffle(o:any[], rand = Math.random) {
   return o;
 }
 
-export function sortByField(field):(a, b) => number {
+export function sortByField(field, direction = 1):(a, b) => number {
+  let back = -1 * direction;
+  let fwd = direction;
   return (a, b) =>
     (a[field] === b[field]) ? 0 :
-    (a[field] > b[field]) ? -1 :
-    (a[field] < b[field]) ? 1 :
-    (a[field] === undefined) ? 1 : -1;
+    (a[field] > b[field]) ? back :
+    (a[field] < b[field]) ? fwd :
+    (a[field] === undefined) ? fwd : back;
 }
-export function sortByLookup(lookup:{}):(a, b) => number {
+export function sortByLookup(lookup:{}, direction = 1):(a, b) => number {
+  let back = -1 * direction;
+  let fwd = direction;
   return (a, b) =>
     (lookup[a] === lookup[b]) ? 0 :
-    (lookup[a] > lookup[b]) ? -1 :
-    (lookup[a] < lookup[b]) ? 1 :
-    (lookup[a] === undefined) ? 1 : -1;
+    (lookup[a] > lookup[b]) ? back :
+    (lookup[a] < lookup[b]) ? fwd :
+    (lookup[a] === undefined) ? fwd : back;
 }
 
 export function location() {

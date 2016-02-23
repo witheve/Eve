@@ -3,6 +3,7 @@ body { position: relative; padding-bottom: 1.5em; background:#ECEEF2; color: rgb
 div { display: flex; flex-direction: column; }
 button, input, textarea { border:none; outline: none; font-family: "Lato", sans-serif; font-weight: 400; color: rgb(76,85,90); font-size: 12pt; }
 input { background:none; }
+[placeholder]:not(input):not(textarea):empty:after { display: block; content: attr(placeholder); color: rgba(0, 0, 0, 0.4); }
 
 a { color: #008cdd; cursor: pointer; border-bottom: 1px solid transparent; text-decoration: none; }
 a:hover { text-decoration: underline; }
@@ -56,8 +57,8 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .wiki-pane > header > * { margin: 0 0.5em;}
 .wiki-pane > header > .controls { margin-right: -43px; }
 .wiki-pane > header + .scroller { margin-top:50px; }
-.wiki-pane .scroller > content { flex:1; position:relative; display: flex; overflow:auto; padding:20px 0 50px 0; } /* @TODO: Breakpoints overflow-y: auto*/
-.wiki-pane .scroller { flex:1; position:relative; overflow:hidden; }
+.wiki-pane .scroller > content { flex: 1; position:relative; display: flex; overflow:auto; padding:20px 0 50px 0; } /* @TODO: Breakpoints overflow-y: auto*/
+.wiki-pane .scroller { flex: 1; justify-content: center; position: relative; overflow: hidden; }
 .wiki-pane .scroller .top-scroll-fade { z-index:10; position:absolute; top:0; left:0; right:0; height:20px; background:linear-gradient(#ECEEF2 0%, transparent 100%); }
 .wiki-pane .scroller .bottom-scroll-fade { z-index:10; position:absolute; bottom:0; left:0; right:0; height:20px; background:linear-gradient(transparent 0%, #ECEEF2 100%); }
 .wiki-pane > content.unwrapped .text-content { flex: 1; }
@@ -228,8 +229,6 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .wiki-editor .embed-code { background: #C7E7FF; }
 .wiki-editor .cm-variable-2 { padding-left:15px; }
 
-.wiki-editor .table .field { width: 160px; }
-
 .wiki-editor .formatBar { display:flex; padding:0 5px; background: #555; color: #ccc; z-index: 20; flex-direction:row; border-radius:3px; }
 .wiki-editor .formatBar .button { padding: 5px; cursor:default; align-items: center; width:35px; -webkit-user-select: none; }
 .wiki-editor .formatBar .button:hover { background: #666; }
@@ -283,18 +282,25 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 - Search Pane
 ---------------------------------------------------------*/
 .wiki-search { display: flex; flex-direction: column; align-items: center; }
-.table { display: flex; }
-.table div, .table header { display: flex !important; }
-.table .group, .table > header { flex-direction: row; }
-.table .column { justify-content: center; }
-.table .field { display: block; max-width: 254px; min-width: 80px; padding: 5px 10px; width: 160px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.table input { font-size: 1em; }
 
-.table { border: 1px solid #ddd; border-radius: 2px; }
-.table > header { border-bottom: 1px solid #ddd; background: #f5f5f5; }
-.table .group + .group, .table .sub-group + .sub-group { border-top: 1px solid #ddd; }
-.table .column + .column { border-left: 1px solid #ddd; }
-.table .column .field + .field { border-top: 1px solid #ddd; }
+/*---------------------------------------------------------
+- Table
+---------------------------------------------------------*/
+.table-wrapper { margin-top: -20px; margin-bottom: -50px; }
+.table-wrapper, .table-body { display: flex; flex-direction: column; }
+.table-wrapper div { display: flex; }
+.table-wrapper > .table-header, .table-wrapper .table-row { display: flex; flex-direction: row; position: relative; }
+.table-wrapper .column { display: inline-block; justify-content: center; width: 160px; padding: 5px 10px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.table-wrapper .field { display: flex; flex-direction: row; flex: 0 0 auto; }
+.table-wrapper .field .text { display: inline-block; }
+.table-wrapper input { font-size: 1em; }
+
+.table-wrapper .table-row > .controls, .table-wrapper .table-header > .controls { flex-grow: 1; background: #eee; opacity: 1; }
+
+.table-wrapper { }
+.table-wrapper > .table-header {  }
+.table-wrapper .table-row + .table-row {  }
+.table-wrapper .column + .column {  }
 
 .table .sub-row { flex-direction: row; }
 
