@@ -2059,6 +2059,10 @@ runtime.define("/", {result: "result"}, function(a, b) {
   return {result: a / b};
 });
 
+runtime.define("^", {result: "result"}, function(a, b) {
+  return {result: Math.pow(a,b)};
+});
+
 //---------------------------------------------------------
 // AST and compiler
 //---------------------------------------------------------

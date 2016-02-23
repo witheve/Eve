@@ -141,6 +141,7 @@ export function normalizeQueryString(queryString: string): Array<Word> {
   let normalizedQueryString = queryString.replace(/,/g,' , ');
   normalizedQueryString = normalizedQueryString.replace(/;/g,' ; ');
   normalizedQueryString = normalizedQueryString.replace(/\+/g,' + ');
+  normalizedQueryString = normalizedQueryString.replace(/\+/g,' ^ ');
   normalizedQueryString = normalizedQueryString.replace(/-/g,' - ');
   normalizedQueryString = normalizedQueryString.replace(/\*/g,' * ');
   normalizedQueryString = normalizedQueryString.replace(/\//g,' / ');
@@ -1065,6 +1066,8 @@ function stringToFunction(word: string): BuiltInFunction {
     case "divided by":
     case "/":
       return {name: "/", type: FunctionTypes.CALCULATE, fields: calculateFields, project: true};
+    case "^":
+      return {name: "^", type: FunctionTypes.CALCULATE, fields: calculateFields, project: true};
     case "is":
     case "is a":
     case "is an":
