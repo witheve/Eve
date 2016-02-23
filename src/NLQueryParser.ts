@@ -15,6 +15,14 @@ export interface Result {
   inserts: Array<Insert>,
 }
 
+export enum NodeTypes {
+  ENTITY,
+  COLLECTION,
+  ATTRIBUTE,
+  NUMBER,
+  STRING,
+}
+
 export interface Insert {
   entity: Node,
   attribute: Node,
@@ -85,9 +93,22 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
           let nToken = newToken(nName);
           let nNode = newNode(nToken);
           nNode.found = true;
+          nNode.type = NodeTypes.STRING; 
           insert.children[2].children.map(removeNode);
           insert.children[2].addChild(nNode);
         }
+        // Set value type
+        let value = insert.children[2].children[0];
+        if (value.hasProperty(Properties.QUANTITY)) {
+          value.type = NodeTypes.NUMBER;
+        } else if (value.hasProperty(Properties.ENTITY)) {
+          value.type = NodeTypes.ENTITY;
+        } else if (value.hasProperty(Properties.COLLECTION)) {
+          value.type = NodeTypes.COLLECTION;
+        } else if (value.hasProperty(Properties.ATTRIBUTE)) {
+          value.type = NodeTypes.ATTRIBUTE;
+        }
+        
         let insertResult: Insert = {
           entity: insert.children[0].children[0],
           attribute: insert.children[1].children[0],
@@ -556,6 +577,7 @@ export function singularize(word: string): string {
 
 interface Node {
   ix: number,
+  type?: NodeTypes,
   name: string,
   parent: Node,
   children: Array<Node>,
