@@ -132,26 +132,28 @@ function staticOrMappedTable(search:string, params) {
   // Number of subjects (projected entities or collections) must be 1.
   if(editable) {
     for(let node of topParse.context.collections) {
-      if(node.project) {
+      let coll = node.collection;
+      if(coll.project) {
         if(subject) {
           editable = false;
           break;
         } else {
-          subject = node.displayName; // @NOTE: this is the only available proxy for the field name
+          subject = coll.displayName;
         }
       }
-      collections.push(node.id);
+      collections.push(coll.id);
     }
   }
   if(editable) {
     for(let node of topParse.context.entities) {
-      if(node.project) {
+      let ent = node.entity;
+      if(ent.project) {
         if(subject) {
           editable = false;
           break;
         } else {
-          subject = node.displayName;
-          entity = node.id;
+          subject = ent.displayName;
+          entity = ent.id;
         }
       }
     }
@@ -159,8 +161,9 @@ function staticOrMappedTable(search:string, params) {
 
   if(editable) {
     for(let node of topParse.context.attributes) {
-      if(node.project) {
-        fieldMap[node.displayName] = node.id;
+      let attr = node.attribute;
+      if(attr.project) {
+        fieldMap[attr.displayName] = attr.id;
       }
     }
 
@@ -411,7 +414,7 @@ function dispatchSearchSetAttributes(query, chain?) {
   let isSetSearch = false;
   if(topParse.intent === Intents.INSERT) {
     console.log(topParse.context);
-    debugger;
+    // debugger;
     let attributes = [];
     for(let insert of topParse.inserts) {
       // @TODO: NLP needs to tell us whether we're supposed to modify this attribute
@@ -420,13 +423,13 @@ function dispatchSearchSetAttributes(query, chain?) {
       let entity = insert.entity.entity.id;
       let attribute = insert.attribute.attribute.displayName;
       let value;
-      if(insert.value.entity) {
-        value = insert.value.entity.id;
-      } else {
-        value = insert.value.name;
-      }
-      chain.dispatch("handle setAttribute in a search", {entity, attribute, value, replace});
-      attributes.push(`${attribute}`);
+      // if(insert.value.entity) {
+      //   value = insert.value.entity.id;
+      // } else {
+      //   value = insert.value.name;
+      // }
+      // chain.dispatch("handle setAttribute in a search", {entity, attribute, value, replace});
+      // attributes.push(`${attribute}`);
     }
     query = attributes.join(" and ");
     isSetSearch = true;
@@ -870,7 +873,7 @@ function getCellParams(content, rawParams) {
     let rep;
     let aggregates = [];
     for(let fxn of context.fxns) {
-      if(fxn.type === FunctionTypes.AGGREGATE) {
+      if(fxn.fxn.type === FunctionTypes.AGGREGATE) {
         aggregates.push(fxn);
       }
     }
@@ -881,7 +884,7 @@ function getCellParams(content, rawParams) {
     if(aggregates.length === 1 && context["groupings"].length === 0) {
       rep = "CSV";
       field = aggregates[0].name;
-    } else if(!hasCollections && context.fxns.length === 1 && context.fxns[0].type !== FunctionTypes.BOOLEAN) {
+    } else if(!hasCollections && context.fxns.length === 1 && context.fxns[0].fxn.type !== FunctionTypes.BOOLEAN) {
       rep = "CSV";
       field = context.fxns[0].name;
     } else if(!hasCollections && context.attributes.length === 1) {
