@@ -712,7 +712,7 @@ export function pane(paneId:string):Element {
   let content;
   let contentType = "invalid";
   if(contains.length === 0 || entityId) contentType = "entity";
-  else if(eve.findOne("query to id", {query: contains})) contentType = "search";
+  else if(eve.findOne("query to id", {query: contains.trim().toLowerCase()})) contentType = "search";
 
   if(params.rep || rep) {
     content = represent(contains, params.rep || rep, results, params, (params.unwrapped ? undefined : (elem, ix?) => uitk.card({id: `${paneId}|${contains}|${ix === undefined ? "" : ix}`, children: [elem]})));
