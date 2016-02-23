@@ -780,7 +780,7 @@ function tableHeader(elem:TableHeaderElem):Element {
       value({c: "text", text: field, data, autolink: false}),
       {c: "flex-grow"},
       {c: "controls", children: [
-        sortable ? {c: klass, header: elem, field, direction: -direction || 1, click: sortTable} : undefined
+        sortable ? {c: klass, table: elem, field, direction: -direction || 1, click: sortTable} : undefined
       ]}
     ]});
   };
@@ -874,7 +874,7 @@ function submitTableAdder(event, elem) {
   let {row, subject, fieldMap, collections} = elem;
   let chain:any = dispatch("rerender");
   let name = row[subject];
-  console.log("SUBMIT", row);
+  console.log("SUBMIT", row, subject);
   let entity = asEntity(name);
   if(!entity) {
     entity = uuid();
