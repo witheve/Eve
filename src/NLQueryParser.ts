@@ -21,6 +21,7 @@ export enum NodeTypes {
   ATTRIBUTE,
   NUMBER,
   STRING,
+  FUNCTION,
 }
 
 export interface Insert {
@@ -1127,6 +1128,7 @@ function findFunction(node: Node, context: Context): boolean {
     node.addChild(arg);
   }
   node.found = true;
+  node.type = NodeTypes.FUNCTION;
   context.fxns.push(node);
   return true;
 }
