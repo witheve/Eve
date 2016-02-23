@@ -2101,28 +2101,46 @@ function entityTocollectionsArray(entity: string): Array<string> {
 }
 
 function findCollection(node: Node, context: Context): boolean {
-  let collection = findEveCollection(node.name);
-  if (collection !== undefined) {
+  let collection: Collection;
+  if (node.representations.collection) {
+    collection = node.representations.collection;
+  } else {
+    collection = findEveCollection(node.name);
     context.found.push(node);
+  }
+  if (collection !== undefined) {
     collection.node = node;
     node.collection = collection;
+    node.attribute = undefined;
+    node.entity = undefined;
+    node.fxn = undefined;
+    node.representations.collection = collection;
     node.type = NodeTypes.COLLECTION;
     node.found = true;
-    node.properties.push(Properties.COLLECTION)
+    node.properties.push(Properties.COLLECTION);
     return true;
   }
   return false;
 }
 
 function findEntity(node: Node, context: Context): boolean {
-  let entity = findEveEntity(node.name);
-  if (entity !== undefined) {
+  let entity: Entity;
+  if (node.representations.entity) {
+    entity = node.representations.entity;
+  } else {
+    entity = findEveEntity(node.name);
     context.found.push(node);
+  }
+  if (entity !== undefined) {
     entity.node = node;
     node.entity = entity;
+    node.attribute = undefined;
+    node.collection = undefined;
+    node.fxn = undefined;
+    node.representations.entity = entity;
     node.type = NodeTypes.ENTITY;
     node.found = true;
-    node.properties.push(Properties.ENTITY)
+    node.properties.push(Properties.ENTITY);
     return true;
   }
   return false;
@@ -2132,14 +2150,23 @@ function findAttribute(node: Node, context: Context): boolean {
   if (node.name === "is a") {
     return false;
   }
-  let attribute = findEveAttribute(node.name);
-  if (attribute !== undefined) {
+  let attribute: Attribute;
+  if (node.representations.entity) {
+    attribute = node.representations.entity;
+  } else {
+    attribute = findEveEntity(node.name);
     context.found.push(node);
+  }
+  if (attribute !== undefined) {
     attribute.node = node;
+    node.entity = undefined;
+    node.collection = undefined;
+    node.fxn = undefined;
     node.attribute = attribute;
+    node.representations.attribute = attribute;
     node.type = NodeTypes.ATTRIBUTE;
     node.found = true;
-    node.properties.push(Properties.ATTRIBUTE)
+    node.properties.push(Properties.ENTITY);
     return true;
   }
   return false;
