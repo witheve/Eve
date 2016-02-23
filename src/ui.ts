@@ -164,7 +164,7 @@ function staticOrMappedTable(search:string, params) {
         fieldMap[attr.displayName] = attr.id;
       }
     }
-    if(entity && !Object.keys(fieldMap).length) editable = false;
+    if(entity && Object.keys(fieldMap).length !== 1) editable = false;
   }
 
   if(editable) {
