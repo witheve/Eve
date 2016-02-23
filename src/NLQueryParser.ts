@@ -1550,7 +1550,9 @@ function addNodeToFunction(node: Node, fxnNode: Node, context: Context): boolean
     arg = fxnNode.children.filter((c) => c.hasProperty(Properties.ROOT)).shift();
   }
   
-  
+  if (fxnNode.fxn.type === FunctionTypes.GROUP && arg.name === "collection") {
+    context.groupings.push(node);
+  }
   
   // Add the node to the arg
   if (arg !== undefined) {
