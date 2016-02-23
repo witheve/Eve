@@ -286,7 +286,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 /*---------------------------------------------------------
 - Table
 ---------------------------------------------------------*/
-.table-wrapper { margin-top: -20px; margin-bottom: -50px; }
+.table-wrapper { }
 .table-wrapper, .table-body { display: flex; flex-direction: column; }
 .table-wrapper div { display: flex; }
 .table-wrapper > .table-header, .table-wrapper .table-row { display: flex; flex-direction: row; position: relative; }

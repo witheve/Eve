@@ -102,16 +102,14 @@ function inferRepresentation(search:string|number, baseParams:{} = {}):{rep:stri
 function staticOrMappedTable(search:string, params) {
   let parsed = nlparse(search);
   let topParse = parsed[0];
+  params.rep = "table";
   params.search = search;
   // @NOTE: This requires the first project to be the main result of the search
   params.fields = topParse.query.projects[0].fields.map((field) => field.name);
   params.groups = topParse.context.groupings.map((group) => group.name);
   //params.fields = uitk.getFields({example: results[0], blacklist: ["__id"]});
   
-  if(!topParse) {
-    params.rep = "table";
-    return params;
-  }
+  if(!topParse) return params;
   
   // Must not contain any primitive relations
   let editable = true;
@@ -166,7 +164,10 @@ function staticOrMappedTable(search:string, params) {
         fieldMap[attr.displayName] = attr.id;
       }
     }
+    if(entity && Object.keys(fieldMap).length !== 1) editable = false;
+  }
 
+  if(editable) {
     params.rep = "mappedTable";
     params.subject = subject;
     params.entity = entity;
