@@ -12,15 +12,12 @@ app.renderRoots["nlqp"];
 
 nlqp.debug = true;
 
-function parseTest(queryString: string, n: number): nlqp.StateFlags {
-  let parseResult: nlqp.ParseResult;
+function parseTest(queryString: string, n: number): nlqp.Intents {
+  let parseResult: nlqp.Result;
   let avgTime = 0;
   let maxTime = 0;
   let minTime;
-  
-  let preTags = nlqp.preprocessQueryString(queryString)
-  let pretagsToString = preTags.map((pt) => `(${pt.text}|${pt.tag})`).join("");
-  
+
   // Parse string and measure how long it takes
   for (let i = 0; i < n; i++) {
     let start = performance.now();
@@ -41,8 +38,7 @@ function parseTest(queryString: string, n: number): nlqp.StateFlags {
   let tokenStrings = nlqp.tokenArrayToString(parseResult.tokens);
   let timingDisplay = `Timing (avg, max, min): ${(avgTime/n).toFixed(2)} | ${maxTime.toFixed(2)} | ${minTime.toFixed(2)} `;
   console.log(queryString);
-  console.log(pretagsToString);
-  console.log(`State: ${nlqp.StateFlags[parseResult.state]}`);
+  console.log(`State: ${nlqp.Intents[parseResult.intent]}`);
   console.log(parseResult.context);
   console.log("-------------------------------------------------------------------------------------------");
   console.log("Tokens");  
@@ -55,18 +51,18 @@ function parseTest(queryString: string, n: number): nlqp.StateFlags {
   console.log("-------------------------------------------------------------------------------------------");
   console.log("Result");
   console.log(queryString);
+  console.log(parseResult.query.toString());
   console.log(executeQuery(parseResult.query).join("\n"));
   console.log("-------------------------------------------------------------------------------------------");
   console.log(timingDisplay);
   console.log("===========================================================================================");
-  return parseResult.state;
+  return parseResult.intent;
 }
 
 function executeQuery(query: nlqp.Query): Array<string> {
   let resultsString: Array<string> = [];
   if (query.projects.length !== 0) {
     let queryString = query.toString();
-    console.log(queryString)     
     let artifacts = dslparser.parseDSL(queryString);
     let changeset = eve.diff();
     let results = [];
@@ -129,39 +125,74 @@ function executeQuery(query: nlqp.Query): Array<string> {
   return resultsString;
 }
 
-
 let n = 1;
 let phrases = [ 
   // -------------------------------
   // These are queries that we had problems with in the past
   // make sure they always work
+  // -------------------------------//
+  //"employees, salaries per department",
+  /*
+  "Corey's salary, department, and age",
+  "Corey's wife's age, gender, and height",
+  */
   // -------------------------------
-  //"Grognar the Barbarian dealt 15 damage with his sword to the goblin king",
-  "Corey's age is 30",
-  /*"Corey Montella's least favorite color",
-  "sum of employee salaries",
-  "3 + Corey's salary",
-  "Corey's salary + 3",
-  "sum pet length",//
-  "sum employee salaries",
-  "employee salaries",
+  
+  //"employees per department"
+  //"josh's salary * corey montella's age"
+  //"Chris' salary and department"
+  //"Employee's union"
+  /*
+  "pets that do not have a length"
+  "employee departments"
+  //"Corey's salary, department, and age",
+  "3 - Corey's salary",
+  "employees with their departments"
+  "employees with their departments and salaries"
+  "employee salary and employee department",
+  "employee salary and department",
+  'test data that is an employee',
+  "salaries per employee per department",
+  "salaries per department per employee",
+  `employees which are test data`,
+  "sum of salaries in engineering",
+  "sum of salaries in the engineering department",
   "salaries in engineering",
-  "salaries per department",
-  "Pet shorter than koala",
-  "Pet not shorter than koalas",
-  "exotic lengths",
-  //"Corey age, height, gender and hair color",
-  //"Corey's wife's age, gender, and height",
-  "employee salaries",
-  "employees with their departments and salaries", 
-  "employees with their salaries", 
-  "employees and their salaries",
+  'exotics that are test data',
+  'test data that are employees',
+  "Pets that not length"
   "Pets except those longer than a koala",
-  "sum salaries per department",
-  "sum salary per department",
+  "Pet not longer than koalas",
   "exotic that are not pets",
   "pets not exotics",
-  `Corey Montella's age + Josh's salary`,*/
+  "Pets that are exotic with length <= 3",
+  "Pets that are exotic with length != 4",
+  "Corey's salary + 3",
+  "exotic lengths"
+  "sum lengths of pets that are exotic",
+  "pets that are exotic that have length",
+  "exotic pets",
+  "sum of employee salaries",
+  "salaries per department",
+  "employee salaries"
+  "sum employee salaries",
+  "exotic lengths",
+  "salaries by department",
+  "employee salaries",
+  "employees with their salaries",
+  "employees and their salaries",
+  "sum salaries",
+  "Pet shorter than koala",
+  "sum salaries per department",
+  "sum salary per department",
+  "pets lengths",
+  "department salaries",
+  "corey's salary",
+  "ages",
+  "sum ages",
+  "sum pet lengths",
+  "sum pet length",
+  */
   // -------------------------------
   //`Pets except those shorter than a koala`,
   //`salaries per department`,
@@ -406,9 +437,9 @@ app.init("nlqp", function () {
   console.log(`Running ${phrases.length} tests...`);
   console.log("===========================================================================================");
   let queryStates = phrases.map((phrase) => {return parseTest(phrase,n)});
-  let complete = queryStates.filter((state) => state === nlqp.StateFlags.COMPLETE).length;
-  let moreinfo = queryStates.filter((state) => state === nlqp.StateFlags.MOREINFO).length;
-  let noresult = queryStates.filter((state) => state === nlqp.StateFlags.NORESULT).length;
+  let complete = queryStates.filter((state) => state === nlqp.Intents.QUERY).length;
+  let moreinfo = queryStates.filter((state) => state === nlqp.Intents.MOREINFO).length;
+  let noresult = queryStates.filter((state) => state === nlqp.Intents.NORESULT).length;
   console.log("===========================================================================================");
   console.log(`Total Queries: ${phrases.length} | Complete: ${complete} | MoreInfo: ${moreinfo} | NoResult: ${noresult}`);
   console.log("===========================================================================================");
