@@ -120,7 +120,7 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
       intent = Intents.QUERY;
     }
   }
-  
+  intent = Intents.QUERY;
   if (intent === Intents.QUERY) {
     // Create the query from the new tree
     intent = Intents.QUERY;
@@ -316,8 +316,8 @@ enum Properties {
   // Node properties
   ROOT,
   // EVE attributes
-  ENTITY,
   COLLECTION,
+  ENTITY,
   ATTRIBUTE,
   // Function properties
   FUNCTION,
@@ -1703,6 +1703,8 @@ interface Entity {
   project: boolean,
   handled?: boolean,
   entityAttr: boolean,
+  collectionAttr: boolean,
+  value?: string,
 }
 
 function cloneEntity(entity: Entity): Entity {
@@ -1713,6 +1715,7 @@ function cloneEntity(entity: Entity): Entity {
     variable: entity.variable,
     project: entity.project,
     entityAttr: entity.entityAttr,
+    collectionAttr: entity.collectionAttr,
   }
   return clone;
 }
@@ -1780,6 +1783,7 @@ function findEveEntity(search: string): Entity {
       variable: name.replace(/ /g,''),
       project: true,
       entityAttr: false,
+      collectionAttr: false,
     }
     log(" Found: " + entity.id);
     return entity;
@@ -1873,6 +1877,9 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
   let nodes = [nodeA, nodeB].sort((a, b) => a.properties[0] - b.properties[0]);
   nodeA = nodes[0]
   nodeB = nodes[1];
+  console.log(nodes);
+  console.log(nodeA)
+  console.log(nodeB)
   
   // Find the proper relationship
   if (nodeA.hasProperty(Properties.ENTITY) && nodeB.hasProperty(Properties.ATTRIBUTE)) {
@@ -1943,6 +1950,7 @@ function findAttrToAttrRelationship(nodeA: Node, nodeB: Node, context: Context):
       variable: entityAttr.variable,
       project: false,
       entityAttr: true,
+      collectionAttr: false,
     }
     let nToken = newToken(entityAttr.variable);
     let nNode = newNode(nToken);
@@ -1961,25 +1969,36 @@ function findAttrToAttrRelationship(nodeA: Node, nodeB: Node, context: Context):
 
 
 // e.g. "meetings john was in"
-function findCollToEntRelationship(nodeA: Node, nodeB: Node, context: Context): Relationship {
-  log(`Finding Coll -> Ent relationship between "${nodeA.name}" and "${nodeB.name}"...`);
+function findCollToEntRelationship(coll: Node, ent: Node, context: Context): Relationship {
+  log(`Finding Coll -> Ent relationship between "${coll.name}" and "${ent.name}"...`);
   /*if (coll === "collections") {
     if (eve.findOne("collection entities", { entity: nodeB.entity.id })) {
       return { type: RelationshipTypes.DIRECT };
     }
-  }*/
-  if (eve.findOne("collection entities", { collection: nodeA.collection.id, entity: nodeB.entity.id })) {
+  }
+  if (eve.findOne("collection entities", { collection: coll.collection.id, entity: ent.entity.id })) {
     log("  Found Direct relationship")
     return { type: RelationshipTypes.DIRECT };
-  }
-  
-  let relationship = eve.query(``)
-    .select("collection entities", { collection: nodeA.collection.id }, "collection")
-    .select("directionless links", { entity: ["collection", "entity"], link: nodeB.entity.id }, "links")
+  }*/
+  let eveRelationship = eve.query(``)
+    .select("collection entities", { collection: coll.collection.id }, "collection")
+    .select("directionless links", { entity: ["collection", "entity"], link: ent.entity.id }, "links")
     .exec();
-  if (relationship.unprojected.length) {
-    log("  Found One-Hop Relationship");
-    return { type: RelationshipTypes.ONEHOP };
+  if (eveRelationship.unprojected.length) {
+    console.log(eveRelationship)
+    let entities = extractFromUnprojected(eveRelationship.unprojected, 1, 2, "link");
+    let collections = findCommonCollections(entities);
+    console.log(collections)
+    let collLinkID;
+    if (collections.length > 0) {
+      log("  Found Direct Relationship");
+      let entity = ent.entity;
+      entity.collectionAttr = true;
+      entity.project = false;
+      entity.variable = coll.collection.variable;
+      let relationship = {type: RelationshipTypes.DIRECT, nodes: [coll, ent]};
+      return relationship;
+    }
   }
   /*
   // e.g. events with chris granger (events -> meetings -> chris granger)
@@ -2617,15 +2636,27 @@ function formQuery(node: Node): Query {
   if (node.hasProperty(Properties.ENTITY) && !node.entity.handled) {
     log("Building entity term for: " + node.name);
     let entity = node.entity;
+    let fields = [];
+    let value = entity.collectionAttr ? entity.variable : entity.id;
     let entityField = {
       name: "entity", 
-      value: entity.id, 
-      variable: false,
+      value: value, 
+      variable: entity.collectionAttr,
     };
+    fields.push(entityField);
+
+    if (entity.collectionAttr) {
+      let valueField = {
+        name: "value", 
+        value: entity.id, 
+        variable: false,
+      };
+      fields.push(valueField);  
+    }
     let term: Term = {
       type: "select",
       table: "entity eavs",
-      fields: [entityField],
+      fields: fields,
     }
     query.terms.push(term);
     // project if necessary
