@@ -25,7 +25,7 @@ var popoutHistory = [];
 export let uiState:{
   widget: {
     search: {[paneId:string]: {value:string, plan?:boolean, focused?:boolean, submitted?:string}},
-    table: {[key:string]: {sortField:string, sortDirection:number, adder:{}}},
+    table: {[key:string]: {sortField:string, sortDirection:number, adders:{}[]}},
     collapsible: {[key:string]: {open:boolean}}
     attributes: any,
     card: {[key: string]: any},
@@ -2559,7 +2559,7 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
     let key = `${paneId}|${params.search}`;
     let state =  uiState.widget.table[key];
     if(!state) {
-      state = uiState.widget.table[key] = {sortField: undefined, sortDirection: 1, adder: {}};
+      state = uiState.widget.table[key] = {sortField: undefined, sortDirection: 1, adders: [{}]};
     }
     params["sortable"] = true;
     params["rows"] = results;
@@ -2571,7 +2571,7 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
     let key = `${paneId}|${params.search}`;
     let state =  uiState.widget.table[key];
     if(!state) {
-      state = uiState.widget.table[key] = {sortField: undefined, sortDirection: 1, adder: {}};
+      state = uiState.widget.table[key] = {sortField: undefined, sortDirection: 1, adders: [{}]};
     }
     params["rows"] = results;
     params["state"] = state;
