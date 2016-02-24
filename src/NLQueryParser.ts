@@ -1088,7 +1088,8 @@ function stringToFunction(word: string): BuiltInFunction {
                                                                    {name: "value", types: [Properties.ATTRIBUTE]}], project: true};
     case "count":
     case "how many":
-      return {name: "count", type: FunctionTypes.AGGREGATE, fields: [{name: "count", types: [Properties.OUTPUT]}], project: true};
+      return {name: "count", type: FunctionTypes.AGGREGATE, fields: [{name: "count", types: [Properties.OUTPUT]},
+                                                                     {name: "root", types: all}], project: true};
 
     case "average":
     case "avg":
