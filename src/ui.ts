@@ -1718,6 +1718,7 @@ appHandle("toggle add tile", (changes:Diff, {key, entityId}) => {
   state.showAdd = !state.showAdd;
   state.entityId = entityId;
   state.key = key;
+  state.activeTile = undefined;
   // in case you closed it with an adder selected
   if(state.showAdd) {
     state.adder = undefined;

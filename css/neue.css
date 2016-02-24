@@ -167,7 +167,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .card .tile .multi-value { flex-direction: column; }
 .card .multi-value * + * { border-left: 0px solid #ddd; padding-left: 0px;}
 
-.card .tile .list { max-height: 200px; overflow:auto; flex-wrap:wrap; flex-direction:row; align-items:flex-start; }
+.card .tile .list { max-height: 40vh; overflow:auto; flex-wrap:wrap; flex-direction:row; align-items:flex-start; }
 .card .tile .list > * { padding:15px; margin:2px; background: #f5f5f5; border:0px solid #eee; border-radius:2px;  }
 .card .tile .list .link:hover { border:none; background:#CEEDFF; }
 .card .tile.active .list div:hover { background:#fdd; }

@@ -297,9 +297,10 @@ function submitAdder(event, elem) {
 }
 
 function submitProperty(adder, state, node) {
+  if(!state.propertyProperty === undefined || !state.propertyValue === undefined) return;
   dispatch("add sourced eav", {entity: state.entityId, attribute: state.propertyProperty, value: state.propertyValue, forceEntity: true}).commit();
-  state.propertyValue = "";
-  state.propertyProperty = "";
+  state.propertyValue = undefined;
+  state.propertyProperty = undefined;
   //make sure the focus is in the value
   node.parentNode.firstChild.focus();
 }
@@ -415,7 +416,7 @@ function imageAdderUI(elem) {
     {children: [
       {c: "tile small", children: [
         {c: "tile-content-wrapper", children: [
-          {t: "input", c: "value", placeholder: "image url", value: state.propertyValue, attribute: "imageValue", input: trackPropertyAdderInput, postRender: autosizeAndFocus, keydown: adderKeys, entityId, key},
+          {t: "input", c: "value", placeholder: "image url", value: state.imageValue, attribute: "imageValue", input: trackPropertyAdderInput, postRender: autosizeAndFocus, keydown: adderKeys, entityId, key},
         ]},
         {c: "controls flex-row", children: [
           {c: "ion-checkmark submit", click: submitAdder, key},
