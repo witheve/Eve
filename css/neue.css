@@ -309,6 +309,8 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .table-wrapper .column { display: inline-block; justify-content: center; width: 160px; padding: 5px 10px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .table-wrapper .field { display: flex; flex-direction: row; flex: 0 0 auto; }
 .table-wrapper .field .text { display: inline-block; }
+.table-wrapper .field .controls { opacity: 0.4; transition: opacity 0.2s; }
+.table-wrapper .field:hover .controls { opacity: 1; }
 .table-wrapper input { font-size: 1em; }
 
 .table-wrapper .table-row > .controls, .table-wrapper .table-header > .controls { flex-grow: 1; background: #eee; opacity: 1; }
@@ -318,10 +320,10 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .table-wrapper .table-row + .table-row {  }
 .table-wrapper .column + .column {  }
 
-.table .sub-row { flex-direction: row; }
+.table-wrapper .table-header .sort-toggle { opacity: 0.5; }
+.table-wrapper .table-header .sort-toggle.active { opacity: 1; }
 
-.table header .sort-toggle { opacity: 0.5; }
-.table header .sort-toggle.active { opacity: 1; }
+.mapped-table .commit-btn { align-self: stretch; align-items: center; padding: 5px 10px; }
 
 /*---------------------------------------------------------
 - Search Input
