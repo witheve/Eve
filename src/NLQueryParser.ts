@@ -73,9 +73,9 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
     context = treeResult.context;
   }
   // Manage context
-  context.entities = context.found.filter((n) => n.hasProperty(Properties.ENTITY));
-  context.collections = context.found.filter((n) => n.hasProperty(Properties.COLLECTION));
-  context.attributes = context.found.filter((n) => n.hasProperty(Properties.ATTRIBUTE));
+  context.entities = context.found.filter((n) => n.hasProperty(Properties.ENTITY) && !n.hasProperty(Properties.SUBSUMED));
+  context.collections = context.found.filter((n) => n.hasProperty(Properties.COLLECTION) && !n.hasProperty(Properties.SUBSUMED)); 
+  context.attributes = context.found.filter((n) => n.hasProperty(Properties.ATTRIBUTE) && !n.hasProperty(Properties.SUBSUMED));
   
   // Manage results
   let intent = Intents.NORESULT;
