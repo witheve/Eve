@@ -381,6 +381,7 @@ function formToken(word: Word): Token {
   let whPossessivePronoun = ['whose'];
   let whAdverbs = ['how', 'when', 'however', 'whenever', 'where', 'why'];   
   let verbs = ['have', 'do'];
+  let adverbs = ['there'];
 
   // We have three cases: the word is a symbol (of which there are various kinds), a number, or a string
   
@@ -506,6 +507,9 @@ function formToken(word: Word): Token {
     // Verbs 
     } else if (verbs.indexOf(normalizedWord) >= 0) {
       POS = MinorPartsOfSpeech.VB;
+    // Adverbs 
+    } else if (adverbs.indexOf(normalizedWord) >= 0) {
+      POS = MinorPartsOfSpeech.RB;
     }
     
     // Set grouping property
@@ -595,7 +599,7 @@ export function singularize(word: string): string {
   // split word at spaces
   let words = word.split(" ");
   if (words.length === 1) {
-    let specialCases = ["his", "times", "has", "downstairs", "its", "'s", "data"];
+    let specialCases = ["his", "times", "has", "downstairs", "its", "'s", "data", "are"];
     for (let specialCase of specialCases) {
       if (specialCase === word) {
         return word;
@@ -1123,9 +1127,9 @@ function stringToFunction(word: string): BuiltInFunction {
       return {name: "insert", type: FunctionTypes.INSERT, fields: [{name: "entity", types: [Properties.ENTITY]}, 
                                                                    {name: "attribute", types: [Properties.ATTRIBUTE]}, 
                                                                    {name: "root", types: all}], project: false};
-    case "are":
+    /*case "are":
       return {name: "insert", type: FunctionTypes.INSERT, fields: [{name: "collection", types: [Properties.COLLECTION]},
-                                                                   {name: "collection", types: [Properties.COLLECTION]}], project: false}; 
+                                                                   {name: "collection", types: [Properties.COLLECTION]}], project: false};*/ 
     case "his":
     case "hers":
     case "their":
