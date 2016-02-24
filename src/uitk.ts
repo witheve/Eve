@@ -237,6 +237,15 @@ function setTileAdder(event, elem) {
   dispatch("set tile adder", {key: elem.key, adder: elem.adder}).commit();
 }
 
+function closeCard(event, elem) {
+  dispatch("close card", {paneId: elem.paneId}).commit();
+}
+
+function navigateRoot(event, elem) {
+  let root = eve.findOne("ui pane", {kind: PANE.FULL})["pane"];
+  dispatch("set pane", {paneId: root, contains: elem.entityId}).commit();
+}
+
 interface EntityEditorElem extends EntityElem { editor: CodeMirror.Editor }
 export function entity(elem:EntityEditorElem) {
   let entityId = elem.entity;
@@ -251,7 +260,10 @@ export function entity(elem:EntityEditorElem) {
   return {c: `entity ${state.showAdd ? "adding" : ""}`, children: [
     {c: "header", children: [
       {text: name},
-      {c: `ion-android-add add-tile`, click: toggleAddTile, key, entityId}
+      {c: "flex-grow spacer"},
+      {c: `control ion-ios-upload-outline`, click: navigateRoot, entityId},
+      {c: `control ${state.showAdd ? "ion-android-remove" : "ion-android-add"} add-tile`, click: toggleAddTile, key, entityId},
+      {c: "control ion-android-close", click: closeCard, paneId},
     ]},
     adder,
     attrs,

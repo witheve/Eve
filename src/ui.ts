@@ -316,6 +316,14 @@ appHandle("remove popup", (changes:Diff, {}:{}) => {
   popoutHistory = [];
 });
 
+appHandle("close card", (changes, {paneId}) => {
+  if(eve.findOne("ui pane", {pane: paneId}).kind === PANE.FULL) {
+    changes.dispatch("set pane", {paneId, contains: ""});
+  } else {
+    changes.dispatch("remove pane", {paneId});
+  }
+});
+
 appHandle("ui toggle search plan", (changes:Diff, {paneId}:{paneId:string}) => {
   let state = uiState.widget.search[paneId] = uiState.widget.search[paneId] || {value: ""};
   state.plan = !state.plan;
@@ -587,12 +595,14 @@ let paneChrome:{[kind:number]: (paneId:string, entityId:string) => {c?: string, 
     ]}
   }),
   [PANE.POPOUT]: (paneId, entityId) => {
-    let parent = eve.findOne("ui pane parent", {pane: paneId})["parent"];
+    // let parent = eve.findOne("ui pane parent", {pane: paneId})["parent"];
     return {
       c: "window",
       captureClicks: true,
       header: {t: "header", c: "", children: [
-        {t: "button", c: "ion-android-open", click: navigateParent, link: entityId, paneId, parentId: parent, text:""},
+        // {t: "button", c: "ion-android-search", click: navigateParent, link: entityId, paneId, text:""},
+        // {t: "button", c: "ion-ios-close-empty", click: navigateParent, link: entityId, paneId, text:""},
+        // {t: "button", c: "ion-ios-upload-outline", click: navigateParent, link: entityId, paneId, text:""},
       ]},
     };
   },
@@ -619,8 +629,9 @@ function closePrompt(event, elem) {
 }
 
 function navigateParent(event, elem) {
+  let root = eve.findOne("ui pane", {kind: PANE.FULL})["pane"];
   dispatch("remove popup", {paneId: elem.paneId})
-  .dispatch("set pane", {paneId: elem.parentId, contains: elem.link})
+  .dispatch("set pane", {paneId: root, contains: elem.link})
   .commit();
 }
 
@@ -945,15 +956,16 @@ function getCellParams(content, rawParams) {
     for(let item of ["attributes", "entities", "collections", "fxns", "maybeAttributes", "maybeEntities", "maybeCollections", "maybeFunctions"]) {
       totalFound += context[item].length;
     }
+    console.log(context);
     if(aggregates.length === 1 && context["groupings"].length === 0) {
       rep = "CSV";
-      field = aggregates[0].name;
+      field = aggregates[0].projectedAs;
     } else if(!hasCollections && context.fxns.length === 1 && context.fxns[0].fxn.type !== FunctionTypes.BOOLEAN) {
       rep = "CSV";
-      field = context.fxns[0].name;
+      field = context.fxns[0].projectedAs;
     } else if(!hasCollections && context.attributes.length === 1) {
       rep = "CSV";
-      field = context.attributes[0].name;
+      field = context.attributes[0].projectedAs;
     } else if(context.entities.length + context.fxns.length === totalFound) {
       // if there are only entities and boolean functions then we want to show this as cards
       params["rep"] = "entity";
