@@ -64,22 +64,20 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 /*---------------------------------------------------------
 - Pane
 ---------------------------------------------------------*/
-.wiki-pane.fullscreen { position: relative; padding: 20px 100px; }
+.wiki-pane.fullscreen { position: relative; padding: 0px 20px; }
 .wiki-pane > header { padding: 10px 0.5em; align-items: center; border-bottom: 1px solid #ccc; }
 .wiki-pane > header > * { margin: 0 0.5em;}
 .wiki-pane > header > .controls { margin-right: -43px; }
 .wiki-pane > header + .scroller { margin-top:50px; }
-.wiki-pane .scroller > content { flex: 1; position:relative; display: flex; overflow:auto; padding:20px 0 50px 0; } /* @TODO: Breakpoints overflow-y: auto*/
-.wiki-pane .scroller { flex: 1; justify-content: center; position: relative; overflow: hidden; }
-.wiki-pane .scroller .top-scroll-fade { z-index:10; position:absolute; top:0; left:0; right:0; height:20px; background:linear-gradient(#ECEEF2 0%, transparent 100%); }
-.wiki-pane .scroller .bottom-scroll-fade { z-index:10; position:absolute; bottom:0; left:0; right:0; height:20px; background:linear-gradient(transparent 0%, #ECEEF2 100%); }
+.wiki-pane .scroller { flex: 1; flex-direction:row; position:relative; display: flex; overflow:auto; padding:20px 20px 50px 20px; } /* @TODO: Breakpoints overflow-y: auto*/
+.wiki-pane .scroller > * + * { margin-left:40px; }
 .wiki-pane > content.unwrapped .text-content { flex: 1; }
 .wiki-pane > content.unwrapped .CodeMirror { width: auto; max-width: 760px; }
 
 .wiki-pane {}
 
 .wiki-entity { flex: 1; flex-direction: row; overflow:hidden; justify-content: center; }
-.disambiguation { align-self: stretch; flex-direction: row; padding: 15px 25px; margin-bottom: 1rem; color: #999;  }
+.disambiguation { align-self: stretch; flex-direction: row; padding: 15px 25px; color: #999;  }
 
 .wiki-pane > .settings { display: flex; flex-direction: column; align-items: stretch; position: absolute; right: 15px; top: 100px; z-index: 11; background: white; border: 1px solid #ccc; border-radius: 2px; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2); }
 .wiki-pane > .settings:before { content: ""; position: absolute; top: -7px; right: 56px; border: 7px solid transparent; border-bottom-color: #ccc; border-top: none; }
@@ -98,12 +96,13 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 ---------------------------------------------------------*/
 
 .wiki-pane.window > header > * { margin:0;}
-.wiki-pane.window { position:absolute; max-height:40%; box-shadow:0 0 0 1px rgba(0,0,0,0.03),0 7px 15px rgba(0,0,50,0.1); background: #fff; border-radius:3px; z-index:10; }
+.wiki-pane.window { position:relative;  border-radius:3px; }
 .wiki-pane.window > header { background: #fff; padding: 10px 5px; padding: 0; border:none; }
 .wiki-pane.window > header button { border:none; border-radius:0px; background:none; font-size: 20px; font-weight:400; color:#555; padding:12px 10px; color: #008cdd; position:absolute; top:0; right:0; z-index:10; margin-right:37px;  }
 .wiki-pane.window > header button:hover { background: rgba(0, 140, 221, 0.15); }
 .wiki-pane.window > header button:before { margin-top:1px; }
 .wiki-pane.window > header .controls { opacity:1; color: #777; }
+.wiki-pane.window > content { flex: 1; }
 .wiki-pane.window .wiki-entity { padding: 25px 20px; }
 .wiki-pane.window .wiki-entity .CodeMirror { flex: 1; overflow:visible; }
 .wiki-pane.window .wiki-editor { padding: 0px 30px;  }
@@ -125,15 +124,19 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 - Card
 ---------------------------------------------------------*/
 
-.card { flex:none; position:relative; background: white; align-self:center; align-items: stretch; min-width:200px; box-shadow: 0 7px 15px rgba(0,0,50,0.10); border-radius:5px; overflow:hidden; }
+.card {position:relative; background: white; align-self:center; align-items: stretch; min-width:200px; box-shadow: 0 7px 15px rgba(0,0,50,0.10); border-radius:5px; overflow:hidden; }
 .card .text-content { margin-right:10px; min-width:250px; white-space:pre-wrap; line-height:28px; color:#aaa; flex:none; max-height:50%; }
 .card .header { flex-direction:row; flex:none; padding:10px 15px; font-size: 18pt; font-weight: 900; color: rgb(106,138,156); border-bottom: 1px solid #eee; }
 .card .wiki-editor { padding: 30px; padding-top:0; margin-bottom:20px; }
 .card + .card { margin-top:40px; }
 
+.card .tile-scroll { overflow:auto; }
+
+.card .entity { overflow:hidden; }
+
 .card > .table { margin: 20px 30px; }
 
-.card .tiles { flex-direction: row; flex-wrap: wrap; width: 360px; }
+.card .tiles { flex:none; flex-direction: row; flex-wrap: wrap; width: 360px; overflow:auto; }
 .card .tile { flex: 1 0 0; overflow:hidden; cursor: default; flex-direction:row; position:relative; }
 /* .card .tile:hover { background:rgba(0,0,50,0.04);  } */
 .card .tile .property { font-size: 9pt; color: #aaa; margin-bottom: 5px; }
@@ -167,7 +170,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .card .tile .multi-value { flex-direction: column; }
 .card .multi-value * + * { border-left: 0px solid #ddd; padding-left: 0px;}
 
-.card .tile .list { max-height: 40vh; overflow:auto; flex-wrap:wrap; flex-direction:row; align-items:flex-start; }
+.card .tile .list { flex-wrap:wrap; flex-direction:row; align-items:flex-start; }
 .card .tile .list > * { padding:15px; margin:2px; background: #f5f5f5; border:0px solid #eee; border-radius:2px;  }
 .card .tile .list .link:hover { border:none; background:#CEEDFF; }
 .card .tile.active .list div:hover { background:#fdd; }
@@ -179,7 +182,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .card .add-tile:before { transition:transform 0.2s ease-in-out; }
 .card .add-tile:hover { color: #666; }
 
-.card .tile-adder { transition:height 0.18s ease-out;  overflow:hidden; height:0; background:#F3F8FF; flex-direction:row; flex-wrap:wrap; max-width: 360px; }
+.card .tile-adder { flex:none; transition:height 0.18s ease-out;  overflow:hidden; height:0; background:#F3F8FF; flex-direction:row; flex-wrap:wrap; max-width: 360px; }
 .card .tile-adder .tile, .card .tile-adder .row { border-color: rgba(0,0,0,0.1); }
 .card .tile-adder .tile { cursor:default; align-items:center; }
 .card .tile-adder .tile:hover { background: rgba(0,0,0,0.04); }
@@ -386,8 +389,6 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 
 .dark { background: #222; color: #ccc; }
 .dark .CodeMirror { color: #ccc; }
-.dark .scroller .top-scroll-fade { background:linear-gradient(#222 0%, transparent 100%); }
-.dark .scroller .bottom-scroll-fade { background:linear-gradient(transparent 0%, #222 100%); }
 .dark .card { background: #333; }
 .dark .card .tile { border-color: #444; }
 .dark .card .row { border-color: #444; }

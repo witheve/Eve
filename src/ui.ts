@@ -259,11 +259,12 @@ appHandle("set popout", (changes:Diff, info:{parentId:string, rep?:string, conta
   let children = eve.find("ui pane parent", {parent: parentId});
   let parent = eve.findOne("ui pane", {pane: parentId});
   var reusing = false;
-  if(parent && parent.kind === PANE.POPOUT) {
-    reusing = true;
-    paneId = parentId;
-    parentId = eve.findOne("ui pane parent", {pane: parentId}).parent;
-  } else if(children.length) {
+  // if(parent && parent.kind === PANE.POPOUT) {
+  //   reusing = true;
+  //   paneId = parentId;
+  //   parentId = eve.findOne("ui pane parent", {pane: parentId}).parent;
+  // } else 
+    if(children.length) {
     //check if there is already a child popout
     for(let childRel of children) {
       let child = eve.findOne("ui pane", {pane: childRel.pane});
@@ -539,7 +540,7 @@ appHandle("remove entity", (changes:Diff, {entity}) => {
 //---------------------------------------------------------
 export function root():Element {
   let panes = [];
-  for(let {pane:paneId} of eve.find("ui pane")) {
+  for(let {pane:paneId} of eve.find("ui pane", {kind: PANE.FULL})) {
     panes.push(pane(paneId));
   }
   if(uiState.prompt.open && uiState.prompt.prompt && !uiState.prompt.paneId) {
@@ -563,7 +564,7 @@ export function root():Element {
     {t: "a", target: "_blank", href: "https://groups.google.com/forum/#!forum/eve-talk", text: "suggestions"},
     {t: "a", target: "_blank", href: "https://groups.google.com/forum/#!forum/eve-talk", text: "discussion"},
   ]})
-  return {c: "wiki-root", id: "root", children: panes, click: removePopup};
+  return {c: "wiki-root", id: "root", children: panes};
 }
 
 function hideBanner(event, elem) {
@@ -751,29 +752,27 @@ export function pane(paneId:string):Element {
   let scroller = content;
 
   if(kind === PANE.FULL) {
-    scroller = {c: "scroller", children: [
-      {c: "top-scroll-fade"},
-      content,
-      {c: "bottom-scroll-fade"},
-    ]};
+    let panes = eve.find("ui pane").filter((pane) => pane.kind !== PANE.FULL);
+    let children = [content].concat(panes.map((p) => pane(p.pane)));
+    scroller = {c: "scroller", children};
   }
 
-  let pane:Element = {c: `wiki-pane ${klass || ""}`, paneId, children: [header, disambiguation, scroller, footer]};
+  let curPane:Element = {c: `wiki-pane ${klass || ""}`, paneId, children: [header, disambiguation, scroller, footer]};
   let pos = eve.findOne("ui pane position", {pane: paneId});
   if(pos) {
-    pane.style = `left: ${isNaN(pos.x) ? pos.x : pos.x + "px"}; top: ${isNaN(pos.y) ? pos.y : (pos.y + 20) + "px"};`;
+    // curPane.style = `left: ${isNaN(pos.x) ? pos.x : pos.x + "px"}; top: ${isNaN(pos.y) ? pos.y : (pos.y + 20) + "px"};`;
   }
   if(captureClicks) {
-    pane.click = preventDefault;
+    curPane.click = preventDefault;
   }
 
   if(uiState.prompt.open && uiState.prompt.paneId === paneId) {
-    pane.children.push(
+    curPane.children.push(
       {c: "shade", paneId, click: closePrompt},
       uiState.prompt.prompt(paneId)
     );
   }
-  return pane;
+  return curPane;
 }
 
 export function search(search:string, paneId:string):Element {
@@ -1803,10 +1802,10 @@ function tile(elem) {
     klass += " active";
   }
   elem.c = klass;
-  elem.click = activateTile;
+  // elem.click = activateTile;
   elem.children = [
     {c: "tile-content-wrapper", children: elem.children},
-    // {c: "edit ion-edit", click: activateTile, cardId, tileId, entityId, source},
+    {c: "edit ion-edit", click: activateTile, cardId, tileId, entityId, source},
     {c: "controls", children: [
       !elem.removeOnly ? {c: "ion-checkmark submit", click: submitActiveTile, cardId, attribute, entityId, source, reverseEntityAndValue} : undefined,
       !elem.submitOnly ? {c: "ion-backspace cancel", click: removeActiveTile, cardId, attribute, entityId, source} : undefined,
@@ -2203,7 +2202,7 @@ export function entityTilesUI(entityId, paneId, cardId) {
 
   let state = uiState.widget.attributes[entityId] || {};
 
-  return {c: "tiles", children: rows};
+  return {c: "tile-scroll", children: [{c: "tiles", children: rows}]};
 }
 
 function attributesUIAutocompleteOptions(isEntity, parsed, text, params, entityId) {
