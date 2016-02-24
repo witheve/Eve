@@ -1032,11 +1032,12 @@ function commitChanges(event, elem:{table:MappedTableElem}) {
   }
 }
 
-interface TableElem extends TableBodyElem {}
+interface TableElem extends TableBodyElem { search?: string }
 export function table(elem:TableElem):Element {
   let {state, rows, fields, groups, disabled, sortable, editCell, data} = elem;
   elem.c = `table-wrapper table ${elem.c || ""}`;
   elem.children = [
+    elem.search ? {t: "h2", text: elem.search} : undefined,
     tableHeader({state, fields, groups, sortable, data}),
     tableBody({rows, state, fields, groups, disabled, sortable, editCell, data})
   ];
@@ -1044,7 +1045,7 @@ export function table(elem:TableElem):Element {
   return elem;
 }
 // @TODO: Choose MappedTable or Table when baking search pane
-interface MappedTableElem extends TableBodyElem { entity?: string, subject: string, fieldMap: {[field:string]: string}, collections?:string[] }
+interface MappedTableElem extends TableElem { entity?: string, subject: string, fieldMap: {[field:string]: string}, collections?:string[] }
 export function mappedTable(elem:MappedTableElem):Element {
   let {state, entity, subject, fieldMap, collections, data} = elem;
   // If we're mapped to an entity search we can only add new attributes to that entity
@@ -1061,6 +1062,7 @@ export function mappedTable(elem:MappedTableElem):Element {
   
   elem.c = `table-wrapper mapped-table ${elem.c || ""}`;
   elem.children = [
+    elem.search ? {t: "h2", text: elem.search} : undefined,
     tableHeader({state, fields, groups, sortable, data}),
     tableBody({rows, state, fields, groups, disabled, sortable, subject, fieldMap, editCell: updateRowAttribute, data}),
     {c: "table-adders", children: state.adders.map((row) => tableAdderRow({
