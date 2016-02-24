@@ -133,7 +133,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 
 .card .entity { overflow:hidden; }
 
-.card > .table { margin: 20px 30px; }
+.card > .table-wrapper { margin: 20px 30px; }
 
 .card .tiles { flex:none; flex-direction: row; flex-wrap: wrap; width: 360px; overflow:auto; }
 .card .tile { flex: 1 0 0; overflow:hidden; cursor: default; flex-direction:row; position:relative; }
@@ -311,6 +311,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .table-wrapper .field .text { display: inline-block; }
 .table-wrapper .field .controls { opacity: 0.4; transition: opacity 0.2s; }
 .table-wrapper .field:hover .controls { opacity: 1; }
+.table-wrapper .cell > * { display: inline-block; };
 .table-wrapper input { font-size: 1em; }
 
 .table-wrapper .table-row > .controls, .table-wrapper .table-header > .controls { flex-grow: 1; background: #eee; opacity: 1; }
