@@ -378,6 +378,7 @@ function formToken(word: Word): Token {
   let whDeterminers = ['whatever', 'which'];
   let whPossessivePronoun = ['whose'];
   let whAdverbs = ['how', 'when', 'however', 'whenever', 'where', 'why'];   
+  let verbs = ['have'];
 
   // We have three cases: the word is a symbol (of which there are various kinds), a number, or a string
   
@@ -499,8 +500,12 @@ function formToken(word: Word): Token {
       POS = MinorPartsOfSpeech.WRB; 
     } else if (whPossessivePronoun.indexOf(normalizedWord) >= 0) {
       POS = MinorPartsOfSpeech.WPO;
-      properties.push(Properties.POSSESSIVE) 
+      properties.push(Properties.POSSESSIVE)
+    // Verbs 
+    } else if (verbs.indexOf(normalizedWord) >= 0) {
+      POS = MinorPartsOfSpeech.VB;
     }
+    
     // Set grouping property
     let groupingWords = ['per', 'by'];
     let negatingWords = ['except', 'without', 'sans', 'not', 'nor', 'neither', 'no'];
@@ -1867,14 +1872,12 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
     context.relationships.push(relationship);
   // If no relationship was found, change the representation of the node
   } else {
-    console.log("HERE")
     nodes = [nodeA, nodeB].sort((a,b) => a.ix - b.ix);
     nodeA = nodes[0];
     nodeB = nodes[1];
     let repChanged = false;
     // If one node is possessive, it suggests the other should be represented as an attribute of the first
     if (nodeA.hasProperty(Properties.POSSESSIVE) && !nodeB.hasProperty(Properties.ATTRIBUTE) && nodeB.representations.attribute !== undefined) {
-      console.log("HERE")
       repChanged = changeRepresentation(nodeB, Properties.ATTRIBUTE, context); 
     } else if (nodeA.hasProperty(Properties.COLLECTION) && nodeB.hasProperty(Properties.COLLECTION) && nodeB.representations.attribute !== undefined) {
       repChanged = changeRepresentation(nodeB, Properties.ATTRIBUTE, context);
@@ -1897,10 +1900,6 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
 // e.g. "meetings john was in"
 function findAttrToAttrRelationship(nodeA: Node, nodeB: Node, context: Context): Relationship {
   log(`Finding Attr -> Attr relationship between "${nodeA.name}" and "${nodeB.name}"...`);
-  console.log(nodeA)
-  console.log(nodeB)
-  console.log(nodeA.hasProperty(Properties.POSSESSIVE))
-  console.log(nodeB.hasProperty(Properties.POSSESSIVE))
   // Check whether one of the attributes is an entity attribute
   let direct = false;
   if (nodeA.hasProperty(Properties.POSSESSIVE)) {
@@ -1929,7 +1928,6 @@ function findAttrToAttrRelationship(nodeA: Node, nodeB: Node, context: Context):
     ent.node = nNode;
     nodeB.attribute.variable = `${nodeA.attribute.variable}|${nodeB.attribute.id}`;
     nodeB.attribute.refs = [nNode];
-    console.log(nodeA);
     return {type: RelationshipTypes.DIRECT, nodes: [nodeA, nodeB]}; 
   }
   
@@ -2003,10 +2001,7 @@ function findEntToAttrRelationship(ent: Node, attr: Node, context: Context): Rel
     // Fill in the attribute
     let entities = extractFromUnprojected(eveRelationship.unprojected, 0, 2, "link");
     let collections = findCommonCollections(entities);
-    
-    console.log(collections);
-    console.log(entities);
-    
+
     let collLinkID;
     if (collections.length > 0) {
       log("  Found One-Hop Relationship");
