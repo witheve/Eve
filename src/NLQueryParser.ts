@@ -1135,6 +1135,7 @@ function stringToFunction(word: string): BuiltInFunction {
     case "except":
     case "without":
     case "not":
+    case "aren't":
       return {name: "negate", type: FunctionTypes.NEGATE, fields: [{name: "negated", types: CFA}], project: false};
     default:
       return undefined;
