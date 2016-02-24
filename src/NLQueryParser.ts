@@ -120,7 +120,6 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
       intent = Intents.QUERY;
     }
   }
-  
   if (intent === Intents.QUERY) {
     // Create the query from the new tree
     intent = Intents.QUERY;
@@ -381,7 +380,7 @@ function formToken(word: Word): Token {
   let whDeterminers = ['whatever', 'which'];
   let whPossessivePronoun = ['whose'];
   let whAdverbs = ['how', 'when', 'however', 'whenever', 'where', 'why'];   
-  let verbs = ['have'];
+  let verbs = ['have', 'do'];
 
   // We have three cases: the word is a symbol (of which there are various kinds), a number, or a string
   
@@ -1699,21 +1698,9 @@ interface Entity {
   project: boolean,
   handled?: boolean,
   entityAttr: boolean,
-  collectionAttr: boolean,
+  entityVar: boolean,
+  valueVar: boolean,
   value?: string,
-}
-
-function cloneEntity(entity: Entity): Entity {
-  let clone: Entity = {
-    id: entity.id,
-    displayName: entity.displayName,
-    node: entity.node,
-    variable: entity.variable,
-    project: entity.project,
-    entityAttr: entity.entityAttr,
-    collectionAttr: entity.collectionAttr,
-  }
-  return clone;
 }
 
 interface Collection {
@@ -1779,7 +1766,8 @@ function findEveEntity(search: string): Entity {
       variable: name.replace(/ /g,''),
       project: true,
       entityAttr: false,
-      collectionAttr: false,
+      entityVar: false,
+      valueVar: false,
     }
     log(" Found: " + entity.id);
     return entity;
@@ -1943,7 +1931,8 @@ function findAttrToAttrRelationship(nodeA: Node, nodeB: Node, context: Context):
       variable: entityAttr.variable,
       project: false,
       entityAttr: true,
-      collectionAttr: false,
+      entityVar: false,
+      valueVar: false,
     }
     let nToken = newToken(entityAttr.variable);
     let nNode = newNode(nToken);
@@ -1984,7 +1973,7 @@ function findCollToEntRelationship(coll: Node, ent: Node, context: Context): Rel
     if (collections.length > 0) {
       log("  Found Direct Relationship");
       let entity = ent.entity;
-      entity.collectionAttr = true;
+      entity.entityVar = true;
       entity.project = false;
       entity.variable = coll.collection.variable;
       let relationship = {type: RelationshipTypes.DIRECT, nodes: [coll, ent]};
@@ -2114,7 +2103,7 @@ export function findCollToCollRelationship(collA: Node, collB: Node, context: Co
     .select("collection entities", { collection: collB.collection.id, entity: ["collA", "entity"] }, "collB")
     .exec();
   // is there a relationship between things in both sets
-  let relationships = eve.query(`relationships between ${collA.collection.displayName} and ${collB.collection.displayName}`)
+  let eveRelationship = eve.query(`relationships between ${collA.collection.displayName} and ${collB.collection.displayName}`)
     .select("collection entities", { collection: collA.collection.id }, "collA")
     .select("directionless links", { entity: ["collA", "entity"] }, "links")
     .select("collection entities", { collection: collB.collection.id, entity: ["links", "link"] }, "collB")
@@ -2123,7 +2112,7 @@ export function findCollToCollRelationship(collA: Node, collB: Node, context: Co
     .project({ type: ["links", "link"], count: ["count", "count"] })
     .exec();
   let maxRel = { type: "", count: 0 };
-  for (let result of relationships.results) {
+  for (let result of eveRelationship.results) {
     if (result.count > maxRel.count) maxRel = result;
   }
 
@@ -2131,8 +2120,36 @@ export function findCollToCollRelationship(collA: Node, collB: Node, context: Co
   // and we have two selects.
   let intersectionSize = intersection.unprojected.length / 2;
   if (maxRel.count > intersectionSize) {
+    /*
+    console.log(eveRelationship)
+    let entities = extractFromUnprojected(eveRelationship.unprojected,1,2,"link").filter((e) => e !== undefined);
+    let collections = findCommonCollections(entities);
+    console.log(entities);
+    console.log(collections)
+    console.log(findEveCollection(collections[0]));*/
     log("  No relationship found1");
-    return {type: RelationshipTypes.NONE};
+    let nName = `${collA.name}|${collB.name}`;
+    let nToken = newToken(nName);
+    let nNode = newNode(nToken);
+    // Create a link eav
+    let entity: Entity = {
+      id: nName,
+      displayName: nName,
+      variable: collB.collection.variable,
+      value: collA.collection.variable,
+      project: false,
+      entityAttr: false,
+      entityVar: true,
+      valueVar: true,
+      node: nNode,
+      handled: false,
+    }
+    nNode.properties.push(Properties.ENTITY);
+    nNode.entity = entity;
+    nNode.found = true;
+    let relationship = {type: RelationshipTypes.ONEHOP, nodes: [collA, collB], implicitNodes: [nNode]};
+    nNode.relationships.push(relationship);    
+    return relationship;
   } else if (intersectionSize > 0) {
     log(" Found Intersection relationship.");
     collA.collection.variable = collB.collection.variable;
@@ -2624,19 +2641,18 @@ function formQuery(node: Node): Query {
     log("Building entity term for: " + node.name);
     let entity = node.entity;
     let fields = [];
-    let value = entity.collectionAttr ? entity.variable : entity.id;
     let entityField = {
       name: "entity", 
-      value: value, 
-      variable: entity.collectionAttr,
+      value: entity.entityVar ? entity.variable : entity.id, 
+      variable: entity.entityVar,
     };
     fields.push(entityField);
 
-    if (entity.collectionAttr) {
+    if (entity.entityVar) {
       let valueField = {
         name: "value", 
-        value: entity.id, 
-        variable: false,
+        value: entity.valueVar ? entity.value : entity.id, 
+        variable: entity.valueVar,
       };
       fields.push(valueField);  
     }
