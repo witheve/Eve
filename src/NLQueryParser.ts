@@ -174,6 +174,7 @@ export function normalizeQueryString(queryString: string): Array<Word> {
 }
 
 export function normalizeString(queryString: string): string {
+  // Add whitespace before and after separator and operators
   let normalized = queryString.replace(/,/g,' , ');
   normalized = normalized.replace(/;/g,' ; ');
   normalized = normalized.replace(/\+/g,' + ');
@@ -1844,10 +1845,10 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
   // 3) Attribute
   nodeA.properties.sort((a, b) => a - b);
   nodeB.properties.sort((a, b) => a - b);
-  let nodes = [nodeA,nodeB].sort((a, b) => a.properties[0] - b.properties[0]);
+  let nodes = [nodeA, nodeB].sort((a, b) => a.properties[0] - b.properties[0]);
   nodeA = nodes[0]
   nodeB = nodes[1];
-
+  
   // Find the proper relationship
   if (nodeA.hasProperty(Properties.ENTITY) && nodeB.hasProperty(Properties.ATTRIBUTE)) {
     relationship = findEntToAttrRelationship(nodeA, nodeB, context);
@@ -1866,10 +1867,17 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
     context.relationships.push(relationship);
   // If no relationship was found, change the representation of the node
   } else {
+    console.log("HERE")
+    nodes = [nodeA, nodeB].sort((a,b) => a.ix - b.ix);
+    nodeA = nodes[0];
+    nodeB = nodes[1];
     let repChanged = false;
     // If one node is possessive, it suggests the other should be represented as an attribute of the first
     if (nodeA.hasProperty(Properties.POSSESSIVE) && !nodeB.hasProperty(Properties.ATTRIBUTE) && nodeB.representations.attribute !== undefined) {
+      console.log("HERE")
       repChanged = changeRepresentation(nodeB, Properties.ATTRIBUTE, context); 
+    } else if (nodeA.hasProperty(Properties.COLLECTION) && nodeB.hasProperty(Properties.COLLECTION) && nodeB.representations.attribute !== undefined) {
+      repChanged = changeRepresentation(nodeB, Properties.ATTRIBUTE, context);
     }
     if (repChanged) {
       relationship = findRelationship(nodeA, nodeB, context);
@@ -1931,8 +1939,9 @@ function findAttrToAttrRelationship(nodeA: Node, nodeB: Node, context: Context):
   return {type: RelationshipTypes.NONE};  
 }
 
-/*
+
 // e.g. "meetings john was in"
+/*
 function findCollToEntRelationship(coll: Collection, ent: Entity): Relationship {
   log(`Finding Coll -> Ent relationship between "${coll.displayName}" and "${ent.displayName}"...`);
   if (coll === "collections") {
