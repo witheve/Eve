@@ -318,10 +318,11 @@ appHandle("ui toggle search plan", (changes:Diff, {paneId}:{paneId:string}) => {
 });
 
 appHandle("add sourced eav", (changes, eav:{entity:string, attribute:string, value:string|number, source:string, forceEntity: boolean}) => {
-  let {entity, attribute, value, source, forceEntity} = eav;
+  let {entity, attribute:attrName, value, source, forceEntity} = eav;
   if(!source) {
     source = uuid();
   }
+  let attribute = normalizeString(attrName);
   let valueId = asEntity(value);
   let coerced = coerceInput(value);
   let strValue = value.toString().trim();
@@ -340,7 +341,9 @@ appHandle("add sourced eav", (changes, eav:{entity:string, attribute:string, val
   } else {
     value = coerced;
   }
-  changes.add("sourced eav", {entity, attribute, value, source});
+  changes.add("sourced eav", {entity, attribute, value, source})
+    .remove("display name", {id: attribute})
+    .add("display name", {id: attribute, name: attrName});
 });
 
 appHandle("remove sourced eav", (changes:Diff, eav:{entity:string, source:string}) => {
@@ -485,11 +488,16 @@ appHandle("update entity attribute", (changes:Diff, {entity, attribute, prev, va
   if(prev !== undefined) changes.remove("sourced eav", {entity, attribute, value: prev});
   changes.add("sourced eav", {entity, attribute, value, source});
 });
-appHandle("rename entity attribute", (changes:Diff, {entity, attribute, prev, value}) => {
+appHandle("rename entity attribute", (changes:Diff, {entity, attribute:attrName, prev, value}) => {
   // @FIXME: proper unique source id
   let {source = "<global>"} = eve.findOne("sourced eav", {entity, attribute: prev, value}) || {};
-  if(prev !== undefined) changes.remove("sourced eav", {entity, attribute: prev, value});
-  changes.add("sourced eav", {entity, attribute, value, source});
+  let attribute = normalizeString(attrName);
+  if(prev !== undefined) {
+    changes.remove("sourced eav", {entity, attribute: prev, value})
+      .remove("display name", {id: prev});
+  }
+  changes.add("sourced eav", {entity, attribute, value, source})
+    .add("display name", {id: attribute, name: attrName});
 });
 appHandle("sort table", (changes:Diff, {state, field, direction}) => {
   if(field !== undefined) {

@@ -193,6 +193,7 @@ app.init("bootstrap", function bootstrap() {
   // Entity System
   //-----------------------------------------------------------------------------
   let phase = new BSPhase(eve);
+  phase.changeset.addMany("display name", [{id: "is a", name: "is a"}, {id: "content", name: "content"}, {id: "artifact", name: "artifact"}]);
   phase.addTable("manual entity", ["entity", "content"]);
   phase.addTable("sourced eav", ["entity", "attribute", "value", "source"]);
   phase.addTable("page content", ["page", "content"]);
