@@ -1141,6 +1141,7 @@ function stringToFunction(word: string): BuiltInFunction {
     case "'":
       return {name: "select", type: FunctionTypes.SELECT, fields: [{name: "subject", types: [Properties.ENTITY, Properties.COLLECTION, Properties.ATTRIBUTE]}], project: false}; 
     case "by":
+    case "grouped by":
     case "per":
       return {name: "group", type: FunctionTypes.GROUP, fields: [{name: "root", types: all}, 
                                                                  {name: "collection", types: [Properties.COLLECTION, Properties.ATTRIBUTE]}], project: false};
@@ -2144,7 +2145,7 @@ export function findCollToCollRelationship(collA: Node, collB: Node, context: Co
     console.log(entities);
     console.log(collections)
     console.log(findEveCollection(collections[0]));*/
-    log("  No relationship found1");
+    log(" Direct relationship found");
     let nName = `${collA.name}|${collB.name}`;
     let nToken = newToken(nName);
     let nNode = newNode(nToken);
@@ -2164,7 +2165,7 @@ export function findCollToCollRelationship(collA: Node, collB: Node, context: Co
     nNode.properties.push(Properties.ENTITY);
     nNode.entity = entity;
     nNode.found = true;
-    let relationship = {type: RelationshipTypes.ONEHOP, nodes: [collA, collB], implicitNodes: [nNode]};
+    let relationship = {type: RelationshipTypes.DIRECT, nodes: [collA, collB], implicitNodes: [nNode]};
     nNode.relationships.push(relationship);    
     return relationship;
   } else if (intersectionSize > 0) {
@@ -2485,8 +2486,9 @@ function formQuery(node: Node): Query {
     let bRank = setRank(b.table);
     function setRank(table: string): number {
       if (table === "entity eavs") { return 1 }
-      else if (table === "is a attributes") { return 2 }
-      else { return 3 }
+      else if (table === "directionless links") { return 2 }
+      else if (table === "is a attributes") { return 3 }
+      else { return 4 }
     }
     return aRank - bRank;
   });
@@ -2684,7 +2686,7 @@ function formQuery(node: Node): Query {
 
     if (entity.entityVar) {
       let valueField = {
-        name: "value", 
+        name: entity.valueVar ? "link" : "value", 
         value: entity.valueVar ? entity.value : entity.id, 
         variable: entity.valueVar,
       };
@@ -2692,7 +2694,7 @@ function formQuery(node: Node): Query {
     }
     let term: Term = {
       type: "select",
-      table: "entity eavs",
+      table: entity.entityVar ? "directionless links" : "entity eavs",
       fields: fields,
       node: node,
     }
