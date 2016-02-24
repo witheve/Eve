@@ -164,7 +164,8 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 
 .card .tile.active .controls { display:flex; }
 
-.card .value.text { line-height: 22px; }
+.card .value.text { line-height: 22px; display:block; }
+.card .value.text > * { display:inline; }
 
 .card .tile .multi-value { flex-direction: column; }
 .card .multi-value * + * { border-left: 0px solid #ddd; padding-left: 0px;}
@@ -364,10 +365,17 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .directory h2 { padding-left: 5px; }
 .directory p { margin-left: 5px; }
 
-.directory-highlights.masonry {} /* @FIXME */
-.directory-highlights.masonry .masonry-row { flex: 1 0 0; }
-.directory-highlights.masonry .directory-tile { justify-content: center; align-items: center; margin: 0px; background: white; border-radius: 2px; }
-.directory-highlights .directory-tile > * { flex: 0 0 auto; }
+.directory-highlights.masonry { flex: 1 0 auto; } /* @FIXME */
+.directory-highlights.masonry .masonry-row { flex: 0 0 auto; height:96px; }
+.directory-highlights.masonry .directory-tile { margin: 0px; background: white; border-radius: 2px; }
+.directory-highlights .directory-tile > * { flex: 1 0 auto; }
+
+.directory .masonry-row + .masonry-row { border-top:1px solid #eee; }
+.directory .group + .group { border-left:1px solid #eee; }
+.directory .directory-tile + .directory-tile { border-top:1px solid #eee; }
+
+.directory .link { align-items:center; justify-content:center; }
+.directory .link:hover { border-color:transparent; background: rgba(0,0,50,0.04); }
 
 /* Background patterns from subtlepatterns.com */
 .directory-highlights.masonry .directory-tile.tile-style-1 { }

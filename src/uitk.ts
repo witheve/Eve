@@ -528,7 +528,11 @@ export function link(elem:EntityElem):Element {
   let {entity} = elem;
   let name = resolveName(entity);
   elem.c = `${elem.c || ""} entity link inline`;
-  elem.text = elem.text || name;
+  if(!elem.nameAsChild) {
+    elem.text = elem.text || name;
+  } else {
+    elem.children = [{text: elem.text || name}];
+  }
   elem["link"] = elem["link"] || entity;
   elem.click = elem.click || navigate;
   elem["peek"] = elem["peek"] !== undefined ? elem["peek"] : true;
@@ -1066,15 +1070,15 @@ function toggleCollapse(evt, elem) {
 
 let directoryTileLayouts:MasonryLayout[] = [
   {size: 4, c: "big", format(elem) {
-    elem.children.unshift
+    // elem.children.unshift
     elem.children.push(
-      {text: `(${elem["stats"][elem["stats"].best]} ${elem["stats"].best})`}
+      // {text: `(${elem["stats"][elem["stats"].best]} ${elem["stats"].best})`}
     );
     return elem;
   }},
   {size: 2, c: "detailed", format(elem) {
     elem.children.push(
-      {text: `(${elem["stats"][elem["stats"].best]} ${elem["stats"].best})`}
+      // {text: `(${elem["stats"][elem["stats"].best]} ${elem["stats"].best})`}
     );
     return elem;
   }},
@@ -1122,7 +1126,7 @@ export function directory(elem:DirectoryElem):Element {
   function formatTile(entity) {
     let stats = getStats(entity);
     return {size: scores[entity], stats, children: [
-      link({entity, data})
+      link({entity, data, nameAsChild: true})
     ]};
   }
 
@@ -1145,22 +1149,24 @@ export function directory(elem:DirectoryElem):Element {
   }
 
   collections = collections.filter((coll) => asEntity("test data") !== coll);
-  let highlights = collections.slice(0, 5).concat(entities.slice(0, 4));
+  let highlights = collections.slice(0, 4).concat(entities.slice(0, 4));
   return {c: "directory flex-column", children: [
     {c: "header", children: [
       {text: "Home"},
     ]},
     {c: "tile-scroll", children: [
       {c: "tiles", children: [
-        {c: "row", children: [
+        {c: "row flex-row", children: [
           {c: "tile full", children: [
             {c: "tile-content-wrapper", children: [
-              {text: "Welcome to Eve. First time users should consider reading the "}, {t: "a", text: "tutorial", href: `/tutorial/${builtinId("tutorial")}`}, {t: "span", text: "."},
+              {c: "value text", children: [
+                {text: "Welcome to Eve! Here are some of the cards currently in the system:"}
+              ]}
             // @TODO: body copy.
             ]}
           ]},
         ]},
-        {c: "row", children: [
+        {c: "row flex-row", children: [
           masonry({c: "directory-highlights", rowSize: 6, layouts: directoryTileLayouts, styles: directoryTileStyles, children: highlights.map(formatTile)}),
         ]}
       ]}
