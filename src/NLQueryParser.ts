@@ -1086,6 +1086,10 @@ function stringToFunction(word: string): BuiltInFunction {
     case "sum":
       return {name: "sum", type: FunctionTypes.AGGREGATE, fields: [{name: "sum", types: [Properties.OUTPUT]}, 
                                                                    {name: "value", types: [Properties.ATTRIBUTE]}], project: true};
+    case "count":
+    case "how many":
+      return {name: "count", type: FunctionTypes.AGGREGATE, fields: [{name: "count", types: [Properties.OUTPUT]}], project: true};
+
     case "average":
     case "avg":
     case "mean":
@@ -1135,6 +1139,7 @@ function stringToFunction(word: string): BuiltInFunction {
     case "except":
     case "without":
     case "not":
+    case "aren't":
       return {name: "negate", type: FunctionTypes.NEGATE, fields: [{name: "negated", types: CFA}], project: false};
     default:
       return undefined;
