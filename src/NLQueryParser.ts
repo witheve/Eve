@@ -1043,6 +1043,7 @@ interface BuiltInFunction {
   project: boolean,
   negated?: boolean,
   node?: Node,
+  projectedAs?: string,
 }
 
 interface FunctionField {
@@ -1091,38 +1092,38 @@ function stringToFunction(word: string): BuiltInFunction {
     case "total":
     case "sum":
       return {name: "sum", type: FunctionTypes.AGGREGATE, fields: [{name: "sum", types: [Properties.OUTPUT]}, 
-                                                                   {name: "value", types: [Properties.ATTRIBUTE]}], project: true};
+                                                                   {name: "value", types: [Properties.ATTRIBUTE]}], project: true, projectedAs: "sum"};
     case "count":
     case "how many":
       return {name: "count", type: FunctionTypes.AGGREGATE, fields: [{name: "count", types: [Properties.OUTPUT]},
-                                                                     {name: "root", types: all}], project: true};
+                                                                     {name: "root", types: all}], project: true, projectedAs: "count"};
 
     case "average":
     case "avg":
     case "mean":
       return {name: "average", type: FunctionTypes.AGGREGATE, fields: [{name: "average", types: [Properties.OUTPUT]}, 
-                                                                       {name: "value", types: [Properties.ATTRIBUTE]}], project: true};
+                                                                       {name: "value", types: [Properties.ATTRIBUTE]}], project: true, projectedAs: "average"};
     case "plus":
     case "add":
     case "+":
-      return {name: "+", type: FunctionTypes.CALCULATE, fields: calculateFields, project: true};
+      return {name: "+", type: FunctionTypes.CALCULATE, fields: calculateFields, project: true, projectedAs: "+"};
     case "subtract":
     case "minus":
     case "-":
-      return {name: "-", type: FunctionTypes.CALCULATE, fields: calculateFields, project: true};
+      return {name: "-", type: FunctionTypes.CALCULATE, fields: calculateFields, project: true, projectedAs: "-"};
     case "times":
     case "multiply":
     case "multiplied":
     case "multiplied by":
     case "*":
-      return {name: "*", type: FunctionTypes.CALCULATE, fields: calculateFields, project: true};
+      return {name: "*", type: FunctionTypes.CALCULATE, fields: calculateFields, project: true, projectedAs: "*"};
     case "divide":
     case "divided":
     case "divided by":
     case "/":
-      return {name: "/", type: FunctionTypes.CALCULATE, fields: calculateFields, project: true};
+      return {name: "/", type: FunctionTypes.CALCULATE, fields: calculateFields, project: true, projectedAs: "/"};
     case "^":
-      return {name: "^", type: FunctionTypes.CALCULATE, fields: calculateFields, project: true};
+      return {name: "^", type: FunctionTypes.CALCULATE, fields: calculateFields, project: true, projectedAs: "^"};
     case "is":
     case "is a":
     case "is an":
