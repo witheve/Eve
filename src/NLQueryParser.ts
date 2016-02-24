@@ -173,6 +173,27 @@ export function normalizeQueryString(queryString: string): Array<Word> {
   return words;
 }
 
+export function normalizeString(queryString: string): string {
+  let normalized = queryString.replace(/,/g,' , ');
+  normalized = normalized.replace(/;/g,' ; ');
+  normalized = normalized.replace(/\+/g,' + ');
+  normalized = normalized.replace(/\+/g,' ^ ');
+  normalized = normalized.replace(/-/g,' - ');
+  normalized = normalized.replace(/\*/g,' * ');
+  normalized = normalized.replace(/\//g,' / ');
+  normalized = normalized.replace(/"/g,' " ');
+  // Split possessive endings
+  normalized = normalized.replace(/\'s/g,' \'s ');
+  normalized = normalized.replace(/s'/g,'s \' ');
+  // Clean various symbols we don't want to deal with
+  normalized = normalized.replace(/`|\?|\:|\[|\]|\{|\}|\(|\)|\~|\`|~|@|#|\$|%|&|_|\|/g,' ');
+  // Collapse whitespace   
+  normalized = normalized.replace(/\s+/g,' ');  
+  normalized = normalized.toLowerCase();
+  normalized = singularize(normalized);  
+  return normalized;
+}
+
 // ----------------------------------------------------------------------------
 // Token functions
 // ----------------------------------------------------------------------------
