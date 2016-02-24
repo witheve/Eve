@@ -120,7 +120,7 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
       intent = Intents.QUERY;
     }
   }
-  intent = Intents.QUERY;
+  
   if (intent === Intents.QUERY) {
     // Create the query from the new tree
     intent = Intents.QUERY;
@@ -1481,17 +1481,13 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
     } else if (node.fxn.type === FunctionTypes.NEGATE) {
       // This space is left intentionally blank
     } else if (node.fxn.type === FunctionTypes.CALCULATE) {
-      console.log("HERE!!!!")
       let AQFs = context.nodes.filter((n) => n.hasProperty(Properties.ATTRIBUTE) || 
                                              n.hasProperty(Properties.QUANTITY) || 
                                              n.hasProperty(Properties.FUNCTION));
-      console.log(AQFs )
-      console.log(context.nodes.filter((n) => n.hasProperty(Properties.FUNCTION)));
       for (let aqf of AQFs ) {
         if (aqf.parent.hasProperty(Properties.ARGUMENT)) {
           continue;
         }
-        console.log(aqf)
         if (aqf.hasProperty(Properties.FUNCTION)) {
           if (aqf.fxn.type === FunctionTypes.AGGREGATE) {
             removeBranch(aqf);   
@@ -1877,9 +1873,6 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
   let nodes = [nodeA, nodeB].sort((a, b) => a.properties[0] - b.properties[0]);
   nodeA = nodes[0]
   nodeB = nodes[1];
-  console.log(nodes);
-  console.log(nodeA)
-  console.log(nodeB)
   
   // Find the proper relationship
   if (nodeA.hasProperty(Properties.ENTITY) && nodeB.hasProperty(Properties.ATTRIBUTE)) {
@@ -1985,10 +1978,8 @@ function findCollToEntRelationship(coll: Node, ent: Node, context: Context): Rel
     .select("directionless links", { entity: ["collection", "entity"], link: ent.entity.id }, "links")
     .exec();
   if (eveRelationship.unprojected.length) {
-    console.log(eveRelationship)
     let entities = extractFromUnprojected(eveRelationship.unprojected, 1, 2, "link");
     let collections = findCommonCollections(entities);
-    console.log(collections)
     let collLinkID;
     if (collections.length > 0) {
       log("  Found Direct Relationship");
@@ -2140,10 +2131,6 @@ export function findCollToCollRelationship(collA: Node, collB: Node, context: Co
   // and we have two selects.
   let intersectionSize = intersection.unprojected.length / 2;
   if (maxRel.count > intersectionSize) {
-    console.log(relationships.results);
-    console.log(maxRel.type)
-    console.log(intersectionSize)
-    console.log(findEveEntity(maxRel.type))
     log("  No relationship found1");
     return {type: RelationshipTypes.NONE};
   } else if (intersectionSize > 0) {
