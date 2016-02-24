@@ -935,6 +935,7 @@ function getCellParams(content, rawParams) {
     let field;
     let rep;
     let aggregates = [];
+    // console.log(currentParse.query.toString())
     for(let fxn of context.fxns) {
       if(fxn.fxn.type === FunctionTypes.AGGREGATE) {
         aggregates.push(fxn);
