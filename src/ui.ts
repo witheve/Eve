@@ -164,7 +164,7 @@ function staticOrMappedTable(search:string, params) {
     for(let node of topParse.context.attributes) {
       let attr = node.attribute;
       if(attr.project) {
-        fieldMap[attr.displayName] = attr.id;
+        fieldMap[attr.projectedAs] = attr.id;
       }
     }
     if(entity && Object.keys(fieldMap).length !== 1) editable = false;
@@ -959,13 +959,13 @@ function getCellParams(content, rawParams) {
     console.log(context);
     if(aggregates.length === 1 && context["groupings"].length === 0) {
       rep = "CSV";
-      field = aggregates[0].projectedAs;
+      field = aggregates[0].fxn.projectedAs;
     } else if(!hasCollections && context.fxns.length === 1 && context.fxns[0].fxn.type !== FunctionTypes.BOOLEAN) {
       rep = "CSV";
-      field = context.fxns[0].projectedAs;
+      field = context.fxns[0].fxn.projectedAs;
     } else if(!hasCollections && context.attributes.length === 1) {
       rep = "CSV";
-      field = context.attributes[0].projectedAs;
+      field = context.attributes[0].attribute.projectedAs;
     } else if(context.entities.length + context.fxns.length === totalFound) {
       // if there are only entities and boolean functions then we want to show this as cards
       params["rep"] = "entity";
@@ -980,6 +980,7 @@ function getCellParams(content, rawParams) {
       params["field"] = field;
     }
   }
+  console.log("PARAMS", params);
   return params;
 }
 
