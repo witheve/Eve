@@ -10,7 +10,7 @@ import * as uitk from "./uitk";
 import {navigate, preventDefault} from "./uitk";
 import {eve, eveLocalStorageKey, handle as appHandle, dispatch, activeSearches, renderer} from "./app";
 import {parseDSL} from "./parser";
-import {parse as nlparse, Intents, FunctionTypes, NodeTypes} from "./NLQueryParser";
+import {parse as nlparse, normalizeString, Intents, FunctionTypes, NodeTypes} from "./NLQueryParser";
 
 
 export enum PANE { FULL, WINDOW, POPOUT };
@@ -53,7 +53,7 @@ export function asEntity(raw:string|number):string {
   if(!cleaned) return;
 
   if(eve.findOne("entity", {entity: cleaned})) return cleaned;
-  cleaned = cleaned.toLowerCase();
+  cleaned = normalizeString(cleaned);
   if(eve.findOne("entity", {entity: cleaned})) return cleaned; // This can be removed if we remove caps from ids. UUIDv4 does not use caps in ids
   let {id = undefined} = eve.findOne("index name", {name: cleaned}) || {};
   return id;
