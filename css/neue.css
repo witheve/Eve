@@ -302,6 +302,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .table-wrapper, .table-body { display: flex; flex-direction: column; }
 .table-wrapper div { display: flex; }
 .table-wrapper > .table-header, .table-wrapper .table-row { display: flex; flex: 0 0 auto; flex-direction: row; position: relative; }
+.table-wrapper .table-row.grouped { margin-bottom: -1px; }
 .table-wrapper .column { display: inline-block; justify-content: center; width: 160px; padding: 5px 10px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .table-wrapper .field { display: flex; flex-direction: row; flex: 0 0 auto; }
 .table-wrapper .field .text { display: inline-block; }

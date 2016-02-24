@@ -742,7 +742,7 @@ export function tableBody(elem:TableBodyElem):Element {
               keydown: blurOnEnter,
               blur: editGroup
             }),
-            {c: "flex-column group", children: []}
+            {c: "flex-column flex-grow group", children: []}
           ]
         };
         if(group) {
@@ -787,6 +787,15 @@ export function tableBody(elem:TableBodyElem):Element {
 
 function tableHeader(elem:TableHeaderElem):Element {
   let {state, fields, groups = [], sortable = false, data} = elem;
+  fields = fields.slice();
+  // Strip grouped fields out of display fields -- the former implies the latter and must be handled first
+  for(let field of groups) {
+    let fieldIx = fields.indexOf(field);
+    if(fieldIx !== -1) {
+      fields.splice(fieldIx, 1);
+    }
+  }
+
   // Build header
   elem.t = "header";
   elem.c = `table-header ${elem.c || ""}`;
