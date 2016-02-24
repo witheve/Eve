@@ -378,6 +378,7 @@ function formToken(word: Word): Token {
   let whDeterminers = ['whatever', 'which'];
   let whPossessivePronoun = ['whose'];
   let whAdverbs = ['how', 'when', 'however', 'whenever', 'where', 'why'];   
+  let verbs = ['have'];
 
   // We have three cases: the word is a symbol (of which there are various kinds), a number, or a string
   
@@ -499,8 +500,13 @@ function formToken(word: Word): Token {
       POS = MinorPartsOfSpeech.WRB; 
     } else if (whPossessivePronoun.indexOf(normalizedWord) >= 0) {
       POS = MinorPartsOfSpeech.WPO;
-      properties.push(Properties.POSSESSIVE) 
+      properties.push(Properties.POSSESSIVE)
+    // Verbs 
+    } else if (verbs.indexOf(normalizedWord) >= 0) {
+      POS = MinorPartsOfSpeech.VB;
     }
+    
+    
     // Set grouping property
     let groupingWords = ['per', 'by'];
     let negatingWords = ['except', 'without', 'sans', 'not', 'nor', 'neither', 'no'];
