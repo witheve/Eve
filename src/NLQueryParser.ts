@@ -154,7 +154,7 @@ export function normalizeQueryString(queryString: string): Array<Word> {
   let normalizedQueryString = queryString.replace(/,/g,' , ');
   normalizedQueryString = normalizedQueryString.replace(/;/g,' ; ');
   normalizedQueryString = normalizedQueryString.replace(/\+/g,' + ');
-  normalizedQueryString = normalizedQueryString.replace(/\+/g,' ^ ');
+  normalizedQueryString = normalizedQueryString.replace(/\^/g,' ^ ');
   normalizedQueryString = normalizedQueryString.replace(/-/g,' - ');
   normalizedQueryString = normalizedQueryString.replace(/\*/g,' * ');
   normalizedQueryString = normalizedQueryString.replace(/\//g,' / ');
@@ -178,7 +178,7 @@ export function normalizeString(queryString: string): string {
   let normalized = queryString.replace(/,/g,' , ');
   normalized = normalized.replace(/;/g,' ; ');
   normalized = normalized.replace(/\+/g,' + ');
-  normalized = normalized.replace(/\+/g,' ^ ');
+  normalized = normalized.replace(/\^/g,' ^ ');
   normalized = normalized.replace(/-/g,' - ');
   normalized = normalized.replace(/\*/g,' * ');
   normalized = normalized.replace(/\//g,' / ');
