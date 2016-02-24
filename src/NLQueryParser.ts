@@ -1053,8 +1053,8 @@ function stringToFunction(word: string): BuiltInFunction {
                       {name:"b", types: [Properties.ATTRIBUTE, Properties.QUANTITY]}
                      ];
   let calculateFields = [{name: "result", types: [Properties.OUTPUT]}, 
-                         {name: "a", types: [Properties.ATTRIBUTE, Properties.QUANTITY, Properties.FUNCTION]}, 
-                         {name:"b", types: [Properties.ATTRIBUTE, Properties.QUANTITY, Properties.FUNCTION]}
+                         {name: "a", types: [Properties.ATTRIBUTE, Properties.QUANTITY]}, 
+                         {name:"b", types: [Properties.ATTRIBUTE, Properties.QUANTITY]}
                         ];
   switch (word) {
     case ">":
@@ -1677,6 +1677,7 @@ function addNodeToFunction(node: Node, fxnNode: Node, context: Context): boolean
       context.internalFxns.splice(context.internalFxns.indexOf(fxnNode),1);
       node.properties.push(Properties.POSSESSIVE);
       root.addChild(node);
+      return true;
     } else {
       arg.addChild(node);
     }
@@ -2346,8 +2347,8 @@ interface Field {
 interface Term {
   type: string,
   table?: string,
-  fields: Array<Field>
-  project?: Array<string>,
+  fields: Array<Field>,
+  node?: Node,
 }
 
 export interface Query {
@@ -2520,6 +2521,7 @@ function formQuery(node: Node): Query {
         type: "select",
         table: node.fxn.name,
         fields: fields,
+        node: node,
       }
       query.terms.push(term);
       // project output if necessary
@@ -2593,6 +2595,7 @@ function formQuery(node: Node): Query {
       type: "select",
       table: "entity eavs",
       fields: fields,
+      node: node,
     }
     query.terms.push(term);
     // project if necessary
@@ -2623,6 +2626,7 @@ function formQuery(node: Node): Query {
       type: "select",
       table: "is a attributes",
       fields: [entityField, collectionField],
+      node: node,
     }
     query.terms.push(term);
     // project if necessary
@@ -2660,6 +2664,7 @@ function formQuery(node: Node): Query {
       type: "select",
       table: "entity eavs",
       fields: fields,
+      node: node,
     }
     query.terms.push(term);
     // project if necessary
