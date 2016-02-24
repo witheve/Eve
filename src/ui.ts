@@ -630,6 +630,7 @@ function loadFromFile(event:Event, elem) {
   let reader = new FileReader();
   reader.onload = function(event:any) {
     let serialized = event.target.result;
+    eve.deleteDB();
     eve.load(serialized);
     dispatch("toggle prompt", {prompt: loadedPrompt, open: true}).commit();
   };
@@ -660,13 +661,15 @@ function nukeDatabase() {
 
 function savePrompt():Element {
   let serialized = localStorage[eveLocalStorageKey];
+  let blob = new Blob([serialized], {type: "application/json"});
+  let url = URL.createObjectURL(blob);
   return {c: "modal-prompt save-prompt", children: [
     {t: "header", c: "flex-row", children: [
       {t: "h2", text: "Save DB"},
       {c: "flex-grow"},
       {c: "controls", children: [{c: "ion-close-round", click: closePrompt}]}
     ]},
-    {t: "a", href: "data:application/octet-stream;charset=utf-16le;base64," + btoa(serialized), download: "save.evedb", text: "save to file"}
+    {t: "a", href: url, download: "save.evedb", text: "save to file"}
   ]};
 }
 
