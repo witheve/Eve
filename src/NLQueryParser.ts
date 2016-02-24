@@ -1702,6 +1702,7 @@ interface Entity {
   entityVar: boolean,
   valueVar: boolean,
   value?: string,
+  projectedAs?: string,
 }
 
 interface Collection {
@@ -1712,6 +1713,7 @@ interface Collection {
   variable: string,
   project: boolean,
   handled?: boolean,
+  projectedAs?: string,
 }
 
 function cloneCollection(collection: Collection): Collection {
@@ -1733,6 +1735,7 @@ interface Attribute {
   variable: string,
   project: boolean,
   handled?: boolean,
+  projectedAs?: string,
 }
 
 // Returns the entity with the given display name.
@@ -2507,7 +2510,6 @@ function formQuery(node: Node): Query {
     let allArgsFound = node.children.every((child) => child.found);
         
     // If we have the right number of arguments, proceed
-    // @TODO surface an error if the arguments are wrong
     let output;
     if (allArgsFound) {
       log("Building function term for: " + node.name);
@@ -2530,6 +2532,10 @@ function formQuery(node: Node): Query {
                             .map((arg) => {return {name: node.fxn.name, 
                                                    value: arg.attribute.variable, 
                                                    variable: true}});
+        args.map((a) => {
+          a.attribute.project = false;
+          a.attribute.projectedAs = undefined;
+        });
         query.projects = []; // Clears all previous projects
       }
     } 
@@ -2605,6 +2611,7 @@ function formQuery(node: Node): Query {
         value: attr.variable, 
         variable: true
       };
+      attr.projectedAs = projectAttribute.name;
       addFieldsToProject(projectFields, [projectAttribute]);
     }
     node.attribute.handled = true;
@@ -2612,14 +2619,15 @@ function formQuery(node: Node): Query {
   // Handle collections -------------------------------
   if (node.hasProperty(Properties.COLLECTION) && !node.collection.handled) {
     log("Building collection term for: " + node.name);
+    let collection = node.collection;
     let entityField = {
       name: "entity", 
-      value: node.collection.variable, 
+      value: collection.variable, 
       variable: true
     };
     let collectionField = {
       name: "collection", 
-      value: node.collection.id, 
+      value: collection.id, 
       variable: false
     };
     let term: Term = {
@@ -2631,12 +2639,13 @@ function formQuery(node: Node): Query {
     query.terms.push(term);
     // project if necessary
     if (node.collection.project) {
-      collectionField = {
-        name: node.collection.variable, 
-        value: node.collection.variable, 
+      let projectCollection = {
+        name: collection.variable.replace(/ /g,''), 
+        value: collection.variable, 
         variable: true
       };
-      addFieldsToProject(projectFields, [collectionField]);
+      collection.projectedAs = projectCollection.name;
+      addFieldsToProject(projectFields, [projectCollection]);
     }
     node.collection.handled = true;
   }
@@ -2669,12 +2678,13 @@ function formQuery(node: Node): Query {
     query.terms.push(term);
     // project if necessary
     if (entity.project === true) {
-      let entityField = {
+      let projectEntity = {
         name: entity.displayName.replace(/ /g,''),
         value: entity.id, 
         variable: false
       };
-      addFieldsToProject(projectFields, [entityField]);
+      entity.projectedAs = projectEntity.name;
+      addFieldsToProject(projectFields, [projectEntity]);
     }
     node.entity.handled = true;
   }
