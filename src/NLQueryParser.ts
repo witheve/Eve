@@ -1163,6 +1163,11 @@ function findFunction(node: Node, context: Context): boolean {
     return false;
   }
   
+  // Insert function needs to follow a possessive function
+  if (fxn.type === FunctionTypes.INSERT && !context.found.some((n) => n.hasProperty(Properties.POSSESSIVE))) {
+    return false;
+  }
+  
   log(` Found: ${fxn.name}`);
   node.fxn = fxn;
   fxn.node = node;
