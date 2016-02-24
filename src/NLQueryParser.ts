@@ -82,7 +82,7 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
   let query = newQuery();
   let insertResults = [];
   if (allFound(tree)) {
-    let inserts = context.fxns.filter((f) => f.fxn.type === FunctionTypes.INSERT);
+    let inserts = context.internalFxns.filter((f) => f.fxn.type === FunctionTypes.INSERT);
     if (inserts.length > 0) {
       intent = Intents.INSERT;
       // Format each insert
@@ -115,7 +115,7 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
       intent = Intents.QUERY;
     }
   }
-  intent = Intents.QUERY
+  
   if (intent === Intents.QUERY) {
     // Create the query from the new tree
     intent = Intents.QUERY;
@@ -1100,7 +1100,7 @@ function stringToFunction(word: string): BuiltInFunction {
     case "by":
     case "per":
       return {name: "group", type: FunctionTypes.GROUP, fields: [{name: "root", types: all}, 
-                                                                 {name: "collection", types: [Properties.COLLECTION]}], project: false};
+                                                                 {name: "collection", types: [Properties.COLLECTION, Properties.ATTRIBUTE]}], project: false};
     case "except":
     case "without":
     case "not":
@@ -2463,8 +2463,12 @@ function formQuery(node: Node): Query {
       log("Building function term for: " + node.name);
       
       let groupNode = node.children[1].children[0];
+      if (groupNode.hasProperty(Properties.COLLECTION)) {
+        groupNode.collection.handled = false;  
+      } else if (groupNode.hasProperty(Properties.ATTRIBUTE)) {
+        groupNode.attribute.handled = false;  
+      }
       
-      groupNode.collection.handled = false;
       let subquery = query;
       let query2 = formQuery(groupNode);
       query = newQuery();
