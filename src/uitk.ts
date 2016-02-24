@@ -1199,18 +1199,31 @@ export function directory(elem:DirectoryElem):Element {
     ]};
   }
 
-  let highlights = collections.slice(0, 15).concat(entities.slice(0, 8));
+  collections = collections.filter((coll) => asEntity("test data") !== coll);
+  let highlights = collections.slice(0, 5).concat(entities.slice(0, 4));
   return {c: "directory flex-column", children: [
-    {t: "p", children: [
-      {t: "span", text: "Welcome to Eve. First time users should consider reading the "}, {t: "a", text: "tutorial", href: `/tutorial/${builtinId("tutorial")}`}, {t: "span", text: "."},
-      // @TODO: body copy.
+    {c: "header", children: [
+      {text: "Home"},
     ]},
-    {t: "h2", text: "Cards of Interest"},
-    masonry({c: "directory-highlights", rowSize: 10, layouts: directoryTileLayouts, styles: directoryTileStyles, children: highlights.map(formatTile)}),
-    {c: "directory-lists flex-row", children: [
-      formatList("collections", collections, collectionTableState),
-      formatList("entities", entities, entityTableState)
+    {c: "tile-scroll", children: [
+      {c: "tiles", children: [
+        {c: "row", children: [
+          {c: "tile full", children: [
+            {c: "tile-content-wrapper", children: [
+              {text: "Welcome to Eve. First time users should consider reading the "}, {t: "a", text: "tutorial", href: `/tutorial/${builtinId("tutorial")}`}, {t: "span", text: "."},
+            // @TODO: body copy.
+            ]}
+          ]},
+        ]},
+        {c: "row", children: [
+          masonry({c: "directory-highlights", rowSize: 6, layouts: directoryTileLayouts, styles: directoryTileStyles, children: highlights.map(formatTile)}),
+        ]}
+      ]}
     ]}
+    // {c: "directory-lists flex-row", children: [
+    //   formatList("collections", collections, collectionTableState),
+    //   formatList("entities", entities, entityTableState)
+    // ]}
   ]};
 }
 

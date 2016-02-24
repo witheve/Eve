@@ -360,13 +360,13 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 /*---------------------------------------------------------
 - Directory
 ---------------------------------------------------------*/
-.directory { width: 800px; }
+.directory { width: 360px; }
 .directory h2 { padding-left: 5px; }
 .directory p { margin-left: 5px; }
 
-.directory-highlights.masonry { min-width: 600px; flex: 0 0 auto; } /* @FIXME */
-.directory-highlights.masonry .masonry-row { flex: 0 0 auto; height: 96px; }
-.directory-highlights.masonry .directory-tile { justify-content: center; align-items: center; margin: 4px; background: white; border-radius: 2px; }
+.directory-highlights.masonry {} /* @FIXME */
+.directory-highlights.masonry .masonry-row { flex: 1 0 0; }
+.directory-highlights.masonry .directory-tile { justify-content: center; align-items: center; margin: 0px; background: white; border-radius: 2px; }
 .directory-highlights .directory-tile > * { flex: 0 0 auto; }
 
 /* Background patterns from subtlepatterns.com */

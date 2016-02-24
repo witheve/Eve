@@ -87,7 +87,7 @@ function inferRepresentation(search:string|number, baseParams:{} = {}):{rep:stri
     params.entity = entityId || builtinId("home");
     if(params.entity === builtinId("home")) {
       rep = "directory";
-      params.unwrapped = true;
+      // params.unwrapped = true;
     }
     return {rep, params};
   }
