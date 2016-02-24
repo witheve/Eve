@@ -662,7 +662,7 @@ export function CSV(elem:CSVElem):Element {
 interface TableState { sortField?:string, sortDirection?:number, adder?:{}, confirmed?:boolean }
 interface TableFieldElem extends Element {field:string, header:TableHeaderElem, state:TableState, sortable?:boolean}
 interface TableCellElem extends Element { table:Element, field:string, row:{}, text:string, editable?:boolean }
-interface TableHeaderElem extends Element { state:TableState, fields:string[], groups?:string[], sortable?:boolean }
+interface TableHeaderElem extends Element { state:TableState, fields:string[], groups?:string[], sortable?:boolean, addField?: Handler<Event>, removeField?: Handler<Event> }
 interface TableBodyElem extends Element { state:TableState, rows:{}[], fields:string[], disabled?:string[], groups?:string[], sortable?:boolean, data?:{}, editCell?:Handler<Event>, editGroup?:Handler<Event>, removeRow?:Handler<Event> }
 interface TableAdderElem extends Element {row:{}, fields: string[], disabled?: string[], confirm?:boolean, change?:Handler<Event>, submit?:Handler<Event> }
 export function tableBody(elem:TableBodyElem):Element {
@@ -796,6 +796,8 @@ function tableHeader(elem:TableHeaderElem):Element {
     }
   }
 
+  let {addField, removeField} = elem;
+
   // Build header
   elem.t = "header";
   elem.c = `table-header ${elem.c || ""}`;
@@ -808,11 +810,13 @@ function tableHeader(elem:TableHeaderElem):Element {
       value({c: "text", text: field, data, autolink: false}),
       {c: "flex-grow"},
       {c: "controls", children: [
-        sortable ? {c: klass, table: elem, field, direction: -direction || 1, click: sortTable} : undefined
+        sortable ? {c: klass, table: elem, field, direction: -direction || 1, click: sortTable} : undefined,
+        removeField ? {c: "ion-close-round", table: elem, field, click: removeField} : undefined
       ]}
     ]});
   };
   elem.children.push({c: "controls", children: [
+    addField ? {c: "ion-plus-round add-field-btn", table: elem, click: addField} : undefined
   ]});
   return elem;
 }
