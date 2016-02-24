@@ -2521,10 +2521,13 @@ function formQuery(node: Node): Query {
       log("Building function term for: " + node.name);
       let args = node.children.filter((child) => child.hasProperty(Properties.ARGUMENT)).map((arg) => arg.children[0]);
       let fields: Array<Field> = args.map((arg,i) => {
+        if (arg.parent.hasProperty(Properties.ROOT)) {
+          return undefined;
+        }
         return {name: node.fxn.fields[i].name, 
                 value: arg.attribute.variable, 
                 variable: true};
-      });
+      }).filter((f) => f !== undefined);
       let term: Term = {
         type: "select",
         table: node.fxn.name,
@@ -2539,8 +2542,13 @@ function formQuery(node: Node): Query {
                                                    value: arg.attribute.variable, 
                                                    variable: true}});
         args.map((a) => {
-          a.attribute.project = false;
-          a.attribute.projectedAs = undefined;
+          if (a.hasProperty(Properties.ATTRIBUTE)) {
+            a.attribute.project = false;
+            a.attribute.projectedAs = undefined;  
+          } else if (a.hasProperty(Properties.COLLECTION)) {
+            a.collection.project = false;
+            a.collection.projectedAs = undefined;  
+          }
         });
         query.projects = []; // Clears all previous projects
       }
