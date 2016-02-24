@@ -312,8 +312,8 @@ function propertyAdderUI(elem) {
     {children: [
       {c: "tile small", children: [
         {c: "tile-content-wrapper", children: [
-          {t: "input", c: "property", placeholder: "property", value: state.propertyProperty, attribute: "propertyProperty", input: trackPropertyAdderInput, postRender: autosizeAndFocus, keydown: adderKeys, entityId, key},
-          {t: "input", c: "value", placeholder: "value", value: state.propertyValue, attribute: "propertyValue", input: trackPropertyAdderInput, postRender: autosizeInput, keydown: adderKeys, entityId, key},
+          {t: "input", c: "property", placeholder: "property", value: state.propertyProperty || "", attribute: "propertyProperty", input: trackPropertyAdderInput, postRender: autosizeAndFocus, keydown: adderKeys, entityId, key},
+          {t: "input", c: "value", placeholder: "value", value: state.propertyValue || "", attribute: "propertyValue", input: trackPropertyAdderInput, postRender: autosizeInput, keydown: adderKeys, entityId, key},
         ]},
         {c: "controls flex-row", children: [
           {c: "ion-checkmark submit", click: submitAdder, key},
