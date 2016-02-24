@@ -110,7 +110,8 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
       intent = Intents.MOREINFO;
     // This clause is to protect against product joining
     } else if (context.found.length > 1 && // product joins only occurr in the case when there is more than one thing
-               context.attributes.filter((a) => a.attribute.refs === undefined && !a.parent.hasProperty(Properties.ARGUMENT)).length > 0) {
+               ((context.attributes.filter((a) => a.attribute.refs === undefined && !a.parent.hasProperty(Properties.ARGUMENT)).length > 0) ||
+               (context.collections.filter((c) => c.relationships.length === 0).length > 0))) {
       intent = Intents.NORESULT;
     } else {
       intent = Intents.QUERY;
