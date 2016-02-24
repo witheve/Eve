@@ -17,6 +17,7 @@ export function resolveId(maybeName:string):string {
   return display ? display.id : maybeName;
 }
 export function resolveValue(maybeValue:string):string {
+  maybeValue = coerceInput(maybeValue);
   if(typeof maybeValue !== "string") return maybeValue;
   let val = maybeValue.trim();
   if(val.indexOf("=") === 0) {
@@ -663,9 +664,9 @@ export function CSV(elem:CSVElem):Element {
   return {c: "flex-row csv", children: values.map((val) => value({t: "span", autolink, text: val, data}))};
 }
 
-interface TableState { sortField?:string, sortDirection?:number, adder?:{}, confirmed?:boolean }
+interface TableState { sortField?:string, sortDirection?:number, adders?:{}[], changes?: {field: string, prev: any, row:{}, value: any}[] }
 interface TableFieldElem extends Element {field:string, header:TableHeaderElem, state:TableState, sortable?:boolean}
-interface TableCellElem extends Element { table:Element, field:string, row:{}, text:string, editable?:boolean }
+interface TableCellElem extends Element { table:MappedTableElem, field:string, row:{}, text:string, editable?:boolean }
 interface TableHeaderElem extends Element { state:TableState, fields:string[], groups?:string[], sortable?:boolean, addField?: Handler<Event>, removeField?: Handler<Event> }
 interface TableBodyElem extends Element { state:TableState, rows:{}[], fields:string[], disabled?:string[], groups?:string[], sortable?:boolean, data?:{}, editCell?:Handler<Event>, editGroup?:Handler<Event>, removeRow?:Handler<Event> }
 interface TableAdderElem extends Element {row:{}, fields: string[], disabled?: string[], confirm?:boolean, change?:Handler<Event>, submit?:Handler<Event> }
@@ -880,32 +881,6 @@ export function tableAdderRow(elem:TableAdderElem):Element {
   return elem;
 }
 
-function changeAttributeAdder(event, elem) {
-  let {table:tableElem, row, field} = elem;
-  row[elem.field] = resolveValue(getNodeContent(event.target));
-  dispatch("rerender");
-}
-
-function changeEntityAdder(event, elem) {
-  let {table:tableElem, row, field} = elem;
-  let {subject, fieldMap} = tableElem;
-  row[elem.field] = resolveValue(getNodeContent(event.target));
-  
-  if(elem.field === subject) {
-    // @NOTE: Should this really be done by inserting "= " when the input is focused?
-    let entityId = asEntity(resolveValue(row[subject]));
-    if(entityId) {
-      for(let field in fieldMap) {
-        let {value = undefined} = eve.findOne("entity eavs", {entity: entityId, attribute: fieldMap[field]}) || {};
-        if(!row[field] && value !== undefined) {
-          row[field] = value;
-        }
-      }
-      dispatch("rerender");
-    }
-  }
-}
-
 function createFact(chain, row:{}, {subject, entity, fieldMap, collections}:{subject:string, entity?:string, fieldMap:{[field:string]: string}, collections?: string[]}) {
   let name = row[subject];
   if(!entity) {
@@ -932,34 +907,129 @@ function createFact(chain, row:{}, {subject, entity, fieldMap, collections}:{sub
     }
   }
 }
-      
-function submitTableAdder(event, elem) {
-  let chain:any = dispatch("rerender");
-  createFact(chain, elem.row, elem);
-  elem.state.adder = {};
-  console.log(chain);
-  chain.commit();
+
+function tableStateValid(tableElem:MappedTableElem) {
+  let {state, fields, groups = []} = tableElem;
+  // A new adder is added every time the previous adder was changes, so the last one is empty.
+  let adders = state.adders.slice(0, -1);
+  
+  // Ensure all batched changes are valid before committing any of them.
+  for(let adder of adders) {
+    for(let field of fields.concat(groups)) {
+      if(adder[field] === undefined || adder[field] === "") return false;
+    }
+  }
+
+  for(let change of state.changes) {
+    console.log(change, change.value);
+    if(change.value === undefined || change.value === "") return false;
+  }
+  
+  return true;
+}
+
+function manageAdders(state, row, field) {
+  if(row[field] !== undefined && row[field] !== "") {
+    if(row === state.adders[state.adders.length - 1]) {
+      // We added a value to the blank adder and need to push a new adder
+      state.adders.push({});
+    }
+  } else {
+    let ix = 0;
+    while(ix < state.adders.length - 1) {
+      let adder = state.adders[ix];
+      let gc = true;
+      for(let field in adder) {
+        if(adder[field] !== undefined && adder[field] !== "") {
+          gc = false;
+          break;
+        }
+      }
+      if(gc) {
+        state.adders.splice(ix, 1);
+      } else {
+        ix++;
+      }
+    }
+  }
+}
+
+function changeAttributeAdder(event, elem) {
+  let {table:tableElem, row, field} = elem;
+  let {state} = tableElem;
+  row[field] = resolveValue(getNodeContent(event.target));
+  manageAdders(state, row, field);
+  dispatch("rerender").commit();
+}
+
+function changeEntityAdder(event, elem) {
+  let {table:tableElem, row, field} = elem;
+  let {state, subject, fieldMap} = tableElem;
+  row[field] = resolveValue(getNodeContent(event.target));
+  if(field === subject) {
+    // @NOTE: Should this really be done by inserting "= " when the input is focused?
+    let entityId = asEntity(resolveValue(row[subject]));
+    if(entityId) {
+      for(let field in fieldMap) {
+        let {value = undefined} = eve.findOne("entity eavs", {entity: entityId, attribute: fieldMap[field]}) || {};
+        if(!row[field] && value !== undefined) {
+          row[field] = value;
+        }
+      }
+    }
+  }
+  manageAdders(state, row, field);
+  dispatch("rerender").commit();
 }
 
 function updateRowAttribute(event, elem:TableCellElem) {
   let {field, row, table:tableElem} = elem;
-  let {subject, fieldMap} = tableElem;
-  let entity = row[subject];
-  dispatch("update entity attribute", {entity, attribute: fieldMap[field], prev: row[field], value: event.detail}).commit();
+  let {state, subject, fieldMap} = tableElem;
+  let value = resolveValue(event.detail);
+  let change;
+  for(let cur of state.changes) {
+    if(cur.field === field && cur.prev === row[field] && cur.row === row) {
+      change = cur;
+      break;
+    }
+  }
+  if(!change) {
+    change = {field, prev: row[field], row, value};
+    state.changes.push(change);
+  } else {
+    change.value = value;
+  }
+  console.log(state);
+  dispatch("rerender").commit();
 }
 
 function commitChanges(event, elem:{table:MappedTableElem}) {
-  // @TODO: Refactor state.adder into state.adders[]
-  // @TODO; Submit all adder rows
   // @TODO: Batch changes to existing rows in editCell into state.changes[]
   // @TODO: Submit all batched cell changes
   // @TODO: Update resolveValue to use new string semantics
   let {table:tableElem} = elem;
-  let {state} = tableElem;
+  let {subject, fieldMap, state} = tableElem;
   let chain:any = dispatch("rerender");
-  createFact(chain, state.adder, tableElem);
-  console.log(chain);
-  chain.commit();
+
+  // A new adder is added every time the previous adder was changes, so the last one is empty.
+  let adders = state.adders.slice(0, -1);
+  
+  if(tableStateValid(tableElem)) {
+    for(let adder of adders) {
+      createFact(chain, adder, tableElem);
+    }
+
+    for(let {field, prev, row, value} of state.changes) {
+      let entity = row[subject];
+      dispatch("update entity attribute", {entity, attribute: fieldMap[field], prev, value}).commit();
+    }
+
+    state.adders = [{}];
+    state.changes = [];
+    chain.commit();
+  } else {
+    console.warn("One or more changes is invalid, so all changes have not been committed");
+  }
 }
 
 interface TableElem extends TableBodyElem {}
@@ -978,20 +1048,33 @@ interface MappedTableElem extends TableBodyElem { entity?: string, subject: stri
 export function mappedTable(elem:MappedTableElem):Element {
   let {state, entity, subject, fieldMap, collections, data} = elem;
   // If we're mapped to an entity search we can only add new attributes to that entity
-  if(entity && state.adder[subject] !== entity) {
-    state.adder[subject] = entity;
+  for(let adder of state.adders) {
+    if(entity && adder[subject] !== entity) {
+      adder[subject] = entity;
+    }
   }
 
   let {rows, fields, groups, disabled = [subject], sortable = true} = elem;
   let adderChanged = entity ? changeAttributeAdder : changeEntityAdder;
   let adderDisabled = entity ? [subject] : undefined;
-
+  let stateValid = tableStateValid(elem);
+  
   elem.c = `table-wrapper mapped-table ${elem.c || ""}`;
   elem.children = [
     tableHeader({state, fields, groups, sortable, data}),
     tableBody({rows, state, fields, groups, disabled, sortable, subject, fieldMap, editCell: updateRowAttribute, data}),
-    tableAdderRow({row: state.adder, state, fields, disabled: adderDisabled, subject, fieldMap, collections, change: adderChanged, confirm: false}),
-    {c: "ion-checkmark-round commit-btn", row: state.adder, table: elem, click: commitChanges}
+    {c: "table-adders", children: state.adders.map((row) => tableAdderRow({
+      row,
+      state,
+      fields,
+      disabled: adderDisabled,
+      confirm: false,
+      subject,
+      fieldMap,
+      collections,
+      change: adderChanged
+    }))},
+    {c: `ion-checkmark-round commit-btn ${stateValid ? "valid" : "invalid"}`, table: elem, click: stateValid && commitChanges}
   ];
   
   return elem;
@@ -1099,9 +1182,9 @@ export function directory(elem:DirectoryElem):Element {
   collections.sort(sortByScores);
   systems.sort(sortByScores);
 
-  let collectionTableState = _state.widget.table[`${key}|collections table`] || {sortField: "score", sortDirection: -1, adder: undefined};
+  let collectionTableState = _state.widget.table[`${key}|collections table`] || {sortField: "score", sortDirection: -1, adders: []};
   _state.widget.table[`${key}|collections table`] = collectionTableState;
-  let entityTableState = _state.widget.table[`${key}|entities table`] || {sortField: "score", sortDirection: -1, adder: undefined};
+  let entityTableState = _state.widget.table[`${key}|entities table`] || {sortField: "score", sortDirection: -1, adders: []};
   _state.widget.table[`${key}|entities table`] = entityTableState;
   
   // Link to entity

@@ -159,7 +159,8 @@ export var array = {
 
 export function coerceInput(input) {
   // http://jsperf.com/regex-vs-plus-coercion
-  if(typeof input === "object") return input;
+  if(input === "") return input;
+  else if(typeof input === "object") return input;
   else if (!isNaN(+input)) return +input;
   else if (input === "true") return true;
   else if (input === "false") return false;

@@ -25,7 +25,7 @@ var popoutHistory = [];
 export let uiState:{
   widget: {
     search: {[paneId:string]: {value:string, plan?:boolean, focused?:boolean, submitted?:string}},
-    table: {[key:string]: {sortField:string, sortDirection:number, adder:{}}},
+    table: {[key:string]: {sortField:string, sortDirection:number, adders?:{}[], changes?: {field: string, prev: any, row:{}, value: any}[]}},
     collapsible: {[key:string]: {open:boolean}}
     attributes: any,
     card: {[key: string]: any},
@@ -104,6 +104,7 @@ function inferRepresentation(search:string|number, baseParams:{} = {}):{rep:stri
 function staticOrMappedTable(search:string, params) {
   let parsed = safeNLParse(search);
   let topParse = parsed[0];
+  console.log(topParse);
   params.rep = "table";
   params.search = search;
   // @NOTE: This requires the first project to be the main result of the search
@@ -122,7 +123,7 @@ function staticOrMappedTable(search:string, params) {
   for(let ctx in topParse.context) {
     if(ctx === "attributes" || ctx === "entities" || ctx === "collections") continue;
     for(let node of topParse.context[ctx]) {
-      if(node.project) {
+      if(node.fxn && node.fxn.project) {
         editable = false;
         break;
       }
@@ -2559,7 +2560,7 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
     let key = `${paneId}|${params.search}`;
     let state =  uiState.widget.table[key];
     if(!state) {
-      state = uiState.widget.table[key] = {sortField: undefined, sortDirection: 1, adder: {}};
+      state = uiState.widget.table[key] = {sortField: undefined, sortDirection: 1, adders: [{}], changes: []};
     }
     params["sortable"] = true;
     params["rows"] = results;
@@ -2571,7 +2572,7 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
     let key = `${paneId}|${params.search}`;
     let state =  uiState.widget.table[key];
     if(!state) {
-      state = uiState.widget.table[key] = {sortField: undefined, sortDirection: 1, adder: {}};
+      state = uiState.widget.table[key] = {sortField: undefined, sortDirection: 1};
     }
     params["rows"] = results;
     params["state"] = state;
