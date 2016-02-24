@@ -901,10 +901,8 @@ function changeEntityAdder(event, elem) {
     }
   }
 }
-      
-function submitTableAdder(event, elem) {
-  let {row, subject, entity, fieldMap, collections} = elem;
-  let chain:any = dispatch("rerender");
+
+function createFact(chain, row:{}, {subject, entity, fieldMap, collections}:{subject:string, entity?:string, fieldMap:{[field:string]: string}, collections?: string[]}) {
   let name = row[subject];
   if(!entity) {
     entity = asEntity(name);
@@ -929,7 +927,11 @@ function submitTableAdder(event, elem) {
       chain.dispatch("add sourced eav", {entity, attribute: "is a", value: coll});
     }
   }
-        
+}
+      
+function submitTableAdder(event, elem) {
+  let chain:any = dispatch("rerender");
+  createFact(chain, elem.row, elem);
   elem.state.adder = {};
   console.log(chain);
   chain.commit();
@@ -940,6 +942,20 @@ function updateRowAttribute(event, elem:TableCellElem) {
   let {subject, fieldMap} = tableElem;
   let entity = row[subject];
   dispatch("update entity attribute", {entity, attribute: fieldMap[field], prev: row[field], value: event.detail}).commit();
+}
+
+function commitChanges(event, elem:{table:MappedTableElem}) {
+  // @TODO: Refactor state.adder into state.adders[]
+  // @TODO; Submit all adder rows
+  // @TODO: Batch changes to existing rows in editCell into state.changes[]
+  // @TODO: Submit all batched cell changes
+  // @TODO: Update resolveValue to use new string semantics
+  let {table:tableElem} = elem;
+  let {state} = tableElem;
+  let chain:any = dispatch("rerender");
+  createFact(chain, state.adder, tableElem);
+  console.log(chain);
+  chain.commit();
 }
 
 interface TableElem extends TableBodyElem {}
@@ -970,7 +986,8 @@ export function mappedTable(elem:MappedTableElem):Element {
   elem.children = [
     tableHeader({state, fields, groups, sortable, data}),
     tableBody({rows, state, fields, groups, disabled, sortable, subject, fieldMap, editCell: updateRowAttribute, data}),
-    tableAdderRow({row: state.adder, state, fields, disabled: adderDisabled, subject, fieldMap, collections, change: adderChanged, submit: submitTableAdder})
+    tableAdderRow({row: state.adder, state, fields, disabled: adderDisabled, subject, fieldMap, collections, change: adderChanged, confirm: false}),
+    {c: "ion-checkmark-round commit-btn", row: state.adder, table: elem, click: commitChanges}
   ];
   
   return elem;

@@ -317,10 +317,10 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .table-wrapper .table-row + .table-row {  }
 .table-wrapper .column + .column {  }
 
-.table .sub-row { flex-direction: row; }
+.table-wrapper .table-header .sort-toggle { opacity: 0.5; }
+.table-wrapper .table-header .sort-toggle.active { opacity: 1; }
 
-.table header .sort-toggle { opacity: 0.5; }
-.table header .sort-toggle.active { opacity: 1; }
+.mapped-table .commit-btn { align-self: stretch; align-items: center; padding: 5px 10px; }
 
 /*---------------------------------------------------------
 - Search Input
