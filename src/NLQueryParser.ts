@@ -73,9 +73,9 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
     context = treeResult.context;
   }
   // Manage context
-  context.entities = context.found.filter((n) => n.hasProperty(Properties.ENTITY) && !n.hasProperty(Properties.SUBSUMED));
-  context.collections = context.found.filter((n) => n.hasProperty(Properties.COLLECTION) && !n.hasProperty(Properties.SUBSUMED)); 
-  context.attributes = context.found.filter((n) => n.hasProperty(Properties.ATTRIBUTE) && !n.hasProperty(Properties.SUBSUMED));
+  context.entities = context.found.filter((n) => n.hasProperty(Properties.ENTITY) && !n.hasProperty(Properties.SUBSUMED) && !n.hasProperty(Properties.IMPLICIT));
+  context.collections = context.found.filter((n) => n.hasProperty(Properties.COLLECTION) && !n.hasProperty(Properties.SUBSUMED) && !n.hasProperty(Properties.IMPLICIT)); 
+  context.attributes = context.found.filter((n) => n.hasProperty(Properties.ATTRIBUTE) && !n.hasProperty(Properties.SUBSUMED) && !n.hasProperty(Properties.IMPLICIT));
   
   // Manage results
   let intent = Intents.NORESULT;
@@ -1051,8 +1051,8 @@ function stringToFunction(word: string): BuiltInFunction {
                       {name:"b", types: [Properties.ATTRIBUTE, Properties.QUANTITY]}
                      ];
   let calculateFields = [{name: "result", types: [Properties.OUTPUT]}, 
-                         {name: "a", types: [Properties.ATTRIBUTE, Properties.QUANTITY]}, 
-                         {name:"b", types: [Properties.ATTRIBUTE, Properties.QUANTITY]}
+                         {name: "a", types: [Properties.ATTRIBUTE, Properties.QUANTITY, Properties.FUNCTION]}, 
+                         {name:"b", types: [Properties.ATTRIBUTE, Properties.QUANTITY, Properties.FUNCTION]}
                         ];
   switch (word) {
     case ">":
@@ -1478,17 +1478,27 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
     } else if (node.fxn.type === FunctionTypes.NEGATE) {
       // This space is left intentionally blank
     } else if (node.fxn.type === FunctionTypes.CALCULATE) {
-      let QAs = context.nodes.filter((n) => n.hasProperty(Properties.ATTRIBUTE) || n.hasProperty(Properties.QUANTITY))
+      let QAs = context.nodes.filter((n) => n.hasProperty(Properties.ATTRIBUTE) || 
+                                            n.hasProperty(Properties.QUANTITY || 
+                                            n.hasProperty(Properties.FUNCTION)));
       for (let qa of QAs) {
         if (qa.parent.hasProperty(Properties.ARGUMENT)) {
           continue;
         }
-        removeNode(qa)
+        if (qa.hasProperty(Properties.FUNCTION)) {
+          if (qa.fxn.type === FunctionTypes.AGGREGATE) {
+            removeBranch(qa);   
+          } else {
+            continue;
+          }
+        } else {
+          removeNode(qa)  
+        }
         formTree(qa, tree, context);
         if (node.children.every((n) => n.found)) {
           break;
         }
-      } 
+      }
     // Otherwise, just attach arguments that are applicable
     } else {  
       if (node.fxn.fields.length > 0) {
@@ -1518,7 +1528,7 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
         if (relationship.type !== RelationshipTypes.NONE) {
           break;
         } else if (relationship.type === RelationshipTypes.NONE) {
-          if (foundNode.hasProperty(Properties.POSSESSIVE)) {
+          if (foundNode.hasProperty(Properties.POSSESSIVE) && !node.hasProperty(Properties.QUANTITY)) {
             context.maybeAttributes.push(node);
           }
         }
