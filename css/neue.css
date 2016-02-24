@@ -325,6 +325,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .table-wrapper .table-header .sort-toggle.active { opacity: 1; }
 
 .mapped-table .commit-btn { align-self: stretch; align-items: center; padding: 5px 10px; }
+.mapped-table .commit-btn.invalid { background: rgba(0, 0, 0, 0.1); color: #777; }
 
 /*---------------------------------------------------------
 - Search Input

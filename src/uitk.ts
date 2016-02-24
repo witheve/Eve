@@ -957,6 +957,21 @@ function createFact(chain, row:{}, {subject, entity, fieldMap, collections}:{sub
   }
 }
 
+function tableStateValid(tableElem:MappedTableElem) {
+  let {state, fields, groups = []} = tableElem;
+  // A new adder is added every time the previous adder was changes, so the last one is empty.
+  let adders = state.adders.slice(0, -1);
+  
+  // Ensure all batched changes are valid before committing any of them.
+  for(let adder of adders) {
+    for(let field of fields.concat(groups)) {
+      if(adder[field] === undefined || adder[field] === "") return false;
+    }
+  }
+  
+  return true;
+}
+
 function updateRowAttribute(event, elem:TableCellElem) {
   let {field, row, table:tableElem} = elem;
   let {subject, fieldMap} = tableElem;
@@ -965,32 +980,17 @@ function updateRowAttribute(event, elem:TableCellElem) {
 }
 
 function commitChanges(event, elem:{table:MappedTableElem}) {
-  // @TODO: Refactor state.adder into state.adders[]
-  // @TODO; Submit all adder rows
   // @TODO: Batch changes to existing rows in editCell into state.changes[]
   // @TODO: Submit all batched cell changes
   // @TODO: Update resolveValue to use new string semantics
   let {table:tableElem} = elem;
-  let {state, fields, groups = []} = tableElem;
+  let {state} = tableElem;
   let chain:any = dispatch("rerender");
 
   // A new adder is added every time the previous adder was changes, so the last one is empty.
   let adders = state.adders.slice(0, -1);
   
-  // Ensure all batched changes are valid before committing any of them.
-  let valid = true;
-  addersValid:
-
-  for(let adder of adders) {
-    for(let field of fields.concat(groups)) {
-      if(adder[field] === undefined || adder[field] === "") {
-        valid = false;
-        break addersValid;
-      }
-    }
-  }
-
-  if(valid) {
+  if(tableStateValid(tableElem)) {
     for(let adder of adders) {
       createFact(chain, adder, tableElem);
     }
@@ -1027,6 +1027,8 @@ export function mappedTable(elem:MappedTableElem):Element {
   let {rows, fields, groups, disabled = [subject], sortable = true} = elem;
   let adderChanged = entity ? changeAttributeAdder : changeEntityAdder;
   let adderDisabled = entity ? [subject] : undefined;
+  let stateValid = tableStateValid(elem);
+  
   elem.c = `table-wrapper mapped-table ${elem.c || ""}`;
   elem.children = [
     tableHeader({state, fields, groups, sortable, data}),
@@ -1042,7 +1044,7 @@ export function mappedTable(elem:MappedTableElem):Element {
       collections,
       change: adderChanged
     }))},
-    {c: "ion-checkmark-round commit-btn", table: elem, click: commitChanges}
+    {c: `ion-checkmark-round commit-btn ${stateValid ? "valid" : "invalid"}`, table: elem, click: stateValid && commitChanges}
   ];
   
   return elem;
