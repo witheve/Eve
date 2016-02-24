@@ -1521,6 +1521,9 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
       //let orphans = tree.children.filter((child) => child.relationships.length === 0 && child.children.length === 0);  
       for (let i = context.found.length -1; i >= 0; i--) {
         let foundNode = context.found[i]; 
+        if (foundNode === node) {
+          continue;
+        }
         if (node.relationships.length === 0) {
           removeNode(node);
         }
