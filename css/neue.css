@@ -314,6 +314,8 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 
 .table-wrapper .table-row > .controls, .table-wrapper .table-header > .controls { flex-grow: 1; background: #eee; opacity: 1; }
 
+.table-wrapper .table-adder { border-bottom: 1px solid transparent; }
+
 .table-wrapper { }
 .table-wrapper > .table-header {  }
 .table-wrapper .table-row + .table-row {  }
