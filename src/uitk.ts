@@ -189,9 +189,9 @@ function updateEntityAttributes(event:CustomEvent, elem:{row: TableRowElem}) {
 }
 function sortTable(event, elem:TableFieldElem) {
   let {table, field = undefined, direction = undefined} = elem;
-  console.log(table.state, field, direction);
   if(field === undefined && direction === undefined) {
     field = event.target.value;
+    direction = -1;
   }
   dispatch("sort table", {state: table.state, field, direction}).commit();
 }
@@ -709,7 +709,7 @@ export function tableBody(elem:TableBodyElem):Element {
   }
 
   // Sort rows
-  if(sortable && state.sortField) {
+  if(state.sortField && state.sortDirection) {
     rows.sort(sortByFieldValue(state.sortField, state.sortDirection));
   }
   for(var field of groups) {
@@ -1055,6 +1055,8 @@ let directoryTileStyles = ["tile-style-1", "tile-style-2", "tile-style-3", "tile
 // @TODO: Clean up directory elem
 interface DirectoryElem extends Element { entities:string[], data?:any }
 export function directory(elem:DirectoryElem):Element {
+  let key = "directory|home"; // @TODO: FIXME
+  
   const MAX_ENTITIES_BEFORE_OVERFLOW = 14;
   let {entities:rawEntities, data = undefined} = elem;
   let {systems, collections, entities, scores, relatedCounts, wordCounts, childCounts} = classifyEntities(rawEntities);
@@ -1063,12 +1065,18 @@ export function directory(elem:DirectoryElem):Element {
   collections.sort(sortByScores);
   systems.sort(sortByScores);
 
+  let collectionTableState = _state.widget.table[`${key}|collections table`] || {sortField: "score", sortDirection: -1, adder: undefined};
+  _state.widget.table[`${key}|collections table`] = collectionTableState;
+  let entityTableState = _state.widget.table[`${key}|entities table`] || {sortField: "score", sortDirection: -1, adder: undefined};
+  _state.widget.table[`${key}|entities table`] = entityTableState;
+  
   // Link to entity
   // Peek with most significant statistic (e.g. 13 related; or 14 childrenpages; or 5000 words)
   // Slider pane will all statistics
   // Click opens popup preview
-  function formatTile(entity) {
-    let stats = {best:"", links: relatedCounts[entity], pages: childCounts[entity], words: wordCounts[entity]};
+
+  function getStats(entity) {
+    let stats = {name: entity, best:"", links: relatedCounts[entity], pages: childCounts[entity], words: wordCounts[entity]};
     let maxContribution = 0;
     for(let stat in stats) {
       if(!statWeights[stat]) continue;
@@ -1078,52 +1086,46 @@ export function directory(elem:DirectoryElem):Element {
         stats.best = stat;
       }
     }
+    return stats;
+  }
+  
+  function formatTile(entity) {
+    let stats = getStats(entity);
     return {size: scores[entity], stats, children: [
       link({entity, data})
     ]};
   }
 
-  function formatOverflow(key:string, entities, skipChildren:boolean = false) {
-    let rows = [];
-    for(let entity of entities) {
-      rows.push({
-        name: entity,
-        score: scores[entity],
-        words: wordCounts[entity],
-        links: relatedCounts[entity],
-        pages: childCounts[entity]
-      });
-      if(skipChildren) delete rows[rows.length - 1].pages;
+  function formatList(name:string, entities:string[], state) {
+    let sortOpts = [];
+    for(let field of ["score", "links", "words"]) {
+      sortOpts.push({t: "option", text: resolveName(field), value: field, selected: field === state.sortField});
     }
-    let state = {};
-    let fields = getFields({example: rows[0], blacklist: ["__id"]});
-    return table({c: "overflow-list", key, rows, fields, sortable: true, state, data});
-  }
-  
-  // @TODO: Put formatOverflow into a collapsed container.
-  return {c: "directory flex-column", children: [
-    {t: "h2", text: "Collections"},
-    masonry({c: "directory-listing", layouts: directoryTileLayouts, styles: directoryTileStyles, children: collections.map(formatTile)}),
 
-    {t: "h2", text: "Entities"},
-    masonry({c: "directory-listing", layouts: directoryTileLayouts, styles: directoryTileStyles, children: entities.slice(0, MAX_ENTITIES_BEFORE_OVERFLOW).map(formatTile)}),
-    collapsible({
-      key: `${elem.key}|directory entities collapsible`,
-      header: {text: "Show all entities..."},
-      children: [
-        //tableFilter({key: `${elem.key}|directory entities overflow`, sortFields: ["name", "score", "words", "links"]}),
-        formatOverflow(`${elem.key}|directory entities overflow`, entities, true)
-      ],
-      open: false
-    }),
-    
-    {t: "h2", text: "Internals"},
-    collapsible({
-      key: `${elem.key}|directory systems collapsible`,
-      header: {text: "Show all internal entities..."},
-      children: [formatOverflow(`${elem.key}|directory systems overflow`, systems)],
-      open: false
-    }),
+    return {c: "directory-list flex-grow flex-row", children: [
+      collapsible({c: "flex-grow", key: `${key}|${name} collapsible`, header: {text: `Show all ${name}`}, open: false, children: [
+        {c: "flex-row", children: [
+          {c: "table-wrapper", children: [
+            tableBody({rows: entities.map(getStats), fields: ["name"].concat([state.sortField] || []), sortable: false, state, data}),
+          ]},
+          {t: "select", c: "select-sort-field select", value: state.sortField, table: {state}, children: sortOpts, change: sortTable},
+        ]}
+      ]})
+    ]};
+  }
+
+  let highlights = collections.slice(0, 15).concat(entities.slice(0, 8));
+  return {c: "directory flex-column", children: [
+    {t: "p", children: [
+      {t: "span", text: "Welcome to Eve. First time users should consider reading the "}, {t: "a", text: "tutorial", href: `/tutorial/${builtinId("tutorial")}`}, {t: "span", text: "."},
+      // @TODO: body copy.
+    ]},
+    {t: "h2", text: "Cards of Interest"},
+    masonry({c: "directory-highlights", rowSize: 10, layouts: directoryTileLayouts, styles: directoryTileStyles, children: highlights.map(formatTile)}),
+    {c: "directory-lists flex-row", children: [
+      formatList("collections", collections, collectionTableState),
+      formatList("entities", entities, entityTableState)
+    ]}
   ]};
 }
 

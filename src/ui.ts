@@ -83,11 +83,13 @@ function inferRepresentation(search:string|number, baseParams:{} = {}):{rep:stri
   let entityId = asEntity(search);
   let cleaned = (search && (""+search).trim().toLowerCase()) || "";
   if(entityId || cleaned.length === 0) {
+    let rep = "entity";
     params.entity = entityId || builtinId("home");
     if(params.entity === builtinId("home")) {
+      rep = "directory";
       params.unwrapped = true;
     }
-    return {rep: "entity", params};
+    return {rep, params};
   }
 
   let [rawContent, rawParams] = cleaned.split("|");
@@ -2578,7 +2580,8 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
     //return {rows: results, fields, state, groups: groupings, sortable: true, data: params.data};
   },
   directory(results, params:{data?:{}, field?:string}) {
-    let entities = getEntitiesFromResults(results, {fields: params.field ? [params.field] : undefined});
+    //let entities = getEntitiesFromResults(results, {fields: params.field ? [params.field] : undefined});
+    let entities = [builtinId("entity")];
     if(entities.length === 1) {
       let collection = entities[0];
       entities.length = 0;
