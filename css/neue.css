@@ -67,7 +67,6 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .wiki-pane.fullscreen { position: relative; padding: 0px 20px; }
 .wiki-pane > header { padding: 10px 0.5em; align-items: center; border-bottom: 1px solid #ccc; }
 .wiki-pane > header > * { margin: 0 0.5em;}
-.wiki-pane > header > .controls { margin-right: -43px; }
 .wiki-pane > header + .scroller { margin-top:50px; }
 .wiki-pane .scroller { flex: 1; flex-direction:row; position:relative; display: flex; overflow:auto; padding:20px 20px 50px 20px; } /* @TODO: Breakpoints overflow-y: auto*/
 .wiki-pane .scroller > * + * { margin-left:40px; }
@@ -79,9 +78,9 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .wiki-entity { flex: 1; flex-direction: row; overflow:hidden; justify-content: center; }
 .disambiguation { align-self: stretch; flex-direction: row; padding: 15px 25px; color: #999;  }
 
-.wiki-pane > .settings { display: flex; flex-direction: column; align-items: stretch; position: absolute; right: 15px; top: 100px; z-index: 11; background: white; border: 1px solid #ccc; border-radius: 2px; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2); }
-.wiki-pane > .settings:before { content: ""; position: absolute; top: -7px; right: 56px; border: 7px solid transparent; border-bottom-color: #ccc; border-top: none; }
-.wiki-pane > .settings:after { content: ""; position: absolute; top: -6px; right: 57px; border: 6px solid transparent; border-bottom-color: white; border-top: none; }
+.wiki-pane > .settings { display: flex; flex-direction: column; align-items: stretch; position: absolute; right: 15px; top: 73px; z-index: 11; background: white; border: 1px solid #ccc; border-radius: 2px; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2); }
+.wiki-pane > .settings:before { content: ""; position: absolute; top: -7px; right: 28px; border: 7px solid transparent; border-bottom-color: #ccc; border-top: none; }
+.wiki-pane > .settings:after { content: ""; position: absolute; top: -6px; right: 29px; border: 6px solid transparent; border-bottom-color: white; border-top: none; }
 .wiki-pane > .settings li { display: flex; padding: 10px; }
 .wiki-pane > .settings li + li { border-top: 1px solid #ccc; }
 .wiki-pane > .settings li.disabled { color: #999; }
