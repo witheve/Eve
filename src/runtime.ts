@@ -505,6 +505,12 @@ export class Indexer {
   //---------------------------------------------------------
   // Indexer Public API
   //---------------------------------------------------------
+  deleteDB() {
+    for(let table in this.tables) {
+      this.removeView(table);
+      this.clearTable(table);
+    }
+  }
   serialize(asObject?) {
     let dump = {};
     for(let tableName in this.tables) {
