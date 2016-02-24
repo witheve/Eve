@@ -2342,7 +2342,7 @@ export function searchInput(paneId:string, value:string):Element {
         autoFocus: true,
         value: name,
         focus: focusSearch,
-        blur: setSearch,
+        // blur: setSearch,
         cursorPosition: "end",
         change: updateSearch,
         shortcuts: {"Enter": setSearch}
