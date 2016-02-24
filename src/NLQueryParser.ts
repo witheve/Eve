@@ -76,6 +76,9 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
   context.entities = context.found.filter((n) => n.hasProperty(Properties.ENTITY) && !n.hasProperty(Properties.SUBSUMED) && !n.hasProperty(Properties.IMPLICIT));
   context.collections = context.found.filter((n) => n.hasProperty(Properties.COLLECTION) && !n.hasProperty(Properties.SUBSUMED) && !n.hasProperty(Properties.IMPLICIT)); 
   context.attributes = context.found.filter((n) => n.hasProperty(Properties.ATTRIBUTE) && !n.hasProperty(Properties.SUBSUMED) && !n.hasProperty(Properties.IMPLICIT));
+  context.maybeAttributes = context.maybeAttributes.filter((n) => !n.hasProperty(Properties.SUBSUMED));
+  context.maybeCollections = context.maybeCollections.filter((n) => !n.hasProperty(Properties.SUBSUMED));
+  context.maybeEntities = context.maybeEntities.filter((n) => !n.hasProperty(Properties.SUBSUMED));
   
   // Manage results
   let intent = Intents.NORESULT;
@@ -1478,23 +1481,27 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
     } else if (node.fxn.type === FunctionTypes.NEGATE) {
       // This space is left intentionally blank
     } else if (node.fxn.type === FunctionTypes.CALCULATE) {
-      let QAs = context.nodes.filter((n) => n.hasProperty(Properties.ATTRIBUTE) || 
-                                            n.hasProperty(Properties.QUANTITY || 
-                                            n.hasProperty(Properties.FUNCTION)));
-      for (let qa of QAs) {
-        if (qa.parent.hasProperty(Properties.ARGUMENT)) {
+      console.log("HERE!!!!")
+      let AQFs = context.nodes.filter((n) => n.hasProperty(Properties.ATTRIBUTE) || 
+                                             n.hasProperty(Properties.QUANTITY) || 
+                                             n.hasProperty(Properties.FUNCTION));
+      console.log(AQFs )
+      console.log(context.nodes.filter((n) => n.hasProperty(Properties.FUNCTION)));
+      for (let aqf of AQFs ) {
+        if (aqf.parent.hasProperty(Properties.ARGUMENT)) {
           continue;
         }
-        if (qa.hasProperty(Properties.FUNCTION)) {
-          if (qa.fxn.type === FunctionTypes.AGGREGATE) {
-            removeBranch(qa);   
+        console.log(aqf)
+        if (aqf.hasProperty(Properties.FUNCTION)) {
+          if (aqf.fxn.type === FunctionTypes.AGGREGATE) {
+            removeBranch(aqf);   
           } else {
             continue;
           }
         } else {
-          removeNode(qa)  
+          removeNode(aqf)  
         }
-        formTree(qa, tree, context);
+        formTree(aqf, tree, context);
         if (node.children.every((n) => n.found)) {
           break;
         }
@@ -1876,7 +1883,9 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
     relationship = findCollToCollRelationship(nodeA, nodeB, context);
   } else if (nodeA.hasProperty(Properties.ATTRIBUTE) && nodeB.hasProperty(Properties.ATTRIBUTE)) {
     relationship = findAttrToAttrRelationship(nodeA, nodeB, context);
-  }
+  } else if (nodeA.hasProperty(Properties.COLLECTION) && nodeB.hasProperty(Properties.ENTITY)) {
+    relationship = findCollToEntRelationship(nodeA, nodeB, context);
+  } 
   
   // Add relationships to the nodes and context
   if (relationship.type !== RelationshipTypes.NONE) {
@@ -1952,27 +1961,27 @@ function findAttrToAttrRelationship(nodeA: Node, nodeB: Node, context: Context):
 
 
 // e.g. "meetings john was in"
-/*
-function findCollToEntRelationship(coll: Collection, ent: Entity): Relationship {
-  log(`Finding Coll -> Ent relationship between "${coll.displayName}" and "${ent.displayName}"...`);
-  if (coll === "collections") {
-    if (eve.findOne("collection entities", { entity: ent.id })) {
+function findCollToEntRelationship(nodeA: Node, nodeB: Node, context: Context): Relationship {
+  log(`Finding Coll -> Ent relationship between "${nodeA.name}" and "${nodeB.name}"...`);
+  /*if (coll === "collections") {
+    if (eve.findOne("collection entities", { entity: nodeB.entity.id })) {
       return { type: RelationshipTypes.DIRECT };
     }
-  }
-  if (eve.findOne("collection entities", { collection: coll.id, entity: ent.id })) {
-    log("Found Direct relationship")
+  }*/
+  if (eve.findOne("collection entities", { collection: nodeA.collection.id, entity: nodeB.entity.id })) {
+    log("  Found Direct relationship")
     return { type: RelationshipTypes.DIRECT };
   }
   
   let relationship = eve.query(``)
-    .select("collection entities", { collection: coll.id }, "collection")
-    .select("directionless links", { entity: ["collection", "entity"], link: ent.id }, "links")
+    .select("collection entities", { collection: nodeA.collection.id }, "collection")
+    .select("directionless links", { entity: ["collection", "entity"], link: nodeB.entity.id }, "links")
     .exec();
   if (relationship.unprojected.length) {
-    log("Found One-Hop Relationship");
+    log("  Found One-Hop Relationship");
     return { type: RelationshipTypes.ONEHOP };
-  }/*
+  }
+  /*
   // e.g. events with chris granger (events -> meetings -> chris granger)
   let relationships2 = eve.query(``)
     .select("collection entities", { collection: coll }, "collection")
@@ -1982,10 +1991,10 @@ function findCollToEntRelationship(coll: Collection, ent: Entity): Relationship 
   if (relationships2.unprojected.length) {
     let entities = extractFromUnprojected(relationships2.unprojected, 1, 3);
     return { type: RelationshipTypes.TWOHOP };
-  }
+  }*/
   log("  No relationship found");
   return { type: RelationshipTypes.NONE };
-}*/
+}
 
 function findEntToAttrRelationship(ent: Node, attr: Node, context: Context): Relationship {
   log(`Finding Ent -> Attr relationship between "${ent.name}" and "${attr.name}"...`);  
@@ -2103,7 +2112,7 @@ export function findCollToCollRelationship(collA: Node, collB: Node, context: Co
     .aggregate("count", {}, "count")
     .project({ type: ["links", "link"], count: ["count", "count"] })
     .exec();
-  let maxRel = { count: 0 };
+  let maxRel = { type: "", count: 0 };
   for (let result of relationships.results) {
     if (result.count > maxRel.count) maxRel = result;
   }
@@ -2112,8 +2121,11 @@ export function findCollToCollRelationship(collA: Node, collB: Node, context: Co
   // and we have two selects.
   let intersectionSize = intersection.unprojected.length / 2;
   if (maxRel.count > intersectionSize) {
-    // @TODO
-    log("  No relationship found");
+    console.log(relationships.results);
+    console.log(maxRel.type)
+    console.log(intersectionSize)
+    console.log(findEveEntity(maxRel.type))
+    log("  No relationship found1");
     return {type: RelationshipTypes.NONE};
   } else if (intersectionSize > 0) {
     log(" Found Intersection relationship.");
@@ -2122,11 +2134,11 @@ export function findCollToCollRelationship(collA: Node, collB: Node, context: Co
     collA.collection.project = false;
     return {type: RelationshipTypes.INTERSECTION, nodes: [collA, collB]};
   } else if (maxRel.count === 0 && intersectionSize === 0) {
-    log("  No relationship found");
+    log("  No relationship found2");
     return {type: RelationshipTypes.NONE};
   } else {
     // @TODO
-    log("  No relationship found");
+    log("  No relationship found3");
     return {type: RelationshipTypes.NONE};
   }
 }
@@ -2420,7 +2432,7 @@ function formQuery(node: Node): Query {
     // Combine unnamed projects
     for (let project of cQuery.projects) {
       if (project.table === undefined) {
-        addFieldsToProject(combinedProjectFields,project.fields);
+        addFieldsToProject(combinedProjectFields, project.fields);
       }
     }
   }
@@ -2563,7 +2575,7 @@ function formQuery(node: Node): Query {
     // project if necessary
     if (node.attribute.project) {
       let projectAttribute = {
-        name: attr.displayName, 
+        name: attr.displayName.replace(/ /g,''), 
         value: attr.variable, 
         variable: true
       };
