@@ -10,7 +10,7 @@ import * as uitk from "./uitk";
 import {navigate, preventDefault} from "./uitk";
 import {eve, eveLocalStorageKey, handle as appHandle, dispatch, activeSearches, renderer} from "./app";
 import {parseDSL} from "./parser";
-import {parse as nlparse, Intents, FunctionTypes, NodeTypes} from "./NLQueryParser";
+import {parse as nlparse, normalizeString, Intents, FunctionTypes, NodeTypes} from "./NLQueryParser";
 
 
 export enum PANE { FULL, WINDOW, POPOUT };
@@ -53,7 +53,7 @@ export function asEntity(raw:string|number):string {
   if(!cleaned) return;
 
   if(eve.findOne("entity", {entity: cleaned})) return cleaned;
-  cleaned = cleaned.toLowerCase();
+  cleaned = normalizeString(cleaned);
   if(eve.findOne("entity", {entity: cleaned})) return cleaned; // This can be removed if we remove caps from ids. UUIDv4 does not use caps in ids
   let {id = undefined} = eve.findOne("index name", {name: cleaned}) || {};
   return id;
@@ -83,11 +83,13 @@ function inferRepresentation(search:string|number, baseParams:{} = {}):{rep:stri
   let entityId = asEntity(search);
   let cleaned = (search && (""+search).trim().toLowerCase()) || "";
   if(entityId || cleaned.length === 0) {
+    let rep = "entity";
     params.entity = entityId || builtinId("home");
     if(params.entity === builtinId("home")) {
-      params.unwrapped = true;
+      rep = "directory";
+      // params.unwrapped = true;
     }
-    return {rep: "entity", params};
+    return {rep, params};
   }
 
   let [rawContent, rawParams] = cleaned.split("|");
@@ -259,11 +261,12 @@ appHandle("set popout", (changes:Diff, info:{parentId:string, rep?:string, conta
   let children = eve.find("ui pane parent", {parent: parentId});
   let parent = eve.findOne("ui pane", {pane: parentId});
   var reusing = false;
-  if(parent && parent.kind === PANE.POPOUT) {
-    reusing = true;
-    paneId = parentId;
-    parentId = eve.findOne("ui pane parent", {pane: parentId}).parent;
-  } else if(children.length) {
+  // if(parent && parent.kind === PANE.POPOUT) {
+  //   reusing = true;
+  //   paneId = parentId;
+  //   parentId = eve.findOne("ui pane parent", {pane: parentId}).parent;
+  // } else 
+    if(children.length) {
     //check if there is already a child popout
     for(let childRel of children) {
       let child = eve.findOne("ui pane", {pane: childRel.pane});
@@ -318,10 +321,11 @@ appHandle("ui toggle search plan", (changes:Diff, {paneId}:{paneId:string}) => {
 });
 
 appHandle("add sourced eav", (changes, eav:{entity:string, attribute:string, value:string|number, source:string, forceEntity: boolean}) => {
-  let {entity, attribute, value, source, forceEntity} = eav;
+  let {entity, attribute:attrName, value, source, forceEntity} = eav;
   if(!source) {
     source = uuid();
   }
+  let attribute = normalizeString(attrName);
   let valueId = asEntity(value);
   let coerced = coerceInput(value);
   let strValue = value.toString().trim();
@@ -340,7 +344,9 @@ appHandle("add sourced eav", (changes, eav:{entity:string, attribute:string, val
   } else {
     value = coerced;
   }
-  changes.add("sourced eav", {entity, attribute, value, source});
+  changes.add("sourced eav", {entity, attribute, value, source})
+    .remove("display name", {id: attribute})
+    .add("display name", {id: attribute, name: attrName});
 });
 
 appHandle("remove sourced eav", (changes:Diff, eav:{entity:string, source:string}) => {
@@ -485,11 +491,16 @@ appHandle("update entity attribute", (changes:Diff, {entity, attribute, prev, va
   if(prev !== undefined) changes.remove("sourced eav", {entity, attribute, value: prev});
   changes.add("sourced eav", {entity, attribute, value, source});
 });
-appHandle("rename entity attribute", (changes:Diff, {entity, attribute, prev, value}) => {
+appHandle("rename entity attribute", (changes:Diff, {entity, attribute:attrName, prev, value}) => {
   // @FIXME: proper unique source id
   let {source = "<global>"} = eve.findOne("sourced eav", {entity, attribute: prev, value}) || {};
-  if(prev !== undefined) changes.remove("sourced eav", {entity, attribute: prev, value});
-  changes.add("sourced eav", {entity, attribute, value, source});
+  let attribute = normalizeString(attrName);
+  if(prev !== undefined) {
+    changes.remove("sourced eav", {entity, attribute: prev, value})
+      .remove("display name", {id: prev});
+  }
+  changes.add("sourced eav", {entity, attribute, value, source})
+    .add("display name", {id: attribute, name: attrName});
 });
 appHandle("sort table", (changes:Diff, {state, field, direction}) => {
   if(field !== undefined) {
@@ -531,7 +542,7 @@ appHandle("remove entity", (changes:Diff, {entity}) => {
 //---------------------------------------------------------
 export function root():Element {
   let panes = [];
-  for(let {pane:paneId} of eve.find("ui pane")) {
+  for(let {pane:paneId} of eve.find("ui pane", {kind: PANE.FULL})) {
     panes.push(pane(paneId));
   }
   if(uiState.prompt.open && uiState.prompt.prompt && !uiState.prompt.paneId) {
@@ -555,7 +566,7 @@ export function root():Element {
     {t: "a", target: "_blank", href: "https://groups.google.com/forum/#!forum/eve-talk", text: "suggestions"},
     {t: "a", target: "_blank", href: "https://groups.google.com/forum/#!forum/eve-talk", text: "discussion"},
   ]})
-  return {c: "wiki-root", id: "root", children: panes, click: removePopup};
+  return {c: "wiki-root", id: "root", children: panes};
 }
 
 function hideBanner(event, elem) {
@@ -743,29 +754,27 @@ export function pane(paneId:string):Element {
   let scroller = content;
 
   if(kind === PANE.FULL) {
-    scroller = {c: "scroller", children: [
-      {c: "top-scroll-fade"},
-      content,
-      {c: "bottom-scroll-fade"},
-    ]};
+    let panes = eve.find("ui pane").filter((pane) => pane.kind !== PANE.FULL);
+    let children = [content].concat(panes.map((p) => pane(p.pane)));
+    scroller = {c: "scroller", children};
   }
 
-  let pane:Element = {c: `wiki-pane ${klass || ""}`, paneId, children: [header, disambiguation, scroller, footer]};
+  let curPane:Element = {c: `wiki-pane ${klass || ""}`, paneId, children: [header, disambiguation, scroller, footer]};
   let pos = eve.findOne("ui pane position", {pane: paneId});
   if(pos) {
-    pane.style = `left: ${isNaN(pos.x) ? pos.x : pos.x + "px"}; top: ${isNaN(pos.y) ? pos.y : (pos.y + 20) + "px"};`;
+    // curPane.style = `left: ${isNaN(pos.x) ? pos.x : pos.x + "px"}; top: ${isNaN(pos.y) ? pos.y : (pos.y + 20) + "px"};`;
   }
   if(captureClicks) {
-    pane.click = preventDefault;
+    curPane.click = preventDefault;
   }
 
   if(uiState.prompt.open && uiState.prompt.paneId === paneId) {
-    pane.children.push(
+    curPane.children.push(
       {c: "shade", paneId, click: closePrompt},
       uiState.prompt.prompt(paneId)
     );
   }
-  return pane;
+  return curPane;
 }
 
 export function search(search:string, paneId:string):Element {
@@ -2195,7 +2204,7 @@ export function entityTilesUI(entityId, paneId, cardId) {
 
   let state = uiState.widget.attributes[entityId] || {};
 
-  return {c: "tiles", children: rows};
+  return {c: "tile-scroll", children: [{c: "tiles", children: rows}]};
 }
 
 function attributesUIAutocompleteOptions(isEntity, parsed, text, params, entityId) {
@@ -2570,7 +2579,8 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
     //return {rows: results, fields, state, groups: groupings, sortable: true, data: params.data};
   },
   directory(results, params:{data?:{}, field?:string}) {
-    let entities = getEntitiesFromResults(results, {fields: params.field ? [params.field] : undefined});
+    //let entities = getEntitiesFromResults(results, {fields: params.field ? [params.field] : undefined});
+    let entities = [builtinId("entity")];
     if(entities.length === 1) {
       let collection = entities[0];
       entities.length = 0;

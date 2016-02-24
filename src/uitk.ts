@@ -189,9 +189,9 @@ function updateEntityAttributes(event:CustomEvent, elem:{row: TableRowElem}) {
 }
 function sortTable(event, elem:TableFieldElem) {
   let {table, field = undefined, direction = undefined} = elem;
-  console.log(table.state, field, direction);
   if(field === undefined && direction === undefined) {
     field = event.target.value;
+    direction = -1;
   }
   dispatch("sort table", {state: table.state, field, direction}).commit();
 }
@@ -662,7 +662,7 @@ export function CSV(elem:CSVElem):Element {
 interface TableState { sortField?:string, sortDirection?:number, adder?:{}, confirmed?:boolean }
 interface TableFieldElem extends Element {field:string, header:TableHeaderElem, state:TableState, sortable?:boolean}
 interface TableCellElem extends Element { table:Element, field:string, row:{}, text:string, editable?:boolean }
-interface TableHeaderElem extends Element { state:TableState, fields:string[], groups?:string[], sortable?:boolean }
+interface TableHeaderElem extends Element { state:TableState, fields:string[], groups?:string[], sortable?:boolean, addField?: Handler<Event>, removeField?: Handler<Event> }
 interface TableBodyElem extends Element { state:TableState, rows:{}[], fields:string[], disabled?:string[], groups?:string[], sortable?:boolean, data?:{}, editCell?:Handler<Event>, editGroup?:Handler<Event>, removeRow?:Handler<Event> }
 interface TableAdderElem extends Element {row:{}, fields: string[], disabled?: string[], confirm?:boolean, change?:Handler<Event>, submit?:Handler<Event> }
 export function tableBody(elem:TableBodyElem):Element {
@@ -709,7 +709,7 @@ export function tableBody(elem:TableBodyElem):Element {
   }
 
   // Sort rows
-  if(sortable && state.sortField) {
+  if(state.sortField && state.sortDirection) {
     rows.sort(sortByFieldValue(state.sortField, state.sortDirection));
   }
   for(var field of groups) {
@@ -742,7 +742,7 @@ export function tableBody(elem:TableBodyElem):Element {
               keydown: blurOnEnter,
               blur: editGroup
             }),
-            {c: "flex-column group", children: []}
+            {c: "flex-column flex-grow group", children: []}
           ]
         };
         if(group) {
@@ -787,6 +787,17 @@ export function tableBody(elem:TableBodyElem):Element {
 
 function tableHeader(elem:TableHeaderElem):Element {
   let {state, fields, groups = [], sortable = false, data} = elem;
+  fields = fields.slice();
+  // Strip grouped fields out of display fields -- the former implies the latter and must be handled first
+  for(let field of groups) {
+    let fieldIx = fields.indexOf(field);
+    if(fieldIx !== -1) {
+      fields.splice(fieldIx, 1);
+    }
+  }
+
+  let {addField, removeField} = elem;
+
   // Build header
   elem.t = "header";
   elem.c = `table-header ${elem.c || ""}`;
@@ -799,11 +810,13 @@ function tableHeader(elem:TableHeaderElem):Element {
       value({c: "text", text: field, data, autolink: false}),
       {c: "flex-grow"},
       {c: "controls", children: [
-        sortable ? {c: klass, table: elem, field, direction: -direction || 1, click: sortTable} : undefined
+        sortable ? {c: klass, table: elem, field, direction: -direction || 1, click: sortTable} : undefined,
+        removeField ? {c: "ion-close-round", table: elem, field, click: removeField} : undefined
       ]}
     ]});
   };
   elem.children.push({c: "controls", children: [
+    addField ? {c: "ion-plus-round add-field-btn", table: elem, click: addField} : undefined
   ]});
   return elem;
 }
@@ -888,10 +901,8 @@ function changeEntityAdder(event, elem) {
     }
   }
 }
-      
-function submitTableAdder(event, elem) {
-  let {row, subject, entity, fieldMap, collections} = elem;
-  let chain:any = dispatch("rerender");
+
+function createFact(chain, row:{}, {subject, entity, fieldMap, collections}:{subject:string, entity?:string, fieldMap:{[field:string]: string}, collections?: string[]}) {
   let name = row[subject];
   if(!entity) {
     entity = asEntity(name);
@@ -916,7 +927,11 @@ function submitTableAdder(event, elem) {
       chain.dispatch("add sourced eav", {entity, attribute: "is a", value: coll});
     }
   }
-        
+}
+      
+function submitTableAdder(event, elem) {
+  let chain:any = dispatch("rerender");
+  createFact(chain, elem.row, elem);
   elem.state.adder = {};
   console.log(chain);
   chain.commit();
@@ -927,6 +942,20 @@ function updateRowAttribute(event, elem:TableCellElem) {
   let {subject, fieldMap} = tableElem;
   let entity = row[subject];
   dispatch("update entity attribute", {entity, attribute: fieldMap[field], prev: row[field], value: event.detail}).commit();
+}
+
+function commitChanges(event, elem:{table:MappedTableElem}) {
+  // @TODO: Refactor state.adder into state.adders[]
+  // @TODO; Submit all adder rows
+  // @TODO: Batch changes to existing rows in editCell into state.changes[]
+  // @TODO: Submit all batched cell changes
+  // @TODO: Update resolveValue to use new string semantics
+  let {table:tableElem} = elem;
+  let {state} = tableElem;
+  let chain:any = dispatch("rerender");
+  createFact(chain, state.adder, tableElem);
+  console.log(chain);
+  chain.commit();
 }
 
 interface TableElem extends TableBodyElem {}
@@ -957,7 +986,8 @@ export function mappedTable(elem:MappedTableElem):Element {
   elem.children = [
     tableHeader({state, fields, groups, sortable, data}),
     tableBody({rows, state, fields, groups, disabled, sortable, subject, fieldMap, editCell: updateRowAttribute, data}),
-    tableAdderRow({row: state.adder, state, fields, disabled: adderDisabled, subject, fieldMap, collections, change: adderChanged, submit: submitTableAdder})
+    tableAdderRow({row: state.adder, state, fields, disabled: adderDisabled, subject, fieldMap, collections, change: adderChanged, confirm: false}),
+    {c: "ion-checkmark-round commit-btn", row: state.adder, table: elem, click: commitChanges}
   ];
   
   return elem;
@@ -1055,6 +1085,8 @@ let directoryTileStyles = ["tile-style-1", "tile-style-2", "tile-style-3", "tile
 // @TODO: Clean up directory elem
 interface DirectoryElem extends Element { entities:string[], data?:any }
 export function directory(elem:DirectoryElem):Element {
+  let key = "directory|home"; // @TODO: FIXME
+  
   const MAX_ENTITIES_BEFORE_OVERFLOW = 14;
   let {entities:rawEntities, data = undefined} = elem;
   let {systems, collections, entities, scores, relatedCounts, wordCounts, childCounts} = classifyEntities(rawEntities);
@@ -1063,12 +1095,18 @@ export function directory(elem:DirectoryElem):Element {
   collections.sort(sortByScores);
   systems.sort(sortByScores);
 
+  let collectionTableState = _state.widget.table[`${key}|collections table`] || {sortField: "score", sortDirection: -1, adder: undefined};
+  _state.widget.table[`${key}|collections table`] = collectionTableState;
+  let entityTableState = _state.widget.table[`${key}|entities table`] || {sortField: "score", sortDirection: -1, adder: undefined};
+  _state.widget.table[`${key}|entities table`] = entityTableState;
+  
   // Link to entity
   // Peek with most significant statistic (e.g. 13 related; or 14 childrenpages; or 5000 words)
   // Slider pane will all statistics
   // Click opens popup preview
-  function formatTile(entity) {
-    let stats = {best:"", links: relatedCounts[entity], pages: childCounts[entity], words: wordCounts[entity]};
+
+  function getStats(entity) {
+    let stats = {name: entity, best:"", links: relatedCounts[entity], pages: childCounts[entity], words: wordCounts[entity]};
     let maxContribution = 0;
     for(let stat in stats) {
       if(!statWeights[stat]) continue;
@@ -1078,52 +1116,59 @@ export function directory(elem:DirectoryElem):Element {
         stats.best = stat;
       }
     }
+    return stats;
+  }
+  
+  function formatTile(entity) {
+    let stats = getStats(entity);
     return {size: scores[entity], stats, children: [
       link({entity, data})
     ]};
   }
 
-  function formatOverflow(key:string, entities, skipChildren:boolean = false) {
-    let rows = [];
-    for(let entity of entities) {
-      rows.push({
-        name: entity,
-        score: scores[entity],
-        words: wordCounts[entity],
-        links: relatedCounts[entity],
-        pages: childCounts[entity]
-      });
-      if(skipChildren) delete rows[rows.length - 1].pages;
+  function formatList(name:string, entities:string[], state) {
+    let sortOpts = [];
+    for(let field of ["score", "links", "words"]) {
+      sortOpts.push({t: "option", text: resolveName(field), value: field, selected: field === state.sortField});
     }
-    let state = {};
-    let fields = getFields({example: rows[0], blacklist: ["__id"]});
-    return table({c: "overflow-list", key, rows, fields, sortable: true, state, data});
-  }
-  
-  // @TODO: Put formatOverflow into a collapsed container.
-  return {c: "directory flex-column", children: [
-    {t: "h2", text: "Collections"},
-    masonry({c: "directory-listing", layouts: directoryTileLayouts, styles: directoryTileStyles, children: collections.map(formatTile)}),
 
-    {t: "h2", text: "Entities"},
-    masonry({c: "directory-listing", layouts: directoryTileLayouts, styles: directoryTileStyles, children: entities.slice(0, MAX_ENTITIES_BEFORE_OVERFLOW).map(formatTile)}),
-    collapsible({
-      key: `${elem.key}|directory entities collapsible`,
-      header: {text: "Show all entities..."},
-      children: [
-        //tableFilter({key: `${elem.key}|directory entities overflow`, sortFields: ["name", "score", "words", "links"]}),
-        formatOverflow(`${elem.key}|directory entities overflow`, entities, true)
-      ],
-      open: false
-    }),
-    
-    {t: "h2", text: "Internals"},
-    collapsible({
-      key: `${elem.key}|directory systems collapsible`,
-      header: {text: "Show all internal entities..."},
-      children: [formatOverflow(`${elem.key}|directory systems overflow`, systems)],
-      open: false
-    }),
+    return {c: "directory-list flex-grow flex-row", children: [
+      collapsible({c: "flex-grow", key: `${key}|${name} collapsible`, header: {text: `Show all ${name}`}, open: false, children: [
+        {c: "flex-row", children: [
+          {c: "table-wrapper", children: [
+            tableBody({rows: entities.map(getStats), fields: ["name"].concat([state.sortField] || []), sortable: false, state, data}),
+          ]},
+          {t: "select", c: "select-sort-field select", value: state.sortField, table: {state}, children: sortOpts, change: sortTable},
+        ]}
+      ]})
+    ]};
+  }
+
+  collections = collections.filter((coll) => asEntity("test data") !== coll);
+  let highlights = collections.slice(0, 5).concat(entities.slice(0, 4));
+  return {c: "directory flex-column", children: [
+    {c: "header", children: [
+      {text: "Home"},
+    ]},
+    {c: "tile-scroll", children: [
+      {c: "tiles", children: [
+        {c: "row", children: [
+          {c: "tile full", children: [
+            {c: "tile-content-wrapper", children: [
+              {text: "Welcome to Eve. First time users should consider reading the "}, {t: "a", text: "tutorial", href: `/tutorial/${builtinId("tutorial")}`}, {t: "span", text: "."},
+            // @TODO: body copy.
+            ]}
+          ]},
+        ]},
+        {c: "row", children: [
+          masonry({c: "directory-highlights", rowSize: 6, layouts: directoryTileLayouts, styles: directoryTileStyles, children: highlights.map(formatTile)}),
+        ]}
+      ]}
+    ]}
+    // {c: "directory-lists flex-row", children: [
+    //   formatList("collections", collections, collectionTableState),
+    //   formatList("entities", entities, entityTableState)
+    // ]}
   ]};
 }
 

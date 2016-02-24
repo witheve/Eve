@@ -3,6 +3,7 @@ import * as runtime from "./runtime"
 import * as app from "./app"
 import {eve} from "./app"
 import {UIElem, parseDSL, Artifacts} from "./parser"
+import {normalizeString} from "./NLQueryParser"
 import {UI} from "./uiRenderer"
 
 export var ixer = eve;
@@ -11,6 +12,13 @@ declare var uuid;
 //-----------------------------------------------------------------------------
 // Utilities
 //-----------------------------------------------------------------------------
+
+runtime.define("normalize string", {result: "result"}, function(text) {
+  if(typeof text === "string") {
+    return {result: normalizeString(text)};
+  }
+  return {result: text};
+})
 
 // export function UIFromDSL(str:string):UI {
 //   function processElem(data:UIElem):UI {
@@ -185,6 +193,7 @@ app.init("bootstrap", function bootstrap() {
   // Entity System
   //-----------------------------------------------------------------------------
   let phase = new BSPhase(eve);
+  phase.changeset.addMany("display name", [{id: "is a", name: "is a"}, {id: "content", name: "content"}, {id: "artifact", name: "artifact"}]);
   phase.addTable("manual entity", ["entity", "content"]);
   phase.addTable("sourced eav", ["entity", "attribute", "value", "source"]);
   phase.addTable("page content", ["page", "content"]);
@@ -223,7 +232,7 @@ app.init("bootstrap", function bootstrap() {
   phase.addArtifacts(parseDSL(`
     (query :$$view "bs: index name"
       (display-name :id id :name raw)
-      (lowercase :text raw :result name)
+      (normalize-string :text raw :result name)
       (project! "index name" :id id :name name))
   `));
   
