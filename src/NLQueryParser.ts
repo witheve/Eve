@@ -1057,8 +1057,10 @@ function stringToFunction(word: string): BuiltInFunction {
                          {name:"b", types: [Properties.ATTRIBUTE, Properties.QUANTITY]}
                         ];
   switch (word) {
+    case "after":
     case ">":
       return {name: ">", type: FunctionTypes.FILTER, fields: filterFields, project: false};
+    case "before":
     case "<":
       return {name: "<", type: FunctionTypes.FILTER, fields: filterFields, project: false};
     case ">=":
