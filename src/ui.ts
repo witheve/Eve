@@ -1967,7 +1967,7 @@ appHandle("replace sourced tile", (changes, {key, attribute, entityId, source}) 
   if(replaceValue !== undefined && sourced.value !== replaceValue.trim()) {
     changes.remove("sourced eav", {source});
     if(attribute === "description") {
-      replaceValue = `"${replaceValue}"`;
+      replaceValue = `"${replaceValue.replace(/\"/g, '\\"')}"`;
     }
     changes.dispatch("add sourced eav", {entity: entityId, attribute, value: replaceValue, forceEntity: true});
   }
