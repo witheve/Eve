@@ -109,7 +109,7 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
     } else if (context.maybeAttributes.length > 0) {
       intent = Intents.MOREINFO;
     } else if (context.relationships.length === 0) {
-      if (context.fxns.length === 0 && context.attributes.length > 0) {
+      if (context.fxns.length === 0 && context.attributes.length > 0 && context.found.length > 1) {
         intent = Intents.NORESULT;
       } else {
         intent = Intents.QUERY;
@@ -1364,7 +1364,6 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
         if (child.hasProperty(Properties.ARGUMENT)) {
           for (let grandChild of child.children) {
             removeBranch(grandChild);
-            console.log(grandChild);
             formTree(grandChild, tree, context);
           }
         } else {
@@ -1624,9 +1623,7 @@ function addNodeToFunction(node: Node, fxnNode: Node, context: Context): boolean
   } else {
     arg = fxnNode.children.filter((c) => c.hasProperty(Properties.ROOT)).shift();
   }
-  
-  console.log(arg);
-  
+
   // Add the node to the arg
   if (arg !== undefined) {
     if (fxnNode.fxn.type === FunctionTypes.GROUP && arg.name === "collection") {
@@ -1640,7 +1637,6 @@ function addNodeToFunction(node: Node, fxnNode: Node, context: Context): boolean
       node.properties.push(Properties.POSSESSIVE);
       root.addChild(node);
     } else {
-      console.log("Foo")
       arg.addChild(node);
     }
     arg.found = true;
@@ -1950,30 +1946,34 @@ function findEntToAttrRelationship(ent: Node, attr: Node, context: Context): Rel
     let attributes = extractFromUnprojected(getAttr.unprojected,1,2,"attribute");
     attributes = attributes.filter(onlyUnique);
     let attrLinkID;
+    let nNode;
+    let implicitNodes = [];
     if (attributes.length > 0) {
       attrLinkID = attributes[0];
+      // Build a link attribute node
+      let newName = attrLinkID;
+      let nToken = newToken(newName);
+      nNode = newNode(nToken);
+      let nAttribute: Attribute = {
+        id: attrLinkID,
+        refs: [linkCollection],
+        node: nNode,
+        displayName: attrLinkID,
+        variable: `"${ent.entity.id}"`,
+        project: false,
+      }
+      nNode.attribute = nAttribute;
+      nNode.properties.push(Properties.ATTRIBUTE);
+      nNode.found = true;
     }
-    // Build a link attribute node
-    let newName = attrLinkID;
-    let nToken = newToken(newName);
-    let nNode = newNode(nToken);
-    let nAttribute: Attribute = {
-      id: attrLinkID,
-      refs: [linkCollection],
-      node: nNode,
-      displayName: attrLinkID,
-      variable: `"${ent.entity.id}"`,
-      project: false,
-    }
-    nNode.attribute = nAttribute;
-    nNode.properties.push(Properties.ATTRIBUTE);
-    nNode.found = true;
     // Project what we need to
     attribute.project = true;
     ent.entity.project = false;
     ent.entity.handled = true;
-    let relationship = {type: RelationshipTypes.ONEHOP, nodes: [ent, attr], implicitNodes: [nNode]}; 
-    nNode.relationships.push(relationship);
+    let relationship = {type: RelationshipTypes.ONEHOP, nodes: [ent, attr], implicitNodes: implicitNodes};
+    if (nNode !== undefined) {
+      nNode.relationships.push(relationship);  
+    }
     return relationship
   }
   /*
