@@ -529,7 +529,7 @@ export function link(elem:EntityElem):Element {
   let {entity} = elem;
   let name = resolveName(entity);
   elem.c = `${elem.c || ""} entity link inline`;
-  if(!elem.nameAsChild) {
+  if(!elem["nameAsChild"]) {
     elem.text = elem.text || name;
   } else {
     elem.children = [{text: elem.text || name}];
