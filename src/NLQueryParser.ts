@@ -108,7 +108,8 @@ export function parse(queryString: string, lastParse?: Result): Array<Result> {
       }
     } else if (context.maybeAttributes.length > 0) {
       intent = Intents.MOREINFO;
-    } else if (context.found.length > 0 && 
+    // This clause is to protect against product joining
+    } else if (context.found.length > 1 && // product joins only occurr in the case when there is more than one thing
                context.attributes.filter((a) => a.attribute.refs === undefined && !a.parent.hasProperty(Properties.ARGUMENT)).length > 0) {
       intent = Intents.NORESULT;
     } else {
@@ -2019,6 +2020,7 @@ function findEntToAttrRelationship(ent: Node, attr: Node, context: Context): Rel
         nNode.attribute = nAttribute;
         nNode.properties.push(Properties.ATTRIBUTE);
         nNode.found = true;
+        implicitNodes.push(nNode);
       }
       // Project what we need to
       attribute.project = true;
