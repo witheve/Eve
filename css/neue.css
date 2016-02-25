@@ -324,10 +324,10 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .table-wrapper .field .controls { opacity: 0.4; transition: opacity 0.2s; }
 .table-wrapper .field:hover .controls { opacity: 1; }
 .table-wrapper .cell > * { display: flex; }
-.table-wrapper .cell-content { flex: 0 0 auto; justify-content: flex-end; }
+.table-wrapper .cell-content { flex: 0 0 auto; justify-content: flex-start; }
 .table-wrapper .cell-input { flex: 1; }
 .table-wrapper .cell-content > * { display: inline-block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.table-wrapper .cell-input input { width: 100%; padding: 0; }
+.table-wrapper .cell-input input { width: 100%; padding: 0; margin-top: -2px; }
 
 .table-wrapper .table-row > .controls, .table-wrapper .table-header > .controls { flex-grow: 1; opacity: 1; }
 
