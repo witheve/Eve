@@ -125,7 +125,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 
 .card {position:relative; background: white; align-self:center; align-items: stretch; min-width:200px; box-shadow: 0 7px 15px rgba(0,0,50,0.10); border-radius:5px; overflow:hidden; }
 .card .text-content { margin-right:10px; min-width:250px; white-space:pre-wrap; line-height:28px; color:#aaa; flex:none; max-height:50%; }
-.card .header { flex-direction:row; flex:none; padding:10px 15px; font-size: 18pt; font-weight: 900; color: rgb(106,138,156); border-bottom: 1px solid #eee; }
+.card .header { max-width:360px; flex-direction:row; flex:none; padding:10px 15px; font-size: 18pt; font-weight: 900; color: rgb(106,138,156); border-bottom: 1px solid #eee; }
 .card .wiki-editor { padding: 30px; padding-top:0; margin-bottom:20px; }
 .card + .card { margin-top:40px; }
 

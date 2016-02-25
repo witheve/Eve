@@ -2194,4 +2194,13 @@ export function indexer() {
   return ixer;
 }
 
+export function clearAllQueries(eve) {
+  let finalDiff = eve.diff();
+  for(let query of eve.find("query to id")) {
+    finalDiff.merge(Query.remove(query.id, eve));
+  }
+  finalDiff.remove("query to id", {});
+  eve.applyDiff(finalDiff);
+}
+
 if(ENV === "browser") window["runtime"] = exports;
