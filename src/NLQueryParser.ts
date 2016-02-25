@@ -381,6 +381,7 @@ function formToken(word: Word): Token {
   let whPossessivePronoun = ['whose'];
   let whAdverbs = ['how', 'when', 'however', 'whenever', 'where', 'why'];   
   let verbs = ['have', 'do'];
+  let adverbs = ['there'];
 
   // We have three cases: the word is a symbol (of which there are various kinds), a number, or a string
   
@@ -506,6 +507,9 @@ function formToken(word: Word): Token {
     // Verbs 
     } else if (verbs.indexOf(normalizedWord) >= 0) {
       POS = MinorPartsOfSpeech.VB;
+    // Adverbs 
+    } else if (adverbs.indexOf(normalizedWord) >= 0) {
+      POS = MinorPartsOfSpeech.RB;
     }
     
     // Set grouping property
@@ -595,7 +599,7 @@ export function singularize(word: string): string {
   // split word at spaces
   let words = word.split(" ");
   if (words.length === 1) {
-    let specialCases = ["his", "times", "has", "downstairs", "its", "'s", "data"];
+    let specialCases = ["his", "times", "has", "downstairs", "its", "'s", "data", "are"];
     for (let specialCase of specialCases) {
       if (specialCase === word) {
         return word;
@@ -1039,6 +1043,7 @@ interface BuiltInFunction {
   project: boolean,
   negated?: boolean,
   node?: Node,
+  projectedAs?: string,
 }
 
 interface FunctionField {
@@ -1053,12 +1058,14 @@ function stringToFunction(word: string): BuiltInFunction {
                       {name:"b", types: [Properties.ATTRIBUTE, Properties.QUANTITY]}
                      ];
   let calculateFields = [{name: "result", types: [Properties.OUTPUT]}, 
-                         {name: "a", types: [Properties.ATTRIBUTE, Properties.QUANTITY, Properties.FUNCTION]}, 
-                         {name:"b", types: [Properties.ATTRIBUTE, Properties.QUANTITY, Properties.FUNCTION]}
+                         {name: "a", types: [Properties.ATTRIBUTE, Properties.QUANTITY]}, 
+                         {name:"b", types: [Properties.ATTRIBUTE, Properties.QUANTITY]}
                         ];
   switch (word) {
+    case "after":
     case ">":
       return {name: ">", type: FunctionTypes.FILTER, fields: filterFields, project: false};
+    case "before":
     case "<":
       return {name: "<", type: FunctionTypes.FILTER, fields: filterFields, project: false};
     case ">=":
@@ -1085,42 +1092,47 @@ function stringToFunction(word: string): BuiltInFunction {
     case "total":
     case "sum":
       return {name: "sum", type: FunctionTypes.AGGREGATE, fields: [{name: "sum", types: [Properties.OUTPUT]}, 
-                                                                   {name: "value", types: [Properties.ATTRIBUTE]}], project: true};
+                                                                   {name: "value", types: [Properties.ATTRIBUTE]}], project: true, projectedAs: "sum"};
+    case "count":
+    case "how many":
+      return {name: "count", type: FunctionTypes.AGGREGATE, fields: [{name: "count", types: [Properties.OUTPUT]},
+                                                                     {name: "root", types: all}], project: true, projectedAs: "count"};
+
     case "average":
     case "avg":
     case "mean":
       return {name: "average", type: FunctionTypes.AGGREGATE, fields: [{name: "average", types: [Properties.OUTPUT]}, 
-                                                                       {name: "value", types: [Properties.ATTRIBUTE]}], project: true};
+                                                                       {name: "value", types: [Properties.ATTRIBUTE]}], project: true, projectedAs: "average"};
     case "plus":
     case "add":
     case "+":
-      return {name: "+", type: FunctionTypes.CALCULATE, fields: calculateFields, project: true};
+      return {name: "+", type: FunctionTypes.CALCULATE, fields: calculateFields, project: true, projectedAs: "+"};
     case "subtract":
     case "minus":
     case "-":
-      return {name: "-", type: FunctionTypes.CALCULATE, fields: calculateFields, project: true};
+      return {name: "-", type: FunctionTypes.CALCULATE, fields: calculateFields, project: true, projectedAs: "-"};
     case "times":
     case "multiply":
     case "multiplied":
     case "multiplied by":
     case "*":
-      return {name: "*", type: FunctionTypes.CALCULATE, fields: calculateFields, project: true};
+      return {name: "*", type: FunctionTypes.CALCULATE, fields: calculateFields, project: true, projectedAs: "*"};
     case "divide":
     case "divided":
     case "divided by":
     case "/":
-      return {name: "/", type: FunctionTypes.CALCULATE, fields: calculateFields, project: true};
+      return {name: "/", type: FunctionTypes.CALCULATE, fields: calculateFields, project: true, projectedAs: "/"};
     case "^":
-      return {name: "^", type: FunctionTypes.CALCULATE, fields: calculateFields, project: true};
+      return {name: "^", type: FunctionTypes.CALCULATE, fields: calculateFields, project: true, projectedAs: "^"};
     case "is":
     case "is a":
     case "is an":
       return {name: "insert", type: FunctionTypes.INSERT, fields: [{name: "entity", types: [Properties.ENTITY]}, 
                                                                    {name: "attribute", types: [Properties.ATTRIBUTE]}, 
                                                                    {name: "root", types: all}], project: false};
-    case "are":
+    /*case "are":
       return {name: "insert", type: FunctionTypes.INSERT, fields: [{name: "collection", types: [Properties.COLLECTION]},
-                                                                   {name: "collection", types: [Properties.COLLECTION]}], project: false}; 
+                                                                   {name: "collection", types: [Properties.COLLECTION]}], project: false};*/ 
     case "his":
     case "hers":
     case "their":
@@ -1129,6 +1141,7 @@ function stringToFunction(word: string): BuiltInFunction {
     case "'":
       return {name: "select", type: FunctionTypes.SELECT, fields: [{name: "subject", types: [Properties.ENTITY, Properties.COLLECTION, Properties.ATTRIBUTE]}], project: false}; 
     case "by":
+    case "grouped by":
     case "per":
       return {name: "group", type: FunctionTypes.GROUP, fields: [{name: "root", types: all}, 
                                                                  {name: "collection", types: [Properties.COLLECTION, Properties.ATTRIBUTE]}], project: false};
@@ -1147,6 +1160,11 @@ function findFunction(node: Node, context: Context): boolean {
   let fxn = stringToFunction(node.name); 
   if (fxn === undefined) {  
     log(` Not Found: ${node.name}`);
+    return false;
+  }
+  
+  // Insert function needs to follow a possessive function
+  if (fxn.type === FunctionTypes.INSERT && !context.found.some((n) => n.hasProperty(Properties.POSSESSIVE))) {
     return false;
   }
   
@@ -1290,7 +1308,7 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
   for (let ngram of matchedNgrams) {
     // Don't do anything for 1-grams
     if (ngram.length === 1) {
-      ngram[0].found = false
+      ngram[0].found = false;
       continue;
     }
     let displayName = ngram.map((node)=>node.name).join(" ").replace(/ '/g,'\'');
@@ -1678,6 +1696,7 @@ function addNodeToFunction(node: Node, fxnNode: Node, context: Context): boolean
       context.internalFxns.splice(context.internalFxns.indexOf(fxnNode),1);
       node.properties.push(Properties.POSSESSIVE);
       root.addChild(node);
+      return true;
     } else {
       arg.addChild(node);
     }
@@ -1702,6 +1721,7 @@ interface Entity {
   entityVar: boolean,
   valueVar: boolean,
   value?: string,
+  projectedAs?: string,
 }
 
 interface Collection {
@@ -1712,6 +1732,7 @@ interface Collection {
   variable: string,
   project: boolean,
   handled?: boolean,
+  projectedAs?: string,
 }
 
 function cloneCollection(collection: Collection): Collection {
@@ -1733,6 +1754,8 @@ interface Attribute {
   variable: string,
   project: boolean,
   handled?: boolean,
+  projectedAs?: string,
+  attributeVar?: boolean,
 }
 
 // Returns the entity with the given display name.
@@ -1853,6 +1876,7 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
     return relationship;
   }
   log(`Finding relationship between "${nodeA.name}" and "${nodeB.name}"`);
+    
   // Sort the nodes in order
   // 1) Collection 
   // 2) Entity 
@@ -1998,6 +2022,17 @@ function findCollToEntRelationship(coll: Node, ent: Node, context: Context): Rel
 
 function findEntToAttrRelationship(ent: Node, attr: Node, context: Context): Relationship {
   log(`Finding Ent -> Attr relationship between "${ent.name}" and "${attr.name}"...`);  
+  
+  // If the node already has a relationship, then treat the entity as filtering the node
+  if (attr.relationships.length > 0) {
+    attr.attribute.variable = ent.entity.id;
+    attr.attribute.attributeVar = false;
+    attr.attribute.project = false;
+    ent.entity.project = false;
+    ent.entity.handled = true;
+    return {type: RelationshipTypes.DIRECT, nodes: [ent, attr]};
+  }
+  
   // Check for a direct relationship
   // e.g. "Josh's age"
   let eveRelationship = eve.findOne("entity eavs", { entity: ent.entity.id, attribute: attr.attribute.id });
@@ -2128,7 +2163,7 @@ export function findCollToCollRelationship(collA: Node, collB: Node, context: Co
     console.log(entities);
     console.log(collections)
     console.log(findEveCollection(collections[0]));*/
-    log("  No relationship found1");
+    log(" Direct relationship found");
     let nName = `${collA.name}|${collB.name}`;
     let nToken = newToken(nName);
     let nNode = newNode(nToken);
@@ -2148,7 +2183,8 @@ export function findCollToCollRelationship(collA: Node, collB: Node, context: Co
     nNode.properties.push(Properties.ENTITY);
     nNode.entity = entity;
     nNode.found = true;
-    let relationship = {type: RelationshipTypes.ONEHOP, nodes: [collA, collB], implicitNodes: [nNode]};
+    collB.addChild(nNode);
+    let relationship = {type: RelationshipTypes.DIRECT, nodes: [collA, collB]};
     nNode.relationships.push(relationship);    
     return relationship;
   } else if (intersectionSize > 0) {
@@ -2347,8 +2383,8 @@ interface Field {
 interface Term {
   type: string,
   table?: string,
-  fields: Array<Field>
-  project?: Array<string>,
+  fields: Array<Field>,
+  node?: Node,
 }
 
 export interface Query {
@@ -2469,8 +2505,9 @@ function formQuery(node: Node): Query {
     let bRank = setRank(b.table);
     function setRank(table: string): number {
       if (table === "entity eavs") { return 1 }
-      else if (table === "is a attributes") { return 2 }
-      else { return 3 }
+      else if (table === "directionless links") { return 2 }
+      else if (table === "is a attributes") { return 3 }
+      else { return 4 }
     }
     return aRank - bRank;
   });
@@ -2507,20 +2544,23 @@ function formQuery(node: Node): Query {
     let allArgsFound = node.children.every((child) => child.found);
         
     // If we have the right number of arguments, proceed
-    // @TODO surface an error if the arguments are wrong
     let output;
     if (allArgsFound) {
       log("Building function term for: " + node.name);
       let args = node.children.filter((child) => child.hasProperty(Properties.ARGUMENT)).map((arg) => arg.children[0]);
       let fields: Array<Field> = args.map((arg,i) => {
+        if (arg.parent.hasProperty(Properties.ROOT)) {
+          return undefined;
+        }
         return {name: node.fxn.fields[i].name, 
                 value: arg.attribute.variable, 
                 variable: true};
-      });
+      }).filter((f) => f !== undefined);
       let term: Term = {
         type: "select",
         table: node.fxn.name,
         fields: fields,
+        node: node,
       }
       query.terms.push(term);
       // project output if necessary
@@ -2529,6 +2569,15 @@ function formQuery(node: Node): Query {
                             .map((arg) => {return {name: node.fxn.name, 
                                                    value: arg.attribute.variable, 
                                                    variable: true}});
+        args.map((a) => {
+          if (a.hasProperty(Properties.ATTRIBUTE)) {
+            a.attribute.project = false;
+            a.attribute.projectedAs = undefined;  
+          } else if (a.hasProperty(Properties.COLLECTION)) {
+            a.collection.project = false;
+            a.collection.projectedAs = undefined;  
+          }
+        });
         query.projects = []; // Clears all previous projects
       }
     } 
@@ -2587,13 +2636,14 @@ function formQuery(node: Node): Query {
     let valueField = {
       name: "value", 
       value: attr.variable, 
-      variable: true
+      variable: attr.attributeVar !== undefined ? attr.attributeVar : true,
     };
     fields.push(valueField);            
     let term: Term = {
       type: "select",
       table: "entity eavs",
       fields: fields,
+      node: node,
     }
     query.terms.push(term);
     // project if necessary
@@ -2603,6 +2653,7 @@ function formQuery(node: Node): Query {
         value: attr.variable, 
         variable: true
       };
+      attr.projectedAs = projectAttribute.name;
       addFieldsToProject(projectFields, [projectAttribute]);
     }
     node.attribute.handled = true;
@@ -2610,30 +2661,33 @@ function formQuery(node: Node): Query {
   // Handle collections -------------------------------
   if (node.hasProperty(Properties.COLLECTION) && !node.collection.handled) {
     log("Building collection term for: " + node.name);
+    let collection = node.collection;
     let entityField = {
       name: "entity", 
-      value: node.collection.variable, 
+      value: collection.variable, 
       variable: true
     };
     let collectionField = {
       name: "collection", 
-      value: node.collection.id, 
+      value: collection.id, 
       variable: false
     };
     let term: Term = {
       type: "select",
       table: "is a attributes",
       fields: [entityField, collectionField],
+      node: node,
     }
     query.terms.push(term);
     // project if necessary
     if (node.collection.project) {
-      collectionField = {
-        name: node.collection.variable, 
-        value: node.collection.variable, 
+      let projectCollection = {
+        name: collection.variable.replace(/ /g,''), 
+        value: collection.variable, 
         variable: true
       };
-      addFieldsToProject(projectFields, [collectionField]);
+      collection.projectedAs = projectCollection.name;
+      addFieldsToProject(projectFields, [projectCollection]);
     }
     node.collection.handled = true;
   }
@@ -2651,7 +2705,7 @@ function formQuery(node: Node): Query {
 
     if (entity.entityVar) {
       let valueField = {
-        name: "value", 
+        name: entity.valueVar ? "link" : "value", 
         value: entity.valueVar ? entity.value : entity.id, 
         variable: entity.valueVar,
       };
@@ -2659,18 +2713,20 @@ function formQuery(node: Node): Query {
     }
     let term: Term = {
       type: "select",
-      table: "entity eavs",
+      table: entity.entityVar ? "directionless links" : "entity eavs",
       fields: fields,
+      node: node,
     }
     query.terms.push(term);
     // project if necessary
     if (entity.project === true) {
-      let entityField = {
+      let projectEntity = {
         name: entity.displayName.replace(/ /g,''),
         value: entity.id, 
         variable: false
       };
-      addFieldsToProject(projectFields, [entityField]);
+      entity.projectedAs = projectEntity.name;
+      addFieldsToProject(projectFields, [projectEntity]);
     }
     node.entity.handled = true;
   }

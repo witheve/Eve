@@ -236,6 +236,15 @@ function setTileAdder(event, elem) {
   dispatch("set tile adder", {key: elem.key, adder: elem.adder}).commit();
 }
 
+function closeCard(event, elem) {
+  dispatch("close card", {paneId: elem.paneId}).commit();
+}
+
+function navigateRoot(event, elem) {
+  let root = eve.findOne("ui pane", {kind: PANE.FULL})["pane"];
+  dispatch("set pane", {paneId: root, contains: elem.entityId}).commit();
+}
+
 interface EntityEditorElem extends EntityElem { editor: CodeMirror.Editor }
 export function entity(elem:EntityEditorElem) {
   let entityId = elem.entity;
@@ -250,7 +259,10 @@ export function entity(elem:EntityEditorElem) {
   return {c: `entity ${state.showAdd ? "adding" : ""}`, children: [
     {c: "header", children: [
       {text: name},
-      {c: `ion-android-add add-tile`, click: toggleAddTile, key, entityId}
+      {c: "flex-grow spacer"},
+      {c: `control ion-ios-upload-outline`, click: navigateRoot, entityId},
+      {c: `control ${state.showAdd ? "ion-android-remove" : "ion-android-add"} add-tile`, click: toggleAddTile, key, entityId},
+      {c: "control ion-android-close", click: closeCard, paneId},
     ]},
     adder,
     attrs,
@@ -297,7 +309,7 @@ function submitAdder(event, elem) {
 }
 
 function submitProperty(adder, state, node) {
-  if(!state.propertyProperty === undefined || !state.propertyValue === undefined) return;
+  if(state.propertyProperty === undefined || state.propertyValue === undefined) return;
   dispatch("add sourced eav", {entity: state.entityId, attribute: state.propertyProperty, value: state.propertyValue, forceEntity: true}).commit();
   state.propertyValue = undefined;
   state.propertyProperty = undefined;
@@ -529,7 +541,7 @@ export function link(elem:LinkElem):Element {
   let {entity} = elem;
   let name = resolveName(entity);
   elem.c = `${elem.c || ""} entity link inline`;
-  if(!elem.nameAsChild) {
+  if(!elem["nameAsChild"]) {
     elem.text = elem.text || name;
   } else {
     elem.children = [{text: elem.text || name}];

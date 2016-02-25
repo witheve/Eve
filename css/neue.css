@@ -125,7 +125,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 
 .card {position:relative; background: white; align-self:center; align-items: stretch; min-width:200px; box-shadow: 0 7px 15px rgba(0,0,50,0.10); border-radius:5px; overflow:hidden; }
 .card .text-content { margin-right:10px; min-width:250px; white-space:pre-wrap; line-height:28px; color:#aaa; flex:none; max-height:50%; }
-.card .header { flex-direction:row; flex:none; padding:10px 15px; font-size: 18pt; font-weight: 900; color: rgb(106,138,156); border-bottom: 1px solid #eee; }
+.card .header { max-width:360px; flex-direction:row; flex:none; padding:10px 15px; font-size: 18pt; font-weight: 900; color: rgb(106,138,156); border-bottom: 1px solid #eee; }
 .card .wiki-editor { padding: 30px; padding-top:0; margin-bottom:20px; }
 .card + .card { margin-top:40px; }
 
@@ -178,9 +178,10 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 
 .card .tile textarea { background:none; font-size:16px; border:none; width:300px; }
 
-.card .add-tile {position: absolute; padding:10px 20px; padding-right:15px; right:0; top:0; color: #ccc; cursor: default; }
+.card .control { color:#ccc; cursor:default; }
+.card .control + .control { margin-left: 15px; }
+.card .control:hover { color: #666; }
 .card .add-tile:before { transition:transform 0.2s ease-in-out; }
-.card .add-tile:hover { color: #666; }
 
 .card .tile-adder { flex:none; transition:height 0.18s ease-out;  overflow:hidden; height:0; background:#F3F8FF; flex-direction:row; flex-wrap:wrap; max-width: 360px; }
 .card .tile-adder .tile, .card .tile-adder .row { border-color: rgba(0,0,0,0.1); }
