@@ -759,6 +759,11 @@ function removeNode(node: Node): Node {
     parent.children.sort((a,b) => a.ix - b.ix);
     parent.children.splice(parent.children.indexOf(node),1);
     children.map((child) => child.parent = parent);
+    if (parent.hasProperty(Properties.ARGUMENT)) {
+      if (parent.children.length === 0) {
+        parent.found = false;
+      }
+    }
   }
   // Get rid of references on current node
   node.parent = undefined;
