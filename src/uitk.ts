@@ -650,7 +650,6 @@ export function value(elem:ValueElem):Element {
   let {value, autolink = true, data} = elem;
   elem["original"] = value;
   let entity = asEntity(value);
-  console.log(entity);
   elem.text = value;
   if(entity) {
     elem["entity"] = entity;
@@ -685,25 +684,26 @@ export function valueEditor(elem:ValueEditorElem) {
     };
     
     input = {t: "input", focus, blur, value: "", strictText: true, placeholder: ""};
-  }
-  if(!elem.value || state.editing) {
-    input.placeholder = "<empty>";
+    if(!elem.value || state.editing) {
+      input.placeholder = "<empty>";
+    }
+  
+    if(state.editing) {
+      ["input", "change", "keyup", "keydown"].map((handler) => {
+        if(!elem[handler]) return;
+        let _handle = elem[handler];
+        input[handler] = (event, inputElem) => {
+          _handle(event, elem);
+        }
+        delete elem[handler];
+      });
+      
+      
+      input.value = content.text;
+      content = undefined;
+    }
   }
   
-  if(state.editing) {
-    ["input", "change", "keyup", "keydown"].map((handler) => {
-      if(!elem[handler]) return;
-      let _handle = elem[handler];
-      input[handler] = (event, inputElem) => {
-        _handle(event, elem);
-      }
-      delete elem[handler];
-    });
-    
-    
-    input.value = content.text;
-    content = undefined;
-  }
   elem.children = [{c: "cell-content", children: [content]}, {c: "flex-grow cell-input", children: [input]}];
   return elem;
 }
