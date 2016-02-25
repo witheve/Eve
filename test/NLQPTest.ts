@@ -10,7 +10,7 @@ var boostrapIxer = bootstrap.ixer;
 
 app.renderRoots["nlqp"];
 
-nlqp.debug = true;
+nlqp.debug = false;
 
 function parseTest(queryString: string, n: number): nlqp.Intents {
   let parseResult: nlqp.Result;
@@ -132,23 +132,26 @@ let phrases = [
   // These are queries that we had problems with in the past
   // make sure they always work
   // -------------------------------// 
-  //"ganymede discovered by",
+  
   //"employees, salaries per department",
   /*
   "Corey's salary, department, and age",
   "Corey's wife's age, gender, and height",
   */
-  //"moons discovered by sir william herschel",
+  
   // -------------------------------
-  //"moons of jupiter", //X
-  //"jupiter's moons", //X
-  
+  "moons year discovered after ariel year discovered",  
+  "moons of jupiter",
+  "moons discovered by sir william herschel",
+  "jupiter's moons",
+  "moons per planet",
+  "planets per moon",
+  "number of moons per planet",
+  "count the number of moons per planet",
   "moons whose year discovered is 1610",
-  
-  
-  /*
   "ganymede was discovered by",
-  "planets with their moons",//  
+  "planets with their moons", 
+  "ganymede discovered by",
   "moons discovered by galileo galilei",
   "moons discovered by sir william herschel",
   "planets discovered by galileo galilei",
@@ -163,20 +166,20 @@ let phrases = [
   //"Chris' salary and department"
   //"Employee's union"
   "pets lengths",
-  "employee departments", //X
+  "employee departments",
   //"Corey's salary, department, and age",
-  //"3 - Corey's salary", //X
+  "3 - Corey's salary",
   "1+1",
-  "employees with their departments", //X
+  "employees with their departments",
   "employees with their departments and salaries",
-  "employee salary and employee department", //X
+  "employee salary and employee department",
   "employee salary and department",
   'test data that is an employee',
-  "salaries per employee per department", //?
-  "salaries per department per employee", //?
+  "salaries per employee per department",
+  "salaries per department per employee",
   `employees which are test data`,
   "sum of salaries in engineering",
-  "sum of salaries in the engineering department", //Wrong projects
+  "sum of salaries in the engineering department",
   "salaries in engineering",
   'exotics that are test data',
   'test data that are employees',
@@ -194,14 +197,14 @@ let phrases = [
   "pets that are exotic that have length",
   "exotic pets",
   "sum of employee salaries",
-  "salaries per department", // Wrong projects
+  "salaries per department",
   "employee salaries",
   "sum employee salaries",
   "exotic lengths",
   "salaries by department",
   "employee salaries",
   "employees with their salaries",
-  "employees with their departments", // X
+  "employees with their departments",
   "employees and their salaries",
   "sum salaries",
   "Pet shorter than koala",
@@ -213,7 +216,7 @@ let phrases = [
   "lengths",
   "sum lengths",
   "sum pet lengths",
-  "sum pet length",*/
+  "sum pet length",
     // -------------------------------
   //`Pets except those shorter than a koala`,
   //`salaries per department`,

@@ -2048,13 +2048,15 @@ function findEntToAttrRelationship(ent: Node, attr: Node, context: Context): Rel
   log(`Finding Ent -> Attr relationship between "${ent.name}" and "${attr.name}"...`);  
   
   // If the node already has a relationship, then treat the entity as filtering the node
-  if (attr.relationships.length > 0) {
+  if (attr.relationships.length > 0 && !attr.parent.hasProperty(Properties.ARGUMENT)) {
     attr.attribute.variable = ent.entity.id;
     attr.attribute.attributeVar = false;
     attr.attribute.project = false;
     ent.entity.project = false;
     ent.entity.handled = true;
     return {type: RelationshipTypes.DIRECT, nodes: [ent, attr]};
+  } else if (attr.relationships.length > 0) {
+    return {type: RelationshipTypes.NONE};
   }
   
   // Check for a direct relationship
@@ -2578,7 +2580,8 @@ function formQuery(node: Node): Query {
         }
         return {name: node.fxn.fields[i].name, 
                 value: arg.attribute.variable, 
-                variable: true};
+                variable: arg.attribute.attributeVar !== undefined ? arg.attribute.attributeVar : true
+               }; 
       }).filter((f) => f !== undefined);
       let term: Term = {
         type: "select",

@@ -133,7 +133,14 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 
 .card .entity { overflow:hidden; }
 
-.card > .table-wrapper { margin: 20px 30px; }
+.card > .table-wrapper {}
+.card .table-wrapper h2 { flex-direction:row; flex:none; padding:10px 15px; font-size: 18pt; font-weight: 900; color: rgb(106,138,156); border-bottom: 1px solid #eee; }
+.card .table-wrapper header { padding: 0 15px; padding-top:10px;}
+.card .table-wrapper .table-body-scroller { overflow:auto; }
+.card .table-wrapper .table-body { padding: 0 15px;}
+.card .table-wrapper .table-adders { flex:none; padding: 0 15px; }
+.card .table-wrapper .commit-btn { flex:none; border-top:1px solid #eee; padding:5px 15px; margin-top:5px; background: rgba(0,0,50,0.03); }
+.card .table-wrapper .commit-btn:hover { background: rgba(0,0,50,0.06); }
 
 .card .tiles { flex:none; flex-direction: row; flex-wrap: wrap; width: 360px; overflow:auto; }
 .card .tile { flex: 1 0 0; overflow:hidden; cursor: default; flex-direction:row; position:relative; }
@@ -307,7 +314,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .table-wrapper div { display: flex; }
 .table-wrapper > .table-header, .table-wrapper .table-row { display: flex; flex: 0 0 auto; flex-direction: row; position: relative; }
 .table-wrapper .table-row.grouped { margin-bottom: -1px; }
-.table-wrapper .column { justify-content: center; width: 160px; padding: 5px 10px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.table-wrapper .column { justify-content: flex-start; width: 160px; padding: 5px 10px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .table-wrapper .field { display: flex; flex-direction: row; flex: 0 0 auto; }
 .table-wrapper .field .text { display: inline-block; }
 .table-wrapper .field .controls { opacity: 0.4; transition: opacity 0.2s; }
@@ -318,7 +325,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .table-wrapper .cell-content > * { display: inline-block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .table-wrapper .cell-input input { width: 100%; padding: 0; }
 
-.table-wrapper .table-row > .controls, .table-wrapper .table-header > .controls { flex-grow: 1; background: #eee; opacity: 1; }
+.table-wrapper .table-row > .controls, .table-wrapper .table-header > .controls { flex-grow: 1; opacity: 1; }
 
 .table-wrapper .table-adder { border-bottom: 1px solid transparent; }
 
