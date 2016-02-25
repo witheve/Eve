@@ -580,6 +580,7 @@ export function root():Element {
 
 function hideBanner(event, elem) {
   localStorage["hideBanner"] = true;
+  dispatch("").commit();
 }
 
 // @TODO: Add search functionality + Pane Chrome
