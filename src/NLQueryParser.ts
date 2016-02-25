@@ -1886,6 +1886,9 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
   // 1) Collection 
   // 2) Entity 
   // 3) Attribute
+  // 4) Function
+  // 5) Quantity
+  // 6) String
   nodeA.properties.sort((a, b) => a - b);
   nodeB.properties.sort((a, b) => a - b);
   let nodes = [nodeA, nodeB].sort((a, b) => a.properties[0] - b.properties[0]);
@@ -1930,23 +1933,43 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
 }
 
 // e.g. Corey's wife's age
-function findAttrToAttrRelationship(nodeA: Node, nodeB: Node, context: Context): Relationship {
-  log(`Finding Attr -> Attr relationship between "${nodeA.name}" and "${nodeB.name}"...`);
+function findAttrToAttrRelationship(attrA: Node, attrB: Node, context: Context): Relationship {
+  log(`Finding Attr -> Attr relationship between "${attrA.name}" and "${attrB.name}"...`);
+  
+  console.log(attrA)
+  console.log(attrB)
+  
+  if (attrA.hasProperty(Properties.QUANTITY)) {
+    let temp = attrA;
+    attrA = attrB; 
+    attrB = temp;
+  }
+  
+  // e.g. employees whose salary is 10
+  if (attrA.relationships.length > 0 && attrB.hasProperty(Properties.QUANTITY)) {
+    attrA.attribute.variable = `${attrB.quantity}`;
+    attrA.attribute.attributeVar = false;
+    attrA.attribute.project = false;
+    return {type: RelationshipTypes.DIRECT, nodes: [attrA, attrB]};   
+  } else {
+    return {type: RelationshipTypes.NONE};  
+  }
+  
   // Check whether one of the attributes is an entity attribute
   let direct = false;
-  if (nodeA.hasProperty(Properties.POSSESSIVE)) {
+  if (attrA.hasProperty(Properties.POSSESSIVE)) {
     direct = true;    
-  } else if (nodeB.hasProperty(Properties.POSSESSIVE)) {
-    let tNode = nodeA;
-    nodeA = nodeB;
-    nodeB = tNode;
+  } else if (attrB.hasProperty(Properties.POSSESSIVE)) {
+    let tNode = attrA;
+    attrA = attrB;
+    attrB = tNode;
     direct = true;
   }
   
   if (direct) {
     log("  Found a direct relationship");
     // Create an entity attribute
-    let entityAttr = nodeA.attribute;
+    let entityAttr = attrA.attribute;
     let ent: Entity = {
       id: entityAttr.variable,
       displayName: entityAttr.variable,
@@ -1960,9 +1983,9 @@ function findAttrToAttrRelationship(nodeA: Node, nodeB: Node, context: Context):
     let nNode = newNode(nToken);
     nNode.entity = ent;
     ent.node = nNode;
-    nodeB.attribute.variable = `${nodeA.attribute.variable}|${nodeB.attribute.id}`;
-    nodeB.attribute.refs = [nNode];
-    return {type: RelationshipTypes.DIRECT, nodes: [nodeA, nodeB]}; 
+    attrB.attribute.variable = `${attrA.attribute.variable}|${attrB.attribute.id}`;
+    attrB.attribute.refs = [nNode];
+    return {type: RelationshipTypes.DIRECT, nodes: [attrA, attrB]}; 
   }
   return {type: RelationshipTypes.NONE};  
 }
