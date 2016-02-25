@@ -1511,7 +1511,7 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
                                              n.hasProperty(Properties.QUANTITY) || 
                                              n.hasProperty(Properties.FUNCTION));
       for (let aqf of AQFs ) {
-        if (aqf.parent.hasProperty(Properties.ARGUMENT)) {
+        if (aqf.parent !== undefined && aqf.parent.hasProperty(Properties.ARGUMENT)) {
           continue;
         }
         if (aqf.hasProperty(Properties.FUNCTION)) {
@@ -1949,7 +1949,7 @@ function findAttrToAttrRelationship(attrA: Node, attrB: Node, context: Context):
   }
   
   // e.g. employees whose salary is 10
-  if (attrA.relationships.length > 0 && attrB.hasProperty(Properties.QUANTITY)) {
+  if (attrA.relationships.length > 0 && attrB.hasProperty(Properties.QUANTITY) && !attrA.parent.hasProperty(Properties.ARGUMENT)) {
     attrA.attribute.variable = `${attrB.quantity}`;
     attrA.attribute.attributeVar = false;
     attrA.attribute.project = false;
