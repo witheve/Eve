@@ -1095,6 +1095,9 @@ function stringToFunction(word: string): BuiltInFunction {
       return {name: "sum", type: FunctionTypes.AGGREGATE, fields: [{name: "sum", types: [Properties.OUTPUT]}, 
                                                                    {name: "value", types: [Properties.ATTRIBUTE]}], project: true, projectedAs: "sum"};
     case "count":
+    case "number of":
+    case "count the number of":
+    case "count number of":
     case "how many":
       return {name: "count", type: FunctionTypes.AGGREGATE, fields: [{name: "count", types: [Properties.OUTPUT]},
                                                                      {name: "root", types: all}], project: true, projectedAs: "count"};
@@ -2721,7 +2724,7 @@ function formQuery(node: Node): Query {
 
     if (entity.entityVar) {
       let valueField = {
-        name: entity.valueVar ? "link" : "value", 
+        name: entity.entityVar ? "link" : "value", 
         value: entity.valueVar ? entity.value : entity.id, 
         variable: entity.valueVar,
       };
