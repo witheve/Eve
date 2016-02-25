@@ -136,8 +136,8 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .card > .table-wrapper {}
 .card .table-wrapper h2 { flex-direction:row; flex:none; padding:10px 15px; font-size: 18pt; font-weight: 900; color: rgb(106,138,156); border-bottom: 1px solid #eee; }
 .card .table-wrapper header { padding: 0 15px; padding-top:10px;}
-.card .table-wrapper .table-body-scroller { overflow:auto; }
-.card .table-wrapper .table-body { padding: 0 15px;}
+.card .table-wrapper .table-body-scroller { overflow:auto; margin-bottom:5px; }
+.card .table-wrapper .table-body { padding: 0 15px; }
 .card .table-wrapper .table-adders { flex:none; padding: 0 15px; }
 .card .table-wrapper .commit-btn { flex:none; border-top:1px solid #eee; padding:5px 15px; margin-top:5px; background: rgba(0,0,50,0.03); }
 .card .table-wrapper .commit-btn:hover { background: rgba(0,0,50,0.06); }
