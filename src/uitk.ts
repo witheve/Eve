@@ -851,7 +851,6 @@ export function tableBody(elem:TableBodyElem):Element {
       removeRow ? {c: "ion-icon-android-close", row: rowItem, click: removeRow} : undefined
     ]});
 
-    
     if(group) {
       group.children[1].children.push(rowItem);
     } else {
@@ -861,7 +860,7 @@ export function tableBody(elem:TableBodyElem):Element {
   }
 
   elem.c = `table-body ${elem.c || ""}`;
-  return elem;
+  return {c: "table-body-scroller", children: [elem]};
 }
 
 function tableHeader(elem:TableHeaderElem):Element {
