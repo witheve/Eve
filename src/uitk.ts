@@ -22,7 +22,7 @@ export function resolveValue(maybeValue:string):string {
   let val = maybeValue.trim();
   let entity = asEntity(maybeValue);
   if(entity) return entity;
-  if(val[0] === "\"" && val[val.length - 1] === "\"") return val.slice(1, -1);
+  //if(val[0] === "\"" && val[val.length - 1] === "\"") return val.slice(1, -1);
   return val;
 }
 export function isEntity(maybeId:string):boolean {
@@ -136,7 +136,6 @@ function closePopup(event, elem, chain?) {
 }
 
 export function navigate(event, elem) {
-  console.log("NAV", event);
   let {paneId} = elem.data;
   if(elem.peek) dispatch("set popout", {parentId: paneId, contains: elem.link, x: event.clientX, y: event.clientY}).commit();
   else dispatch("set pane", {paneId, contains: elem.link}).commit();
@@ -408,7 +407,6 @@ function collectionAdderUI(elem) {
 
 function submitCollection(adder, state, node) {
   let chain;
-  console.log("SUBMIT COLL", state.key);
   // determine whether this is making the current entity a collection, or if this is just a normal collection.
   if(!state.collectionProperty || pluralize(state.collectionProperty.trim(), 1).toLowerCase() === resolveName(state.entityId).toLowerCase()) {
     // this is turning the current entity into a collection
@@ -652,10 +650,11 @@ export function value(elem:ValueElem):Element {
   let {value, autolink = true, data} = elem;
   elem["original"] = value;
   let entity = asEntity(value);
+  console.log(entity);
   elem.text = value;
   if(entity) {
-    elem["entity"] = asEntity(value);
-    let name = resolveName(value);
+    elem["entity"] = entity;
+    let name = resolveName(entity);
     elem.text = name;
     if(autolink) {
       link(<any>elem);
@@ -696,7 +695,6 @@ export function valueEditor(elem:ValueEditorElem) {
       if(!elem[handler]) return;
       let _handle = elem[handler];
       input[handler] = (event, inputElem) => {
-        console.log("handle", handler, "on", inputElem, "for", elem);
         _handle(event, elem);
       }
       delete elem[handler];
@@ -716,15 +714,16 @@ export function CSV(elem:CSVElem):Element {
   return {c: "flex-row csv", children: values.map((val) => value({t: "span", autolink, value: val, data}))};
 }
 
+interface CellEdit { field: string, prev: any, row:{}, value: any }
 interface CellState { [field:string]: {editing?: boolean} }
-interface TableState { sortField?:string, sortDirection?:number, adders?:{}[], changes?: {field: string, prev: any, row:{}, value: any}[], cellStates?:CellState[], adderCellStates?:CellState[] }
+interface TableState { sortField?:string, sortDirection?:number, adders?:{}[], changes?: CellEdit[], cellStates?:CellState[], adderCellStates?:CellState[] }
 interface TableFieldElem extends Element {field:string, header:TableHeaderElem, state:TableState, sortable?:boolean}
 interface TableCellElem extends Element { table:MappedTableElem, field:string, row:{}, text:string, editable?:boolean }
 interface TableHeaderElem extends Element { state:TableState, fields:string[], groups?:string[], sortable?:boolean, addField?: Handler<Event>, removeField?: Handler<Event> }
-interface TableBodyElem extends Element { state:TableState, rows:{}[], fields:string[], disabled?:string[], groups?:string[], sortable?:boolean, data?:{}, editCell?:Handler<Event>, editGroup?:Handler<Event>, removeRow?:Handler<Event> }
+interface TableBodyElem extends Element { state:TableState, rows:{}[], overrides?: CellEdit[], fields:string[], disabled?:string[], groups?:string[], sortable?:boolean, data?:{}, editCell?:Handler<Event>, editGroup?:Handler<Event>, removeRow?:Handler<Event> }
 interface TableAdderElem extends Element {row:{}, fields: string[], disabled?: string[], confirm?:boolean, editCell?:Handler<Event>, submit?:Handler<Event> }
 export function tableBody(elem:TableBodyElem):Element {
-  let {state, rows, fields, data, groups = []} = elem;
+  let {state, rows, overrides = [], fields, data, groups = []} = elem;
   fields = fields.slice();
   if(!rows.length) {
     elem.text = "<Empty Table>";
@@ -752,7 +751,6 @@ export function tableBody(elem:TableBodyElem):Element {
     let _editCell = editCell;
     editCell = (event:Event, elem) => {
       let val = resolveValue(getNodeContent(<HTMLElement>event.target));
-      console.log(val, elem);
       if(val === elem["original"]) return;
       _editCell(new CustomEvent("editcell", {detail: val}), elem);
     }
@@ -783,28 +781,36 @@ export function tableBody(elem:TableBodyElem):Element {
   let openVals = {};
   let rowIx = 0;
   for(let row of rows) {
+    let override = {};
+    for(let change of overrides) {
+      if(change.row === row) {
+        override[change.field] = change.value;
+      }
+    }
+    
     if(editCell && !state.cellStates[rowIx]) {
       state.cellStates[rowIx] = {};
     }
     
     let group;
     for(let field of groups) {
+      let val = (field in override ? override[field] : row[field]) || "";
       if(editCell && !state.cellStates[rowIx][field]) {
         state.cellStates[rowIx][field] = {};
       }
-      let cellState = editCell && state.cellStates[rowIx][field];;
+      let cellState = editCell && state.cellStates[rowIx][field];
       
-      if(openVals[field] === row[field]) { // The row is still contained within this group
+      if(openVals[field] === val) { // The row is still contained within this group
         group = openRows[field];
         group.children[0].rows.push(row);
       } else { // The row begins a new group at current level in the hierarchy
-        openVals[field] = row[field];
+        openVals[field] = val;
         let cur = openRows[field] = {
           c: "table-row grouped",
           children: [
             valueEditor({
               c: "column cell",
-              value: row[field] || "",
+              value: val,
               state: cellState,
               data,
               table: elem,
@@ -828,14 +834,15 @@ export function tableBody(elem:TableBodyElem):Element {
 
     let rowItem = {c: "table-row", children: []};
     for(let field of fields) {
+      let val = (field in override ? override[field] : row[field]) || "";
       if(editCell && !state.cellStates[rowIx][field]) {
         state.cellStates[rowIx][field] = {};
       }
-      let cellState = editCell && state.cellStates[rowIx][field];;
+      let cellState = editCell && state.cellStates[rowIx][field];
 
       rowItem.children.push(valueEditor({
         c: "column cell",
-        value: row[field] || "",
+        value: val,
         state: cellState,
         data,
         table: elem,
@@ -925,7 +932,6 @@ export function tableAdderRow(elem:TableAdderElem):Element {
   if(!confirm && submit) {
     let _editCell = editCell;
     editCell = (event, cellElem:TableCellElem) => {
-      console.log("FUCK");
       let valid = !_editCell(event, cellElem);
       for(let field of fields) {
         if(row[field] === undefined) valid = false;
@@ -948,7 +954,7 @@ export function tableAdderRow(elem:TableAdderElem):Element {
       field,
       row,
       keydown: blurOnEnter,
-      blur: function(event, elem) { console.log("christ"); editCell(event, elem); }
+      blur: editCell
     }));
   }
 
@@ -974,8 +980,24 @@ function createFact(chain, row:{}, {subject, entity, fieldMap, collections}:{sub
   }
       
   for(let field in fieldMap) {
-    console.log(" - adding attr", fieldMap[field], "=", uitk.resolveValue(row[field]), "for", entity);
-    chain.dispatch("add sourced eav", {entity, attribute: fieldMap[field], value: uitk.resolveValue(row[field])});
+    let value = resolveValue(row[field]);
+    console.log(" - adding attr", fieldMap[field], "=", value, "for", entity);
+    
+    if(value[0] === "\"" && value[value.length - 1] === "\"") {
+      value = value.slice(1, -1);
+    } else if(typeof value === "string") {
+      if(!isEntity(value)) {
+        let pageId = uuid();
+        let entity = uuid();
+        let name = value;
+        value = entity;
+        console.log("   - creating entity", entity);
+        chain.dispatch("create page", {page: pageId,  content: ""})
+          .dispatch("create entity", {entity, name, page: pageId});
+      }
+    }
+    
+    chain.dispatch("add sourced eav", {entity, attribute: fieldMap[field], value});
   }
 
   if(collections) {
@@ -1040,7 +1062,6 @@ function changeAttributeAdder(event, elem) {
 }
 
 function changeEntityAdder(event, elem) {
-  console.log("CEA", event, elem);
   let {table:tableElem, row, field} = elem;
   let {state, subject, fieldMap} = tableElem;
   row[field] = resolveValue(getNodeContent(event.target));
@@ -1077,7 +1098,6 @@ function updateRowAttribute(event, elem:TableCellElem) {
   } else {
     change.value = value;
   }
-  console.log(state);
   dispatch("rerender").commit();
 }
 
@@ -1150,29 +1170,11 @@ export function mappedTable(elem:MappedTableElem):Element {
   let adderDisabled = entity ? [subject] : undefined;
   let stateValid = tableStateValid(elem);
 
-  let changedRows = rows;
-  // @FIXME: row !== changedRow, so changes detection doesn't work + state doesn't align
-  // if(state.changes.length) {
-  //   changedRows = [];
-  //   for(let row of rows) {
-  //     let neue;
-  //     for(let change of state.changes) {
-  //       if(change.row === row) {
-  //         if(!neue) {
-  //           neue = copy(row);
-  //         }
-  //         neue[change.field] = change.value;
-  //       }
-  //     }
-  //     changedRows.push(neue || row);
-  //   }
-  // }
-  // console.log("STATE", state);
   elem.c = `table-wrapper mapped-table ${elem.c || ""}`;
   elem.children = [
     elem.search ? {t: "h2", text: elem.search} : undefined,
     tableHeader({state, fields, groups, sortable, data}),
-    tableBody({rows: changedRows, state, fields, groups, disabled, sortable, subject, fieldMap, editCell: updateRowAttribute, data}),
+    tableBody({rows, overrides: state.changes, state, fields, groups, disabled, sortable, subject, fieldMap, editCell: updateRowAttribute, data}),
     {c: "table-adders", children: state.adders.map((row, ix) => tableAdderRow({
       row,
       state,
@@ -1183,6 +1185,7 @@ export function mappedTable(elem:MappedTableElem):Element {
       subject,
       fieldMap,
       collections,
+      data,
       editCell: adderChanged
     }))},
     {c: `ion-checkmark-round commit-btn ${stateValid ? "valid" : "invalid"}`, table: elem, click: stateValid && commitChanges}
