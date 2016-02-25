@@ -1755,6 +1755,7 @@ interface Attribute {
   project: boolean,
   handled?: boolean,
   projectedAs?: string,
+  attributeVar?: boolean,
 }
 
 // Returns the entity with the given display name.
@@ -1875,6 +1876,7 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
     return relationship;
   }
   log(`Finding relationship between "${nodeA.name}" and "${nodeB.name}"`);
+    
   // Sort the nodes in order
   // 1) Collection 
   // 2) Entity 
@@ -2020,6 +2022,17 @@ function findCollToEntRelationship(coll: Node, ent: Node, context: Context): Rel
 
 function findEntToAttrRelationship(ent: Node, attr: Node, context: Context): Relationship {
   log(`Finding Ent -> Attr relationship between "${ent.name}" and "${attr.name}"...`);  
+  
+  // If the node already has a relationship, then treat the entity as filtering the node
+  if (attr.relationships.length > 0) {
+    attr.attribute.variable = ent.entity.id;
+    attr.attribute.attributeVar = false;
+    attr.attribute.project = false;
+    ent.entity.project = false;
+    ent.entity.handled = true;
+    return {type: RelationshipTypes.DIRECT, nodes: [ent, attr]};
+  }
+  
   // Check for a direct relationship
   // e.g. "Josh's age"
   let eveRelationship = eve.findOne("entity eavs", { entity: ent.entity.id, attribute: attr.attribute.id });
@@ -2623,7 +2636,7 @@ function formQuery(node: Node): Query {
     let valueField = {
       name: "value", 
       value: attr.variable, 
-      variable: true
+      variable: attr.attributeVar !== undefined ? attr.attributeVar : true,
     };
     fields.push(valueField);            
     let term: Term = {
