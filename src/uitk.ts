@@ -20,11 +20,9 @@ export function resolveValue(maybeValue:string):string {
   maybeValue = coerceInput(maybeValue);
   if(typeof maybeValue !== "string") return maybeValue;
   let val = maybeValue.trim();
-  if(val.indexOf("=") === 0) {
-    // @TODO: Run through the full NLP.
-    let search = val.substring(1).trim();
-    return resolveId(search);
-  }
+  let entity = asEntity(maybeValue);
+  if(entity) return entity;
+  if(val[0] === "\"" && val[val.length - 1] === "\"") return val.slice(1, -1);
   return val;
 }
 export function isEntity(maybeId:string):boolean {
@@ -122,27 +120,28 @@ function preventDefaultUnlessFocused(event) {
   if(event.target !== document.activeElement) event.preventDefault();
 }
 
-function closePopup() {
-  let popout = eve.findOne("ui pane", {kind: PANE.POPOUT});
-  if(popout) dispatch("remove popup", {paneId: popout.pane}).commit();
+function closePopup(event, elem, chain?) {
+  let commit = false;
+  if(!chain) {
+    chain = dispatch("rerender");
+    commit = true;
+  }
+  let paneId = elem.paneId || elem.data && elem.data.paneId;
+  for(let {pane:child} of eve.find("ui pane parent", {parent: paneId})) {
+    let popout = eve.findOne("ui pane", {pane: child, kind: PANE.POPOUT});
+    if(!popout) continue;
+    chain.dispatch("remove popup", {paneId: popout.pane});
+  }
+  if(commit) chain.commit();
 }
 
 export function navigate(event, elem) {
+  console.log("NAV", event);
   let {paneId} = elem.data;
   if(elem.peek) dispatch("set popout", {parentId: paneId, contains: elem.link, x: event.clientX, y: event.clientY}).commit();
   else dispatch("set pane", {paneId, contains: elem.link}).commit();
   event.preventDefault();
-}
-
-function navigateOrEdit(event, elem) {
-  let popout = eve.findOne("ui pane", {kind: PANE.POPOUT});
-  let peeking = popout && popout.contains === elem.link;
-  if(event.target === document.activeElement) {}
-  else if(!peeking) navigate(event, elem);
-  else {
-    closePopup();
-    event.target.focus();
-  }
+  event.stopPropagation();
 }
 
 function blurOnEnter(event, elem) {
@@ -525,7 +524,8 @@ export function name(elem:EntityElem):Element {
   return elem;
 }
 
-export function link(elem:EntityElem):Element {
+interface LinkElem extends EntityElem { nameAsChild?:boolean }
+export function link(elem:LinkElem):Element {
   let {entity} = elem;
   let name = resolveName(entity);
   elem.c = `${elem.c || ""} entity link inline`;
@@ -610,66 +610,107 @@ export function results(elem:EntityElem):Element {
 //------------------------------------------------------------------------------
 // Representations for values
 //------------------------------------------------------------------------------
-interface ValueElem extends Element { editable?: boolean, autolink?: boolean }
+function toggleEditValue(event, elem) {
+   if(!elem.state) {
+    console.warn("Cannot edit value without state");
+    return;
+  }
+  elem.state.editing = elem.open !== undefined ? elem.open : !elem.state.editing;
+
+  let chain = dispatch("rerender");
+  if(elem.state.editing) {
+    closePopup(event, elem, chain);
+  }
+  chain.commit();
+}
+
+function openEditValue(event, elem) {
+  elem.open = true;
+  toggleEditValue(event, elem);
+  delete elem.open;
+}
+function closeEditValue(event, elem) {
+  elem.open = false;
+  toggleEditValue(event, elem);
+  delete elem.open;
+}
+
+interface ValueElem extends Element { value: any, autolink?: boolean }
 export function value(elem:ValueElem):Element {
-  let {text:val = "", value, autolink = true, editable = false} = elem;
-  let field = "text";
-  if(editable && value) {
-    field = "value";
-    val = value;
-  }
-  elem["original"] = val;
-  let cleanup;
-  if(isEntity(val)) {
-    elem["entity"] = asEntity(val);
-    elem[field] = resolveName(val);
-    if(autolink) elem = link(<any>elem);
-    if(editable && autolink) {
-      elem.mousedown = preventDefaultUnlessFocused;
-      elem.click = navigateOrEdit;
-      cleanup = closePopup;
+  let {value, autolink = true, data} = elem;
+  elem["original"] = value;
+  let entity = asEntity(value);
+  elem.text = value;
+  if(entity) {
+    elem["entity"] = asEntity(value);
+    let name = resolveName(value);
+    elem.text = name;
+    if(autolink) {
+      link(<any>elem);
     }
   }
-  if(editable) {
-    if(elem.t !== "input") {
-      elem.contentEditable = true;
-    }
-    elem.placeholder = "<empty>";
+  
+  return elem;
+}
 
-    let _blur = elem.blur;
-    elem.blur = (event:FocusEvent, elem:Element) => {
-      let node = <HTMLInputElement>event.target;
-      if(_blur) _blur(event, elem);
-      if(node.value === `= ${elem.value}`) node.value = elem.value;
-      if(isEntity(elem.value)) node.classList.add("link");
-      if(cleanup) cleanup(event, elem);
-    };
-
+interface ValueEditorElem extends ValueElem { original?: string, disabled?:boolean, state?:{editing?: boolean} }
+export function valueEditor(elem:ValueEditorElem) {
+  elem.c = `flex-row cell ${elem.c || ""}`;
+  let {state, disabled = false, data} = elem;
+  if(elem.original === undefined) elem.original = elem.value;
+  let content = value({value: elem.value, autolink: elem.autolink, data});
+  let input;
+  
+  if(!disabled) {
     let _focus = elem.focus;
-    elem.focus = (event:FocusEvent, elem:Element) => {
-      let node = <HTMLInputElement>event.target;
-      if(elem.value !== val) {
-        node.value = `= ${elem.value}`;
-        node.classList.remove("link");
-      }
+    let focus = (event, inputElem) => {
       if(_focus) _focus(event, elem);
+      openEditValue(event, elem);
     };
+    let _blur = elem.blur;
+    let blur = (event, inputElem) => {
+      if(_blur) _blur(event, elem);
+      closeEditValue(event, elem);
+    };
+    
+    input = {t: "input", focus, blur, value: "", strictText: true, placeholder: ""};
   }
+  if(!elem.value || state.editing) {
+    input.placeholder = "<empty>";
+  }
+  
+  if(state.editing) {
+    ["input", "change", "keyup", "keydown"].map((handler) => {
+      if(!elem[handler]) return;
+      let _handle = elem[handler];
+      input[handler] = (event, inputElem) => {
+        console.log("handle", handler, "on", inputElem, "for", elem);
+        _handle(event, elem);
+      }
+      delete elem[handler];
+    });
+    
+    
+    input.value = content.text;
+    content = undefined;
+  }
+  elem.children = [{c: "cell-content", children: [content]}, {c: "flex-grow cell-input", children: [input]}];
   return elem;
 }
 
 interface CSVElem extends Element { values: any[], autolink?: boolean }
 export function CSV(elem:CSVElem):Element {
   let {values, autolink = undefined, data} = elem;
-  return {c: "flex-row csv", children: values.map((val) => value({t: "span", autolink, text: val, data}))};
+  return {c: "flex-row csv", children: values.map((val) => value({t: "span", autolink, value: val, data}))};
 }
 
-interface TableState { sortField?:string, sortDirection?:number, adders?:{}[], changes?: {field: string, prev: any, row:{}, value: any}[] }
+interface CellState { [field:string]: {editing?: boolean} }
+interface TableState { sortField?:string, sortDirection?:number, adders?:{}[], changes?: {field: string, prev: any, row:{}, value: any}[], cellStates?:CellState[], adderCellStates?:CellState[] }
 interface TableFieldElem extends Element {field:string, header:TableHeaderElem, state:TableState, sortable?:boolean}
 interface TableCellElem extends Element { table:MappedTableElem, field:string, row:{}, text:string, editable?:boolean }
 interface TableHeaderElem extends Element { state:TableState, fields:string[], groups?:string[], sortable?:boolean, addField?: Handler<Event>, removeField?: Handler<Event> }
 interface TableBodyElem extends Element { state:TableState, rows:{}[], fields:string[], disabled?:string[], groups?:string[], sortable?:boolean, data?:{}, editCell?:Handler<Event>, editGroup?:Handler<Event>, removeRow?:Handler<Event> }
-interface TableAdderElem extends Element {row:{}, fields: string[], disabled?: string[], confirm?:boolean, change?:Handler<Event>, submit?:Handler<Event> }
+interface TableAdderElem extends Element {row:{}, fields: string[], disabled?: string[], confirm?:boolean, editCell?:Handler<Event>, submit?:Handler<Event> }
 export function tableBody(elem:TableBodyElem):Element {
   let {state, rows, fields, data, groups = []} = elem;
   fields = fields.slice();
@@ -694,9 +735,12 @@ export function tableBody(elem:TableBodyElem):Element {
   // Manage interactivity
   let {sortable = false, editCell, editGroup, removeRow} = elem;
   if(editCell) {
+    if(!state.cellStates) state.cellStates = [];
+    
     let _editCell = editCell;
     editCell = (event:Event, elem) => {
       let val = resolveValue(getNodeContent(<HTMLElement>event.target));
+      console.log(val, elem);
       if(val === elem["original"]) return;
       _editCell(new CustomEvent("editcell", {detail: val}), elem);
     }
@@ -725,9 +769,19 @@ export function tableBody(elem:TableBodyElem):Element {
   let body = elem;
   let openRows = {};
   let openVals = {};
+  let rowIx = 0;
   for(let row of rows) {
+    if(editCell && !state.cellStates[rowIx]) {
+      state.cellStates[rowIx] = {};
+    }
+    
     let group;
     for(let field of groups) {
+      if(editCell && !state.cellStates[rowIx][field]) {
+        state.cellStates[rowIx][field] = {};
+      }
+      let cellState = editCell && state.cellStates[rowIx][field];;
+      
       if(openVals[field] === row[field]) { // The row is still contained within this group
         group = openRows[field];
         group.children[0].rows.push(row);
@@ -736,14 +790,15 @@ export function tableBody(elem:TableBodyElem):Element {
         let cur = openRows[field] = {
           c: "table-row grouped",
           children: [
-            value({
+            valueEditor({
               c: "column cell",
+              value: row[field] || "",
+              state: cellState,
+              data,
               table: elem,
               field,
               rows: [row],
-              text: row[field] || "",
-              data,
-              editable: !!editGroup && !disabled[field],
+              disabled: !editGroup || disabled[field],
               keydown: blurOnEnter,
               blur: editGroup
             }),
@@ -761,14 +816,20 @@ export function tableBody(elem:TableBodyElem):Element {
 
     let rowItem = {c: "table-row", children: []};
     for(let field of fields) {
-      rowItem.children.push(value({
+      if(editCell && !state.cellStates[rowIx][field]) {
+        state.cellStates[rowIx][field] = {};
+      }
+      let cellState = editCell && state.cellStates[rowIx][field];;
+
+      rowItem.children.push(valueEditor({
         c: "column cell",
+        value: row[field] || "",
+        state: cellState,
+        data,
         table: elem,
         field,
         row,
-        text: row[field] || "",
-        data,
-        editable: !!editCell && !disabled[field],
+        disabled: !editCell || disabled[field],
         keydown: blurOnEnter,
         blur: editCell
       }));
@@ -784,6 +845,7 @@ export function tableBody(elem:TableBodyElem):Element {
     } else {
       body.children.push(rowItem);
     }
+    rowIx++;
   }
 
   elem.c = `table-body ${elem.c || ""}`;
@@ -812,7 +874,7 @@ function tableHeader(elem:TableHeaderElem):Element {
     let direction = isActive ? state.sortDirection : 0;
     let klass = `sort-toggle ${isActive && direction < 0 ? "ion-arrow-up-b" : "ion-arrow-down-b"} ${isActive ? "active" : ""}`;
     elem.children.push({c: "column field", children: [
-      value({c: "text", text: field, data, autolink: false}),
+      value({c: "text", value: field, data, autolink: false}),
       {c: "flex-grow"},
       {c: "controls", children: [
         sortable ? {c: klass, table: elem, field, direction: -direction || 1, click: sortTable} : undefined,
@@ -827,7 +889,7 @@ function tableHeader(elem:TableHeaderElem):Element {
 }
 
 export function tableAdderRow(elem:TableAdderElem):Element {
-  let {row, fields, confirm = true, change, submit, data} = elem;
+  let {row, cellStates, fields, confirm = true, editCell, submit, data} = elem;
   elem.c = `table-row table-adder ${elem.c || ""}`;
   elem.children = [];
   let disabled = {};
@@ -836,8 +898,8 @@ export function tableAdderRow(elem:TableAdderElem):Element {
   }
 
   // By default, accept all changes
-  if(!change) {
-    change = (event, cellElem:TableCellElem) => {
+  if(!editCell) {
+    editCell = (event, cellElem:TableCellElem) => {
       row[cellElem.field] = resolveValue(getNodeContent(<HTMLElement>event.target));
     };
   }
@@ -850,9 +912,10 @@ export function tableAdderRow(elem:TableAdderElem):Element {
 
   // If we should add without confirmation, submit whenever the row is completely filled in
   if(!confirm && submit) {
-    let _change = change;
-    change = (event, cellElem:TableCellElem) => {
-      let valid = !_change(event, cellElem);
+    let _editCell = editCell;
+    editCell = (event, cellElem:TableCellElem) => {
+      console.log("FUCK");
+      let valid = !_editCell(event, cellElem);
       for(let field of fields) {
         if(row[field] === undefined) valid = false;
       }
@@ -861,16 +924,20 @@ export function tableAdderRow(elem:TableAdderElem):Element {
   }
 
   for(let field of fields) {
-    elem.children.push(value({
+    if(!cellStates[field]) {
+      cellStates[field] = {};
+    }
+    elem.children.push(valueEditor({
       c: `column cell ${disabled[field] ? "disabled" : ""}`,
+      disabled: disabled[field],
+      value: row[field] || "",
+      state: cellStates[field],
+      data,
       table: elem,
       field,
       row,
-      editable: !disabled[field],
-      text: row[field] || "",
-      data,
       keydown: blurOnEnter,
-      blur: change
+      blur: function(event, elem) { console.log("christ"); editCell(event, elem); }
     }));
   }
 
@@ -921,7 +988,6 @@ function tableStateValid(tableElem:MappedTableElem) {
   }
 
   for(let change of state.changes) {
-    console.log(change, change.value);
     if(change.value === undefined || change.value === "") return false;
   }
   
@@ -963,6 +1029,7 @@ function changeAttributeAdder(event, elem) {
 }
 
 function changeEntityAdder(event, elem) {
+  console.log("CEA", event, elem);
   let {table:tableElem, row, field} = elem;
   let {state, subject, fieldMap} = tableElem;
   row[field] = resolveValue(getNodeContent(event.target));
@@ -988,7 +1055,7 @@ function updateRowAttribute(event, elem:TableCellElem) {
   let value = resolveValue(event.detail);
   let change;
   for(let cur of state.changes) {
-    if(cur.field === field && cur.prev === row[field] && cur.row === row) {
+    if(cur.field === field && cur.row === row) {
       change = cur;
       break;
     }
@@ -1054,27 +1121,58 @@ export function mappedTable(elem:MappedTableElem):Element {
       adder[subject] = entity;
     }
   }
+  if(!state.adderCellStates) {
+    state.adderCellStates = [];
+  }
+  if(state.adders.length !== state.adderCellStates.length) {
+    if(state.adders.length > state.adderCellStates.length) {
+      for(let ix = 0; ix = state.adders.length - state.adderCellStates.length; ix++) {
+        state.adderCellStates.push({});
+      }
+    } else {
+      state.adderCellStates.splice(state.adders.length, state.adderCellStates.length);
+    }
+  }
 
   let {rows, fields, groups, disabled = [subject], sortable = true} = elem;
   let adderChanged = entity ? changeAttributeAdder : changeEntityAdder;
   let adderDisabled = entity ? [subject] : undefined;
   let stateValid = tableStateValid(elem);
-  
+
+  let changedRows = rows;
+  // @FIXME: row !== changedRow, so changes detection doesn't work + state doesn't align
+  // if(state.changes.length) {
+  //   changedRows = [];
+  //   for(let row of rows) {
+  //     let neue;
+  //     for(let change of state.changes) {
+  //       if(change.row === row) {
+  //         if(!neue) {
+  //           neue = copy(row);
+  //         }
+  //         neue[change.field] = change.value;
+  //       }
+  //     }
+  //     changedRows.push(neue || row);
+  //   }
+  // }
+  // console.log("STATE", state);
   elem.c = `table-wrapper mapped-table ${elem.c || ""}`;
   elem.children = [
     elem.search ? {t: "h2", text: elem.search} : undefined,
     tableHeader({state, fields, groups, sortable, data}),
-    tableBody({rows, state, fields, groups, disabled, sortable, subject, fieldMap, editCell: updateRowAttribute, data}),
-    {c: "table-adders", children: state.adders.map((row) => tableAdderRow({
+    tableBody({rows: changedRows, state, fields, groups, disabled, sortable, subject, fieldMap, editCell: updateRowAttribute, data}),
+    {c: "table-adders", children: state.adders.map((row, ix) => tableAdderRow({
       row,
       state,
+      cellStates: state.adderCellStates[ix],
       fields,
       disabled: adderDisabled,
       confirm: false,
       subject,
       fieldMap,
       collections,
-      change: adderChanged
+      editCell: adderChanged
     }))},
     {c: `ion-checkmark-round commit-btn ${stateValid ? "valid" : "invalid"}`, table: elem, click: stateValid && commitChanges}
   ];
