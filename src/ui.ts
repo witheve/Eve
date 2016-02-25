@@ -742,6 +742,7 @@ export function pane(paneId:string):Element {
   else if(eve.findOne("query to id", {query: contains.trim().toLowerCase()})) contentType = "search";
 
   if(params.rep || rep) {
+    params["search"] = contains;
     content = represent(contains, params.rep || rep, results, params, (params.unwrapped ? undefined : (elem, ix?) => uitk.card({id: `${paneId}|${contains}|${ix === undefined ? "" : ix}`, children: [elem]})));
     content.t = "content";
     content.c = `${content.c || ""} ${params.unwrapped ? "unwrapped" : ""}`;
@@ -959,13 +960,13 @@ function getCellParams(content, rawParams) {
     }
     console.log(context);
     if(aggregates.length === 1 && context["groupings"].length === 0) {
-      rep = "CSV";
+      rep = "result";
       field = aggregates[0].fxn.projectedAs;
     } else if(!hasCollections && context.fxns.length === 1 && context.fxns[0].fxn.type !== FunctionTypes.BOOLEAN) {
-      rep = "CSV";
+      rep = "result";
       field = context.fxns[0].fxn.projectedAs;
     } else if(!hasCollections && context.attributes.length === 1) {
-      rep = "CSV";
+      rep = "result";
       field = context.attributes[0].attribute.projectedAs;
     } else if(context.entities.length + context.fxns.length === totalFound) {
       // if there are only entities and boolean functions then we want to show this as cards
@@ -2550,6 +2551,11 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
       values.push(row[field]);
     }
     return {values, data: params.data};
+  },
+  result(results, params) {
+    let elem = _prepare["CSV"](results, params);
+    elem.search = params["search"];
+    return elem;
   },
   entity(results, params) {
     let entities = [];

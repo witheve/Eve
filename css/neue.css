@@ -224,6 +224,10 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 
 .card .description-adder textarea { width:263px; border:none; height: 75px; font-size:12pt; outline:none; }
 
+.card .result { flex-direction: column; justify-content: center; align-items: center; }
+.card .result > .header { align-self: stretch; }
+.card .result .csv { padding: 20px 30px; font-size: 1.5em; }
+
 /*---------------------------------------------------------
 - Wiki editor
 ---------------------------------------------------------*/

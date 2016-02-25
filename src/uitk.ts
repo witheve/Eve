@@ -714,6 +714,15 @@ export function CSV(elem:CSVElem):Element {
   return {c: "flex-row csv", children: values.map((val) => value({t: "span", autolink, value: val, data}))};
 }
 
+export function result(elem:CSVElem) {
+  elem.c = "result";
+  elem.children = [
+    elem["search"] ? {c: "header", children: [{text: elem["search"]}]} : undefined,
+    CSV(copy(elem))
+  ];
+  return elem;
+}
+
 interface CellEdit { field: string, prev: any, row:{}, value: any }
 interface CellState { [field:string]: {editing?: boolean} }
 interface TableState { sortField?:string, sortDirection?:number, adders?:{}[], changes?: CellEdit[], cellStates?:CellState[], adderCellStates?:CellState[] }
