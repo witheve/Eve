@@ -314,12 +314,14 @@ function cloneToken(token: Token): Token {
 enum Properties {
   // Node properties
   ROOT,
-  // EVE attributes
+  // EVE types
   COLLECTION,
   ENTITY,
   ATTRIBUTE,
-  // Function properties
   FUNCTION,
+  QUANTITY,
+  STRING,
+  // Function properties  
   OUTPUT,
   INPUT,
   ARGUMENT,
@@ -327,7 +329,6 @@ enum Properties {
   CALCULATE,
   OPERATOR,
   // Token properties
-  QUANTITY,
   PROPER,
   PLURAL,
   POSSESSIVE,
@@ -599,7 +600,7 @@ export function singularize(word: string): string {
   // split word at spaces
   let words = word.split(" ");
   if (words.length === 1) {
-    let specialCases = ["his", "times", "has", "downstairs", "its", "'s", "data", "are"];
+    let specialCases = ["his", "times", "has", "downstairs", "its", "'s", "data", "are", "was"];
     for (let specialCase of specialCases) {
       if (specialCase === word) {
         return word;
@@ -1478,11 +1479,15 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
     } else if (node.fxn.type === FunctionTypes.FILTER) {
       // If an attribute is specified, create an attribute node for each one
       if (node.fxn.attribute !== undefined) {
-        for (let i = 0; i < node.fxn.fields.length; i++) {
-          let nToken = newToken(node.fxn.attribute);
-          let nNode = newNode(nToken);
-          formTree(nNode, tree, context);
-        }
+        // LHS
+        let nToken = newToken(node.fxn.attribute);
+        let nNode = newNode(nToken);
+        formTree(nNode, tree, context);
+        // RHS
+        nToken = newToken(node.fxn.attribute);
+        nNode = newNode(nToken);
+        findAttribute(nNode, context);
+        addNodeToFunction(nNode, node, context);
       // No attribute is specified, try to attach existing attributes
       } else {
        let orphans = context.found.filter((n) => n.hasProperty(Properties.ATTRIBUTE));
@@ -1872,7 +1877,7 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
   let relationship = {type: RelationshipTypes.NONE};
   if ((nodeA === nodeB) || 
       (context.stateFlags.insert) ||
-      (nodeA.hasProperty(Properties.QUANTITY) || nodeB.hasProperty(Properties.QUANTITY))) {
+      (nodeA.hasProperty(Properties.QUANTITY) && nodeB.hasProperty(Properties.QUANTITY))) {
     return relationship;
   }
   log(`Finding relationship between "${nodeA.name}" and "${nodeB.name}"`);
@@ -1922,17 +1927,9 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
     }
   }
   return relationship;
-  
-  /*
-  // If one node is an entity and the other is a collection 
-  } else if (nodeA.hasProperty(Properties.COLLECTION) && nodeB.hasProperty(Properties.ENTITY)) {
-    relationship = findCollectionToEntRelationship(nodeA.collection, nodeB.entity);
-  } else if (nodeB.hasProperty(Properties.COLLECTION) && nodeA.hasProperty(Properties.ENTITY)) {
-    relationship = findCollectionToEntRelationship(nodeB.collection, nodeA.entity);
-  }*/
 }
 
-// e.g. "meetings john was in"
+// e.g. Corey's wife's age
 function findAttrToAttrRelationship(nodeA: Node, nodeB: Node, context: Context): Relationship {
   log(`Finding Attr -> Attr relationship between "${nodeA.name}" and "${nodeB.name}"...`);
   // Check whether one of the attributes is an entity attribute
@@ -1967,10 +1964,6 @@ function findAttrToAttrRelationship(nodeA: Node, nodeB: Node, context: Context):
     nodeB.attribute.refs = [nNode];
     return {type: RelationshipTypes.DIRECT, nodes: [nodeA, nodeB]}; 
   }
-  
-  
-  
-  
   return {type: RelationshipTypes.NONE};  
 }
 
