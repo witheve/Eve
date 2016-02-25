@@ -310,7 +310,7 @@ function submitAdder(event, elem) {
 }
 
 function submitProperty(adder, state, node) {
-  if(!state.propertyProperty === undefined || !state.propertyValue === undefined) return;
+  if(state.propertyProperty === undefined || state.propertyValue === undefined) return;
   dispatch("add sourced eav", {entity: state.entityId, attribute: state.propertyProperty, value: state.propertyValue, forceEntity: true}).commit();
   state.propertyValue = undefined;
   state.propertyProperty = undefined;

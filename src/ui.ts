@@ -677,8 +677,8 @@ function deleteDatabasePrompt():Element {
 }
 
 function nukeDatabase() {
-  localStorage.clear();
-  window.location.reload();
+  localStorage["local-eve"] = "";
+  window.location.href = `${window.location.origin}/`;
 }
 
 
