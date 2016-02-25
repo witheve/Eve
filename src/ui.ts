@@ -10,7 +10,7 @@ import * as uitk from "./uitk";
 import {navigate, preventDefault} from "./uitk";
 import {eve, eveLocalStorageKey, handle as appHandle, dispatch, activeSearches, renderer} from "./app";
 import {parseDSL} from "./parser";
-import {parse as nlparse, normalizeString, Intents, FunctionTypes, NodeTypes} from "./NLQueryParser";
+import {parse as nlparse, normalizeString, Intents, FunctionTypes, NodeTypes, Result as NLResult} from "./NLQueryParser";
 
 
 export enum PANE { FULL, WINDOW, POPOUT };
@@ -109,7 +109,14 @@ function staticOrMappedTable(search:string, params) {
   params.search = search;
   // @NOTE: This requires the first project to be the main result of the search
   params.fields = topParse.query.projects[0].fields.map((field) => field.name);
-  params.groups = topParse.context.groupings.map((group) => group.name);
+  params.groups = topParse.context.groupings.map((group) => {
+    // @FIXME: This needs to really come off the group itself.
+    if(group.attribute) return group.attribute.projectedAs;
+    if(group.entity) return group.entity.projectedAs;
+    if(group.collection) return group.collection.projectedAs;
+    if(group.fxn) return group.fxn.projectedAs;
+    else return group.name;
+  });
   //params.fields = uitk.getFields({example: results[0], blacklist: ["__id"]});
 
   if(!topParse || topParse.intent !== Intents.QUERY) return params;
@@ -139,7 +146,7 @@ function staticOrMappedTable(search:string, params) {
           editable = false;
           break;
         } else {
-          subject = coll.displayName;
+          subject = coll.projectedAs;
         }
       }
       collections.push(coll.id);
@@ -153,7 +160,7 @@ function staticOrMappedTable(search:string, params) {
           editable = false;
           break;
         } else {
-          subject = ent.displayName;
+          subject = ent.projectedAs;
           entity = ent.id;
         }
       }
@@ -183,13 +190,13 @@ function staticOrMappedTable(search:string, params) {
   return params;
 }
 
-function safeNLParse(query):any[] {
+function safeNLParse(query):NLResult[] {
   try {
     return nlparse(query);
   } catch(e) {
     console.error("NLParse error");
     console.error(e);
-    return [{intent: Intents.NORESULT, context: {}, query: {}, projects: {}}];
+    return [<NLResult><any>{intent: Intents.NORESULT, context: {}, query: {}, projects: {}}];
   }
 }
 
