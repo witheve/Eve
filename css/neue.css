@@ -133,7 +133,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 
 .card .entity { overflow:hidden; }
 
-.card > .table-wrapper {}
+.card > .table-wrapper { overflow: hidden; }
 .card .table-wrapper h2 { flex-direction:row; flex:none; padding:10px 15px; font-size: 18pt; font-weight: 900; color: rgb(106,138,156); border-bottom: 1px solid #eee; }
 .card .table-wrapper header { padding: 0 15px; padding-top:10px;}
 .card .table-wrapper .table-body-scroller { overflow:auto; margin-bottom:5px; }
