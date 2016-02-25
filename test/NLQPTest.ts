@@ -53,7 +53,7 @@ function parseTest(queryString: string, n: number): nlqp.Intents {
   console.log("Result");
   console.log(queryString);
   console.log(parseResult.query.toString());
-  console.log(executeQuery(parseResult.query).join("\n"));
+  console.log(executeQuery(parseResult.query)[0]);
   console.log("-------------------------------------------------------------------------------------------");
   console.log(timingDisplay);
   console.log("===========================================================================================");
@@ -131,16 +131,32 @@ let phrases = [
   // -------------------------------
   // These are queries that we had problems with in the past
   // make sure they always work
-  // -------------------------------//
+  // -------------------------------// 
+  //"ganymede discovered by",
   //"employees, salaries per department",
   /*
   "Corey's salary, department, and age",
   "Corey's wife's age, gender, and height",
   */
+  //"moons discovered by sir william herschel",
   // -------------------------------
-  "corey's wife's age"
-  //"employees' slogan"//
-  /*//
+  //"moons of jupiter", //X
+  //"jupiter's moons", //X
+  
+  "moons whose year discovered is 1610",
+  
+  
+  /*
+  "ganymede was discovered by",
+  "planets with their moons",//  
+  "moons discovered by galileo galilei",
+  "moons discovered by sir william herschel",
+  "planets discovered by galileo galilei",
+  "planets discovered by sir william herschel",
+  "celestial bodies discovered by Galileo Galilei",  
+  //"salary's sum * "
+  //"composer compositions",
+  //"composer composition",
   //"Corey's department is engineering",
   "corey's salary",
   //"josh's salary * corey montella's age"
@@ -149,8 +165,8 @@ let phrases = [
   "pets lengths",
   "employee departments", //X
   //"Corey's salary, department, and age",
-  "3 - Corey's salary", //X
-  "1+1", //X
+  //"3 - Corey's salary", //X
+  "1+1",
   "employees with their departments", //X
   "employees with their departments and salaries",
   "employee salary and employee department", //X
@@ -172,7 +188,7 @@ let phrases = [
   "pets not exotics",
   "Pets that are exotic with length <= 3",
   "Pets that are exotic with length != 4",
-  "Corey's salary + 3",
+  //"Corey's salary + 3",
   "exotic lengths",
   "sum lengths of pets that are exotic",
   "pets that are exotic that have length",
@@ -194,11 +210,11 @@ let phrases = [
   "pets lengths",
   "department salaries",
   "corey's salary",
-  "ages",
-  "sum ages",
+  "lengths",
+  "sum lengths",
   "sum pet lengths",
   "sum pet length",*/
-  // -------------------------------
+    // -------------------------------
   //`Pets except those shorter than a koala`,
   //`salaries per department`,
   //`Employees not named Corey`,

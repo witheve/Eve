@@ -314,12 +314,14 @@ function cloneToken(token: Token): Token {
 enum Properties {
   // Node properties
   ROOT,
-  // EVE attributes
+  // EVE types
   COLLECTION,
   ENTITY,
   ATTRIBUTE,
-  // Function properties
   FUNCTION,
+  QUANTITY,
+  STRING,
+  // Function properties  
   OUTPUT,
   INPUT,
   ARGUMENT,
@@ -327,7 +329,6 @@ enum Properties {
   CALCULATE,
   OPERATOR,
   // Token properties
-  QUANTITY,
   PROPER,
   PLURAL,
   POSSESSIVE,
@@ -599,7 +600,7 @@ export function singularize(word: string): string {
   // split word at spaces
   let words = word.split(" ");
   if (words.length === 1) {
-    let specialCases = ["his", "times", "has", "downstairs", "its", "'s", "data", "are"];
+    let specialCases = ["his", "times", "has", "downstairs", "its", "'s", "data", "are", "was"];
     for (let specialCase of specialCases) {
       if (specialCase === word) {
         return word;
@@ -1478,11 +1479,15 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
     } else if (node.fxn.type === FunctionTypes.FILTER) {
       // If an attribute is specified, create an attribute node for each one
       if (node.fxn.attribute !== undefined) {
-        for (let i = 0; i < node.fxn.fields.length; i++) {
-          let nToken = newToken(node.fxn.attribute);
-          let nNode = newNode(nToken);
-          formTree(nNode, tree, context);
-        }
+        // LHS
+        let nToken = newToken(node.fxn.attribute);
+        let nNode = newNode(nToken);
+        formTree(nNode, tree, context);
+        // RHS
+        nToken = newToken(node.fxn.attribute);
+        nNode = newNode(nToken);
+        findAttribute(nNode, context);
+        addNodeToFunction(nNode, node, context);
       // No attribute is specified, try to attach existing attributes
       } else {
        let orphans = context.found.filter((n) => n.hasProperty(Properties.ATTRIBUTE));
@@ -1872,7 +1877,7 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
   let relationship = {type: RelationshipTypes.NONE};
   if ((nodeA === nodeB) || 
       (context.stateFlags.insert) ||
-      (nodeA.hasProperty(Properties.QUANTITY) || nodeB.hasProperty(Properties.QUANTITY))) {
+      (nodeA.hasProperty(Properties.QUANTITY) && nodeB.hasProperty(Properties.QUANTITY))) {
     return relationship;
   }
   log(`Finding relationship between "${nodeA.name}" and "${nodeB.name}"`);
@@ -1881,6 +1886,9 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
   // 1) Collection 
   // 2) Entity 
   // 3) Attribute
+  // 4) Function
+  // 5) Quantity
+  // 6) String
   nodeA.properties.sort((a, b) => a - b);
   nodeB.properties.sort((a, b) => a - b);
   let nodes = [nodeA, nodeB].sort((a, b) => a.properties[0] - b.properties[0]);
@@ -1922,34 +1930,46 @@ function findRelationship(nodeA: Node, nodeB: Node, context: Context): Relations
     }
   }
   return relationship;
-  
-  /*
-  // If one node is an entity and the other is a collection 
-  } else if (nodeA.hasProperty(Properties.COLLECTION) && nodeB.hasProperty(Properties.ENTITY)) {
-    relationship = findCollectionToEntRelationship(nodeA.collection, nodeB.entity);
-  } else if (nodeB.hasProperty(Properties.COLLECTION) && nodeA.hasProperty(Properties.ENTITY)) {
-    relationship = findCollectionToEntRelationship(nodeB.collection, nodeA.entity);
-  }*/
 }
 
-// e.g. "meetings john was in"
-function findAttrToAttrRelationship(nodeA: Node, nodeB: Node, context: Context): Relationship {
-  log(`Finding Attr -> Attr relationship between "${nodeA.name}" and "${nodeB.name}"...`);
+// e.g. Corey's wife's age
+function findAttrToAttrRelationship(attrA: Node, attrB: Node, context: Context): Relationship {
+  log(`Finding Attr -> Attr relationship between "${attrA.name}" and "${attrB.name}"...`);
+  
+  console.log(attrA)
+  console.log(attrB)
+  
+  if (attrA.hasProperty(Properties.QUANTITY)) {
+    let temp = attrA;
+    attrA = attrB; 
+    attrB = temp;
+  }
+  
+  // e.g. employees whose salary is 10
+  if (attrA.relationships.length > 0 && attrB.hasProperty(Properties.QUANTITY)) {
+    attrA.attribute.variable = `${attrB.quantity}`;
+    attrA.attribute.attributeVar = false;
+    attrA.attribute.project = false;
+    return {type: RelationshipTypes.DIRECT, nodes: [attrA, attrB]};   
+  } else {
+    return {type: RelationshipTypes.NONE};  
+  }
+  
   // Check whether one of the attributes is an entity attribute
   let direct = false;
-  if (nodeA.hasProperty(Properties.POSSESSIVE)) {
+  if (attrA.hasProperty(Properties.POSSESSIVE)) {
     direct = true;    
-  } else if (nodeB.hasProperty(Properties.POSSESSIVE)) {
-    let tNode = nodeA;
-    nodeA = nodeB;
-    nodeB = tNode;
+  } else if (attrB.hasProperty(Properties.POSSESSIVE)) {
+    let tNode = attrA;
+    attrA = attrB;
+    attrB = tNode;
     direct = true;
   }
   
   if (direct) {
     log("  Found a direct relationship");
     // Create an entity attribute
-    let entityAttr = nodeA.attribute;
+    let entityAttr = attrA.attribute;
     let ent: Entity = {
       id: entityAttr.variable,
       displayName: entityAttr.variable,
@@ -1963,14 +1983,10 @@ function findAttrToAttrRelationship(nodeA: Node, nodeB: Node, context: Context):
     let nNode = newNode(nToken);
     nNode.entity = ent;
     ent.node = nNode;
-    nodeB.attribute.variable = `${nodeA.attribute.variable}|${nodeB.attribute.id}`;
-    nodeB.attribute.refs = [nNode];
-    return {type: RelationshipTypes.DIRECT, nodes: [nodeA, nodeB]}; 
+    attrB.attribute.variable = `${attrA.attribute.variable}|${attrB.attribute.id}`;
+    attrB.attribute.refs = [nNode];
+    return {type: RelationshipTypes.DIRECT, nodes: [attrA, attrB]}; 
   }
-  
-  
-  
-  
   return {type: RelationshipTypes.NONE};  
 }
 
