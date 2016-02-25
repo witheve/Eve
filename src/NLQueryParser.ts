@@ -2578,7 +2578,6 @@ function formQuery(node: Node): Query {
         if (arg.parent.hasProperty(Properties.ROOT)) {
           return undefined;
         }
-        console.log(arg);
         return {name: node.fxn.fields[i].name, 
                 value: arg.attribute.variable, 
                 variable: arg.attribute.attributeVar !== undefined ? arg.attribute.attributeVar : true
