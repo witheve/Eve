@@ -133,7 +133,7 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 
 .card .entity { overflow:hidden; }
 
-.card > .table { margin: 20px 30px; }
+.card > .table-wrapper { margin: 20px 30px; }
 
 .card .tiles { flex:none; flex-direction: row; flex-wrap: wrap; width: 360px; overflow:auto; }
 .card .tile { flex: 1 0 0; overflow:hidden; cursor: default; flex-direction:row; position:relative; }
@@ -307,12 +307,16 @@ div:hover > header > .controls, header > .controls.visible { opacity: 1; }
 .table-wrapper div { display: flex; }
 .table-wrapper > .table-header, .table-wrapper .table-row { display: flex; flex: 0 0 auto; flex-direction: row; position: relative; }
 .table-wrapper .table-row.grouped { margin-bottom: -1px; }
-.table-wrapper .column { display: inline-block; justify-content: center; width: 160px; padding: 5px 10px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.table-wrapper .column { justify-content: center; width: 160px; padding: 5px 10px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .table-wrapper .field { display: flex; flex-direction: row; flex: 0 0 auto; }
 .table-wrapper .field .text { display: inline-block; }
 .table-wrapper .field .controls { opacity: 0.4; transition: opacity 0.2s; }
 .table-wrapper .field:hover .controls { opacity: 1; }
-.table-wrapper input { font-size: 1em; }
+.table-wrapper .cell > * { display: flex; }
+.table-wrapper .cell-content { flex: 0 0 auto; justify-content: flex-end; }
+.table-wrapper .cell-input { flex: 1; }
+.table-wrapper .cell-content > * { display: inline-block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.table-wrapper .cell-input input { width: 100%; padding: 0; }
 
 .table-wrapper .table-row > .controls, .table-wrapper .table-header > .controls { flex-grow: 1; background: #eee; opacity: 1; }
 
