@@ -12,6 +12,7 @@ import {eve, eveLocalStorageKey, handle as appHandle, dispatch, activeSearches, 
 import {parseDSL} from "./parser";
 import {parse as nlparse, normalizeString, Intents, FunctionTypes, NodeTypes, Result as NLResult} from "./NLQueryParser";
 
+declare var ga;
 
 export enum PANE { FULL, WINDOW, POPOUT };
 enum BLOCK { TEXT, PROJECTION };
@@ -76,6 +77,9 @@ export function setURL(paneId:string, contains:string, replace?:boolean) {
 
   historyState = state;
   historyURL = url;
+  ga('send', 'pageview', {
+    'page': location.pathname + location.search  + location.hash
+  });
 }
 
 function inferRepresentation(search:string|number, baseParams:{} = {}):{rep:string, params:{}} {
