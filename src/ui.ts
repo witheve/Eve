@@ -580,6 +580,7 @@ export function root():Element {
 
 function hideBanner(event, elem) {
   localStorage["hideBanner"] = true;
+  dispatch("").commit();
 }
 
 // @TODO: Add search functionality + Pane Chrome
@@ -677,8 +678,8 @@ function deleteDatabasePrompt():Element {
 }
 
 function nukeDatabase() {
-  localStorage.clear();
-  window.location.reload();
+  localStorage["local-eve"] = "";
+  window.location.href = `${window.location.origin}/`;
 }
 
 
