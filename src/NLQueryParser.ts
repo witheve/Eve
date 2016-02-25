@@ -1308,7 +1308,7 @@ function formTree(node: Node, tree: Node, context: Context): {tree: Node, contex
   for (let ngram of matchedNgrams) {
     // Don't do anything for 1-grams
     if (ngram.length === 1) {
-      ngram[0].found = false
+      ngram[0].found = false;
       continue;
     }
     let displayName = ngram.map((node)=>node.name).join(" ").replace(/ '/g,'\'');
@@ -2170,7 +2170,8 @@ export function findCollToCollRelationship(collA: Node, collB: Node, context: Co
     nNode.properties.push(Properties.ENTITY);
     nNode.entity = entity;
     nNode.found = true;
-    let relationship = {type: RelationshipTypes.DIRECT, nodes: [collA, collB], implicitNodes: [nNode]};
+    collB.addChild(nNode);
+    let relationship = {type: RelationshipTypes.DIRECT, nodes: [collA, collB]};
     nNode.relationships.push(relationship);    
     return relationship;
   } else if (intersectionSize > 0) {
