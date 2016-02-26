@@ -1139,6 +1139,16 @@ function commitChanges(event, elem:{table:MappedTableElem}) {
   }
 }
 
+function commitChangesOnEnter(event:KeyboardEvent, elem:MappedTableElem) {
+  if(event.keyCode === KEYS.ENTER) {
+    let target = <HTMLElement>event.target;
+    if(target && target.blur) {
+      target.blur();
+    }
+    commitChanges(event, {table: elem});
+  }
+}
+
 interface TableElem extends TableBodyElem { search?: string }
 export function table(elem:TableElem):Element {
   let {state, rows, fields, groups, disabled, sortable, editCell, data} = elem;
@@ -1180,6 +1190,7 @@ export function mappedTable(elem:MappedTableElem):Element {
   let stateValid = tableStateValid(elem);
 
   elem.c = `table-wrapper mapped-table ${elem.c || ""}`;
+  elem.keydown = commitChangesOnEnter;
   elem.children = [
     elem.search ? {t: "h2", text: elem.search} : undefined,
     tableHeader({state, fields, groups, sortable, data}),
