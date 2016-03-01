@@ -10,6 +10,12 @@ var util = require("util");
 var exec = require("child_process").exec;
 var spawn = require("child_process").spawn;
 
+// compatibility for: npm 1,2 and 3+
+var TYPESCRIPT_PATHS = [
+  "node_modules/tsify/node_modules/typescript",
+  "node_modules/typescript"
+];
+
 var state = {};
 
 var pkgs = {
@@ -216,7 +222,7 @@ function root(program, uiState) {
     });
 
     if(stateless) return line;
-    
+
     var light = blessed.box({
       parent: line,
       left: -2,
@@ -293,37 +299,44 @@ if(program.watch) {
   })
 }
 
+var startServer = function(err, out) {
+  if (err) {
+    console.log(err);;
+  } else {
+    tagLog("server", "Compilation complete");
+  }
+  var server = spawn("node", ["bin/src/server.js"]);
+  state.server.completed = true;
+  state.server.endTime = Date.now();
+  tagLog("server", "Server started at http://localhost:3000");
+  server.stdout.on("data", function(data) {
+    tagLog("server", data.toString());
+  });
+  server.stderr.on("data", function(data) {
+    tagLog("server", data.toString());
+  });
+  procs.push(server);
+  render();
+  return true;
+}
+
 // @FIXME: We need to watch the server and it's deps for changes.
 if(program.server) {
   state.server = {errors: [], startTime: Date.now()};
-  exec("node node_modules/tsify/node_modules/typescript/bin/tsc", function(err, out) {
-    if (err) {
-      tagLog("server", "Failed to compile server");
-      tagLog("server", err.toString());
-      tagLog("server", out);
-      state.server.errors.push(err);
-      state.server.completed = true;
-      state.server.endTime = Date.now();
-      render();
-      return;
-    } else {
-      tagLog("server", "Compilation complete");
+  for (var path of TYPESCRIPT_PATHS) {
+    // console.log(`Trying Typescript at: ${path}`);
+    var binPath = `${path}/bin/tsc`;
+    try {
+      // one dot per path we try while finding Typescript
+      process.stdout.write('.');
+      var stats = fs.statSync(binPath);
+      if (stats.isFile()) {
+        exec(`node ${binPath}`, startServer);
+      }
+    } catch (err) {
     }
-    var server = spawn("node", ["bin/src/server.js"]);
-    state.server.completed = true;
-    state.server.endTime = Date.now();
-    tagLog("server", "Server started at http://localhost:3000");
-    server.stdout.on("data", function(data) {
-      tagLog("server", data.toString());
-    });
-    server.stderr.on("data", function(data) {
-      tagLog("server", data.toString());
-    });
-    procs.push(server);
-    render();
-  });
+  }
 }
-
 
 if(program.bundles) build(program.bundles);
 
