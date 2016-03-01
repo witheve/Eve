@@ -1928,19 +1928,19 @@ export function listTile(elem) {
     let current = reverseEntityAndValue ? value.eav.entity : value.eav.value;
     if(uitk.resolveName(current) === "entity" && attribute === "is a") continue;
     let source = value.source;
-    let valueElem:any = {c: "value", data, value: current};
+    let valueElem:any = {c: "value", data, value: current, autolink: !active};
     if(rep === "externalImage") {
       valueElem.url = current;
       valueElem.text = undefined;
     }
-    let ui = uitk[rep](valueElem);
+    let ui:Element = {c: "value-wrapper", data, children: [uitk[rep](valueElem)]};
     if(active) {
       ui["cardId"] = cardId;
       ui["storeAttribute"] = "itemsToRemove";
       ui["storeId"] = source;
       ui.click = toggleListTileItem;
       if(state.activeTile.itemsToRemove && state.activeTile.itemsToRemove[source]) {
-        ui.c += " marked-to-remove";
+        ui.c = `${ui.c || ""} marked-to-remove`;
       }
     }
     listChildren.push(ui);
