@@ -2361,7 +2361,7 @@ export function searchInput(paneId:string, value:string):Element {
         // {c: `ion-ios-arrow-${state.plan ? 'up' : 'down'} plan`, click: toggleSearchPlan, paneId},
         // while technically a button, we don't need to do anything as clicking it will blur the editor
         // which will execute the search
-        {c: "ion-android-search visible", paneId}
+        {c: "ion-android-search visible", paneId, click: focusOrSetSearch}
       ]},
       codeMirrorElement({
         c: `flex-grow wiki-search-input ${state.focused ? "selected": ""}`,
@@ -2397,6 +2397,25 @@ function setSearch(event, elem) {
     }
   }
 }
+
+function focusOrSetSearch(event, elem) {
+  let target = <HTMLElement>document.querySelector(".wiki-search-input");
+  let cm:CodeMirror.Editor = target["cm"];
+  let state:any = uiState.widget.search[elem.paneId] || {value: ""};
+  let rawVal = cm.getDoc().getValue();
+  let value = rawVal !== undefined ? rawVal : state.value;
+  let pane = eve.findOne("ui pane", {pane: elem.paneId});
+
+  if(!pane || pane.contains !== (asEntity(value) || value)) {
+    let {chain, isSetSearch} = dispatchSearchSetAttributes(value);
+    chain.dispatch("insert query", {query: value})
+      .dispatch("set pane", {paneId: elem.paneId, contains: value})
+      .commit();
+  } else {
+    cm.focus();
+  }
+}
+
 function updateSearch(event, elem) {
   dispatch("ui update search", {paneId: elem.paneId, value: event.value}).commit();
 }
