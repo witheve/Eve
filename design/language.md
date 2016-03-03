@@ -3,18 +3,18 @@ Eve is a variant of [Datalog](https://en.wikipedia.org/wiki/Datalog), based heav
 ```clojure
 (define foo [name return]
         bar [age]
-  (person :tag "person"
-          :age
-          :name)
+  (fact person :tag "person"
+               :age
+               :name)
   (= return 3)
   (= x (+ 20 age))
 
 (define fact [entity attribute value]
-  (department :tag "department")
+  (fact department :tag "department")
   (query
-    (employee :tag "employee"
-              :department department
-              :salary)
+    (fact employee :tag "employee"
+                   :department department
+                   :salary)
     (= value (sum salary)))
   (= entity department)
   (= attribute "total cost"))
@@ -22,18 +22,18 @@ Eve is a variant of [Datalog](https://en.wikipedia.org/wiki/Datalog), based heav
 (define hops [from to hops]
   (choose [from to hops]
       (query
-        (link :tag "link"
-              :from
-              :to)
+        (fact link :tag "link"
+                   :from
+                   :to)
         (= hops 1))
       (query
-        (link :tag "link"
-              :from
-              :to to2)
-         (link :tag "link"
-               :from to2
-               :to)
-         (= hops 2))))
+        (fact link :tag "link"
+                   :from
+                   :to to2)
+        (fact link :tag "link"
+                   :from to2
+                   :to)
+        (= hops 2))))
 
 (define awesomeness [value return]
   (= return (if (> value 5)
@@ -43,15 +43,15 @@ Eve is a variant of [Datalog](https://en.wikipedia.org/wiki/Datalog), based heav
 (define count-of-employees-and-spouses [return]
  (union [person]
   (query
-   (person :tag "employee"))
+   (fact person :tag "employee"))
   (query
-   (employee :tag "employee"
-             :spouse person)))
+   (fact employee :tag "employee"
+                  :spouse person)))
  (= return (count)))
 
 (query
-  (people :tag "person")
-  (not (people :tag "employee")))
+  (fact people :tag "person")
+  (not (fact people :tag "employee")))
 
 (query
   (click :element :time)
