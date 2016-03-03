@@ -9,6 +9,10 @@
 (def bag (atom 10))
 (def user (atom 20))
 
+(defn repl-error [& thingy]
+  (apply println "repl error" thingy)
+  (throw thingy))
+
 ;; the distinction between edb and idb is alive here..skating over it
 (defn build-reporting-select [db terms]
   (let [keys (filter symbol? (map second (split-at 2 (rest terms))))]
@@ -18,11 +22,11 @@
    (let [prog (build-reporting-select d (second expression))]
      (println (exec/print-program prog))))
 
-(defn implied-select [d expression]
+(defn diesel [d expression]
   ;; the compile-time error path should come up through here
   ;; fix external number of regs
   (let [prog (build-reporting-select d expression)]
-    ((exec/open [] d prog 10) 'flush [])))
+    ((exec/open d prog []) 'flush [])))
 
                    
 ;; xxx - projections with shared bodies are duplicated
@@ -30,15 +34,13 @@
 
 ;; xxx - this is now...in the language..not really?
 (defn define [d expression]
-  ;; we can do a recursive rewrite with returns and truncation I guess?
-  (let [separate (group-by (fn [x] (= (first x) 'project)) (rest expression))]
-    (doseq [i (separate true)]
-      (let [relname (name (second i))
-            sig 0
-            keys (rest (rest i))
-            keyo (partition 2 keys)]
-        (db/insert-implication d relname keyo (separate false)
-                            @user @bag)))))
+  (let [deconstruct (fn deconstruct [t] 
+                      (if (or (empty? t) (list? (first t))) t
+                          (if (and (symbol? (first t)) (vector? (second t)))
+                            (db/insert-implication d (name (first t)) (second t) 
+                                                   (deconstruct (rest (rest t))) @user @bag)
+                            (repl-error "poorly formed define" t))))]
+    (deconstruct (rest expression))))
 
 
 ;; xxx - we should associate this with the timestamp (i.e rowid)
@@ -62,18 +64,16 @@
 (defn trace [db tuple] ())
   
   
-(defn eeval [db term]
-  (let [function ({'insert repl-insert-tuple
-                   'remove remove-tuple
+(defn eeval [d term]
+  (let [function ({'remove remove-tuple
                    'trace trace
                    'define define
                    'show show
                    'load read-all
                    } (first term))]
-    (if (not (nil? function))
-      (function db term)
-      (implied-select db term))
-    db))
+    (if (nil? function)
+      (diesel d term)
+      (function d term))))
 
 (import '[java.io PushbackReader])
 (require '[clojure.java.io :as io])
@@ -87,9 +87,8 @@
                  (catch Exception e (-> filename io/file io/reader PushbackReader.)))]
     
     (loop []
-      ;; fuckers, always throw an error, even on an eof, so cant print read errors? (println "load parse error" e)
+      ;; terrible people, always throw an error, even on an eof, so cant print read errors? (println "load parse error" e)
       (let [form (try (read rdr) (catch Exception e ()))]
-        ;; fucking eof exception
         (if (and form (not (empty? form)))
           (do 
             (eeval db form)
