@@ -9,7 +9,7 @@ Eve is a variant of [Datalog](https://en.wikipedia.org/wiki/Datalog), based heav
   (= return 3)
   (= x (+ 20 age))
 
-(define fact [entity attribute value]
+(define eav [entity attribute value]
   (fact department :tag "department")
   (query
     (fact employee :tag "employee"
@@ -56,8 +56,8 @@ Eve is a variant of [Datalog](https://en.wikipedia.org/wiki/Datalog), based heav
 (query
   (click :element :time)
   (= ent (concat "click|" element "|" time))
-  (insert-eav! (ent "tag" "click")
-               (ent "element" element))))
+  (insert-fact! (ent "tag" "click")
+                (ent "element" element))))
 
 (query
  (fact :attribute "tag" :value "invalid" :time t)
