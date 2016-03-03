@@ -1,6 +1,6 @@
 Eve is a variant of [Datalog](https://en.wikipedia.org/wiki/Datalog), based heavily on [Dedalus](http://www.eecs.berkeley.edu/Pubs/TechRpts/2009/EECS-2009-173.html) and [Functional-Relational Programming](http://shaffner.us/cs/papers/tarpit.pdf). It is a general-purpose, data-centric, interactive language. Picture a relational spreadsheet with I/O.
 
-```
+```clojure
 (define foo [name return]
         bar [age]
   (person :tag "person"
