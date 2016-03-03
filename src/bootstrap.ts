@@ -4,7 +4,6 @@ import * as app from "./app"
 import {eve} from "./app"
 import {UIElem, parseDSL, Artifacts} from "./parser"
 import {normalizeString} from "./NLQueryParser"
-import {UI} from "./uiRenderer"
 
 export var ixer = eve;
 declare var uuid;
@@ -39,7 +38,6 @@ class BSPhase {
   protected _views:{[view:string]: string} = {};
   protected _viewFields:{[view:string]: string[]} = {};
   protected _entities:string[] = [];
-  protected _uis:{[ui:string]: UI} = {};
   protected _queries:{[query:string]: runtime.Query} = {};
   protected _names:{[name:string]: string} = {};
 
@@ -60,7 +58,6 @@ class BSPhase {
         if(this._views[view] !== "table") this.changeset.merge(runtime.Query.remove(view, this.ixer));
       }
       for(let entity of this._entities) this.changeset.remove("builtin entity", {entity});
-      for(let ui in this._uis) this.changeset.merge(UI.remove(ui, this.ixer));
     }
     ixer.applyDiff(this.changeset);
   }
@@ -173,15 +170,6 @@ class BSPhase {
     for(let id in views) this.changeset.merge(views[id].changeset(eve));
     return this;
   }
-
-  addUI(id:string, ui:UI) {
-    ui.id = id;
-    this._uis[id] = ui;
-    this.addEntity(id, id, ["system", "ui"]);
-    this.changeset.merge(ui.changeset(this.ixer));
-    return this;
-  }
-
 }
 
 //-----------------------------------------------------------------------------

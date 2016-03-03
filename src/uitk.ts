@@ -2,7 +2,7 @@ declare var pluralize; // @TODO: import me.
 import {builtinId, copy, coerceInput, sortByLookup, sortByField, KEYS, autoFocus, uuid} from "./utils";
 import {Element, Handler} from "./microReact";
 import {dispatch, eve} from "./app";
-import {PANE, uiState as _state, asEntity, entityTilesUI, activeCells, wikiEditor, listTile} from "./ui";
+import {PANE, uiState as _state, asEntity, entityTilesUI, listTile} from "./ui";
 import {masonry as masonryRaw, MasonryLayout} from "./masonry";
 
 //------------------------------------------------------------------------------

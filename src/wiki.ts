@@ -43,7 +43,7 @@ window.addEventListener("hashchange", function() {
   content = ui.asEntity(content) || content;
 
   if(mainPane.contains === content) return;
-  
+
   let cur = app.dispatch("set pane", {paneId: mainPane.pane, contains: content});
   if(content && !app.eve.findOne("query to id", {query: content})) {
     cur.dispatch("insert query", {query: content});

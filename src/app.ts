@@ -2,7 +2,6 @@
 /// <reference path="../vendor/marked.d.ts" />
 import * as microReact from "./microReact";
 import * as runtime from "./runtime";
-import {UIRenderer} from "./uiRenderer";
 import {ENV, DEBUG, uuid} from "./utils";
 
 export var syncedTables = ["sourced eav", "view", "action", "action source", "action mapping", "action mapping constant", "action mapping sorted", "action mapping limit"];
@@ -19,7 +18,6 @@ export var renderer;
 export var uiRenderer;
 function initRenderer() {
   renderer = new microReact.Renderer();
-  uiRenderer = new UIRenderer(eve);
   document.body.appendChild(renderer.content);
   window.addEventListener("resize", render);
   perfStatsUi = document.createElement("div");
@@ -46,12 +44,6 @@ export function render() {
     if (+stats.root > 10) console.info("Slow root: " + stats.root);
 
     start = performance.now();
-    let dynamicUI = eve.find("system ui").map((ui) => ui["template"]);
-    if(DEBUG && DEBUG.UI_COMPILE) {
-      console.info("compiling", dynamicUI);
-      console.info("*", uiRenderer.compile(dynamicUI));
-    }
-    trees.push.apply(trees, uiRenderer.compile(dynamicUI));
     stats.uiCompile = (performance.now() - start).toFixed(2);
     if (+stats.uiCompile > 10) console.info("Slow ui compile: " + stats.uiCompile);
 
