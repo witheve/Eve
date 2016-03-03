@@ -60,6 +60,6 @@ Eve is a variant of [Datalog](https://en.wikipedia.org/wiki/Datalog), based heav
                (ent "element" element))))
 
 (query
- (facts :attribute "tag" :value "invalid" :time t)
+ (fact :attribute "tag" :value "invalid" :time t)
  (remove-by-t! t))
 ```
