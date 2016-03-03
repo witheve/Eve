@@ -2598,7 +2598,7 @@ let _prepare:{[rep:string]: (results:{}[], params:{paneId?:string, [p:string]: a
         var entityId = result[field];
         var paneId = params["paneId"];
         // var editor = prepareCardEditor(entityId, paneId);
-        entities.push({entity: result[field], data: params, editor});
+        entities.push({entity: result[field], data: params, editor: {}});
       }
     }
     return entities;
