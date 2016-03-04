@@ -17,7 +17,7 @@
 ;; :args - positional arguments
 ;; :kwargs - keyword arguments
 ;; :rest - remaining arguments
-;; optional - arguments which may not be specified
+;; :optional - arguments which may not be specified
 (def schemas {'insert-fact! {:rest :facts}
           'remove-by-t! {:args [:tick]}
           'define! {:kwargs [:return] :rest :header-and-body} ;; @NOTE: define! is a special form due to multiple names...
@@ -75,32 +75,18 @@
      (every? (set params) (keys args))      ; Every argument is a valid parameter
      (every? (set (keys args)) required)))) ; Every required parameter is an argument
 
-
 (defn expand [sexpr]
   (let [op (first sexpr)
         body (rest sexpr)]
-    (case op
-                                        ; (insert-fact! "<entity>" "<attribute>" "<value>") => (insert-fact! :entity "<entity>" :attribute "<attribute>" :value "<value>")
-      "insert-eav!" (throw (Exception. "@TODO: Implement me!"))
-      "remove-by-t!" (throw (Exception. "@TODO: Implement me!"))
-      "define!" (throw (Exception. "@TODO: Implement me!"))
-      "union" (throw (Exception. "@TODO: Implement me!"))
-      "choose" (throw (Exception. "@TODO: Implement me!"))
-      "if" (throw (Exception. "@TODO: Implement me!"))
-      "not" (throw (Exception. "@TODO: Implement me!"))
-      "context" (throw (Exception. "@TODO: Implement me!"))
-      
-      "query" (throw (Exception. "@TODO: Implement me!"))      
-      "eav" (throw (Exception. "@TODO: Implement me!"))
-
-      
-      
-      "$=" (throw (Exception. "@TODO: Implement me!"))
-      
-      ;; Default
       (cond
-        (primitive? op) (throw (Exception. "@TODO: Implement me!"))
-        :else (throw (Exception. (str "Unknown operator '" op "'")))))))
+        (schemas op) (let [schema (schemas op)
+                           args (parse-args sexpr)
+                           valid (validate-args schema args)]
+                       ; Switch on op for special handling
+                       (throw (Exception. "@TODO: Implement me!")))
+        ;; This check can be inlined into schemas if we fold in the primitive schemas
+        (primitive? op) (throw (Exception. "@TODO: Implement me!")) ; Need schemas for primitive parameters
+        :else (throw (Exception. (str "Unknown operator '" op "'"))))))
 
 (defn test-sm [sexpr]
   (let [op (first sexpr)
