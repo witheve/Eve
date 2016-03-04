@@ -3,21 +3,20 @@
 
 
 (defn print-program [p]
-  (letfn [(bastards [x] (or (list? x) (= (type x) clojure.lang.Cons)))
+  (letfn [(mlist? [x] (or (list? x) (= (type x) clojure.lang.Cons)))
           (traverse [x indent]
             (cond
-              ;; assholes
               (instance? clojure.lang.LazySeq x) (traverse (apply list (doall x)) indent)
               
               ;; reduce on () does someting unspeakable
-              (and (bastards x) (empty? x)) "()"
+              (and (mlist? x) (empty? x)) "()"
               
-              (and (bastards x) (bastards (first x)))
+              (and (mlist? x) (mlist? (first x)))
               (reduce (fn [y x] (str y "\n" x)) ""
                       (map (fn [z]  (str (apply str (repeat indent " "))
                                          (traverse z (+ indent 4)))) x))
               
-              (bastards x)
+              (mlist? x)
               (str "(" (reduce (fn [y x] (str y " " x))
                                (map (fn [z] (traverse z indent)) x)) ")")
               
@@ -115,13 +114,11 @@
 (defn exec-open [registers db op c terms]
   (let [[open dest oid target] terms
         ;; oid-open-map can fail.
-        k (println "open channel" db (type (register-get registers target)))
         channel (db (register-get registers oid) (register-get registers target))]
     (c op (register-set registers (second terms) channel))))
     
 
 (defn exec-bind [registers db op c terms]
-  (println "exec bind" db)
   (let [[bindo dest params body] terms
         stream (open db body (register-get registers params))]
     (c op (register-set registers dest stream))))
@@ -203,22 +200,21 @@
                   })
 
 
-(defn run [db body reg op]
+(defn run [d body reg op]
   (and (not (empty? body))
        (let [command (first (first body))
              cf (command-map command)]
          (if (not cf)
            (println "bad command" command) 
            (cf reg
-               db
+               d
                op
                (fn [op oreg]
-                 (run db (rest body) oreg op))
+                 (run d (rest body) oreg op))
                (first body))))))
 
 
 (defn open [db program context]
-  (println "exec open" db program)
   (fn [op input]
     ;; not 10, we need to fix the self-allocation problemo
     (let [framesize 10

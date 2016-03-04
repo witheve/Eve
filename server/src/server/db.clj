@@ -8,13 +8,6 @@
 ;; include some form of node identity
 (defn now[] (System/currentTimeMillis))
 
-;; or...perhaps a hash of this
-;; this is super dodgy because we're using a list not to conflict with
-;; 
-(defn implication-identifier [iname keyword-set]
-  (println "implication identifier" iname keyword-set)
-  (apply list iname (sort (map name keyword-set))))
-
 ;; in the nwo this should open the insert endpoint and then close it
 (defn insert [db e a v b u]
   ((db 0 (fn [o t] ())) 'insert (list a e v b (now) u)))
@@ -26,13 +19,14 @@
 (def oidcounter (atom 100))
 (defn genoid [] (swap! oidcounter (fn [x] (+ x 1))))
 ;; permanent allocations
-(def name-oid 64)
-(def implication-oid 65)
+(def insert-oid 9)
+(def name-oid 10)
+(def implication-oid 11)
 (def contains-oid 66)
 
-(defn insert-implication [db relname keyword-map program user bag]
-  (insert db (implication-identifier relname (map first keyword-map))
-          implication-oid (list keyword-map program) user bag))
+(defn insert-implication [db relname parameters program user bag]
+  (insert db relname
+          implication-oid (list parameters program) user bag))
 
 (defn for-each-implication [db sig handler]
   ;; only really for insert, right?
@@ -47,10 +41,6 @@
               (list 'open [3] 0 [1]))
         
         e (exec/open db prog [])]
-    (e 'insert [])
-    (e 'flush [])
-    (e 'close [])))
-
-    
+    (e 'insert [])))
 
 
