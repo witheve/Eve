@@ -13,7 +13,7 @@ interface ReplCard {
   result: {
     fields: Array<string>,
     data: Array<Array<any>>,
-  }
+  } | string,
 }
 
 app.renderRoots["repl"] = root;
@@ -31,14 +31,20 @@ ws.onopen = function(e: Event) {
 
 ws.onmessage = function(message: MessageEvent) {
   let parsed = JSON.parse(message.data);
+  console.log(parsed.result);
   // Update the result of the correct repl card
   let targetCard = replCards.filter((r) => r.id === parsed.id).shift();
   targetCard.submitted = true;
   if (targetCard !== undefined) {
-    targetCard.result = {
-      fields: parsed.fields,
-      data: parsed.values,
-    } 
+    if (parsed.type === "result") {
+      targetCard.result = {
+        fields: parsed.fields,
+        data: parsed.values,
+      }  
+    } else if (parsed.type === "error") {
+      targetCard.result = parsed.message;
+      console.log(targetCard.result)
+    }
   }
   // Create a new card if we submitted the last one
   if (replCards[replCards.length - 1].submitted) {
@@ -90,7 +96,7 @@ function newReplCardElement(replCard: ReplCard) {
       replCard.query = query;
     // Catch tab
     } else if (e.keyCode === 9) {
-      textArea.value += "\t";
+      textArea.value += "  ";
       e.preventDefault();
     }
   }
