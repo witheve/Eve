@@ -6,6 +6,16 @@ export interface Query {
   id: string,
 }
 
+interface ReplCard {
+  id: string,
+  submitted: boolean,
+  query: string,
+  result: {
+    fields: Array<string>,
+    data: Array<Array<any>>,
+  }
+}
+
 app.renderRoots["repl"] = root;
 
 let WebSocket = require('ws');
@@ -20,24 +30,21 @@ ws.onopen = function(e: Event) {
 }
 
 ws.onmessage = function(message: MessageEvent) {
-  console.log(message);
   let parsed = JSON.parse(message.data);
-  console.log("Received message");
-  console.log(parsed);
   // Update the result of the correct repl card
   let targetCard = replCards.filter((r) => r.id === parsed.id).shift();
   targetCard.submitted = true;
   if (targetCard !== undefined) {
-    let foo: any = targetCard.children[1];
-    foo.text = "hello";
-    console.log(foo);
+    targetCard.result = {
+      fields: parsed.fields,
+      data: parsed.values,
+    } 
   }
   // Create a new card if we submitted the last one
   if (replCards[replCards.length - 1].submitted) {
     replCards.push(newReplCard());  
   }
   app.dispatch("rerender", {}).commit();
-  console.log(replCards);
 }
 
 ws.onerror = function(e: Event) {
@@ -56,7 +63,18 @@ function sendQuery(ws: WebSocket, query: Query) {
   }
 }
 
-function newReplCard() {
+function newReplCard(): ReplCard {
+  let replCard: ReplCard = {
+    id: uuid(),
+    submitted: false,
+    query: undefined,
+    result: undefined,
+  }
+  return replCard;
+}
+
+function newReplCardElement(replCard: ReplCard) {
+  
   function submitQuery(e) {
     let textArea = e.srcElement;
     let replCard = textArea.parentElement;
@@ -76,27 +94,26 @@ function newReplCard() {
       e.preventDefault();
     }
   }
-  
-  let replCard = {
-    id: uuid(),
+  let replCardElement = {
+    id: replCard.id,
     c: "repl-card",
     submitted: false,
     children: [
       {t: "textarea", c: "", placeholder: "query", keydown: submitQuery},
-      {c: "", text: "result"},
+      {c: "", text: JSON.stringify(replCard.result)},
     ],
   };
-  return replCard;
+  return replCardElement;
 }
 
 // Create an initial repl card
-let replCards = [newReplCard()];
+let replCards: Array<ReplCard> = [newReplCard()];
 
 function root() {
   let replroot = {
     id: "root",
     c: "repl-root",
-    children: replCards,
+    children: replCards.map(newReplCardElement),
   }; 
   return replroot;
 }
