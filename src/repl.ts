@@ -38,7 +38,6 @@ ws.onopen = function(e: Event) {
 ws.onmessage = function(message: MessageEvent) {
   let parsed = JSON.parse(message.data);
   console.log("Received message!");
-  console.log(parsed.result);
   // Update the result of the correct repl card
   let targetCard = replCards.filter((r) => r.id === parsed.id).shift();
   if (targetCard !== undefined) {
@@ -51,7 +50,6 @@ ws.onmessage = function(message: MessageEvent) {
     } else if (parsed.type === "error") {
       targetCard.state = CardState.ERROR;
       targetCard.result = parsed.message;
-      console.log(parsed);
     }
   }
   // Create a new card if we submitted the last one in replCards
@@ -105,24 +103,27 @@ function newReplCardElement(replCard: ReplCard) {
       replCard.query = query;
     // Catch tab
     } else if (e.keyCode === 9) {
-      textArea.value += "  ";
+      let start = textArea.selectionStart;
+      let end = textArea.selectionEnd;
+      let value = textArea.value;
+      value = value.substring(0, start) + "  " + value.substring(end);
+      textArea.value = value;
+      textArea.selectionStart = textArea.selectionEnd = start + 2;
       e.preventDefault();
     }
   }
+  let queryInput = {t: "textarea", c: "query-input", placeholder: "query", keydown: submitQuery};
+  let queryResult = replCard.result === undefined ? {} : {c: "query-result", text: JSON.stringify(replCard.result)};
   let replCardElement = {
     id: replCard.id,
     c: "repl-card",
-    children: [
-      {t: "textarea", c: "", placeholder: "query", keydown: submitQuery},
-      {c: "", text: JSON.stringify(replCard.result)},
-    ],
+    children: [queryInput, queryResult],
   };
   return replCardElement;
 }
 
 // Create an initial repl card
 let replCards: Array<ReplCard> = [newReplCard()];
-
 function root() {
   let replroot = {
     id: "root",
