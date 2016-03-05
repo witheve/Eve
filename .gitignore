@@ -5,3 +5,4 @@ bin/
 .settings/
 .vscode/
 *.evedb
+server/target

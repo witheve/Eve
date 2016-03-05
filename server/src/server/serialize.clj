@@ -55,7 +55,6 @@
   (letfn [(word [complete]
             (let [b (ByteBuffer/allocate 8)
                   self (fn self [y]
-                         ;; fuck you java
                          (.put b (byte y))
                          (if (= (.position b) 8)
                            (do
@@ -145,7 +144,7 @@
                                                                    len (count body)
                                                                    b (finish (+ offset len 8))]
                                                                (.putLong b offset (bit-or string-tag len))
-                                                               ;; fuckers dont have an overload for this one
+                                                               ;; there is no overload for byte set
                                                                (dotimes [i len]
                                                                  (.put b (+ offset 8 i) (aget body i)))
                                                                b)
