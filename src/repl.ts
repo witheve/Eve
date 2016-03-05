@@ -1,5 +1,11 @@
 import app = require("./app");
 
+enum CardState {
+  NONE,
+  GOOD,
+  ERROR,
+}
+
 export interface Query {
   type: string,
   query: string,
@@ -8,7 +14,7 @@ export interface Query {
 
 interface ReplCard {
   id: string,
-  submitted: boolean,
+  state: CardState,
   query: string,
   result: {
     fields: Array<string>,
@@ -31,24 +37,26 @@ ws.onopen = function(e: Event) {
 
 ws.onmessage = function(message: MessageEvent) {
   let parsed = JSON.parse(message.data);
+  console.log("Received message!");
   console.log(parsed.result);
   // Update the result of the correct repl card
   let targetCard = replCards.filter((r) => r.id === parsed.id).shift();
-  targetCard.submitted = true;
   if (targetCard !== undefined) {
     if (parsed.type === "result") {
+      targetCard.state = CardState.GOOD;
       targetCard.result = {
         fields: parsed.fields,
         data: parsed.values,
-      }  
+      }
     } else if (parsed.type === "error") {
+      targetCard.state = CardState.ERROR;
       targetCard.result = parsed.message;
-      console.log(targetCard.result)
+      console.log(parsed);
     }
   }
-  // Create a new card if we submitted the last one
-  if (replCards[replCards.length - 1].submitted) {
-    replCards.push(newReplCard());  
+  // Create a new card if we submitted the last one in replCards
+  if (replCards[replCards.length - 1].state !== CardState.NONE) {
+    replCards.push(newReplCard());
   }
   app.dispatch("rerender", {}).commit();
 }
@@ -72,7 +80,8 @@ function sendQuery(ws: WebSocket, query: Query) {
 function newReplCard(): ReplCard {
   let replCard: ReplCard = {
     id: uuid(),
-    submitted: false,
+    state: CardState.NONE,
+
     query: undefined,
     result: undefined,
   }
@@ -103,7 +112,6 @@ function newReplCardElement(replCard: ReplCard) {
   let replCardElement = {
     id: replCard.id,
     c: "repl-card",
-    submitted: false,
     children: [
       {t: "textarea", c: "", placeholder: "query", keydown: submitQuery},
       {c: "", text: JSON.stringify(replCard.result)},
