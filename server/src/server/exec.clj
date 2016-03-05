@@ -113,8 +113,8 @@
 
 (defn exec-open [registers db op c terms]
   (let [[open dest oid target] terms
-        ;; oid-open-map can fail.
         channel (db (register-get registers oid) (register-get registers target))]
+
     (c op (register-set registers (second terms) channel))))
     
 
@@ -214,13 +214,19 @@
                (first body))))))
 
 
+;; fix registers in an eval
+;;   0  this file
+;;   1  'context'
+;;   2  'input'
+;;   3  'self'
+ 
 (defn open [db program context]
   (fn [op input]
     ;; not 10, we need to fix the self-allocation problemo
     (let [framesize 10
           b (vec (repeat framesize nil))
-          b1 (if (> (count context) 0) (register-set b [2] context) b)
-          b2 (if (> (count input) 0) (register-set b1 [1] input) b1)]
+          b1 (register-set b [1] context)
+          b2 (if (> (count input) 0) (register-set b1 [2] input) b1)]
       (run db program b2 op))))
 
 (defn execution-close [e]

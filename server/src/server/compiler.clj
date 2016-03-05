@@ -1,6 +1,7 @@
 (ns server.compiler
   (:require
    [server.db :as db]
+   [server.edb :as edb]
    [server.exec :as exec]
    [clojure.set :as set]))
 
@@ -16,12 +17,6 @@
       (swap! e assoc (first key) (second key))
       (swap! e assoc (first key) (apply bset (@e (first key)) (rest key))))))
 
-;; multiple kv, no deep keys
-(defn bset2 [e & key]
-  (when (not (empty? key))
-    (bset e (first key) (second key))
-    (apply bset2 e (rest (rest key)))))
-
 
 (defn bget [e & key]
   (let [internal (fn internal [e key]
@@ -35,11 +30,7 @@
     
 (defn new-bindings [] (atom {}))
 
-(defn child-bindings [e]
-  (let [x (new-bindings)]
-    (bset x 'db (bget e 'db))
-    (swap! x assoc 'bound (@e 'bound))
-    x))
+(defn child-bindings [e] (atom @e))
 
 ;; wrap a handler
 (defn compile-error [& thingy]
@@ -53,16 +44,18 @@
     (bget f 'bound name)
     name))
 
-(defn add-dependency [e & n]
-  (swap! e (fn [x] (assoc x 'dependencies (if-let [b (x 'dependencies)] (set/union b n) (set n))))))
+(defn add-dependencies [e & n]
+  (let [z (filter symbol? n)]
+    (swap! e (fn [x] (assoc x 'dependencies (if-let [b (x 'dependencies)]
+                                              (set/union b z)
+                                              (set z)))))))
 
 ;; where vals is a map
 (defn bind-names [e n]
   (swap! e (fn [x] (assoc x 'bound (if-let [b (x 'bound)] (merge b n) n)))))
 
 (defn allocate-register [e name]
-  (let [r (if-let [r (bget e 'register)] (+ r 1) 0)]
-    ;; umm 
+  (let [r (if-let [r (bget e 'register)] r 0)]
     (bind-names e {name [r]}) 
     (bset e 'register (+ r 1))))
 
@@ -70,12 +63,13 @@
 ;; the (possibly updated) environment that was captured at the
 ;; time it was compiled
 (defn compose [& gens]
-  (fn [] (apply concat (map (fn [x] (let [k (x)] k)) gens))))
+  (fn [] (apply concat (map (fn [x] (x)) gens))))
 
 ;; is lookup always the right thing here?
 ;; term is a fragment i guess, to shortcut some emits (?)
 (defn term [e op & terms]
-  (fn [] (list (conj (map (fn [x] (lookup e x)) terms) op))))
+  (fn []
+    (list (conj (map (fn [x] (lookup e x)) terms) op))))
 
 
 (defn generate-send [e channel arguments]
@@ -84,8 +78,8 @@
                        (allocate-register e out)
                        [out (list (apply term e 'tuple out arguments))])
                      ['empty ()])]
-    (add-dependency e channel)  ;; iff channel is free
-    (apply add-dependency e arguments)
+    (add-dependencies e channel)  ;; iff channel is free
+    (apply add-dependencies e arguments)
     (fn []
       (let [cycle-filters (map (fn [x] (term e 'filter x))
                                (set/difference (bget e 'cycles)
@@ -97,31 +91,41 @@
   (let [tuple-target-name (gensym 'closure-tuple)
         input-map (zipmap inputs (range (count inputs)))
         inside-env (child-bindings e)
+        z (do
+            (bset inside-env 'register 3)
+            (bset inside-env 'dependencies #{}))
         body (inside inside-env)
-        ;; xxx - this needs to only apply to terms that aren't added here
+
         tuple-names (reduce
                      (fn [b x]
-                       (when (bget e 'bound x)
-                         (bind-names inside-env {x [1 (count b)]})
-                         (conj b (if (bget e 'bound x) x ()))))
+                       (if (bget e 'bound x)
+                         (do
+                           (bind-names inside-env {x [1 (count b)]})
+                           (concat b (list x)))
+                         b))
                      ()
                      (bget inside-env 'dependencies))]
+    
+    
     (if (> (count tuple-names) 0)
       (do
         (allocate-register e tuple-target-name)
+        (bset e 'dependencies (set/union (bget e 'dependencies)
+                                         (bget inside-env 'dependencies)))
         (compose (apply term e 'tuple tuple-target-name tuple-names)
                  (term e 'bind channel-name tuple-target-name (body))))
       (term e 'bind channel-name [] (body)))))
 
-;; an arm is a environment/generator pair
+;; an arm takes a down
+
 (defn generate-union [e signature arms down]
   (cond (= (count arms) 0) (down e)
-        (= (count arms) 1) ((first arms) e down)
+        (= (count arms) 1) ((first arms) down)
         :default 
         (let [cid (gensym 'union-channel)]
           (apply compose (concat (map (fn [x]
                                         ;; subquery
-                                        (x e (fn [e] (generate-send e cid signature))))
+                                        (x (fn [e] (generate-send e cid signature))))
                                       arms)
                                  (list (generate-bind e down signature cid)))))))
               
@@ -141,13 +145,14 @@
         (fn [] (apply list (first terms) (map (fn [x] (lookup e x)) (rest terms))))))))
 
 
-(defn generate-binary-filter [e terms]
+(defn generate-binary-filter [e terms down]
   (let [tsym (gensym 'filter)]
     (allocate-register e tsym)
-    (fn []
-      ((compose 
-        (apply term e (first terms) tsym (rest terms))
-        (term e 'filter tsym))))))
+    (apply add-dependencies e terms)
+    (compose 
+     (apply term e (first terms) tsym (rest terms))
+     (term e 'filter tsym)
+      (down e))))
 
 ;; really the same as lookup...fix
 (defn is-bound? [e name]
@@ -162,31 +167,34 @@
      coll))
 
 (defn indirect-bind [slot m]
-  (zipmap (vals m) (map (fn [x] [2 x]) (keys m))))
+  (zipmap (vals m) (map (fn [x] [slot x]) (keys m))))
 
+  
 ;; figure out how to handle the quintuple
 ;; need to do index selection here - resolve attribute name
 (defn compile-edb [e terms down]
-  ;; sexy machine is supposed to deconstruct the multi
-  (let [triple (rest terms)
+  (let [translate-tuple (fn [x]
+                          (let [dekey (fn [x] (if (keyword? x) (name x) x))]
+                            (list (first x) (dekey (second x)) (nth x 2))))
+        triple (translate-tuple (rest terms))
         [bound free] (partition-2 (fn [x] (is-bound? e (nth triple x))) (range 3))
-        [specoid index-inputs index-outputs] [3 () '(0 1 2)]
+        [specoid index-inputs index-outputs] [edb/full-scan-oid () '(0 1 2)]
         ;; ech
-        argmap {0 (first triple) 1 (name (second triple)) 2 (nth triple 2)}
+        argmap (zipmap (range 3) triple)
         channel-name (gensym 'edb-channel)
         index-name (gensym 'edb-index)
         filter-terms (set/intersection (set index-outputs) (set bound))
-        extra-map (zipmap filter-terms (map (fn [x] (gensym 'temp)) filter-terms))
+        extra-map (zipmap filter-terms (map (fn [x] (gensym 'xtra)) filter-terms))
         body (fn [x]
                (bind-names x (indirect-bind 2 extra-map))
                (bind-names x (indirect-bind 2 (zipmap free (map argmap free))))
-               (apply compose (concat (map (fn [t]
-                                             (generate-binary-filter x
-                                                                     (list 'equal (extra-map t)
-                                                                           (is-bound? x (nth triple t)))))
-                                           filter-terms)
-                                      (list (down x)))))]
-    
+               ((reduce (fn [b t]
+                          (fn [e]
+                            (generate-binary-filter e
+                                                    (list 'equal (extra-map t) (nth triple t))
+                                                    b)))
+                        down
+                        filter-terms) x))]
 
     (allocate-register e channel-name) 
     (allocate-register e index-name)
@@ -208,24 +216,20 @@
         ibinds (reduce-kv
                 (fn [b k v] (if-let [v (lookup e v)] (assoc b k v) b))
                 {} callmap)
-        ;; in caller space
         outputs (set/difference (set (keys callmap)) (set (keys ibinds)))
-
         army (fn [parameters body]
-               (fn [e down]
+               (fn [down]
                  (let [internal (child-bindings e)]
-                   ;; bind those names where the colon is ripped off
                    (bind-names internal (zipmap (map dekey (keys ibinds)) (vals ibinds)))
                    (compile-conjunction
                     internal body
-                    (fn [e]
-                      (let [out (child-bindings e)]
-                        ;; we translate this back into the external namespace soley
-                        ;; to support the 1-ary case, otherwise union would take care
-                        ;; of it
-                        (bind-names out (zipmap (map callmap outputs)
-                                                (map (fn [x] (bget e 'bound (dekey x))) outputs)))
-                        (down out)))))))]
+                    (fn [tail]
+                      (bset tail 'register (bget internal 'register))
+                      (apply add-dependencies tail (bget internal 'dependencies))
+                      ;; mapping out into the incorrect injunction of inner, e0 and eb
+                      (bind-names tail (zipmap (map callmap outputs)
+                                               (map (fn [x] (bget tail 'bound (dekey x))) outputs)))
+                      (down tail))))))]
 
     ;; validate the parameters as both a proper superset of the input
     ;; and conformant across the union legs
@@ -239,7 +243,7 @@
   (let [channel-name (gensym 'insert-channel)]
     (allocate-register e channel-name)
     (apply compose 
-           (term e 'open channel-name db/insert-oid)
+           (term e 'open channel-name edb/insert-oid [])
            (map (fn [x] (generate-send e channel-name
                                        (list (nth x 0) (name (nth x 1)) (nth x 2))))
                 (rest terms)))))
@@ -288,8 +292,14 @@
                           (fn [ed] (compile-conjunction ed (rest terms) down)))))
 
 
+;; multiple kv, no deep keys
+(defn bset2 [e & key]
+  (when (not (empty? key))
+    (bset e (first key) (second key))
+    (apply bset2 e (rest (rest key)))))
+
+
 (defn compile-dsl [db bid terms]
-  (println "compile dsl" terms)
   (let [e (new-bindings)
         ;; side effecting
         z (bset2 e
@@ -300,5 +310,4 @@
         f (bind-names e {'return-channel [1]})
         p (compile-conjunction e terms (fn [e] (fn [] ())))
         out (p)]
-    (print (exec/print-program out))
     out))
