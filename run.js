@@ -13,9 +13,7 @@ var spawn = require("child_process").spawn;
 var state = {};
 
 var pkgs = {
-  wiki: {entries: ["src/wiki.ts"], adds: ["typings/tsd.d.ts"]},
-  nlqpTest: {entries: ["test/NLQPTest.ts"], adds: ["typings/tsd.d.ts"]},
-  runtimeTest: {entries: ["test/runtimeTest.ts"], adds: ["typings/tsd.d.ts"]},
+  root: {entries: ["src/root.ts"], adds: ["typings/tsd.d.ts"]},
 };
 var pkgList = Object.keys(pkgs);
 
@@ -234,7 +232,7 @@ function root(program, uiState) {
 
   var statusLines = {
     all: statusLine("all", 0, status, true),
-    server: statusLine("server", 1, status)
+    // server: statusLine("server", 1, status)
   };
   for(var programIx = 0; programIx < program.bundles.length; programIx++) {
     var programName = program.bundles[programIx];

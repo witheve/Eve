@@ -1,10 +1,7 @@
-import {ENV, uuid} from "./utils";
-
 //---------------------------------------------------------
 // Runtime
 //---------------------------------------------------------
-declare var exports;
-let runtime = exports;
+declare var uuid;
 
 export var MAX_NUMBER = 9007199254740991;
 export var INCREMENTAL = false;
@@ -2203,4 +2200,3 @@ export function clearAllQueries(eve) {
   eve.applyDiff(finalDiff);
 }
 
-if(ENV === "browser") window["runtime"] = exports;
