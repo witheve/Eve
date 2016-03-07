@@ -92,6 +92,7 @@ function newReplCardElement(replCard: ReplCard) {
   function submitQuery(event, elem) {
     let textArea = event.srcElement;
     let thisReplCard = textArea.parentElement;
+    let replIDs = replCards.map((r) => r.id);
     // Submit the query with ctrl + enter
     if (event.keyCode === 13 && event.ctrlKey === true) {
       let queryString = textArea.value;
@@ -110,18 +111,31 @@ function newReplCardElement(replCard: ReplCard) {
       textArea.value = value;
       textArea.selectionStart = textArea.selectionEnd = start + 2;
       event.preventDefault();
-    // Catch ctrl + arrow up
-    } else if (event.keyCode === 38 && event.ctrlKey === true) {
-      // Find the previous repl card
-      let replIDs = replCards.map((r) => r.id);
+    // Catch ctrl + arrow up or page up
+    } else if (event.keyCode === 38 && event.ctrlKey === true || event.keyCode === 33) {
+      // Set the focus to the previous repl card
       let previousIx = replIDs.indexOf(thisReplCard._id) - 1 >= 0 ? replIDs.indexOf(thisReplCard._id) - 1 : 0;
-      // Set the focus for the repl card
       let replCardElements: Array<any> = thisReplCard.parentElement.children;
       console.log(previousIx);
+    // Catch ctrl + arrow down or page down
+    } else if (event.keyCode === 40 && event.ctrlKey === true || event.keyCode === 34) {
+      // Set the focus to the previous repl card
+      let nextIx = replIDs.indexOf(thisReplCard._id) + 1 <= replIDs.length - 1 ? replIDs.indexOf(thisReplCard._id) + 1 : replIDs.length - 1;
+      let replCardElements: Array<any> = thisReplCard.parentElement.children;
+      console.log(nextIx);
     }
   }
   let queryInput = {t: "textarea", c: "query-input", placeholder: "query", keydown: submitQuery, postRender: autoFocus};
-  let queryResult = replCard.result === undefined ? {} : {c: "query-result", text: JSON.stringify(replCard.result)};
+  // Set the css according to the card state
+  let resultcss;
+  if (replCard.state === CardState.NONE) {
+    resultcss = "query-result";
+  } else if (replCard.state === CardState.GOOD) {
+    resultcss = "query-result-good";
+  } else if (replCard.state === CardState.ERROR) {
+    resultcss = "query-result-bad";
+  }
+  let queryResult = replCard.result === undefined ? {} : {c: resultcss, text: JSON.stringify(replCard.result)};
   let replCardElement = {
     id: replCard.id,
     c: "repl-card",

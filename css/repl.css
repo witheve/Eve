@@ -27,3 +27,17 @@ body {
   padding: 10px;
   background-color: white;
 }
+
+.query-result-bad {
+  margin-top: 10px;
+  padding: 10px;
+  border-left: 5px solid red;
+  background-color: white;
+}
+
+.query-result-good {
+  margin-top: 10px;
+  padding: 10px;
+  border-left: 5px solid green;
+  background-color: white;
+}
