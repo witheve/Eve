@@ -1,3 +1,4 @@
+
 (ns server.db
   (:require [server.edb :as edb]
             [server.exec :as exec]))
@@ -10,7 +11,7 @@
 
 ;; in the nwo this should open the insert endpoint and then close it
 (defn insert [db e a v b u]
-  ((db 0 (fn [o t] ())) 'insert (list a e v b (now) u)))
+  ((db edb/insert-oid (fn [o t] ())) 'insert (list e a v b (now) u)))
 
 
 (def uber-log (atom ()))
@@ -19,10 +20,9 @@
 (def oidcounter (atom 100))
 (defn genoid [] (swap! oidcounter (fn [x] (+ x 1))))
 ;; permanent allocations
-(def insert-oid 9)
 (def name-oid 10)
 (def implication-oid 11)
-(def contains-oid 66)
+(def contains-oid 12)
 
 (defn insert-implication [db relname parameters program user bag]
   (insert db relname
@@ -30,17 +30,19 @@
 
 (defn for-each-implication [db sig handler]
   ;; only really for insert, right?
-  (let [terminus (fn [op tupl] (handler (first (nth tupl 2)) (second (nth tupl 2))))
+  (let [terminus (fn [op tuple]
+                   (handler (first tuple) (second tuple)))
         prog (list
-              (list 'allocate [0] 3) 
-              (list 'bind [1] [] 
-                    (list (list 'equal [3] [1 1] sig)
-                          '(filter [3])
-                          (list 'send terminus [1])))
-              ;; should have a way to ignore the dest assignment
-              (list 'open [3] 0 [1]))
+              (list 'allocate [0] 4)
+              (list 'tuple [2] [1])
+              (list 'bind [1] [2] 
+                    (list (list 'equal [3] [2 0] sig) '(filter [3])
+                          (list 'equal [3] [2 1] implication-oid) '(filter [3])
+                          (list 'send terminus [2 2])))
+              (list 'open [3] edb/full-scan-oid [1])
+              (list 'send [3] []))
         
         e (exec/open db prog [])]
-    (e 'insert [])))
+    (e 'flush [])))
 
 

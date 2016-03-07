@@ -1,4 +1,4 @@
-(insert-fact! ("color" :apple "red"))
+(insert-fact! ("apple" :color "red"))
 
 (define colorino [e c]
   (fact e :color c))
