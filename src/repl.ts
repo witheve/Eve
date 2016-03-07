@@ -89,39 +89,35 @@ function newReplCard(): ReplCard {
 
 function newReplCardElement(replCard: ReplCard) {
   
-  function submitQuery(e) {
-    let textArea = e.srcElement;
-    let replCard = textArea.parentElement;
+  function submitQuery(event, elem) {
+    let textArea = event.srcElement;
+    let thisReplCard = textArea.parentElement;
     // Submit the query with ctrl + enter
-    if (e.keyCode === 13 && e.ctrlKey === true) {
+    if (event.keyCode === 13 && event.ctrlKey === true) {
       let queryString = textArea.value;
       let query: Query = {
-        id: replCard._id,
+        id: thisReplCard._id,
         type: "query",
         query: queryString,
       }
       sendQuery(ws, query);
-      replCard.query = query;
     // Catch tab
-    } else if (e.keyCode === 9) {
+    } else if (event.keyCode === 9) {
       let start = textArea.selectionStart;
       let end = textArea.selectionEnd;
       let value = textArea.value;
       value = value.substring(0, start) + "  " + value.substring(end);
       textArea.value = value;
       textArea.selectionStart = textArea.selectionEnd = start + 2;
-      e.preventDefault();
+      event.preventDefault();
     // Catch ctrl + arrow up
-    } else if (e.keyCode === 38 && e.ctrlKey === true) {
-      console.log(e);
+    } else if (event.keyCode === 38 && event.ctrlKey === true) {
       // Find the previous repl card
-      let thisReplCard = e.srcElement.parentElement;
       let replIDs = replCards.map((r) => r.id);
       let previousIx = replIDs.indexOf(thisReplCard._id) - 1 >= 0 ? replIDs.indexOf(thisReplCard._id) - 1 : 0;
       // Set the focus for the repl card
       let replCardElements: Array<any> = thisReplCard.parentElement.children;
-      replCardElements[previousIx].focus();      
-      console.log(replCardElements[previousIx]);
+      console.log(previousIx);
     }
   }
   let queryInput = {t: "textarea", c: "query-input", placeholder: "query", keydown: submitQuery, postRender: autoFocus};
