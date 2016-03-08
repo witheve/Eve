@@ -28,16 +28,14 @@ body {
   background-color: white;
 }
 
-.query-result-bad {
-  margin-top: 5px;
-  padding: 10px;
+.bad {
   border-left: 5px solid red;
-  background-color: white;
 }
 
-.query-result-good {
-  margin-top: 5px;
-  padding: 10px;
+.good {
   border-left: 5px solid green;
-  background-color: white;
+}
+
+.pending {
+  border-left: 5px solid yellow;
 }

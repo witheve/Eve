@@ -4,6 +4,7 @@ import {autoFocus} from "./utils";
 enum CardState {
   NONE,
   GOOD,
+  PENDING,
   ERROR,
 }
 
@@ -94,6 +95,8 @@ function queryInputKeydown(event, elem) {
       type: "query",
       query: queryString,
     }
+    replCards[thisReplCardIx].state = CardState.PENDING;
+    replCards[thisReplCardIx].result = "Waiting on response from server...";
     sendQuery(ws, query);
     // Create a new card if we submitted the last one in replCards
     if (thisReplCardIx === replCards.length - 1) {
@@ -140,14 +143,15 @@ function focusQueryBox(node,element) {
 function newReplCardElement(replCard: ReplCard) { 
   let queryInput = {t: "textarea", c: "query-input", placeholder: "query", keydown: queryInputKeydown, key: `${replCard.id}${replCard.focused}`, postRender: focusQueryBox, focused: replCard.focused};
   // Set the css according to the card state
-  let resultcss;
-  if (replCard.state === CardState.NONE) {
-    resultcss = "query-result";
-  } else if (replCard.state === CardState.GOOD) {
-    resultcss = "query-result-good";
+  let resultcss = "query-result"; 
+  if (replCard.state === CardState.GOOD) {
+    resultcss += " good";
   } else if (replCard.state === CardState.ERROR) {
-    resultcss = "query-result-bad";
+    resultcss += " bad";
+  } else if (replCard.state === CardState.PENDING) {
+    resultcss += " pending";
   }
+  
   let queryResult = replCard.result === undefined ? {} : {c: resultcss, text: JSON.stringify(replCard.result)};
   let replCardElement = {
     id: replCard.id,
