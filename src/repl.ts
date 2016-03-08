@@ -121,6 +121,7 @@ function queryInputKeydown(event, elem) {
     let previousIx = thisReplCardIx - 1 >= 0 ? thisReplCardIx - 1 : 0;
     replCards.forEach((r) => r.focused = false);
     replCards[previousIx].focused = true;
+    event.preventDefault();
     app.dispatch("rerender", {}).commit();
   // Catch ctrl + arrow down or page down
   } else if (event.keyCode === 40 && event.ctrlKey === true || event.keyCode === 34) {
@@ -128,12 +129,23 @@ function queryInputKeydown(event, elem) {
     let nextIx = thisReplCardIx + 1 <= replIDs.length - 1 ? thisReplCardIx + 1 : replIDs.length - 1;
     replCards.forEach((r) => r.focused = false);
     replCards[nextIx].focused = true;
+    event.preventDefault();
     app.dispatch("rerender", {}).commit();
   }
 }
 
+function focusQueryBox(node,element) {
+  if (element.focused) {
+    node.focus();
+  }
+}
+
 function newReplCardElement(replCard: ReplCard) {
-  let queryInput = {t: "textarea", c: "query-input", placeholder: "query", keydown: queryInputKeydown, postRender: replCard.focused === true ? autoFocus : undefined};
+  console.log(replCard.id, replCard.focused);
+  
+  let queryInput = {t: "textarea", c: "query-input", placeholder: "query", keydown: queryInputKeydown, key: `${replCard.id}${replCard.focused}`, postRender: focusQueryBox, focused: replCard.focused};
+  
+  //console.log(queryInput)
   // Set the css according to the card state
   let resultcss;
   if (replCard.state === CardState.NONE) {
@@ -152,13 +164,18 @@ function newReplCardElement(replCard: ReplCard) {
   return replCardElement;
 }
 
+
+
 // Create an initial repl card
+
 let replCards: Array<ReplCard> = [newReplCard()];
 function root() {
+  console.group()
   let replroot = {
     id: "root",
     c: "repl-root",
     children: replCards.map(newReplCardElement),
   };
+  console.groupEnd();
   return replroot;
 }
