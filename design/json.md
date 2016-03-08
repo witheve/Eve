@@ -24,41 +24,49 @@ message, terminated by the server with an `error` message, or on the
 shutdown of the transport (websocket) connection.
 
 ## Query
-  {
-    type: "query" 
-    query: "(.... )" 
-    id: "id" 
-   }
+```javascript
+{
+"type": "query" ,
+"query": "(.... )", 
+"id": "id" 
+}
+```
 
-query is a string as specified in language.md
+`query` is a string as specified in language.md
 
 ## Close
-  {
-    type: "query" 
-    query: "(.... )" 
-    id: "id" 
-   }
+```javavscript
+{
+"type": "query",
+"query": "(.... )",
+"id": "id" 
+}
+```
 
 shut down a query
 
 ## Result
-  {
-    type: "result" 
-    fields: ["x", "y"] 
-    values: [[  ], [  ] ... [ ]] 
-    id: "id" 
-   }
-   
+```javavscript
+{
+"type": "result",
+"fields": ["x", "y"] ,
+"values": [[  ], [  ] ... [ ]],
+"id": "id" 
+}
+```
+
 An asynchronous partial query result. The fields and their ordering
 are assigned by the server, and correspond to the names of the free
 variables in top level query as specified by the user (?).
    
 ## Error
-  {
-    type: "error" 
-    id: "id" 
-    cause: "unsufficient EveSaver miles" 
-  }
+```javascript
+{
+"type": "error" ,
+"id": "id" ,
+"cause": "unsufficient EveSaver miles" 
+}
+```
 
 Server driven query shutdown. The cause text is currently unstructured, but
 we'll play with this.
