@@ -26,9 +26,9 @@ shutdown of the transport (websocket) connection.
 ## Query
 ```javascript
 {
-"type": "query" ,
-"query": "(.... )", 
-"id": "id" 
+  "type": "query" ,
+  "query": "(.... )", 
+  "id": "id" 
 }
 ```
 
@@ -37,9 +37,9 @@ shutdown of the transport (websocket) connection.
 ## Close
 ```javavscript
 {
-"type": "query",
-"query": "(.... )",
-"id": "id" 
+  "type": "query",
+  "query": "(.... )",
+  "id": "id" 
 }
 ```
 
@@ -48,23 +48,31 @@ shut down a query
 ## Result
 ```javavscript
 {
-"type": "result",
-"fields": ["x", "y"] ,
-"values": [[  ], [  ] ... [ ]],
-"id": "id" 
+  "type": "result",
+  "fields": ["x", "y"] ,
+  "values": [[  ], [  ] ... [ ]],
+  "id": "id" 
 }
 ```
 
 An asynchronous partial query result. The fields and their ordering
 are assigned by the server, and correspond to the names of the free
-variables in top level query as specified by the user (?).
+variables in top level query as specified by the user (?). The values
+field is a set of vectors, each of which corresponds to the ordering
+specified in fields.
+
+Note that the underlying type information for the fields is currently
+lost, as we're using generic JSON types. The fix for this is TDB,
+but most likely shouldn't involve adding type information to the
+fields result, as there is no guarentee of type uniformity in the result
+tuples.
    
 ## Error
 ```javascript
 {
-"type": "error" ,
-"id": "id" ,
-"cause": "unsufficient EveSaver miles" 
+  "type": "error" ,
+  "id": "id" ,
+  "cause": "unsufficient EveSaver miles" 
 }
 ```
 
