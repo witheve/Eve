@@ -10,7 +10,6 @@
 
 (defn sexp-to-json [term]
   (cond
-    ;; these fuckers
     (= term ()) "[]"
     (or (seq? term) (vector? term))
     (str "["
@@ -52,7 +51,7 @@
     ;; make sure if we load things they are inserted into the parent scope
     ;; but read from this shadowing scope(?)
     ;; 
-    ;; this seems a little fucked up..the stack on errors after this seems
+    ;; this seems a little bad..the stack on errors after this seems
     ;; to grow by one frame of org.httpkit.server.LinkingRunnable.run(RingHandler.java:122)
     ;; for every reception. i'm using this interface wrong or its pretty seriously
     ;; damaged
