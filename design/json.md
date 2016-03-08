@@ -69,9 +69,9 @@ tuples.
 ## Error
 ```javascript
 {
-  "type": "error" ,
-  "id": "id" ,
-  "cause": "unsufficient EveSaver miles" 
+  "type": "error",
+  "cause": "unsufficient EveSaver miles",
+  "id": "id"
 }
 ```
 
