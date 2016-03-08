@@ -3,7 +3,7 @@
 
 (def REMOVE_FACT 5)
 
-(defn primitive? [])
+(defn primitive? [op])
 
 (defn tap [x & [label]]
   (println (str (or label "") " " x))
@@ -16,13 +16,16 @@
       (merge-with merge-state a b)
       b)))
 
+(defn splat-map [m]
+  (reduce-kv #(into %1 [%2 %3]) [] m))
+
 ;; :args - positional arguments
 ;; :kwargs - keyword arguments
 ;; :rest - remaining arguments
 ;; :optional - arguments which may not be specified
 (def schemas {
               ;; Special forms
-              'eav {:args [:entity] :rest :bindings}
+              'eav nil
               'define! nil ;; @NOTE: define! is a special form due to multiple names...
               
               ;; Macros
@@ -35,8 +38,8 @@
               'query {:rest :body}
               'union {:args [:params] :rest :members}
               'choose {:args [:params] :rest :members}
-              'fact {:args [:entity :attribute :value :bag] :optional #{:entity :attribute :value :bag}}
               'not {:args [:expr]}
+              'fact {:args [:entity :attribute :value :bag] :optional #{:entity :attribute :value :bag}}
               'context {:kwargs [:bag :tick] :rest :body :optional #{:bag :tick :body}}
           })
 
@@ -86,40 +89,51 @@
     ('query
      ('= 'return expr))))
 
+(defn expanded [args]
+  (reduce-kv #(assoc %1 %2 (expand %3)) {} args)) 
+
 ;; Returns a hash of {:inline [form], :hoisted [form1, form2, ...formN]}
 ;; The :inline form (if present) should be substituted in place
 ;; Any :hoisted forms should be moved to the top level of the body.
-(defn expand [sexpr]
-  (let [op (first sexpr)
-        body (rest sexpr)]
+;; @TODO: sub-expansions need to get flattened into bodies.
+(defn expand [expr]
+  (cond
+    (seq? expr)
+    (let [sexpr expr
+          op (first sexpr)
+          body (rest sexpr)]
       (cond
         (schemas op) (let [schema (schemas op)
-                           args (parse-args sexpr)
+                           args (parse-args schema body)
                            valid (validate-args schema args)]
                                         ; Switch on op for special handling
                        (case op
                          ;; Macros
-                         insert-fact! (map #(expand (cons 'insert-fact-btu! %1)) (:facts args))
+                         insert-fact! (vec (map #(expand (cons 'insert-fact-btu! %1)) (:facts args)))
                          remove-by-t! (expand ('insert-fact-btu! (:tick args) REMOVE_FACT nil))
                          if (let [then (as-query (:then args))
                                    then ('query (:cond args) (rest then))
                                    else (as-query (:else args))]
-                               ('choose [return]
+                               ('choose ['return]
                                         then
                                         else))
                          
                          ;; Native forms
+                         insert-fact-btu! (cons 'insert-fact-btu! (splat-map (expanded args)))
                          query (cons 'query (map expand (:body args)))
                          union (cons 'union (map expand (:members args)))
                          choose (cons 'choose (map expand (:members args)))
-                         )
-                         
-                       (throw (Exception. "@TODO: Implement me!")))
+                         not (cons 'not (expand (:expr args)))
+                         fact (cons 'fact (splat-map (expanded args)))
+                         context (cons 'context (splat-map (expanded args)))))
         (= op 'define!) (let [])
         (= op 'eav) (let [])
         ;; This check can be inlined into schemas if we fold in the primitive schemas
         (primitive? op) (throw (Exception. "@TODO: Implement me!")) ; Need schemas for primitive parameters
-        :else (throw (Exception. (str "Unknown operator '" op "'"))))))
+        :else (throw (Exception. (str "Unknown operator '" op "'")))))
+    (sequential? expr)
+    (map expand expr)
+    :else expr))
 
 (defn test-sm [sexpr]
   (let [op (first sexpr)
