@@ -39,7 +39,6 @@ ws.onopen = function(e: Event) {
 
 ws.onmessage = function(message: MessageEvent) {
   let parsed = JSON.parse(message.data);
-  console.log("Received message!");
   // Update the result of the correct repl card
   let targetCard = replCards.filter((r) => r.id === parsed.id).shift();
   if (targetCard !== undefined) {
@@ -66,8 +65,6 @@ ws.onclose = function(c: CloseEvent) {
 }
 
 function sendQuery(ws: WebSocket, query: Query) {
-  console.log("Sending query:");
-  console.log(query);
   if (ws.readyState === ws.OPEN) {
     ws.send(JSON.stringify(query));  
   }
@@ -140,12 +137,8 @@ function focusQueryBox(node,element) {
   }
 }
 
-function newReplCardElement(replCard: ReplCard) {
-  console.log(replCard.id, replCard.focused);
-  
+function newReplCardElement(replCard: ReplCard) { 
   let queryInput = {t: "textarea", c: "query-input", placeholder: "query", keydown: queryInputKeydown, key: `${replCard.id}${replCard.focused}`, postRender: focusQueryBox, focused: replCard.focused};
-  
-  //console.log(queryInput)
   // Set the css according to the card state
   let resultcss;
   if (replCard.state === CardState.NONE) {
@@ -170,12 +163,10 @@ function newReplCardElement(replCard: ReplCard) {
 
 let replCards: Array<ReplCard> = [newReplCard()];
 function root() {
-  console.group()
   let replroot = {
     id: "root",
     c: "repl-root",
     children: replCards.map(newReplCardElement),
   };
-  console.groupEnd();
   return replroot;
 }
