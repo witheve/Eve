@@ -6,8 +6,8 @@
             [server.serialize :as serialize]
             [server.exec :as exec]))
 
-(def bag (atom 10))
-(def user (atom 20))
+(def bag (atom 98))
+(def user (atom 99))
 
 (defn repl-error [& thingy]
   (apply println "repl error" thingy)
@@ -26,11 +26,8 @@
   ;; the compile-time error path should come up through here
   ;; fix external number of regs
   (let [prog (build-reporting-select d expression)]
-    ((exec/open d prog []) 'flush [])))
+    ((exec/open d prog (fn [op tuple] (println "whee" tuple))) 'flush [])))
 
-                   
-;; xxx - projections with shared bodies are duplicated
-;; projections in nested scopes are just ignored
 
 ;; xxx - this is now...in the language..not really?
 (defn define [d expression]
@@ -42,22 +39,6 @@
                             (repl-error "poorly formed define" t))))]
     (deconstruct (rest expression))))
 
-
-;; xxx - we should associate this with the timestamp (i.e rowid)
-;; of a particular row...because composition..not sure
-;; how to deal with that guy here, we need to have the original in hand
-(defn remove-tuple [d tuple]
-  (let [terms (apply hash-map (rest (rest tuple)))
-        n (name (second tuple))
-        t0 (db/now)]
-    ;; remove is an oid..xxx - this is now in the language
-    (db/insert d t0 'remove 0)))
-
-
-(defn repl-insert-tuple [d tuple]
-  ;; bid
-  (db/insert d (nth tuple 2) (nth tuple 1) (nth tuple 3) @bag @user))
-
 (declare read-all)
 
 ;; xxx - use the provenance compiler
@@ -65,8 +46,7 @@
   
   
 (defn eeval [d term]
-  (let [function ({'remove remove-tuple
-                   'trace trace
+  (let [function ({'trace trace
                    'define define
                    'show show
                    'load read-all
