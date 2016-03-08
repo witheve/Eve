@@ -153,19 +153,21 @@ function newReplCardElement(replCard: ReplCard) {
   }
   
   let queryResult = replCard.result === undefined ? {} : {c: resultcss, text: JSON.stringify(replCard.result)};
+  let replClass = "repl-card";
+  replClass += replCard.focused ? " selected" : "";
+  
   let replCardElement = {
     id: replCard.id,
-    c: "repl-card",
+    c: replClass,
     children: [queryInput, queryResult],
   };
   return replCardElement;
 }
 
-
-
 // Create an initial repl card
-
 let replCards: Array<ReplCard> = [newReplCard()];
+replCards[0].focused = true;
+
 function root() {
   let replroot = {
     id: "root",
