@@ -51,7 +51,7 @@ ws.onmessage = function(message: MessageEvent) {
       }
     } else if (parsed.type === "error") {
       targetCard.state = CardState.ERROR;
-      targetCard.result = parsed.message;
+      targetCard.result = parsed.cause;
     }
   }
   app.dispatch("rerender", {}).commit();
