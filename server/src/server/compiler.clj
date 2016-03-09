@@ -242,11 +242,15 @@
 (defn compile-insert [e terms cont]
   (let [channel-name (gensym 'insert-channel)]
     (allocate-register e channel-name)
-    (apply compose 
+    (apply compose
+           ;; floaty
            (term e 'open channel-name edb/insert-oid [])
-           (map (fn [x] (generate-send e channel-name
-                                       (list (nth x 0) (name (nth x 1)) (nth x 2))))
-                (rest terms)))))
+           (concat 
+            (map (fn [x] (generate-send e channel-name
+                                        (list (nth x 0) (name (nth x 1)) (nth x 2))))
+                 (rest terms))
+            (list (cont e))))))
+           
 
 
 (defn compile-union [e terms down]
@@ -257,6 +261,7 @@
 (defn compile-sum [e triple down]
   ())
 
+;; xxx - this should take an optional projection parameter
 (defn compile-query [e terms cont]
   ;; this has a better formulation in the new world? what about export
   ;; of solution? what about its projection?
