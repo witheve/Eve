@@ -1,6 +1,7 @@
 (ns server.jsclient
   (:require
    [org.httpkit.server :as httpserver]
+   [clojure.data.json :as json]
    [server.db :as db]
    [server.edb :as edb]
    [server.repl :as repl]
@@ -8,87 +9,57 @@
    [server.compiler :as compiler]
    [clojure.string :as string])) 
 
-(defn sexp-to-json [term]
-  (cond
-    (= term ()) "[]"
-    (or (seq? term) (vector? term))
-    (str "["
-         (reduce
-          (fn [a b] (str a ", " b))
-          (map sexp-to-json term))
-         "]")
-    ;; ok, this is sad, we're going to collapse symbols and strings   
-    (or (string? term) (symbol? term))
-    (str "\"" term "\"")
-    :else (str term)))
+(def bag (atom 10))
+;; ok, this is a fucked up rewrite right now. take a parameteric
+;; term, use it as the return, and strip it off
+
+(defn format-vec [x]
+  (str "[" (string/join "," (map (fn [x] (str "\"" x "\"")) x)) "]"))
 
 
-(defn browser-webby-loop [db channel]
-  (let [ndb (edb/create-edb)
-        
-        wrap-handler (fn [remote] (fn [op tup] ()))
-                          
-        compile (fn [program result-oid]
-                  (concat (list (list 'open 'return-channel result-oid [])) program))
-                        
-
-        execute (fn [program handler]
-                  ;; unify this with the repl and allow for incremental recompilation
-                  ;; while maintaining the terminal projection
-                  (let [result
-                        (fn [c p]
-                          (fn [op t]
-                            (httpserver/send! channel
-                                   (sexp-to-json ['send handler op t]))))
-                        p (compile program handler)]
-                    (swap! ndb assoc handler result)
-                    ;; xxx- probably dont want to send the immutatable dereference
-                    ;; of db here
-                    ((exec/open [] @ndb p 0) 'insert [])))]
-
-    
-        
-    ;; make sure if we load things they are inserted into the parent scope
-    ;; but read from this shadowing scope(?)
-    ;; 
-    ;; this seems a little bad..the stack on errors after this seems
-    ;; to grow by one frame of org.httpkit.server.LinkingRunnable.run(RingHandler.java:122)
-    ;; for every reception. i'm using this interface wrong or its pretty seriously
-    ;; damaged
+  
+(defn start-query [d query id connection]
+  (println "starto" query)
+  
+  (let [keys (second query)
+        prog (compiler/compile-dsl d @bag (concat (rest (rest query)) (list (list 'return (apply list keys)))))]
+    ((exec/open d prog (fn [op tuple]
+                         (let [msg (format "{\"type\" : \"result\", \"fields\" : %s, \"values\": %s , \"id\": \"%s\"}"
+                                           (format-vec keys)
+                                           (str "[" (format-vec tuple) "]")
+                                           id)]
+                           (println "return" msg))))
+     'flush [])))
 
 
-    (httpserver/on-receive channel
-                (fn [data]
-                  ;; create relation and create specialization?
-                  (let [input (read-string data)
-                        c (first input)]
-
-                    (cond
-                      ;; why is this a string?
-                          (= c "diesel") (let [program (read-string (nth input 3))
-                                               handler (wrap-handler (nth input 2))
-                                               p (compiler/compile-dsl db program)]
-                                           (execute program handler))
-
-                          (= c "weasel") (let [program (read-string (nth input 3))
-                                               handler (nth input 2)]
-                                           (execute program handler))
-
-                          ;; turn back on bridging of execution
-                          ;;(= c "send") (let [[op tuple] (rest input)]
-                          ;;               ((@input-handler-map oid) op tuple))
-                          
-                          
-                          :else
-                          (println "websocket wth" c (type c))))))))
-
+(defn handle-connection [d channel]
+  ;; this seems a little bad..the stack on errors after this seems
+  ;; to grow by one frame of org.httpkit.server.LinkingRunnable.run(RingHandler.java:122)
+  ;; for every reception. i'm using this interface wrong or its pretty seriously
+  ;; damaged
+  
+  (httpserver/on-receive
+   channel
+   (fn [data]
+     ;; create relation and create specialization?
+     (let [input (json/read-str data)
+           query (input "query")
+           qs (if query (read-string query) nil)
+           t (input "type")]
+       (println "q" t "q" (first qs) (type t) (type (first qs)))
+       (cond
+         (and (= t "query")  (= (first qs) 'query)) (start-query d qs (input "id") channel)
+         (and (= t "query")  (= (first qs) 'define)) (repl/define d query)
+         ;; should some kind of error
+         :else
+         (println "jason, wth", input))))))
 
 
 (defn async-handler [db content]
   (fn [ring-request]
     (httpserver/with-channel ring-request channel    ; get the channel
       (if (httpserver/websocket? channel) 
-        (browser-webby-loop db channel)
+        (handle-connection db channel)
         (if (= (ring-request :uri) "/favicon.ico") (httpserver/send! channel {:status 404})
             (let [terms (string/split (ring-request :uri) #"/")
                   head ["<!DOCTYPE html>"
@@ -121,14 +92,15 @@
 (import '[java.io PushbackReader])
 (require '[clojure.java.io :as io])
 
-(defn serve [db]
+(defn serve [db address]
   ;; its really more convenient to allow this to be reloaded
-  (let [content
-        (apply str (map (fn [p] (slurp (clojure.java.io/file (.getPath (clojure.java.io/resource p)))))
-                        '("translate.js"
-                          "db.js"
-                          "edb.js"
-                          "svg.js"
-                          "websocket.js")))]
-    (try (httpserver/run-server (async-handler db content) {:port 8080})
-         (catch Exception e (println (str "caught exception: " e (.getMessage e)))))))
+  ;;  (let [content
+  ;;        (apply str (map (fn [p] (slurp (clojure.java.io/file (.getPath (clojure.java.io/resource p)))))
+  ;;                        '("translate.js"
+  ;;                          "db.js"
+  ;;                          "edb.js"
+  ;;                          "svg.js"
+  ;;                          "websocket.js")))]
+  ;; xxx - wire up address
+  (try (httpserver/run-server (async-handler db "<http><body>foo</body><http>") {:port 8080})
+         (catch Exception e (println (str "caught exception: " e (.getMessage e))))))

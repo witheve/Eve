@@ -1,120 +1,178 @@
-import * as parser from "./parser";
+import app = require("./app");
+import {autoFocus} from "./utils";
 
-let uuid = require("uuid");
-let pluralize = require("pluralize");
+enum CardState {
+  NONE,
+  GOOD,
+  PENDING,
+  ERROR,
+}
+
+export interface Query {
+  type: string,
+  query: string,
+  id: string,
+}
+
+interface ReplCard {
+  id: string,
+  state: CardState,
+  focused: boolean,
+  query: string,
+  result: {
+    fields: Array<string>,
+    data: Array<Array<any>>,
+  } | string,
+}
+
+app.renderRoots["repl"] = root;
+
 let WebSocket = require('ws');
-var Table = require('cli-table');
-var server, ws;
+var server;
+let uuid = require("uuid");
 
-function connectToServer() {
-    ws = new WebSocket("ws://localhost:8080");
-    ws.on('open', function open() {
-        console.log(colors.magenta("Connected to ws://localhost:8080"));
-        console.log(separator);
-        console.log("");
-        recurse();
-    });
+let ws: WebSocket = new WebSocket("ws://localhost:8080");
 
-    ws.on("error", () => {
-        console.log(colors.red("No server running."));
-        console.log(colors.magenta("Starting server.."));
-        server = require("./server");
-        connectToServer();
-    });
-
-    ws.on('message', function(data, flags) {
-        // flags.binary will be set if a binary data is received.
-        // flags.masked will be set if the data was masked.
-        let parsed = JSON.parse(data);
-        if(parsed.kind === "code error") {
-            console.error(colors.red(parsed.data));
-        } else if(parsed.kind === "code result") {
-            console.log(resultsTable(parsed.data));
-        } else if(parsed.kind === "code changeset") {
-            console.log(`${parsed.data} ${pluralize("row", parsed.data)} added/removed`);
-        } else {
-            return;
-        }
-        console.log("");
-        console.log(separator);
-        console.log("");
-        recurse();
-    });
+ws.onopen = function(e: Event) {
+  console.log("Opening websocket connection.");
+  console.log(e);
 }
-connectToServer();
 
-function resultsTable(rows) {
-    let result = "No results";
-    if(rows.length) {
-        let headers = Object.keys(rows[0]).filter((header) => header !== "__id");
-        var table = new Table({head: headers});
-        for(let row of rows) {
-            let tableRow = [];
-            for(let field of headers) {
-                tableRow.push(row[field]);
-            }
-            table.push(tableRow);
-        }
-        result = table.toString();
+ws.onmessage = function(message: MessageEvent) {
+  let parsed = JSON.parse(message.data);
+  // Update the result of the correct repl card
+  let targetCard = replCards.filter((r) => r.id === parsed.id).shift();
+  if (targetCard !== undefined) {
+    if (parsed.type === "result") {
+      targetCard.state = CardState.GOOD;
+      targetCard.result = {
+        fields: parsed.fields,
+        data: parsed.values,
+      }
+    } else if (parsed.type === "error") {
+      targetCard.state = CardState.ERROR;
+      targetCard.result = parsed.cause;
     }
-    return result;
+  }
+  app.dispatch("rerender", {}).commit();
 }
 
-var colors = require("colors/safe");
-var readline = require('readline');
-
-function complete(line) {
-    return [["asdf"], line];
+ws.onerror = function(e: Event) {
+  console.log("Websocket error!");
 }
 
-var rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout,
-//   completer: complete,
-});
+ws.onclose = function(c: CloseEvent) {
+  console.log("Closing websocket connection.");
+}
 
-var ix = 1;
-var current = "";
-var me = uuid();
+function sendQuery(ws: WebSocket, query: Query) {
+  if (ws.readyState === ws.OPEN) {
+    ws.send(JSON.stringify(query));  
+  }
+}
 
-var separator = colors.gray("------------------------------------------------------------");
+function newReplCard(): ReplCard {
+  let replCard: ReplCard = {
+    id: uuid(),
+    state: CardState.NONE,
+    focused: false,
+    query: undefined,
+    result: undefined,
+  }
+  return replCard;
+}
 
-let CURSOR_UP_ONE = '\x1b[1A';
-
-rl.on("line", function(answer) {
-    current += answer;
-    ix++;
-    if(answer === "") {
-        ix = 1;
-        if(current) {
-            rl.write(CURSOR_UP_ONE + CURSOR_UP_ONE);
-            rl.clearLine();
-            console.log("   ");
-            try {
-                let code = current.trim();
-                if(current.indexOf("(query") !== 0
-                   && current.indexOf("(insert!") !== 0
-                   && current.indexOf("(remove!") !== 0
-                   && current.indexOf("(load!") !== 0
-                   ) {
-                    code = `(query ${code})`;
-                }
-                ws.send(JSON.stringify({me, kind: "code", data: code}));
-            } catch(e) {
-                console.error(colors.red(e.message));
-            }
-        } else {
-            recurse();
-        }
-        current = "";
-        // rl.close();
-
-    } else {
-        recurse();
+function queryInputKeydown(event, elem) {
+  let textArea = event.srcElement;
+  let thisReplCard = textArea.parentElement;
+  let replIDs = replCards.map((r) => r.id);
+  let thisReplCardIx = replIDs.indexOf(thisReplCard._id);
+  // Submit the query with ctrl + enter
+  if (event.keyCode === 13 && event.ctrlKey === true) {
+    let queryString = textArea.value;
+    let query: Query = {
+      id: thisReplCard._id,
+      type: "query",
+      query: queryString,
     }
-});
+    replCards[thisReplCardIx].state = CardState.PENDING;
+    replCards[thisReplCardIx].result = "Waiting on response from server...";
+    sendQuery(ws, query);
+    // Create a new card if we submitted the last one in replCards
+    if (thisReplCardIx === replCards.length - 1) {
+      let nReplCard = newReplCard();
+      replCards.forEach((r) => r.focused = false);
+      nReplCard.focused = true;
+      replCards.push(nReplCard);
+    }
+    app.dispatch("rerender", {}).commit();
+  // Catch tab
+  } else if (event.keyCode === 9) {
+    let start = textArea.selectionStart;
+    let end = textArea.selectionEnd;
+    let value = textArea.value;
+    value = value.substring(0, start) + "  " + value.substring(end);
+    textArea.value = value;
+    textArea.selectionStart = textArea.selectionEnd = start + 2;
+    event.preventDefault();
+  // Catch ctrl + arrow up or page up
+  } else if (event.keyCode === 38 && event.ctrlKey === true || event.keyCode === 33) {
+    // Set the focus to the previous repl card
+    let previousIx = thisReplCardIx - 1 >= 0 ? thisReplCardIx - 1 : 0;
+    replCards.forEach((r) => r.focused = false);
+    replCards[previousIx].focused = true;
+    event.preventDefault();
+    app.dispatch("rerender", {}).commit();
+  // Catch ctrl + arrow down or page down
+  } else if (event.keyCode === 40 && event.ctrlKey === true || event.keyCode === 34) {
+    // Set the focus to the next repl card
+    let nextIx = thisReplCardIx + 1 <= replIDs.length - 1 ? thisReplCardIx + 1 : replIDs.length - 1;
+    replCards.forEach((r) => r.focused = false);
+    replCards[nextIx].focused = true;
+    event.preventDefault();
+    app.dispatch("rerender", {}).commit();
+  }
+}
 
-function recurse() {
-  rl.setPrompt(colors.gray(ix + "| "), (`${ix}| `).length);
-  rl.prompt();
+function focusQueryBox(node,element) {
+  if (element.focused) {
+    node.focus();
+  }
+}
+
+function newReplCardElement(replCard: ReplCard) { 
+  let queryInput = {t: "textarea", c: "query-input", placeholder: "query", keydown: queryInputKeydown, key: `${replCard.id}${replCard.focused}`, postRender: focusQueryBox, focused: replCard.focused};
+  // Set the css according to the card state
+  let resultcss = "query-result"; 
+  if (replCard.state === CardState.GOOD) {
+    resultcss += " good";
+  } else if (replCard.state === CardState.ERROR) {
+    resultcss += " bad";
+  } else if (replCard.state === CardState.PENDING) {
+    resultcss += " pending";
+  }
+  
+  let queryResult = replCard.result === undefined ? {} : {c: resultcss, text: JSON.stringify(replCard.result)};
+  let replClass = "repl-card";
+  replClass += replCard.focused ? " selected" : "";
+  
+  let replCardElement = {
+    id: replCard.id,
+    c: replClass,
+    children: [queryInput, queryResult],
+  };
+  return replCardElement;
+}
+
+// Create an initial repl card
+let replCards: Array<ReplCard> = [newReplCard()];
+replCards[0].focused = true;
+
+function root() {
+  let replroot = {
+    id: "root",
+    c: "repl-root",
+    children: replCards.map(newReplCardElement),
+  };
+  return replroot;
 }
