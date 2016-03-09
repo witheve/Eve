@@ -3,7 +3,7 @@
 
 (def REMOVE_FACT 5)
 
-(defn primitive? [op])
+(defn primitive? [op] nil)
 
 (defn tap [x & [label]]
   (println (str (or label "") " " x))
@@ -18,6 +18,25 @@
 
 (defn splat-map [m]
   (reduce-kv #(into %1 [%2 %3]) [] m))
+
+;; Flatten vecs (multi-returns) in the given body
+(defn congeal-body [body]
+  (vec (reduce #(if (vector? %2)
+             (into %1 %2)
+             (conj %1 %2))
+          []
+          body)))
+
+(defn as-query [expr]
+  (if (and (seq? expr) (= (first expr) 'query))
+    expr
+    ('query
+     ('= 'return expr))))
+
+(defn assert-queries [body]
+  (when (not-every? #(and (seq? %1) (= (first %1) 'query)) body) ;; @NOTE: Should this allow unions/chooses as well?
+    (throw (Exception. "All union/choose members must be queries")))
+  body)
 
 ;; :args - positional arguments
 ;; :kwargs - keyword arguments
@@ -40,8 +59,7 @@
               'choose {:args [:params] :rest :members}
               'not {:args [:expr]}
               'fact {:args [:entity :attribute :value :bag] :optional #{:entity :attribute :value :bag}}
-              'context {:kwargs [:bag :tick] :rest :body :optional #{:bag :tick :body}}
-          })
+              'context {:kwargs [:bag :tick] :rest :body :optional #{:bag :tick :body}}})
 
 (defn parse-args [schema body]
   ;; 1. If a keyword has been shifted into :kw
@@ -71,26 +89,43 @@
                                 (throw (Exception.
                                         (str "Too many positional arguments without a rest argument. Expected "
                                              (count (:args schema))))))))))
-          {:args {} :position (count (:args schema))} body)))
+          {:args {} :kw nil :position (count (:args schema))} body)))
 
 (defn validate-args [schema args]
   (let [params (into (:args schema) (:kwargs schema))
         params (if (:rest schema) (conj params (:rest schema)) params)
         optional (:optional schema)
         required (if optional (into [] (filter #(not (optional %1)) params)) params)]
-    (printf "optional %s\nrequired %s\n" optional required)
     (and
      (every? (set params) (keys args))      ; Every argument is a valid parameter
      (every? (set (keys args)) required)))) ; Every required parameter is an argument
 
-(defn as-query [expr]
-  (if (and (seq? expr) (= (first expr) 'query))
-    expr
-    ('query
-     ('= 'return expr))))
+(defn parse-define [body]
+  (select-keys
+   (reduce
+    #(merge-state
+      %1
+      ;; If we've already entered the body, no more headers can follow
+      (if (> (count (:body %1)) 0)
+        {:body [%2]}
+        ;; If we've already snatched an alias, it must be followed by a vec of vars
+        (if (:sym %1)
+          (if (vector? %2)
+            {:sym nil :header [(:sym %1) %2]}
+            (throw (Exception.
+                    (str "Implication alias " (:sym %1) " must be followed by a vec of exported variables"))))
+          ;; If our state is clear we can begin a new header (symbol) or enter the body (anything else)
+          (if (symbol? %2)
+            {:sym %2}
+            ;; If no headers are defined before we try to enter the body, that's a paddlin'
+            (if (> (count (:header %1)) 0)
+              {:body [%2]}
+              (throw (Exception. "Implications must specify at least one alias")))))))
+    {:header [] :body [] :sym nil} body)
+    [:header :body]))
 
 (defn expanded [args]
-  (reduce-kv #(assoc %1 %2 (expand %3)) {} args)) 
+  (reduce-kv #(assoc %1 %2 (if (vector? %3) (into [] (map expand %3)) (expand %3))) {} args))
 
 ;; Returns a hash of {:inline [form], :hoisted [form1, form2, ...formN]}
 ;; The :inline form (if present) should be substituted in place
@@ -107,6 +142,7 @@
                            args (parse-args schema body)
                            valid (validate-args schema args)]
                                         ; Switch on op for special handling
+                       (when-not valid (throw (Exception. (str "Invalid arguments for form " sexpr))))
                        (case op
                          ;; Macros
                          insert-fact! (vec (map #(expand (cons 'insert-fact-btu! %1)) (:facts args)))
@@ -120,16 +156,17 @@
                          
                          ;; Native forms
                          insert-fact-btu! (cons 'insert-fact-btu! (splat-map (expanded args)))
-                         query (cons 'query (map expand (:body args)))
-                         union (cons 'union (map expand (:members args)))
-                         choose (cons 'choose (map expand (:members args)))
+                         query (cons 'query (congeal-body (map expand (:body args))))
+                         union (cons 'union (assert-queries (congeal-body (map expand (:members args)))))
+                         choose (cons 'choose (assert-queries (congeal-body (map expand (:members args)))))
                          not (cons 'not (expand (:expr args)))
                          fact (cons 'fact (splat-map (expanded args)))
-                         context (cons 'context (splat-map (expanded args)))))
-        (= op 'define!) (let [])
+                         context (cons 'context (congeal-body (splat-map (expanded args))))))
+        (= op 'define!) (let [args (parse-define body)]
+                          (concat '(define!) (:header args) (into [] (congeal-body (map expand (:body args))))))
         (= op 'eav) (let [])
         ;; This check can be inlined into schemas if we fold in the primitive schemas
-        (primitive? op) (throw (Exception. "@TODO: Implement me!")) ; Need schemas for primitive parameters
+        (primitive? op) (throw (Exception. "@TODO: Implement me!??")) ; Need schemas for primitive parameters
         :else (throw (Exception. (str "Unknown operator '" op "'")))))
     (sequential? expr)
     (map expand expr)
@@ -139,8 +176,9 @@
   (let [op (first sexpr)
         body (rest sexpr)
         schema (schemas op)
-        args (parse-args schema body)
-        valid (validate-args schema args)]
-    (printf "op %s\n - schema %s\n - args %s\n - valid %s" op schema args valid)))
-    
-  
+        args (cond
+               schema (parse-args schema body)
+               (= op 'define!) (parse-define body))
+        valid (or (and (not schema) args) (validate-args schema args))]
+    (printf "op %s\n - schema %s\n - args %s\n - valid %s" op schema args valid)
+    (when valid (expand sexpr))))
