@@ -35,18 +35,17 @@ shutdown of the transport (websocket) connection.
 `query` is a string as specified in language.md
 
 ## Close
-```javavscript
+```javascript
 {
-  "type": "query",
-  "query": "(.... )",
-  "id": "id" 
+  "type": "close",
+  "id": "id"
 }
 ```
 
 shut down a query
 
 ## Result
-```javavscript
+```javascript
 {
   "type": "result",
   "fields": ["x", "y"] ,
@@ -70,9 +69,9 @@ tuples.
 ## Error
 ```javascript
 {
-  "type": "error" ,
-  "id": "id" ,
-  "cause": "unsufficient EveSaver miles" 
+  "type": "error",
+  "cause": "unsufficient EveSaver miles",
+  "id": "id"
 }
 ```
 
