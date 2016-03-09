@@ -44,7 +44,7 @@
 ;; :optional - arguments which may not be specified
 (def schemas {
               ;; Special forms
-              'eav nil
+              'fact nil
               'define! nil ;; @NOTE: define! is a special form due to multiple names...
               
               ;; Macros
@@ -58,16 +58,16 @@
               'union {:args [:params] :rest :members}
               'choose {:args [:params] :rest :members}
               'not {:args [:expr]}
-              'fact {:args [:entity :attribute :value :bag] :optional #{:entity :attribute :value :bag}}
+              'fact-btu {:args [:entity :attribute :value :bag] :optional #{:entity :attribute :value :bag}}
               'context {:kwargs [:bag :tick] :rest :body :optional #{:bag :tick :body}}})
 
 (defn parse-args [schema body]
   ;; 1. If a keyword has been shifted into :kw
   ;;    A. If the value is also keyword, :kw is an implicit var binding
   ;;    B. Else :kw is mapped manually to the value
-  ;; 2. Else if the value is a keyword, shift it into :kw and stop accepting positionals
-  ;; 3. Else if we haven't exhausted our positionals, shift a positional to map to the value
-  ;; 4. Else if the form accepts a rest parameter, shift the value onto the rest list
+  ;; 2. If the value is a keyword, shift it into :kw and stop accepting positionals
+  ;; 3. If we haven't exhausted our positionals, shift a positional to map to the value
+  ;; 4. If the form accepts a rest parameter, shift the value onto the rest list
   (:args (reduce
           #(merge-state %1
                         (if (:kw %1) 
@@ -101,6 +101,12 @@
      (every? (set (keys args)) required)))) ; Every required parameter is an argument
 
 (defn parse-define [body]
+  ;; 1. If we've started parsing the body, everything else gets pushed into the body
+  ;; 2. If there's an existing symbol in :sym (alias)
+  ;;    A. If the value is a vec, shift the pair into the :header
+  ;;    B. Throw (Aliases must be followed by their exported variables)
+  ;; 3. If the value is a symbol, shift it into :sym
+  ;; 4. Shift the value into the body
   (select-keys
    (reduce
     #(merge-state
@@ -122,7 +128,22 @@
               {:body [%2]}
               (throw (Exception. "Implications must specify at least one alias")))))))
     {:header [] :body [] :sym nil} body)
-    [:header :body]))
+   [:header :body]))
+
+(defn parse-fact [body]
+  ;; 1. Shift the first expr into :entity
+  ;; 2. If there's an existing value in :attr (attribute)
+  ;;    A. If the value is also keyword, :attr is an implicit var binding
+  ;;    B. Else shift :kw and the value into an [:attribute :value] pair in :facts
+  ;; 3. Shift the value into :kw
+  (throw (Exception. "@TODO: Implement me!"))
+
+  ;(reduce
+  ; #(merge-state
+  ;   %1
+  ;   
+  ;  ))
+  )
 
 (defn expanded [args]
   (reduce-kv #(assoc %1 %2 (if (vector? %3) (into [] (map expand %3)) (expand %3))) {} args))
@@ -157,22 +178,27 @@
                          ;; Native forms
                          insert-fact-btu! (cons 'insert-fact-btu! (splat-map (expanded args)))
                          query (cons 'query (congeal-body (map expand (:body args))))
-                         union (cons 'union (assert-queries (congeal-body (map expand (:members args)))))
-                         choose (cons 'choose (assert-queries (congeal-body (map expand (:members args)))))
-                         not (cons 'not (expand (:expr args)))
-                         fact (cons 'fact (splat-map (expanded args)))
-                         context (cons 'context (congeal-body (splat-map (expanded args))))))
+                         union (concat '(union) [(:params args)] (assert-queries (congeal-body (map expand (:members args)))))
+                         choose (concat '(choose) [(:params args)] (assert-queries (congeal-body (map expand (:members args)))))
+                         not (concat '(not) [(expand (:expr args))])
+                         context (cons 'context (splat-map (expanded args)))
+
+                         ;; Default
+                         (cons op (splat-map (expanded args)))
+                         ))
         (= op 'define!) (let [args (parse-define body)]
                           (concat '(define!) (:header args) (into [] (congeal-body (map expand (:body args))))))
-        (= op 'eav) (let [])
+        (= op 'fact) (let [args (parse-fact body)]
+                       (vec (map #(expand %1) (:facts args))))
         ;; This check can be inlined into schemas if we fold in the primitive schemas
-        (primitive? op) (throw (Exception. "@TODO: Implement me!??")) ; Need schemas for primitive parameters
+        (primitive? op) (throw (Exception. "@TODO: Implement me!")) ; Need schemas for primitive parameters
         :else (throw (Exception. (str "Unknown operator '" op "'")))))
     (sequential? expr)
     (map expand expr)
     :else expr))
 
 (defn test-sm [sexpr]
+  (println "----[" sexpr "]----")
   (let [op (first sexpr)
         body (rest sexpr)
         schema (schemas op)
@@ -180,5 +206,11 @@
                schema (parse-args schema body)
                (= op 'define!) (parse-define body))
         valid (or (and (not schema) args) (validate-args schema args))]
-    (printf "op %s\n - schema %s\n - args %s\n - valid %s" op schema args valid)
-    (when valid (expand sexpr))))
+    (printf "op %s\n - schema %s\n - args %s\n - valid %s\n" op schema args valid)
+    (when valid (pprint (expand sexpr)))))
+
+;; Test cases
+;; (test-sm '(define! foo [a b] (fact bar "age" a) (fact a "tag" bar)))
+;; (test-sm '(query (insert-fact! [a b c] [1 2 3])))
+;; (test-sm '(union [person] (query (not (fact :value person)) (fact person "company" "kodowa"))))
+;; (test-sm '(choose [a] (query (fact a)) (query (fact :attribute a))))
