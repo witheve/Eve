@@ -1,4 +1,4 @@
-(ns server.smir
+(ns server.smil
   (:require [clojure.pprint :refer [pprint]]))
 
 (def REMOVE_FACT 5)
