@@ -134,16 +134,26 @@
   ;; 1. Shift the first expr into :entity
   ;; 2. If there's an existing value in :attr (attribute)
   ;;    A. If the value is also keyword, :attr is an implicit var binding
-  ;;    B. Else shift :kw and the value into an [:attribute :value] pair in :facts
-  ;; 3. Shift the value into :kw
-  (throw (Exception. "@TODO: Implement me!"))
-
-  ;(reduce
-  ; #(merge-state
-  ;   %1
-  ;   
-  ;  ))
-  )
+  ;;    B. Else shift :attr and the value into an [:entity :attr value] triple in :facts
+  ;; 3. Shift the value into :attr
+  (select-keys
+   (reduce
+    #(merge-state
+      %1
+      (if (:attr %1)
+        (if (keyword? %2)
+          ;; Implicit variable; sub in a symbol of the same name, set the next :attr
+          {:attr %2 :facts [[(:entity %1) (name (:attr %1)) (symbol (name (:attr %1)))]]}
+          ;; Normal KV pair; use the :attr
+          {:attr nil :facts [[(:entity %1) (name (:attr %1)) %2]]})
+        ;; Shift the next value into  :attr
+        (if (keyword? %2)
+          {:attr %2}
+          (throw (Exception.
+                  (str "Invalid attribute " %2 "attributes must be keyword literals. Use fact-btu for free attributes"))))))
+    {:entity (first body) :facts [] :attr nil}
+    (rest body))
+   [:entity :facts]))
 
 (defn expanded [args]
   (reduce-kv #(assoc %1 %2 (if (vector? %3) (into [] (map expand %3)) (expand %3))) {} args))
@@ -189,7 +199,7 @@
         (= op 'define!) (let [args (parse-define body)]
                           (concat '(define!) (:header args) (into [] (congeal-body (map expand (:body args))))))
         (= op 'fact) (let [args (parse-fact body)]
-                       (vec (map #(expand %1) (:facts args))))
+                       (vec (map #(expand (cons 'fact-btu %1)) (:facts args))))
         ;; This check can be inlined into schemas if we fold in the primitive schemas
         (primitive? op) (throw (Exception. "@TODO: Implement me!")) ; Need schemas for primitive parameters
         :else (throw (Exception. (str "Unknown operator '" op "'")))))
