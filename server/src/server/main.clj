@@ -6,12 +6,14 @@
    [server.log :as log]
    [server.repl :as repl]
    [server.jsclient :as jsclient]))
-  
+
+
+
 (defn -main [& args]
   ;; load existing database
   (let [d (edb/create-edb)
         interactive (atom true)
-        server (atom false)
+        server (atom ":8080")
 
         ;; load the local metadata before starting membership
         flag-map
