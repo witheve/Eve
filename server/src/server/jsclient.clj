@@ -18,17 +18,31 @@
   (str "[" (string/join "," (map (fn [x] (str "\"" x "\"")) x)) "]"))
 
 
-  
+(defn format-message [map]
+  (str "{" (reduce (fn [b [k v]] (str b (if (> (count b) 0) ", " b) "\"" k "\" :" v))  "" map) "}"))
+
 (defn start-query [d query id connection]
   (let [keys (second query)
+        results (atom ())
         prog (compiler/compile-dsl d @bag (concat (rest (rest query)) (list (list 'return (apply list keys)))))]
     ((exec/open d prog (fn [op tuple]
-                         (let [msg (format "{\"type\" : \"result\", \"fields\" : %s, \"values\": %s , \"id\": \"%s\"}"
-                                           (format-vec keys)
-                                           (str "[" (format-vec tuple) "]")
-                                           id)]
-                           (println "return" msg)
-                           (httpserver/send! connection msg))))
+                         (condp = op
+                           'insert (swap! results conj tuple)
+                           
+                           'flush
+                           (let [msg (format "{\"type\" : \"result\", \"fields\" : %s, \"values\": %s , \"id\": \"%s\"}"
+                                             (format-vec keys)
+                                             (str "[" (format-vec tuple) "]")
+                                             id)]
+                             (println "return" msg)
+                             (httpserver/send! connection msg))
+                           
+                           'error
+                           (let [msg (format "{\"type\" : \"result\", \"fields\" : %s, \"values\": %s , \"id\": \"%s\"}"
+                                             (format-vec keys)
+                                             (str "[" (format-vec tuple) "]")
+                                             id)]))))
+     
      'flush [])))
 
 

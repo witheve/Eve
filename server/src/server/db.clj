@@ -25,13 +25,14 @@
 (def contains-oid 12)
 
 (defn insert-implication [db relname parameters program user bag]
-  (insert db relname
-          implication-oid (list parameters program) user bag))
+  (insert db (name relname)
+          implication-oid (list (map name parameters) program) user bag))
 
 (defn for-each-implication [db sig handler]
   ;; only really for insert, right?
   (let [terminus (fn [op tuple]
-                   (handler (first tuple) (second tuple)))
+                   (when (= op 'insert)
+                     (handler (first tuple) (second tuple))))
         prog (list
               (list 'allocate [0] 4)
               (list 'tuple [2] [1])
@@ -43,6 +44,7 @@
               (list 'send [3] []))
         
         e (exec/open db prog [])]
+    (e 'insert [])
     (e 'flush [])))
 
 

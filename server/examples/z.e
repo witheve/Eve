@@ -1,9 +1,9 @@
-(insert-fact-btu! :entity "apple" :attribute "color" :value "red")
+(query [] (insert-fact-btu! :entity "apple" :attribute "color" :value "red"))
 
-(define colorino [e c]
+(define! colorino [e c]
   (fact e :color c))
 
-(colorino :e "apple" :c f)
+(query [f] (colorino :e "apple" :c f))
 
 
 
