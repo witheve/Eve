@@ -61,6 +61,21 @@
               'fact-btu {:args [:entity :attribute :value :bag] :optional #{:entity :attribute :value :bag}}
               'context {:kwargs [:bag :tick] :rest :body :optional #{:bag :tick :body}}})
 
+(def primitives {'+ {:args [:a :b]}
+                 '- {:args [:a :b]}
+                 '* {:args [:a :b]}
+                 '/ {:args [:a :b]}
+                 
+                 '= {:args [:a :b]}
+                 '!= {:args [:a :b]}
+                 '> {:args [:a :b]}
+                 '>= {:args [:a :b]}
+                 '< {:args [:a :b]}
+                 '<= {:args [:a :b]}})
+
+(defn get-schema [op]
+  (or (op schemas) (op primitives)))
+
 (defn parse-args [schema body]
   ;; 1. If a keyword has been shifted into :kw
   ;;    A. If the value is also keyword, :kw is an implicit var binding
@@ -130,6 +145,7 @@
     {:header [] :body [] :sym nil} body)
    [:header :body]))
 
+;; @FIXME: if (count :facts) is 0, push a fact that only binds entity
 (defn parse-fact [body]
   ;; 1. Shift the first expr into :entity
   ;; 2. If there's an existing value in :attr (attribute)
@@ -150,11 +166,12 @@
         (if (keyword? %2)
           {:attr %2}
           (throw (Exception.
-                  (str "Invalid attribute " %2 "attributes must be keyword literals. Use fact-btu for free attributes"))))))
+                  (str "Invalid attribute '" %2 "'. Attributes must be keyword literals. Use fact-btu for free attributes"))))))
     {:entity (first body) :facts [] :attr nil}
     (rest body))
    [:entity :facts]))
 
+(declare expand)
 (defn expanded [args]
   (reduce-kv #(assoc %1 %2 (if (vector? %3) (into [] (map expand %3)) (expand %3))) {} args))
 
@@ -169,7 +186,7 @@
           op (first sexpr)
           body (rest sexpr)]
       (cond
-        (schemas op) (let [schema (schemas op)
+        (get-schema op) (let [schema (get-schema op)
                            args (parse-args schema body)
                            valid (validate-args schema args)]
                                         ; Switch on op for special handling
@@ -211,7 +228,7 @@
   (println "----[" sexpr "]----")
   (let [op (first sexpr)
         body (rest sexpr)
-        schema (schemas op)
+        schema (get-schema op)
         args (cond
                schema (parse-args schema body)
                (= op 'define!) (parse-define body))
@@ -220,7 +237,15 @@
     (when valid (pprint (expand sexpr)))))
 
 ;; Test cases
-;; (test-sm '(define! foo [a b] (fact bar "age" a) (fact a "tag" bar)))
+;; (test-sm '(define! foo [a b] (fact bar :age a) (fact a :tag bar)))
 ;; (test-sm '(query (insert-fact! [a b c] [1 2 3])))
-;; (test-sm '(union [person] (query (not (fact :value person)) (fact person "company" "kodowa"))))
-;; (test-sm '(choose [a] (query (fact a)) (query (fact :attribute a))))
+;; (test-sm '(union [person] (query (not (fact-btu :value person)) (fact person :company "kodowa"))))
+;; (test-sm '(choose [person] (query (fact person)) (query (fact other :friend person))))
+;; (test-sm '(+ (/ 2 x) (- y 7)))
+
+;; @TODO:
+;; (parse-fact e) should still emit a fact-btu binding that entity
+;; Inline expansions
+;;  (+ (/ 1 2) 7) =>
+;;  (= $$tmp1 (/ 1 2))
+;;  (+ $$tmp1 7)
