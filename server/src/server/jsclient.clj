@@ -20,8 +20,6 @@
 
   
 (defn start-query [d query id connection]
-  (println "starto" query)
-  
   (let [keys (second query)
         prog (compiler/compile-dsl d @bag (concat (rest (rest query)) (list (list 'return (apply list keys)))))]
     ((exec/open d prog (fn [op tuple]
@@ -29,7 +27,8 @@
                                            (format-vec keys)
                                            (str "[" (format-vec tuple) "]")
                                            id)]
-                           (println "return" msg))))
+                           (println "return" msg)
+                           (httpserver/send! connection msg))))
      'flush [])))
 
 
@@ -47,7 +46,6 @@
            query (input "query")
            qs (if query (smil/expand (read-string query)) nil)
            t (input "type")]
-       (println "q" t "q" (first qs) (type t) (type (first qs)))
        (cond
          (and (= t "query")  (= (first qs) 'query)) (start-query d qs (input "id") channel)
          (and (= t "query")  (= (first qs) 'define)) (repl/define d query)
@@ -56,38 +54,28 @@
          (println "jason, wth", input))))))
 
 
+;; @NOTE: This is trivially exploitable and needs to replaced with compojure or something at some point
+(defn serve-static [channel uri]
+  (let [prefix (str (.getCanonicalPath (java.io.File. ".")) "/../")]
+    (httpserver/send! channel
+                      {:status 200
+                       :headers {"Expires" "0"
+                                 "Cache-Control" "no-cache, private, pre-check=0, post-check=0, max-age=0"
+                                 "Pragma" "no-cache"
+                                 }
+                       :body (slurp (str prefix uri))})))
+
 (defn async-handler [db content]
   (fn [ring-request]
     (httpserver/with-channel ring-request channel    ; get the channel
       (if (httpserver/websocket? channel) 
         (handle-connection db channel)
-        (if (= (ring-request :uri) "/favicon.ico") (httpserver/send! channel {:status 404})
-            (let [terms (string/split (ring-request :uri) #"/")
-                  head ["<!DOCTYPE html>"
-                        "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">"
-                        "<html style=\"width:100%;height:100%;\">"
-                        "<body onload =\"start()\" style=\"width:100%;height:100%;\">"
-                        "<script>"
-                        ""]
-                  program (str (terms 1) ".e")
-                  programname (str "var program = \"" program "\"\n")
-                  userid (str "var userid = \"" (gensym) "\"\n")
-                  tail ["</script>"
-                        "</body>"
-                        "</html>"]]
-
-              (httpserver/send! channel {:status 200
-                              :headers {"Content-Type" "text/html"
-                                        "Expires" "0"
-                                        "Cache-Control" "no-cache, private, pre-check=0, post-check=0, max-age=0"
-                                        "Pragma" "no-cache"
-                                        }
-                              :body    (apply str
-                                              (string/join "\n" head)
-                                              programname
-                                              userid
-                                              content
-                                              (string/join "\n" tail))})))))))
+        (condp = (second (string/split (ring-request :uri) #"/"))
+          ;;(= (ring-request :uri) "/favicon.ico") (httpserver/send! channel {:status 404})
+          "bin" (serve-static channel (ring-request :uri))
+          "css" (serve-static channel (ring-request :uri))
+          "repl" (serve-static channel "repl.html")
+          (httpserver/send! channel {:status 404}))))))
 
 
 (import '[java.io PushbackReader])
