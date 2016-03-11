@@ -105,6 +105,7 @@ function queryInputKeydown(event, elem) {
       nReplCard.focused = true;
       replCards.push(nReplCard);
     }
+    event.preventDefault();
     app.dispatch("rerender", {}).commit();
   // Catch tab
   } else if (event.keyCode === 9) {
@@ -144,15 +145,21 @@ function newReplCardElement(replCard: ReplCard) {
   let queryInput = {t: "textarea", c: "query-input", placeholder: "query", keydown: queryInputKeydown, key: `${replCard.id}${replCard.focused}`, postRender: focusQueryBox, focused: replCard.focused};
   // Set the css according to the card state
   let resultcss = "query-result"; 
+  let resultText = "";
+  
+  // Format card based on state
   if (replCard.state === CardState.GOOD) {
-    resultcss += " good";
+    resultcss += " good"; 
+    resultText = JSON.stringify(replCard.result);
   } else if (replCard.state === CardState.ERROR) {
     resultcss += " bad";
+    resultText = `${replCard.result}`;
   } else if (replCard.state === CardState.PENDING) {
     resultcss += " pending";
+    resultText = `${replCard.result}`;
   }
   
-  let queryResult = replCard.result === undefined ? {} : {c: resultcss, text: JSON.stringify(replCard.result)};
+  let queryResult = replCard.result === undefined ? {} : {c: resultcss, text: resultText};
   let replClass = "repl-card";
   replClass += replCard.focused ? " selected" : "";
   
