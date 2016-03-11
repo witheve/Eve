@@ -14,6 +14,7 @@ var state = {};
 
 var pkgs = {
   wiki: {entries: ["src/wiki.ts"], adds: ["typings/tsd.d.ts"]},
+  repl: {entries: ["src/repl.ts"], adds: ["typings/tsd.d.ts"]},
   nlqpTest: {entries: ["test/NLQPTest.ts"], adds: ["typings/tsd.d.ts"]},
   runtimeTest: {entries: ["test/runtimeTest.ts"], adds: ["typings/tsd.d.ts"]},
 };
@@ -308,7 +309,7 @@ if(program.server) {
     } else {
       tagLog("server", "Compilation complete");
     }
-    var server = spawn("node", ["bin/src/server.js"]);
+    var server = spawn("node", ["bin/src/testserver.js"]);
     state.server.completed = true;
     state.server.endTime = Date.now();
     tagLog("server", "Server started at http://localhost:3000");
