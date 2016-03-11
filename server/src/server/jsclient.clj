@@ -7,6 +7,7 @@
    [server.repl :as repl]
    [server.exec :as exec]
    [server.compiler :as compiler]
+   [server.smil :as smil]
    [clojure.string :as string])) 
 
 (def bag (atom 10))
@@ -44,7 +45,7 @@
      ;; create relation and create specialization?
      (let [input (json/read-str data)
            query (input "query")
-           qs (if query (read-string query) nil)
+           qs (if query (smil/expand (read-string query)) nil)
            t (input "type")]
        (println "q" t "q" (first qs) (type t) (type (first qs)))
        (cond

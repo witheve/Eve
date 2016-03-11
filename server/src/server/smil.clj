@@ -249,3 +249,6 @@
 ;;  (+ (/ 1 2) 7) =>
 ;;  (= $$tmp1 (/ 1 2))
 ;;  (+ $$tmp1 7)
+
+;; Tap into js-client open-query
+;; Spit up SM to be compiled into WEASL
