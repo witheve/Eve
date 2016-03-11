@@ -15,7 +15,7 @@
 
 ;; the distinction between edb and idb is alive here..skating over it
 (defn build-reporting-select [db terms]
-  (let [keys (filter symbol? (map second (split-at 2 (rest terms))))]
+  (let [keys (filter symbol? (vals (apply hash-map (rest terms))))]
     (compiler/compile-dsl db @bag (list terms (list 'return keys)))))
 
 (defn show [d expression]

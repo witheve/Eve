@@ -170,13 +170,16 @@
   (zipmap (vals m) (map (fn [x] [slot x]) (keys m))))
 
   
+(defn tuple-from-btu-keywords [terms]
+  (let [tmap (apply hash-map terms)]
+    ;; optional bagginess
+    [(tmap :entity) (tmap :attribute) (tmap :value)]))
+
+
 ;; figure out how to handle the quintuple
 ;; need to do index selection here - resolve attribute name
 (defn compile-edb [e terms down]
-  (let [translate-tuple (fn [x]
-                          (let [dekey (fn [x] (if (keyword? x) (name x) x))]
-                            (list (first x) (dekey (second x)) (nth x 2))))
-        triple (translate-tuple (rest terms))
+  (let [triple (tuple-from-btu-keywords (rest terms))
         [bound free] (partition-2 (fn [x] (is-bound? e (nth triple x))) (range 3))
         [specoid index-inputs index-outputs] [edb/full-scan-oid () '(0 1 2)]
         ;; ech
@@ -242,15 +245,11 @@
 (defn compile-insert [e terms cont]
   (let [channel-name (gensym 'insert-channel)]
     (allocate-register e channel-name)
-    (apply compose
-           ;; floaty
-           (term e 'open channel-name edb/insert-oid [])
-           (concat 
-            (map (fn [x] (generate-send e channel-name
-                                        (list (nth x 0) (name (nth x 1)) (nth x 2))))
-                 (rest terms))
-            (list (cont e))))))
-           
+    (compose
+           ;; this can be floated to the topmost scope and left open
+     (term e 'open channel-name edb/insert-oid [])
+     (generate-send e channel-name (tuple-from-btu-keywords (rest terms)))
+     (cont e))))
 
 
 (defn compile-union [e terms down]
@@ -276,8 +275,8 @@
                   'sort compile-simple-primitive ;; ascending and descending
                   'sum compile-sum
                   'str compile-simple-primitive
-                  'insert-fact! compile-insert
-                  'fact compile-edb
+                  'insert-fact-btu! compile-insert
+                  'fact-btu compile-edb
                   'range compile-simple-primitive
                   ;; consider whether we want the real whole milk relational equal
                   'equal generate-binary-filter
