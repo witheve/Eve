@@ -13,7 +13,7 @@
   ;; load existing database
   (let [d (edb/create-edb)
         interactive (atom true)
-        server (atom ":8080")
+        server (atom ":8081")
 
         ;; load the local metadata before starting membership
         flag-map

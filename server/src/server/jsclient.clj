@@ -91,5 +91,5 @@
   ;;                          "svg.js"
   ;;                          "websocket.js")))]
   ;; xxx - wire up address
-  (try (httpserver/run-server (async-handler db "<http><body>foo</body><http>") {:port 8080})
+  (try (httpserver/run-server (async-handler db "<http><body>foo</body><http>") {:port 8081})
          (catch Exception e (println (str "caught exception: " e (.getMessage e))))))

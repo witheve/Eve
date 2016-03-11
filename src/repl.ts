@@ -31,7 +31,7 @@ let WebSocket = require('ws');
 var server;
 let uuid = require("uuid");
 
-let ws: WebSocket = new WebSocket("ws://localhost:8080");
+let ws: WebSocket = new WebSocket("ws://localhost:8081");
 
 ws.onopen = function(e: Event) {
   console.log("Opening websocket connection.");
