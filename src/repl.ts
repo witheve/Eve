@@ -21,7 +21,7 @@ interface ReplCard {
   query: string,
   result: {
     fields: Array<string>,
-    data: Array<Array<any>>,
+    values: Array<Array<any>>,
   } | string,
 }
 
@@ -47,7 +47,7 @@ ws.onmessage = function(message: MessageEvent) {
       targetCard.state = CardState.GOOD;
       targetCard.result = {
         fields: parsed.fields,
-        data: parsed.values,
+        values: parsed.values,
       }
     } else if (parsed.type === "error") {
       targetCard.state = CardState.ERROR;
@@ -146,10 +146,9 @@ function newReplCardElement(replCard: ReplCard) {
   // Set the css according to the card state
   let resultcss = "query-result"; 
   let resultText = "";
-  
   // Format card based on state
   if (replCard.state === CardState.GOOD) {
-    resultcss += " good"; 
+    resultcss += " good";
     resultText = JSON.stringify(replCard.result);
   } else if (replCard.state === CardState.ERROR) {
     resultcss += " bad";
