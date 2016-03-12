@@ -50,16 +50,19 @@ body {
     border-left: 1px solid black;
     border-bottom: 1px solid black;
 }
-.heading
+
+.header
 {
     display: table-row;
     font-weight: bold;
     text-align: center;
 }
+
 .row
 {
     display: table-row;
 }
+
 .cell
 {
   border-top: 1px solid black;
