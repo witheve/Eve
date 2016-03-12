@@ -145,11 +145,23 @@ function newReplCardElement(replCard: ReplCard) {
   let queryInput = {t: "textarea", c: "query-input", placeholder: "query", keydown: queryInputKeydown, key: `${replCard.id}${replCard.focused}`, postRender: focusQueryBox, focused: replCard.focused};
   // Set the css according to the card state
   let resultcss = "query-result"; 
-  let resultText = "";
+  let resultText = undefined;
+  let resultTable = undefined;
   // Format card based on state
   if (replCard.state === CardState.GOOD) {
     resultcss += " good";
-    resultText = JSON.stringify(replCard.result);
+    let result: any = replCard.result; 
+    let tableHeader = {c: "header", children: result.fields.map((f: string) => {
+      return {c: "cell", text: f};
+    })};
+    let tableBody = result.values.map((r: Array<any>) => {
+      return {c: "row", children: r.map((c: any) => {
+        return {c: "cell", text: `${c}`};
+      })};
+    });
+    let tableRows = [tableHeader].concat(tableBody);
+    resultTable = {c: "table", children: tableRows};
+    console.log(resultTable);
   } else if (replCard.state === CardState.ERROR) {
     resultcss += " bad";
     resultText = `${replCard.result}`;
@@ -158,7 +170,7 @@ function newReplCardElement(replCard: ReplCard) {
     resultText = `${replCard.result}`;
   }
   
-  let queryResult = replCard.result === undefined ? {} : {c: resultcss, text: resultText};
+  let queryResult = replCard.result === undefined ? {} : {c: resultcss, text: resultText ? resultText : "", children: resultTable ? [resultTable] : []};
   let replClass = "repl-card";
   replClass += replCard.focused ? " selected" : "";
   
