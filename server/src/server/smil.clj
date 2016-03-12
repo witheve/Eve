@@ -3,8 +3,6 @@
 
 (def REMOVE_FACT 5)
 
-(defn primitive? [op] nil)
-
 (defn tap [x & [label]]
   (println (str (or label "") " " x))
   x)
@@ -152,33 +150,30 @@
   ;;    A. If the value is also keyword, :attr is an implicit var binding
   ;;    B. Else shift :attr and the value into an [:entity :attr value] triple in :facts
   ;; 3. Shift the value into :attr
-  (select-keys
-   (reduce
-    #(merge-state
-      %1
-      (if (:attr %1)
-        (if (keyword? %2)
-          ;; Implicit variable; sub in a symbol of the same name, set the next :attr
-          {:attr %2 :facts [[(:entity %1) (name (:attr %1)) (symbol (name (:attr %1)))]]}
-          ;; Normal KV pair; use the :attr
-          {:attr nil :facts [[(:entity %1) (name (:attr %1)) %2]]})
-        ;; Shift the next value into  :attr
-        (if (keyword? %2)
-          {:attr %2}
-          (throw (Exception.
-                  (str "Invalid attribute '" %2 "'. Attributes must be keyword literals. Use fact-btu for free attributes"))))))
-    {:entity (first body) :facts [] :attr nil}
-    (rest body))
-   [:entity :facts]))
+  (let [state (reduce
+               #(merge-state
+                 %1
+                 (if (:attr %1)
+                   (if (keyword? %2)
+                     ;; Implicit variable; sub in a symbol of the same name, set the next :attr
+                     {:attr %2 :facts [[(:entity %1) (name (:attr %1)) (symbol (name (:attr %1)))]]}
+                     ;; Normal KV pair; use the :attr
+                     {:attr nil :facts [[(:entity %1) (name (:attr %1)) %2]]})
+                   ;; Shift the next value into  :attr
+                   (if (keyword? %2)
+                     {:attr %2}
+                     (throw (Exception.
+                             (str "Invalid attribute '" %2 "'. Attributes must be keyword literals. Use fact-btu for free attributes"))))))
+               {:entity (first body) :facts [] :attr nil}
+               (rest body))]
+    (tap (if (> (count (:facts state)) 0)
+      {:entity (:entity state) :facts (:facts state)}
+      {:entity (:entity state) :facts [[(:entity state)]]}) "FOO")))
 
 (declare expand)
 (defn expanded [args]
   (reduce-kv #(assoc %1 %2 (if (vector? %3) (into [] (map expand %3)) (expand %3))) {} args))
 
-;; Returns a hash of {:inline [form], :hoisted [form1, form2, ...formN]}
-;; The :inline form (if present) should be substituted in place
-;; Any :hoisted forms should be moved to the top level of the body.
-;; @TODO: sub-expansions need to get flattened into bodies.
 (defn expand [expr]
   (cond
     (seq? expr)
@@ -217,8 +212,6 @@
                           (concat '(define!) (:header args) (into [] (congeal-body (map expand (:body args))))))
         (= op 'fact) (let [args (parse-fact body)]
                        (vec (map #(expand (cons 'fact-btu %1)) (:facts args))))
-        ;; This check can be inlined into schemas if we fold in the primitive schemas
-        (primitive? op) (throw (Exception. "@TODO: Implement me!")) ; Need schemas for primitive parameters
         :else (throw (Exception. (str "Unknown operator '" op "'")))))
     (sequential? expr)
     (map expand expr)
@@ -233,7 +226,7 @@
                schema (parse-args schema body)
                (= op 'define!) (parse-define body))
         valid (or (and (not schema) args) (validate-args schema args))]
-    (printf "op %s\n - schema %s\n - args %s\n - valid %s\n" op schema args valid)
+    (printf " - schema %s\n - args %s\n - valid %s\n" schema args valid)
     (when valid (pprint (expand sexpr)))))
 
 ;; Test cases
@@ -244,11 +237,10 @@
 ;; (test-sm '(+ (/ 2 x) (- y 7)))
 
 ;; @TODO:
-;; (parse-fact e) should still emit a fact-btu binding that entity
 ;; Inline expansions
 ;;  (+ (/ 1 2) 7) =>
 ;;  (= $$tmp1 (/ 1 2))
 ;;  (+ $$tmp1 7)
-
-;; Tap into js-client open-query
-;; Spit up SM to be compiled into WEASL
+;; Infix
+;; ($= 2 + 7 * 9) =>
+;; (+ 2 (* 7 9))
