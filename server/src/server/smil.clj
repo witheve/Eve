@@ -217,24 +217,66 @@
     (map expand expr)
     :else expr))
 
+(defn returnable? [sexpr]
+  ((set (keys primitives)) (first sexpr)))
+
+(defn unpack-inline [sexpr]
+  (cond
+    (and (seq? sexpr) (#{'query 'define!} (first sexpr)))
+    {:inline [(concat
+               [(first sexpr)]
+               (reduce
+                #(let [{inline :inline query :query} (unpack-inline %2)]
+                   (into (into %1 query) inline))
+                [] (rest sexpr)))]
+     :query []}
+    
+    (and (seq? sexpr) (returnable? sexpr))
+    (let [state (reduce
+                 #(merge-state
+                    %1
+                    (if-not (seq? %2)
+                      {:inline [%2]}
+                      (let [{inline :inline query :query} (unpack-inline %2)]
+                        (let [tmp (gensym "$$tmp")
+                              query (conj query (concat (first inline) [:return tmp]))]
+                          {:inline [tmp] :query query}))))
+                 {:inline [] :query []}
+                 (rest sexpr))]
+      {:inline [(concat [(first sexpr)] (:inline state))] :query (:query state)})
+
+    :else
+    {:inline [sexpr]}))
+
+(defn unpack [sexpr]
+  (first (:inline (unpack-inline (expand sexpr)))))
+  
+
 (defn test-sm [sexpr]
   (println "----[" sexpr "]----")
   (let [op (first sexpr)
         body (rest sexpr)
         schema (get-schema op)
+        _ (println " - schema " schema)
         args (cond
                schema (parse-args schema body)
                (= op 'define!) (parse-define body))
-        valid (or (and (not schema) args) (validate-args schema args))]
-    (printf " - schema %s\n - args %s\n - valid %s\n" schema args valid)
-    (when valid (pprint (expand sexpr)))))
+        _ (println " - args " args)
+        valid (or (and (not schema) args) (validate-args schema args))
+        _ (println " - valid " valid)
+        expanded (expand sexpr)
+        _ (println " - expanded " expanded)
+        unpacked (first (:inline (unpack-inline expanded)))
+        _ (println " - unpacked " unpacked)
+        ]
+    (when valid (pprint unpacked))))
 
 ;; Test cases
 ;; (test-sm '(define! foo [a b] (fact bar :age a) (fact a :tag bar)))
-;; (test-sm '(query (insert-fact! [a b c] [1 2 3])))
+;; (test-sm '(query (insert-fact! [a b c] [1 2 3])))(
 ;; (test-sm '(union [person] (query (not (fact-btu :value person)) (fact person :company "kodowa"))))
 ;; (test-sm '(choose [person] (query (fact person)) (query (fact other :friend person))))
-;; (test-sm '(+ (/ 2 x) (- y 7)))
+;; (test-sm '(query (+ (/ 2 x) (- y 7))))
 
 ;; @TODO:
 ;; Inline expansions
