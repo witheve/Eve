@@ -43,3 +43,27 @@ body {
 .pending {
   border-left: 5px solid yellow;
 }
+
+.table
+{
+    display: table;          
+    border-left: 1px solid black;
+    border-bottom: 1px solid black;
+}
+.heading
+{
+    display: table-row;
+    font-weight: bold;
+    text-align: center;
+}
+.row
+{
+    display: table-row;
+}
+.cell
+{
+  border-top: 1px solid black;
+  border-right: 1px solid black;
+  display: table-cell;
+  padding: 5px;
+}
