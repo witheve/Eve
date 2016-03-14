@@ -2,6 +2,7 @@
   (:require [server.db :as db]
             [server.edb :as edb]
             [server.log :as log]
+            [server.smil :as smil]
             [server.compiler :as compiler]
             [server.serialize :as serialize]
             [server.exec :as exec]))
@@ -10,13 +11,17 @@
 (def user (atom 99))
 
 (defn repl-error [& thingy]
-  (apply println "repl error" thingy)
   (throw thingy))
 
 ;; the distinction between edb and idb is alive here..skating over it
+;; query currently needs to always have a projection
 (defn build-reporting-select [db terms]
-  (let [keys (filter symbol? (vals (apply hash-map (rest terms))))]
-    (compiler/compile-dsl db @bag (list terms (list 'return keys)))))
+  (let [z (smil/expand terms)
+        p (second z)
+        v (apply concat
+                 (rest (rest z))
+                 (if (empty? p) () (list (list (list 'return p)))))]
+    (compiler/compile-dsl db @bag v)))
 
 (defn show [d expression]
    (let [prog (build-reporting-select d (second expression))]
@@ -25,19 +30,16 @@
 (defn diesel [d expression]
   ;; the compile-time error path should come up through here
   ;; fix external number of regs
-  (let [prog (build-reporting-select d expression)]
-    ((exec/open d prog (fn [op tuple] (println "whee" tuple))) 'flush [])))
-
+  (let [prog (build-reporting-select d expression)
+        ec  (exec/open d prog println)]
+    (ec 'insert [])
+    (ec 'flush [])))
 
 ;; xxx - this is now...in the language..not really?
 (defn define [d expression]
-  (let [deconstruct (fn deconstruct [t] 
-                      (if (or (empty? t) (list? (first t))) t
-                          (if (and (symbol? (first t)) (vector? (second t)))
-                            (db/insert-implication d (name (first t)) (second t) 
-                                                   (deconstruct (rest (rest t))) @user @bag)
-                            (repl-error "poorly formed define" t))))]
-    (deconstruct (rest expression))))
+  (let [z (smil/expand expression)]
+    (db/insert-implication d (second z) (nth z 2) (rest (rest (rest z))) @user @bag)))
+
 
 (declare read-all)
 
@@ -47,7 +49,7 @@
   
 (defn eeval [d term]
   (let [function ({'trace trace
-                   'define define
+                   'define! define
                    'show show
                    'load read-all
                    } (first term))]
