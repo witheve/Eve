@@ -14,12 +14,14 @@
 ;; ok, this is a fucked up rewrite right now. take a parameteric
 ;; term, use it as the return, and strip it off
 
+(defn quotify [x] (str "\"" x "\""))
+
 (defn format-vec [x]
-  (str "[" (string/join "," (map (fn [x] (str "\"" x "\"")) x)) "]"))
+  (str "[" (string/join "," x) "]"))
 
 
 (defn format-message [map]
-  (let [r (str "{" (reduce (fn [b [k v]] (str b (if (> (count b) 0) ", " b) "\"" k "\" :" v))  "" map) "}")]
+  (let [r (str "{" (reduce (fn [b [k v]] (str b (if (> (count b) 0) ", " b) (quotify k) ":" v))  "" map) "}")]
     (println "message" r)
     r))
 
@@ -29,15 +31,15 @@
   (let [keys (second query)
         results (atom ())
         send-error (fn [x]
-                     (httpserver/send! connection (format-message {"type" "\"error\""
+                     (httpserver/send! connection (format-message {"type" (quotify "error")
                                                                    "cause" x
                                                                    "id" id})))
         send-flush (fn []
                      (println @results (type @results))
-                     (httpserver/send! connection (format-message {"type" "\"result\""
+                     (httpserver/send! connection (format-message {"type" (quotify "result")
                                                                    "fields" keys
                                                                    "values" (format-vec @results)
-                                                                   "id" id}))
+                                                                   "id" (quotify id)}))
                      (swap! results (fn [x] ())))
         
         form  (repl/form-from-smil query)
