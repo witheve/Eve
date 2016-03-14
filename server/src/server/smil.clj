@@ -43,7 +43,8 @@
 (def schemas {
               ;; Special forms
               'fact nil
-              'define! nil ;; @NOTE: define! is a special form due to multiple names...
+              'define! nil ;; Special due to multiple aliases
+              'query nil ;; Special due to optional parameterization
               
               ;; Macros
               'insert-fact! {:rest :facts}
@@ -52,7 +53,7 @@
 
               ;; native forms
               'insert-fact-btu! {:args [:entity :attribute :value :bag] :optional #{:bag}} ; bag can be inferred in SMIR
-              'query {:rest :body}
+              
               'union {:args [:params] :rest :members}
               'choose {:args [:params] :rest :members}
               'not {:args [:expr]}
@@ -199,7 +200,6 @@
                          
                          ;; Native forms
                          insert-fact-btu! (cons 'insert-fact-btu! (splat-map (expanded args)))
-                         query (cons 'query (congeal-body (map expand (:body args))))
                          union (concat '(union) [(:params args)] (assert-queries (congeal-body (map expand (:members args)))))
                          choose (concat '(choose) [(:params args)] (assert-queries (congeal-body (map expand (:members args)))))
                          not (concat '(not) [(expand (:expr args))])
@@ -208,8 +208,11 @@
                          ;; Default
                          (cons op (splat-map (expanded args)))
                          ))
+        (= op 'query) (let [params (when (vector? (first body)) (first body))
+                            body (if params (rest body) body)]
+                        (concat ['query params] (congeal-body (map expand body))))
         (= op 'define!) (let [args (parse-define body)]
-                          (concat '(define!) (:header args) (into [] (congeal-body (map expand (:body args))))))
+                          (concat ['define!] (:header args) (into [] (congeal-body (map expand (:body args))))))
         (= op 'fact) (let [args (parse-fact body)]
                        (vec (map #(expand (cons 'fact-btu %1)) (:facts args))))
         :else (throw (Exception. (str "Unknown operator '" op "'")))))
@@ -273,7 +276,7 @@
 
 ;; Test cases
 ;; (test-sm '(define! foo [a b] (fact bar :age a) (fact a :tag bar)))
-;; (test-sm '(query (insert-fact! [a b c] [1 2 3])))(
+;; (test-sm '(query (insert-fact! [a b c] [1 2 3])))
 ;; (test-sm '(union [person] (query (not (fact-btu :value person)) (fact person :company "kodowa"))))
 ;; (test-sm '(choose [person] (query (fact person)) (query (fact other :friend person))))
 ;; (test-sm '(query (+ (/ 2 x) (- y 7))))
