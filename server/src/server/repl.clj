@@ -13,15 +13,17 @@
 (defn repl-error [& thingy]
   (throw thingy))
 
+(defn form-from-smil [z]
+  (let [p (second z)
+        v (apply concat
+                 (rest (rest z))
+                 (list (list (apply list 'return (if (empty? p) () p)))))]
+    v))
+
 ;; the distinction between edb and idb is alive here..skating over it
 ;; query currently needs to always have a projection
 (defn build-reporting-select [db terms]
-  (let [z (smil/expand terms)
-        p (second z)
-        v (apply concat
-                 (rest (rest z))
-                 (if (empty? p) () (list (list (list 'return p)))))]
-    (compiler/compile-dsl db @bag v)))
+    (compiler/compile-dsl db @bag (form-from-smil (smil/expand terms))))
 
 (defn show [d expression]
    (let [prog (build-reporting-select d (second expression))]

@@ -19,31 +19,36 @@
 
 
 (defn format-message [map]
-  (str "{" (reduce (fn [b [k v]] (str b (if (> (count b) 0) ", " b) "\"" k "\" :" v))  "" map) "}"))
+  (let [r (str "{" (reduce (fn [b [k v]] (str b (if (> (count b) 0) ", " b) "\"" k "\" :" v))  "" map) "}")]
+    (println "message" r)
+    r))
+
 
 (defn start-query [d query id connection]
+  (println "start query" query)
   (let [keys (second query)
         results (atom ())
-        prog (compiler/compile-dsl d @bag (concat (rest (rest query)) (list (list 'return (apply list keys)))))]
-    ((exec/open d prog (fn [op tuple]
-                         (condp = op
-                           'insert (swap! results conj tuple)
-                           
-                           'flush
-                           (let [msg (format "{\"type\" : \"result\", \"fields\" : %s, \"values\": %s , \"id\": \"%s\"}"
-                                             (format-vec keys)
-                                             (str "[" (format-vec tuple) "]")
-                                             id)]
-                             (println "return" msg)
-                             (httpserver/send! connection msg))
-                           
-                           'error
-                           (let [msg (format "{\"type\" : \"result\", \"fields\" : %s, \"values\": %s , \"id\": \"%s\"}"
-                                             (format-vec keys)
-                                             (str "[" (format-vec tuple) "]")
-                                             id)]))))
-     
-     'flush [])))
+        send-error (fn [x]
+                     (httpserver/send! connection (format-message {"type" "\"error\""
+                                                                   "cause" x
+                                                                   "id" id})))
+        send-flush (fn []
+                     (println @results (type @results))
+                     (httpserver/send! connection (format-message {"type" "\"result\""
+                                                                   "fields" keys
+                                                                   "values" (format-vec @results)
+                                                                   "id" id}))
+                     (swap! results (fn [x] ())))
+        
+        form  (repl/form-from-smil query)
+        prog (compiler/compile-dsl d @bag form)
+        e (exec/open d prog (fn [op tuple]
+                              (condp = op
+                                'insert (swap! results conj tuple)
+                                'flush (send-flush)
+                                'error (send-error (str tuple)))))]
+    (e 'insert [])
+    (e 'flush [])))
 
 
 (defn handle-connection [d channel]
