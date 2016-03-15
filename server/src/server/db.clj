@@ -53,11 +53,13 @@
 (defn implication-of [db id]
   (let [impl (atom nil)
         terminus (fn [op tuple]
+                   (println "TERM" op tuple)
                    (when (= op 'insert)
                      (reset! impl tuple)))
         prog (weasl-implications-for id terminus)
         e (exec/open db prog [])]
     (e 'insert [])
-    (e 'flush [])))
+    (e 'flush [])
+    @impl))
                    
 

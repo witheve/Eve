@@ -23,7 +23,7 @@
 ;; the distinction between edb and idb is alive here..skating over it
 ;; query currently needs to always have a projection
 (defn build-reporting-select [db terms]
-    (compiler/compile-dsl db @bag (form-from-smil (smil/expand terms))))
+  (compiler/compile-dsl db @bag (form-from-smil (smil/unpack db terms))))
 
 (defn show [d expression]
    (let [prog (build-reporting-select d (second expression))]
@@ -39,7 +39,7 @@
 
 ;; xxx - this is now...in the language..not really?
 (defn define [d expression]
-  (let [z (smil/expand expression)]
+  (let [z (smil/unpack d expression)]
     (db/insert-implication d (second z) (nth z 2) (rest (rest (rest z))) @user @bag)))
 
 

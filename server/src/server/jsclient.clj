@@ -65,7 +65,7 @@
      ;; create relation and create specialization?
      (let [input (json/read-str data)
            query (input "query")
-           qs (if query (smil/expand (read-string query)) nil)
+           qs (if query (smil/unpack d (read-string query)) nil)
            t (input "type")]
        (cond
          (and (= t "query")  (= (first qs) 'query)) (start-query d qs (input "id") channel)
@@ -87,6 +87,7 @@
                        :body (slurp (str prefix uri))})))
 
 (defn async-handler [db content]
+  
   (fn [ring-request]
     (httpserver/with-channel ring-request channel    ; get the channel
       (if (httpserver/websocket? channel) 

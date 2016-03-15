@@ -186,7 +186,7 @@
     (let [sexpr expr
           op (first sexpr)
           body (rest sexpr)
-          impl (when db (db/implication-of db op))]
+          impl (when db (db/implication-of db (name op)))]
       (cond
         (get-schema op) (let [schema (get-schema op)
                            args (parse-args schema body)
