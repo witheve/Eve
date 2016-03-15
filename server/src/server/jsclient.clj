@@ -37,7 +37,7 @@
         send-flush (fn []
                      (println @results (type @results))
                      (httpserver/send! connection (format-message {"type" (quotify "result")
-                                                                   "fields" keys
+                                                                   "fields" (format-vec (map quotify keys))
                                                                    "values" (format-vec @results)
                                                                    "id" (quotify id)}))
                      (swap! results (fn [x] ())))
