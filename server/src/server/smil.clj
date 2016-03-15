@@ -221,9 +221,10 @@
                           (concat ['define!] (:header args) (expand-each db (:body args))))
         (= op 'fact) (let [args (parse-fact body)]
                        (expand-each db (map #(cons 'fact-btu %1) (:facts args))))
+        impl (cons op (expand-each body))
         :else (throw (Exception. (str "Unknown operator '" op "'")))))
     (sequential? expr)
-    (concat (expand-each db expr))
+    (expand-each db expr)
     :else expr))
 
 (defn returnable? [sexpr]
