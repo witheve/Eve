@@ -27,7 +27,6 @@
 
 
 (defn start-query [d query id connection]
-  (println "start query" query)
   (let [keys (second query)
         results (atom ())
         send-error (fn [x]
@@ -69,7 +68,13 @@
            t (input "type")]
        (cond
          (and (= t "query")  (= (first qs) 'query)) (start-query d qs (input "id") channel)
-         (and (= t "query")  (= (first qs) 'define)) (repl/define d query)
+         (and (= t "query")  (= (first qs) 'define!))
+         (do
+           (repl/define d qs)
+           (httpserver/send! channel (format-message {"type" (quotify "result")
+                                                                   "fields" "[]"
+                                                                   "values" "[]"
+                                                                   "id" (quotify (input "id"))})))
          ;; should some kind of error
          :else
          (println "jason, wth", input))))))
@@ -103,6 +108,8 @@
 (import '[java.io PushbackReader])
 (require '[clojure.java.io :as io])
 
+(def server (atom nil))
+
 (defn serve [db address]
   ;; its really more convenient to allow this to be reloaded
   ;;  (let [content
@@ -113,5 +120,8 @@
   ;;                          "svg.js"
   ;;                          "websocket.js")))]
   ;; xxx - wire up address
-  (try (httpserver/run-server (async-handler db "<http><body>foo</body><http>") {:port 8081})
-         (catch Exception e (println (str "caught exception: " e (.getMessage e))))))
+  (when-not (nil? @server)
+    (@server :timeout 0))
+  (reset! server
+          (try (httpserver/run-server (async-handler db "<http><body>foo</body><http>") {:port 8081})
+               (catch Exception e (println (str "caught exception: " e (.getMessage e)))))))
