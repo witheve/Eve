@@ -43,7 +43,7 @@ function connectToServer() {
     server.timeout = 1;
     while(server.queue.length > 0) {
       let message = server.queue.shift();
-      sendQuery(message);  
+      sendMessage(message);  
     }
   }
 
@@ -89,12 +89,12 @@ function reconnect() {
   }
 }
 
-function sendQuery(query: Query): boolean {
+function sendMessage(message): boolean {
   if (server.ws.readyState === server.ws.OPEN) {
-    server.ws.send(JSON.stringify(query));
+    server.ws.send(JSON.stringify(message));
     return true;  
   } else {
-    server.queue.push(query);
+    server.queue.push(message);
     return false;
   }
 }
@@ -124,7 +124,7 @@ function queryInputKeydown(event, elem) {
       query: queryString,
     }
     replCards[thisReplCardIx].state = CardState.PENDING;    
-    let sent = sendQuery(query);
+    let sent = sendMessage(query);
     if (sent) {
       replCards[thisReplCardIx].result = "Waiting on response from server...";
     } else {
@@ -162,6 +162,14 @@ function queryInputKeydown(event, elem) {
     let nextIx = thisReplCardIx + 1 <= replIDs.length - 1 ? thisReplCardIx + 1 : replIDs.length - 1;
     replCards.forEach((r) => r.focused = false);
     replCards[nextIx].focused = true;
+    event.preventDefault();
+    app.dispatch("rerender", {}).commit();
+  // Catch ctrl + delete to remove a card
+  } else if (event.keyCode === 46 && event.ctrlKey === true) {
+    let closemessage = {
+      type: "close",
+      id: replCards[thisReplCardIx].id,
+    };
     event.preventDefault();
     app.dispatch("rerender", {}).commit();
   }
