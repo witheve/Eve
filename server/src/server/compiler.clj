@@ -135,29 +135,52 @@
    (generate-send e 'return-channel (if-let [k (second terms)] k ()))
    (down e)))
 
-(defn compile-simple-primitive [e terms rest]
-  (let [ins (map (fn [x] (bget e 'bound x)) (rest terms))]
+(defn compile-simple-primitive [e terms down]
+  (let [argmap (apply hash-map (rest terms))
+        simple [(argmap :return) (argmap :a) (argmap :b)]
+        ins (map (fn [x] (bget e 'bound x)) simple)]
     (if (some not (rest ins))
       ;; handle the [b*] case by blowing out a temp
-      (do 
-        (allocate-register e (second terms))
-        (fn [] (apply list (first terms) (map (fn [x] (lookup e x)) (rest terms))))))))
-
+      (do
+        (allocate-register e (first simple))
+        (compose
+         (apply term e (first terms) simple)
+         (down e)))
+      (compile-error (str "unhandled bound signature in" terms)))))
+          
 
 (defn generate-binary-filter [e terms down]
-  (let [tsym (gensym 'filter)]
+  (let [argmap (apply hash-map (rest terms))
+        tsym (gensym 'filter)]
     (allocate-register e tsym)
     (apply add-dependencies e terms)
     (compose 
-     (apply term e (first terms) tsym (rest terms))
+     (term e (first terms) tsym (argmap :a) ( argmap :b))
      (term e 'filter tsym)
-      (down e))))
+     (down e))))
 
 ;; really the same as lookup...fix
 (defn is-bound? [e name]
   (if (or (symbol? name) (keyword? name))
     (bget e 'bound name)
     name))
+
+(defn compile-equal [e terms down]
+  (let [argmap (apply hash-map (rest terms))
+        simple [(argmap :a) (argmap :b)]
+        a (is-bound? e (argmap :a))
+        b (is-bound? e (argmap :b))
+        rebind (fn [s d]
+                 (bind-names e {d s})
+                 (down e))]
+    (cond (and a b) (generate-binary-filter e terms down)
+          a (rebind a (argmap :b))
+          b (rebind b (argmap :a))
+          :else
+          (compile-error "reordering necessary, not implemented"))))
+    
+
+
 
 (defn partition-2 [pred coll]
   ((juxt
@@ -193,7 +216,7 @@
                ((reduce (fn [b t]
                           (fn [e]
                             (generate-binary-filter e
-                                                    (list 'equal (extra-map t) (nth triple t))
+                                                    (list '= :a (extra-map t) :b (nth triple t))
                                                     b)))
                         down
                         filter-terms) x))]
@@ -276,19 +299,21 @@
 (defn compile-expression [e terms down]
   (let [commands {'+ compile-simple-primitive
                   '* compile-simple-primitive
+                  '/ compile-simple-primitive
+                  '- compile-simple-primitive
+                  '< generate-binary-filter
+                  '> generate-binary-filter
                   'sort compile-simple-primitive ;; ascending and descending
                   'sum compile-sum
                   'str compile-simple-primitive
                   'insert-fact-btu! compile-insert
                   'fact-btu compile-edb
                   'range compile-simple-primitive
-                  ;; consider whether we want the real whole milk relational equal
-                  'equal generate-binary-filter
+                  '= compile-equal
                   'not-equal generate-binary-filter
                   'union compile-union
                   'return compile-return
-                  'query compile-query
-                  'less-than generate-binary-filter}
+                  'query compile-query}
         relname (first terms)]
     (if-let [c (commands relname)]
       (c e terms down)
