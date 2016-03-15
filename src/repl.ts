@@ -70,6 +70,19 @@ function connectToServer() {
       } else if (parsed.type === "error") {
         targetCard.state = CardState.ERROR;
         targetCard.result = parsed.cause;
+      } else if (parsed.type === "close") {
+        let removeIx = replCards.map((r) => r.id).indexOf(parsed.id);
+        if (removeIx >= 0) {
+          let cardToDelete = replCards[removeIx];
+          let newFocusIx;
+          if (cardToDelete.focused) {
+            newFocusIx = removeIx - 1 < 0 ? 0 : removeIx - 1;
+          }
+          replCards.splice(removeIx,1);
+          if (newFocusIx !== undefined) {
+            replCards[newFocusIx].focused = true;
+          }
+        }
       }
     }
     app.dispatch("rerender", {}).commit();
@@ -166,13 +179,17 @@ function queryInputKeydown(event, elem) {
     app.dispatch("rerender", {}).commit();
   // Catch ctrl + delete to remove a card
   } else if (event.keyCode === 46 && event.ctrlKey === true) {
-    let closemessage = {
-      type: "close",
-      id: replCards[thisReplCardIx].id,
-    };
-    sendMessage(closemessage);
-    event.preventDefault();
-    app.dispatch("rerender", {}).commit();
+    if (replCards[thisReplCardIx].state !== CardState.NONE) {
+      let closemessage = {
+        type: "close",
+        id: replCards[thisReplCardIx].id,
+      };
+      sendMessage(closemessage);
+      replCards[thisReplCardIx].state = CardState.PENDING;
+      replCards[thisReplCardIx].result = "Deleting card...";
+      event.preventDefault();
+      app.dispatch("rerender", {}).commit();
+    }
   }
 }
 
