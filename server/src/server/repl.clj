@@ -17,7 +17,7 @@
   (let [p (second z)
         v (apply concat
                  (rest (rest z))
-                 (list (list (apply list 'return (if (empty? p) () p)))))]
+                 (list (list (apply list 'return (if (empty? p) () (list p))))))]
     v))
 
 ;; the distinction between edb and idb is alive here..skating over it
@@ -57,12 +57,13 @@
                    } (first term))]
     (if (nil? function)
       (diesel d term)
-      (function d term))))
+      (function d term))
+    d))
 
 (import '[java.io PushbackReader])
 (require '[clojure.java.io :as io])
 
-(defn read-all [db expression]
+(defn read-all [d expression]
   ;; trap file not found
   ;; need to implement load path here!
 
@@ -75,7 +76,7 @@
       (let [form (try (read rdr) (catch Exception e ()))]
         (if (and form (not (empty? form)))
           (do 
-            (eeval db form)
+            (eeval d form)
             (recur)))))))
   
 

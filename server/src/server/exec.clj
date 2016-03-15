@@ -114,7 +114,6 @@
 (defn exec-open [registers db op c terms]
   (let [[open dest oid target] terms
         channel (db (register-get registers oid) (register-get registers target))]
-
     (c op (register-set registers (second terms) channel))))
     
 (defn exec-bind [registers db op c terms]
@@ -226,16 +225,16 @@
 ;;   3  'self'
  
 (defn open [d program context]
-  (let [savereg (atom ())]
+  (let [framesize 10
+        b (vec (repeat framesize nil))
+        b1 (register-set b [1] context)
+        savereg (atom b1)]
     (fn [op input]
       ;; dont think insert makes any sense here any longer, if it ever did
       (condp = op
-        'insert (let [framesize 10
-                     b (vec (repeat framesize nil))
-                     b1 (register-set b [1] context)
-                     b2 (if (> (count input) 0) (register-set b1 [2] input) b1)]
-                 (swap! savereg (fn [x] (run d program b2 op))))
-
+        'insert (let [b3 (if (> (count input) 0) (register-set b1 [2] input) b1)]
+                  (swap! savereg (fn [x] (run d program b3 op))))
+        
         'flush (doseq [i program]
                  (let [command (first i)
                        cf (command-map command)]
