@@ -170,6 +170,7 @@ function queryInputKeydown(event, elem) {
       type: "close",
       id: replCards[thisReplCardIx].id,
     };
+    sendMessage(closemessage);
     event.preventDefault();
     app.dispatch("rerender", {}).commit();
   }
