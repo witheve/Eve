@@ -13,7 +13,7 @@ body {
   margin: 20px;
   padding: 5px;
   opacity: 1;
-  transition: opacity 0.5s;
+  transition: opacity 0.25s;
 }
 
 .noheight {
