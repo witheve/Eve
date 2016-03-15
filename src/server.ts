@@ -88,9 +88,13 @@ httpserver.use("/fonts", express.static(__dirname + '/../../fonts'));
 httpserver.use("/test", express.static(__dirname + '/../../test'));
 httpserver.use("/images", express.static(__dirname + '/../../images'));
 
+
+httpserver.get("/repl", (req, res) => {
+  res.sendFile(path.resolve(__dirname + "/../../repl.html"));
+})
+
 httpserver.get("/*", (req, res) => {
   res.sendFile(path.resolve(__dirname + "/../../index.html"));
-  res.sendFile(path.resolve(__dirname + "/../../repl.html"));
 })
 
 httpserver.listen(process.env.PORT || 3000);
