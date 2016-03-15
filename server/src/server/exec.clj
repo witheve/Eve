@@ -101,7 +101,8 @@
 
 
 (defn exec-send [registers db op c terms]
-  (let [res (register-get registers (nth terms 2))
+  (let [msg (nth terms 2)
+        res (if (empty? msg) [] (register-get registers (nth terms 2)))
         channel (register-get registers (second terms))]
     (channel op res)
     (c op registers)))

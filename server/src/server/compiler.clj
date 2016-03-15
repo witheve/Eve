@@ -78,7 +78,7 @@
                      (let [out (gensym 'tuple)]
                        (allocate-register e out)
                        [out (list (apply term e 'tuple out arguments))])
-                     ['empty ()])]
+                     [[] ()])]
     (add-dependencies e channel)  ;; iff channel is free
     (apply add-dependencies e arguments)
     (fn []
@@ -132,7 +132,7 @@
 
 (defn compile-return [e terms down]
   (compose
-   (generate-send e 'return-channel (second terms))
+   (generate-send e 'return-channel (if-let [k (second terms)] k ()))
    (down e)))
 
 (defn compile-simple-primitive [e terms rest]
