@@ -12,6 +12,12 @@ body {
   background-color: rgb(74, 64, 136);
   margin: 20px;
   padding: 5px;
+  opacity: 1;
+  transition: opacity 0.5s;
+}
+
+.noheight {
+  opacity: 0;
 }
 
 .selected {
@@ -42,6 +48,10 @@ body {
 
 .pending {
   border-left: 5px solid yellow;
+}
+
+.closed {
+  border-left: 5px solid black;
 }
 
 .table

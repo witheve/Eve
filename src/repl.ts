@@ -8,6 +8,7 @@ enum CardState {
   NONE,
   GOOD,
   PENDING,
+  CLOSED,
   ERROR,
 }
 
@@ -74,14 +75,18 @@ function connectToServer() {
         let removeIx = replCards.map((r) => r.id).indexOf(parsed.id);
         if (removeIx >= 0) {
           let cardToDelete = replCards[removeIx];
+          cardToDelete.state = CardState.CLOSED;
           let newFocusIx;
           if (cardToDelete.focused) {
             newFocusIx = removeIx - 1 < 0 ? 0 : removeIx - 1;
           }
-          replCards.splice(removeIx,1);
-          if (newFocusIx !== undefined) {
-            replCards[newFocusIx].focused = true;
-          }
+          setTimeout(() => {
+            replCards.splice(removeIx,1);
+            if (newFocusIx !== undefined) {
+              replCards[newFocusIx].focused = true;
+            }
+            app.dispatch("rerender", {}).commit();
+          }, 250);
         }
       }
     }
@@ -212,6 +217,7 @@ function newReplCardElement(replCard: ReplCard) {
   let resultcss = "query-result"; 
   let resultText = undefined;
   let resultTable = undefined;
+  let replClass = "repl-card";
   // Format card based on state
   if (replCard.state === CardState.GOOD) {
     resultcss += " good";
@@ -232,10 +238,13 @@ function newReplCardElement(replCard: ReplCard) {
   } else if (replCard.state === CardState.PENDING) {
     resultcss += " pending";
     resultText = `${replCard.result}`;
+  } else if (replCard.state === CardState.CLOSED) {
+    resultcss += " closed";
+    replClass += " noheight";
+    resultText = `Query closed.`;
   }
   
   let queryResult = replCard.result === undefined ? {} : {c: resultcss, text: resultText ? resultText : "", children: resultTable ? [resultTable] : []};
-  let replClass = "repl-card";
   replClass += replCard.focused ? " selected" : "";
   
   let replCardElement = {
