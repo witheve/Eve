@@ -28,7 +28,7 @@ interface ReplCard {
   } | string,
 }
 
-let server = { connected: false, queue: [], initialized: false, lastSent: [], ws: null, dead: false };
+let server = { connected: false, queue: [], initialized: false, lastSent: [], ws: null };
 
 app.renderRoots["repl"] = root;
 connectToServer();
@@ -40,9 +40,14 @@ function connectToServer() {
 
   ws.onopen = function(e: Event) {
     server.connected = true;
-    server.dead = true;
     console.log("Opening websocket connection.");
     console.log(e);
+    setTimeout(undefined,2000);
+    while(server.queue.length > 0) {
+      let message = server.queue.shift();
+      console.log(message);
+      sendQuery(message);  
+    }
   }
 
   ws.onerror = ws.onclose = function(error) {
@@ -86,9 +91,13 @@ function reconnect() {
   }, 1000);
 } 
 
-function sendQuery(query: Query) {
-  if (server.connected) {
-    server.ws.send(JSON.stringify(query));  
+function sendQuery(query: Query): boolean {
+  if (server.ws.readyState === server.ws.OPEN) {
+    server.ws.send(JSON.stringify(query));
+    return true;  
+  } else {
+    server.queue.push(query);
+    return false;
   }
 }
 
@@ -116,9 +125,13 @@ function queryInputKeydown(event, elem) {
       type: "query",
       query: queryString,
     }
-    replCards[thisReplCardIx].state = CardState.PENDING;
-    replCards[thisReplCardIx].result = "Waiting on response from server...";
-    sendQuery(query);
+    replCards[thisReplCardIx].state = CardState.PENDING;    
+    let sent = sendQuery(query);
+    if (sent) {
+      replCards[thisReplCardIx].result = "Waiting on response from server...";
+    } else {
+      replCards[thisReplCardIx].result = "Message queued.";
+    }
     // Create a new card if we submitted the last one in replCards
     if (thisReplCardIx === replCards.length - 1) {
       let nReplCard = newReplCard();
