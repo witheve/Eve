@@ -28,7 +28,7 @@ interface ReplCard {
   } | string,
 }
 
-let server = { connected: false, queue: [], initialized: false, lastSent: [], ws: null };
+let server = { connected: false, queue: [], initialized: false, lastSent: [], ws: null, timeout: 1};
 
 app.renderRoots["repl"] = root;
 connectToServer();
@@ -40,13 +40,18 @@ function connectToServer() {
 
   ws.onopen = function(e: Event) {
     server.connected = true;
+    server.timeout = 1;
     while(server.queue.length > 0) {
       let message = server.queue.shift();
       sendQuery(message);  
     }
   }
 
-  ws.onerror = ws.onclose = function(error) {
+  ws.onerror = function(error) {
+    server.connected = false;
+  }
+
+  ws.onclose = function(error) {  
     server.connected = false;
     reconnect();
   }
@@ -73,16 +78,16 @@ function connectToServer() {
 
 let checkReconnectInterval = undefined;
 function reconnect() {
-  if(checkReconnectInterval) { return; }
-  checkReconnectInterval = setInterval(() => {
-    if(server.connected) {
-      clearInterval(checkReconnectInterval);
-      checkReconnectInterval = undefined;
-    } else {
-      connectToServer();
-    }
-  }, 1000);
-} 
+  if(server.connected) {
+    clearTimeout(checkReconnectInterval);
+    checkReconnectInterval = undefined;
+  } else {
+    checkReconnectInterval = setTimeout(connectToServer, server.timeout * 1000);
+  }
+  if (server.timeout < 32) {
+    server.timeout += server.timeout;
+  }
+}
 
 function sendQuery(query: Query): boolean {
   if (server.ws.readyState === server.ws.OPEN) {
