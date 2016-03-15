@@ -1,6 +1,9 @@
 import app = require("./app");
 import {autoFocus} from "./utils";
 
+let WebSocket = require('ws');
+let uuid = require("uuid");
+
 enum CardState {
   NONE,
   GOOD,
@@ -25,49 +28,74 @@ interface ReplCard {
   } | string,
 }
 
+let server = { connected: false, queue: [], initialized: false, lastSent: [], ws: null, timeout: 1};
+
 app.renderRoots["repl"] = root;
+connectToServer();
 
-let WebSocket = require('ws');
-var server;
-let uuid = require("uuid");
+function connectToServer() {
+  let wsAddress = "ws://localhost:8081";
+  let ws: WebSocket = new WebSocket(wsAddress, []);
+  server.ws = ws;
 
-let ws: WebSocket = new WebSocket("ws://localhost:8081");
-
-ws.onopen = function(e: Event) {
-  console.log("Opening websocket connection.");
-  console.log(e);
-}
-
-ws.onmessage = function(message: MessageEvent) {
-  let parsed = JSON.parse(message.data);
-  // Update the result of the correct repl card
-  let targetCard = replCards.filter((r) => r.id === parsed.id).shift();
-  if (targetCard !== undefined) {
-    if (parsed.type === "result") {
-      targetCard.state = CardState.GOOD;
-      targetCard.result = {
-        fields: parsed.fields,
-        values: parsed.values,
-      }
-    } else if (parsed.type === "error") {
-      targetCard.state = CardState.ERROR;
-      targetCard.result = parsed.cause;
+  ws.onopen = function(e: Event) {
+    server.connected = true;
+    server.timeout = 1;
+    while(server.queue.length > 0) {
+      let message = server.queue.shift();
+      sendQuery(message);  
     }
   }
-  app.dispatch("rerender", {}).commit();
+
+  ws.onerror = function(error) {
+    server.connected = false;
+  }
+
+  ws.onclose = function(error) {  
+    server.connected = false;
+    reconnect();
+  }
+
+  ws.onmessage = function(message) {
+    let parsed = JSON.parse(message.data);
+    // Update the result of the correct repl card
+    let targetCard = replCards.filter((r) => r.id === parsed.id).shift();
+    if (targetCard !== undefined) {
+      if (parsed.type === "result") {
+        targetCard.state = CardState.GOOD;
+        targetCard.result = {
+          fields: parsed.fields,
+          values: parsed.values,
+        }
+      } else if (parsed.type === "error") {
+        targetCard.state = CardState.ERROR;
+        targetCard.result = parsed.cause;
+      }
+    }
+    app.dispatch("rerender", {}).commit();
+  };
 }
 
-ws.onerror = function(e: Event) {
-  console.log("Websocket error!");
+let checkReconnectInterval = undefined;
+function reconnect() {
+  if(server.connected) {
+    clearTimeout(checkReconnectInterval);
+    checkReconnectInterval = undefined;
+  } else {
+    checkReconnectInterval = setTimeout(connectToServer, server.timeout * 1000);
+  }
+  if (server.timeout < 32) {
+    server.timeout += server.timeout;
+  }
 }
 
-ws.onclose = function(c: CloseEvent) {
-  console.log("Closing websocket connection.");
-}
-
-function sendQuery(ws: WebSocket, query: Query) {
-  if (ws.readyState === ws.OPEN) {
-    ws.send(JSON.stringify(query));  
+function sendQuery(query: Query): boolean {
+  if (server.ws.readyState === server.ws.OPEN) {
+    server.ws.send(JSON.stringify(query));
+    return true;  
+  } else {
+    server.queue.push(query);
+    return false;
   }
 }
 
@@ -95,9 +123,13 @@ function queryInputKeydown(event, elem) {
       type: "query",
       query: queryString,
     }
-    replCards[thisReplCardIx].state = CardState.PENDING;
-    replCards[thisReplCardIx].result = "Waiting on response from server...";
-    sendQuery(ws, query);
+    replCards[thisReplCardIx].state = CardState.PENDING;    
+    let sent = sendQuery(query);
+    if (sent) {
+      replCards[thisReplCardIx].result = "Waiting on response from server...";
+    } else {
+      replCards[thisReplCardIx].result = "Message queued.";
+    }
     // Create a new card if we submitted the last one in replCards
     if (thisReplCardIx === replCards.length - 1) {
       let nReplCard = newReplCard();
@@ -161,7 +193,6 @@ function newReplCardElement(replCard: ReplCard) {
     });
     let tableRows = [tableHeader].concat(tableBody);
     resultTable = {c: "table", children: tableRows};
-    console.log(resultTable);
   } else if (replCard.state === CardState.ERROR) {
     resultcss += " bad";
     resultText = `${replCard.result}`;
