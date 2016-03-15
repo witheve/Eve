@@ -1,5 +1,6 @@
 (ns server.smil
-  (:require [clojure.pprint :refer [pprint]]))
+  (:require [server.db :as db]
+            [clojure.pprint :refer [pprint]]))
 
 (def REMOVE_FACT 5)
 
@@ -167,20 +168,25 @@
                              (str "Invalid attribute '" %2 "'. Attributes must be keyword literals. Use fact-btu for free attributes"))))))
                {:entity (first body) :facts [] :attr nil}
                (rest body))]
-    (tap (if (> (count (:facts state)) 0)
+    (if (> (count (:facts state)) 0)
       {:entity (:entity state) :facts (:facts state)}
-      {:entity (:entity state) :facts [[(:entity state)]]}) "FOO")))
+      {:entity (:entity state) :facts [[(:entity state)]]})))
 
 (declare expand)
-(defn expanded [args]
-  (reduce-kv #(assoc %1 %2 (if (vector? %3) (into [] (map expand %3)) (expand %3))) {} args))
+(defn expand-each [db args]
+  (congeal-body (map #(expand db %1) args)))
 
-(defn expand [expr]
+(defn expand-values [db args]
+  (reduce-kv (fn [memo k v]
+               (assoc memo k (if (vector? v) (expand-each db v) (expand db v)))) {} args))
+
+(defn expand [db expr]
   (cond
     (seq? expr)
     (let [sexpr expr
           op (first sexpr)
-          body (rest sexpr)]
+          body (rest sexpr)
+          impl (when db (db/implication-of db op))]
       (cond
         (get-schema op) (let [schema (get-schema op)
                            args (parse-args schema body)
@@ -189,35 +195,35 @@
                        (when-not valid (throw (Exception. (str "Invalid arguments for form " sexpr))))
                        (case op
                          ;; Macros
-                         insert-fact! (vec (map #(expand (cons 'insert-fact-btu! %1)) (:facts args)))
-                         remove-by-t! (expand ('insert-fact-btu! (:tick args) REMOVE_FACT nil))
+                         insert-fact! (expand-each db (map #(cons 'insert-fact-btu! %1) (:facts args)))
+                         remove-by-t! (expand db ('insert-fact-btu! (:tick args) REMOVE_FACT nil))
                          if (let [then (as-query (:then args))
                                    then ('query (:cond args) (rest then))
                                    else (as-query (:else args))]
                                ('choose ['return]
-                                        then
-                                        else))
+                                        (expand db then)
+                                        (expand db else)))
                          
                          ;; Native forms
-                         insert-fact-btu! (cons 'insert-fact-btu! (splat-map (expanded args)))
-                         union (concat '(union) [(:params args)] (assert-queries (congeal-body (map expand (:members args)))))
-                         choose (concat '(choose) [(:params args)] (assert-queries (congeal-body (map expand (:members args)))))
-                         not (concat '(not) [(expand (:expr args))])
-                         context (cons 'context (splat-map (expanded args)))
+                         insert-fact-btu! (cons 'insert-fact-btu! (splat-map (expand-values db args)))
+                         union (concat '(union) [(:params args)] (assert-queries (expand-each db (:members args))))
+                         choose (concat '(choose) [(:params args)] (assert-queries (expand-each db (:members args))))
+                         not (concat '(not) [(expand db (:expr args))])
+                         context (cons 'context (splat-map (expand-values db args)))
 
                          ;; Default
-                         (cons op (splat-map (expanded args)))
+                         (cons op (splat-map (expand-values db args)))
                          ))
         (= op 'query) (let [params (when (vector? (first body)) (first body))
                             body (if params (rest body) body)]
-                        (concat ['query params] (congeal-body (map expand body))))
+                        (concat ['query params] (expand-each db body)))
         (= op 'define!) (let [args (parse-define body)]
-                          (concat ['define!] (:header args) (into [] (congeal-body (map expand (:body args))))))
+                          (concat ['define!] (:header args) (expand-each db (:body args))))
         (= op 'fact) (let [args (parse-fact body)]
-                       (vec (map #(expand (cons 'fact-btu %1)) (:facts args))))
+                       (expand-each db (map #(cons 'fact-btu %1) (:facts args))))
         :else (throw (Exception. (str "Unknown operator '" op "'")))))
     (sequential? expr)
-    (map expand expr)
+    (concat (expand-each db expr))
     :else expr))
 
 (defn returnable? [sexpr]
@@ -251,11 +257,13 @@
     :else
     {:inline [sexpr]}))
 
-(defn unpack [sexpr]
-  (first (:inline (unpack-inline (expand sexpr)))))
+(defn unpack [db sexpr]
+  (first (:inline (unpack-inline (expand db sexpr)))))
   
 
-(defn test-sm [sexpr]
+(defn test-sm
+  ([sexpr] (test-sm nil sexpr))
+  ([db sexpr]
   (println "----[" sexpr "]----")
   (let [op (first sexpr)
         body (rest sexpr)
@@ -267,12 +275,12 @@
         _ (println " - args " args)
         valid (or (and (not schema) args) (validate-args schema args))
         _ (println " - valid " valid)
-        expanded (expand sexpr)
+        expanded (expand db sexpr)
         _ (println " - expanded " expanded)
         unpacked (first (:inline (unpack-inline expanded)))
         _ (println " - unpacked " unpacked)
         ]
-    (when valid (pprint unpacked))))
+    (when valid (pprint unpacked)))))
 
 ;; Test cases
 ;; (test-sm '(define! foo [a b] (fact bar :age a) (fact a :tag bar)))
