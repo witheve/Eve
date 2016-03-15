@@ -167,10 +167,14 @@
                      (throw (Exception.
                              (str "Invalid attribute '" %2 "'. Attributes must be keyword literals. Use fact-btu for free attributes"))))))
                {:entity (first body) :facts [] :attr nil}
-               (rest body))]
-    (if (> (count (:facts state)) 0)
-      {:entity (:entity state) :facts (:facts state)}
-      {:entity (:entity state) :facts [[(:entity state)]]})))
+               (rest body))
+        state (merge-state state (if (:attr state)
+                                   {:attr nil :facts [[(:entity state) (name (:attr state)) (symbol (name (:attr state)))]]}
+                                   nil))
+        state (merge-state state (if (= (count (:facts state)) 0)
+                                   {:facts [[(:entity state)]]}
+                                   nil))]
+    state))
 
 (declare expand)
 (defn expand-each [db args]
