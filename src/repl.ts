@@ -28,7 +28,7 @@ interface ReplCard {
   } | string,
 }
 
-let server = { connected: false, queue: [], initialized: false, lastSent: [], ws: null, timeout: 1};
+let server = { connected: false, queue: [], ws: null, timeout: 1};
 
 app.renderRoots["repl"] = root;
 connectToServer();
