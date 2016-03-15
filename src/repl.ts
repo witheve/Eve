@@ -40,19 +40,15 @@ function connectToServer() {
 
   ws.onopen = function(e: Event) {
     server.connected = true;
-    console.log("Opening websocket connection.");
     console.log(e);
-    setTimeout(undefined,2000);
     while(server.queue.length > 0) {
       let message = server.queue.shift();
-      console.log(message);
       sendQuery(message);  
     }
   }
 
   ws.onerror = ws.onclose = function(error) {
     server.connected = false;
-    console.log(error)
     reconnect();
   }
 
@@ -81,11 +77,9 @@ function reconnect() {
   if(checkReconnectInterval) { return; }
   checkReconnectInterval = setInterval(() => {
     if(server.connected) {
-      console.log("Reconnected!");
       clearInterval(checkReconnectInterval);
       checkReconnectInterval = undefined;
     } else {
-      console.log("Attempting to reconnect...");
       connectToServer();
     }
   }, 1000);
