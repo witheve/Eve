@@ -43,7 +43,7 @@ function connectToServer() {
     server.timeout = 1;
     while(server.queue.length > 0) {
       let message = server.queue.shift();
-      sendMessage(message);  
+      sendMessage(message);
     }
   }
 
@@ -193,6 +193,13 @@ function queryInputKeydown(event, elem) {
   }
 }
 
+function replCardClick(event, elem) {
+  let thisReplCardIx = elem.ix;
+  replCards.forEach((r) => r.focused = false);
+  replCards[elem.ix].focused = true;
+  app.dispatch("rerender", {}).commit();
+}
+
 function focusQueryBox(node,element) {
   if (element.focused) {
     node.focus();
@@ -234,6 +241,7 @@ function newReplCardElement(replCard: ReplCard) {
   let replCardElement = {
     id: replCard.id,
     c: replClass,
+    click: replCardClick,
     children: [queryInput, queryResult],
   };
   return replCardElement;
