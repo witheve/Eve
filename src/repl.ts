@@ -40,7 +40,6 @@ function connectToServer() {
 
   ws.onopen = function(e: Event) {
     server.connected = true;
-    console.log(e);
     while(server.queue.length > 0) {
       let message = server.queue.shift();
       sendQuery(message);  
