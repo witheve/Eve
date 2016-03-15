@@ -86,10 +86,13 @@
       (.write "eve> ")
       (.flush))
     ;; need to handle read errors, in particular eof
-    (recur (eeval d (try
-                      ;; it would be nice if a newline on its own got us a new prompt
-                      (read)
-                      ;; we're-a-gonna assume that this was a graceful close
-                       (catch Exception e 
-                         (java.lang.System/exit 0)))))))
+    
+    ;; it would be nice if a newline on its own got us a new prompt
+    (let [input (try
+                  (read)
+                  ;; we're-a-gonna assume that this was a graceful close
+                  (catch Exception e 
+                    (java.lang.System/exit 0)))]
+      (when-not (= input 'exit)
+        (recur (eeval d input))))))
 
