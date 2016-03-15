@@ -83,7 +83,7 @@
   ;; 2. If the value is a keyword, shift it into :kw and stop accepting positionals
   ;; 3. If we haven't exhausted our positionals, shift a positional to map to the value
   ;; 4. If the form accepts a rest parameter, shift the value onto the rest list
-  (:args (reduce
+  (let [state (reduce
           #(merge-state %1
                         (if (:kw %1) 
                           (if (keyword? %2)
@@ -104,7 +104,11 @@
                                 (throw (Exception.
                                         (str "Too many positional arguments without a rest argument. Expected "
                                              (count (:args schema))))))))))
-          {:args {} :kw nil :position (count (:args schema))} body)))
+          {:args {} :kw nil :position (count (:args schema))} body)
+        state (merge-state state (if (:kw state)
+                                   {:kw nil :args {(:kw state) (symbol (name (:kw state)))}}
+                                   nil))]
+  (:args state)))
 
 (defn validate-args [schema args]
   (let [params (into (:args schema) (:kwargs schema))
