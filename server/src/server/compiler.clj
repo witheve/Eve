@@ -1,3 +1,4 @@
+
 (ns server.compiler
   (:require
    [server.db :as db]
@@ -77,7 +78,7 @@
                      (let [out (gensym 'tuple)]
                        (allocate-register e out)
                        [out (list (apply term e 'tuple out arguments))])
-                     ['empty ()])]
+                     [[] ()])]
     (add-dependencies e channel)  ;; iff channel is free
     (apply add-dependencies e arguments)
     (fn []
@@ -95,7 +96,6 @@
             (bset inside-env 'register 3)
             (bset inside-env 'dependencies #{}))
         body (inside inside-env)
-
         tuple-names (reduce
                      (fn [b x]
                        (if (bget e 'bound x)
@@ -105,7 +105,6 @@
                          b))
                      ()
                      (bget inside-env 'dependencies))]
-    
     
     (if (> (count tuple-names) 0)
       (do
@@ -133,32 +132,55 @@
 
 (defn compile-return [e terms down]
   (compose
-   (generate-send e 'return-channel (second terms))
+   (generate-send e 'return-channel (if-let [k (second terms)] k ()))
    (down e)))
 
-(defn compile-simple-primitive [e terms rest]
-  (let [ins (map (fn [x] (bget e 'bound x)) (rest terms))]
+(defn compile-simple-primitive [e terms down]
+  (let [argmap (apply hash-map (rest terms))
+        simple [(argmap :return) (argmap :a) (argmap :b)]
+        ins (map (fn [x] (bget e 'bound x)) simple)]
     (if (some not (rest ins))
       ;; handle the [b*] case by blowing out a temp
-      (do 
-        (allocate-register e (second terms))
-        (fn [] (apply list (first terms) (map (fn [x] (lookup e x)) (rest terms))))))))
-
+      (do
+        (allocate-register e (first simple))
+        (compose
+         (apply term e (first terms) simple)
+         (down e)))
+      (compile-error (str "unhandled bound signature in" terms)))))
+          
 
 (defn generate-binary-filter [e terms down]
-  (let [tsym (gensym 'filter)]
+  (let [argmap (apply hash-map (rest terms))
+        tsym (gensym 'filter)]
     (allocate-register e tsym)
     (apply add-dependencies e terms)
     (compose 
-     (apply term e (first terms) tsym (rest terms))
+     (term e (first terms) tsym (argmap :a) ( argmap :b))
      (term e 'filter tsym)
-      (down e))))
+     (down e))))
 
 ;; really the same as lookup...fix
 (defn is-bound? [e name]
   (if (or (symbol? name) (keyword? name))
     (bget e 'bound name)
     name))
+
+(defn compile-equal [e terms down]
+  (let [argmap (apply hash-map (rest terms))
+        simple [(argmap :a) (argmap :b)]
+        a (is-bound? e (argmap :a))
+        b (is-bound? e (argmap :b))
+        rebind (fn [s d]
+                 (bind-names e {d s})
+                 (down e))]
+    (cond (and a b) (generate-binary-filter e terms down)
+          a (rebind a (argmap :b))
+          b (rebind b (argmap :a))
+          :else
+          (compile-error "reordering necessary, not implemented"))))
+    
+
+
 
 (defn partition-2 [pred coll]
   ((juxt
@@ -194,7 +216,7 @@
                ((reduce (fn [b t]
                           (fn [e]
                             (generate-binary-filter e
-                                                    (list 'equal (extra-map t) (nth triple t))
+                                                    (list '= :a (extra-map t) :b (nth triple t))
                                                     b)))
                         down
                         filter-terms) x))]
@@ -223,6 +245,7 @@
         army (fn [parameters body]
                (fn [down]
                  (let [internal (child-bindings e)]
+                   (bset internal 'dependencies #{})
                    (bind-names internal (zipmap (map dekey (keys ibinds)) (vals ibinds)))
                    (compile-conjunction
                     internal body
@@ -260,31 +283,37 @@
 (defn compile-sum [e triple down]
   ())
 
-;; xxx - this should take an optional projection parameter
 (defn compile-query [e terms cont]
   ;; this has a better formulation in the new world? what about export
   ;; of solution? what about its projection?
   ;; the bindings of the tail need to escape, but not the
   ;; control edge (cardinality)
-  (let [e (compile-conjunction e (rest terms) (fn [e] (fn [] ())))]
-    (bset e 'generator (fn [bottom e] (list (list 'subquery bottom))))))
+  (let [body (rest (rest terms)) ;; smil - (if (vector? (second terms)) (rest terms) terms))
+        out (compile-conjunction e body (fn [e] (fn [] ())))
+        down (cont e)]
+    (fn []
+      ((compose 
+        (term e 'subquery (out))
+        down)))))
 
 (defn compile-expression [e terms down]
   (let [commands {'+ compile-simple-primitive
                   '* compile-simple-primitive
+                  '/ compile-simple-primitive
+                  '- compile-simple-primitive
+                  '< generate-binary-filter
+                  '> generate-binary-filter
                   'sort compile-simple-primitive ;; ascending and descending
                   'sum compile-sum
                   'str compile-simple-primitive
                   'insert-fact-btu! compile-insert
                   'fact-btu compile-edb
                   'range compile-simple-primitive
-                  ;; consider whether we want the real whole milk relational equal
-                  'equal generate-binary-filter
+                  '= compile-equal
                   'not-equal generate-binary-filter
                   'union compile-union
                   'return compile-return
-                  'query compile-query
-                  'less-than generate-binary-filter}
+                  'query compile-query}
         relname (first terms)]
     (if-let [c (commands relname)]
       (c e terms down)
@@ -303,11 +332,11 @@
     (apply bset2 e (rest (rest key)))))
 
 
-(defn compile-dsl [db bid terms]
+(defn compile-dsl [d bid terms]
   (let [e (new-bindings)
         ;; side effecting
         z (bset2 e
-                 'db db
+                 'db d
                  'register 3 ; fix
                  'bid bid
                  'empty [])

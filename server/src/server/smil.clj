@@ -1,5 +1,6 @@
 (ns server.smil
-  (:require [clojure.pprint :refer [pprint]]))
+  (:require [server.db :as db]
+            [clojure.pprint :refer [pprint with-pprint-dispatch]]))
 
 (def REMOVE_FACT 5)
 
@@ -43,7 +44,8 @@
 (def schemas {
               ;; Special forms
               'fact nil
-              'define! nil ;; @NOTE: define! is a special form due to multiple names...
+              'define! nil ;; Special due to multiple aliases
+              'query nil ;; Special due to optional parameterization
               
               ;; Macros
               'insert-fact! {:rest :facts}
@@ -52,7 +54,7 @@
 
               ;; native forms
               'insert-fact-btu! {:args [:entity :attribute :value :bag] :optional #{:bag}} ; bag can be inferred in SMIR
-              'query {:rest :body}
+              
               'union {:args [:params] :rest :members}
               'choose {:args [:params] :rest :members}
               'not {:args [:expr]}
@@ -71,8 +73,16 @@
                  '< {:args [:a :b]}
                  '<= {:args [:a :b]}})
 
-(defn get-schema [op]
-  (or (op schemas) (op primitives)))
+(defn get-schema
+  ([op] (or (op schemas) (op primitives)))
+  ([db op]
+   (let [schema (get-schema op)
+         implication (when-not schema
+                       (db/implication-of db (name op)))]
+     (if schema
+       schema
+       (when implication
+         {:args (vec (map keyword (first implication)))})))))
 
 (defn parse-args [schema body]
   ;; 1. If a keyword has been shifted into :kw
@@ -81,7 +91,7 @@
   ;; 2. If the value is a keyword, shift it into :kw and stop accepting positionals
   ;; 3. If we haven't exhausted our positionals, shift a positional to map to the value
   ;; 4. If the form accepts a rest parameter, shift the value onto the rest list
-  (:args (reduce
+  (let [state (reduce
           #(merge-state %1
                         (if (:kw %1) 
                           (if (keyword? %2)
@@ -102,7 +112,11 @@
                                 (throw (Exception.
                                         (str "Too many positional arguments without a rest argument. Expected "
                                              (count (:args schema))))))))))
-          {:args {} :kw nil :position (count (:args schema))} body)))
+          {:args {} :kw nil :position (count (:args schema))} body)
+        state (merge-state state (if (:kw state)
+                                   {:kw nil :args {(:kw state) (symbol (name (:kw state)))}}
+                                   nil))]
+  (:args state)))
 
 (defn validate-args [schema args]
   (let [params (into (:args schema) (:kwargs schema))
@@ -165,56 +179,66 @@
                      (throw (Exception.
                              (str "Invalid attribute '" %2 "'. Attributes must be keyword literals. Use fact-btu for free attributes"))))))
                {:entity (first body) :facts [] :attr nil}
-               (rest body))]
-    (tap (if (> (count (:facts state)) 0)
-      {:entity (:entity state) :facts (:facts state)}
-      {:entity (:entity state) :facts [[(:entity state)]]}) "FOO")))
+               (rest body))
+        state (merge-state state (if (:attr state)
+                                   {:attr nil :facts [[(:entity state) (name (:attr state)) (symbol (name (:attr state)))]]}
+                                   nil))
+        state (merge-state state (if (= (count (:facts state)) 0)
+                                   {:facts [[(:entity state)]]}
+                                   nil))]
+    state))
 
 (declare expand)
-(defn expanded [args]
-  (reduce-kv #(assoc %1 %2 (if (vector? %3) (into [] (map expand %3)) (expand %3))) {} args))
+(defn expand-each [db args]
+  (congeal-body (map #(expand db %1) args)))
 
-(defn expand [expr]
+(defn expand-values [db args]
+  (reduce-kv (fn [memo k v]
+               (assoc memo k (if (vector? v) (expand-each db v) (expand db v)))) {} args))
+
+(defn expand [db expr]
   (cond
     (seq? expr)
     (let [sexpr expr
           op (first sexpr)
-          body (rest sexpr)]
+          body (rest sexpr)
+          schema (get-schema db op)]
       (cond
-        (get-schema op) (let [schema (get-schema op)
-                           args (parse-args schema body)
+        schema (let [args (parse-args schema body)
                            valid (validate-args schema args)]
                                         ; Switch on op for special handling
                        (when-not valid (throw (Exception. (str "Invalid arguments for form " sexpr))))
                        (case op
                          ;; Macros
-                         insert-fact! (vec (map #(expand (cons 'insert-fact-btu! %1)) (:facts args)))
-                         remove-by-t! (expand ('insert-fact-btu! (:tick args) REMOVE_FACT nil))
+                         insert-fact! (expand-each db (map #(cons 'insert-fact-btu! %1) (:facts args)))
+                         remove-by-t! (expand db ('insert-fact-btu! (:tick args) REMOVE_FACT nil))
                          if (let [then (as-query (:then args))
                                    then ('query (:cond args) (rest then))
                                    else (as-query (:else args))]
                                ('choose ['return]
-                                        then
-                                        else))
+                                        (expand db then)
+                                        (expand db else)))
                          
                          ;; Native forms
-                         insert-fact-btu! (cons 'insert-fact-btu! (splat-map (expanded args)))
-                         query (cons 'query (congeal-body (map expand (:body args))))
-                         union (concat '(union) [(:params args)] (assert-queries (congeal-body (map expand (:members args)))))
-                         choose (concat '(choose) [(:params args)] (assert-queries (congeal-body (map expand (:members args)))))
-                         not (concat '(not) [(expand (:expr args))])
-                         context (cons 'context (splat-map (expanded args)))
+                         insert-fact-btu! (cons 'insert-fact-btu! (splat-map (expand-values db args)))
+                         union (concat '(union) [(:params args)] (assert-queries (expand-each db (:members args))))
+                         choose (concat '(choose) [(:params args)] (assert-queries (expand-each db (:members args))))
+                         not (concat '(not) [(expand db (:expr args))])
+                         context (cons 'context (splat-map (expand-values db args)))
 
                          ;; Default
-                         (cons op (splat-map (expanded args)))
+                         (cons op (splat-map (expand-values db args)))
                          ))
+        (= op 'query) (let [params (when (vector? (first body)) (first body))
+                            body (if params (rest body) body)]
+                        (concat ['query params] (expand-each db body)))
         (= op 'define!) (let [args (parse-define body)]
-                          (concat '(define!) (:header args) (into [] (congeal-body (map expand (:body args))))))
+                          (concat ['define!] (:header args) (expand-each db (:body args))))
         (= op 'fact) (let [args (parse-fact body)]
-                       (vec (map #(expand (cons 'fact-btu %1)) (:facts args))))
+                       (expand-each db (map #(cons 'fact-btu %1) (:facts args))))
         :else (throw (Exception. (str "Unknown operator '" op "'")))))
     (sequential? expr)
-    (map expand expr)
+    (expand-each db expr)
     :else expr))
 
 (defn returnable? [sexpr]
@@ -248,11 +272,16 @@
     :else
     {:inline [sexpr]}))
 
-(defn unpack [sexpr]
-  (first (:inline (unpack-inline (expand sexpr)))))
+(defn unpack [db sexpr]
+  (first (:inline (unpack-inline (expand db sexpr)))))
   
 
-(defn test-sm [sexpr]
+(defn format [sexpr]
+  (with-out-str (pprint sexpr)))
+
+(defn test-sm
+  ([sexpr] (test-sm nil sexpr))
+  ([db sexpr]
   (println "----[" sexpr "]----")
   (let [op (first sexpr)
         body (rest sexpr)
@@ -264,16 +293,16 @@
         _ (println " - args " args)
         valid (or (and (not schema) args) (validate-args schema args))
         _ (println " - valid " valid)
-        expanded (expand sexpr)
+        expanded (expand db sexpr)
         _ (println " - expanded " expanded)
         unpacked (first (:inline (unpack-inline expanded)))
         _ (println " - unpacked " unpacked)
         ]
-    (when valid (pprint unpacked))))
+    (when valid (pprint unpacked)))))
 
 ;; Test cases
 ;; (test-sm '(define! foo [a b] (fact bar :age a) (fact a :tag bar)))
-;; (test-sm '(query (insert-fact! [a b c] [1 2 3])))(
+;; (test-sm '(query (insert-fact! [a b c] [1 2 3])))
 ;; (test-sm '(union [person] (query (not (fact-btu :value person)) (fact person :company "kodowa"))))
 ;; (test-sm '(choose [person] (query (fact person)) (query (fact other :friend person))))
 ;; (test-sm '(query (+ (/ 2 x) (- y 7))))
