@@ -73,8 +73,16 @@
                  '< {:args [:a :b]}
                  '<= {:args [:a :b]}})
 
-(defn get-schema [op]
-  (or (op schemas) (op primitives)))
+(defn get-schema
+  ([op] (or (op schemas) (op primitives)))
+  ([db op]
+   (let [schema (get-schema op)
+         implication (when-not schema
+                       (db/implication-of db (name op)))]
+     (if schema
+       schema
+       (when implication
+         {:args (vec (map keyword (first implication)))})))))
 
 (defn parse-args [schema body]
   ;; 1. If a keyword has been shifted into :kw
@@ -194,10 +202,9 @@
     (let [sexpr expr
           op (first sexpr)
           body (rest sexpr)
-          impl (when db (db/implication-of db (name op)))]
+          schema (get-schema db op)]
       (cond
-        (get-schema op) (let [schema (get-schema op)
-                           args (parse-args schema body)
+        schema (let [args (parse-args schema body)
                            valid (validate-args schema args)]
                                         ; Switch on op for special handling
                        (when-not valid (throw (Exception. (str "Invalid arguments for form " sexpr))))
@@ -229,7 +236,6 @@
                           (concat ['define!] (:header args) (expand-each db (:body args))))
         (= op 'fact) (let [args (parse-fact body)]
                        (expand-each db (map #(cons 'fact-btu %1) (:facts args))))
-        impl (cons op (expand-each body))
         :else (throw (Exception. (str "Unknown operator '" op "'")))))
     (sequential? expr)
     (expand-each db expr)
