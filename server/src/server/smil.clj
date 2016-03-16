@@ -1,6 +1,6 @@
 (ns server.smil
   (:require [server.db :as db]
-            [clojure.pprint :refer [pprint]]))
+            [clojure.pprint :refer [pprint with-pprint-dispatch]]))
 
 (def REMOVE_FACT 5)
 
@@ -275,6 +275,9 @@
 (defn unpack [db sexpr]
   (first (:inline (unpack-inline (expand db sexpr)))))
   
+
+(defn format [sexpr]
+  (with-out-str (pprint sexpr)))
 
 (defn test-sm
   ([sexpr] (test-sm nil sexpr))
