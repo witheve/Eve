@@ -35,10 +35,14 @@
                                                                    "id" id})))
         send-flush (fn []
                      (println @results (type @results))
-                     (httpserver/send! connection (format-message {"type" (quotify "result")
-                                                                   "fields" (format-vec (map quotify keys))
-                                                                   "values" (format-vec @results)
-                                                                   "id" (quotify id)}))
+                     (httpserver/send! connection
+                                       (format-message
+                                        {"type" (quotify "result")
+                                         "fields" (format-vec (map quotify keys))
+                                         "values" (format-vec (map (fn [x] 
+                                                                     (format-vec (map quotify x)))
+                                                                   @results))
+                                         "id" (quotify id)}))
                      (swap! results (fn [x] ())))
         
         form  (repl/form-from-smil query)
