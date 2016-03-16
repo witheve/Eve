@@ -10,7 +10,7 @@
 ;; Runtime wrapper
 ;;---------------------------------------------------------
 
-(defonce eve (js/Runtime.indexer))
+(defonce eve (.indexer js/Runtime))
 
 (defn find-one [table & [info]]
   (.findOne eve (name table) (clj->js info)))
@@ -61,6 +61,18 @@
 
 (defonce example-state (atom {}))
 
+(defn get-selections [grid-id]
+  (@example-state (str grid-id "-selections")))
+
+(defn get-cells [grid-id]
+  (array {:x 4 :y 6 :width 6 :height 3}
+         {:x 1 :y 1}
+         {:x 4 :y 1 :width 5 :height 5}))
+
+(defn get-offset [grid-id]
+  (or (@example-state (str grid-id "-offset"))
+      {:x 0 :y 0}))
+
 (defn draw-grid [node elem]
   (let [ctx (.getContext node "2d")
         ratio (.-devicePixelRatio js/window)
@@ -102,7 +114,7 @@
          (> (+ y height) y2)
          (> (+ y2 height2) y))))
 
-(defn position-intersects-cells? [pos cells]
+(defn get-intersecting-cell [pos cells]
   (let [len (count cells)]
     (loop [cell-ix 0]
       (if (> cell-ix len)
@@ -112,15 +124,56 @@
             cell
             (recur (inc cell-ix))))))))
 
+(defn update-selection! [grid-id selection]
+  (swap! example-state assoc (str grid-id "-selections") selection))
+
+(defn update-offset! [grid-id offset]
+  (swap! example-state assoc (str grid-id "-offset") offset))
+
 (defn set-selection [event elem]
   (let [{:keys [x y]} (target-relative-coords event)
         {:keys [cell-size id cells]} (.-info elem)
-        selected-x (js/Math.floor (/ x cell-size))
-        selected-y (js/Math.floor (/ y cell-size))
+        selected-x (.floor js/Math (/ x cell-size))
+        selected-y (.floor js/Math (/ y cell-size))
         pos {:x selected-x :y selected-y :width 1 :height 1}
-        maybe-selected-cell (position-intersects-cells? pos cells)]
+        maybe-selected-cell (get-intersecting-cell pos cells)]
     (dispatch
-      (swap! example-state assoc (str id "-selections") (array (or maybe-selected-cell pos))))))
+      (update-selection! id (array (or maybe-selected-cell pos))))))
+
+(defn grid-keys [event elem]
+  (let [{:keys [id cells]} (.-info elem)
+        current-selection (first (get-selections id))
+        {x-offset :x y-offset :y} (get-offset id)
+        updated-pos (condp = (.-keyCode event)
+                      37 (-> (update-in current-selection [:x] dec)
+                             (update-in [:y] + y-offset))
+                      38 (-> (update-in current-selection [:y] dec)
+                             (update-in [:x] + x-offset))
+                      39 (-> (update-in current-selection [:x] + (:width current-selection))
+                             (update-in [:y] + y-offset))
+                      40 (-> (update-in current-selection [:y] + (:height current-selection))
+                             (update-in [:x] + x-offset))
+                      nil)
+        handled (condp = (.-keyCode event)
+                      13 (println "ENTER")
+                      nil)
+        handled (or updated-pos handled)]
+    (when updated-pos
+      (let [resized-pos {:x (:x updated-pos)
+                         :y (:y updated-pos)
+                         :width 1
+                         :height 1}
+            maybe-selected-cell (get-intersecting-cell resized-pos cells)
+            offset (if maybe-selected-cell
+                     {:x (- (:x resized-pos) (:x maybe-selected-cell))
+                      :y (- (:y resized-pos) (:y maybe-selected-cell))}
+                     {:x 0 :y 0})
+            final (or maybe-selected-cell resized-pos)]
+        (dispatch
+          (when offset (update-offset! id offset))
+          (update-selection! id (array final)))))
+    (when handled
+      (.preventDefault event))))
 
 (defn grid [info]
   (let [canvas (elem :t "canvas"
@@ -148,33 +201,30 @@
                                            :border (str "1px solid " (or color "blue")))))))
     (elem :children children
           :info info
+          :tabindex -1
           :click set-selection
+          :keydown grid-keys
           :style (style :position "relative"))))
+
 
 (defn root []
   (box :style (style :background "rgba(0,0,50,0.08)")
        :children (array (grid {:grid-width 500
                                :grid-height 500
-                               :selections (@example-state "main-selections")
-                               :cells (array {:x 4 :y 9 :width 6 :height 3}
-                                             {:x 1 :y 1}
-                                             {:x 4 :y 1 :width 5 :height 5})
+                               :selections (get-selections "main")
+                               :cells (get-cells "main")
                                :cell-size 40
                                :id "main"})
                         (grid {:grid-width 500
                                :grid-height 500
-                               :selections (@example-state "main-selections")
-                               :cells (array {:x 4 :y 9 :width 6 :height 3}
-                                             {:x 1 :y 1}
-                                             {:x 4 :y 1 :width 5 :height 5})
+                               :selections (get-selections "main")
+                               :cells (get-cells "main")
                                :cell-size 10
                                :id "main"})
                         (grid {:grid-width 500
                                :grid-height 500
-                               :selections (@example-state "main-selections")
-                               :cells (array {:x 4 :y 9 :width 6 :height 3}
-                                             {:x 1 :y 1}
-                                             {:x 4 :y 1 :width 5 :height 5})
+                               :selections (get-selections "main")
+                               :cells (get-cells "main")
                                :cell-size 100
                                :id "main"})
                         )))
@@ -201,7 +251,7 @@
 (defn init []
   (when (not @renderer)
     (reset! renderer (new js/Renderer))
-    (.appendChild js/document.body (.-content @renderer)))
+    (.appendChild (.-body js/document) (.-content @renderer)))
   (dispatch diff
             (add diff :woot {:foo 1 :bar 2}))
   (render))
