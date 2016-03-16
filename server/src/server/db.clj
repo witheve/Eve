@@ -1,4 +1,3 @@
-
 (ns server.db
   (:require [server.edb :as edb]
             [server.exec :as exec]))
@@ -30,7 +29,6 @@
 
 (defn weasl-implications-for [id handler]
   (list
-   (list 'allocate [0] 4)
    (list 'tuple [2] [1])
    (list 'bind [1] [2] 
          (list (list 'equal [3] [2 0] id) '(filter [3])
@@ -53,7 +51,6 @@
 (defn implication-of [db id]
   (let [impl (atom nil)
         terminus (fn [op tuple]
-                   (println "TERM" op tuple)
                    (when (= op 'insert)
                      (reset! impl tuple)))
         prog (weasl-implications-for id terminus)
