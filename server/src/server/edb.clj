@@ -22,13 +22,15 @@
         index-map  {insert-oid
                     (fn [c]
                       (fn [op tuple]
-                        (swap! tuples conj tuple)
-                        (doseq [i @listeners] (i op tuple))))
+                        (when (= op 'insert)
+                          (swap! tuples conj tuple)
+                          (doseq [i @listeners] (i op tuple)))))
                     
                     full-scan-oid
                     (fn [c]
                       (fn [op tuple]
-                        (doseq [i @tuples] (c 'insert i))))
+                        (if (= op 'flush) (c op tuple)
+                            (doseq [i @tuples] (c 'insert i)))))
 
                     attribute-scan-oid
                     (fn [c]

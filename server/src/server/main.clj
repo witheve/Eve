@@ -7,13 +7,13 @@
    [server.repl :as repl]
    [server.jsclient :as jsclient]))
 
-
+(def db (atom nil))
 
 (defn -main [& args]
   ;; load existing database
-  (let [d (edb/create-edb)
-        interactive (atom true)
-        server (atom ":8081")
+  (when (nil? @db) (reset! db (edb/create-edb)))
+  (let [interactive (atom true)
+        port (atom ":8081")
 
         ;; load the local metadata before starting membership
         flag-map
@@ -21,8 +21,8 @@
         
         parameter-map
         {"-s" log/set-pathname
-         "-p" (fn [x] (swap! server (fn [x] (Integer. x))))
-         "-e" (fn [x] (repl/eeval d (read-string x)))}
+         "-p" (fn [x] (swap! port (fn [x] (Integer. x))))
+         "-e" (fn [x] (repl/eeval @db (read-string x)))}
 
         
         arglist (fn arglist [args]
@@ -36,5 +36,5 @@
                               (arglist (rest (rest args))))
                           (println "wth man" (first args))))))]
     (arglist args)
-    (when @server (jsclient/serve d @server))
-    (when @interactive (repl/rloop d))))
+    (when @port (jsclient/serve @db @port))
+    (when @interactive (repl/rloop @db))))

@@ -1,4 +1,3 @@
-
 (ns server.db
   (:require [server.edb :as edb]
             [server.exec :as exec]))
@@ -25,24 +24,39 @@
 (def contains-oid 12)
 
 (defn insert-implication [db relname parameters program user bag]
-  (insert db relname
-          implication-oid (list parameters program) user bag))
+  (insert db (name relname)
+          implication-oid (list (map name parameters) program) user bag))
 
-(defn for-each-implication [db sig handler]
+(defn weasl-implications-for [id handler]
+  (list
+   (list 'tuple [2] [1])
+   (list 'bind [1] [2] 
+         (list (list 'equal [3] [2 0] id) '(filter [3])
+               (list 'equal [3] [2 1] implication-oid) '(filter [3])
+               (list 'send handler [2 2])))
+   (list 'open [3] edb/full-scan-oid [1])
+   (list 'send [3] [])))
+
+(defn for-each-implication [db id handler]
   ;; only really for insert, right?
   (let [terminus (fn [op tuple]
-                   (handler (first tuple) (second tuple)))
-        prog (list
-              (list 'allocate [0] 4)
-              (list 'tuple [2] [1])
-              (list 'bind [1] [2] 
-                    (list (list 'equal [3] [2 0] sig) '(filter [3])
-                          (list 'equal [3] [2 1] implication-oid) '(filter [3])
-                          (list 'send terminus [2 2])))
-              (list 'open [3] edb/full-scan-oid [1])
-              (list 'send [3] []))
-        
+                   (when (= op 'insert)
+                     (handler (first tuple) (second tuple))))
+        prog (weasl-implications-for id terminus)
         e (exec/open db prog [])]
+    (e 'insert [])
     (e 'flush [])))
 
+;; @FIXME: This relies on exec/open flushing synchronously to determine if the implication currently exists
+(defn implication-of [db id]
+  (let [impl (atom nil)
+        terminus (fn [op tuple]
+                   (when (= op 'insert)
+                     (reset! impl tuple)))
+        prog (weasl-implications-for id terminus)
+        e (exec/open db prog [])]
+    (e 'insert [])
+    (e 'flush [])
+    @impl))
+                   
 

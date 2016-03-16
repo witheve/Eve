@@ -1,3 +1,4 @@
+
 (ns server.compiler
   (:require
    [server.db :as db]
@@ -77,7 +78,7 @@
                      (let [out (gensym 'tuple)]
                        (allocate-register e out)
                        [out (list (apply term e 'tuple out arguments))])
-                     ['empty ()])]
+                     [[] ()])]
     (add-dependencies e channel)  ;; iff channel is free
     (apply add-dependencies e arguments)
     (fn []
@@ -95,7 +96,6 @@
             (bset inside-env 'register 3)
             (bset inside-env 'dependencies #{}))
         body (inside inside-env)
-
         tuple-names (reduce
                      (fn [b x]
                        (if (bget e 'bound x)
@@ -105,7 +105,6 @@
                          b))
                      ()
                      (bget inside-env 'dependencies))]
-    
     
     (if (> (count tuple-names) 0)
       (do
@@ -133,7 +132,7 @@
 
 (defn compile-return [e terms down]
   (compose
-   (generate-send e 'return-channel (second terms))
+   (generate-send e 'return-channel (if-let [k (second terms)] k ()))
    (down e)))
 
 (defn compile-simple-primitive [e terms rest]
@@ -223,6 +222,7 @@
         army (fn [parameters body]
                (fn [down]
                  (let [internal (child-bindings e)]
+                   (bset internal 'dependencies #{})
                    (bind-names internal (zipmap (map dekey (keys ibinds)) (vals ibinds)))
                    (compile-conjunction
                     internal body
@@ -260,14 +260,18 @@
 (defn compile-sum [e triple down]
   ())
 
-;; xxx - this should take an optional projection parameter
 (defn compile-query [e terms cont]
   ;; this has a better formulation in the new world? what about export
   ;; of solution? what about its projection?
   ;; the bindings of the tail need to escape, but not the
   ;; control edge (cardinality)
-  (let [e (compile-conjunction e (rest terms) (fn [e] (fn [] ())))]
-    (bset e 'generator (fn [bottom e] (list (list 'subquery bottom))))))
+  (let [body (rest (rest terms)) ;; smil - (if (vector? (second terms)) (rest terms) terms))
+        out (compile-conjunction e body (fn [e] (fn [] ())))
+        down (cont e)]
+    (fn []
+      ((compose 
+        (term e 'subquery (out))
+        down)))))
 
 (defn compile-expression [e terms down]
   (let [commands {'+ compile-simple-primitive
@@ -303,11 +307,11 @@
     (apply bset2 e (rest (rest key)))))
 
 
-(defn compile-dsl [db bid terms]
+(defn compile-dsl [d bid terms]
   (let [e (new-bindings)
         ;; side effecting
         z (bset2 e
-                 'db db
+                 'db d
                  'register 3 ; fix
                  'bid bid
                  'empty [])
