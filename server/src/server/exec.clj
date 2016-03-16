@@ -2,6 +2,10 @@
   (:require server.avl))
 
 
+(defn ignore-flush [registers db op c terms]
+  (c op registers))
+
+
 (defn print-program [p]
   (letfn [(mlist? [x] (or (list? x) (= (type x) clojure.lang.Cons)))
           (traverse [x indent]
@@ -130,10 +134,22 @@
   (let [source (register-get registers (nth terms 2))]
     (c op (register-set registers (second terms) source))))
 
-(defn exec-plus [registers db op c terms]
-  (c op (register-set registers (second terms)
-            (+ (register-get registers (nth terms 2))
-               (register-get registers (nth terms 3))))))
+;; these two are both the same, but at some point we may do some messing about
+;; with numeric values (i.e. exact/inexact)
+(defn ternary-numeric [f] 
+  [(fn [registers db op c terms]
+     (c op (register-set registers (second terms)
+                         (f (register-get registers (nth terms 2))
+                            (register-get registers (nth terms 3))))))
+   ignore-flush])
+  
+(defn ternary-numeric-boolean [f]
+  [(fn [registers db op c terms]
+     (c op (register-set registers (second terms)
+                         (f (register-get registers (nth terms 2))
+                            (register-get registers (nth terms 3))))))
+   ignore-flush])
+
 
 (defn exec-str [registers db op c terms]
   (let [inputs (map (fn [x] (register-get registers x))
@@ -149,20 +165,12 @@
       (c op (register-set registers (second terms) i)))))
 
   
-(defn exec-times [registers db op c terms]
-  (c (register-set registers (second terms)
-            (* (register-get registers (nth terms 2))
-               (register-get registers (nth terms 3))))))
-
 (defn exec-filter [registers db op c terms]
   (if (register-get registers (second terms))
     (c op registers)
     registers))
-  
-(defn exec-less? [registers db c terms] '())
 
-;; ok, this is the binary template, we could even macroize it
-(defn exec-equal [registers db op c terms] 
+(defn exec-equal [registers db op c terms]
   (let [[eq dest s1 s2] terms
         t1 (register-get registers s1)
         t2 (register-get registers s2)]
@@ -179,24 +187,26 @@
   ;; projection
   (c op (run d (second terms) registers op)))
 
-(defn ignore-flush [registers db op c terms]
-  (c op registers))
-
 
 (def command-map {'move      [exec-move      ignore-flush]
                   'filter    [exec-filter    ignore-flush]
-                  '+         [exec-plus      ignore-flush] 
-                  '*         [exec-times     ignore-flush]
+                  '+         (ternary-numeric +)
+                  '-         (ternary-numeric -)
+                  '*         (ternary-numeric *)
+                  '/         (ternary-numeric /)
+                  '>         (ternary-numeric-boolean >)
+                  '<         (ternary-numeric-boolean <)
+                  '>=        (ternary-numeric-boolean >=)
+                  '<=        (ternary-numeric-boolean <=)
                   'str       [exec-str       ignore-flush]
                   'range     [exec-range     ignore-flush]
                   'delta     [exec-delta     ignore-flush]
                   'tuple     [exec-tuple     ignore-flush]
-                  'equal     [exec-equal     ignore-flush]
+                  '=         [exec-equal     ignore-flush]
                   'sum       [exec-sum       exec-sum]
                   'sort      [exec-sort      exec-sort]
                   'subquery  [exec-subquery  exec-subquery]
                   'not-equal [exec-not-equal ignore-flush]
-                  'less?     [exec-less?     ignore-flush]
                   'open      [exec-open      ignore-flush]
                   'allocate  [exec-allocate  ignore-flush]
                   'send      [exec-send      exec-send]
@@ -238,7 +248,7 @@
         'flush (doseq [i program]
                  (let [command (first i)
                        cf (command-map command)]
-                   ((cf 1) @savereg d 'flush (fn [op t]()) i)))))))
+                   ((cf 1) @savereg d 'flush (fn [op t] ()) i)))))))
 
 (defn execution-close [e]
   (e 'close []))

@@ -31,8 +31,8 @@
   (list
    (list 'tuple [2] [1])
    (list 'bind [1] [2] 
-         (list (list 'equal [3] [2 0] id) '(filter [3])
-               (list 'equal [3] [2 1] implication-oid) '(filter [3])
+         (list (list '= [3] [2 0] id) '(filter [3])
+               (list '= [3] [2 1] implication-oid) '(filter [3])
                (list 'send handler [2 2])))
    (list 'open [3] edb/full-scan-oid [1])
    (list 'send [3] [])))
