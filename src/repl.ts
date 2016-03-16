@@ -20,6 +20,7 @@ export interface Query {
 
 interface ReplCard {
   id: string,
+  ix: number,
   state: CardState,
   focused: boolean,
   query: string,
@@ -28,6 +29,37 @@ interface ReplCard {
     values: Array<Array<any>>,
   } | string,
 }
+
+// ------------------
+// Storage functions
+// ------------------
+
+function saveReplCard(replCard: ReplCard) {
+  localStorage.setItem("everepl-" + replCard.id, JSON.stringify(replCard));  
+}
+
+function loadReplCards(): Array<ReplCard> {
+  let storedReplCards: Array<ReplCard> = [];
+  for (let item in localStorage) {
+    if (item.substr(0,7) === "everepl") {
+      let storedReplCard = JSON.parse(localStorage[item]);
+      storedReplCards.push(storedReplCard);
+    }
+  }
+  if (storedReplCards.length > 0) {
+    storedReplCards.map((r) => r.focused = false);
+    storedReplCards = storedReplCards.sort((a,b) => a.ix - b.ix);  
+  }
+  return storedReplCards;
+}
+
+function deleteReplCard(replCard: ReplCard) {
+  localStorage.removeItem("everepl-" + replCard.id);
+}
+
+// ------------------
+// Server functions
+// ------------------
 
 let server = { connected: false, queue: [], ws: null, timeout: 1};
 
@@ -39,7 +71,7 @@ function connectToServer() {
   let ws: WebSocket = new WebSocket(wsAddress, []);
   server.ws = ws;
 
-  ws.onopen = function(e: Event) {
+  ws.onopen = function(e: Event) {    
     server.connected = true;
     server.timeout = 1;
     while(server.queue.length > 0) {
@@ -68,9 +100,11 @@ function connectToServer() {
           fields: parsed.fields,
           values: parsed.values,
         }
+        saveReplCard(targetCard);
       } else if (parsed.type === "error") {
         targetCard.state = CardState.ERROR;
         targetCard.result = parsed.cause;
+        saveReplCard(targetCard);
       } else if (parsed.type === "close") {
         let removeIx = replCards.map((r) => r.id).indexOf(parsed.id);
         if (removeIx >= 0) {
@@ -81,12 +115,15 @@ function connectToServer() {
             newFocusIx = removeIx - 1 < 0 ? 0 : removeIx - 1;
           }
           setTimeout(() => {
+            deleteReplCard(replCards[removeIx]);
             replCards.splice(removeIx,1);
+            //replCards.forEach((r,i) => r.ix = i);
             if (newFocusIx !== undefined) {
+              replCards.forEach((r) => r.focused = false);
               replCards[newFocusIx].focused = true;
             }
             app.dispatch("rerender", {}).commit();
-          }, 250);
+          }, 250);            
         }
       }
     }
@@ -120,6 +157,7 @@ function sendMessage(message): boolean {
 function newReplCard(): ReplCard {
   let replCard: ReplCard = {
     id: uuid(),
+    ix: replCards.length > 0 ? replCards.map((r) => r.ix).pop()+1 : 1,
     state: CardState.NONE,
     focused: false,
     query: undefined,
@@ -127,6 +165,10 @@ function newReplCard(): ReplCard {
   }
   return replCard;
 }
+
+// ------------------
+// Event handlers
+// ------------------
 
 function queryInputKeydown(event, elem) {
   let textArea = event.srcElement;
@@ -141,6 +183,7 @@ function queryInputKeydown(event, elem) {
       type: "query",
       query: queryString,
     }
+    replCards[thisReplCardIx].query = queryString;
     replCards[thisReplCardIx].state = CardState.PENDING;    
     let sent = sendMessage(query);
     if (sent) {
@@ -200,6 +243,7 @@ function queryInputKeydown(event, elem) {
 
 function replCardClick(event, elem) {
   let thisReplCardIx = elem.ix;
+  console.log(replCards[thisReplCardIx].ix);
   replCards.forEach((r) => r.focused = false);
   replCards[elem.ix].focused = true;
   app.dispatch("rerender", {}).commit();
@@ -211,8 +255,12 @@ function focusQueryBox(node,element) {
   }
 }
 
+// ------------------
+// Element generation
+// ------------------
+
 function newReplCardElement(replCard: ReplCard) { 
-  let queryInput = {t: "textarea", c: "query-input", placeholder: "query", keydown: queryInputKeydown, key: `${replCard.id}${replCard.focused}`, postRender: focusQueryBox, focused: replCard.focused};
+  let queryInput = {t: "textarea", c: "query-input", text: replCard.query, placeholder: "query", keydown: queryInputKeydown, key: `${replCard.id}${replCard.focused}`, postRender: focusQueryBox, focused: replCard.focused};
   // Set the css according to the card state
   let resultcss = "query-result"; 
   let resultText = undefined;
@@ -257,7 +305,8 @@ function newReplCardElement(replCard: ReplCard) {
 }
 
 // Create an initial repl card
-let replCards: Array<ReplCard> = [newReplCard()];
+let replCards: Array<ReplCard> = loadReplCards();
+replCards.push(newReplCard());
 replCards[0].focused = true;
 
 function root() {
