@@ -8,7 +8,7 @@
    [server.exec :as exec]
    [server.compiler :as compiler]
    [server.smil :as smil]
-   [clojure.string :as string])) 
+   [clojure.string :as string]))
 
 (def bag (atom 10))
 ;; ok, this is a fucked up rewrite right now. take a parameteric
@@ -52,7 +52,7 @@
     (e 'flush [])))
 
 
-(defn handle-connection [d channel]
+(defn handle-connection [db channel]
   ;; this seems a little bad..the stack on errors after this seems
   ;; to grow by one frame of org.httpkit.server.LinkingRunnable.run(RingHandler.java:122)
   ;; for every reception. i'm using this interface wrong or its pretty seriously
@@ -64,13 +64,20 @@
      ;; create relation and create specialization?
      (let [input (json/read-str data)
            query (input "query")
-           qs (if query (smil/unpack d (read-string query)) nil)
+           expanded (when query (smil/unpack db (read-string query)))
            t (input "type")]
+       
+       (println (str "[" (.format (java.text.SimpleDateFormat. "hh:mm:ss") (java.util.Date.)) "] Rcvd " t))
+       (println "  Raw:")
+       (println "   " (string/join "\n    " (string/split query #"\n")))
+       (println "  Expanded:")
+       (println "    " (smil/format expanded))
+       
        (cond
-         (and (= t "query")  (= (first qs) 'query)) (start-query d qs (input "id") channel)
-         (and (= t "query")  (= (first qs) 'define!))
+         (and (= t "query")  (= (first expanded) 'query)) (start-query db expanded (input "id") channel)
+         (and (= t "query")  (= (first expanded) 'define!))
          (do
-           (repl/define d qs)
+           (repl/define db expanded)
            (httpserver/send! channel (format-message {"type" (quotify "result")
                                                                    "fields" "[]"
                                                                    "values" "[]"
