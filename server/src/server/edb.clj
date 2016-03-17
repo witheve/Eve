@@ -1,5 +1,8 @@
 (ns server.edb)
 
+;; xxx - reconcile with smil
+(def remove-oid 5)
+
 (def insert-oid 20)
 (def full-scan-oid 21)
 (def attribute-scan-oid 22)

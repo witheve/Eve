@@ -2,16 +2,35 @@ body {
   background-color: lightgray;
 }
 
-.repl-root {
+.card-root {
   margin: auto;
   padding: 20px;
   width: 80%;
 }
 
+.status-bar {  
+  width: 80%;
+  background-color: #2e2e2e;
+  border: 3px solid black;
+  margin: 10px auto 0px auto;
+  padding: 10px;
+}
+
+.status-bar .text {
+  font-family: sans-serif;
+  color: #f0f0f0;
+}
+
 .repl-card {
   background-color: rgb(74, 64, 136);
-  margin: 20px;
+  margin-bottom: 20px;
   padding: 5px;
+  opacity: 1;
+  transition: opacity 0.25s;
+}
+
+.noheight {
+  opacity: 0;
 }
 
 .selected {
@@ -42,6 +61,10 @@ body {
 
 .pending {
   border-left: 5px solid yellow;
+}
+
+.closed {
+  border-left: 5px solid black;
 }
 
 .table

@@ -209,6 +209,7 @@
         ;; ech
         argmap (zipmap (range 3) triple)
         channel-name (gensym 'edb-channel)
+        dchannel-name (gensym 'edb-channel)
         index-name (gensym 'edb-index)
         filter-terms (set/intersection (set index-outputs) (set bound))
         extra-map (zipmap filter-terms (map (fn [x] (gensym 'xtra)) filter-terms))
@@ -229,7 +230,9 @@
     (compose
      ;; we decided to float these to the top
      (generate-bind e body free channel-name)
-     (term e 'open index-name specoid channel-name)
+     ;; needs to take a projection set for the indices
+     (term e 'delta-e dchannel-name channel-name)
+     (term e 'open index-name specoid dchannel-name)
      ;; this should be index outputs
      (generate-send e index-name bound))))
 
