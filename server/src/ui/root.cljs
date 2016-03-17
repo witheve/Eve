@@ -260,20 +260,34 @@
   (let [{:keys [id cells]} (.-info elem)
         current-selection (last (get-selections id))
         {x-offset :x y-offset :y} (get-offset id)
-        updated-pos (condp = (.-keyCode event)
-                      37 (-> (update-in current-selection [:x] dec)
-                             (update-in [:y] + y-offset))
-                      38 (-> (update-in current-selection [:y] dec)
-                             (update-in [:x] + x-offset))
-                      39 (-> (update-in current-selection [:x] + (:width current-selection))
-                             (update-in [:y] + y-offset))
-                      40 (-> (update-in current-selection [:y] + (:height current-selection))
-                             (update-in [:x] + x-offset))
-                      nil)
+        shift? (.-shiftKey event)
+        updated-pos (if-not shift?
+                      (condp = (.-keyCode event)
+                        37 (-> (update-in current-selection [:x] dec)
+                               (update-in [:y] + y-offset))
+                        38 (-> (update-in current-selection [:y] dec)
+                               (update-in [:x] + x-offset))
+                        39 (-> (update-in current-selection [:x] + (:width current-selection))
+                               (update-in [:y] + y-offset))
+                        40 (-> (update-in current-selection [:y] + (:height current-selection))
+                               (update-in [:x] + x-offset))
+                        nil))
+        extended (if shift?
+                   (condp = (.-keyCode event)
+                     37 (update-in current-selection [:width] dec)
+                     38 (update-in current-selection [:height] dec)
+                     39 (update-in current-selection [:width] inc)
+                     40 (update-in current-selection [:height] inc)
+                     nil))
         handled (condp = (.-keyCode event)
                       13 (println "ENTER")
                       nil)
         handled (or updated-pos handled)]
+    (when extended
+      (dispatch
+        (update-offset! id {:x 0 :y 0})
+        (update-extending-selection! id true)
+        (update-selection! id (array extended))))
     (when updated-pos
       (let [resized-pos {:x (:x updated-pos)
                          :y (:y updated-pos)
@@ -287,9 +301,19 @@
             final (or maybe-selected-cell resized-pos)]
         (dispatch
           (when offset (update-offset! id offset))
+          (update-extending-selection! id false)
           (update-selection! id (array final)))))
     (when handled
       (.preventDefault event))))
+
+(defn grid-keys-up [event elem]
+  ;; check for shift key if we were expanding
+  (let [{:keys [id]} (.-info elem)]
+    (when (and (= 16 (.-keyCode event))
+               (get-extending-selection id))
+      (dispatch
+        (update-extending-selection! id false)
+        (stop-selecting event elem)))))
 
 (defn grid [info]
   (let [canvas (elem :t "canvas"
@@ -327,6 +351,7 @@
           :mousemove extend-selection
           :mouseup stop-selecting
           :keydown grid-keys
+          :keyup grid-keys-up
           :style (style :position "relative"))))
 
 
