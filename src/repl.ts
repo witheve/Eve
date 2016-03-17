@@ -44,10 +44,17 @@ function rerender() {
   }
   // Batch delete closed cards on rerender
   let closedCards = replCards.filter((r) => r.state === CardState.CLOSED);
-  for (let card of closedCards) {
-    deleteStoredReplCard(card);
-    replCards.splice(replCards.map((r) => r.id).indexOf(card.id),1);    
+  if (server.timer !== undefined) {
+    clearTimeout(server.timer);
   }
+  server.timer = setTimeout(() => {
+    console.log(closedCards)
+    for (let card of closedCards) {
+      deleteStoredReplCard(card);
+      replCards.splice(replCards.map((r) => r.id).indexOf(card.id),1);
+    }
+    app.dispatch("rerender", {}).commit();
+  }, 250);
   // Reindex cards if any have been removed
   if (closedCards !== undefined) {
     replCards.forEach((r,i) => r.ix = i);    
@@ -59,6 +66,7 @@ function rerender() {
     replCards.forEach((r) => r.focused = false);
     let focusedCard = replCards[newFocusIx];
     if (focusedCard === undefined) {
+      console.log(replCards)
       focusedCard = replCards[0];
     }
     focusedCard.focused = true;
@@ -104,7 +112,7 @@ function deleteStoredReplCard(replCard: ReplCard) {
 // Server functions
 // ------------------
 
-let server = { state: ReplState.CONNECTING, queue: [], ws: null, timeout: 0};
+let server = { state: ReplState.CONNECTING, queue: [], ws: null, timer: undefined, timeout: 0};
 
 app.renderRoots["repl"] = root;
 connectToServer();
@@ -155,7 +163,6 @@ function connectToServer() {
         let removeIx = replCards.map((r) => r.id).indexOf(parsed.id);
         if (removeIx >= 0) {
           replCards[removeIx].state = CardState.CLOSED;
-          //delayedRerender(250);
         }
       }
     }
@@ -287,10 +294,9 @@ function replCardClick(event, elem) {
 
 function deleteAllCards(event, elem) {
   replCards.forEach(deleteReplCard);
-  rerender();
 }
 
-function focusQueryBox(node,element) {
+function focusQueryBox(node, element) {
   if (element.focused) {
     node.focus();
   }
