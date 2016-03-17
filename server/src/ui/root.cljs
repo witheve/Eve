@@ -256,6 +256,53 @@
       (update-selection! id final)
       (update-extending-selection! id false))))
 
+(defn remove-overlap [cells updated-cells axis-and-direction-map]
+  (let [changed (.slice updated-cells)
+        final (.slice cells)
+        width-direction (or (:width axis-and-direction-map) 0)
+        height-direction (or (:height axis-and-direction-map) 0)]
+    (while (not= 0 (.-length changed))
+      (let [current-changed (.shift changed)]
+        (loop [ix 0]
+          (if (< ix (count final))
+            (let [cell-to-check (aget final ix)]
+              (if (or (= cell-to-check current-changed)
+                      (not (cell-intersects? current-changed cell-to-check)))
+                (recur (inc ix))
+                (do
+                  ;; determining the overlap is a matter of subtracting the left coordinate
+                  ;; of one from the right coordinate of the other (and the equivalent for
+                  ;; up and down), however because the change can be negative which is the
+                  ;; left and which is the right might change.
+                  (let [left (if (> width-direction 0)
+                               (:x cell-to-check)
+                               (:x current-changed))
+                        right (if (> width-direction 0)
+                                (+ (:x current-changed) (:width current-changed))
+                                (+ (:x cell-to-check) (:width cell-to-check)))
+                        width-overlap (* width-direction (- right left))
+                        top (if (> height-direction 0)
+                              (:y cell-to-check)
+                              (:y current-changed))
+                        bottom (if (> height-direction 0)
+                                (+ (:y current-changed) (:height current-changed))
+                                (+ (:y cell-to-check) (:height cell-to-check)))
+                        height-overlap (* height-direction (- bottom top))
+                        ;; modify it to remove the overlap by moving it over based on the
+                        ;; overlap size
+                        modified (-> cell-to-check
+                                     (update-in [:x] + width-overlap)
+                                     (update-in [:y] + height-overlap))]
+                    ;; store the modified version and it to the list of things we
+                    ;; need to check for overlap
+                    (.push changed modified)
+                    (.push final modified)
+                    ;; remove the original item from final
+                    (.splice final ix 1)
+                    ;; look at the same ix since we just removed this cell
+                    (recur ix)))))))))
+    final))
+
 (defn non-zero-inc [number]
   (if (= number -1)
     1
@@ -271,6 +318,7 @@
         current-selection (last (get-selections id))
         {x-offset :x y-offset :y} (get-offset id)
         shift? (.-shiftKey event)
+        ;; if shift isn't pressed then this is moving the selection
         updated-pos (if-not shift?
                       (condp = (.-keyCode event)
                         37 (-> (update-in current-selection [:x] dec)
@@ -282,8 +330,12 @@
                         40 (-> (update-in current-selection [:y] + (:height current-selection))
                                (update-in [:x] + x-offset))
                         nil))
+        ;; if shift is pressed then it's extending the selection rect
         extended (if shift?
                    (condp = (.-keyCode event)
+                     ;; we use non-zero-inc/dec here because the size of the selection
+                     ;; should always include the intially selected cell. So instead
+                     ;; of a width of zero it will always be 1 or -1
                      37 (update-in current-selection [:width] non-zero-dec)
                      38 (update-in current-selection [:height] non-zero-dec)
                      39 (update-in current-selection [:width] non-zero-inc)
@@ -292,13 +344,19 @@
         handled (condp = (.-keyCode event)
                       13 (println "ENTER")
                       nil)
-        handled (or updated-pos handled)]
+        handled (or updated-pos extended handled)]
     (when extended
       (dispatch
+        ;; there's no offset if we're extending
         (update-offset! id {:x 0 :y 0})
         (update-extending-selection! id true)
         (update-selection! id (array extended))))
     (when updated-pos
+      ;; when we move the selection it becomes a unit-size selection
+      ;; we then have to check if that unit is currently occupied by
+      ;; a cell. If it is, we select the cell and store the offset to
+      ;; make sure that if we're just passing through we end up in the
+      ;; same row or column as we started.
       (let [resized-pos {:x (:x updated-pos)
                          :y (:y updated-pos)
                          :width 1
@@ -324,6 +382,10 @@
       (dispatch
         (update-extending-selection! id false)
         (stop-selecting event elem)))))
+
+(defn start-resize [event elem]
+  (.stopPropagation event)
+  )
 
 (defn grid [info]
   (let [canvas (elem :t "canvas"
@@ -353,7 +415,19 @@
                                            :position "absolute"
                                            :top (* y cell-size)
                                            :left (* x cell-size)
-                                           :border (str "1px solid " (or color "blue")))))))
+                                           :border (str "1px solid " (or color "blue")))
+                             ;; add a resize handle to the selection
+                             :children (array (elem :mousedown start-resize
+                                                    ;; mouseup and mousemove can't be handled here since it's
+                                                    ;; fairly unlikely that your mouse will be exactly over the
+                                                    ;; resize handle as you're resizing. These are handled globally
+                                                    ;; on the window
+                                                    :style (style :width 10
+                                                                  :height 10
+                                                                  :position "absolute"
+                                                                  :bottom -5
+                                                                  :right -5
+                                                                  :background "blue")))))))
     (elem :children children
           :info info
           :tabindex -1
