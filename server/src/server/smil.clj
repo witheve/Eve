@@ -1,6 +1,6 @@
 (ns server.smil
   (:require [server.db :as db]
-            [clojure.pprint :refer [pprint with-pprint-dispatch]]))
+            [clojure.string :as string]))
 
 (def REMOVE_FACT 5)
 
@@ -78,7 +78,7 @@
   ([db op]
    (let [schema (get-schema op)
          implication (when-not schema
-                       (db/implication-of db (name op)))]
+                       (when db (db/implication-of db (name op))))]
      (if schema
        schema
        (when implication
@@ -233,7 +233,9 @@
                             body (if params (rest body) body)]
                         (concat ['query params] (expand-each db body)))
         (= op 'define!) (let [args (parse-define body)]
-                          (concat ['define!] (:header args) (expand-each db (:body args))))
+                          (with-meta
+                            (concat ['define!] (:header args) (expand-each db (:body args)))
+                            args))
         (= op 'fact) (let [args (parse-fact body)]
                        (expand-each db (map #(cons 'fact-btu %1) (:facts args))))
         :else (throw (Exception. (str "Unknown operator '" op "'")))))
@@ -247,12 +249,14 @@
 (defn unpack-inline [sexpr]
   (cond
     (and (seq? sexpr) (#{'query 'define!} (first sexpr)))
-    {:inline [(concat
-               [(first sexpr)]
-               (reduce
-                #(let [{inline :inline query :query} (unpack-inline %2)]
-                   (into (into %1 query) inline))
-                [] (rest sexpr)))]
+    {:inline [(with-meta
+               (concat
+                [(first sexpr)]
+                (reduce
+                 #(let [{inline :inline query :query} (unpack-inline %2)]
+                    (into (into %1 query) inline))
+                 [] (rest sexpr)))
+               (meta sexpr))]
      :query []}
     
     (and (seq? sexpr) (returnable? sexpr))
@@ -275,9 +279,67 @@
 (defn unpack [db sexpr]
   (first (:inline (unpack-inline (expand db sexpr)))))
   
+(defn print-indent
+  ([indent] (print-indent indent 0))
+  ([indent offset]
+  (print (apply str (repeat (+ (* indent 2) offset) " ")))))
 
-(defn format [sexpr]
-  (with-out-str (pprint sexpr)))
+(defn print-expr [& args]
+  (print (string/join
+          " "
+          (map #(condp (fn [x y] (= (type y) x)) %1
+                  nil "nil"
+                  java.lang.String (str "\"" %1 "\"")
+                  (str %1))
+               args))))
+
+(defn print-smil [sexpr & {:keys [indent] :or {indent 0}}]
+   (cond
+     (not (seq? sexpr))
+     (if (sequential? sexpr)
+       (map #(print-smil %1 :indent indent) sexpr)
+       (print-expr sexpr))
+
+     (= 'query (first sexpr))
+     (do
+       (print-indent indent)
+       (print "(")
+       (print-expr (first sexpr) (second sexpr))
+       (println)
+       (doseq [child (drop 2 sexpr)]
+         (print-smil child :indent (+ indent 1)))
+       (print-indent indent)
+       (println ")"))
+
+     (= 'define! (first sexpr))
+     (let [m (meta sexpr)
+           header (partition 2 (:header m))
+           pair (first header)
+           skip (count (:header m))
+           body (drop skip (rest sexpr))]
+       (print-indent indent)
+       (print "(")
+       (print-expr (first sexpr) (first pair) (second pair))
+       (println)
+       (doseq [pair (rest header)]
+         (print-indent indent 9)
+         (print-expr (first pair) (second pair))
+         (println))
+       (doseq [child body]
+         (print-smil child :indent (+ indent 1)))
+       (print-indent indent)
+       (println ")"))
+     
+     :else
+     (do
+       (print-indent indent)
+       (print "(")
+       (print-expr (first sexpr))
+       (doseq [expr (rest sexpr)]
+         (print " ")
+         (print-smil expr :indent (+ indent 1)))
+       (println ")"))
+     ))
 
 (defn test-sm
   ([sexpr] (test-sm nil sexpr))
@@ -298,7 +360,7 @@
         unpacked (first (:inline (unpack-inline expanded)))
         _ (println " - unpacked " unpacked)
         ]
-    (when valid (pprint unpacked)))))
+    (when valid (print-smil unpacked)))))
 
 ;; Test cases
 ;; (test-sm '(define! foo [a b] (fact bar :age a) (fact a :tag bar)))
