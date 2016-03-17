@@ -347,8 +347,8 @@ function generateReplCardElement(replCard: ReplCard) {
 
 function generateStatusBarElement() {
   let status = {c: "left", text: `Status: ${ReplState[server.state]}`};
-  let trash = {c: "ion-ios-trash right", click: deleteAllCards};
-  let refresh = {c: "ion-refresh left", click: reconnect};    
+  let trash = {c: "ion-ios-trash button right", click: deleteAllCards};
+  let refresh = {c: "ion-refresh button left", text: " Reconnect", click: reconnect};    
   let statusBar = {
     id: "status-bar",
     c: "status-bar",
