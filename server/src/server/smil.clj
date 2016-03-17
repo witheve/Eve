@@ -53,7 +53,7 @@
               'if {:args [:cond :then :else]}
 
               ;; native forms
-              'insert-fact-btu! {:args [:entity :attribute :value :bag] :optional #{:bag}} ; bag can be inferred in SMIR
+              'insert-fact-btu! {:args [:entity :attribute :value :bag] :kwargs [:tick] :optional #{:bag :tick}} ; bag can be inferred in SMIR
               
               'union {:args [:params] :rest :members}
               'choose {:args [:params] :rest :members}
