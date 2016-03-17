@@ -38,7 +38,7 @@
 
 ;; just a global log right now, lets not think about relation oid
 (defn open-log []
-  (let [p (str @store-pathname "log" (db/now))]
+  (let [p (str @store-pathname "log" (edb/now))]
     ;; we should create this on the first write, so that the
     ;; log timestamp indicates the beginning of the record, and
     ;; not some arbitrary point before that

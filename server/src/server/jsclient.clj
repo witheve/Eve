@@ -27,8 +27,8 @@
 
 
 (defn start-query [d query id connection]
-  (let [keys (second query)
-        results (atom ())
+  (let [results (atom ())
+        [form keys]  (repl/form-from-smil query)
         send-error (fn [x]
                      (httpserver/send! connection (format-message {"type" (quotify "error")
                                                                    "cause" x
@@ -42,7 +42,7 @@
                                                                    "id" (quotify id)}))
                      (swap! results (fn [x] ())))
         
-        form  (repl/form-from-smil query)
+
         prog (compiler/compile-dsl d @bag form)
         res (fn [tuple]
               (condp = (tuple 0)
@@ -51,8 +51,8 @@
                 'error (send-error (str tuple))))
         
         e (exec/open d prog res)]
-    (e ['insert nil nil nil nil nil])
-    (e ['flush nil nil nil nil nil])))
+    (e 'insert)
+    (e 'flush)))
 
 
 (defn handle-connection [db channel]

@@ -10,8 +10,9 @@
 (def db (atom nil))
 
 (defn -main [& args]
-  ;; load existing database
-  (when (nil? @db) (reset! db (edb/create-edb)))
+  ;; load existing database..change the way the user is bound here, should go through
+  ;; a shim. should also not be exposed to weasl 
+  (when (nil? @db) (reset! db (edb/create-edb @repl/user)))
   (let [interactive (atom true)
         port (atom ":8081")
 

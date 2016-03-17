@@ -1,9 +1,24 @@
 (ns server.exec
   (:require [server.edb :as edb]
+            [clojure.test :as test]
             [server.avl :as avl]))
 
-(defn ignore-flush [r db c terms]
-  (c r))
+(def op-reg [3])
+(def object-array-type (class (object-array 1)))
+
+;; fold op back into r
+(declare build)
+
+(defn print-registers [r]
+  (map (fn [x]
+         (cond
+           (fn? x) "λ " 
+           (nil? x) ". "
+           (= x ()) "()"
+           (= object-array-type (type x)) (print-registers x)
+           :else (str x)))
+       r))
+
 
 (defn print-program [p]
   (letfn [(mlist? [x] (or (list? x) (= (type x) clojure.lang.Cons)))
@@ -27,6 +42,17 @@
               :else (str "<unknown>")))]
     (traverse p 0)))
 
+;; these register indirections could be resolved at build time? yeah, kinda
+
+
+(defn rget [r ref]
+  (cond (not (vector? ref)) ref
+        ;; special case of constant vector, empty
+        (= (count ref) 0) ref
+        (= (count ref) 1) (aget r (ref 0))
+        :else 
+        (rget (aget r (ref 0)) (subvec ref 1))))
+
 (defn rset [r ref v]
   (let [c (count ref)]
     (cond 
@@ -34,47 +60,112 @@
       (= c 1) (if (> (ref 0) (count r))
                 (do (println "exec error" (ref 0) "is greater than" (count r))
                     (throw c))
-                (assoc r (ref 0) v))
+                (aset r (ref 0) v))
       :else 
-      (assoc r (ref 0) 
-             (rset (r (ref 0)) (subvec ref 1) v)))))
-
-(defn rget [r ref]
-  (cond (not (vector? ref)) ref
-        ;; special case of constant vector, empty
-        (= (count ref) 0) ref
-        ;; some persistent lists slip in here
-        (= (count ref) 1) (nth r (ref 0))
-        :else 
-        (rget (r (ref 0)) (subvec ref 1))))
+      (rset (aget r (ref 0)) (subvec ref 1) v))))
 
 
-;; support singletons?
-(defn exec-tuple [r db c terms]
-  (c (rset r (second terms)
-                (vec (map (fn [x] (rget r x)) (rest (rest terms)))))))
+;; simplies - cardinality preserving, no flush
 
 
-(defn exec-sort [r db c terms]
-  (let [state (avl/sorted-map)]
-    (condp = (r 0)
-      'insert (conj state terms)
-      'remove (disj state terms))))
+;; flushes just roll on by
+(defn simple [f]
+  (fn [db terms c]
+    (fn [r]
+      (when (= (rget r op-reg) 'insert)
+        (f r terms))
+      (c r))))
+    
 
-;; sum cdest pararms body?
-(defn exec-sum [r db c terms]
-  (let [total (atom 0)]
-    (fn [t]
-      (condp = (r 0)
-        'insert (swap! total (fn [x] (+ x (nth terms 2))))
-        'remove (swap! total (fn [x] (- x (nth terms 2))))
-        'flush (swap! total (fn [x] (- x (nth terms 2))))))))
+(defn doprint [r terms]
+  (println (map (fn [x] (rget r x)) terms)))
+  
+(defn allocate [r terms]
+  (rset r (second terms) (vec (repeat (nth terms 2) nil))))
+
+(defn tuple [d terms c]
+  (fn [r]
+    (rset r (second terms)
+          (object-array (map (fn [x] (rget r x)) (rest (rest terms)))))
+    (c r)))
+
+;; these two are both the same, but at some point we may do some messing about
+;; with numeric values (i.e. exact/inexact)
+(defn ternary-numeric [f]
+  (simple (fn [r terms]
+            (rset r (second terms)
+                  (f (rget r (nth terms 2))
+                     (rget r (nth terms 3)))))))
+
+  
+(defn ternary-numeric-boolean [f]
+  (simple (fn [r terms]
+            (rset r (second terms)
+                  (f (rget r (nth terms 2))
+                     (rget r (nth terms 3)))))))
+
+(defn move [r terms]
+  (let [source (rget r (nth terms 2))]
+    (rset r (second terms) source)))
+
+(defn dostr [r terms]
+  (let [inputs (map (fn [x] (rget r x))
+                    (rest (rest terms)))]
+     (rset r (second terms) (apply str inputs))))
+
+(defn doequal [r terms]
+  (let [[eq dest s1 s2] terms
+        t1 (rget r s1)
+        t2 (rget r s2)]
+    (rset r dest (= t1 t2))))
+
+(defn do-not-equal [r terms]
+   (rset r (nth terms 1)
+         (not (= (rget r (nth terms 2))
+                 (rget r (nth terms 3))))))
+
+
+
+;; staties
+
+
+(defn dorange [d terms c]
+  (fn [r]
+    (let [low  (rget r (nth terms 2))
+          high (rget r (nth terms 3))]
+      ;; need to copy the file here?
+      (doseq [i (range low high)]
+        (c (rset r (second terms) i))))))
+
+
+(defn dofilter [d terms c]
+  (fn [r]
+    ;; pass flush    
+    (when (rget r (second terms))
+      (c r))))
+
+
+(defn dosort [d terms c]
+  (fn [r]
+    (let [state (avl/sorted-map)]
+      (condp = (rget r op-reg)
+        'insert (conj state terms)
+        'remove (disj state terms)))))
+
+(defn sum [d terms c]
+  (fn [r]
+    (let [total (atom 0)]
+      (fn [t]
+        (condp = (rget r op-reg)
+          'insert (swap! total (fn [x] (+ x (nth terms 2))))
+          'remove (swap! total (fn [x] (- x (nth terms 2))))
+          'flush (swap! total (fn [x] (- x (nth terms 2)))))))))
 
 
 ;; a delta function specifically to translate assertions and removals
 ;; into the operator stream used by the runtime. make transactional
-(defn exec-delta-e [register d c terms]
-  (let [[delto dest out] terms
+(defn delta-e [d terms c]
+  (let [[delto out in] terms
         assertions (atom {})
         record (fn [m k] (if-let [r (m key)] r
                                  ((fn [r] (swap! m assoc k r) r)
@@ -92,10 +183,10 @@
                             (if (= k nil) true
                                 (not (some walk k)))))]                           
         
-    (fn [tuple]
+    (fn [r]
       ;; doesn't need a source identifier
-      (let [[op e a v b t] tuple]
-        (if (= op 'insert)
+      (let [[e a v b t u] (rget r out)]
+        (if (= (rget r op-reg) 'insert)
           (if (= a edb/remove-oid)
             (let [old (walk (base e))]
               (swap! (record removals e) (conj record t))
@@ -108,113 +199,62 @@
               (swap! assertions assoc t tuple)
               (if (walk t)
                 (c tuple)))))))))
-;; handle flush here
 
-
-(defn exec-delta-s [r d c terms]
+(defn delta-s [d terms c]
   (let [state (ref {})
-        handler (fn [t]
-                  (condp = (r 0)
-                    'insert (dosync
-                             (let [x (@state t)]
-                               (alter state assoc t (if x (+ x 1)
-                                                        (do (c t) 1)))))
-                    'remove (dosync
-                             (let [x (@state t)]
-                               (if (> x 1)
-                                 (alter state assoc t (- x 1))
-                                 (do (c t)
-                                     (alter state dissoc t)))))))]
-    (c (rset r (second terms) handler))))
+        handler (fn [r]
+                  (let [t (rget r (first r))]
+                    (condp = (rget r op-reg)
+                      'insert (dosync
+                               (let [x (@state t)]
+                                 (alter state assoc t (if x (+ x 1)
+                                                          (do (c t) 1)))))
+                      'remove (dosync
+                               (let [x (@state t)]
+                                 (if (> x 1)
+                                   (alter state assoc t (- x 1))
+                                   (do (c t)
+                                       (alter state dissoc t))))))))]
+    (fn [r]
+      (c (rset r (second terms) (handler r))))))
 
-(defn exec-send [r d c terms]
-  (println "exec send" r terms)
-  (let [msg (nth terms 2)
-        res (if (empty? msg) [] (rget r (nth terms 2)))
-        channel (rget r (second terms))]
-    (channel res)
-    (c r)))
+(defn dosend [d terms c]
+  (fn [r]
+    (let [channel (rget r (second terms))]
+      ;; currently this signature is different, because we dont want our
+      ;; external guys to try to deconstruct the working tuple...not sure how
+      ;; this works for internal sends (?)
+      (channel (rget r op-reg) (rget r (nth terms 2)))
+      (c r))))
 
+;; something awfully funny going on with the op around the scan
+(defn doscan [d terms c]
+  (let [[scan oid dest key] terms]
+    (fn [r]
+      (if (= (rget r op-reg) 'insert)
+        ((d oid 
+            (fn [t]
+              (rset r dest t)
+              (c r)))
+         (rget r key))
+        (c r)))))
 
-(declare open)
-(declare run)
-
-(defn exec-open [r db c terms]
-  (let [[open dest oid target] terms
-        channel (db (rget r oid) (rget r target))]
-    (c (rset r (second terms) channel))))
     
-(defn exec-bind [r db c terms]
-  (let [[bindo dest params body] terms
-        stream (open db body (rget r params))]
-    (c (rset r dest stream))))
+(defn bind [d terms c]
+  (fn [r]
+    (let [[bindo dest body] terms
+          child (build d (second terms) r)]
+      (c (rset r dest child)))))
 
 
-;; i think we need register allocations regardless of the operation? except maybe flush and close?
-(defn exec-allocate [r db c terms]
-  (c (rset r (second terms) (vec (repeat (nth terms 2) nil)))))
-
-(defn exec-move [r db c terms]
-  (let [source (rget r (nth terms 2))]
-    (c (rset r (second terms) source))))
-
-;; these two are both the same, but at some point we may do some messing about
-;; with numeric values (i.e. exact/inexact)
-(defn ternary-numeric [f] 
-  [(fn [r db c terms]
-     (c (rset r (second terms)
-                      (f (rget r (nth terms 2))
-                         (rget r (nth terms 3))))))
-   ignore-flush])
-  
-(defn ternary-numeric-boolean [f]
-  [(fn [r db c terms]
-     (c (rset r (second terms)
-                      (f (rget r (nth terms 2))
-                         (rget r (nth terms 3))))))
-   ignore-flush])
+(defn subquery [d terms c]
+  (let [subguy (build d (second terms))]
+    (fn [r]
+      (subguy r)
+      (c r))))
 
 
-(defn exec-str [r db c terms]
-  (let [inputs (map (fn [x] (rget r x))
-                    (rest (rest terms)))]
-    (c (rset r (second terms) (apply str inputs)))))
-
-
-(defn exec-range [r db c terms]
-  (let [low  (rget r (nth terms 2))
-        high (rget r (nth terms 3))]
-    ;; need to copy the file here?
-    (doseq [i (range low high)]
-      (c (rset r (second terms) i)))))
-
-  
-(defn exec-filter [r db c terms]
-  (if (rget r (second terms))
-    (c r)
-    r))
-
-(defn exec-equal [r db c terms]
-  (let [[eq dest s1 s2] terms
-        t1 (rget r s1)
-        t2 (rget r s2)]
-    (c (rset r dest (= t1 t2)))))
-
-(defn exec-not-equal [r db c terms]
-  (c (rset r (nth terms 1)
-                   (not (= (rget r (nth terms 2))
-                           (rget r (nth terms 3)))))))
-
-
-
-(defn exec-subquery [r d c terms]
-  ;; this is some syntactic silliness - throw away the
-  ;; projection
-  (c (run d (second terms) r)))
-
-
-(def command-map {'move      [exec-move      ignore-flush]
-                  'filter    [exec-filter    ignore-flush]
+(def command-map {'move      (simple move)
                   '+         (ternary-numeric +)
                   '-         (ternary-numeric -)
                   '*         (ternary-numeric *)
@@ -223,56 +263,74 @@
                   '<         (ternary-numeric-boolean <)
                   '>=        (ternary-numeric-boolean >=)
                   '<=        (ternary-numeric-boolean <=)
-                  'str       [exec-str       ignore-flush]
-                  'range     [exec-range     ignore-flush]
-                  'delta-s   [exec-delta-s   ignore-flush]
-                  'delta-e   [exec-delta-e   ignore-flush]
-                  'tuple     [exec-tuple     ignore-flush]
-                  '=         [exec-equal     ignore-flush]
-                  'sum       [exec-sum       exec-sum]
-                  'sort      [exec-sort      exec-sort]
-                  'subquery  [exec-subquery  exec-subquery]
-                  'not-equal [exec-not-equal ignore-flush]
-                  'open      [exec-open      ignore-flush]
-                  'allocate  [exec-allocate  ignore-flush]
-                  'send      [exec-send      exec-send]
-                  'bind      [exec-bind      ignore-flush]
+                  'str       (simple dostr)
+                  'not-equal (simple do-not-equal)
+                  'allocate  (simple allocate)
+                  'print     (simple doprint)
+
+                  'filter    dofilter    
+                  'range     dorange     
+                  'delta-s   delta-s   
+                  'delta-e   delta-e   
+                  'tuple     tuple     
+                  '=         (simple doequal)
+                  'sum       sum       
+                  'sort      dosort      
+                  'subquery  subquery  
+
+                  'scan      doscan     
+                  'send      dosend   
+                  'bind      bind  
                   })
 
+;; this needs to send an error message down the pipe
+(defn exec-error [reg comment]
+  (println "exec error" comment))
 
-(defn run [d body reg]
-  (println "run" d body reg)
-  (if (empty? body) reg
-      (let [command (first (first body))
-            cf (command-map command)]
-        (println "exec" command)
-        (if (not cf)
-          (println "bad command" command) 
-          ((cf 0) reg d (fn [oreg]
-                          (run d (rest body) oreg))
-           (first body))))))
+
+(defn build-trace [d t]
+  (if (empty? t) (fn [r] ())
+      (let [k (first t)]
+        (if-let [p (command-map (first k))]
+          (let [f (p d k (build-trace d (rest t)))]
+            (fn [r]
+              (println (first t) (print-registers r))
+              (f r)))
+          (exec-error (str "bad command" k))))))
+
+(defn open-trace [d program arguments]
+  (let [reg (object-array 10)
+        e  (build-trace d program)]
+    (aset reg 1 arguments)
+    (fn [op]
+      (rset reg [3] op)
+      (e reg))))
+
+
+(defn build [d t]
+  (if (empty? t) (fn [r] ())
+      (let [k (first t)]
+        (if-let [p (command-map (first k))]
+          (p d k (build d (rest t)))
+          (exec-error (str "bad command" k))))))
 
 
 ;; fix r in an eval
-;;   0  operation
-;;   1  context
-;;   2  input
-;;   3  self
-;;   4  temp
-;;   5  working    
-  
-  
- 
-(defn open [d program context]
-  (fn [input]
-    (run d program input)))
-
-(defn execution-close [e]
-  (e ['insert nil nil nil nil nil])
-  (e 'close []))
+;;   0  root
+;;   1  arguments
+;;   2  bag default
+;;   3  op
+(defn open [d program arguments]
+  (let [reg (object-array 10)
+        e  (build d program)]
+    (aset reg 1 arguments)
+    (fn [op]
+      (rset reg [3] op)
+      (e reg))))
+      
 
 (defn single [d prog out]
   (let [e (open d prog out)]
-    (e ['insert nil nil nil nil nil])
-    (e ['flush  nil nil nil nil nil])))
-;; should just close  (e ['close out nil nil nil))))
+    (e 'insert)
+    (e 'flush)))
+
