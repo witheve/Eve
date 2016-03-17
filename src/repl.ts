@@ -12,12 +12,6 @@ enum CardState {
   ERROR,
 }
 
-enum ReplState {
-  CONNECTED,
-  DISCONNECTED,
-  CONNECTING,
-}
-
 export interface Query {
   type: string,
   query: string,
@@ -67,7 +61,7 @@ function deleteReplCard(replCard: ReplCard) {
 // Server functions
 // ------------------
 
-let server = { state: ReplState.CONNECTING, queue: [], ws: null, timeout: 1};
+let server = { connected: false, queue: [], ws: null, timeout: 1};
 
 app.renderRoots["repl"] = root;
 connectToServer();
@@ -78,7 +72,7 @@ function connectToServer() {
   server.ws = ws;
 
   ws.onopen = function(e: Event) {    
-    server.state = ReplState.CONNECTED;
+    server.connected = true;
     server.timeout = 1;
     while(server.queue.length > 0) {
       let message = server.queue.shift();
@@ -88,12 +82,12 @@ function connectToServer() {
   }
 
   ws.onerror = function(error) {
-    server.state = ReplState.DISCONNECTED;
+    server.connected = false;
     app.dispatch("rerender", {}).commit();
   }
 
   ws.onclose = function(error) {  
-    server.state = ReplState.DISCONNECTED;
+    server.connected = false;
     reconnect();
     app.dispatch("rerender", {}).commit();
   }
@@ -126,6 +120,7 @@ function connectToServer() {
           setTimeout(() => {
             deleteReplCard(replCards[removeIx]);
             replCards.splice(removeIx,1);
+            //replCards.forEach((r,i) => r.ix = i);
             if (newFocusIx !== undefined) {
               replCards.forEach((r) => r.focused = false);
               replCards[newFocusIx].focused = true;
@@ -141,7 +136,7 @@ function connectToServer() {
 
 let checkReconnectInterval = undefined;
 function reconnect() {
-  if(server.state === ReplState.CONNECTED) {
+  if(server.connected) {
     clearTimeout(checkReconnectInterval);
     checkReconnectInterval = undefined;
   } else {
@@ -172,14 +167,6 @@ function newReplCard(): ReplCard {
     result: undefined,
   }
   return replCard;
-}
-
-// ------------------
-// Card functions
-// ------------------
-
-function deleteCard(card: ReplCard) {
-    console.log("Foo")
 }
 
 // ------------------
@@ -255,17 +242,12 @@ function queryInputKeydown(event, elem) {
       app.dispatch("rerender", {}).commit();
     }
   }
-  // TODO rerender at the end, catch any keystroke and return
 }
 
 function replCardClick(event, elem) {
   let thisReplCardIx = elem.ix;
   replCards.forEach((r) => r.focused = false);
   replCards[elem.ix].focused = true;
-  app.dispatch("rerender", {}).commit();
-}
-
-function deleteAllCards() {
   app.dispatch("rerender", {}).commit();
 }
 
@@ -325,12 +307,16 @@ function generateReplCardElement(replCard: ReplCard) {
 }
 
 function generateStatusBarElement() {
-  let text = {c: "left", text: `Status: ${ReplState[server.state].toLowerCase()}`};
-  let other = {c: "ion-ios-trash right", click: deleteAllCards};
+  
+  
+  
+  let text = {c: "text", text: `Status: ${server.connected ? "Connected" : "Disconnected"}`};
+  
+  
   let statusBar = {
     id: "status-bar",
     c: "status-bar",
-    children: [text, other],
+    children: [text],
   }
   return statusBar;
 }
