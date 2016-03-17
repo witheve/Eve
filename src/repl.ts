@@ -54,7 +54,8 @@ function loadReplCards(): Array<ReplCard> {
   }
   if (storedReplCards.length > 0) {
     storedReplCards.map((r) => r.focused = false);
-    storedReplCards = storedReplCards.sort((a,b) => a.ix - b.ix);  
+    storedReplCards = storedReplCards.sort((a,b) => a.ix - b.ix);
+    storedReplCards.forEach((r,i) => r.ix = i + 1);
   }
   return storedReplCards;
 }
@@ -126,7 +127,6 @@ function connectToServer() {
           setTimeout(() => {
             deleteStoredReplCard(replCards[removeIx]);
             replCards.splice(removeIx,1);
-            //replCards.forEach((r,i) => r.ix = i);
             if (newFocusIx !== undefined) {
               replCards.forEach((r) => r.focused = false);
               replCards[newFocusIx].focused = true;
