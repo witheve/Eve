@@ -256,6 +256,16 @@
       (update-selection! id final)
       (update-extending-selection! id false))))
 
+(defn non-zero-inc [number]
+  (if (= number -1)
+    1
+    (inc number)))
+
+(defn non-zero-dec [number]
+  (if (= number 1)
+    -1
+    (dec number)))
+
 (defn grid-keys [event elem]
   (let [{:keys [id cells]} (.-info elem)
         current-selection (last (get-selections id))
@@ -274,10 +284,10 @@
                         nil))
         extended (if shift?
                    (condp = (.-keyCode event)
-                     37 (update-in current-selection [:width] dec)
-                     38 (update-in current-selection [:height] dec)
-                     39 (update-in current-selection [:width] inc)
-                     40 (update-in current-selection [:height] inc)
+                     37 (update-in current-selection [:width] non-zero-dec)
+                     38 (update-in current-selection [:height] non-zero-dec)
+                     39 (update-in current-selection [:width] non-zero-inc)
+                     40 (update-in current-selection [:height] non-zero-inc)
                      nil))
         handled (condp = (.-keyCode event)
                       13 (println "ENTER")
