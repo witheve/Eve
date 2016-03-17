@@ -56,6 +56,28 @@
 (def background-border (style :border (str "1px solid " (:background-border colors))))
 
 ;;---------------------------------------------------------
+;; Global dom stuff
+;;---------------------------------------------------------
+
+(defonce global-dom-state (atom {}))
+
+(defn global-mouse-down []
+  (@global-dom-state :mouse-down))
+
+(defn prevent-default [event]
+  (.preventDefault event))
+
+(defn global-dom-init []
+  (.addEventListener js/window "mousedown"
+                     (fn [event]
+                       (swap! global-dom-state assoc :mouse-down true)))
+
+  (.addEventListener js/window "mouseup"
+                     (fn [event]
+                       (log "GLOBAL MOUSE UP!")
+                       (swap! global-dom-state assoc :mouse-down false))))
+
+;;---------------------------------------------------------
 ;; Root
 ;;---------------------------------------------------------
 
@@ -66,12 +88,15 @@
 
 (defn get-cells [grid-id]
   (array {:x 4 :y 6 :width 6 :height 3}
-         {:x 1 :y 1}
+         {:x 1 :y 1 :width 1 :height 1}
          {:x 4 :y 1 :width 5 :height 5}))
 
 (defn get-offset [grid-id]
   (or (@example-state (str grid-id "-offset"))
       {:x 0 :y 0}))
+
+(defn get-extending-selection [grid-id]
+  (@example-state (str grid-id "-extending-selection")))
 
 (defn draw-grid [node elem]
   (let [ctx (.getContext node "2d")
@@ -106,7 +131,7 @@
     {:x (- x (.-left bounding-box))
      :y (- y (.-top bounding-box))}))
 
-(defn intersects? [pos pos2]
+(defn cell-intersects? [pos pos2]
   (let [{:keys [x y width height]} pos
         {x2 :x y2 :y width2 :width height2 :height} pos2]
     (and (> (+ x width) x2)
@@ -114,18 +139,38 @@
          (> (+ y height) y2)
          (> (+ y2 height2) y))))
 
+(defn cell-contains? [pos pos2]
+  (let [{:keys [x y width height]} pos
+        {x2 :x y2 :y width2 :width height2 :height} pos2]
+    (and (>= x2 x)
+         (>= (+ x width) (+ x2 width2))
+         (>= y2 y)
+         (>= (+ y height) (+ y2 height2)))))
+
 (defn get-intersecting-cell [pos cells]
   (let [len (count cells)]
     (loop [cell-ix 0]
       (if (> cell-ix len)
         nil
         (let [cell (aget cells cell-ix)]
-          (if (intersects? pos cell)
+          (if (cell-intersects? pos cell)
             cell
             (recur (inc cell-ix))))))))
 
+(defn get-all-interesecting-cells [pos cells]
+  (let [result (array)]
+    (dotimes [cell-ix (count cells)]
+      (let [cell (aget cells cell-ix)]
+        (when (cell-intersects? pos cell)
+          (.push result cell))))
+    (if (not= 0 (count result))
+      result)))
+
 (defn update-selection! [grid-id selection]
   (swap! example-state assoc (str grid-id "-selections") selection))
+
+(defn update-extending-selection! [grid-id value]
+  (swap! example-state assoc (str grid-id "-extending-selection") value))
 
 (defn update-offset! [grid-id offset]
   (swap! example-state assoc (str grid-id "-offset") offset))
@@ -133,16 +178,88 @@
 (defn set-selection [event elem]
   (let [{:keys [x y]} (target-relative-coords event)
         {:keys [cell-size id cells]} (.-info elem)
+        range? (.-shiftKey event)
+        extend? (or (.-ctrlKey event) (.-metaKey event))
         selected-x (.floor js/Math (/ x cell-size))
         selected-y (.floor js/Math (/ y cell-size))
         pos {:x selected-x :y selected-y :width 1 :height 1}
-        maybe-selected-cell (get-intersecting-cell pos cells)]
+        maybe-selected-cell (get-intersecting-cell pos cells)
+        addition (or maybe-selected-cell pos)
+        updated (cond
+                  range? (let [start (first (get-selections id))]
+                           (array {:x (:x start) :y (:y start)
+                                   ;; height and width are calculated by determining the distance
+                                   ;; between the start and end points, but we also need to factor
+                                   ;; in the size of the end cell.
+                                   :width (+ (- (:x addition) (:x start)) (:width addition))
+                                   :height (+ (- (:y addition) (:y start)) (:height addition))
+                                   }))
+                  extend? (.concat (get-selections id) (array addition))
+                  :else (array addition))]
     (dispatch
-      (update-selection! id (array (or maybe-selected-cell pos))))))
+      (update-selection! id updated)
+      (update-extending-selection! id true))))
+
+(declare stop-selecting)
+
+(defn extend-selection [event elem]
+  (let [{:keys [id cell-size]} (.-info elem)]
+    (when (get-extending-selection id)
+      (let [{:keys [x y]} (target-relative-coords event)
+            selected-x (.floor js/Math (/ x cell-size))
+            selected-y (.floor js/Math (/ y cell-size))
+            start (first (get-selections id))
+            ;; height and width are calculated by determining the distance
+            ;; between the start and end points, but we also need to factor
+            ;; in the size of the end cell.
+            x-diff (- selected-x (:x start))
+            y-diff (- selected-y (:y start))
+            width (+ x-diff (if (> x-diff 0)
+                              1
+                              0))
+            height (+ y-diff (if (> y-diff 0)
+                               1
+                               0))
+            maybe (array {:x (:x start)
+                          :y (:y start)
+                          :width (if (not= 0 width) width 1)
+                          :height (if (not= 0 height) height 1)})]
+        (dispatch
+          (update-selection! id maybe)
+          (when-not (global-mouse-down)
+            (update-extending-selection! id false)
+            (stop-selecting event elem)))))))
+
+(defn normalize-cell-size [{:keys [x y width height] :as cell}]
+  (if-not (or (< width 0)
+              (< height 0))
+    cell
+    (let [[final-x final-width] (if (< width 0)
+                                  [(+ x width) (inc (.abs js/Math width))]
+                                  [x width])
+          [final-y final-height] (if (< height 0)
+                                   [(+ y height) (inc (.abs js/Math height))]
+                                   [y height])]
+      {:x final-x
+       :y final-y
+       :width final-width
+       :height final-height})))
+
+(defn stop-selecting [event elem]
+  ;;determine if we're intersecting with any cells
+  (let [{:keys [id cells]} (.-info elem)
+        current (first (get-selections id))
+        normalized (normalize-cell-size current)
+        intersecting (get-all-interesecting-cells normalized cells)
+        final (or intersecting (array normalized))]
+    (println final)
+    (dispatch
+      (update-selection! id final)
+      (update-extending-selection! id false))))
 
 (defn grid-keys [event elem]
   (let [{:keys [id cells]} (.-info elem)
-        current-selection (first (get-selections id))
+        current-selection (last (get-selections id))
         {x-offset :x y-offset :y} (get-offset id)
         updated-pos (condp = (.-keyCode event)
                       37 (-> (update-in current-selection [:x] dec)
@@ -175,9 +292,29 @@
     (when handled
       (.preventDefault event))))
 
+(defn selection-to-visual-size [cell cell-size]
+  (let [{:keys [x y width height color]} cell
+        abs-width (if (< width 0)
+                    (inc (.abs js/Math width))
+                    width)
+        abs-height (if (< height 0)
+                    (inc (.abs js/Math height))
+                    height)
+        adjusted-y (if (< height 0)
+                     (+ y height)
+                     y)
+        adjusted-x (if (< width 0)
+                     (+ x width)
+                     x)]
+    {:width (- (* cell-size abs-width) 2)
+     :height (- (* cell-size abs-height) 2)
+     :top (* adjusted-y cell-size)
+     :left (* adjusted-x cell-size)}))
+
 (defn grid [info]
   (let [canvas (elem :t "canvas"
                      :info info
+                     :dragstart prevent-default
                      :postRender draw-grid
                      :style (style :width (:grid-width info)
                                    :height (:grid-height info)))
@@ -192,17 +329,21 @@
                                            :left (+ 1 (* x cell-size))
                                            :background (or color "white"))))))
     (dotimes [selection-ix (count selections)]
-      (let [{:keys [x y width height color]} (aget selections selection-ix)]
-        (.push children (box :style (style :width (- (* cell-size (or width 1)) 2)
-                                           :height (- (* cell-size (or height 1)) 2)
+      (let [selection (aget selections selection-ix)
+            color "blue"
+            {:keys [top left width height]} (selection-to-visual-size selection cell-size)]
+        (.push children (box :style (style :width width
+                                           :height height
                                            :position "absolute"
-                                           :top (+ 0 (* y cell-size))
-                                           :left (+ 0 (* x cell-size))
+                                           :top top
+                                           :left left
                                            :border (str "1px solid " (or color "blue")))))))
     (elem :children children
           :info info
           :tabindex -1
-          :click set-selection
+          :mousedown set-selection
+          :mousemove extend-selection
+          :mouseup stop-selecting
           :keydown grid-keys
           :style (style :position "relative"))))
 
@@ -215,18 +356,18 @@
                                :cells (get-cells "main")
                                :cell-size 40
                                :id "main"})
-                        (grid {:grid-width 500
-                               :grid-height 500
-                               :selections (get-selections "main")
-                               :cells (get-cells "main")
-                               :cell-size 10
-                               :id "main"})
-                        (grid {:grid-width 500
-                               :grid-height 500
-                               :selections (get-selections "main")
-                               :cells (get-cells "main")
-                               :cell-size 100
-                               :id "main"})
+                        ; (grid {:grid-width 500
+                        ;        :grid-height 500
+                        ;        :selections (get-selections "main")
+                        ;        :cells (get-cells "main")
+                        ;        :cell-size 10
+                        ;        :id "main"})
+                        ; (grid {:grid-width 500
+                        ;        :grid-height 500
+                        ;        :selections (get-selections "main")
+                        ;        :cells (get-cells "main")
+                        ;        :cell-size 100
+                        ;        :id "main"})
                         )))
 
 ;;---------------------------------------------------------
@@ -251,7 +392,8 @@
 (defn init []
   (when (not @renderer)
     (reset! renderer (new js/Renderer))
-    (.appendChild (.-body js/document) (.-content @renderer)))
+    (.appendChild (.-body js/document) (.-content @renderer))
+    (global-dom-init))
   (dispatch diff
             (add diff :woot {:foo 1 :bar 2}))
   (render))
