@@ -6,12 +6,15 @@
    [server.exec :as exec]
    [clojure.set :as set]))
 
-;; cardinatity changing operations should set a flag so we know
+;; cardinality changing operations should set a flag so we know
 ;; should also be able to retire registers that aren't being referenced
 ;; anymore...also add the unique flag for downedges that have already
 ;; been explicitly or implicitly deltad
 
-   
+
+;; environment should keep an identifier on the delta currently in effect
+;; what about non-unique conditions?
+
 (defn bset [e & key]
   (let [c (count key)]
     (if (= c 2)
@@ -74,18 +77,17 @@
 
 
 (defn generate-send [e channel arguments]
-  (let [[out tup] (if  (> (count arguments) 0)
-                     (let [out (gensym 'tuple)]
-                       (allocate-register e out)
-                       [out (list (apply term e 'tuple out arguments))])
-                     [[] ()])]
-    (add-dependencies e channel)  ;; iff channel is free
-    (apply add-dependencies e arguments)
+  (let [out (gensym 'tuple)]
+    (allocate-register e out)
+    (apply add-dependencies e channel 'op arguments)
     (fn []
       (let [cycle-filters (map (fn [x] (term e 'filter x))
                                (set/difference (bget e 'cycles)
                                                (bget e 'cycle-heads)))]
-        ((apply compose (concat cycle-filters tup (list (term e 'send channel out)))))))))
+        ((apply compose 
+                (concat cycle-filters
+                        (term e 'tuple out (conj arguments 'op))
+                        (list (term e 'send channel out)))))))))
 
 ;; inside is a function which takes the inner environment
 (defn generate-bind [e inside inputs channel-name]
@@ -340,7 +342,9 @@
                  'register 3 ; fix
                  'bid bid
                  'empty [])
-        f (bind-names e {'return-channel [1]})
+        _ (bind-names e {'return-channel [1]
+                         'op [0]})
         p (compile-conjunction e terms (fn [e] (fn [] ())))
         out (p)]
+    (println (exec/print-program out))
     out))

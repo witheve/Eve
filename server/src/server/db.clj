@@ -27,36 +27,36 @@
   (insert db (name relname)
           implication-oid (list (map name parameters) program) user bag))
 
-(defn weasl-implications-for [id handler]
+(defn weasl-implications-for [id]
   (list
-   (list 'tuple [2] [1])
-   (list 'bind [1] [2] 
-         (list (list '= [3] [2 0] id) '(filter [3])
-               (list '= [3] [2 1] implication-oid) '(filter [3])
-               (list 'send handler [2 2])))
-   (list 'open [3] edb/full-scan-oid [1])
-   (list 'send [3] [])))
+   (list 'bind [3] [1]
+         ;; i guess op is explicit now...so we'd better copy it
+         (list (list 'move 0 [2 0])
+               (list '= [3] [2 1] id) '(filter [3])
+               (list '= [3] [2 2] implication-oid) '(filter [3])
+               (list 'tuple [4] [1 0] [2 3])
+               (list 'send [1] [4])))
+   (list 'open [3] edb/full-scan-oid [3])
+   (list 'tuple [4] [0])
+   (list 'send [3] [4])))
 
-(defn for-each-implication [db id handler]
-  ;; only really for insert, right?
-  (let [terminus (fn [op tuple]
-                   (when (= op 'insert)
-                     (handler (first tuple) (second tuple))))
-        prog (weasl-implications-for id terminus)
-        e (exec/open db prog [])]
-    (e 'insert [])
-    (e 'flush [])))
+(defn for-each-implication [d id handler]
+  (exec/single d (weasl-implications-for id)
+               (fn [tuple]
+                 (when (= (tuple 0) 'insert)
+                   (handler (first tuple) (second tuple))))))
+
 
 ;; @FIXME: This relies on exec/open flushing synchronously to determine if the implication currently exists
-(defn implication-of [db id]
+(defn implication-of [d id]
   (let [impl (atom nil)
-        terminus (fn [op tuple]
-                   (when (= op 'insert)
-                     (reset! impl tuple)))
-        prog (weasl-implications-for id terminus)
-        e (exec/open db prog [])]
-    (e 'insert [])
-    (e 'flush [])
+        terminus (fn [tuple]
+                   (when (= (tuple 0) 'insert)
+                     (reset! impl tuple)))]
+    (exec/single d (weasl-implications-for id)
+                 (fn [tuple]
+                   (when (= (tuple 0) 'insert)
+                     (reset! impl tuple))))
     @impl))
                    
 

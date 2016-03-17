@@ -2,8 +2,8 @@
   (:require server.avl))
 
 
-(defn ignore-flush [registers db op c terms]
-  (c op registers))
+(defn ignore-flush [registers db c terms]
+  (c registers))
 
 
 (defn print-program [p]
@@ -30,9 +30,8 @@
 
 (defn register-set [registers ref v]
   (let [c (count ref)]
-    (cond ;; special case of 0 being myself
+    (cond 
       (= c 0) ()
-      (and (= c 1) (= (ref 0) 0))  v
       (= c 1) (if (> (ref 0) (count registers))
                 (do (println "exec error" (ref 0) "is greater than" (count registers))
                     (throw c))
@@ -45,7 +44,6 @@
   (cond (not (vector? ref)) ref
         ;; special case of constant vector, empty
         (= (count ref) 0) ref
-        (and (= (count ref) 1) (= ref 0)) registers
         ;; some persistent lists slip in here
         (= (count ref) 1) (nth registers (ref 0))
         :else 
@@ -53,139 +51,127 @@
 
 
 ;; support singletons?
-(defn exec-tuple [registers db op c terms]
-  (c op (register-set registers (second terms)
+(defn exec-tuple [registers db c terms]
+  (c (register-set registers (second terms)
                 (vec (map (fn [x] (register-get registers x)) (rest (rest terms)))))))
 
 
-(defn exec-sort [registers db op c terms]
+(defn exec-sort [registers db c terms]
   (let [state (fabric.avl/sorted-map)]
-    (cond
-      (= op 'insert) (conj state terms)
-      (= op 'remove) (disj state terms))
-    ()
-    ))
+    (condp = (registers 0)
+      'insert (conj state terms)
+      'remove (disj state terms))))
 
-
-
-
-      ;; not sure floating this is correct...but you know, hey
-      ;; really want flush or remove
-(defn exec-op [registers db op c terms]
-    (c op (register-set (second terms) op)))
-
-
-(defn exec-sum [registers db op c terms]
+;; sum cdest pararms body?
+(defn exec-sum [registers db c terms]
   (let [total (atom 0)]
-    (fn [op t]
-      (cond
-        (= op 'insert) (swap! total (fn [x] (+ x (nth terms 2))))
-        (= op 'remove) (swap! total (fn [x] (- x (nth terms 2))))
-        (= op 'flush) (swap! total (fn [x] (- x (nth terms 2))))))))
+    (fn [t]
+      (condp = (registers 0)
+        'insert (swap! total (fn [x] (+ x (nth terms 2))))
+        'remove (swap! total (fn [x] (- x (nth terms 2))))
+        'flush (swap! total (fn [x] (- x (nth terms 2))))))))
 
       
-(defn exec-delta [registers db op c terms]
+(defn exec-delta [registers db c terms]
   (let [state (ref {})]
-    (fn [op t]
-      (cond
-        (= op 'insert) (dosync
-                        (let [x (@state t)]
-                          (alter state assoc t (if x (+ x 1)
-                                                   (do (c op t) 1)))))
-        (= op 'remove) (dosync
-                        (let [x (@state t)]
-
-                          (if (> x 1)
-                            (alter state assoc t (- x 1))
-                            (do (c op t)
-                                (alter state dissoc t)))))
+    (fn [t]
+      (condp = (registers 0)
+        'insert (dosync
+                 (let [x (@state t)]
+                   (alter state assoc t (if x (+ x 1)
+                                            (do (c t) 1)))))
+        'remove (dosync
+                 (let [x (@state t)]
+                   (if (> x 1)
+                     (alter state assoc t (- x 1))
+                     (do (c t)
+                         (alter state dissoc t)))))
         :else
-        (c op t)))))
+        (c t)))))
 
-
-
-(defn exec-send [registers db op c terms]
+(defn exec-send [registers d c terms]
+  (println "exec send" registers terms)
   (let [msg (nth terms 2)
         res (if (empty? msg) [] (register-get registers (nth terms 2)))
         channel (register-get registers (second terms))]
-    (channel op res)
-    (c op registers)))
+    (channel res)
+    (c registers)))
 
 
 (declare open)
 (declare run)
 
-(defn exec-open [registers db op c terms]
+(defn exec-open [registers db c terms]
   (let [[open dest oid target] terms
         channel (db (register-get registers oid) (register-get registers target))]
-    (c op (register-set registers (second terms) channel))))
+    (c (register-set registers (second terms) channel))))
     
-(defn exec-bind [registers db op c terms]
+(defn exec-bind [registers db c terms]
   (let [[bindo dest params body] terms
         stream (open db body (register-get registers params))]
-    (c op (register-set registers dest stream))))
+    (c (register-set registers dest stream))))
 
 
 ;; i think we need register allocations regardless of the operation? except maybe flush and close?
-(defn exec-allocate [registers db op c terms]
-  (c op (register-set registers (second terms) (vec (repeat (nth terms 2) nil)))))
+(defn exec-allocate [registers db c terms]
+  (c (register-set registers (second terms) (vec (repeat (nth terms 2) nil)))))
 
-(defn exec-move [registers db op c terms]
+(defn exec-move [registers db c terms]
   (let [source (register-get registers (nth terms 2))]
-    (c op (register-set registers (second terms) source))))
+    (c (register-set registers (second terms) source))))
 
 ;; these two are both the same, but at some point we may do some messing about
 ;; with numeric values (i.e. exact/inexact)
 (defn ternary-numeric [f] 
-  [(fn [registers db op c terms]
-     (c op (register-set registers (second terms)
-                         (f (register-get registers (nth terms 2))
-                            (register-get registers (nth terms 3))))))
+  [(fn [registers db c terms]
+     (c (register-set registers (second terms)
+                      (f (register-get registers (nth terms 2))
+                         (register-get registers (nth terms 3))))))
    ignore-flush])
   
 (defn ternary-numeric-boolean [f]
-  [(fn [registers db op c terms]
-     (c op (register-set registers (second terms)
-                         (f (register-get registers (nth terms 2))
-                            (register-get registers (nth terms 3))))))
+  [(fn [registers db c terms]
+     (c (register-set registers (second terms)
+                      (f (register-get registers (nth terms 2))
+                         (register-get registers (nth terms 3))))))
    ignore-flush])
 
 
-(defn exec-str [registers db op c terms]
+(defn exec-str [registers db c terms]
   (let [inputs (map (fn [x] (register-get registers x))
                     (rest (rest terms)))]
-    (c op (register-set registers (second terms) (apply str inputs)))))
+    (c (register-set registers (second terms) (apply str inputs)))))
 
 
-(defn exec-range [registers db op c terms]
+(defn exec-range [registers db c terms]
   (let [low  (register-get registers (nth terms 2))
         high (register-get registers (nth terms 3))]
     ;; need to copy the file here?
     (doseq [i (range low high)]
-      (c op (register-set registers (second terms) i)))))
+      (c (register-set registers (second terms) i)))))
 
   
-(defn exec-filter [registers db op c terms]
+(defn exec-filter [registers db c terms]
   (if (register-get registers (second terms))
-    (c op registers)
+    (c registers)
     registers))
 
-(defn exec-equal [registers db op c terms]
+(defn exec-equal [registers db c terms]
   (let [[eq dest s1 s2] terms
         t1 (register-get registers s1)
         t2 (register-get registers s2)]
-    (c op (register-set registers dest (= t1 t2)))))
+    (c (register-set registers dest (= t1 t2)))))
 
-(defn exec-not-equal [registers db op c terms]
-  (c op (register-set registers (nth terms 1)
+(defn exec-not-equal [registers db c terms]
+  (c (register-set registers (nth terms 1)
                    (not (= (register-get registers (nth terms 2))
                            (register-get registers (nth terms 3)))))))
 
 
-(defn exec-subquery [registers d op c terms]
+(defn exec-subquery [registers d c terms]
   ;; this is some syntactic silliness - throw away the
   ;; projection
-  (c op (run d (second terms) registers op)))
+  (c (run d (second terms) registers)))
 
 
 (def command-map {'move      [exec-move      ignore-flush]
@@ -214,41 +200,39 @@
                   })
 
 
-(defn run [d body reg op]
+(defn run [d body reg]
+  (println "run" d body reg)
   (if (empty? body) reg
       (let [command (first (first body))
             cf (command-map command)]
+        (println "exec" command)
         (if (not cf)
           (println "bad command" command) 
-          ((cf 0) reg
-           d
-           op
-           (fn [op oreg]
-             (run d (rest body) oreg op))
+          ((cf 0) reg d (fn [oreg]
+                          (run d (rest body) oreg))
            (first body))))))
 
 
 ;; fix registers in an eval
-;;   0  this file
-;;   1  'context'
-;;   2  'input'
-;;   3  'self'
+;;   0  operation
+;;   1  context
+;;   2  input
+;;   3  self
+;;   4  temp
+;;   5  working    
+  
+  
  
 (defn open [d program context]
-  (let [framesize 10
-        b (vec (repeat framesize nil))
-        b1 (register-set b [1] context)
-        savereg (atom b1)]
-    (fn [op input]
-      ;; dont think insert makes any sense here any longer, if it ever did
-      (condp = op
-        'insert (let [b3 (if (> (count input) 0) (register-set b1 [2] input) b1)]
-                  (swap! savereg (fn [x] (run d program b3 op))))
-        
-        'flush (doseq [i program]
-                 (let [command (first i)
-                       cf (command-map command)]
-                   ((cf 1) @savereg d 'flush (fn [op t] ()) i)))))))
+  (fn [input]
+    (run d program input)))
 
 (defn execution-close [e]
+  (e ['insert nil nil nil nil nil])
   (e 'close []))
+
+(defn single [d prog out]
+  (let [e (open d prog out)]
+    (e ['insert nil nil nil nil nil])
+    (e ['flush  nil nil nil nil nil])))
+;; should just close  (e ['close out nil nil nil))))

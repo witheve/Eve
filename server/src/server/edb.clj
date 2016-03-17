@@ -21,20 +21,22 @@
         listeners (atom '())
         index-map  {insert-oid
                     (fn [c]
-                      (fn [op tuple]
-                        (when (= op 'insert)
+                      (fn [tuple]
+                        (when (= (tuple 0) 'insert)
                           (swap! tuples conj tuple)
-                          (doseq [i @listeners] (i op tuple)))))
+                          (doseq [i @listeners] (i tuple)))))
                     
                     full-scan-oid
                     (fn [c]
-                      (fn [op tuple]
-                        (if (= op 'flush) (c op tuple)
-                            (doseq [i @tuples] (c 'insert i)))))
+                      (fn [tuple]
+                        (println "full scan" tuple)
+                        (if (= (tuple 0) 'flush)
+                          (c tuple)
+                          (doseq [i @tuples] (c 'insert i)))))
 
                     attribute-scan-oid
                     (fn [c]
-                      (fn [op tuple]
+                      (fn [tuple]
                         (doseq [i @tuples] (c 'insert i))))
                     }]
 

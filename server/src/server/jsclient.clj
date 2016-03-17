@@ -44,13 +44,15 @@
         
         form  (repl/form-from-smil query)
         prog (compiler/compile-dsl d @bag form)
-        e (exec/open d prog (fn [op tuple]
-                              (condp = op
-                                'insert (swap! results conj tuple)
-                                'flush (send-flush)
-                                'error (send-error (str tuple)))))]
-    (e 'insert [])
-    (e 'flush [])))
+        res (fn [tuple]
+              (condp = (tuple 0)
+                'insert (swap! results conj tuple)
+                'flush (send-flush)
+                'error (send-error (str tuple))))
+        
+        e (exec/open d prog res)]
+    (e ['insert nil nil nil nil nil])
+    (e ['flush nil nil nil nil nil])))
 
 
 (defn handle-connection [db channel]
