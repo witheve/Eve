@@ -246,7 +246,6 @@
        :height final-height})))
 
 (defn stop-selecting [event elem]
-  ;;determine if we're intersecting with any cells
   (let [{:keys [id cells]} (.-info elem)
         current (first (get-selections id))
         normalized (normalize-cell-size current)
@@ -292,25 +291,6 @@
     (when handled
       (.preventDefault event))))
 
-(defn selection-to-visual-size [cell cell-size]
-  (let [{:keys [x y width height color]} cell
-        abs-width (if (< width 0)
-                    (inc (.abs js/Math width))
-                    width)
-        abs-height (if (< height 0)
-                    (inc (.abs js/Math height))
-                    height)
-        adjusted-y (if (< height 0)
-                     (+ y height)
-                     y)
-        adjusted-x (if (< width 0)
-                     (+ x width)
-                     x)]
-    {:width (- (* cell-size abs-width) 2)
-     :height (- (* cell-size abs-height) 2)
-     :top (* adjusted-y cell-size)
-     :left (* adjusted-x cell-size)}))
-
 (defn grid [info]
   (let [canvas (elem :t "canvas"
                      :info info
@@ -331,12 +311,14 @@
     (dotimes [selection-ix (count selections)]
       (let [selection (aget selections selection-ix)
             color "blue"
-            {:keys [top left width height]} (selection-to-visual-size selection cell-size)]
-        (.push children (box :style (style :width width
-                                           :height height
+            ;; we have to normalize selections since while they're being expanded
+            ;; they can have negative widths and heights
+            {:keys [x y width height]} (normalize-cell-size selection)]
+        (.push children (box :style (style :width (- (* cell-size width) 2)
+                                           :height (- (* cell-size height) 2)
                                            :position "absolute"
-                                           :top top
-                                           :left left
+                                           :top (* y cell-size)
+                                           :left (* x cell-size)
                                            :border (str "1px solid " (or color "blue")))))))
     (elem :children children
           :info info
