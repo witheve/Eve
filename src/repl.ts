@@ -78,15 +78,18 @@ function connectToServer() {
       let message = server.queue.shift();
       sendMessage(message);
     }
+    app.dispatch("rerender", {}).commit();
   }
 
   ws.onerror = function(error) {
     server.connected = false;
+    app.dispatch("rerender", {}).commit();
   }
 
   ws.onclose = function(error) {  
     server.connected = false;
     reconnect();
+    app.dispatch("rerender", {}).commit();
   }
 
   ws.onmessage = function(message) {
@@ -243,7 +246,6 @@ function queryInputKeydown(event, elem) {
 
 function replCardClick(event, elem) {
   let thisReplCardIx = elem.ix;
-  console.log(replCards[thisReplCardIx].ix);
   replCards.forEach((r) => r.focused = false);
   replCards[elem.ix].focused = true;
   app.dispatch("rerender", {}).commit();
@@ -259,7 +261,7 @@ function focusQueryBox(node,element) {
 // Element generation
 // ------------------
 
-function newReplCardElement(replCard: ReplCard) { 
+function generateReplCardElement(replCard: ReplCard) { 
   let queryInput = {t: "textarea", c: "query-input", text: replCard.query, placeholder: "query", keydown: queryInputKeydown, key: `${replCard.id}${replCard.focused}`, postRender: focusQueryBox, focused: replCard.focused};
   // Set the css according to the card state
   let resultcss = "query-result"; 
@@ -304,16 +306,36 @@ function newReplCardElement(replCard: ReplCard) {
   return replCardElement;
 }
 
+function generateStatusBarElement() {
+  
+  
+  
+  let text = {c: "text", text: `Status: ${server.connected ? "Connected" : "Disconnected"}`};
+  
+  
+  let statusBar = {
+    id: "status-bar",
+    c: "status-bar",
+    children: [text],
+  }
+  return statusBar;
+}
+
 // Create an initial repl card
 let replCards: Array<ReplCard> = loadReplCards();
 replCards.push(newReplCard());
 replCards[0].focused = true;
 
 function root() {
-  let replroot = {
-    id: "root",
+  let replRoot = {
+    id: "card-root",
+    c: "card-root",
+    children: replCards.map(generateReplCardElement),
+  }
+  let root = {
+    id: "repl-root",
     c: "repl-root",
-    children: replCards.map(newReplCardElement),
+    children: [generateStatusBarElement(), replRoot],
   };
-  return replroot;
+  return root;
 }
