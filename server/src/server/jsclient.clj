@@ -72,7 +72,7 @@
        (println "  Raw:")
        (println "   " (string/join "\n    " (string/split query #"\n")))
        (println "  Expanded:")
-       (println "    " (string/join "\n    " (string/split (smil/format expanded) #"\n")))
+       (smil/print-smil expanded :indent 4)
        
        (cond
          (and (= t "query")  (= (first expanded) 'query)) (start-query db expanded (input "id") channel)
