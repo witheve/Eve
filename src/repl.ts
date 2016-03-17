@@ -307,12 +307,7 @@ function generateReplCardElement(replCard: ReplCard) {
 }
 
 function generateStatusBarElement() {
-  
-  
-  
-  let text = {c: "text", text: `Status: ${server.connected ? "Connected" : "Disconnected"}`};
-  
-  
+  let text = {text: `Status: ${server.connected ? "Connected" : "Disconnected"}`};  
   let statusBar = {
     id: "status-bar",
     c: "status-bar",
