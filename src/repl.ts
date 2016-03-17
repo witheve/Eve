@@ -142,7 +142,7 @@ function connectToServer() {
 
 let checkReconnectInterval = undefined;
 function reconnect() {
-  if(server.state = ReplState.CONNECTED) {
+  if(server.state === ReplState.CONNECTED) {
     clearTimeout(checkReconnectInterval);
     checkReconnectInterval = undefined;
   } else {
