@@ -36,40 +36,33 @@ interface ReplCard {
   } | string,
 }
 
-function rerender() {
-  let focusedCard = replCards.filter((r) => r.focused).shift();
-  let focusIx = 0;
-  if (focusedCard !== undefined) {
-    focusIx = focusedCard.ix;
+function rerender(removeCards?: boolean) {
+  if (removeCards === undefined) {
+    removeCards = false;
   }
   // Batch delete closed cards on rerender
-  let closedCards = replCards.filter((r) => r.state === CardState.CLOSED);
-  if (server.timer !== undefined) {
-    clearTimeout(server.timer);
-  }
-  server.timer = setTimeout(() => {
-    console.log(closedCards)
-    for (let card of closedCards) {
-      deleteStoredReplCard(card);
-      replCards.splice(replCards.map((r) => r.id).indexOf(card.id),1);
+  if (removeCards) {
+    let closedCards = replCards.filter((r) => r.state === CardState.CLOSED);
+    if (server.timer !== undefined) {
+      clearTimeout(server.timer);
     }
-    app.dispatch("rerender", {}).commit();
-  }, 250);
-  // Reindex cards if any have been removed
-  if (closedCards !== undefined) {
-    replCards.forEach((r,i) => r.ix = i);    
-  }
-  // Handle the focus
-  let newFocusIx = focusIx;
-  newFocusIx === undefined ? 0 : newFocusIx;
-  if (newFocusIx !== undefined) {
-    replCards.forEach((r) => r.focused = false);
-    let focusedCard = replCards[newFocusIx];
-    if (focusedCard === undefined) {
-      console.log(replCards)
-      focusedCard = replCards[0];
+    let focusedCard = replCards.filter((r) => r.focused).shift();
+    let focusIx = 0;
+    if (focusedCard !== undefined) {
+      focusIx = focusedCard.ix;
     }
-    focusedCard.focused = true;
+    focusedCard = replCards[focusIx + 1 > replCards.length - 1 ? replCards.length - 1 : focusIx + 1];
+    focusCard(focusedCard);
+    server.timer = setTimeout(() => {
+      for (let card of closedCards) {
+        deleteStoredReplCard(card);
+        replCards.splice(replCards.map((r) => r.id).indexOf(card.id),1);
+      }
+      if (closedCards !== undefined) {
+        replCards.forEach((r,i) => r.ix = i);    
+      }
+      rerender(false);
+    }, 250);
   }
   app.dispatch("rerender", {}).commit();
 }
@@ -164,6 +157,7 @@ function connectToServer() {
         if (removeIx >= 0) {
           replCards[removeIx].state = CardState.CLOSED;
         }
+        rerender(true);
       }
     }
     rerender()
