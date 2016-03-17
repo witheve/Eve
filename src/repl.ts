@@ -313,7 +313,7 @@ function generateReplCardElement(replCard: ReplCard) {
 }
 
 function generateStatusBarElement() {
-  let text = {text: `Status: ${ReplState[server.state]}`};  
+  let text = {c: "left", text: `Status: ${ReplState[server.state]}`};  
   let statusBar = {
     id: "status-bar",
     c: "status-bar",

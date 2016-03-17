@@ -16,7 +16,11 @@ body {
   padding: 10px;
   font-family: sans-serif;
   color: #f0f0f0;
+  overflow: auto;
 }
+
+.left { float: left; }
+.right { float: right; }
 
 .repl-card {
   background-color: rgb(74, 64, 136);
