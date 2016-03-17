@@ -12,6 +12,12 @@ enum CardState {
   ERROR,
 }
 
+enum ReplState {
+  CONNECTED,
+  DISCONNECTED,
+  CONNECTING,
+}
+
 export interface Query {
   type: string,
   query: string,
@@ -61,7 +67,7 @@ function deleteReplCard(replCard: ReplCard) {
 // Server functions
 // ------------------
 
-let server = { connected: false, queue: [], ws: null, timeout: 1};
+let server = { state: ReplState.CONNECTING, queue: [], ws: null, timeout: 1};
 
 app.renderRoots["repl"] = root;
 connectToServer();
@@ -72,7 +78,7 @@ function connectToServer() {
   server.ws = ws;
 
   ws.onopen = function(e: Event) {    
-    server.connected = true;
+    server.state = ReplState.CONNECTED;
     server.timeout = 1;
     while(server.queue.length > 0) {
       let message = server.queue.shift();
@@ -82,12 +88,12 @@ function connectToServer() {
   }
 
   ws.onerror = function(error) {
-    server.connected = false;
+    server.state = ReplState.DISCONNECTED;
     app.dispatch("rerender", {}).commit();
   }
 
   ws.onclose = function(error) {  
-    server.connected = false;
+    server.state = ReplState.DISCONNECTED;
     reconnect();
     app.dispatch("rerender", {}).commit();
   }
@@ -136,7 +142,7 @@ function connectToServer() {
 
 let checkReconnectInterval = undefined;
 function reconnect() {
-  if(server.connected) {
+  if(server.state = ReplState.CONNECTED) {
     clearTimeout(checkReconnectInterval);
     checkReconnectInterval = undefined;
   } else {
@@ -307,7 +313,7 @@ function generateReplCardElement(replCard: ReplCard) {
 }
 
 function generateStatusBarElement() {
-  let text = {text: `Status: ${server.connected ? "Connected" : "Disconnected"}`};  
+  let text = {text: `Status: ${ReplState[server.state]}`};  
   let statusBar = {
     id: "status-bar",
     c: "status-bar",
