@@ -14,12 +14,13 @@ body {
   border: 3px solid black;
   margin: 10px auto 0px auto;
   padding: 10px;
-}
-
-.status-bar .text {
+  overflow:auto;
   font-family: sans-serif;
   color: #f0f0f0;
 }
+
+.left { float: left;}
+.right {float: right;}
 
 .repl-card {
   background-color: rgb(74, 64, 136);
