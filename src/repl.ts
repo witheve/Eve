@@ -37,6 +37,11 @@ interface ReplCard {
 }
 
 function rerender() {
+  let focusedCard = replCards.filter((r) => r.focused).shift();
+  let focusIx = 0;
+  if (focusedCard !== undefined) {
+    focusIx = focusedCard.ix;
+  }
   // Batch delete closed cards on rerender
   let closedCards = replCards.filter((r) => r.state === CardState.CLOSED);
   for (let card of closedCards) {
@@ -45,20 +50,18 @@ function rerender() {
   }
   // Reindex cards if any have been removed
   if (closedCards !== undefined) {
-    replCards.forEach((r,i) => r.ix = i);
+    replCards.forEach((r,i) => r.ix = i);    
   }
   // Handle the focus
-  let focusedCard = replCards.filter((r) => r.focused).shift();
-  let focusIx = 0;
-  if (focusedCard !== undefined) {
-    focusIx = focusedCard.ix;
-  }
-  let newFocusIx = replCards.filter((r) => r.ix >= focusIx && r.state !== CardState.CLOSED).map((r) => r.ix).shift();
-  newFocusIx = focusIx;
+  let newFocusIx = focusIx;
   newFocusIx === undefined ? 0 : newFocusIx;
   if (newFocusIx !== undefined) {
     replCards.forEach((r) => r.focused = false);
-    replCards[newFocusIx].focused = true;
+    let focusedCard = replCards[newFocusIx];
+    if (focusedCard === undefined) {
+      focusedCard = replCards[0];
+    }
+    focusedCard.focused = true;
   }
   app.dispatch("rerender", {}).commit();
 }
@@ -152,7 +155,7 @@ function connectToServer() {
         let removeIx = replCards.map((r) => r.id).indexOf(parsed.id);
         if (removeIx >= 0) {
           replCards[removeIx].state = CardState.CLOSED;
-          delayedRerender(1000);            
+          //delayedRerender(250);
         }
       }
     }
@@ -190,7 +193,7 @@ function sendMessage(message): boolean {
 function newReplCard(): ReplCard {
   let replCard: ReplCard = {
     id: uuid(),
-    ix: replCards.length > 0 ? replCards.map((r) => r.ix).pop() + 1 : 1,
+    ix: replCards.length > 0 ? replCards.map((r) => r.ix).pop() + 1 : 0,
     state: CardState.NONE,
     focused: false,
     query: undefined,
