@@ -67,7 +67,7 @@ function deleteStoredReplCard(replCard: ReplCard) {
 // Server functions
 // ------------------
 
-let server = { state: ReplState.CONNECTING, queue: [], ws: null, timeout: 1};
+let server = { state: ReplState.CONNECTING, queue: [], ws: null, timeout: 0};
 
 app.renderRoots["repl"] = root;
 connectToServer();
@@ -79,7 +79,7 @@ function connectToServer() {
 
   ws.onopen = function(e: Event) {    
     server.state = ReplState.CONNECTED;
-    server.timeout = 1;
+    server.timeout = 0;
     while(server.queue.length > 0) {
       let message = server.queue.shift();
       sendMessage(message);
@@ -149,12 +149,11 @@ function reconnect() {
     checkReconnectInterval = setTimeout(connectToServer, server.timeout * 1000);
   }
   if (server.timeout < 32) {
-    server.timeout += server.timeout;
+    server.timeout += server.timeout > 0 ? server.timeout : 1;
   }
 }
 
 function sendMessage(message): boolean {
-  console.log(message);
   if (server.ws.readyState === server.ws.OPEN) {
     server.ws.send(JSON.stringify(message));
     return true;  
@@ -171,7 +170,7 @@ function sendMessage(message): boolean {
 function newReplCard(): ReplCard {
   let replCard: ReplCard = {
     id: uuid(),
-    ix: replCards.length > 0 ? replCards.map((r) => r.ix).pop()+1 : 1,
+    ix: replCards.length > 0 ? replCards.map((r) => r.ix).pop() + 1 : 1,
     state: CardState.NONE,
     focused: false,
     query: undefined,
@@ -322,11 +321,12 @@ function generateReplCardElement(replCard: ReplCard) {
 
 function generateStatusBarElement() {
   let status = {c: "left", text: `Status: ${ReplState[server.state]}`};
-  let trash = {c: "ion-ios-trash right", click: deleteAllCards};    
+  let trash = {c: "ion-ios-trash right", click: deleteAllCards};
+  let refresh = {c: "ion-refresh left", click: reconnect};    
   let statusBar = {
     id: "status-bar",
     c: "status-bar",
-    children: [status, trash],
+    children: [status, refresh, trash],
   }
   return statusBar;
 }
