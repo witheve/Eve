@@ -59,7 +59,7 @@ function loadReplCards(): Array<ReplCard> {
   return storedReplCards;
 }
 
-function deleteReplCard(replCard: ReplCard) {
+function deleteStoredReplCard(replCard: ReplCard) {
   localStorage.removeItem("everepl-" + replCard.id);
 }
 
@@ -124,7 +124,7 @@ function connectToServer() {
             newFocusIx = removeIx - 1 < 0 ? 0 : removeIx - 1;
           }
           setTimeout(() => {
-            deleteReplCard(replCards[removeIx]);
+            deleteStoredReplCard(replCards[removeIx]);
             replCards.splice(removeIx,1);
             //replCards.forEach((r,i) => r.ix = i);
             if (newFocusIx !== undefined) {
@@ -154,6 +154,7 @@ function reconnect() {
 }
 
 function sendMessage(message): boolean {
+  console.log(message);
   if (server.ws.readyState === server.ws.OPEN) {
     server.ws.send(JSON.stringify(message));
     return true;  
@@ -162,6 +163,10 @@ function sendMessage(message): boolean {
     return false;
   }
 }
+
+// ------------------
+// Card functions
+// ------------------
 
 function newReplCard(): ReplCard {
   let replCard: ReplCard = {
@@ -173,6 +178,18 @@ function newReplCard(): ReplCard {
     result: undefined,
   }
   return replCard;
+}
+
+function deleteReplCard(replCard: ReplCard) {
+  if (replCard.state !== CardState.NONE) {
+    let closemessage = {
+      type: "close",
+      id: replCard.id,
+    };
+    sendMessage(closemessage);
+    replCard.state = CardState.PENDING;
+    replCard.result = "Deleting card...";
+  } 
 }
 
 // ------------------
@@ -207,7 +224,6 @@ function queryInputKeydown(event, elem) {
       nReplCard.focused = true;
       replCards.push(nReplCard);
     }
-    event.preventDefault();
   // Catch tab
   } else if (event.keyCode === 9) {
     let start = textArea.selectionStart;
@@ -216,36 +232,25 @@ function queryInputKeydown(event, elem) {
     value = value.substring(0, start) + "  " + value.substring(end);
     textArea.value = value;
     textArea.selectionStart = textArea.selectionEnd = start + 2;
-    event.preventDefault();
   // Catch ctrl + arrow up or page up
   } else if (event.keyCode === 38 && event.ctrlKey === true || event.keyCode === 33) {
     // Set the focus to the previous repl card
     let previousIx = thisReplCardIx - 1 >= 0 ? thisReplCardIx - 1 : 0;
     replCards.forEach((r) => r.focused = false);
     replCards[previousIx].focused = true;
-    event.preventDefault();
   // Catch ctrl + arrow down or page down
   } else if (event.keyCode === 40 && event.ctrlKey === true || event.keyCode === 34) {
     // Set the focus to the next repl card
     let nextIx = thisReplCardIx + 1 <= replIDs.length - 1 ? thisReplCardIx + 1 : replIDs.length - 1;
     replCards.forEach((r) => r.focused = false);
     replCards[nextIx].focused = true;
-    event.preventDefault();
   // Catch ctrl + delete to remove a card
   } else if (event.keyCode === 46 && event.ctrlKey === true) {
-    if (replCards[thisReplCardIx].state !== CardState.NONE) {
-      let closemessage = {
-        type: "close",
-        id: replCards[thisReplCardIx].id,
-      };
-      sendMessage(closemessage);
-      replCards[thisReplCardIx].state = CardState.PENDING;
-      replCards[thisReplCardIx].result = "Deleting card...";
-      event.preventDefault();
-    }
+    deleteReplCard(replCards[thisReplCardIx]);
   } else {
     return;
   }
+  event.preventDefault();
   app.dispatch("rerender", {}).commit();
 }
 
@@ -254,6 +259,10 @@ function replCardClick(event, elem) {
   replCards.forEach((r) => r.focused = false);
   replCards[elem.ix].focused = true;
   app.dispatch("rerender", {}).commit();
+}
+
+function deleteAllCards(event, elem) {
+  replCards.forEach(deleteReplCard);
 }
 
 function focusQueryBox(node,element) {
@@ -313,7 +322,7 @@ function generateReplCardElement(replCard: ReplCard) {
 
 function generateStatusBarElement() {
   let status = {c: "left", text: `Status: ${ReplState[server.state]}`};
-  let trash = {c: "ion-ios-trash right"};    
+  let trash = {c: "ion-ios-trash right", click: deleteAllCards};    
   let statusBar = {
     id: "status-bar",
     c: "status-bar",
