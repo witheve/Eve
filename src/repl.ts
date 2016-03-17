@@ -208,7 +208,6 @@ function queryInputKeydown(event, elem) {
       replCards.push(nReplCard);
     }
     event.preventDefault();
-    app.dispatch("rerender", {}).commit();
   // Catch tab
   } else if (event.keyCode === 9) {
     let start = textArea.selectionStart;
@@ -225,7 +224,6 @@ function queryInputKeydown(event, elem) {
     replCards.forEach((r) => r.focused = false);
     replCards[previousIx].focused = true;
     event.preventDefault();
-    app.dispatch("rerender", {}).commit();
   // Catch ctrl + arrow down or page down
   } else if (event.keyCode === 40 && event.ctrlKey === true || event.keyCode === 34) {
     // Set the focus to the next repl card
@@ -233,7 +231,6 @@ function queryInputKeydown(event, elem) {
     replCards.forEach((r) => r.focused = false);
     replCards[nextIx].focused = true;
     event.preventDefault();
-    app.dispatch("rerender", {}).commit();
   // Catch ctrl + delete to remove a card
   } else if (event.keyCode === 46 && event.ctrlKey === true) {
     if (replCards[thisReplCardIx].state !== CardState.NONE) {
@@ -245,9 +242,11 @@ function queryInputKeydown(event, elem) {
       replCards[thisReplCardIx].state = CardState.PENDING;
       replCards[thisReplCardIx].result = "Deleting card...";
       event.preventDefault();
-      app.dispatch("rerender", {}).commit();
     }
+  } else {
+    return;
   }
+  app.dispatch("rerender", {}).commit();
 }
 
 function replCardClick(event, elem) {
@@ -313,11 +312,12 @@ function generateReplCardElement(replCard: ReplCard) {
 }
 
 function generateStatusBarElement() {
-  let text = {c: "left", text: `Status: ${ReplState[server.state]}`};  
+  let status = {c: "left", text: `Status: ${ReplState[server.state]}`};
+  let trash = {c: "ion-ios-trash right"};    
   let statusBar = {
     id: "status-bar",
     c: "status-bar",
-    children: [text],
+    children: [status, trash],
   }
   return statusBar;
 }
