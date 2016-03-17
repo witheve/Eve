@@ -38,24 +38,28 @@ interface ReplCard {
 
 function rerender() {
   // Batch delete closed cards on rerender
-  let focusedCard = replCards.filter((r) => r.focused).shift();
-  let focusIx = 0;
-  if (focusedCard !== undefined) {
-    focusIx = focusedCard.ix;
-  }
   let closedCards = replCards.filter((r) => r.state === CardState.CLOSED);
   for (let card of closedCards) {
     deleteStoredReplCard(card);
     replCards.splice(replCards.map((r) => r.id).indexOf(card.id),1);    
   }
+  // Reindex cards if any have been removed
+  if (closedCards !== undefined) {
+    replCards.forEach((r,i) => r.ix = i);
+  }
   // Handle the focus
+  let focusedCard = replCards.filter((r) => r.focused).shift();
+  let focusIx = 0;
+  if (focusedCard !== undefined) {
+    focusIx = focusedCard.ix;
+  }
   let newFocusIx = replCards.filter((r) => r.ix >= focusIx && r.state !== CardState.CLOSED).map((r) => r.ix).shift();
+  newFocusIx = focusIx;
   newFocusIx === undefined ? 0 : newFocusIx;
   if (newFocusIx !== undefined) {
     replCards.forEach((r) => r.focused = false);
     replCards[newFocusIx].focused = true;
   }
-  replCards.forEach((r,i) => r.ix = i);
   app.dispatch("rerender", {}).commit();
 }
 
@@ -210,7 +214,6 @@ function deleteReplCard(replCard: ReplCard) {
 function focusCard(replCard: ReplCard) {
   replCards.forEach((r) => r.focused = false);
   replCard.focused = true;
-  rerender();
 }
 
 // ------------------
@@ -276,10 +279,12 @@ function queryInputKeydown(event, elem) {
 
 function replCardClick(event, elem) {
   focusCard(replCards[elem.ix]);
+  rerender();
 }
 
 function deleteAllCards(event, elem) {
   replCards.forEach(deleteReplCard);
+  rerender();
 }
 
 function focusQueryBox(node,element) {
