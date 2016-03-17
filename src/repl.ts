@@ -346,13 +346,19 @@ function generateReplCardElement(replCard: ReplCard) {
 }
 
 function generateStatusBarElement() {
-  let status = {c: "left", text: `Status: ${ReplState[server.state]}`};
+  let indicator = "connecting";
+  if (server.state === ReplState.CONNECTED) {
+    indicator = "connected";
+  } else if (server.state === ReplState.DISCONNECTED) {
+    indicator = "disconnected";
+  }
+  let statusIndicator = {c: `indicator ${indicator} left`};
   let trash = {c: "ion-ios-trash button right", click: deleteAllCards};
-  let refresh = {c: "ion-refresh button left", text: " Reconnect", click: reconnect};    
+  let refresh = {c: `ion-refresh button ${server.state !== ReplState.DISCONNECTED ? "hidden" : ""} left`, text: " Reconnect", click: function () { server.timeout = 0; reconnect(); } };    
   let statusBar = {
     id: "status-bar",
     c: "status-bar",
-    children: [status, refresh, trash],
+    children: [statusIndicator, refresh, trash],
   }
   return statusBar;
 }
