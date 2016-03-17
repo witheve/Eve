@@ -36,6 +36,35 @@ interface ReplCard {
   } | string,
 }
 
+function rerender() {
+  // Batch delete closed cards on rerender
+  let focusedCard = replCards.filter((r) => r.focused).shift();
+  let focusIx = 0;
+  if (focusedCard !== undefined) {
+    focusIx = focusedCard.ix;
+  }
+  let closedCards = replCards.filter((r) => r.state === CardState.CLOSED);
+  for (let card of closedCards) {
+    deleteStoredReplCard(card);
+    replCards.splice(replCards.map((r) => r.id).indexOf(card.id),1);    
+  }
+  // Handle the focus
+  let newFocusIx = replCards.filter((r) => r.ix >= focusIx && r.state !== CardState.CLOSED).map((r) => r.ix).shift();
+  newFocusIx === undefined ? 0 : newFocusIx;
+  if (newFocusIx !== undefined) {
+    replCards.forEach((r) => r.focused = false);
+    replCards[newFocusIx].focused = true;
+  }
+  replCards.forEach((r,i) => r.ix = i);
+  app.dispatch("rerender", {}).commit();
+}
+
+function delayedRerender(timeout: number) {
+  setTimeout(() => {
+    rerender()
+  }, timeout);  
+}
+
 // ------------------
 // Storage functions
 // ------------------
@@ -55,7 +84,7 @@ function loadReplCards(): Array<ReplCard> {
   if (storedReplCards.length > 0) {
     storedReplCards.map((r) => r.focused = false);
     storedReplCards = storedReplCards.sort((a,b) => a.ix - b.ix);
-    storedReplCards.forEach((r,i) => r.ix = i + 1);
+    storedReplCards.forEach((r,i) => r.ix = i);
   }
   return storedReplCards;
 }
@@ -85,18 +114,18 @@ function connectToServer() {
       let message = server.queue.shift();
       sendMessage(message);
     }
-    app.dispatch("rerender", {}).commit();
+    rerender()
   }
 
   ws.onerror = function(error) {
     server.state = ReplState.DISCONNECTED;
-    app.dispatch("rerender", {}).commit();
+    rerender()
   }
 
   ws.onclose = function(error) {  
     server.state = ReplState.DISCONNECTED;
     reconnect();
-    app.dispatch("rerender", {}).commit();
+    rerender()
   }
 
   ws.onmessage = function(message) {
@@ -118,25 +147,12 @@ function connectToServer() {
       } else if (parsed.type === "close") {
         let removeIx = replCards.map((r) => r.id).indexOf(parsed.id);
         if (removeIx >= 0) {
-          let cardToDelete = replCards[removeIx];
-          cardToDelete.state = CardState.CLOSED;
-          let newFocusIx;
-          if (cardToDelete.focused) {
-            newFocusIx = removeIx - 1 < 0 ? 0 : removeIx - 1;
-          }
-          setTimeout(() => {
-            deleteStoredReplCard(replCards[removeIx]);
-            replCards.splice(removeIx,1);
-            if (newFocusIx !== undefined) {
-              replCards.forEach((r) => r.focused = false);
-              replCards[newFocusIx].focused = true;
-            }
-            app.dispatch("rerender", {}).commit();
-          }, 250);            
+          replCards[removeIx].state = CardState.CLOSED;
+          delayedRerender(1000);            
         }
       }
     }
-    app.dispatch("rerender", {}).commit();
+    rerender()
   };
 }
 
@@ -191,6 +207,12 @@ function deleteReplCard(replCard: ReplCard) {
   } 
 }
 
+function focusCard(replCard: ReplCard) {
+  replCards.forEach((r) => r.focused = false);
+  replCard.focused = true;
+  rerender();
+}
+
 // ------------------
 // Event handlers
 // ------------------
@@ -234,15 +256,14 @@ function queryInputKeydown(event, elem) {
   // Catch ctrl + arrow up or page up
   } else if (event.keyCode === 38 && event.ctrlKey === true || event.keyCode === 33) {
     // Set the focus to the previous repl card
-    let previousIx = thisReplCardIx - 1 >= 0 ? thisReplCardIx - 1 : 0;
-    replCards.forEach((r) => r.focused = false);
-    replCards[previousIx].focused = true;
+    let previousIx = replCards.filter((r) => r.ix < thisReplCardIx && r.state !== CardState.CLOSED).map((r) => r.ix).pop();
+    previousIx = previousIx === undefined ? 0 : previousIx;
+    focusCard(replCards[previousIx]);
   // Catch ctrl + arrow down or page down
   } else if (event.keyCode === 40 && event.ctrlKey === true || event.keyCode === 34) {
     // Set the focus to the next repl card
     let nextIx = thisReplCardIx + 1 <= replIDs.length - 1 ? thisReplCardIx + 1 : replIDs.length - 1;
-    replCards.forEach((r) => r.focused = false);
-    replCards[nextIx].focused = true;
+    focusCard(replCards[nextIx]);
   // Catch ctrl + delete to remove a card
   } else if (event.keyCode === 46 && event.ctrlKey === true) {
     deleteReplCard(replCards[thisReplCardIx]);
@@ -250,14 +271,11 @@ function queryInputKeydown(event, elem) {
     return;
   }
   event.preventDefault();
-  app.dispatch("rerender", {}).commit();
+  rerender()
 }
 
 function replCardClick(event, elem) {
-  let thisReplCardIx = elem.ix;
-  replCards.forEach((r) => r.focused = false);
-  replCards[elem.ix].focused = true;
-  app.dispatch("rerender", {}).commit();
+  focusCard(replCards[elem.ix]);
 }
 
 function deleteAllCards(event, elem) {
