@@ -231,7 +231,7 @@ function queryInputKeydown(event, elem) {
   let thisReplCardIx = replIDs.indexOf(thisReplCard._id);
   // Submit the query with ctrl + enter
   if (event.keyCode === 13 && event.ctrlKey === true) {
-    let queryString = textArea.value;
+    let queryString = textArea.innerText;
     let query: Query = {
       id: thisReplCard._id,
       type: "query",
@@ -301,7 +301,7 @@ function focusQueryBox(node, element) {
 // ------------------
 
 function generateReplCardElement(replCard: ReplCard) { 
-  let queryInput = {t: "textarea", c: "query-input", text: replCard.query, placeholder: "query", keydown: queryInputKeydown, key: `${replCard.id}${replCard.focused}`, postRender: focusQueryBox, focused: replCard.focused};
+  let queryInput = {c: "query-input", contentEditable: true, text: replCard.query, placeholder: "query", keydown: queryInputKeydown, key: `${replCard.id}${replCard.focused}`, postRender: focusQueryBox, focused: replCard.focused};
   // Set the css according to the card state
   let resultcss = "query-result"; 
   let resultText = undefined;
