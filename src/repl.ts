@@ -353,12 +353,15 @@ function generateStatusBarElement() {
     indicator = "disconnected";
   }
   let statusIndicator = {c: `indicator ${indicator} left`};
-  let trash = {c: "ion-ios-trash button right", click: deleteAllCards};
+  let trash = {c: "ion-trash-a button right", click: deleteAllCards};
+  let save = {c: "ion-ios-download-outline button right"};
+  let load = {c: "ion-ios-upload-outline button right"};
+  let darkmode = {c: "ion-ios-lightbulb button right"};
   let refresh = {c: `ion-refresh button ${server.state !== ReplState.DISCONNECTED ? "hidden" : ""} left`, text: " Reconnect", click: function () { server.timeout = 0; reconnect(); } };    
   let statusBar = {
     id: "status-bar",
     c: "status-bar",
-    children: [statusIndicator, refresh, trash],
+    children: [statusIndicator, refresh, trash, save, load, darkmode],
   }
   return statusBar;
 }

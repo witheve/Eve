@@ -11,10 +11,11 @@ body {
 .status-bar {  
   width: 80%;
   height: 30px;
-  background-color: #2e2e2e;
+  background-color: #333;
+  border: 2px solid #111;
   margin: 10px auto 0px auto;
   padding: 10px;
-  border-radius: 3px;
+  border-radius: 4px;
   font-family: sans-serif;
   color: #f0f0f0;
   overflow: auto;
