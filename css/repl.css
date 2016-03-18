@@ -95,6 +95,11 @@ body {
   background-color: white;
   font-size: 16px;
   overflow: auto;
+  white-space: pre;
+}
+
+.query-input:focus {
+  box-shadow: inset inset 0 0 5px rgba(0,0,0,0.5);
 }
 
 .query-result {
