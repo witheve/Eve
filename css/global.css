@@ -1,2 +1,2 @@
 body { background: #000; }
-div { display:flex; outline:none; }
+div { display:flex; outline:none; flex-direction:column; }

@@ -117,7 +117,7 @@
     (set! (.-width node) (* ratio width))
     (set! (.-height node) (* ratio height))
     (set! (.-lineWidth ctx) 1)
-    (set! (.-strokeStyle ctx) "#555")
+    (set! (.-strokeStyle ctx) "#333")
     (dotimes [vertical (/ height size-y)]
       (.beginPath ctx)
       (.moveTo ctx 0 (* adjusted-size-y vertical))
@@ -428,10 +428,17 @@
         (.push children (box :style (style :width (- (* cell-size-x (or width 1)) 2)
                                            :height (- (* cell-size-y (or height 1)) 2)
                                            :position "absolute"
-                                           :top (+ 1 (* y cell-size-y))
-                                           :left (+ 1 (* x cell-size-x))
+                                           :top (+ 0 (* y cell-size-y))
+                                           :left (+ 0 (* x cell-size-x))
                                            :border "1px solid #66f"
-                                           :background (or color "#000"))))))
+                                           :background (or color "#000"))
+                             :children (array (text :style (style :color "#777"
+                                                                  :font-size "10pt"
+                                                                  :margin "6px 0 0 8px")
+                                                    :text "property")
+                                              (text :style (style :font-size "12pt"
+                                                                  :margin "5px 0 0 8px")
+                                                    :text "value"))))))
     (dotimes [selection-ix (count selections)]
       (let [selection (aget selections selection-ix)
             color "#f7c"
@@ -471,9 +478,11 @@
   (box :style (style :width "100vw"
                      :height "100vh"
                      :align-items "center"
-                     :justify-content "center")
-       :children (array (grid {:grid-width 500
-                               :grid-height 500
+                     :justify-content "center"
+                     :color "#ccc"
+                     :font-family "Lato")
+       :children (array (grid {:grid-width (.-innerWidth js/window)
+                               :grid-height (.-innerHeight js/window)
                                :selections (state :selections "main")
                                :cells (state :cells "main")
                                :cell-size-y 50
