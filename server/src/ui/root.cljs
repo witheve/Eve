@@ -181,6 +181,7 @@
     updated))
 
 (defn set-selection [event elem]
+  (.preventDefault event)
   (let [{:keys [x y]} (target-relative-coords event)
         {:keys [cell-size-x cell-size-y id cells]} (.-info elem)
         range? (.-shiftKey event)
