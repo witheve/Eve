@@ -249,12 +249,11 @@ function queryInputKeydown(event, elem) {
     }
   // Catch tab
   } else if (event.keyCode === 9) {
-    //let start = getCaretPosition(event.target);
-    //let end = getCaretPosition(event.target);
-    //let value = event.target.outerText;
-    //value = value.substring(0, start) + "  " + value.substring(end);
-    //event.target.outerText = value;
-    //textArea.selectionStart = textArea.selectionEnd = start + 2;*/
+    let range = getSelection(event.target);
+    //let value = event.target.innerText;
+    //value = value.substring(0, range[0]) + "  " + value.substring(range[1]);
+    //event.target.innerHTML = value;
+    //setSelection(range[0] + 2,range[0] + 2);
   // Catch ctrl + arrow up or page up
   } else if (event.keyCode === 38 && event.ctrlKey === true || event.keyCode === 33) {
     // Set the focus to the previous repl card
@@ -274,6 +273,18 @@ function queryInputKeydown(event, elem) {
   }
   event.preventDefault();
   rerender();
+}
+  
+function getSelection(editableDiv): Array<number> {
+  let sel: any = window.getSelection();
+  let range = [sel.baseOffset, sel.extentOffset];
+  range = range.sort();
+  return range;
+}
+
+function setSelection(start: number, stop: number) {
+  let sel = window.getSelection();
+  sel.setBaseAndExtent(sel.anchorNode, start, sel.anchorNode, stop);
 }
 
 function queryInputKeyup(event, elem) {
