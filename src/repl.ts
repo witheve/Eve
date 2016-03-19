@@ -197,7 +197,7 @@ function newReplCard(): ReplCard {
     ix: replCards.length > 0 ? replCards.map((r) => r.ix).pop() + 1 : 0,
     state: CardState.NONE,
     focused: false,
-    query: undefined,
+    query: "",
     result: undefined,
   }
   return replCard;
@@ -225,28 +225,23 @@ function focusCard(replCard: ReplCard) {
 // ------------------
 
 function queryInputKeydown(event, elem) {
-  let textArea = event.srcElement;
-  let thisReplCard = textArea.parentElement;
-  let replIDs = replCards.map((r) => r.id);
-  let thisReplCardIx = replIDs.indexOf(thisReplCard._id);
+  let thisReplCard = replCards[elem.ix];
   // Submit the query with ctrl + enter
   if (event.keyCode === 13 && event.ctrlKey === true) {
-    let queryString = textArea.innerText;
     let query: Query = {
-      id: thisReplCard._id,
+      id: thisReplCard.id,
       type: "query",
-      query: queryString,
+      query: thisReplCard.query.replace(/\s+/g,' '),
     }
-    replCards[thisReplCardIx].query = queryString;
-    replCards[thisReplCardIx].state = CardState.PENDING;    
+    thisReplCard.state = CardState.PENDING;    
     let sent = sendMessage(query);
     if (sent) {
-      replCards[thisReplCardIx].result = "Waiting on response from server...";
+      thisReplCard.result = "Waiting on response from server...";
     } else {
-      replCards[thisReplCardIx].result = "Message queued.";
+      thisReplCard.result = "Message queued.";
     }
     // Create a new card if we submitted the last one in replCards
-    if (thisReplCardIx === replCards.length - 1) {
+    if (thisReplCard.ix === replCards.length - 1) {
       let nReplCard = newReplCard();
       replCards.forEach((r) => r.focused = false);
       nReplCard.focused = true;
@@ -254,31 +249,42 @@ function queryInputKeydown(event, elem) {
     }
   // Catch tab
   } else if (event.keyCode === 9) {
-    let start = textArea.selectionStart;
-    let end = textArea.selectionEnd;
-    let value = textArea.value;
-    value = value.substring(0, start) + "  " + value.substring(end);
-    textArea.value = value;
-    textArea.selectionStart = textArea.selectionEnd = start + 2;
+    //let start = getCaretPosition(event.target);
+    //let end = getCaretPosition(event.target);
+    //let value = event.target.outerText;
+    //value = value.substring(0, start) + "  " + value.substring(end);
+    //event.target.outerText = value;
+    //textArea.selectionStart = textArea.selectionEnd = start + 2;*/
   // Catch ctrl + arrow up or page up
   } else if (event.keyCode === 38 && event.ctrlKey === true || event.keyCode === 33) {
     // Set the focus to the previous repl card
-    let previousIx = replCards.filter((r) => r.ix < thisReplCardIx && r.state !== CardState.CLOSED).map((r) => r.ix).pop();
+    let previousIx = replCards.filter((r) => r.ix < thisReplCard.ix && r.state !== CardState.CLOSED).map((r) => r.ix).pop();
     previousIx = previousIx === undefined ? 0 : previousIx;
     focusCard(replCards[previousIx]);
   // Catch ctrl + arrow down or page down
   } else if (event.keyCode === 40 && event.ctrlKey === true || event.keyCode === 34) {
     // Set the focus to the next repl card
-    let nextIx = thisReplCardIx + 1 <= replIDs.length - 1 ? thisReplCardIx + 1 : replIDs.length - 1;
+    let nextIx = thisReplCard.ix + 1 <= replCards.length - 1 ? thisReplCard.ix + 1 : replCards.length - 1;
     focusCard(replCards[nextIx]);
   // Catch ctrl + delete to remove a card
   } else if (event.keyCode === 46 && event.ctrlKey === true) {
-    deleteReplCard(replCards[thisReplCardIx]);
+    deleteReplCard(thisReplCard);
   } else {
     return;
   }
   event.preventDefault();
-  rerender()
+  rerender();
+}
+
+function queryInputKeyup(event, elem) {
+  let thisReplCard = replCards[elem.ix];
+  thisReplCard.query = event.target.innerText;
+}
+
+function queryInputBlur(event, elem) {
+  let thisReplCard = replCards[elem.ix];
+  thisReplCard.focused = false;
+  rerender();
 }
 
 function replCardClick(event, elem) {
@@ -301,7 +307,18 @@ function focusQueryBox(node, element) {
 // ------------------
 
 function generateReplCardElement(replCard: ReplCard) { 
-  let queryInput = {c: "query-input", contentEditable: true, text: replCard.query, placeholder: "query", keydown: queryInputKeydown, key: `${replCard.id}${replCard.focused}`, postRender: focusQueryBox, focused: replCard.focused};
+  let queryInput = {
+    ix: replCard.ix, 
+    key: `${replCard.id}${replCard.focused}`, 
+    focused: replCard.focused,
+    c: "query-input",
+    contentEditable: true,
+    text: replCard.query,
+    keydown: queryInputKeydown, 
+    blur: queryInputBlur, 
+    keyup: queryInputKeyup,    
+    postRender: focusQueryBox, 
+  };
   // Set the css according to the card state
   let resultcss = "query-result"; 
   let resultText = undefined;
