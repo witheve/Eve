@@ -1,5 +1,6 @@
 (ns ui.root
   (:refer-clojure :exclude [find remove])
+  (:require [clojure.string :as string])
   (:require-macros [ui.macros :refer [elem afor log box text button input dispatch extract for-fact]]))
 
 (enable-console-print!)
@@ -30,10 +31,30 @@
 ;; local state
 ;;---------------------------------------------------------
 
-(defn state []
-  )
+(defonce state-store (atom {}))
 
-(defn set-state! [key ])
+(defn args-to-key [args]
+  (string/join "-" (for [arg args]
+                     (if (keyword? arg)
+                       (name arg)
+                       arg))))
+
+(defmulti state identity)
+
+(defmethod state :cells [& args]
+  (or (@state-store (args-to-key args))
+      (array)))
+
+(defmethod state :selections [& args]
+  (or (@state-store (args-to-key args))
+      (array)))
+
+(defmethod state :default [& args]
+  (@state-store (args-to-key args)))
+
+(defmulti set-state! identity)
+(defmethod set-state! :default [& args]
+  (swap! state-store assoc (args-to-key (butlast args)) (last args)))
 
 ;;---------------------------------------------------------
 ;; Styles
@@ -81,22 +102,7 @@
 ;; Root
 ;;---------------------------------------------------------
 
-(defonce example-state (atom {}))
-
-(defn get-selections [grid-id]
-  (@example-state (str grid-id "-selections")))
-
-(defn get-cells [grid-id]
-  (array {:x 4 :y 6 :width 6 :height 3}
-         {:x 1 :y 1 :width 1 :height 1}
-         {:x 4 :y 1 :width 5 :height 5}))
-
-(defn get-offset [grid-id]
-  (or (@example-state (str grid-id "-offset"))
-      {:x 0 :y 0}))
-
-(defn get-extending-selection [grid-id]
-  (@example-state (str grid-id "-extending-selection")))
+(defonce example-state (atom {"main-cells" (array)}))
 
 (defn draw-grid [node elem]
   (let [ctx (.getContext node "2d")
@@ -104,22 +110,24 @@
         info (.-info elem)
         width (:grid-width info)
         height (:grid-height info)
-        size (:cell-size info)
-        adjusted-size (* ratio size)]
+        size-x (:cell-size-x info)
+        size-y (:cell-size-y info)
+        adjusted-size-y (* ratio size-y)
+        adjusted-size-x (* ratio size-x)]
     (set! (.-width node) (* ratio width))
     (set! (.-height node) (* ratio height))
     (set! (.-lineWidth ctx) 1)
-    (set! (.-strokeStyle ctx) "#aaa")
-    (dotimes [vertical (/ height size)]
+    (set! (.-strokeStyle ctx) "#555")
+    (dotimes [vertical (/ height size-y)]
       (.beginPath ctx)
-      (.moveTo ctx 0 (* adjusted-size vertical))
-      (.lineTo ctx (* ratio width) (* adjusted-size vertical))
+      (.moveTo ctx 0 (* adjusted-size-y vertical))
+      (.lineTo ctx (* ratio width) (* adjusted-size-y vertical))
       (.stroke ctx)
       (.closePath ctx))
-    (dotimes [horizontal (/ width size)]
+    (dotimes [horizontal (/ width size-x)]
       (.beginPath ctx)
-      (.moveTo ctx (* adjusted-size horizontal) 0)
-      (.lineTo ctx (* adjusted-size horizontal) (* ratio height))
+      (.moveTo ctx (* adjusted-size-x horizontal) 0)
+      (.lineTo ctx (* adjusted-size-x horizontal) (* ratio height))
       (.stroke ctx)
       (.closePath ctx))
   ))
@@ -166,27 +174,24 @@
     (if (not= 0 (count result))
       result)))
 
-(defn update-selection! [grid-id selection]
-  (swap! example-state assoc (str grid-id "-selections") selection))
-
-(defn update-extending-selection! [grid-id value]
-  (swap! example-state assoc (str grid-id "-extending-selection") value))
-
-(defn update-offset! [grid-id offset]
-  (swap! example-state assoc (str grid-id "-offset") offset))
+(defn add-cell! [grid-id cell]
+  (let [with-id (assoc cell :id (js/uuid))
+        updated (.concat (state :cells grid-id) (array with-id))]
+    (set-state! :cells grid-id updated)
+    updated))
 
 (defn set-selection [event elem]
   (let [{:keys [x y]} (target-relative-coords event)
-        {:keys [cell-size id cells]} (.-info elem)
+        {:keys [cell-size-x cell-size-y id cells]} (.-info elem)
         range? (.-shiftKey event)
         extend? (or (.-ctrlKey event) (.-metaKey event))
-        selected-x (.floor js/Math (/ x cell-size))
-        selected-y (.floor js/Math (/ y cell-size))
+        selected-x (.floor js/Math (/ x cell-size-x))
+        selected-y (.floor js/Math (/ y cell-size-y))
         pos {:x selected-x :y selected-y :width 1 :height 1}
         maybe-selected-cell (get-intersecting-cell pos cells)
         addition (or maybe-selected-cell pos)
         updated (cond
-                  range? (let [start (first (get-selections id))]
+                  range? (let [start (first (state :selections id))]
                            (array {:x (:x start) :y (:y start)
                                    ;; height and width are calculated by determining the distance
                                    ;; between the start and end points, but we also need to factor
@@ -194,21 +199,23 @@
                                    :width (+ (- (:x addition) (:x start)) (:width addition))
                                    :height (+ (- (:y addition) (:y start)) (:height addition))
                                    }))
-                  extend? (.concat (get-selections id) (array addition))
+                  extend? (.concat (state :selections id) (array addition))
                   :else (array addition))]
     (dispatch
-      (update-selection! id updated)
-      (update-extending-selection! id true))))
+      (set-state! :selections id updated)
+      (set-state! :extending-selection id true))))
 
 (declare stop-selecting)
 
 (defn extend-selection [event elem]
-  (let [{:keys [id cell-size]} (.-info elem)]
-    (when (get-extending-selection id)
+  (let [{:keys [id cell-size-y cell-size-x]} (.-info elem)
+        point-selecting? (or (.-metaKey event) (.-ctrlKey event))]
+    (when (and (state :extending-selection id)
+               (not point-selecting?))
       (let [{:keys [x y]} (target-relative-coords event)
-            selected-x (.floor js/Math (/ x cell-size))
-            selected-y (.floor js/Math (/ y cell-size))
-            start (first (get-selections id))
+            selected-x (.floor js/Math (/ x cell-size-x))
+            selected-y (.floor js/Math (/ y cell-size-y))
+            start (first (state :selections id))
             ;; height and width are calculated by determining the distance
             ;; between the start and end points, but we also need to factor
             ;; in the size of the end cell.
@@ -225,9 +232,9 @@
                           :width (if (not= 0 width) width 1)
                           :height (if (not= 0 height) height 1)})]
         (dispatch
-          (update-selection! id maybe)
+          (set-state! :selections id maybe)
           (when-not (global-mouse-down)
-            (update-extending-selection! id false)
+            (set-state! :extending-selection id false)
             (stop-selecting event elem)))))))
 
 (defn normalize-cell-size [{:keys [x y width height] :as cell}]
@@ -247,14 +254,18 @@
 
 (defn stop-selecting [event elem]
   (let [{:keys [id cells]} (.-info elem)
-        current (first (get-selections id))
-        normalized (normalize-cell-size current)
-        intersecting (get-all-interesecting-cells normalized cells)
-        final (or intersecting (array normalized))]
-    (println final)
-    (dispatch
-      (update-selection! id final)
-      (update-extending-selection! id false))))
+        selections (state :selections id)]
+    (if (and (state :extending-selection id)
+             (= 1 (count selections)))
+      (let [current (first (state :selections id))
+            normalized (normalize-cell-size current)
+            intersecting (get-all-interesecting-cells normalized cells)
+            final (or intersecting (array normalized))]
+        (dispatch
+          (set-state! :selections id final)
+          (set-state! :extending-selection id false))))
+      (dispatch
+        (set-state! :extending-selection id false))))
 
 (defn remove-overlap [cells updated-cells axis-and-direction-map]
   (let [changed (.slice updated-cells)
@@ -315,12 +326,14 @@
 
 (defn grid-keys [event elem]
   (let [{:keys [id cells]} (.-info elem)
-        current-selection (last (get-selections id))
-        {x-offset :x y-offset :y} (get-offset id)
+        selections (state :selections id)
+        current-selection (last selections)
+        {x-offset :x y-offset :y} (or (state :offset id) {:x 0 :y 0})
+        key-code (.-keyCode event)
         shift? (.-shiftKey event)
         ;; if shift isn't pressed then this is moving the selection
         updated-pos (if-not shift?
-                      (condp = (.-keyCode event)
+                      (condp = key-code
                         37 (-> (update-in current-selection [:x] dec)
                                (update-in [:y] + y-offset))
                         38 (-> (update-in current-selection [:y] dec)
@@ -332,7 +345,7 @@
                         nil))
         ;; if shift is pressed then it's extending the selection rect
         extended (if shift?
-                   (condp = (.-keyCode event)
+                   (condp = key-code
                      ;; we use non-zero-inc/dec here because the size of the selection
                      ;; should always include the intially selected cell. So instead
                      ;; of a width of zero it will always be 1 or -1
@@ -341,16 +354,31 @@
                      39 (update-in current-selection [:width] non-zero-inc)
                      40 (update-in current-selection [:height] non-zero-inc)
                      nil))
-        handled (condp = (.-keyCode event)
-                      13 (println "ENTER")
-                      nil)
-        handled (or updated-pos extended handled)]
+        handled (or updated-pos extended)]
+    ;; Handle enter
+    (when (= key-code 13)
+      (if-not (:id current-selection)
+        (dispatch
+          (let [cells (add-cell! id current-selection)]
+            (set-state! :selections id (array (last cells)))))
+        (println "enter the cell!"))
+      (.preventDefault event))
+    ;; handle backspace
+    (when (= key-code 8)
+      (let [selected-ids (into #{} (for [selection (state :selections id)]
+                                     (:id selection)))]
+        (dispatch
+          (set-state! :cells id (.filter (state :cells id) (fn [cell]
+                                                   (not (selected-ids (:id cell))))))
+          (set-state! :selections id (to-array (for [selection selections]
+                                            (dissoc selection :id)))))
+        (.preventDefault event)))
     (when extended
       (dispatch
         ;; there's no offset if we're extending
-        (update-offset! id {:x 0 :y 0})
-        (update-extending-selection! id true)
-        (update-selection! id (array extended))))
+        (set-state! :offset id {:x 0 :y 0})
+        (set-state! :extending-selection id true)
+        (set-state! :selections id (array extended))))
     (when updated-pos
       ;; when we move the selection it becomes a unit-size selection
       ;; we then have to check if that unit is currently occupied by
@@ -368,9 +396,9 @@
                      {:x 0 :y 0})
             final (or maybe-selected-cell resized-pos)]
         (dispatch
-          (when offset (update-offset! id offset))
-          (update-extending-selection! id false)
-          (update-selection! id (array final)))))
+          (when offset (set-state! :offset id offset))
+          (set-state! :extending-selection id false)
+          (set-state! :selections id (array final)))))
     (when handled
       (.preventDefault event))))
 
@@ -378,14 +406,13 @@
   ;; check for shift key if we were expanding
   (let [{:keys [id]} (.-info elem)]
     (when (and (= 16 (.-keyCode event))
-               (get-extending-selection id))
+               (state :extending-selection id))
       (dispatch
-        (update-extending-selection! id false)
-        (stop-selecting event elem)))))
+        (stop-selecting event elem)
+        (set-state! :extending-selection id false)))))
 
 (defn start-resize [event elem]
-  (.stopPropagation event)
-  )
+  (.stopPropagation event))
 
 (defn grid [info]
   (let [canvas (elem :t "canvas"
@@ -395,27 +422,28 @@
                      :style (style :width (:grid-width info)
                                    :height (:grid-height info)))
         children (array canvas)
-        {:keys [cells cell-size selections]} info]
+        {:keys [cells cell-size-x cell-size-y selections]} info]
     (dotimes [cell-ix (count cells)]
       (let [{:keys [x y width height color]} (aget cells cell-ix)]
-        (.push children (box :style (style :width (- (* cell-size (or width 1)) 2)
-                                           :height (- (* cell-size (or height 1)) 2)
+        (.push children (box :style (style :width (- (* cell-size-x (or width 1)) 2)
+                                           :height (- (* cell-size-y (or height 1)) 2)
                                            :position "absolute"
-                                           :top (+ 1 (* y cell-size))
-                                           :left (+ 1 (* x cell-size))
-                                           :background (or color "white"))))))
+                                           :top (+ 1 (* y cell-size-y))
+                                           :left (+ 1 (* x cell-size-x))
+                                           :border "1px solid #66f"
+                                           :background (or color "#000"))))))
     (dotimes [selection-ix (count selections)]
       (let [selection (aget selections selection-ix)
-            color "blue"
+            color "#f7c"
             ;; we have to normalize selections since while they're being expanded
             ;; they can have negative widths and heights
             {:keys [x y width height]} (normalize-cell-size selection)]
-        (.push children (box :style (style :width (- (* cell-size width) 2)
-                                           :height (- (* cell-size height) 2)
+        (.push children (box :style (style :width (- (* cell-size-x width) 2)
+                                           :height (- (* cell-size-y height) 2)
                                            :position "absolute"
-                                           :top (* y cell-size)
-                                           :left (* x cell-size)
-                                           :border (str "1px solid " (or color "blue")))
+                                           :top (* y cell-size-y)
+                                           :left (* x cell-size-x)
+                                           :border (str "1px solid " (or color "#aaffaa")))
                              ;; add a resize handle to the selection
                              :children (array (elem :mousedown start-resize
                                                     ;; mouseup and mousemove can't be handled here since it's
@@ -427,7 +455,7 @@
                                                                   :position "absolute"
                                                                   :bottom -5
                                                                   :right -5
-                                                                  :background "blue")))))))
+                                                                  :background "#f7c")))))))
     (elem :children children
           :info info
           :tabindex -1
@@ -440,26 +468,17 @@
 
 
 (defn root []
-  (box :style (style :background "rgba(0,0,50,0.08)")
+  (box :style (style :width "100vw"
+                     :height "100vh"
+                     :align-items "center"
+                     :justify-content "center")
        :children (array (grid {:grid-width 500
                                :grid-height 500
-                               :selections (get-selections "main")
-                               :cells (get-cells "main")
-                               :cell-size 40
-                               :id "main"})
-                        ; (grid {:grid-width 500
-                        ;        :grid-height 500
-                        ;        :selections (get-selections "main")
-                        ;        :cells (get-cells "main")
-                        ;        :cell-size 10
-                        ;        :id "main"})
-                        ; (grid {:grid-width 500
-                        ;        :grid-height 500
-                        ;        :selections (get-selections "main")
-                        ;        :cells (get-cells "main")
-                        ;        :cell-size 100
-                        ;        :id "main"})
-                        )))
+                               :selections (state :selections "main")
+                               :cells (state :cells "main")
+                               :cell-size-y 50
+                               :cell-size-x 120
+                               :id "main"}))))
 
 ;;---------------------------------------------------------
 ;; Rendering
