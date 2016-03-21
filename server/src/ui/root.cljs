@@ -47,7 +47,7 @@
 
 (defmethod state :selections [& args]
   (or (@state-store (args-to-key args))
-      (array)))
+      (array {:x 0 :y 0 :width 1 :height 1})))
 
 (defmethod state :default [& args]
   (@state-store (args-to-key args)))
@@ -181,7 +181,6 @@
     updated))
 
 (defn set-selection [event elem]
-  (.preventDefault event)
   (let [{:keys [x y]} (target-relative-coords event)
         {:keys [cell-size-x cell-size-y id cells]} (.-info elem)
         range? (.-shiftKey event)
@@ -465,6 +464,7 @@
                                                                   :right -5
                                                                   :background "#f7c")))))))
     (elem :children children
+          :c "noselect"
           :info info
           :tabindex -1
           :mousedown set-selection
