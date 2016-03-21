@@ -101,6 +101,11 @@ function deleteStoredReplCard(replCard: ReplCard) {
   localStorage.removeItem("everepl-" + replCard.id);
 }
 
+function saveCards() {
+  let cardString = JSON.stringify(replCards);
+  
+}
+
 // ------------------
 // Server functions
 // ------------------
@@ -382,10 +387,10 @@ function generateStatusBarElement() {
   }
   let statusIndicator = {c: `indicator ${indicator} left`};
   let trash = {c: "ion-trash-a button right", click: deleteAllCards};
-  let save = {c: "ion-ios-download-outline button right"};
+  let save = {c: "ion-ios-download-outline button right", click: saveCards};
   let load = {c: "ion-ios-upload-outline button right"};
   let darkmode = {c: "ion-ios-lightbulb button right"};
-  let refresh = {c: `ion-refresh button ${server.state !== ReplState.DISCONNECTED ? "hidden" : ""} left`, text: " Reconnect", click: function () { server.timeout = 0; reconnect(); } };    
+  let refresh = {c: `ion-refresh button ${server.state !== ReplState.DISCONNECTED ? "noheight" : ""} left`, text: " Reconnect", click: function () { server.timeout = 0; reconnect(); } };    
   let statusBar = {
     id: "status-bar",
     c: "status-bar",
@@ -400,15 +405,15 @@ replCards.push(newReplCard());
 replCards[0].focused = true;
 
 function root() {
-  let replRoot = {
+  let cardRoot = {
     id: "card-root",
     c: "card-root",
     children: replCards.map(generateReplCardElement),
   }
-  let root = {
+  let replRoot = {
     id: "repl-root",
     c: "repl-root",
-    children: [generateStatusBarElement(), replRoot],
+    children: [generateStatusBarElement(), cardRoot],
   };
-  return root;
+  return replRoot;
 }
