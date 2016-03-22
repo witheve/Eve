@@ -102,15 +102,18 @@ function deleteStoredReplCard(replCard: ReplCard) {
 }
 
 function saveCards() {
-  let cardString = JSON.stringify(replCards);
-  
+  let serialized = JSON.stringify(replCards.filter((r) => r.state !== CardState.NONE).map((r) => r.query));
+  let blob = new Blob([serialized], {type: "application/json"});
+  let url = URL.createObjectURL(blob);
+  server.blob = url;
+  rerender();
 }
 
 // ------------------
 // Server functions
 // ------------------
 
-let server = { state: ReplState.CONNECTING, queue: [], ws: null, timer: undefined, timeout: 0};
+let server = { state: ReplState.CONNECTING, blob: undefined, queue: [], ws: null, timer: undefined, timeout: 0};
 
 app.renderRoots["repl"] = root;
 connectToServer();
@@ -340,7 +343,6 @@ function generateReplCardElement(replCard: ReplCard) {
   let resultText = undefined;
   let resultTable = undefined;
   let replClass = "repl-card";
-  let wrapperClass = "repl-card-wrapper";
   // Format card based on state
   if (replCard.state === CardState.GOOD) {
     resultcss += " good";
@@ -375,15 +377,7 @@ function generateReplCardElement(replCard: ReplCard) {
     c: replClass,
     click: replCardClick,
     children: [queryInput, queryResult],
-  };
-
-    
-  let replCardElementWrapper = {
-    c: wrapperClass,
-    
-    children: [replCardElement],
-  };
-   
+  };   
   return replCardElement;
 }
 
@@ -394,9 +388,11 @@ function generateStatusBarElement() {
   } else if (server.state === ReplState.DISCONNECTED) {
     indicator = "disconnected";
   }
+  
+  let downloadLink = server.blob ? {t: "a", href: server.blob, download: "save.evedb", text: "Download"} : {};
   let statusIndicator = {c: `indicator ${indicator} left`};
   let trash = {c: "ion-trash-a button right", click: deleteAllCards};
-  let save = {c: "ion-ios-download-outline button right", click: saveCards};
+  let save = {c: "ion-ios-download-outline button right", click: saveCards, children: [downloadLink]};
   let load = {c: "ion-ios-upload-outline button right"};
   let darkmode = {c: "ion-ios-lightbulb button right"};
   let refresh = {c: `ion-refresh button ${server.state !== ReplState.DISCONNECTED ? "no-opacity" : ""} left`, text: " Reconnect", click: function () { server.timeout = 0; reconnect(); } };    
