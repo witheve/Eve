@@ -348,6 +348,18 @@ function focusQueryBox(node, element) {
   }
 }
 
+function toggleTheme(event, elem) {
+  var theme = localStorage["eveReplTheme"]; 
+  if (theme === "dark") { 
+    localStorage["eveReplTheme"] = "light"; 
+  } else if(theme === "light") { 
+    localStorage["eveReplTheme"] = "dark"; 
+  } else { 
+    localStorage["eveReplTheme"] = "dark"; 
+  }
+  rerender();
+}
+
 // ------------------
 // Element generation
 // ------------------
@@ -421,14 +433,15 @@ function generateStatusBarElement() {
   let trash = {c: "ion-trash-a button right", click: deleteAllCards};
   let save = {c: "ion-ios-download-outline button right", click: saveCards, children: [downloadLink]};
   let load = {t: "input", type: "file", c: "ion-ios-upload-outline button right", change: loadCards};
+  //let load = {c: "ion-ios-upload-outline button right", change: loadCards};
   
   
-  let darkmode = {c: "ion-ios-lightbulb button right"};
+  let dimmer = {c: `${localStorage["eveReplTheme"] === "light" ? "ion-ios-lightbulb" : "ion-ios-lightbulb-outline"} button right`, click: toggleTheme};
   let refresh = {c: `ion-refresh button ${server.state !== ReplState.DISCONNECTED ? "no-opacity" : ""} left`, text: " Reconnect", click: function () { server.timeout = 0; reconnect(); } };    
   let statusBar = {
     id: "status-bar",
     c: "status-bar",
-    children: [statusIndicator, refresh, trash, save, load, darkmode],
+    children: [statusIndicator, refresh, trash, save, load, dimmer],
   }
   return statusBar;
 }
@@ -445,9 +458,14 @@ function root() {
     children: replCards.map(generateReplCardElement),
   }
   let replRoot = {
-    id: "repl-root",
+    id: "repl_root",
     c: "repl-root",
     children: [generateStatusBarElement(), cardRoot],
   };
-  return replRoot;
+  let root = {
+    id: "root",
+    c: localStorage["eveReplTheme"] || "light",
+    children: [replRoot],
+  };
+  return root;
 }
