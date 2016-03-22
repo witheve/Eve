@@ -32,7 +32,13 @@ body {
   border-radius: 4px;
   padding: 5px;
   opacity: 1;
-  transition: opacity 0.25s linear;
+  max-height: 1000px;
+  transition: opacity .2s linear, max-height .5s ease-out, margin-bottom .2s linear, padding .5s ease-out;
+}
+
+.repl-card-wraper {
+  opacity: 1;
+  transition: opacity 3s linear;
 }
 
 @media all and (max-width: 600px) {
@@ -105,14 +111,6 @@ body {
 .right { float: right; margin-left: 10px; }
 .hidden {visibility: hidden;}
 
-.noheight {
-  opacity: 0;
-}
-
-.selected {
-  background-color: rgb(0, 121, 177);
-}
-
 .query-input {
   outline: none;
   resize: none;
@@ -179,3 +177,25 @@ body {
   display: table-cell;
   padding: 5px;
 }
+
+.no-opacity {
+  opacity: 0;
+}
+
+.no-height2 {
+  max-height: 0px;
+}
+
+.no-height {
+  opacity: 0;
+  padding: 0px;
+  max-height: 0px;
+  overflow-y: hidden;
+  margin-bottom: 0px;
+}
+
+.selected {
+  background-color: rgb(0, 121, 177);
+}
+
+

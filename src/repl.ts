@@ -41,7 +41,7 @@ function rerender(removeCards?: boolean) {
     removeCards = false;
   }
   // Batch delete closed cards on rerender
-  if (removeCards) {
+  if (removeCards === true) {
     let closedCards = replCards.filter((r) => r.state === CardState.CLOSED);
     if (server.timer !== undefined) {
       clearTimeout(server.timer);
@@ -340,6 +340,7 @@ function generateReplCardElement(replCard: ReplCard) {
   let resultText = undefined;
   let resultTable = undefined;
   let replClass = "repl-card";
+  let wrapperClass = "repl-card-wrapper";
   // Format card based on state
   if (replCard.state === CardState.GOOD) {
     resultcss += " good";
@@ -362,7 +363,7 @@ function generateReplCardElement(replCard: ReplCard) {
     resultText = `${replCard.result}`;
   } else if (replCard.state === CardState.CLOSED) {
     resultcss += " closed";
-    replClass += " noheight";
+    replClass += " no-height";
     resultText = `Query closed.`;
   }
   
@@ -375,6 +376,14 @@ function generateReplCardElement(replCard: ReplCard) {
     click: replCardClick,
     children: [queryInput, queryResult],
   };
+
+    
+  let replCardElementWrapper = {
+    c: wrapperClass,
+    
+    children: [replCardElement],
+  };
+   
   return replCardElement;
 }
 
@@ -390,7 +399,7 @@ function generateStatusBarElement() {
   let save = {c: "ion-ios-download-outline button right", click: saveCards};
   let load = {c: "ion-ios-upload-outline button right"};
   let darkmode = {c: "ion-ios-lightbulb button right"};
-  let refresh = {c: `ion-refresh button ${server.state !== ReplState.DISCONNECTED ? "noheight" : ""} left`, text: " Reconnect", click: function () { server.timeout = 0; reconnect(); } };    
+  let refresh = {c: `ion-refresh button ${server.state !== ReplState.DISCONNECTED ? "no-opacity" : ""} left`, text: " Reconnect", click: function () { server.timeout = 0; reconnect(); } };    
   let statusBar = {
     id: "status-bar",
     c: "status-bar",
