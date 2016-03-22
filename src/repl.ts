@@ -125,6 +125,7 @@ function loadCards(event:Event, elem) {
       return card;
     });
     replCards = cards;
+    replCards.forEach((r,i) => r.ix = i);
     replCards.forEach((r) => submitReplCard(r));
     rerender();
   };
