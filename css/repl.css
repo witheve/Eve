@@ -1,9 +1,11 @@
-.light { background-color: lightgray; width: 100%; height: 100%; transition: all 1s;}
-.dark { background-color: #101010; width: 100%; height: 100%; color: white; transition: all 1s;}
+.root { width: 100%; height: 100%; margin-top: -11px; }
+.light { background-color: lightgray; transition: all 1s;}
+.dark { background-color: #101010; color: rgb(208,208,208); transition: all 1s;}
 
 .repl-root {
   width: 80%;
   margin: auto;
+  padding-top: 10px;
   transition: width .5s, margin .5s;
 }
 
@@ -14,9 +16,7 @@
 }
 
 .status-bar {  
-  background-color: #333;
   height: 30px;
-  border: 2px solid #111;
   margin: 10px auto 0px auto;
   padding: 10px;
   border-radius: 4px;
@@ -24,6 +24,8 @@
   color: #f0f0f0;
   overflow: auto;
 }
+.light .status-bar { background-color: #333; border: 2px solid #111; }
+.dark .status-bar { background-color: #1a1a1a; border: 2px solid #333; }
 
 .repl-card {
   margin-bottom: 20px;
@@ -33,40 +35,14 @@
   max-height: 1000px;
   transition: opacity .2s linear, max-height .5s ease-out, margin-bottom .2s linear, padding .5s ease-out;  
 }
-
-.light .repl-card {
-  background-color: rgb(74, 64, 136);
-}
-
-.dark .repl-card {
-  background-color: rgb(44, 37, 80);
-}
-
-.repl-card-wraper {
-  opacity: 1;
-  transition: opacity 3s linear;
-}
+.light .repl-card { background-color: rgb(74, 64, 136); }
+.dark .repl-card { background-color: rgb(44, 37, 80); }
 
 @media all and (max-width: 600px) {
-  .repl-root {
-    width: 100%;
-    margin: 0px;
-  }
-  
-  .status-bar {  
-    margin: 0px;
-    border-radius: 0;
-    margin-bottom: 20px;
-  }
-  
-  .card-root {
-    margin: 0px;
-    padding: 0px;
-  }
-  
-  .repl-card {
-    border-radius: 0px;
-  }
+  .repl-root { width: 100%; margin: 0px; }
+  .status-bar { margin: 0px;  border-radius: 0; margin-bottom: 20px; }
+  .card-root { margin: 0px; padding: 0px; }  
+  .repl-card { border-radius: 0px; }
 }
 
 .indicator {
@@ -80,30 +56,14 @@
   border-color: black;
   transition: background-color 1s, border-color 1s;
 }
+.connected { background-color: lightgreen; border-color: green; }
+.connecting { background-color: yellow; border-color: darkgoldenrod; }
+.disconnected { background-color: red; border-color: darkred; }
 
-.connected {
-  background-color: lightgreen;
-  border-color: green;
-}
-
-.connecting {
-  background-color: yellow;
-  border-color: darkgoldenrod;
-}
-
-.disconnected {
-  background-color: red;
-  border-color: darkred;
-}
-
-.status-bar .text {
-  margin-top: 6px;
-}
+.status-bar .text { margin-top: 6px; }
 
 .button {
-  background-color: rgb(64,160,221);
   border-radius: 4px;
-  border: 1px solid rgb(0,121,177);
   cursor: default;
   font-size: 14px;
   padding: 5px 10px 5px 10px;
@@ -111,6 +71,16 @@
   text-align: center;
   opacity: 1;
   transition: opacity .5s;
+}
+.light .button {
+  background-color: rgb(64,160,221);
+  border: 1px solid rgb(0,121,177);
+  transition: all 1s;
+}
+.dark .button {
+  background-color: rgb(91,89,164);
+  border: 1px solid rgb(74,64,136);
+  transition: all 1s;
 }
 
 .left { float: left; margin-right: 10px; }
@@ -128,117 +98,41 @@
   white-space: pre;
   transition: box-shadow .1s;  
 }
-
 .light .query-input {
   background-color: white;
   transition: background-color 1s;
 }
-
 .dark .query-input {
-  background-color: black;
+  background-color: rgb(30,30,30);
   transition: background-color 1s;
 }
 
-.query-input:focus {
-  box-shadow: inset 0 0 3px #000000;
-}
+.query-input:focus { box-shadow: inset 0 0 3px #000000; }
 
-.query-result {
-  margin-top: 5px;
-  padding: 10px;
-}
+.query-result { margin-top: 5px; padding: 10px; }
+.light .query-result { background-color: white; transition: background-color 1s; }
+.dark .query-result { background-color: rgb(30,30,30); transition: background-color 1s; }
 
-.light .query-result {
-  background-color: white;
-  transition: background-color 1s;
-}
+.bad { border-left: 5px solid red; }
+.good { border-left: 5px solid green; }
+.pending { border-left: 5px solid yellow; }
+.closed { border-left: 5px solid black; }
 
-.dark .query-result {
-  background-color: black;
-  transition: background-color 1s;
-}
+.table { display: table; }
+.light .table { border-left: 1px solid black; border-bottom: 1px solid black; }
+.dark .table { border-left: 1px solid rgb(208,208,208); border-bottom: 1px solid rgb(208,208,208); }
 
-.bad {
-  border-left: 5px solid red;
-}
+.header { display: table-row; font-weight: bold; text-align: center; }
+.light .header { background-color: lightgray; }
+.dark .header { background-color: #333; }
 
-.good {
-  border-left: 5px solid green;
-}
+.row { display: table-row; }
 
-.pending {
-  border-left: 5px solid yellow;
-}
+.cell { display: table-cell; padding: 5px; }
+.light .cell { border-top: 1px solid black; border-right: 1px solid black; }
+.dark .cell { border-top: 1px solid rgb(208,208,208); border-right: 1px solid rgb(208,208,208); }
 
-.closed {
-  border-left: 5px solid black;
-}
-
-.table
-{
-  display: table;          
-}
-
-.light .table
-{        
-  border-left: 1px solid black;
-  border-bottom: 1px solid black;
-}
-
-.dark .table
-{        
-  border-left: 1px solid white;
-  border-bottom: 1px solid white;
-}
-
-.header
-{
-  display: table-row;
-  font-weight: bold;
-  text-align: center;
-}
-
-.light .header
-{
-  background-color: lightgray;
-}
-
-.dark .header
-{
-  background-color: #333;
-}
-
-.row
-{
-    display: table-row;
-}
-
-.cell
-{
-  display: table-cell;
-  padding: 5px;
-}
-
-.light .cell
-{
-  border-top: 1px solid black;
-  border-right: 1px solid black;
-}
-
-.dark .cell
-{
-  border-top: 1px solid white;
-  border-right: 1px solid white;
-}
-
-
-.no-opacity {
-  opacity: 0;
-}
-
-.no-height2 {
-  max-height: 0px;
-}
+.no-opacity { opacity: 0; }
 
 .no-height {
   opacity: 0;
@@ -248,10 +142,5 @@
   margin-bottom: 0px;
 }
 
-.light .selected {
-  background-color: rgb(0, 121, 177);
-}
-
-.dark .selected {
-  background-color: rgb(0, 87, 140);
-}
+.light .selected { background-color: rgb(0, 121, 177); }
+.dark .selected { background-color: rgb(0, 87, 140); }
