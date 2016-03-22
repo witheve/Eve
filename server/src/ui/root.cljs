@@ -430,7 +430,7 @@
                                            :position "absolute"
                                            :top (+ 0 (* y cell-size-y))
                                            :left (+ 0 (* x cell-size-x))
-                                           :border "1px solid #66f"
+                                           :border "1px solid #666"
                                            :background (or color "#000"))
                              :children (array (text :style (style :color "#777"
                                                                   :font-size "10pt"
@@ -441,7 +441,7 @@
                                                     :text "value"))))))
     (dotimes [selection-ix (count selections)]
       (let [selection (aget selections selection-ix)
-            color "#f7c"
+            color "#fff"
             ;; we have to normalize selections since while they're being expanded
             ;; they can have negative widths and heights
             {:keys [x y width height]} (normalize-cell-size selection)]
@@ -450,6 +450,7 @@
                                            :position "absolute"
                                            :top (* y cell-size-y)
                                            :left (* x cell-size-x)
+                                           :background "rgba(255,255,255,0.12)"
                                            :border (str "1px solid " (or color "#aaffaa")))
                              ;; add a resize handle to the selection
                              :children (array (elem :mousedown start-resize
@@ -462,7 +463,7 @@
                                                                   :position "absolute"
                                                                   :bottom -5
                                                                   :right -5
-                                                                  :background "#f7c")))))))
+                                                                  :background "none")))))))
     (elem :children children
           :c "noselect"
           :info info
