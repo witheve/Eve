@@ -210,7 +210,7 @@
                         :text (:property cell "property"))
                   (text :style (style :font-size "12pt"
                                       :margin "3px 0 0 8px")
-                        :text (:value cell "value")))))))
+                        :text (:value cell "")))))))
 
 (defmethod draw-cell :default [cell active?]
   (draw-cell (assoc cell :type :property) active?))
