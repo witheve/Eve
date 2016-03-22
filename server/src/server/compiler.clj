@@ -58,11 +58,21 @@
 (defn bind-names [e n]
   (swap! e (fn [x] (assoc x 'bound (if-let [b (x 'bound)] (merge b n) n)))))
 
+;; this overflow register set probably isn't the best plan, but its
+;; likely better than the 'overwrite the registers on startup with
+;; a sufficiently large set
 (defn allocate-register [e name]
-  (let [r (if-let [r (bget e 'register)] r 0)]
-    (bind-names e {name [r]}) 
-    (bset e 'register (+ r 1))
-    r))
+  (let [bound (- exec/basic-register-frame 1)
+        r (if-let [r (bget e 'register)] r 0)]
+    (if (> r (- bound 1))
+      (let [r (if-let [r (bget e 'overflow)] r 0)]
+        (bind-names e {name [bound r]})
+        (bset e 'overflow (+ r 1))
+        [bound r])
+      (do
+        (bset e 'register (+ r 1))
+        (bind-names e {name [r]})
+        r))))
 
 ;; a generator is a null-adic function which spits out weasel using
 ;; the (possibly updated) environment that was captured at the
@@ -345,6 +355,8 @@
                  'empty [])
         _ (bind-names e {'return-channel [1]
                          'op [0]})
-        p (compile-conjunction e terms (fn [e] (fn [] ())))
-        out (p)]
-    out))
+        p (compile-conjunction e terms (fn [e] (fn [] ())))]
+    ((if-let [over (bget e 'overflow)]
+       (compose (apply term e 'tuple [(- exec/basic-register-frame 1)] (repeat over nil)) p)
+       p))))
+

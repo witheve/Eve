@@ -3,6 +3,7 @@
             [clojure.test :as test]
             [server.avl :as avl]))
 
+(def basic-register-frame 10)
 (def op-reg [3])
 (def object-array-type (class (object-array 1)))
 
@@ -321,7 +322,7 @@
 ;;   2  bag default
 ;;   3  op
 (defn open [d program arguments]
-  (let [reg (object-array 10)
+  (let [reg (object-array basic-register-frame)
         e  (build d program)]
     (aset reg 1 arguments)
     (fn [op]
