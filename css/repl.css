@@ -1,6 +1,5 @@
-body {
-  background-color: lightgray;
-}
+.light { background-color: lightgray; width: 100%; height: 100%; transition: all 1s;}
+.dark { background-color: #101010; width: 100%; height: 100%; color: white; transition: all 1s;}
 
 .repl-root {
   width: 80%;
@@ -27,13 +26,20 @@ body {
 }
 
 .repl-card {
-  background-color: rgb(74, 64, 136);
   margin-bottom: 20px;
   border-radius: 4px;
   padding: 5px;
   opacity: 1;
   max-height: 1000px;
-  transition: opacity .2s linear, max-height .5s ease-out, margin-bottom .2s linear, padding .5s ease-out;
+  transition: opacity .2s linear, max-height .5s ease-out, margin-bottom .2s linear, padding .5s ease-out;  
+}
+
+.light .repl-card {
+  background-color: rgb(74, 64, 136);
+}
+
+.dark .repl-card {
+  background-color: rgb(44, 37, 80);
 }
 
 .repl-card-wraper {
@@ -117,11 +123,20 @@ body {
   padding: 10px;
   min-height: 16;
   font-family: monospace;
-  background-color: white;
   font-size: 16px;
   overflow: auto;
   white-space: pre;
-  transition: box-shadow .1s;
+  transition: box-shadow .1s;  
+}
+
+.light .query-input {
+  background-color: white;
+  transition: background-color 1s;
+}
+
+.dark .query-input {
+  background-color: black;
+  transition: background-color 1s;
 }
 
 .query-input:focus {
@@ -131,7 +146,16 @@ body {
 .query-result {
   margin-top: 5px;
   padding: 10px;
+}
+
+.light .query-result {
   background-color: white;
+  transition: background-color 1s;
+}
+
+.dark .query-result {
+  background-color: black;
+  transition: background-color 1s;
 }
 
 .bad {
@@ -152,17 +176,36 @@ body {
 
 .table
 {
-    display: table;          
-    border-left: 1px solid black;
-    border-bottom: 1px solid black;
+  display: table;          
+}
+
+.light .table
+{        
+  border-left: 1px solid black;
+  border-bottom: 1px solid black;
+}
+
+.dark .table
+{        
+  border-left: 1px solid white;
+  border-bottom: 1px solid white;
 }
 
 .header
 {
-    display: table-row;
-    font-weight: bold;
-    text-align: center;
-    background-color: lightgray;
+  display: table-row;
+  font-weight: bold;
+  text-align: center;
+}
+
+.light .header
+{
+  background-color: lightgray;
+}
+
+.dark .header
+{
+  background-color: #333;
 }
 
 .row
@@ -172,11 +215,22 @@ body {
 
 .cell
 {
-  border-top: 1px solid black;
-  border-right: 1px solid black;
   display: table-cell;
   padding: 5px;
 }
+
+.light .cell
+{
+  border-top: 1px solid black;
+  border-right: 1px solid black;
+}
+
+.dark .cell
+{
+  border-top: 1px solid white;
+  border-right: 1px solid white;
+}
+
 
 .no-opacity {
   opacity: 0;
@@ -194,8 +248,10 @@ body {
   margin-bottom: 0px;
 }
 
-.selected {
+.light .selected {
   background-color: rgb(0, 121, 177);
 }
 
-
+.dark .selected {
+  background-color: rgb(0, 87, 140);
+}
