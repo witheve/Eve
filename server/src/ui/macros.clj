@@ -13,7 +13,7 @@
       (throw (Exception. (str t " is not allowed on " type ". Only the following are accepted: " allowed))))))
 
 (defmacro box [& things]
-  (check-allowed "box" #{:style :hover :info :children} things)
+  (check-allowed "box" #{:style :hover :info :children :id :c :postRender} things)
   `(elem :t "div" ~@things))
 
 (defmacro text [& things]
@@ -21,11 +21,11 @@
   `(elem :t "span" ~@things))
 
 (defmacro button [& things]
-  (check-allowed "button" #{:style :hover :click :info :children} things)
+  (check-allowed "button" #{:style :hover :click :info :children :c} things)
   `(elem :t "button" ~@things))
 
 (defmacro input [& things]
-  (check-allowed "input" #{:style :hover :click :input :info :children} things)
+  (check-allowed "input" #{:style :hover :click :input :value :info :children :placeholder :c :postRender :keydown :keyup :key} things)
   `(elem :t "input" ~@things))
 
 (defmacro log [& things]
