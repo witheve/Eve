@@ -1,12 +1,21 @@
 (ns server.smil
+  (:refer-clojure :exclude [read])
   (:require [server.db :as db]
-            [clojure.string :as string]))
+            [clojure.string :as string]
+            [clojure.tools.reader :as reader]
+            [clojure.tools.reader.reader-types :as reader-types]))
 
 (def REMOVE_FACT 5)
 
-(defn tap [x & [label]]
-  (println (str (or label "") " " x))
-  x)
+(defn read [str]
+  (reader/read (reader-types/indexing-push-back-reader str)))
+
+(defn syntax-error
+  ([msg expr] (syntax-error msg expr nil))
+  ([msg expr data]
+   (let [{:keys [line column end-line end-column]} (meta expr)
+         standard-data {:expr expr :line line :column column :end-line end-line :end-column end-column}]
+   (ex-info msg (merge standard-data data)))))
 
 (defn merge-state [a b]
   (if (sequential? a)
@@ -36,8 +45,7 @@
   (doseq [expr body]
     ;; @NOTE: Should this allow unions/chooses as well?
     (when (or (not (seq? expr)) (not (= (first expr) 'query)))
-    (throw (ex-info "All union/choose members must be queries"
-                    {:form expr}))))
+    (throw (syntax-error "All union/choose members must be queries" expr))))
   body)
 
 ;; :args - positional arguments
@@ -117,9 +125,9 @@
                                      ;; If a rest argument is specified, dump excess args into it
                                      {:args {(:rest schema) [%2]}}
                                      ;; Too many arguments without names, bail
-                                     (throw (ex-info
+                                     (throw (syntax-error
                                              (str "Too many positional arguments without a rest argument. Expected " (count (:args schema)))
-                                             {:form sexpr})))))))
+                                             sexpr)))))))
                {:args {} :kw nil :position (count (:args schema))} body)
         state (merge-state state (if (:kw state)
                                    {:kw nil :args {(:kw state) (symbol (name (:kw state)))}}
@@ -144,17 +152,16 @@
         (if (:sym %1)
           (if (vector? %2)
             {:sym nil :header [(:sym %1) %2]}
-            (throw (ex-info
+            (throw (syntax-error
                     (str "Implication alias " (:sym %1) " must be followed by a vec of exported variables")
-                    {:form sexpr})))
+                    sexpr)))
           ;; If our state is clear we can begin a new header (symbol) or enter the body (anything else)
           (if (symbol? %2)
             {:sym %2}
             ;; If no headers are defined before we try to enter the body, that's a paddlin'
             (if (> (count (:header %1)) 0)
               {:body [%2]}
-              (throw (ex-info "Implications must specify at least one alias"
-                              {:form sexpr})))))))
+              (throw (syntax-error "Implications must specify at least one alias" sexpr)))))))
     {:header [] :body [] :sym nil} (rest sexpr))
    [:header :body]))
 
@@ -183,9 +190,9 @@
                    ;; Shift the next value into  :attr
                    (if (keyword? %2)
                      {:attr %2}
-                     (throw (ex-info
+                     (throw (syntax-error
                              (str "Invalid attribute '" %2 "'. Attributes must be keyword literals. Use fact-btu for free attributes")
-                             {:form sexpr})))))
+                             sexpr)))))
                {:entity (first body) :facts [] :attr nil}
                (rest body))
         state (merge-state state (if (:attr state)
@@ -208,7 +215,7 @@
                   (= op 'query) (parse-query sexpr)
                   (= op 'fact) (parse-fact sexpr)
                   (= op 'insert-fact!) (parse-fact sexpr)
-                  :else (throw (ex-info (str "Unknown operator " op) {:form sexpr})))
+                  :else (throw (syntax-error (str "Unknown operator " op) sexpr)))
        {:expr sexpr :schema schema}))))
 
 (defn validate-args [args]
@@ -221,10 +228,10 @@
         required (if optional? (into [] (filter #(not (optional? %1)) params)) params)]
     (when schema
       (or (when param? (some #(when-not (param? %1)
-                                (ex-info (str "Invalid keyword argument " %1 " for " (first expr)) {:form expr}))
+                                (syntax-error (str "Invalid keyword argument " %1 " for " (first expr)) expr))
                              (keys args)))
           (some #(when-not (supplied? %1)
-                   (ex-info (str "Missing required argument " %1 " for " (first expr)) {:form expr}))
+                   (syntax-error (str "Missing required argument " %1 " for " (first expr)) expr))
                 required)))))
 
 (defn assert-valid [args]
@@ -249,41 +256,37 @@
     (let [sexpr expr
           op (first sexpr)
           body (rest sexpr)
-          args (assert-valid (parse-args db sexpr))]
-        (case op
-          ;; Special forms
-          query (let [params (when (vector? (first body)) (first body))
-                      body (if params (rest body) body)]
-                  (concat ['query params] (expand-each db body)))
-          define! (let [args (parse-define sexpr)]
-                    (with-meta
-                      (concat ['define!] (:header args) (expand-each db (:body args)))
-                      args))
-          'fact (let [args (parse-fact sexpr)]
-                  (expand-each db (map #(cons 'fact-btu %1) (:facts args))))
-          
-          ;; Macros
-          insert-fact! (expand-each db (map #(cons 'insert-fact-btu! %1) (:facts args)))
-          remove-by-t! (expand db ('insert-fact-btu! (:tick args) REMOVE_FACT nil))
-          if (let [then (as-query (:then args))
-                   then ('query (:cond args) (rest then))
-                   else (as-query (:else args))]
-               ('choose ['return]
-                (expand db then)
-                (expand db else)))
-          
-          ;; Native forms
-          insert-fact-btu! (cons op (splat-map (expand-values db args)))
-          union (concat [op] [(:params args)] (assert-queries (expand-each db (:members args))))
-          choose (concat [op] [(:params args)] (assert-queries (expand-each db (:members args))))
-          not (cons op [(expand db (:expr args))])
-          context (cons op (splat-map (expand-values db args)))
+          args (assert-valid (parse-args db sexpr))
+          expanded (case op
+                     ;; Special forms
+                     query (concat [op (:params args)] (expand-each db (:body args)))
+                     define! (with-meta (concat [op] (:header args) (expand-each db (:body args)))
+                               args)
+                     fact (expand-each db (map #(cons (with-meta 'fact-btu (meta op)) %1) (:facts args)))
+                     insert-fact! (expand-each db (map #(cons (with-meta 'insert-fact-btu! (meta op)) %1) (:facts args)))
+                     
+                     ;; Macros
+                     remove-by-t! (expand db ((with-meta 'insert-fact-btu! (meta op)) (:tick args) REMOVE_FACT nil))
+                     if (let [then (as-query (:then args))
+                              then ('query (:cond args) (rest then))
+                              else (as-query (:else args))]
+                          ((with-meta 'choose (meta op)) ['return]
+                           (expand db then)
+                           (expand db else)))
+                     
+                     ;; Native forms
+                     insert-fact-btu! (cons op (splat-map (expand-values db args)))
+                     union (concat [op] [(:params args)] (assert-queries (expand-each db (:members args))))
+                     choose (concat [op] [(:params args)] (assert-queries (expand-each db (:members args))))
+                     not (cons op [(expand db (:expr args))])
+                     context (cons op (splat-map (expand-values db args)))
 
-          ;; Default
-          (cons op (splat-map (expand-values db args)))))
+                     ;; Default
+                     (cons op (splat-map (expand-values db args))))]
+      (with-meta expanded (merge (meta expr) (meta expanded))))
     (sequential? expr) (expand-each db expr)
     :else expr))
-
+  
 (defn returnable? [sexpr]
   ((set (keys primitives)) (first sexpr)))
 
@@ -397,16 +400,27 @@
         _ (println " - args " args)
         invalid (validate-args args)
         _ (println " - invalid " (when invalid {:message (.getMessage invalid) :data (ex-data invalid)}))
-        expanded (when-not invalid (expand db sexpr))
+        expanded (expand db sexpr)
         _ (println " - expanded " expanded)
-        unpacked (when-not invalid (first (:inline (unpack-inline expanded))))
+        unpacked (first (:inline (unpack-inline expanded)))
         _ (println " - unpacked " unpacked)
         ]
-    (when-not invalid (print-smil unpacked)))))
+    (print-smil unpacked))))
 
-;; Test cases
+;; Positive test cases
 ;; (test-sm '(define! foo [a b] (fact bar :age a) (fact a :tag bar)))
 ;; (test-sm '(query (insert-fact! a :b c :d 2 :e)))
 ;; (test-sm '(union [person] (query (not (fact-btu :value person)) (fact person :company "kodowa"))))
 ;; (test-sm '(choose [person] (query (fact person)) (query (fact other :friend person))))
 ;; (test-sm '(query (+ (/ 2 x) (- y 7))))
+
+;; Negative test cases
+;; (test-sm '(non-existent-foo))
+;; (test-sm '(insert-fact! foo a 1 b))
+;; (test-sm '(insert-fact-btu! e "attr"))
+;; (test-sm '(fact-btu :non-existent foo))
+;; (test-sm '(not foo bar))
+;; (test-sm '(fact a b c))
+;; (test-sm '(define! (fact a)))
+;; (test-sm '(define! foo (fact a)))
+;; (test-sm '(union [result] (fact a)))
