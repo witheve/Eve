@@ -67,12 +67,6 @@ function rerender(removeCards?: boolean) {
   app.dispatch("rerender", {}).commit();
 }
 
-function delayedRerender(timeout: number) {
-  setTimeout(() => {
-    rerender()
-  }, timeout);  
-}
-
 // ------------------
 // Storage functions
 // ------------------
@@ -110,7 +104,6 @@ function saveCards() {
 }
 
 function loadCards(event:Event, elem) {
-  console.log("FOO");
   let target = <HTMLInputElement>event.target;
   if(!target.files.length) return;
   if(target.files.length > 1) throw new Error("Cannot load multiple files at once");
@@ -132,12 +125,11 @@ function loadCards(event:Event, elem) {
   reader.readAsText(file);
 }
 
-
 // ------------------
 // Server functions
 // ------------------
 
-let server = { state: ReplState.CONNECTING, blob: undefined, queue: [], ws: null, timer: undefined, timeout: 0};
+let server = { state: ReplState.CONNECTING, blob: undefined, queue: [], ws: null, timer: undefined, timeout: 0 };
 
 app.renderRoots["repl"] = root;
 connectToServer();
@@ -433,10 +425,9 @@ function generateStatusBarElement() {
   let statusIndicator = {c: `indicator ${indicator} left`};
   let trash = {c: "ion-trash-a button right", click: deleteAllCards};
   let save = {c: "ion-ios-download-outline button right", click: saveCards, children: [downloadLink]};
-  let load = {t: "input", type: "file", c: "ion-ios-upload-outline button right", change: loadCards};
-  //let load = {c: "ion-ios-upload-outline button right", change: loadCards};
-  
-  
+  //let load = {t: "input", type: "file", c: "ion-ios-upload-outline button right", change: loadCards};
+  let load = {c: "ion-ios-upload-outline button right", change: loadCards};
+    
   let dimmer = {c: `${localStorage["eveReplTheme"] === "light" ? "ion-ios-lightbulb" : "ion-ios-lightbulb-outline"} button right`, click: toggleTheme};
   let refresh = {c: `ion-refresh button ${server.state !== ReplState.DISCONNECTED ? "no-opacity" : ""} left`, text: " Reconnect", click: function () { server.timeout = 0; reconnect(); } };    
   let statusBar = {
@@ -465,8 +456,8 @@ function root() {
   };
   let root = {
     id: "root",
-    c: localStorage["eveReplTheme"] || "light",
+    c: `root ${localStorage["eveReplTheme"] === undefined ? "light" : localStorage["eveReplTheme"]}`,
     children: [replRoot],
-  };
+  };  
   return root;
 }
