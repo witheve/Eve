@@ -109,6 +109,29 @@ function saveCards() {
   rerender();
 }
 
+function loadCards(event:Event, elem) {
+  console.log("FOO");
+  let target = <HTMLInputElement>event.target;
+  if(!target.files.length) return;
+  if(target.files.length > 1) throw new Error("Cannot load multiple files at once");
+  let file = target.files[0];
+  let reader = new FileReader();
+  reader.onload = function(event:any) {
+    let serialized = event.target.result;
+    let queries = JSON.parse(serialized);
+    let cards = queries.map((q) => {
+      let card = newReplCard();
+      card.query = q;
+      return card;
+    });
+    replCards = cards;
+    replCards.forEach((r) => submitReplCard(r));
+    rerender();
+  };
+  reader.readAsText(file);
+}
+
+
 // ------------------
 // Server functions
 // ------------------
@@ -223,6 +246,28 @@ function deleteReplCard(replCard: ReplCard) {
   } 
 }
 
+function submitReplCard(replCard: ReplCard) {
+  let query: Query = {
+    id: replCard.id,
+    type: "query",
+    query: replCard.query.replace(/\s+/g,' '),
+  }
+  replCard.state = CardState.PENDING;    
+  let sent = sendMessage(query);
+  if (sent) {
+    replCard.result = "Waiting on response from server...";
+  } else {
+    replCard.result = "Message queued.";
+  }
+  // Create a new card if we submitted the last one in replCards
+  if (replCard.ix === replCards.length - 1) {
+    let nReplCard = newReplCard();
+    replCards.forEach((r) => r.focused = false);
+    nReplCard.focused = true;
+    replCards.push(nReplCard);
+  }
+}
+
 function focusCard(replCard: ReplCard) {
   replCards.forEach((r) => r.focused = false);
   replCard.focused = true;
@@ -236,25 +281,7 @@ function queryInputKeydown(event, elem) {
   let thisReplCard = replCards[elem.ix];
   // Submit the query with ctrl + enter
   if (event.keyCode === 13 && event.ctrlKey === true) {
-    let query: Query = {
-      id: thisReplCard.id,
-      type: "query",
-      query: thisReplCard.query.replace(/\s+/g,' '),
-    }
-    thisReplCard.state = CardState.PENDING;    
-    let sent = sendMessage(query);
-    if (sent) {
-      thisReplCard.result = "Waiting on response from server...";
-    } else {
-      thisReplCard.result = "Message queued.";
-    }
-    // Create a new card if we submitted the last one in replCards
-    if (thisReplCard.ix === replCards.length - 1) {
-      let nReplCard = newReplCard();
-      replCards.forEach((r) => r.focused = false);
-      nReplCard.focused = true;
-      replCards.push(nReplCard);
-    }
+    submitReplCard(thisReplCard);
   // Catch tab
   } else if (event.keyCode === 9) {
     let range = getSelection(event.target);
@@ -393,7 +420,9 @@ function generateStatusBarElement() {
   let statusIndicator = {c: `indicator ${indicator} left`};
   let trash = {c: "ion-trash-a button right", click: deleteAllCards};
   let save = {c: "ion-ios-download-outline button right", click: saveCards, children: [downloadLink]};
-  let load = {c: "ion-ios-upload-outline button right"};
+  let load = {t: "input", type: "file", c: "ion-ios-upload-outline button right", change: loadCards};
+  
+  
   let darkmode = {c: "ion-ios-lightbulb button right"};
   let refresh = {c: `ion-refresh button ${server.state !== ReplState.DISCONNECTED ? "no-opacity" : ""} left`, text: " Reconnect", click: function () { server.timeout = 0; reconnect(); } };    
   let statusBar = {
