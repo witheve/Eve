@@ -49,6 +49,7 @@
                 'insert (println (zipmap (vec keys) (vec tuple)))
                 'flush  (println 'flush)
                 ))
+        _ (println form)
         prog (compiler/compile-dsl d @bag form)
         _ (println (exec/print-program prog))
         ec  (exec/open-trace d prog res)]
