@@ -199,3 +199,5 @@ a { color: #fefefe; text-decoration: none; }
   opacity: 0;
   filter: alpha(opacity=0);
 }
+
+#perfstats { display: none; }
