@@ -374,6 +374,13 @@ function trashCardsClick(event, elem) {
   rerender();
 }
 
+function loadCardsClick(event, elem) {
+  closeModals()
+  repl.load = true;
+  event.stopPropagation();
+  rerender();
+}
+
 // ------------------
 // Element generation
 // ------------------
@@ -442,24 +449,39 @@ function generateStatusBarElement() {
     indicator = "disconnected";
   }
   
+  // Build the various callouts
   let downloadLink = repl.blob === undefined ? {} : {
     c: "callout",
-    children: [{t: "a", href: repl.blob, download: "save.evedb", text: "Download Data"}],
+    children: [{
+      c: "button no-width",
+      children: [
+        {t: "a", href: repl.blob, download: "save.evedb", text: "Download Cards"}
+      ]
+    }],
   };
-  console.log(repl.delete);
   let deleteConfirm = !repl.delete ? {} : {
     c: "callout",
     children: [{c: "button no-width", text: "Delete All Cards", click: deleteAllCards}],
   };
-    
+  let fileSelector = !repl.load ? {} : {
+    c: "callout",
+    children: [{
+      c: "fileUpload",
+      children: [
+        {c: "button no-width", text: "Load Cards"},
+        {t: "input", type: "file", c: "upload", change: loadCards},      
+      ]
+    }],
+  };
+  
+  // Build the proper elements of the status bar
   let statusIndicator = {c: `indicator ${indicator} left`};
   let trash = {c: "ion-trash-a button right", click: trashCardsClick, children: [deleteConfirm]};
   let save = {c: "ion-ios-download-outline button right", click: saveCardsClick, children: [downloadLink]};
-  //let load = {t: "input", type: "file", c: "ion-ios-upload-outline button right", change: loadCards};
-  let load = {c: "ion-ios-upload-outline button right", change: loadCards};
+  let load = {c: "ion-ios-upload-outline button right", click: loadCardsClick, children: [fileSelector]};
     
   let dimmer = {c: `${localStorage["eveReplTheme"] === "light" ? "ion-ios-lightbulb" : "ion-ios-lightbulb-outline"} button right`, click: toggleTheme};
-  let refresh = {c: `ion-refresh button ${repl.state !== ReplState.DISCONNECTED ? "no-opacity" : ""} left`, click: function () { repl.timeout = 0; reconnect(); } };    
+  let refresh = {c: `ion-refresh button ${repl.state !== ReplState.DISCONNECTED ? "no-opacity" : ""} left no-width`, text: " Reconnect", click: function () { repl.timeout = 0; reconnect(); } };    
   let statusBar = {
     id: "status-bar",
     c: "status-bar",
@@ -494,7 +516,6 @@ function root() {
 }
 
 function rootClick() {
-  console.log("FOO")
   closeModals();
   rerender();
 }
