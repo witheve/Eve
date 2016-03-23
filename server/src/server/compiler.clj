@@ -283,11 +283,12 @@
         e (if-let [b (bindings :entity)] b nil)
         a (if-let [b (bindings :attribute)] b nil)
         v (if-let [b (bindings :value)] b nil)
-        b (if-let [b (bindings :bag)] b [2])] ; default bag
-
+        b (if-let [b (bindings :bag)] b [2]) ; default bag
+        t (if-let [b (bindings :tick)] [(allocate-register env b)] [])]
+    (println "wth" t)
     (compose
      (term env 'tuple tmp-register e a v b)
-     (term env 'scan edb/insert-oid tmp-register tmp-register)
+     (term env 'scan edb/insert-oid t tmp-register)
      (cont env))))
 
 

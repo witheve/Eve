@@ -266,7 +266,7 @@
                      insert-fact! (expand-each db (map #(cons (with-meta 'insert-fact-btu! (meta op)) %1) (:facts args)))
                      
                      ;; Macros
-                     remove-by-t! (expand db ((with-meta 'insert-fact-btu! (meta op)) (:tick args) REMOVE_FACT nil))
+                     remove-by-t! (expand db (list (with-meta 'insert-fact-btu! (meta op)) (:tick args) REMOVE_FACT nil))
                      if (let [then (as-query (:then args))
                               then ('query (:cond args) (rest then))
                               else (as-query (:else args))]
