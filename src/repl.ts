@@ -43,8 +43,8 @@ function rerender(removeCards?: boolean) {
   // Batch delete closed cards on rerender
   if (removeCards === true) {
     let closedCards = replCards.filter((r) => r.state === CardState.CLOSED);
-    if (server.timer !== undefined) {
-      clearTimeout(server.timer);
+    if (repl.timer !== undefined) {
+      clearTimeout(repl.timer);
     }
     let focusedCard = replCards.filter((r) => r.focused).shift();
     let focusIx = 0;
@@ -53,7 +53,7 @@ function rerender(removeCards?: boolean) {
     }
     focusedCard = replCards[focusIx + 1 > replCards.length - 1 ? replCards.length - 1 : focusIx + 1];
     focusCard(focusedCard);
-    server.timer = setTimeout(() => {
+    repl.timer = setTimeout(() => {
       for (let card of closedCards) {
         deleteStoredReplCard(card);
         replCards.splice(replCards.map((r) => r.id).indexOf(card.id),1);
@@ -99,8 +99,7 @@ function saveCards() {
   let serialized = JSON.stringify(replCards.filter((r) => r.state !== CardState.NONE).map((r) => r.query));
   let blob = new Blob([serialized], {type: "application/json"});
   let url = URL.createObjectURL(blob);
-  server.blob = url;
-  rerender();
+  repl.blob = url;
 }
 
 function loadCards(event:Event, elem) {
@@ -126,10 +125,10 @@ function loadCards(event:Event, elem) {
 }
 
 // ------------------
-// Server functions
+// Repl functions
 // ------------------
 
-let server = { state: ReplState.CONNECTING, blob: undefined, queue: [], ws: null, timer: undefined, timeout: 0 };
+let repl = { state: ReplState.CONNECTING, blob: undefined, load: false, delete: false, queue: [], ws: null, timer: undefined, timeout: 0 };
 
 app.renderRoots["repl"] = root;
 connectToServer();
@@ -137,25 +136,25 @@ connectToServer();
 function connectToServer() {
   let wsAddress = "ws://localhost:8081";
   let ws: WebSocket = new WebSocket(wsAddress, []);
-  server.ws = ws;
+  repl.ws = ws;
 
   ws.onopen = function(e: Event) {    
-    server.state = ReplState.CONNECTED;
-    server.timeout = 0;
-    while(server.queue.length > 0) {
-      let message = server.queue.shift();
+    repl.state = ReplState.CONNECTED;
+    repl.timeout = 0;
+    while(repl.queue.length > 0) {
+      let message = repl.queue.shift();
       sendMessage(message);
     }
     rerender()
   }
 
   ws.onerror = function(error) {
-    server.state = ReplState.DISCONNECTED;
+    repl.state = ReplState.DISCONNECTED;
     rerender()
   }
 
   ws.onclose = function(error) {  
-    server.state = ReplState.DISCONNECTED;
+    repl.state = ReplState.DISCONNECTED;
     reconnect();
     rerender()
   }
@@ -190,23 +189,23 @@ function connectToServer() {
 
 let checkReconnectInterval = undefined;
 function reconnect() {
-  if(server.state === ReplState.CONNECTED) {
+  if(repl.state === ReplState.CONNECTED) {
     clearTimeout(checkReconnectInterval);
     checkReconnectInterval = undefined;
   } else {
-    checkReconnectInterval = setTimeout(connectToServer, server.timeout * 1000);
+    checkReconnectInterval = setTimeout(connectToServer, repl.timeout * 1000);
   }
-  if (server.timeout < 32) {
-    server.timeout += server.timeout > 0 ? server.timeout : 1;
+  if (repl.timeout < 32) {
+    repl.timeout += repl.timeout > 0 ? repl.timeout : 1;
   }
 }
 
 function sendMessage(message): boolean {
-  if (server.ws.readyState === server.ws.OPEN) {
-    server.ws.send(JSON.stringify(message));
+  if (repl.ws.readyState === repl.ws.OPEN) {
+    repl.ws.send(JSON.stringify(message));
     return true;  
   } else {
-    server.queue.push(message);
+    repl.queue.push(message);
     return false;
   }
 }
@@ -248,7 +247,7 @@ function submitReplCard(replCard: ReplCard) {
   replCard.state = CardState.PENDING;    
   let sent = sendMessage(query);
   if (sent) {
-    replCard.result = "Waiting on response from server...";
+    replCard.result = "Waiting on response from repl...";
   } else {
     replCard.result = "Message queued.";
   }
@@ -264,6 +263,12 @@ function submitReplCard(replCard: ReplCard) {
 function focusCard(replCard: ReplCard) {
   replCards.forEach((r) => r.focused = false);
   replCard.focused = true;
+}
+
+function closeModals() {
+  repl.blob = undefined;
+  repl.delete = false;
+  repl.load = false;
 }
 
 // ------------------
@@ -320,11 +325,11 @@ function queryInputKeyup(event, elem) {
   thisReplCard.query = event.target.innerText;
 }
 
-function queryInputBlur(event, elem) {
+/*function queryInputBlur(event, elem) {
   let thisReplCard = replCards[elem.ix];
   thisReplCard.focused = false;
   rerender();
-}
+}*/
 
 function replCardClick(event, elem) {
   focusCard(replCards[elem.ix]);
@@ -333,6 +338,8 @@ function replCardClick(event, elem) {
 
 function deleteAllCards(event, elem) {
   replCards.forEach(deleteReplCard);
+  repl.delete = false;
+  rerender();
 }
 
 function focusQueryBox(node, element) {
@@ -353,6 +360,20 @@ function toggleTheme(event, elem) {
   rerender();
 }
 
+function saveCardsClick(event, elem) {
+  closeModals()
+  saveCards();
+  event.stopPropagation();
+  rerender();
+}
+
+function trashCardsClick(event, elem) {
+  closeModals()
+  repl.delete = true;
+  event.stopPropagation();
+  rerender();
+}
+
 // ------------------
 // Element generation
 // ------------------
@@ -366,7 +387,7 @@ function generateReplCardElement(replCard: ReplCard) {
     contentEditable: true,
     text: replCard.query,
     keydown: queryInputKeydown, 
-    blur: queryInputBlur, 
+    //blur: queryInputBlur, 
     keyup: queryInputKeyup,    
     postRender: focusQueryBox, 
   };
@@ -415,25 +436,30 @@ function generateReplCardElement(replCard: ReplCard) {
 
 function generateStatusBarElement() {
   let indicator = "connecting";
-  if (server.state === ReplState.CONNECTED) {
+  if (repl.state === ReplState.CONNECTED) {
     indicator = "connected";
-  } else if (server.state === ReplState.DISCONNECTED) {
+  } else if (repl.state === ReplState.DISCONNECTED) {
     indicator = "disconnected";
   }
   
-  let downloadLink = server.blob === undefined ? {} : {
+  let downloadLink = repl.blob === undefined ? {} : {
     c: "callout",
-    children: [{t: "a", href: server.blob, download: "save.evedb", text: "Download Data"}],
+    children: [{t: "a", href: repl.blob, download: "save.evedb", text: "Download Data"}],
+  };
+  console.log(repl.delete);
+  let deleteConfirm = !repl.delete ? {} : {
+    c: "callout",
+    children: [{c: "button no-width", text: "Delete All Cards", click: deleteAllCards}],
   };
     
   let statusIndicator = {c: `indicator ${indicator} left`};
-  let trash = {c: "ion-trash-a button right", click: deleteAllCards};
-  let save = {c: "ion-ios-download-outline button right", click: saveCards, children: [downloadLink]};
+  let trash = {c: "ion-trash-a button right", click: trashCardsClick, children: [deleteConfirm]};
+  let save = {c: "ion-ios-download-outline button right", click: saveCardsClick, children: [downloadLink]};
   //let load = {t: "input", type: "file", c: "ion-ios-upload-outline button right", change: loadCards};
   let load = {c: "ion-ios-upload-outline button right", change: loadCards};
     
   let dimmer = {c: `${localStorage["eveReplTheme"] === "light" ? "ion-ios-lightbulb" : "ion-ios-lightbulb-outline"} button right`, click: toggleTheme};
-  let refresh = {c: `ion-refresh button ${server.state !== ReplState.DISCONNECTED ? "no-opacity" : ""} left`, click: function () { server.timeout = 0; reconnect(); } };    
+  let refresh = {c: `ion-refresh button ${repl.state !== ReplState.DISCONNECTED ? "no-opacity" : ""} left`, click: function () { repl.timeout = 0; reconnect(); } };    
   let statusBar = {
     id: "status-bar",
     c: "status-bar",
@@ -462,6 +488,13 @@ function root() {
     id: "root",
     c: `root ${localStorage["eveReplTheme"] === undefined ? "light" : localStorage["eveReplTheme"]}`,
     children: [replRoot],
+    click: rootClick,
   };  
   return root;
+}
+
+function rootClick() {
+  console.log("FOO")
+  closeModals();
+  rerender();
 }
