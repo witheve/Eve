@@ -455,7 +455,7 @@ function generateStatusBarElement() {
     children: [{
       c: "button no-width",
       children: [
-        {t: "a", href: repl.blob, download: "save.evedb", text: "Download Cards"}
+        {t: "a", href: repl.blob, download: "save.evedb", text: "Save Cards"}
       ]
     }],
   };
