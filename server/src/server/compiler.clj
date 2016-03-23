@@ -1,4 +1,3 @@
-
 (ns server.compiler
   (:require
    [server.db :as db]
@@ -34,7 +33,7 @@
                        (= (count key) 1) (e k0)
                        :default (internal (e k0) (rest key)))))]
     (internal @e key)))
-    
+
 (defn new-bindings [] (atom {}))
 
 (defn child-bindings [e] (atom @e))
@@ -97,7 +96,7 @@
     (let [cycle-filters (map (fn [x] (term e 'filter x))
                              (set/difference (bget e 'cycles)
                                              (bget e 'cycle-heads)))]
-      (apply compose 
+      (apply compose
              (concat cycle-filters
                      (list (apply term e 'tuple out (map (fn [x] (bget e 'bound x)) arguments)))
                      (list (term e 'send channel out)))))))
@@ -121,7 +120,7 @@
                          b))
                      ()
                      (bget inside-env 'dependencies))]
-    
+
     (bset e 'dependencies (set/union (bget e 'dependencies)
                                      (bget inside-env 'dependencies)))
     (compose (apply term e 'tuple tuple-target-name tuple-names)
@@ -134,14 +133,14 @@
 (defn generate-union [e signature arms down]
   (cond (= (count arms) 0) (down e)
         (= (count arms) 1) ((first arms) down)
-        :default 
+        :default
         (let [cid (gensym 'union-channel)]
           (apply compose (concat (map (fn [x]
                                         ;; subquery
                                         (x (fn [e] (generate-send e cid signature))))
                                       arms)
                                  (list (generate-bind e down signature cid)))))))
-              
+
 (declare compile-conjunction)
 
 (defn compile-return [e terms down]
@@ -161,12 +160,12 @@
          (apply term e (first terms) simple)
          (down e)))
       (compile-error (str "unhandled bound signature in" terms)))))
-          
+
 
 (defn generate-binary-filter [e terms down]
   (let [argmap (apply hash-map (rest terms))]
     (apply add-dependencies e terms)
-    (compose 
+    (compose
      (term e (first terms) tmp-register (argmap :a) ( argmap :b))
      (term e 'filter tmp-register)
      (down e))))
@@ -190,7 +189,7 @@
           b (rebind b (argmap :a))
           :else
           (compile-error "reordering necessary, not implemented"))))
-    
+
 
 (defn partition-2 [pred coll]
   ((juxt
@@ -201,7 +200,7 @@
 (defn indirect-bind [slot m]
   (zipmap (vals m) (map (fn [x] [slot x]) (keys m))))
 
-  
+
 (defn tuple-from-btu-keywords [terms]
   (let [tmap (apply hash-map terms)]
     ;; optional bagginess
@@ -268,11 +267,11 @@
                         (bset e 'overflow (bget internal 'overflow))
                         x))))))]
 
-                        
+
 
     ;; validate the parameters as both a proper superset of the input
     ;; and conformant across the union legs
-    (db/for-each-implication (bget e 'db) relname 
+    (db/for-each-implication (bget e 'db) relname
                              (fn [parameters body]
                                (swap! arms conj (army parameters body))))
     (generate-union e outputs @arms down)))
@@ -294,7 +293,7 @@
 
 (defn compile-union [e terms down]
   ;; these need to be lambda [e down]
-  (generate-union (apply hash-map (second terms)) (rest (rest terms)) down))
+  (generate-union (second terms) (rest (rest terms)) down))
 
 
 (defn compile-sum [e triple down]
@@ -309,7 +308,7 @@
         out (compile-conjunction e body (fn [e] (fn [] ())))
         down (cont e)]
     (fn []
-      ((compose 
+      ((compose
         (term e 'subquery (out))
         down)))))
 
@@ -364,4 +363,3 @@
     ((if-let [over (bget e 'overflow)]
        (compose (apply term e 'tuple [(- exec/basic-register-frame 1)] (repeat over nil)) p)
        p))))
-
