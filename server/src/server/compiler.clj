@@ -234,8 +234,8 @@
 
     (compose
      ;; needs to take a projection set for the indices
-     (term e 'scan specoid target-reg-name [])
-     ;;     (term e 'delta-e dchannel-name channel-name)
+     (term e 'scan specoid tmp-register [])
+     (term e 'delta-e target-reg-name tmp-register)
      (body e))))
 
 

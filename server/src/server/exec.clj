@@ -176,7 +176,7 @@
         base (fn base [t]
                (cond
                  (not t) t
-                 (contains? assertions t) t
+                 (contains? @assertions t) t
                  :else
                  (base (@backwards t))))
 
@@ -186,7 +186,8 @@
         
     (fn [r]
       ;; doesn't need a source identifier
-      (let [[e a v b t u] (rget r out)]
+      (let [[e a v b t u] (rget r in)]
+        (println "delta-e" e a v b t u)
         (if (= (rget r op-reg) 'insert)
           (if (= a edb/remove-oid)
             (let [old (walk (base e))]
