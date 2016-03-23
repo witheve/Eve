@@ -276,6 +276,7 @@ function closeModals() {
 // ------------------
 
 function queryInputKeydown(event, elem) {
+  console.log(event);
   let thisReplCard = replCards[elem.ix];
   // Submit the query with ctrl + enter
   if (event.keyCode === 13 && event.ctrlKey === true) {
@@ -301,6 +302,12 @@ function queryInputKeydown(event, elem) {
   // Catch ctrl + delete to remove a card
   } else if (event.keyCode === 46 && event.ctrlKey === true) {
     deleteReplCard(thisReplCard);
+  // Catch ctrl + home  
+  } else if (event.keyCode === 36 && event.ctrlKey === true) {
+    focusCard(replCards[0]);
+  // Catch ctrl + end
+  } else if (event.keyCode === 35 && event.ctrlKey === true) {
+    focusCard(replCards[replCards.length - 1]);
   } else {
     return;
   }
@@ -337,8 +344,9 @@ function replCardClick(event, elem) {
 }
 
 function deleteAllCards(event, elem) {
+  console.log("foo");
   replCards.forEach(deleteReplCard);
-  repl.delete = false;
+  closeModals();
   rerender();
 }
 
