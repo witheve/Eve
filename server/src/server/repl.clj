@@ -18,24 +18,42 @@
         v (apply concat
                  (rest (rest z))
                  (list (list (apply list 'return (if (empty? p) () (list p))))))]
-    v))
-
-;; the distinction between edb and idb is alive here..skating over it
-;; query currently needs to always have a projection
-(defn build-reporting-select [db terms]
-  (compiler/compile-dsl db @bag (form-from-smil (smil/unpack db terms))))
+    [v (vec p)]))
 
 (defn show [d expression]
-   (let [prog (build-reporting-select d (second expression))]
+  (let [[form keys] (form-from-smil (smil/unpack d (second expression)))
+        prog (compiler/compile-dsl d @bag form)]
      (println (exec/print-program prog))))
+
 
 (defn diesel [d expression]
   ;; the compile-time error path should come up through here
   ;; fix external number of regs
-  (let [prog (build-reporting-select d expression)
-        ec  (exec/open d prog println)]
-    (ec 'insert [])
-    (ec 'flush [])))
+  (let [[form keys] (form-from-smil (smil/unpack d expression))
+        res (fn [op tuple]
+              (condp = op
+                'insert (println (zipmap (vec keys) (vec tuple)))
+                'flush  (println 'flush)
+                ))
+        prog (compiler/compile-dsl d @bag form)
+        ec  (exec/open d prog res)]
+    (ec 'insert)
+    (ec 'flush)))
+
+(defn trace [d expression]
+  ;; the compile-time error path should come up through here
+  ;; fix external number of regs
+  (let [[form keys] (form-from-smil (smil/unpack d (second expression)))
+        res (fn [op tuple]
+              (condp = op
+                'insert (println (zipmap (vec keys) (vec tuple)))
+                'flush  (println 'flush)
+                ))
+        prog (compiler/compile-dsl d @bag form)
+        _ (println (exec/print-program prog))
+        ec  (exec/open-trace d prog res)]
+    (ec 'insert)
+    (ec 'flush)))
 
 ;; xxx - this is now...in the language..not really?
 (defn define [d expression]
@@ -45,14 +63,10 @@
 
 (declare read-all)
 
-;; xxx - use the provenance compiler
-(defn trace [db tuple] ())
-  
-  
 (defn eeval [d term]
-  (let [function ({'trace trace
-                   'define! define
+  (let [function ({'define! define
                    'show show
+                   'trace trace
                    'load read-all
                    } (first term))]
     (if (nil? function)
