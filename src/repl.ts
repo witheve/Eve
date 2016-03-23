@@ -421,7 +421,11 @@ function generateStatusBarElement() {
     indicator = "disconnected";
   }
   
-  let downloadLink = server.blob ? {t: "a", href: server.blob, download: "save.evedb", text: "Download"} : {};
+  let downloadLink = server.blob === undefined ? {} : {
+    c: "callout",
+    children: [{t: "a", href: server.blob, download: "save.evedb", text: "Download Data"}],
+  };
+    
   let statusIndicator = {c: `indicator ${indicator} left`};
   let trash = {c: "ion-trash-a button right", click: deleteAllCards};
   let save = {c: "ion-ios-download-outline button right", click: saveCards, children: [downloadLink]};
@@ -429,7 +433,7 @@ function generateStatusBarElement() {
   let load = {c: "ion-ios-upload-outline button right", change: loadCards};
     
   let dimmer = {c: `${localStorage["eveReplTheme"] === "light" ? "ion-ios-lightbulb" : "ion-ios-lightbulb-outline"} button right`, click: toggleTheme};
-  let refresh = {c: `ion-refresh button ${server.state !== ReplState.DISCONNECTED ? "no-opacity" : ""} left`, text: " Reconnect", click: function () { server.timeout = 0; reconnect(); } };    
+  let refresh = {c: `ion-refresh button ${server.state !== ReplState.DISCONNECTED ? "no-opacity" : ""} left`, click: function () { server.timeout = 0; reconnect(); } };    
   let statusBar = {
     id: "status-bar",
     c: "status-bar",
