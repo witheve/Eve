@@ -6,6 +6,9 @@
    [server.exec :as exec]
    [clojure.set :as set]))
 
+(def initial-register 5)
+(def tmp-register [4])
+
 ;; cardinality changing operations should set a flag so we know
 ;; should also be able to retire registers that aren't being referenced
 ;; anymore...also add the unique flag for downedges that have already
@@ -101,11 +104,12 @@
 
 ;; inside is a function which takes the inner environment
 (defn generate-bind [e inside inputs channel-name]
+  (println "Generate bind")
   (let [tuple-target-name (gensym 'closure-tuple)
         input-map (zipmap inputs (range (count inputs)))
         inside-env (child-bindings e)
         z (do
-            (bset inside-env 'register 4)
+            (bset inside-env 'register initial-register)
             (bset inside-env 'dependencies #{}))
         body (inside inside-env)
         tuple-names (reduce
@@ -160,13 +164,11 @@
           
 
 (defn generate-binary-filter [e terms down]
-  (let [argmap (apply hash-map (rest terms))
-        tsym (gensym 'filter)]
-    (allocate-register e tsym)
+  (let [argmap (apply hash-map (rest terms))]
     (apply add-dependencies e terms)
     (compose 
-     (term e (first terms) tsym (argmap :a) ( argmap :b))
-     (term e 'filter tsym)
+     (term e (first terms) tmp-register (argmap :a) ( argmap :b))
+     (term e 'filter tmp-register)
      (down e))))
 
 ;; really the same as lookup...fix
@@ -189,8 +191,6 @@
           :else
           (compile-error "reordering necessary, not implemented"))))
     
-
-
 
 (defn partition-2 [pred coll]
   ((juxt
@@ -219,7 +219,8 @@
         filter-terms (set/intersection (set index-outputs) (set bound))
         extra-map (zipmap filter-terms (map (fn [x] (gensym 'xtra)) filter-terms))
         target-reg-name (gensym 'target)
-        target-reg (allocate-register e target-reg-name) 
+        target-reg (allocate-register e target-reg-name)
+        ;; because we aren't going through bind we dont need this any longer
         body (fn [x]
                (bind-names x (indirect-bind target-reg extra-map))
                (bind-names x (indirect-bind target-reg (zipmap free (map argmap free))))
@@ -257,11 +258,17 @@
                     internal body
                     (fn [tail]
                       (bset tail 'register (bget internal 'register))
+                      (bset tail 'overflow (bget internal 'overflow))
                       (apply add-dependencies tail (bget internal 'dependencies))
                       ;; mapping out into the incorrect injunction of inner, e0 and eb
                       (bind-names tail (zipmap (map callmap outputs)
                                                (map (fn [x] (bget tail 'bound (dekey x))) outputs)))
-                      (down tail))))))]
+                      (let [x (down tail)]
+                        ;; fack
+                        (bset e 'overflow (bget internal 'overflow))
+                        x))))))]
+
+                        
 
     ;; validate the parameters as both a proper superset of the input
     ;; and conformant across the union legs
@@ -272,17 +279,15 @@
 
 
 (defn compile-insert [env terms cont]
-  (let [oname (gensym 'insert-time)
-        bindings (apply hash-map (rest terms))
+  (let [bindings (apply hash-map (rest terms))
         e (if-let [b (bindings :entity)] b nil)
         a (if-let [b (bindings :attribute)] b nil)
         v (if-let [b (bindings :value)] b nil)
         b (if-let [b (bindings :bag)] b [2])] ; default bag
 
-    (allocate-register env oname)
     (compose
-     (term env 'tuple oname e a v b)
-     (term env 'scan edb/insert-oid oname oname)
+     (term env 'tuple tmp-register e a v b)
+     (term env 'scan edb/insert-oid tmp-register tmp-register)
      (cont env))))
 
 
@@ -349,7 +354,7 @@
         ;; side effecting
         z (bset2 e
                  'db d
-                 'register 4 ; fix
+                 'register initial-register
                  'bid bid
                  'default-bag [2]
                  'empty [])

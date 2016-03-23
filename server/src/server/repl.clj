@@ -50,6 +50,7 @@
                 'flush  (println 'flush)
                 ))
         prog (compiler/compile-dsl d @bag form)
+        _ (println (exec/print-program prog))
         ec  (exec/open-trace d prog res)]
     (ec 'insert)
     (ec 'flush)))
