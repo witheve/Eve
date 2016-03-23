@@ -1,10 +1,11 @@
-(query [] (insert-fact-btu! :entity "apple" :attribute "color" :value "red"))
+(query [] (insert-fact! ("apple" "color" "red")))
 
 (define! colorino [e c]
   (fact e :color c))
 
-(query [f] (colorino :e "apple" :c f))
+;(show (query [f] (colorino :e "apple" :c f)))
 
+(query [f] (colorino :e "apple" :c f))
 
 
 

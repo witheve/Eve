@@ -6,12 +6,18 @@
    [server.exec :as exec]
    [clojure.set :as set]))
 
-;; cardinatity changing operations should set a flag so we know
+(def initial-register 5)
+(def tmp-register [4])
+
+;; cardinality changing operations should set a flag so we know
 ;; should also be able to retire registers that aren't being referenced
 ;; anymore...also add the unique flag for downedges that have already
 ;; been explicitly or implicitly deltad
 
-   
+
+;; environment should keep an identifier on the delta currently in effect
+;; what about non-unique conditions?
+
 (defn bset [e & key]
   (let [c (count key)]
     (if (= c 2)
@@ -55,10 +61,21 @@
 (defn bind-names [e n]
   (swap! e (fn [x] (assoc x 'bound (if-let [b (x 'bound)] (merge b n) n)))))
 
+;; this overflow register set probably isn't the best plan, but its
+;; likely better than the 'overwrite the registers on startup with
+;; a sufficiently large set
 (defn allocate-register [e name]
-  (let [r (if-let [r (bget e 'register)] r 0)]
-    (bind-names e {name [r]}) 
-    (bset e 'register (+ r 1))))
+  (let [bound (- exec/basic-register-frame 1)
+        r (if-let [r (bget e 'register)] r 0)]
+    (if (> r (- bound 1))
+      (let [r (if-let [r (bget e 'overflow)] r 0)]
+        (bind-names e {name [bound r]})
+        (bset e 'overflow (+ r 1))
+        [bound r])
+      (do
+        (bset e 'register (+ r 1))
+        (bind-names e {name [r]})
+        r))))
 
 ;; a generator is a null-adic function which spits out weasel using
 ;; the (possibly updated) environment that was captured at the
@@ -74,26 +91,25 @@
 
 
 (defn generate-send [e channel arguments]
-  (let [[out tup] (if  (> (count arguments) 0)
-                     (let [out (gensym 'tuple)]
-                       (allocate-register e out)
-                       [out (list (apply term e 'tuple out arguments))])
-                     [[] ()])]
-    (add-dependencies e channel)  ;; iff channel is free
-    (apply add-dependencies e arguments)
-    (fn []
-      (let [cycle-filters (map (fn [x] (term e 'filter x))
-                               (set/difference (bget e 'cycles)
-                                               (bget e 'cycle-heads)))]
-        ((apply compose (concat cycle-filters tup (list (term e 'send channel out)))))))))
+  (let [out (gensym 'tuple)]
+    (allocate-register e out)
+    (apply add-dependencies e channel arguments)
+    (let [cycle-filters (map (fn [x] (term e 'filter x))
+                             (set/difference (bget e 'cycles)
+                                             (bget e 'cycle-heads)))]
+      (apply compose 
+             (concat cycle-filters
+                     (list (apply term e 'tuple out (map (fn [x] (bget e 'bound x)) arguments)))
+                     (list (term e 'send channel out)))))))
 
 ;; inside is a function which takes the inner environment
 (defn generate-bind [e inside inputs channel-name]
+  (println "Generate bind")
   (let [tuple-target-name (gensym 'closure-tuple)
         input-map (zipmap inputs (range (count inputs)))
         inside-env (child-bindings e)
         z (do
-            (bset inside-env 'register 3)
+            (bset inside-env 'register initial-register)
             (bset inside-env 'dependencies #{}))
         body (inside inside-env)
         tuple-names (reduce
@@ -106,14 +122,12 @@
                      ()
                      (bget inside-env 'dependencies))]
     
-    (if (> (count tuple-names) 0)
-      (do
-        (allocate-register e tuple-target-name)
-        (bset e 'dependencies (set/union (bget e 'dependencies)
-                                         (bget inside-env 'dependencies)))
-        (compose (apply term e 'tuple tuple-target-name tuple-names)
-                 (term e 'bind channel-name tuple-target-name (body))))
-      (term e 'bind channel-name [] (body)))))
+    (bset e 'dependencies (set/union (bget e 'dependencies)
+                                     (bget inside-env 'dependencies)))
+    (compose (apply term e 'tuple tuple-target-name tuple-names)
+             (term e 'bind channel-name tuple-target-name (body)))
+    (term e 'bind channel-name (body))))
+
 
 ;; an arm takes a down
 
@@ -150,13 +164,11 @@
           
 
 (defn generate-binary-filter [e terms down]
-  (let [argmap (apply hash-map (rest terms))
-        tsym (gensym 'filter)]
-    (allocate-register e tsym)
+  (let [argmap (apply hash-map (rest terms))]
     (apply add-dependencies e terms)
     (compose 
-     (term e (first terms) tsym (argmap :a) ( argmap :b))
-     (term e 'filter tsym)
+     (term e (first terms) tmp-register (argmap :a) ( argmap :b))
+     (term e 'filter tmp-register)
      (down e))))
 
 ;; really the same as lookup...fix
@@ -180,8 +192,6 @@
           (compile-error "reordering necessary, not implemented"))))
     
 
-
-
 (defn partition-2 [pred coll]
   ((juxt
     (partial filter pred)
@@ -204,15 +214,16 @@
   (let [triple (tuple-from-btu-keywords (rest terms))
         [bound free] (partition-2 (fn [x] (is-bound? e (nth triple x))) (range 3))
         [specoid index-inputs index-outputs] [edb/full-scan-oid () '(0 1 2)]
-        ;; ech
+        ;; xxx - ech - fix this partial specification
         argmap (zipmap (range 3) triple)
-        channel-name (gensym 'edb-channel)
-        index-name (gensym 'edb-index)
         filter-terms (set/intersection (set index-outputs) (set bound))
         extra-map (zipmap filter-terms (map (fn [x] (gensym 'xtra)) filter-terms))
+        target-reg-name (gensym 'target)
+        target-reg (allocate-register e target-reg-name)
+        ;; because we aren't going through bind we dont need this any longer
         body (fn [x]
-               (bind-names x (indirect-bind 2 extra-map))
-               (bind-names x (indirect-bind 2 (zipmap free (map argmap free))))
+               (bind-names x (indirect-bind target-reg extra-map))
+               (bind-names x (indirect-bind target-reg (zipmap free (map argmap free))))
                ((reduce (fn [b t]
                           (fn [e]
                             (generate-binary-filter e
@@ -221,15 +232,11 @@
                         down
                         filter-terms) x))]
 
-    (allocate-register e channel-name) 
-    (allocate-register e index-name)
-
     (compose
-     ;; we decided to float these to the top
-     (generate-bind e body free channel-name)
-     (term e 'open index-name specoid channel-name)
-     ;; this should be index outputs
-     (generate-send e index-name bound))))
+     ;; needs to take a projection set for the indices
+     (term e 'scan specoid target-reg-name [])
+     ;;     (term e 'delta-e dchannel-name channel-name)
+     (body e))))
 
 
 ;; unification across the keyword-value bindings (?)
@@ -251,11 +258,17 @@
                     internal body
                     (fn [tail]
                       (bset tail 'register (bget internal 'register))
+                      (bset tail 'overflow (bget internal 'overflow))
                       (apply add-dependencies tail (bget internal 'dependencies))
                       ;; mapping out into the incorrect injunction of inner, e0 and eb
                       (bind-names tail (zipmap (map callmap outputs)
                                                (map (fn [x] (bget tail 'bound (dekey x))) outputs)))
-                      (down tail))))))]
+                      (let [x (down tail)]
+                        ;; fack
+                        (bset e 'overflow (bget internal 'overflow))
+                        x))))))]
+
+                        
 
     ;; validate the parameters as both a proper superset of the input
     ;; and conformant across the union legs
@@ -265,14 +278,18 @@
     (generate-union e outputs @arms down)))
 
 
-(defn compile-insert [e terms cont]
-  (let [channel-name (gensym 'insert-channel)]
-    (allocate-register e channel-name)
+(defn compile-insert [env terms cont]
+  (let [bindings (apply hash-map (rest terms))
+        e (if-let [b (bindings :entity)] b nil)
+        a (if-let [b (bindings :attribute)] b nil)
+        v (if-let [b (bindings :value)] b nil)
+        b (if-let [b (bindings :bag)] b [2])] ; default bag
+
     (compose
-           ;; this can be floated to the topmost scope and left open
-     (term e 'open channel-name edb/insert-oid [])
-     (generate-send e channel-name (tuple-from-btu-keywords (rest terms)))
-     (cont e))))
+     (term env 'tuple tmp-register e a v b)
+     (term env 'scan edb/insert-oid tmp-register tmp-register)
+     (cont env))))
+
 
 
 (defn compile-union [e terms down]
@@ -337,10 +354,14 @@
         ;; side effecting
         z (bset2 e
                  'db d
-                 'register 3 ; fix
+                 'register initial-register
                  'bid bid
+                 'default-bag [2]
                  'empty [])
-        f (bind-names e {'return-channel [1]})
-        p (compile-conjunction e terms (fn [e] (fn [] ())))
-        out (p)]
-    out))
+        _ (bind-names e {'return-channel [1]
+                         'op [0]})
+        p (compile-conjunction e terms (fn [e] (fn [] ())))]
+    ((if-let [over (bget e 'overflow)]
+       (compose (apply term e 'tuple [(- exec/basic-register-frame 1)] (repeat over nil)) p)
+       p))))
+

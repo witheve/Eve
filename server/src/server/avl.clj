@@ -1,4 +1,4 @@
-(ns fabric.avl
+(ns server.avl
 
   "An implementation of persistent sorted maps and sets based on AVL
   trees which can be used as drop-in replacements for Clojure's

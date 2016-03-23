@@ -16,8 +16,7 @@
 
 (def DEBUG true)
 (def bag (atom 10))
-;; ok, this is a fucked up rewrite right now. take a parameteric
-;; term, use it as the return, and strip it off
+
 (defn quotify [x] (str "\"" (string/replace (string/replace x "\n" "\\n") "\"" "\\\"") "\""))
 (defn format-json [x]
   (condp #(%1 %2) x
@@ -59,19 +58,20 @@
       (println "<- error" id "to" (:id client) "@" (timestamp))
       (pprint message))))
 
-(defn start-query [d query id channel]
+(defn start-query [db query id channel]
   (let [fields (or (second query) [])
         results (atom ())
-        form  (repl/form-from-smil query)
-        prog (compiler/compile-dsl d @bag form)
-        e (exec/open d prog (fn [op tuple]
-                              (condp = op
-                                'insert (swap! results conj tuple)
-                                'flush (do (send-result channel id fields @results)
-                                           (reset! results '()))
-                                'error (send-error channel id (ex-info "Failure to WEASL" {:data (str tuple)})))))]
-    (e 'insert [])
-    (e 'flush [])))
+        [form fields]  (repl/form-from-smil query)
+        prog (compiler/compile-dsl db @bag form)
+        handler (fn [op tuple]
+                  (condp = op
+                    'insert (swap! results conj (vec tuple))
+                    'flush (do (send-result channel id fields @results)
+                               (reset! results '()))
+                    'error (send-error channel id (ex-info "Failure to WEASL" {:data (str tuple)}))))
+        e (exec/open db prog handler)]
+    (e 'insert)
+    (e 'flush)))
 
 (defn handle-connection [db channel]
   ;; this seems a little bad..the stack on errors after this seems
@@ -105,7 +105,7 @@
                           (send-result channel id [] []))
                (throw (ex-info (str "Invalid query wrapper " (first expanded)) {:expr expanded}))))
            (throw (ex-info (str "Invalid protocol message type " t) {:message input})))
-         (catch Exception error
+         (catch clojure.lang.ExceptionInfo error
            (send-error channel id error))
          ))))
 
