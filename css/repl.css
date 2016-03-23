@@ -1,4 +1,8 @@
 body { min-height: 100%;}
+body::-webkit-scrollbar { width: 10px; height: 10px; }
+body::-webkit-scrollbar-track { box-shadow: inset 0 0 6px rgba(0,0,0,0.3); }
+body::-webkit-scrollbar-thumb { background-color: darkgrey; outline: 1px solid slategrey; }
+body::-webkit-scrollbar-corner { background-color: transparent;}
 
 .root { width: 100%; min-height: 100%; margin-top: -11px; }
 .light { background-color: lightgray; transition: all 1s;}
@@ -41,6 +45,7 @@ body { min-height: 100%;}
 .dark .repl-card { background-color: rgb(64, 53, 115); }
 
 @media all and (max-width: 600px) {
+  body::-webkit-scrollbar { width: 0px; }
   .repl-root { width: 100%; margin: 0px; }
   .status-bar { margin: 0px;  border-radius: 0; margin-bottom: 20px; }
   .card-root { margin: 0px; padding: 0px; }  
@@ -116,20 +121,10 @@ body { min-height: 100%;}
 .query-result { margin-top: 5px; padding: 10px; overflow: auto; max-height: 300px; }
 .light .query-result { background-color: white; transition: background-color 1s; }
 .dark .query-result { background-color: rgb(30,30,30); transition: background-color 1s; }
-.query-result::-webkit-scrollbar {
-    width: 1em;
-}
-.query-result::-webkit-scrollbar-track {
-  box-shadow: inset 0 0 6px rgba(0,0,0,0.3);
-}
-.query-result::-webkit-scrollbar-thumb {
-  background-color: darkgrey;
-  outline: 1px solid slategrey;
-}
-.dark .query-result::-webkit-scrollbar-corner { background-color: white; }
-.dark .query-result::-webkit-scrollbar-corner {
-  background-color: rgb(30,30,30);
-}
+.query-result::-webkit-scrollbar { width: 10px; height: 10px; }
+.query-result::-webkit-scrollbar-track { box-shadow: inset 0 0 6px rgba(0,0,0,0.3); }
+.query-result::-webkit-scrollbar-thumb { background-color: darkgrey; outline: 1px solid slategrey; }
+.query-result::-webkit-scrollbar-corner { background-color: transparent;}
 
 .bad { border-left: 5px solid red; }
 .good { border-left: 5px solid green; }
