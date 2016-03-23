@@ -11,21 +11,21 @@
 
 (defn -main [& args]
   ;; load existing database..change the way the user is bound here, should go through
-  ;; a shim. should also not be exposed to weasl 
+  ;; a shim. should also not be exposed to weasl
   (when (nil? @db) (reset! db (edb/create-edb @repl/user)))
   (let [interactive (atom true)
-        port (atom ":8081")
+        port (atom 8081)
 
         ;; load the local metadata before starting membership
         flag-map
         {"-d" (fn [] (swap! interactive (fn [x] false)))}
-        
+
         parameter-map
         {"-s" log/set-pathname
          "-p" (fn [x] (swap! port (fn [x] (Integer. x))))
          "-e" (fn [x] (repl/eeval @db (read-string x)))}
 
-        
+
         arglist (fn arglist [args]
                   (if (empty? args) ()
                       (if-let [f (flag-map (first args))]

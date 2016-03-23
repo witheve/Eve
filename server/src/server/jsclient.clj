@@ -2,6 +2,7 @@
   (:require
    [clojure.stacktrace :refer [print-stack-trace]]
    [org.httpkit.server :as httpserver]
+   [ring.middleware.file :refer [wrap-file]]
    [clojure.data.json :as json]
    [server.db :as db]
    [server.edb :as edb]
@@ -117,28 +118,23 @@
      (swap! clients dissoc channel))))
 
 
-;; @NOTE: This is trivially exploitable and needs to replaced with compojure or something at some point
-(defn serve-static [channel uri]
-  (let [prefix (str (.getCanonicalPath (java.io.File. ".")) "/../")]
+(defn serve-static [request channel]
+  (let [base-path (str (.getCanonicalPath (java.io.File. ".")) "/../")]
+    (println "Serving" (:uri request))
     (httpserver/send! channel
-                      {:status 200
-                       :headers {"Expires" "0"
-                                 "Cache-Control" "no-cache, private, pre-check=0, post-check=0, max-age=0"
-                                 "Pragma" "no-cache"
-                                 }
-                       :body (slurp (str prefix uri))})))
+                      ((-> (fn [req] ; Horrible, horrible rewrite hack
+                             (if (= "repl" (second (string/split (request :uri) #"/")))
+                               {:status 200 :header {} :body (slurp (str base-path "/repl.html"))}
+                               {:status 404}))
+                           (wrap-file base-path))
+                       request))))
 
 (defn async-handler [db content]
-  (fn [ring-request]
-    (httpserver/with-channel ring-request channel    ; get the channel
-      (if (httpserver/websocket? channel)
-        (handle-connection db channel)
-        (condp = (second (string/split (ring-request :uri) #"/"))
-          ;;(= (ring-request :uri) "/favicon.ico") (httpserver/send! channel {:status 404})
-          "bin" (serve-static channel (ring-request :uri))
-          "css" (serve-static channel (ring-request :uri))
-          "repl" (serve-static channel "repl.html")
-          (httpserver/send! channel {:status 404}))))))
+  (fn [request]
+        (httpserver/with-channel request channel    ; get the channel
+          (if (httpserver/websocket? channel)
+            (handle-connection db channel)
+            (serve-static request channel)))))
 
 
 (import '[java.io PushbackReader])
@@ -146,18 +142,10 @@
 
 (def server (atom nil))
 
-(defn serve [db address]
-  ;; its really more convenient to allow this to be reloaded
-  ;;  (let [content
-  ;;        (apply str (map (fn [p] (slurp (clojure.java.io/file (.getPath (clojure.java.io/resource p)))))
-  ;;                        '("translate.js"
-  ;;                          "db.js"
-  ;;                          "edb.js"
-  ;;                          "svg.js"
-  ;;                          "websocket.js")))]
-  ;; xxx - wire up address
+(defn serve [db port]
+  (println (str "Serving on localhost:" port "/repl"))
   (when-not (nil? @server)
     (@server :timeout 0))
   (reset! server
-          (try (httpserver/run-server (async-handler db "<http><body>foo</body><http>") {:port 8081})
+          (try (httpserver/run-server (async-handler db "<http><body>foo</body><http>") {:port port})
                (catch Exception e (println (str "caught exception: " e (.getMessage e)))))))
