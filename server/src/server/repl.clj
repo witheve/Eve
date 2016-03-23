@@ -18,7 +18,7 @@
         v (apply concat
                  (rest (rest z))
                  (list (list (apply list 'return (if (empty? p) () (list p))))))]
-    [v p]))
+    [v (vec p)]))
 
 (defn show [d expression]
   (let [[form keys] (form-from-smil (smil/unpack d (second expression)))

@@ -38,14 +38,15 @@
 
                      (httpserver/send! connection (format-message {"type" (quotify "result")
                                                                    "fields" (format-vec (map quotify keys))
-                                                                   "values" (format-vec (map (fn [x] (format-vec (map quotify)) @results)))
+                                                                   "values" (format-vec (map (fn [x] (format-vec (map quotify x))) @results))
                                                                    "id" (quotify id)}))
                      (swap! results (fn [x] ())))
         
 
         prog (compiler/compile-dsl d @bag form)
-        res (fn [tuple]
-              (condp = (tuple 0)
+        res (fn [op tuple]
+              (println "res" op tuple (type tuple))
+              (condp = op
                 'insert (swap! results conj tuple)
                 'flush (send-flush)
                 'error (send-error (str tuple))))
