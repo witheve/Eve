@@ -138,6 +138,7 @@ body{ height: 100%;}
 .dark .cell { border-top: 1px solid rgb(208,208,208); border-right: 1px solid rgb(208,208,208); }
 
 .no-opacity { opacity: 0; }
+.no-width { width: unset; }
 
 .no-height {
   opacity: 0;
