@@ -1,5 +1,6 @@
 (ns server.jsclient
   (:require
+   [clojure.stacktrace :refer [print-stack-trace]]
    [org.httpkit.server :as httpserver]
    [clojure.data.json :as json]
    [server.db :as db]
@@ -10,82 +11,100 @@
    [server.smil :as smil]
    [clojure.string :as string]))
 
+(def clients (atom {}))
+
+(def DEBUG true)
 (def bag (atom 10))
 ;; ok, this is a fucked up rewrite right now. take a parameteric
 ;; term, use it as the return, and strip it off
-
 (defn quotify [x] (str "\"" x "\""))
+(defn format-json [x]
+  (condp #(%1 %2) x
+    string? (quotify x)
+    keyword? (quotify x) ;;@NOTE: should this coerce to string?
+    symbol? (quotify x)
+    map? (str "{" (reduce-kv (fn [b k v] (str b (if (> (count b) 0) ", ") (format-json k) ":" (format-json v))) "" x) "}")
+    coll? (str "[" (string/join "," (map format-json x)) "]")
+    nil? "null"
+    x))
 
-(defn format-vec [x]
-  (str "[" (string/join "," x) "]"))
+(defn timestamp []
+  (.format (java.text.SimpleDateFormat. "hh:mm:ss") (java.util.Date.)))
 
+(defn send-result [channel id fields results]
+  (let [client (get @clients channel)
+        message {"type" "result"
+                 "id" id
+                 "fields" fields
+                 "values" results}]
+    (httpserver/send! channel (format-json message))
+    (when DEBUG
+      (println "<- result" id "to" (:id client) "@" (timestamp))
+      (println message))))
 
-(defn format-message [map]
-  (let [r (str "{" (reduce (fn [b [k v]] (str b (if (> (count b) 0) ", " b) (quotify k) ":" v))  "" map) "}")]
-    (println "message" r)
-    r))
+(defn send-error [channel id error]
+  (let [client (get @clients channel)
+        message {"type" "error"
+                 "id" id
+                 "cause" (.getMessage error)
+                 "stack" (with-out-str (print-stack-trace (.getStackTrace error)))
+                 "data" (ex-data error)}]
+    (httpserver/send! channel (format-json message))
+    (when DEBUG
+      (println "<- error" id "to" (:id client) "@" (timestamp))
+      (println message))))
 
-
-(defn start-query [d query id connection]
-  (let [keys (second query)
+(defn start-query [d query id channel]
+  (let [fields (or (second query) [])
         results (atom ())
-        send-error (fn [x]
-                     (httpserver/send! connection (format-message {"type" (quotify "error")
-                                                                   "cause" x
-                                                                   "id" id})))
-        send-flush (fn []
-                     (println @results (type @results))
-
-                     (httpserver/send! connection (format-message {"type" (quotify "result")
-                                                                   "fields" (format-vec (map quotify keys))
-                                                                   "values" (format-vec (map (fn [x] (format-vec (map quotify)) @results)))
-                                                                   "id" (quotify id)}))
-                     (swap! results (fn [x] ())))
-        
         form  (repl/form-from-smil query)
         prog (compiler/compile-dsl d @bag form)
         e (exec/open d prog (fn [op tuple]
                               (condp = op
                                 'insert (swap! results conj tuple)
-                                'flush (send-flush)
-                                'error (send-error (str tuple)))))]
+                                'flush (do (send-result channel id fields @results)
+                                           (reset! results '()))
+                                'error (send-error channel id (ex-info "Failure to WEASL" {:data (str tuple)})))))]
     (e 'insert [])
     (e 'flush [])))
-
 
 (defn handle-connection [db channel]
   ;; this seems a little bad..the stack on errors after this seems
   ;; to grow by one frame of org.httpkit.server.LinkingRunnable.run(RingHandler.java:122)
   ;; for every reception. i'm using this interface wrong or its pretty seriously
   ;; damaged
-  
+
+  (swap! clients assoc channel {:id (gensym "client") :queries []})
   (httpserver/on-receive
    channel
    (fn [data]
      ;; create relation and create specialization?
-     (let [input (json/read-str data)
-           query (input "query")
-           expanded (when query (smil/unpack db (read-string query)))
+     (let [client (get @clients channel)
+           input (json/read-str data)
+           id (input "id")
            t (input "type")]
-       
-       (println (str "[" (.format (java.text.SimpleDateFormat. "hh:mm:ss") (java.util.Date.)) "] Rcvd " t))
-       (println "  Raw:")
-       (println "   " (string/join "\n    " (string/split query #"\n")))
-       (println "  Expanded:")
-       (smil/print-smil expanded :indent 4)
-       
-       (cond
-         (and (= t "query")  (= (first expanded) 'query)) (start-query db expanded (input "id") channel)
-         (and (= t "query")  (= (first expanded) 'define!))
-         (do
-           (repl/define db expanded)
-           (httpserver/send! channel (format-message {"type" (quotify "result")
-                                                                   "fields" "[]"
-                                                                   "values" "[]"
-                                                                   "id" (quotify (input "id"))})))
-         ;; should some kind of error
-         :else
-         (println "jason, wth", input))))))
+       (println "->" t id "from" (:id client) "@" (timestamp))
+       (condp = t
+         "query"
+         (let [query (input "query")
+               expanded (when query (smil/unpack db (read-string query)))]
+         (println "  Raw:")
+         (println "   " (string/join "\n    " (string/split query #"\n")))
+         (println "  Expanded:")
+         (smil/print-smil expanded :indent 4)
+         (condp = (first expanded)
+           'query (start-query db expanded id channel)
+           'define! (do
+                      (repl/define db expanded)
+                      (send-result channel id [] []))
+           (send-error channel id (ex-info (str "Invalid query wrapper " (first expanded)) {:expr expanded}))))
+         (send-error channel id (ex-info (str "Invalid protocol message type " t) {:message input}))))))
+
+  (httpserver/on-close
+   channel
+   (fn [status]
+     ;; @TODO: cleanup any running computations?
+     (swap! clients dissoc channel))))
 
 
 ;; @NOTE: This is trivially exploitable and needs to replaced with compojure or something at some point
@@ -100,10 +119,9 @@
                        :body (slurp (str prefix uri))})))
 
 (defn async-handler [db content]
-  
   (fn [ring-request]
     (httpserver/with-channel ring-request channel    ; get the channel
-      (if (httpserver/websocket? channel) 
+      (if (httpserver/websocket? channel)
         (handle-connection db channel)
         (condp = (second (string/split (ring-request :uri) #"/"))
           ;;(= (ring-request :uri) "/favicon.ico") (httpserver/send! channel {:status 404})
