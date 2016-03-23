@@ -177,7 +177,21 @@ body{ height: 100%;}
 .dark .callout { background-color: rgb(51,51,51); border-color: rgb(80,80,80); }
 .dark .callout::before { border-bottom-color: rgb(80,80,80); }
 
-a { color: rgb(0,121,177);}
-a:hover {color: rgb(91,89,164);}
-.dark a { color: #fefefe; }
-.dark a:hover {color: rgb(174,173,207);}
+a { color: #fefefe; text-decoration: none; }
+
+.fileUpload {
+  position: relative;
+  overflow: hidden;
+}
+
+.fileUpload input.upload {
+  position: absolute;
+  top: 0;
+  right: 0;
+  margin: 0;
+  padding: 0;
+  font-size: 20px;
+  cursor: pointer;
+  opacity: 0;
+  filter: alpha(opacity=0);
+}
