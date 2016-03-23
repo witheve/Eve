@@ -154,7 +154,6 @@
         {:keys [grid-id]} cell]
     (when (= key-code (KEYS :enter))
       (dispatch
-        ;; TODO: update the value
         (set-state! :cells grid-id (afor [cell (state :cells grid-id)]
                                          (if (= id (:id cell))
                                            (merge cell (state :active-cell-intermediates id))
