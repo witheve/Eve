@@ -9,7 +9,8 @@
    [server.exec :as exec]
    [server.compiler :as compiler]
    [server.smil :as smil]
-   [clojure.string :as string]))
+   [clojure.string :as string]
+   [clojure.pprint :refer [pprint]]))
 
 (def clients (atom {}))
 
@@ -17,7 +18,7 @@
 (def bag (atom 10))
 ;; ok, this is a fucked up rewrite right now. take a parameteric
 ;; term, use it as the return, and strip it off
-(defn quotify [x] (str "\"" x "\""))
+(defn quotify [x] (str "\"" (string/replace (string/replace x "\n" "\\n") "\"" "\\\"") "\""))
 (defn format-json [x]
   (condp #(%1 %2) x
     string? (quotify x)
@@ -40,19 +41,23 @@
     (httpserver/send! channel (format-json message))
     (when DEBUG
       (println "<- result" id "to" (:id client) "@" (timestamp))
-      (println message))))
+      (pprint message))))
 
 (defn send-error [channel id error]
   (let [client (get @clients channel)
+        data (ex-data error)
+        data (if (:expr data)
+               (assoc data :expr (with-out-str (smil/print-smil (:expr data))))
+               data)
         message {"type" "error"
                  "id" id
                  "cause" (.getMessage error)
-                 "stack" (with-out-str (print-stack-trace (.getStackTrace error)))
-                 "data" (ex-data error)}]
+                 "stack" (with-out-str (print-stack-trace error))
+                 "data" data}]
     (httpserver/send! channel (format-json message))
     (when DEBUG
       (println "<- error" id "to" (:id client) "@" (timestamp))
-      (println message))))
+      (pprint message))))
 
 (defn start-query [d query id channel]
   (let [fields (or (second query) [])
@@ -73,8 +78,8 @@
   ;; to grow by one frame of org.httpkit.server.LinkingRunnable.run(RingHandler.java:122)
   ;; for every reception. i'm using this interface wrong or its pretty seriously
   ;; damaged
-
   (swap! clients assoc channel {:id (gensym "client") :queries []})
+  (println "-> connect from" (:id (get @clients channel)) "@" (timestamp))
   (httpserver/on-receive
    channel
    (fn [data]
@@ -84,25 +89,30 @@
            id (input "id")
            t (input "type")]
        (println "->" t id "from" (:id client) "@" (timestamp))
-       (condp = t
-         "query"
-         (let [query (input "query")
-               expanded (when query (smil/unpack db (read-string query)))]
-         (println "  Raw:")
-         (println "   " (string/join "\n    " (string/split query #"\n")))
-         (println "  Expanded:")
-         (smil/print-smil expanded :indent 4)
-         (condp = (first expanded)
-           'query (start-query db expanded id channel)
-           'define! (do
-                      (repl/define db expanded)
-                      (send-result channel id [] []))
-           (send-error channel id (ex-info (str "Invalid query wrapper " (first expanded)) {:expr expanded}))))
-         (send-error channel id (ex-info (str "Invalid protocol message type " t) {:message input}))))))
+       (try
+         (condp = t
+           "query"
+           (let [query (input "query")
+                 expanded (when query (smil/unpack db (smil/read query)))]
+             (println "  Raw:")
+             (println "   " (string/join "\n    " (string/split query #"\n")))
+             (println "  Expanded:")
+             (smil/print-smil expanded :indent 4)
+             (condp = (first expanded)
+               'query (start-query db expanded id channel)
+               'define! (do
+                          (repl/define db expanded)
+                          (send-result channel id [] []))
+               (throw (ex-info (str "Invalid query wrapper " (first expanded)) {:expr expanded}))))
+           (throw (ex-info (str "Invalid protocol message type " t) {:message input})))
+         (catch Exception error
+           (send-error channel id error))
+         ))))
 
   (httpserver/on-close
    channel
    (fn [status]
+     (println "-> close from" (:id (get @clients channel)) "@" (timestamp))
      ;; @TODO: cleanup any running computations?
      (swap! clients dissoc channel))))
 
