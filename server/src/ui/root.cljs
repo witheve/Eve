@@ -161,19 +161,19 @@
 
 (defmethod get-autocompleter-options :value [_ value]
   (concat (when (not= value "")
-            [{:text value :adornment "create" :action :foo}])
-          (match-autocomplete-options [{:text "Table" :adornment "insert" :action :foo}
-                                       {:text "Image" :adornment "insert" :action :foo}
-                                       {:text "Text" :adornment "insert" :action :foo}
-                                       {:text "Chart" :adornment "insert" :action :foo}
-                                       {:text "Drawing" :adornment "insert" :action :foo}
-                                       {:text "UI" :adornment "insert" :action :foo}]
+            [{:text value :adornment "create" :action :create}])
+          (match-autocomplete-options [{:text "Table" :adornment "insert" :action :insert}
+                                       {:text "Image" :adornment "insert" :action :insert}
+                                       {:text "Text" :adornment "insert" :action :insert}
+                                       {:text "Chart" :adornment "insert" :action :insert}
+                                       {:text "Drawing" :adornment "insert" :action :insert}
+                                       {:text "UI" :adornment "insert" :action :insert}]
                                       value)))
 
 (defmethod get-autocompleter-options :property [_ value]
   (when (and value
              (not= value ""))
-    [{:text value :action :foo}]))
+    [{:text value :action :set-property}]))
 
 (defn autocompleter-item [{:keys [type adornment selected] :as info}]
   (box :style (style :padding "7px 10px 7px 8px"
