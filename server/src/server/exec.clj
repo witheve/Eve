@@ -182,7 +182,7 @@
                  :else
                  (base (@down t))))
         
-        walk (fn walk [t] (println "Walk" t)
+        walk (fn walk [t] (println "bagg Walk" t)
                (let [k (@up t)]
                  (if (= k nil) true
                      (not (some walk @k)))))]
@@ -203,12 +203,13 @@
                                               (c r))
                       (and old (not new)) (do (rset r out in)
                                               (rset r op-reg 'remove)
-                                              (c r))))
+                                              (c r)))))
 
             (do 
               (swap! assertions assoc t tuple)
+              (println "bagga walko" tuple (walk t))
               (when (walk t)
-                (c r))))))))))
+                (c r)))))))))
 
 
 (defn delta-s [d terms c]
