@@ -40,8 +40,8 @@
                                                           (aget eavb 1)
                                                           (aget eavb 2)
                                                           (aget eavb 3)
-                                                          user
-                                                          t))]
+                                                          t
+                                                          user))]
                           (println "insert" (map str tuple))
                           (swap! tuples conj tuple)
                           (doseq [i @listeners] (i tuple))

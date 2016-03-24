@@ -189,7 +189,7 @@
     
     (fn [r]
       (let [[e a v b t u] (rget r in)]
-        (println "delta-e" (rget r in))
+        (println "baggo" (rget r op-reg) (map str (rget r in)))
         (if (= (rget r op-reg) 'insert)
           (if (= a edb/remove-oid)
             (let [b (base e)
@@ -248,6 +248,9 @@
       (if (= (rget r op-reg) 'insert)
         ((d oid 
             (fn [t]
+              ;; ahem, who else might be looking at this?
+              (rset r op-reg 'insert)
+              (println "bagge" (rget r op-reg) (map str t))
               (rset r dest t)
               (c r)))
          (rget r key))

@@ -215,8 +215,9 @@
         target-reg (allocate-register e target-reg-name)]
     
     ;; if we have flappies (= (amap free_i) nil) then we are no longer unique
-    (bind-names e (indirect-bind target-reg (zipmap (map amap free) (map pmap free))))
+    (bind-names e (indirect-bind target-reg (zipmap (map pmap free) (map amap free))))
 
+    (println "post edb bindings" (bget e 'bound))
     (compose
      ;; needs to take a projection set for the indices
      (term e 'scan specoid tmp-register [])
@@ -266,17 +267,19 @@
     (generate-union e outputs @arms down)))
 
 
+;; could probably collpase more with compile-edb given a clue
 (defn compile-insert [env terms cont]
   (let [bindings (apply hash-map (rest terms))
         e (if-let [b (bindings :entity)] b nil)
         a (if-let [b (bindings :attribute)] b nil)
         v (if-let [b (bindings :value)] b nil)
         b (if-let [b (bindings :bag)] b [2]) ; default bag
-        t (if-let [b (bindings :tick)] [(allocate-register env b)] [])]
-    (println "wth" t)
+        out (if-let [b (bindings :tick)] (let [r (allocate-register env (gensym 'insert-output))]
+                                           (bind-names env {b [r 4]})
+                                           [r]) [])]
     (compose
      (term env 'tuple tmp-register e a v b)
-     (term env 'scan edb/insert-oid t tmp-register)
+     (term env 'scan edb/insert-oid out tmp-register)
      (cont env))))
 
 
