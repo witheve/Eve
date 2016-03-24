@@ -276,10 +276,9 @@ function closeModals() {
 // ------------------
 
 function queryInputKeydown(event, elem) {
-  console.log(event);
   let thisReplCard = replCards[elem.ix];
   // Submit the query with ctrl + enter
-  if (event.keyCode === 13 && event.ctrlKey === true) {
+  if ((event.keyCode === 13 || event.keyCode === 83) && event.ctrlKey === true) {
     submitReplCard(thisReplCard);
   // Catch tab
   } else if (event.keyCode === 9) {
@@ -400,6 +399,7 @@ function generateReplCardElement(replCard: ReplCard) {
     focused: replCard.focused,
     c: "query-input",
     contentEditable: true,
+    spellcheck: false,
     text: replCard.query,
     keydown: queryInputKeydown, 
     //blur: queryInputBlur, 
