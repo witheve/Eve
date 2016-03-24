@@ -33,7 +33,8 @@ interface ReplCard {
   result: {
     fields: Array<string>,
     values: Array<Array<any>>,
-  } | string,
+  };
+  text: string;
 }
 
 function rerender(removeCards?: boolean) {
@@ -176,7 +177,7 @@ function connectToServer() {
         saveReplCard(targetCard);
       } else if (parsed.type === "error") {
         targetCard.state = CardState.ERROR;
-        targetCard.result = parsed.cause;
+        targetCard.text = parsed.cause;
         saveReplCard(targetCard);
       } else if (parsed.type === "close") {
         let removeIx = replCards.map((r) => r.id).indexOf(parsed.id);
@@ -225,6 +226,7 @@ function newReplCard(): ReplCard {
     focused: false,
     query: "",
     result: undefined,
+    text: undefined,
   }
   return replCard;
 }
@@ -237,7 +239,7 @@ function deleteReplCard(replCard: ReplCard) {
     };
     sendMessage(closemessage);
     replCard.state = CardState.PENDING;
-    replCard.result = "Deleting card...";
+    replCard.text = "Deleting card...";
   } 
 }
 
@@ -250,9 +252,9 @@ function submitReplCard(replCard: ReplCard) {
   replCard.state = CardState.PENDING;    
   let sent = sendMessage(query);
   if (sent) {
-    replCard.result = "Waiting on response from repl...";
+    replCard.text = "Waiting on response from repl...";
   } else {
-    replCard.result = "Message queued.";
+    replCard.text = "Message queued.";
   }
   // Create a new card if we submitted the last one in replCards
   if (replCard.ix === replCards.length - 1) {
@@ -269,7 +271,6 @@ function focusCard(replCard: ReplCard) {
 }
 
 function closeModals() {
-  console.log("closing modals")
   repl.blob = undefined;
   repl.delete = false;
   repl.load = false;
@@ -392,6 +393,11 @@ function loadCardsClick(event, elem) {
   rerender();
 }
 
+function rootClick(event, elem) {
+  closeModals();
+  rerender();
+}
+
 // ------------------
 // Element generation
 // ------------------
@@ -412,36 +418,33 @@ function generateReplCardElement(replCard: ReplCard) {
   };
   // Set the css according to the card state
   let resultcss = "query-result"; 
-  let resultText = undefined;
-  let resultTable = undefined;
+  let result = undefined;
   let replClass = "repl-card";
   // Format card based on state
   if (replCard.state === CardState.GOOD) {
     resultcss += " good";
-    let result: any = replCard.result; 
-    let tableHeader = {c: "header", children: result.fields.map((f: string) => {
+    let tableHeader = {c: "header", children: replCard.result.fields.map((f: string) => {
       return {c: "cell", text: f};
     })};
-    let tableBody = result.values.map((r: Array<any>) => {
+    let tableBody = replCard.result.values.map((r: Array<any>) => {
       return {c: "row", children: r.map((c: any) => {
         return {c: "cell", text: `${c}`};
       })};
     });
     let tableRows = [tableHeader].concat(tableBody);
-    resultTable = {c: "table", children: tableRows};
+    result = {c: "table", children: tableRows};
   } else if (replCard.state === CardState.ERROR) {
     resultcss += " bad";
-    resultText = `${replCard.result}`;
+    result = {c: "", text: replCard.text};
   } else if (replCard.state === CardState.PENDING) {
     resultcss += " pending";
-    resultText = `${replCard.result}`;
+    result = {c: "", text: replCard.text};
   } else if (replCard.state === CardState.CLOSED) {
     resultcss += " closed";
     replClass += " no-height";
-    resultText = `Query closed.`;
+    result = {c: "", text: `Query closed.`};
   }
-  
-  let queryResult = replCard.result === undefined ? {} : {c: resultcss, text: resultText ? resultText : "", children: resultTable ? [resultTable] : []};
+  let queryResult = result === undefined ? {} : {c: resultcss, children: result ? [result] : []};
   replClass += replCard.focused ? " selected" : "";
   
   let replCardElement = {
@@ -484,7 +487,7 @@ function generateStatusBarElement() {
         {t: "input", type: "file", c: "upload", change: loadCards},      
       ]
     }],
-  };
+  }; 
   
   // Build the proper elements of the status bar
   let statusIndicator = {c: `indicator ${indicator} left`};
@@ -525,9 +528,4 @@ function root() {
     click: rootClick,
   };  
   return root;
-}
-
-function rootClick() {
-  closeModals();
-  rerender();
 }
