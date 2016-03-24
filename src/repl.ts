@@ -33,8 +33,7 @@ interface ReplCard {
   result: {
     fields: Array<string>,
     values: Array<Array<any>>,
-  };
-  text: string;
+  } | string;
 }
 
 function rerender(removeCards?: boolean) {
@@ -177,7 +176,7 @@ function connectToServer() {
         saveReplCard(targetCard);
       } else if (parsed.type === "error") {
         targetCard.state = CardState.ERROR;
-        targetCard.text = parsed.cause;
+        targetCard.result = parsed.cause;
         saveReplCard(targetCard);
       } else if (parsed.type === "close") {
         let removeIx = replCards.map((r) => r.id).indexOf(parsed.id);
@@ -226,7 +225,6 @@ function newReplCard(): ReplCard {
     focused: false,
     query: "",
     result: undefined,
-    text: undefined,
   }
   return replCard;
 }
@@ -239,7 +237,7 @@ function deleteReplCard(replCard: ReplCard) {
     };
     sendMessage(closemessage);
     replCard.state = CardState.PENDING;
-    replCard.text = "Deleting card...";
+    replCard.result = "Deleting card...";
   } 
 }
 
@@ -251,10 +249,12 @@ function submitReplCard(replCard: ReplCard) {
   }
   replCard.state = CardState.PENDING;    
   let sent = sendMessage(query);
-  if (sent) {
-    replCard.text = "Waiting on response from repl...";
-  } else {
-    replCard.text = "Message queued.";
+  if (replCard.result === undefined) {
+    if (sent) {
+      replCard.result = "Waiting on response from server...";
+    } else {
+      replCard.result = "Message queued.";
+    }
   }
   // Create a new card if we submitted the last one in replCards
   if (replCard.ix === replCards.length - 1) {
@@ -421,12 +421,17 @@ function generateReplCardElement(replCard: ReplCard) {
   let result = undefined;
   let replClass = "repl-card";
   // Format card based on state
-  if (replCard.state === CardState.GOOD) {
-    resultcss += " good";
-    let tableHeader = {c: "header", children: replCard.result.fields.map((f: string) => {
+  if (replCard.state === CardState.GOOD || (replCard.state === CardState.PENDING && typeof replCard.result === 'object')) {
+    if (replCard.state === CardState.GOOD) {
+      resultcss += " good";      
+    } else if (replCard.state === CardState.PENDING) {
+      resultcss += " pending";
+    }
+    let cardresult: any = replCard.result;
+    let tableHeader = {c: "header", children: cardresult.fields.map((f: string) => {
       return {c: "cell", text: f};
     })};
-    let tableBody = replCard.result.values.map((r: Array<any>) => {
+    let tableBody = cardresult.values.map((r: Array<any>) => {
       return {c: "row", children: r.map((c: any) => {
         return {c: "cell", text: `${c}`};
       })};
@@ -435,16 +440,17 @@ function generateReplCardElement(replCard: ReplCard) {
     result = {c: "table", children: tableRows};
   } else if (replCard.state === CardState.ERROR) {
     resultcss += " bad";
-    result = {c: "", text: replCard.text};
+    result = {text: replCard.result};
   } else if (replCard.state === CardState.PENDING) {
     resultcss += " pending";
-    result = {c: "", text: replCard.text};
+    result = {text: replCard.result};
   } else if (replCard.state === CardState.CLOSED) {
     resultcss += " closed";
     replClass += " no-height";
-    result = {c: "", text: `Query closed.`};
+    result = {text: `Query closed.`};
   }
-  let queryResult = result === undefined ? {} : {c: resultcss, children: result ? [result] : []};
+  
+  let queryResult = result === undefined ? {} : {c: resultcss, children: [result]};
   replClass += replCard.focused ? " selected" : "";
   
   let replCardElement = {
