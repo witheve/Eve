@@ -420,7 +420,9 @@
                   :else (array addition))]
     (dispatch
       (set-state! :selections id updated)
-      (set-state! :extending-selection id true))))
+      (set-state! :extending-selection id true)
+      (set-state! :active-cell id nil)
+      (set-state! :active-cell-intermediates id nil))))
 
 (declare stop-selecting)
 
@@ -586,6 +588,16 @@
                  (KEYS :right) :right
                  (KEYS :down) :down})
 
+(defn activate-cell! [grid-id cell]
+  (if-not (:id cell)
+    (dispatch
+      (let [cells (add-cell! grid-id cell)
+            new-cell (last cells)]
+        (set-state! :selections grid-id (array new-cell))
+        (set-state! :active-cell grid-id (:id new-cell))))
+    (dispatch
+      (set-state! :active-cell grid-id (:id cell)))))
+
 (defn grid-keys [event elem]
   (when (= (.-currentTarget event) (.-target event))
     (let [{:keys [id cells]} (.-info elem)
@@ -597,16 +609,7 @@
       (condp = key-code
         ;; when pressing enter, we either need to create a new cell or if we have a currently
         ;; selected cell we need to activate it
-        (:enter KEYS) (do
-                        (if-not (:id current-selection)
-                          (dispatch
-                            (let [cells (add-cell! id current-selection)
-                                  new-cell (last cells)]
-                              (set-state! :selections id (array new-cell))
-                              (set-state! :active-cell id (:id new-cell))))
-                          (dispatch
-                            (set-state! :active-cell id (:id current-selection))))
-                        (.preventDefault event))
+        (:enter KEYS) (activate-cell! id current-selection)
         ;; pressing backspace should nuke any selected cells
         (:backspace KEYS) (let [selected-ids (into #{} (for [selection (state :selections id)]
                                                          (:id selection)))]
@@ -667,6 +670,11 @@
   (-> (.-currentTarget event)
       (.querySelector ".keyhandler")
       (.focus)))
+
+(defn maybe-activate-cell [event elem]
+  (let [{:keys [id]} (.-info elem)
+        selected (last (state :selections id))]
+    (activate-cell! id selected)))
 
 (defn grid [info]
   (let [canvas (elem :t "canvas"
@@ -738,6 +746,7 @@
           :tabindex -1
           :focus transfer-focus-to-keyhandler
           :mousedown set-selection
+          :dblclick maybe-activate-cell
           :mousemove mousemove-extend-selection
           :mouseup stop-selecting
           :style (style :position "relative"))))
