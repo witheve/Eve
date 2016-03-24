@@ -614,7 +614,7 @@
                               (set-state! :cells id (.filter (state :cells id) (fn [cell]
                                                                                  (not (selected-ids (:id cell))))))
                               (set-state! :selections id (to-array (for [selection selections]
-                                                                     (dissoc selection :id)))))
+                                                                     (select-keys selection [:x :y :width :height])))))
                             (.preventDefault event))
         ;; otherwise if you pressed an arrow key, we need to move or extend depending on
         ;; whether shift is being held
