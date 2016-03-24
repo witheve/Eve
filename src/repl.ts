@@ -122,6 +122,9 @@ function loadCards(event:Event, elem) {
     rerender();
   };
   reader.readAsText(file);
+  event.stopPropagation();
+  closeModals();
+  rerender();
 }
 
 // ------------------
@@ -266,6 +269,7 @@ function focusCard(replCard: ReplCard) {
 }
 
 function closeModals() {
+  console.log("closing modals")
   repl.blob = undefined;
   repl.delete = false;
   repl.load = false;
@@ -343,9 +347,9 @@ function replCardClick(event, elem) {
 }
 
 function deleteAllCards(event, elem) {
-  console.log("foo");
   replCards.forEach(deleteReplCard);
   closeModals();
+  event.stopPropagation();
   rerender();
 }
 
@@ -463,15 +467,15 @@ function generateStatusBarElement() {
     children: [{
       c: "button no-width",
       children: [
-        {t: "a", href: repl.blob, download: "save.evedb", text: "Save Cards"}
+        {t: "a", href: repl.blob, download: "save.evedb", text: "Save Cards", click: function(event) {closeModals(); event.stopPropagation(); rerender();} }
       ]
     }],
   };
-  let deleteConfirm = !repl.delete ? {} : {
+  let deleteConfirm = repl.delete === false ? {} : {
     c: "callout",
     children: [{c: "button no-width", text: "Delete All Cards", click: deleteAllCards}],
   };
-  let fileSelector = !repl.load ? {} : {
+  let fileSelector = repl.load === false ? {} : {
     c: "callout",
     children: [{
       c: "fileUpload",
