@@ -1,7 +1,7 @@
 (ns ui.root
-  (:refer-clojure :exclude [find remove])
+  (:refer-clojure :exclude [find remove when])
   (:require [clojure.string :as string])
-  (:require-macros [ui.macros :refer [elem afor log box text button input dispatch extract for-fact]]))
+  (:require-macros [ui.macros :refer [elem afor log box text button input dispatch extract for-fact when]]))
 
 (enable-console-print!)
 
@@ -130,6 +130,86 @@
 (defn auto-focus [node elem]
   (.focus node))
 
+;;---------------------------------------------------------
+;; Autocomplete
+;;---------------------------------------------------------
+
+(defn autocomplete-selection-keys [event elem]
+  (let [{:keys [cell id]} (.-info elem)
+        key-code (.-keyCode event)
+        {:keys [grid-id]} cell
+        intermediates (state :active-cell-intermediates id)
+        intermediates (if-not (:autocomplete-selection intermediates)
+                        (assoc intermediates :autocomplete-selection 0)
+                        intermediates)]
+    (when (= key-code (KEYS :up))
+      (dispatch
+        (set-state! :active-cell-intermediates id (update-in intermediates [:autocomplete-selection] dec))
+        (.preventDefault event)))
+    (when (= key-code (KEYS :down))
+      (dispatch
+        (set-state! :active-cell-intermediates id (update-in intermediates [:autocomplete-selection] inc))
+        (.preventDefault event)))))
+
+
+(defn match-autocomplete-options [options value]
+  (filter (fn [opt]
+            (> (.indexOf (.toLowerCase (:text opt)) value) -1))
+          options))
+
+(defmulti get-autocompleter-options identity)
+
+(defmethod get-autocompleter-options :value [_ value]
+  (concat (when (not= value "")
+            [{:text value :adornment "create" :action :foo}])
+          (match-autocomplete-options [{:text "Table" :adornment "insert" :action :foo}
+                                       {:text "Image" :adornment "insert" :action :foo}
+                                       {:text "Text" :adornment "insert" :action :foo}
+                                       {:text "Chart" :adornment "insert" :action :foo}
+                                       {:text "Drawing" :adornment "insert" :action :foo}
+                                       {:text "UI" :adornment "insert" :action :foo}]
+                                      value)))
+
+(defmethod get-autocompleter-options :property [_ value]
+  (when (and value
+             (not= value ""))
+    [{:text value :action :foo}]))
+
+(defn autocompleter-item [{:keys [type adornment selected] :as info}]
+  (box :style (style :padding "7px 10px 7px 8px"
+                     :background (if selected
+                                   "#222"
+                                   "none")
+                     :white-space "nowrap"
+                     :flex-direction "row")
+    :children (array
+                     (when adornment
+                       (text :style (style :color "#777"
+                                           :margin-right "5px")
+                             :text adornment))
+                     (text :style (style :color (or (:color info) "#ccc"))
+                           :text (:text info))
+                     )))
+
+(defn autocompleter [type value selected]
+  (let [options (get-autocompleter-options type value)]
+    (when options
+      (let [with-selected (update-in (vec options) [(mod selected (count options))] assoc :selected true)
+            items (to-array (map autocompleter-item with-selected))]
+        (box :style (style :position "absolute"
+                           :background "#000"
+                           :margin-top "10px"
+                           :left -1
+                           :z-index 10
+                           :min-width "100%"
+                           :border "1px solid #555")
+             :children items)))))
+
+(defn get-selected-autocomplete-option [type value selected]
+  (when-let [options (get-autocompleter-options type value)]
+    (let [active (nth options (mod selected (count options)))]
+      (println "TIME TO EXEC" active)
+      )))
 
 ;;---------------------------------------------------------
 ;; Cell types
@@ -138,9 +218,11 @@
 (defn property-keys [event elem]
   (let [{:keys [cell id]} (.-info elem)
         key-code (.-keyCode event)
-        {:keys [grid-id]} cell]
+        {:keys [grid-id]} cell
+        intermediates (state :active-cell-intermediates id)]
     (when (= key-code (KEYS :enter))
       ;; TODO: move to the value field generically
+      (get-selected-autocomplete-option :property (:property intermediates) (:autocomplete-selection intermediates 0))
       (-> event (.-currentTarget) (.-parentNode)
           (.. (querySelector ".value") (focus))))
     (when (= key-code (KEYS :escape))
@@ -153,30 +235,47 @@
         key-code (.-keyCode event)
         {:keys [grid-id]} cell]
     (when (= key-code (KEYS :enter))
-      (dispatch
-        (set-state! :cells grid-id (afor [cell (state :cells grid-id)]
-                                         (if (= id (:id cell))
-                                           (merge cell (state :active-cell-intermediates id))
-                                           cell)))
-        (set-state! :active-cell-intermediates id nil)
-        (set-state! :active-cell grid-id nil)
-        (move-selection! grid-id :down)))
+      (if (.-shiftKey event)
+        ;;  In Excel, shift-enter is just like enter but in the upward direction, so if shift
+        ;;  is pressed then we move back up to the property field.
+        (-> event (.-currentTarget) (.-parentNode)
+            (.. (querySelector ".property") (focus)))
+        ;; otherwise we submit this cell and move down
+        (dispatch
+          (set-state! :cells grid-id (afor [cell (state :cells grid-id)]
+                                           (if (= id (:id cell))
+                                             (merge cell (state :active-cell-intermediates id))
+                                             cell)))
+          (set-state! :active-cell-intermediates id nil)
+          (set-state! :active-cell grid-id nil)
+          (move-selection! grid-id :down))))
     (when (= key-code (KEYS :escape))
       (dispatch
         (set-state! :active-cell-intermediates id nil)
-        (set-state! :active-cell grid-id nil)))))
+        (set-state! :active-cell grid-id nil))))
+  (autocomplete-selection-keys event elem))
 
 (defn store-intermediate [event elem]
   (let [{:keys [cell field id]} (.-info elem)
         current-intermediate (or (state :active-cell-intermediates id) {})
         value (-> (.-currentTarget event) (.-value))]
     (dispatch
-      (set-state! :active-cell-intermediates id (assoc current-intermediate field value)))))
+      (set-state! :active-cell-intermediates id (assoc current-intermediate field value :autocomplete-selection 0)))))
+
+(defn track-focus [event elem]
+  (let [{:keys [cell field id]} (.-info elem)
+        current-intermediate (or (state :active-cell-intermediates id) {})]
+    (dispatch
+      (set-state! :active-cell-intermediates id (assoc current-intermediate :focus field)))))
 
 (defmulti draw-cell :type)
 
 (defmethod draw-cell :property [cell active?]
-  (let [intermediates (state :active-cell-intermediates (:id cell))]
+  (let [intermediates (state :active-cell-intermediates (:id cell))
+        current-focus (or (:focus intermediates)
+                          (if-not (:property cell)
+                            :property
+                            :value))]
     (box :children
          (if active?
            (array (input :style (style :color "#777"
@@ -186,6 +285,8 @@
                          :postRender (if-not (:property cell)
                                        focus-once
                                        js/undefined)
+                         :c "property"
+                         :focus track-focus
                          :input store-intermediate
                          :keydown property-keys
                          :info {:cell cell :field :property :id (:id cell)}
@@ -197,12 +298,16 @@
                          :postRender (if (:property cell)
                                        focus-once
                                        js/undefined)
+                         :focus track-focus
                          :input store-intermediate
                          :keydown value-keys
                          :c "value"
                          :info {:cell cell :field :value :id (:id cell)}
                          :placeholder "value"
-                         :value (or (:value intermediates) (:value cell))))
+                         :value (or (:value intermediates) (:value cell)))
+                  (if (= :property current-focus)
+                    (autocompleter :property (or (:property intermediates) (:property cell) "") (:autocomplete-selection intermediates 0))
+                    (autocompleter :value (or (:value intermediates) (:value cell) "") (:autocomplete-selection intermediates 0))))
            (array (text :style (style :color "#777"
                                       :font-size "10pt"
                                       :margin "8px 0 0 8px")

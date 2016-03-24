@@ -25,7 +25,7 @@
   `(elem :t "button" ~@things))
 
 (defmacro input [& things]
-  (check-allowed "input" #{:style :hover :click :input :value :info :children :placeholder :c :postRender :keydown :keyup :key} things)
+  (check-allowed "input" #{:style :hover :click :input :value :info :children :placeholder :c :postRender :keydown :keyup :key :focus} things)
   `(elem :t "input" ~@things))
 
 (defmacro log [& things]
@@ -70,3 +70,8 @@
       `(afor [~fact-sym ~fact-expr]
              ~@body)
       )))
+
+(defmacro when [condition & body]
+  `(if ~condition
+     (do ~@body)
+     js/undefined))
