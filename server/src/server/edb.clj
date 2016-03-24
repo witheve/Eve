@@ -31,7 +31,7 @@
 (defn create-edb [user]
   (let [tuples (atom '())
         by-attribute ()
-        listeners (atom '())
+        listeners (atom #{})
         index-map  {insert-oid
                     (fn [c]
                       (fn [eavb]
@@ -42,15 +42,18 @@
                                                           (aget eavb 3)
                                                           user
                                                           t))]
+                          (println "insert" (map str tuple))
                           (swap! tuples conj tuple)
                           (doseq [i @listeners] (i tuple))
-                          (c [t]))))
+                          (c tuple))))
                     
                     full-scan-oid
                     (fn [c]
-                      ;; listener again
+                      ;; how were we removing listeners again? serialize list
+                      (swap! listeners conj c) 
                       (fn [key]
                         (doseq [i @tuples]
+                          (println "pukey" (map str i))
                           (c i))))
                     
                     attribute-scan-oid

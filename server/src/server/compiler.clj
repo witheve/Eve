@@ -201,43 +201,33 @@
 (defn indirect-bind [slot m]
   (zipmap (vals m) (map (fn [x] [slot x]) (keys m))))
 
-  
-(defn tuple-from-btu-keywords [terms]
-  (let [tmap (apply hash-map terms)]
-    ;; optional bagginess
-    [(tmap :entity) (tmap :attribute) (tmap :value)]))
 
-
-;; figure out how to handle the quintuple
-;; need to do index selection here - resolve attribute name
+;; need to do index selection here
 (defn compile-edb [e terms down]
-  (let [triple (tuple-from-btu-keywords (rest terms))
-        [bound free] (partition-2 (fn [x] (is-bound? e (nth triple x))) (range 3))
-        [specoid index-inputs index-outputs] [edb/full-scan-oid () '(0 1 2)]
-        ;; xxx - ech - fix this partial specification
-        argmap (zipmap (range 3) triple)
+  (let [signature [:entity :attribute :value :bag :tick :user]
+        pmap (zipmap signature (range (count signature)))
+        amap (apply hash-map (rest terms))
+        ;; bound and free are in fact keyword space
+        [bound free] (partition-2 (fn [x] (is-bound? e (amap x))) signature)
+        [specoid index-inputs index-outputs] [edb/full-scan-oid () signature]
         filter-terms (set/intersection (set index-outputs) (set bound))
-        extra-map (zipmap filter-terms (map (fn [x] (gensym 'xtra)) filter-terms))
         target-reg-name (gensym 'target)
-        target-reg (allocate-register e target-reg-name)
-        ;; because we aren't going through bind we dont need this any longer
-        body (fn [x]
-               (bind-names x (indirect-bind target-reg extra-map))
-               (bind-names x (indirect-bind target-reg (zipmap free (map argmap free))))
-               ((reduce (fn [b t]
-                          (fn [e]
-                            (generate-binary-filter e
-                                                    (list '= :a (extra-map t) :b (nth triple t))
-                                                    b)))
-                        down
-                        filter-terms) x))]
+        target-reg (allocate-register e target-reg-name)]
+    
+    ;; if we have flappies (= (amap free_i) nil) then we are no longer unique
+    (bind-names e (indirect-bind target-reg (zipmap (map amap free) (map pmap free))))
 
     (compose
      ;; needs to take a projection set for the indices
      (term e 'scan specoid tmp-register [])
      (term e 'delta-e target-reg-name tmp-register)
-     (body e))))
-
+     ((reduce (fn [b t]
+               (fn [e]
+                 (generate-binary-filter
+                  e
+                  (list '= :a [target-reg (pmap t)] :b (amap t))
+                  b)))
+              down filter-terms) e))))
 
 ;; unification across the keyword-value bindings (?)
 (defn compile-implication [e terms down]
@@ -267,8 +257,6 @@
                         ;; fack
                         (bset e 'overflow (bget internal 'overflow))
                         x))))))]
-
-                        
 
     ;; validate the parameters as both a proper superset of the input
     ;; and conformant across the union legs
