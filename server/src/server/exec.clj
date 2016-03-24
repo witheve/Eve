@@ -182,14 +182,13 @@
                  :else
                  (base (@down t))))
         
-        walk (fn walk [t] (println "bagg Walk" t)
+        walk (fn walk [t] 
                (let [k (@up t)]
                  (if (= k nil) true
                      (not (some walk @k)))))]
     
     (fn [r]
       (let [[e a v b t u] (rget r in)]
-        (println "baggo" (rget r op-reg) (map str (rget r in)))
         (if (= (rget r op-reg) 'insert)
           (if (= a edb/remove-oid)
             (let [b (base e)
@@ -198,7 +197,6 @@
               (swap! (record up t) conj e)
               (let [nb (if b b (base e))
                     new (if nb (walk nb) nb)]
-                (println "deltae" b old new)
                 (cond (and (not old) new) (do (rset r out in)
                                               (c r))
                       (and old (not new)) (do (rset r out in)
@@ -207,8 +205,8 @@
 
             (do 
               (swap! assertions assoc t tuple)
-              (println "bagga walko" tuple (walk t))
               (when (walk t)
+                (rset r out (rget r in))
                 (c r)))))))))
 
 
@@ -251,7 +249,6 @@
             (fn [t]
               ;; ahem, who else might be looking at this?
               (rset r op-reg 'insert)
-              (println "bagge" (rget r op-reg) (map str t))
               (rset r dest t)
               (c r)))
          (rget r key))

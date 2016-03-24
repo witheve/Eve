@@ -6,8 +6,23 @@
 ;; include some form of node identity (and insert batch
 ;; bits)
 ;; this doesn't belong here - depending on the consistency
-;; story 
-(defn now[] (System/currentTimeMillis))
+;; story
+
+(def current-milli (atom 0))
+(def current-count (atom 0))
+
+;; this is a long with milli and a count...we need to stuff intra-batch
+;; bits in here also
+(defn now[]
+  (let [k (System/currentTimeMillis)]
+    (if (= k @current-milli)
+      (do
+        (swap! current-count (fn [x] (+ x 1))))
+      (do
+        (swap! current-milli (fn [x] k))
+        (swap! current-count (fn [x] 0))))
+    (println "tick"  (+ (bit-shift-left @current-milli 20) @current-count))
+    (+ (bit-shift-left @current-milli 20) @current-count)))
 
 ;; xxx - reconcile with smil
 (def remove-oid 5)
@@ -42,7 +57,6 @@
                                                           (aget eavb 3)
                                                           t
                                                           user))]
-                          (println "insert" (map str tuple))
                           (swap! tuples conj tuple)
                           (doseq [i @listeners] (i tuple))
                           (c tuple))))
@@ -53,7 +67,6 @@
                       (swap! listeners conj c) 
                       (fn [key]
                         (doseq [i @tuples]
-                          (println "pukey" (map str i))
                           (c i))))
                     
                     attribute-scan-oid
