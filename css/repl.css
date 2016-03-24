@@ -4,7 +4,7 @@ body::-webkit-scrollbar-track { box-shadow: inset 0 0 6px rgba(0,0,0,0.3); }
 body::-webkit-scrollbar-thumb { background-color: darkgrey; outline: 1px solid slategrey; }
 body::-webkit-scrollbar-corner { background-color: transparent;}
 
-.root { width: 100%; min-height: 100%; margin-top: -11px; }
+.root { width: 100%; min-height: 100%; margin-top: -11px; padding-bottom: 11px; }
 .light { background-color: lightgray; transition: all 1s;}
 .dark { background-color: rgb(20,20,20);; color: rgb(208,208,208); transition: all 1s;}
 
