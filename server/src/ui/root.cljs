@@ -207,9 +207,7 @@
 
 (defn get-selected-autocomplete-option [type value selected]
   (when-let [options (get-autocompleter-options type value)]
-    (let [active (nth options (mod selected (count options)))]
-      (println "TIME TO EXEC" active)
-      )))
+    (nth options (mod selected (count options)))))
 
 ;;---------------------------------------------------------
 ;; Cell types
