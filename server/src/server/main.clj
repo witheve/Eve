@@ -22,7 +22,7 @@
 
         parameter-map
         {"-s" log/set-pathname
-         "-p" (fn [x] (swap! port (fn [x] (Integer. x))))
+         "-p" (fn [x] (reset! port (Integer. x)))
          "-e" (fn [x] (repl/eeval @db (read-string x)))}
 
 

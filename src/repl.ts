@@ -33,7 +33,7 @@ interface ReplCard {
   result: {
     fields: Array<string>,
     values: Array<Array<any>>,
-  } | string,
+  } | string;
 }
 
 function rerender(removeCards?: boolean) {
@@ -102,6 +102,26 @@ function saveCards() {
   repl.blob = url;
 }
 
+function saveTable() {
+  let replCard = replCards.filter((r) => r.focused).pop();
+  if (replCard !== undefined) {
+    // If the card has results, form the csv  
+    if (typeof replCard.result === 'object') {
+      let result: any = replCard.result;
+      let fields:string = result.fields.join(",");
+      let rows: Array<string> = result.values.map((row) => {
+        return row.join(",");
+      });
+      let csv: string = fields + "\n" + rows.join("\n");
+      let blob = new Blob([csv], {type: "text/csv"});
+      let url = URL.createObjectURL(blob);
+      repl.csv = url;
+    } else {
+      repl.csv = undefined;
+    }
+  }
+}
+
 function loadCards(event:Event, elem) {
   let target = <HTMLInputElement>event.target;
   if(!target.files.length) return;
@@ -122,13 +142,26 @@ function loadCards(event:Event, elem) {
     rerender();
   };
   reader.readAsText(file);
+  event.stopPropagation();
+  closeModals();
+  rerender();
 }
 
 // ------------------
 // Repl functions
 // ------------------
 
-let repl = { state: ReplState.CONNECTING, blob: undefined, load: false, delete: false, queue: [], ws: null, timer: undefined, timeout: 0 };
+let repl = { 
+  state: ReplState.CONNECTING, 
+  blob: undefined, 
+  csv: undefined, 
+  load: false, 
+  delete: false, 
+  queue: [], 
+  ws: null, 
+  timer: undefined, 
+  timeout: 0 
+};
 
 app.renderRoots["repl"] = root;
 connectToServer();
@@ -246,10 +279,12 @@ function submitReplCard(replCard: ReplCard) {
   }
   replCard.state = CardState.PENDING;    
   let sent = sendMessage(query);
-  if (sent) {
-    replCard.result = "Waiting on response from repl...";
-  } else {
-    replCard.result = "Message queued.";
+  if (replCard.result === undefined) {
+    if (sent) {
+      replCard.result = "Waiting on response from server...";
+    } else {
+      replCard.result = "Message queued.";
+    }
   }
   // Create a new card if we submitted the last one in replCards
   if (replCard.ix === replCards.length - 1) {
@@ -278,7 +313,7 @@ function closeModals() {
 function queryInputKeydown(event, elem) {
   let thisReplCard = replCards[elem.ix];
   // Submit the query with ctrl + enter
-  if (event.keyCode === 13 && event.ctrlKey === true) {
+  if ((event.keyCode === 13 || event.keyCode === 83) && event.ctrlKey === true) {
     submitReplCard(thisReplCard);
   // Catch tab
   } else if (event.keyCode === 9) {
@@ -301,6 +336,12 @@ function queryInputKeydown(event, elem) {
   // Catch ctrl + delete to remove a card
   } else if (event.keyCode === 46 && event.ctrlKey === true) {
     deleteReplCard(thisReplCard);
+  // Catch ctrl + home  
+  } else if (event.keyCode === 36 && event.ctrlKey === true) {
+    focusCard(replCards[0]);
+  // Catch ctrl + end
+  } else if (event.keyCode === 35 && event.ctrlKey === true) {
+    focusCard(replCards[replCards.length - 1]);
   } else {
     return;
   }
@@ -338,7 +379,8 @@ function replCardClick(event, elem) {
 
 function deleteAllCards(event, elem) {
   replCards.forEach(deleteReplCard);
-  repl.delete = false;
+  closeModals();
+  event.stopPropagation();
   rerender();
 }
 
@@ -361,23 +403,29 @@ function toggleTheme(event, elem) {
 }
 
 function saveCardsClick(event, elem) {
-  closeModals()
+  closeModals();
   saveCards();
+  saveTable();
   event.stopPropagation();
   rerender();
 }
 
 function trashCardsClick(event, elem) {
-  closeModals()
+  closeModals();
   repl.delete = true;
   event.stopPropagation();
   rerender();
 }
 
 function loadCardsClick(event, elem) {
-  closeModals()
+  closeModals();
   repl.load = true;
   event.stopPropagation();
+  rerender();
+}
+
+function rootClick(event, elem) {
+  closeModals();
   rerender();
 }
 
@@ -392,6 +440,7 @@ function generateReplCardElement(replCard: ReplCard) {
     focused: replCard.focused,
     c: "query-input",
     contentEditable: true,
+    spellcheck: false,
     text: replCard.query,
     keydown: queryInputKeydown, 
     //blur: queryInputBlur, 
@@ -400,36 +449,39 @@ function generateReplCardElement(replCard: ReplCard) {
   };
   // Set the css according to the card state
   let resultcss = "query-result"; 
-  let resultText = undefined;
-  let resultTable = undefined;
+  let result = undefined;
   let replClass = "repl-card";
   // Format card based on state
-  if (replCard.state === CardState.GOOD) {
-    resultcss += " good";
-    let result: any = replCard.result; 
-    let tableHeader = {c: "header", children: result.fields.map((f: string) => {
+  if (replCard.state === CardState.GOOD || (replCard.state === CardState.PENDING && typeof replCard.result === 'object')) {
+    if (replCard.state === CardState.GOOD) {
+      resultcss += " good";      
+    } else if (replCard.state === CardState.PENDING) {
+      resultcss += " pending";
+    }
+    let cardresult: any = replCard.result;
+    let tableHeader = {c: "header", children: cardresult.fields.map((f: string) => {
       return {c: "cell", text: f};
     })};
-    let tableBody = result.values.map((r: Array<any>) => {
+    let tableBody = cardresult.values.map((r: Array<any>) => {
       return {c: "row", children: r.map((c: any) => {
         return {c: "cell", text: `${c}`};
       })};
     });
     let tableRows = [tableHeader].concat(tableBody);
-    resultTable = {c: "table", children: tableRows};
+    result = {c: "table", children: tableRows};
   } else if (replCard.state === CardState.ERROR) {
     resultcss += " bad";
-    resultText = `${replCard.result}`;
+    result = {text: replCard.result};
   } else if (replCard.state === CardState.PENDING) {
     resultcss += " pending";
-    resultText = `${replCard.result}`;
+    result = {text: replCard.result};
   } else if (replCard.state === CardState.CLOSED) {
     resultcss += " closed";
     replClass += " no-height";
-    resultText = `Query closed.`;
+    result = {text: `Query closed.`};
   }
   
-  let queryResult = replCard.result === undefined ? {} : {c: resultcss, text: resultText ? resultText : "", children: resultTable ? [resultTable] : []};
+  let queryResult = result === undefined ? {} : {c: resultcss, children: [result]};
   replClass += replCard.focused ? " selected" : "";
   
   let replCardElement = {
@@ -450,20 +502,19 @@ function generateStatusBarElement() {
   }
   
   // Build the various callouts
+  let saveAllLink = {t: "a", href: repl.blob, download: "save.evedb", text: "Save Cards", click: function(event) {closeModals(); event.stopPropagation(); rerender();}};
+  let saveTableLink = {t: "a", href: repl.csv, download: "table.csv", text: "Export CSV", click: function(event) {closeModals(); event.stopPropagation(); rerender();}};
   let downloadLink = repl.blob === undefined ? {} : {
-    c: "callout",
-    children: [{
-      c: "button no-width",
-      children: [
-        {t: "a", href: repl.blob, download: "save.evedb", text: "Download Cards"}
-      ]
-    }],
+    c: "callout", children: [
+      {c: "button no-width", children: [saveAllLink]},
+      {c: `button ${repl.csv ? "" : "disabled"} no-width`, children: [saveTableLink]},
+    ], 
   };
-  let deleteConfirm = !repl.delete ? {} : {
+  let deleteConfirm = repl.delete === false ? {} : {
     c: "callout",
     children: [{c: "button no-width", text: "Delete All Cards", click: deleteAllCards}],
   };
-  let fileSelector = !repl.load ? {} : {
+  let fileSelector = repl.load === false ? {} : {
     c: "callout",
     children: [{
       c: "fileUpload",
@@ -472,16 +523,16 @@ function generateStatusBarElement() {
         {t: "input", type: "file", c: "upload", change: loadCards},      
       ]
     }],
-  };
+  }; 
   
   // Build the proper elements of the status bar
   let statusIndicator = {c: `indicator ${indicator} left`};
   let trash = {c: "ion-trash-a button right", click: trashCardsClick, children: [deleteConfirm]};
   let save = {c: "ion-ios-download-outline button right", click: saveCardsClick, children: [downloadLink]};
   let load = {c: "ion-ios-upload-outline button right", click: loadCardsClick, children: [fileSelector]};
-    
   let dimmer = {c: `${localStorage["eveReplTheme"] === "light" ? "ion-ios-lightbulb" : "ion-ios-lightbulb-outline"} button right`, click: toggleTheme};
-  let refresh = {c: `ion-refresh button ${repl.state !== ReplState.DISCONNECTED ? "no-opacity" : ""} left no-width`, text: " Reconnect", click: function () { repl.timeout = 0; reconnect(); } };    
+  let refresh = {c: `ion-refresh button ${repl.state !== ReplState.DISCONNECTED ? "no-opacity" : ""} left no-width`, text: " Reconnect", click: function () { repl.timeout = 0; reconnect(); } };
+  // Build the status bar    
   let statusBar = {
     id: "status-bar",
     c: "status-bar",
@@ -513,9 +564,4 @@ function root() {
     click: rootClick,
   };  
   return root;
-}
-
-function rootClick() {
-  closeModals();
-  rerender();
 }

@@ -26,6 +26,7 @@ export interface Element {
   contentEditable?:boolean
   checked?:boolean
   draggable?:boolean
+  spellcheck?:boolean
   href?:string
   src?:string
   data?:any
@@ -257,6 +258,7 @@ export class Renderer {
       var style = div.style;
       if(cur.c !== prev.c) div.className = cur.c;
       if(cur.draggable !== prev.draggable) div.draggable = cur.draggable === undefined ? null : "true";
+      if(cur.spellcheck !== prev.spellcheck) div.setAttribute("spellcheck", cur.spellcheck);
       if(cur.contentEditable !== prev.contentEditable) div.contentEditable = cur.contentEditable !== undefined ? JSON.stringify(cur.contentEditable) : "inherit";
       if(cur.colspan !== prev.colspan) div.colSpan = cur.colspan;
       if(cur.placeholder !== prev.placeholder) div.setAttribute("placeholder", cur.placeholder);
@@ -457,6 +459,7 @@ export class Renderer {
           && curA.placeholder === curB.placeholder
           && curA.selected === curB.selected
           && curA.draggable === curB.draggable
+          && curA.spellcheck === curB.spellcheck
           && curA.contentEditable === curB.contentEditable
           && curA.value === curB.value
           && curA.target === curB.target
