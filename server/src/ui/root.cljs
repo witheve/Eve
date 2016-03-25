@@ -106,6 +106,9 @@
 
 (defonce global-dom-state (atom {}))
 
+(defn prevent-default [event]
+  (.preventDefault event))
+
 (defn global-mouse-down []
   (@global-dom-state :mouse-down))
 
@@ -117,10 +120,13 @@
   (.addEventListener js/window "mouseup"
                      (fn [event]
                        (log "GLOBAL MOUSE UP!")
-                       (swap! global-dom-state assoc :mouse-down false))))
-
-(defn prevent-default [event]
-  (.preventDefault event))
+                       (swap! global-dom-state assoc :mouse-down false)))
+  (.addEventListener js/window "keydown"
+                     (fn [event]
+                       (let [target-node-name (.-nodeName (.-target event))
+                             ignore-names #{"INPUT", "TEXTAREA"}]
+                         (when-not (ignore-names target-node-name)
+                           (prevent-default event))))))
 
 (defn focus-once [node elem]
   (when-not (.-focused node)
@@ -153,27 +159,29 @@
 
 
 (defn match-autocomplete-options [options value]
-  (filter (fn [opt]
-            (> (.indexOf (.toLowerCase (:text opt)) value) -1))
-          options))
+  (if (or (not value)
+          (= value ""))
+    options
+    (filter (fn [opt]
+              (> (.indexOf (.toLowerCase (:text opt)) value) -1))
+            options)))
 
 (defmulti get-autocompleter-options identity)
 
 (defmethod get-autocompleter-options :value [_ value]
-  (concat (when (not= value "")
-            [{:text value :adornment "create" :action :create}])
-          (match-autocomplete-options [{:text "Table" :adornment "insert" :action :insert}
-                                       {:text "Image" :adornment "insert" :action :insert}
-                                       {:text "Text" :adornment "insert" :action :insert}
-                                       {:text "Chart" :adornment "insert" :action :insert}
-                                       {:text "Drawing" :adornment "insert" :action :insert}
-                                       {:text "UI" :adornment "insert" :action :insert}]
+  (concat (when (and value (not= value ""))
+            [{:text value :adornment "create" :action :create :value value}])
+          (match-autocomplete-options [{:text "Table" :adornment "insert" :action :insert :value :table}
+                                       {:text "Image" :adornment "insert" :action :insert :value :image}
+                                       {:text "Text" :adornment "insert" :action :insert :value :text}
+                                       {:text "Chart" :adornment "insert" :action :insert :value :chart}
+                                       {:text "Drawing" :adornment "insert" :action :insert :value :drawing}
+                                       {:text "UI" :adornment "insert" :action :insert :value :ui}]
                                       value)))
 
 (defmethod get-autocompleter-options :property [_ value]
-  (when (and value
-             (not= value ""))
-    [{:text value :action :set-property}]))
+  (when (and value (not= value ""))
+    [{:text value :action :set-property :value value}]))
 
 (defn autocompleter-item [{:keys [type adornment selected] :as info}]
   (box :style (style :padding "7px 10px 7px 8px"
@@ -207,7 +215,8 @@
 
 (defn get-selected-autocomplete-option [type value selected]
   (when-let [options (get-autocompleter-options type value)]
-    (nth options (mod selected (count options)))))
+    (when (seq options)
+      (nth options (mod selected (count options))))))
 
 ;;---------------------------------------------------------
 ;; Cell types
@@ -219,10 +228,12 @@
         {:keys [grid-id]} cell
         intermediates (state :active-cell-intermediates id)]
     (when (= key-code (KEYS :enter))
-      ;; TODO: move to the value field generically
-      (get-selected-autocomplete-option :property (:property intermediates) (:autocomplete-selection intermediates 0))
       (-> event (.-currentTarget) (.-parentNode)
           (.. (querySelector ".value") (focus))))
+      (let [selected (get-selected-autocomplete-option :property (:property intermediates) (:autocomplete-selection intermediates 0))]
+        (when (not= (:text selected) (:property intermediates))
+          (dispatch
+            (set-state! :active-cell-intermediates id (assoc intermediates :property (:text selected))))))
     (when (= key-code (KEYS :escape))
       (dispatch
         (set-state! :active-cell-intermediates id nil)
@@ -239,14 +250,33 @@
         (-> event (.-currentTarget) (.-parentNode)
             (.. (querySelector ".property") (focus)))
         ;; otherwise we submit this cell and move down
-        (dispatch
-          (set-state! :cells grid-id (afor [cell (state :cells grid-id)]
-                                           (if (= id (:id cell))
-                                             (merge cell (state :active-cell-intermediates id))
-                                             cell)))
-          (set-state! :active-cell-intermediates id nil)
-          (set-state! :active-cell grid-id nil)
-          (move-selection! grid-id :down))))
+        (let [intermediates (state :active-cell-intermediates id)
+              selected (get-selected-autocomplete-option :value (:value intermediates) (:autocomplete-selection intermediates 0))
+              {:keys [action]} selected]
+          (dispatch
+            (cond
+              (= action :insert) (do
+                                   (set-state! :cells grid-id (afor [cell (state :cells grid-id)]
+                                                                    (if (= id (:id cell))
+                                                                      (merge cell {:property (:property intermediates)
+                                                                                   :type (:value selected)})
+                                                                      cell)))
+                                   (set-state! :active-cell-intermediates id (assoc intermediates :value nil)))
+              (or (= action :create)
+                  (= action :link)) (let [value-id (if (= action :link)
+                                                     (:value selected)
+                                                     (js/uuid))]
+                                      (when (= action :create)
+                                        ;; TODO: add a new grid
+                                        )
+                                      (set-state! :cells grid-id (afor [cell (state :cells grid-id)]
+                                                                       (if (= id (:id cell))
+                                                                         (merge cell {:property (:property intermediates)
+                                                                                      :value value-id})
+                                                                         cell)))
+                                      (set-state! :active-cell-intermediates id nil)
+                                      (set-state! :active-cell grid-id nil)
+                                      (move-selection! grid-id :down)))))))
     (when (= key-code (KEYS :escape))
       (dispatch
         (set-state! :active-cell-intermediates id nil)
@@ -266,6 +296,28 @@
     (dispatch
       (set-state! :active-cell-intermediates id (assoc current-intermediate :focus field)))))
 
+(defn draw-property [cell active?]
+  (let [intermediates (state :active-cell-intermediates (:id cell))]
+    (if active?
+      (input :style (style :color "#777"
+                           :font-size "10pt"
+                           :line-height "10pt"
+                           :margin "6px 0 0 8px")
+             :postRender (if-not (:property cell)
+                           focus-once
+                           js/undefined)
+             :c "property"
+             :focus track-focus
+             :input store-intermediate
+             :keydown property-keys
+             :info {:cell cell :field :property :id (:id cell)}
+             :placeholder "property"
+             :value (or (:property intermediates) (:property cell)))
+      (text :style (style :color "#777"
+                          :font-size "10pt"
+                          :margin "8px 0 0 8px")
+            :text (:property cell "property")))))
+
 (defmulti draw-cell :type)
 
 (defmethod draw-cell :property [cell active?]
@@ -273,23 +325,11 @@
         current-focus (or (:focus intermediates)
                           (if-not (:property cell)
                             :property
-                            :value))]
+                            :value))
+        property-element (draw-property cell active?)]
     (box :children
          (if active?
-           (array (input :style (style :color "#777"
-                                       :font-size "10pt"
-                                       :line-height "10pt"
-                                       :margin "6px 0 0 8px")
-                         :postRender (if-not (:property cell)
-                                       focus-once
-                                       js/undefined)
-                         :c "property"
-                         :focus track-focus
-                         :input store-intermediate
-                         :keydown property-keys
-                         :info {:cell cell :field :property :id (:id cell)}
-                         :placeholder "property"
-                         :value (or (:property intermediates) (:property cell)))
+           (array property-element
                   (input :style (style :font-size "12pt"
                                        :color "#CCC"
                                        :margin "0px 0 0 8px")
@@ -306,16 +346,42 @@
                   (if (= :property current-focus)
                     (autocompleter :property (or (:property intermediates) (:property cell) "") (:autocomplete-selection intermediates 0))
                     (autocompleter :value (or (:value intermediates) (:value cell) "") (:autocomplete-selection intermediates 0))))
-           (array (text :style (style :color "#777"
-                                      :font-size "10pt"
-                                      :margin "8px 0 0 8px")
-                        :text (:property cell "property"))
+           (array property-element
                   (text :style (style :font-size "12pt"
                                       :margin "3px 0 0 8px")
                         :text (:value cell "")))))))
 
 (defmethod draw-cell :default [cell active?]
-  (draw-cell (assoc cell :type :property) active?))
+  (let [intermediates (state :active-cell-intermediates (:id cell))
+        current-focus (or (:focus intermediates)
+                          (if-not (:property cell)
+                            :property
+                            :value))
+        property-element (draw-property cell active?)
+        type (name (:type cell))]
+    (box :children
+         (if active?
+           (array property-element
+                  (input :style (style :font-size "12pt"
+                                       :color "#CCC"
+                                       :margin "0px 0 0 8px")
+                         :postRender (if (:property cell)
+                                       focus-once
+                                       js/undefined)
+                         :focus track-focus
+                         :input store-intermediate
+                         :keydown value-keys
+                         :c "value"
+                         :info {:cell cell :field :value :id (:id cell)}
+                         :placeholder "value"
+                         :value (or (:value intermediates) type))
+                  (if (= :property current-focus)
+                    (autocompleter :property (or (:property intermediates) (:property cell) "") (:autocomplete-selection intermediates 0))
+                    (autocompleter :value (or (:value intermediates) (:value cell) "") (:autocomplete-selection intermediates 0))))
+           (array property-element
+                  (text :style (style :font-size "12pt"
+                                      :margin "3px 0 0 8px")
+                        :text type))))))
 
 ;;---------------------------------------------------------
 ;; Grid
@@ -392,7 +458,7 @@
       result)))
 
 (defn add-cell! [grid-id cell]
-  (let [with-id (assoc cell :id (js/uuid) :grid-id grid-id)
+  (let [with-id (assoc cell :id (js/uuid) :grid-id grid-id :type :property)
         updated (.concat (state :cells grid-id) (array with-id))]
     (set-state! :cells grid-id updated)
     updated))
