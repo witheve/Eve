@@ -18,10 +18,10 @@
    (ex-info msg (merge standard-data data)))))
 
 (defn merge-state [a b]
-  (if (sequential? a)
-    (into a b)
-    (if (map? a)
-      (merge-with merge-state a b)
+  (if (and (map? a) (map? b))
+    (merge-with merge-state a b)
+    (if (and (coll? a) (coll? b))
+      (into a b)
       b)))
 
 (defn splat-map [m]
@@ -58,14 +58,14 @@
               'fact nil
               'define! nil ; Special due to multiple aliases
               'query nil ; Special due to optional parameterization
-              
+
               ;; Macros
               'remove-by-t! {:args [:tick]}
               'if {:args [:cond :then :else]}
 
               ;; native forms
               'insert-fact-btu! {:args [:entity :attribute :value :bag] :kwargs [:tick] :optional #{:bag :tick}} ; bag can be inferred in SMIR
-              
+
               'union {:args [:params] :rest :members}
               'choose {:args [:params] :rest :members}
               'not {:args [:expr]}
@@ -78,7 +78,7 @@
                  '- {:args [:a :b]}
                  '* {:args [:a :b]}
                  '/ {:args [:a :b]}
-                 
+
                  '= {:args [:a :b]}
                  '!= {:args [:a :b]}
                  '> {:args [:a :b]}
@@ -110,7 +110,7 @@
   (let [body (rest sexpr)
         state (reduce
                #(merge-state %1
-                             (if (:kw %1) 
+                             (if (:kw %1)
                                (if (keyword? %2)
                                  ;; Implicit variable; sub in a symbol of the same name, set the next :kw
                                  {:kw %2 :args {(:kw %1) (symbol (name (:kw %1)))}}
@@ -238,7 +238,7 @@
 (defn assert-valid [args]
   (if-let [err (validate-args args)]
     (throw err)
-    args))  
+    args))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Expand a SMIL sexpr recursively until it's ready for WEASL compilation
@@ -265,7 +265,7 @@
                                args)
                      fact (expand-each db (map #(cons (with-meta 'fact-btu (meta op)) %1) (:facts args)))
                      insert-fact! (expand-each db (map #(cons (with-meta 'insert-fact-btu! (meta op)) %1) (:facts args)))
-                     
+
                      ;; Macros
                      remove-by-t! (expand db (list (with-meta 'insert-fact-btu! (meta op)) (:tick args) REMOVE_FACT nil))
                      if (let [then (as-query (:then args))
@@ -274,7 +274,7 @@
                           ((with-meta 'choose (meta op)) ['return]
                            (expand db then)
                            (expand db else)))
-                     
+
                      ;; Native forms
                      insert-fact-btu! (cons op (splat-map (expand-values db args)))
                      union (concat [op] [(:params args)] (assert-queries (expand-each db (:members args))))
@@ -287,7 +287,7 @@
       (with-meta expanded (merge (meta expr) (meta expanded))))
     (sequential? expr) (expand-each db expr)
     :else expr))
-  
+
 (defn returnable? [sexpr]
   ((set (keys primitives)) (first sexpr)))
 
@@ -303,7 +303,7 @@
                  [] (rest sexpr)))
                (meta sexpr))]
      :query []}
-    
+
     (and (seq? sexpr) (returnable? sexpr))
     (let [state (reduce
                  #(merge-state
@@ -377,7 +377,7 @@
          (print-smil child :indent (+ indent 1)))
        (print-indent indent)
        (println ")"))
-     
+
      :else
      (do
        (print-indent indent)
