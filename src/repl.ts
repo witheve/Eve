@@ -102,6 +102,26 @@ function saveCards() {
   repl.blob = url;
 }
 
+function saveTable() {
+  let replCard = replCards.filter((r) => r.focused).pop();
+  if (replCard !== undefined) {
+    // If the card has results, form the csv  
+    if (typeof replCard.result === 'object') {
+      let result: any = replCard.result;
+      let fields:string = result.fields.join(",");
+      let rows: Array<string> = result.values.map((row) => {
+        return row.join(",");
+      });
+      let csv: string = fields + "\n" + rows.join("\n");
+      let blob = new Blob([csv], {type: "text/csv"});
+      let url = URL.createObjectURL(blob);
+      repl.csv = url;
+    } else {
+      repl.csv = undefined;
+    }
+  }
+}
+
 function loadCards(event:Event, elem) {
   let target = <HTMLInputElement>event.target;
   if(!target.files.length) return;
@@ -131,7 +151,17 @@ function loadCards(event:Event, elem) {
 // Repl functions
 // ------------------
 
-let repl = { state: ReplState.CONNECTING, blob: undefined, load: false, delete: false, queue: [], ws: null, timer: undefined, timeout: 0 };
+let repl = { 
+  state: ReplState.CONNECTING, 
+  blob: undefined, 
+  csv: undefined, 
+  load: false, 
+  delete: false, 
+  queue: [], 
+  ws: null, 
+  timer: undefined, 
+  timeout: 0 
+};
 
 app.renderRoots["repl"] = root;
 connectToServer();
@@ -375,6 +405,7 @@ function toggleTheme(event, elem) {
 function saveCardsClick(event, elem) {
   closeModals()
   saveCards();
+  saveTable();
   event.stopPropagation();
   rerender();
 }
@@ -471,14 +502,13 @@ function generateStatusBarElement() {
   }
   
   // Build the various callouts
+  let saveAllLink = {t: "a", href: repl.blob, download: "save.evedb", text: "Save Cards", click: function(event) {closeModals(); event.stopPropagation(); rerender();}};
+  let saveTableLink = {t: "a", href: repl.csv, download: "table.csv", text: "Export CSV", click: function(event) {closeModals(); event.stopPropagation(); rerender();}};
   let downloadLink = repl.blob === undefined ? {} : {
-    c: "callout",
-    children: [{
-      c: "button no-width",
-      children: [
-        {t: "a", href: repl.blob, download: "save.evedb", text: "Save Cards", click: function(event) {closeModals(); event.stopPropagation(); rerender();} }
-      ]
-    }],
+    c: "callout", children: [
+      {c: "button no-width", children: [saveAllLink]},
+      {c: `button ${repl.csv ? "" : "disabled"} no-width`, children: [saveTableLink]},
+    ], 
   };
   let deleteConfirm = repl.delete === false ? {} : {
     c: "callout",
@@ -500,9 +530,9 @@ function generateStatusBarElement() {
   let trash = {c: "ion-trash-a button right", click: trashCardsClick, children: [deleteConfirm]};
   let save = {c: "ion-ios-download-outline button right", click: saveCardsClick, children: [downloadLink]};
   let load = {c: "ion-ios-upload-outline button right", click: loadCardsClick, children: [fileSelector]};
-    
   let dimmer = {c: `${localStorage["eveReplTheme"] === "light" ? "ion-ios-lightbulb" : "ion-ios-lightbulb-outline"} button right`, click: toggleTheme};
-  let refresh = {c: `ion-refresh button ${repl.state !== ReplState.DISCONNECTED ? "no-opacity" : ""} left no-width`, text: " Reconnect", click: function () { repl.timeout = 0; reconnect(); } };    
+  let refresh = {c: `ion-refresh button ${repl.state !== ReplState.DISCONNECTED ? "no-opacity" : ""} left no-width`, text: " Reconnect", click: function () { repl.timeout = 0; reconnect(); } };
+  // Build the status bar    
   let statusBar = {
     id: "status-bar",
     c: "status-bar",
