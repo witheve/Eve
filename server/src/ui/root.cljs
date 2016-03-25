@@ -73,9 +73,17 @@
   (or (@state-store (args-to-key args))
       (array {:x 0 :y 0 :width 1 :height 1})))
 
-(defmethod state :name [& args]
-  (or (@state-store (args-to-key args))
-      (nth args 1)))
+(defmethod state :grid [_ id]
+  (or (@state-store (args-to-key [:grid id]))
+      id))
+
+(defmethod state :name [_ name]
+  (get (@state-store :name) (.toLowerCase name)))
+
+(defmethod state :name-matches [_ partial-name]
+  (seq (filter (fn [[k v]]
+                 (> (.indexOf k partial-name) -1))
+               (@state-store :name))))
 
 (defmethod state :default [& args]
   (@state-store (args-to-key args)))
@@ -83,6 +91,10 @@
 (defmulti set-state! identity)
 (defmethod set-state! :default [& args]
   (swap! state-store assoc (args-to-key (butlast args)) (last args)))
+
+(defmethod set-state! :grid [_ id value]
+  (swap! state-store assoc (args-to-key [:grid id]) value)
+  (swap! state-store update-in [:name] assoc (.toLowerCase value) id))
 
 ;;---------------------------------------------------------
 ;; Styles
@@ -174,7 +186,10 @@
 
 (defmethod get-autocompleter-options :value [_ value]
   (concat (when (and value (not= value ""))
-            [{:text value :adornment "create" :action :create :value value}])
+            (if-let [matches (state :name-matches value)]
+              (for [[k v] matches]
+                {:text k :adornment "link" :action :link :value v})
+              [{:text value :adornment "create" :action :create :value value}]))
           (match-autocomplete-options [{:text "Table" :adornment "insert" :action :insert :value :table}
                                        {:text "Image" :adornment "insert" :action :insert :value :image}
                                        {:text "Text" :adornment "insert" :action :insert :value :text}
@@ -255,14 +270,15 @@
             (.. (querySelector ".property") (focus)))
         ;; otherwise we submit this cell and move down
         (let [intermediates (state :active-cell-intermediates id)
-              selected (get-selected-autocomplete-option :value (:value intermediates) (:autocomplete-selection intermediates 0))
+              selected (get-selected-autocomplete-option :value (or (:value intermediates) (state :grid (:value cell))) (:autocomplete-selection intermediates 0))
               {:keys [action]} selected]
+          (println selected)
           (dispatch
             (cond
               (= action :insert) (do
                                    (set-state! :cells grid-id (afor [cell (state :cells grid-id)]
                                                                     (if (= id (:id cell))
-                                                                      (merge cell {:property (:property intermediates)
+                                                                      (merge cell {:property (or (:property intermediates) (:property cell))
                                                                                    :type (:value selected)})
                                                                       cell)))
                                    (set-state! :active-cell-intermediates id (assoc intermediates :value nil)))
@@ -271,12 +287,12 @@
                                                      (:value selected)
                                                      (js/uuid))]
                                       (when (= action :create)
-                                        (set-state! :name value-id (:text selected))
+                                        (set-state! :grid value-id (:text selected))
                                         ;; TODO: add a new grid
                                         )
                                       (set-state! :cells grid-id (afor [cell (state :cells grid-id)]
                                                                        (if (= id (:id cell))
-                                                                         (merge cell {:property (:property intermediates)
+                                                                         (merge cell {:property (or (:property intermediates) (:property cell))
                                                                                       :value value-id})
                                                                          cell)))
                                       (set-state! :active-cell-intermediates id nil)
@@ -347,15 +363,15 @@
                          :c "value"
                          :info {:cell cell :field :value :id (:id cell)}
                          :placeholder "value"
-                         :value (or (:value intermediates) (state :name (:value cell))))
+                         :value (or (:value intermediates) (state :grid (:value cell))))
                   (if (= :property current-focus)
                     (autocompleter :property (or (:property intermediates) (:property cell) "") (:autocomplete-selection intermediates 0))
-                    (autocompleter :value (or (:value intermediates) (:value cell) "") (:autocomplete-selection intermediates 0))))
+                    (autocompleter :value (or (:value intermediates) (state :grid (:value cell)) "") (:autocomplete-selection intermediates 0))))
            (array property-element
                   (button :style (style :font-size "12pt"
                                         :margin "1px 0 0 8px")
                           :click (fn [event elem] (println "CLICKED!"))
-                          :children (array (text :text (state :name (:value cell ""))))))))))
+                          :children (array (text :text (state :grid (:value cell ""))))))))))
 
 (defmethod draw-cell :default [cell active?]
   (let [intermediates (state :active-cell-intermediates (:id cell))
