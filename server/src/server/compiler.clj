@@ -1,4 +1,3 @@
-
 (ns server.compiler
   (:require
    [server.db :as db]
@@ -33,7 +32,6 @@
                        (= (count key) 1) (e k0)
                        :default (internal (e k0) (rest key)))))]
     (internal @e key)))
-
 
 (defn partition-2 [pred coll]
   ((juxt
@@ -102,7 +100,7 @@
     (let [cycle-filters (map (fn [x] (term e 'filter x))
                              (set/difference (bget e 'cycles)
                                              (bget e 'cycle-heads)))]
-      (apply compose 
+      (apply compose
              (concat cycle-filters
                      (list (apply term e 'tuple out (map (fn [x] (bget e 'bound x)) arguments)))
                      (list (term e 'send channel out)))))))
@@ -130,9 +128,9 @@
                         (fn [x]
                           ;; new child environment
                           (generate-bind e down signature cid))))
-               
+
   (compose )))
-              
+
 (declare compile-conjunction)
 
 (defn compile-return [e terms down]
@@ -152,12 +150,12 @@
          (apply term e (first terms) simple)
          (down e)))
       (compile-error (str "unhandled bound signature in" terms)))))
-          
+
 
 (defn generate-binary-filter [e terms down]
   (let [argmap (apply hash-map (rest terms))]
     (apply add-dependencies e terms)
-    (compose 
+    (compose
      (term e (first terms) tmp-register (argmap :a) ( argmap :b))
      (term e 'filter tmp-register)
      (down e))))
@@ -181,43 +179,47 @@
           b (rebind b (argmap :a))
           :else
           (compile-error "reordering necessary, not implemented"))))
-    
+
 
 (defn indirect-bind [slot m]
   (zipmap (vals m) (map (fn [x] [slot x]) (keys m))))
 
 
-(defn generate-scan [e terms down collapse]
-  (let [signature [:entity :attribute :value :bag :tick :user]
-        pmap (zipmap signature (range (count signature)))
-        amap (apply hash-map (rest terms))
-        ;; bound and free are in fact keyword space
-        [bound free] (partition-2 (fn [x] (is-bound? e (amap x))) signature)
-        [specoid index-inputs index-outputs] [edb/full-scan-oid () signature]
+(defn tuple-from-btu-keywords [terms]
+  (let [tmap (apply hash-map terms)]
+    ;; optional bagginess
+    [(tmap :entity) (tmap :attribute) (tmap :value)]))
+
+
+;; figure out how to handle the quintuple
+;; need to do index selection here - resolve attribute name
+(defn compile-edb [e terms down]
+  (let [triple (tuple-from-btu-keywords (rest terms))
+        [bound free] (partition-2 (fn [x] (is-bound? e (nth triple x))) (range 3))
+        [specoid index-inputs index-outputs] [edb/full-scan-oid () '(0 1 2)]
+        ;; xxx - ech - fix this partial specification
+        argmap (zipmap (range 3) triple)
         filter-terms (set/intersection (set index-outputs) (set bound))
+        extra-map (zipmap filter-terms (map (fn [x] (gensym 'xtra)) filter-terms))
         target-reg-name (gensym 'target)
         target-reg (allocate-register e target-reg-name)
-        body (reduce (fn [b t]
-                       (fn [e]
-                         (generate-binary-filter
-                          e
-                          (list '= :a [target-reg (pmap t)] :b (amap t))
-                          b)))
-                     down filter-terms)]
-    
-    ;; if we have flappies (= (amap free_i) nil) then we are no longer unique
-    (bind-names e (indirect-bind target-reg (zipmap (map pmap free) (map amap free))))
+        ;; because we aren't going through bind we dont need this any longer
+        body (fn [x]
+               (bind-names x (indirect-bind target-reg extra-map))
+               (bind-names x (indirect-bind target-reg (zipmap free (map argmap free))))
+               ((reduce (fn [b t]
+                          (fn [e]
+                            (generate-binary-filter e
+                                                    (list '= :a (extra-map t) :b (nth triple t))
+                                                    b)))
+                        down
+                        filter-terms) x))]
 
-    (if collapse
-      (compose
-       ;; needs to take a projection set for the indices
-       (term e 'scan specoid tmp-register [])
-       (term e 'delta-e target-reg-name tmp-register)
-       (body e))
-      (compose
-       (term e 'scan specoid tmp-register [])
-       (body e)))))
-
+    (compose
+     ;; needs to take a projection set for the indices
+     (term e 'scan specoid target-reg-name [])
+     ;;     (term e 'delta-e dchannel-name channel-name)
+     (body e))))
 
 
 ;; unification across the keyword-value bindings (?)
@@ -247,27 +249,26 @@
                         (bset e 'overflow (bget internal 'overflow))
                         x))))))]
 
+
+
     ;; validate the parameters as both a proper superset of the input
     ;; and conformant across the union legs
-    (db/for-each-implication (bget e 'db) relname 
+    (db/for-each-implication (bget e 'db) relname
                              (fn [parameters body]
                                (swap! arms conj (army parameters body))))
     (generate-union e outputs @arms down)))
 
 
-;; could probably collpase more with compile-edb given a clue
 (defn compile-insert [env terms cont]
   (let [bindings (apply hash-map (rest terms))
         e (if-let [b (bindings :entity)] b nil)
         a (if-let [b (bindings :attribute)] b nil)
         v (if-let [b (bindings :value)] b nil)
-        b (if-let [b (bindings :bag)] b [2]) ; default bag
-        out (if-let [b (bindings :tick)] (let [r (allocate-register env (gensym 'insert-output))]
-                                           (bind-names env {b [r 4]})
-                                           [r]) [])]
+        b (if-let [b (bindings :bag)] b [2])] ; default bag
+
     (compose
      (term env 'tuple tmp-register e a v b)
-     (term env 'scan edb/insert-oid out tmp-register)
+     (term env 'scan edb/insert-oid tmp-register tmp-register)
      (cont env))))
 
 
@@ -281,8 +282,7 @@
         out (compile-conjunction e body (fn [e] (fn [] ())))
         down (cont e)]
     (fn []
-      ((compose 
-
+      ((compose
         down)))))
 
 (defn compile-expression [e terms down]
@@ -296,10 +296,7 @@
 
                   'str compile-simple-primitive
                   'insert-fact-btu! compile-insert
-                  'fact-btu (fn [e terms down]
-                              (generate-scan e terms down true))
-                  'full-fact-btu (fn [e terms down]
-                                   (generate-scan e terms down true))
+                  'fact-btu compile-edb
                   'range compile-simple-primitive
                   '= compile-equal
                   'not-equal generate-binary-filter
@@ -339,4 +336,3 @@
     ()))
     ;; emit blocks
     ;; wrap the main block
-

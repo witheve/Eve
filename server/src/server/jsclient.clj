@@ -146,6 +146,7 @@
   (println (str "Serving on localhost:" port "/repl"))
   (when-not (nil? @server)
     (@server :timeout 0))
-  (reset! server
-          (try (httpserver/run-server (async-handler db "<http><body>foo</body><http>") {:port port})
-               (catch Exception e (println (str "caught exception: " e (.getMessage e)))))))
+  (try
+    (reset! server
+            (httpserver/run-server (async-handler db "<http><body>foo</body><http>") {:port port}))
+    (catch Exception e (println (str "caught exception: " e (.getMessage e))))))
