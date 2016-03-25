@@ -33,10 +33,16 @@
                        (= (count key) 1) (e k0)
                        :default (internal (e k0) (rest key)))))]
     (internal @e key)))
-    
-(defn new-bindings [] (atom {}))
 
-(defn child-bindings [e] (atom @e))
+
+(defn partition-2 [pred coll]
+  ((juxt
+    (partial filter pred)
+    (partial filter (complement pred)))
+     coll))
+
+
+(defn new-bindings [] (atom {}))
 
 ;; wrap a handler
 (defn compile-error [& thingy]
@@ -101,41 +107,45 @@
                      (list (apply term e 'tuple out (map (fn [x] (bget e 'bound x)) arguments)))
                      (list (term e 'send channel out)))))))
 
-;; inside is a function which takes the inner environment
-(defn generate-bind [e inside inputs block-name c-block-name]
-  (let [tuple-target-name (gensym 'closure-tuple)
+(defn generate-bind [e inside-block block-name projection
+                     target-block-name target-block-params] ;; send construction
+  (let [ei (new-bindings)
+        [bound free] (if projection
+                       (partition-2 (fn [x] (is-bound? e (amap x))) projection)
+                       ;; we dont have a handle on the free variables in the empty projection here
+                       [#{(values (bget e 'bound))} #{}))
+        tuple-target-name (gensym 'closure-tuple)
         input-map (zipmap inputs (range (count inputs)))
-        inside-env (child-bindings e)
-        body (compile-conjunction (send))
+        body (compile-conjunction inner body
+                                  (fn [] (generate-send target-block-name target-block-params)))
         tuple-names (reduce
                      (fn [b x]
                        (if (bget e 'bound x)
                          (do
-                           (bind-names inside-env {x [1 (count b)]})
+                           (bind-names ei {x [input-register (count b)]})
                            (concat b (list x)))
                          b))
                      ()
-                     (bget inside-env 'dependencies))]
+                     (bget ei 'dependencies))]
     
-    (bset e 'dependencies (set/union (bget e 'dependencies)
-                                     (bget inside-env 'dependencies)))
-    (compose (apply term e 'tuple tuple-target-name tuple-names)
-             (term e 'bind channel-name tuple-target-name (body)))
-    (term e 'bind channel-name (body))))
+    ;; limit dependencies to the projection
+    (bset e 'dependencies (set/union (bget e 'dependencies) (bget ei 'dependencies)))
+    (if-let [over (bget e 'overflow)]
+      (compose body (term e 'tuple [(- exec/basic-register-frame 1)] (repeat over nil))))
+    (bset e 'blocks (conj (bget e 'blocks  ('bind block-name tuple-target-name (body)))))
+    tuple-names))
 
 
-;; an arm takes a down
+(defn compile-union [e terms down]
+  (let [[union projection clauses] terms
 
-(defn generate-union [e signature arms down]
-  (cond (= (count arms) 0) (down e)
-        (= (count arms) 1) ((first arms) down)
-        :default 
-        (let [cid (gensym 'union-channel)]
-          (apply compose (concat (map (fn [x]
-                                        ;; subquery
-                                        (x (fn [e] (generate-send e cid signature))))
-                                      arms)
-                                 (list (generate-bind e down signature cid)))))))
+        (apply compose
+               (concat (map
+                        (fn [x]
+                          ;; new child environment
+                          (generate-bind e down signature cid))))
+               
+  (compose )))
               
 (declare compile-conjunction)
 
@@ -187,12 +197,6 @@
           (compile-error "reordering necessary, not implemented"))))
     
 
-(defn partition-2 [pred coll]
-  ((juxt
-    (partial filter pred)
-    (partial filter (complement pred)))
-     coll))
-
 (defn indirect-bind [slot m]
   (zipmap (vals m) (map (fn [x] [slot x]) (keys m))))
 
@@ -242,9 +246,9 @@
         outputs (set/difference (set (keys callmap)) (set (keys ibinds)))
         army (fn [parameters body]
                (fn [down]
-                 (let [internal (child-bindings e)]
-                   (bset internal 'dependencies #{})
+                 (let [internal (new-bindings)]
                    (bind-names internal (zipmap (map dekey (keys ibinds)) (vals ibinds)))
+                   (compile-query
                    (compile-conjunction
                     internal body
                     (fn [tail]
@@ -281,10 +285,6 @@
      (cont env))))
 
 
-
-(defn compile-union [e terms down]
-  ;; these need to be lambda [e down]
-  (generate-union (apply hash-map (second terms)) (rest (rest terms)) down))
 
 (defn compile-query [e terms cont]
   ;; this has a better formulation in the new world? what about export
@@ -350,7 +350,7 @@
         _ (bind-names e {'return-channel [1]
                          'op [0]})
         p (compile-conjunction e terms (fn [e] (fn [] ())))]
-    ((if-let [over (bget e 'overflow)]
-       (compose (apply term e 'tuple [(- exec/basic-register-frame 1)] (repeat over nil)) p)
-       p))))
+    ()))
+    ;; emit blocks
+    ;; wrap the main block
 
