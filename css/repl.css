@@ -1,6 +1,10 @@
-body{ height: 100%;}
+body { min-height: 100%;}
+body::-webkit-scrollbar { width: 10px; height: 10px; }
+body::-webkit-scrollbar-track { box-shadow: inset 0 0 6px rgba(0,0,0,0.3); }
+body::-webkit-scrollbar-thumb { background-color: darkgrey; outline: 1px solid slategrey; }
+body::-webkit-scrollbar-corner { background-color: transparent;}
 
-.root { width: 100%; height: 100%; margin-top: -11px; }
+.root { width: 100%; min-height: 100%; height: 100%; margin-top: -1px; overflow: auto;}
 .light { background-color: lightgray; transition: all 1s;}
 .dark { background-color: rgb(20,20,20);; color: rgb(208,208,208); transition: all 1s;}
 
@@ -41,6 +45,7 @@ body{ height: 100%;}
 .dark .repl-card { background-color: rgb(64, 53, 115); }
 
 @media all and (max-width: 600px) {
+  body::-webkit-scrollbar { width: 0px; }
   .repl-root { width: 100%; margin: 0px; }
   .status-bar { margin: 0px;  border-radius: 0; margin-bottom: 20px; }
   .card-root { margin: 0px; padding: 0px; }  
@@ -66,7 +71,7 @@ body{ height: 100%;}
 
 .button {
   border-radius: 4px;
-  cursor: default;
+  cursor: pointer;
   font-size: 14px;
   height: 14px;
   width: 14px;
@@ -86,6 +91,10 @@ body{ height: 100%;}
   border: 1px solid rgb(74,64,136);
   transition: all 1s;
 }
+.button .disabled {
+  background-color: gray;
+  border-color: #333;
+}
 
 .left { float: left; margin-right: 10px; }
 .right { float: right; margin-left: 10px; }
@@ -97,25 +106,28 @@ body{ height: 100%;}
   padding: 10px;
   min-height: 16;
   font-family: monospace;
+  max-height: 300px;
   font-size: 16px;
   overflow: auto;
   white-space: pre;
   transition: box-shadow .1s;  
 }
-.light .query-input {
-  background-color: white;
-  transition: background-color 1s;
-}
-.dark .query-input {
-  background-color: rgb(30,30,30);
-  transition: background-color 1s;
-}
+.light .query-input { background-color: white; transition: background-color 1s; }
+.dark .query-input { background-color: rgb(30,30,30); transition: background-color 1s; }
+.query-input::-webkit-scrollbar { width: 10px; height: 10px; }
+.query-input::-webkit-scrollbar-track { box-shadow: inset 0 0 6px rgba(0,0,0,0.3); }
+.query-input::-webkit-scrollbar-thumb { background-color: darkgrey; outline: 1px solid slategrey; }
+.query-result::-webkit-scrollbar-corner { background-color: transparent;}
 
 .query-input:focus { box-shadow: inset 0 0 3px #000000; }
 
 .query-result { margin-top: 5px; padding: 10px; overflow: auto; max-height: 300px; }
 .light .query-result { background-color: white; transition: background-color 1s; }
 .dark .query-result { background-color: rgb(30,30,30); transition: background-color 1s; }
+.query-result::-webkit-scrollbar { width: 10px; height: 10px; }
+.query-result::-webkit-scrollbar-track { box-shadow: inset 0 0 6px rgba(0,0,0,0.3); }
+.query-result::-webkit-scrollbar-thumb { background-color: darkgrey; outline: 1px solid slategrey; }
+.query-result::-webkit-scrollbar-corner { background-color: transparent;}
 
 .bad { border-left: 5px solid red; }
 .good { border-left: 5px solid green; }
@@ -195,3 +207,5 @@ a { color: #fefefe; text-decoration: none; }
   opacity: 0;
   filter: alpha(opacity=0);
 }
+
+#perfstats { display: none; }

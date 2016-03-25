@@ -163,43 +163,52 @@
           'flush (swap! total (fn [x] (- x (nth terms 2)))))))))
 
 
-;; a delta function specifically to translate assertions and removals
-;; into the operator stream used by the runtime. make transactional
+
+;; down is towards the base facts, up is along the removal chain
+;; use stm..figure out a way to throw down..i guess since r
+;; is mutating now
 (defn delta-e [d terms c]
   (let [[delto out in] terms
         assertions (atom {})
-        record (fn [m k] (if-let [r (m key)] r
+        record (fn [m k] (if-let [r (@m key)] r
                                  ((fn [r] (swap! m assoc k r) r)
                                   (atom #{}))))
-        removals (atom {})
-        backwards (atom {})
+        up (atom {})
+        down (atom {})
         base (fn base [t]
                (cond
                  (not t) t
-                 (contains? assertions t) t
+                 (contains? @assertions t) t
                  :else
-                 (base (@backwards t))))
-
-        walk (fn walk [t] (let [k (@removals t)]
-                            (if (= k nil) true
-                                (not (some walk k)))))]                           
+                 (base (@down t))))
         
+        walk (fn walk [t] 
+               (let [k (@up t)]
+                 (if (= k nil) true
+                     (not (some walk @k)))))]
+    
     (fn [r]
-      ;; doesn't need a source identifier
-      (let [[e a v b t u] (rget r out)]
+      (let [[e a v b t u] (rget r in)]
         (if (= (rget r op-reg) 'insert)
           (if (= a edb/remove-oid)
-            (let [old (walk (base e))]
-              (swap! (record removals e) (conj record t))
-              (swap! (record backwards t) (conj record e))
-              (let [b (base e)
-                    new (walk b)]
-                (when (not (= new old)
-                           (c (apply vector (if new 'input 'remove) (@assertions b)))))))
+            (let [b (base e)
+                  old (if b (walk b) b)]
+              (swap! (record down t) conj e)
+              (swap! (record up e) conj t)
+              (let [nb (if b b (base e))
+                    new (if nb (walk nb) nb)]
+                (cond (and (not old) new) (do (rset r out in)
+                                              (c r))
+                      (and old (not new)) (do (rset r out in)
+                                              (rset r op-reg 'remove)
+                                              (c r)))))
+
             (do 
               (swap! assertions assoc t tuple)
-              (if (walk t)
-                (c tuple)))))))))
+              (when (walk t)
+                (rset r out (rget r in))
+                (c r)))))))))
+
 
 (defn delta-s [d terms c]
   (let [state (ref {})
@@ -229,12 +238,17 @@
       (c r))))
 
 ;; something awfully funny going on with the op around the scan
+;; this should always emit the whole tuple, regardless of whether
+;; or not there were inputs, so we can use the delta-e without
+;; specializing (?)
 (defn doscan [d terms c]
   (let [[scan oid dest key] terms]
     (fn [r]
       (if (= (rget r op-reg) 'insert)
         ((d oid 
             (fn [t]
+              ;; ahem, who else might be looking at this?
+              (rset r op-reg 'insert)
               (rset r dest t)
               (c r)))
          (rget r key))
