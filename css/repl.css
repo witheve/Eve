@@ -91,6 +91,10 @@ body::-webkit-scrollbar-corner { background-color: transparent;}
   border: 1px solid rgb(74,64,136);
   transition: all 1s;
 }
+.button .disabled {
+  background-color: gray;
+  border-color: #333;
+}
 
 .left { float: left; margin-right: 10px; }
 .right { float: right; margin-left: 10px; }
@@ -113,7 +117,7 @@ body::-webkit-scrollbar-corner { background-color: transparent;}
 .query-input::-webkit-scrollbar { width: 10px; height: 10px; }
 .query-input::-webkit-scrollbar-track { box-shadow: inset 0 0 6px rgba(0,0,0,0.3); }
 .query-input::-webkit-scrollbar-thumb { background-color: darkgrey; outline: 1px solid slategrey; }
-.query-input::-webkit-scrollbar-corner { background-color: transparent;}
+.query-result::-webkit-scrollbar-corner { background-color: transparent;}
 
 .query-input:focus { box-shadow: inset 0 0 3px #000000; }
 
