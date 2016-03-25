@@ -193,8 +193,8 @@
           (if (= a edb/remove-oid)
             (let [b (base e)
                   old (if b (walk b) b)]
-              (swap! (record down e) conj t)
-              (swap! (record up t) conj e)
+              (swap! (record down t) conj e)
+              (swap! (record up e) conj t)
               (let [nb (if b b (base e))
                     new (if nb (walk nb) nb)]
                 (cond (and (not old) new) (do (rset r out in)

@@ -202,8 +202,7 @@
   (zipmap (vals m) (map (fn [x] [slot x]) (keys m))))
 
 
-;; need to do index selection here
-(defn compile-edb [e terms down]
+(defn generate-scan [e terms down collapse]
   (let [signature [:entity :attribute :value :bag :tick :user]
         pmap (zipmap signature (range (count signature)))
         amap (apply hash-map (rest terms))
@@ -212,23 +211,29 @@
         [specoid index-inputs index-outputs] [edb/full-scan-oid () signature]
         filter-terms (set/intersection (set index-outputs) (set bound))
         target-reg-name (gensym 'target)
-        target-reg (allocate-register e target-reg-name)]
+        target-reg (allocate-register e target-reg-name)
+        body (reduce (fn [b t]
+                       (fn [e]
+                         (generate-binary-filter
+                          e
+                          (list '= :a [target-reg (pmap t)] :b (amap t))
+                          b)))
+                     down filter-terms)]
     
     ;; if we have flappies (= (amap free_i) nil) then we are no longer unique
     (bind-names e (indirect-bind target-reg (zipmap (map pmap free) (map amap free))))
 
-    (println "post edb bindings" (bget e 'bound))
-    (compose
-     ;; needs to take a projection set for the indices
-     (term e 'scan specoid tmp-register [])
-     (term e 'delta-e target-reg-name tmp-register)
-     ((reduce (fn [b t]
-               (fn [e]
-                 (generate-binary-filter
-                  e
-                  (list '= :a [target-reg (pmap t)] :b (amap t))
-                  b)))
-              down filter-terms) e))))
+    (if collapse
+      (compose
+       ;; needs to take a projection set for the indices
+       (term e 'scan specoid tmp-register [])
+       (term e 'delta-e target-reg-name tmp-register)
+       (body e))
+      (compose
+       (term e 'scan specoid tmp-register [])
+       (body e)))))
+
+
 
 ;; unification across the keyword-value bindings (?)
 (defn compile-implication [e terms down]
@@ -316,7 +321,10 @@
                   'sum compile-sum
                   'str compile-simple-primitive
                   'insert-fact-btu! compile-insert
-                  'fact-btu compile-edb
+                  'fact-btu (fn [e terms down]
+                              (generate-scan e terms down true))
+                  'full-fact-btu (fn [e terms down]
+                                   (generate-scan e terms down true))
                   'range compile-simple-primitive
                   '= compile-equal
                   'not-equal generate-binary-filter

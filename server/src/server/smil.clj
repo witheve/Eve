@@ -69,7 +69,8 @@
               'union {:args [:params] :rest :members}
               'choose {:args [:params] :rest :members}
               'not {:args [:expr]}
-              'fact-btu {:args [:entity :attribute :value :bag] :optional #{:entity :attribute :value :bag}}
+              'fact-btu {:args [:entity :attribute :value :bag] :kwargs [:tick] :optional #{:entity :attribute :value :bag :tick}}
+              'full-fact-btu {:args [:entity :attribute :value :bag] :kwargs [:tick] :optional #{:entity :attribute :value :bag :tick}}
               'context {:kwargs [:bag :tick] :rest :body :optional #{:bag :tick :body}}})
 
 ;; These are only needed for testing -- they'll be provided dynamically by the db at runtime

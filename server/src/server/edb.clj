@@ -8,21 +8,21 @@
 ;; this doesn't belong here - depending on the consistency
 ;; story
 
-(def current-milli (atom 0))
-(def current-count (atom 0))
+(def current-milli (ref 0))
+(def current-count (ref 0))
 
 ;; this is a long with milli and a count...we need to stuff intra-batch
 ;; bits in here also
 (defn now[]
-  (let [k (System/currentTimeMillis)]
-    (if (= k @current-milli)
-      (do
-        (swap! current-count (fn [x] (+ x 1))))
-      (do
-        (swap! current-milli (fn [x] k))
-        (swap! current-count (fn [x] 0))))
-    (println "tick"  (+ (bit-shift-left @current-milli 20) @current-count))
-    (+ (bit-shift-left @current-milli 20) @current-count)))
+  (dosync 
+   (let [k (System/currentTimeMillis)]
+     (if (> k @current-milli)
+       (do
+;         (ref-set current-count 0))
+         (ref-set current-milli k)
+         (do
+           (alter current-count + 1))))
+     (bit-or (bit-shift-left @current-milli 20) @current-count))))
 
 ;; xxx - reconcile with smil
 (def remove-oid 5)
