@@ -107,29 +107,15 @@
                      (list (apply term e 'tuple out (map (fn [x] (bget e 'bound x)) arguments)))
                      (list (term e 'send channel out)))))))
 
-(defn generate-bind [e inside-block block-name projection
-                     target-block-name target-block-params] ;; send construction
+(defn generate-projected-query [e inside-block block-name projection
+                      target-block-name target-block-params] ;; send construction
   (let [ei (new-bindings)
-        [bound free] (if projection
-                       (partition-2 (fn [x] (is-bound? e (amap x))) projection)
-                       ;; we dont have a handle on the free variables in the empty projection here
-                       [#{(values (bget e 'bound))} #{}))
+        [bound free] (partition-2 (fn [x] (is-bound? e (amap x))) projection)
         tuple-target-name (gensym 'closure-tuple)
         input-map (zipmap inputs (range (count inputs)))
         body (compile-conjunction inner body
-                                  (fn [] (generate-send target-block-name target-block-params)))
-        tuple-names (reduce
-                     (fn [b x]
-                       (if (bget e 'bound x)
-                         (do
-                           (bind-names ei {x [input-register (count b)]})
-                           (concat b (list x)))
-                         b))
-                     ()
-                     (bget ei 'dependencies))]
-    
-    ;; limit dependencies to the projection
-    (bset e 'dependencies (set/union (bget e 'dependencies) (bget ei 'dependencies)))
+                                  (fn [] (generate-send target-block-name
+                                                        target-block-params)))]
     (if-let [over (bget e 'overflow)]
       (compose body (term e 'tuple [(- exec/basic-register-frame 1)] (repeat over nil))))
     (bset e 'blocks (conj (bget e 'blocks  ('bind block-name tuple-target-name (body)))))
