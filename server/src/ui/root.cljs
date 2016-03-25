@@ -73,6 +73,10 @@
   (or (@state-store (args-to-key args))
       (array {:x 0 :y 0 :width 1 :height 1})))
 
+(defmethod state :name [& args]
+  (or (@state-store (args-to-key args))
+      (nth args 1)))
+
 (defmethod state :default [& args]
   (@state-store (args-to-key args)))
 
@@ -267,6 +271,7 @@
                                                      (:value selected)
                                                      (js/uuid))]
                                       (when (= action :create)
+                                        (set-state! :name value-id (:text selected))
                                         ;; TODO: add a new grid
                                         )
                                       (set-state! :cells grid-id (afor [cell (state :cells grid-id)]
@@ -342,14 +347,15 @@
                          :c "value"
                          :info {:cell cell :field :value :id (:id cell)}
                          :placeholder "value"
-                         :value (or (:value intermediates) (:value cell)))
+                         :value (or (:value intermediates) (state :name (:value cell))))
                   (if (= :property current-focus)
                     (autocompleter :property (or (:property intermediates) (:property cell) "") (:autocomplete-selection intermediates 0))
                     (autocompleter :value (or (:value intermediates) (:value cell) "") (:autocomplete-selection intermediates 0))))
            (array property-element
-                  (text :style (style :font-size "12pt"
-                                      :margin "3px 0 0 8px")
-                        :text (:value cell "")))))))
+                  (button :style (style :font-size "12pt"
+                                        :margin "1px 0 0 8px")
+                          :click (fn [event elem] (println "CLICKED!"))
+                          :children (array (text :text (state :name (:value cell ""))))))))))
 
 (defmethod draw-cell :default [cell active?]
   (let [intermediates (state :active-cell-intermediates (:id cell))
