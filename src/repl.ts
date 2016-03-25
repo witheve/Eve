@@ -403,7 +403,7 @@ function toggleTheme(event, elem) {
 }
 
 function saveCardsClick(event, elem) {
-  closeModals()
+  closeModals();
   saveCards();
   saveTable();
   event.stopPropagation();
@@ -411,14 +411,14 @@ function saveCardsClick(event, elem) {
 }
 
 function trashCardsClick(event, elem) {
-  closeModals()
+  closeModals();
   repl.delete = true;
   event.stopPropagation();
   rerender();
 }
 
 function loadCardsClick(event, elem) {
-  closeModals()
+  closeModals();
   repl.load = true;
   event.stopPropagation();
   rerender();
