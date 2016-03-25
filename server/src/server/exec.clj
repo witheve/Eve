@@ -4,7 +4,11 @@
             [server.avl :as avl]))
 
 (def basic-register-frame 10)
-(def op-reg [3])
+(def op-register [1])
+(def bag-register [2])
+(def input-register [3])
+(def temp-regiter [4])
+
 (def object-array-type (class (object-array 1)))
 
 ;; fold op back into r

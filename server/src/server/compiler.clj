@@ -7,7 +7,6 @@
    [clojure.set :as set]))
 
 (def initial-register 5)
-(def tmp-register [4])
 
 ;; cardinality changing operations should set a flag so we know
 ;; should also be able to retire registers that aren't being referenced
@@ -66,7 +65,7 @@
 ;; a sufficiently large set
 (defn allocate-register [e name]
   (let [bound (- exec/basic-register-frame 1)
-        r (if-let [r (bget e 'register)] r 0)]
+        r (if-let [r (bget e 'register)] r initial-register)]
     (if (> r (- bound 1))
       (let [r (if-let [r (bget e 'overflow)] r 0)]
         (bind-names e {name [bound r]})
@@ -103,15 +102,11 @@
                      (list (term e 'send channel out)))))))
 
 ;; inside is a function which takes the inner environment
-(defn generate-bind [e inside inputs channel-name]
-  (println "Generate bind")
+(defn generate-bind [e inside inputs block-name c-block-name]
   (let [tuple-target-name (gensym 'closure-tuple)
         input-map (zipmap inputs (range (count inputs)))
         inside-env (child-bindings e)
-        z (do
-            (bset inside-env 'register initial-register)
-            (bset inside-env 'dependencies #{}))
-        body (inside inside-env)
+        body (compile-conjunction (send))
         tuple-names (reduce
                      (fn [b x]
                        (if (bget e 'bound x)
@@ -253,8 +248,6 @@
                    (compile-conjunction
                     internal body
                     (fn [tail]
-                      (bset tail 'register (bget internal 'register))
-                      (bset tail 'overflow (bget internal 'overflow))
                       (apply add-dependencies tail (bget internal 'dependencies))
                       ;; mapping out into the incorrect injunction of inner, e0 and eb
                       (bind-names tail (zipmap (map callmap outputs)
@@ -293,10 +286,6 @@
   ;; these need to be lambda [e down]
   (generate-union (apply hash-map (second terms)) (rest (rest terms)) down))
 
-
-(defn compile-sum [e triple down]
-  ())
-
 (defn compile-query [e terms cont]
   ;; this has a better formulation in the new world? what about export
   ;; of solution? what about its projection?
@@ -307,7 +296,7 @@
         down (cont e)]
     (fn []
       ((compose 
-        (term e 'subquery (out))
+
         down)))))
 
 (defn compile-expression [e terms down]
@@ -318,7 +307,7 @@
                   '< generate-binary-filter
                   '> generate-binary-filter
                   'sort compile-simple-primitive ;; ascending and descending
-                  'sum compile-sum
+
                   'str compile-simple-primitive
                   'insert-fact-btu! compile-insert
                   'fact-btu (fn [e terms down]
