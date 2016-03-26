@@ -41,14 +41,12 @@
 ;; which is currently holding that value
 (defn lookup [env name]
   (if (or (symbol? name) (keyword? name))
-    (if-let [register (get-in @env ['bound name])]
-      register
-      (compile-error (str "Could not resolve name " name " in environment " @env) {:env @env}))
+    (get-in @env ['bound name] nil)
     name))
 
 (defn is-bound? [env name]
   (if (or (symbol? name) (keyword? name))
-    (if (get-in @env ['bound name])
+    (if (get-in @env ['bound name] nil)
       true
       false)
     false))
@@ -77,73 +75,46 @@
         (bind-names env {name [r]})
         r))))
 
-;; a generator is a null-adic function which spits out weasel using
-;; the (possibly updated) environment that was captured at the
-;; time it was compiled
-(defn compose [& gens]
-  (fn [] (apply concat (map #(%1) gens))))
-
 ;; is lookup always the right thing here?
 ;; term is a fragment i guess, to shortcut some emits (?)
 (defn term [env op & terms]
-  (fn []
-    (list (conj (map (fn [x] (lookup env x)) terms) op))))
+  (list (conj (map (fn [x] (lookup env x)) terms) op)))
 
 (defn generate-send [env channel arguments]
-    (apply add-dependencies env channel arguments) ;; @FIXME: Should channel be in here anymore?
+    (apply add-dependencies env arguments) 
     (let [cycle-filters (map #(term env 'filter %1)
                              (set/difference (get @env 'cycles)
                                              (get @env 'cycle-heads)))]
-      (apply compose
-             (concat cycle-filters
-                     (list (apply term env 'tuple exec/temp-register (map #(get-in @env ['bound %1]) arguments)))
-                     [(fn [] (list 'send channel exec/temp-register))]))))
+      (fn []
+        (concat cycle-filters
+                (list (apply term env 'tuple exec/temp-register (map #(get-in @env ['bound %1] nil) arguments)))
+                [(fn [] (list 'send channel exec/temp-register))]))))
 
 
 (declare compile-conjunction)
 
 
-(defn generate-projected-query [env inside-block block-name projection
-                      target-block-name target-block-params] ;; send construction
-  (let [inner-env (new-env)
-        [bound free] (partition-2 #(is-bound? env %1) projection)
-        tuple-target-name (gensym 'closure-tuple)
-        input-map (zipmap bound (range (count bound)))
-        body (compile-conjunction inner-env inside-block ;; @FIXME: is inside-block actually body? We should try to standardize the parameter ordering and names.
-                                  (fn [] (generate-send target-block-name
-                                                        target-block-params)))]
-    (if-let [over (get @env 'overflow)]
-      (compose body (term @env 'tuple [(- exec/basic-register-frame 1)] (repeat over nil))))
-    (swap! env #(merge-with merge-state %1 {'blocks (list ('bind block-name tuple-target-name (body)))}))
-    (throw (ex-info "IMPLEMENT ME" {})))) ;; @FIXME: What is tuple-names supposed to be here?
-
-
-(defn compile-return [env terms down]
-  (compose
-   (generate-send env 'return-channel (if-let [k (second terms)] k ()))
-   (down env))) ;; @FIXME: down should wrap it's env, write?
-
 (defn compile-simple-primitive [env terms down]
   (let [argmap (apply hash-map (rest terms))
         simple [(argmap :return) (argmap :a) (argmap :b)]
-        ins (map #(get-in @env ['bound %1]) simple)]
+        ins (map #(get-in @env ['bound %1] nil) simple)]
     (if (some not (rest ins))
       ;; handle the [b*] case by blowing out a temp
       (do
         (allocate-register env (first simple))
-        (compose
+        (concat
          (apply term env (first terms) simple)
-         (down env))) ;; @FIXME: down should wrap its env
+         (down)))
       (compile-error (str "unhandled bound signature in" terms) {:env env :terms terms}))))
 
 
 (defn generate-binary-filter [env terms down]
   (let [argmap (apply hash-map (rest terms))]
     (apply add-dependencies env terms)
-    (compose
+    (concat
      (term env (first terms) exec/temp-register (argmap :a) ( argmap :b))
      (term env 'filter exec/temp-register)
-     (down env)))) ;; @FIXME: down should wrap its env
+     (down))))
 
 (defn compile-equal [env terms down]
   (let [argmap (apply hash-map (rest terms))
@@ -152,7 +123,7 @@
         b (is-bound? env (argmap :b))
         rebind (fn [s d]
                  (bind-names env {d s})
-                 (down env))] ;; @FIXME: down should wrap its env
+                 (down))] 
     (cond (and a b) (generate-binary-filter env terms down)
           a (rebind a (argmap :b))
           b (rebind b (argmap :a))
@@ -178,28 +149,28 @@
         filter-terms (set/intersection (set index-outputs) (set bound))
         extra-map (zipmap filter-terms (map #(gensym 'xtra) filter-terms))
         target-reg-name (gensym 'target)
-        target-reg (allocate-register env target-reg-name)
-        body (fn [] ;;@FIXME: This should become a Type C that closes over its env
-               (bind-names env (indirect-bind target-reg extra-map))
-               (bind-names env (indirect-bind target-reg (zipmap free (map argmap free))))
-               ((reduce (fn [down t]
-                          (fn [call-env] ;; @FIXME: This is recursively building a down chain, so should close its env
-                            (generate-binary-filter call-env
-                                                    (list '= :a (extra-map t) :b (nth triple t))
-                                                    down)))
-                        down
-                        filter-terms) env))] ;; @FIXME: down needs to close over its env, so this arg goes away
-
-    (compose
+        target-reg (allocate-register env target-reg-name)]
+    
+    (bind-names env (indirect-bind target-reg extra-map))
+    (bind-names env (indirect-bind target-reg (zipmap free (map argmap free))))
+    
+    (concat
      ;; needs to take a projection set for the indices
      (term env 'scan specoid target-reg-name [])
      ;;     (term e 'delta-e dchannel-name channel-name)
-     body)))
+     
+     (reduce (fn [down t]
+               (generate-binary-filter env
+                                       (list '= :a (extra-map t) :b (nth triple t))
+                                       down))
+             (down)
+             filter-terms))))
+
 
 (defn make-bind [env inner-env name body]
   (let [over (get @inner-env 'overflow)
         body (if over
-               (compose body (term @inner-env 'tuple [(- exec/basic-register-frame 1)] (repeat over nil)))
+               (concat body (term @inner-env 'tuple [(- exec/basic-register-frame 1)] (repeat over nil)))
                body)]
     (swap! env #(merge-with merge-state %1 {'blocks (assoc (get @inner-env 'blocks) name (list 'bind name body))}))
     body))
@@ -235,11 +206,10 @@
 
     ;; validate the parameters as both a proper superset of the input
     ;; and conformant across the union legs
-    ;; @FIXME: When we distribute this will get very sad.
     (db/for-each-implication (get @env 'db) relname
                              (fn [parameters body]
                                (swap! arms conj (army parameters body))))
-    (apply compose (map #(generate-send env %1 bound) @arms))))
+    (apply concat (map #((generate-send env %1 bound)) @arms))))
 
 
 (defn compile-insert [env terms cont]
@@ -249,10 +219,12 @@
         v (if-let [b (bindings :value)] b nil)
         b (if-let [b (bindings :bag)] b [2])] ; default bag
 
-    (compose
-     (term env 'tuple exec/temp-register e a v b)
-     (term env 'scan edb/insert-oid exec/temp-register exec/temp-register)
-     (cont))))
+    (let [z (cont)]
+      (println "insert down" z)
+      (apply concat
+             (term env 'tuple exec/temp-register e a v b)
+             (term env 'scan edb/insert-oid exec/temp-register exec/temp-register)
+             z))))
 
 
 
@@ -267,7 +239,7 @@
         body (compile-conjunction inner-env body (generate-send inner-env tail-name free))]
     (make-continuation env tail-name (down))
     (make-bind env inner-env inner-name body)
-    (generate-send env inner-name bound)))
+    ((generate-send env inner-name bound))))
 
 (defn compile-union [env terms down]  ())
 
@@ -287,7 +259,6 @@
                   '= compile-equal
                   'not-equal generate-binary-filter
                   'union compile-union
-                  'return compile-return
                   'query compile-query}
         relname (first terms)]
     (if-let [c (commands relname)]

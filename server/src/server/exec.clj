@@ -304,8 +304,7 @@
 
 ;; this needs to send an error message down the pipe
 (defn exec-error [reg comment]
-  (println "exec error" comment))
-
+  (throw (ex-info comment (assoc {} :registers reg :type "exec"))))
 
 (defn build-trace [d t]
   (if (empty? t) (fn [r] ())
@@ -315,7 +314,7 @@
             (fn [r]
               (println (first t) (print-registers r))
               (f r)))
-          (exec-error (str "bad command" k))))))
+          (exec-error [] (str "bad command" k))))))
 
 (defn open-trace [d program arguments]
   (let [reg (object-array 10)
@@ -331,7 +330,7 @@
       (let [k (first t)]
         (if-let [p (command-map (first k))]
           (p d k (build d (rest t)))
-          (exec-error (str "bad command" k))))))
+          (exec-error [] (str "bad command" k))))))
 
 
 ;; fix r in an eval
