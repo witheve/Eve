@@ -7,7 +7,7 @@
 (def op-register [1])
 (def bag-register [2])
 (def input-register [3])
-(def temp-regiter [4])
+(def temp-register [4])
 
 (def object-array-type (class (object-array 1)))
 
@@ -77,7 +77,7 @@
 (defn simple [f]
   (fn [db terms c]
     (fn [r]
-      (when (= (rget r op-reg) 'insert)
+      (when (= (rget r op-register) 'insert)
         (f r terms))
       (c r))))
     
@@ -153,7 +153,7 @@
 (defn dosort [d terms c]
   (fn [r]
     (let [state (avl/sorted-map)]
-      (condp = (rget r op-reg)
+      (condp = (rget r op-register)
         'insert (conj state terms)
         'remove (disj state terms)))))
 
@@ -161,7 +161,7 @@
   (fn [r]
     (let [total (atom 0)]
       (fn [t]
-        (condp = (rget r op-reg)
+        (condp = (rget r op-register)
           'insert (swap! total (fn [x] (+ x (nth terms 2))))
           'remove (swap! total (fn [x] (- x (nth terms 2))))
           'flush (swap! total (fn [x] (- x (nth terms 2)))))))))
@@ -193,7 +193,7 @@
     
     (fn [r]
       (let [[e a v b t u] (rget r in)]
-        (if (= (rget r op-reg) 'insert)
+        (if (= (rget r op-register) 'insert)
           (if (= a edb/remove-oid)
             (let [b (base e)
                   old (if b (walk b) b)]
@@ -204,7 +204,7 @@
                 (cond (and (not old) new) (do (rset r out in)
                                               (c r))
                       (and old (not new)) (do (rset r out in)
-                                              (rset r op-reg 'remove)
+                                              (rset r op-register 'remove)
                                               (c r)))))
 
             (do 
@@ -218,7 +218,7 @@
   (let [state (ref {})
         handler (fn [r]
                   (let [t (rget r (first r))]
-                    (condp = (rget r op-reg)
+                    (condp = (rget r op-register)
                       'insert (dosync
                                (let [x (@state t)]
                                  (alter state assoc t (if x (+ x 1)
@@ -238,7 +238,7 @@
       ;; currently this signature is different, because we dont want our
       ;; external guys to try to deconstruct the working tuple...not sure how
       ;; this works for internal sends (?)
-      (channel (rget r op-reg) (rget r (nth terms 2)))
+      (channel (rget r op-register) (rget r (nth terms 2)))
       (c r))))
 
 ;; something awfully funny going on with the op around the scan
@@ -248,11 +248,11 @@
 (defn doscan [d terms c]
   (let [[scan oid dest key] terms]
     (fn [r]
-      (if (= (rget r op-reg) 'insert)
+      (if (= (rget r op-register) 'insert)
         ((d oid 
             (fn [t]
               ;; ahem, who else might be looking at this?
-              (rset r op-reg 'insert)
+              (rset r op-register 'insert)
               (rset r dest t)
               (c r)))
          (rget r key))

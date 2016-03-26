@@ -18,9 +18,9 @@
    (ex-info msg (merge standard-data data)))))
 
 (defn merge-state [a b]
-  (if (and (map? a) (map? b))
+  (if (map? a)
     (merge-with merge-state a b)
-    (if (and (coll? a) (coll? b))
+    (if (coll? a)
       (into a b)
       b)))
 
@@ -210,13 +210,14 @@
    (let [op (first sexpr)
          body (rest sexpr)
          schema (get-schema db op)]
-     (with-meta (cond
-                  schema (parse-schema schema sexpr)
-                  (= op 'define!) (parse-define sexpr)
-                  (= op 'query) (parse-query sexpr)
-                  (= op 'fact) (parse-fact sexpr)
-                  (= op 'insert-fact!) (parse-fact sexpr)
-                  :else (throw (syntax-error (str "Unknown operator " op) sexpr)))
+     (with-meta
+       (cond
+         schema (parse-schema schema sexpr)
+         (= op 'define!) (parse-define sexpr)
+         (= op 'query) (parse-query sexpr)
+         (= op 'fact) (parse-fact sexpr)
+         (= op 'insert-fact!) (parse-fact sexpr)
+         :else (throw (syntax-error (str "Unknown operator " op) sexpr)))
        {:expr sexpr :schema schema}))))
 
 (defn validate-args [args]

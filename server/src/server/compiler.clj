@@ -46,7 +46,7 @@
       (compile-error (str "Could not resolve name " name " in environment " @env) {:env @env}))
     name))
 
-(defn is-bound? [e name]
+(defn is-bound? [env name]
   (if (or (symbol? name) (keyword? name))
     (if (get-in @env ['bound name])
       true
@@ -96,12 +96,16 @@
                                              (get @env 'cycle-heads)))]
       (apply compose
              (concat cycle-filters
-                     (list (apply term env 'tuple tmp-register (map #(get-in @env ['bound %1]) arguments)))
-                     [(fn [] (list 'send channel tmp-register))]))))
+                     (list (apply term env 'tuple exec/temp-register (map #(get-in @env ['bound %1]) arguments)))
+                     [(fn [] (list 'send channel exec/temp-register))]))))
+
+
+(declare compile-conjunction)
+
 
 (defn generate-projected-query [env inside-block block-name projection
                       target-block-name target-block-params] ;; send construction
-  (let [inner-env (new-bindings)
+  (let [inner-env (new-env)
         [bound free] (partition-2 #(is-bound? env %1) projection)
         tuple-target-name (gensym 'closure-tuple)
         input-map (zipmap bound (range (count bound)))
@@ -113,8 +117,6 @@
     (swap! env #(merge-with merge-state %1 {'blocks (list ('bind block-name tuple-target-name (body)))}))
     (throw (ex-info "IMPLEMENT ME" {})))) ;; @FIXME: What is tuple-names supposed to be here?
 
-
-(declare compile-conjunction)
 
 (defn compile-return [env terms down]
   (compose
@@ -139,8 +141,8 @@
   (let [argmap (apply hash-map (rest terms))]
     (apply add-dependencies env terms)
     (compose
-     (term env (first terms) tmp-register (argmap :a) ( argmap :b))
-     (term env 'filter tmp-register)
+     (term env (first terms) exec/temp-register (argmap :a) ( argmap :b))
+     (term env 'filter exec/temp-register)
      (down env)))) ;; @FIXME: down should wrap its env
 
 (defn compile-equal [env terms down]
@@ -207,7 +209,6 @@
   body)
 
 (defn get-signature [relname callmap bound]
-  (println (type bound))
   (let [bound (set bound)
         keys (sort (keys callmap))
         adornment (string/join "," (map #(str (name %1) "=" (if (bound %1) "b" "f")) keys))]
@@ -220,13 +221,12 @@
         arms (atom ())
         [bound free] (partition-2 (fn [x] (is-bound? env (x callmap))) (keys callmap))
         signature (get-signature relname callmap bound)
-
         tail-name (gensym "continuation")
         _ (make-continuation env tail-name (down))
-
+ 
         army (fn [parameters body]
                (let [arm-name (gensym signature)
-                     inner-env (new-bindings)
+                     inner-env (new-env)
                      to-input-slot (fn [ix] [exec/input-register (inc ix)])
                      _ (bind-names inner-env (zipmap bound (map to-input-slot (range (count bound)))))
                      body (compile-conjunction inner-env body (generate-send inner-env tail-name free))]
@@ -250,23 +250,26 @@
         b (if-let [b (bindings :bag)] b [2])] ; default bag
 
     (compose
-     (term env 'tuple tmp-register e a v b)
-     (term env 'scan edb/insert-oid tmp-register tmp-register)
-     (cont env))))
+     (term env 'tuple exec/temp-register e a v b)
+     (term env 'scan edb/insert-oid exec/temp-register exec/temp-register)
+     (cont))))
 
 
 
-(defn compile-query [env terms cont]
-  ;; this has a better formulation in the new world? what about export
-  ;; of solution? what about its projection?
-  ;; the bindings of the tail need to escape, but not the
-  ;; control edge (cardinality)
-  (let [body (rest (rest terms)) ;; smil - (if (vector? (second terms)) (rest terms) terms))
-        out (compile-conjunction env body (fn [e] (fn [] ())))
-        down (cont env)] ;; @FIXME: if continuation is not a down, what is it? if it is, it should close over its env
-    (fn []
-      ((compose
-        down)))))
+(defn compile-query [env terms down]
+  (let [[query proj & body] terms
+        inner-env (new-env)
+        inner-name (gensym "query")
+        tail-name (gensym "continuation")
+        [bound free] (partition-2 (fn [x] (is-bound? env x)) proj)
+        to-input-slot (fn [ix] [exec/input-register (inc ix)])
+        _ (bind-names inner-env (zipmap bound (map to-input-slot (range (count bound)))))
+        body (compile-conjunction inner-env body (generate-send inner-env tail-name free))]
+    (make-continuation env tail-name (down))
+    (make-bind env inner-env inner-name body)
+    (generate-send env inner-name bound)))
+
+(defn compile-union [env terms down]  ())
 
 (defn compile-expression [env terms down]
   (let [commands {'+ compile-simple-primitive
@@ -300,12 +303,12 @@
 ;; multiple kv, no deep keys
 (defn bset2 [e & key]
   (when (not (empty? key))
-    (bset e (first key) (second key))
+    (swap! e assoc (first key) (second key))
     (apply bset2 e (rest (rest key)))))
 
 
 (defn compile-dsl [d bid terms]
-  (let [env (new-bindings)
+  (let [env (new-env)
         ;; side effecting
         z (bset2 env
                  'db d
@@ -313,7 +316,8 @@
                  'empty [])
         _ (bind-names env {'return-channel [1]
                          'op [0]})
-        p (compile-conjunction env terms (fn [] (fn [] ())))]
+        p (compile-expression
+           env terms (fn [] (fn [] ())))]
     (p)
     (vals (get @env 'blocks))))
     ;; emit blocks

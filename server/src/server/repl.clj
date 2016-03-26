@@ -13,12 +13,7 @@
 (defn repl-error [& thingy]
   (throw thingy))
 
-(defn form-from-smil [z]
-  (let [p (second z)
-        v (apply concat
-                 (rest (rest z))
-                 (list (list (apply list 'return (if (empty? p) () (list p))))))]
-    [v (vec p)]))
+(defn form-from-smil [z] [z (second z)])
 
 (defn show [d expression]
   (let [[form keys] (form-from-smil (smil/unpack d (second expression)))
@@ -29,6 +24,7 @@
 (defn diesel [d expression]
   ;; the compile-time error path should come up through here
   ;; fix external number of regs
+  (println "diesel expresession" expression)
   (let [[form keys] (form-from-smil (smil/unpack d expression))
         res (fn [op tuple]
               (condp = op
