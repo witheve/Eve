@@ -31,6 +31,9 @@
       (into a b)
       b)))
 
+(defn build [& a]
+  (apply list a))
+
 (defn new-env [] (atom {}))
 
 ;; wrap a handler
@@ -75,20 +78,15 @@
         (bind-names env {name [r]})
         r))))
 
-;; is lookup always the right thing here?
-;; term is a fragment i guess, to shortcut some emits (?)
 (defn term [env op & terms]
   (list (conj (map (fn [x] (lookup env x)) terms) op)))
 
 (defn generate-send [env channel arguments]
-    (apply add-dependencies env arguments) 
-    (let [cycle-filters (map #(term env 'filter %1)
-                             (set/difference (get @env 'cycles)
-                                             (get @env 'cycle-heads)))]
-      (fn []
-        (concat cycle-filters
-                (list (apply term env 'tuple exec/temp-register (map #(get-in @env ['bound %1] nil) arguments)))
-                [(fn [] (list 'send channel exec/temp-register))]))))
+  (apply add-dependencies env arguments)
+  ;; cycle filters
+  (fn []
+    (build (apply term env 'tuple exec/temp-register (map #(get-in @env ['bound %1] nil) arguments))
+            (list (list 'send channel exec/temp-register)))))
 
 
 (declare compile-conjunction)
@@ -102,7 +100,7 @@
       ;; handle the [b*] case by blowing out a temp
       (do
         (allocate-register env (first simple))
-        (concat
+        (build
          (apply term env (first terms) simple)
          (down)))
       (compile-error (str "unhandled bound signature in" terms) {:env env :terms terms}))))
@@ -111,10 +109,10 @@
 (defn generate-binary-filter [env terms down]
   (let [argmap (apply hash-map (rest terms))]
     (apply add-dependencies env terms)
-    (concat
-     (term env (first terms) exec/temp-register (argmap :a) ( argmap :b))
+    (build
+     (term env (first terms) exec/temp-register (argmap :a) ( argmap :b)))
      (term env 'filter exec/temp-register)
-     (down))))
+     (down)))
 
 (defn compile-equal [env terms down]
   (let [argmap (apply hash-map (rest terms))
@@ -154,30 +152,30 @@
     (bind-names env (indirect-bind target-reg extra-map))
     (bind-names env (indirect-bind target-reg (zipmap free (map argmap free))))
     
-    (concat
+    (build
      ;; needs to take a projection set for the indices
-     (term env 'scan specoid target-reg-name [])
-     ;;     (term e 'delta-e dchannel-name channel-name)
-     
-     (reduce (fn [down t]
-               (generate-binary-filter env
-                                       (list '= :a (extra-map t) :b (nth triple t))
-                                       down))
-             (down)
-             filter-terms))))
+     (term env 'scan specoid exec/temp-register [])
+     (term env 'delta-e target-reg-name exec/temp-register)
+     ((reduce (fn [t]
+                (fn [] 
+                  (generate-binary-filter env
+                                          (list '= :a (extra-map t) :b (nth triple t))
+                                          down)))
+              down
+              filter-terms)))))
 
+
+
+(defn make-continuation [env name body]
+  (swap! env #(merge-with merge-state %1 {'blocks {name (list (list 'bind name body))}})))
 
 (defn make-bind [env inner-env name body]
   (let [over (get @inner-env 'overflow)
         body (if over
-               (concat body (term @inner-env 'tuple [(- exec/basic-register-frame 1)] (repeat over nil)))
+               (build body (term @inner-env 'tuple [(- exec/basic-register-frame 1)] (repeat over nil)))
                body)]
-    (swap! env #(merge-with merge-state %1 {'blocks (assoc (get @inner-env 'blocks) name (list 'bind name body))}))
-    body))
+    (make-continuation env name body)))
 
-(defn make-continuation [env name body]
-  (swap! env #(merge-with merge-state %1 {'blocks {name (list (list 'bind name (body)))}}))
-  body)
 
 (defn get-signature [relname callmap bound]
   (let [bound (set bound)
@@ -209,19 +207,18 @@
     (db/for-each-implication (get @env 'db) relname
                              (fn [parameters body]
                                (swap! arms conj (army parameters body))))
-    (apply concat (map #((generate-send env %1 bound)) @arms))))
+    (apply build (map #((generate-send env %1 bound)) @arms))))
 
 
-(defn compile-insert [env terms cont]
+(defn compile-insert [env terms down]
   (let [bindings (apply hash-map (rest terms))
         e (if-let [b (bindings :entity)] b nil)
         a (if-let [b (bindings :attribute)] b nil)
         v (if-let [b (bindings :value)] b nil)
         b (if-let [b (bindings :bag)] b [2])] ; default bag
 
-    (let [z (cont)]
-      (println "insert down" z)
-      (apply concat
+    (let [z (down)]
+      (apply build
              (term env 'tuple exec/temp-register e a v b)
              (term env 'scan edb/insert-oid exec/temp-register exec/temp-register)
              z))))
@@ -288,8 +285,8 @@
         _ (bind-names env {'return-channel [1]
                          'op [0]})
         p (compile-expression
-           env terms (fn [] (fn [] ())))]
-    (p)
+           env terms (fn [] ()))]
+    (make-continuation env 'main p)
     (vals (get @env 'blocks))))
     ;; emit blocks
     ;; wrap the main block
