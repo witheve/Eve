@@ -17,7 +17,7 @@
 
 (defn show [d expression]
   (let [[form keys] (form-from-smil (smil/unpack d (second expression)))
-        prog (compiler/compile-dsl d @bag form)]
+        prog (compiler/compile-dsl d form)]
      (println (exec/print-program prog))))
 
 
@@ -48,7 +48,7 @@
         _ (println form)
         prog (compiler/compile-dsl d @bag form)
         _ (println (exec/print-program prog))
-        ec  (exec/open-trace d prog res)]
+        ec  nil] ;; (exec/open-trace d prog res)]
     (ec 'insert)
     (ec 'flush)))
 

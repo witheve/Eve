@@ -11,7 +11,8 @@
 
 (def object-array-type (class (object-array 1)))
 
-;; fold op back into r
+(defn third [x] (nth x 2))
+
 (declare build)
 
 (defn print-registers [r]
@@ -306,31 +307,46 @@
 (defn exec-error [reg comment]
   (throw (ex-info comment (assoc {} :registers reg :type "exec"))))
 
-(defn build-trace [d t]
-  (if (empty? t) (fn [r] ())
-      (let [k (first t)]
-        (if-let [p (command-map (first k))]
-          (let [f (p d k (build-trace d (rest t)))]
-            (fn [r]
-              (println (first t) (print-registers r))
-              (f r)))
-          (exec-error [] (str "bad command" k))))))
 
-(defn open-trace [d program arguments]
-  (let [reg (object-array 10)
-        e  (build-trace d program)]
-    (aset reg 1 arguments)
-    (fn [op]
-      (rset reg [3] op)
-      (e reg))))
+;(defn build-trace [d t]
+;  (if (empty? t) (fn [r] ())
+;      (let [k (first t)]
+;        (if-let [p (command-map (first k))]
+;          (let [f (p d k (build-trace d (rest t)))]
+;            (fn [r]
+;              (println (first t) (print-registers r))
+;              (f r)))
+;          (exec-error [] (str "bad command" k))))))
+;
+;(defn open-trace [d program arguments]
+;  (let [reg (object-array 10)
+;        e  (build-trace d program)]
+;    (aset reg 1 arguments)
+;    (fn [op]
+;      (rset reg [3] op)
+;      (e reg))))
 
 
-(defn build [d t]
-  (if (empty? t) (fn [r] ())
-      (let [k (first t)]
-        (if-let [p (command-map (first k))]
-          (p d k (build d (rest t)))
-          (exec-error [] (str "bad command" k))))))
+(defn build [name names built d t]
+  (let [doterms (fn doterms [t]
+                  (println "doterms" t)
+                  (if (empty? t) (fn [r] ())
+                      (let [z (if (= (first (first t)) 'send)
+                                '(send (if-let [c (built (second k))] c
+                                               (build (second k) names built d (third k)))
+                                       (third k))
+                                (first t))
+                            k (first z)]
+                        (println "z" z)
+                        (if-let [p (command-map (first z))]
+                          (let [f (p d z (doterms (rest t)))]
+                            (fn [r]
+                              (println (first t) (print-registers r))
+                              (f r)))
+                          (exec-error [] (str "bad command" k))))))
+        trans (doterms t)]
+    (swap! built assoc name trans)
+    trans))
 
 
 ;; fix r in an eval
@@ -339,11 +355,18 @@
 ;;   2  bag default
 ;;   3  op
 (defn open [d program arguments]
+  (println "open" program)
   (let [reg (object-array basic-register-frame)
-        e  (build d program)]
-    (aset reg 1 arguments)
+        blocks (atom {})
+        built (atom {})
+        _ (doseq [i program]
+            (swap! blocks assoc (second i) (nth i 2)))
+        e (build 'main blocks built d (@blocks 'main))]
+
+    (println "foo" reg input-register arguments)
+    (rset reg input-register arguments)
     (fn [op]
-      (rset reg [3] op)
+      (rset reg op-register op)
       (e reg))))
       
 

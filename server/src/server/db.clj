@@ -16,6 +16,7 @@
 (def contains-oid 12)
 
 (defn insert-implication [db relname parameters program user bag]
+  (print "insert implication" relname)
   (insert db
           (name relname)
           implication-oid
@@ -23,14 +24,17 @@
           user
           bag))
 
+;; i would like to use backtick here, but clojure is really screwing
+;; up my symbols
 (defn weasl-implications-for [id]
-  (list
-   (list 'scan edb/full-scan-oid [4] [])
-   (list '= [5] [4 1] implication-oid)
-   '(filter [5])
-   (list '= [5] [4 0] id)
-   '(filter [5])
-   (list 'send [1] [4 2])))
+  (list (list
+         'bind 'main
+         (list (list 'scan edb/full-scan-oid [4] [])
+               (list '= [5] [4 1] implication-oid)
+               '(filter [5])
+               (list '= [5] [4 0] id)
+               '(filter [5])
+               (list 'send 'out [4 2])))))
 
 (defn for-each-implication [d id handler]
   (exec/single d (weasl-implications-for id)
@@ -43,6 +47,7 @@
 (defn implication-of [d id]
   (let [impl (atom nil)
         terminus (fn [tuple]
+                   (print "terminus" id)
                    (when (= (tuple 0) 'insert)
                      (reset! impl tuple)))]
     (exec/single d (weasl-implications-for id)

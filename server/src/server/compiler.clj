@@ -32,7 +32,8 @@
       b)))
 
 (defn build [& a]
-  (apply list a))
+  (doall (concat a)))
+
 
 (defn new-env [] (atom {}))
 
@@ -167,6 +168,7 @@
 
 
 (defn make-continuation [env name body]
+  (println "mc" body)
   (swap! env #(merge-with merge-state %1 {'blocks {name (list (list 'bind name body))}})))
 
 (defn make-bind [env inner-env name body]
@@ -267,26 +269,16 @@
       (compile-expression env (first terms)
                           (fn [] (compile-conjunction env (rest terms) down)))))
 
-
-;; multiple kv, no deep keys
-(defn bset2 [e & key]
-  (when (not (empty? key))
-    (swap! e assoc (first key) (second key))
-    (apply bset2 e (rest (rest key)))))
-
-
-(defn compile-dsl [d bid terms]
+(defn compile-dsl [d bag terms]
   (let [env (new-env)
         ;; side effecting
-        z (bset2 env
-                 'db d
-                 'bid bid
-                 'empty [])
-        _ (bind-names env {'return-channel [1]
-                         'op [0]})
+        _ (swap! env assoc 'db d)
+        _ (swap! env assoc 'bag bag)
+        ;; (send 'out [1])
         p (compile-expression
-           env terms (fn [] ()))]
-    (make-continuation env 'main p)
+           env terms (generate-send 'out 'exec/input-register))]
+    (make-continuation env 'main)
+    (println "wth" (get @env 'blocks))
     (vals (get @env 'blocks))))
     ;; emit blocks
     ;; wrap the main block
