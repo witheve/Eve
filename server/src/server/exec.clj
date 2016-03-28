@@ -234,6 +234,7 @@
       (c (rset r (second terms) (handler r))))))
 
 (defn dosend [d terms c]
+  (println "sendy" terms)
   (fn [r]
     (let [channel (rget r (second terms))]
       ;; currently this signature is different, because we dont want our
@@ -307,46 +308,29 @@
 (defn exec-error [reg comment]
   (throw (ex-info comment (assoc {} :registers reg :type "exec"))))
 
-
-;(defn build-trace [d t]
-;  (if (empty? t) (fn [r] ())
-;      (let [k (first t)]
-;        (if-let [p (command-map (first k))]
-;          (let [f (p d k (build-trace d (rest t)))]
-;            (fn [r]
-;              (println (first t) (print-registers r))
-;              (f r)))
-;          (exec-error [] (str "bad command" k))))))
-;
-;(defn open-trace [d program arguments]
-;  (let [reg (object-array 10)
-;        e  (build-trace d program)]
-;    (aset reg 1 arguments)
-;    (fn [op]
-;      (rset reg [3] op)
-;      (e reg))))
-
-
 (defn build [name names built d t]
-  (let [doterms (fn doterms [t]
-                  (println "doterms" t)
-                  (if (empty? t) (fn [r] ())
-                      (let [z (if (= (first (first t)) 'send)
-                                '(send (if-let [c (built (second k))] c
-                                               (build (second k) names built d (third k)))
-                                       (third k))
-                                (first t))
-                            k (first z)]
-                        (println "z" z)
-                        (if-let [p (command-map (first z))]
-                          (let [f (p d z (doterms (rest t)))]
-                            (fn [r]
-                              (println (first t) (print-registers r))
-                              (f r)))
-                          (exec-error [] (str "bad command" k))))))
-        trans (doterms t)]
-    (swap! built assoc name trans)
-    trans))
+  (println 'build name)
+  (if (= name 'out) input-register
+      (let [doterms (fn doterms [t]
+                      (println "doterms" t)
+                      (if (empty? t) (fn [r] ())
+                          (let [z (if (= (first (first t)) 'send)
+                                    (list 'send
+                                          (if-let [c (built (second k))] c
+                                                  (build (second k) names built d (third k)))
+                                          (third k))
+                                    (first t))
+                                k (first z)]
+                            (println "z" z)
+                            (if-let [p (command-map (first z))]
+                              (let [f (p d z (doterms (rest t)))]
+                                (fn [r]
+                                  (println (first t) (print-registers r))
+                                  (f r)))
+                              (exec-error [] (str "bad command" k))))))
+            trans (doterms t)]
+        (swap! built assoc name trans)
+        trans)))
 
 
 ;; fix r in an eval
