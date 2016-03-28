@@ -128,7 +128,7 @@
         b (is-bound? env (argmap :b))
         rebind (fn [s d]
                  (bind-names env {d s})
-                 (down))] 
+                 (down))]
     (cond (and a b) (generate-binary-filter env terms down)
           a (rebind a (argmap :b))
           b (rebind b (argmap :a))
@@ -168,7 +168,6 @@
       (apply build
              (term env 'scan specoid exec/temp-register [])
              (list (body))))))
-
 
 
 (defn make-continuation [env name body]
@@ -216,6 +215,21 @@
     (make-continuation env tail-name (down))
     (apply build (map #(generate-send env %1 (map callmap bound)) @arms))))
 
+(defn compile-union [env terms down]
+  (let [[_ proj & arms] terms
+        tail-name (gensym "continuation")
+        [bound free] (partition-2 (fn [x] (is-bound? env x)) proj)
+        to-input-slot (fn [ix] [exec/input-register (inc ix)])
+        _ (make-continuation env tail-name (down))]
+    (apply build
+           (map #(let [arm-name (gensym "arm")
+                       inner-env (new-env (get @env 'db))
+                       _ (bind-names inner-env (zipmap bound (map to-input-slot (range (count bound)))))
+                       body (rest (rest %1))
+                       body (compile-conjunction inner-env body (generate-send inner-env tail-name free))]
+                   (make-bind env inner-env arm-name body)
+                   ((generate-send env arm-name bound))) arms))))
+
 
 (defn compile-insert [env terms down]
   (let [bindings (apply hash-map (rest terms))
@@ -244,8 +258,6 @@
     (make-continuation env tail-name (down))
     (make-bind env inner-env inner-name body)
     (generate-send env inner-name bound)))
-
-(defn compile-union [env terms down]  ())
 
 (defn compile-expression [env terms down]
   (let [commands {'+ compile-simple-primitive
@@ -285,7 +297,7 @@
         p (compile-expression
            env terms (fn [] (generate-send env 'out (list exec/input-register))))]
     (make-continuation env 'main p)
-    (println "prog" (vals (get @env 'blocks)))
+    (pprint (get @env 'blocks))
     (vals (get @env 'blocks))))
     ;; emit blocks
     ;; wrap the main block
