@@ -16,7 +16,6 @@
 (def contains-oid 12)
 
 (defn insert-implication [db relname parameters program user bag]
-  (print "insert implication" relname)
   (insert db
           (name relname)
           implication-oid
@@ -45,11 +44,7 @@
 
 ;; @FIXME: This relies on exec/open flushing synchronously to determine if the implication currently exists
 (defn implication-of [d id]
-  (let [impl (atom nil)
-        terminus (fn [tuple]
-                   (print "terminus" id)
-                   (when (= (tuple 0) 'insert)
-                     (reset! impl tuple)))]
+  (let [impl (atom nil)]
     (exec/single d (weasl-implications-for id)
                  (fn [op tuple]
                    (when (= op 'insert)

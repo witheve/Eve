@@ -234,7 +234,6 @@
       (c (rset r (second terms) (handler r))))))
 
 (defn dosend [d terms c]
-  (println "sendy" terms)
   (fn [r]
     (let [channel (rget r (second terms))]
       ;; currently this signature is different, because we dont want our
@@ -306,27 +305,22 @@
 
 ;; this needs to send an error message down the pipe
 (defn exec-error [reg comment]
-  (throw (ex-info comment (assoc {} :registers reg :type "exec"))))
+  (throw (ex-info comment {:registers reg :type "exec"})))
 
-(defn build [name names built d t]
-  (println 'build name)
+(defn build [name names built d t wrap]
   (if (= name 'out) input-register
       (let [doterms (fn doterms [t]
-                      (println "doterms" t)
                       (if (empty? t) (fn [r] ())
                           (let [z (if (= (first (first t)) 'send)
-                                    (list 'send
-                                          (if-let [c (built (second k))] c
-                                                  (build (second k) names built d (third k)))
-                                          (third k))
+                                    (let [target (second (first t))]
+                                      (list 'send
+                                            (if-let [c (@built target)] c
+                                                    (build target names built d (@names target) wrap))
+                                            (third (first t))))
                                     (first t))
                                 k (first z)]
-                            (println "z" z)
                             (if-let [p (command-map (first z))]
-                              (let [f (p d z (doterms (rest t)))]
-                                (fn [r]
-                                  (println (first t) (print-registers r))
-                                  (f r)))
+                              (wrap (p d z (doterms (rest t))))
                               (exec-error [] (str "bad command" k))))))
             trans (doterms t)]
         (swap! built assoc name trans)
@@ -339,15 +333,14 @@
 ;;   2  bag default
 ;;   3  op
 (defn open [d program arguments]
-  (println "open" program)
+  (println "prog" program)
   (let [reg (object-array basic-register-frame)
         blocks (atom {})
         built (atom {})
         _ (doseq [i program]
             (swap! blocks assoc (second i) (nth i 2)))
-        e (build 'main blocks built d (@blocks 'main))]
+        e (build 'main blocks built d (@blocks 'main) (fn [x] x))]
 
-    (println "foo" reg input-register arguments)
     (rset reg input-register arguments)
     (fn [op]
       (rset reg op-register op)

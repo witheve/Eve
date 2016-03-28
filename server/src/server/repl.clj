@@ -17,14 +17,13 @@
 
 (defn show [d expression]
   (let [[form keys] (form-from-smil (smil/unpack d (second expression)))
-        prog (compiler/compile-dsl d form)]
+        prog (compiler/compile-dsl d @bag form)]
      (println (exec/print-program prog))))
 
 
 (defn diesel [d expression]
   ;; the compile-time error path should come up through here
   ;; fix external number of regs
-  (println "diesel expresession" expression)
   (let [[form keys] (form-from-smil (smil/unpack d expression))
         res (fn [op tuple]
               (condp = op

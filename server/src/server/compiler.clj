@@ -32,10 +32,13 @@
       b)))
 
 (defn build [& a]
-  (doall (concat a)))
+  (doall (apply concat a)))
 
 
-(defn new-env [] (atom {}))
+(defn new-env [d]
+  (let [env (atom {})]
+    (swap! env assoc 'db d)
+    env))
 
 ;; wrap a handler
 (defn compile-error [message data]
@@ -168,10 +171,11 @@
 
 
 (defn make-continuation [env name body]
-  (println "mc" body)
+  (println "make cont" name body)
   (swap! env #(merge-with merge-state %1 {'blocks {name (list (list 'bind name body))}})))
 
 (defn make-bind [env inner-env name body]
+  (println "make bind" name body)
   (let [over (get @inner-env 'overflow)
         body (if over
                (build body (term @inner-env 'tuple [(- exec/basic-register-frame 1)] (repeat over nil)))
@@ -197,7 +201,7 @@
  
         army (fn [parameters body]
                (let [arm-name (gensym signature)
-                     inner-env (new-env)
+                     inner-env (new-env (get @env 'db))
                      to-input-slot (fn [ix] [exec/input-register (inc ix)])
                      _ (bind-names inner-env (zipmap bound (map to-input-slot (range (count bound)))))
                      body (compile-conjunction inner-env body (generate-send inner-env tail-name free))]
@@ -206,6 +210,7 @@
 
     ;; validate the parameters as both a proper superset of the input
     ;; and conformant across the union legs
+    (println "dsl db" (get @env 'db))
     (db/for-each-implication (get @env 'db) relname
                              (fn [parameters body]
                                (swap! arms conj (army parameters body))))
@@ -229,7 +234,7 @@
 
 (defn compile-query [env terms down]
   (let [[query proj & body] terms
-        inner-env (new-env)
+        inner-env (new-env (get @env 'db))
         inner-name (gensym "query")
         tail-name (gensym "continuation")
         [bound free] (partition-2 (fn [x] (is-bound? env x)) proj)
@@ -270,14 +275,14 @@
                           (fn [] (compile-conjunction env (rest terms) down)))))
 
 (defn compile-dsl [d bag terms]
-  (let [env (new-env)
+  (println "dsl db" d)
+  (let [env (new-env d)
         ;; side effecting
-        _ (swap! env assoc 'db d)
         _ (swap! env assoc 'bag bag)
         ;; (send 'out [1])
         p (compile-expression
-           env terms (generate-send 'out 'exec/input-register))]
-    (make-continuation env 'main)
+           env terms (generate-send env 'out (list exec/input-register)))]
+    (make-continuation env 'main p)
     (println "wth" (get @env 'blocks))
     (vals (get @env 'blocks))))
     ;; emit blocks
