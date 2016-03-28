@@ -56,7 +56,7 @@
     (if (get-in @env ['bound name] nil)
       true
       false)
-    false))
+    name))
 
 (defn add-dependencies [env & names]
   (swap! env
@@ -127,7 +127,7 @@
         b (is-bound? env (argmap :b))
         rebind (fn [s d]
                  (bind-names env {d s})
-                 (down))] 
+                 (down))]
     (cond (and a b) (generate-binary-filter env terms down)
           a (rebind a (argmap :b))
           b (rebind b (argmap :a))
@@ -154,7 +154,7 @@
         extra-map (zipmap filter-terms (map #(gensym 'xtra) filter-terms))
         target-reg-name (gensym 'target)
         target-reg (allocate-register env target-reg-name)]
-    
+
     (bind-names env (indirect-bind target-reg extra-map))
     (bind-names env (indirect-bind target-reg (zipmap free (map argmap free))))
 
@@ -200,7 +200,7 @@
         signature (get-signature relname callmap bound)
         tail-name (gensym "continuation")
         _ (make-continuation env tail-name (down))
- 
+
         army (fn [parameters body]
                (let [arm-name (gensym signature)
                      inner-env (new-env (get @env 'db))
@@ -216,6 +216,21 @@
                              (fn [parameters body]
                                (swap! arms conj (army parameters body))))
     (apply build (map #((generate-send env %1 bound)) @arms))))
+
+(defn compile-union [env terms down]
+  (let [[_ proj & arms] terms
+        tail-name (gensym "continuation")
+        [bound free] (partition-2 (fn [x] (is-bound? env x)) proj)
+        to-input-slot (fn [ix] [exec/input-register (inc ix)])
+        _ (make-continuation env tail-name (down))]
+    (apply build
+           (map #(let [arm-name (gensym "arm")
+                       inner-env (new-env (get @env 'db))
+                       _ (bind-names inner-env (zipmap bound (map to-input-slot (range (count bound)))))
+                       body (rest (rest %1))
+                       body (compile-conjunction inner-env body (generate-send inner-env tail-name free))]
+                   (make-bind env inner-env arm-name body)
+                   ((generate-send env arm-name bound))) arms))))
 
 
 (defn compile-insert [env terms down]
@@ -245,8 +260,6 @@
     (make-continuation env tail-name (down))
     (make-bind env inner-env inner-name body)
     ((generate-send env inner-name bound))))
-
-(defn compile-union [env terms down]  ())
 
 (defn compile-expression [env terms down]
   (let [commands {'+ compile-simple-primitive
@@ -283,6 +296,8 @@
         p (compile-expression
            env terms (generate-send env 'out (list exec/input-register)))]
     (make-continuation env 'main p)
+    (println "blocks")
+    (pprint (get @env 'blocks))
     (vals (get @env 'blocks))))
     ;; emit blocks
     ;; wrap the main block
