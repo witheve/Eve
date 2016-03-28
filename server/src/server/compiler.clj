@@ -87,10 +87,12 @@
 
 (defn generate-send [env channel arguments]
   (apply add-dependencies env arguments)
-  ;; cycle filters
-  (fn []
-    (build (apply term env 'tuple exec/temp-register (map #(get-in @env ['bound %1] nil) arguments))
-            (list (list 'send channel exec/temp-register)))))
+  (let [z
+        (build
+         (apply term env 'tuple exec/temp-register (map #(get-in @env ['bound %1] nil) arguments))
+         (list (list 'send channel exec/temp-register)))]
+    ;; cycle filters
+    (fn [] z)))
 
 
 (declare compile-conjunction)
@@ -155,27 +157,26 @@
     
     (bind-names env (indirect-bind target-reg extra-map))
     (bind-names env (indirect-bind target-reg (zipmap free (map argmap free))))
-    
-    (build
-     ;; needs to take a projection set for the indices
-     (term env 'scan specoid exec/temp-register [])
-     (term env 'delta-e target-reg-name exec/temp-register)
-     ((reduce (fn [t]
-                (fn [] 
-                  (generate-binary-filter env
-                                          (list '= :a (extra-map t) :b (nth triple t))
-                                          down)))
-              down
-              filter-terms)))))
+
+
+    (apply build
+           ;; needs to take a projection set for the indices
+           (term env 'scan specoid exec/temp-register [])
+           (term env 'delta-e target-reg-name exec/temp-register)
+           (list ((reduce (fn [t]
+                            (fn []
+                              (generate-binary-filter env
+                                                      (list '= :a (extra-map t) :b (nth triple t))
+                                                      down)))
+                          down
+                          filter-terms))))))
 
 
 
 (defn make-continuation [env name body]
-  (println "make cont" name body)
-  (swap! env #(merge-with merge-state %1 {'blocks {name (list (list 'bind name body))}})))
+  (swap! env #(merge-with merge-state %1 {'blocks {name (list 'bind name body)}})))
 
 (defn make-bind [env inner-env name body]
-  (println "make bind" name body)
   (let [over (get @inner-env 'overflow)
         body (if over
                (build body (term @inner-env 'tuple [(- exec/basic-register-frame 1)] (repeat over nil)))
@@ -210,7 +211,6 @@
 
     ;; validate the parameters as both a proper superset of the input
     ;; and conformant across the union legs
-    (println "dsl db" (get @env 'db))
     (db/for-each-implication (get @env 'db) relname
                              (fn [parameters body]
                                (swap! arms conj (army parameters body))))
@@ -228,7 +228,7 @@
       (apply build
              (term env 'tuple exec/temp-register e a v b)
              (term env 'scan edb/insert-oid exec/temp-register exec/temp-register)
-             z))))
+             (list z)))))
 
 
 
@@ -275,7 +275,6 @@
                           (fn [] (compile-conjunction env (rest terms) down)))))
 
 (defn compile-dsl [d bag terms]
-  (println "dsl db" d)
   (let [env (new-env d)
         ;; side effecting
         _ (swap! env assoc 'bag bag)
@@ -283,7 +282,6 @@
         p (compile-expression
            env terms (generate-send env 'out (list exec/input-register)))]
     (make-continuation env 'main p)
-    (println "wth" (get @env 'blocks))
     (vals (get @env 'blocks))))
     ;; emit blocks
     ;; wrap the main block
