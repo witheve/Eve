@@ -181,6 +181,7 @@
         body (if over
                (build body (term @inner-env 'tuple [(- exec/basic-register-frame 1)] (repeat over nil)))
                body)]
+    (swap! env update-in ['blocks] concat (get @inner-env 'blocks))
     (make-continuation env name body)))
 
 
