@@ -168,8 +168,9 @@
 
 (defn parse-query [sexpr]
   (let [body (rest sexpr)
-        params (when (vector? (first body)) (first body))
-        body (if params (rest body) body)]
+        [params body] (if (or (vector? (first body)) (nil? (first body)))
+                        [(first body) (rest body)]
+                        [nil body])]
     {:params params :body body}))
 
 (defn parse-fact [sexpr]
