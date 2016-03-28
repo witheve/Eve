@@ -56,7 +56,7 @@
     (if (get-in @env ['bound name] nil)
       true
       false)
-    false))
+    name))
 
 (defn add-dependencies [env & names]
   (swap! env
@@ -87,12 +87,12 @@
 
 (defn generate-send [env channel arguments]
   (apply add-dependencies env arguments)
-  (let [z
-        (build
-         (apply term env 'tuple exec/temp-register (map #(get-in @env ['bound %1] nil) arguments))
-         (list (list 'send channel exec/temp-register)))]
-    ;; cycle filters
-    (fn [] z)))
+  (if (> (count arguments) 0)
+    (build
+     (apply term env 'tuple exec/temp-register (map #(lookup env %1) arguments))
+     (list (list 'send channel exec/temp-register)))
+    (doall (list (list 'send channel [])))))
+  
 
 
 (declare compile-conjunction)
@@ -115,10 +115,11 @@
 (defn generate-binary-filter [env terms down]
   (let [argmap (apply hash-map (rest terms))]
     (apply add-dependencies env terms)
-    (build
-     (term env (first terms) exec/temp-register (argmap :a) ( argmap :b)))
-     (term env 'filter exec/temp-register)
-     (down)))
+    (let [r  (build
+             (term env (first terms) exec/temp-register (argmap :a) ( argmap :b))
+             (term env 'filter exec/temp-register)
+             (down))]
+      r)))
 
 (defn compile-equal [env terms down]
   (let [argmap (apply hash-map (rest terms))
@@ -137,39 +138,36 @@
 (defn indirect-bind [slot m]
   (zipmap (vals m) (map (fn [x] [slot x]) (keys m))))
 
-(defn tuple-from-btu-keywords [terms]
-  (let [tmap (apply hash-map terms)]
-    ;; optional bagginess
-    [(tmap :entity) (tmap :attribute) (tmap :value)]))
-
 ;; figure out how to handle the quintuple
 ;; need to do index selection here - resolve attribute name
-(defn compile-edb [env terms down]
-  (let [triple (tuple-from-btu-keywords (rest terms))
-        [bound free] (partition-2 #(is-bound? env (nth triple %1)) (range 3))
-        [specoid index-inputs index-outputs] [edb/full-scan-oid () '(0 1 2)]
-        ;; xxx - ech - fix this partial specification
-        argmap (zipmap (range 3) triple)
+(defn generate-scan [env terms down collapse]
+  (let [signature [:entity :attribute :value :bag :tick :user]
+        pmap (zipmap signature (range (count signature)))
+        amap (apply hash-map (rest terms))
+        [bound free] (partition-2 (fn [x] (is-bound? env (amap x))) signature)
+        [specoid index-inputs index-outputs] [edb/full-scan-oid () signature]
         filter-terms (set/intersection (set index-outputs) (set bound))
-        extra-map (zipmap filter-terms (map #(gensym 'xtra) filter-terms))
         target-reg-name (gensym 'target)
-        target-reg (allocate-register env target-reg-name)]
+        target-reg (allocate-register env target-reg-name)
+        body (reduce (fn [b t]
+                       (fn []
+                         (generate-binary-filter
+                          env
+                          (list '= :a [target-reg (pmap t)] :b (amap t))
+                          b)))
+                     down filter-terms)]
+     
+    (bind-names env (indirect-bind target-reg (zipmap (map pmap free) (map amap free))))
     
-    (bind-names env (indirect-bind target-reg extra-map))
-    (bind-names env (indirect-bind target-reg (zipmap free (map argmap free))))
-
-
-    (apply build
-           ;; needs to take a projection set for the indices
-           (term env 'scan specoid exec/temp-register [])
-           (term env 'delta-e target-reg-name exec/temp-register)
-           (list ((reduce (fn [t]
-                            (fn []
-                              (generate-binary-filter env
-                                                      (list '= :a (extra-map t) :b (nth triple t))
-                                                      down)))
-                          down
-                          filter-terms))))))
+    (if collapse
+      (apply build
+             ;; needs to take a projection set for the indices
+             (term env 'scan specoid exec/temp-register [])
+             (term env 'delta-e target-reg-name exec/temp-register)
+             (list (body)))
+      (apply build
+             (term env 'scan specoid exec/temp-register [])
+             (list (body))))))
 
 
 
@@ -194,19 +192,17 @@
 ;; unification across the keyword-value bindings (?)
 (defn compile-implication [env terms down]
   (let [relname (name (first terms))
+        to-input-slot (fn [ix] [exec/input-register (inc ix)])
         callmap (apply hash-map (rest terms))
         arms (atom ())
         [bound free] (partition-2 (fn [x] (is-bound? env (x callmap))) (keys callmap))
         signature (get-signature relname callmap bound)
         tail-name (gensym "continuation")
-        _ (make-continuation env tail-name (down))
- 
         army (fn [parameters body]
                (let [arm-name (gensym signature)
                      inner-env (new-env (get @env 'db))
-                     to-input-slot (fn [ix] [exec/input-register (inc ix)])
-                     _ (bind-names inner-env (zipmap bound (map to-input-slot (range (count bound)))))
-                     body (compile-conjunction inner-env body (generate-send inner-env tail-name free))]
+                     _ (bind-names inner-env (zipmap (map name bound) (map to-input-slot (range (count bound)))))
+                     body (compile-conjunction inner-env body (fn [] (generate-send inner-env tail-name (map name free))))]
                  (make-bind env inner-env arm-name body)
                  arm-name))]
 
@@ -215,7 +211,10 @@
     (db/for-each-implication (get @env 'db) relname
                              (fn [parameters body]
                                (swap! arms conj (army parameters body))))
-    (apply build (map #((generate-send env %1 bound)) @arms))))
+    
+    (bind-names env (zipmap (map callmap free) (map to-input-slot (range (count free)))))
+    (make-continuation env tail-name (down))
+    (apply build (map #(generate-send env %1 (map callmap bound)) @arms))))
 
 
 (defn compile-insert [env terms down]
@@ -241,10 +240,10 @@
         [bound free] (partition-2 (fn [x] (is-bound? env x)) proj)
         to-input-slot (fn [ix] [exec/input-register (inc ix)])
         _ (bind-names inner-env (zipmap bound (map to-input-slot (range (count bound)))))
-        body (compile-conjunction inner-env body (generate-send inner-env tail-name free))]
+        body (compile-conjunction inner-env body (fn [] (generate-send inner-env tail-name free)))]
     (make-continuation env tail-name (down))
     (make-bind env inner-env inner-name body)
-    ((generate-send env inner-name bound))))
+    (generate-send env inner-name bound)))
 
 (defn compile-union [env terms down]  ())
 
@@ -259,7 +258,10 @@
 
                   'str compile-simple-primitive
                   'insert-fact-btu! compile-insert
-                  'fact-btu compile-edb
+                  'fact-btu (fn [e terms down]
+                              (generate-scan e terms down true))
+                  'full-fact-btu (fn [e terms down]
+                                   (generate-scan e terms down true))
                   'range compile-simple-primitive
                   '= compile-equal
                   'not-equal generate-binary-filter
@@ -281,8 +283,9 @@
         _ (swap! env assoc 'bag bag)
         ;; (send 'out [1])
         p (compile-expression
-           env terms (generate-send env 'out (list exec/input-register)))]
+           env terms (fn [] (generate-send env 'out (list exec/input-register))))]
     (make-continuation env 'main p)
+    (println "prog" (vals (get @env 'blocks)))
     (vals (get @env 'blocks))))
     ;; emit blocks
     ;; wrap the main block

@@ -90,7 +90,7 @@
   (rset r (second terms) (vec (repeat (nth terms 2) nil))))
 
 (defn tuple [d terms c]
-  (fn [r]
+  (fn bobby [r]
     (rset r (second terms)
           (object-array (map (fn [x] (rget r x)) (rest (rest terms)))))
     (c r)))
@@ -239,7 +239,7 @@
       ;; currently this signature is different, because we dont want our
       ;; external guys to try to deconstruct the working tuple...not sure how
       ;; this works for internal sends (?)
-      (channel (rget r op-register) (rget r (nth terms 2)))
+      (channel (rget r (nth terms 2)))
       (c r))))
 
 ;; something awfully funny going on with the op around the scan
@@ -333,7 +333,6 @@
 ;;   2  bag default
 ;;   3  op
 (defn open [d program arguments]
-  (println "prog" program)
   (let [reg (object-array basic-register-frame)
         blocks (atom {})
         built (atom {})
