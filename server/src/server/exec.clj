@@ -1,7 +1,8 @@
 (ns server.exec
   (:require [server.edb :as edb]
             [clojure.test :as test]
-            [server.avl :as avl]))
+            [server.avl :as avl]
+            [clojure.pprint :refer [pprint]]))
 
 (def basic-register-frame 10)
 (def op-register [1])
@@ -18,7 +19,7 @@
 (defn print-registers [r]
   (map (fn [x]
          (cond
-           (fn? x) "λ " 
+           (fn? x) "λ "
            (nil? x) ". "
            (= x ()) "()"
            (= object-array-type (type x)) (print-registers x)
@@ -31,19 +32,19 @@
           (traverse [x indent]
             (cond
               (instance? clojure.lang.LazySeq x) (traverse (apply list (doall x)) indent)
-              
+
               ;; reduce on () does someting unspeakable
               (and (mlist? x) (empty? x)) "()"
-              
+
               (and (mlist? x) (mlist? (first x)))
               (reduce (fn [y x] (str y "\n" x)) ""
                       (map (fn [z]  (str (apply str (repeat indent " "))
                                          (traverse z (+ indent 4)))) x))
-              
+
               (mlist? x)
               (str "(" (reduce (fn [y x] (str y " " x))
                                (map (fn [z] (traverse z indent)) x)) ")")
-              
+
               (or (number? x) (string? x) (symbol? x) (vector? x)) (str x)
               :else (str "<unknown>")))]
     (traverse p 0)))
@@ -56,18 +57,18 @@
         ;; special case of constant vector, empty
         (= (count ref) 0) ref
         (= (count ref) 1) (aget r (ref 0))
-        :else 
+        :else
         (rget (aget r (ref 0)) (subvec ref 1))))
 
 (defn rset [r ref v]
   (let [c (count ref)]
-    (cond 
+    (cond
       (= c 0) ()
       (= c 1) (if (> (ref 0) (count r))
                 (do (println "exec error" (ref 0) "is greater than" (count r))
                     (throw c))
                 (aset r (ref 0) v))
-      :else 
+      :else
       (rset (aget r (ref 0)) (subvec ref 1) v))))
 
 
@@ -81,11 +82,11 @@
       (when (= (rget r op-register) 'insert)
         (f r terms))
       (c r))))
-    
+
 
 (defn doprint [r terms]
   (println (map (fn [x] (rget r x)) terms)))
-  
+
 (defn allocate [r terms]
   (rset r (second terms) (vec (repeat (nth terms 2) nil))))
 
@@ -103,7 +104,7 @@
                   (f (rget r (nth terms 2))
                      (rget r (nth terms 3)))))))
 
-  
+
 (defn ternary-numeric-boolean [f]
   (simple (fn [r terms]
             (rset r (second terms)
@@ -146,7 +147,7 @@
 
 (defn dofilter [d terms c]
   (fn [r]
-    ;; pass flush    
+    ;; pass flush
     (when (rget r (second terms))
       (c r))))
 
@@ -186,12 +187,12 @@
                  (contains? @assertions t) t
                  :else
                  (base (@down t))))
-        
-        walk (fn walk [t] 
+
+        walk (fn walk [t]
                (let [k (@up t)]
                  (if (= k nil) true
                      (not (some walk @k)))))]
-    
+
     (fn [r]
       (let [[e a v b t u] (rget r in)]
         (if (= (rget r op-register) 'insert)
@@ -208,7 +209,7 @@
                                               (rset r op-register 'remove)
                                               (c r)))))
 
-            (do 
+            (do
               (swap! assertions assoc t tuple)
               (when (walk t)
                 (rset r out (rget r in))
@@ -250,7 +251,7 @@
   (let [[scan oid dest key] terms]
     (fn [r]
       (if (= (rget r op-register) 'insert)
-        ((d oid 
+        ((d oid
             (fn [t]
               ;; ahem, who else might be looking at this?
               (rset r op-register 'insert)
@@ -259,7 +260,7 @@
          (rget r key))
         (c r)))))
 
-    
+
 (defn bind [d terms c]
   (fn [r]
     (let [[bindo dest body] terms
@@ -288,19 +289,19 @@
                   'allocate  (simple allocate)
                   'print     (simple doprint)
 
-                  'filter    dofilter    
-                  'range     dorange     
-                  'delta-s   delta-s   
-                  'delta-e   delta-e   
-                  'tuple     tuple     
+                  'filter    dofilter
+                  'range     dorange
+                  'delta-s   delta-s
+                  'delta-e   delta-e
+                  'tuple     tuple
                   '=         (simple doequal)
-                  'sum       sum       
-                  'sort      dosort      
-                  'subquery  subquery  
+                  'sum       sum
+                  'sort      dosort
+                  'subquery  subquery
 
-                  'scan      doscan     
-                  'send      dosend   
-                  'bind      bind  
+                  'scan      doscan
+                  'send      dosend
+                  'bind      bind
                   })
 
 ;; this needs to send an error message down the pipe
@@ -333,7 +334,8 @@
 ;;   2  bag default
 ;;   3  op
 (defn open [d program arguments]
-  (println "prog" program)
+  (println "prog")
+  (pprint program)
   (let [reg (object-array basic-register-frame)
         blocks (atom {})
         built (atom {})
@@ -345,10 +347,9 @@
     (fn [op]
       (rset reg op-register op)
       (e reg))))
-      
+
 
 (defn single [d prog out]
   (let [e (open d prog out)]
     (e 'insert)
     (e 'flush)))
-
