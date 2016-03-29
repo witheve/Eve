@@ -1,7 +1,8 @@
 (ns ui.root
   (:refer-clojure :exclude [find remove when])
-  (:require [clojure.string :as string])
-  (:require-macros [ui.macros :refer [elem afor log box text button input dispatch extract for-fact when]]))
+  (:require [clojure.string :as string]
+            [clojure.set :as set])
+  (:require-macros [ui.macros :refer [elem afor log box text button input transaction extract for-fact when]]))
 
 (enable-console-print!)
 
@@ -96,6 +97,114 @@
   (swap! state-store assoc (args-to-key [:grid id]) value)
   (swap! state-store update-in [:name] assoc (.toLowerCase value) id))
 
+(def facts-by-id (js-obj))
+(def facts-by-tag (js-obj))
+
+(defn get-fact-by-id [id]
+  (aget facts-by-id id))
+
+(defn entity [info]
+  (let [{:keys [id tag]} info]
+    (cond
+      id [(get-fact-by-id id)]
+      tag (let [first-tag (if (set? tag)
+                            (first tag)
+                            tag)
+                objs (map get-fact-by-id (aget facts-by-tag first-tag))]
+            (vec (filter (fn [obj]
+                           (every? identity
+                                   (for [[k v] info
+                                         :let [obj-value (obj k)]]
+                                     (cond
+                                       (and (set? v) (set? obj-value)) (set/subset? v obj-value)
+                                       (set? obj-value) (obj-value v)
+                                       :else (= v (obj k))))))
+                         objs)))
+      :else (throw (js/Error. "Lookups must either contain an id or a tag")))))
+
+(defn property-updater [cur v]
+  (cond
+    (set? cur) (conj cur v)
+    cur #{cur v}
+    :else v))
+
+(defn property-remover [cur v]
+  (cond
+    (and (set? cur) (>= (count cur) 2)) (disj cur v)
+    (set? cur) (first (disj cur v))
+    (= cur v) nil
+    :else cur))
+
+(defn add-eavs! [eavs]
+  (doseq [[e a v] eavs
+          :let [obj (or (aget facts-by-id e) {:id e})]]
+    (aset facts-by-id e (update-in obj [a] property-updater v))
+    (when (= :tag a)
+      (doseq [tag (if (set? v)
+                    v
+                    #{v})]
+        (aset facts-by-tag tag (if-let [cur (aget facts-by-tag tag)]
+                                 (conj cur e)
+                                 #{e}))))))
+
+(defn remove-eavs! [eavs]
+  (doseq [[e a v] eavs
+          :let [obj (or (aget facts-by-id e) {:id e})]]
+    (aset facts-by-id e (update-in obj [a] property-remover v))
+    (when (= :tag a)
+      (doseq [tag (if (set? v)
+                    v
+                    #{v})]
+        (aset facts-by-tag tag (if-let [cur (aget facts-by-tag tag)]
+                                 (disj cur e)))))))
+
+(defn make-transaction-context []
+  (js-obj))
+
+(defn insert-facts! [context info]
+  (let [id (if (symbol? (:id info))
+             (or (aget context (name (:id info))) (let [new-id (js/uuid)]
+                                                    (aset context (name (:id info)) new-id)
+                                                    new-id))
+             (or (:id info) (js/uuid)))]
+    (add-eavs! (for [[k v] (dissoc info :id)
+                     :let [v (if (symbol? v)
+                               (aget context (name v))
+                               v)]]
+                 [id k v])))
+  context)
+
+(defn remove-facts! [context info]
+  (let [id (or (:id info) (throw (js/Error "remove-facts requires an id to remove from")))]
+    (remove-eavs! (for [[k v] (dissoc info :id)]
+                    [id k v])))
+  context)
+
+(defn remove-entity! [context id]
+  (let [obj (get-fact-by-id id)
+        tags (:tag obj)]
+    (aset facts-by-id id nil)
+    (doseq [tag (if (set? tags)
+                  tags
+                  #{tags})]
+      (aset facts-by-tag tag (if-let [cur (aget facts-by-tag tag)]
+                               (disj cur id)))))
+  context)
+
+; (transaction context
+;              (-> context
+;                  (insert-facts! {:id 'root :tag "cell" :height 1 :width 1 :x 1 :y 1 :type :property})
+;                  (insert-facts! {:tag "cell" :height 2 :width 2 :x 4 :y 5 :type :property :buddy 'root})
+;                  (remove-facts! {:id (:id (first (entity {:tag "cell"}))) :width 1 :height 1})
+;                  (remove-entity! (:id (first (entity {:tag "cell"})))))
+;              (println (entity {:tag "cell"})))
+
+; (entity :tag "cell" :grid "yo")
+; (entity :tag "cell" :grid grid-id)
+; (fact-btu :tick 1234)
+; (insert-fact! :id 1 :tag "cell" :name "foo")
+; (remove-fact! :id 3)
+
 ;;---------------------------------------------------------
 ;; Styles
 ;;---------------------------------------------------------
@@ -165,11 +274,11 @@
                         (assoc intermediates :autocomplete-selection 0)
                         intermediates)]
     (when (= key-code (KEYS :up))
-      (dispatch
+      (transaction
         (set-state! :active-cell-intermediates id (update-in intermediates [:autocomplete-selection] dec))
         (.preventDefault event)))
     (when (= key-code (KEYS :down))
-      (dispatch
+      (transaction
         (set-state! :active-cell-intermediates id (update-in intermediates [:autocomplete-selection] inc))
         (.preventDefault event)))))
 
@@ -251,10 +360,10 @@
           (.. (querySelector ".value") (focus))))
       (let [selected (get-selected-autocomplete-option :property (:property intermediates) (:autocomplete-selection intermediates 0))]
         (when (not= (:text selected) (:property intermediates))
-          (dispatch
+          (transaction
             (set-state! :active-cell-intermediates id (assoc intermediates :property (:text selected))))))
     (when (= key-code (KEYS :escape))
-      (dispatch
+      (transaction
         (set-state! :active-cell-intermediates id nil)
         (set-state! :active-cell grid-id nil)))))
 
@@ -273,7 +382,7 @@
               selected (get-selected-autocomplete-option :value (or (:value intermediates) (state :grid (:value cell))) (:autocomplete-selection intermediates 0))
               {:keys [action]} selected]
           (println selected)
-          (dispatch
+          (transaction
             (cond
               (= action :insert) (do
                                    (set-state! :cells grid-id (afor [cell (state :cells grid-id)]
@@ -299,7 +408,7 @@
                                       (set-state! :active-cell grid-id nil)
                                       (move-selection! grid-id :down)))))))
     (when (= key-code (KEYS :escape))
-      (dispatch
+      (transaction
         (set-state! :active-cell-intermediates id nil)
         (set-state! :active-cell grid-id nil))))
   (autocomplete-selection-keys event elem))
@@ -308,13 +417,13 @@
   (let [{:keys [cell field id]} (.-info elem)
         current-intermediate (or (state :active-cell-intermediates id) {})
         value (-> (.-currentTarget event) (.-value))]
-    (dispatch
+    (transaction
       (set-state! :active-cell-intermediates id (assoc current-intermediate field value :autocomplete-selection 0)))))
 
 (defn track-focus [event elem]
   (let [{:keys [cell field id]} (.-info elem)
         current-intermediate (or (state :active-cell-intermediates id) {})]
-    (dispatch
+    (transaction
       (set-state! :active-cell-intermediates id (assoc current-intermediate :focus field)))))
 
 (defn draw-property [cell active?]
@@ -506,7 +615,7 @@
                                    }))
                   extend? (.concat (state :selections id) (array addition))
                   :else (array addition))]
-    (dispatch
+    (transaction
       (set-state! :selections id updated)
       (set-state! :extending-selection id true)
       (set-state! :active-cell id nil)
@@ -538,7 +647,7 @@
                           :y (:y start)
                           :width (if (not= 0 width) width 1)
                           :height (if (not= 0 height) height 1)})]
-        (dispatch
+        (transaction
           (set-state! :selections id maybe)
           (when-not (global-mouse-down)
             (set-state! :extending-selection id false)
@@ -568,10 +677,10 @@
             normalized (normalize-cell-size current)
             intersecting (get-all-interesecting-cells normalized cells)
             final (or intersecting (array normalized))]
-        (dispatch
+        (transaction
           (set-state! :selections id final)
           (set-state! :extending-selection id false))))
-      (dispatch
+      (transaction
         (set-state! :extending-selection id false))))
 
 (defn remove-overlap [cells updated-cells axis-and-direction-map]
@@ -678,12 +787,12 @@
 
 (defn activate-cell! [grid-id cell]
   (if-not (:id cell)
-    (dispatch
+    (transaction
       (let [cells (add-cell! grid-id cell)
             new-cell (last cells)]
         (set-state! :selections grid-id (array new-cell))
         (set-state! :active-cell grid-id (:id new-cell))))
-    (dispatch
+    (transaction
       (set-state! :active-cell grid-id (:id cell)))))
 
 (defn grid-keys [event elem]
@@ -701,7 +810,7 @@
         ;; pressing backspace should nuke any selected cells
         (:backspace KEYS) (let [selected-ids (into #{} (for [selection (state :selections id)]
                                                          (:id selection)))]
-                            (dispatch
+                            (transaction
                               (set-state! :cells id (.filter (state :cells id) (fn [cell]
                                                                                  (not (selected-ids (:id cell))))))
                               (set-state! :selections id (to-array (for [selection selections]
@@ -710,7 +819,7 @@
         ;; otherwise if you pressed an arrow key, we need to move or extend depending on
         ;; whether shift is being held
         (when direction
-          (dispatch
+          (transaction
             (if shift?
               (extend-selection! id direction)
               (move-selection! id direction)))
@@ -726,7 +835,7 @@
       ;; to create a new cell with a property name starting with whatever
       ;; you've typed at this point
       (if-not (:id current-selection)
-        (dispatch
+        (transaction
           (let [cells (add-cell! id current-selection)
                 new-cell (last cells)
                 new-cell-id (:id new-cell)]
@@ -737,7 +846,7 @@
         ;; activate that cell, and set its value to what you've typed so far
         ;; TODO: what happens in the case where you don't have a normal property
         ;; cell? What does it mean to type on top of a chart, for example?
-        (dispatch
+        (transaction
           (set-state! :active-cell id (:id current-selection))
           (set-state! :active-cell-intermediates (:id current-selection) {:value current-value})))
       (set! (.-value (.-currentTarget event)) ""))))
@@ -747,7 +856,7 @@
   (let [{:keys [id]} (.-info elem)]
     (when (and (= (:shift KEYS) (.-keyCode event))
                (state :extending-selection id))
-      (dispatch
+      (transaction
         (stop-selecting event elem)
         (set-state! :extending-selection id false)))))
 
@@ -882,8 +991,6 @@
     (reset! renderer (new js/Renderer))
     (.appendChild (.-body js/document) (.-content @renderer))
     (global-dom-init))
-  (dispatch diff
-            (add diff :woot {:foo 1 :bar 2}))
   (render))
 
 (init)

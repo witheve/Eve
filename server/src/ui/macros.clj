@@ -42,12 +42,10 @@
          (recur (+ x# 1))))
      neue#))
 
-(defmacro dispatch [diff & body]
+(defmacro transaction [diff & body]
   (if (symbol? diff)
-    `(let [eve# ui.root/eve
-           ~diff (.diff eve#)]
+    `(let [~diff (cljs.core/js-obj)]
        ~@body
-       (.applyDiff eve# ~diff)
        (ui.root/render))
     `(do
        ~@(concat [diff] body)
