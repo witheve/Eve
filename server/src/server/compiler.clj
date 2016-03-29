@@ -92,7 +92,7 @@
      (apply term env 'tuple exec/temp-register (map #(lookup env %1) arguments))
      (list (list 'send channel exec/temp-register)))
     (doall (list (list 'send channel [])))))
-  
+
 
 
 (declare compile-conjunction)
@@ -156,9 +156,9 @@
                           (list '= :a [target-reg (pmap t)] :b (amap t))
                           b)))
                      down filter-terms)]
-     
+
     (bind-names env (indirect-bind target-reg (zipmap (map pmap free) (map amap free))))
-    
+
     (if collapse
       (apply build
              ;; needs to take a projection set for the indices
@@ -210,7 +210,7 @@
     (db/for-each-implication (get @env 'db) relname
                              (fn [parameters body]
                                (swap! arms conj (army parameters body))))
-    
+
     (bind-names env (zipmap (map callmap free) (map to-input-slot (range (count free)))))
     (make-continuation env tail-name (down))
     (apply build (map #(generate-send env %1 (map callmap bound)) @arms))))
@@ -220,15 +220,18 @@
         tail-name (gensym "continuation")
         [bound free] (partition-2 (fn [x] (is-bound? env x)) proj)
         to-input-slot (fn [ix] [exec/input-register (inc ix)])
-        _ (make-continuation env tail-name (down))]
-    (apply build
-           (map #(let [arm-name (gensym "arm")
-                       inner-env (new-env (get @env 'db))
-                       _ (bind-names inner-env (zipmap bound (map to-input-slot (range (count bound)))))
-                       body (rest (rest %1))
-                       body (compile-conjunction inner-env body (generate-send inner-env tail-name free))]
-                   (make-bind env inner-env arm-name body)
-                   ((generate-send env arm-name bound))) arms))))
+        body (apply build
+                    (map #(let [arm-name (gensym "arm")
+                                inner-env (new-env (get @env 'db))
+                                _ (bind-names inner-env (zipmap bound (map to-input-slot (range (count bound)))))
+                                body (rest (rest %1))
+                                _ (println "BODY" body)
+                                body (compile-conjunction inner-env body (fn [] (generate-send inner-env tail-name free)))]
+                            (make-bind env inner-env arm-name body)
+                            (generate-send env arm-name bound)) arms))]
+    (bind-names env (zipmap free (map to-input-slot (range (count free)))))
+    (make-continuation env tail-name (down))
+    body))
 
 
 (defn compile-insert [env terms down]
@@ -297,7 +300,7 @@
         p (compile-expression
            env terms (fn [] (generate-send env 'out (list exec/input-register))))]
     (make-continuation env 'main p)
-    (pprint (get @env 'blocks))
+    (pprint (vals (get @env 'blocks)))
     (vals (get @env 'blocks))))
     ;; emit blocks
     ;; wrap the main block
