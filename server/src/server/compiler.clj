@@ -247,12 +247,16 @@
         e (if-let [b (bindings :entity)] b nil)
         a (if-let [b (bindings :attribute)] b nil)
         v (if-let [b (bindings :value)] b nil)
-        b (if-let [b (bindings :bag)] b exec/bag-register)] 
+        t (if-let [b (bindings :value)] b nil)
+        b (if-let [b (bindings :bag)] b exec/bag-register)
+        out (if-let [b (bindings :tick)] (let [r (allocate-register env (gensym 'insert-output))]
+                                           (bind-names env {b [r 4]})
+                                           [r]) [])]
 
     (let [z (down)]
       (apply build
              (term env 'tuple exec/temp-register e a v b)
-             (term env 'scan edb/insert-oid exec/temp-register exec/temp-register)
+             (term env 'scan edb/insert-oid out exec/temp-register)
              (list z)))))
 
 

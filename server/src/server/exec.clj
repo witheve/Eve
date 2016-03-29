@@ -92,12 +92,14 @@
 
 (defn tuple [d terms c]
   (fn [r]
-    (let [a (rest (rest terms))
-          ;; since this is often a file, we currently force this to be at least the base max frame size
-          tout (object-array (max (count a) basic-register-frame))]
-      (doseq [x (range (count a))]
-        (aset tout x (rget r (nth a x))))
-      (rset r (second terms) tout))
+    (println "tuple" (rget r op-register))
+    (when (not= (rget r op-register) 'flush)
+      (let [a (rest (rest terms))
+            ;; since this is often a file, we currently force this to be at least the base max frame size
+            tout (object-array (max (count a) basic-register-frame))]
+        (doseq [x (range (count a))]
+          (aset tout x (rget r (nth a x))))
+        (rset r (second terms) tout)))
     (c r)))
 
 ;; these two are both the same, but at some point we may do some messing about
@@ -241,7 +243,7 @@
   (fn [r]
     (let [channel (rget r (second terms))
           nregs (rget r (third terms))]
-      (channel nregs)
+      (channel (if (= (rget r op-register) 'flush) r nregs))
       (c r))))
 
 ;; something awfully funny going on with the op around the scan
