@@ -5,6 +5,7 @@
             [server.smil :as smil]
             [server.compiler :as compiler]
             [server.serialize :as serialize]
+            [clojure.pprint :refer [pprint]]
             [server.exec :as exec]))
 
 (def bag (atom 98))
@@ -13,12 +14,7 @@
 (defn repl-error [& thingy]
   (throw thingy))
 
-(defn form-from-smil [z]
-  (let [p (second z)
-        v (apply concat
-                 (rest (rest z))
-                 (list (list (apply list 'return (if (empty? p) () (list p))))))]
-    [v (vec p)]))
+(defn form-from-smil [z] [z (second z)])
 
 (defn show [d expression]
   (let [[form keys] (form-from-smil (smil/unpack d (second expression)))
@@ -30,9 +26,9 @@
   ;; the compile-time error path should come up through here
   ;; fix external number of regs
   (let [[form keys] (form-from-smil (smil/unpack d expression))
-        res (fn [op tuple]
-              (condp = op
-                'insert (println (zipmap (vec keys) (vec tuple)))
+        res (fn [tuple]
+              (condp = (exec/rget tuple exec/op-register)
+                'insert (println (zipmap (vec keys) (vec (exec/rget tuple exec/input-register))))
                 'flush  (println 'flush)
                 ))
         prog (compiler/compile-dsl d @bag form)
@@ -44,15 +40,15 @@
   ;; the compile-time error path should come up through here
   ;; fix external number of regs
   (let [[form keys] (form-from-smil (smil/unpack d (second expression)))
-        res (fn [op tuple]
-              (condp = op
-                'insert (println (zipmap (vec keys) (vec tuple)))
+        res (fn [tuple]
+              (condp = (exec/rget tuple exec/op-register)
+                'insert (println (zipmap (vec keys) (vec (exec/rget tuple exec/input-register))))
                 'flush  (println 'flush)
                 ))
         _ (println form)
         prog (compiler/compile-dsl d @bag form)
-        _ (println (exec/print-program prog))
-        ec  (exec/open-trace d prog res)]
+        _ (pprint prog)
+        ec (exec/open-trace d prog res)]
     (ec 'insert)
     (ec 'flush)))
 

@@ -23,32 +23,34 @@
           user
           bag))
 
+;; i would like to use backtick here, but clojure is really screwing
+;; up my symbols
 (defn weasl-implications-for [id]
-  (list
-   (list 'scan edb/full-scan-oid [4] [])
-   (list '= [5] [4 1] implication-oid)
-   '(filter [5])
-   (list '= [5] [4 0] id)
-   '(filter [5])
-   (list 'send [1] [4 2])))
+  (list (list
+         'bind 'main
+         (list (list 'scan edb/full-scan-oid [4] [])
+               (list '= [5] [4 1] implication-oid)
+               '(filter [5])
+               (list '= [5] [4 0] id)
+               '(filter [5])
+               (list 'tuple [5] exec/op-register exec/bag-register [4 2])
+               (list 'send 'out [5])))))
 
 (defn for-each-implication [d id handler]
   (exec/single d (weasl-implications-for id)
-               (fn [op tuple]
-                 (when (= op 'insert)
-                   (handler (first tuple) (second tuple))))))
+               (fn [tuple]
+                 (when (= (exec/rget tuple exec/op-register) 'insert)
+                   (let [b (exec/rget tuple exec/input-register)]
+                   (handler (first b) (second b)))))))
 
 
 ;; @FIXME: This relies on exec/open flushing synchronously to determine if the implication currently exists
 (defn implication-of [d id]
-  (let [impl (atom nil)
-        terminus (fn [tuple]
-                   (when (= (tuple 0) 'insert)
-                     (reset! impl tuple)))]
+  (let [impl (atom nil)]
     (exec/single d (weasl-implications-for id)
-                 (fn [op tuple]
-                   (when (= op 'insert)
-                     (reset! impl tuple))))
+                 (fn [tuple]
+                   (when (= (exec/rget tuple exec/op-register) 'insert)
+                     (reset! impl (exec/rget tuple exec/input-register)))))
     @impl))
-                   
+
 

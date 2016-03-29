@@ -4,6 +4,7 @@
    [server.db :as db]
    [server.edb :as edb]
    [server.log :as log]
+   [server.smil :as smil]
    [server.repl :as repl]
    [server.jsclient :as jsclient]))
 
@@ -23,7 +24,7 @@
         parameter-map
         {"-s" log/set-pathname
          "-p" (fn [x] (reset! port (Integer. x)))
-         "-e" (fn [x] (repl/eeval @db (read-string x)))}
+         "-e" (fn [x] (repl/eeval @db (smil/read x)))}
 
 
         arglist (fn arglist [args]

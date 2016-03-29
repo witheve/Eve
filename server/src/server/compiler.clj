@@ -1,13 +1,13 @@
-
 (ns server.compiler
   (:require
    [server.db :as db]
    [server.edb :as edb]
    [server.exec :as exec]
-   [clojure.set :as set]))
+   [clojure.set :as set]
+   [clojure.string :as string]
+   [clojure.pprint :refer [pprint]]))
 
 (def initial-register 5)
-(def tmp-register [4])
 
 ;; cardinality changing operations should set a flag so we know
 ;; should also be able to retire registers that aren't being referenced
@@ -18,299 +18,259 @@
 ;; environment should keep an identifier on the delta currently in effect
 ;; what about non-unique conditions?
 
-(defn bset [e & key]
-  (let [c (count key)]
-    (if (= c 2)
-      (swap! e assoc (first key) (second key))
-      (swap! e assoc (first key) (apply bset (@e (first key)) (rest key))))))
-
-
-(defn bget [e & key]
-  (let [internal (fn internal [e key]
-                   (let [k0 (first key)]
-                     (cond
-                       (= e nil) nil
-                       (and (= (count key) 1) (= (type k0) clojure.lang.PersistentArrayMap)) (keys k0)
-                       (= (count key) 1) (e k0)
-                       :default (internal (e k0) (rest key)))))]
-    (internal @e key)))
-    
-(defn new-bindings [] (atom {}))
-
-(defn child-bindings [e] (atom @e))
-
-;; wrap a handler
-(defn compile-error [& thingy]
-  (apply println "compiler error" thingy)
-  (throw thingy))
-
-;; lookup happens in the emit stage, it returns either a constant value, or the register
-;; which is currently holding that value
-(defn lookup [f name]
-  (if (or (symbol? name) (keyword? name))
-    (bget f 'bound name)
-    name))
-
-(defn add-dependencies [e & n]
-  (let [z (filter symbol? n)]
-    (swap! e (fn [x] (assoc x 'dependencies (if-let [b (x 'dependencies)]
-                                              (set/union b z)
-                                              (set z)))))))
-
-;; where vals is a map
-(defn bind-names [e n]
-  (swap! e (fn [x] (assoc x 'bound (if-let [b (x 'bound)] (merge b n) n)))))
-
-;; this overflow register set probably isn't the best plan, but its
-;; likely better than the 'overwrite the registers on startup with
-;; a sufficiently large set
-(defn allocate-register [e name]
-  (let [bound (- exec/basic-register-frame 1)
-        r (if-let [r (bget e 'register)] r 0)]
-    (if (> r (- bound 1))
-      (let [r (if-let [r (bget e 'overflow)] r 0)]
-        (bind-names e {name [bound r]})
-        (bset e 'overflow (+ r 1))
-        [bound r])
-      (do
-        (bset e 'register (+ r 1))
-        (bind-names e {name [r]})
-        r))))
-
-;; a generator is a null-adic function which spits out weasel using
-;; the (possibly updated) environment that was captured at the
-;; time it was compiled
-(defn compose [& gens]
-  (fn [] (apply concat (map (fn [x] (x)) gens))))
-
-;; is lookup always the right thing here?
-;; term is a fragment i guess, to shortcut some emits (?)
-(defn term [e op & terms]
-  (fn []
-    (list (conj (map (fn [x] (lookup e x)) terms) op))))
-
-
-(defn generate-send [e channel arguments]
-  (let [out (gensym 'tuple)]
-    (allocate-register e out)
-    (apply add-dependencies e channel arguments)
-    (let [cycle-filters (map (fn [x] (term e 'filter x))
-                             (set/difference (bget e 'cycles)
-                                             (bget e 'cycle-heads)))]
-      (apply compose 
-             (concat cycle-filters
-                     (list (apply term e 'tuple out (map (fn [x] (bget e 'bound x)) arguments)))
-                     (list (term e 'send channel out)))))))
-
-;; inside is a function which takes the inner environment
-(defn generate-bind [e inside inputs channel-name]
-  (println "Generate bind")
-  (let [tuple-target-name (gensym 'closure-tuple)
-        input-map (zipmap inputs (range (count inputs)))
-        inside-env (child-bindings e)
-        z (do
-            (bset inside-env 'register initial-register)
-            (bset inside-env 'dependencies #{}))
-        body (inside inside-env)
-        tuple-names (reduce
-                     (fn [b x]
-                       (if (bget e 'bound x)
-                         (do
-                           (bind-names inside-env {x [1 (count b)]})
-                           (concat b (list x)))
-                         b))
-                     ()
-                     (bget inside-env 'dependencies))]
-    
-    (bset e 'dependencies (set/union (bget e 'dependencies)
-                                     (bget inside-env 'dependencies)))
-    (compose (apply term e 'tuple tuple-target-name tuple-names)
-             (term e 'bind channel-name tuple-target-name (body)))
-    (term e 'bind channel-name (body))))
-
-
-;; an arm takes a down
-
-(defn generate-union [e signature arms down]
-  (cond (= (count arms) 0) (down e)
-        (= (count arms) 1) ((first arms) down)
-        :default 
-        (let [cid (gensym 'union-channel)]
-          (apply compose (concat (map (fn [x]
-                                        ;; subquery
-                                        (x (fn [e] (generate-send e cid signature))))
-                                      arms)
-                                 (list (generate-bind e down signature cid)))))))
-              
-(declare compile-conjunction)
-
-(defn compile-return [e terms down]
-  (compose
-   (generate-send e 'return-channel (if-let [k (second terms)] k ()))
-   (down e)))
-
-(defn compile-simple-primitive [e terms down]
-  (let [argmap (apply hash-map (rest terms))
-        simple [(argmap :return) (argmap :a) (argmap :b)]
-        ins (map (fn [x] (bget e 'bound x)) simple)]
-    (if (some not (rest ins))
-      ;; handle the [b*] case by blowing out a temp
-      (do
-        (allocate-register e (first simple))
-        (compose
-         (apply term e (first terms) simple)
-         (down e)))
-      (compile-error (str "unhandled bound signature in" terms)))))
-          
-
-(defn generate-binary-filter [e terms down]
-  (let [argmap (apply hash-map (rest terms))]
-    (apply add-dependencies e terms)
-    (compose 
-     (term e (first terms) tmp-register (argmap :a) ( argmap :b))
-     (term e 'filter tmp-register)
-     (down e))))
-
-;; really the same as lookup...fix
-(defn is-bound? [e name]
-  (if (or (symbol? name) (keyword? name))
-    (bget e 'bound name)
-    name))
-
-(defn compile-equal [e terms down]
-  (let [argmap (apply hash-map (rest terms))
-        simple [(argmap :a) (argmap :b)]
-        a (is-bound? e (argmap :a))
-        b (is-bound? e (argmap :b))
-        rebind (fn [s d]
-                 (bind-names e {d s})
-                 (down e))]
-    (cond (and a b) (generate-binary-filter e terms down)
-          a (rebind a (argmap :b))
-          b (rebind b (argmap :a))
-          :else
-          (compile-error "reordering necessary, not implemented"))))
-    
-
 (defn partition-2 [pred coll]
   ((juxt
     (partial filter pred)
     (partial filter (complement pred)))
-     coll))
+   coll))
+
+(defn merge-state [a b]
+  (if (and (map? a) (map? b))
+    (merge-with merge-state a b)
+    (if (and (coll? a) (coll? b))
+      (into a b)
+      b)))
+
+(defn build [& a]
+  (doall (apply concat a)))
+
+
+(defn new-env [d]
+  (let [env (atom {})]
+    (swap! env assoc 'db d)
+    env))
+
+;; wrap a handler
+(defn compile-error [message data]
+  (throw (ex-info message (assoc data :type "compile"))))
+
+;; lookup happens in the emit stage, it returns either a constant value, or the register
+;; which is currently holding that value
+(defn lookup [env name]
+  (if (or (symbol? name) (keyword? name))
+    (get-in @env ['bound name] nil)
+    name))
+
+(defn is-bound? [env name]
+  (if (or (symbol? name) (keyword? name))
+    (if (get-in @env ['bound name] nil)
+      true
+      false)
+    name))
+
+(defn add-dependencies [env & names]
+  (swap! env
+         #(merge-with merge-state %1 {'dependencies (set (filter symbol? names))})))
+
+(defn bind-names [env names]
+  (swap! env
+         #(merge-with merge-state %1 {'bound names})))
+
+;; this overflow register set probably isn't the best plan, but its
+;; likely better than the 'overwrite the registers on startup with
+;; a sufficiently large set
+(defn allocate-register [env name]
+  (let [bound (- exec/basic-register-frame 1)
+        r (get @env 'register initial-register)]
+    (if (> r (- bound 1))
+      (let [r (get @env 'overflow 0)]
+        (bind-names env {name [bound r]})
+        (swap! env #(assoc %1 'overflow (inc r)))
+        [bound r])
+      (do
+        (swap! env #(assoc %1 'register (inc r)))
+        (bind-names env {name [r]})
+        r))))
+
+(defn term [env op & terms]
+  (list (conj (map (fn [x] (lookup env x)) terms) op)))
+
+(defn generate-send [env channel arguments]
+  (apply add-dependencies env arguments)
+  ;; try to interpolate between the old world where there was an 'input register'
+  ;; and the new world where send establishes the entire register context at the
+  ;; target
+  (let [[input ir] (if (> (count arguments) 0)
+                     [(apply term env 'tuple exec/temp-register (map #(lookup env %1) arguments))
+                      exec/temp-register]
+                     [() []])]
+    (apply build
+           (list (concat
+                  input
+                  (list (list 'tuple exec/temp-register exec/op-register exec/bag-register ir))
+                  (list (list 'send channel exec/temp-register)))))))
+  
+
+
+
+(declare compile-conjunction)
+
+
+(defn compile-simple-primitive [env terms down]
+  (let [argmap (apply hash-map (rest terms))
+        simple [(argmap :return) (argmap :a) (argmap :b)]
+        ins (map #(get-in @env ['bound %1] nil) simple)]
+    (if (some not (rest ins))
+      ;; handle the [b*] case by blowing out a temp
+      (do
+        (allocate-register env (first simple))
+        (build
+         (apply term env (first terms) simple)
+         (down)))
+      (compile-error (str "unhandled bound signature in" terms) {:env env :terms terms}))))
+
+
+(defn generate-binary-filter [env terms down]
+  (let [argmap (apply hash-map (rest terms))]
+    (apply add-dependencies env terms)
+    (let [r  (build
+             (term env (first terms) exec/temp-register (argmap :a) ( argmap :b))
+             (term env 'filter exec/temp-register)
+             (down))]
+      r)))
+
+(defn compile-equal [env terms down]
+  (let [argmap (apply hash-map (rest terms))
+        simple [(argmap :a) (argmap :b)]
+        a (is-bound? env (argmap :a))
+        b (is-bound? env (argmap :b))
+        rebind (fn [s d]
+                 (bind-names env {d s})
+                 (down))]
+    (cond (and a b) (generate-binary-filter env terms down)
+          a (rebind a (argmap :b))
+          b (rebind b (argmap :a))
+          :else
+          (compile-error "reordering necessary, not implemented" {:env env :terms terms}))))
 
 (defn indirect-bind [slot m]
   (zipmap (vals m) (map (fn [x] [slot x]) (keys m))))
 
-
-(defn generate-scan [e terms down collapse]
+;; figure out how to handle the quintuple
+;; need to do index selection here - resolve attribute name
+(defn generate-scan [env terms down collapse]
   (let [signature [:entity :attribute :value :bag :tick :user]
         pmap (zipmap signature (range (count signature)))
         amap (apply hash-map (rest terms))
-        ;; bound and free are in fact keyword space
-        [bound free] (partition-2 (fn [x] (is-bound? e (amap x))) signature)
+        [bound free] (partition-2 (fn [x] (is-bound? env (amap x))) signature)
         [specoid index-inputs index-outputs] [edb/full-scan-oid () signature]
         filter-terms (set/intersection (set index-outputs) (set bound))
         target-reg-name (gensym 'target)
-        target-reg (allocate-register e target-reg-name)
+        target-reg (allocate-register env target-reg-name)
         body (reduce (fn [b t]
-                       (fn [e]
+                       (fn []
                          (generate-binary-filter
-                          e
+                          env
                           (list '= :a [target-reg (pmap t)] :b (amap t))
                           b)))
                      down filter-terms)]
-    
-    ;; if we have flappies (= (amap free_i) nil) then we are no longer unique
-    (bind-names e (indirect-bind target-reg (zipmap (map pmap free) (map amap free))))
+
+    (bind-names env (indirect-bind target-reg (zipmap (map pmap free) (map amap free))))
 
     (if collapse
-      (compose
-       ;; needs to take a projection set for the indices
-       (term e 'scan specoid tmp-register [])
-       (term e 'delta-e target-reg-name tmp-register)
-       (body e))
-      (compose
-       (term e 'scan specoid tmp-register [])
-       (body e)))))
+      (apply build
+             ;; needs to take a projection set for the indices
+             (term env 'scan specoid exec/temp-register [])
+             (term env 'delta-e target-reg-name exec/temp-register)
+             (list (body)))
+      (apply build
+             (term env 'scan specoid exec/temp-register [])
+             (list (body))))))
 
 
+(defn make-continuation [env name body]
+  (swap! env #(merge-with merge-state %1 {'blocks {name (list 'bind name body)}})))
+
+(defn make-bind [env inner-env name body]
+  (let [over (get @inner-env 'overflow)
+        body (if over
+               (build body (term @inner-env 'tuple [(- exec/basic-register-frame 1)] (repeat over nil)))
+               body)]
+    (swap! env update-in ['blocks] concat (get @inner-env 'blocks))
+    (make-continuation env name body)))
+
+
+(defn get-signature [relname callmap bound]
+  (let [bound (set bound)
+        keys (sort (keys callmap))
+        adornment (string/join "," (map #(str (name %1) "=" (if (bound %1) "b" "f")) keys))]
+    (str relname "|" adornment)))
 
 ;; unification across the keyword-value bindings (?)
-(defn compile-implication [e terms down]
+(defn compile-implication [env terms down]
   (let [relname (name (first terms))
-        dekey (fn [x] (symbol (name x)))
+        to-input-slot (fn [ix] [(exec/input-register 0) ix])
         callmap (apply hash-map (rest terms))
         arms (atom ())
-        ibinds (reduce-kv
-                (fn [b k v] (if-let [v (lookup e v)] (assoc b k v) b))
-                {} callmap)
-        outputs (set/difference (set (keys callmap)) (set (keys ibinds)))
+        [bound free] (partition-2 (fn [x] (is-bound? env (x callmap))) (keys callmap))
+        signature (get-signature relname callmap bound)
+        tail-name (gensym "continuation")
         army (fn [parameters body]
-               (fn [down]
-                 (let [internal (child-bindings e)]
-                   (bset internal 'dependencies #{})
-                   (bind-names internal (zipmap (map dekey (keys ibinds)) (vals ibinds)))
-                   (compile-conjunction
-                    internal body
-                    (fn [tail]
-                      (bset tail 'register (bget internal 'register))
-                      (bset tail 'overflow (bget internal 'overflow))
-                      (apply add-dependencies tail (bget internal 'dependencies))
-                      ;; mapping out into the incorrect injunction of inner, e0 and eb
-                      (bind-names tail (zipmap (map callmap outputs)
-                                               (map (fn [x] (bget tail 'bound (dekey x))) outputs)))
-                      (let [x (down tail)]
-                        ;; fack
-                        (bset e 'overflow (bget internal 'overflow))
-                        x))))))]
+               (let [arm-name (gensym signature)
+                     inner-env (new-env (get @env 'db))
+                     _ (bind-names inner-env (zipmap (map name bound) (map to-input-slot (range (count bound)))))
+                     body (compile-conjunction inner-env body (fn [] (generate-send inner-env tail-name (map #(symbol (name %1)) free))))]
+                 (make-bind env inner-env arm-name body)
+                 arm-name))]
 
     ;; validate the parameters as both a proper superset of the input
     ;; and conformant across the union legs
-    (db/for-each-implication (bget e 'db) relname 
+    (db/for-each-implication (get @env 'db) relname
                              (fn [parameters body]
                                (swap! arms conj (army parameters body))))
-    (generate-union e outputs @arms down)))
+
+    (bind-names env (zipmap (map callmap free) (map to-input-slot (range (count free)))))
+    (make-continuation env tail-name (down))
+    (apply build (map #(generate-send env %1 (map callmap bound)) @arms))))
+
+(defn compile-union [env terms down]
+  (let [[_ proj & arms] terms
+        tail-name (gensym "continuation")
+        [bound free] (partition-2 (fn [x] (is-bound? env x)) proj)
+        to-input-slot (fn [ix] [exec/input-register (inc ix)])
+        body (apply build
+                    (map #(let [arm-name (gensym "arm")
+                                inner-env (new-env (get @env 'db))
+                                _ (bind-names inner-env (zipmap bound (map to-input-slot (range (count bound)))))
+                                body (rest (rest %1))
+                                _ (println "BODY" body)
+                                body (compile-conjunction inner-env body (fn [] (generate-send inner-env tail-name free)))]
+                            (make-bind env inner-env arm-name body)
+                            (generate-send env arm-name bound)) arms))]
+    (bind-names env (zipmap free (map to-input-slot (range (count free)))))
+    (make-continuation env tail-name (down))
+    body))
 
 
-;; could probably collpase more with compile-edb given a clue
-(defn compile-insert [env terms cont]
+(defn compile-insert [env terms down]
   (let [bindings (apply hash-map (rest terms))
         e (if-let [b (bindings :entity)] b nil)
         a (if-let [b (bindings :attribute)] b nil)
         v (if-let [b (bindings :value)] b nil)
-        b (if-let [b (bindings :bag)] b [2]) ; default bag
-        out (if-let [b (bindings :tick)] (let [r (allocate-register env (gensym 'insert-output))]
-                                           (bind-names env {b [r 4]})
-                                           [r]) [])]
-    (compose
-     (term env 'tuple tmp-register e a v b)
-     (term env 'scan edb/insert-oid out tmp-register)
-     (cont env))))
+        b (if-let [b (bindings :bag)] b exec/bag-register)] 
+
+    (let [z (down)]
+      (apply build
+             (term env 'tuple exec/temp-register e a v b)
+             (term env 'scan edb/insert-oid exec/temp-register exec/temp-register)
+             (list z)))))
 
 
 
-(defn compile-union [e terms down]
-  ;; these need to be lambda [e down]
-  (generate-union (apply hash-map (second terms)) (rest (rest terms)) down))
+(defn compile-query [env terms down]
+  (let [[query proj & body] terms
+        inner-env (new-env (get @env 'db))
+        inner-name (gensym "query")
+        tail-name (gensym "continuation")
+        [bound free] (partition-2 (fn [x] (is-bound? env x)) proj)
+        to-input-slot (fn [ix] [exec/input-register (inc ix)])
+        _ (bind-names inner-env (zipmap bound (map to-input-slot (range (count bound)))))
+        body (compile-conjunction inner-env body (fn [] (generate-send inner-env tail-name free)))]
+    (make-continuation env tail-name (down))
+    (make-bind env inner-env inner-name body)
+    (generate-send env inner-name bound)))
 
-
-(defn compile-sum [e triple down]
-  ())
-
-(defn compile-query [e terms cont]
-  ;; this has a better formulation in the new world? what about export
-  ;; of solution? what about its projection?
-  ;; the bindings of the tail need to escape, but not the
-  ;; control edge (cardinality)
-  (let [body (rest (rest terms)) ;; smil - (if (vector? (second terms)) (rest terms) terms))
-        out (compile-conjunction e body (fn [e] (fn [] ())))
-        down (cont e)]
-    (fn []
-      ((compose 
-        (term e 'subquery (out))
-        down)))))
-
-(defn compile-expression [e terms down]
+(defn compile-expression [env terms down]
   (let [commands {'+ compile-simple-primitive
                   '* compile-simple-primitive
                   '/ compile-simple-primitive
@@ -318,7 +278,7 @@
                   '< generate-binary-filter
                   '> generate-binary-filter
                   'sort compile-simple-primitive ;; ascending and descending
-                  'sum compile-sum
+
                   'str compile-simple-primitive
                   'insert-fact-btu! compile-insert
                   'fact-btu (fn [e terms down]
@@ -329,39 +289,29 @@
                   '= compile-equal
                   'not-equal generate-binary-filter
                   'union compile-union
-                  'return compile-return
                   'query compile-query}
         relname (first terms)]
     (if-let [c (commands relname)]
-      (c e terms down)
-      (compile-implication e terms down))))
+      (c env terms down)
+      (compile-implication env terms down))))
 
-(defn compile-conjunction [e terms down]
-  (if (empty? terms) (down e)
-      (compile-expression e (first terms)
-                          (fn [ed] (compile-conjunction ed (rest terms) down)))))
+(defn compile-conjunction [env terms down]
+  (if (empty? terms) (down)
+      (compile-expression env (first terms)
+                          (fn [] (compile-conjunction env (rest terms) down)))))
 
-
-;; multiple kv, no deep keys
-(defn bset2 [e & key]
-  (when (not (empty? key))
-    (bset e (first key) (second key))
-    (apply bset2 e (rest (rest key)))))
-
-
-(defn compile-dsl [d bid terms]
-  (let [e (new-bindings)
+(defn compile-dsl [d bag terms]
+  (let [env (new-env d)
         ;; side effecting
-        z (bset2 e
-                 'db d
-                 'register initial-register
-                 'bid bid
-                 'default-bag [2]
-                 'empty [])
-        _ (bind-names e {'return-channel [1]
-                         'op [0]})
-        p (compile-conjunction e terms (fn [e] (fn [] ())))]
-    ((if-let [over (bget e 'overflow)]
-       (compose (apply term e 'tuple [(- exec/basic-register-frame 1)] (repeat over nil)) p)
-       p))))
-
+        _ (swap! env assoc 'bag bag)
+        ;; (send 'out [1])
+        p (compile-expression
+           ;; maybe replace with zero register? maybe just shortcut this last guy?
+           env terms (fn []
+                       (build
+                        (list (list 'tuple exec/temp-register exec/op-register exec/bag-register exec/input-register))
+                        (list (list 'send 'out exec/temp-register)))))]
+    (make-continuation env 'main p)
+    (vals (get @env 'blocks))))
+    ;; emit blocks
+    ;; wrap the main block
