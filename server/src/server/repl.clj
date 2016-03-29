@@ -25,8 +25,8 @@
   ;; the compile-time error path should come up through here
   ;; fix external number of regs
   (let [[form keys] (form-from-smil (smil/unpack d expression))
-        res (fn [op tuple]
-              (condp = op
+        res (fn [tuple]
+              (condp = (exec/rget tuple exec/op-register)
                 'insert (println (zipmap (vec keys) (vec tuple)))
                 'flush  (println 'flush)
                 ))

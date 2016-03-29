@@ -199,7 +199,7 @@
 ;; unification across the keyword-value bindings (?)
 (defn compile-implication [env terms down]
   (let [relname (name (first terms))
-        to-input-slot (fn [ix] [exec/input-register (inc ix)])
+        to-input-slot (fn [ix] [(exec/input-register 0) (inc ix)])
         callmap (apply hash-map (rest terms))
         arms (atom ())
         [bound free] (partition-2 (fn [x] (is-bound? env (x callmap))) (keys callmap))
@@ -247,7 +247,7 @@
         e (if-let [b (bindings :entity)] b nil)
         a (if-let [b (bindings :attribute)] b nil)
         v (if-let [b (bindings :value)] b nil)
-        b (if-let [b (bindings :bag)] b [2])] ; default bag
+        b (if-let [b (bindings :bag)] b exec/bag-register)] 
 
     (let [z (down)]
       (apply build

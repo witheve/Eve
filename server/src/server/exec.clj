@@ -96,7 +96,6 @@
           ;; since this is often a file, we currently force this to be at least the base max frame size
           tout (object-array (max (count a) basic-register-frame))]
       (doseq [x (range (count a))]
-        ;; offset by 1 to leave the 0 slot unassigned..sadness
         (aset tout x (rget r (nth a x))))
       (rset r (second terms) tout))
     (c r)))
@@ -311,20 +310,20 @@
 (defn exec-error [reg comment]
   (throw (ex-info comment {:registers reg :type "exec"})))
 
-(defn build [name names built d t wrap]
-  (if (= name 'out) input-register
+(defn build [name names built d t wrap final]
+  (if (= name 'out) final
       (let [doterms (fn doterms [t]
                       (if (empty? t) (fn [r] ())
                           (let [z (if (= (first (first t)) 'send)
                                     (let [target (second (first t))]
                                       (list 'send
                                             (if-let [c (@built target)] c
-                                                    (build target names built d (@names target) wrap))
+                                                    (build target names built d (@names target) wrap final))
                                             (third (first t))))
                                     (first t))
                                 k (first z)]
                             (if-let [p (command-map (first z))]
-                              (wrap (p d z (doterms (rest t))))
+                              (wrap (first t) (p d z (doterms (rest t))))
                               (exec-error [] (str "bad command" k))))))
             trans (doterms t)]
         (swap! built assoc name trans)
@@ -342,7 +341,10 @@
         built (atom {})
         _ (doseq [i program]
             (swap! blocks assoc (second i) (nth i 2)))
-        e (build 'main blocks built d (@blocks 'main) (fn [x] x))]
+        e (build 'main blocks built d (@blocks 'main)
+                 (fn [n x] x) ;; for notrace
+                 ;; (fn [n x] (fn [r] (println "trace" n (print-registers r)) (x r)))
+                 arguments)]
 
     (rset reg input-register arguments)
     (fn [op]
