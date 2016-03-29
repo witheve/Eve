@@ -330,11 +330,7 @@
         trans)))
 
 
-;; fix r in an eval
-;;   0  root
-;;   1  arguments
-;;   2  bag default
-;;   3  op
+;; fuse notrace and trace versions
 (defn open [d program arguments]
   (let [reg (object-array basic-register-frame)
         blocks (atom {})
@@ -342,8 +338,22 @@
         _ (doseq [i program]
             (swap! blocks assoc (second i) (nth i 2)))
         e (build 'main blocks built d (@blocks 'main)
-                 (fn [n x] x) ;; for notrace
-                 ;; (fn [n x] (fn [r] (println "trace" n (print-registers r)) (x r)))
+                 (fn [n x] x) 
+                 arguments)]
+    
+    (rset reg input-register arguments)
+    (fn [op]
+      (rset reg op-register op)
+      (e reg))))
+
+(defn open-trace [d program arguments]
+  (let [reg (object-array basic-register-frame)
+        blocks (atom {})
+        built (atom {})
+        _ (doseq [i program]
+            (swap! blocks assoc (second i) (nth i 2)))
+        e (build 'main blocks built d (@blocks 'main)
+                 (fn [n x] (fn [r] (println "trace" n (print-registers r)) (x r)))
                  arguments)]
 
     (rset reg input-register arguments)

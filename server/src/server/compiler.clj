@@ -308,7 +308,6 @@
         p (compile-expression
            env terms (fn [] (generate-send env 'out (list exec/input-register))))]
     (make-continuation env 'main p)
-    (pprint (vals (get @env 'blocks)))
     (vals (get @env 'blocks))))
     ;; emit blocks
     ;; wrap the main block

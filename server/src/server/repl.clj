@@ -5,6 +5,7 @@
             [server.smil :as smil]
             [server.compiler :as compiler]
             [server.serialize :as serialize]
+            [clojure.pprint :refer [pprint]]
             [server.exec :as exec]))
 
 (def bag (atom 98))
@@ -39,15 +40,15 @@
   ;; the compile-time error path should come up through here
   ;; fix external number of regs
   (let [[form keys] (form-from-smil (smil/unpack d (second expression)))
-        res (fn [op tuple]
-              (condp = op
+        res (fn [tuple]
+              (condp = (exec/rget tuple exec/op-register)
                 'insert (println (zipmap (vec keys) (vec tuple)))
                 'flush  (println 'flush)
                 ))
         _ (println form)
         prog (compiler/compile-dsl d @bag form)
-        _ (println (exec/print-program prog))
-        ec  nil] ;; (exec/open-trace d prog res)]
+        _ (pprint prog)
+        ec (exec/open-trace d prog res)]
     (ec 'insert)
     (ec 'flush)))
 
