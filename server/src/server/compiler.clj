@@ -87,11 +87,19 @@
 
 (defn generate-send [env channel arguments]
   (apply add-dependencies env arguments)
-  (if (> (count arguments) 0)
-    (build
-     (apply term env 'tuple exec/temp-register (map #(lookup env %1) arguments))
-     (list (list 'send channel exec/temp-register)))
-    (doall (list (list 'send channel [])))))
+  ;; try to interpolate between the old world where there was an 'input register'
+  ;; and the new world where send establishes the entire register context at the
+  ;; target
+  (let [[input ir] (if (> (count arguments) 0)
+                     [(apply term env 'tuple exec/temp-register (map #(lookup env %1) arguments))
+                      exec/temp-register]
+                     [() []])]
+    (apply build
+           (list (concat
+                  input
+                  (list (list 'tuple exec/temp-register exec/op-register exec/bag-register ir))
+                  (list (list 'send channel exec/temp-register)))))))
+  
 
 
 

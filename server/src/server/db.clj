@@ -33,14 +33,15 @@
                '(filter [5])
                (list '= [5] [4 0] id)
                '(filter [5])
-               (list 'tuple [5] exec/op-register [4 2])
+               (list 'tuple [5] exec/op-register exec/bag-register [4 2])
                (list 'send 'out [5])))))
 
 (defn for-each-implication [d id handler]
   (exec/single d (weasl-implications-for id)
                (fn [tuple]
-                 (when (= (aget tuple 0) 'insert)
-                   (handler (first (aget tuple 1)) (second (aget tuple 1)))))))
+                 (when (= (exec/rget tuple exec/op-register) 'insert)
+                   (let [b (exec/rget tuple exec/input-register)]
+                   (handler (first b) (second b)))))))
 
 
 ;; @FIXME: This relies on exec/open flushing synchronously to determine if the implication currently exists
@@ -48,8 +49,8 @@
   (let [impl (atom nil)]
     (exec/single d (weasl-implications-for id)
                  (fn [tuple]
-                   (when (= (aget tuple 0) 'insert)
-                     (reset! impl (aget tuple 1)))))
+                   (when (= (exec/rget tuple exec/op-register) 'insert)
+                     (reset! impl (exec/rget tuple exec/input-register)))))
     @impl))
-                   
+
 

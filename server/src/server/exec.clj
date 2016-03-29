@@ -5,10 +5,10 @@
             [clojure.pprint :refer [pprint]]))
 
 (def basic-register-frame 10)
-(def op-register [1])
-(def bag-register [2])
-(def input-register [3])
-(def temp-register [4])
+(def op-register [0])
+(def bag-register [1])
+(def input-register [2])
+(def temp-register [3])
 
 (def object-array-type (class (object-array 1)))
 
@@ -50,7 +50,7 @@
     (traverse p 0)))
 
 ;; these register indirections could be resolved at build time? yeah, kinda
-
+;; no longer support the implicit zero register
 
 (defn rget [r ref]
   (cond (not (vector? ref)) ref
@@ -91,9 +91,14 @@
   (rset r (second terms) (vec (repeat (nth terms 2) nil))))
 
 (defn tuple [d terms c]
-  (fn bobby [r]
-    (rset r (second terms)
-          (object-array (map (fn [x] (rget r x)) (rest (rest terms)))))
+  (fn [r]
+    (let [a (rest (rest terms))
+          ;; since this is often a file, we currently force this to be at least the base max frame size
+          tout (object-array (max (count a) basic-register-frame))]
+      (doseq [x (range (count a))]
+        ;; offset by 1 to leave the 0 slot unassigned..sadness
+        (aset tout x (rget r (nth a x))))
+      (rset r (second terms) tout))
     (c r)))
 
 ;; these two are both the same, but at some point we may do some messing about
@@ -236,11 +241,9 @@
 
 (defn dosend [d terms c]
   (fn [r]
-    (let [channel (rget r (second terms))]
-      ;; currently this signature is different, because we dont want our
-      ;; external guys to try to deconstruct the working tuple...not sure how
-      ;; this works for internal sends (?)
-      (channel (rget r (nth terms 2)))
+    (let [channel (rget r (second terms))
+          nregs (rget r (third terms))]
+      (channel nregs)
       (c r))))
 
 ;; something awfully funny going on with the op around the scan
