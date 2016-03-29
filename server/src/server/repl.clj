@@ -28,7 +28,7 @@
   (let [[form keys] (form-from-smil (smil/unpack d expression))
         res (fn [tuple]
               (condp = (exec/rget tuple exec/op-register)
-                'insert (println (zipmap (vec keys) (vec exec/rget tuple exec/input-register)))
+                'insert (println (zipmap (vec keys) (vec (exec/rget tuple exec/input-register))))
                 'flush  (println 'flush)
                 ))
         prog (compiler/compile-dsl d @bag form)

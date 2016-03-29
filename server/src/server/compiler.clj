@@ -306,7 +306,11 @@
         _ (swap! env assoc 'bag bag)
         ;; (send 'out [1])
         p (compile-expression
-           env terms (fn [] (generate-send env 'out (list exec/input-register))))]
+           ;; maybe replace with zero register? maybe just shortcut this last guy?
+           env terms (fn []
+                       (build
+                        (list (list 'tuple exec/temp-register exec/op-register exec/bag-register exec/input-register))
+                        (list (list 'send 'out exec/temp-register)))))]
     (make-continuation env 'main p)
     (vals (get @env 'blocks))))
     ;; emit blocks
