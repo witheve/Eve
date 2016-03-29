@@ -199,7 +199,7 @@
 ;; unification across the keyword-value bindings (?)
 (defn compile-implication [env terms down]
   (let [relname (name (first terms))
-        to-input-slot (fn [ix] [(exec/input-register 0) (inc ix)])
+        to-input-slot (fn [ix] [(exec/input-register 0) ix])
         callmap (apply hash-map (rest terms))
         arms (atom ())
         [bound free] (partition-2 (fn [x] (is-bound? env (x callmap))) (keys callmap))
@@ -209,7 +209,7 @@
                (let [arm-name (gensym signature)
                      inner-env (new-env (get @env 'db))
                      _ (bind-names inner-env (zipmap (map name bound) (map to-input-slot (range (count bound)))))
-                     body (compile-conjunction inner-env body (fn [] (generate-send inner-env tail-name (map name free))))]
+                     body (compile-conjunction inner-env body (fn [] (generate-send inner-env tail-name (map #(symbol (name %1)) free))))]
                  (make-bind env inner-env arm-name body)
                  arm-name))]
 
