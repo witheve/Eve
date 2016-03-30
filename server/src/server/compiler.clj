@@ -295,6 +295,7 @@
                   '< generate-binary-filter
                   '> generate-binary-filter
                   'sort compile-simple-primitive ;; ascending and descending
+                  'sum compile-sum
 
                   'str compile-simple-primitive
                   'insert-fact-btu! compile-insert
