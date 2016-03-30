@@ -99,7 +99,7 @@
                   input
                   (list (list 'tuple exec/temp-register exec/op-register exec/bag-register ir))
                   (list (list 'send channel exec/temp-register)))))))
-  
+
 
 
 
@@ -119,6 +119,16 @@
          (down)))
       (compile-error (str "unhandled bound signature in" terms) {:env env :terms terms}))))
 
+(defn compile-sum [env terms down]
+  (let [grouping (get env 'input [])
+        argmap (apply hash-map (rest terms))]
+    (when-not (lookup env (:a argmap))
+      (compile-error (str "unhandled bound signature in" terms) {:env env :terms terms}))
+    (when-not (lookup env (:return argmap))
+      (allocate-register env (:return argmap)))
+    (build
+     (term env (first terms) (:return argmap) (:a argmap) grouping)
+     (down))))
 
 (defn generate-binary-filter [env terms down]
   (let [argmap (apply hash-map (rest terms))]
@@ -210,6 +220,7 @@
                      inner-env (new-env (get @env 'db))
                      _ (bind-names inner-env (zipmap (map name bound) (map to-input-slot (range (count bound)))))
                      body (compile-conjunction inner-env body (fn [] (generate-send inner-env tail-name (map #(symbol (name %1)) free))))]
+                 (swap! inner-env assoc 'input bound)
                  (make-bind env inner-env arm-name body)
                  arm-name))]
 
@@ -235,6 +246,7 @@
                                 body (rest (rest %1))
                                 _ (println "BODY" body)
                                 body (compile-conjunction inner-env body (fn [] (generate-send inner-env tail-name free)))]
+                            (swap! inner-env assoc 'input bound)
                             (make-bind env inner-env arm-name body)
                             (generate-send env arm-name bound)) arms))]
     (bind-names env (zipmap free (map to-input-slot (range (count free)))))
@@ -247,7 +259,7 @@
         e (if-let [b (bindings :entity)] b nil)
         a (if-let [b (bindings :attribute)] b nil)
         v (if-let [b (bindings :value)] b nil)
-        b (if-let [b (bindings :bag)] b exec/bag-register)] 
+        b (if-let [b (bindings :bag)] b exec/bag-register)]
 
     (let [z (down)]
       (apply build
@@ -266,6 +278,7 @@
         to-input-slot (fn [ix] [exec/input-register (inc ix)])
         _ (bind-names inner-env (zipmap bound (map to-input-slot (range (count bound)))))
         body (compile-conjunction inner-env body (fn [] (generate-send inner-env tail-name free)))]
+    (swap! inner-env assoc 'input bound)
     (make-continuation env tail-name (down))
     (make-bind env inner-env inner-name body)
     (generate-send env inner-name bound)))
