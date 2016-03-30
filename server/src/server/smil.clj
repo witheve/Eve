@@ -74,19 +74,19 @@
               'context {:kwargs [:bag :tick] :rest :body :optional #{:bag :tick :body}}})
 
 ;; These are only needed for testing -- they'll be provided dynamically by the db at runtime
-(def primitives {'+ {:args [:a :b] :kwargs [:result] :optional #{:result}}
-                 '- {:args [:a :b] :kwargs [:result] :optional #{:result}}
-                 '* {:args [:a :b] :kwargs [:result] :optional #{:result}}
-                 '/ {:args [:a :b] :kwargs [:result] :optional #{:result}}
+(def primitives {'+ {:args [:a :b] :kwargs [:return] :optional #{:return}}
+                 '- {:args [:a :b] :kwargs [:return] :optional #{:return}}
+                 '* {:args [:a :b] :kwargs [:return] :optional #{:return}}
+                 '/ {:args [:a :b] :kwargs [:return] :optional #{:return}}
 
-                 '= {:args [:a :b] :kwargs [:result] :optional #{:result}}
-                 '!= {:args [:a :b] :kwargs [:result] :optional #{:result}}
-                 '> {:args [:a :b] :kwargs [:result] :optional #{:result}}
-                 '>= {:args [:a :b] :kwargs [:result] :optional #{:result}}
-                 '< {:args [:a :b] :kwargs [:result] :optional #{:result}}
-                 '<= {:args [:a :b] :kwargs [:result] :optional #{:result}}
+                 '= {:args [:a :b] :kwargs [:return] :optional #{:return}}
+                 '!= {:args [:a :b] :kwargs [:return] :optional #{:return}}
+                 '> {:args [:a :b] :kwargs [:return] :optional #{:return}}
+                 '>= {:args [:a :b] :kwargs [:return] :optional #{:return}}
+                 '< {:args [:a :b] :kwargs [:return] :optional #{:return}}
+                 '<= {:args [:a :b] :kwargs [:return] :optional #{:return}}
 
-                 'sum {:args [:a] :kwargs [:result] :optional #{:result}}})
+                 'sum {:args [:a] :kwargs [:return] :optional #{:return}}})
 
 (defn get-schema
   ([op] (or (op schemas) (op primitives)))
