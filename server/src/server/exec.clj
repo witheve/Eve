@@ -164,15 +164,27 @@
         'remove (disj state terms)))))
 
 (defn sum [d terms c]
-  (fn [r]
-    (let [total (atom 0)]
-      (fn [t]
+  (let [totals (atom {})
+        prevs (atom {})]
+    (fn [r]
+      (let [out-slot (second terms)
+            value-slot (nth terms 2)
+            grouping-slots (nth terms 3)
+            grouping (map #(rget r %1) grouping-slots)]
+
         (condp = (rget r op-register)
-          'insert (swap! total (fn [x] (+ x (nth terms 2))))
-          'remove (swap! total (fn [x] (- x (nth terms 2))))
-          'flush (swap! total (fn [x] (- x (nth terms 2)))))))))
+          'insert (swap! totals update-in grouping (fnil + 0) (rget r value-slot))
+          'remove (swap! totals update-in grouping (fnil - 0) (rget r value-slot)))
 
+        (rset r out-slot (get-in @totals grouping))
+        (c r)
 
+        (when-not (= (rget r op-register) 'flush)
+          (when-not (nil? (get-in @prevs grouping nil))
+            (rset r op-register 'remove) ;; @FIXME: This needs to copied to be safe asynchronously
+            (rset r out-slot (get-in @prevs grouping))
+            (c r))
+          (swap! prevs assoc-in grouping (get-in @totals grouping)))))))
 
 ;; down is towards the base facts, up is along the removal chain
 ;; use stm..figure out a way to throw down..i guess since r
@@ -338,9 +350,9 @@
         _ (doseq [i program]
             (swap! blocks assoc (second i) (nth i 2)))
         e (build 'main blocks built d (@blocks 'main)
-                 (fn [n x] x) 
+                 (fn [n x] x)
                  arguments)]
-    
+
     (rset reg input-register arguments)
     (fn [op]
       (rset reg op-register op)
