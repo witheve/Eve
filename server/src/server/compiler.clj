@@ -259,6 +259,10 @@
     body))
 
 
+(defn compile-not [env terms down]
+  (build (list (list 'not (compile-conjunction env (rest terms) (fn [] ()))))
+         (down)))
+
 (defn compile-insert [env terms down]
   (let [bindings (apply hash-map (rest terms))
         e (if-let [b (bindings :entity)] b nil)
@@ -311,6 +315,7 @@
                                    (generate-scan e terms down true))
                   'range compile-simple-primitive
                   '= compile-equal
+                  'not compile-not
                   'not-equal generate-binary-filter
                   'union compile-union
                   'query compile-query}

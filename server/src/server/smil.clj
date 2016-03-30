@@ -68,7 +68,7 @@
 
               'union {:args [:params] :rest :members}
               'choose {:args [:params] :rest :members}
-              'not {:args [:expr]}
+              'not {:rest :body}
               'fact-btu {:args [:entity :attribute :value :bag] :kwargs [:tick] :optional #{:entity :attribute :value :bag :tick}}
               'full-fact-btu {:args [:entity :attribute :value :bag] :kwargs [:tick] :optional #{:entity :attribute :value :bag :tick}}
               'context {:kwargs [:bag :tick] :rest :body :optional #{:bag :tick :body}}})
@@ -284,7 +284,7 @@
                      insert-fact-btu! (cons op (splat-map (expand-values db args)))
                      union (concat [op] [(:params args)] (assert-queries (expand-each db (:members args))))
                      choose (concat [op] [(:params args)] (assert-queries (expand-each db (:members args))))
-                     not (cons op [(expand db (:expr args))])
+                     not (cons op (expand-each db (:body args)))
                      context (cons op (splat-map (expand-values db args)))
 
                      ;; Default

@@ -84,6 +84,10 @@
       (c r))))
 
 
+(defn donot [db terms c]
+  (fn [c]
+    ))
+
 (defn doprint [r terms]
   (println (map (fn [x] (rget r x)) terms)))
 
@@ -274,20 +278,6 @@
         (c r)))))
 
 
-(defn bind [d terms c]
-  (fn [r]
-    (let [[bindo dest body] terms
-          child (build d (second terms) r)]
-      (c (rset r dest child)))))
-
-
-(defn subquery [d terms c]
-  (let [subguy (build d (second terms))]
-    (fn [r]
-      (subguy r)
-      (c r))))
-
-
 (def command-map {'move      (simple move)
                   '+         (ternary-numeric +)
                   '-         (ternary-numeric -)
@@ -310,11 +300,10 @@
                   '=         (simple doequal)
                   'sum       sum
                   'sort      dosort
-                  'subquery  subquery
+                  'not       donot
 
                   'scan      doscan
                   'send      dosend
-                  'bind      bind
                   })
 
 ;; this needs to send an error message down the pipe
