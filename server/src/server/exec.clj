@@ -92,12 +92,14 @@
 
 (defn tuple [d terms c]
   (fn [r]
-    (let [a (rest (rest terms))
-          ;; since this is often a file, we currently force this to be at least the base max frame size
-          tout (object-array (max (count a) basic-register-frame))]
-      (doseq [x (range (count a))]
-        (aset tout x (rget r (nth a x))))
-      (rset r (second terms) tout))
+    (println "tuple" (rget r op-register))
+    (when (not= (rget r op-register) 'flush)
+      (let [a (rest (rest terms))
+            ;; since this is often a file, we currently force this to be at least the base max frame size
+            tout (object-array (max (count a) basic-register-frame))]
+        (doseq [x (range (count a))]
+          (aset tout x (rget r (nth a x))))
+        (rset r (second terms) tout)))
     (c r)))
 
 ;; these two are both the same, but at some point we may do some messing about
@@ -203,12 +205,11 @@
                  (contains? @assertions t) t
                  :else
                  (base (@down t))))
-
-        walk (fn walk [t]
+        walk (fn walk [t] 
                (let [k (@up t)]
                  (if (= k nil) true
                      (not (some walk @k)))))]
-
+    
     (fn [r]
       (let [[e a v b t u] (rget r in)]
         (if (= (rget r op-register) 'insert)
@@ -254,7 +255,7 @@
   (fn [r]
     (let [channel (rget r (second terms))
           nregs (rget r (third terms))]
-      (channel nregs)
+      (channel (if (= (rget r op-register) 'flush) r nregs))
       (c r))))
 
 ;; something awfully funny going on with the op around the scan
@@ -267,7 +268,6 @@
       (if (= (rget r op-register) 'insert)
         ((d oid
             (fn [t]
-              ;; ahem, who else might be looking at this?
               (rset r op-register 'insert)
               (rset r dest t)
               (c r)))
