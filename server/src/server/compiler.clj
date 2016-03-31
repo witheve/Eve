@@ -244,7 +244,7 @@
   (let [[_ proj & arms] terms
         tail-name (gensym "continuation")
         [bound free] (partition-2 (fn [x] (is-bound? env x)) proj)
-        to-input-slot (fn [ix] [(exec/input-register 0) (inc ix)])
+        to-input-slot (fn [ix] [(exec/input-register 0) ix])
         body (apply build
                     (map #(let [arm-name (gensym "arm")
                                 inner-env (new-env (get @env 'db))
@@ -285,7 +285,7 @@
         tail-name (gensym "continuation")
         [bound free] (partition-2 (fn [x] (is-bound? env x)) proj)
         _ (swap! inner-env assoc 'input (vec bound))
-        to-input-slot (fn [ix] [(exec/input-register 0) (inc ix)])
+        to-input-slot (fn [ix] [(exec/input-register 0) ix])
         _ (bind-names inner-env (zipmap bound (map to-input-slot (range (count bound)))))
         body (compile-conjunction inner-env body (fn [] (generate-send inner-env tail-name free)))]
     (bind-names env (zipmap free (map to-input-slot (range (count free)))))
