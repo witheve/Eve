@@ -328,7 +328,6 @@
 
     (and (seq? sexpr) (= (first sexpr) '=))
     (let [argmap (apply hash-map (rest sexpr))]
-      (println :a (:a argmap) :b (:b argmap))
       (if (and (symbol? (:a argmap)) (seq? (:b argmap)) (returnable? (:b argmap)))
         {:inline [(with-meta
                    (concat (:b argmap) [:return (:a argmap)])
