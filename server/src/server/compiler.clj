@@ -160,9 +160,11 @@
 ;; need to do index selection here - resolve attribute name
 (defn generate-scan [env terms down collapse]
   (let [signature [:entity :attribute :value :bag :tick :user]
-        pmap (zipmap signature (range (count signature)))
         amap (apply hash-map (rest terms))
-        [bound free] (partition-2 (fn [x] (is-bound? env (amap x))) signature)
+        used (keys amap)
+        pmap (zipmap signature (range (count signature)))
+        pmap (select-keys pmap used)
+        [bound free] (partition-2 (fn [x] (is-bound? env (amap x))) used)
         [specoid index-inputs index-outputs] [edb/full-scan-oid () signature]
         filter-terms (set/intersection (set index-outputs) (set bound))
         target-reg-name (gensym 'target)
@@ -174,7 +176,6 @@
                           (list '= :a [target-reg (pmap t)] :b (amap t))
                           b)))
                      down filter-terms)]
-
     (bind-names env (indirect-bind target-reg (zipmap (map pmap free) (map amap free))))
 
     (if collapse
@@ -244,7 +245,6 @@
                                 inner-env (new-env (get @env 'db))
                                 _ (bind-names inner-env (zipmap bound (map to-input-slot (range (count bound)))))
                                 body (rest (rest %1))
-                                _ (println "BODY" body)
                                 body (compile-conjunction inner-env body (fn [] (generate-send inner-env tail-name free)))]
                             (swap! inner-env assoc 'input bound)
                             (make-bind env inner-env arm-name body)
