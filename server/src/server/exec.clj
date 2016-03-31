@@ -92,7 +92,6 @@
 
 (defn tuple [d terms c]
   (fn [r]
-    (println "tuple" (rget r op-register))
     (when (not= (rget r op-register) 'flush)
       (let [a (rest (rest terms))
             ;; since this is often a file, we currently force this to be at least the base max frame size
