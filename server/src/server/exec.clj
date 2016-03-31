@@ -76,7 +76,7 @@
 
 ;; flushes just roll on by
 (defn simple [f]
-  (fn [db terms c]
+  (fn [db terms build c]
     (fn [r]
       (when (= (rget r op-register) 'insert)
         (f r terms))
@@ -85,60 +85,47 @@
 
 
 ;; there are no terms to a delta-t
-(defn delta-t [d terms c]
+(defn delta-t [d terms build c]
   (let [state (atom {})]
     (fn [r]
-      (let [tuple (subvec (vec r) 1)
-            op (rget r op-register)
-            [count _] (condp = op
-                        'flush [0 0] ; better way to fall through?
-                        'insert (swap! state assoc tuple (fn [x]
-                                                          (if x
-                                                            [(x 0) (+ (x 1) 1)]
-                                                            [tuple 1])))
-                        'remove (swap! state assoc tuple (fn [x] (if (= (x 1) 1) nil
-                                                                    [(x 0) (- (x 1) 1)]))))]
-        (cond (or (and (= count 0) (= op 'remove))
-                  (and (= count 1) (= op 'insert))) (c r)
-              
-              (= op 'flush) (c r)
-              
-              ;; shallow copy
-              (= op 'rdrain) (doseq [i state] (let [n (object-array i)]
-                                                (rset n op-register 'remove)
-                                                (c n)))
-              (= op 'idrain) (doseq [i state] (let [n (object-array i)]
-                                                (rset n op-register 'remove)
-                                                (c n))))))))
+      (let [tuple (subvec (vec r) 1)]
+        (condp = (rget r op-register)
+          'insert (swap! state update-in [tuple] (fn [x]
+                                                   (if x
+                                                     [(x 0) (+ (x 1) 1)]
+                                                     [tuple 1])))
+          'remove (swap! state update-in [tuple] (fn [x] (if (= (x 1) 1) nil
+                                                             [(x 0) (- (x 1) 1)])))
+          
+          'flush (c r)
+          ;; shallow copy
+          'rdrain (doseq [i @state] (c (object-array (cons 'remove i))))
+          'idrain (doseq [i @state] (c (object-array (cons 'insert i)))))))))
 
-(defn donot [d terms c]
+(defn donot [d terms build c]
   (let [count (atom 0)
-        on false
-        delta (delta-t d () c)]
-    ;; need to build rest terms
+        on (atom false)
+        delta (delta-t d () build c)
+        tail  (fn [r]
+                (condp = (rget r op-register)
+                  'insert (swap! count inc)
+                  'remove (swap! count dec)))
+
+        internal (build (second terms) tail)]
     (fn [r]
-      (condp = (rget r op-register)
-              'insert (swap! count inc)
-              'remove (swap! count dec)
-              ;; shouldn't send a drain if the current state of the valve matches
-              'flush (do
-                       (if (= count 0)
-                         (when (not on)
-                           (delta (object-array '(idrain)))
-                           (swap! on not))
-                         (when on
-                           (delta (object-array '(rdrain)))
-                           (swap! on not)))
-                       (delta r))))))
+      (internal r)
+      (when (= (rget r op-register) 'flush)
+        (when (and (= @count 0) (not @on))
+          (delta (object-array '(idrain)))
+          (swap! on not))
+        (when (and (> @count 0) @on)
+          (delta (object-array '(rdrain)))
+          (swap! on not)))
+      (delta r))))
 
 
-(defn doprint [r terms]
-  (println (map (fn [x] (rget r x)) terms)))
 
-(defn allocate [r terms]
-  (rset r (second terms) (vec (repeat (nth terms 2) nil))))
-
-(defn tuple [d terms c]
+(defn tuple [d terms build c]
   (fn [r]
     (when (not= (rget r op-register) 'flush)
       (let [a (rest (rest terms))
@@ -189,7 +176,7 @@
 ;; staties
 
 
-(defn dorange [d terms c]
+(defn dorange [d terms build c]
   (fn [r]
     (let [low  (rget r (nth terms 2))
           high (rget r (nth terms 3))]
@@ -198,21 +185,21 @@
         (c (rset r (second terms) i))))))
 
 
-(defn dofilter [d terms c]
+(defn dofilter [d terms build c]
   (fn [r]
     ;; pass flush
     (when (rget r (second terms))
       (c r))))
 
 
-(defn dosort [d terms c]
+(defn dosort [d terms build c]
   (fn [r]
     (let [state (avl/sorted-map)]
       (condp = (rget r op-register)
         'insert (conj state terms)
         'remove (disj state terms)))))
 
-(defn sum [d terms c]
+(defn sum [d terms build c]
   (let [totals (atom {})
         prevs (atom {})]
     (fn [r]
@@ -238,7 +225,7 @@
 ;; down is towards the base facts, up is along the removal chain
 ;; use stm..figure out a way to throw down..i guess since r
 ;; is mutating now
-(defn delta-e [d terms c]
+(defn delta-e [d terms build c]
   (let [[delto out in] terms
         assertions (atom {})
         record (fn [m k] (if-let [r (@m key)] r
@@ -284,7 +271,7 @@
                 
 
 
-(defn delta-s [d terms c]
+(defn delta-s [d terms build c]
   (let [state (ref {})
         handler (fn [r]
                   (let [t (rget r (first r))]
@@ -302,7 +289,7 @@
     (fn [r]
       (c (rset r (second terms) (handler r))))))
 
-(defn dosend [d terms c]
+(defn dosend [d terms build c]
   (fn [r]
     (let [channel (rget r (second terms))
           nregs (rget r (third terms))]
@@ -313,7 +300,7 @@
 ;; this should always emit the whole tuple, regardless of whether
 ;; or not there were inputs, so we can use the delta-e without
 ;; specializing (?)
-(defn doscan [d terms c]
+(defn doscan [d terms build c]
   (let [[scan oid dest key] terms]
     (fn [r]
       (if (= (rget r op-register) 'insert)
@@ -337,8 +324,6 @@
                   '<=        (ternary-numeric-boolean <=)
                   'str       (simple dostr)
                   'not-equal (simple do-not-equal)
-                  'allocate  (simple allocate)
-                  'print     (simple doprint)
 
                   'filter    dofilter
                   'range     dorange
@@ -360,20 +345,20 @@
 
 (defn build [name names built d t wrap final]
   (if (= name 'out) final
-      (let [doterms (fn doterms [t]
+      (let [doterms (fn doterms [t down]
                       (if (empty? t) (fn [r] ())
                           (let [z (if (= (first (first t)) 'send)
                                     (let [target (second (first t))]
                                       (list 'send
                                             (if-let [c (@built target)] c
-                                                    (build target names built d (@names target) wrap final))
+                                                    (build target names built d (@names target) wrap down))
                                             (third (first t))))
                                     (first t))
                                 k (first z)]
                             (if-let [p (command-map (first z))]
-                              (wrap (first t) (p d z (doterms (rest t))))
+                              (wrap (first t) (p d z doterms (doterms (rest t) final)))
                               (exec-error [] (str "bad command" k))))))
-            trans (doterms t)]
+            trans (doterms t final)]
         (swap! built assoc name trans)
         trans)))
 
