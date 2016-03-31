@@ -63,6 +63,8 @@
          #(merge-with merge-state %1 {'dependencies (set (filter symbol? names))})))
 
 (defn bind-names [env names]
+  (when (some nil? (keys names)) (compile-error "Invalid variable name nil", {:env @env :names names}))
+  (when (some nil? (vals names)) (compile-error "Invalid variable value nil", {:env @env :names names}))
   (swap! env
          #(merge-with merge-state %1 {'bound names})))
 
