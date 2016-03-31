@@ -74,12 +74,13 @@
               'context {:kwargs [:bag :tick] :rest :body :optional #{:bag :tick :body}}})
 
 ;; These are only needed for testing -- they'll be provided dynamically by the db at runtime
-(def primitives {'+ {:args [:a :b] :kwargs [:return] :optional #{:return}}
+(def primitives {'= {:args [:a :b]}
+
+                 '+ {:args [:a :b] :kwargs [:return] :optional #{:return}}
                  '- {:args [:a :b] :kwargs [:return] :optional #{:return}}
                  '* {:args [:a :b] :kwargs [:return] :optional #{:return}}
                  '/ {:args [:a :b] :kwargs [:return] :optional #{:return}}
-
-                 '= {:args [:a :b] :kwargs [:return] :optional #{:return}}
+                 
                  '!= {:args [:a :b] :kwargs [:return] :optional #{:return}}
                  '> {:args [:a :b] :kwargs [:return] :optional #{:return}}
                  '>= {:args [:a :b] :kwargs [:return] :optional #{:return}}
@@ -293,7 +294,10 @@
     :else expr))
 
 (defn returnable? [sexpr]
-  ((set (keys primitives)) (first sexpr)))
+  (let [schema (get primitives (first sexpr))]
+    (if-not (nil? schema)
+      (boolean (:return (:optional schema)))
+      false)))
 
 (defn unpack-inline [sexpr]
   (cond
@@ -322,6 +326,15 @@
                  (rest sexpr))]
       {:inline [(concat [(first sexpr)] (:inline state))] :query (:query state)})
 
+    (and (seq? sexpr) (= (first sexpr) '=))
+    (let [argmap (apply hash-map (rest sexpr))]
+      (println :a (:a argmap) :b (:b argmap))
+      (if (and (symbol? (:a argmap)) (seq? (:b argmap)) (returnable? (:b argmap)))
+        {:inline [(with-meta
+                   (concat (:b argmap) [:return (:a argmap)])
+                   (meta (:b argmap)))]}
+        {:inline [sexpr]}))
+    
     :else
     {:inline [sexpr]}))
 
