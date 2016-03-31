@@ -6,9 +6,8 @@
 
 (def basic-register-frame 10)
 (def op-register [0])
-(def bag-register [1])
-(def input-register [2])
-(def temp-register [3])
+(def input-register [1])
+(def temp-register [2])
 
 (def object-array-type (class (object-array 1)))
 
@@ -84,9 +83,54 @@
       (c r))))
 
 
-(defn donot [db terms c]
-  (fn [c]
-    ))
+
+;; there are no terms to a delta-t
+(defn delta-t [d terms c]
+  (let [state (atom {})]
+    (fn [r]
+      (let [tuple (subvec (vec r) 1)
+            op (rget r op-register)
+            [count _] (condp = op
+                        'flush [0 0] ; better way to fall through?
+                        'insert (swap! state assoc tuple (fn [x]
+                                                          (if x
+                                                            [(x 0) (+ (x 1) 1)]
+                                                            [tuple 1])))
+                        'remove (swap! state assoc tuple (fn [x] (if (= (x 1) 1) nil
+                                                                    [(x 0) (- (x 1) 1)]))))]
+        (cond (or (and (= count 0) (= op 'remove))
+                  (and (= count 1) (= op 'insert))) (c r)
+              
+              (= op 'flush) (c r)
+              
+              ;; shallow copy
+              (= op 'rdrain) (doseq [i state] (let [n (object-array i)]
+                                                (rset n op-register 'remove)
+                                                (c n)))
+              (= op 'idrain) (doseq [i state] (let [n (object-array i)]
+                                                (rset n op-register 'remove)
+                                                (c n))))))))
+
+(defn donot [d terms c]
+  (let [count (atom 0)
+        on false
+        delta (delta-t d () c)]
+    ;; need to build rest terms
+    (fn [r]
+      (condp = (rget r op-register)
+              'insert (swap! count inc)
+              'remove (swap! count dec)
+              ;; shouldn't send a drain if the current state of the valve matches
+              'flush (do
+                       (if (= count 0)
+                         (when (not on)
+                           (delta (object-array '(idrain)))
+                           (swap! on not))
+                         (when on
+                           (delta (object-array '(rdrain)))
+                           (swap! on not)))
+                       (delta r))))))
+
 
 (defn doprint [r terms]
   (println (map (fn [x] (rget r x)) terms)))
@@ -234,6 +278,10 @@
               (when (walk t)
                 (rset r out (rget r in))
                 (c r)))))))))
+
+
+
+                
 
 
 (defn delta-s [d terms c]

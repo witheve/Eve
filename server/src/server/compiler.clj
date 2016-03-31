@@ -101,7 +101,7 @@
     (apply build
            (list (concat
                   input
-                  (list (list 'tuple exec/temp-register exec/op-register exec/bag-register ir))
+                  (list (list 'tuple exec/temp-register exec/op-register ir))
                   (list (list 'send channel exec/temp-register)))))))
 
 
@@ -114,6 +114,7 @@
   (let [argmap (apply hash-map (rest terms))
         simple [(argmap :return) (argmap :a) (argmap :b)]
         ins (map #(get-in @env ['bound %1] nil) simple)]
+    (apply add-dependencies env (rest (rest terms)))
     (if (some not (rest ins))
       ;; handle the [b*] case by blowing out a temp
       (do
@@ -260,8 +261,9 @@
 
 
 (defn compile-not [env terms down]
-  (build (list (list 'not (compile-conjunction env (rest terms) (fn [] ()))))
-         (down)))
+  (build 
+   (list (list 'not (compile-conjunction env (rest terms) (fn [] ()))))
+   (down)))
 
 (defn compile-insert [env terms down]
   (let [bindings (apply hash-map (rest terms))
@@ -269,11 +271,12 @@
         a (if-let [b (bindings :attribute)] b nil)
         v (if-let [b (bindings :value)] b nil)
         t (if-let [b (bindings :value)] b nil)
-        b (if-let [b (bindings :bag)] b exec/bag-register)
+        ;; namespace collision with bag, used to have a dedicated register..figure it out
+        b (if-let [b (bindings :bag)] b (get-in @env ['bound 'bag]))
         out (if-let [b (bindings :tick)] (let [r (allocate-register env (gensym 'insert-output))]
                                            (bind-names env {b [r 4]})
                                            [r]) [])]
-
+    
     (let [z (down)]
       (apply build
              (term env 'tuple exec/temp-register e a v b)
@@ -331,16 +334,12 @@
 
 (defn compile-dsl [d bag terms]
   (let [env (new-env d)
-        ;; side effecting
         _ (swap! env assoc 'bag bag)
-        ;; (send 'out [1])
         p (compile-expression
            ;; maybe replace with zero register? maybe just shortcut this last guy?
            env terms (fn []
                        (build
-                        (list (list 'tuple exec/temp-register exec/op-register exec/bag-register exec/input-register))
+                        (list (list 'tuple exec/temp-register exec/op-register exec/input-register))
                         (list (list 'send 'out exec/temp-register)))))]
     (make-continuation env 'main p)
     (vals (get @env 'blocks))))
-    ;; emit blocks
-    ;; wrap the main block

@@ -25,7 +25,7 @@
 
 ;; i would like to use backtick here, but clojure is really screwing
 ;; up my symbols
-(defn weasl-implications-for [id]
+(defn weasl-implications-for [id bag]
   (list (list
          'bind 'main
          (list (list 'scan edb/full-scan-oid [4] [])
@@ -33,11 +33,12 @@
                '(filter [5])
                (list '= [5] [4 0] id)
                '(filter [5])
-               (list 'tuple [5] exec/op-register exec/bag-register [4 2])
+               (list 'tuple [5] exec/op-register bag [4 2])
                (list 'send 'out [5])))))
 
+;; plumb bag in here
 (defn for-each-implication [d id handler]
-  (exec/single d (weasl-implications-for id)
+  (exec/single d (weasl-implications-for id 0)
                (fn [tuple]
                  (when (= (exec/rget tuple exec/op-register) 'insert)
                    (let [b (exec/rget tuple exec/input-register)]
@@ -45,9 +46,10 @@
 
 
 ;; @FIXME: This relies on exec/open flushing synchronously to determine if the implication currently exists
+;; plumb bag in here
 (defn implication-of [d id]
   (let [impl (atom nil)]
-    (exec/single d (weasl-implications-for id)
+    (exec/single d (weasl-implications-for id 0)
                  (fn [tuple]
                    (when (= (exec/rget tuple exec/op-register) 'insert)
                      (reset! impl (exec/rget tuple exec/input-register)))))
