@@ -8,7 +8,8 @@
    [server.repl :as repl]
    [server.jsclient :as jsclient]))
 
-(def db (atom nil))
+(when-not (resolve 'db)
+  (def db (atom nil)))
 
 (defn -main [& args]
   ;; load existing database..change the way the user is bound here, should go through
