@@ -89,6 +89,8 @@
 
 (defn generate-send [env channel arguments]
   (apply add-dependencies env arguments)
+  (when (some nil? (map #(lookup env %1) arguments))
+    (compile-error "Cannot send unbound/nil argument" {:env @env :target channel :arguments arguments}))
   ;; try to interpolate between the old world where there was an 'input register'
   ;; and the new world where send establishes the entire register context at the
   ;; target
@@ -122,7 +124,7 @@
       (compile-error (str "unhandled bound signature in" terms) {:env env :terms terms}))))
 
 (defn compile-sum [env terms down]
-  (let [grouping (get env 'input [])
+  (let [grouping (get @env 'input [])
         argmap (apply hash-map (rest terms))]
     (when-not (lookup env (:a argmap))
       (compile-error (str "unhandled bound signature in" terms) {:env env :terms terms}))
@@ -178,6 +180,7 @@
                           (list '= :a [target-reg (pmap t)] :b (amap t))
                           b)))
                      down filter-terms)]
+
     (bind-names env (indirect-bind target-reg (zipmap (map pmap free) (map amap free))))
 
     (if collapse
@@ -221,9 +224,9 @@
         army (fn [parameters body]
                (let [arm-name (gensym signature)
                      inner-env (new-env (get @env 'db))
+                     _ (swap! inner-env assoc 'input (vec bound))
                      _ (bind-names inner-env (zipmap (map name bound) (map to-input-slot (range (count bound)))))
                      body (compile-conjunction inner-env body (fn [] (generate-send inner-env tail-name (map #(symbol (name %1)) free))))]
-                 (swap! inner-env assoc 'input bound)
                  (make-bind env inner-env arm-name body)
                  arm-name))]
 
@@ -241,14 +244,14 @@
   (let [[_ proj & arms] terms
         tail-name (gensym "continuation")
         [bound free] (partition-2 (fn [x] (is-bound? env x)) proj)
-        to-input-slot (fn [ix] [exec/input-register (inc ix)])
+        to-input-slot (fn [ix] [(exec/input-register 0) (inc ix)])
         body (apply build
                     (map #(let [arm-name (gensym "arm")
                                 inner-env (new-env (get @env 'db))
+                                _ (swap! inner-env assoc 'input (vec bound))
                                 _ (bind-names inner-env (zipmap bound (map to-input-slot (range (count bound)))))
                                 body (rest (rest %1))
                                 body (compile-conjunction inner-env body (fn [] (generate-send inner-env tail-name free)))]
-                            (swap! inner-env assoc 'input bound)
                             (make-bind env inner-env arm-name body)
                             (generate-send env arm-name bound)) arms))]
     (bind-names env (zipmap free (map to-input-slot (range (count free)))))
@@ -281,10 +284,11 @@
         inner-name (gensym "query")
         tail-name (gensym "continuation")
         [bound free] (partition-2 (fn [x] (is-bound? env x)) proj)
-        to-input-slot (fn [ix] [exec/input-register (inc ix)])
+        _ (swap! inner-env assoc 'input (vec bound))
+        to-input-slot (fn [ix] [(exec/input-register 0) (inc ix)])
         _ (bind-names inner-env (zipmap bound (map to-input-slot (range (count bound)))))
         body (compile-conjunction inner-env body (fn [] (generate-send inner-env tail-name free)))]
-    (swap! inner-env assoc 'input bound)
+    (bind-names env (zipmap free (map to-input-slot (range (count free)))))
     (make-continuation env tail-name (down))
     (make-bind env inner-env inner-name body)
     (generate-send env inner-name bound)))
