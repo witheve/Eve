@@ -41,8 +41,7 @@
   (exec/single d (weasl-implications-for id 0)
                (fn [tuple]
                  (when (= (exec/rget tuple exec/op-register) 'insert)
-                   (let [b (exec/rget tuple exec/input-register)]
-                   (handler (first b) (second b)))))))
+                   (handler (exec/rget tuple exec/initial-register) (exec/rget tuple (inc exec/initial-register)))))))
 
 
 ;; @FIXME: This relies on exec/open flushing synchronously to determine if the implication currently exists
@@ -52,7 +51,7 @@
     (exec/single d (weasl-implications-for id 0)
                  (fn [tuple]
                    (when (= (exec/rget tuple exec/op-register) 'insert)
-                     (reset! impl (exec/rget tuple exec/input-register)))))
+                     (reset! impl (exec/rget tuple exec/initial-register) (exec/rget tuple (inc exec/initial-register))))))
     @impl))
 
 

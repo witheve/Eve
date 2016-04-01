@@ -28,11 +28,11 @@
   (let [[form keys] (form-from-smil (smil/unpack d expression))
         res (fn [tuple]
               (condp = (exec/rget tuple exec/op-register)
-                'insert (println (zipmap (vec keys) (vec (exec/rget tuple exec/input-register))))
-                'flush  (println 'flush)
-                ))
+                'insert (println "->" (exec/print-registers tuple))
+                'flush  (println "|>" (exec/print-registers tuple))))
         prog (compiler/compile-dsl d @bag form)
         ec  (exec/open d prog res)]
+    (pprint prog)
     (ec 'insert)
     (ec 'flush)))
 
@@ -42,9 +42,8 @@
   (let [[form keys] (form-from-smil (smil/unpack d (second expression)))
         res (fn [tuple]
               (condp = (exec/rget tuple exec/op-register)
-                'insert (println (zipmap (vec keys) (vec (exec/rget tuple exec/input-register))))
-                'flush  (println 'flush)
-                ))
+                'insert (println "->" (exec/print-registers tuple))
+                'flush  (println "|>" (exec/print-registers tuple))))
         _ (println form)
         prog (compiler/compile-dsl d @bag form)
         _ (pprint prog)

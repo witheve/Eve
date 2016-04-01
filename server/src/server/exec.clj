@@ -2,12 +2,13 @@
   (:require [server.edb :as edb]
             [clojure.test :as test]
             [server.avl :as avl]
-            [clojure.pprint :refer [pprint]]))
+            [clojure.pprint :refer [pprint cl-format]]))
 
 (def basic-register-frame 10)
 (def op-register [0])
 (def taxi-register [1])
 (def temp-register [2])
+(def initial-register 3)
 
 (def object-array-type (class (object-array 1)))
 
@@ -15,15 +16,41 @@
 
 (declare build)
 
+(defn print-registers*
+  ([r] (print-registers* r #{} 1))
+  ([r visited indent]
+     (reduce (fn [memo x]
+               (let [padding (apply str (repeat indent "  "))
+                     append-memo (fn [slot]
+                              {:slot (inc (:slot memo))
+                               :nests (:nests memo)
+                               :register (str (:register memo)
+                                              (when (:register memo) " ")
+                                              (cl-format nil "~4@a" slot))})
+                     nest-memo (fn [nest]
+                                 {:slot (inc (:slot memo))
+                                  :nests (str (:nests memo) (when (:nests memo) "\n" ) padding
+                                              "#" (:slot memo) ": " nest)
+                                  :register (str (:register memo)
+                                                 (when (:register memo) " ")
+                                                 (cl-format nil "~4@a" (str "#" (:slot memo))))})]
+                 (cond
+                  (fn? x) (append-memo "λ")
+                  (nil? x) (append-memo ".")
+                  (= x ()) (append-memo "()")
+                  (visited x) (append-memo "*")
+                  (= object-array-type (type x)) (if (< indent 2)
+                                                   (nest-memo
+                                                    (let [nested (print-registers* x (conj visited x) (inc indent))]
+                                                      (apply str (:register nested) (:nests nested))))
+                                                   (append-memo "<snip>"))
+                  ;;:else (nest-memo (str x)))))
+                  :else (append-memo (str x)))))
+             {:slot 0 :nests "" :register ""} r)))
+
 (defn print-registers [r]
-  (map (fn [x]
-         (cond
-           (fn? x) "λ "
-           (nil? x) ". "
-           (= x ()) "()"
-           (= object-array-type (type x)) (print-registers x)
-           :else (str x)))
-       r))
+  (let [nested (print-registers* r)]
+    (str (:register nested) (:nests nested))))
 
 
 (defn print-program [p]
@@ -52,7 +79,10 @@
 ;; no longer support the implicit zero register
 
 (defn rget [r ref]
-  (cond (not (vector? ref)) ref
+  (cond (not (vector? ref))
+        (if (= ref '*)
+          r
+          ref)
         ;; special case of constant vector, empty
         (= (count ref) 0) ref
         (= (count ref) 1) (aget r (ref 0))
@@ -364,7 +394,7 @@
 
 
 ;; fuse notrace and trace versions
-(defn open [d program arguments]
+(defn open [d program callback]
   (let [reg (object-array basic-register-frame)
         blocks (atom {})
         built (atom {})
@@ -372,24 +402,24 @@
             (swap! blocks assoc (second i) (nth i 2)))
         e (build 'main blocks built d (@blocks 'main)
                  (fn [n x] x)
-                 arguments)]
+                 callback)]
 
-    (rset reg input-register arguments)
+    ;(rset reg initial-register callback)
     (fn [op]
       (rset reg op-register op)
       (e reg))))
 
-(defn open-trace [d program arguments]
+(defn open-trace [d program callback]
   (let [reg (object-array basic-register-frame)
         blocks (atom {})
         built (atom {})
         _ (doseq [i program]
             (swap! blocks assoc (second i) (nth i 2)))
         e (build 'main blocks built d (@blocks 'main)
-                 (fn [n x] (fn [r] (println "trace" n (print-registers r)) (x r)))
-                 arguments)]
+                 (fn [n x] (fn [r] (println "trace" n) (println (print-registers r)) (x r)))
+                 callback)]
 
-    (rset reg input-register arguments)
+    ;(rset reg initial-register callback)
     (fn [op]
       (rset reg op-register op)
       (e reg))))

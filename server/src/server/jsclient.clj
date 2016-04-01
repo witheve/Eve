@@ -67,7 +67,7 @@
         prog (compiler/compile-dsl db @bag form)
         handler (fn [tuple]
                   (condp = (exec/rget tuple exec/op-register)
-                    'insert (swap! results conj (vec (exec/rget tuple exec/input-register)))
+                    'insert (swap! results conj (vec tuple))
                     'flush (do (send-result channel id fields @results)
                                (reset! results '()))
                     'error (send-error channel id (ex-info "Failure to WEASL" {:data (str tuple)}))))
