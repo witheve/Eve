@@ -7,7 +7,7 @@
    [clojure.string :as string]
    [clojure.pprint :refer [pprint]]))
 
-(def initial-register 5)
+(def initial-register 3)
 
 ;; cardinality changing operations should set a flag so we know
 ;; should also be able to retire registers that aren't being referenced
@@ -84,31 +84,41 @@
         (bind-names env {name [r]})
         r))))
 
+(defn bind-inward [env inner-env bound]
+  (doseq [name bound]
+    (allocate-register inner-env  name)))
+
+(defn bind-outward [env inner-env free]
+  (doseq [name free]
+    (when-not (is-bound? env name)
+      (allocate-register env name))))
+
 (defn term [env op & terms]
   (list (conj (map (fn [x] (lookup env x)) terms) op)))
 
-(defn generate-send [env channel arguments]
+(defn generate-send
+  "Generates a send which saves the current register so it can be restored via continuation"
+  [env target arguments]
   (apply add-dependencies env arguments)
   (when (some nil? (map #(lookup env %1) arguments))
-    (compile-error "Cannot send unbound/nil argument" {:env @env :target channel :arguments arguments}))
-  ;; try to interpolate between the old world where there was an 'input register'
-  ;; and the new world where send establishes the entire register context at the
-  ;; target
-  (let [[input ir] (if (> (count arguments) 0)
-                     [(apply term env 'tuple exec/temp-register (map #(lookup env %1) arguments))
-                      exec/temp-register]
-                     [() []])]
-    (apply build
-           (list (concat
-                  input
-                  (list (list 'tuple exec/temp-register exec/op-register ir))
-                  (list (list 'send channel exec/temp-register)))))))
+    (compile-error "Cannot send unbound/nil argument" {:env @env :target target :arguments arguments}))
+  (list
+   (apply term env 'tuple exec/temp-register exec/op-register '* (map #(lookup env %1) arguments))
+   (list (list 'send target exec/temp-register))))
 
-
-
+(defn generate-send-cont
+  "Generates a continuation send which pops and restores the scope of the parent environment"
+  [env inner-env target arguments]
+  (let [taxi-slots (map (fn [i] [exec/taxi-register i]) (drop initial-register (range (get @env 'register initial-register))))
+        input (map #(lookup inner-env %1) arguments)
+        scope (concat taxi-slots input)]
+    (when (some nil? input)
+      (compile-error "Cannot send unbound/nil argument" {:env @env :target target :arguments arguments}))
+    (list
+     (apply term env 'tuple exec/temp-register exec/op-register [exec/taxi-register exec/taxi-register] scope)
+     (list 'send target exec/temp-register))))
 
 (declare compile-conjunction)
-
 
 (defn compile-simple-primitive [env terms down]
   (let [argmap (apply hash-map (rest terms))
@@ -226,8 +236,8 @@
                (let [arm-name (gensym signature)
                      inner-env (new-env (get @env 'db))
                      _ (swap! inner-env assoc 'input (vec bound))
-                     _ (bind-names inner-env (zipmap (map name bound) (map to-input-slot (range (count bound)))))
-                     body (compile-conjunction inner-env body (fn [] (generate-send inner-env tail-name (map #(symbol (name %1)) free))))]
+                     body (compile-conjunction inner-env body (fn [] (generate-send-cont env inner-env tail-name (map #(symbol (name %1)) free))))]
+                 (bind-outward env inner-env free)
                  (make-bind env inner-env arm-name body)
                  arm-name))]
 
@@ -237,7 +247,7 @@
                              (fn [parameters body]
                                (swap! arms conj (army parameters body))))
 
-    (bind-names env (zipmap (map callmap free) (map to-input-slot (range (count free)))))
+    (bind-inward env inner-env bound)
     (make-continuation env tail-name (down))
     (apply build (map #(generate-send env %1 (map callmap bound)) @arms))))
 
@@ -250,9 +260,9 @@
                     (map #(let [arm-name (gensym "arm")
                                 inner-env (new-env (get @env 'db))
                                 _ (swap! inner-env assoc 'input (vec bound))
-                                _ (bind-names inner-env (zipmap bound (map to-input-slot (range (count bound)))))
                                 body (rest (rest %1))
                                 body (compile-conjunction inner-env body (fn [] (generate-send inner-env tail-name free)))]
+                            (bind-outward env inner-env free)
                             (make-bind env inner-env arm-name body)
                             (generate-send env arm-name bound)) arms))]
     (bind-names env (zipmap free (map to-input-slot (range (count free)))))
@@ -261,7 +271,7 @@
 
 
 (defn compile-not [env terms down]
-  (build 
+  (build
    (list (list 'not (compile-conjunction env (rest terms) (fn [] ()))))
    (down)))
 
@@ -276,7 +286,7 @@
         out (if-let [b (bindings :tick)] (let [r (allocate-register env (gensym 'insert-output))]
                                            (bind-names env {b [r 4]})
                                            [r]) [])]
-    
+
     (let [z (down)]
       (apply build
              (term env 'tuple exec/temp-register e a v b)

@@ -6,7 +6,7 @@
 
 (def basic-register-frame 10)
 (def op-register [0])
-(def input-register [1])
+(def taxi-register [1])
 (def temp-register [2])
 
 (def object-array-type (class (object-array 1)))
@@ -96,7 +96,7 @@
                                                      [tuple 1])))
           'remove (swap! state update-in [tuple] (fn [x] (if (= (x 1) 1) nil
                                                              [(x 0) (- (x 1) 1)])))
-          
+
           'flush (c r)
           ;; shallow copy
           'rdrain (doseq [i @state] (c (object-array (cons 'remove i))))
@@ -239,11 +239,11 @@
                  (contains? @assertions t) t
                  :else
                  (base (@down t))))
-        walk (fn walk [t] 
+        walk (fn walk [t]
                (let [k (@up t)]
                  (if (= k nil) true
                      (not (some walk @k)))))]
-    
+
     (fn [r]
       (let [[e a v b t u] (rget r in)]
         (if (= (rget r op-register) 'insert)
@@ -268,7 +268,7 @@
 
 
 
-                
+
 
 
 (defn delta-s [d terms build c]
