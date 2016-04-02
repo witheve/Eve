@@ -79,6 +79,10 @@
 ;; no longer support the implicit zero register
 
 (defn rget [r ref]
+  (when (= ref ["\t" 2])
+  ;  (println [3 2])
+  ;  (println (print-registers (aget r (ref 0))))
+    (println "===>" (rget (aget r (ref 0)) (subvec ref 1))))
   (cond (not (vector? ref))
         (if (= ref '*)
           r

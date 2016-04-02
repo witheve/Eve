@@ -28,8 +28,9 @@
   (let [[form keys] (form-from-smil (smil/unpack d expression))
         res (fn [tuple]
               (condp = (exec/rget tuple exec/op-register)
-                'insert (println "->" (exec/print-registers tuple))
-                'flush  (println "|>" (exec/print-registers tuple))))
+                'insert (println "INS" (exec/print-registers tuple))
+                'remove (println "REM" (exec/print-registers tuple))
+                'flush  (println "FLS" (exec/print-registers tuple))))
         prog (compiler/compile-dsl d @bag form)
         ec  (exec/open d prog res)]
     (pprint prog)
@@ -42,8 +43,9 @@
   (let [[form keys] (form-from-smil (smil/unpack d (second expression)))
         res (fn [tuple]
               (condp = (exec/rget tuple exec/op-register)
-                'insert (println "->" (exec/print-registers tuple))
-                'flush  (println "|>" (exec/print-registers tuple))))
+                'insert (println "INS" (exec/print-registers tuple))
+                'remove (println "REM" (exec/print-registers tuple))
+                'flush  (println "FLS" (exec/print-registers tuple))))
         _ (println form)
         prog (compiler/compile-dsl d @bag form)
         _ (pprint prog)
@@ -77,32 +79,31 @@
   ;; trap file not found
   ;; need to implement load path here!
 
-  (let [filename (second expression) 
-        rdr (try (-> (.getPath (clojure.java.io/resource filename)) io/file io/reader PushbackReader.) 
+  (let [filename (second expression)
+        rdr (try (-> (.getPath (clojure.java.io/resource filename)) io/file io/reader PushbackReader.)
                  (catch Exception e (-> filename io/file io/reader PushbackReader.)))]
-    
+
     (loop []
       ;; terrible people, always throw an error, even on an eof, so cant print read errors? (println "load parse error" e)
       (let [form (try (read rdr) (catch Exception e ()))]
         (if (and form (not (empty? form)))
-          (do 
+          (do
             (eeval d form)
             (recur)))))))
-  
+
 
 (defn rloop [d]
   (loop [d d]
-    (doto *out* 
+    (doto *out*
       (.write "eve> ")
       (.flush))
     ;; need to handle read errors, in particular eof
-    
+
     ;; it would be nice if a newline on its own got us a new prompt
     (let [input (try
                   (read)
                   ;; we're-a-gonna assume that this was a graceful close
-                  (catch Exception e 
+                  (catch Exception e
                     (java.lang.System/exit 0)))]
       (when-not (= input 'exit)
         (recur (eeval d input))))))
-
