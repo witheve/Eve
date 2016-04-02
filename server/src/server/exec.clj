@@ -380,19 +380,20 @@
 (defn build [name names built d t wrap final]
   (if (= name 'out) final
       (let [doterms (fn doterms [t down]
-                      (if (empty? t) (fn [r] ())
-                          (let [z (if (= (first (first t)) 'send)
+                      (if (empty? t) down
+                          (let [m (meta (first t))
+                                z (if (= (first (first t)) 'send)
                                     (let [target (second (first t))]
                                       (list 'send
                                             (if-let [c (@built target)] c
-                                                    (build target names built d (@names target) wrap down))
+                                                    (build target names built d (@names target) wrap final))
                                             (third (first t))))
                                     (first t))
                                 k (first z)]
                             (if-let [p (command-map (first z))]
-                              (wrap (first t) (p d z doterms (doterms (rest t) final)))
+                              (wrap (first t) m (p d z doterms (doterms (rest t) down)))
                               (exec-error [] (str "bad command" k))))))
-            trans (doterms t final)]
+            trans (doterms t (fn [r] ()))]
         (swap! built assoc name trans)
         trans)))
 
@@ -405,10 +406,9 @@
         _ (doseq [i program]
             (swap! blocks assoc (second i) (nth i 2)))
         e (build 'main blocks built d (@blocks 'main)
-                 (fn [n x] x)
+                 (fn [n m x] x)
                  callback)]
 
-    ;(rset reg initial-register callback)
     (fn [op]
       (rset reg op-register op)
       (e reg))))
@@ -420,16 +420,15 @@
         _ (doseq [i program]
             (swap! blocks assoc (second i) (nth i 2)))
         e (build 'main blocks built d (@blocks 'main)
-                 (fn [n x] (fn [r] (println "trace" n) (println (print-registers r)) (x r)))
+                 (fn [n m x] (fn [r] (println "trace" n m) (println (print-registers r)) (x r)))
                  callback)]
 
-    ;(rset reg initial-register callback)
     (fn [op]
       (rset reg op-register op)
       (e reg))))
 
 
 (defn single [d prog out]
-  (let [e (open d prog out)]
+  (let [e (open-trace d prog out)]
     (e 'insert)
     (e 'flush)))

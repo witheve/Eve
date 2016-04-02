@@ -33,11 +33,12 @@
                '(filter [5])
                (list '= [5] [4 0] id)
                '(filter [5])
-               (list 'tuple [5] exec/op-register bag [4 2])
+               (list 'tuple [5] exec/op-register [4 2])
                (list 'send 'out [5])))))
 
 (defn tuple-to-implication [tuple]
-  [(exec/rget tuple exec/initial-register) (exec/rget tuple (inc exec/initial-register))])
+  (exec/rget tuple [1]))
+
 ;; plumb bag in here
 (defn for-each-implication [d id handler]
   (exec/single d (weasl-implications-for id 0)
