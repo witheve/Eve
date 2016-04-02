@@ -1,6 +1,7 @@
 (ns server.smil
   (:refer-clojure :exclude [read])
   (:require [server.db :as db]
+            [server.util :refer [merge-state]]
             [clojure.string :as string]
             [clojure.tools.reader :as reader]
             [clojure.tools.reader.reader-types :as reader-types]))
@@ -16,13 +17,6 @@
    (let [{:keys [line column end-line end-column]} (meta expr)
          standard-data {:expr expr :line line :column column :end-line end-line :end-column end-column}]
    (ex-info msg (merge standard-data data)))))
-
-(defn merge-state [a b]
-  (if (map? a)
-    (merge-with merge-state a b)
-    (if (coll? a)
-      (into a b)
-      b)))
 
 (defn splat-map [m]
   (reduce-kv conj [] m))
@@ -80,7 +74,7 @@
                  '- {:args [:a :b] :kwargs [:return] :optional #{:return}}
                  '* {:args [:a :b] :kwargs [:return] :optional #{:return}}
                  '/ {:args [:a :b] :kwargs [:return] :optional #{:return}}
-                 
+
                  '!= {:args [:a :b] :kwargs [:return] :optional #{:return}}
                  '> {:args [:a :b] :kwargs [:return] :optional #{:return}}
                  '>= {:args [:a :b] :kwargs [:return] :optional #{:return}}
@@ -333,7 +327,7 @@
                    (concat (:b argmap) [:return (:a argmap)])
                    (meta (:b argmap)))]}
         {:inline [sexpr]}))
-    
+
     :else
     {:inline [sexpr]}))
 
