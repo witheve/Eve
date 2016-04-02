@@ -36,12 +36,14 @@
                (list 'tuple [5] exec/op-register bag [4 2])
                (list 'send 'out [5])))))
 
+(defn tuple-to-implication [tuple]
+  [(exec/rget tuple exec/initial-register) (exec/rget tuple (inc exec/initial-register))])
 ;; plumb bag in here
 (defn for-each-implication [d id handler]
   (exec/single d (weasl-implications-for id 0)
                (fn [tuple]
                  (when (= (exec/rget tuple exec/op-register) 'insert)
-                   (handler (exec/rget tuple exec/initial-register) (exec/rget tuple (inc exec/initial-register)))))))
+                   (apply handler (tuple-to-implication tuple))))))
 
 
 ;; @FIXME: This relies on exec/open flushing synchronously to determine if the implication currently exists
@@ -51,7 +53,5 @@
     (exec/single d (weasl-implications-for id 0)
                  (fn [tuple]
                    (when (= (exec/rget tuple exec/op-register) 'insert)
-                     (reset! impl (exec/rget tuple exec/initial-register) (exec/rget tuple (inc exec/initial-register))))))
+                     (swap! impl conj (tuple-to-implication tuple)))))
     @impl))
-
-
