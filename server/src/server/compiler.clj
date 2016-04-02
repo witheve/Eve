@@ -15,12 +15,11 @@
   (throw (ex-info message (assoc data :type "compile"))))
 
 (defn get-signature
-  "Gets a readable identifier for the given adornment of implication"
-  [implication callmap bound]
-  (let [bound (set bound)
-        keys (sort (keys callmap))
-        adornment (string/join "," (map #(str (name %1) "=" (if (bound %1) "b" "f")) keys))]
-    (str implication "|" adornment)))
+  "Gets a readable identifier for the given adornment of a relation"
+  [relation input output]
+  (let [input (sort input)
+        output (sort output)]
+    (str relation "|" (string/join "," input) "|" (string/join "," output))))
 
 (defn indirect-bind [slot m]
   (zipmap (vals m) (map (fn [x] [slot x]) (keys m))))
@@ -80,18 +79,21 @@
   [env inner-env]
   (doseq [name (get @inner-env 'output [])]
     (when-not (is-bound? env name)
-      (let [prev (lookup inner-env name)
-            tmp-name (symbol (str "tmp-" (first prev)))
-            cur (if-let [cur (lookup env tmp-name)]
-                  (first cur)
-                  (get @env 'register exec/initial-register))
-            reg (into [cur] (rest prev))]
-        (if (> (count prev) 1)
-          (do (when-not (is-bound? env tmp-name)
-                (allocate-register env tmp-name))
-              (bind-names env {name (into [cur] (rest reg))}))
-          (allocate-register env name))
-        (println "<<BIND" name cur)))))
+      (println "<<BIND" (get @env 'name) name (get @env 'register exec/initial-register))
+      (allocate-register env name)
+      ;; (let [prev (lookup inner-env name)
+      ;;       tmp-name (symbol (str "tmp-" (first prev)))
+      ;;       cur (if-let [cur (lookup env tmp-name)]
+      ;;             (first cur)
+      ;;             (get @env 'register exec/initial-register))
+      ;;       reg (into [cur] (rest prev))]
+      ;;   (if (> (count prev) 1)
+      ;;     (do (when-not (is-bound? env tmp-name)
+      ;;           (allocate-register env tmp-name))
+      ;;         (bind-names env {name (into [cur] (rest reg))}))
+      ;;     (allocate-register env name))
+      ;;   (println "<<BIND" (get @env 'name) name cur))
+    )))
 
 (defn new-env
   "Creates a new top level compilation environment"
@@ -100,14 +102,15 @@
 
 (defn env-from
   "Creates an inner environment with bindings to the names in its projection bound in the parent"
-  [env projection name]
+  [env projection & [name]]
   (let [db (get @env 'db)
         [bound free] (partition-2 #(is-bound? env %1) projection)
+        name (get-signature name bound free)
         inner-env (atom {'name name 'db db 'input bound 'output free})]
     (doseq [name bound]
       (println ">>BIND" name (get @inner-env 'register exec/initial-register))
-      (allocate-register env name))
-    env))
+      (allocate-register inner-env name))
+    inner-env))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; WEASL Generation
@@ -132,6 +135,9 @@
   (let [;bound-pairs (sort-by (comp first second) (get @env 'bound {}))
         ;taxi-slots (map (fn [[name slot]] (vec (concat exec/taxi-register slot))) bound-pairs)
         taxi-slots (map (fn [i] [(exec/taxi-register 0) i]) (drop exec/initial-register (range (get @env 'register exec/initial-register))))
+        _ (println " SENDING" arguments "to\n"
+                   "INNER" (get @inner-env 'name) (get @inner-env 'bound []) "->\n"
+                   "OUTER" (get @env 'name) (get @env 'bound []))
         input (map #(lookup inner-env %1) arguments)
         scope (concat taxi-slots input)]
     (when (some nil? input)
@@ -205,57 +211,64 @@
 
 (defn compile-query [env terms down]
   (let [[query proj & body] terms
-        inner-env (env-from env proj)
-        inner-name (gensym "query")
-        tail-name (gensym "continuation")
-        [bound free] (partition-2 (fn [x] (is-bound? env x)) proj)
-        body (compile-conjunction inner-env body (fn [] (generate-send-cont env inner-env tail-name free)))]
-
-    (make-continuation env tail-name (down))
-    (make-bind env inner-env inner-name body)
+        inner-env (env-from env proj (gensym "query"))
+        {name 'name input 'input output 'output} @inner-env
+        tail-name (str name "-cont")
+        body (compile-conjunction inner-env body (fn [] (generate-send-cont env inner-env tail-name output)))]
     (bind-outward env inner-env)
-    (generate-send env inner-name bound)))
+    (make-continuation env tail-name (down))
+    (make-bind env inner-env name body)
+    (generate-send env name input)))
 
 (defn compile-union [env terms down]
   (let [[_ proj & arms] terms
-        tail-name (gensym "continuation")
-        [bound free] (partition-2 (fn [x] (is-bound? env x)) proj)
+        [input output] (partition-2 (fn [x] (is-bound? env x)) proj)
+        name (get-signature (gensym "union") input output)
+        tail-name (str name "-cont")
         body (apply build
-                    (map #(let [arm-name (gensym "arm")
-                                inner-env (env-from env proj)
-                                body (rest (rest %1))
-                                body (compile-conjunction inner-env body (fn [] (generate-send-cont env inner-env tail-name free)))]
+                    (map-indexed
+                     #(let [inner-env (env-from env proj)
+                            arm-name (str name "-arm" %1)
+                            _ (swap! inner-env assoc 'name arm-name)
+                            body (rest (rest %2))
+                            body (compile-conjunction inner-env body
+                                                      (fn [] (generate-send-cont env inner-env tail-name output)))]
                             (bind-outward env inner-env)
                             (make-bind env inner-env arm-name body)
-                            (generate-send env arm-name bound)) arms))]
+                            (generate-send env arm-name input))
+                     arms))]
     (make-continuation env tail-name (down))
     body))
 
 (defn compile-implication [env terms down]
   (let [relname (name (first terms))
-        callmap (apply hash-map (rest terms))
-        proj (keys callmap)
+        call-map (apply hash-map (rest terms))
+        env-map (set/map-invert call-map)
+        proj (keys call-map)
         arms (atom ())
-        [bound free] (partition-2 (fn [x] (is-bound? env (x callmap))) proj)
-        signature (get-signature relname callmap bound)
-        tail-name (gensym "continuation")
-        army (fn [parameters body]
-               (let [arm-name (gensym signature)
+        [input output] (partition-2 (fn [x] (is-bound? env (x call-map))) proj)
+        name (get-signature (gensym relname) (map env-map input) (map env-map output))
+        tail-name (str name "-cont")
+        army (fn [parameters body ix]
+               (let [arm-name (str name "-arm" ix)
                      inner-env (env-from env proj)
-                     body (compile-conjunction inner-env body (fn [] (generate-send-cont env inner-env tail-name (map #(symbol (name %1)) free))))]
+                     body (compile-conjunction inner-env body (fn [] (generate-send-cont
+                                                                      env
+                                                                      inner-env
+                                                                      tail-name
+                                                                      (map (comp symbol name) output))))]
                  (bind-outward env inner-env)
                  (make-bind env inner-env arm-name body)
                  arm-name))]
 
     ;; validate the parameters as both a proper superset of the input
-    ;; and conformant across the union legs
+    ;; and conformant across the union arms
     (db/for-each-implication (get @env 'db) relname
                              (fn [parameters body]
-                               (swap! arms conj (army parameters body))))
-
-
+                               (swap! arms conj (army parameters body (count @arms)))))
     (make-continuation env tail-name (down))
-    (apply build (map #(generate-send env %1 (map callmap bound)) @arms))))
+    ;; @FIXME: Dependent on synchronous evaluation: expects for-each-implication to have completed
+    (apply build (map #(generate-send env %1 (map call-map input)) @arms))))
 
 (defn compile-simple-primitive [env terms down]
   (let [argmap (apply hash-map (rest terms))
@@ -352,7 +365,10 @@
                           (fn [] (compile-conjunction env (rest terms) down)))))
 
 (defn compile-dsl [d bag terms]
-  (let [env (new-env d)
+  (when-not (= (first terms) 'query)
+    (compile-error "Top level form must be query"))
+  (let [proj (second terms)
+        env (new-env d proj) ;; @FIXME: with projection of top level query
         _ (swap! env assoc 'bag bag)
         p (compile-expression
            ;; maybe replace with zero register? maybe just shortcut this last guy?
