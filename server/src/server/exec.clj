@@ -429,6 +429,6 @@
 
 
 (defn single [d prog out]
-  (let [e (open-trace d prog out)]
+  (let [e (open d prog out)]
     (e 'insert)
     (e 'flush)))
