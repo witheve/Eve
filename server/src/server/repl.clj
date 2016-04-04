@@ -85,7 +85,7 @@
 
     (loop []
       ;; terrible people, always throw an error, even on an eof, so cant print read errors? (println "load parse error" e)
-      (let [form (try (read rdr) (catch Exception e ()))]
+      (let [form (try (smil/read rdr) (catch Exception e ()))]
         (if (and form (not (empty? form)))
           (do
             (eeval d form)
@@ -101,7 +101,7 @@
 
     ;; it would be nice if a newline on its own got us a new prompt
     (let [input (try
-                  (read)
+                  (smil/read)
                   ;; we're-a-gonna assume that this was a graceful close
                   (catch Exception e
                     (java.lang.System/exit 0)))]

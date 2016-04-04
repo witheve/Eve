@@ -116,22 +116,24 @@
 ;; WEASL Generation
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn term [env op & terms]
-  (list (conj (map (fn [x] (lookup env x)) terms) op)))
+(defn term [env op m & terms]
+  (let [p (with-meta (conj (map (fn [x] (lookup env x)) terms) op)
+            (if (or (nil? m) (list? m)) {} m))]
+    (list p)))
 
 (defn generate-send
   "Generates a send which saves the current register so it can be restored via continuation"
-  [env target arguments]
+  [env m target arguments]
   (apply add-dependencies env arguments)
   (when (some nil? (map #(lookup env %1) arguments))
     (compile-error "Cannot send unbound/nil argument" {:env @env :target target :arguments arguments :bound (get @env 'bound nil)}))
   (concat
-   (apply term env 'tuple exec/temp-register exec/op-register '* nil (map #(lookup env %1) arguments))
-   [(list 'send target exec/temp-register)]))
+   (apply term env 'tuple m exec/temp-register exec/op-register '* nil (map #(lookup env %1) arguments))
+   [(with-meta (list 'send target exec/temp-register) m)]))
 
 (defn generate-send-cont
   "Generates a continuation send which pops and restores the scope of the parent environment"
-  [env inner-env target arguments]
+  [env m inner-env target arguments]
   (let [;bound-pairs (sort-by (comp first second) (get @env 'bound {}))
         ;taxi-slots (map (fn [[name slot]] (vec (concat exec/taxi-register slot))) bound-pairs)
         taxi-slots (map (fn [i] [(exec/taxi-register 0) i]) (drop exec/initial-register (range (get @env 'register exec/initial-register))))
@@ -143,15 +145,16 @@
     (when (some nil? input)
       (compile-error "Cannot send unbound/nil argument" {:env @env :target target :arguments arguments :bound (get @env 'bound nil)}))
     (concat
-     (apply term env 'tuple exec/temp-register exec/op-register [(exec/taxi-register 0) (exec/taxi-register 0)] nil scope)
-     [(list 'send target exec/temp-register)])))
+     (apply term env 'tuple m exec/temp-register exec/op-register [(exec/taxi-register 0) (exec/taxi-register 0)] nil scope)
+     [(with-meta (list 'send target exec/temp-register) m)])))
 
 (defn generate-binary-filter [env terms down]
-  (let [argmap (apply hash-map (rest terms))]
+  (let [argmap (apply hash-map (rest terms))
+        m (meta terms)]
     (apply add-dependencies env terms)
     (let [r  (build
-             (term env (first terms) exec/temp-register (argmap :a) ( argmap :b))
-             (term env 'filter exec/temp-register)
+             (term env (first terms) m exec/temp-register (argmap :a) ( argmap :b))
+             (term env 'filter m exec/temp-register)
              (down))]
       r)))
 
@@ -159,6 +162,7 @@
 ;; need to do index selection here - resolve attribute name
 (defn generate-scan [env terms down collapse]
   (let [signature [:entity :attribute :value :bag :tick :user]
+        m (meta (first terms))
         amap (apply hash-map (rest terms))
         used (keys amap)
         pmap (zipmap signature (range (count signature)))
@@ -172,7 +176,7 @@
                        (fn []
                          (generate-binary-filter
                           env
-                          (list '= :a [target-reg (pmap t)] :b (amap t))
+                          (with-meta (list '= :a [target-reg (pmap t)] :b (amap t)) m)
                           b)))
                      down filter-terms)]
 
@@ -181,11 +185,11 @@
     (if collapse
       (apply build
              ;; needs to take a projection set for the indices
-             (term env 'scan specoid exec/temp-register [])
-             (term env 'delta-e target-reg-name exec/temp-register)
+             (term env 'scan m specoid exec/temp-register [])
+             (term env 'delta-e m target-reg-name exec/temp-register)
              (list (body)))
       (apply build
-             (term env 'scan specoid exec/temp-register [])
+             (term env 'scan m specoid exec/temp-register [])
              (list (body))))))
 
 (defn make-continuation
@@ -211,19 +215,21 @@
 
 (defn compile-query [env terms down]
   (let [[query proj & body] terms
+        m (meta (first terms))
         inner-env (env-from env proj (gensym "query"))
         {name 'name input 'input output 'output} @inner-env
         tail-name (str name "-cont")
-        body (compile-conjunction inner-env body (fn [] (generate-send-cont env inner-env tail-name output)))]
+        body (compile-conjunction inner-env body (fn [] (generate-send-cont env m inner-env tail-name output)))]
     (bind-outward env inner-env)
     (make-continuation env tail-name (down))
     (make-bind env inner-env name body)
     (apply build
-           (when (count input) (apply term env 'delta-c input))
-           (list (generate-send env name input)))))
+           (when (count input) (apply term env 'delta-c m input))
+           (list (generate-send env m name input)))))
 
 (defn compile-union [env terms down]
   (let [[_ proj & arms] terms
+        m (meta (first terms))
         [input output] (partition-2 (fn [x] (is-bound? env x)) proj)
         name (get-signature (gensym "union") input output)
         tail-name (str name "-cont")
@@ -231,19 +237,21 @@
                     (map-indexed
                      #(let [inner-env (env-from env proj)
                             arm-name (str name "-arm" %1)
+                            m (meta (first terms))
                             _ (swap! inner-env assoc 'name arm-name)
                             body (rest (rest %2))
                             body (compile-conjunction inner-env body
-                                                      (fn [] (generate-send-cont env inner-env tail-name output)))]
+                                                      (fn [] (generate-send-cont env m inner-env tail-name output)))]
                             (bind-outward env inner-env)
                             (make-bind env inner-env arm-name body)
-                            (generate-send env arm-name input))
+                            (generate-send env m arm-name input))
                      arms))]
     (make-continuation env tail-name (down))
     body))
 
 (defn compile-implication [env terms down]
   (let [relname (name (first terms))
+        m (meta (first terms))
         call-map (apply hash-map (rest terms))
         env-map (set/map-invert call-map)
         proj (keys call-map)
@@ -271,10 +279,11 @@
                                (swap! arms conj (army parameters body (count @arms)))))
     (make-continuation env tail-name (down))
     ;; @FIXME: Dependent on synchronous evaluation: expects for-each-implication to have completed
-    (apply build (map #(generate-send env %1 (map call-map input)) @arms))))
+    (apply build (map #(generate-send env m %1 (map call-map input)) @arms))))
 
 (defn compile-simple-primitive [env terms down]
   (let [argmap (apply hash-map (rest terms))
+        m (meta (first terms))
         simple [(argmap :return) (argmap :a) (argmap :b)]
         ins (map #(get-in @env ['bound %1] nil) simple)]
     (apply add-dependencies env (rest (rest terms)))
@@ -283,19 +292,20 @@
       (do
         (allocate-register env (first simple))
         (build
-         (apply term env (first terms) simple)
+         (apply term env (first terms) m simple)
          (down)))
       (compile-error (str "unhandled bound signature in" terms) {:env env :terms terms}))))
 
 (defn compile-sum [env terms down]
   (let [grouping (get @env 'input [])
+        m (meta (first terms))
         argmap (apply hash-map (rest terms))]
     (when-not (lookup env (:a argmap))
       (compile-error (str "unhandled bound signature in" terms) {:env env :terms terms}))
     (when-not (lookup env (:return argmap))
       (allocate-register env (:return argmap)))
     (build
-     (term env (first terms) (:return argmap) (:a argmap) (map #(lookup env %1) grouping))
+     (term env (first terms) m (:return argmap) (:a argmap) (map #(lookup env %1) grouping))
      (down))))
 
 (defn compile-equal [env terms down]
@@ -314,11 +324,12 @@
 
 (defn compile-not [env terms down]
   (build
-   (list (list 'not (compile-conjunction env (rest terms) (fn [] ()))))
+   (list (with-meta (list 'not (compile-conjunction env (rest terms) (fn [] ()))) (meta (first terms))))
    (down)))
 
 (defn compile-insert [env terms down]
   (let [bindings (apply hash-map (rest terms))
+        m (meta (first terms))
         e (if-let [b (bindings :entity)] b nil)
         a (if-let [b (bindings :attribute)] b nil)
         v (if-let [b (bindings :value)] b nil)
@@ -331,8 +342,8 @@
 
     (let [z (down)]
       (apply build
-             (term env 'tuple exec/temp-register e a v b)
-             (term env 'scan edb/insert-oid out exec/temp-register)
+             (term env 'tuple m exec/temp-register e a v b)
+             (term env 'scan m edb/insert-oid out exec/temp-register)
              (list z)))))
 
 (defn compile-expression [env terms down]
@@ -371,6 +382,7 @@
   (when-not (= (first terms) 'query)
     (compile-error "Top level form must be query"))
   (let [proj (second terms)
+        m (meta (first terms))
         env (new-env d proj) ;; @FIXME: with projection of top level query
         _ (swap! env assoc 'bag bag)
         p (compile-expression
@@ -380,7 +392,7 @@
                        (let [bound (vals (get @env 'bound {}))
                              regs (map #(lookup env %1) bound)]
                          (list
-                          (apply list 'tuple exec/temp-register exec/op-register regs)
-                          (list 'send 'out exec/temp-register)))))]
+                          (with-meta (apply list 'tuple exec/temp-register exec/op-register regs) m)
+                          (with-meta (list 'send 'out exec/temp-register) m)))))]
     (make-continuation env 'main p)
     (vals (get @env 'blocks))))
