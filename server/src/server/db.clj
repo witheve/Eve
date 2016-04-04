@@ -4,10 +4,8 @@
 
 
 ;; in the nwo this should open the insert endpoint and then close it
-(defn insert [db e a v b u]
-  ((db edb/insert-oid (fn [t] ()))
-   (object-array [e a v b])))
-
+(defn insert [d e a v b u]
+  ((d edb/insert-oid (object-array [e a v b]) (fn [t] ()))))
 
 (def uber-log (atom ()))
 
@@ -54,5 +52,5 @@
     (exec/single d (weasl-implications-for id 0)
                  (fn [tuple]
                    (when (= (exec/rget tuple exec/op-register) 'insert)
-                     (swap! impl conj (tuple-to-implication tuple)))))
+                     (reset! impl (tuple-to-implication tuple)))))
     @impl))

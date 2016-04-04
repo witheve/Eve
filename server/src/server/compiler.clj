@@ -247,16 +247,17 @@
         proj (keys call-map)
         arms (atom ())
         [input output] (partition-2 (fn [x] (is-bound? env (x call-map))) proj)
-        name (get-signature (gensym relname) (map env-map input) (map env-map output))
-        tail-name (str name "-cont")
+        inner-name (get-signature (gensym relname) (map env-map input) (map env-map output))
+        tail-name (str inner-name "-cont")
         army (fn [parameters body ix]
-               (let [arm-name (str name "-arm" ix)
+               (let [arm-name (str inner-name "-arm" ix)
                      inner-env (env-from env proj)
+                     _ (println "kreg" output)
                      body (compile-conjunction inner-env body (fn [] (generate-send-cont
                                                                       env
                                                                       inner-env
                                                                       tail-name
-                                                                      (map (comp symbol name) output))))]
+                                                                      (doall (map (comp symbol name) output)))))]
                  (bind-outward env inner-env)
                  (make-bind env inner-env arm-name body)
                  arm-name))]

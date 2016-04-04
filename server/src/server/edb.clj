@@ -49,33 +49,27 @@
         by-attribute ()
         listeners (atom #{})
         index-map  {insert-oid
-                    (fn [c]
-                      (fn [op eavb]
-                        (let [t (now)
-                              tuple (object-array (vector (aget eavb 0)
-                                                          (aget eavb 1)
-                                                          (aget eavb 2)
-                                                          (aget eavb 3)
-                                                          t
-                                                          user))]
-                          (swap! tuples conj tuple)
-                          (doseq [i @listeners] (i tuple))
-                          (c tuple))))
+                    (fn [eavb c]
+                      (let [t (now)
+                            tuple (object-array (vector (aget eavb 0)
+                                                        (aget eavb 1)
+                                                        (aget eavb 2)
+                                                        (aget eavb 3)
+                                                        t
+                                                        user))]
+                        (swap! tuples conj tuple)
+                        (doseq [i @listeners] (i tuple))
+                        (c tuple)
+                        (fn [] ())))
                     
                     full-scan-oid
-                    (fn [c]
-                      (swap! listeners conj c) 
-                      (fn [op key]
-                        (condp = op 
-                          'insert (doseq [i @tuples] (c i))
-                          'close (doseq [i @tuples] (c i)))))
-                    
-                    attribute-scan-oid
-                    (fn [c]
-                      (fn [key]
-                        (doseq [i @tuples] (c i))))}]
+                    (fn [key c]
+                      (swap! listeners conj c)
+                      (doseq [i @tuples] (c i))
+                      (fn [] (swap! listeners disj c)))}]
+
     
-    (fn [index c]
-      ((index-map index) c))))
+    (fn [index key c]
+      ((index-map index) key c))))
 
 

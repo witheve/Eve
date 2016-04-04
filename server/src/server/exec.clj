@@ -79,10 +79,6 @@
 ;; no longer support the implicit zero register
 
 (defn rget [r ref]
-  (when (= ref ["\t" 2])
-  ;  (println [3 2])
-  ;  (println (print-registers (aget r (ref 0))))
-    (println "===>" (rget (aget r (ref 0)) (subvec ref 1))))
   (cond (not (vector? ref))
         (if (= ref '*)
           r
@@ -330,21 +326,23 @@
       (channel (if (= (rget r op-register) 'flush) r nregs))
       (c r))))
 
-;; something awfully funny going on with the op around the scan
-;; this should always emit the whole tuple, regardless of whether
-;; or not there were inputs, so we can use the delta-e without
-;; specializing (?)
 (defn doscan [d terms build c]
-  (let [[scan oid dest key] terms]
+  (let [[scan oid dest key] terms
+        opened (atom ())]
+    
     (fn [r]
-      (if (= (rget r op-register) 'insert)
-        ((d oid
-            (fn [t]
-              (rset r op-register 'insert)
-              (rset r dest t)
-              (c r)))
-         (rget r key))
-        (c r)))))
+      (condp = (rget r op-register)
+          'insert (let [handle (d oid key
+                                  (fn [t]
+                                    (rset r op-register 'insert)
+                                    (rset r dest t)
+                                    (c r)))]
+                    (swap! opened conj handle))
+          'close (do
+                   (doseq [i @opened] (i))
+                   (c r))
+          (c r)))))
+      
 
 
 (def command-map {'move      (simple move)
@@ -429,7 +427,8 @@
 
 
 (defn single [d prog out]
-  (let [e (open d prog out)]
+  (let [e (open d prog (fn [r] 
+                         (when (= (rget r op-register) 'insert) (out r))))]
     (e 'insert)
     (e 'flush)
     (e 'close)))
