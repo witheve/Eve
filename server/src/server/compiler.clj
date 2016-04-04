@@ -218,7 +218,9 @@
     (bind-outward env inner-env)
     (make-continuation env tail-name (down))
     (make-bind env inner-env name body)
-    (generate-send env name input)))
+    (apply build
+           (when (count input) (apply term env 'delta-c input))
+           (list (generate-send env name input)))))
 
 (defn compile-union [env terms down]
   (let [[_ proj & arms] terms
