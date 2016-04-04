@@ -431,4 +431,5 @@
 (defn single [d prog out]
   (let [e (open d prog out)]
     (e 'insert)
-    (e 'flush)))
+    (e 'flush)
+    (e 'close)))

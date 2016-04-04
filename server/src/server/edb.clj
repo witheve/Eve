@@ -42,14 +42,15 @@
    [true  true  true] full-scan-oid
   })
 
-;; xxx - figure out if flush needs to go through this part of town
+
+;; there is a consistency problem with tuples and listeners
 (defn create-edb [user]
   (let [tuples (atom '())
         by-attribute ()
         listeners (atom #{})
         index-map  {insert-oid
                     (fn [c]
-                      (fn [eavb]
+                      (fn [op eavb]
                         (let [t (now)
                               tuple (object-array (vector (aget eavb 0)
                                                           (aget eavb 1)
@@ -63,11 +64,11 @@
                     
                     full-scan-oid
                     (fn [c]
-                      ;; how were we removing listeners again? serialize list
                       (swap! listeners conj c) 
-                      (fn [key]
-                        (doseq [i @tuples]
-                          (c i))))
+                      (fn [op key]
+                        (condp = op 
+                          'insert (doseq [i @tuples] (c i))
+                          'close (doseq [i @tuples] (c i)))))
                     
                     attribute-scan-oid
                     (fn [c]
