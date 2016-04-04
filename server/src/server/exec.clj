@@ -79,10 +79,6 @@
 ;; no longer support the implicit zero register
 
 (defn rget [r ref]
-  (when (= ref ["\t" 2])
-  ;  (println [3 2])
-  ;  (println (print-registers (aget r (ref 0))))
-    (println "===>" (rget (aget r (ref 0)) (subvec ref 1))))
   (cond (not (vector? ref))
         (if (= ref '*)
           r
@@ -256,6 +252,24 @@
             (c r))
           (swap! prevs assoc-in grouping (get-in @totals grouping)))))))
 
+(defn delta-c [d terms build c]
+  (let [[_ & proj] terms
+        proj (if proj proj [])
+        assertions (atom {})]
+    (fn [r]
+      (let [fact (reduce #(assoc %1 %2 (rget r %2)) {} proj)
+            prev (get @assertions fact 0)]
+        (condp = (rget r op-register)
+          'insert (swap! assertions update-in [fact] (fnil inc 0))
+          'remove (swap! assertions update-in [fact] dec)
+          'flush nil)
+        (let [cur (get @assertions fact 0)]
+          (cond
+            (and (> cur 0) (= prev 0)) (c r)
+            (and (= cur 0) (> prev 0)) (do
+                                         (rset r op-register 'remove)
+                                         (c r))))))))
+
 ;; down is towards the base facts, up is along the removal chain
 ;; use stm..figure out a way to throw down..i guess since r
 ;; is mutating now
@@ -363,6 +377,7 @@
                   'range     dorange
                   'delta-s   delta-s
                   'delta-e   delta-e
+                  'delta-c   delta-c
                   'tuple     tuple
                   '=         (simple doequal)
                   'sum       sum
