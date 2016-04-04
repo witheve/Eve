@@ -292,7 +292,7 @@
     (when-not (lookup env (:return argmap))
       (allocate-register env (:return argmap)))
     (build
-     (term env (first terms) (:return argmap) (:a argmap) grouping)
+     (term env (first terms) (:return argmap) (:a argmap) (map #(lookup env %1) grouping))
      (down))))
 
 (defn compile-equal [env terms down]
