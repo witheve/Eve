@@ -347,19 +347,19 @@
 (defn doscan [d terms build c]
   (let [[scan oid dest key] terms
         opened (atom ())]
-    
+
     (fn [r]
       (condp = (rget r op-register)
-          'insert (let [handle (d oid key
-                                  (fn [t]
-                                    (rset r op-register 'insert)
-                                    (rset r dest t)
-                                    (c r)))]
-                    (swap! opened conj handle))
-          'close (do
-                   (doseq [i @opened] (i))
-                   (c r))
-          (c r)))))
+        'insert (let [handle (d oid (rget r key)
+                                (fn [t]
+                                  (rset r op-register 'insert)
+                                  (rset r dest t)
+                                  (c r)))]
+                  (swap! opened conj handle))
+        'close (do
+                 (doseq [i @opened] (i))
+                 (c r))
+        (c r)))))
       
 
 
