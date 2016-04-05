@@ -9,6 +9,7 @@
    [server.jsclient :as jsclient]))
 
 (def db (atom nil))
+(def trace (atom false))
 
 (defn -main [& args]
   ;; load existing database..change the way the user is bound here, should go through
@@ -19,12 +20,16 @@
 
         ;; load the local metadata before starting membership
         flag-map
-        {"-d" (fn [] (swap! interactive (fn [x] false)))}
+        {
+         "-d" (fn [] (reset! interactive false))
+         "-t" (fn [] (reset! trace true))
+         }
 
         parameter-map
         {"-s" log/set-pathname
          "-p" (fn [x] (reset! port (Integer. x)))
-         "-e" (fn [x] (repl/eeval @db (smil/read x)))}
+         "-e" (fn [x] (repl/eeval @db (smil/read x) @trace))
+         }
 
 
         arglist (fn arglist [args]
@@ -36,7 +41,7 @@
                           ;; check to make sure we have such a thing?
                           (do (p (second args))
                               (arglist (rest (rest args))))
-                          (println "wth man" (first args))))))]
+                          (println "invalid argument" (first args))))))]
     (arglist args)
     (when @port (jsclient/serve @db @port))
     (when @interactive (repl/rloop @db))))

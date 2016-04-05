@@ -5,8 +5,7 @@
    [server.edb :as edb]
    [server.exec :as exec]
    [clojure.set :as set]
-   [clojure.string :as string]
-   [clojure.pprint :refer [pprint]]))
+   [clojure.string :as string]))
 
 (defn build [& a]
   (doall (apply concat a)))
@@ -79,7 +78,6 @@
   [env inner-env]
   (doseq [name (get @inner-env 'output [])]
     (when-not (is-bound? env name)
-      (println "<<BIND" (get @env 'name) name (get @env 'register exec/initial-register))
       (allocate-register env name))))
 
 (defn new-env
@@ -95,7 +93,6 @@
         name (get-signature name bound free)
         inner-env (atom {'name name 'db db 'input bound 'output free})]
     (doseq [name bound]
-      (println ">>BIND" name (get @inner-env 'register exec/initial-register))
       (allocate-register inner-env name))
     inner-env))
 
@@ -122,9 +119,6 @@
   "Generates a continuation send which pops and restores the scope of the parent environment"
   [env m inner-env target arguments]
   (let [taxi-slots (map (fn [i] [(exec/taxi-register 0) i]) (drop exec/initial-register (range (get @env 'register exec/initial-register))))
-        _ (println " SENDING" arguments "to\n"
-                   "INNER" (get @inner-env 'name) (get @inner-env 'bound []) "->\n"
-                   "OUTER" (get @env 'name) (get @env 'bound []))
         input (map #(lookup inner-env %1) arguments)
         scope (concat taxi-slots input)]
     (when (some nil? input)
@@ -254,12 +248,10 @@
                                                                          inner-env
                                                                          tail-name
                                                                          (map (comp symbol name) output))]
-                                                                  (println "what the hell bobby" k)
                                                                   k)))]
 
                  (doseq [name (map call-map (get @inner-env 'output []))]
                    (when-not (is-bound? env name)
-                     (println "<<BIND" (get @env 'name) name (get @env 'register exec/initial-register))
                      (allocate-register env name)))
                  (make-bind env inner-env arm-name body)
                  arm-name))]
@@ -343,7 +335,6 @@
              (list z)))))
 
 (defn compile-expression [env terms down]
-  (println "compile expression" terms)
   (let [commands {'+ compile-simple-primitive
                   '* compile-simple-primitive
                   '/ compile-simple-primitive
@@ -385,7 +376,6 @@
         p (compile-expression
            ;; maybe replace with zero register? maybe just shortcut this last guy?
            env terms (fn []
-                       (println "####" (get @env 'bound))
                        (let [bound (vals (get @env 'bound {}))
                              regs (map #(lookup env %1) bound)]
                          (list

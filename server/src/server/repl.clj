@@ -19,10 +19,10 @@
 (defn show [d expression]
   (let [[form keys] (form-from-smil (smil/unpack d (second expression)))
         prog (compiler/compile-dsl d @bag form)]
-     (println (exec/print-program prog))))
+     (pprint prog)))
 
 
-(defn diesel [d expression]
+(defn diesel [d expression trace-on]
   ;; the compile-time error path should come up through here
   ;; fix external number of regs
   (let [[form keys] (form-from-smil (smil/unpack d expression))
@@ -32,7 +32,7 @@
                 'remove (println "REM" (exec/print-registers tuple))
                 'flush  (println "FLS" (exec/print-registers tuple))))
         prog (compiler/compile-dsl d @bag form)
-        ec  (exec/open d prog res)]
+        ec (if trace-on (exec/open-trace d prog res) (exec/open d prog res))]
     (pprint prog)
     (ec 'insert)
     (ec 'flush)))
@@ -54,28 +54,28 @@
     (ec 'flush)))
 
 ;; xxx - this is now...in the language..not really?
-(defn define [d expression]
+(defn define [d expression trace-on]
   (let [z (smil/unpack d expression)]
     (db/insert-implication d (second z) (nth z 2) (rest (rest (rest z))) @user @bag)))
 
 
 (declare read-all)
 
-(defn eeval [d term]
+(defn eeval [d term trace-on]
   (let [function ({'define! define
                    'show show
                    'trace trace
                    'load read-all
                    } (first term))]
     (if (nil? function)
-      (diesel d term)
-      (function d term))
+      (diesel d term trace-on)
+      (function d term trace-on))
     d))
 
 (import '[java.io PushbackReader])
 (require '[clojure.java.io :as io])
 
-(defn read-all [d expression]
+(defn read-all [d expression trace-on]
   ;; trap file not found
   ;; need to implement load path here!
 
@@ -88,7 +88,7 @@
       (let [form (try (smil/read rdr) (catch Exception e ()))]
         (if (and form (not (empty? form)))
           (do
-            (eeval d form)
+            (eeval d form trace-on)
             (recur)))))))
 
 
@@ -101,7 +101,7 @@
 
     ;; it would be nice if a newline on its own got us a new prompt
     (let [input (try
-                  (smil/read)
+                  (read)
                   ;; we're-a-gonna assume that this was a graceful close
                   (catch Exception e
                     (java.lang.System/exit 0)))]

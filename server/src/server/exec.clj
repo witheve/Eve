@@ -52,29 +52,6 @@
   (let [nested (print-registers* r)]
     (str (:register nested) (:nests nested))))
 
-
-(defn print-program [p]
-  (letfn [(mlist? [x] (or (list? x) (= (type x) clojure.lang.Cons)))
-          (traverse [x indent]
-            (cond
-              (instance? clojure.lang.LazySeq x) (traverse (apply list (doall x)) indent)
-
-              ;; reduce on () does someting unspeakable
-              (and (mlist? x) (empty? x)) "()"
-
-              (and (mlist? x) (mlist? (first x)))
-              (reduce (fn [y x] (str y "\n" x)) ""
-                      (map (fn [z]  (str (apply str (repeat indent " "))
-                                         (traverse z (+ indent 4)))) x))
-
-              (mlist? x)
-              (str "(" (reduce (fn [y x] (str y " " x))
-                               (map (fn [z] (traverse z indent)) x)) ")")
-
-              (or (number? x) (string? x) (symbol? x) (vector? x)) (str x)
-              :else (str "<unknown>")))]
-    (traverse p 0)))
-
 ;; these register indirections could be resolved at build time? yeah, kinda
 ;; no longer support the implicit zero register
 
@@ -373,7 +350,7 @@
                   '>=        (ternary-numeric-boolean >=)
                   '<=        (ternary-numeric-boolean <=)
                   'str       (simple dostr)
-                  'not= (simple do-not-equal)
+                  'not=      (simple do-not-equal)
 
                   'filter    dofilter
                   'range     dorange
