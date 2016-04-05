@@ -88,7 +88,9 @@
 
     (loop []
       ;; terrible people, always throw an error, even on an eof, so cant print read errors? (println "load parse error" e)
-      (let [form (try (smil/read rdr) (catch Exception e ()))]
+      (let [form (try (smil/read rdr)
+                      (catch RuntimeException eof ())
+                      (catch Exception e (println "badness 10000" e)))]
         (if (and form (not (empty? form)))
           (do
             (eeval d form trace-on)

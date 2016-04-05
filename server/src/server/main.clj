@@ -34,7 +34,9 @@
          "-f" (fn [x]
                 (reset! interactive false)
                 (reset! service false)
-                (repl/read-all @db (list 'load x) @trace))
+                (try (repl/read-all @db (list 'load x) @trace)
+                     (catch Exception e
+                       (println "error" e))))
                 
          "-e" (fn [x] (try (repl/eeval @db (smil/read x) @trace)
                            (catch Exception e

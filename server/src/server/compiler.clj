@@ -52,6 +52,7 @@
   "Merges a map of [name register] pairs into the 'bound map of env"
   [env names]
   (when (some nil? (keys names)) (compile-error "Invalid variable name nil", {:env @env :names names}))
+  (when (some nil? (vals names)) (compile-error "Invalid variable value", {:env @env :names names :bound (get @env 'bound nil)}))
   (swap! env #(merge-with merge-state %1 {'bound names})))
 
 ;; this overflow register set probably isn't the best plan, but its
@@ -134,6 +135,7 @@
   (let [taxi-slots (map (fn [i] [(exec/taxi-register 0) i]) (drop exec/initial-register (range (get @env 'register exec/initial-register))))
         input (map #(lookup inner-env %1) arguments)
         scope (concat taxi-slots input)]
+    (println "generate send cont" arguments (get @inner-env 'bound))
     (when (some nil? input)
       (compile-error "Cannot send unbound/nil argument" {:env @env :target target :arguments arguments :bound (get @env 'bound nil)}))
     (concat
@@ -144,6 +146,7 @@
   (let [argmap (apply hash-map (rest terms))
         m (meta terms)]
     (apply add-dependencies env terms)
+    (println "bf" argmap (get @env 'bound))
     (let [r  (build
              (term env (first terms) m exec/temp-register (argmap :a) ( argmap :b))
              (term env 'filter m exec/temp-register)
@@ -216,7 +219,7 @@
     (make-continuation env tail-name (down))
     (make-bind env inner-env name body)
     (apply build
-           (when (count input) (apply term env 'delta-c m input))
+           (when (not= (count input) 0) (apply term env 'delta-c m input))
            (list (generate-send env m name input)))))
 
 (defn compile-union [env terms down]
@@ -240,6 +243,28 @@
     (doseq [name output] (allocate-register env name))
     (make-continuation env tail-name (build (term env 'join m (count arms)) (down)))
     body))
+
+(defn compile-choose [env terms down]
+  (let [[_ proj & arms] terms
+        m (meta (first terms))
+        [input output] (partition-2 (fn [x] (is-bound? env x)) proj)
+        name (get-signature (gensym "choose") input output)
+        tail-name (str name "-cont")
+        body (apply build
+                    (map-indexed
+                     #(let [inner-env (env-from env proj)
+                            arm-name (str name "-arm" %1)
+                            m (meta (first terms))
+                            _ (swap! inner-env assoc 'name arm-name)
+                            body (rest (rest %2))
+                            body (list (with-meta (list 'not (compile-conjunction inner-env body
+                                                                                  (fn [] (generate-send-cont env m inner-env tail-name output)))) m))]
+                        (bind-outward env inner-env)
+                        body)
+                     arms))]
+    (make-continuation env tail-name (down))
+    body))
+
 
 (defn compile-implication [env terms down]
   (let [relname (name (first terms))
@@ -286,6 +311,7 @@
         m (meta (first terms))
         simple [(argmap :return) (argmap :a) (argmap :b)]
         ins (map #(get-in @env ['bound %1] nil) simple)]
+    (println "simple" ins (get @env 'bound))
     (apply add-dependencies env (rest (rest terms)))
     (if (some not (rest ins))
       ;; handle the [b*] case by blowing out a temp
@@ -315,6 +341,7 @@
         b (is-bound? env (argmap :b))
         rebind (fn [s d]
                  (bind-names env {d s})
+                 (println "rebind" d s (get @env 'bound))
                  (down))]
     (cond (and a b) (generate-binary-filter env terms down)
           a (rebind a (argmap :b))
@@ -347,6 +374,7 @@
              (list z)))))
 
 (defn compile-expression [env terms down]
+  (println "compile expression" terms)
   (let [commands {'+ compile-simple-primitive
                   '* compile-simple-primitive
                   '/ compile-simple-primitive
@@ -367,6 +395,7 @@
                   'not compile-not
                   'not= generate-binary-filter
                   'union compile-union
+                  'choose compile-choose
                   'query compile-query}
         relname (first terms)]
     (if-let [c (commands relname)]

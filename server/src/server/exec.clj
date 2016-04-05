@@ -91,46 +91,46 @@
       (c r))))
 
 
-
-;; there are no terms to a delta-t
-(defn delta-t [d terms build c]
+(defn delta-t [c]
   (let [state (atom {})]
-    (fn [r]
-      (let [tuple (subvec (vec r) 1)]
-        (condp = (rget r op-register)
-          'insert (swap! state update-in [tuple] (fn [x]
-                                                   (if x
-                                                     [(x 0) (+ (x 1) 1)]
-                                                     [tuple 1])))
-          'remove (swap! state update-in [tuple] (fn [x] (if (= (x 1) 1) nil
-                                                             [(x 0) (- (x 1) 1)])))
+    [(fn [r]
+       (let [tuple (subvec (vec r) 1)]
+         (condp = (rget r op-register)
+           'insert (swap! state update-in [tuple] (fn [x]
+                                                    (if x
+                                                      [(x 0) (+ (x 1) 1)]
+                                                      [tuple 1])))
 
-          'flush (c r)
-          ;; shallow copy
-          'rdrain (doseq [i @state] (c (object-array (cons 'remove i))))
-          'idrain (doseq [i @state] (c (object-array (cons 'insert i)))))))))
+           'remove (swap! state update-in [tuple] (fn [x] (if (= (x 1) 1) nil
+                                                              [(x 0) (- (x 1) 1)])))
+           ())
+         (c r)))
+
+     (fn [c2 op]
+       (doseq [i @state] (c2 (object-array (cons op (i 0))))))]))
+
+
 
 (defn donot [d terms build c]
   (let [count (atom 0)
         on (atom false)
-        delta (delta-t d () build c)
+        zig (atom false)
         tail  (fn [r]
                 (condp = (rget r op-register)
                   'insert (swap! count inc)
-                  'remove (swap! count dec)))
-
-        internal (build (second terms) tail)]
-    (fn [r]
-      (internal r)
-      (when (= (rget r op-register) 'flush)
-        (when (and (= @count 0) (not @on))
-          (delta (object-array '(idrain)))
-          (swap! on not))
-        (when (and (> @count 0) @on)
-          (delta (object-array '(rdrain)))
-          (swap! on not)))
-      (delta r))))
-
+                  'remove  (swap! count dec)
+                  'flush (do
+                           (when (and (= @count 0) (not @on))
+                             (@zig c 'insert)
+                             (swap! on not))
+                           (when (and (> @count 0) @on)
+                             (@zig c 'remove)
+                             (swap! on not))
+                           (c r))
+                  'close (c r)))
+        delta (delta-t (build (second terms) tail))]
+    (reset! zig (delta 1))
+    (delta 0)))
 
 
 (defn tuple [d terms build c]
@@ -325,9 +325,6 @@
 
 
 
-
-
-
 (defn delta-s [d terms build c]
   (let [state (ref {})
         handler (fn [r]
@@ -346,6 +343,7 @@
     (fn [r]
       (c (rset r (second terms) (handler r))))))
 
+
 (defn dosend [d terms build c]
   (fn [r]
     (let [channel (rget r (second terms))
@@ -356,23 +354,31 @@
                  r nregs))
       (c r))))
 
+
+
 (defn doscan [d terms build c]
   (let [[scan oid dest key] terms
-        opened (atom ())]
+        opened (atom ())
+        scan (fn [r]
+               (let [handle (d 'insert oid (rget r key)
+                               (fn [t op]
+                                 (rset r op-register op)
+                                 (when (= op 'insert)
+                                   (rset r dest t))
+                                 (c r)))]
+                 (swap! opened conj handle)))]
+
 
     (fn [r]
       (condp = (rget r op-register)
-        'insert (let [handle (d oid (rget r key)
-                                (fn [t]
-                                  (rset r op-register 'insert)
-                                  (rset r dest t)
-                                  (c r)))]
-                  (swap! opened conj handle))
+        'insert (scan r)
+        'remove (scan r)
         'close (do
                  (doseq [i @opened] (i))
                  (c r))
-        (c r)))))
-
+        'flush (do (when (= oid edb/insert-oid)
+                     (d 'flush oid [] (fn [k op] (c r))))
+                   (c r))))))
 
 
 (def command-map {'move      (simple move)

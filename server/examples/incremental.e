@@ -1,6 +1,8 @@
 
-(open fruit (query [f] (fact f :color k)))
+(open fruit (query [f]
+      (not (fact f :color k))
+      (= f "no fruits man")))
+      
 
 (query []
-       (insert-fact-btu! :entity "apple" :attribute "color" :value "red" :tick t0)
-       (remove-by-t! t0))
+       (insert-fact-btu! :entity "apple" :attribute "color" :value "red" :tick t0))

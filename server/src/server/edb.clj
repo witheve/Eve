@@ -49,27 +49,33 @@
         by-attribute ()
         listeners (atom #{})
         index-map  {insert-oid
-                    (fn [eavb c]
-                      (let [t (now)
-                            tuple (object-array (vector (aget eavb 0)
-                                                        (aget eavb 1)
-                                                        (aget eavb 2)
-                                                        (aget eavb 3)
-                                                        t
-                                                        user))]
-                        (swap! tuples conj tuple)
-                        (doseq [i @listeners] (i tuple))
-                        (c tuple)
-                        (fn [] ())))
+                    (fn [key c]
+                      (fn [op]
+                        (let [t (now)
+                              tuple (object-array (vector (aget key 0)
+                                                          (aget key 1)
+                                                          (aget key 2)
+                                                          (aget key 3)
+                                                          t
+                                                          user))]
+                          (swap! tuples conj tuple)
+                          (println "inserty listeners" (count @listeners))
+                          (doseq [i @listeners] (i tuple))
+                          (c tuple))))
                     
                     full-scan-oid
                     (fn [key c]
-                      (swap! listeners conj c)
-                      (doseq [i @tuples] (c i))
-                      (fn [] (swap! listeners disj c)))}]
-
-    
-    (fn [index key c]
-      ((index-map index) key c))))
+                      (fn [op]
+                        (when (= op 'insert)
+                          (swap! listeners conj c)
+                          (doseq [i @tuples] (c i))
+                          (fn [] (swap! listeners disj c)))))}]
 
 
+    (fn [op index key c]
+      ;; should be if i've said anything that he cared about?
+      ;; should in general not issue a flush if nothing has
+      ;; changed across a projection also..i think we decided that
+      (if (= op 'flush)
+        (doseq [i @listeners] (i [] op))
+        ((index-map index) key c op)))))

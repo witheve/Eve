@@ -5,7 +5,7 @@
 
 ;; in the nwo this should open the insert endpoint and then close it
 (defn insert [d e a v b u]
-  ((d edb/insert-oid (object-array [e a v b]) (fn [t] ()))))
+  (d 'insert edb/insert-oid (object-array [e a v b]) (fn [op t] ())))
 
 (def uber-log (atom ()))
 
