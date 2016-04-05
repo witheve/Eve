@@ -247,12 +247,16 @@
         army (fn [parameters body ix]
                (let [arm-name (str inner-name "-arm" ix)
                      inner-env (env-from env proj)
-                     body (compile-conjunction inner-env body (fn [] (generate-send-cont
-                                                                      env
-                                                                      m
-                                                                      inner-env
-                                                                      tail-name
-                                                                      (map (comp symbol name) output))))]
+                     body (compile-conjunction inner-env body (fn []
+                                                                (let [k (generate-send-cont
+                                                                         env
+                                                                         m
+                                                                         inner-env
+                                                                         tail-name
+                                                                         (map (comp symbol name) output))]
+                                                                  (println "what the hell bobby" k)
+                                                                  k)))]
+
                  (doseq [name (map call-map (get @inner-env 'output []))]
                    (when-not (is-bound? env name)
                      (println "<<BIND" (get @env 'name) name (get @env 'register exec/initial-register))
@@ -265,6 +269,10 @@
     (db/for-each-implication (get @env 'db) relname
                              (fn [parameters body]
                                (swap! arms conj (army parameters body (count @arms)))))
+    
+    (if (= (count @arms) 0)
+      (compile-error (str "primitive " relname " not supported") {'relname relname}))
+
     (make-continuation env tail-name (down))
     ;; @FIXME: Dependent on synchronous evaluation: expects for-each-implication to have completed
     (apply build (map #(generate-send env m %1 (map call-map input)) @arms))))
@@ -335,6 +343,7 @@
              (list z)))))
 
 (defn compile-expression [env terms down]
+  (println "compile expression" terms)
   (let [commands {'+ compile-simple-primitive
                   '* compile-simple-primitive
                   '/ compile-simple-primitive
@@ -353,7 +362,7 @@
                   'range compile-simple-primitive
                   '= compile-equal
                   'not compile-not
-                  'not-equal generate-binary-filter
+                  'not= generate-binary-filter
                   'union compile-union
                   'query compile-query}
         relname (first terms)]

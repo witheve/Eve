@@ -373,7 +373,7 @@
                   '>=        (ternary-numeric-boolean >=)
                   '<=        (ternary-numeric-boolean <=)
                   'str       (simple dostr)
-                  'not-equal (simple do-not-equal)
+                  'not= (simple do-not-equal)
 
                   'filter    dofilter
                   'range     dorange

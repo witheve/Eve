@@ -3,7 +3,7 @@
   (fact fruit :color color)
   (fact friend :color color)
   (fact friend :tag "fruit")
-  (!= fruit friend))
+  (not= fruit friend))
 
 (query [f]
        (insert-fact! "apple" :color "red" :tag "fruit")

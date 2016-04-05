@@ -75,7 +75,7 @@
                  '* {:args [:a :b] :kwargs [:return] :optional #{:return}}
                  '/ {:args [:a :b] :kwargs [:return] :optional #{:return}}
 
-                 '!= {:args [:a :b] :kwargs [:return] :optional #{:return}}
+                 'not= {:args [:a :b] :kwargs [:return] :optional #{:return}}
                  '> {:args [:a :b] :kwargs [:return] :optional #{:return}}
                  '>= {:args [:a :b] :kwargs [:return] :optional #{:return}}
                  '< {:args [:a :b] :kwargs [:return] :optional #{:return}}
