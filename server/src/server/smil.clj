@@ -293,43 +293,71 @@
       (boolean (:return (:optional schema)))
       false)))
 
+(defn get-args
+  "Retrieves a hash-map of args from an already parsed form, ignoring special forms."
+  [sexpr]
+  (if-not (or (not (seq? sexpr)) (#{'define 'query} (first sexpr)))
+    (apply hash-map (rest sexpr))))
+
 (defn unpack-inline [sexpr]
-  (cond
-    (and (seq? sexpr) (#{'query 'define!} (first sexpr)))
-    {:inline [(with-meta
-               (concat
-                [(first sexpr)]
-                (reduce
-                 #(let [{inline :inline query :query} (unpack-inline %2)]
-                    (into (into %1 query) inline))
-                 [] (rest sexpr)))
-               (meta sexpr))]
-     :query []}
+  (let [argmap (when (seq? sexpr) (get-args sexpr))]
+    (cond
+      (not (seq? sexpr))
+      {:inline [sexpr]}
 
-    (and (seq? sexpr) (returnable? sexpr))
-    (let [state (reduce
-                 #(merge-state
-                    %1
-                    (if-not (seq? %2)
-                      {:inline [%2]}
-                      (let [{inline :inline query :query} (unpack-inline %2)]
-                        (let [tmp (gensym "$$tmp")
-                              query (conj query (concat (first inline) [:return tmp]))]
-                          {:inline [tmp] :query query}))))
-                 {:inline [] :query []}
-                 (rest sexpr))]
-      {:inline [(concat [(first sexpr)] (:inline state))] :query (:query state)})
+      (#{'query 'define!} (first sexpr))
+      {:inline [(with-meta
+                  (concat
+                   [(first sexpr)]
+                   (reduce
+                    #(let [{inline :inline query :query} (unpack-inline %2)]
+                       (into (into %1 query) inline))
+                    [] (rest sexpr)))
+                  (meta sexpr))]
+       :query []}
 
-    (and (seq? sexpr) (= (first sexpr) '=))
-    (let [argmap (apply hash-map (rest sexpr))]
-      (if (and (symbol? (:a argmap)) (seq? (:b argmap)) (returnable? (:b argmap)))
-        {:inline [(with-meta
-                   (concat (:b argmap) [:return (:a argmap)])
-                   (meta (:b argmap)))]}
-        {:inline [sexpr]}))
+      (= (first sexpr) '=)
+      (cond
+        (every? seq? (vals argmap))
+        (let [returns {:a (:return (get-args (:a argmap)))
+                       :b (:return (get-args (:b argmap)))}
+              var (or (:a returns) (:b returns) (gensym "$$tmp"))]
+          {:inline [] :query (with-meta (apply concat (map (fn [x]
+                                                             (let [sub-expr (if (x returns)
+                                                                              (x argmap)
+                                                                              (concat (x argmap) [:return var]))
+                                                                   {inline :inline query :query} (unpack-inline sub-expr)]
+                                                               (concat query inline)))
+                                                             [:a :b]))
+                               (meta sexpr))})
 
-    :else
-    {:inline [sexpr]}))
+        (some seq? (vals argmap))
+        (let [[val var] (map argmap (if (seq? (:a argmap)) [:a :b] [:b :a]))
+              {inline :inline query :query} (unpack-inline val)]
+          {:inline [(with-meta (concat (first inline) [:return var])
+                      (meta (:b argmap)))]
+           :query query})
+          :else
+          {:inline [sexpr]})
+
+      (returnable? sexpr)
+      (let [state (reduce
+                   #(merge-state
+                     %1
+                     (if-not (seq? %2)
+                       {:inline [%2]}
+                       (let [{inline :inline query :query} (unpack-inline %2)
+                             tmp (gensym "$$tmp")
+                             query (conj query (concat (first inline) [:return tmp]))]
+                           {:inline [tmp] :query query})))
+                   {:inline [] :query []}
+                   (rest sexpr))]
+        {:inline [(concat [(first sexpr)] (:inline state))] :query (:query state)})
+
+      :else
+      (with-meta (conj (map unpack-inline (rest sexpr))
+                       (first sexpr))
+        (meta sexpr)))))
 
 (defn unpack [db sexpr]
   (first (:inline (unpack-inline (expand db sexpr)))))
