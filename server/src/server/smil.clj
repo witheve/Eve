@@ -296,7 +296,7 @@
 (defn get-args
   "Retrieves a hash-map of args from an already parsed form, ignoring special forms."
   [sexpr]
-  (if-not (or (not (seq? sexpr)) (#{'define 'query} (first sexpr)))
+  (if-not (or (not (seq? sexpr)) (#{'define! 'query} (first sexpr)))
     (apply hash-map (rest sexpr))))
 
 (defn unpack-inline [sexpr]
