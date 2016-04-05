@@ -355,7 +355,16 @@
         {:inline [(concat [(first sexpr)] (:inline state))] :query (:query state)})
 
       :else
-      (let [state (reduce #(merge-with merge-state %1 (unpack-inline %2)) {:inline [(first sexpr)] :query []} (rest sexpr))]
+      (let [state (reduce #(merge-with merge-state %1
+                                       (if (and (seq? %2) (returnable? %2))
+                                         (let [sub-argmap (get-args %2)
+                                               sub-argmap (when (not (:return sub-argmap))
+                                                            (assoc sub-argmap :return (gensym "$$tmp")))
+                                               {inline :inline query :query} (unpack-inline (apply list (first %2) (splat-map sub-argmap)))]
+                                           {:inline [(:return sub-argmap)] :query (concat query inline)})
+                                           (unpack-inline %2)))
+                          {:inline [(first sexpr)] :query []}
+                          (rest sexpr))]
         {:inline [(with-meta (seq (:inline state)) (meta sexpr))] :query (:query state)}))))
 
 (defn unpack [db sexpr]
