@@ -112,7 +112,7 @@ function saveTable() {
       let rows: Array<string> = result.values.map((row) => {
         return row.join(",");
       });
-      let csv: string = fields + "\n" + rows.join("\n");
+      let csv: string = fields + "\r\n" + rows.join("\r\n");
       let blob = new Blob([csv], {type: "text/csv"});
       let url = URL.createObjectURL(blob);
       repl.csv = url;
