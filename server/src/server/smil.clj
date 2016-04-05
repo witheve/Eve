@@ -355,9 +355,8 @@
         {:inline [(concat [(first sexpr)] (:inline state))] :query (:query state)})
 
       :else
-      (with-meta (conj (map unpack-inline (rest sexpr))
-                       (first sexpr))
-        (meta sexpr)))))
+      (let [state (reduce #(merge-with merge-state %1 (unpack-inline %2)) {:inline [(first sexpr)] :query []} (rest sexpr))]
+        {:inline [(with-meta (seq (:inline state)) (meta sexpr))] :query (:query state)}))))
 
 (defn unpack [db sexpr]
   (first (:inline (unpack-inline (expand db sexpr)))))
