@@ -6,8 +6,23 @@
 ;; include some form of node identity (and insert batch
 ;; bits)
 ;; this doesn't belong here - depending on the consistency
-;; story 
-(defn now[] (System/currentTimeMillis))
+;; story
+
+(def current-milli (ref 0))
+(def current-count (ref 0))
+
+;; this is a long with milli and a count...we need to stuff intra-batch
+;; bits in here also
+(defn now[]
+  (dosync 
+   (let [k (System/currentTimeMillis)]
+     (if (> k @current-milli)
+       (do
+;         (ref-set current-count 0))
+         (ref-set current-milli k)
+         (do
+           (alter current-count + 1))))
+     (bit-or (bit-shift-left @current-milli 20) @current-count))))
 
 ;; xxx - reconcile with smil
 (def remove-oid 5)
@@ -31,7 +46,7 @@
 (defn create-edb [user]
   (let [tuples (atom '())
         by-attribute ()
-        listeners (atom '())
+        listeners (atom #{})
         index-map  {insert-oid
                     (fn [c]
                       (fn [eavb]
@@ -40,15 +55,16 @@
                                                           (aget eavb 1)
                                                           (aget eavb 2)
                                                           (aget eavb 3)
-                                                          user
-                                                          t))]
+                                                          t
+                                                          user))]
                           (swap! tuples conj tuple)
                           (doseq [i @listeners] (i tuple))
-                          (c [t]))))
+                          (c tuple))))
                     
                     full-scan-oid
                     (fn [c]
-                      ;; listener again
+                      ;; how were we removing listeners again? serialize list
+                      (swap! listeners conj c) 
                       (fn [key]
                         (doseq [i @tuples]
                           (c i))))
