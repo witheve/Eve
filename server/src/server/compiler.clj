@@ -80,20 +80,7 @@
   (doseq [name (get @inner-env 'output [])]
     (when-not (is-bound? env name)
       (println "<<BIND" (get @env 'name) name (get @env 'register exec/initial-register))
-      (allocate-register env name)
-      ;; (let [prev (lookup inner-env name)
-      ;;       tmp-name (symbol (str "tmp-" (first prev)))
-      ;;       cur (if-let [cur (lookup env tmp-name)]
-      ;;             (first cur)
-      ;;             (get @env 'register exec/initial-register))
-      ;;       reg (into [cur] (rest prev))]
-      ;;   (if (> (count prev) 1)
-      ;;     (do (when-not (is-bound? env tmp-name)
-      ;;           (allocate-register env tmp-name))
-      ;;         (bind-names env {name (into [cur] (rest reg))}))
-      ;;     (allocate-register env name))
-      ;;   (println "<<BIND" (get @env 'name) name cur))
-    )))
+      (allocate-register env name))))
 
 (defn new-env
   "Creates a new top level compilation environment"
@@ -134,9 +121,7 @@
 (defn generate-send-cont
   "Generates a continuation send which pops and restores the scope of the parent environment"
   [env m inner-env target arguments]
-  (let [;bound-pairs (sort-by (comp first second) (get @env 'bound {}))
-        ;taxi-slots (map (fn [[name slot]] (vec (concat exec/taxi-register slot))) bound-pairs)
-        taxi-slots (map (fn [i] [(exec/taxi-register 0) i]) (drop exec/initial-register (range (get @env 'register exec/initial-register))))
+  (let [taxi-slots (map (fn [i] [(exec/taxi-register 0) i]) (drop exec/initial-register (range (get @env 'register exec/initial-register))))
         _ (println " SENDING" arguments "to\n"
                    "INNER" (get @inner-env 'name) (get @inner-env 'bound []) "->\n"
                    "OUTER" (get @env 'name) (get @env 'bound []))
@@ -262,13 +247,16 @@
         army (fn [parameters body ix]
                (let [arm-name (str inner-name "-arm" ix)
                      inner-env (env-from env proj)
-                     _ (println "kreg" output)
                      body (compile-conjunction inner-env body (fn [] (generate-send-cont
                                                                       env
+                                                                      m
                                                                       inner-env
                                                                       tail-name
-                                                                      (doall (map (comp symbol name) output)))))]
-                 (bind-outward env inner-env)
+                                                                      (map (comp symbol name) output))))]
+                 (doseq [name (map call-map (get @inner-env 'output []))]
+                   (when-not (is-bound? env name)
+                     (println "<<BIND" (get @env 'name) name (get @env 'register exec/initial-register))
+                     (allocate-register env name)))
                  (make-bind env inner-env arm-name body)
                  arm-name))]
 
