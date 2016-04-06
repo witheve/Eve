@@ -22,36 +22,35 @@
      (pprint prog)))
 
 
+(defn print-result [keys channel]
+  (fn [tuple]
+    (condp = (exec/rget tuple exec/op-register)
+                'insert (println "INSERT" channel (exec/print-registers tuple))
+                'remove (println "REMOVE" channel (exec/print-registers tuple))
+                'flush  (println "FLUSH " channel (exec/print-registers tuple))
+                'close  (println "CLOSE " channel (exec/print-registers tuple))
+                'error  (println "ERROR " channel (exec/print-registers tuple)))))
+
 (defn diesel [d expression trace-on]
-  ;; the compile-time error path should come up through here
-  ;; fix external number of regs
   (let [[form keys] (form-from-smil (smil/unpack d expression))
-        res (fn [tuple]
-              (condp = (exec/rget tuple exec/op-register)
-                'insert (println "INS" (exec/print-registers tuple))
-                'remove (println "REM" (exec/print-registers tuple))
-                'flush  (println "FLS" (exec/print-registers tuple))))
         prog (compiler/compile-dsl d @bag form)
-        ec (if trace-on (exec/open-trace d prog res) (exec/open d prog res))]
-    (pprint prog)
+        ec (exec/open d prog (print-result keys "") trace-on)]
+    (when trace-on (pprint prog))
+    (ec 'insert)
+    (ec 'flush)
+    (ec 'close)))
+
+(defn open [d expression trace-on]
+  (let [[form keys] (form-from-smil (smil/unpack d (nth expression 2)))
+        prog (compiler/compile-dsl d @bag form)
+        res (print-result keys (second expression))
+        ec (exec/open d prog res trace-on)]
     (ec 'insert)
     (ec 'flush)))
 
+
 (defn trace [d expression]
-  ;; the compile-time error path should come up through here
-  ;; fix external number of regs
-  (let [[form keys] (form-from-smil (smil/unpack d (second expression)))
-        res (fn [tuple]
-              (condp = (exec/rget tuple exec/op-register)
-                'insert (println "INS" (exec/print-registers tuple))
-                'remove (println "REM" (exec/print-registers tuple))
-                'flush  (println "FLS" (exec/print-registers tuple))))
-        _ (println form)
-        prog (compiler/compile-dsl d @bag form)
-        _ (pprint prog)
-        ec (exec/open-trace d prog res)]
-    (ec 'insert)
-    (ec 'flush)))
+  (diesel d (second expression) true))
 
 ;; xxx - this is now...in the language..not really?
 (defn define [d expression trace-on]
@@ -65,6 +64,7 @@
   (let [function ({'define! define
                    'show show
                    'trace trace
+                   'open open
                    'load read-all
                    } (first term))]
     (if (nil? function)
@@ -106,4 +106,7 @@
                   (catch Exception e
                     (java.lang.System/exit 0)))]
       (when-not (= input 'exit)
-        (recur (eeval d input))))))
+        (recur
+         (try (eeval d input)
+              (catch Exception e
+                (println "error" e))))))))

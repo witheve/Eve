@@ -10,6 +10,7 @@
 
 (def db (atom nil))
 (def trace (atom false))
+(def service (atom true))
 
 (defn -main [& args]
   ;; load existing database..change the way the user is bound here, should go through
@@ -22,13 +23,16 @@
         flag-map
         {
          "-d" (fn [] (reset! interactive false))
+         "-n" (fn [] (reset! service false))
          "-t" (fn [] (reset! trace true))
          }
 
         parameter-map
         {"-s" log/set-pathname
          "-p" (fn [x] (reset! port (Integer. x)))
-         "-e" (fn [x] (repl/eeval @db (smil/read x) @trace))
+         "-e" (fn [x] (try (repl/eeval @db (smil/read x) @trace)
+                           (catch Exception e
+                             (println "error" e))))
          }
 
 
@@ -43,5 +47,5 @@
                               (arglist (rest (rest args))))
                           (println "invalid argument" (first args))))))]
     (arglist args)
-    (when @port (jsclient/serve @db @port))
+    (when @service (jsclient/serve @db @port))
     (when @interactive (repl/rloop @db))))

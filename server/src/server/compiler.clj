@@ -52,7 +52,6 @@
   "Merges a map of [name register] pairs into the 'bound map of env"
   [env names]
   (when (some nil? (keys names)) (compile-error "Invalid variable name nil", {:env @env :names names}))
-  (when (some (comp not vector?) (vals names)) (compile-error "Invalid variable value", {:env @env :names names :bound (get @env 'bound nil)}))
   (swap! env #(merge-with merge-state %1 {'bound names})))
 
 ;; this overflow register set probably isn't the best plan, but its
@@ -235,10 +234,10 @@
                             body (rest (rest %2))
                             body (compile-conjunction inner-env body
                                                       (fn [] (generate-send-cont env m inner-env tail-name output)))]
-                            (bind-outward env inner-env)
-                            (make-bind env inner-env arm-name body)
-                            (generate-send env m arm-name input))
+                        (make-bind env inner-env arm-name body)
+                        (generate-send env m arm-name input))
                      arms))]
+    (doseq [name output] (allocate-register env name))
     (make-continuation env tail-name (down))
     body))
 

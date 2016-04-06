@@ -134,7 +134,7 @@
 
 (defn tuple [d terms build c]
   (fn [r]
-    (when (not= (rget r op-register) 'flush)
+    (when (and (not= (rget r op-register) 'flush)  (not= (rget r op-register) 'close))
       (let [a (rest (rest terms))
             ;; since this is often a file, we currently force this to be at least the base max frame size
             tout (object-array (max (count a) basic-register-frame))]
@@ -211,23 +211,27 @@
         prevs (atom {})]
     (fn [r]
       (let [out-slot (second terms)
+            op (rget r op-register)
             value-slot (nth terms 2)
             grouping-slots (nth terms 3)
             grouping (map #(rget r %1) grouping-slots)]
 
-        (condp = (rget r op-register)
-          'insert (swap! totals update-in grouping (fnil + 0) (rget r value-slot))
-          'remove (swap! totals update-in grouping (fnil - 0) (rget r value-slot)))
-
-        (rset r out-slot (get-in @totals grouping))
-        (c r)
-
-        (when-not (= (rget r op-register) 'flush)
-          (when-not (nil? (get-in @prevs grouping nil))
-            (rset r op-register 'remove) ;; @FIXME: This needs to copied to be safe asynchronously
-            (rset r out-slot (get-in @prevs grouping))
-            (c r))
-          (swap! prevs assoc-in grouping (get-in @totals grouping)))))))
+        (if (or (= op 'flush) (= op 'close))
+            (c r)
+          (do 
+            (condp = (rget r op-register)
+              'insert (swap! totals update-in grouping (fnil + 0) (rget r value-slot))
+              'remove (swap! totals update-in grouping (fnil - 0) (rget r value-slot))
+              ())
+            
+            (rset r out-slot (get-in @totals grouping))
+            (c r)
+            
+            (when-not (nil? (get-in @prevs grouping nil))
+              (rset r op-register 'remove) ;; @FIXME: This needs to copied to be safe asynchronously
+              (rset r out-slot (get-in @prevs grouping))
+              (c r))
+            (swap! prevs assoc-in grouping (get-in @totals grouping))))))))
 
 (defn delta-c [d terms build c]
   (let [[_ & proj] terms
@@ -239,7 +243,8 @@
         (condp = (rget r op-register)
           'insert (swap! assertions update-in [fact] (fnil inc 0))
           'remove (swap! assertions update-in [fact] dec)
-          'flush nil)
+          'flush (c r)
+          'close (c r))
         (let [cur (get @assertions fact 0)]
           (cond
             (and (> cur 0) (= prev 0)) (c r)
@@ -289,7 +294,8 @@
               (swap! assertions assoc t tuple)
               (when (walk t)
                 (rset r out (rget r in))
-                (c r)))))))))
+                (c r)))))
+        (c r)))))
 
 
 
@@ -393,28 +399,16 @@
 
 
 ;; fuse notrace and trace versions
-(defn open [d program callback]
+(defn open [d program callback trace-p]
   (let [reg (object-array basic-register-frame)
         blocks (atom {})
         built (atom {})
+        tf (if trace-p
+             (fn [n m x] (fn [r] (println "trace" n m) (println (print-registers r)) (x r)))
+             (fn [n m x] x))
         _ (doseq [i program]
             (swap! blocks assoc (second i) (nth i 2)))
-        e (build 'main blocks built d (@blocks 'main)
-                 (fn [n m x] x)
-                 callback)]
-
-    (fn [op]
-      (rset reg op-register op)
-      (e reg))))
-
-(defn open-trace [d program callback]
-  (let [reg (object-array basic-register-frame)
-        blocks (atom {})
-        built (atom {})
-        _ (doseq [i program]
-            (swap! blocks assoc (second i) (nth i 2)))
-        e (build 'main blocks built d (@blocks 'main)
-                 (fn [n m x] (fn [r] (println "trace" n m) (println (print-registers r)) (x r)))
+        e (build 'main blocks built d (@blocks 'main) tf
                  callback)]
 
     (fn [op]
@@ -424,7 +418,7 @@
 
 (defn single [d prog out]
   (let [e (open d prog (fn [r] 
-                         (when (= (rget r op-register) 'insert) (out r))))]
+                         (when (= (rget r op-register) 'insert) (out r))) false)]
     (e 'insert)
     (e 'flush)
     (e 'close)))
