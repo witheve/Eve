@@ -294,10 +294,11 @@
       false)))
 
 (defn get-args
-  "Retrieves a hash-map of args from an already parsed form, ignoring special forms."
+  "Retrieves a hash-map of args from an already parsed form, ignoring special forms + forms w/ rest params."
   [sexpr]
-  (if-not (or (not (seq? sexpr)) (#{'define! 'query} (first sexpr)))
-    (apply hash-map (rest sexpr))))
+  (when (seq? sexpr)
+    (when-not (:rest (or (get-schema (first sexpr)) {:rest true}))
+      (apply hash-map (rest sexpr)))))
 
 (defn unpack-inline [sexpr]
   (let [argmap (when (seq? sexpr) (get-args sexpr))]
@@ -305,7 +306,7 @@
       (not (seq? sexpr))
       {:inline [sexpr]}
 
-      (#{'query 'define!} (first sexpr))
+      (or (#{'query 'define!} (first sexpr)) (:rest (get-schema (first sexpr))))
       {:inline [(with-meta
                   (concat
                    [(first sexpr)]
