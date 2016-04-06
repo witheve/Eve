@@ -96,6 +96,20 @@
       (allocate-register inner-env name))
     inner-env))
 
+
+(defn env-from-parent
+  "Creates an inner environment with bindings to the names in its projection bound in the parent"
+  [env callmap & [basename]]
+  (let [db (get @env 'db)
+        ;; this is in the child environment in keymap space
+        [bound free] (partition-2 #(is-bound? env (callmap %1)) (keys callmap))
+        cname (get-signature basename bound free)
+        inner-env (atom {'name cname 'db db 'input bound 'output free})]
+    (doseq [n bound]
+      (allocate-register inner-env (symbol (name n))))
+    inner-env))
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; WEASL Generation
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -240,7 +254,7 @@
         tail-name (str inner-name "-cont")
         army (fn [parameters body ix]
                (let [arm-name (str inner-name "-arm" ix)
-                     inner-env (env-from env proj)
+                     inner-env (env-from-parent env call-map)
                      body (compile-conjunction inner-env body (fn []
                                                                 (let [k (generate-send-cont
                                                                          env
@@ -249,7 +263,6 @@
                                                                          tail-name
                                                                          (map (comp symbol name) output))]
                                                                   k)))]
-
                  (doseq [name (map call-map (get @inner-env 'output []))]
                    (when-not (is-bound? env name)
                      (allocate-register env name)))
