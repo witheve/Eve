@@ -60,17 +60,19 @@
 
 (declare read-all)
 
-(defn eeval [d term trace-on]
-  (let [function ({'define! define
-                   'show show
-                   'trace trace
-                   'open open
-                   'load read-all
-                   } (first term))]
-    (if (nil? function)
-      (diesel d term trace-on)
-      (function d term trace-on))
-    d))
+(defn eeval
+  ([d term] (eeval d term false))
+  ([d term trace-on]
+     (let [function ({'define! define
+                      'show show
+                      'trace trace
+                      'open open
+                      'load read-all
+                      } (first term))]
+       (if (nil? function)
+         (diesel d term trace-on)
+         (function d term trace-on))
+       d)))
 
 (import '[java.io PushbackReader])
 (require '[clojure.java.io :as io])
