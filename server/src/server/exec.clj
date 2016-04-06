@@ -324,7 +324,10 @@
   (fn [r]
     (let [channel (rget r (second terms))
           nregs (rget r (third terms))]
-      (channel (if (= (rget r op-register) 'flush) r nregs))
+      (channel (if (or
+                    (= (rget r op-register) 'flush)
+                    (= (rget r op-register) 'close))
+                 r nregs))
       (c r))))
 
 (defn doscan [d terms build c]
