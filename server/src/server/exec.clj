@@ -162,6 +162,7 @@
   (let [source (rget r (nth terms 2))]
     (rset r (second terms) source)))
 
+
 (defn dostr [r terms]
   (let [inputs (map (fn [x] (rget r x))
                     (rest (rest terms)))]
@@ -197,6 +198,28 @@
     ;; pass flush
     (when (rget r (second terms))
       (c r))))
+
+;; this is just a counting version of
+;; join, that may be insufficient if
+;; there are multiple flushes in the pipe
+;; i.e. identifiying the flushes, or the upstream
+;; legs and doing a merge-like thing
+(defn dojoin [d terms build c]
+  (let [total (second terms)
+        flushes (atom 0)
+        closes (atom 0)
+        ;; transactions
+        update (fn [c r x]
+                 (when (= (swap! x inc) total)
+                   (do
+                     (reset! x 0)
+                     (c r))))]
+                 
+    (fn [r]
+      (condp = (rget r op-register)
+        'flush (update c r flushes)
+        'close  (update c r closes)
+        (c r)))))
 
 
 (defn dosort [d terms build c]
@@ -374,6 +397,7 @@
 
                   'scan      doscan
                   'send      dosend
+                  'join      dojoin
                   })
 
 ;; this needs to send an error message down the pipe

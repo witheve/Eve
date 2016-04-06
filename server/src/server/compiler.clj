@@ -238,7 +238,7 @@
                         (generate-send env m arm-name input))
                      arms))]
     (doseq [name output] (allocate-register env name))
-    (make-continuation env tail-name (down))
+    (make-continuation env tail-name (build (term env 'join m (count arms)) (down)))
     body))
 
 (defn compile-implication [env terms down]
