@@ -306,7 +306,7 @@
       (not (seq? sexpr))
       {:inline [sexpr]}
 
-      (or (#{'query 'define!} (first sexpr)) (:rest (get-schema (first sexpr))))
+      (#{'query 'define! 'not 'context 'choose 'union} (first sexpr))
       {:inline [(with-meta
                   (concat
                    [(first sexpr)]
