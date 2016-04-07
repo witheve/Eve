@@ -30,6 +30,12 @@
         parameter-map
         {"-s" log/set-pathname
          "-p" (fn [x] (reset! port (Integer. x)))
+         
+         "-f" (fn [x]
+                (reset! interactive false)
+                (reset! service false)
+                (repl/read-all @db (list 'load x) @trace))
+                
          "-e" (fn [x] (try (repl/eeval @db (smil/read x) @trace)
                            (catch Exception e
                              (println "error" e))))
