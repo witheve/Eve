@@ -215,7 +215,7 @@
                    (do
                      (reset! x 0)
                      (c r))))]
-                 
+
     (fn [r]
       (condp = (rget r op-register)
         'flush (update c r flushes)
@@ -238,19 +238,21 @@
             op (rget r op-register)
             value-slot (nth terms 2)
             grouping-slots (nth terms 3)
-            grouping (map #(rget r %1) grouping-slots)]
+            grouping (if (> (count grouping-slots) 0)
+                       (map #(rget r %1) grouping-slots)
+                       (list 'default))]
 
         (if (or (= op 'flush) (= op 'close))
             (c r)
-          (do 
+          (do
             (condp = (rget r op-register)
               'insert (swap! totals update-in grouping (fnil + 0) (rget r value-slot))
               'remove (swap! totals update-in grouping (fnil - 0) (rget r value-slot))
               ())
-            
+
             (rset r out-slot (get-in @totals grouping))
             (c r)
-            
+
             (when-not (nil? (get-in @prevs grouping nil))
               (rset r op-register 'remove) ;; @FIXME: This needs to copied to be safe asynchronously
               (rset r out-slot (get-in @prevs grouping))
@@ -370,7 +372,7 @@
                  (doseq [i @opened] (i))
                  (c r))
         (c r)))))
-      
+
 
 
 (def command-map {'move      (simple move)
@@ -445,7 +447,7 @@
 
 
 (defn single [d prog out]
-  (let [e (open d prog (fn [r] 
+  (let [e (open d prog (fn [r]
                          (when (= (rget r op-register) 'insert) (out r))) false)]
     (e 'insert)
     (e 'flush)
