@@ -45,6 +45,7 @@
         prog (compiler/compile-dsl d @bag form)
         res (print-result keys (second expression))
         ec (exec/open d prog res trace-on)]
+    (when trace-on (pprint prog))
     (ec 'insert)
     (ec 'flush)))
 

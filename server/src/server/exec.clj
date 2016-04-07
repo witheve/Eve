@@ -85,7 +85,8 @@
 (defn simple [f]
   (fn [db terms build c]
     (fn [r]
-      (when (= (rget r op-register) 'insert)
+      (when (or (= (rget r op-register) 'insert)
+                (= (rget r op-register) 'remove))
         (f r terms))
       (c r))))
 
@@ -309,16 +310,16 @@
                     new (if nb (walk nb) nb)]
                 (cond (and (not old) new) (do (rset r out in)
                                               (c r))
-                      (and old (not new)) (do (rset r out in)
+                      (and old (not new)) (do (rset r out (@assertions b))
                                               (rset r op-register 'remove)
                                               (c r)))))
 
             (do
-              (swap! assertions assoc t tuple)
+              (swap! assertions assoc t (rget r in))
               (when (walk t)
                 (rset r out (rget r in))
-                (c r)))))
-        (c r)))))
+                (c r))))
+          (c r))))))
 
 
 
