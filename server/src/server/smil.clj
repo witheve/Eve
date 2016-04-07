@@ -1,6 +1,7 @@
 (ns server.smil
   (:refer-clojure :exclude [read])
   (:require [server.db :as db]
+            [server.util :refer [merge-state]]
             [clojure.string :as string]
             [clojure.tools.reader :as reader]
             [clojure.tools.reader.reader-types :as reader-types]))
@@ -16,13 +17,6 @@
    (let [{:keys [line column end-line end-column]} (meta expr)
          standard-data {:expr expr :line line :column column :end-line end-line :end-column end-column}]
    (ex-info msg (merge standard-data data)))))
-
-(defn merge-state [a b]
-  (if (sequential? a)
-    (into a b)
-    (if (map? a)
-      (merge-with merge-state a b)
-      b)))
 
 (defn splat-map [m]
   (reduce-kv conj [] m))
@@ -58,33 +52,36 @@
               'fact nil
               'define! nil ; Special due to multiple aliases
               'query nil ; Special due to optional parameterization
-              
+
               ;; Macros
               'remove-by-t! {:args [:tick]}
               'if {:args [:cond :then :else]}
 
               ;; native forms
               'insert-fact-btu! {:args [:entity :attribute :value :bag] :kwargs [:tick] :optional #{:bag :tick}} ; bag can be inferred in SMIR
-              
+
               'union {:args [:params] :rest :members}
               'choose {:args [:params] :rest :members}
-              'not {:args [:expr]}
+              'not {:rest :body}
               'fact-btu {:args [:entity :attribute :value :bag] :kwargs [:tick] :optional #{:entity :attribute :value :bag :tick}}
               'full-fact-btu {:args [:entity :attribute :value :bag] :kwargs [:tick] :optional #{:entity :attribute :value :bag :tick}}
               'context {:kwargs [:bag :tick] :rest :body :optional #{:bag :tick :body}}})
 
 ;; These are only needed for testing -- they'll be provided dynamically by the db at runtime
-(def primitives {'+ {:args [:a :b]}
-                 '- {:args [:a :b]}
-                 '* {:args [:a :b]}
-                 '/ {:args [:a :b]}
-                 
-                 '= {:args [:a :b]}
-                 '!= {:args [:a :b]}
-                 '> {:args [:a :b]}
-                 '>= {:args [:a :b]}
-                 '< {:args [:a :b]}
-                 '<= {:args [:a :b]}})
+(def primitives {'= {:args [:a :b]}
+
+                 '+ {:args [:a :b] :kwargs [:return] :optional #{:return}}
+                 '- {:args [:a :b] :kwargs [:return] :optional #{:return}}
+                 '* {:args [:a :b] :kwargs [:return] :optional #{:return}}
+                 '/ {:args [:a :b] :kwargs [:return] :optional #{:return}}
+
+                 'not= {:args [:a :b] :kwargs [:return] :optional #{:return}}
+                 '> {:args [:a :b] :kwargs [:return] :optional #{:return}}
+                 '>= {:args [:a :b] :kwargs [:return] :optional #{:return}}
+                 '< {:args [:a :b] :kwargs [:return] :optional #{:return}}
+                 '<= {:args [:a :b] :kwargs [:return] :optional #{:return}}
+
+                 'sum {:args [:a] :kwargs [:return] :optional #{:return}}})
 
 (defn get-schema
   ([op] (or (op schemas) (op primitives)))
@@ -110,7 +107,7 @@
   (let [body (rest sexpr)
         state (reduce
                #(merge-state %1
-                             (if (:kw %1) 
+                             (if (:kw %1)
                                (if (keyword? %2)
                                  ;; Implicit variable; sub in a symbol of the same name, set the next :kw
                                  {:kw %2 :args {(:kw %1) (symbol (name (:kw %1)))}}
@@ -168,8 +165,9 @@
 
 (defn parse-query [sexpr]
   (let [body (rest sexpr)
-        params (when (vector? (first body)) (first body))
-        body (if params (rest body) body)]
+        [params body] (if (or (vector? (first body)) (nil? (first body)))
+                        [(first body) (rest body)]
+                        [nil body])]
     {:params params :body body}))
 
 (defn parse-fact [sexpr]
@@ -210,13 +208,14 @@
    (let [op (first sexpr)
          body (rest sexpr)
          schema (get-schema db op)]
-     (with-meta (cond
-                  schema (parse-schema schema sexpr)
-                  (= op 'define!) (parse-define sexpr)
-                  (= op 'query) (parse-query sexpr)
-                  (= op 'fact) (parse-fact sexpr)
-                  (= op 'insert-fact!) (parse-fact sexpr)
-                  :else (throw (syntax-error (str "Unknown operator " op) sexpr)))
+     (with-meta
+       (cond
+         schema (parse-schema schema sexpr)
+         (= op 'define!) (parse-define sexpr)
+         (= op 'query) (parse-query sexpr)
+         (= op 'fact) (parse-fact sexpr)
+         (= op 'insert-fact!) (parse-fact sexpr)
+         :else (throw (syntax-error (str "Unknown operator " op) sexpr)))
        {:expr sexpr :schema schema}))))
 
 (defn validate-args [args]
@@ -238,7 +237,7 @@
 (defn assert-valid [args]
   (if-let [err (validate-args args)]
     (throw err)
-    args))  
+    args))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Expand a SMIL sexpr recursively until it's ready for WEASL compilation
@@ -265,7 +264,7 @@
                                args)
                      fact (expand-each db (map #(cons (with-meta 'fact-btu (meta op)) %1) (:facts args)))
                      insert-fact! (expand-each db (map #(cons (with-meta 'insert-fact-btu! (meta op)) %1) (:facts args)))
-                     
+
                      ;; Macros
                      remove-by-t! (expand db (list (with-meta 'insert-fact-btu! (meta op)) (:tick args) REMOVE_FACT nil))
                      if (let [then (as-query (:then args))
@@ -274,12 +273,12 @@
                           ((with-meta 'choose (meta op)) ['return]
                            (expand db then)
                            (expand db else)))
-                     
+
                      ;; Native forms
                      insert-fact-btu! (cons op (splat-map (expand-values db args)))
                      union (concat [op] [(:params args)] (assert-queries (expand-each db (:members args))))
                      choose (concat [op] [(:params args)] (assert-queries (expand-each db (:members args))))
-                     not (cons op [(expand db (:expr args))])
+                     not (cons op (expand-each db (:body args)))
                      context (cons op (splat-map (expand-values db args)))
 
                      ;; Default
@@ -287,39 +286,87 @@
       (with-meta expanded (merge (meta expr) (meta expanded))))
     (sequential? expr) (expand-each db expr)
     :else expr))
-  
+
 (defn returnable? [sexpr]
-  ((set (keys primitives)) (first sexpr)))
+  (let [schema (get primitives (first sexpr))]
+    (if-not (nil? schema)
+      (boolean (:return (:optional schema)))
+      false)))
+
+(defn get-args
+  "Retrieves a hash-map of args from an already parsed form, ignoring special forms + forms w/ rest params."
+  [sexpr]
+  (when (seq? sexpr)
+    (when-not (:rest (or (get-schema (first sexpr)) {:rest true}))
+      (apply hash-map (rest sexpr)))))
 
 (defn unpack-inline [sexpr]
-  (cond
-    (and (seq? sexpr) (#{'query 'define!} (first sexpr)))
-    {:inline [(with-meta
-               (concat
-                [(first sexpr)]
-                (reduce
-                 #(let [{inline :inline query :query} (unpack-inline %2)]
-                    (into (into %1 query) inline))
-                 [] (rest sexpr)))
-               (meta sexpr))]
-     :query []}
-    
-    (and (seq? sexpr) (returnable? sexpr))
-    (let [state (reduce
-                 #(merge-state
-                    %1
-                    (if-not (seq? %2)
-                      {:inline [%2]}
-                      (let [{inline :inline query :query} (unpack-inline %2)]
-                        (let [tmp (gensym "$$tmp")
-                              query (conj query (concat (first inline) [:return tmp]))]
-                          {:inline [tmp] :query query}))))
-                 {:inline [] :query []}
-                 (rest sexpr))]
-      {:inline [(concat [(first sexpr)] (:inline state))] :query (:query state)})
+  (let [argmap (when (seq? sexpr) (get-args sexpr))]
+    (cond
+      (not (seq? sexpr))
+      {:inline [sexpr]}
 
-    :else
-    {:inline [sexpr]}))
+      (#{'query 'define! 'not 'context 'choose 'union} (first sexpr))
+      {:inline [(with-meta
+                  (concat
+                   [(first sexpr)]
+                   (reduce
+                    #(let [{inline :inline query :query} (unpack-inline %2)]
+                       (into (into %1 query) inline))
+                    [] (rest sexpr)))
+                  (meta sexpr))]
+       :query []}
+
+      (= (first sexpr) '=)
+      (cond
+        (every? seq? (vals argmap))
+        (let [returns {:a (:return (get-args (:a argmap)))
+                       :b (:return (get-args (:b argmap)))}
+              var (or (:a returns) (:b returns) (gensym "$$tmp"))]
+          {:inline [] :query (with-meta (apply concat (map (fn [x]
+                                                             (let [sub-expr (if (x returns)
+                                                                              (x argmap)
+                                                                              (concat (x argmap) [:return var]))
+                                                                   {inline :inline query :query} (unpack-inline sub-expr)]
+                                                               (concat query inline)))
+                                                             [:a :b]))
+                               (meta sexpr))})
+
+        (some seq? (vals argmap))
+        (let [[val var] (map argmap (if (seq? (:a argmap)) [:a :b] [:b :a]))
+              {inline :inline query :query} (unpack-inline val)]
+          {:inline [(with-meta (concat (first inline) [:return var])
+                      (meta (:b argmap)))]
+           :query query})
+          :else
+          {:inline [sexpr]})
+
+      (returnable? sexpr)
+      (let [state (reduce
+                   #(merge-state
+                     %1
+                     (if-not (seq? %2)
+                       {:inline [%2]}
+                       (let [{inline :inline query :query} (unpack-inline %2)
+                             tmp (gensym "$$tmp")
+                             query (conj query (concat (first inline) [:return tmp]))]
+                           {:inline [tmp] :query query})))
+                   {:inline [] :query []}
+                   (rest sexpr))]
+        {:inline [(concat [(first sexpr)] (:inline state))] :query (:query state)})
+
+      :else
+      (let [state (reduce #(merge-with merge-state %1
+                                       (if (and (seq? %2) (returnable? %2))
+                                         (let [sub-argmap (get-args %2)
+                                               sub-argmap (when (not (:return sub-argmap))
+                                                            (assoc sub-argmap :return (gensym "$$tmp")))
+                                               {inline :inline query :query} (unpack-inline (apply list (first %2) (splat-map sub-argmap)))]
+                                           {:inline [(:return sub-argmap)] :query (concat query inline)})
+                                           (unpack-inline %2)))
+                          {:inline [(first sexpr)] :query []}
+                          (rest sexpr))]
+        {:inline [(with-meta (seq (:inline state)) (meta sexpr))] :query (:query state)}))))
 
 (defn unpack [db sexpr]
   (first (:inline (unpack-inline (expand db sexpr)))))
@@ -377,7 +424,7 @@
          (print-smil child :indent (+ indent 1)))
        (print-indent indent)
        (println ")"))
-     
+
      :else
      (do
        (print-indent indent)

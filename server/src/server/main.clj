@@ -4,10 +4,13 @@
    [server.db :as db]
    [server.edb :as edb]
    [server.log :as log]
+   [server.smil :as smil]
    [server.repl :as repl]
    [server.jsclient :as jsclient]))
 
 (def db (atom nil))
+(def trace (atom false))
+(def service (atom true))
 
 (defn -main [& args]
   ;; load existing database..change the way the user is bound here, should go through
@@ -18,12 +21,25 @@
 
         ;; load the local metadata before starting membership
         flag-map
-        {"-d" (fn [] (swap! interactive (fn [x] false)))}
+        {
+         "-d" (fn [] (reset! interactive false))
+         "-n" (fn [] (reset! service false))
+         "-t" (fn [] (reset! trace true))
+         }
 
         parameter-map
         {"-s" log/set-pathname
          "-p" (fn [x] (reset! port (Integer. x)))
-         "-e" (fn [x] (repl/eeval @db (read-string x)))}
+         
+         "-f" (fn [x]
+                (reset! interactive false)
+                (reset! service false)
+                (repl/read-all @db (list 'load x) @trace))
+                
+         "-e" (fn [x] (try (repl/eeval @db (smil/read x) @trace)
+                           (catch Exception e
+                             (println "error" e))))
+         }
 
 
         arglist (fn arglist [args]
@@ -35,7 +51,7 @@
                           ;; check to make sure we have such a thing?
                           (do (p (second args))
                               (arglist (rest (rest args))))
-                          (println "wth man" (first args))))))]
+                          (println "invalid argument" (first args))))))]
     (arglist args)
-    (when @port (jsclient/serve @db @port))
+    (when @service (jsclient/serve @db @port))
     (when @interactive (repl/rloop @db))))

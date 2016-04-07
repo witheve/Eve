@@ -3,6 +3,7 @@
    [clojure.stacktrace :refer [print-stack-trace]]
    [org.httpkit.server :as httpserver]
    [ring.middleware.file :refer [wrap-file]]
+   [ring.middleware.content-type :refer [wrap-content-type]]
    [clojure.data.json :as json]
    [server.db :as db]
    [server.edb :as edb]
@@ -64,8 +65,8 @@
         results (atom ())
         [form fields]  (repl/form-from-smil query)
         prog (compiler/compile-dsl db @bag form)
-        handler (fn [op tuple]
-                  (condp = op
+        handler (fn [tuple]
+                  (condp = (exec/rget tuple exec/op-register)
                     'insert (swap! results conj (vec tuple))
                     'flush (do (send-result channel id fields @results)
                                (reset! results '()))
@@ -117,16 +118,16 @@
      ;; @TODO: cleanup any running computations?
      (swap! clients dissoc channel))))
 
-
 (defn serve-static [request channel]
   (let [base-path (str (.getCanonicalPath (java.io.File. ".")) "/../")]
     (println "Serving" (:uri request))
     (httpserver/send! channel
                       ((-> (fn [req] ; Horrible, horrible rewrite hack
                              (if (= "repl" (second (string/split (request :uri) #"/")))
-                               {:status 200 :header {} :body (slurp (str base-path "/repl.html"))}
+                               {:status 200 :headers {"Content-Type" "text/html"} :body (slurp (str base-path "/repl.html"))}
                                {:status 404}))
-                           (wrap-file base-path))
+                           (wrap-file base-path)
+                           (wrap-content-type))
                        request))))
 
 (defn async-handler [db content]
@@ -146,6 +147,7 @@
   (println (str "Serving on localhost:" port "/repl"))
   (when-not (nil? @server)
     (@server :timeout 0))
-  (reset! server
-          (try (httpserver/run-server (async-handler db "<http><body>foo</body><http>") {:port port})
-               (catch Exception e (println (str "caught exception: " e (.getMessage e)))))))
+  (try
+    (reset! server
+            (httpserver/run-server (async-handler db "<http><body>foo</body><http>") {:port port}))
+    (catch Exception e (println (str "caught exception: " e (.getMessage e))))))

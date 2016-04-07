@@ -42,39 +42,34 @@
    [true  true  true] full-scan-oid
   })
 
-;; xxx - figure out if flush needs to go through this part of town
+
+;; there is a consistency problem with tuples and listeners
 (defn create-edb [user]
   (let [tuples (atom '())
         by-attribute ()
         listeners (atom #{})
         index-map  {insert-oid
-                    (fn [c]
-                      (fn [eavb]
-                        (let [t (now)
-                              tuple (object-array (vector (aget eavb 0)
-                                                          (aget eavb 1)
-                                                          (aget eavb 2)
-                                                          (aget eavb 3)
-                                                          t
-                                                          user))]
-                          (swap! tuples conj tuple)
-                          (doseq [i @listeners] (i tuple))
-                          (c tuple))))
+                    (fn [eavb c]
+                      (let [t (now)
+                            tuple (object-array (vector (aget eavb 0)
+                                                        (aget eavb 1)
+                                                        (aget eavb 2)
+                                                        (aget eavb 3)
+                                                        t
+                                                        user))]
+                        (swap! tuples conj tuple)
+                        (doseq [i @listeners] (i tuple))
+                        (c tuple)
+                        (fn [] ())))
                     
                     full-scan-oid
-                    (fn [c]
-                      ;; how were we removing listeners again? serialize list
-                      (swap! listeners conj c) 
-                      (fn [key]
-                        (doseq [i @tuples]
-                          (c i))))
-                    
-                    attribute-scan-oid
-                    (fn [c]
-                      (fn [key]
-                        (doseq [i @tuples] (c i))))}]
+                    (fn [key c]
+                      (swap! listeners conj c)
+                      (doseq [i @tuples] (c i))
+                      (fn [] (swap! listeners disj c)))}]
+
     
-    (fn [index c]
-      ((index-map index) c))))
+    (fn [index key c]
+      ((index-map index) key c))))
 
 

@@ -5,6 +5,7 @@
             [server.smil :as smil]
             [server.compiler :as compiler]
             [server.serialize :as serialize]
+            [clojure.pprint :refer [pprint]]
             [server.exec :as exec]))
 
 (def bag (atom 98))
@@ -13,101 +14,102 @@
 (defn repl-error [& thingy]
   (throw thingy))
 
-(defn form-from-smil [z]
-  (let [p (second z)
-        v (apply concat
-                 (rest (rest z))
-                 (list (list (apply list 'return (if (empty? p) () (list p))))))]
-    [v (vec p)]))
+(defn form-from-smil [z] [z (second z)])
 
 (defn show [d expression]
   (let [[form keys] (form-from-smil (smil/unpack d (second expression)))
         prog (compiler/compile-dsl d @bag form)]
-     (println (exec/print-program prog))))
+     (pprint prog)))
 
 
-(defn diesel [d expression]
-  ;; the compile-time error path should come up through here
-  ;; fix external number of regs
+(defn print-result [keys channel]
+  (fn [tuple]
+    (condp = (exec/rget tuple exec/op-register)
+                'insert (println "INSERT" channel (exec/print-registers tuple))
+                'remove (println "REMOVE" channel (exec/print-registers tuple))
+                'flush  (println "FLUSH " channel (exec/print-registers tuple))
+                'close  (println "CLOSE " channel (exec/print-registers tuple))
+                'error  (println "ERROR " channel (exec/print-registers tuple)))))
+
+(defn diesel [d expression trace-on]
   (let [[form keys] (form-from-smil (smil/unpack d expression))
-        res (fn [op tuple]
-              (condp = op
-                'insert (println (zipmap (vec keys) (vec tuple)))
-                'flush  (println 'flush)
-                ))
         prog (compiler/compile-dsl d @bag form)
-        ec  (exec/open d prog res)]
+        ec (exec/open d prog (print-result keys "") trace-on)]
+    (when trace-on (pprint prog))
+    (ec 'insert)
+    (ec 'flush)
+    (ec 'close)))
+
+(defn open [d expression trace-on]
+  (let [[form keys] (form-from-smil (smil/unpack d (nth expression 2)))
+        prog (compiler/compile-dsl d @bag form)
+        res (print-result keys (second expression))
+        ec (exec/open d prog res trace-on)]
+    (when trace-on (pprint prog))
     (ec 'insert)
     (ec 'flush)))
+
 
 (defn trace [d expression]
-  ;; the compile-time error path should come up through here
-  ;; fix external number of regs
-  (let [[form keys] (form-from-smil (smil/unpack d (second expression)))
-        res (fn [op tuple]
-              (condp = op
-                'insert (println (zipmap (vec keys) (vec tuple)))
-                'flush  (println 'flush)
-                ))
-        _ (println form)
-        prog (compiler/compile-dsl d @bag form)
-        _ (println (exec/print-program prog))
-        ec  (exec/open-trace d prog res)]
-    (ec 'insert)
-    (ec 'flush)))
+  (diesel d (second expression) true))
 
 ;; xxx - this is now...in the language..not really?
-(defn define [d expression]
+(defn define [d expression trace-on]
   (let [z (smil/unpack d expression)]
     (db/insert-implication d (second z) (nth z 2) (rest (rest (rest z))) @user @bag)))
 
 
 (declare read-all)
 
-(defn eeval [d term]
-  (let [function ({'define! define
-                   'show show
-                   'trace trace
-                   'load read-all
-                   } (first term))]
-    (if (nil? function)
-      (diesel d term)
-      (function d term))
-    d))
+(defn eeval
+  ([d term] (eeval d term false))
+  ([d term trace-on]
+     (let [function ({'define! define
+                      'show show
+                      'trace trace
+                      'open open
+                      'load read-all
+                      } (first term))]
+       (if (nil? function)
+         (diesel d term trace-on)
+         (function d term trace-on))
+       d)))
 
 (import '[java.io PushbackReader])
 (require '[clojure.java.io :as io])
 
-(defn read-all [d expression]
+(defn read-all [d expression trace-on]
   ;; trap file not found
   ;; need to implement load path here!
 
-  (let [filename (second expression) 
-        rdr (try (-> (.getPath (clojure.java.io/resource filename)) io/file io/reader PushbackReader.) 
+  (let [filename (second expression)
+        rdr (try (-> (.getPath (clojure.java.io/resource filename)) io/file io/reader PushbackReader.)
                  (catch Exception e (-> filename io/file io/reader PushbackReader.)))]
-    
+
     (loop []
       ;; terrible people, always throw an error, even on an eof, so cant print read errors? (println "load parse error" e)
-      (let [form (try (read rdr) (catch Exception e ()))]
+      (let [form (try (smil/read rdr) (catch Exception e ()))]
         (if (and form (not (empty? form)))
-          (do 
-            (eeval d form)
+          (do
+            (eeval d form trace-on)
             (recur)))))))
-  
+
 
 (defn rloop [d]
   (loop [d d]
-    (doto *out* 
+    (doto *out*
       (.write "eve> ")
       (.flush))
     ;; need to handle read errors, in particular eof
-    
+
     ;; it would be nice if a newline on its own got us a new prompt
     (let [input (try
                   (read)
                   ;; we're-a-gonna assume that this was a graceful close
-                  (catch Exception e 
+                  (catch Exception e
                     (java.lang.System/exit 0)))]
       (when-not (= input 'exit)
-        (recur (eeval d input))))))
-
+        (recur
+         (try (eeval d input)
+              (catch Exception e
+                (println "error" e))))))))
