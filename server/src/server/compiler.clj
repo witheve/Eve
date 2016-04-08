@@ -52,7 +52,6 @@
   "Merges a map of [name register] pairs into the 'bound map of env"
   [env names]
   (when (some nil? (keys names)) (compile-error "Invalid variable name nil", {:env @env :names names}))
-  (when (some nil? (vals names)) (compile-error "Invalid variable value", {:env @env :names names :bound (get @env 'bound nil)}))
   (swap! env #(merge-with merge-state %1 {'bound names})))
 
 ;; this overflow register set probably isn't the best plan, but its
@@ -135,7 +134,6 @@
   (let [taxi-slots (map (fn [i] [(exec/taxi-register 0) i]) (drop exec/initial-register (range (get @env 'register exec/initial-register))))
         input (map #(lookup inner-env %1) arguments)
         scope (concat taxi-slots input)]
-    (println "generate send cont" arguments (get @inner-env 'bound))
     (when (some nil? input)
       (compile-error "Cannot send unbound/nil argument" {:env @env :target target :arguments arguments :bound (get @env 'bound nil)}))
     (concat
@@ -146,7 +144,6 @@
   (let [argmap (apply hash-map (rest terms))
         m (meta terms)]
     (apply add-dependencies env terms)
-    (println "bf" argmap (get @env 'bound))
     (let [r  (build
              (term env (first terms) m exec/temp-register (argmap :a) ( argmap :b))
              (term env 'filter m exec/temp-register)
@@ -311,7 +308,6 @@
         m (meta (first terms))
         simple [(argmap :return) (argmap :a) (argmap :b)]
         ins (map #(get-in @env ['bound %1] nil) simple)]
-    (println "simple" ins (get @env 'bound))
     (apply add-dependencies env (rest (rest terms)))
     (if (some not (rest ins))
       ;; handle the [b*] case by blowing out a temp
@@ -335,13 +331,13 @@
      (down))))
 
 (defn compile-equal [env terms down]
+ 
   (let [argmap (apply hash-map (rest terms))
         simple [(argmap :a) (argmap :b)]
         a (is-bound? env (argmap :a))
         b (is-bound? env (argmap :b))
         rebind (fn [s d]
                  (bind-names env {d s})
-                 (println "rebind" d s (get @env 'bound))
                  (down))]
     (cond (and a b) (generate-binary-filter env terms down)
           a (rebind a (argmap :b))
@@ -350,9 +346,10 @@
           (compile-error "reordering necessary, not implemented" {:env env :terms terms}))))
 
 (defn compile-not [env terms down]
-  (build
-   (list (with-meta (list 'not (compile-conjunction env (rest terms) (fn [] ()))) (meta (first terms))))
-   (down)))
+  (let [child-env (env-from env [])]
+    (build
+     (list (with-meta (list 'not (compile-conjunction child-env (rest terms) (fn [] ()))) (meta (first terms))))
+     (down))))
 
 (defn compile-insert [env terms down]
   (let [bindings (apply hash-map (rest terms))
@@ -374,7 +371,6 @@
              (list z)))))
 
 (defn compile-expression [env terms down]
-  (println "compile expression" terms)
   (let [commands {'+ compile-simple-primitive
                   '* compile-simple-primitive
                   '/ compile-simple-primitive

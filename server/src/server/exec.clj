@@ -91,6 +91,7 @@
       (c r))))
 
 
+
 (defn delta-t [c]
   (let [state (atom {})]
     [(fn [r]
@@ -100,7 +101,7 @@
                                                     (if x
                                                       [(x 0) (+ (x 1) 1)]
                                                       [tuple 1])))
-
+           
            'remove (swap! state update-in [tuple] (fn [x] (if (= (x 1) 1) nil
                                                               [(x 0) (- (x 1) 1)])))
            ())
@@ -108,8 +109,8 @@
 
      (fn [c2 op]
        (doseq [i @state] (c2 (object-array (cons op (i 0))))))]))
-
-
+     
+       
 
 (defn donot [d terms build c]
   (let [count (atom 0)
@@ -118,7 +119,7 @@
         tail  (fn [r]
                 (condp = (rget r op-register)
                   'insert (swap! count inc)
-                  'remove  (swap! count dec)
+                  'remove  (swap! count dec) 
                   'flush (do
                            (when (and (= @count 0) (not @on))
                              (@zig c 'insert)
@@ -301,8 +302,9 @@
                      (not (some walk @k)))))]
 
     (fn [r]
-      (let [[e a v b t u] (rget r in)]
-        (if (= (rget r op-register) 'insert)
+      (if (= (rget r op-register) 'insert)
+        (let [[e a v b t u] (rget r in)]
+          
           (if (= a edb/remove-oid)
             (let [b (base e)
                   old (if b (walk b) b)]
@@ -315,13 +317,13 @@
                       (and old (not new)) (do (rset r out (@assertions b))
                                               (rset r op-register 'remove)
                                               (c r)))))
-
+            
             (do
               (swap! assertions assoc t (rget r in))
               (when (walk t)
                 (rset r out (rget r in))
-                (c r))))
-          (c r))))))
+                (c r)))))
+        (c r)))))
 
 
 
@@ -355,7 +357,6 @@
       (c r))))
 
 
-
 (defn doscan [d terms build c]
   (let [[scan oid dest key] terms
         opened (atom ())
@@ -367,7 +368,7 @@
                                    (rset r dest t))
                                  (c r)))]
                  (swap! opened conj handle)))]
-
+                 
 
     (fn [r]
       (condp = (rget r op-register)
@@ -380,6 +381,7 @@
                      (d 'flush oid [] (fn [k op] (c r))))
                    (c r))))))
 
+      
 
 (def command-map {'move      (simple move)
                   '+         (ternary-numeric +)

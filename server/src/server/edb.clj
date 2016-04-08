@@ -49,27 +49,28 @@
         by-attribute ()
         listeners (atom #{})
         index-map  {insert-oid
-                    (fn [key c]
-                      (fn [op]
-                        (let [t (now)
-                              tuple (object-array (vector (aget key 0)
-                                                          (aget key 1)
-                                                          (aget key 2)
-                                                          (aget key 3)
-                                                          t
-                                                          user))]
-                          (swap! tuples conj tuple)
-                          (println "inserty listeners" (count @listeners))
-                          (doseq [i @listeners] (i tuple))
-                          (c tuple))))
-                    
+                    (fn [key c op]
+                      (let [t (now)
+                            tuple (object-array (vector (aget key 0)
+                                                        (aget key 1)
+                                                        (aget key 2)
+                                                        (aget key 3)
+                                                        t
+                                                        user))]
+                        (swap! tuples conj tuple)
+                        (doseq [i @listeners] (i tuple op))
+                        (c tuple op)
+                        (fn [] ())))
+
                     full-scan-oid
-                    (fn [key c]
-                      (fn [op]
-                        (when (= op 'insert)
+                    (fn [key c op]
+                      (if (= op 'insert)
+                        (do
                           (swap! listeners conj c)
-                          (doseq [i @tuples] (c i))
-                          (fn [] (swap! listeners disj c)))))}]
+                          (doseq [i @tuples] (c i op))
+                          (fn [] (swap! listeners disj c)))
+                        (fn [] ())))}]
+
 
 
     (fn [op index key c]
@@ -79,3 +80,4 @@
       (if (= op 'flush)
         (doseq [i @listeners] (i [] op))
         ((index-map index) key c op)))))
+

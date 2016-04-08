@@ -71,7 +71,7 @@
                     'flush (do (send-result channel id fields @results)
                                (reset! results '()))
                     'error (send-error channel id (ex-info "Failure to WEASL" {:data (str tuple)}))))
-        e (exec/open db prog handler false)]
+        e (exec/open db prog handler)]
     (e 'insert)
     (e 'flush)))
 
