@@ -15,6 +15,7 @@ var state = {};
 var pkgs = {
   wiki: {entries: ["src/wiki.ts"], adds: ["typings/tsd.d.ts"]},
   repl: {entries: ["src/repl.ts"], adds: ["typings/tsd.d.ts"]},
+  editor: {entries: ["src/editor.ts"], adds: ["typings/tsd.d.ts"]},
   nlqpTest: {entries: ["test/NLQPTest.ts"], adds: ["typings/tsd.d.ts"]},
   runtimeTest: {entries: ["test/runtimeTest.ts"], adds: ["typings/tsd.d.ts"]},
 };
@@ -323,7 +324,6 @@ if(program.server) {
     render();
   });
 }
-
 
 if(program.bundles) build(program.bundles);
 
