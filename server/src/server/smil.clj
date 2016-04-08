@@ -84,7 +84,7 @@
                  'sum {:args [:a] :kwargs [:return] :optional #{:return}}})
 
 (defn get-schema
-  ([op] (or (op schemas) (op primitives)))
+  ([op] (or (get schemas op nil) (get primitives op nil)))
   ([db op]
    (let [schema (get-schema op)
          implication (when-not schema
@@ -121,7 +121,9 @@
                                    {:position (dec (:position %1)) :args {kw %2}}
                                    (if (:rest schema)
                                      ;; If a rest argument is specified, dump excess args into it
-                                     {:args {(:rest schema) [%2]}}
+                                     (if (keyword? %2)
+                                       (throw (syntax-error "Keyword arguments must come before rest arguments" sexpr))
+                                       {:args {(:rest schema) [%2]}})
                                      ;; Too many arguments without names, bail
                                      (throw (syntax-error
                                              (str "Too many positional arguments without a rest argument. Expected " (count (:args schema)))
@@ -139,29 +141,31 @@
   ;;    B. Throw (Aliases must be followed by their exported variables)
   ;; 3. If the value is a symbol, shift it into :sym
   ;; 4. Shift the value into the body
-  (select-keys
-   (reduce
-    #(merge-state
-      %1
-      ;; If we've already entered the body, no more headers can follow
-      (if (> (count (:body %1)) 0)
-        {:body [%2]}
-        ;; If we've already snatched an alias, it must be followed by a vec of vars
-        (if (:sym %1)
-          (if (vector? %2)
-            {:sym nil :header [(:sym %1) %2]}
-            (throw (syntax-error
-                    (str "Implication alias " (:sym %1) " must be followed by a vec of exported variables")
-                    sexpr)))
-          ;; If our state is clear we can begin a new header (symbol) or enter the body (anything else)
-          (if (symbol? %2)
-            {:sym %2}
-            ;; If no headers are defined before we try to enter the body, that's a paddlin'
-            (if (> (count (:header %1)) 0)
-              {:body [%2]}
-              (throw (syntax-error "Implications must specify at least one alias" sexpr)))))))
-    {:header [] :body [] :sym nil} (rest sexpr))
-   [:header :body]))
+  (let [{header :header body :body}
+        (reduce
+         #(merge-state
+           %1
+           ;; If we've already entered the body, no more headers can follow
+           (if (> (count (:body %1)) 0)
+             {:body [%2]}
+             ;; If we've already snatched an alias, it must be followed by a vec of vars
+             (if (:sym %1)
+               (if (vector? %2)
+                 {:sym nil :header [(:sym %1) %2]}
+                 (throw (syntax-error
+                         (str "Implication alias " (:sym %1) " must be followed by a vec of exported variables")
+                         sexpr)))
+               ;; If our state is clear we can begin a new header (symbol) or enter the body (anything else)
+               (if (symbol? %2)
+                 {:sym %2}
+                 ;; If no headers are defined before we try to enter the body, that's a paddlin'
+                 (if (> (count (:header %1)) 0)
+                   {:body [%2]}
+                   (throw (syntax-error "Implications must specify at least one alias" sexpr)))))))
+         {:header [] :body [] :sym nil} (rest sexpr))]
+    (if (> (count header) 0)
+      {:header header :body body}
+      (throw (syntax-error "Implications must specify at least one alias" sexpr)))))
 
 (defn parse-query [sexpr]
   (let [body (rest sexpr)
