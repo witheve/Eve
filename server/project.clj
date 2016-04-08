@@ -6,5 +6,8 @@
                  [org.clojure/data.codec "0.1.0"]
                  [org.clojure/data.json "0.2.6"]
                  [org.clojure/tools.reader "1.0.0-alpha3"]]
+  :plugins [[speclj "3.3.2"]]
   :target-path "target/%s"
-  :main server.main)
+  :test-paths ["spec"]
+  :main server.main
+  :profiles {:dev {:dependencies [[speclj "3.3.2"]]}})
