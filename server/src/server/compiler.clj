@@ -244,23 +244,28 @@
 (defn compile-choose [env terms down]
   (let [[_ proj & arms] terms
         m (meta (first terms))
+        name (gensym 'choose)
+        inner-env (env-from env proj)
         [input output] (partition-2 (fn [x] (is-bound? env x)) proj)
-        name (get-signature (gensym "choose") input output)
         tail-name (str name "-cont")
-        body (apply build
-                    (map-indexed
-                     #(let [inner-env (env-from env proj)
-                            arm-name (str name "-arm" %1)
-                            m (meta (first terms))
-                            _ (swap! inner-env assoc 'name arm-name)
-                            body (rest (rest %2))
-                            body (list (with-meta (list 'not (compile-conjunction inner-env body
-                                                                                  (fn [] (generate-send-cont env m inner-env tail-name output)))) m))]
-                        (bind-outward env inner-env)
-                        body)
-                     arms))]
+        done (generate-send env m name input)]
+    
+    (make-bind env inner-env name
+               (apply build
+                      (map-indexed
+                       #(let [m (meta (first terms))
+                              cenv (atom @inner-env)
+                              body (list (with-meta (list 'not (compile-conjunction
+                                                                cenv (rest (rest %2))
+                                                                (fn [] (generate-send-cont env m cenv tail-name output)))) m))]
+                          body)
+                       arms)))
+    
+    (doseq [name output]
+      (allocate-register env name))
     (make-continuation env tail-name (down))
-    body))
+    done))
+
 
 
 (defn compile-implication [env terms down]
