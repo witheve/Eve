@@ -119,16 +119,20 @@
      (swap! clients dissoc channel))))
 
 (defn serve-static [request channel]
-  (let [base-path (str (.getCanonicalPath (java.io.File. ".")) "/../")]
+  (let [base-path (str (.getCanonicalPath (java.io.File. ".")) "/../")
+        response ((-> (fn [req] ; Horrible, horrible rewrite hack
+                        (if (= "repl" (second (string/split (request :uri) #"/")))
+                          {:status 200 :headers {"Content-Type" "text/html"} :body (slurp (str base-path "/repl.html"))}
+                          {:status 404}))
+                      (wrap-file base-path)
+                      (wrap-content-type))
+                  request)
+        response (if (and (:body response) (= (type (:body response)) java.io.File))
+                   (assoc response :body (slurp (:body response)))
+                   response)]
     (println "Serving" (:uri request))
-    (httpserver/send! channel
-                      ((-> (fn [req] ; Horrible, horrible rewrite hack
-                             (if (= "repl" (second (string/split (request :uri) #"/")))
-                               {:status 200 :headers {"Content-Type" "text/html"} :body (slurp (str base-path "/repl.html"))}
-                               {:status 404}))
-                           (wrap-file base-path)
-                           (wrap-content-type))
-                       request))))
+    (println response)
+    (httpserver/send! channel response)))
 
 (defn async-handler [db content]
   (fn [request]
