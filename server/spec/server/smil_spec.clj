@@ -3,13 +3,15 @@
   (:require [speclj.core :refer :all]
             [server.smil :refer :all]))
 
-(defmacro should~= [expected-form actual-form]
+(defmacro should-include [expected-form actual-form]
   `(let [expected# ~expected-form
          actual# ~actual-form]
      (when-not (= expected# (select-keys actual# (keys expected#)))
        (-fail (str "Missing keys: " (filter #(not (contains? (keys actual#))) (keys expected#)) speclj.platform/endl
-               "     Expected: " (-to-s expected#) speclj.platform/endl
-               "     got: " (-to-s actual#) " (using ~=)")))))
+                   "     Expected: " (-to-s expected#) speclj.platform/endl
+                   "     got: " (-to-s actual#) " (using ~=)")))))
+
+;;(should~= 4 (+ 1 3))
 
 
 (describe
