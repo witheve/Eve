@@ -913,7 +913,7 @@
         (when direction
           (transaction context
             (if shift?
-              (extend-selection! id direction)
+              (extend-selection! context id direction)
               (move-selection! context id direction)))
           (.preventDefault event))))))
 
