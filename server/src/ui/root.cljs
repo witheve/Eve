@@ -381,7 +381,7 @@
         (insert-facts! context {:tag "grid-user-state" :grid-id grid-id :active-cell new-value})
         (insert-facts! context {:id (:id grid-user-state) :active-cell new-value})))))
 
-(defn update-extending-selection [context grid-id new-value]
+(defn update-extending-selection! [context grid-id new-value]
   (let [grid-user-state (entity {:tag "grid-user-state" :grid-id grid-id})]
     (when grid-user-state
       (remove-facts! context {:id (:id grid-user-state) :extending-selection (:extending-selection grid-user-state)}))
@@ -670,7 +670,7 @@
                            (doseq [selection (get-selections id)]
                              (remove-facts! context selection))
                            (insert-facts! context final-selection)))
-                 (update-extending-selection context id true)
+                 (update-extending-selection! context id true)
                  (update-active-cell! context id nil))))
 
 (declare stop-selecting)
@@ -707,7 +707,7 @@
                        (remove-facts! context selection))
                      (insert-facts! context maybe)
                      (when-not (global-mouse-down)
-                       (update-extending-selection context id false)
+                       (update-extending-selection! context id false)
                        (stop-selecting event elem)))))))
 
 (defn normalize-cell-size [{:keys [x y width height] :as cell}]
@@ -743,9 +743,9 @@
                        (remove-facts! context selection))
                      (doseq [new-selection final]
                        (insert-facts! context new-selection))
-                     (update-extending-selection context id false))))
+                     (update-extending-selection! context id false))))
     (transaction context
-                 (update-extending-selection context id false))))
+                 (update-extending-selection! context id false))))
 
 (defn remove-overlap [cells updated-cells axis-and-direction-map]
   (let [changed (.slice updated-cells)
@@ -842,7 +842,7 @@
                                              :grid-id grid-id
                                              :x-offset (:x offset)
                                              :y-offset (:y offset)})))
-      (update-extending-selection context grid-id false)
+      (update-extending-selection! context grid-id false)
       ;; remove all the previous selections
       (doseq [selection selections]
         (remove-facts! context selection))
@@ -863,8 +863,10 @@
     ;; there's no offset if we're extending
     ;; TODO: set the offset
     (set-state! :offset grid-id {:x 0 :y 0})
-    (update-extending-selection context grid-id true)
-    (set-state! :selections grid-id (array updated-pos))))
+    (update-extending-selection! context grid-id true)
+    (doseq [selection selections]
+      (remove-facts! context selection))
+    (insert-facts! context (select-keys updated-pos [:tag :x :y :width :height :grid-id]))))
 
 (def directions {(KEYS :left) :left
                  (KEYS :up) :up
@@ -946,12 +948,13 @@
 
 (defn grid-keys-up [event elem]
   ;; check for shift key if we were expanding
-  (let [{:keys [id]} (.-info elem)]
+  (let [{:keys [id]} (.-info elem)
+        grid-user-state (entity {:tag "grid-user-state" :grid-id id})]
     (when (and (= (:shift KEYS) (.-keyCode event))
-               (state :extending-selection id))
-      (transaction
+               (:extending-selection grid-user-state))
+      (transaction context
         (stop-selecting event elem)
-        (set-state! :extending-selection id false)))))
+        (update-extending-selection! context id false)))))
 
 (defn start-resize [event elem]
   (.stopPropagation event))
