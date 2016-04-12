@@ -15,6 +15,10 @@ html, body {
   display: flex;
 }
 
+.repl-card {
+  margin-bottom: 10px;
+}
+
 .card-root {
   padding: 10px;
   width: 100px;
@@ -39,5 +43,23 @@ html, body {
 .connected { background-color: lightgreen; border-color: green; }
 .connecting { background-color: yellow; border-color: darkgoldenrod; }
 .disconnected { background-color: red; border-color: darkred; }
+
+.CodeMirror {
+  width: 200px;
+  max-height: 200px;
+  color: rgb(200,200,200);
+  background-color: rgb(50,50,50);
+  cursor: text;
+}
+
+.CodeMirror-cursor {
+  width: 2px;
+  height: 1em;
+  background-color: rgb(200,200,200);
+}
+
+.CodeMirror-selected {
+
+}
 
 #perfstats { display: none; }
