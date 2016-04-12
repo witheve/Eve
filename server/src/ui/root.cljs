@@ -471,7 +471,7 @@
       (set-state! :active-cell-intermediates id (assoc current-intermediate :focus field)))))
 
 (defn draw-property [cell active?]
-  (let [intermediates context (state :active-cell-intermediates (:id cell))]
+  (let [intermediates (state :active-cell-intermediates (:id cell))]
     (if active?
       (input :style (style :color "#777"
                            :font-size "10pt"
