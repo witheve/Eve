@@ -1,5 +1,7 @@
 import app = require("./app");
 import {autoFocus} from "./utils";
+import * as CodeMirror from "codemirror";
+import {codeMirrorElement} from "./ui";
 
 let WebSocket = require('ws');
 let uuid = require("uuid");
@@ -438,14 +440,15 @@ function generateReplCardElement(replCard: ReplCard) {
     ix: replCard.ix, 
     key: `${replCard.id}${replCard.focused}`, 
     focused: replCard.focused,
-    c: "query-input",
-    contentEditable: true,
-    spellcheck: false,
-    text: replCard.query,
-    keydown: queryInputKeydown, 
+    //c: "query-input",
+    //contentEditable: true,
+    //spellcheck: false,
+    //text: replCard.query,
+    //keydown: queryInputKeydown, 
     //blur: queryInputBlur, 
-    keyup: queryInputKeyup,    
-    postRender: focusQueryBox, 
+    //keyup: queryInputKeyup,    
+    //postRender: focusQueryBox, 
+    lineNumbers: true,
   };
   // Set the css according to the card state
   let resultcss = "query-result"; 
@@ -488,7 +491,7 @@ function generateReplCardElement(replCard: ReplCard) {
     id: replCard.id,
     c: replClass,
     click: replCardClick,
-    children: [queryInput, queryResult],
+    children: [codeMirrorElement(queryInput), queryResult],
   };   
   return replCardElement;
 }
@@ -536,7 +539,7 @@ function generateStatusBarElement() {
   let statusBar = {
     id: "status-bar",
     c: "status-bar",
-    children: [statusIndicator, refresh, trash, save, load, dimmer],
+    children: [statusIndicator], //, refresh, trash, save, load, dimmer],
   }
   return statusBar;
 }
@@ -552,15 +555,10 @@ function root() {
     c: "card-root",
     children: replCards.map(generateReplCardElement),
   }
-  let replRoot = {
-    id: "repl_root",
-    c: "repl-root",
-    children: [generateStatusBarElement(), cardRoot],
-  };
   let root = {
-    id: "root",
-    c: `root ${localStorage["eveReplTheme"] === undefined ? "light" : localStorage["eveReplTheme"]}`,
-    children: [replRoot],
+    id: "repl",
+    c: "repl",
+    children: [generateStatusBarElement(), cardRoot],
     click: rootClick,
   };  
   return root;
