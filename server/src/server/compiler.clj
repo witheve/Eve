@@ -263,7 +263,7 @@
     
     (doseq [name output]
       (allocate-register env name))
-    (make-continuation env tail-name (down))
+    (make-continuation env tail-name (build (term env 'join m (count arms)) (down)))
     done))
 
 
