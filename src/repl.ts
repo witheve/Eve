@@ -313,6 +313,7 @@ function closeModals() {
 // ------------------
 
 function queryInputKeydown(event, elem) {
+  /*
   let thisReplCard = replCards[elem.ix];
   // Submit the query with ctrl + enter
   if ((event.keyCode === 13 || event.keyCode === 83) && event.ctrlKey === true) {
@@ -348,7 +349,7 @@ function queryInputKeydown(event, elem) {
     return;
   }
   event.preventDefault();
-  rerender();
+  rerender();*/
 }
   
 function getSelection(editableDiv): Array<number> {
@@ -365,7 +366,9 @@ function setSelection(start: number, stop: number) {
 
 function queryInputKeyup(event, elem) {
   let thisReplCard = replCards[elem.ix];
-  thisReplCard.query = event.target.innerText;
+  let target = document.querySelectorAll(".query-input");
+  let cm: CodeMirror.Editor = target[elem.ix]["cm"];  
+  thisReplCard.query = cm.getValue();
 }
 
 /*function queryInputBlur(event, elem) {
@@ -440,16 +443,17 @@ function generateReplCardElement(replCard: ReplCard) {
     ix: replCard.ix, 
     key: `${replCard.id}${replCard.focused}`, 
     focused: replCard.focused,
-    //c: "query-input",
+    c: "query-input",
     //contentEditable: true,
     //spellcheck: false,
     //text: replCard.query,
-    //keydown: queryInputKeydown, 
+    keydown: queryInputKeydown, 
     //blur: queryInputBlur, 
-    //keyup: queryInputKeyup,    
+    keyup: queryInputKeyup,    
     //postRender: focusQueryBox, 
-    lineNumbers: true,
+    matchBrackets: true,
   };
+  
   // Set the css according to the card state
   let resultcss = "query-result"; 
   let result = undefined;
@@ -546,6 +550,7 @@ function generateStatusBarElement() {
 
 // Create an initial repl card
 let replCards: Array<ReplCard> = loadReplCards();
+replCards.push(newReplCard());
 replCards.push(newReplCard());
 replCards[0].focused = true;
 
