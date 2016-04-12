@@ -5,6 +5,8 @@ html, body {
   overflow: hidden;
 }
 
+/* Basic Structure */
+
 .status-bar {
   width: 100px;
   background-color: rgb(37,37,37);
@@ -15,16 +17,44 @@ html, body {
   display: flex;
 }
 
+.card-root {
+  padding: 10px;
+  flex-grow: 1;
+  background-color: rgb(30,30,30);
+  overflow-y: scroll;
+}
+
 .repl-card {
+  display: flex;
   margin-bottom: 10px;
 }
 
-.card-root {
-  padding: 10px;
-  width: 100px;
-  flex-grow: 1;
-  background-color: rgb(30,30,30);
+.query-input {
+  background-color: rgb(50,50,50);
 }
+
+.query-result {
+  background-color: rgb(50,50,50);
+  margin-left: 10px;
+  padding: 10px;
+  flex-grow: 1;
+}
+
+/* Table Styles */
+
+.table { display: table; }
+.table { border-left: 1px solid rgb(208,208,208); border-bottom: 1px solid rgb(208,208,208); }
+
+.header { display: table-row; font-weight: bold; text-align: center; letter-spacing: 2px; }
+.header { background-color: #333; }
+
+.row { display: table-row; }
+
+.cell { display: table-cell; padding: 5px; min-width: 25px; }
+.header .cell { padding: 7px;}
+.cell { border-top: 1px solid rgb(208,208,208); border-right: 1px solid rgb(208,208,208); }
+
+/* The Status Indicator */
 
 .indicator {
   width: 7px;
@@ -44,11 +74,13 @@ html, body {
 .connecting { background-color: yellow; border-color: darkgoldenrod; }
 .disconnected { background-color: red; border-color: darkred; }
 
+/* CodeMirror style overrides */
+
 .CodeMirror {
   width: 200px;
   max-height: 200px;
   color: rgb(200,200,200);
-  background-color: rgb(50,50,50);
+  background-color: rgba(0,0,0,0);
   cursor: text;
 }
 
@@ -61,5 +93,7 @@ html, body {
 .CodeMirror-selected {
 
 }
+
+/* Misc */
 
 #perfstats { display: none; }
