@@ -313,18 +313,19 @@ function closeModals() {
 // ------------------
 
 function queryInputKeydown(event, elem) {
-  /*
   let thisReplCard = replCards[elem.ix];
   // Submit the query with ctrl + enter
   if ((event.keyCode === 13 || event.keyCode === 83) && event.ctrlKey === true) {
     submitReplCard(thisReplCard);
   // Catch tab
+  /*
   } else if (event.keyCode === 9) {
     let range = getSelection(event.target);
     //let value = event.target.innerText;
     //value = value.substring(0, range[0]) + "  " + value.substring(range[1]);
     //event.target.innerHTML = value;
     //setSelection(range[0] + 2,range[0] + 2);
+  */
   // Catch ctrl + arrow up or page up
   } else if (event.keyCode === 38 && event.ctrlKey === true || event.keyCode === 33) {
     // Set the focus to the previous repl card
@@ -349,7 +350,7 @@ function queryInputKeydown(event, elem) {
     return;
   }
   event.preventDefault();
-  rerender();*/
+  rerender();
 }
   
 function getSelection(editableDiv): Array<number> {
@@ -444,6 +445,7 @@ function generateReplCardElement(replCard: ReplCard) {
     key: `${replCard.id}${replCard.focused}`, 
     focused: replCard.focused,
     c: "query-input",
+    value: replCard.query,
     //contentEditable: true,
     //spellcheck: false,
     //text: replCard.query,
@@ -452,6 +454,7 @@ function generateReplCardElement(replCard: ReplCard) {
     keyup: queryInputKeyup,    
     //postRender: focusQueryBox, 
     matchBrackets: true,
+    lineNumbers: true,
   };
   
   // Set the css according to the card state
@@ -508,6 +511,7 @@ function generateStatusBarElement() {
     indicator = "disconnected";
   }
   
+  /*
   // Build the various callouts
   let saveAllLink = {t: "a", href: repl.blob, download: "save.evedb", text: "Save Cards", click: function(event) {closeModals(); event.stopPropagation(); rerender();}};
   let saveTableLink = {t: "a", href: repl.csv, download: "table.csv", text: "Export CSV", click: function(event) {closeModals(); event.stopPropagation(); rerender();}};
@@ -530,15 +534,15 @@ function generateStatusBarElement() {
         {t: "input", type: "file", c: "upload", change: loadCards},      
       ]
     }],
-  }; 
+  };*/ 
   
   // Build the proper elements of the status bar
   let statusIndicator = {c: `indicator ${indicator} left`};
-  let trash = {c: "ion-trash-a button right", click: trashCardsClick, children: [deleteConfirm]};
-  let save = {c: "ion-ios-download-outline button right", click: saveCardsClick, children: [downloadLink]};
-  let load = {c: "ion-ios-upload-outline button right", click: loadCardsClick, children: [fileSelector]};
-  let dimmer = {c: `${localStorage["eveReplTheme"] === "light" ? "ion-ios-lightbulb" : "ion-ios-lightbulb-outline"} button right`, click: toggleTheme};
-  let refresh = {c: `ion-refresh button ${repl.state !== ReplState.DISCONNECTED ? "no-opacity" : ""} left no-width`, text: " Reconnect", click: function () { repl.timeout = 0; reconnect(); } };
+  //let trash = {c: "ion-trash-a button right", click: trashCardsClick, children: [deleteConfirm]};
+  //let save = {c: "ion-ios-download-outline button right", click: saveCardsClick, children: [downloadLink]};
+  //let load = {c: "ion-ios-upload-outline button right", click: loadCardsClick, children: [fileSelector]};
+  //let dimmer = {c: `${localStorage["eveReplTheme"] === "light" ? "ion-ios-lightbulb" : "ion-ios-lightbulb-outline"} button right`, click: toggleTheme};
+  //let refresh = {c: `ion-refresh button ${repl.state !== ReplState.DISCONNECTED ? "no-opacity" : ""} left no-width`, text: " Reconnect", click: function () { repl.timeout = 0; reconnect(); } };
   // Build the status bar    
   let statusBar = {
     id: "status-bar",
@@ -550,7 +554,6 @@ function generateStatusBarElement() {
 
 // Create an initial repl card
 let replCards: Array<ReplCard> = loadReplCards();
-replCards.push(newReplCard());
 replCards.push(newReplCard());
 replCards[0].focused = true;
 
