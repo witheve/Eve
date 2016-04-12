@@ -103,24 +103,29 @@
 (defn get-fact-by-id [id]
   (aget facts-by-id id))
 
-(defn entity [info]
+(defn entities [info]
   (let [{:keys [id tag]} info]
     (cond
       id [(get-fact-by-id id)]
       tag (let [first-tag (if (set? tag)
                             (first tag)
                             tag)
-                objs (map get-fact-by-id (aget facts-by-tag first-tag))]
-            (vec (filter (fn [obj]
-                           (every? identity
-                                   (for [[k v] info
-                                         :let [obj-value (obj k)]]
-                                     (cond
-                                       (and (set? v) (set? obj-value)) (set/subset? v obj-value)
-                                       (set? obj-value) (obj-value v)
-                                       :else (= v (obj k))))))
-                         objs)))
+                objs (map get-fact-by-id (aget facts-by-tag first-tag))
+                result (to-array (filter (fn [obj]
+                                           (every? identity
+                                                   (for [[k v] info
+                                                         :let [obj-value (obj k)]]
+                                                     (cond
+                                                       (and (set? v) (set? obj-value)) (set/subset? v obj-value)
+                                                       (set? obj-value) (obj-value v)
+                                                       :else (= v (obj k))))))
+                                         objs))]
+            (if (> (count result) 0)
+              result))
       :else (throw (js/Error. "Lookups must either contain an id or a tag")))))
+
+(defn entity [info]
+  (first (entities info)))
 
 (defn property-updater [cur v]
   (cond
@@ -138,6 +143,7 @@
 (defn add-eavs! [eavs]
   (doseq [[e a v] eavs
           :let [obj (or (aget facts-by-id e) {:id e})]]
+    (println "ADDING" e a v)
     (aset facts-by-id e (update-in obj [a] property-updater v))
     (when (= :tag a)
       (doseq [tag (if (set? v)
@@ -195,12 +201,12 @@
 ;              (-> context
 ;                  (insert-facts! {:id 'root :tag "cell" :height 1 :width 1 :x 1 :y 1 :type :property})
 ;                  (insert-facts! {:tag "cell" :height 2 :width 2 :x 4 :y 5 :type :property :buddy 'root})
-;                  (remove-facts! {:id (:id (first (entity {:tag "cell"}))) :width 1 :height 1})
-;                  (remove-entity! (:id (first (entity {:tag "cell"})))))
-;              (println (entity {:tag "cell"})))
+;                  (remove-facts! {:id (:id (first (entities {:tag "cell"}))) :width 1 :height 1})
+;                  (remove-entity! (:id (first (entities {:tag "cell"})))))
+;              (println (entities {:tag "cell"})))
 
-; (entity :tag "cell" :grid "yo")
-; (entity :tag "cell" :grid grid-id)
+; (entities :tag "cell" :grid "yo")
+; (entities :tag "cell" :grid grid-id)
 ; (fact-btu :tick 1234)
 ; (insert-fact! :id 1 :tag "cell" :name "foo")
 ; (remove-fact! :id 3)
@@ -347,6 +353,44 @@
       (nth options (mod selected (count options))))))
 
 ;;---------------------------------------------------------
+;; selections
+;;---------------------------------------------------------
+
+(defn get-selections [grid-id]
+  (let [ents (entities {:tag "selection"
+                       :grid-id grid-id})]
+    (if ents
+      (.map ents (fn [cur]
+                   (if (:cell-id cur)
+                     (merge (entity {:id (:cell-id cur)}) cur)
+                     cur)))
+      (array {:id "fake-selection" :x 0 :y 0 :width 1 :height 1}))))
+
+(defn get-active-cell [grid-id]
+  (let [grid-user-state (entity {:tag "grid-user-state"
+                                 :grid-id grid-id})]
+    (if (:active-cell grid-user-state)
+      (entity {:id (:active-cell grid-user-state)}))))
+
+(defn update-active-cell! [context grid-id new-value]
+  (let [grid-user-state (entity {:tag "grid-user-state" :grid-id grid-id})]
+    (when grid-user-state
+      (remove-facts! context {:id (:id grid-user-state) :active-cell (:active-cell grid-user-state)}))
+    (when new-value
+      (if-not grid-user-state
+        (insert-facts! context {:tag "grid-user-state" :grid-id grid-id :active-cell new-value})
+        (insert-facts! context {:id (:id grid-user-state) :active-cell new-value})))))
+
+(defn update-extending-selection [context grid-id new-value]
+  (let [grid-user-state (entity {:tag "grid-user-state" :grid-id grid-id})]
+    (when grid-user-state
+      (remove-facts! context {:id (:id grid-user-state) :extending-selection (:extending-selection grid-user-state)}))
+    (when new-value
+      (if-not grid-user-state
+        (insert-facts! context {:tag "grid-user-state" :grid-id grid-id :extending-selection new-value})
+        (insert-facts! context {:id (:id grid-user-state) :extending-selection new-value})))))
+
+;;---------------------------------------------------------
 ;; Cell types
 ;;---------------------------------------------------------
 
@@ -382,7 +426,7 @@
               selected (get-selected-autocomplete-option :value (or (:value intermediates) (state :grid (:value cell))) (:autocomplete-selection intermediates 0))
               {:keys [action]} selected]
           (println selected)
-          (transaction
+          (transaction context
             (cond
               (= action :insert) (do
                                    (set-state! :cells grid-id (afor [cell (state :cells grid-id)]
@@ -405,8 +449,8 @@
                                                                                       :value value-id})
                                                                          cell)))
                                       (set-state! :active-cell-intermediates id nil)
-                                      (set-state! :active-cell grid-id nil)
-                                      (move-selection! grid-id :down)))))))
+                                      (update-active-cell! context grid-id nil)
+                                      (move-selection! context grid-id :down)))))))
     (when (= key-code (KEYS :escape))
       (transaction
         (set-state! :active-cell-intermediates id nil)
@@ -427,7 +471,7 @@
       (set-state! :active-cell-intermediates id (assoc current-intermediate :focus field)))))
 
 (defn draw-property [cell active?]
-  (let [intermediates (state :active-cell-intermediates (:id cell))]
+  (let [intermediates context (state :active-cell-intermediates (:id cell))]
     (if active?
       (input :style (style :color "#777"
                            :font-size "10pt"
@@ -570,14 +614,15 @@
          (>= (+ y height) (+ y2 height2)))))
 
 (defn get-intersecting-cell [pos cells]
-  (let [len (count cells)]
-    (loop [cell-ix 0]
-      (if (> cell-ix len)
-        nil
-        (let [cell (aget cells cell-ix)]
-          (if (cell-intersects? pos cell)
-            cell
-            (recur (inc cell-ix))))))))
+  (when cells
+    (let [len (count cells)]
+      (loop [cell-ix 0]
+        (if (> cell-ix len)
+          nil
+          (let [cell (aget cells cell-ix)]
+            (if (cell-intersects? pos cell)
+              cell
+              (recur (inc cell-ix)))))))))
 
 (defn get-all-interesecting-cells [pos cells]
   (let [result (array)]
@@ -588,11 +633,11 @@
     (if (not= 0 (count result))
       result)))
 
-(defn add-cell! [grid-id cell]
-  (let [with-id (assoc cell :id (js/uuid) :grid-id grid-id :type :property)
-        updated (.concat (state :cells grid-id) (array with-id))]
-    (set-state! :cells grid-id updated)
-    updated))
+(defn add-cell! [context grid-id cell]
+  (log "ADDING A CELL")
+  (let [with-id (assoc cell :tag "cell" :id 'new-guy :grid-id grid-id :type :property)]
+    (insert-facts! context with-id)
+    with-id))
 
 (defn set-selection [event elem]
   (let [{:keys [x y]} (target-relative-coords event)
@@ -601,37 +646,45 @@
         extend? (or (.-ctrlKey event) (.-metaKey event))
         selected-x (.floor js/Math (/ x cell-size-x))
         selected-y (.floor js/Math (/ y cell-size-y))
-        pos {:x selected-x :y selected-y :width 1 :height 1}
+        pos {:tag "selection" :grid-id id :x selected-x :y selected-y :width 1 :height 1}
         maybe-selected-cell (get-intersecting-cell pos cells)
         addition (or maybe-selected-cell pos)
-        updated (cond
-                  range? (let [start (first (state :selections id))]
-                           (array {:x (:x start) :y (:y start)
-                                   ;; height and width are calculated by determining the distance
-                                   ;; between the start and end points, but we also need to factor
-                                   ;; in the size of the end cell.
-                                   :width (+ (- (:x addition) (:x start)) (:width addition))
-                                   :height (+ (- (:y addition) (:y start)) (:height addition))
-                                   }))
-                  extend? (.concat (state :selections id) (array addition))
-                  :else (array addition))]
-    (transaction
-      (set-state! :selections id updated)
-      (set-state! :extending-selection id true)
-      (set-state! :active-cell id nil)
-      (set-state! :active-cell-intermediates id nil))))
+        final-selection (if (:id addition)
+                          {:tag "selection" :grid-id id :cell-id (:id addition)}
+                          addition)]
+    (transaction context
+                 (cond
+                   range? (let [start (first (get-selections id))]
+                            (doseq [selection (get-selections id)]
+                              (remove-facts! context selection))
+                            (insert-facts! context {:tag "selection" :grid-id id
+                                                    :x (:x start) :y (:y start)
+                                                    ;; height and width are calculated by determining the distance
+                                                    ;; between the start and end points, but we also need to factor
+                                                    ;; in the size of the end cell.
+                                                    :width (+ (- (:x addition) (:x start)) (:width addition))
+                                                    :height (+ (- (:y addition) (:y start)) (:height addition))
+                                                    }))
+                   extend? (insert-facts! context final-selection)
+                   :else (do
+                           (doseq [selection (get-selections id)]
+                             (remove-facts! context selection))
+                           (insert-facts! context final-selection)))
+                 (update-extending-selection context id true)
+                 (update-active-cell! context id nil))))
 
 (declare stop-selecting)
 
 (defn mousemove-extend-selection [event elem]
   (let [{:keys [id cell-size-y cell-size-x]} (.-info elem)
-        point-selecting? (or (.-metaKey event) (.-ctrlKey event))]
-    (when (and (state :extending-selection id)
+        point-selecting? (or (.-metaKey event) (.-ctrlKey event))
+        grid-user-state (entity {:tag "grid-user-state" :grid-id id})]
+    (when (and (:extending-selection grid-user-state)
                (not point-selecting?))
       (let [{:keys [x y]} (target-relative-coords event)
             selected-x (.floor js/Math (/ x cell-size-x))
             selected-y (.floor js/Math (/ y cell-size-y))
-            start (first (state :selections id))
+            start (first (get-selections id))
             ;; height and width are calculated by determining the distance
             ;; between the start and end points, but we also need to factor
             ;; in the size of the end cell.
@@ -643,15 +696,19 @@
             height (+ y-diff (if (> y-diff 0)
                                1
                                0))
-            maybe (array {:x (:x start)
-                          :y (:y start)
-                          :width (if (not= 0 width) width 1)
-                          :height (if (not= 0 height) height 1)})]
-        (transaction
-          (set-state! :selections id maybe)
-          (when-not (global-mouse-down)
-            (set-state! :extending-selection id false)
-            (stop-selecting event elem)))))))
+            maybe {:tag "selection"
+                   :grid-id id
+                   :x (:x start)
+                   :y (:y start)
+                   :width (if (not= 0 width) width 1)
+                   :height (if (not= 0 height) height 1)}]
+        (transaction context
+                     (doseq [selection (get-selections id)]
+                       (remove-facts! context selection))
+                     (insert-facts! context maybe)
+                     (when-not (global-mouse-down)
+                       (update-extending-selection context id false)
+                       (stop-selecting event elem)))))))
 
 (defn normalize-cell-size [{:keys [x y width height] :as cell}]
   (if-not (or (< width 0)
@@ -670,18 +727,25 @@
 
 (defn stop-selecting [event elem]
   (let [{:keys [id cells]} (.-info elem)
-        selections (state :selections id)]
-    (if (and (state :extending-selection id)
+        selections (get-selections id)
+        grid-user-state (entity {:tag "grid-user-state" :grid-id id})]
+    (if (and (:extending-selection grid-user-state)
              (= 1 (count selections)))
-      (let [current (first (state :selections id))
+      (let [current (first selections)
             normalized (normalize-cell-size current)
             intersecting (get-all-interesecting-cells normalized cells)
-            final (or intersecting (array normalized))]
-        (transaction
-          (set-state! :selections id final)
-          (set-state! :extending-selection id false))))
-      (transaction
-        (set-state! :extending-selection id false))))
+            final (if intersecting
+                    (for [cell intersecting]
+                      {:tag "selection" :grid-id id :cell-id (:id cell)})
+                    [(assoc normalized :tag "selection" :grid-id id)])]
+        (transaction context
+                     (doseq [selection (get-selections id)]
+                       (remove-facts! context selection))
+                     (doseq [new-selection final]
+                       (insert-facts! context new-selection))
+                     (update-extending-selection context id false))))
+    (transaction context
+                 (update-extending-selection context id false))))
 
 (defn remove-overlap [cells updated-cells axis-and-direction-map]
   (let [changed (.slice updated-cells)
@@ -730,11 +794,15 @@
                     (recur ix)))))))))
     final))
 
-(defn move-selection! [grid-id direction]
-  (let [cells (state :cells grid-id)
-        selections (state :selections grid-id)
+(defn move-selection! [context grid-id direction]
+  (let [cells (entities {:tag "cell"
+                         :grid-id grid-id})
+        selections (get-selections grid-id)
         current-selection (last selections)
-        {x-offset :x y-offset :y} (or (state :offset grid-id) {:x 0 :y 0})
+        grid-user-state (entity {:tag "grid-user-state"
+                                 :grid-id grid-id})
+        x-offset (or (:x-offset grid-user-state) 0)
+        y-offset (or (:y-offset grid-user-state) 0)
         updated-pos (condp = direction
                       :left (-> (update-in current-selection [:x] dec)
                                 (update-in [:y] + y-offset))
@@ -758,14 +826,31 @@
                    {:x (- (:x resized-pos) (:x maybe-selected-cell))
                     :y (- (:y resized-pos) (:y maybe-selected-cell))}
                    {:x 0 :y 0})
-          final (or maybe-selected-cell resized-pos)]
-      (when offset (set-state! :offset grid-id offset))
-      (set-state! :extending-selection grid-id false)
-      (set-state! :selections grid-id (array final)))))
+          final (if maybe-selected-cell
+                  (-> (select-keys maybe-selected-cell [:x :y :width :height])
+                      (assoc :cell-id (:id maybe-selected-cell)))
+                  resized-pos)]
+      (when offset (if grid-user-state
+                     (do
+                       (remove-facts! context {:id (:id grid-user-state)
+                                               :x-offset x-offset
+                                               :y-offset y-offset})
+                       (insert-facts! context {:id (:id grid-user-state)
+                                               :x-offset (:x offset)
+                                               :y-offset (:y offset)}))
+                     (insert-facts! context {:tag "grid-user-state"
+                                             :grid-id grid-id
+                                             :x-offset (:x offset)
+                                             :y-offset (:y offset)})))
+      (update-extending-selection context grid-id false)
+      ;; remove all the previous selections
+      (doseq [selection selections]
+        (remove-facts! context selection))
+      (insert-facts! context (assoc final :grid-id grid-id :tag "selection")))))
 
-(defn extend-selection! [grid-id direction]
-  (let [cells (state :cells grid-id)
-        selections (state :selections grid-id)
+(defn extend-selection! [context grid-id direction]
+  (let [cells (entity {:tag "cell" :grid-id grid-id})
+        selections (get-selections grid-id)
         current-selection (last selections)
         updated-pos (condp = direction
                        ;; we use non-zero-inc/dec here because the size of the selection
@@ -776,8 +861,9 @@
                        :right (update-in current-selection [:width] non-zero-inc)
                        :down (update-in current-selection [:height] non-zero-inc))]
     ;; there's no offset if we're extending
+    ;; TODO: set the offset
     (set-state! :offset grid-id {:x 0 :y 0})
-    (set-state! :extending-selection grid-id true)
+    (update-extending-selection context grid-id true)
     (set-state! :selections grid-id (array updated-pos))))
 
 (def directions {(KEYS :left) :left
@@ -786,19 +872,24 @@
                  (KEYS :down) :down})
 
 (defn activate-cell! [grid-id cell]
-  (if-not (:id cell)
-    (transaction
-      (let [cells (add-cell! grid-id cell)
-            new-cell (last cells)]
-        (set-state! :selections grid-id (array new-cell))
-        (set-state! :active-cell grid-id (:id new-cell))))
-    (transaction
-      (set-state! :active-cell grid-id (:id cell)))))
+  (if-not (:cell-id cell)
+    (transaction context
+                 (let [new-cell (add-cell! context grid-id cell)
+                       selections (get-selections grid-id)]
+                   (dotimes [ix (count selections)]
+                     (let [selection (aget selections ix)]
+                       (remove-facts! context selection)))
+                   (update-active-cell! context grid-id (:id new-cell))
+                   (insert-facts! context {:tag "selection" :grid-id grid-id :cell-id (:id new-cell)})))
+    (transaction context
+                 (let [prev-active (entity {:tag "active" :grid-id grid-id})]
+                   (update-active-cell! context grid-id (:cell-id cell))))))
 
 (defn grid-keys [event elem]
   (when (= (.-currentTarget event) (.-target event))
     (let [{:keys [id cells]} (.-info elem)
-          selections (state :selections id)
+          selections (entities {:tag "selection"
+                                :grid-id id})
           current-selection (last selections)
           key-code (.-keyCode event)
           shift? (.-shiftKey event)
@@ -808,37 +899,39 @@
         ;; selected cell we need to activate it
         (:enter KEYS) (activate-cell! id current-selection)
         ;; pressing backspace should nuke any selected cells
-        (:backspace KEYS) (let [selected-ids (into #{} (for [selection (state :selections id)]
-                                                         (:id selection)))]
-                            (transaction
-                              (set-state! :cells id (.filter (state :cells id) (fn [cell]
-                                                                                 (not (selected-ids (:id cell))))))
-                              (set-state! :selections id (to-array (for [selection selections]
-                                                                     (select-keys selection [:x :y :width :height])))))
+        (:backspace KEYS) (let [selected-ids (into #{} (for [selection (get-selections id)]
+                                                         (:cell-id selection)))]
+                            (transaction context
+                              (doseq [selection (get-selections id)]
+                                (when (:cell-id selection)
+                                  (remove-facts! context (entity {:id (:cell-id selection)})))
+                                (remove-facts! context selection)
+                                (insert-facts! context (select-keys current-selection [:tag :grid-id :x :y :width :height]))))
                             (.preventDefault event))
         ;; otherwise if you pressed an arrow key, we need to move or extend depending on
         ;; whether shift is being held
         (when direction
-          (transaction
+          (transaction context
             (if shift?
               (extend-selection! id direction)
-              (move-selection! id direction)))
+              (move-selection! context id direction)))
           (.preventDefault event))))))
 
 (defn grid-input [event elem]
   (when (= (.-currentTarget event) (.-target event))
     (let [{:keys [id cells]} (.-info elem)
-          selections (state :selections id)
+          selections (get-selections id)
           current-selection (last selections)
           current-value (-> event (.-currentTarget) (.-value))]
       ;; if you don't have an already existing cell selected, then we need
       ;; to create a new cell with a property name starting with whatever
       ;; you've typed at this point
       (if-not (:id current-selection)
-        (transaction
-          (let [cells (add-cell! id current-selection)
-                new-cell (last cells)
+        (transaction context
+          (let [new-cell (add-cell! context id current-selection)
                 new-cell-id (:id new-cell)]
+            (doseq [selection selections]
+              (remove-facts! context selection))
             (set-state! :selections id (array new-cell))
             (set-state! :active-cell id new-cell-id)
             (set-state! :active-cell-intermediates new-cell-id {:property current-value})))
@@ -870,7 +963,8 @@
 
 (defn maybe-activate-cell [event elem]
   (let [{:keys [id]} (.-info elem)
-        selected (last (state :selections id))]
+        selected (last (entities {:tag "selection"
+                                  :grid-id id}))]
     (activate-cell! id selected)))
 
 (defn grid [info]
@@ -882,10 +976,11 @@
                                    :height (:grid-height info)))
         children (array canvas)
         {:keys [cells cell-size-x cell-size-y selections]} info
-        active-cell (state :active-cell (:id info))]
+        active-cell (get-active-cell (:id info))]
+    (println "ACTIVE CELL" active-cell)
     (dotimes [cell-ix (count cells)]
       (let [{:keys [x y width height color id] :as cell} (aget cells cell-ix)
-            is-active? (= active-cell (:id cell))]
+            is-active? (= (:id active-cell) (:id cell))]
         (.push children (box :id id
                              :style (style :width (- (* cell-size-x (or width 1)) 2)
                                            :height (- (* cell-size-y (or height 1)) 2)
@@ -897,6 +992,9 @@
                              :children (array (draw-cell cell is-active?))))))
     (dotimes [selection-ix (count selections)]
       (let [selection (aget selections selection-ix)
+            selection (if (:cell-id selection)
+                        (entity {:id (:cell-id selection)})
+                        selection)
             color "#fff"
             ;; we have to normalize selections since while they're being expanded
             ;; they can have negative widths and heights
@@ -961,8 +1059,9 @@
                      :font-family "Lato")
        :children (array (grid {:grid-width (.-innerWidth js/window)
                                :grid-height (.-innerHeight js/window)
-                               :selections (state :selections "main")
-                               :cells (state :cells "main")
+                               :selections (get-selections "main")
+                               :cells (entities {:tag "cell"
+                                               :grid-id "main"})
                                :cell-size-y 50
                                :cell-size-x 120
                                :id "main"}))))
