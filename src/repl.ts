@@ -514,11 +514,14 @@ function generateStatusBarElement() {
   
   // Build the proper elements of the status bar
   let statusIndicator = {c: `indicator ${indicator} left`};
+  let eveLogo = {t: "img", c: "logo", src: "../images/logo_only.png", width: 39, height: 45};
+  let deleteButton = {c: "button", text: "Delete Cards", click: deleteAllCards};
+  let button2 = {c: "button", text: "Button Foo"};
   // Build the status bar    
   let statusBar = {
     id: "status-bar",
     c: "status-bar",
-    children: [statusIndicator], //, refresh, trash, save, load, dimmer],
+    children: [eveLogo, deleteButton, button2, statusIndicator], //, refresh, trash, save, load, dimmer],
   }
   return statusBar;
 }
