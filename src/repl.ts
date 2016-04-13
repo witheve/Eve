@@ -517,11 +517,12 @@ function generateStatusBarElement() {
   let eveLogo = {t: "img", c: "logo", src: "../images/logo_only.png", width: 39, height: 45};
   let deleteButton = {c: "button", text: "Delete Cards", click: deleteAllCards};
   let button2 = {c: "button", text: "Button Foo"};
+  let buttonList = formListElement([deleteButton, button2])
   // Build the status bar    
   let statusBar = {
     id: "status-bar",
     c: "status-bar",
-    children: [eveLogo, deleteButton, button2, statusIndicator], //, refresh, trash, save, load, dimmer],
+    children: [eveLogo, buttonList, statusIndicator], //, refresh, trash, save, load, dimmer],
   }
   return statusBar;
 }
@@ -544,4 +545,13 @@ function root() {
     click: rootClick,
   };  
   return root;
+}
+
+// -----------------
+// Utility Functions
+// -----------------
+
+function formListElement(list: Array<any>) {
+  let li = list.map((e) => {return {t: "li", children: [e]};});
+  return {t: "ul", children: li};  
 }

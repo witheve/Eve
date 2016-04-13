@@ -63,6 +63,12 @@ html, body {
 .header .cell { padding: 7px;}
 .cell { border-top: 1px solid rgb(208,208,208); border-right: 1px solid rgb(208,208,208); }
 
+/* List Styles */
+
+li {
+  margin-bottom: 10px;
+}
+
 /* Button styles */ 
 
 .button {
