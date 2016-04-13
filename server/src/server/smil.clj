@@ -52,6 +52,7 @@
               'fact nil
               'define! nil ; Special due to multiple aliases
               'query nil ; Special due to optional parameterization
+              'sort nil ; Special due to variable, direction pairs
 
               ;; Macros
               'remove-by-t! {:args [:tick]}
@@ -205,6 +206,16 @@
                                    {:facts [[(:entity state)]]}
                                    nil))]
     state))
+
+(defn parse-sort [sexpr]
+  (let [body (rest sexpr)
+        pairs (partition 2 body)]
+    (doseq [[var dir] pairs]
+      (when-not (symbol? var)
+        (throw (syntax-error "First argument of each pair must be a variable" sexpr {:var var :dir dir})))
+      (when-not (or (symbol? dir) (= "ascending" dir) (= "descending" dir))
+        (throw (syntax-error "Second argument of each pair must be a direction" sexpr {:var var :dir dir}))))
+    {:pairs pairs}))
 
 (defn parse-args
   ([sexpr] (parse-args [nil sexpr]))
