@@ -21,7 +21,7 @@ html, body {
   padding: 10px;
   flex-grow: 1;
   background-color: rgb(30,30,30);
-  overflow-y: scroll;
+  overflow-y: auto;
 }
 
 .repl-card {
@@ -30,6 +30,7 @@ html, body {
 }
 
 .query-input {
+  width: 300px;
   background-color: rgb(50,50,50);
 }
 
@@ -77,7 +78,6 @@ html, body {
 /* CodeMirror style overrides */
 
 .CodeMirror {
-  width: 200px;
   max-height: 200px;
   color: rgb(200,200,200);
   background-color: rgba(0,0,0,0);
