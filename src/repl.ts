@@ -492,7 +492,7 @@ function generateReplCardElement(replCard: ReplCard) {
     result = {text: `Query closed.`};
   }
   
-  let queryResult = result === undefined ? {} : {c: resultcss, children: [result]};
+  let queryResult = {c: resultcss, children: [result]};
   replClass += replCard.focused ? " selected" : "";
   
   let replCardElement = {
