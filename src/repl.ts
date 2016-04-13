@@ -29,6 +29,7 @@ export interface Query {
 interface ReplCard {
   id: string,
   ix: number,
+  col: number,
   state: CardState,
   focused: boolean,
   query: string,
@@ -39,6 +40,7 @@ interface ReplCard {
 }
 
 function rerender(removeCards?: boolean) {
+  /*
   if (removeCards === undefined) {
     removeCards = false;
   }
@@ -65,7 +67,7 @@ function rerender(removeCards?: boolean) {
       }
       rerender(false);
     }, 250);
-  }
+  }*/
   app.dispatch("rerender", {}).commit();
 }
 
@@ -73,11 +75,11 @@ function rerender(removeCards?: boolean) {
 // Storage functions
 // ------------------
 
-function saveReplCard(replCard: ReplCard) {
+/*function saveReplCard(replCard: ReplCard) {
   localStorage.setItem("everepl-" + replCard.id, JSON.stringify(replCard));  
-}
+}*/
 
-function loadReplCards(): Array<ReplCard> {
+/*function loadReplCards(): Array<ReplCard> {
   let storedReplCards: Array<ReplCard> = [];
   for (let item in localStorage) {
     if (item.substr(0,7) === "everepl") {
@@ -91,19 +93,22 @@ function loadReplCards(): Array<ReplCard> {
     storedReplCards.forEach((r,i) => r.ix = i);
   }
   return storedReplCards;
-}
+}*/
 
+/*
 function deleteStoredReplCard(replCard: ReplCard) {
   localStorage.removeItem("everepl-" + replCard.id);
-}
+}*/
 
+/*
 function saveCards() {
   let serialized = JSON.stringify(replCards.filter((r) => r.state !== CardState.NONE).map((r) => r.query));
   let blob = new Blob([serialized], {type: "application/json"});
   let url = URL.createObjectURL(blob);
   repl.blob = url;
-}
+}*/
 
+/*
 function saveTable() {
   let replCard = replCards.filter((r) => r.focused).pop();
   if (replCard !== undefined) {
@@ -122,8 +127,9 @@ function saveTable() {
       repl.csv = undefined;
     }
   }
-}
+}*/
 
+/*
 function loadCards(event:Event, elem) {
   let target = <HTMLInputElement>event.target;
   if(!target.files.length) return;
@@ -147,7 +153,7 @@ function loadCards(event:Event, elem) {
   event.stopPropagation();
   closeModals();
   rerender();
-}
+}*/
 
 // ------------------
 // Repl functions
@@ -205,11 +211,11 @@ function connectToServer() {
           fields: parsed.fields,
           values: parsed.values,
         }
-        saveReplCard(targetCard);
+        //saveReplCard(targetCard);
       } else if (parsed.type === "error") {
         targetCard.state = CardState.ERROR;
         targetCard.result = parsed.cause;
-        saveReplCard(targetCard);
+        //saveReplCard(targetCard);
       } else if (parsed.type === "close") {
         let removeIx = replCards.map((r) => r.id).indexOf(parsed.id);
         if (removeIx >= 0) {
@@ -249,10 +255,11 @@ function sendMessage(message): boolean {
 // Card functions
 // ------------------
 
-function newReplCard(): ReplCard {
+function newReplCard(col? :number): ReplCard {
   let replCard: ReplCard = {
     id: uuid(),
     ix: replCards.length > 0 ? replCards.map((r) => r.ix).pop() + 1 : 0,
+    col: col === undefined ? 0 : col,
     state: CardState.NONE,
     focused: false,
     query: "",
@@ -260,7 +267,7 @@ function newReplCard(): ReplCard {
   }
   return replCard;
 }
-
+/*
 function deleteReplCard(replCard: ReplCard) {
   if (replCard.state !== CardState.NONE) {
     let closemessage = {
@@ -271,7 +278,7 @@ function deleteReplCard(replCard: ReplCard) {
     replCard.state = CardState.PENDING;
     replCard.result = "Deleting card...";
   } 
-}
+}*/
 
 function submitReplCard(replCard: ReplCard) {
   let query: Query = {
@@ -329,48 +336,48 @@ function queryInputKeydown(event, elem) {
   // Catch ctrl + arrow up or page up
   } else if (event.keyCode === 38 && event.ctrlKey === true || event.keyCode === 33) {
     // Set the focus to the previous repl card
-    let previousIx = replCards.filter((r) => r.ix < thisReplCard.ix && r.state !== CardState.CLOSED).map((r) => r.ix).pop();
-    previousIx = previousIx === undefined ? 0 : previousIx;
-    focusCard(replCards[previousIx]);
+    //let previousIx = replCards.filter((r) => r.ix < thisReplCard.ix && r.state !== CardState.CLOSED).map((r) => r.ix).pop();
+    //previousIx = previousIx === undefined ? 0 : previousIx;
+    //focusCard(replCards[previousIx]);
   // Catch ctrl + arrow down or page down
   } else if (event.keyCode === 40 && event.ctrlKey === true || event.keyCode === 34) {
     // Set the focus to the next repl card
-    let nextIx = thisReplCard.ix + 1 <= replCards.length - 1 ? thisReplCard.ix + 1 : replCards.length - 1;
-    focusCard(replCards[nextIx]);
+    //let nextIx = thisReplCard.ix + 1 <= replCards.length - 1 ? thisReplCard.ix + 1 : replCards.length - 1;
+    //focusCard(replCards[nextIx]);
   // Catch ctrl + delete to remove a card
   } else if (event.keyCode === 46 && event.ctrlKey === true) {
-    deleteReplCard(thisReplCard);
+    //deleteReplCard(thisReplCard);
   // Catch ctrl + home  
   } else if (event.keyCode === 36 && event.ctrlKey === true) {
-    focusCard(replCards[0]);
+    //focusCard(replCards[0]);
   // Catch ctrl + end
   } else if (event.keyCode === 35 && event.ctrlKey === true) {
-    focusCard(replCards[replCards.length - 1]);
+    //focusCard(replCards[replCards.length - 1]);
   } else {
     return;
   }
   event.preventDefault();
   rerender();
 }
-  
+/*
 function getSelection(editableDiv): Array<number> {
   let sel: any = window.getSelection();
   let range = [sel.baseOffset, sel.extentOffset];
   range = range.sort();
   return range;
-}
-
+}*/
+/*
 function setSelection(start: number, stop: number) {
   let sel = window.getSelection();
   sel.setBaseAndExtent(sel.anchorNode, start, sel.anchorNode, stop);
-}
+}*/
 
 function queryInputKeyup(event, elem) {
   let thisReplCard = replCards[elem.ix];
   let target = document.querySelectorAll(".query-input");
   let cm: CodeMirror.Editor = target[elem.ix]["cm"];  
   thisReplCard.query = cm.getValue();
-  submitReplCard(thisReplCard);
+  //submitReplCard(thisReplCard);
 }
 
 /*function queryInputBlur(event, elem) {
@@ -378,25 +385,25 @@ function queryInputKeyup(event, elem) {
   thisReplCard.focused = false;
   rerender();
 }*/
-
+/*
 function replCardClick(event, elem) {
   focusCard(replCards[elem.ix]);
   rerender();
-}
-
+}*/
+/*
 function deleteAllCards(event, elem) {
   replCards.forEach(deleteReplCard);
   closeModals();
   event.stopPropagation();
   rerender();
-}
-
+}*/
+/*
 function focusQueryBox(node, element) {
   if (element.focused) {
     node.focus();
   }
-}
-
+}*/
+/*
 function toggleTheme(event, elem) {
   var theme = localStorage["eveReplTheme"]; 
   if (theme === "dark") { 
@@ -408,28 +415,29 @@ function toggleTheme(event, elem) {
   }
   rerender();
 }
-
+*/
+/*
 function saveCardsClick(event, elem) {
   closeModals();
   saveCards();
   saveTable();
   event.stopPropagation();
   rerender();
-}
-
+}*/
+/*
 function trashCardsClick(event, elem) {
   closeModals();
   repl.delete = true;
   event.stopPropagation();
   rerender();
-}
-
+}*/
+/*
 function loadCardsClick(event, elem) {
   closeModals();
   repl.load = true;
   event.stopPropagation();
   rerender();
-}
+}*/
 
 function rootClick(event, elem) {
   closeModals();
@@ -455,7 +463,7 @@ function generateReplCardElement(replCard: ReplCard) {
     keyup: queryInputKeyup,    
     //postRender: focusQueryBox, 
     matchBrackets: true,
-    lineNumbers: true,
+    lineNumbers: false,
   };
   
   // Set the css according to the card state
@@ -498,10 +506,29 @@ function generateReplCardElement(replCard: ReplCard) {
   let replCardElement = {
     id: replCard.id,
     c: replClass,
-    click: replCardClick,
+    //click: replCardClick,
     children: [codeMirrorElement(queryInput), queryResult],
   };   
   return replCardElement;
+}
+
+function generateCardRootElements() {
+  let maxCols: number = Math.max.apply(null,replCards.map((r) => r.col));
+  let cardRoot = {
+    id: "card-root",
+    c: "card-root",
+    children: [],
+  }
+  // Build each column and add it to the card root
+  for (let i = 0; i <= maxCols; i++) {
+    let column = {
+      id: `card-column${i}`,
+      c: "card-column",
+      children: replCards.filter((r) => r.col === i).map(generateReplCardElement),
+    }
+    cardRoot.children.push(column);
+  }
+  return cardRoot;
 }
 
 function generateStatusBarElement() {
@@ -515,8 +542,8 @@ function generateStatusBarElement() {
   // Build the proper elements of the status bar
   let statusIndicator = {c: `indicator ${indicator} left`};
   let eveLogo = {t: "img", c: "logo", src: "../images/logo_only.png", width: 39, height: 45};
-  let deleteButton = {c: "button", text: "Delete Cards", click: deleteAllCards};
-  let button2 = {c: "button", text: "Button Foo"};
+  let deleteButton = {c: "button", text: "Delete Cards"};
+  let button2 = {c: "button", text: "Add Column"};
   let buttonList = formListElement([deleteButton, button2])
   // Build the status bar    
   let statusBar = {
@@ -528,20 +555,15 @@ function generateStatusBarElement() {
 }
 
 // Create an initial repl card
-let replCards: Array<ReplCard> = loadReplCards();
-replCards.push(newReplCard());
+let replCards: Array<ReplCard> = [] //loadReplCards();
+replCards.push(newReplCard(0));
 replCards[0].focused = true;
 
 function root() {
-  let cardRoot = {
-    id: "card-root",
-    c: "card-root",
-    children: replCards.map(generateReplCardElement),
-  }
   let root = {
     id: "repl",
     c: "repl",
-    children: [generateStatusBarElement(), cardRoot],
+    children: [generateStatusBarElement(), generateCardRootElements()],
     click: rootClick,
   };  
   return root;

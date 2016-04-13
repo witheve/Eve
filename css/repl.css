@@ -26,6 +26,11 @@ html, body {
 }
 
 .card-root {
+  display: flex;
+  flex-grow: 1;
+}
+
+.card-column {
   padding: 10px;
   flex-grow: 1;
   background-color: rgb(30,30,30);
@@ -43,7 +48,7 @@ html, body {
 }
 
 .query-result {
-  background-color: rgb(50,50,50);
+  background-color: rgb(40,40,40);
   margin-left: 10px;
   padding: 10px;
   flex-grow: 1;
