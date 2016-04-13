@@ -370,6 +370,7 @@ function queryInputKeyup(event, elem) {
   let target = document.querySelectorAll(".query-input");
   let cm: CodeMirror.Editor = target[elem.ix]["cm"];  
   thisReplCard.query = cm.getValue();
+  submitReplCard(thisReplCard);
 }
 
 /*function queryInputBlur(event, elem) {
@@ -511,38 +512,8 @@ function generateStatusBarElement() {
     indicator = "disconnected";
   }
   
-  /*
-  // Build the various callouts
-  let saveAllLink = {t: "a", href: repl.blob, download: "save.evedb", text: "Save Cards", click: function(event) {closeModals(); event.stopPropagation(); rerender();}};
-  let saveTableLink = {t: "a", href: repl.csv, download: "table.csv", text: "Export CSV", click: function(event) {closeModals(); event.stopPropagation(); rerender();}};
-  let downloadLink = repl.blob === undefined ? {} : {
-    c: "callout", children: [
-      {c: "button no-width", children: [saveAllLink]},
-      {c: `button ${repl.csv ? "" : "disabled"} no-width`, children: [saveTableLink]},
-    ], 
-  };
-  let deleteConfirm = repl.delete === false ? {} : {
-    c: "callout",
-    children: [{c: "button no-width", text: "Delete All Cards", click: deleteAllCards}],
-  };
-  let fileSelector = repl.load === false ? {} : {
-    c: "callout",
-    children: [{
-      c: "fileUpload",
-      children: [
-        {c: "button no-width", text: "Load Cards"},
-        {t: "input", type: "file", c: "upload", change: loadCards},      
-      ]
-    }],
-  };*/ 
-  
   // Build the proper elements of the status bar
   let statusIndicator = {c: `indicator ${indicator} left`};
-  //let trash = {c: "ion-trash-a button right", click: trashCardsClick, children: [deleteConfirm]};
-  //let save = {c: "ion-ios-download-outline button right", click: saveCardsClick, children: [downloadLink]};
-  //let load = {c: "ion-ios-upload-outline button right", click: loadCardsClick, children: [fileSelector]};
-  //let dimmer = {c: `${localStorage["eveReplTheme"] === "light" ? "ion-ios-lightbulb" : "ion-ios-lightbulb-outline"} button right`, click: toggleTheme};
-  //let refresh = {c: `ion-refresh button ${repl.state !== ReplState.DISCONNECTED ? "no-opacity" : ""} left no-width`, text: " Reconnect", click: function () { repl.timeout = 0; reconnect(); } };
   // Build the status bar    
   let statusBar = {
     id: "status-bar",
