@@ -101,7 +101,7 @@
                                                     (if x
                                                       [(x 0) (+ (x 1) 1)]
                                                       [tuple 1])))
-           
+
            'remove (swap! state update-in [tuple] (fn [x] (if (= (x 1) 1) nil
                                                               [(x 0) (- (x 1) 1)])))
            ())
@@ -109,8 +109,8 @@
 
      (fn [c2 op]
        (doseq [i @state] (c2 (object-array (cons op (i 0))))))]))
-     
-       
+
+
 (defn donot [d terms build c]
   (let [count (atom 0)
         on (atom false)
@@ -118,7 +118,7 @@
         tail  (fn [r]
                 (condp = (rget r op-register)
                   'insert (swap! count inc)
-                  'remove  (swap! count dec) 
+                  'remove  (swap! count dec)
                   'flush (do
                            (when (and (= @count 0) (not @on))
                              (@zig c 'insert)
@@ -243,7 +243,7 @@
                        (list 'default))]
 
         (if (or (= op 'flush) (= op 'close))
-            (c r)
+          (c r)
           (do
             (condp = (rget r op-register)
               'insert (swap! totals update-in grouping (fnil + 0) (rget r value-slot))
@@ -258,6 +258,71 @@
               (rset r out-slot (get-in @prevs grouping))
               (c r))
             (swap! prevs assoc-in grouping (get-in @totals grouping))))))))
+
+;; I'm a bad, bad man
+(defn make-comparator [sorting]
+  (eval `(fn [~'a ~'b]
+     ~(reduce (fn [memo [ix dir]]
+                (let [[before after] (if (= dir "ascending") ['< '>] ['> '<])]
+                  `(if (~before (get ~'a ~ix) (get ~'b ~ix))
+                     -1
+                     (if (~after (get ~'a ~ix) (get ~'b ~ix))
+                       1
+                       ~memo))))
+              0
+              (reverse sorting)))))
+
+(defn get-sorted-ix [coll sorting value]
+  (println "COLL" coll "SORTING" sorting "VALUE" value)
+  (if (or (nil? coll) (empty? coll))
+    0
+    (let [compare (make-comparator sorting)]
+      (loop [bounds (quot (count coll) 2)
+             ix bounds]
+        (let [other (get coll ix)
+              delta (compare value other)
+              half (quot bounds 2)]
+          (println "LOOP" "H" bounds "IX" ix  "VALUE" value "OTHER" other "DELTA" delta)
+          (if-not (zero? bounds)
+            (if (> delta 0)
+              (recur half
+                     (min (+ ix bounds) (dec (count coll))))
+              (if (< delta 0)
+                (recur half
+                       (max (- ix bounds) 0))
+                (inc ix)))
+            (if (< (compare value (get coll ix)) 0)
+              ix
+              (inc ix))))))))
+
+;; (defn sort-facts [d terms build c]
+;;   (let [ordinals (atom {})
+;;         prevs (atom {})]
+;;     (fn [r]
+;;       (let [out-slot (second terms)
+;;             op (rget r op-register)
+;;             value-slot (nth terms 2)
+;;             grouping-slots (nth terms 3)
+;;             grouping (if (> (count grouping-slots) 0)
+;;                        (map #(rget r %1) grouping-slots)
+;;                        (list 'default))]
+
+;;         (if (or (= op 'flush) (= op 'close))
+;;             (c r)
+;;           (do
+;;             (condp = (rget r op-register)
+;;               'insert (swap! totals update-in grouping (fnil + 0) (rget r value-slot))
+;;               'remove (swap! totals update-in grouping (fnil - 0) (rget r value-slot))
+;;               ())
+
+;;             (rset r out-slot (get-in @totals grouping))
+;;             (c r)
+
+;;             (when-not (nil? (get-in @prevs grouping nil))
+;;               (rset r op-register 'remove) ;; @FIXME: This needs to copied to be safe asynchronously
+;;               (rset r out-slot (get-in @prevs grouping))
+;;               (c r))
+;;             (swap! prevs assoc-in grouping (get-in @totals grouping))))))))
 
 (defn delta-c [d terms build c]
   (let [[_ & proj] terms
@@ -303,7 +368,7 @@
     (fn [r]
       (if (= (rget r op-register) 'insert)
         (let [[e a v b t u] (rget r in)]
-          
+
           (if (= a edb/remove-oid)
             (let [b (base e)
                   old (if b (walk b) b)]
@@ -316,7 +381,7 @@
                       (and old (not new)) (do (rset r out (@assertions b))
                                               (rset r op-register 'remove)
                                               (c r)))))
-            
+
             (do
               (swap! assertions assoc t (rget r in))
               (when (walk t)
@@ -367,7 +432,7 @@
                                    (rset r dest t))
                                  (c r)))]
                  (swap! opened conj handle)))]
-                 
+
 
     (fn [r]
       (condp = (rget r op-register)
@@ -380,7 +445,7 @@
                      (d 'flush oid [] (fn [k op] (c r))))
                    (c r))))))
 
-      
+
 
 (def command-map {'move      (simple move)
                   '+         (ternary-numeric +)
