@@ -160,7 +160,8 @@ function loadCards(event:Event, elem) {
 // ------------------
 
 let repl = { 
-  state: ReplState.CONNECTING, 
+  state: ReplState.CONNECTING,
+  columns: 0, 
   blob: undefined, 
   csv: undefined, 
   load: false, 
@@ -438,6 +439,15 @@ function loadCardsClick(event, elem) {
   event.stopPropagation();
   rerender();
 }*/
+function addColumnClick(event, elem) {
+  replCards.push(newReplCard(++repl.columns));
+  rerender();
+}
+
+function addCardClick(event, elem) {
+  replCards.push(newReplCard(0));
+  rerender();
+}
 
 function rootClick(event, elem) {
   closeModals();
@@ -513,14 +523,14 @@ function generateReplCardElement(replCard: ReplCard) {
 }
 
 function generateCardRootElements() {
-  let maxCols: number = Math.max.apply(null,replCards.map((r) => r.col));
   let cardRoot = {
     id: "card-root",
     c: "card-root",
     children: [],
   }
   // Build each column and add it to the card root
-  for (let i = 0; i <= maxCols; i++) {
+  let i;
+  for (i = 0; i <= repl.columns; i++) {
     let column = {
       id: `card-column${i}`,
       c: "card-column",
@@ -543,8 +553,9 @@ function generateStatusBarElement() {
   let statusIndicator = {c: `indicator ${indicator} left`};
   let eveLogo = {t: "img", c: "logo", src: "../images/logo_only.png", width: 39, height: 45};
   let deleteButton = {c: "button", text: "Delete Cards"};
-  let button2 = {c: "button", text: "Add Column"};
-  let buttonList = formListElement([deleteButton, button2])
+  let addColumn = {c: "button", text: "Add Column", click: addColumnClick};
+  let addCard = {c: "button", text: "Add Card", click: addCardClick};
+  let buttonList = formListElement([deleteButton, addColumn, addCard]);
   // Build the status bar    
   let statusBar = {
     id: "status-bar",
