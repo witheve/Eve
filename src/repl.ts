@@ -14,7 +14,7 @@ enum CardState {
   ERROR,
 }
 
-enum ReplState {
+enum ConnectionState {
   CONNECTED,
   DISCONNECTED,
   CONNECTING,
@@ -42,6 +42,26 @@ interface ReplCard {
     fields: Array<string>,
     values: Array<Array<any>>,
   } | string;
+}
+
+interface ServerConnection {
+  state: ConnectionState,
+  queue: Array<QueryMessage | CloseMessage>,
+  ws: any,
+  timer: any,
+  timeout: number,
+}
+
+interface Deck {
+  columns: number,
+  focused: ReplCard,
+  cards: Array<ReplCard>,
+}
+
+interface Repl {
+  decks: Array<Deck>,
+  deck: Deck,
+  server: ServerConnection,
 }
 
 function rerender(removeCards?: boolean) {
@@ -170,7 +190,7 @@ function connectToServer() {
   repl.server.ws = ws;
 
   ws.onopen = function(e: Event) {    
-    repl.server.state = ReplState.CONNECTED;
+    repl.server.state = ConnectionState.CONNECTED;
     repl.server.timeout = 0;
     while(repl.server.queue.length > 0) {
       let message = repl.server.queue.shift();
@@ -180,12 +200,12 @@ function connectToServer() {
   }
 
   ws.onerror = function(error) {
-    repl.server.state = ReplState.DISCONNECTED;
+    repl.server.state = ConnectionState.DISCONNECTED;
     rerender()
   }
 
   ws.onclose = function(error) {  
-    repl.server.state = ReplState.DISCONNECTED;
+    repl.server.state = ConnectionState.DISCONNECTED;
     reconnect();
     rerender()
   }
@@ -220,13 +240,12 @@ function connectToServer() {
   };
 }
 
-let checkReconnectInterval = undefined;
 function reconnect() {
-  if(repl.server.state === ReplState.CONNECTED) {
-    clearTimeout(checkReconnectInterval);
-    checkReconnectInterval = undefined;
+  if(repl.server.state === ConnectionState.CONNECTED) {
+    clearTimeout(repl.server.timer);
+    repl.server.timer = undefined;
   } else {
-    checkReconnectInterval = setTimeout(connectToServer, repl.server.timeout * 1000);
+    repl.server.timer = setTimeout(connectToServer, repl.server.timeout * 1000);
   }
   if (repl.server.timeout < 32) {
     repl.server.timeout += repl.server.timeout > 0 ? repl.server.timeout : 1;
@@ -300,8 +319,8 @@ function focusCard(replCard: ReplCard) {
   repl.deck.cards.forEach((r) => r.focused = false);
   replCard.focused = true;
   repl.deck.focused = replCard;
-  let cm = getCodeMirrorInstance(replCard.ix);
-  cm.focus();
+  //let cm = getCodeMirrorInstance(replCard.ix);
+  //cm.focus();
 }
 /*
 function closeModals() {
@@ -541,9 +560,9 @@ function generateCardRootElements() {
 
 function generateStatusBarElement() {
   let indicator = "connecting";
-  if (repl.server.state === ReplState.CONNECTED) {
+  if (repl.server.state === ConnectionState.CONNECTED) {
     indicator = "connected";
-  } else if (repl.server.state === ReplState.DISCONNECTED) {
+  } else if (repl.server.state === ConnectionState.DISCONNECTED) {
     indicator = "disconnected";
   }
   
@@ -574,37 +593,20 @@ let replCards: Deck = {
   cards: [defaultCard],
   focused: defaultCard,
 }  
-focusCard(defaultCard);
 
-interface ServerConnection {
-  ws: any,
-  timer: any,
-  timeout: number,
-}
-
-interface Deck {
-  columns: number,
-  focused: ReplCard,
-  cards: Array<ReplCard>,
-}
-
-interface Repl {
-  decks: Array<Deck>,
-  deck: Deck,
-  server: any,
-}
-
+// Instantiate a repl instance
 let repl: Repl = {
   decks: [replCards],
   deck: replCards,
   server: {
     queue: [],
-    state: ReplState.CONNECTING,
+    state: ConnectionState.CONNECTING,
     ws: null,
     timer: undefined,
     timeout: 0,
-  }
+  },
 };
+focusCard(defaultCard);
 connectToServer();
 app.renderRoots["repl"] = root;
 
