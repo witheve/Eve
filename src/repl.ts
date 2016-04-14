@@ -6,6 +6,10 @@ import {codeMirrorElement} from "./ui";
 let WebSocket = require('ws');
 let uuid = require("uuid");
 
+// ------------------
+// Preamble
+// ------------------
+
 enum CardState {
   NONE,
   GOOD,
@@ -33,7 +37,7 @@ export interface CloseMessage {
 
 interface ReplCard {
   id: string,
-  ix: number,
+  row: number,
   col: number,
   state: CardState,
   focused: boolean,
@@ -62,38 +66,6 @@ interface Repl {
   decks: Array<Deck>,
   deck: Deck,
   server: ServerConnection,
-}
-
-function rerender(removeCards?: boolean) {
-  /*
-  if (removeCards === undefined) {
-    removeCards = false;
-  }
-  // Batch delete closed cards on rerender
-  if (removeCards === true) {
-    let closedCards = replCards.filter((r) => r.state === CardState.CLOSED);
-    if (repl.timer !== undefined) {
-      clearTimeout(repl.timer);
-    }
-    let focusedCard = replCards.filter((r) => r.focused).shift();
-    let focusIx = 0;
-    if (focusedCard !== undefined) {
-      focusIx = focusedCard.ix;
-    }
-    focusedCard = replCards[focusIx + 1 > replCards.length - 1 ? replCards.length - 1 : focusIx + 1];
-    focusCard(focusedCard);
-    repl.timer = setTimeout(() => {
-      for (let card of closedCards) {
-        deleteStoredReplCard(card);
-        replCards.splice(replCards.map((r) => r.id).indexOf(card.id),1);
-      }
-      if (closedCards !== undefined) {
-        replCards.forEach((r,i) => r.ix = i);    
-      }
-      rerender(false);
-    }, 250);
-  }*/
-  app.dispatch("rerender", {}).commit();
 }
 
 // ------------------
@@ -266,10 +238,10 @@ function sendMessage(message): boolean {
 // Card functions
 // ------------------
 
-function newReplCard(col? :number): ReplCard {
+function newReplCard(row?: number, col? :number): ReplCard {
   let replCard: ReplCard = {
     id: uuid(),
-    ix: 0,
+    row: row === undefined ? 0 : row,
     col: col === undefined ? 0 : col,
     state: CardState.NONE,
     focused: false,
@@ -350,14 +322,14 @@ function queryInputKeydown(event, elem) {
   // Catch ctrl + arrow up or page up
   } else if (event.keyCode === 38 && event.ctrlKey === true || event.keyCode === 33) {
     // Set the focus to the previous repl card
-    let previousIx = repl.deck.cards.filter((r) => r.ix < thisReplCard.ix && r.state !== CardState.CLOSED).map((r) => r.ix).pop();
-    previousIx = previousIx === undefined ? 0 : previousIx;
-    focusCard(replCards[previousIx]);
+    //let previousIx = repl.deck.cards.filter((r) => r.ix < thisReplCard.ix && r.state !== CardState.CLOSED).map((r) => r.ix).pop();
+    //previousIx = previousIx === undefined ? 0 : previousIx;
+    //focusCard(replCards[previousIx]);
   // Catch ctrl + arrow down or page down
   } else if (event.keyCode === 40 && event.ctrlKey === true || event.keyCode === 34) {
     // Set the focus to the next repl card
-    let nextIx = thisReplCard.ix + 1 <= repl.deck.cards.length - 1 ? thisReplCard.ix + 1 : repl.deck.cards.length - 1;
-    focusCard(replCards[nextIx]);
+    //let nextIx = thisReplCard.ix + 1 <= repl.deck.cards.length - 1 ? thisReplCard.ix + 1 : repl.deck.cards.length - 1;
+    //focusCard(replCards[nextIx]);
   // Catch ctrl + delete to remove a card
   } else if (event.keyCode === 46 && event.ctrlKey === true) {
     //deleteReplCard(thisReplCard);
@@ -400,7 +372,12 @@ function queryInputKeyup(event, elem) {
 }*/
 
 function replCardClick(event, elem) {
-  focusCard(replCards[elem.ix]);
+  let row = elem.row;
+  let col = elem.col;
+  let clickedCard = repl.deck.cards.filter((r) => r.col === col && r.row === row).pop();
+  if (clickedCard !== undefined) {
+    focusCard(clickedCard);  
+  }
   rerender();
 }
 /*
@@ -452,14 +429,17 @@ function loadCardsClick(event, elem) {
   rerender();
 }*/
 function addColumnClick(event, elem) {
-  let nCard = newReplCard(++repl.deck.columns);
+  let nCard = newReplCard(0,++repl.deck.columns);
   repl.deck.cards.push(nCard);
   focusCard(nCard);
   rerender();
 }
 
 function addCardClick(event, elem) {
-  repl.deck.cards.push(newReplCard(repl.deck.focused.col));
+  let row = repl.deck.cards.filter((r) => r.col === repl.deck.focused.col).length;
+  let nCard = newReplCard(row,repl.deck.focused.col);
+  repl.deck.cards.push(nCard);
+  focusCard(nCard);
   rerender();
 }
 
@@ -475,7 +455,8 @@ function rootClick(event, elem) {
 
 function generateReplCardElement(replCard: ReplCard) { 
   let queryInput = {
-    ix: replCard.ix, 
+    row: replCard.row,
+    col: replCard.col, 
     key: `${replCard.id}${replCard.focused}`, 
     focused: replCard.focused,
     c: "query-input",
@@ -530,7 +511,8 @@ function generateReplCardElement(replCard: ReplCard) {
   
   let replCardElement = {
     id: replCard.id,
-    ix: replCard.ix,
+    row: replCard.row,
+    col: replCard.col,
     c: replClass,
     click: replCardClick,
     children: [codeMirrorElement(queryInput), queryResult],
@@ -548,7 +530,7 @@ function generateCardRootElements() {
   let i;
   for (i = 0; i <= repl.deck.columns; i++) {
     let column = {
-      id: `card-column${i}`,
+      id: `card-column-${i}`,
       c: "card-column",
       ix: i,
       children: repl.deck.cards.filter((r) => r.col === i).map(generateReplCardElement),
@@ -632,4 +614,36 @@ function formListElement(list: Array<any>) {
 function getCodeMirrorInstance(ix: number): CodeMirror.Editor {
   let target = document.querySelectorAll(".query-input");
   return target[ix]["cm"];
+}
+
+function rerender(removeCards?: boolean) {
+  /*
+  if (removeCards === undefined) {
+    removeCards = false;
+  }
+  // Batch delete closed cards on rerender
+  if (removeCards === true) {
+    let closedCards = replCards.filter((r) => r.state === CardState.CLOSED);
+    if (repl.timer !== undefined) {
+      clearTimeout(repl.timer);
+    }
+    let focusedCard = replCards.filter((r) => r.focused).shift();
+    let focusIx = 0;
+    if (focusedCard !== undefined) {
+      focusIx = focusedCard.ix;
+    }
+    focusedCard = replCards[focusIx + 1 > replCards.length - 1 ? replCards.length - 1 : focusIx + 1];
+    focusCard(focusedCard);
+    repl.timer = setTimeout(() => {
+      for (let card of closedCards) {
+        deleteStoredReplCard(card);
+        replCards.splice(replCards.map((r) => r.id).indexOf(card.id),1);
+      }
+      if (closedCards !== undefined) {
+        replCards.forEach((r,i) => r.ix = i);    
+      }
+      rerender(false);
+    }, 250);
+  }*/
+  app.dispatch("rerender", {}).commit();
 }
