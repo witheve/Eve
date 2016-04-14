@@ -167,6 +167,7 @@ function loadCards(event:Event, elem) {
 let repl = { 
   state: ReplState.CONNECTING,
   columns: 0, 
+  focusedCard: undefined,
   blob: undefined, 
   csv: undefined, 
   load: false, 
@@ -313,6 +314,7 @@ function submitReplCard(replCard: ReplCard) {
 function focusCard(replCard: ReplCard) {
   replCards.forEach((r) => r.focused = false);
   replCard.focused = true;
+  repl.focusedCard = replCard;
 }
 
 function closeModals() {
@@ -348,8 +350,8 @@ function queryInputKeydown(event, elem) {
   // Catch ctrl + arrow down or page down
   } else if (event.keyCode === 40 && event.ctrlKey === true || event.keyCode === 34) {
     // Set the focus to the next repl card
-    //let nextIx = thisReplCard.ix + 1 <= replCards.length - 1 ? thisReplCard.ix + 1 : replCards.length - 1;
-    //focusCard(replCards[nextIx]);
+    let nextIx = thisReplCard.ix + 1 <= replCards.length - 1 ? thisReplCard.ix + 1 : replCards.length - 1;
+    focusCard(replCards[nextIx]);
   // Catch ctrl + delete to remove a card
   } else if (event.keyCode === 46 && event.ctrlKey === true) {
     //deleteReplCard(thisReplCard);
@@ -391,11 +393,11 @@ function queryInputKeyup(event, elem) {
   thisReplCard.focused = false;
   rerender();
 }*/
-/*
+
 function replCardClick(event, elem) {
   focusCard(replCards[elem.ix]);
   rerender();
-}*/
+}
 /*
 function deleteAllCards(event, elem) {
   replCards.forEach(deleteReplCard);
@@ -445,12 +447,14 @@ function loadCardsClick(event, elem) {
   rerender();
 }*/
 function addColumnClick(event, elem) {
-  replCards.push(newReplCard(++repl.columns));
+  let nCard = newReplCard(++repl.columns);
+  replCards.push(nCard);
+  
   rerender();
 }
 
 function addCardClick(event, elem) {
-  replCards.push(newReplCard(0));
+  replCards.push(newReplCard(repl.focusedCard.col));
   rerender();
 }
 
@@ -516,12 +520,13 @@ function generateReplCardElement(replCard: ReplCard) {
   }
   
   let queryResult = {c: resultcss, children: [result]};
-  replClass += replCard.focused ? " selected" : "";
+  replClass += replCard.focused ? " focused" : "";
   
   let replCardElement = {
     id: replCard.id,
+    ix: replCard.ix,
     c: replClass,
-    //click: replCardClick,
+    click: replCardClick,
     children: [codeMirrorElement(queryInput), queryResult],
   };   
   return replCardElement;
@@ -539,6 +544,7 @@ function generateCardRootElements() {
     let column = {
       id: `card-column${i}`,
       c: "card-column",
+      ix: i,
       children: replCards.filter((r) => r.col === i).map(generateReplCardElement),
     }
     cardRoot.children.push(column);
@@ -574,6 +580,7 @@ function generateStatusBarElement() {
 let replCards: Array<ReplCard> = [] //loadReplCards();
 replCards.push(newReplCard(0));
 replCards[0].focused = true;
+repl.focusedCard = replCards[0];
 
 function root() {
   let root = {
