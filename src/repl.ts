@@ -161,53 +161,37 @@ function loadCards(event:Event, elem) {
 }*/
 
 // ------------------
-// Repl functions
+// Server functions
 // ------------------
-
-let repl = { 
-  state: ReplState.CONNECTING,
-  columns: 0, 
-  focusedCard: undefined,
-  blob: undefined, 
-  csv: undefined, 
-  load: false, 
-  delete: false, 
-  queue: [], 
-  ws: null, 
-  timer: undefined, 
-  timeout: 0 
-};
-
-app.renderRoots["repl"] = root;
-connectToServer();
 
 function connectToServer() {
   let wsAddress = "ws://localhost:8081";
   let ws: WebSocket = new WebSocket(wsAddress, []);
-  repl.ws = ws;
+  repl.server.ws = ws;
 
   ws.onopen = function(e: Event) {    
-    repl.state = ReplState.CONNECTED;
-    repl.timeout = 0;
-    while(repl.queue.length > 0) {
-      let message = repl.queue.shift();
+    repl.server.state = ReplState.CONNECTED;
+    repl.server.timeout = 0;
+    while(repl.server.queue.length > 0) {
+      let message = repl.server.queue.shift();
       sendMessage(message);
     }
     rerender()
   }
 
   ws.onerror = function(error) {
-    repl.state = ReplState.DISCONNECTED;
+    repl.server.state = ReplState.DISCONNECTED;
     rerender()
   }
 
   ws.onclose = function(error) {  
-    repl.state = ReplState.DISCONNECTED;
+    repl.server.state = ReplState.DISCONNECTED;
     reconnect();
     rerender()
   }
 
   ws.onmessage = function(message) {
+    /*
     let parsed = JSON.parse(message.data);
     // Update the result of the correct repl card
     let targetCard = replCards.filter((r) => r.id === parsed.id).shift();
@@ -229,31 +213,32 @@ function connectToServer() {
           replCards[removeIx].state = CardState.CLOSED;
         }
         rerender(true);
+        
       }
     }
-    rerender()
+    rerender()*/
   };
 }
 
 let checkReconnectInterval = undefined;
 function reconnect() {
-  if(repl.state === ReplState.CONNECTED) {
+  if(repl.server.state === ReplState.CONNECTED) {
     clearTimeout(checkReconnectInterval);
     checkReconnectInterval = undefined;
   } else {
-    checkReconnectInterval = setTimeout(connectToServer, repl.timeout * 1000);
+    checkReconnectInterval = setTimeout(connectToServer, repl.server.timeout * 1000);
   }
-  if (repl.timeout < 32) {
-    repl.timeout += repl.timeout > 0 ? repl.timeout : 1;
+  if (repl.server.timeout < 32) {
+    repl.server.timeout += repl.server.timeout > 0 ? repl.server.timeout : 1;
   }
 }
 
 function sendMessage(message): boolean {
-  if (repl.ws.readyState === repl.ws.OPEN) {
-    repl.ws.send(JSON.stringify(message));
+  if (repl.server.ws.readyState === repl.server.ws.OPEN) {
+    repl.server.ws.send(JSON.stringify(message));
     return true;  
   } else {
-    repl.queue.push(message);
+    repl.server.queue.push(message);
     return false;
   }
 }
@@ -265,7 +250,7 @@ function sendMessage(message): boolean {
 function newReplCard(col? :number): ReplCard {
   let replCard: ReplCard = {
     id: uuid(),
-    ix: replCards.length > 0 ? replCards.map((r) => r.ix).pop() + 1 : 0,
+    ix: 0,
     col: col === undefined ? 0 : col,
     state: CardState.NONE,
     focused: false,
@@ -284,7 +269,7 @@ function deleteReplCard(replCard: ReplCard) {
     sendMessage(closemessage);
     replCard.state = CardState.PENDING;
     replCard.result = "Deleting card...";
-  } 
+  }
 }*/
 
 function submitReplCard(replCard: ReplCard) {
@@ -303,25 +288,27 @@ function submitReplCard(replCard: ReplCard) {
     }
   }
   // Create a new card if we submitted the last one in replCards
-  if (replCard.ix === replCards.length - 1) {
+  /*if (replCard.ix === repl.deck.cards.length - 1) {
     let nReplCard = newReplCard();
-    replCards.forEach((r) => r.focused = false);
+    repl.deck.cards.forEach((r) => r.focused = false);
     nReplCard.focused = true;
-    replCards.push(nReplCard);
-  }
+    repl.deck.cards.push(nReplCard);
+  }*/
 }
 
 function focusCard(replCard: ReplCard) {
-  replCards.forEach((r) => r.focused = false);
+  repl.deck.cards.forEach((r) => r.focused = false);
   replCard.focused = true;
-  repl.focusedCard = replCard;
+  repl.deck.focused = replCard;
+  let cm = getCodeMirrorInstance(replCard.ix);
+  cm.focus();
 }
-
+/*
 function closeModals() {
   repl.blob = undefined;
   repl.delete = false;
   repl.load = false;
-}
+}*/
 
 // ------------------
 // Event handlers
@@ -344,13 +331,13 @@ function queryInputKeydown(event, elem) {
   // Catch ctrl + arrow up or page up
   } else if (event.keyCode === 38 && event.ctrlKey === true || event.keyCode === 33) {
     // Set the focus to the previous repl card
-    //let previousIx = replCards.filter((r) => r.ix < thisReplCard.ix && r.state !== CardState.CLOSED).map((r) => r.ix).pop();
-    //previousIx = previousIx === undefined ? 0 : previousIx;
-    //focusCard(replCards[previousIx]);
+    let previousIx = repl.deck.cards.filter((r) => r.ix < thisReplCard.ix && r.state !== CardState.CLOSED).map((r) => r.ix).pop();
+    previousIx = previousIx === undefined ? 0 : previousIx;
+    focusCard(replCards[previousIx]);
   // Catch ctrl + arrow down or page down
   } else if (event.keyCode === 40 && event.ctrlKey === true || event.keyCode === 34) {
     // Set the focus to the next repl card
-    let nextIx = thisReplCard.ix + 1 <= replCards.length - 1 ? thisReplCard.ix + 1 : replCards.length - 1;
+    let nextIx = thisReplCard.ix + 1 <= repl.deck.cards.length - 1 ? thisReplCard.ix + 1 : repl.deck.cards.length - 1;
     focusCard(replCards[nextIx]);
   // Catch ctrl + delete to remove a card
   } else if (event.keyCode === 46 && event.ctrlKey === true) {
@@ -382,8 +369,7 @@ function setSelection(start: number, stop: number) {
 
 function queryInputKeyup(event, elem) {
   let thisReplCard = replCards[elem.ix];
-  let target = document.querySelectorAll(".query-input");
-  let cm: CodeMirror.Editor = target[elem.ix]["cm"];  
+  let cm = getCodeMirrorInstance(elem.ix);
   thisReplCard.query = cm.getValue();
   //submitReplCard(thisReplCard);
 }
@@ -447,21 +433,22 @@ function loadCardsClick(event, elem) {
   rerender();
 }*/
 function addColumnClick(event, elem) {
-  let nCard = newReplCard(++repl.columns);
-  replCards.push(nCard);
-  
+  let nCard = newReplCard(++repl.deck.columns);
+  repl.deck.cards.push(nCard);
+  focusCard(nCard);
   rerender();
 }
 
 function addCardClick(event, elem) {
-  replCards.push(newReplCard(repl.focusedCard.col));
+  repl.deck.cards.push(newReplCard(repl.deck.focused.col));
   rerender();
 }
 
+/*
 function rootClick(event, elem) {
   closeModals();
   rerender();
-}
+}*/
 
 // ------------------
 // Element generation
@@ -540,13 +527,13 @@ function generateCardRootElements() {
   }
   // Build each column and add it to the card root
   let i;
-  for (i = 0; i <= repl.columns; i++) {
+  for (i = 0; i <= repl.deck.columns; i++) {
     let column = {
       id: `card-column${i}`,
       c: "card-column",
       ix: i,
-      children: replCards.filter((r) => r.col === i).map(generateReplCardElement),
-    }
+      children: repl.deck.cards.filter((r) => r.col === i).map(generateReplCardElement),
+    };
     cardRoot.children.push(column);
   }
   return cardRoot;
@@ -554,9 +541,9 @@ function generateCardRootElements() {
 
 function generateStatusBarElement() {
   let indicator = "connecting";
-  if (repl.state === ReplState.CONNECTED) {
+  if (repl.server.state === ReplState.CONNECTED) {
     indicator = "connected";
-  } else if (repl.state === ReplState.DISCONNECTED) {
+  } else if (repl.server.state === ReplState.DISCONNECTED) {
     indicator = "disconnected";
   }
   
@@ -576,18 +563,57 @@ function generateStatusBarElement() {
   return statusBar;
 }
 
+// -----------------
+// Entry point
+// -----------------
+
 // Create an initial repl card
-let replCards: Array<ReplCard> = [] //loadReplCards();
-replCards.push(newReplCard(0));
-replCards[0].focused = true;
-repl.focusedCard = replCards[0];
+let defaultCard = newReplCard();
+let replCards: Deck = {
+  columns: 0,
+  cards: [defaultCard],
+  focused: defaultCard,
+}  
+focusCard(defaultCard);
+
+interface ServerConnection {
+  ws: any,
+  timer: any,
+  timeout: number,
+}
+
+interface Deck {
+  columns: number,
+  focused: ReplCard,
+  cards: Array<ReplCard>,
+}
+
+interface Repl {
+  decks: Array<Deck>,
+  deck: Deck,
+  server: any,
+}
+
+let repl: Repl = {
+  decks: [replCards],
+  deck: replCards,
+  server: {
+    queue: [],
+    state: ReplState.CONNECTING,
+    ws: null,
+    timer: undefined,
+    timeout: 0,
+  }
+};
+connectToServer();
+app.renderRoots["repl"] = root;
 
 function root() {
   let root = {
     id: "repl",
     c: "repl",
     children: [generateStatusBarElement(), generateCardRootElements()],
-    click: rootClick,
+    //click: rootClick,
   };  
   return root;
 }
@@ -599,4 +625,9 @@ function root() {
 function formListElement(list: Array<any>) {
   let li = list.map((e) => {return {t: "li", children: [e]};});
   return {t: "ul", children: li};  
+}
+
+function getCodeMirrorInstance(ix: number): CodeMirror.Editor {
+  let target = document.querySelectorAll(".query-input");
+  return target[ix]["cm"];
 }
