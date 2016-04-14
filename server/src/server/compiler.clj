@@ -249,7 +249,7 @@
         [input output] (partition-2 (fn [x] (is-bound? env x)) proj)
         tail-name (str name "-cont")
         done (generate-send env m name input)]
-    
+
     (make-bind env inner-env name
                (apply build
                       (map-indexed
@@ -260,7 +260,7 @@
                                                                 (fn [] (generate-send-cont env m cenv tail-name output)))) m))]
                           body)
                        arms)))
-    
+
     (doseq [name output]
       (allocate-register env name))
     (make-continuation env tail-name (build (term env 'join m (count arms)) (down)))
@@ -300,7 +300,7 @@
     (db/for-each-implication (get @env 'db) relname
                              (fn [parameters body]
                                (swap! arms conj (army parameters body (count @arms)))))
-    
+
     (if (= (count @arms) 0)
       (compile-error (str "primitive " relname " not supported") {'relname relname}))
 
@@ -335,8 +335,23 @@
      (term env (first terms) m (:return argmap) (:a argmap) (map #(lookup env %1) grouping))
      (down))))
 
+(defn compile-sort [env terms down]
+  (let [grouping (get @env 'input [])
+        m (meta (first terms))
+        argmap (apply hash-map (rest terms))]
+    (when-not (lookup env (:pairs argmap))
+      (compile-error (str "unhandled bound signature in" terms) {:env env :terms terms}))
+    (when-not (lookup env (:return argmap))
+      (allocate-register env (:return argmap)))
+    (build
+     (term env (first terms) m
+           (:return argmap)
+           (map (fn [[var dir]] [(lookup env var) (lookup env dir)]) (:pairs argmap))
+           (map #(lookup env %1) grouping))
+     (down))))
+
 (defn compile-equal [env terms down]
- 
+
   (let [argmap (apply hash-map (rest terms))
         simple [(argmap :a) (argmap :b)]
         a (is-bound? env (argmap :a))
@@ -382,7 +397,7 @@
                   '- compile-simple-primitive
                   '< generate-binary-filter
                   '> generate-binary-filter
-                  'sort compile-simple-primitive ;; ascending and descending
+                  'sort compile-sort
                   'sum compile-sum
 
                   'str compile-simple-primitive
