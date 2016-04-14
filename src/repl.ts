@@ -20,9 +20,14 @@ enum ReplState {
   CONNECTING,
 }
 
-export interface Query {
+export interface QueryMessage {
   type: string,
   query: string,
+  id: string,
+}
+
+export interface CloseMessage {
+  type: string,
   id: string,
 }
 
@@ -282,7 +287,7 @@ function deleteReplCard(replCard: ReplCard) {
 }*/
 
 function submitReplCard(replCard: ReplCard) {
-  let query: Query = {
+  let query: QueryMessage = {
     id: replCard.id,
     type: "query",
     query: replCard.query.replace(/\s+/g,' '),
