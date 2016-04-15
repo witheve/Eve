@@ -287,6 +287,12 @@ function submitReplCard(replCard: ReplCard) {
   }*/
 }
 
+function addCardToColumn(col: number) {
+  let row = repl.deck.cards.filter((r) => r.col === col).length;
+  let nCard = newReplCard(row, col);
+  repl.deck.cards.push(nCard);
+}
+
 function focusCard(replCard: ReplCard) {
   if (replCard !== undefined) {
     repl.deck.cards.forEach((r) => r.focused = false);
@@ -352,7 +358,14 @@ function queryInputKeydown(event, elem) {
       let rowsInNextCol = repl.deck.cards.filter((r) => r.col === thisReplCard.col + 1).length - 1;
       rightReplCard = getReplCard(rowsInNextCol, thisReplCard.col + 1);
       focusCard(rightReplCard);
-    }    
+    }
+  // Catch ctrl + +
+  } else if (event.keyCode === 187 && event.ctrlKey === true) {
+    addCardToColumn(thisReplCard.col);
+  // Catch ctrl + r
+  } else if (event.keyCode === 82 && event.ctrlKey === true) {
+    let nCard = newReplCard(0,++repl.deck.columns);
+    repl.deck.cards.push(nCard);
   // Catch ctrl + delete to remove a card
   } else if (event.keyCode === 46 && event.ctrlKey === true) {
     //deleteReplCard(thisReplCard);
@@ -386,6 +399,17 @@ function queryInputKeyup(event, elem) {
   //let cm = getCodeMirrorInstance(elem.ix);
   //thisReplCard.query = cm.getValue();
   //submitReplCard(thisReplCard);
+}
+
+function queryInputBlur(event, elem) {
+  repl.deck.cards.map((r) => r.focused = false);
+  rerender();
+}
+
+function queryInputFocus(event, elem) {
+  let focusedCard = elemToReplCard(elem);
+  focusCard(focusedCard);
+  rerender();
 }
 
 /*function queryInputBlur(event, elem) {
@@ -452,15 +476,11 @@ function loadCardsClick(event, elem) {
 function addColumnClick(event, elem) {
   let nCard = newReplCard(0,++repl.deck.columns);
   repl.deck.cards.push(nCard);
-  focusCard(nCard);
   rerender();
 }
 
 function addCardClick(event, elem) {
-  let row = repl.deck.cards.filter((r) => r.col === repl.deck.focused.col).length;
-  let nCard = newReplCard(row,repl.deck.focused.col);
-  repl.deck.cards.push(nCard);
-  focusCard(nCard);
+  addCardToColumn(repl.deck.focused.col);
   rerender();
 }
 
@@ -486,9 +506,10 @@ function generateReplCardElement(replCard: ReplCard) {
     //spellcheck: false,
     //text: replCard.query,
     keydown: queryInputKeydown, 
-    //blur: queryInputBlur, 
-    keyup: queryInputKeyup,    
-    //postRender: focusQueryBox, 
+    blur: queryInputBlur, 
+    focus: queryInputFocus,
+    keyup: queryInputKeyup,
+    //postRender: focusQueryBox,
     matchBrackets: true,
     lineNumbers: false,
   };
@@ -618,7 +639,6 @@ function root() {
     id: "repl",
     c: "repl",
     children: [generateStatusBarElement(), generateCardRootElements()],
-    //click: rootClick,
   };  
   return root;
 }
