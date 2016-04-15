@@ -280,7 +280,7 @@ function submitReplCard(replCard: ReplCard) {
   let sent = sendMessage(query);
   if (replCard.result === undefined) {
     if (sent) {
-      replCard.result = "Waiting on response from server...";
+      replCard.result = "Waiting for response...";
     } else {
       replCard.result = "Message queued.";
     }
@@ -407,8 +407,8 @@ function queryInputKeydown(event, elem) {
 }
 
 function queryInputBlur(event, elem) {
-  repl.deck.cards.map((r) => r.focused = false);
-  rerender();
+  //repl.deck.cards.map((r) => r.focused = false);
+  //rerender();
 }
 
 function queryInputFocus(event, elem) {
@@ -500,7 +500,13 @@ function queryResultDoubleClick(event, elem) {
   let card = elemToReplCard(elem);
   card.display = card.display === CardDisplay.BOTH ? CardDisplay.RESULT : CardDisplay.BOTH;
   event.preventDefault(); 
-  focusCard(card);
+  rerender();
+}
+
+function queryInputDoubleClick(event, elem) {
+  let card = elemToReplCard(elem);
+  card.display = card.display === CardDisplay.BOTH ? CardDisplay.QUERY : CardDisplay.BOTH;
+  event.preventDefault(); 
   rerender();
 }
 
@@ -520,7 +526,7 @@ function generateReplCardElement(replCard: ReplCard) {
     col: replCard.col, 
     key: `${replCard.id}${replCard.focused}`, 
     focused: replCard.focused,
-    c: `query-input ${replCard.display === CardDisplay.RESULT ? "hidden" : ""}`,
+    c: `query-input ${replCard.display === CardDisplay.RESULT ? "hidden" : ""} ${replCard.display === CardDisplay.QUERY ? "stretch" : ""}`,
     value: replCard.query,
     //contentEditable: true,
     //spellcheck: false,
@@ -530,12 +536,13 @@ function generateReplCardElement(replCard: ReplCard) {
     focus: queryInputFocus,
     //postRender: focusQueryBox,
     change: queryInputChange,
+    dblclick: queryInputDoubleClick,
     matchBrackets: true,
     lineNumbers: false,
   };
   
   // Set the css according to the card state
-  let resultcss = "query-result"; 
+  let resultcss = `query-result ${replCard.display === CardDisplay.QUERY ? "hidden" : ""}`;
   let result = undefined;
   let replClass = "repl-card";
   // Format card based on state
