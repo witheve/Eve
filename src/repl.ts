@@ -264,7 +264,8 @@ function deleteReplCard(replCard: ReplCard) {
 }*/
 
 function submitReplCard(replCard: ReplCard) {
-  let query: QueryMessage = {
+  console.log(replCard.query);
+  /*let query: QueryMessage = {
     id: replCard.id,
     type: "query",
     query: replCard.query.replace(/\s+/g,' '),
@@ -277,7 +278,7 @@ function submitReplCard(replCard: ReplCard) {
     } else {
       replCard.result = "Message queued.";
     }
-  }
+  }*/
   // Create a new card if we submitted the last one in replCards
   /*if (replCard.ix === repl.deck.cards.length - 1) {
     let nReplCard = newReplCard();
@@ -322,12 +323,11 @@ function closeModals() {
 
 // Register some global event handlers on the window
 window.onkeydown = function(event) {
-  console.log(event);
   // Catch ctrl + r
   if (event.keyCode === 82 && event.ctrlKey === true) {
     addColumn();
-  // Catch ctrl + n
-  } else if (event.keyCode === 78 && event.ctrlKey === true) {
+  // Catch ctrl + e
+  } else if (event.keyCode === 69 && event.ctrlKey === true) {
     addCardToColumn(repl.deck.focused.col);
   } else {
     return;
@@ -341,15 +341,6 @@ function queryInputKeydown(event, elem) {
   // Submit the query with ctrl + enter
   if ((event.keyCode === 13 || event.keyCode === 83) && event.ctrlKey === true) {
     submitReplCard(thisReplCard);
-  // Catch tab
-  /*
-  } else if (event.keyCode === 9) {
-    let range = getSelection(event.target);
-    //let value = event.target.innerText;
-    //value = value.substring(0, range[0]) + "  " + value.substring(range[1]);
-    //event.target.innerHTML = value;
-    //setSelection(range[0] + 2,range[0] + 2);
-  */
   // Catch ctrl + arrow up or page up
   } else if (event.keyCode === 38 && event.ctrlKey === true || event.keyCode === 33) {
     // Set the focus to the previous repl card
@@ -394,25 +385,6 @@ function queryInputKeydown(event, elem) {
   }
   event.preventDefault();
   rerender();
-}
-/*
-function getSelection(editableDiv): Array<number> {
-  let sel: any = window.getSelection();
-  let range = [sel.baseOffset, sel.extentOffset];
-  range = range.sort();
-  return range;
-}*/
-/*
-function setSelection(start: number, stop: number) {
-  let sel = window.getSelection();
-  sel.setBaseAndExtent(sel.anchorNode, start, sel.anchorNode, stop);
-}*/
-
-function queryInputKeyup(event, elem) {
-  //let thisReplCard = replCards[elem.ix];
-  //let cm = getCodeMirrorInstance(elem.ix);
-  //thisReplCard.query = cm.getValue();
-  //submitReplCard(thisReplCard);
 }
 
 function queryInputBlur(event, elem) {
@@ -498,6 +470,13 @@ function addCardClick(event, elem) {
   rerender();
 }
 
+function queryInputChange(event, elem) {
+  //let thisReplCard = replCards[elem.ix];
+  //let cm = getCodeMirrorInstance(elem.ix);
+  //thisReplCard.query = cm.getValue();
+  //submitReplCard(thisReplCard);
+}
+
 /*
 function rootClick(event, elem) {
   closeModals();
@@ -522,8 +501,8 @@ function generateReplCardElement(replCard: ReplCard) {
     keydown: queryInputKeydown, 
     blur: queryInputBlur, 
     focus: queryInputFocus,
-    keyup: queryInputKeyup,
     //postRender: focusQueryBox,
+    
     matchBrackets: true,
     lineNumbers: false,
   };
@@ -629,7 +608,7 @@ let defaultCard = newReplCard();
 let replCards: Deck = {
   columns: 0,
   cards: [defaultCard],
-  focused: undefined,
+  focused: defaultCard,
 }  
 
 // Instantiate a repl instance
