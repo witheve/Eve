@@ -288,11 +288,15 @@ function submitReplCard(replCard: ReplCard) {
 }
 
 function focusCard(replCard: ReplCard) {
-  repl.deck.cards.forEach((r) => r.focused = false);
-  replCard.focused = true;
-  repl.deck.focused = replCard;
-  //let cm = getCodeMirrorInstance(replCard.ix);
-  //cm.focus();
+  if (replCard !== undefined) {
+    repl.deck.cards.forEach((r) => r.focused = false);
+    replCard.focused = true;
+    repl.deck.focused = replCard;
+    let cm = getCodeMirrorInstance(replCard);
+    if (cm !== undefined) {
+      cm.focus(); 
+    }
+  }
 }
 /*
 function closeModals() {
@@ -306,7 +310,7 @@ function closeModals() {
 // ------------------
 
 function queryInputKeydown(event, elem) {
-  let thisReplCard = replCards[elem.ix];
+  let thisReplCard: ReplCard = elemToReplCard(elem);
   // Submit the query with ctrl + enter
   if ((event.keyCode === 13 || event.keyCode === 83) && event.ctrlKey === true) {
     submitReplCard(thisReplCard);
@@ -322,14 +326,13 @@ function queryInputKeydown(event, elem) {
   // Catch ctrl + arrow up or page up
   } else if (event.keyCode === 38 && event.ctrlKey === true || event.keyCode === 33) {
     // Set the focus to the previous repl card
-    //let previousIx = repl.deck.cards.filter((r) => r.ix < thisReplCard.ix && r.state !== CardState.CLOSED).map((r) => r.ix).pop();
-    //previousIx = previousIx === undefined ? 0 : previousIx;
-    //focusCard(replCards[previousIx]);
+    let previousReplCard = getReplCard(thisReplCard.row - 1, thisReplCard.col);
+    focusCard(previousReplCard);
   // Catch ctrl + arrow down or page down
   } else if (event.keyCode === 40 && event.ctrlKey === true || event.keyCode === 34) {
     // Set the focus to the next repl card
-    //let nextIx = thisReplCard.ix + 1 <= repl.deck.cards.length - 1 ? thisReplCard.ix + 1 : repl.deck.cards.length - 1;
-    //focusCard(replCards[nextIx]);
+    let nextReplCard = getReplCard(thisReplCard.row + 1, thisReplCard.col);
+    focusCard(nextReplCard);
   // Catch ctrl + delete to remove a card
   } else if (event.keyCode === 46 && event.ctrlKey === true) {
     //deleteReplCard(thisReplCard);
@@ -359,9 +362,9 @@ function setSelection(start: number, stop: number) {
 }*/
 
 function queryInputKeyup(event, elem) {
-  let thisReplCard = replCards[elem.ix];
-  let cm = getCodeMirrorInstance(elem.ix);
-  thisReplCard.query = cm.getValue();
+  //let thisReplCard = replCards[elem.ix];
+  //let cm = getCodeMirrorInstance(elem.ix);
+  //thisReplCard.query = cm.getValue();
   //submitReplCard(thisReplCard);
 }
 
@@ -372,9 +375,7 @@ function queryInputKeyup(event, elem) {
 }*/
 
 function replCardClick(event, elem) {
-  let row = elem.row;
-  let col = elem.col;
-  let clickedCard = repl.deck.cards.filter((r) => r.col === col && r.row === row).pop();
+  let clickedCard = elemToReplCard(elem);
   if (clickedCard !== undefined) {
     focusCard(clickedCard);  
   }
@@ -611,9 +612,26 @@ function formListElement(list: Array<any>) {
   return {t: "ul", children: li};  
 }
 
-function getCodeMirrorInstance(ix: number): CodeMirror.Editor {
-  let target = document.querySelectorAll(".query-input");
-  return target[ix]["cm"];
+function getCodeMirrorInstance(replCard: ReplCard): CodeMirror.Editor {
+  let targets = document.querySelectorAll(".query-input");
+  for (let i = 0; i < targets.length; i++) {
+    let target = targets[i];
+    if (target.parentElement["_id"] === replCard.id) {
+      return target["cm"];     
+    }
+  }  
+  return undefined;
+}
+
+function elemToReplCard(elem): ReplCard {
+  if (elem.col !== undefined && elem.row !== undefined) {
+    return repl.deck.cards.filter((r) => r.col === elem.col && r.row === elem.row).pop();  
+  }
+  return undefined;
+} 
+
+function getReplCard(row: number, col: number): ReplCard {
+  return repl.deck.cards.filter((r) => r.row === row && r.col === col).pop();
 }
 
 function rerender(removeCards?: boolean) {
