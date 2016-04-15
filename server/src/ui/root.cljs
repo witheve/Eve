@@ -288,11 +288,13 @@
 
 (defmethod get-autocompleter-options :value [_ value]
   (concat (when (and value (not= value ""))
-            (if-let [matches (matching-names value)]
-              (for [[k v] matches]
-                {:text v :adornment "link" :action :link :value k})
+            (concat
+              (if-let [matches (matching-names value)]
+                (for [[k v] matches]
+                  {:text v :adornment "link" :action :link :value k}))
               [{:text value :adornment "create" :action :create :value value}]))
           (match-autocomplete-options [{:text "Table" :adornment "insert" :action :insert :value :table}
+                                       {:text "Code" :adornment "insert" :action :insert :value :code}
                                        {:text "Image" :adornment "insert" :action :insert :value :image}
                                        {:text "Text" :adornment "insert" :action :insert :value :text}
                                        {:text "Chart" :adornment "insert" :action :insert :value :chart}
@@ -370,7 +372,8 @@
         {:keys [grid-id]} cell]
     (when (= key-code (KEYS :enter))
       (-> event (.-currentTarget) (.-parentNode)
-          (.. (querySelector ".value") (focus))))
+          (.. (querySelector ".value") (focus)))
+      (.preventDefault event))
       (let [intermediate-property (get-state grid-id :intermediate-property)
             selected (get-selected-autocomplete-option :property intermediate-property (get-state grid-id :autocomplete-selection 0))]
         (when (not= (:text selected) intermediate-property)
@@ -398,7 +401,7 @@
             (cond
               (= action :insert) (do
                                    (update-entity! context (:id cell) {:property (get-state grid-id :intermediate-property (:property cell))
-                                                                       :value (:value selected)})
+                                                                       :type (:value selected)})
                                    (clear-intermediates! context grid-id))
               (or (= action :create)
                   (= action :link)) (let [value-id (if (= action :link)
@@ -422,7 +425,7 @@
 (defn store-intermediate [event elem]
   (let [{:keys [cell field id]} (.-info elem)
         grid-id (:grid-id cell)
-        value (-> (.-currentTarget event) (.-value))]
+        value (or (.-value event) (-> (.-currentTarget event) (.-value)))]
     (transaction context
       (update-state! context grid-id :autocomplete-selection 0)
       (update-state! context grid-id (keyword (str "intermediate-" (name field))) value))))
@@ -514,7 +517,97 @@
            (array property-element
                   (text :style (style :font-size "12pt"
                                       :margin "3px 0 0 8px")
-                        :text type))))))
+                        :text (name type)))))))
+
+;;---------------------------------------------------------
+;; Code cell
+;;---------------------------------------------------------
+
+(defn codemirror-keys [node key elem]
+  (let [{:keys [cell id]} (.-info elem)
+        {:keys [grid-id]} cell]
+    ;;  In Excel, shift-enter is just like enter but in the upward direction, so if shift
+    ;;  is pressed then we move back up to the property field.
+    (when (= key :shift-enter)
+        (-> node (.-parentNode)
+            (.. (querySelector ".property") (focus))))
+    (when (= key :enter)
+      ;; otherwise we submit this cell and move down
+      (transaction context
+                   (let [value (get-state grid-id :intermediate-value (:value cell))]
+                     (update-entity! context (:id cell) {:property (get-state grid-id :intermediate-property (:property cell))
+                                                         :value value})
+                     (clear-intermediates! context grid-id)
+                     (update-state! context grid-id :active-cell nil)
+                     (move-selection! context grid-id :down)))
+      (log (.querySelector js/document (str "." grid-id " .keyhandler")))
+      (.focus (.querySelector js/document (str "." grid-id " .keyhandler"))))
+    (when (= key :escape)
+      (transaction context
+                   (clear-intermediates! context grid-id)
+                   (update-state! context grid-id :active-cell nil)))))
+
+(defn transfer-focus-to-codemirror [event elem]
+  (.focus (.-_editor (.-currentTarget event))))
+
+(defn codemirror-postrender [node elem]
+  (let [{:keys [focused?]} (.-info elem)]
+    (when-not (.-_editor node)
+      (let [editor (new js/CodeMirror node
+                        #js {:mode "clojure"
+                             :extraKeys #js {:Shift-Enter (fn []
+                                                            (codemirror-keys node :shift-enter elem))
+                                             :Cmd-Enter (fn []
+                                                          (codemirror-keys node :enter elem))
+                                             :Esc (fn []
+                                                    (codemirror-keys node :escape elem))
+                                             }})]
+        (.on editor "change" (fn []
+                               (store-intermediate #js{:value (.getValue editor)} elem)))
+        (.on editor "focus" (fn []
+                              (set! (.-focused editor) true)))
+        (.on editor "blur" (fn []
+                              (set! (.-focused editor) false)))
+        (.setValue editor (or (.-value elem) ""))
+        (.clearHistory editor)
+        (set! (.-_editor node) editor)
+        (when focused?
+          (.focus editor))))
+    (let [editor (.-_editor node)]
+      (when (and (not (.-focused editor)) focused?)
+        (.focus editor))
+      )))
+
+(defmethod draw-cell :code [cell active?]
+  (let [grid-id (:grid-id cell)
+        current-focus (get-state grid-id :focus (if-not (:property cell)
+                                                  :property
+                                                  :value))
+        property-element (draw-property cell active?)]
+    (box :style (style :flex "1")
+         :children
+           (array property-element
+                  (elem :style (style :font-size "12pt"
+                                      :color "#CCC"
+                                      :flex "1 0 auto"
+                                      :background "none"
+                                      :border "none"
+                                      :margin "0px 0 0 8px")
+                        :postRender codemirror-postrender
+                        :focus transfer-focus-to-codemirror
+                        :tabindex "-1"
+                        ; :input store-intermediate
+                        ; :keydown value-keys
+                        :c (str "value" (if (and (= current-focus :value)
+                                                 active?)
+                                          " focused"
+                                          ""))
+                        :info {:cell cell :field :value :id (:id cell) :focused? (and active? (= current-focus :value))}
+                        :placeholder "value"
+                        :value (or  (get-state grid-id :intermediate-value) (for-display (:value cell))))
+                  (when (and active? (= :property current-focus))
+                    (autocompleter :property (or (get-state grid-id :intermediate-property) (:property cell) "")  (get-state grid-id :autocomplete-selection 0))))
+  )))
 
 ;;---------------------------------------------------------
 ;; Grid
@@ -988,7 +1081,7 @@
                                          :background "transparent"
                                          :color "transparent")))
     (elem :children children
-          :c (str "noselect " (when-not active-cell "focused"))
+          :c (str (:id info) " noselect " (when-not active-cell "focused"))
           :info info
           :tabindex -1
           :focus transfer-focus-to-keyhandler

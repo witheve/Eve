@@ -1,7 +1,15 @@
 body { background: #000; }
 div { display:flex; outline:none; flex-direction:column; }
 
-button, input { background:none; border:none; margin:0; padding:0; outline:none; font-family:inherit; color: inherit; text-align:left; line-height:inherity; font-size:inherit; }
+button, input, textarea { background:none; border:none; margin:0; padding:0; outline:none; font-family:inherit; color: inherit; text-align:left; line-height:inherity; font-size:inherit; }
+
+.CodeMirror { flex:1; height:auto; }
+.CodeMirror-scroll { height:auto; }
+
+.cm-s-default { background:none; color: #ccc; }
+.cm-s-default .cm-string { color: #999; }
+.cm-s-default .cm-number { color: #999; }
+.cm-s-default .cm-atom { color: #999; }
 
 ::-webkit-input-placeholder {
    color: #777;
