@@ -40,6 +40,11 @@ html, body {
 .repl-card {
   display: flex;
   margin-bottom: 10px;
+  border: 1px solid rgba(0,0,0,0);
+}
+
+.focused {
+  border: 1px solid rgb(65, 161, 221);
 }
 
 .query-input {
