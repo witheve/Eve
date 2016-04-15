@@ -49,12 +49,13 @@ html, body {
 
 .query-input {
   width: 300px;
+  padding: 10px;
   background-color: rgb(50,50,50);
 }
 
 .query-result {
   background-color: rgb(40,40,40);
-  margin-left: 10px;
+  min-height: 200px;
   padding: 10px;
   flex-grow: 1;
 }
@@ -85,7 +86,7 @@ li {
   border-radius: 4px;
   cursor: pointer;
   font-size: 14px;
-  height: 14px;
+  min-height: 14px;
   padding: 5px 10px 5px 10px;
   min-width: 5px;
   text-align: center;
@@ -125,7 +126,7 @@ li {
 /* CodeMirror style overrides */
 
 .CodeMirror {
-  max-height: 200px;
+  height: 200px;
   color: rgb(200,200,200);
   background-color: rgba(0,0,0,0);
   cursor: text;
@@ -139,6 +140,16 @@ li {
 
 .CodeMirror-selected {
 
+}
+
+/* Switches */
+
+.hidden {
+  display: none;
+}
+
+.stretch {
+  flex-grow: 1;
 }
 
 /* Misc */
