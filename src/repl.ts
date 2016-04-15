@@ -310,6 +310,7 @@ function closeModals() {
 // ------------------
 
 function queryInputKeydown(event, elem) {
+  console.log(event);
   let thisReplCard: ReplCard = elemToReplCard(elem);
   // Submit the query with ctrl + enter
   if ((event.keyCode === 13 || event.keyCode === 83) && event.ctrlKey === true) {
@@ -333,6 +334,14 @@ function queryInputKeydown(event, elem) {
     // Set the focus to the next repl card
     let nextReplCard = getReplCard(thisReplCard.row + 1, thisReplCard.col);
     focusCard(nextReplCard);
+  // Catch ctrl + arrow left
+  } else if (event.keyCode === 37 && event.ctrlKey === true) {
+    let leftReplCard = getReplCard(thisReplCard.row, thisReplCard.col - 1);
+    focusCard(leftReplCard)
+  // Catch ctrl + arrow right
+  } else if (event.keyCode === 39 && event.ctrlKey === true) {
+    let rightReplCard = getReplCard(thisReplCard.row, thisReplCard.col + 1);
+    focusCard(rightReplCard)
   // Catch ctrl + delete to remove a card
   } else if (event.keyCode === 46 && event.ctrlKey === true) {
     //deleteReplCard(thisReplCard);
