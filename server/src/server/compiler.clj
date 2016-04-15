@@ -216,7 +216,7 @@
     (make-continuation env tail-name (down))
     (make-bind env inner-env name body)
     (apply build
-           (when (not= (count input) 0) (apply term env 'delta-c m input))
+           (when-not (zero? (count input)) (apply term env 'delta-c m input))
            (list (generate-send env m name input)))))
 
 (defn compile-union [env terms down]
