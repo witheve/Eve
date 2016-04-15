@@ -24,6 +24,12 @@ enum ConnectionState {
   CONNECTING,
 }
 
+enum CardDisplay {
+  QUERY,
+  RESULT,
+  BOTH,  
+}
+
 export interface QueryMessage {
   type: string,
   query: string,
@@ -46,6 +52,7 @@ interface ReplCard {
     fields: Array<string>,
     values: Array<Array<any>>,
   } | string;
+  display: CardDisplay,
 }
 
 interface ServerConnection {
@@ -183,10 +190,9 @@ function connectToServer() {
   }
 
   ws.onmessage = function(message) {
-    /*
     let parsed = JSON.parse(message.data);
     // Update the result of the correct repl card
-    let targetCard = replCards.filter((r) => r.id === parsed.id).shift();
+    let targetCard = repl.deck.cards.filter((r) => r.id === parsed.id).shift();
     if (targetCard !== undefined) {
       if (parsed.type === "result") {
         targetCard.state = CardState.GOOD;
@@ -200,7 +206,7 @@ function connectToServer() {
         targetCard.result = parsed.cause;
         //saveReplCard(targetCard);
       } else if (parsed.type === "close") {
-        let removeIx = replCards.map((r) => r.id).indexOf(parsed.id);
+        let removeIx = repl.deck.cards.map((r) => r.id).indexOf(parsed.id);
         if (removeIx >= 0) {
           replCards[removeIx].state = CardState.CLOSED;
         }
@@ -208,7 +214,7 @@ function connectToServer() {
         
       }
     }
-    rerender()*/
+    rerender()
   };
 }
 
@@ -247,6 +253,7 @@ function newReplCard(row?: number, col? :number): ReplCard {
     focused: false,
     query: "",
     result: undefined,
+    display: CardDisplay.BOTH,
   }
   return replCard;
 }
@@ -264,8 +271,7 @@ function deleteReplCard(replCard: ReplCard) {
 }*/
 
 function submitReplCard(replCard: ReplCard) {
-  console.log(replCard.query);
-  /*let query: QueryMessage = {
+  let query: QueryMessage = {
     id: replCard.id,
     type: "query",
     query: replCard.query.replace(/\s+/g,' '),
@@ -278,7 +284,7 @@ function submitReplCard(replCard: ReplCard) {
     } else {
       replCard.result = "Message queued.";
     }
-  }*/
+  }
   // Create a new card if we submitted the last one in replCards
   /*if (replCard.ix === repl.deck.cards.length - 1) {
     let nReplCard = newReplCard();
@@ -299,14 +305,26 @@ function addCardToColumn(col: number) {
   repl.deck.cards.push(nCard);
 }
 
+function blurCard(replCard: ReplCard) {
+  replCard.focused = false;
+  let cm = getCodeMirrorInstance(replCard);
+  if (cm !== undefined) {
+    cm.getInputField().blur();
+  }
+}
+
 function focusCard(replCard: ReplCard) {
+  if (repl.deck.focused.id !== replCard.id) {
+   blurCard(repl.deck.focused);    
+  }
+  
   if (replCard !== undefined) {
     repl.deck.cards.forEach((r) => r.focused = false);
     replCard.focused = true;
     repl.deck.focused = replCard;
     let cm = getCodeMirrorInstance(replCard);
     if (cm !== undefined) {
-      cm.focus(); 
+      cm.focus();
     }
   }
 }
@@ -323,26 +341,9 @@ function closeModals() {
 
 // Register some global event handlers on the window
 window.onkeydown = function(event) {
-  // Catch ctrl + r
-  if (event.keyCode === 82 && event.ctrlKey === true) {
-    addColumn();
-  // Catch ctrl + e
-  } else if (event.keyCode === 69 && event.ctrlKey === true) {
-    addCardToColumn(repl.deck.focused.col);
-  } else {
-    return;
-  }
-  event.preventDefault();
-  rerender();
-}
-
-function queryInputKeydown(event, elem) {
-  let thisReplCard: ReplCard = elemToReplCard(elem);
-  // Submit the query with ctrl + enter
-  if ((event.keyCode === 13 || event.keyCode === 83) && event.ctrlKey === true) {
-    submitReplCard(thisReplCard);
+  let thisReplCard = repl.deck.focused;
   // Catch ctrl + arrow up or page up
-  } else if (event.keyCode === 38 && event.ctrlKey === true || event.keyCode === 33) {
+  if (event.keyCode === 38 && event.ctrlKey === true || event.keyCode === 33) {
     // Set the focus to the previous repl card
     let previousReplCard = getReplCard(thisReplCard.row - 1, thisReplCard.col);
     focusCard(previousReplCard);
@@ -371,6 +372,24 @@ function queryInputKeydown(event, elem) {
       rightReplCard = getReplCard(rowsInNextCol, thisReplCard.col + 1);
       focusCard(rightReplCard);
     }
+  // Catch ctrl + r
+  } else if (event.keyCode === 82 && event.ctrlKey === true) {
+    addColumn();
+  // Catch ctrl + e
+  } else if (event.keyCode === 69 && event.ctrlKey === true) {
+    addCardToColumn(repl.deck.focused.col);
+  } else {
+    return;
+  }
+  event.preventDefault();
+  rerender();
+}
+
+function queryInputKeydown(event, elem) {
+  let thisReplCard: ReplCard = elemToReplCard(elem);
+  // Submit the query with ctrl + enter
+  if ((event.keyCode === 13 || event.keyCode === 83) && event.ctrlKey === true) {
+    submitReplCard(thisReplCard);
   // Catch ctrl + delete to remove a card
   } else if (event.keyCode === 46 && event.ctrlKey === true) {
     //deleteReplCard(thisReplCard);
@@ -471,10 +490,18 @@ function addCardClick(event, elem) {
 }
 
 function queryInputChange(event, elem) {
-  //let thisReplCard = replCards[elem.ix];
-  //let cm = getCodeMirrorInstance(elem.ix);
-  //thisReplCard.query = cm.getValue();
+  let card = elemToReplCard(elem);
+  let cm = getCodeMirrorInstance(card);
+  card.query = cm.getValue();
   //submitReplCard(thisReplCard);
+}
+
+function queryResultDoubleClick(event, elem) {
+  let card = elemToReplCard(elem);
+  card.display = card.display === CardDisplay.BOTH ? CardDisplay.RESULT : CardDisplay.BOTH;
+  event.preventDefault(); 
+  focusCard(card);
+  rerender();
 }
 
 /*
@@ -493,7 +520,7 @@ function generateReplCardElement(replCard: ReplCard) {
     col: replCard.col, 
     key: `${replCard.id}${replCard.focused}`, 
     focused: replCard.focused,
-    c: "query-input",
+    c: `query-input ${replCard.display === CardDisplay.RESULT ? "hidden" : ""}`,
     value: replCard.query,
     //contentEditable: true,
     //spellcheck: false,
@@ -502,7 +529,7 @@ function generateReplCardElement(replCard: ReplCard) {
     blur: queryInputBlur, 
     focus: queryInputFocus,
     //postRender: focusQueryBox,
-    
+    change: queryInputChange,
     matchBrackets: true,
     lineNumbers: false,
   };
@@ -541,7 +568,13 @@ function generateReplCardElement(replCard: ReplCard) {
     result = {text: `Query closed.`};
   }
   
-  let queryResult = {c: resultcss, children: [result]};
+  let queryResult = {
+    c: resultcss, 
+    row: replCard.row,
+    col: replCard.col,
+    children: [result],
+    dblclick: queryResultDoubleClick,
+  };
   replClass += replCard.focused ? " focused" : "";
   
   let replCardElement = {
@@ -550,6 +583,7 @@ function generateReplCardElement(replCard: ReplCard) {
     col: replCard.col,
     c: replClass,
     click: replCardClick,
+    mousedown: function(event) {event.preventDefault();},
     children: [codeMirrorElement(queryInput), queryResult],
   };   
   return replCardElement;
