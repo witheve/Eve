@@ -15,6 +15,7 @@
    [clojure.pprint :refer [pprint]]))
 
 (def clients (atom {}))
+(def server (atom nil))
 
 (def DEBUG true)
 (def bag (atom 10))
@@ -35,10 +36,12 @@
 
 (defn send-result [channel id fields results]
   (let [client (get @clients channel)
+        {inserts 'insert removes 'remove} (group-by #(get %1 0) results)
         message {"type" "result"
                  "id" id
                  "fields" fields
-                 "values" results}]
+                 "insert" (map rest inserts)
+                 "remove" (map rest removes)}]
     (httpserver/send! channel (format-json message))
     (when DEBUG
       (println "<- result" id "to" (:id client) "@" (timestamp))
@@ -62,12 +65,13 @@
 
 (defn start-query [db query id channel]
   (let [fields (or (second query) [])
+        store-width (inc (count fields))
         results (atom ())
         [form fields]  (repl/form-from-smil query)
         prog (compiler/compile-dsl db @bag form)
         handler (fn [tuple]
                   (condp = (exec/rget tuple exec/op-register)
-                    'insert (swap! results conj (vec tuple))
+                    'insert (swap! results conj (vec (take store-width tuple)))
                     'flush (do (send-result channel id fields @results)
                                (reset! results '()))
                     'error (send-error channel id (ex-info "Failure to WEASL" {:data (str tuple)}))))
@@ -119,16 +123,19 @@
      (swap! clients dissoc channel))))
 
 (defn serve-static [request channel]
-  (let [base-path (str (.getCanonicalPath (java.io.File. ".")) "/../")]
+  (let [base-path (str (.getCanonicalPath (java.io.File. ".")) "/../")
+        response ((-> (fn [req] ; Horrible, horrible rewrite hack
+                        (if (= "repl" (second (string/split (request :uri) #"/")))
+                          {:status 200 :headers {"Content-Type" "text/html"} :body (slurp (str base-path "/repl.html"))}
+                          {:status 404}))
+                      (wrap-file base-path)
+                      (wrap-content-type))
+                  request)
+        response (if (and (:body response) (= (type (:body response)) java.io.File))
+                   (assoc response :body (slurp (:body response)))
+                   response)]
     (println "Serving" (:uri request))
-    (httpserver/send! channel
-                      ((-> (fn [req] ; Horrible, horrible rewrite hack
-                             (if (= "repl" (second (string/split (request :uri) #"/")))
-                               {:status 200 :headers {"Content-Type" "text/html"} :body (slurp (str base-path "/repl.html"))}
-                               {:status 404}))
-                           (wrap-file base-path)
-                           (wrap-content-type))
-                       request))))
+    (httpserver/send! channel response)))
 
 (defn async-handler [db content]
   (fn [request]
@@ -140,8 +147,6 @@
 
 (import '[java.io PushbackReader])
 (require '[clojure.java.io :as io])
-
-(def server (atom nil))
 
 (defn serve [db port]
   (println (str "Serving on localhost:" port "/repl"))

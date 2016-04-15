@@ -111,7 +111,6 @@
        (doseq [i @state] (c2 (object-array (cons op (i 0))))))]))
      
        
-
 (defn donot [d terms build c]
   (let [count (atom 0)
         on (atom false)
