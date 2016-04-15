@@ -1,7 +1,7 @@
 (ns server.exec
   (:require [server.edb :as edb]
             [clojure.test :as test]
-            [server.avl :as avl]
+            ;[server.avl :as avl]
             [clojure.pprint :refer [pprint cl-format]]))
 
 (def basic-register-frame 10)
@@ -223,13 +223,6 @@
         (c r)))))
 
 
-(defn dosort [d terms build c]
-  (fn [r]
-    (let [state (avl/sorted-map)]
-      (condp = (rget r op-register)
-        'insert (conj state terms)
-        'remove (disj state terms)))))
-
 (defn sum [d terms build c]
   (let [totals (atom {})
         prevs (atom {})]
@@ -273,7 +266,6 @@
               (reverse sorting)))))
 
 (defn get-sorted-ix [coll sorting value]
-  (println "COLL" coll "SORTING" sorting "VALUE" value)
   (if (or (nil? coll) (empty? coll))
     0
     (let [compare (make-comparator sorting)]
@@ -282,7 +274,6 @@
         (let [other (get coll ix)
               delta (compare value other)
               half (quot bounds 2)]
-          (println "LOOP" "H" bounds "IX" ix  "VALUE" value "OTHER" other "DELTA" delta)
           (if-not (zero? bounds)
             (if (> delta 0)
               (recur half
@@ -295,7 +286,7 @@
               ix
               (inc ix))))))))
 
-(defn sort-facts [d terms build c]
+(defn dosort [d terms build c]
   (let [ordinals (atom {})
         prevs (atom {})]
     (fn [r]
@@ -306,16 +297,19 @@
             grouping (if-not (zero? (count grouping-slots))
                        (map #(rget r %1) grouping-slots)
                        (list 'default))]
+        (println)
         (if (or (= op 'flush) (= op 'close))
           (c r)
           (swap!
            ordinals update-in grouping
            (fn [cur]
-             (println "RESORTING" cur "ON" sorting-slots "AROUND" r)
+             (println)
+             (println)
+             (println "SORTING" cur "ON" sorting-slots "AROUND" r)
              (condp = op
                'insert (let [ix (get-sorted-ix cur sorting-slots r)
                              [prefix suffix] (split-at ix cur)
-                             cur (concat prefix r suffix)]
+                             cur (concat prefix [r] suffix)]
                          (rset r out-slot ix)
                          (c r)
                          (doseq [ix (range (inc ix) (count cur))]
@@ -335,7 +329,7 @@
                          (doseq [ix (range ix (count cur))]
                            (let [r (get cur ix)]
                              (rset r op-register 'remove)
-                             (C r)
+                             (c r)
                              (rset r op-register 'insert)
                              (rset r out-slot ix)
                              (c r)))
